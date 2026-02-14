@@ -27,16 +27,16 @@ Consumers of the manifest include:
 }
 ```
 
-| Field        | Type                          | Description                            |
-|--------------|-------------------------------|----------------------------------------|
-| `version`    | `string`                      | Manifest format version (semver).      |
+| Field        | Type                              | Description                          |
+| ------------ | --------------------------------- | ------------------------------------ |
+| `version`    | `string`                          | Manifest format version (semver).    |
 | `procedures` | `Record<string, ProcedureSchema>` | Map of procedure name to its schema. |
 
 Each `ProcedureSchema` has:
 
-| Field    | Type        | Description                                    |
-|----------|-------------|------------------------------------------------|
-| `input`  | `JTDSchema` | JTD schema for the request body. Empty `{}` means no input. |
+| Field    | Type        | Description                                                              |
+| -------- | ----------- | ------------------------------------------------------------------------ |
+| `input`  | `JTDSchema` | JTD schema for the request body. Empty `{}` means no input.              |
 | `output` | `JTDSchema` | JTD schema for the response body. Empty `{}` means no structured output. |
 
 ## Procedure Naming
@@ -77,19 +77,19 @@ A primitive type value.
 
 Supported `type` values:
 
-| JTD type      | JSON representation | Notes                  |
-|---------------|---------------------|------------------------|
-| `boolean`     | `true` / `false`    |                        |
-| `string`      | JSON string         |                        |
-| `timestamp`   | JSON string         | RFC 3339 format        |
-| `float32`     | JSON number         | 32-bit float           |
-| `float64`     | JSON number         | 64-bit float           |
-| `int8`        | JSON number         | -128 to 127            |
-| `uint8`       | JSON number         | 0 to 255               |
-| `int16`       | JSON number         | -32768 to 32767        |
-| `uint16`      | JSON number         | 0 to 65535             |
-| `int32`       | JSON number         | -2^31 to 2^31-1        |
-| `uint32`      | JSON number         | 0 to 2^32-1            |
+| JTD type    | JSON representation | Notes           |
+| ----------- | ------------------- | --------------- |
+| `boolean`   | `true` / `false`    |                 |
+| `string`    | JSON string         |                 |
+| `timestamp` | JSON string         | RFC 3339 format |
+| `float32`   | JSON number         | 32-bit float    |
+| `float64`   | JSON number         | 64-bit float    |
+| `int8`      | JSON number         | -128 to 127     |
+| `uint8`     | JSON number         | 0 to 255        |
+| `int16`     | JSON number         | -32768 to 32767 |
+| `uint16`    | JSON number         | 0 to 65535      |
+| `int32`     | JSON number         | -2^31 to 2^31-1 |
+| `uint32`    | JSON number         | 0 to 2^32-1     |
 
 ### Enum
 
@@ -176,10 +176,12 @@ Returns the full procedure manifest as `application/json`.
 Executes a procedure.
 
 **Request**:
+
 - Content-Type: `application/json`
 - Body: JSON matching the procedure's `input` schema.
 
 **Response** (success):
+
 - Status: `200`
 - Content-Type: `application/json`
 - Body: JSON matching the procedure's `output` schema.
@@ -199,11 +201,11 @@ All error responses use a consistent envelope:
 
 ### Error Codes
 
-| Code               | HTTP Status | Meaning                                |
-|--------------------|-------------|----------------------------------------|
-| `VALIDATION_ERROR` | 400         | Request body failed input validation.  |
-| `NOT_FOUND`        | 404         | Procedure name not found in manifest.  |
-| `INTERNAL_ERROR`   | 500         | Unhandled error in procedure handler.  |
+| Code               | HTTP Status | Meaning                               |
+| ------------------ | ----------- | ------------------------------------- |
+| `VALIDATION_ERROR` | 400         | Request body failed input validation. |
+| `NOT_FOUND`        | 404         | Procedure name not found in manifest. |
+| `INTERNAL_ERROR`   | 500         | Unhandled error in procedure handler. |
 
 ## Complete Example
 
