@@ -6,6 +6,7 @@ import { getUser } from "./procedures/get-user.js";
 import { listUsers } from "./procedures/list-users.js";
 
 const router = createRouter({ greet, getUser, listUsers });
-const server = serveBun(router, { port: 3000 });
+const port = Number(process.env.PORT) || 3000;
+const server = serveBun(router, { port });
 
 console.log(`Seam TS backend running on http://localhost:${server.port}`);
