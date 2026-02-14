@@ -14,5 +14,8 @@ const router = createRouter(
   { pages: { "/user/:id": userPage } },
 );
 const port = Number(process.env.PORT) || 3000;
+// Dev mode: pass fallback + wsProxy to proxy non-seam requests to a frontend dev server
+// import { createDevProxy } from "@canmi/seam-server";
+// serveNode(router, { port, fallback: createDevProxy({ target: "http://localhost:5173" }), wsProxy: "ws://localhost:5173" });
 serveNode(router, { port });
 console.log(`Seam Node backend running on http://localhost:${port}`);

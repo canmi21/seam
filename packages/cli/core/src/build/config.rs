@@ -5,6 +5,7 @@ use anyhow::{bail, Result};
 use crate::config::SeamConfig;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct BuildConfig {
   pub bundler_command: String,
   pub bundler_manifest: String,

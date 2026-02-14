@@ -16,7 +16,12 @@ struct ChildProcess {
   child: tokio::process::Child,
 }
 
-fn spawn_child(label: &'static str, command: &str, base_dir: &Path, port: Option<u16>) -> Result<ChildProcess> {
+fn spawn_child(
+  label: &'static str,
+  command: &str,
+  base_dir: &Path,
+  port: Option<u16>,
+) -> Result<ChildProcess> {
   let mut cmd = Command::new("sh");
   cmd.args(["-c", command]);
   cmd.current_dir(base_dir);
@@ -59,12 +64,31 @@ async fn pipe_output(proc: &mut ChildProcess) {
   }
 }
 
+/// Wait for any child process to exit, return its label and exit status
+async fn wait_any(
+  children: &mut [ChildProcess],
+) -> (&'static str, Result<std::process::ExitStatus, std::io::Error>) {
+  // Poll all children concurrently; first to exit wins
+  loop {
+    for child in children.iter_mut() {
+      match child.child.try_wait() {
+        Ok(Some(status)) => return (child.label, Ok(status)),
+        Ok(None) => {}
+        Err(e) => return (child.label, Err(e)),
+      }
+    }
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+  }
+}
+
 pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   let backend_cmd = config.backend.dev_command.as_deref();
   let frontend_cmd = config.frontend.dev_command.as_deref();
 
   if backend_cmd.is_none() && frontend_cmd.is_none() {
-    bail!("no dev_command configured in seam.toml (set backend.dev_command or frontend.dev_command)");
+    bail!(
+      "no dev_command configured in seam.toml (set backend.dev_command or frontend.dev_command)"
+    );
   }
 
   // Print banner
@@ -79,12 +103,10 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
     let port_suffix = config.frontend.dev_port.map_or(String::new(), |p| format!(" :{p}"));
     println!("  frontend  {cmd}{port_suffix}");
   }
-  if backend_cmd.is_some() && config.frontend.dev_port.is_some() {
-    println!(
-      "  proxy     :{} \u{2192} :{}",
-      config.backend.port,
-      config.frontend.dev_port.unwrap()
-    );
+  if backend_cmd.is_some() {
+    if let Some(fp) = config.frontend.dev_port {
+      println!("  proxy     :{} \u{2192} :{fp}", config.backend.port);
+    }
   }
   println!();
   println!("  \u{2192} http://localhost:{}", config.backend.port);
@@ -110,13 +132,7 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
       println!();
       println!("  shutting down...");
     }
-    result = async {
-      for child in &mut children {
-        let status = child.child.wait().await;
-        return (child.label, status);
-      }
-      unreachable!()
-    } => {
+    result = wait_any(&mut children) => {
       let (label, status) = result;
       match status {
         Ok(s) if s.success() => println!("  [{label}] exited"),

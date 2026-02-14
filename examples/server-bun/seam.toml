@@ -1,0 +1,7 @@
+[project]
+name = "server-bun-example"
+
+[backend]
+lang = "typescript"
+dev_command = "bun --watch src/index.ts"
+port = 3000

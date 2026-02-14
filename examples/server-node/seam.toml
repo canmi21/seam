@@ -1,0 +1,7 @@
+[project]
+name = "server-node-example"
+
+[backend]
+lang = "typescript"
+dev_command = "node --watch-path=src src/index.ts"
+port = 3000
