@@ -11,6 +11,8 @@ pub struct BuildConfig {
   pub routes: String,
   #[serde(rename = "outDir")]
   pub out_dir: String,
+  // Kept for future use; framework renderer type (e.g. "react")
+  #[allow(dead_code)]
   pub renderer: String,
 }
 

@@ -86,8 +86,7 @@ fn replace_one_conditional(input: &str, data: &Value) -> Option<String> {
       let inner_start = m.end();
       let full_end = inner_start + endif_pos + endif_tag.len();
       let span = full_end - m.start();
-      let is_smaller =
-        innermost.as_ref().map_or(true, |prev| span < prev.full_end - prev.full_start);
+      let is_smaller = innermost.as_ref().is_none_or(|prev| span < prev.full_end - prev.full_start);
       if is_smaller {
         innermost = Some(CondMatch {
           full_start: m.start(),
