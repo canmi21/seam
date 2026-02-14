@@ -9,19 +9,16 @@ export function MessageList() {
   const [text, setText] = useState("");
   const listRef = useRef<HTMLUListElement>(null);
 
-  // Fetch initial messages
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ["messages"],
     queryFn: getMessages,
   });
 
-  // Mutation to add a message
   const mutation = useMutation({
     mutationFn: (newText: string) => addMessage(newText),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["messages"] }),
   });
 
-  // SSE subscription: append new messages to the query cache
   useEffect(() => {
     const unsub = subscribeMessages((msg: Message) => {
       queryClient.setQueryData<Message[]>(["messages"], (old = []) => {
@@ -32,7 +29,6 @@ export function MessageList() {
     return unsub;
   }, [queryClient]);
 
-  // Auto-scroll on new messages
   useEffect(() => {
     listRef.current?.scrollTo(0, listRef.current.scrollHeight);
   }, [messages]);
@@ -45,37 +41,59 @@ export function MessageList() {
     setText("");
   };
 
-  if (isLoading) return <p>Loading...</p>;
+  if (isLoading) {
+    return <p className="p-8 text-sm text-neutral-400">Loading...</p>;
+  }
 
   return (
-    <div>
-      <h1>SeamJS Message Board</h1>
-      <p style={{ color: "#888" }}>
+    <div className="mx-auto max-w-xl px-4 py-10">
+      <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
+        Message Board
+      </h1>
+      <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
         RPC query + mutation via TanStack Query, real-time SSE subscription
       </p>
 
-      <ul ref={listRef} style={{ maxHeight: 400, overflow: "auto", padding: 0, listStyle: "none" }}>
+      <ul
+        ref={listRef}
+        className="mt-6 max-h-96 divide-y divide-neutral-100 overflow-y-auto dark:divide-neutral-800"
+      >
         {messages.map((m) => (
-          <li key={m.id} style={{ padding: "4px 0", borderBottom: "1px solid #eee" }}>
-            <time style={{ color: "#999", fontSize: 12 }}>
+          <li key={m.id} className="flex items-baseline gap-3 py-2.5">
+            <time className="shrink-0 text-[11px] tabular-nums text-neutral-400 dark:text-neutral-500">
               {new Date(m.createdAt).toLocaleTimeString()}
-            </time>{" "}
-            {m.text}
+            </time>
+            <span className="text-sm text-neutral-800 dark:text-neutral-200">{m.text}</span>
           </li>
         ))}
       </ul>
 
-      <form onSubmit={handleSubmit} style={{ marginTop: 12, display: "flex", gap: 8 }}>
+      <form onSubmit={handleSubmit} className="mt-4 flex gap-2">
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Type a message..."
-          style={{ flex: 1, padding: "6px 10px" }}
+          className="flex-1 rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-sm
+            text-neutral-900 outline-none placeholder:text-neutral-400
+            focus:border-neutral-400 focus:ring-1 focus:ring-neutral-400
+            dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-100
+            dark:placeholder:text-neutral-500 dark:focus:border-neutral-500
+            dark:focus:ring-neutral-500"
         />
-        <button type="submit" disabled={mutation.isPending}>
+        <button
+          type="submit"
+          disabled={mutation.isPending}
+          className="rounded-md bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white
+            hover:bg-neutral-800 disabled:opacity-40
+            dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200"
+        >
           Send
         </button>
       </form>
+
+      <p className="mt-6 text-center text-[11px] text-neutral-400 dark:text-neutral-500">
+        Powered by SeamJS + Hono + TanStack Query
+      </p>
     </div>
   );
 }
