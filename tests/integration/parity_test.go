@@ -14,7 +14,7 @@ func TestManifestParity(t *testing.T) {
 
 	manifests := make([]string, len(backends))
 	for i, b := range backends {
-		raw := fetchRaw(t, b.BaseURL+"/seam/manifest.json")
+		raw := fetchRaw(t, b.BaseURL+"/_seam/manifest.json")
 		manifests[i] = normalizeJSON(t, raw)
 	}
 
@@ -52,7 +52,7 @@ func TestRPCParity(t *testing.T) {
 			statuses := make([]int, len(backends))
 
 			for i, b := range backends {
-				status, raw := postJSONRaw(t, b.BaseURL+"/seam/rpc/"+tc.proc, tc.payload)
+				status, raw := postJSONRaw(t, b.BaseURL+"/_seam/rpc/"+tc.proc, tc.payload)
 				statuses[i] = status
 				responses[i] = normalizeJSON(t, raw)
 			}
@@ -95,7 +95,7 @@ func TestErrorCodeParity(t *testing.T) {
 			codes := make([]string, len(backends))
 
 			for i, b := range backends {
-				_, body := postJSON(t, b.BaseURL+"/seam/rpc/"+tc.proc, tc.payload)
+				_, body := postJSON(t, b.BaseURL+"/_seam/rpc/"+tc.proc, tc.payload)
 				errObj, ok := body["error"].(map[string]any)
 				if !ok {
 					t.Fatalf("%s: no error envelope", backends[i].Name)

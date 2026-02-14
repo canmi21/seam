@@ -54,11 +54,11 @@ function sentinelToSlots(html: string): string {
 
 function wrapDocument(skeleton: string, css: string[], js: string[]): string {
   let doc = '<!DOCTYPE html>\n<html>\n<head>\n    <meta charset="utf-8">\n';
-  for (const f of css) doc += `    <link rel="stylesheet" href="/seam/assets/${f}">\n`;
+  for (const f of css) doc += `    <link rel="stylesheet" href="/_seam/static/${f}">\n`;
   doc += '</head>\n<body>\n    <div id="__SEAM_ROOT__">';
   doc += skeleton;
   doc += "</div>\n";
-  for (const f of js) doc += `    <script type="module" src="/seam/assets/${f}"></script>\n`;
+  for (const f of js) doc += `    <script type="module" src="/_seam/static/${f}"></script>\n`;
   doc += "</body>\n</html>";
   return doc;
 }

@@ -28,7 +28,7 @@ describe("createClient", () => {
       const result = await client.call("greet", { name: "Alice" });
 
       expect(result).toEqual({ message: "Hello" });
-      expect(fetch).toHaveBeenCalledWith("http://localhost:3000/seam/rpc/greet", {
+      expect(fetch).toHaveBeenCalledWith("http://localhost:3000/_seam/rpc/greet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: "Alice" }),
@@ -122,7 +122,7 @@ describe("createClient", () => {
       await client.call("greet", {});
 
       expect(fetch).toHaveBeenCalledWith(
-        "http://localhost:3000/seam/rpc/greet",
+        "http://localhost:3000/_seam/rpc/greet",
         expect.any(Object),
       );
     });
@@ -137,7 +137,7 @@ describe("createClient", () => {
       const result = await client.fetchManifest();
 
       expect(result).toEqual(manifest);
-      expect(fetch).toHaveBeenCalledWith("http://localhost:3000/seam/manifest.json");
+      expect(fetch).toHaveBeenCalledWith("http://localhost:3000/_seam/manifest.json");
     });
 
     it("throws SeamClientError on error response", async () => {

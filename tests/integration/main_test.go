@@ -95,7 +95,7 @@ func TestMain(m *testing.M) {
 		for time.Now().Before(deadline) {
 			allUp := true
 			for _, b := range backends {
-				resp, err := http.Get(b.BaseURL + "/seam/manifest.json")
+				resp, err := http.Get(b.BaseURL + "/_seam/manifest.json")
 				if err != nil || resp.StatusCode != 200 {
 					allUp = false
 					break

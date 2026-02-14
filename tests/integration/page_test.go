@@ -53,7 +53,7 @@ func TestPageEndpoint(t *testing.T) {
 		b := b
 		t.Run(b.Name, func(t *testing.T) {
 			t.Run("user id=1", func(t *testing.T) {
-				status, html := getHTML(t, b.BaseURL+"/seam/page/user/1")
+				status, html := getHTML(t, b.BaseURL+"/_seam/page/user/1")
 				if status != 200 {
 					t.Fatalf("status = %d, want 200", status)
 				}
@@ -81,7 +81,7 @@ func TestPageEndpoint(t *testing.T) {
 			})
 
 			t.Run("user id=2", func(t *testing.T) {
-				status, html := getHTML(t, b.BaseURL+"/seam/page/user/2")
+				status, html := getHTML(t, b.BaseURL+"/_seam/page/user/2")
 				if status != 200 {
 					t.Fatalf("status = %d, want 200", status)
 				}
@@ -98,14 +98,14 @@ func TestPageEndpoint(t *testing.T) {
 			})
 
 			t.Run("user id=999", func(t *testing.T) {
-				status, _ := getHTML(t, b.BaseURL+"/seam/page/user/999")
+				status, _ := getHTML(t, b.BaseURL+"/_seam/page/user/999")
 				if status == 200 {
 					t.Error("expected non-200 for missing user")
 				}
 			})
 
 			t.Run("no-JS first paint", func(t *testing.T) {
-				_, html := getHTML(t, b.BaseURL+"/seam/page/user/1")
+				_, html := getHTML(t, b.BaseURL+"/_seam/page/user/1")
 				stripped := stripSeamData(html)
 				if !strings.Contains(stripped, "Alice") {
 					t.Error("'Alice' not visible outside __SEAM_DATA__ script")
@@ -125,7 +125,7 @@ func TestPageParity(t *testing.T) {
 	t.Run("user id=1 HTML parity", func(t *testing.T) {
 		htmls := make([]string, len(backends))
 		for i, b := range backends {
-			_, html := getHTML(t, b.BaseURL+"/seam/page/user/1")
+			_, html := getHTML(t, b.BaseURL+"/_seam/page/user/1")
 			htmls[i] = stripSeamData(html)
 		}
 
@@ -142,7 +142,7 @@ func TestPageParity(t *testing.T) {
 	t.Run("user id=1 data parity", func(t *testing.T) {
 		datas := make([]string, len(backends))
 		for i, b := range backends {
-			_, html := getHTML(t, b.BaseURL+"/seam/page/user/1")
+			_, html := getHTML(t, b.BaseURL+"/_seam/page/user/1")
 			raw := extractSeamData(t, html)
 			j, err := json.Marshal(raw)
 			if err != nil {

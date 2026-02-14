@@ -141,13 +141,13 @@ pub fn apply_conditionals(html: &str, mut blocks: Vec<ConditionalBlock>) -> Stri
 pub fn wrap_document(skeleton: &str, css_files: &[String], js_files: &[String]) -> String {
   let css_links: String = css_files
     .iter()
-    .map(|f| format!(r#"<link rel="stylesheet" href="/seam/assets/{f}">"#))
+    .map(|f| format!(r#"<link rel="stylesheet" href="/_seam/static/{f}">"#))
     .collect::<Vec<_>>()
     .join("\n    ");
 
   let js_scripts: String = js_files
     .iter()
-    .map(|f| format!(r#"<script type="module" src="/seam/assets/{f}"></script>"#))
+    .map(|f| format!(r#"<script type="module" src="/_seam/static/{f}"></script>"#))
     .collect::<Vec<_>>()
     .join("\n    ");
 
@@ -248,9 +248,9 @@ mod tests {
   fn wraps_with_assets() {
     let result = wrap_document("<p>Hello</p>", &["style-abc.css".into()], &["main-xyz.js".into()]);
     assert!(result.starts_with("<!DOCTYPE html>"));
-    assert!(result.contains(r#"<link rel="stylesheet" href="/seam/assets/style-abc.css">"#));
+    assert!(result.contains(r#"<link rel="stylesheet" href="/_seam/static/style-abc.css">"#));
     assert!(result.contains("<div id=\"__SEAM_ROOT__\"><p>Hello</p></div>"));
-    assert!(result.contains(r#"<script type="module" src="/seam/assets/main-xyz.js">"#));
+    assert!(result.contains(r#"<script type="module" src="/_seam/static/main-xyz.js">"#));
     assert!(result.ends_with("</body>\n</html>"));
   }
 

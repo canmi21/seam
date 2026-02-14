@@ -48,7 +48,7 @@ export function createClient(opts: ClientOptions): SeamClient {
 
   return {
     call(procedureName, input) {
-      return request(`${baseUrl}/seam/rpc/${procedureName}`, {
+      return request(`${baseUrl}/_seam/rpc/${procedureName}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -56,7 +56,7 @@ export function createClient(opts: ClientOptions): SeamClient {
     },
 
     fetchManifest() {
-      return request(`${baseUrl}/seam/manifest.json`);
+      return request(`${baseUrl}/_seam/manifest.json`);
     },
   };
 }

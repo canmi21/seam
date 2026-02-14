@@ -23,15 +23,15 @@ afterAll(() => {
 });
 
 describe("adapter-bun", () => {
-  it("GET /seam/manifest.json returns manifest", async () => {
-    const res = await fetch(`${base}/seam/manifest.json`);
+  it("GET /_seam/manifest.json returns manifest", async () => {
+    const res = await fetch(`${base}/_seam/manifest.json`);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.procedures.greet).toBeDefined();
   });
 
-  it("POST /seam/rpc/greet with valid input returns 200", async () => {
-    const res = await fetch(`${base}/seam/rpc/greet`, {
+  it("POST /_seam/rpc/greet with valid input returns 200", async () => {
+    const res = await fetch(`${base}/_seam/rpc/greet`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "Alice" }),
@@ -41,8 +41,8 @@ describe("adapter-bun", () => {
     expect(body).toEqual({ message: "Hello, Alice!" });
   });
 
-  it("POST /seam/rpc/greet with invalid input returns 400", async () => {
-    const res = await fetch(`${base}/seam/rpc/greet`, {
+  it("POST /_seam/rpc/greet with invalid input returns 400", async () => {
+    const res = await fetch(`${base}/_seam/rpc/greet`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: 123 }),
@@ -52,8 +52,8 @@ describe("adapter-bun", () => {
     expect(body.error.code).toBe("VALIDATION_ERROR");
   });
 
-  it("POST /seam/rpc/unknown returns 404", async () => {
-    const res = await fetch(`${base}/seam/rpc/unknown`, {
+  it("POST /_seam/rpc/unknown returns 404", async () => {
+    const res = await fetch(`${base}/_seam/rpc/unknown`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -64,7 +64,7 @@ describe("adapter-bun", () => {
   });
 
   it("POST non-JSON body returns 400", async () => {
-    const res = await fetch(`${base}/seam/rpc/greet`, {
+    const res = await fetch(`${base}/_seam/rpc/greet`, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: "not json",
@@ -82,7 +82,7 @@ describe("adapter-bun", () => {
   });
 
   it("empty procedure name returns 404", async () => {
-    const res = await fetch(`${base}/seam/rpc/`, {
+    const res = await fetch(`${base}/_seam/rpc/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -110,7 +110,7 @@ describe("adapter-bun staticDir", () => {
     staticServer = serveBun(router, { port: 0, staticDir });
     staticBase = `http://localhost:${staticServer.port}`;
 
-    const res = await fetch(`${staticBase}/seam/assets/app-abc.js`);
+    const res = await fetch(`${staticBase}/_seam/static/app-abc.js`);
     expect(res.status).toBe(200);
     const text = await res.text();
     expect(text).toBe("console.log('app')");

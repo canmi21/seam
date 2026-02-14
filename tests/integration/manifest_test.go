@@ -11,7 +11,7 @@ func TestManifest(t *testing.T) {
 	for _, b := range backends {
 		b := b
 		t.Run(b.Name, func(t *testing.T) {
-			url := b.BaseURL + "/seam/manifest.json"
+			url := b.BaseURL + "/_seam/manifest.json"
 
 			t.Run("status and content type", func(t *testing.T) {
 				resp, err := http.Get(url)

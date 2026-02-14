@@ -165,13 +165,13 @@ additionally accept `null`.
 
 ## HTTP Endpoints
 
-### GET /seam/manifest.json
+### GET /_seam/manifest.json
 
 Returns the full procedure manifest as `application/json`.
 
 **Response**: the manifest JSON document.
 
-### POST /seam/rpc/{procedureName}
+### POST /_seam/rpc/{procedureName}
 
 Executes a procedure.
 
@@ -264,7 +264,7 @@ All error responses use a consistent envelope:
 **greet**
 
 ```
-POST /seam/rpc/greet
+POST /_seam/rpc/greet
 Content-Type: application/json
 
 { "name": "Alice" }
@@ -280,7 +280,7 @@ Content-Type: application/json
 **getUser (not found)**
 
 ```
-POST /seam/rpc/noSuchProcedure
+POST /_seam/rpc/noSuchProcedure
 Content-Type: application/json
 
 {}
@@ -296,7 +296,7 @@ Content-Type: application/json
 **greet (validation error)**
 
 ```
-POST /seam/rpc/greet
+POST /_seam/rpc/greet
 Content-Type: application/json
 
 { "name": 42 }

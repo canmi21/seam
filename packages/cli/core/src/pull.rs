@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use crate::manifest::Manifest;
 
 pub async fn pull_manifest(base_url: &str, out: &Path) -> Result<()> {
-  let url = format!("{}/seam/manifest.json", base_url.trim_end_matches('/'));
+  let url = format!("{}/_seam/manifest.json", base_url.trim_end_matches('/'));
   let resp =
     reqwest::get(&url).await.with_context(|| format!("failed to fetch manifest from {url}"))?;
 

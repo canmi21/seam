@@ -51,11 +51,11 @@ impl SeamServer {
 
     let mut pages = HashMap::new();
     let mut router = Router::new()
-      .route("/seam/manifest.json", get(handle_manifest))
-      .route("/seam/rpc/{name}", post(handle_rpc));
+      .route("/_seam/manifest.json", get(handle_manifest))
+      .route("/_seam/rpc/{name}", post(handle_rpc));
 
     for page in self.pages {
-      let full_route = format!("/seam/page{}", page.route);
+      let full_route = format!("/_seam/page{}", page.route);
       pages.insert(full_route.clone(), Arc::new(page));
       router = router.route(&full_route, get(handle_page));
     }

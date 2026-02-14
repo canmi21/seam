@@ -11,7 +11,7 @@ func TestRPCSuccess(t *testing.T) {
 	for _, b := range backends {
 		b := b
 		t.Run(b.Name, func(t *testing.T) {
-			rpcURL := b.BaseURL + "/seam/rpc/"
+			rpcURL := b.BaseURL + "/_seam/rpc/"
 
 			t.Run("greet", func(t *testing.T) {
 				status, body := postJSON(t, rpcURL+"greet", map[string]any{"name": "Alice"})
@@ -79,7 +79,7 @@ func TestRPCErrors(t *testing.T) {
 	for _, b := range backends {
 		b := b
 		t.Run(b.Name, func(t *testing.T) {
-			rpcURL := b.BaseURL + "/seam/rpc/"
+			rpcURL := b.BaseURL + "/_seam/rpc/"
 
 			t.Run("unknown procedure", func(t *testing.T) {
 				status, body := postJSON(t, rpcURL+"nonexistent", map[string]any{})

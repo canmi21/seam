@@ -23,10 +23,10 @@ export interface HttpHandlerOptions {
   staticDir?: string;
 }
 
-const RPC_PREFIX = "/seam/rpc/";
-const PAGE_PREFIX = "/seam/page/";
-const ASSETS_PREFIX = "/seam/assets/";
-const MANIFEST_PATH = "/seam/manifest.json";
+const RPC_PREFIX = "/_seam/rpc/";
+const PAGE_PREFIX = "/_seam/page/";
+const STATIC_PREFIX = "/_seam/static/";
+const MANIFEST_PATH = "/_seam/manifest.json";
 
 const JSON_HEADER = { "Content-Type": "application/json" };
 const HTML_HEADER = { "Content-Type": "text/html; charset=utf-8" };
@@ -116,8 +116,8 @@ export function createHttpHandler<T extends ProcedureMap>(
       }
     }
 
-    if (req.method === "GET" && pathname.startsWith(ASSETS_PREFIX) && opts?.staticDir) {
-      const assetPath = pathname.slice(ASSETS_PREFIX.length);
+    if (req.method === "GET" && pathname.startsWith(STATIC_PREFIX) && opts?.staticDir) {
+      const assetPath = pathname.slice(STATIC_PREFIX.length);
       return handleStaticAsset(assetPath, opts.staticDir);
     }
 
