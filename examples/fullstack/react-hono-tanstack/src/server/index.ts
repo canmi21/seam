@@ -18,6 +18,7 @@ const port = Number(process.env.PORT) || 3000;
 export default {
   port,
   fetch: app.fetch,
+  idleTimeout: 255, // max value; keep SSE connections alive
 };
 
 console.log(`Seam backend running on http://localhost:${port}`);

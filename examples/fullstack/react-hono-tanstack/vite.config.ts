@@ -8,6 +8,13 @@ export default defineConfig({
   server: {
     // Proxy seam routes to the backend in dev
     proxy: {
+      "/_seam/subscribe": {
+        target: "http://localhost:3000",
+        // SSE requires no response buffering and no timeout
+        timeout: 0,
+        proxyTimeout: 0,
+        headers: { Connection: "keep-alive" },
+      },
       "/_seam": "http://localhost:3000",
     },
   },

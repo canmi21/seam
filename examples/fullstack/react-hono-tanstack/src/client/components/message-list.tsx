@@ -18,7 +18,7 @@ export function MessageList() {
   // Mutation to add a message
   const mutation = useMutation({
     mutationFn: (newText: string) => addMessage(newText),
-    // Optimistic update not needed; SSE push will update the list
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["messages"] }),
   });
 
   // SSE subscription: append new messages to the query cache

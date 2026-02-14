@@ -63,10 +63,11 @@ export function seam<T extends DefinitionMap>(
       return next();
     }
 
+    const raw = c.req.raw;
     const result = await handler({
-      method: c.req.method,
-      url: c.req.url,
-      body: () => c.req.json(),
+      method: raw.method,
+      url: raw.url,
+      body: () => raw.json(),
     });
 
     return toResponse(result);
