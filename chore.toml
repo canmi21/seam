@@ -1,0 +1,14 @@
+[path_comment]
+enabled = true
+
+[path_comment.formats]
+".go" = "/* $path$file */"
+".html" = "<!-- $path$file -->"
+".js" = "/* $path$file */"
+".rs" = "/* $path$file */"
+".ts" = "/* $path$file */"
+".tsx" = "/* $path$file */"
+
+[path_comment.exclude]
+dirs = ["**/node_modules", "**/target", "**/dist"]
+patterns = []

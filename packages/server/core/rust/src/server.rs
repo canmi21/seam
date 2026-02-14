@@ -132,9 +132,7 @@ async fn handle_subscribe(
     .ok_or_else(|| SeamError::not_found(format!("Subscription '{name}' not found")))?;
 
   let raw_input = match &query.input {
-    Some(s) => {
-      serde_json::from_str(s).map_err(|e| SeamError::validation(e.to_string()))?
-    }
+    Some(s) => serde_json::from_str(s).map_err(|e| SeamError::validation(e.to_string()))?,
     None => serde_json::Value::Object(serde_json::Map::new()),
   };
 

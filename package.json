@@ -16,9 +16,10 @@
   ],
   "type": "module",
   "scripts": {
-    "lint": "oxlint && eslint .",
+    "lint": "oxlint && eslint . && cargo clippy --workspace --all-features --all-targets",
     "lint:oxlint": "oxlint",
     "lint:eslint": "eslint .",
+    "lint:clippy": "cargo clippy --workspace --all-features --all-targets",
     "lint:fix": "oxlint --fix && eslint . --fix",
     "fmt": "chore . && oxfmt --write . && dprint fmt && cargo fmt --all",
     "fmt:oxfmt": "oxfmt --write .",

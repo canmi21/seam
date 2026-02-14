@@ -16,7 +16,9 @@ pub type HandlerFn =
   Arc<dyn Fn(serde_json::Value) -> BoxFuture<Result<serde_json::Value, SeamError>> + Send + Sync>;
 
 pub type SubscriptionHandlerFn = Arc<
-  dyn Fn(serde_json::Value) -> BoxFuture<Result<BoxStream<Result<serde_json::Value, SeamError>>, SeamError>>
+  dyn Fn(
+      serde_json::Value,
+    ) -> BoxFuture<Result<BoxStream<Result<serde_json::Value, SeamError>>, SeamError>>
     + Send
     + Sync,
 >;

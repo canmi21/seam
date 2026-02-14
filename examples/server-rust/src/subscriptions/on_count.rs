@@ -20,8 +20,8 @@ pub fn on_count_subscription() -> SubscriptionDef {
     output_schema: CountOutput::jtd_schema(),
     handler: std::sync::Arc::new(|value: serde_json::Value| {
       Box::pin(async move {
-        let input: CountInput = serde_json::from_value(value)
-          .map_err(|e| SeamError::validation(e.to_string()))?;
+        let input: CountInput =
+          serde_json::from_value(value).map_err(|e| SeamError::validation(e.to_string()))?;
 
         let stream = async_stream::stream! {
           for i in 1..=input.max {
