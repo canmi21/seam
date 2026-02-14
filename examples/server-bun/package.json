@@ -1,0 +1,10 @@
+{
+  "name": "demo-server-bun",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@canmi/seam-adapter-bun": "workspace:*",
+    "@canmi/seam-server": "workspace:*"
+  }
+}

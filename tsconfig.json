@@ -1,9 +1,9 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/server" },
-    { "path": "packages/adapter-bun" },
-    { "path": "packages/client" },
-    { "path": "packages/injector" }
+    { "path": "packages/server/core/typescript" },
+    { "path": "packages/server/adapter/bun" },
+    { "path": "packages/client/vanilla" },
+    { "path": "packages/server/injector" }
   ]
 }

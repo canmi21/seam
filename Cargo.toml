@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["crates/*", "demo/backend/rust"]
+members = [
+  "packages/server/core/rust",
+  "packages/server/core/rust-macros",
+  "packages/cli/core",
+  "examples/server-rust",
+]
 
 [workspace.package]
 version = "0.1.0"

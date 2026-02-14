@@ -68,19 +68,19 @@ func TestMain(m *testing.M) {
 	root := projectRoot()
 
 	// Build Rust backend upfront
-	runBuild(root, "cargo build", "cargo", "build", "-p", "demo-backend-rust")
+	runBuild(root, "cargo build", "cargo", "build", "-p", "demo-server-rust")
 
-	// Build TS packages for Node demo
-	for _, pkg := range []string{"injector", "server", "adapter-bun", "adapter-node"} {
+	// Build TS packages for Node example
+	for _, pkg := range []string{"server/injector", "server/core/typescript", "server/adapter/bun", "server/adapter/node"} {
 		runBuild(root, "build "+pkg, "bun", "run", "--cwd", filepath.Join("packages", pkg), "build")
 	}
 
 	// Start backend processes
 	var daemons []*exec.Cmd
-	startDaemon(&daemons, root, "4001", "TS backend", "bun", "run", "demo/backend/typescript/src/index.ts")
-	startDaemon(&daemons, root, "4002", "Rust backend", "cargo", "run", "-p", "demo-backend-rust")
+	startDaemon(&daemons, root, "4001", "TS backend", "bun", "run", "examples/server-bun/src/index.ts")
+	startDaemon(&daemons, root, "4002", "Rust backend", "cargo", "run", "-p", "demo-server-rust")
 	startDaemon(&daemons, root, "4003", "Node backend",
-		filepath.Join(root, "node_modules", ".bin", "tsx"), "demo/backend/node/src/index.ts")
+		filepath.Join(root, "node_modules", ".bin", "tsx"), "examples/server-node/src/index.ts")
 
 	backends = []Backend{
 		{Name: "typescript", BaseURL: "http://localhost:4001"},

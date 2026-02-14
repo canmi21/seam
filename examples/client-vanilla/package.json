@@ -1,0 +1,9 @@
+{
+  "name": "demo-client-vanilla",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@canmi/seam-client": "workspace:*"
+  }
+}
