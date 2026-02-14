@@ -6,9 +6,13 @@ import { serveBun } from "@canmi/seam-adapter-bun";
 import { greet } from "./procedures/greet.js";
 import { getUser } from "./procedures/get-user.js";
 import { listUsers } from "./procedures/list-users.js";
+import { onCount } from "./subscriptions/on-count.js";
 import { userPage } from "./pages/user.js";
 
-const router = createRouter({ greet, getUser, listUsers }, { pages: { "/user/:id": userPage } });
+const router = createRouter(
+  { greet, getUser, listUsers, onCount },
+  { pages: { "/user/:id": userPage } },
+);
 const port = Number(process.env.PORT) || 3000;
 const server = serveBun(router, { port });
 
