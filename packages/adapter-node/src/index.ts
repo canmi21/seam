@@ -5,6 +5,7 @@ import type { ProcedureMap, Router } from "@canmi/seam-server";
 
 export interface ServeNodeOptions {
   port?: number;
+  staticDir?: string;
 }
 
 function readBody(req: IncomingMessage): Promise<string> {
@@ -21,7 +22,7 @@ function serialize(body: unknown): string {
 }
 
 export function serveNode<T extends ProcedureMap>(router: Router<T>, opts?: ServeNodeOptions) {
-  const handler = createHttpHandler(router);
+  const handler = createHttpHandler(router, { staticDir: opts?.staticDir });
   const server = createServer(async (req, res) => {
     const raw = readBody(req);
     const result = await handler({
