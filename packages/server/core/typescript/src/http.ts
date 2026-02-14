@@ -29,6 +29,7 @@ export type HttpHandler = (req: HttpRequest) => Promise<HttpResponse>;
 
 export interface HttpHandlerOptions {
   staticDir?: string;
+  fallback?: HttpHandler;
 }
 
 const RPC_PREFIX = "/_seam/rpc/";
@@ -188,6 +189,7 @@ export function createHttpHandler<T extends DefinitionMap>(
       return handleStaticAsset(assetPath, opts.staticDir);
     }
 
+    if (opts?.fallback) return opts.fallback(req);
     return errorResponse(404, "NOT_FOUND", "Not found");
   };
 }

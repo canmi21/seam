@@ -1,11 +1,12 @@
 /* packages/server/adapter/bun/src/index.ts */
 
 import { createHttpHandler } from "@canmi/seam-server";
-import type { DefinitionMap, Router, HttpResponse } from "@canmi/seam-server";
+import type { DefinitionMap, Router, HttpHandler, HttpResponse } from "@canmi/seam-server";
 
 export interface ServeBunOptions {
   port?: number;
   staticDir?: string;
+  fallback?: HttpHandler;
 }
 
 function serialize(body: unknown): string {
@@ -37,7 +38,10 @@ function toResponse(result: HttpResponse): Response {
 }
 
 export function serveBun<T extends DefinitionMap>(router: Router<T>, opts?: ServeBunOptions) {
-  const handler = createHttpHandler(router, { staticDir: opts?.staticDir });
+  const handler = createHttpHandler(router, {
+    staticDir: opts?.staticDir,
+    fallback: opts?.fallback,
+  });
   return Bun.serve({
     port: opts?.port ?? 3000,
     async fetch(req) {
