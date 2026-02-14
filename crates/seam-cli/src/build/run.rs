@@ -62,74 +62,74 @@ fn path_to_filename(path: &str) -> String {
   format!("{slug}.html")
 }
 
-pub fn run_build(config_path: &Path) -> Result<()> {
-  let base_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
+struct AssetFiles {
+  css: Vec<String>,
+  js: Vec<String>,
+}
 
-  let config = load_config(config_path)?;
-
-  // 1. Run bundler
-  println!("Running bundler: {}", config.bundler.command);
-  let bundler_status = Command::new("sh")
-    .args(["-c", &config.bundler.command])
+fn run_bundler(base_dir: &Path, command: &str) -> Result<()> {
+  println!("Running bundler: {command}");
+  let status = Command::new("sh")
+    .args(["-c", command])
     .current_dir(base_dir)
     .status()
     .context("failed to run bundler")?;
-  if !bundler_status.success() {
-    bail!("bundler exited with status {}", bundler_status);
+  if !status.success() {
+    bail!("bundler exited with status {status}");
   }
+  Ok(())
+}
 
-  // 2. Read Vite manifest for asset filenames
-  let manifest_path = base_dir.join(&config.bundler.manifest_file);
-  let manifest_content = std::fs::read_to_string(&manifest_path)
-    .with_context(|| format!("failed to read Vite manifest at {}", manifest_path.display()))?;
-  let vite_manifest: BTreeMap<String, ViteManifestEntry> =
-    serde_json::from_str(&manifest_content).context("failed to parse Vite manifest")?;
+fn read_vite_manifest(path: &Path) -> Result<AssetFiles> {
+  let content = std::fs::read_to_string(path)
+    .with_context(|| format!("failed to read Vite manifest at {}", path.display()))?;
+  let manifest: BTreeMap<String, ViteManifestEntry> =
+    serde_json::from_str(&content).context("failed to parse Vite manifest")?;
 
-  let mut css_files = Vec::new();
-  let mut js_files = Vec::new();
-  for entry in vite_manifest.values() {
+  let mut css = Vec::new();
+  let mut js = Vec::new();
+  for entry in manifest.values() {
     if entry.is_entry == Some(true) {
-      js_files.push(entry.file.clone());
+      js.push(entry.file.clone());
     }
-    if let Some(css) = &entry.css {
-      css_files.extend(css.iter().cloned());
+    if let Some(css_list) = &entry.css {
+      css.extend(css_list.iter().cloned());
     }
   }
+  Ok(AssetFiles { css, js })
+}
 
-  // 3. Find and run build-skeletons.mjs
-  let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
-  if !script_path.exists() {
-    bail!("build-skeletons.mjs not found at {}", script_path.display());
-  }
-
-  let routes_path = base_dir.join(&config.routes);
+fn run_skeleton_renderer(
+  script_path: &Path,
+  routes_path: &Path,
+  base_dir: &Path,
+) -> Result<SkeletonOutput> {
   println!("Rendering skeletons for: {}", routes_path.display());
 
-  let node_output = Command::new("node")
-    .arg(&script_path)
-    .arg(&routes_path)
+  let output = Command::new("node")
+    .arg(script_path)
+    .arg(routes_path)
     .current_dir(base_dir)
     .output()
     .context("failed to spawn node for skeleton rendering")?;
 
-  if !node_output.status.success() {
-    let stderr = String::from_utf8_lossy(&node_output.stderr);
+  if !output.status.success() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
     bail!("skeleton rendering failed:\n{stderr}");
   }
 
-  let stdout = String::from_utf8(node_output.stdout).context("invalid UTF-8 from node")?;
-  let skeleton_output: SkeletonOutput =
-    serde_json::from_str(&stdout).context("failed to parse skeleton output JSON")?;
+  let stdout = String::from_utf8(output.stdout).context("invalid UTF-8 from node")?;
+  serde_json::from_str(&stdout).context("failed to parse skeleton output JSON")
+}
 
-  // 4. Process each route
-  let out_dir = base_dir.join(&config.out_dir);
-  let templates_dir = out_dir.join("templates");
-  std::fs::create_dir_all(&templates_dir)
-    .with_context(|| format!("failed to create {}", templates_dir.display()))?;
+fn process_routes(
+  routes: &[SkeletonRoute],
+  templates_dir: &Path,
+  assets: &AssetFiles,
+) -> Result<RouteManifest> {
+  let mut manifest = RouteManifest { routes: BTreeMap::new() };
 
-  let mut route_manifest = RouteManifest { routes: BTreeMap::new() };
-
-  for route in &skeleton_output.routes {
+  for route in routes {
     let mut processed = sentinel_to_slots(&route.full_html);
 
     // Detect and apply conditionals from nullable field diffs
@@ -146,8 +146,7 @@ pub fn run_build(config_path: &Path) -> Result<()> {
       processed = apply_conditionals(&processed, blocks);
     }
 
-    // Wrap in full HTML document
-    let document = wrap_document(&processed, &css_files, &js_files);
+    let document = wrap_document(&processed, &assets.css, &assets.js);
 
     let filename = path_to_filename(&route.path);
     let filepath = templates_dir.join(&filename);
@@ -155,15 +154,39 @@ pub fn run_build(config_path: &Path) -> Result<()> {
       .with_context(|| format!("failed to write {}", filepath.display()))?;
 
     let template_rel = format!("templates/{filename}");
-    route_manifest.routes.insert(
+    manifest.routes.insert(
       route.path.clone(),
       RouteManifestEntry { template: template_rel, loaders: route.loaders.clone() },
     );
 
     println!("  {} -> {}", route.path, filename);
   }
+  Ok(manifest)
+}
 
-  // 5. Write route manifest
+pub fn run_build(config_path: &Path) -> Result<()> {
+  let base_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
+  let config = load_config(config_path)?;
+
+  run_bundler(base_dir, &config.bundler.command)?;
+
+  let manifest_path = base_dir.join(&config.bundler.manifest_file);
+  let assets = read_vite_manifest(&manifest_path)?;
+
+  let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
+  if !script_path.exists() {
+    bail!("build-skeletons.mjs not found at {}", script_path.display());
+  }
+  let routes_path = base_dir.join(&config.routes);
+  let skeleton_output = run_skeleton_renderer(&script_path, &routes_path, base_dir)?;
+
+  let out_dir = base_dir.join(&config.out_dir);
+  let templates_dir = out_dir.join("templates");
+  std::fs::create_dir_all(&templates_dir)
+    .with_context(|| format!("failed to create {}", templates_dir.display()))?;
+
+  let route_manifest = process_routes(&skeleton_output.routes, &templates_dir, &assets)?;
+
   let manifest_out = out_dir.join("route-manifest.json");
   let manifest_json = serde_json::to_string_pretty(&route_manifest)?;
   std::fs::write(&manifest_out, manifest_json)

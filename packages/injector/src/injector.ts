@@ -37,7 +37,11 @@ export function inject(
     });
   } while (result !== prev);
 
-  // 2. Attributes (two-phase)
+  // 2. Attributes (two-phase approach)
+  // Phase A: Replace each <!--seam:path:attr:name--> comment with a null-byte
+  // marker. We can't inject attributes inline because the comment sits *before*
+  // the target tag, so we need the tag's position -- which shifts as we edit.
+  // Null-byte markers are safe since they never appear in valid HTML.
   const attrs: { marker: string; attrName: string; value: string }[] = [];
   let attrIdx = 0;
   result = result.replace(ATTR_RE, (_, path: string, attrName: string) => {
@@ -47,14 +51,15 @@ export function inject(
     attrs.push({ marker, attrName, value: escapeHtml(stringify(value)) });
     return marker;
   });
+  // Phase B: For each marker, find the next opening `<tag` after the marker
+  // position and splice the attribute into the tag.
   for (const { marker, attrName, value } of attrs) {
     const pos = result.indexOf(marker);
     if (pos === -1) continue;
-    // Remove marker, find next opening tag
     result = result.slice(0, pos) + result.slice(pos + marker.length);
     const tagStart = result.indexOf("<", pos);
     if (tagStart === -1) continue;
-    // Find end of tag name (first space, >, or /)
+    // Advance past the tag name to find the insertion point for attributes
     let tagNameEnd = tagStart + 1;
     while (
       tagNameEnd < result.length &&

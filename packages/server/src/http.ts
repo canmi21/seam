@@ -1,6 +1,6 @@
 /* packages/server/src/http.ts */
 
-import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { join, extname } from "node:path";
 import type { Router, ProcedureMap } from "./router/index.js";
 import { SeamError, type ErrorCode } from "./errors.js";
@@ -57,6 +57,29 @@ function errorResponse(status: number, code: ErrorCode, message: string): HttpRe
   return jsonResponse(status, new SeamError(code, message).toJSON());
 }
 
+async function handleStaticAsset(assetPath: string, staticDir: string): Promise<HttpResponse> {
+  if (assetPath.includes("..")) {
+    return errorResponse(403, "VALIDATION_ERROR", "Forbidden");
+  }
+
+  const filePath = join(staticDir, assetPath);
+  try {
+    const content = await readFile(filePath, "utf-8");
+    const ext = extname(filePath);
+    const contentType = MIME_TYPES[ext] || "application/octet-stream";
+    return {
+      status: 200,
+      headers: {
+        "Content-Type": contentType,
+        "Cache-Control": IMMUTABLE_CACHE,
+      },
+      body: content,
+    };
+  } catch {
+    return errorResponse(404, "NOT_FOUND", "Asset not found");
+  }
+}
+
 export function createHttpHandler<T extends ProcedureMap>(
   router: Router<T>,
   opts?: HttpHandlerOptions,
@@ -93,29 +116,9 @@ export function createHttpHandler<T extends ProcedureMap>(
       }
     }
 
-    // Static asset serving
     if (req.method === "GET" && pathname.startsWith(ASSETS_PREFIX) && opts?.staticDir) {
       const assetPath = pathname.slice(ASSETS_PREFIX.length);
-      if (assetPath.includes("..")) {
-        return errorResponse(403, "VALIDATION_ERROR", "Forbidden");
-      }
-
-      const filePath = join(opts.staticDir, assetPath);
-      try {
-        const content = readFileSync(filePath, "utf-8");
-        const ext = extname(filePath);
-        const contentType = MIME_TYPES[ext] || "application/octet-stream";
-        return {
-          status: 200,
-          headers: {
-            "Content-Type": contentType,
-            "Cache-Control": IMMUTABLE_CACHE,
-          },
-          body: content,
-        };
-      } catch {
-        return errorResponse(404, "NOT_FOUND", "Asset not found");
-      }
+      return handleStaticAsset(assetPath, opts.staticDir);
     }
 
     return errorResponse(404, "NOT_FOUND", "Not found");
