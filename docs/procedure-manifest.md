@@ -35,11 +35,11 @@ Consumers of the manifest include:
 
 Each `ProcedureSchema` has:
 
-| Field    | Type                          | Description                                                              |
-| -------- | ----------------------------- | ------------------------------------------------------------------------ |
-| `type`   | `"query" \| "subscription"`  | Procedure type. Defaults to `"query"` if absent.                         |
-| `input`  | `JTDSchema`                   | JTD schema for the request body. Empty `{}` means no input.              |
-| `output` | `JTDSchema`                   | JTD schema for the response body. Empty `{}` means no structured output. |
+| Field    | Type                        | Description                                                              |
+| -------- | --------------------------- | ------------------------------------------------------------------------ |
+| `type`   | `"query" \| "subscription"` | Procedure type. Defaults to `"query"` if absent.                         |
+| `input`  | `JTDSchema`                 | JTD schema for the request body. Empty `{}` means no input.              |
+| `output` | `JTDSchema`                 | JTD schema for the response body. Empty `{}` means no structured output. |
 
 See [Subscription Protocol](./subscription-protocol.md) for SSE subscription details.
 

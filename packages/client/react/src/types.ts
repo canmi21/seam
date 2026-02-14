@@ -14,7 +14,7 @@ export interface LoaderDef {
 
 export interface RouteDef {
   path: string;
-  component: ComponentType<any>;
+  component: ComponentType<Record<string, unknown>>;
   loaders: Record<string, LoaderDef>;
   mock: Record<string, unknown>;
   nullable?: string[];

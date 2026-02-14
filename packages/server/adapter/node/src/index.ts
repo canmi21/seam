@@ -13,7 +13,7 @@ export interface ServeNodeOptions {
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on("data", (c) => chunks.push(c));
+    req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", () => resolve(Buffer.concat(chunks).toString()));
     req.on("error", reject);
   });
@@ -44,15 +44,16 @@ async function sendResponse(res: ServerResponse, result: HttpResponse): Promise<
 
 export function serveNode<T extends DefinitionMap>(router: Router<T>, opts?: ServeNodeOptions) {
   const handler = createHttpHandler(router, { staticDir: opts?.staticDir });
-  const server = createServer(async (req, res) => {
+  const server = createServer((req, res) => {
     const raw = readBody(req);
-    const result = await handler({
-      method: req.method || "GET",
-      url: `http://localhost${req.url || "/"}`,
-      body: async () => JSON.parse(await raw),
-    });
-
-    await sendResponse(res, result);
+    void (async () => {
+      const result = await handler({
+        method: req.method || "GET",
+        url: `http://localhost${req.url || "/"}`,
+        body: async () => JSON.parse(await raw) as unknown,
+      });
+      await sendResponse(res, result);
+    })();
   });
 
   server.listen(opts?.port ?? 3000);

@@ -26,7 +26,7 @@ describe("createHttpHandler", () => {
     const res = await req("GET", "/_seam/manifest.json");
     expect(res.status).toBe(200);
     expect(res.headers["Content-Type"]).toBe("application/json");
-    expect((res.body as any).procedures.greet).toBeDefined();
+    expect((res.body as { procedures: Record<string, unknown> }).procedures.greet).toBeDefined();
   });
 
   it("POST /_seam/rpc/greet delegates to router.handle()", async () => {
@@ -45,13 +45,13 @@ describe("createHttpHandler", () => {
     const res = await req("GET", "/unknown");
     expect(res.status).toBe(404);
     expect(res.headers["Content-Type"]).toBe("application/json");
-    expect((res.body as any).error.code).toBe("NOT_FOUND");
+    expect((res.body as { error: { code: string } }).error.code).toBe("NOT_FOUND");
   });
 
   it("POST /_seam/rpc/ with empty name returns 404", async () => {
     const res = await req("POST", "/_seam/rpc/", {});
     expect(res.status).toBe(404);
-    expect((res.body as any).error.code).toBe("NOT_FOUND");
+    expect((res.body as { error: { code: string } }).error.code).toBe("NOT_FOUND");
   });
 
   it("invalid JSON body returns 400 VALIDATION_ERROR", async () => {
@@ -61,7 +61,7 @@ describe("createHttpHandler", () => {
       body: () => Promise.reject(new Error("parse error")),
     });
     expect(res.status).toBe(400);
-    expect((res.body as any).error.code).toBe("VALIDATION_ERROR");
+    expect((res.body as { error: { code: string } }).error.code).toBe("VALIDATION_ERROR");
   });
 
   it("page endpoint with hasPages=false returns 404", async () => {

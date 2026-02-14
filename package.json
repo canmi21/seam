@@ -16,16 +16,24 @@
   ],
   "type": "module",
   "scripts": {
-    "lint": "oxlint --tsconfig tsconfig.base.json",
-    "fmt": "chore . && oxfmt --write . && cargo fmt --all",
+    "lint": "oxlint && eslint .",
+    "lint:oxlint": "oxlint",
+    "lint:eslint": "eslint .",
+    "lint:fix": "oxlint --fix && eslint . --fix",
+    "fmt": "chore . && oxfmt --write . && dprint fmt && cargo fmt --all",
     "fmt:oxfmt": "oxfmt --write .",
+    "fmt:md": "dprint fmt",
     "fmt:rust": "cargo fmt --all",
-    "fmt:check": "oxfmt --check .",
+    "fmt:check": "oxfmt --check . && dprint check",
     "fmt:path": "chore ."
   },
   "devDependencies": {
+    "dprint": "^0.51.1",
+    "eslint": "^10.0.0",
+    "eslint-plugin-oxlint": "^1.46.0",
     "oxfmt": "^0.32.0",
     "oxlint": "^1.47.0",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "typescript-eslint": "^8.55.0"
   }
 }

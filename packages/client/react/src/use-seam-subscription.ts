@@ -37,7 +37,7 @@ export function useSeamSubscription<T>(
 
     es.addEventListener("data", (e) => {
       try {
-        setData(JSON.parse(e.data) as T);
+        setData(JSON.parse(e.data as string) as T);
         setStatus("active");
       } catch {
         setError(new SeamClientError("INTERNAL_ERROR", "Failed to parse SSE data", 0));
@@ -49,7 +49,7 @@ export function useSeamSubscription<T>(
     es.addEventListener("error", (e) => {
       if (e instanceof MessageEvent) {
         try {
-          const payload = JSON.parse(e.data) as { code?: string; message?: string };
+          const payload = JSON.parse(e.data as string) as { code?: string; message?: string };
           setError(
             new SeamClientError(
               "INTERNAL_ERROR",

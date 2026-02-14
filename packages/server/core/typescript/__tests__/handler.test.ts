@@ -19,7 +19,7 @@ describe("handleRequest", () => {
       {
         inputSchema: greetSchema._schema,
         outputSchema: greetOutputSchema._schema,
-        handler: ({ input }) => ({ message: `Hi, ${(input as any).name}!` }),
+        handler: ({ input }) => ({ message: `Hi, ${(input as { name: string }).name}!` }),
       },
     ]);
     const result = await handleRequest(procs, "greet", { name: "Alice" });
@@ -33,7 +33,7 @@ describe("handleRequest", () => {
       {
         inputSchema: greetSchema._schema,
         outputSchema: greetOutputSchema._schema,
-        handler: async ({ input }) => ({ message: `Hi, ${(input as any).name}!` }),
+        handler: async ({ input }) => ({ message: `Hi, ${(input as { name: string }).name}!` }),
       },
     ]);
     const result = await handleRequest(procs, "greet", { name: "Bob" });

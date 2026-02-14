@@ -39,7 +39,7 @@ function buildLoaderFn(config: LoaderConfig): LoaderFn {
 export function loadBuildOutput(distDir: string): Record<string, PageDef> {
   const manifestPath = join(distDir, "route-manifest.json");
   const raw = readFileSync(manifestPath, "utf-8");
-  const manifest: RouteManifest = JSON.parse(raw);
+  const manifest = JSON.parse(raw) as RouteManifest;
 
   const pages: Record<string, PageDef> = {};
   for (const [path, entry] of Object.entries(manifest.routes)) {

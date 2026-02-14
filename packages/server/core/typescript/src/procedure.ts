@@ -10,7 +10,7 @@ export interface HandleResult {
 export interface InternalProcedure {
   inputSchema: Schema;
   outputSchema: Schema;
-  handler: (params: { input: unknown }) => unknown | Promise<unknown>;
+  handler: (params: { input: unknown }) => unknown;
 }
 
 export interface InternalSubscription {

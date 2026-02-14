@@ -18,6 +18,8 @@ function isTruthy(value: unknown): boolean {
 
 function stringify(value: unknown): string {
   if (value === null || value === undefined) return "";
+  if (typeof value === "object") return JSON.stringify(value);
+  // eslint-disable-next-line @typescript-eslint/no-base-to-string -- only primitives reach here
   return String(value);
 }
 

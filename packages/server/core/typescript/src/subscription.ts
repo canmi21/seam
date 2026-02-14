@@ -25,8 +25,6 @@ export function fromCallback<T>(
   const queue: QueueItem<T>[] = [];
   let resolve: (() => void) | null = null;
   let done = false;
-  let cleanup: (() => void) | void;
-
   function notify() {
     if (resolve) {
       const r = resolve;
@@ -55,7 +53,7 @@ export function fromCallback<T>(
     },
   };
 
-  cleanup = setup(sink);
+  const cleanup = setup(sink);
 
   async function* generate(): AsyncGenerator<T, void, undefined> {
     try {

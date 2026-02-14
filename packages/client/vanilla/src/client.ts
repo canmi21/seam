@@ -77,7 +77,7 @@ export function createClient(opts: ClientOptions): SeamClient {
 
       es.addEventListener("data", (e) => {
         try {
-          onData(JSON.parse(e.data));
+          onData(JSON.parse(e.data as string) as unknown);
         } catch {
           onError?.(new SeamClientError("INTERNAL_ERROR", "Failed to parse SSE data", 0));
         }
@@ -86,7 +86,7 @@ export function createClient(opts: ClientOptions): SeamClient {
       es.addEventListener("error", (e) => {
         if (e instanceof MessageEvent) {
           try {
-            const payload = JSON.parse(e.data) as { code?: string; message?: string };
+            const payload = JSON.parse(e.data as string) as { code?: string; message?: string };
             const code = isKnownCode(payload.code) ? payload.code : "INTERNAL_ERROR";
             const message = typeof payload.message === "string" ? payload.message : "SSE error";
             onError?.(new SeamClientError(code, message, 0));

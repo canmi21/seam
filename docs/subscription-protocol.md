@@ -12,10 +12,10 @@ accepts input parameters and yields a sequence of typed values.
 GET /_seam/subscribe/{subscriptionName}?input={json}
 ```
 
-| Parameter | Location | Description |
-| --------- | -------- | ----------- |
-| `subscriptionName` | path | Name of the subscription (from manifest) |
-| `input` | query | URL-encoded JSON matching the subscription's input schema |
+| Parameter          | Location | Description                                               |
+| ------------------ | -------- | --------------------------------------------------------- |
+| `subscriptionName` | path     | Name of the subscription (from manifest)                  |
+| `input`            | query    | URL-encoded JSON matching the subscription's input schema |
 
 When `input` is omitted, the server defaults to `{}`.
 
@@ -34,7 +34,6 @@ A single value from the subscription stream.
 ```
 event: data
 data: {"n":1}
-
 ```
 
 The `data` payload is JSON matching the subscription's output schema.
@@ -46,16 +45,15 @@ An error occurred during the subscription.
 ```
 event: error
 data: {"code":"VALIDATION_ERROR","message":"Input validation failed"}
-
 ```
 
 Error codes reuse the same set as RPC errors:
 
-| Code | Meaning |
-| ---- | ------- |
-| `VALIDATION_ERROR` | Input failed schema validation |
-| `NOT_FOUND` | Subscription name not found |
-| `INTERNAL_ERROR` | Unhandled error in subscription handler |
+| Code               | Meaning                                 |
+| ------------------ | --------------------------------------- |
+| `VALIDATION_ERROR` | Input failed schema validation          |
+| `NOT_FOUND`        | Subscription name not found             |
+| `INTERNAL_ERROR`   | Unhandled error in subscription handler |
 
 After an `error` event the server closes the stream.
 
@@ -66,7 +64,6 @@ The subscription stream has finished normally.
 ```
 event: complete
 data: {}
-
 ```
 
 After a `complete` event the server closes the connection.
