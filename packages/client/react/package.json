@@ -17,6 +17,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@canmi/seam-client": "workspace:*",
     "esbuild": "^0.25.0"
   },
   "devDependencies": {

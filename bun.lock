@@ -7,7 +7,7 @@
       "devDependencies": {
         "oxfmt": "^0.32.0",
         "oxlint": "^1.47.0",
-        "tsx": "^4.0.0",
+        "tsx": "^4.21.0",
       },
     },
     "examples/client-react": {
@@ -72,6 +72,7 @@
       "name": "@canmi/seam-react",
       "version": "0.1.0",
       "dependencies": {
+        "@canmi/seam-client": "workspace:*",
         "esbuild": "^0.25.0",
       },
       "devDependencies": {

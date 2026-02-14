@@ -13,6 +13,12 @@ pub struct Manifest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProcedureSchema {
+  #[serde(rename = "type", default = "default_proc_type")]
+  pub proc_type: String,
   pub input: Value,
   pub output: Value,
+}
+
+fn default_proc_type() -> String {
+  "query".to_string()
 }
