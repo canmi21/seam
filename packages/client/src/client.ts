@@ -16,62 +16,45 @@ function isKnownCode(code: unknown): code is ErrorCode {
   return typeof code === "string" && KNOWN_CODES.has(code);
 }
 
+async function request(url: string, init?: RequestInit): Promise<unknown> {
+  let res: Response;
+  try {
+    res = init ? await fetch(url, init) : await fetch(url);
+  } catch {
+    throw new SeamClientError("INTERNAL_ERROR", "Network request failed", 0);
+  }
+
+  if (!res.ok) {
+    let parsed: unknown;
+    try {
+      parsed = await res.json();
+    } catch {
+      throw new SeamClientError("INTERNAL_ERROR", `HTTP ${res.status}`, res.status);
+    }
+
+    const err = (parsed as any)?.error;
+    const code = isKnownCode(err?.code) ? err.code : "INTERNAL_ERROR";
+    const message = typeof err?.message === "string" ? err.message : `HTTP ${res.status}`;
+    throw new SeamClientError(code, message, res.status);
+  }
+
+  return res.json();
+}
+
 export function createClient(opts: ClientOptions): SeamClient {
   const baseUrl = opts.baseUrl.replace(/\/+$/, "");
 
   return {
-    async call(procedureName, input) {
-      let res: Response;
-      try {
-        res = await fetch(`${baseUrl}/seam/rpc/${procedureName}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(input),
-        });
-      } catch {
-        throw new SeamClientError("INTERNAL_ERROR", "Network request failed", 0);
-      }
-
-      if (!res.ok) {
-        let parsed: unknown;
-        try {
-          parsed = await res.json();
-        } catch {
-          throw new SeamClientError("INTERNAL_ERROR", `HTTP ${res.status}`, res.status);
-        }
-
-        const err = (parsed as any)?.error;
-        const code = isKnownCode(err?.code) ? err.code : "INTERNAL_ERROR";
-        const message = typeof err?.message === "string" ? err.message : `HTTP ${res.status}`;
-        throw new SeamClientError(code, message, res.status);
-      }
-
-      return res.json();
+    call(procedureName, input) {
+      return request(`${baseUrl}/seam/rpc/${procedureName}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
     },
 
-    async fetchManifest() {
-      let res: Response;
-      try {
-        res = await fetch(`${baseUrl}/seam/manifest.json`);
-      } catch {
-        throw new SeamClientError("INTERNAL_ERROR", "Network request failed", 0);
-      }
-
-      if (!res.ok) {
-        let parsed: unknown;
-        try {
-          parsed = await res.json();
-        } catch {
-          throw new SeamClientError("INTERNAL_ERROR", `HTTP ${res.status}`, res.status);
-        }
-
-        const err = (parsed as any)?.error;
-        const code = isKnownCode(err?.code) ? err.code : "INTERNAL_ERROR";
-        const message = typeof err?.message === "string" ? err.message : `HTTP ${res.status}`;
-        throw new SeamClientError(code, message, res.status);
-      }
-
-      return res.json();
+    fetchManifest() {
+      return request(`${baseUrl}/seam/manifest.json`);
     },
   };
 }

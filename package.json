@@ -4,6 +4,7 @@
   "workspaces": [
     "packages/*"
   ],
+  "type": "module",
   "scripts": {
     "lint": "oxlint --tsconfig tsconfig.json",
     "fmt": "oxfmt --write .",
