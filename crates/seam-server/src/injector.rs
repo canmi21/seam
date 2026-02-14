@@ -3,7 +3,6 @@ use std::sync::LazyLock;
 use regex::Regex;
 use serde_json::Value;
 
-// Matches <!--seam:if:PATH--> to find conditional opening tags
 static COND_OPEN_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"<!--seam:if:([\w.]+)-->").unwrap());
 static ATTR_RE: LazyLock<Regex> =
@@ -68,6 +67,7 @@ fn escape_html(s: &str) -> String {
 struct CondMatch {
     full_start: usize,
     inner_start: usize,
+    inner_end: usize,
     full_end: usize,
     path: String,
 }
@@ -92,6 +92,7 @@ fn replace_one_conditional(input: &str, data: &Value) -> Option<String> {
                 innermost = Some(CondMatch {
                     full_start: m.start(),
                     inner_start,
+                    inner_end: inner_start + endif_pos,
                     full_end,
                     path: p.to_string(),
                 });
@@ -100,7 +101,7 @@ fn replace_one_conditional(input: &str, data: &Value) -> Option<String> {
     }
 
     let cm = innermost?;
-    let inner = &input[cm.inner_start..cm.full_end - format!("<!--seam:endif:{}-->", cm.path).len()];
+    let inner = &input[cm.inner_start..cm.inner_end];
 
     let replacement = match resolve(&cm.path, data) {
         Some(v) if is_truthy(v) => inner.to_string(),

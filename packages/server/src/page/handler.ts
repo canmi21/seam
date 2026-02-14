@@ -26,12 +26,7 @@ export async function handlePageRequest(
       }),
     );
 
-    const data: Record<string, unknown> = {};
-    for (const [key, value] of results) {
-      data[key] = value;
-    }
-
-    const html = inject(page.template, data);
+    const html = inject(page.template, Object.fromEntries(results));
     return { status: 200, html };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

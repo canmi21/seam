@@ -39,6 +39,10 @@
 - Comments explain why, not what
 - During refactoring, do not delete existing comments without first evaluating whether they remain relevant after the refactor
 
+## Code Simplification
+
+- When the user says "简化代码", run the `code-simplifier:code-simplifier` agent to refine the codebase
+
 ## Long-running Tasks
 
 - Use tmux sessions for long-running tasks (builds, tests, server processes)

@@ -47,10 +47,11 @@ impl SeamServer {
     let manifest = build_manifest(&self.procedures);
     let manifest_json = serde_json::to_value(&manifest).expect("manifest serialization");
 
-    let mut handlers = HashMap::new();
-    for proc in self.procedures {
-      handlers.insert(proc.name.clone(), Arc::new(proc));
-    }
+    let handlers: HashMap<String, Arc<ProcedureDef>> = self
+      .procedures
+      .into_iter()
+      .map(|p| (p.name.clone(), Arc::new(p)))
+      .collect();
 
     let mut pages = HashMap::new();
     let mut router = Router::new()
@@ -141,7 +142,6 @@ async fn handle_page(
     data.insert(key, value);
   }
 
-  let data_value = serde_json::Value::Object(data);
-  let html = injector::inject(&page.template, &data_value);
+  let html = injector::inject(&page.template, &serde_json::Value::Object(data));
   Ok(Html(html))
 }
