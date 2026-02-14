@@ -22,6 +22,8 @@ beforeAll(() => {
   writeFileSync(join(staticDir, "main-abc.js"), "console.log('hello')");
   writeFileSync(join(staticDir, "style-xyz.css"), "body { color: red }");
   writeFileSync(join(staticDir, "sub/nested.js"), "export default 1");
+  writeFileSync(join(staticDir, "data.bin"), "binary content");
+  writeFileSync(join(staticDir, "font.woff2"), "fake woff2");
 });
 
 afterAll(() => {
@@ -92,5 +94,20 @@ describe("static asset serving", () => {
     const handler = createHttpHandler(router);
     const res = await req(handler, "GET", "/seam/assets/main-abc.js");
     expect(res.status).toBe(404);
+  });
+
+  it("falls back to octet-stream for unknown extensions", async () => {
+    const handler = makeHandler();
+    const res = await req(handler, "GET", "/seam/assets/data.bin");
+    expect(res.status).toBe(200);
+    expect(res.headers["Content-Type"]).toBe("application/octet-stream");
+    expect(res.body).toBe("binary content");
+  });
+
+  it("serves woff2 with correct MIME type", async () => {
+    const handler = makeHandler();
+    const res = await req(handler, "GET", "/seam/assets/font.woff2");
+    expect(res.status).toBe(200);
+    expect(res.headers["Content-Type"]).toBe("font/woff2");
   });
 });

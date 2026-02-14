@@ -1,6 +1,9 @@
 /* packages/adapter-bun/__tests__/adapter.test.ts */
 
 import { afterAll, describe, expect, it } from "bun:test";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { createRouter, t } from "@canmi/seam-server";
 import { serveBun } from "../src/index.js";
 
@@ -87,5 +90,30 @@ describe("adapter-bun", () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error.code).toBe("NOT_FOUND");
+  });
+});
+
+describe("adapter-bun staticDir", () => {
+  let staticDir: string;
+  let staticServer: ReturnType<typeof serveBun>;
+  let staticBase: string;
+
+  afterAll(() => {
+    staticServer.stop();
+    rmSync(staticDir, { recursive: true, force: true });
+  });
+
+  it("serves static files through adapter", async () => {
+    staticDir = mkdtempSync(join(tmpdir(), "seam-bun-static-"));
+    writeFileSync(join(staticDir, "app-abc.js"), "console.log('app')");
+
+    staticServer = serveBun(router, { port: 0, staticDir });
+    staticBase = `http://localhost:${staticServer.port}`;
+
+    const res = await fetch(`${staticBase}/seam/assets/app-abc.js`);
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toBe("console.log('app')");
+    expect(res.headers.get("Content-Type")).toBe("application/javascript");
   });
 });

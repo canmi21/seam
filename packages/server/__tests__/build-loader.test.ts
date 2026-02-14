@@ -70,4 +70,49 @@ describe("loadBuildOutput", () => {
     const result = pages["/about"].loaders.info({ slug: "hello" });
     expect(result).toEqual({ procedure: "getInfo", input: { slug: "hello" } });
   });
+
+  it("throws when route-manifest.json is missing", () => {
+    expect(() => loadBuildOutput("/nonexistent/path")).toThrow();
+  });
+
+  it("throws on malformed manifest JSON", () => {
+    const badDir = mkdtempSync(join(tmpdir(), "seam-bad-manifest-"));
+    writeFileSync(join(badDir, "route-manifest.json"), "not valid json{{{");
+    try {
+      expect(() => loadBuildOutput(badDir)).toThrow();
+    } finally {
+      rmSync(badDir, { recursive: true, force: true });
+    }
+  });
+
+  it("throws when referenced template file is missing", () => {
+    const noTplDir = mkdtempSync(join(tmpdir(), "seam-no-tpl-"));
+    writeFileSync(
+      join(noTplDir, "route-manifest.json"),
+      JSON.stringify({
+        routes: {
+          "/": {
+            template: "templates/missing.html",
+            loaders: {},
+          },
+        },
+      }),
+    );
+    try {
+      expect(() => loadBuildOutput(noTplDir)).toThrow();
+    } finally {
+      rmSync(noTplDir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns empty record for empty routes", () => {
+    const emptyDir = mkdtempSync(join(tmpdir(), "seam-empty-routes-"));
+    writeFileSync(join(emptyDir, "route-manifest.json"), JSON.stringify({ routes: {} }));
+    try {
+      const pages = loadBuildOutput(emptyDir);
+      expect(pages).toEqual({});
+    } finally {
+      rmSync(emptyDir, { recursive: true, force: true });
+    }
+  });
 });
