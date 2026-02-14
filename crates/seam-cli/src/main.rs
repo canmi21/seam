@@ -1,3 +1,4 @@
+mod build;
 mod codegen;
 mod manifest;
 mod pull;
@@ -8,7 +9,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "seam", about = "SeamJS CLI — manifest pull and codegen")]
+#[command(name = "seam", about = "SeamJS CLI — manifest pull, codegen, and build")]
 struct Cli {
   #[command(subcommand)]
   command: Command,
@@ -33,6 +34,12 @@ enum Command {
     #[arg(short, long)]
     out: PathBuf,
   },
+  /// Build HTML skeletons from React components
+  Build {
+    /// Path to seam.config.json
+    #[arg(short, long, default_value = "seam.config.json")]
+    config: PathBuf,
+  },
 }
 
 #[tokio::main]
@@ -56,6 +63,9 @@ async fn main() -> Result<()> {
       std::fs::write(&file, code).with_context(|| format!("failed to write {}", file.display()))?;
 
       println!("generated {}", file.display());
+    }
+    Command::Build { config } => {
+      build::run::run_build(&config)?;
     }
   }
 
