@@ -14,6 +14,27 @@
         "typescript-eslint": "^8.55.0",
       },
     },
+    "examples/fullstack/react-hono-tanstack": {
+      "name": "demo-fullstack-react-hono-tanstack",
+      "version": "0.1.0",
+      "dependencies": {
+        "@canmi/seam-adapter-hono": "workspace:*",
+        "@canmi/seam-client": "workspace:*",
+        "@canmi/seam-react": "workspace:*",
+        "@canmi/seam-server": "workspace:*",
+        "@tanstack/react-query": "^5.0.0",
+        "hono": "^4.0.0",
+        "react": "^19.0.0",
+        "react-dom": "^19.0.0",
+      },
+      "devDependencies": {
+        "@types/react": "^19.0.0",
+        "@types/react-dom": "^19.0.0",
+        "@vitejs/plugin-react": "^4.0.0",
+        "typescript": "^5.7.0",
+        "vite": "^6.0.0",
+      },
+    },
     "examples/standalone/client-react": {
       "name": "demo-client-react",
       "version": "0.1.0",
@@ -498,6 +519,10 @@
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.57.1", "", { "os": "win32", "cpu": "x64" }, "sha512-mxRFDdHIWRxg3UfIIAwCm6NzvxG0jDX/wBN6KsQFTvKFqqg9vTrWUE68qEjHt19A5wwx5X5aUi2zuZT7YR0jrA=="],
 
+    "@tanstack/query-core": ["@tanstack/query-core@5.90.20", "", {}, "sha512-OMD2HLpNouXEfZJWcKeVKUgQ5n+n3A2JFmBaScpNDUqSrQSjiveC7dKMe53uJUg1nDG16ttFPz2xfilz6i2uVg=="],
+
+    "@tanstack/react-query": ["@tanstack/react-query@5.90.21", "", { "dependencies": { "@tanstack/query-core": "5.90.20" }, "peerDependencies": { "react": "^18 || ^19" } }, "sha512-0Lu6y5t+tvlTJMTO7oh5NSpJfpg/5D41LlThfepTixPYkJ0sE2Jj0m0f6yYqujBwIXlId87e234+MxG3D3g7kg=="],
+
     "@tybys/wasm-util": ["@tybys/wasm-util@0.10.1", "", { "dependencies": { "tslib": "^2.4.0" } }, "sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg=="],
 
     "@types/babel__core": ["@types/babel__core@7.20.5", "", { "dependencies": { "@babel/parser": "^7.20.7", "@babel/types": "^7.20.7", "@types/babel__generator": "*", "@types/babel__template": "*", "@types/babel__traverse": "*" } }, "sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA=="],
@@ -613,6 +638,8 @@
     "demo-client-react": ["demo-client-react@workspace:examples/standalone/client-react"],
 
     "demo-client-vanilla": ["demo-client-vanilla@workspace:examples/standalone/client-vanilla"],
+
+    "demo-fullstack-react-hono-tanstack": ["demo-fullstack-react-hono-tanstack@workspace:examples/fullstack/react-hono-tanstack"],
 
     "demo-server-bun": ["demo-server-bun@workspace:examples/standalone/server-bun"],
 

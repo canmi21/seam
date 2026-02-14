@@ -1,0 +1,11 @@
+[project]
+name = "react-hono-tanstack"
+
+[backend]
+lang = "typescript"
+dev_command = "bun --watch src/server/index.ts"
+port = 3000
+
+[frontend]
+dev_command = "bunx vite dev --port 5173"
+dev_port = 5173

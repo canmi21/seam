@@ -13,7 +13,8 @@
     "examples/standalone/server-bun",
     "examples/standalone/server-node",
     "examples/standalone/client-vanilla",
-    "examples/standalone/client-react"
+    "examples/standalone/client-react",
+    "examples/fullstack/react-hono-tanstack"
   ],
   "type": "module",
   "scripts": {
