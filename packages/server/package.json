@@ -1,0 +1,21 @@
+{
+  "name": "@canmi/seam-server",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsdown src/index.ts",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "tsdown": "^0.12.0",
+    "vitest": "^3.0.0",
+    "typescript": "^5.7.0"
+  }
+}

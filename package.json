@@ -1,0 +1,9 @@
+{
+  "name": "seam",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "demo/backend/*",
+    "demo/frontend"
+  ]
+}
