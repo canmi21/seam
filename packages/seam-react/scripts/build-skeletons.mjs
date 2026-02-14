@@ -6,24 +6,9 @@ import { renderToString } from "react-dom/server";
 import { unlinkSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { setSSRData, clearSSRData } from "@canmi/seam-react";
+import { setSSRData, clearSSRData, buildSentinelData } from "@canmi/seam-react";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// -- Sentinel generation --
-
-export function buildSentinelData(obj, prefix = "") {
-  const result = {};
-  for (const [key, value] of Object.entries(obj)) {
-    const path = prefix ? `${prefix}.${key}` : key;
-    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-      result[key] = buildSentinelData(value, path);
-    } else {
-      result[key] = `%%SEAM:${path}%%`;
-    }
-  }
-  return result;
-}
 
 // Set a dotted path to null in a deep-cloned object
 function setFieldNull(obj, dottedPath) {

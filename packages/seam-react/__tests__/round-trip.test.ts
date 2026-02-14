@@ -5,21 +5,7 @@ import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { inject } from "@canmi/seam-injector";
 import { setSSRData, clearSSRData, useSeamData } from "../src/index.js";
-
-// -- Sentinel generation (duplicated from build-skeletons.mjs for testing) --
-
-function buildSentinelData(obj: Record<string, unknown>, prefix = ""): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    const path = prefix ? `${prefix}.${key}` : key;
-    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-      result[key] = buildSentinelData(value as Record<string, unknown>, path);
-    } else {
-      result[key] = `%%SEAM:${path}%%`;
-    }
-  }
-  return result;
-}
+import { buildSentinelData } from "../src/sentinel.js";
 
 // -- Slot replacement (mirrors Rust logic) --
 

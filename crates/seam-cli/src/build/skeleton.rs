@@ -1,17 +1,31 @@
 /* crates/seam-cli/src/build/skeleton.rs */
 
+use std::sync::OnceLock;
+
 use regex::Regex;
+
+fn attr_re() -> &'static Regex {
+  static RE: OnceLock<Regex> = OnceLock::new();
+  RE.get_or_init(|| Regex::new(r#"(\w+)="%%SEAM:([^%]+)%%""#).unwrap())
+}
+
+fn text_re() -> &'static Regex {
+  static RE: OnceLock<Regex> = OnceLock::new();
+  RE.get_or_init(|| Regex::new(r"%%SEAM:([^%]+)%%").unwrap())
+}
+
+fn tag_re() -> &'static Regex {
+  static RE: OnceLock<Regex> = OnceLock::new();
+  RE.get_or_init(|| Regex::new(r"<([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>").unwrap())
+}
 
 /// Replace text sentinels `%%SEAM:path%%` with slot markers `<!--seam:path-->`.
 /// Also handle attribute sentinels: `attr="%%SEAM:path%%"` inside tags
 /// becomes a `<!--seam:path:attr:attrName-->` comment before the tag.
 pub fn sentinel_to_slots(html: &str) -> String {
-  let attr_re = Regex::new(r#"(\w+)="%%SEAM:([^%]+)%%""#).unwrap();
-  let text_re = Regex::new(r"%%SEAM:([^%]+)%%").unwrap();
-
-  // First pass: collect attribute sentinels inside tags and transform them.
-  // We process the HTML tag by tag so we can insert comments before the `<`.
-  let tag_re = Regex::new(r"<([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>").unwrap();
+  let attr_re = attr_re();
+  let text_re = text_re();
+  let tag_re = tag_re();
 
   let mut result = String::with_capacity(html.len());
   let mut last_end = 0;

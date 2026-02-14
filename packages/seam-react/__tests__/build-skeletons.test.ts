@@ -1,22 +1,7 @@
 /* packages/seam-react/__tests__/build-skeletons.test.ts */
 
 import { describe, it, expect } from "vitest";
-
-// Import the sentinel function directly from the script
-// We test it by re-implementing the pure function here since .mjs scripts
-// aren't easily importable in vitest with mixed module types
-function buildSentinelData(obj: Record<string, unknown>, prefix = ""): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(obj)) {
-    const path = prefix ? `${prefix}.${key}` : key;
-    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-      result[key] = buildSentinelData(value as Record<string, unknown>, path);
-    } else {
-      result[key] = `%%SEAM:${path}%%`;
-    }
-  }
-  return result;
-}
+import { buildSentinelData } from "../src/sentinel.js";
 
 describe("buildSentinelData", () => {
   it("converts flat object to sentinels", () => {
