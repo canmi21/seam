@@ -41,6 +41,17 @@ export function serveBun<T extends ProcedureMap>(router: Router<T>, opts?: Serve
         return Response.json(result.body, { status: result.status });
       }
 
+      if (req.method === "GET" && pathname.startsWith("/seam/page/") && router.hasPages) {
+        const pagePath = "/" + pathname.slice("/seam/page/".length);
+        const result = await router.handlePage(pagePath);
+        if (result) {
+          return new Response(result.html, {
+            status: result.status,
+            headers: { "Content-Type": "text/html; charset=utf-8" },
+          });
+        }
+      }
+
       return Response.json({ error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 });
     },
   });

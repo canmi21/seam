@@ -1,32 +1,45 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
-use axum::response::IntoResponse;
+use axum::extract::{MatchedPath, Path, State};
+use axum::response::{Html, IntoResponse};
 use axum::routing::{get, post};
 use axum::Router;
 use tokio::net::TcpListener;
+use tokio::task::JoinSet;
 
 use crate::errors::SeamError;
+use crate::injector;
 use crate::manifest::build_manifest;
+use crate::page::PageDef;
 use crate::procedure::ProcedureDef;
 
 struct AppState {
   manifest_json: serde_json::Value,
   handlers: HashMap<String, Arc<ProcedureDef>>,
+  pages: HashMap<String, Arc<PageDef>>,
 }
 
 pub struct SeamServer {
   procedures: Vec<ProcedureDef>,
+  pages: Vec<PageDef>,
 }
 
 impl SeamServer {
   pub fn new() -> Self {
-    Self { procedures: Vec::new() }
+    Self {
+      procedures: Vec::new(),
+      pages: Vec::new(),
+    }
   }
 
   pub fn procedure(mut self, proc: ProcedureDef) -> Self {
     self.procedures.push(proc);
+    self
+  }
+
+  pub fn page(mut self, page: PageDef) -> Self {
+    self.pages.push(page);
     self
   }
 
@@ -39,12 +52,20 @@ impl SeamServer {
       handlers.insert(proc.name.clone(), Arc::new(proc));
     }
 
-    let state = Arc::new(AppState { manifest_json, handlers });
-
-    Router::new()
+    let mut pages = HashMap::new();
+    let mut router = Router::new()
       .route("/seam/manifest.json", get(handle_manifest))
-      .route("/seam/rpc/{name}", post(handle_rpc))
-      .with_state(state)
+      .route("/seam/rpc/{name}", post(handle_rpc));
+
+    for page in self.pages {
+      let full_route = format!("/seam/page{}", page.route);
+      pages.insert(full_route.clone(), Arc::new(page));
+      router = router.route(&full_route, get(handle_page));
+    }
+
+    let state = Arc::new(AppState { manifest_json, handlers, pages });
+
+    router.with_state(state)
   }
 
   pub async fn serve(self, addr: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -81,4 +102,45 @@ async fn handle_rpc(
 
   let result = (proc.handler)(input).await?;
   Ok(axum::Json(result))
+}
+
+async fn handle_page(
+  State(state): State<Arc<AppState>>,
+  matched: MatchedPath,
+  Path(params): Path<HashMap<String, String>>,
+) -> Result<Html<String>, SeamError> {
+  let route_pattern = matched.as_str().to_string();
+  let page = state
+    .pages
+    .get(&route_pattern)
+    .ok_or_else(|| SeamError::not_found("Page not found"))?;
+
+  let mut join_set = JoinSet::new();
+
+  for loader in &page.loaders {
+    let input = (loader.input_fn)(&params);
+    let proc_name = loader.procedure.clone();
+    let data_key = loader.data_key.clone();
+    let handlers = state.handlers.clone();
+
+    join_set.spawn(async move {
+      let proc = handlers
+        .get(&proc_name)
+        .ok_or_else(|| SeamError::internal(format!("Procedure '{proc_name}' not found")))?;
+      let result = (proc.handler)(input).await?;
+      Ok::<(String, serde_json::Value), SeamError>((data_key, result))
+    });
+  }
+
+  let mut data = serde_json::Map::new();
+  while let Some(result) = join_set.join_next().await {
+    let (key, value) = result
+      .map_err(|e| SeamError::internal(e.to_string()))?
+      .map_err(|e: SeamError| SeamError::internal(e.to_string()))?;
+    data.insert(key, value);
+  }
+
+  let data_value = serde_json::Value::Object(data);
+  let html = injector::inject(&page.template, &data_value);
+  Ok(Html(html))
 }
