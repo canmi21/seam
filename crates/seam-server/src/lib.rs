@@ -1,4 +1,5 @@
 pub mod errors;
+pub mod injector;
 pub mod manifest;
 pub mod procedure;
 pub mod server;

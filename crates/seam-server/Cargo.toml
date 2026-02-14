@@ -9,4 +9,5 @@ axum = "0.8"
 seam-macros = { path = "../seam-macros" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+regex = "1"
 tokio = { version = "1", features = ["full"] }
