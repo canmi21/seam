@@ -46,6 +46,9 @@
     "packages/server": {
       "name": "@canmi/seam-server",
       "version": "0.1.0",
+      "dependencies": {
+        "jtd": "^0.1.1",
+      },
       "devDependencies": {
         "tsdown": "^0.12.0",
         "typescript": "^5.7.0",
@@ -369,6 +372,8 @@
     "js-tokens": ["js-tokens@9.0.1", "", {}, "sha512-mxa9E9ITFOt0ban3j6L5MpjwegGz6lBQmM1IJkWeBZGcMxto50+eWdjC/52xDbS2vy0k7vIMK0Fe2wfL9OQSpQ=="],
 
     "jsesc": ["jsesc@3.1.0", "", { "bin": { "jsesc": "bin/jsesc" } }, "sha512-/sM3dO2FOzXjKQhJuo0Q173wf2KOo8t4I8vHy6lF9poUp7bKT0/NHE8fPX23PwfhnykfqnC2xRxOnVw5XuGIaA=="],
+
+    "jtd": ["jtd@0.1.1", "", {}, "sha512-D1unKfAE0A/sVLqJZs8mCSW812w651GJuV94WcXRAbx0Xv2j2yjW8qeO5pugXbTMX4k2/ojIH8kQ06LGj9QcaA=="],
 
     "loupe": ["loupe@3.2.1", "", {}, "sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ=="],
 

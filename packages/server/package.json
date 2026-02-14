@@ -12,8 +12,11 @@
     }
   },
   "scripts": {
-    "build": "tsdown src/index.ts",
+    "build": "tsdown && node scripts/fix-dts.js",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "jtd": "^0.1.1"
   },
   "devDependencies": {
     "tsdown": "^0.12.0",
