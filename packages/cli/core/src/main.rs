@@ -6,6 +6,7 @@ mod config;
 mod dev;
 mod manifest;
 mod pull;
+mod ui;
 
 use std::path::PathBuf;
 
@@ -100,18 +101,25 @@ async fn main() -> Result<()> {
           .unwrap_or_else(|| PathBuf::from("src/generated"))
       });
 
+      ui::arrow(&format!("reading {}", manifest.display()));
+
       let content = std::fs::read_to_string(&manifest)
         .with_context(|| format!("failed to read {}", manifest.display()))?;
       let parsed: crate::manifest::Manifest =
         serde_json::from_str(&content).context("failed to parse manifest")?;
+
+      let proc_count = parsed.procedures.len();
       let code = codegen::generate_typescript(&parsed)?;
+      let line_count = code.lines().count();
 
       std::fs::create_dir_all(&out)
         .with_context(|| format!("failed to create {}", out.display()))?;
       let file = out.join("client.ts");
-      std::fs::write(&file, code).with_context(|| format!("failed to write {}", file.display()))?;
+      std::fs::write(&file, &code)
+        .with_context(|| format!("failed to write {}", file.display()))?;
 
-      println!("generated {}", file.display());
+      ui::ok(&format!("generated {proc_count} procedures"));
+      ui::ok(&format!("{}  {line_count} lines", file.display()));
     }
     Command::Build { config } => {
       let (config_path, seam_config) = resolve_config(config)?;

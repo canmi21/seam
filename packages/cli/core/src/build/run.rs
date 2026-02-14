@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::process::Command;
+use std::time::Instant;
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -10,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use super::config::BuildConfig;
 use super::skeleton::{apply_conditionals, detect_conditional, sentinel_to_slots, wrap_document};
 use crate::config::SeamConfig;
+use crate::ui::{self, DIM, RESET};
 
 // -- Vite manifest types --
 
@@ -69,14 +71,15 @@ struct AssetFiles {
 }
 
 fn run_bundler(base_dir: &Path, command: &str) -> Result<()> {
-  println!("Running bundler: {command}");
-  let status = Command::new("sh")
+  ui::detail(&format!("{DIM}{command}{RESET}"));
+  let output = Command::new("sh")
     .args(["-c", command])
     .current_dir(base_dir)
-    .status()
+    .output()
     .context("failed to run bundler")?;
-  if !status.success() {
-    bail!("bundler exited with status {status}");
+  if !output.status.success() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    bail!("bundler exited with status {}\n{stderr}", output.status);
   }
   Ok(())
 }
@@ -100,13 +103,22 @@ fn read_vite_manifest(path: &Path) -> Result<AssetFiles> {
   Ok(AssetFiles { css, js })
 }
 
+/// Print each asset file with its size from disk
+fn print_asset_files(base_dir: &Path, dist_dir: &str, assets: &AssetFiles) {
+  let all_files: Vec<&str> =
+    assets.js.iter().chain(assets.css.iter()).map(|s| s.as_str()).collect();
+  for file in all_files {
+    let full_path = base_dir.join(dist_dir).join(file);
+    let size = std::fs::metadata(&full_path).map(|m| m.len()).unwrap_or(0);
+    ui::detail_ok(&format!("{dist_dir}/{file}  {DIM}({}){RESET}", ui::format_size(size)));
+  }
+}
+
 fn run_skeleton_renderer(
   script_path: &Path,
   routes_path: &Path,
   base_dir: &Path,
 ) -> Result<SkeletonOutput> {
-  println!("Rendering skeletons for: {}", routes_path.display());
-
   let output = Command::new("node")
     .arg(script_path)
     .arg(routes_path)
@@ -154,45 +166,75 @@ fn process_routes(
     std::fs::write(&filepath, &document)
       .with_context(|| format!("failed to write {}", filepath.display()))?;
 
+    let size = document.len() as u64;
     let template_rel = format!("templates/{filename}");
+    ui::detail_ok(&format!(
+      "{}  \u{2192} {template_rel}  {DIM}({}){RESET}",
+      route.path,
+      ui::format_size(size)
+    ));
+
     manifest.routes.insert(
       route.path.clone(),
       RouteManifestEntry { template: template_rel, loaders: route.loaders.clone() },
     );
-
-    println!("  {} -> {}", route.path, filename);
   }
   Ok(manifest)
 }
 
 pub fn run_build(config: &SeamConfig, base_dir: &Path) -> Result<()> {
+  let started = Instant::now();
   let build_config = BuildConfig::from_seam_config(config)?;
 
+  ui::banner("build");
+
+  // [1/4] Bundle frontend
+  ui::step(1, 4, "Bundling frontend");
   run_bundler(base_dir, &build_config.bundler_command)?;
 
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
   let assets = read_vite_manifest(&manifest_path)?;
+  print_asset_files(base_dir, "dist", &assets);
+  ui::blank();
 
+  // [2/4] Extract routes
+  ui::step(2, 4, "Extracting routes");
   let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
   if !script_path.exists() {
     bail!("build-skeletons.mjs not found at {}", script_path.display());
   }
   let routes_path = base_dir.join(&build_config.routes);
   let skeleton_output = run_skeleton_renderer(&script_path, &routes_path, base_dir)?;
+  ui::detail_ok(&format!("{} routes found", skeleton_output.routes.len()));
+  ui::blank();
 
+  // [3/4] Generate skeletons
+  ui::step(3, 4, "Generating skeletons");
   let out_dir = base_dir.join(&build_config.out_dir);
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
-
   let route_manifest = process_routes(&skeleton_output.routes, &templates_dir, &assets)?;
+  ui::blank();
 
+  // [4/4] Write route manifest
+  ui::step(4, 4, "Writing route manifest");
   let manifest_out = out_dir.join("route-manifest.json");
   let manifest_json = serde_json::to_string_pretty(&route_manifest)?;
-  std::fs::write(&manifest_out, manifest_json)
+  std::fs::write(&manifest_out, &manifest_json)
     .with_context(|| format!("failed to write {}", manifest_out.display()))?;
+  ui::detail_ok("route-manifest.json");
+  ui::blank();
 
-  println!("Build complete: {} routes", skeleton_output.routes.len());
+  // Summary
+  let elapsed = started.elapsed().as_secs_f64();
+  let template_count = skeleton_output.routes.len();
+  let asset_count = assets.js.len() + assets.css.len();
+  ui::ok(&format!("build complete in {elapsed:.1}s"));
+  ui::detail(&format!(
+    "{template_count} templates \u{00b7} {asset_count} assets \u{00b7} route-manifest.json"
+  ));
+
   Ok(())
 }
 

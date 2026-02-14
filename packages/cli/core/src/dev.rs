@@ -8,18 +8,7 @@ use tokio::process::Command;
 use tokio::signal;
 
 use crate::config::SeamConfig;
-
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-// ANSI color helpers
-const RESET: &str = "\x1b[0m";
-const BOLD: &str = "\x1b[1m";
-const DIM: &str = "\x1b[2m";
-const CYAN: &str = "\x1b[36m";
-const GREEN: &str = "\x1b[32m";
-const MAGENTA: &str = "\x1b[35m";
-const YELLOW: &str = "\x1b[33m";
-const RED: &str = "\x1b[31m";
+use crate::ui::{BOLD, CYAN, DIM, GREEN, MAGENTA, RED, RESET, YELLOW};
 
 struct ChildProcess {
   label: &'static str,
@@ -111,10 +100,7 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
     );
   }
 
-  // Banner
-  println!();
-  println!("  {BOLD}SeamJS{RESET} {DIM}v{VERSION}{RESET} dev");
-  println!();
+  crate::ui::banner("dev");
 
   if let Some(cmd) = backend_cmd {
     println!("  {CYAN}backend{RESET}   {DIM}{cmd}{RESET}");
