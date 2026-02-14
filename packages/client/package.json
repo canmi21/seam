@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsdown src/index.ts",
+    "build": "tsdown && node scripts/fix-dts.js",
     "test": "vitest run"
   },
   "devDependencies": {
