@@ -1,4 +1,4 @@
-/* examples/server-rust/src/pages/mod.rs */
+/* examples/standalone/server-rust/src/pages/mod.rs */
 
 use std::sync::Arc;
 

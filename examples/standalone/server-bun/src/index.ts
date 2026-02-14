@@ -1,4 +1,4 @@
-/* examples/server-bun/src/index.ts */
+/* examples/standalone/server-bun/src/index.ts */
 
 import { createRouter } from "@canmi/seam-server";
 import { serveBun } from "@canmi/seam-adapter-bun";

@@ -1,4 +1,4 @@
-/* examples/server-rust/src/subscriptions/on_count.rs */
+/* examples/standalone/server-rust/src/subscriptions/on_count.rs */
 
 use seam_server::{BoxStream, SeamError, SeamType, SubscriptionDef};
 use serde::{Deserialize, Serialize};

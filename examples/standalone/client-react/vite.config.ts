@@ -1,4 +1,4 @@
-/* examples/client-react/vite.config.ts */
+/* examples/standalone/client-react/vite.config.ts */
 
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";

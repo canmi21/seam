@@ -1,4 +1,4 @@
-/* examples/server-bun/src/pages/user.ts */
+/* examples/standalone/server-bun/src/pages/user.ts */
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";

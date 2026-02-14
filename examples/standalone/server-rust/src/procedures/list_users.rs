@@ -1,4 +1,4 @@
-/* examples/server-rust/src/procedures/list_users.rs */
+/* examples/standalone/server-rust/src/procedures/list_users.rs */
 
 use seam_server::{seam_procedure, SeamError, SeamType};
 use serde::{Deserialize, Serialize};

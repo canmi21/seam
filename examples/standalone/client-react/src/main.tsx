@@ -1,4 +1,4 @@
-/* examples/client-react/src/main.tsx */
+/* examples/standalone/client-react/src/main.tsx */
 
 import { StrictMode } from "react";
 import { hydrateRoot } from "react-dom/client";

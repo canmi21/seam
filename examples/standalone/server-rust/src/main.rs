@@ -1,4 +1,4 @@
-/* examples/server-rust/src/main.rs */
+/* examples/standalone/server-rust/src/main.rs */
 
 mod pages;
 mod procedures;

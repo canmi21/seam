@@ -1,4 +1,4 @@
-/* examples/server-bun/src/index-react.ts */
+/* examples/standalone/server-bun/src/index-react.ts */
 
 import { createRouter, loadBuildOutput } from "@canmi/seam-server";
 import { serveBun } from "@canmi/seam-adapter-bun";

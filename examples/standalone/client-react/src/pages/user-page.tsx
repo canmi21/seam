@@ -1,4 +1,4 @@
-/* examples/client-react/src/pages/user-page.tsx */
+/* examples/standalone/client-react/src/pages/user-page.tsx */
 
 import { useSeamData } from "@canmi/seam-react";
 

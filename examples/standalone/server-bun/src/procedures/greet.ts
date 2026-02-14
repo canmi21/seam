@@ -1,4 +1,4 @@
-/* examples/server-bun/src/procedures/greet.ts */
+/* examples/standalone/server-bun/src/procedures/greet.ts */
 
 import { t } from "@canmi/seam-server";
 import type { ProcedureDef } from "@canmi/seam-server";

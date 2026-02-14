@@ -1,4 +1,4 @@
-/* examples/client-vanilla/src/index.ts */
+/* examples/standalone/client-vanilla/src/index.ts */
 
 import { createSeamClient } from "./generated/client.js";
 

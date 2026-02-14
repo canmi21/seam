@@ -1,3 +1,3 @@
-/* examples/server-rust/src/subscriptions/mod.rs */
+/* examples/standalone/server-rust/src/subscriptions/mod.rs */
 
 pub mod on_count;

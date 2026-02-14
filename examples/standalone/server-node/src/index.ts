@@ -1,4 +1,4 @@
-/* examples/server-node/src/index.ts */
+/* examples/standalone/server-node/src/index.ts */
 
 import { createRouter } from "@canmi/seam-server";
 import { serveNode } from "@canmi/seam-adapter-node";

@@ -1,4 +1,4 @@
-/* examples/client-react/src/routes.ts */
+/* examples/standalone/client-react/src/routes.ts */
 
 import { defineRoutes } from "@canmi/seam-react";
 import { UserPage } from "./pages/user-page.js";

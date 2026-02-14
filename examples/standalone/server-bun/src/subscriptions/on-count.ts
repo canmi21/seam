@@ -1,4 +1,4 @@
-/* examples/server-bun/src/subscriptions/on-count.ts */
+/* examples/standalone/server-bun/src/subscriptions/on-count.ts */
 
 import { t } from "@canmi/seam-server";
 import type { SubscriptionDef } from "@canmi/seam-server";
