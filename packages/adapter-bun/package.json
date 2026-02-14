@@ -1,25 +1,27 @@
 {
   "name": "@canmi/seam-adapter-bun",
   "version": "0.1.0",
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
   "scripts": {
     "build": "tsdown src/index.ts",
     "test": "vitest run"
   },
-  "peerDependencies": {
-    "@canmi/seam-server": "workspace:*"
-  },
   "devDependencies": {
     "@canmi/seam-server": "workspace:*",
     "tsdown": "^0.12.0",
-    "vitest": "^3.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "peerDependencies": {
+    "@canmi/seam-server": "workspace:*"
   }
 }

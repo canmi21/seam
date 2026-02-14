@@ -2,8 +2,15 @@
   "name": "seam",
   "private": true,
   "workspaces": [
-    "packages/*",
-    "demo/backend/*",
-    "demo/frontend"
-  ]
+    "packages/*"
+  ],
+  "scripts": {
+    "lint": "oxlint --tsconfig tsconfig.json",
+    "fmt": "oxfmt --write .",
+    "fmt:check": "oxfmt --check ."
+  },
+  "devDependencies": {
+    "oxfmt": "^0.32.0",
+    "oxlint": "^1.47.0"
+  }
 }
