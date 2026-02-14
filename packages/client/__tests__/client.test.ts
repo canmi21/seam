@@ -1,3 +1,5 @@
+/* packages/client/__tests__/client.test.ts */
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createClient } from "../src/client.js";
 import { SeamClientError } from "../src/errors.js";

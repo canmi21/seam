@@ -1,3 +1,5 @@
+/* packages/server/__tests__/page-handler.test.ts */
+
 import { describe, expect, it } from "vitest";
 import { handlePageRequest } from "../src/page/handler.js";
 import type { InternalProcedure } from "../src/procedure.js";
@@ -21,10 +23,9 @@ describe("handlePageRequest", () => {
       "getUser",
       mockProcedure(() => ({ name: "Alice", email: "a@b.com" })),
     ]);
-    const page = simplePage(
-      "<h1><!--seam:user.name--></h1>",
-      { user: () => ({ procedure: "getUser", input: {} }) },
-    );
+    const page = simplePage("<h1><!--seam:user.name--></h1>", {
+      user: () => ({ procedure: "getUser", input: {} }),
+    });
 
     const result = await handlePageRequest(page, {}, procs);
     expect(result.status).toBe(200);
@@ -34,10 +35,9 @@ describe("handlePageRequest", () => {
 
   it("returns 500 when procedure not found", async () => {
     const procs = makeProcedures();
-    const page = simplePage(
-      "<h1><!--seam:user.name--></h1>",
-      { user: () => ({ procedure: "missing", input: {} }) },
-    );
+    const page = simplePage("<h1><!--seam:user.name--></h1>", {
+      user: () => ({ procedure: "missing", input: {} }),
+    });
 
     const result = await handlePageRequest(page, {}, procs);
     expect(result.status).toBe(500);
@@ -47,12 +47,13 @@ describe("handlePageRequest", () => {
   it("returns 500 when handler throws", async () => {
     const procs = makeProcedures([
       "getUser",
-      mockProcedure(() => { throw new Error("db down"); }),
+      mockProcedure(() => {
+        throw new Error("db down");
+      }),
     ]);
-    const page = simplePage(
-      "<h1><!--seam:user.name--></h1>",
-      { user: () => ({ procedure: "getUser", input: {} }) },
-    );
+    const page = simplePage("<h1><!--seam:user.name--></h1>", {
+      user: () => ({ procedure: "getUser", input: {} }),
+    });
 
     const result = await handlePageRequest(page, {}, procs);
     expect(result.status).toBe(500);
@@ -64,13 +65,10 @@ describe("handlePageRequest", () => {
       ["getUser", mockProcedure(() => ({ name: "Alice" }))],
       ["getOrg", mockProcedure(() => ({ title: "Acme" }))],
     );
-    const page = simplePage(
-      "<h1><!--seam:user.name--></h1><h2><!--seam:org.title--></h2>",
-      {
-        user: () => ({ procedure: "getUser", input: {} }),
-        org: () => ({ procedure: "getOrg", input: {} }),
-      },
-    );
+    const page = simplePage("<h1><!--seam:user.name--></h1><h2><!--seam:org.title--></h2>", {
+      user: () => ({ procedure: "getUser", input: {} }),
+      org: () => ({ procedure: "getOrg", input: {} }),
+    });
 
     const result = await handlePageRequest(page, {}, procs);
     expect(result.status).toBe(200);
@@ -86,10 +84,9 @@ describe("handlePageRequest", () => {
         return { name: id === 42 ? "Found" : "Wrong" };
       }),
     ]);
-    const page = simplePage(
-      "<h1><!--seam:user.name--></h1>",
-      { user: (params) => ({ procedure: "getUser", input: { id: Number(params.id) } }) },
-    );
+    const page = simplePage("<h1><!--seam:user.name--></h1>", {
+      user: (params) => ({ procedure: "getUser", input: { id: Number(params.id) } }),
+    });
 
     const result = await handlePageRequest(page, { id: "42" }, procs);
     expect(result.status).toBe(200);
@@ -99,12 +96,13 @@ describe("handlePageRequest", () => {
   it("escapes error message in HTML", async () => {
     const procs = makeProcedures([
       "getUser",
-      mockProcedure(() => { throw new Error("<script>alert(1)</script>"); }),
+      mockProcedure(() => {
+        throw new Error("<script>alert(1)</script>");
+      }),
     ]);
-    const page = simplePage(
-      "<h1><!--seam:user.name--></h1>",
-      { user: () => ({ procedure: "getUser", input: {} }) },
-    );
+    const page = simplePage("<h1><!--seam:user.name--></h1>", {
+      user: () => ({ procedure: "getUser", input: {} }),
+    });
 
     const result = await handlePageRequest(page, {}, procs);
     expect(result.status).toBe(500);

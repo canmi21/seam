@@ -1,3 +1,5 @@
+/* demo/backend/rust/src/pages/mod.rs */
+
 use std::sync::Arc;
 
 use seam_server::page::{LoaderDef, PageDef};

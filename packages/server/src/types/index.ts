@@ -1,3 +1,5 @@
+/* packages/server/src/types/index.ts */
+
 import * as primitives from "./primitives.js";
 import {
   object,

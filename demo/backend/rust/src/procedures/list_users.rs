@@ -1,3 +1,5 @@
+/* demo/backend/rust/src/procedures/list_users.rs */
+
 use seam_server::{seam_procedure, SeamError, SeamType};
 use serde::{Deserialize, Serialize};
 

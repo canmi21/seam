@@ -1,3 +1,5 @@
+/* packages/seam-react/src/use-seam-data.ts */
+
 let ssrData: Record<string, unknown> | null = null;
 
 export function setSSRData(data: Record<string, unknown>): void {

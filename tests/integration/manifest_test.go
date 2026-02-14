@@ -1,3 +1,5 @@
+/* tests/integration/manifest_test.go */
+
 package integration
 
 import (

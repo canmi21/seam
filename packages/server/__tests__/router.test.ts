@@ -1,3 +1,5 @@
+/* packages/server/__tests__/router.test.ts */
+
 import { describe, expect, it } from "vitest";
 import { createRouter } from "../src/router/index.js";
 import { t } from "../src/types/index.js";

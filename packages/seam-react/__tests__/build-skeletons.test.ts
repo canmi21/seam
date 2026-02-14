@@ -1,3 +1,5 @@
+/* packages/seam-react/__tests__/build-skeletons.test.ts */
+
 import { describe, it, expect } from "vitest";
 
 // Import the sentinel function directly from the script

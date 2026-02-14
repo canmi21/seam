@@ -1,3 +1,5 @@
+/* packages/server/src/page/index.ts */
+
 export interface LoaderResult {
   procedure: string;
   input: unknown;

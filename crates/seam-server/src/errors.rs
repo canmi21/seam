@@ -1,3 +1,5 @@
+/* crates/seam-server/src/errors.rs */
+
 use std::fmt;
 
 use axum::http::StatusCode;

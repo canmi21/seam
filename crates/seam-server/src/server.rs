@@ -1,3 +1,5 @@
+/* crates/seam-server/src/server.rs */
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -27,10 +29,7 @@ pub struct SeamServer {
 
 impl SeamServer {
   pub fn new() -> Self {
-    Self {
-      procedures: Vec::new(),
-      pages: Vec::new(),
-    }
+    Self { procedures: Vec::new(), pages: Vec::new() }
   }
 
   pub fn procedure(mut self, proc: ProcedureDef) -> Self {
@@ -47,11 +46,8 @@ impl SeamServer {
     let manifest = build_manifest(&self.procedures);
     let manifest_json = serde_json::to_value(&manifest).expect("manifest serialization");
 
-    let handlers: HashMap<String, Arc<ProcedureDef>> = self
-      .procedures
-      .into_iter()
-      .map(|p| (p.name.clone(), Arc::new(p)))
-      .collect();
+    let handlers: HashMap<String, Arc<ProcedureDef>> =
+      self.procedures.into_iter().map(|p| (p.name.clone(), Arc::new(p))).collect();
 
     let mut pages = HashMap::new();
     let mut router = Router::new()
@@ -111,10 +107,8 @@ async fn handle_page(
   Path(params): Path<HashMap<String, String>>,
 ) -> Result<Html<String>, SeamError> {
   let route_pattern = matched.as_str().to_string();
-  let page = state
-    .pages
-    .get(&route_pattern)
-    .ok_or_else(|| SeamError::not_found("Page not found"))?;
+  let page =
+    state.pages.get(&route_pattern).ok_or_else(|| SeamError::not_found("Page not found"))?;
 
   let mut join_set = JoinSet::new();
 

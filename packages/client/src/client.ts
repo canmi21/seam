@@ -1,3 +1,5 @@
+/* packages/client/src/client.ts */
+
 import { SeamClientError } from "./errors.js";
 import type { ErrorCode } from "./errors.js";
 

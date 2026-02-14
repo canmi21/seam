@@ -1,3 +1,5 @@
+/* packages/seam-react/__tests__/use-seam-data.test.ts */
+
 import { describe, it, expect, afterEach } from "vitest";
 import { useSeamData, setSSRData, clearSSRData } from "../src/index.js";
 

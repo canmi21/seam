@@ -1,3 +1,5 @@
+/* packages/adapter-bun/src/index.ts */
+
 import { createHttpHandler } from "@canmi/seam-server";
 import type { ProcedureMap, Router } from "@canmi/seam-server";
 

@@ -1,3 +1,5 @@
+/* demo/backend/typescript/src/procedures/list-users.ts */
+
 import { t } from "@canmi/seam-server";
 import type { ProcedureDef } from "@canmi/seam-server";
 

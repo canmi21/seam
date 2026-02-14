@@ -1,3 +1,5 @@
+/* packages/adapter-node/src/index.ts */
+
 import type { IncomingMessage } from "node:http";
 import { createServer } from "node:http";
 import { createHttpHandler } from "@canmi/seam-server";

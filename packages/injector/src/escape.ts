@@ -1,3 +1,5 @@
+/* packages/injector/src/escape.ts */
+
 const ESCAPE_MAP: Record<string, string> = {
   "&": "&amp;",
   "<": "&lt;",

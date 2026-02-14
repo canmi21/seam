@@ -1,3 +1,5 @@
+/* tests/integration/parity_test.go */
+
 package integration
 
 import (

@@ -1,3 +1,5 @@
+/* crates/seam-server/src/lib.rs */
+
 pub mod errors;
 pub mod injector;
 pub mod manifest;

@@ -1,3 +1,5 @@
+/* packages/server/src/types/primitives.ts */
+
 import type { SchemaNode } from "./schema.js";
 import { createSchemaNode } from "./schema.js";
 

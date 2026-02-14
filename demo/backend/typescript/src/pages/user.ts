@@ -1,3 +1,5 @@
+/* demo/backend/typescript/src/pages/user.ts */
+
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { definePage } from "@canmi/seam-server";

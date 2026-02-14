@@ -1,3 +1,5 @@
+/* packages/server/src/page/handler.ts */
+
 import { inject, escapeHtml } from "@canmi/seam-injector";
 import { SeamError } from "../errors.js";
 import type { InternalProcedure } from "../procedure.js";

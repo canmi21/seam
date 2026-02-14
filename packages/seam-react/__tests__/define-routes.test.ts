@@ -1,3 +1,5 @@
+/* packages/seam-react/__tests__/define-routes.test.ts */
+
 import { describe, it, expect } from "vitest";
 import { defineRoutes } from "../src/index.js";
 

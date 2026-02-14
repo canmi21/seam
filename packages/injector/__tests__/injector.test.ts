@@ -1,3 +1,5 @@
+/* packages/injector/__tests__/injector.test.ts */
+
 import { describe, expect, it } from "vitest";
 import { inject } from "../src/injector.js";
 
@@ -9,7 +11,11 @@ describe("inject", () => {
     });
 
     it("escapes HTML entities in text slots", () => {
-      const html = inject("<p><!--seam:msg--></p>", { msg: '<script>alert("xss")</script>' }, { skipDataScript: true });
+      const html = inject(
+        "<p><!--seam:msg--></p>",
+        { msg: '<script>alert("xss")</script>' },
+        { skipDataScript: true },
+      );
       expect(html).toBe("<p>&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;</p>");
     });
 
@@ -19,7 +25,11 @@ describe("inject", () => {
     });
 
     it("resolves nested paths", () => {
-      const html = inject("<p><!--seam:user.address.city--></p>", { user: { address: { city: "Tokyo" } } }, { skipDataScript: true });
+      const html = inject(
+        "<p><!--seam:user.address.city--></p>",
+        { user: { address: { city: "Tokyo" } } },
+        { skipDataScript: true },
+      );
       expect(html).toBe("<p>Tokyo</p>");
     });
 
@@ -46,7 +56,11 @@ describe("inject", () => {
 
   describe("raw HTML slots", () => {
     it("replaces raw slot without escaping", () => {
-      const html = inject("<div><!--seam:content:html--></div>", { content: "<b>bold</b>" }, { skipDataScript: true });
+      const html = inject(
+        "<div><!--seam:content:html--></div>",
+        { content: "<b>bold</b>" },
+        { skipDataScript: true },
+      );
       expect(html).toBe("<div><b>bold</b></div>");
     });
 
@@ -58,59 +72,103 @@ describe("inject", () => {
 
   describe("attribute slots", () => {
     it("injects attribute on next opening tag", () => {
-      const html = inject('<!--seam:cls:attr:class--><div>hi</div>', { cls: "active" }, { skipDataScript: true });
+      const html = inject(
+        "<!--seam:cls:attr:class--><div>hi</div>",
+        { cls: "active" },
+        { skipDataScript: true },
+      );
       expect(html).toBe('<div class="active">hi</div>');
     });
 
     it("escapes attribute values", () => {
-      const html = inject('<!--seam:v:attr:title--><span>x</span>', { v: 'a"b' }, { skipDataScript: true });
+      const html = inject(
+        "<!--seam:v:attr:title--><span>x</span>",
+        { v: 'a"b' },
+        { skipDataScript: true },
+      );
       expect(html).toBe('<span title="a&quot;b">x</span>');
     });
 
     it("skips injection for missing path", () => {
-      const html = inject('<!--seam:missing:attr:class--><div>hi</div>', {}, { skipDataScript: true });
+      const html = inject(
+        "<!--seam:missing:attr:class--><div>hi</div>",
+        {},
+        { skipDataScript: true },
+      );
       expect(html).toBe("<div>hi</div>");
     });
   });
 
   describe("conditional slots", () => {
     it("keeps block when value is truthy", () => {
-      const html = inject("<!--seam:if:show--><p>visible</p><!--seam:endif:show-->", { show: true }, { skipDataScript: true });
+      const html = inject(
+        "<!--seam:if:show--><p>visible</p><!--seam:endif:show-->",
+        { show: true },
+        { skipDataScript: true },
+      );
       expect(html).toBe("<p>visible</p>");
     });
 
     it("removes block when value is falsy (false)", () => {
-      const html = inject("<!--seam:if:show--><p>hidden</p><!--seam:endif:show-->", { show: false }, { skipDataScript: true });
+      const html = inject(
+        "<!--seam:if:show--><p>hidden</p><!--seam:endif:show-->",
+        { show: false },
+        { skipDataScript: true },
+      );
       expect(html).toBe("");
     });
 
     it("removes block when value is falsy (null)", () => {
-      const html = inject("<!--seam:if:show--><p>hidden</p><!--seam:endif:show-->", { show: null }, { skipDataScript: true });
+      const html = inject(
+        "<!--seam:if:show--><p>hidden</p><!--seam:endif:show-->",
+        { show: null },
+        { skipDataScript: true },
+      );
       expect(html).toBe("");
     });
 
     it("removes block when value is falsy (0)", () => {
-      const html = inject("<!--seam:if:count--><p>has items</p><!--seam:endif:count-->", { count: 0 }, { skipDataScript: true });
+      const html = inject(
+        "<!--seam:if:count--><p>has items</p><!--seam:endif:count-->",
+        { count: 0 },
+        { skipDataScript: true },
+      );
       expect(html).toBe("");
     });
 
     it("removes block when value is falsy (empty string)", () => {
-      const html = inject("<!--seam:if:name--><p>hi</p><!--seam:endif:name-->", { name: "" }, { skipDataScript: true });
+      const html = inject(
+        "<!--seam:if:name--><p>hi</p><!--seam:endif:name-->",
+        { name: "" },
+        { skipDataScript: true },
+      );
       expect(html).toBe("");
     });
 
     it("removes block when path is missing", () => {
-      const html = inject("<!--seam:if:missing--><p>gone</p><!--seam:endif:missing-->", {}, { skipDataScript: true });
+      const html = inject(
+        "<!--seam:if:missing--><p>gone</p><!--seam:endif:missing-->",
+        {},
+        { skipDataScript: true },
+      );
       expect(html).toBe("");
     });
 
     it("keeps block for truthy object", () => {
-      const html = inject("<!--seam:if:user--><p>logged in</p><!--seam:endif:user-->", { user: { name: "A" } }, { skipDataScript: true });
+      const html = inject(
+        "<!--seam:if:user--><p>logged in</p><!--seam:endif:user-->",
+        { user: { name: "A" } },
+        { skipDataScript: true },
+      );
       expect(html).toBe("<p>logged in</p>");
     });
 
     it("keeps block for empty array (truthy)", () => {
-      const html = inject("<!--seam:if:items--><p>yes</p><!--seam:endif:items-->", { items: [] }, { skipDataScript: true });
+      const html = inject(
+        "<!--seam:if:items--><p>yes</p><!--seam:endif:items-->",
+        { items: [] },
+        { skipDataScript: true },
+      );
       expect(html).toBe("<p>yes</p>");
     });
 
@@ -122,7 +180,7 @@ describe("inject", () => {
     });
 
     it("removes slots inside removed conditional block", () => {
-      const tmpl = '<!--seam:if:show--><p><!--seam:name--></p><!--seam:endif:show-->';
+      const tmpl = "<!--seam:if:show--><p><!--seam:name--></p><!--seam:endif:show-->";
       const html = inject(tmpl, { show: false, name: "Alice" }, { skipDataScript: true });
       expect(html).toBe("");
     });
@@ -131,12 +189,16 @@ describe("inject", () => {
   describe("__SEAM_DATA__ script", () => {
     it("inserts before </body>", () => {
       const html = inject("<body><p>hi</p></body>", { x: 1 });
-      expect(html).toBe('<body><p>hi</p><script id="__SEAM_DATA__" type="application/json">{"x":1}</script></body>');
+      expect(html).toBe(
+        '<body><p>hi</p><script id="__SEAM_DATA__" type="application/json">{"x":1}</script></body>',
+      );
     });
 
     it("appends at end when no </body>", () => {
       const html = inject("<p>hi</p>", { x: 1 });
-      expect(html).toBe('<p>hi</p><script id="__SEAM_DATA__" type="application/json">{"x":1}</script>');
+      expect(html).toBe(
+        '<p>hi</p><script id="__SEAM_DATA__" type="application/json">{"x":1}</script>',
+      );
     });
 
     it("is omitted when skipDataScript is true", () => {
@@ -149,7 +211,7 @@ describe("inject", () => {
     it("handles all slot types in one template", () => {
       const tmpl = [
         "<html><body>",
-        '<!--seam:cls:attr:class--><div>',
+        "<!--seam:cls:attr:class--><div>",
         "<!--seam:if:user-->",
         "<h1><!--seam:user.name--></h1>",
         "<div><!--seam:user.bio:html--></div>",

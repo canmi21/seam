@@ -1,27 +1,22 @@
+/* packages/server/src/page/route-matcher.ts */
+
 interface CompiledRoute {
   segments: RouteSegment[];
 }
 
-type RouteSegment =
-  | { kind: "static"; value: string }
-  | { kind: "param"; name: string };
+type RouteSegment = { kind: "static"; value: string } | { kind: "param"; name: string };
 
 function compileRoute(pattern: string): CompiledRoute {
   const segments: RouteSegment[] = pattern
     .split("/")
     .filter(Boolean)
     .map((seg) =>
-      seg.startsWith(":")
-        ? { kind: "param", name: seg.slice(1) }
-        : { kind: "static", value: seg },
+      seg.startsWith(":") ? { kind: "param", name: seg.slice(1) } : { kind: "static", value: seg },
     );
   return { segments };
 }
 
-function matchRoute(
-  segments: RouteSegment[],
-  pathParts: string[],
-): Record<string, string> | null {
+function matchRoute(segments: RouteSegment[], pathParts: string[]): Record<string, string> | null {
   if (segments.length !== pathParts.length) return null;
   const params: Record<string, string> = {};
   for (let i = 0; i < segments.length; i++) {

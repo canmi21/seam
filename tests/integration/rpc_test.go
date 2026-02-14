@@ -1,3 +1,5 @@
+/* tests/integration/rpc_test.go */
+
 package integration
 
 import (

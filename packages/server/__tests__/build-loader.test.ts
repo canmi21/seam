@@ -1,3 +1,5 @@
+/* packages/server/__tests__/build-loader.test.ts */
+
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";

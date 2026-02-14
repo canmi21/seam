@@ -1,3 +1,5 @@
+/* packages/server/src/http.ts */
+
 import { readFileSync } from "node:fs";
 import { join, extname } from "node:path";
 import type { Router, ProcedureMap } from "./router/index.js";

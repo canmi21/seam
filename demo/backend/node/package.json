@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@canmi/seam-server": "workspace:*",
-    "@canmi/seam-adapter-node": "workspace:*"
+    "@canmi/seam-adapter-node": "workspace:*",
+    "@canmi/seam-server": "workspace:*"
   }
 }

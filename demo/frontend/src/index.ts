@@ -1,3 +1,5 @@
+/* demo/frontend/src/index.ts */
+
 import { createSeamClient } from "./generated/client.js";
 
 const api = createSeamClient("http://localhost:3000");

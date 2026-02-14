@@ -4,12 +4,12 @@ Server-side HTML data injection. Backends receive an HTML template with slot mar
 
 ## Slot Syntax
 
-| Type | Syntax | Behavior |
-|------|--------|----------|
-| Text (escaped) | `<!--seam:path-->` | Replace with HTML-escaped value |
-| Raw HTML | `<!--seam:path:html-->` | Replace with unescaped value |
-| Attribute | `<!--seam:path:attr:name-->` | Inject attribute on next opening tag |
-| Conditional | `<!--seam:if:path-->...<!--seam:endif:path-->` | Keep block if truthy, remove if falsy |
+| Type           | Syntax                                         | Behavior                              |
+| -------------- | ---------------------------------------------- | ------------------------------------- |
+| Text (escaped) | `<!--seam:path-->`                             | Replace with HTML-escaped value       |
+| Raw HTML       | `<!--seam:path:html-->`                        | Replace with unescaped value          |
+| Attribute      | `<!--seam:path:attr:name-->`                   | Inject attribute on next opening tag  |
+| Conditional    | `<!--seam:if:path-->...<!--seam:endif:path-->` | Keep block if truthy, remove if falsy |
 
 ## Path Resolution
 
@@ -31,13 +31,13 @@ Everything else is truthy (including empty objects and arrays).
 
 Text slots (`<!--seam:path-->`) apply HTML entity escaping:
 
-| Character | Entity |
-|-----------|--------|
-| `&` | `&amp;` |
-| `<` | `&lt;` |
-| `>` | `&gt;` |
-| `"` | `&quot;` |
-| `'` | `&#x27;` |
+| Character | Entity   |
+| --------- | -------- |
+| `&`       | `&amp;`  |
+| `<`       | `&lt;`   |
+| `>`       | `&gt;`   |
+| `"`       | `&quot;` |
+| `'`       | `&#x27;` |
 
 Raw HTML slots (`<!--seam:path:html-->`) perform no escaping.
 
@@ -46,7 +46,9 @@ Raw HTML slots (`<!--seam:path:html-->`) perform no escaping.
 The injector automatically appends a JSON data script before `</body>` (or at the end of the document if no `</body>` tag exists):
 
 ```html
-<script id="__SEAM_DATA__" type="application/json">{"user":{"name":"Alice"}}</script>
+<script id="__SEAM_DATA__" type="application/json">
+  { "user": { "name": "Alice" } }
+</script>
 ```
 
 This enables client-side hydration without a second network request.
@@ -65,11 +67,11 @@ Order matters: conditionals run first so removed blocks do not produce stale slo
 
 ## Edge Cases
 
-| Scenario | Behavior |
-|----------|----------|
-| Missing data path (text/raw) | Empty string |
-| Missing data path (attr) | Skip injection |
-| Missing data path (if) | Remove block |
-| Non-string values | `String(value)` / `.to_string()` |
-| Nested `if/endif` with different paths | Supported |
-| Same-path nested `if/endif` | Forbidden (regex backreference cannot distinguish) |
+| Scenario                               | Behavior                                           |
+| -------------------------------------- | -------------------------------------------------- |
+| Missing data path (text/raw)           | Empty string                                       |
+| Missing data path (attr)               | Skip injection                                     |
+| Missing data path (if)                 | Remove block                                       |
+| Non-string values                      | `String(value)` / `.to_string()`                   |
+| Nested `if/endif` with different paths | Supported                                          |
+| Same-path nested `if/endif`            | Forbidden (regex backreference cannot distinguish) |

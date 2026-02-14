@@ -1,3 +1,5 @@
+/* crates/seam-cli/src/main.rs */
+
 mod build;
 mod codegen;
 mod manifest;

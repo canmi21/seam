@@ -1,3 +1,5 @@
+/* tests/integration/main_test.go */
+
 package integration
 
 import (

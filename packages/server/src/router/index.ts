@@ -1,3 +1,5 @@
+/* packages/server/src/router/index.ts */
+
 import type { SchemaNode } from "../types/schema.js";
 import type { ProcedureManifest } from "../manifest/index.js";
 import type { HandleResult, InternalProcedure } from "./handler.js";

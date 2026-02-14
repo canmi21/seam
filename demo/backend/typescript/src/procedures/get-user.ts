@@ -1,3 +1,5 @@
+/* demo/backend/typescript/src/procedures/get-user.ts */
+
 import { t, SeamError } from "@canmi/seam-server";
 import type { ProcedureDef } from "@canmi/seam-server";
 

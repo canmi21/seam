@@ -1,3 +1,5 @@
+/* crates/seam-cli/src/codegen/typescript.rs */
+
 use std::collections::BTreeMap;
 
 use anyhow::{Context, Result};

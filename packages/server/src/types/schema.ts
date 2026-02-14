@@ -1,3 +1,5 @@
+/* packages/server/src/types/schema.ts */
+
 import type { Schema } from "jtd";
 
 export type JTDSchema = Schema;

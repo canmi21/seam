@@ -1,3 +1,5 @@
+/* packages/adapter-bun/__tests__/adapter.test.ts */
+
 import { afterAll, describe, expect, it } from "bun:test";
 import { createRouter, t } from "@canmi/seam-server";
 import { serveBun } from "../src/index.js";

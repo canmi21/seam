@@ -1,3 +1,5 @@
+/* packages/server/src/router/handler.ts */
+
 import { SeamError } from "../errors.js";
 import type { ErrorCode } from "../errors.js";
 import type { HandleResult, InternalProcedure } from "../procedure.js";

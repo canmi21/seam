@@ -1,3 +1,5 @@
+/* crates/seam-cli/src/manifest.rs */
+
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};

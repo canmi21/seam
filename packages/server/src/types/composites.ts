@@ -1,3 +1,5 @@
+/* packages/server/src/types/composites.ts */
+
 import type { SchemaNode, OptionalSchemaNode, Infer, JTDSchema } from "./schema.js";
 import { createSchemaNode, createOptionalSchemaNode } from "./schema.js";
 

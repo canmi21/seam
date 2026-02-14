@@ -1,3 +1,5 @@
+/* packages/server/src/errors.ts */
+
 export type ErrorCode = "VALIDATION_ERROR" | "NOT_FOUND" | "INTERNAL_ERROR";
 
 export class SeamError extends Error {

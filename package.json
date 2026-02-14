@@ -17,8 +17,11 @@
   "type": "module",
   "scripts": {
     "lint": "oxlint --tsconfig tsconfig.base.json",
-    "fmt": "oxfmt --write .",
-    "fmt:check": "oxfmt --check ."
+    "fmt": "chore . && oxfmt --write . && cargo fmt --all",
+    "fmt:oxfmt": "oxfmt --write .",
+    "fmt:rust": "cargo fmt --all",
+    "fmt:check": "oxfmt --check .",
+    "fmt:path": "chore ."
   },
   "devDependencies": {
     "oxfmt": "^0.32.0",

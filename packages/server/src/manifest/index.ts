@@ -1,3 +1,5 @@
+/* packages/server/src/manifest/index.ts */
+
 import type { Schema } from "jtd";
 import type { SchemaNode } from "../types/schema.js";
 

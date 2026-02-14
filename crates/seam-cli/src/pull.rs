@@ -1,3 +1,5 @@
+/* crates/seam-cli/src/pull.rs */
+
 use std::path::Path;
 
 use anyhow::{Context, Result};

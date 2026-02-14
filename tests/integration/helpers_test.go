@@ -1,3 +1,5 @@
+/* tests/integration/helpers_test.go */
+
 package integration
 
 import (

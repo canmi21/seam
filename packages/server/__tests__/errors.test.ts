@@ -1,3 +1,5 @@
+/* packages/server/__tests__/errors.test.ts */
+
 import { describe, expect, it } from "vitest";
 import { SeamError } from "../src/errors.js";
 

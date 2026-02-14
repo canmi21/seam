@@ -1,3 +1,5 @@
+/* packages/injector/src/injector.ts */
+
 import { escapeHtml } from "./escape.js";
 import { resolve } from "./resolve.js";
 
@@ -11,13 +13,7 @@ const RAW_RE = /<!--seam:([\w.]+):html-->/g;
 const TEXT_RE = /<!--seam:([\w.]+)-->/g;
 
 function isTruthy(value: unknown): boolean {
-  return (
-    value !== null &&
-    value !== undefined &&
-    value !== false &&
-    value !== 0 &&
-    value !== ""
-  );
+  return value !== null && value !== undefined && value !== false && value !== 0 && value !== "";
 }
 
 function stringify(value: unknown): string {
@@ -71,8 +67,7 @@ export function inject(
       tagNameEnd++;
     }
     const injection = ` ${attrName}="${value}"`;
-    result =
-      result.slice(0, tagNameEnd) + injection + result.slice(tagNameEnd);
+    result = result.slice(0, tagNameEnd) + injection + result.slice(tagNameEnd);
   }
 
   // 3. Raw HTML

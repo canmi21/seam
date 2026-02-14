@@ -1,3 +1,5 @@
+/* packages/seam-react/src/types.ts */
+
 import type { ComponentType } from "react";
 
 export interface ParamMapping {

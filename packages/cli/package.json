@@ -12,15 +12,15 @@
     "build": "tsdown src/index.ts",
     "test": "vitest run"
   },
-  "optionalDependencies": {
-    "@canmi/seam-cli-darwin-arm64": "0.1.0",
-    "@canmi/seam-cli-darwin-x64": "0.1.0",
-    "@canmi/seam-cli-linux-x64": "0.1.0",
-    "@canmi/seam-cli-linux-arm64": "0.1.0"
-  },
   "devDependencies": {
     "tsdown": "^0.12.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
+  },
+  "optionalDependencies": {
+    "@canmi/seam-cli-darwin-arm64": "0.1.0",
+    "@canmi/seam-cli-darwin-x64": "0.1.0",
+    "@canmi/seam-cli-linux-arm64": "0.1.0",
+    "@canmi/seam-cli-linux-x64": "0.1.0"
   }
 }

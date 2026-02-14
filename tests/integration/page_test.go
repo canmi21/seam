@@ -1,3 +1,5 @@
+/* tests/integration/page_test.go */
+
 package integration
 
 import (

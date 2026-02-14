@@ -1,3 +1,5 @@
+/* crates/seam-macros/src/lib.rs */
+
 mod seam_procedure;
 mod seam_type;
 

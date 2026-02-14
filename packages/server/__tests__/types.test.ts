@@ -1,3 +1,5 @@
+/* packages/server/__tests__/types.test.ts */
+
 import { describe, expect, it } from "vitest";
 import { t } from "../src/types/index.js";
 
