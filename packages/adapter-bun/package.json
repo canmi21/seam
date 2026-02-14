@@ -12,14 +12,14 @@
     }
   },
   "scripts": {
-    "build": "tsdown src/index.ts",
-    "test": "vitest run"
+    "build": "tsdown && node scripts/fix-dts.js",
+    "test": "bun test"
   },
   "devDependencies": {
     "@canmi/seam-server": "workspace:*",
+    "@types/bun": "^1.2.0",
     "tsdown": "^0.12.0",
-    "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "typescript": "^5.7.0"
   },
   "peerDependencies": {
     "@canmi/seam-server": "workspace:*"
