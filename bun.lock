@@ -14,7 +14,7 @@
         "typescript-eslint": "^8.55.0",
       },
     },
-    "examples/client-react": {
+    "examples/standalone/client-react": {
       "name": "demo-client-react",
       "version": "0.1.0",
       "dependencies": {
@@ -30,14 +30,14 @@
         "vite": "^6.0.0",
       },
     },
-    "examples/client-vanilla": {
+    "examples/standalone/client-vanilla": {
       "name": "demo-client-vanilla",
       "version": "0.1.0",
       "dependencies": {
         "@canmi/seam-client": "workspace:*",
       },
     },
-    "examples/server-bun": {
+    "examples/standalone/server-bun": {
       "name": "demo-server-bun",
       "version": "0.1.0",
       "dependencies": {
@@ -45,7 +45,7 @@
         "@canmi/seam-server": "workspace:*",
       },
     },
-    "examples/server-node": {
+    "examples/standalone/server-node": {
       "name": "demo-server-node",
       "version": "0.1.0",
       "dependencies": {
@@ -593,13 +593,13 @@
 
     "defu": ["defu@6.1.4", "", {}, "sha512-mEQCMmwJu317oSz8CwdIOdwf3xMif1ttiM8LTufzc3g6kR+9Pe236twL8j3IYT1F7GfRgGcW6MWxzZjLIkuHIg=="],
 
-    "demo-client-react": ["demo-client-react@workspace:examples/client-react"],
+    "demo-client-react": ["demo-client-react@workspace:examples/standalone/client-react"],
 
-    "demo-client-vanilla": ["demo-client-vanilla@workspace:examples/client-vanilla"],
+    "demo-client-vanilla": ["demo-client-vanilla@workspace:examples/standalone/client-vanilla"],
 
-    "demo-server-bun": ["demo-server-bun@workspace:examples/server-bun"],
+    "demo-server-bun": ["demo-server-bun@workspace:examples/standalone/server-bun"],
 
-    "demo-server-node": ["demo-server-node@workspace:examples/server-node"],
+    "demo-server-node": ["demo-server-node@workspace:examples/standalone/server-node"],
 
     "diff": ["diff@8.0.3", "", {}, "sha512-qejHi7bcSD4hQAZE0tNAawRK1ZtafHDmMTMkrrIGgSLl7hTnQHmKCeB45xAcbfTqK2zowkM3j3bHt/4b/ARbYQ=="],
 

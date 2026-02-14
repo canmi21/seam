@@ -5,6 +5,7 @@ enabled = true
 ".go" = "/* $path$file */"
 ".html" = "<!-- $path$file -->"
 ".js" = "/* $path$file */"
+".mjs" = "/* $path$file */"
 ".rs" = "/* $path$file */"
 ".ts" = "/* $path$file */"
 ".tsx" = "/* $path$file */"

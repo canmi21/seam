@@ -45,7 +45,7 @@ export function createDevProxy(opts: DevProxyOptions): HttpHandler {
     try {
       const resp = await fetch(proxyUrl, {
         method: req.method,
-        headers: { "Accept": "*/*" },
+        headers: { Accept: "*/*" },
       });
 
       const body = await resp.text();

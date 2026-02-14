@@ -9,10 +9,10 @@
     "packages/client/vanilla",
     "packages/client/react",
     "packages/cli/pkg",
-    "examples/server-bun",
-    "examples/server-node",
-    "examples/client-vanilla",
-    "examples/client-react"
+    "examples/standalone/server-bun",
+    "examples/standalone/server-node",
+    "examples/standalone/client-vanilla",
+    "examples/standalone/client-react"
   ],
   "type": "module",
   "scripts": {

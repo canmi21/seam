@@ -1,4 +1,4 @@
-/* packages/seam-react/scripts/build-skeletons.mjs */
+/* packages/client/react/scripts/build-skeletons.mjs */
 
 import { build } from "esbuild";
 import { createElement } from "react";
