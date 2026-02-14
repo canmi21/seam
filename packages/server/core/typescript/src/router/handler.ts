@@ -2,7 +2,7 @@
 
 import { SeamError } from "../errors.js";
 import type { ErrorCode } from "../errors.js";
-import type { HandleResult, InternalProcedure } from "../procedure.js";
+import type { HandleResult, InternalProcedure, InternalSubscription } from "../procedure.js";
 import { validateInput } from "../validation/index.js";
 
 export type { HandleResult, InternalProcedure } from "../procedure.js";
@@ -47,4 +47,22 @@ export async function handleRequest(
       body: new SeamError("INTERNAL_ERROR", message).toJSON(),
     };
   }
+}
+
+export async function* handleSubscription(
+  subscriptions: Map<string, InternalSubscription>,
+  name: string,
+  rawInput: unknown,
+): AsyncIterable<unknown> {
+  const sub = subscriptions.get(name);
+  if (!sub) {
+    throw new SeamError("NOT_FOUND", `Subscription '${name}' not found`);
+  }
+
+  const validation = validateInput(sub.inputSchema, rawInput);
+  if (!validation.valid) {
+    throw new SeamError("VALIDATION_ERROR", "Input validation failed");
+  }
+
+  yield* sub.handler({ input: rawInput });
 }

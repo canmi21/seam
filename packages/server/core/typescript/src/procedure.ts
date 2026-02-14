@@ -12,3 +12,9 @@ export interface InternalProcedure {
   outputSchema: Schema;
   handler: (params: { input: unknown }) => unknown | Promise<unknown>;
 }
+
+export interface InternalSubscription {
+  inputSchema: Schema;
+  outputSchema: Schema;
+  handler: (params: { input: unknown }) => AsyncIterable<unknown>;
+}

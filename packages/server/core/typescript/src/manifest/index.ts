@@ -3,18 +3,27 @@
 import type { Schema } from "jtd";
 import type { SchemaNode } from "../types/schema.js";
 
+export type ProcedureType = "query" | "subscription";
+
+export interface ProcedureEntry {
+  type: ProcedureType;
+  input: Schema;
+  output: Schema;
+}
+
 export interface ProcedureManifest {
   version: string;
-  procedures: Record<string, { input: Schema; output: Schema }>;
+  procedures: Record<string, ProcedureEntry>;
 }
 
 export function buildManifest(
-  procedures: Record<string, { input: SchemaNode; output: SchemaNode }>,
+  definitions: Record<string, { input: SchemaNode; output: SchemaNode; type?: string }>,
 ): ProcedureManifest {
   const mapped: ProcedureManifest["procedures"] = {};
 
-  for (const [name, def] of Object.entries(procedures)) {
+  for (const [name, def] of Object.entries(definitions)) {
     mapped[name] = {
+      type: def.type === "subscription" ? "subscription" : "query",
       input: def.input._schema,
       output: def.output._schema,
     };

@@ -165,13 +165,13 @@ additionally accept `null`.
 
 ## HTTP Endpoints
 
-### GET /_seam/manifest.json
+### GET /\_seam/manifest.json
 
 Returns the full procedure manifest as `application/json`.
 
 **Response**: the manifest JSON document.
 
-### POST /_seam/rpc/{procedureName}
+### POST /\_seam/rpc/{procedureName}
 
 Executes a procedure.
 

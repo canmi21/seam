@@ -1,9 +1,9 @@
 /* packages/server/adapter/node/src/index.ts */
 
-import type { IncomingMessage } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer } from "node:http";
 import { createHttpHandler } from "@canmi/seam-server";
-import type { ProcedureMap, Router } from "@canmi/seam-server";
+import type { DefinitionMap, Router, HttpResponse } from "@canmi/seam-server";
 
 export interface ServeNodeOptions {
   port?: number;
@@ -23,7 +23,26 @@ function serialize(body: unknown): string {
   return typeof body === "string" ? body : JSON.stringify(body);
 }
 
-export function serveNode<T extends ProcedureMap>(router: Router<T>, opts?: ServeNodeOptions) {
+async function sendResponse(res: ServerResponse, result: HttpResponse): Promise<void> {
+  if ("stream" in result) {
+    res.writeHead(result.status, result.headers);
+    try {
+      for await (const chunk of result.stream) {
+        if (!res.writable) break;
+        res.write(chunk);
+      }
+    } catch {
+      // Client disconnected
+    }
+    res.end();
+    return;
+  }
+
+  res.writeHead(result.status, result.headers);
+  res.end(serialize(result.body));
+}
+
+export function serveNode<T extends DefinitionMap>(router: Router<T>, opts?: ServeNodeOptions) {
   const handler = createHttpHandler(router, { staticDir: opts?.staticDir });
   const server = createServer(async (req, res) => {
     const raw = readBody(req);
@@ -33,8 +52,7 @@ export function serveNode<T extends ProcedureMap>(router: Router<T>, opts?: Serv
       body: async () => JSON.parse(await raw),
     });
 
-    res.writeHead(result.status, result.headers);
-    res.end(serialize(result.body));
+    await sendResponse(res, result);
   });
 
   server.listen(opts?.port ?? 3000);
