@@ -1,3 +1,5 @@
+/* packages/adapter-node/__tests__/adapter.test.ts */
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createRouter, t } from "@canmi/seam-server";
 import { serveNode } from "../src/index.js";
@@ -26,7 +28,11 @@ function postJson(path: string, body: unknown) {
 beforeAll(async () => {
   server = serveNode(router, { port: 0 });
   await new Promise<void>((r) => {
-    server.listening ? r() : server.once("listening", r);
+    if (server.listening) {
+      r();
+    } else {
+      server.once("listening", r);
+    }
   });
   const addr = server.address() as AddressInfo;
   base = `http://localhost:${addr.port}`;

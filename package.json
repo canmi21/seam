@@ -8,9 +8,11 @@
     "packages/client",
     "packages/cli",
     "packages/injector",
+    "packages/seam-react",
     "demo/backend/typescript",
     "demo/backend/node",
-    "demo/frontend"
+    "demo/frontend",
+    "demo/frontend-react"
   ],
   "type": "module",
   "scripts": {
