@@ -2,6 +2,7 @@
 
 mod build;
 mod codegen;
+mod config;
 mod manifest;
 mod pull;
 
@@ -10,8 +11,10 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
+use config::{find_seam_config, load_seam_config, SeamConfig};
+
 #[derive(Parser)]
-#[command(name = "seam", about = "SeamJS CLI — manifest pull, codegen, and build")]
+#[command(name = "seam", about = "SeamJS CLI")]
 struct Cli {
   #[command(subcommand)]
   command: Command,
@@ -22,26 +25,34 @@ enum Command {
   /// Fetch a manifest from a running SeamJS server
   Pull {
     /// Base URL of the server (e.g. http://localhost:3000)
-    url: String,
+    #[arg(short, long)]
+    url: Option<String>,
     /// Output file path
-    #[arg(short, long, default_value = "seam-manifest.json")]
-    out: PathBuf,
+    #[arg(short, long)]
+    out: Option<PathBuf>,
   },
   /// Generate a typed TypeScript client from a manifest file
   Generate {
     /// Path to the manifest JSON file
     #[arg(short, long)]
-    manifest: PathBuf,
+    manifest: Option<PathBuf>,
     /// Output directory for the generated client
     #[arg(short, long)]
-    out: PathBuf,
+    out: Option<PathBuf>,
   },
   /// Build HTML skeletons from React components
   Build {
-    /// Path to seam.config.json
-    #[arg(short, long, default_value = "seam.config.json")]
-    config: PathBuf,
+    /// Path to seam.toml (auto-detected if omitted)
+    #[arg(short, long)]
+    config: Option<PathBuf>,
   },
+}
+
+/// Try to load seam.toml from cwd upward; returns None if not found
+fn try_load_config() -> Option<SeamConfig> {
+  let cwd = std::env::current_dir().ok()?;
+  let path = find_seam_config(&cwd).ok()?;
+  load_seam_config(&path).ok()
 }
 
 #[tokio::main]
@@ -50,9 +61,25 @@ async fn main() -> Result<()> {
 
   match cli.command {
     Command::Pull { url, out } => {
+      let cfg = try_load_config();
+      let url = url.unwrap_or_else(|| {
+        let port = cfg.as_ref().map_or(3000, |c| c.backend.port);
+        format!("http://localhost:{port}")
+      });
+      let out = out.unwrap_or_else(|| PathBuf::from("seam-manifest.json"));
       pull::pull_manifest(&url, &out).await?;
     }
     Command::Generate { manifest, out } => {
+      let cfg = try_load_config();
+      let manifest = manifest.unwrap_or_else(|| PathBuf::from("seam-manifest.json"));
+      let out = out.unwrap_or_else(|| {
+        cfg
+          .as_ref()
+          .and_then(|c| c.generate.out_dir.as_ref())
+          .map(PathBuf::from)
+          .unwrap_or_else(|| PathBuf::from("src/generated"))
+      });
+
       let content = std::fs::read_to_string(&manifest)
         .with_context(|| format!("failed to read {}", manifest.display()))?;
       let parsed: crate::manifest::Manifest =
@@ -67,7 +94,16 @@ async fn main() -> Result<()> {
       println!("generated {}", file.display());
     }
     Command::Build { config } => {
-      build::run::run_build(&config)?;
+      let config_path = match config {
+        Some(p) => p,
+        None => {
+          let cwd = std::env::current_dir().context("failed to get cwd")?;
+          find_seam_config(&cwd)?
+        }
+      };
+      let base_dir = config_path.parent().unwrap_or_else(|| std::path::Path::new("."));
+      let seam_config = load_seam_config(&config_path)?;
+      build::run::run_build(&seam_config, base_dir)?;
     }
   }
 

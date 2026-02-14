@@ -7,8 +7,9 @@ use std::process::Command;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
-use super::config::load_config;
+use super::config::BuildConfig;
 use super::skeleton::{apply_conditionals, detect_conditional, sentinel_to_slots, wrap_document};
+use crate::config::SeamConfig;
 
 // -- Vite manifest types --
 
@@ -164,23 +165,22 @@ fn process_routes(
   Ok(manifest)
 }
 
-pub fn run_build(config_path: &Path) -> Result<()> {
-  let base_dir = config_path.parent().unwrap_or_else(|| Path::new("."));
-  let config = load_config(config_path)?;
+pub fn run_build(config: &SeamConfig, base_dir: &Path) -> Result<()> {
+  let build_config = BuildConfig::from_seam_config(config)?;
 
-  run_bundler(base_dir, &config.bundler.command)?;
+  run_bundler(base_dir, &build_config.bundler_command)?;
 
-  let manifest_path = base_dir.join(&config.bundler.manifest_file);
+  let manifest_path = base_dir.join(&build_config.bundler_manifest);
   let assets = read_vite_manifest(&manifest_path)?;
 
   let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
   if !script_path.exists() {
     bail!("build-skeletons.mjs not found at {}", script_path.display());
   }
-  let routes_path = base_dir.join(&config.routes);
+  let routes_path = base_dir.join(&build_config.routes);
   let skeleton_output = run_skeleton_renderer(&script_path, &routes_path, base_dir)?;
 
-  let out_dir = base_dir.join(&config.out_dir);
+  let out_dir = base_dir.join(&build_config.out_dir);
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;

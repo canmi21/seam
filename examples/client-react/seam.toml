@@ -1,0 +1,9 @@
+[project]
+name = "client-react-example"
+
+[build]
+routes = "./src/routes.ts"
+out_dir = "dist"
+bundler_command = "npx vite build"
+bundler_manifest = "dist/.vite/manifest.json"
+renderer = "react"
