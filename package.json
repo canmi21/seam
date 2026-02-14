@@ -5,7 +5,9 @@
     "packages/server",
     "packages/adapter-bun",
     "packages/client",
-    "packages/cli"
+    "packages/cli",
+    "demo/backend/typescript",
+    "demo/frontend"
   ],
   "type": "module",
   "scripts": {
