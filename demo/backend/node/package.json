@@ -1,0 +1,10 @@
+{
+  "name": "demo-backend-node",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@canmi/seam-server": "workspace:*",
+    "@canmi/seam-adapter-node": "workspace:*"
+  }
+}

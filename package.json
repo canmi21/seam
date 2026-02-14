@@ -4,10 +4,12 @@
   "workspaces": [
     "packages/server",
     "packages/adapter-bun",
+    "packages/adapter-node",
     "packages/client",
     "packages/cli",
     "packages/injector",
     "demo/backend/typescript",
+    "demo/backend/node",
     "demo/frontend"
   ],
   "type": "module",
@@ -18,6 +20,7 @@
   },
   "devDependencies": {
     "oxfmt": "^0.32.0",
-    "oxlint": "^1.47.0"
+    "oxlint": "^1.47.0",
+    "tsx": "^4.0.0"
   }
 }
