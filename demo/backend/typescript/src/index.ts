@@ -4,8 +4,12 @@ import { serveBun } from "@canmi/seam-adapter-bun";
 import { greet } from "./procedures/greet.js";
 import { getUser } from "./procedures/get-user.js";
 import { listUsers } from "./procedures/list-users.js";
+import { userPage } from "./pages/user.js";
 
-const router = createRouter({ greet, getUser, listUsers });
+const router = createRouter(
+  { greet, getUser, listUsers },
+  { pages: { "/user/:id": userPage } },
+);
 const port = Number(process.env.PORT) || 3000;
 const server = serveBun(router, { port });
 

@@ -1,9 +1,11 @@
+mod pages;
 mod procedures;
 
 use std::env;
 
 use seam_server::SeamServer;
 
+use pages::user_page;
 use procedures::get_user::get_user_procedure;
 use procedures::greet::greet_procedure;
 use procedures::list_users::list_users_procedure;
@@ -17,6 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .procedure(greet_procedure())
     .procedure(get_user_procedure())
     .procedure(list_users_procedure())
+    .page(user_page())
     .serve(&addr)
     .await
 }
