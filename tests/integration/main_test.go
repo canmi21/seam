@@ -18,7 +18,11 @@ type Backend struct {
 var backends []Backend
 
 func projectRoot() string {
-	return filepath.Join("..", "..")
+	abs, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		panic(err)
+	}
+	return abs
 }
 
 func TestMain(m *testing.M) {
@@ -32,6 +36,18 @@ func TestMain(m *testing.M) {
 	if err := build.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "cargo build failed: %v\n", err)
 		os.Exit(1)
+	}
+
+	// Build TS packages for Node demo
+	for _, pkg := range []string{"injector", "server", "adapter-bun", "adapter-node"} {
+		pkgBuild := exec.Command("bun", "run", "--cwd", filepath.Join("packages", pkg), "build")
+		pkgBuild.Dir = root
+		pkgBuild.Stdout = os.Stderr
+		pkgBuild.Stderr = os.Stderr
+		if err := pkgBuild.Run(); err != nil {
+			fmt.Fprintf(os.Stderr, "build %s failed: %v\n", pkg, err)
+			os.Exit(1)
+		}
 	}
 
 	// Start TS backend on port 4001
@@ -57,9 +73,24 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	// Start Node backend on port 4003
+	nodeCmd := exec.Command(filepath.Join(root, "node_modules", ".bin", "tsx"),
+		"demo/backend/node/src/index.ts")
+	nodeCmd.Dir = root
+	nodeCmd.Env = append(os.Environ(), "PORT=4003")
+	nodeCmd.Stdout = os.Stderr
+	nodeCmd.Stderr = os.Stderr
+	if err := nodeCmd.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to start Node backend: %v\n", err)
+		tsCmd.Process.Kill()
+		rustCmd.Process.Kill()
+		os.Exit(1)
+	}
+
 	backends = []Backend{
 		{Name: "typescript", BaseURL: "http://localhost:4001"},
 		{Name: "rust", BaseURL: "http://localhost:4002"},
+		{Name: "node", BaseURL: "http://localhost:4003"},
 	}
 
 	// Health check: poll manifest endpoint with 15s timeout
@@ -86,11 +117,12 @@ func TestMain(m *testing.M) {
 
 	select {
 	case <-ready:
-		// both backends ready
+		// all backends ready
 	case <-time.After(15 * time.Second):
 		fmt.Fprintln(os.Stderr, "backends did not become ready within 15s")
 		tsCmd.Process.Kill()
 		rustCmd.Process.Kill()
+		nodeCmd.Process.Kill()
 		os.Exit(1)
 	}
 
@@ -98,8 +130,10 @@ func TestMain(m *testing.M) {
 
 	tsCmd.Process.Kill()
 	rustCmd.Process.Kill()
+	nodeCmd.Process.Kill()
 	tsCmd.Wait()
 	rustCmd.Wait()
+	nodeCmd.Wait()
 
 	os.Exit(code)
 }
