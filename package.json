@@ -6,7 +6,7 @@
   ],
   "type": "module",
   "scripts": {
-    "lint": "oxlint --tsconfig tsconfig.json",
+    "lint": "oxlint --tsconfig tsconfig.base.json",
     "fmt": "oxfmt --write .",
     "fmt:check": "oxfmt --check ."
   },

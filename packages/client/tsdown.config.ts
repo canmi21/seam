@@ -5,5 +5,5 @@ export default defineConfig({
   format: "esm",
   dts: true,
   clean: true,
-  hashFilenames: false,
+  hash: false,
 });
