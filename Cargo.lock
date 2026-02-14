@@ -1096,6 +1096,7 @@ name = "seam-server"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "seam-macros",
  "serde",
  "serde_json",
  "tokio",
