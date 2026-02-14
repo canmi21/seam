@@ -3,6 +3,7 @@
 mod build;
 mod codegen;
 mod config;
+mod dev;
 mod manifest;
 mod pull;
 
@@ -46,6 +47,12 @@ enum Command {
     #[arg(short, long)]
     config: Option<PathBuf>,
   },
+  /// Start dev servers (backend + frontend)
+  Dev {
+    /// Path to seam.toml (auto-detected if omitted)
+    #[arg(short, long)]
+    config: Option<PathBuf>,
+  },
 }
 
 /// Try to load seam.toml from cwd upward; returns None if not found
@@ -53,6 +60,19 @@ fn try_load_config() -> Option<SeamConfig> {
   let cwd = std::env::current_dir().ok()?;
   let path = find_seam_config(&cwd).ok()?;
   load_seam_config(&path).ok()
+}
+
+/// Resolve config path (explicit or auto-detected) and parse it
+fn resolve_config(explicit: Option<PathBuf>) -> Result<(PathBuf, SeamConfig)> {
+  let path = match explicit {
+    Some(p) => p,
+    None => {
+      let cwd = std::env::current_dir().context("failed to get cwd")?;
+      find_seam_config(&cwd)?
+    }
+  };
+  let config = load_seam_config(&path)?;
+  Ok((path, config))
 }
 
 #[tokio::main]
@@ -94,16 +114,14 @@ async fn main() -> Result<()> {
       println!("generated {}", file.display());
     }
     Command::Build { config } => {
-      let config_path = match config {
-        Some(p) => p,
-        None => {
-          let cwd = std::env::current_dir().context("failed to get cwd")?;
-          find_seam_config(&cwd)?
-        }
-      };
+      let (config_path, seam_config) = resolve_config(config)?;
       let base_dir = config_path.parent().unwrap_or_else(|| std::path::Path::new("."));
-      let seam_config = load_seam_config(&config_path)?;
       build::run::run_build(&seam_config, base_dir)?;
+    }
+    Command::Dev { config } => {
+      let (config_path, seam_config) = resolve_config(config)?;
+      let base_dir = config_path.parent().unwrap_or_else(|| std::path::Path::new("."));
+      dev::run_dev(&seam_config, base_dir).await?;
     }
   }
 
