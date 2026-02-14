@@ -6,6 +6,7 @@
     "packages/adapter-bun",
     "packages/client",
     "packages/cli",
+    "packages/injector",
     "demo/backend/typescript",
     "demo/frontend"
   ],

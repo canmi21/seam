@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/server" },
     { "path": "packages/adapter-bun" },
-    { "path": "packages/client" }
+    { "path": "packages/client" },
+    { "path": "packages/injector" }
   ]
 }
