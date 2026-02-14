@@ -1,39 +1,50 @@
 /* packages/server/core/rust/src/server.rs */
 
 use std::collections::HashMap;
+use std::convert::Infallible;
 use std::sync::Arc;
 
-use axum::extract::{MatchedPath, Path, State};
+use axum::extract::{MatchedPath, Path, Query, State};
+use axum::response::sse::{Event, Sse};
 use axum::response::{Html, IntoResponse};
 use axum::routing::{get, post};
 use axum::Router;
+use futures_core::Stream;
 use tokio::net::TcpListener;
 use tokio::task::JoinSet;
+use tokio_stream::StreamExt;
 
 use crate::errors::SeamError;
 use crate::injector;
 use crate::manifest::build_manifest;
 use crate::page::PageDef;
-use crate::procedure::ProcedureDef;
+use crate::procedure::{ProcedureDef, SubscriptionDef};
 
 struct AppState {
   manifest_json: serde_json::Value,
   handlers: HashMap<String, Arc<ProcedureDef>>,
+  subscriptions: HashMap<String, Arc<SubscriptionDef>>,
   pages: HashMap<String, Arc<PageDef>>,
 }
 
 pub struct SeamServer {
   procedures: Vec<ProcedureDef>,
+  subscriptions: Vec<SubscriptionDef>,
   pages: Vec<PageDef>,
 }
 
 impl SeamServer {
   pub fn new() -> Self {
-    Self { procedures: Vec::new(), pages: Vec::new() }
+    Self { procedures: Vec::new(), subscriptions: Vec::new(), pages: Vec::new() }
   }
 
   pub fn procedure(mut self, proc: ProcedureDef) -> Self {
     self.procedures.push(proc);
+    self
+  }
+
+  pub fn subscription(mut self, sub: SubscriptionDef) -> Self {
+    self.subscriptions.push(sub);
     self
   }
 
@@ -43,16 +54,20 @@ impl SeamServer {
   }
 
   pub fn into_router(self) -> Router {
-    let manifest = build_manifest(&self.procedures);
+    let manifest = build_manifest(&self.procedures, &self.subscriptions);
     let manifest_json = serde_json::to_value(&manifest).expect("manifest serialization");
 
     let handlers: HashMap<String, Arc<ProcedureDef>> =
       self.procedures.into_iter().map(|p| (p.name.clone(), Arc::new(p))).collect();
 
+    let subscriptions: HashMap<String, Arc<SubscriptionDef>> =
+      self.subscriptions.into_iter().map(|s| (s.name.clone(), Arc::new(s))).collect();
+
     let mut pages = HashMap::new();
     let mut router = Router::new()
       .route("/_seam/manifest.json", get(handle_manifest))
-      .route("/_seam/rpc/{name}", post(handle_rpc));
+      .route("/_seam/rpc/{name}", post(handle_rpc))
+      .route("/_seam/subscribe/{name}", get(handle_subscribe));
 
     for page in self.pages {
       let full_route = format!("/_seam/page{}", page.route);
@@ -60,7 +75,7 @@ impl SeamServer {
       router = router.route(&full_route, get(handle_page));
     }
 
-    let state = Arc::new(AppState { manifest_json, handlers, pages });
+    let state = Arc::new(AppState { manifest_json, handlers, subscriptions, pages });
 
     router.with_state(state)
   }
@@ -99,6 +114,46 @@ async fn handle_rpc(
 
   let result = (proc.handler)(input).await?;
   Ok(axum::Json(result))
+}
+
+#[derive(serde::Deserialize)]
+struct SubscribeQuery {
+  input: Option<String>,
+}
+
+async fn handle_subscribe(
+  State(state): State<Arc<AppState>>,
+  Path(name): Path<String>,
+  Query(query): Query<SubscribeQuery>,
+) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, SeamError> {
+  let sub = state
+    .subscriptions
+    .get(&name)
+    .ok_or_else(|| SeamError::not_found(format!("Subscription '{name}' not found")))?;
+
+  let raw_input = match &query.input {
+    Some(s) => {
+      serde_json::from_str(s).map_err(|e| SeamError::validation(e.to_string()))?
+    }
+    None => serde_json::Value::Object(serde_json::Map::new()),
+  };
+
+  let data_stream = (sub.handler)(raw_input).await?;
+
+  let event_stream = data_stream
+    .map(|item| match item {
+      Ok(value) => {
+        let data = serde_json::to_string(&value).unwrap_or_default();
+        Ok(Event::default().event("data").data(data))
+      }
+      Err(e) => {
+        let payload = serde_json::json!({ "code": e.to_string().split(':').next().unwrap_or("INTERNAL_ERROR"), "message": e.to_string() });
+        Ok(Event::default().event("error").data(payload.to_string()))
+      }
+    })
+    .chain(tokio_stream::once(Ok(Event::default().event("complete").data("{}"))));
+
+  Ok(Sse::new(event_stream))
 }
 
 async fn handle_page(

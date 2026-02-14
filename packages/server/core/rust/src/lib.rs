@@ -9,8 +9,8 @@ pub mod server;
 
 // Re-exports for ergonomic use
 pub use errors::SeamError;
-pub use procedure::ProcedureDef;
-pub use seam_macros::{seam_procedure, SeamType};
+pub use procedure::{BoxFuture, BoxStream, ProcedureDef, SubscriptionDef};
+pub use seam_macros::{seam_procedure, seam_subscription, SeamType};
 pub use server::SeamServer;
 
 /// Trait for types that can describe themselves as a JTD schema.
