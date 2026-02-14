@@ -1,3 +1,5 @@
+/* packages/seam-react/scripts/build-skeletons.mjs */
+
 import { build } from "esbuild";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
@@ -49,8 +51,9 @@ function renderRoute(route) {
   const nulledHtmls = {};
 
   for (const field of nullableFields) {
-    const nulledMock = setFieldNull(route.mock, field);
-    const nulledSentinel = buildSentinelData(nulledMock);
+    // Build sentinels from full mock, then null the specific field
+    // so the component's conditional (e.g. `user.avatar && ...`) evaluates to false
+    const nulledSentinel = setFieldNull(sentinelData, field);
     setSSRData(nulledSentinel);
     nulledHtmls[field] = renderToString(createElement(route.component));
     clearSSRData();
