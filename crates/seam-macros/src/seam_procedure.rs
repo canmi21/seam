@@ -1,18 +1,36 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{FnArg, ItemFn, Pat, ReturnType, Type};
+use syn::parse::{Parse, ParseStream};
+use syn::{FnArg, ItemFn, LitStr, Pat, ReturnType, Token, Type};
+
+struct ProcedureAttr {
+  name: Option<String>,
+}
+
+impl Parse for ProcedureAttr {
+  fn parse(input: ParseStream) -> syn::Result<Self> {
+    if input.is_empty() {
+      return Ok(ProcedureAttr { name: None });
+    }
+    let ident: syn::Ident = input.parse()?;
+    if ident != "name" {
+      return Err(syn::Error::new_spanned(ident, "expected `name`"));
+    }
+    input.parse::<Token![=]>()?;
+    let lit: LitStr = input.parse()?;
+    Ok(ProcedureAttr { name: Some(lit.value()) })
+  }
+}
 
 pub fn expand(attr: TokenStream, item: ItemFn) -> syn::Result<TokenStream> {
-  if !attr.is_empty() {
-    return Err(syn::Error::new_spanned(attr, "#[seam_procedure] does not accept arguments"));
-  }
+  let parsed_attr: ProcedureAttr = syn::parse2(attr)?;
 
   let fn_name = &item.sig.ident;
   let factory_name = syn::Ident::new(&format!("{}_procedure", fn_name), fn_name.span());
 
   let input_type = extract_input_type(&item)?;
   let output_type = extract_output_type(&item)?;
-  let name_str = fn_name.to_string();
+  let name_str = parsed_attr.name.unwrap_or_else(|| fn_name.to_string());
 
   // Emit original fn + a factory fn that returns ProcedureDef
   Ok(quote! {
