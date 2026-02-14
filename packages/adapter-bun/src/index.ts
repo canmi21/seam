@@ -1,3 +1,4 @@
+import { SeamError } from "@canmi/seam-server";
 import type { ProcedureMap, Router } from "@canmi/seam-server";
 
 export interface ServeBunOptions {
@@ -5,6 +6,7 @@ export interface ServeBunOptions {
 }
 
 const RPC_PREFIX = "/seam/rpc/";
+const PAGE_PREFIX = "/seam/page/";
 const MANIFEST_PATH = "/seam/manifest.json";
 
 export function serveBun<T extends ProcedureMap>(router: Router<T>, opts?: ServeBunOptions) {
@@ -22,7 +24,7 @@ export function serveBun<T extends ProcedureMap>(router: Router<T>, opts?: Serve
         const name = pathname.slice(RPC_PREFIX.length);
         if (!name) {
           return Response.json(
-            { error: { code: "NOT_FOUND", message: "Empty procedure name" } },
+            new SeamError("NOT_FOUND", "Empty procedure name").toJSON(),
             { status: 404 },
           );
         }
@@ -32,7 +34,7 @@ export function serveBun<T extends ProcedureMap>(router: Router<T>, opts?: Serve
           body = await req.json();
         } catch {
           return Response.json(
-            { error: { code: "VALIDATION_ERROR", message: "Invalid JSON body" } },
+            new SeamError("VALIDATION_ERROR", "Invalid JSON body").toJSON(),
             { status: 400 },
           );
         }
@@ -41,8 +43,8 @@ export function serveBun<T extends ProcedureMap>(router: Router<T>, opts?: Serve
         return Response.json(result.body, { status: result.status });
       }
 
-      if (req.method === "GET" && pathname.startsWith("/seam/page/") && router.hasPages) {
-        const pagePath = "/" + pathname.slice("/seam/page/".length);
+      if (req.method === "GET" && pathname.startsWith(PAGE_PREFIX) && router.hasPages) {
+        const pagePath = "/" + pathname.slice(PAGE_PREFIX.length);
         const result = await router.handlePage(pagePath);
         if (result) {
           return new Response(result.html, {
@@ -52,7 +54,7 @@ export function serveBun<T extends ProcedureMap>(router: Router<T>, opts?: Serve
         }
       }
 
-      return Response.json({ error: { code: "NOT_FOUND", message: "Not found" } }, { status: 404 });
+      return Response.json(new SeamError("NOT_FOUND", "Not found").toJSON(), { status: 404 });
     },
   });
 }

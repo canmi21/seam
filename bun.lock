@@ -64,10 +64,20 @@
         "vitest": "^3.0.0",
       },
     },
+    "packages/injector": {
+      "name": "@canmi/seam-injector",
+      "version": "0.1.0",
+      "devDependencies": {
+        "tsdown": "^0.12.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.0.0",
+      },
+    },
     "packages/server": {
       "name": "@canmi/seam-server",
       "version": "0.1.0",
       "dependencies": {
+        "@canmi/seam-injector": "workspace:*",
         "jtd": "^0.1.1",
       },
       "devDependencies": {
@@ -93,6 +103,8 @@
     "@canmi/seam-cli": ["@canmi/seam-cli@workspace:packages/cli"],
 
     "@canmi/seam-client": ["@canmi/seam-client@workspace:packages/client"],
+
+    "@canmi/seam-injector": ["@canmi/seam-injector@workspace:packages/injector"],
 
     "@canmi/seam-server": ["@canmi/seam-server@workspace:packages/server"],
 

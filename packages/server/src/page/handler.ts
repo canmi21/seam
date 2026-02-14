@@ -1,5 +1,6 @@
-import { inject } from "@canmi/seam-injector";
-import type { InternalProcedure } from "../router/handler.js";
+import { inject, escapeHtml } from "@canmi/seam-injector";
+import { SeamError } from "../errors.js";
+import type { InternalProcedure } from "../procedure.js";
 import type { PageDef } from "./index.js";
 
 export interface HandlePageResult {
@@ -18,7 +19,7 @@ export async function handlePageRequest(
       entries.map(async ([key, loader]) => {
         const { procedure, input } = loader(params);
         const proc = procedures.get(procedure);
-        if (!proc) throw new Error(`Procedure '${procedure}' not found`);
+        if (!proc) throw new SeamError("INTERNAL_ERROR", `Procedure '${procedure}' not found`);
         // Skip JTD validation -- loader input is trusted server-side code
         const result = await proc.handler({ input });
         return [key, result] as const;
@@ -36,7 +37,7 @@ export async function handlePageRequest(
     const message = error instanceof Error ? error.message : "Unknown error";
     return {
       status: 500,
-      html: `<!DOCTYPE html><html><body><h1>500 Internal Server Error</h1><p>${message}</p></body></html>`,
+      html: `<!DOCTYPE html><html><body><h1>500 Internal Server Error</h1><p>${escapeHtml(message)}</p></body></html>`,
     };
   }
 }

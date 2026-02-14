@@ -65,44 +65,52 @@ fn escape_html(s: &str) -> String {
     out
 }
 
+struct CondMatch {
+    full_start: usize,
+    inner_start: usize,
+    full_end: usize,
+    path: String,
+}
+
 /// Find innermost <!--seam:if:PATH-->...<!--seam:endif:PATH--> and replace.
 /// Returns None if no conditional pair found.
 fn replace_one_conditional(input: &str, data: &Value) -> Option<String> {
-    // Find all opening tags, process the last one first (innermost)
-    // Scan all opening tags, find matching endif, pick the innermost (smallest span) pair
-    let mut innermost: Option<(usize, usize, usize, String)> = None; // (full_start, inner_start, full_end, path)
+    let mut innermost: Option<CondMatch> = None;
 
     for m in COND_OPEN_RE.find_iter(input) {
         let caps = COND_OPEN_RE.captures(&input[m.start()..]).unwrap();
         let p = caps.get(1).unwrap().as_str();
         let endif_tag = format!("<!--seam:endif:{}-->", p);
-        // Find matching endif after this open tag
         if let Some(endif_pos) = input[m.end()..].find(&endif_tag) {
             let inner_start = m.end();
-            let inner_end = m.end() + endif_pos;
-            let full_end = inner_end + endif_tag.len();
-            // Pick the pair with smallest span (innermost)
+            let full_end = inner_start + endif_pos + endif_tag.len();
             let span = full_end - m.start();
-            if innermost.is_none()
-                || span < innermost.as_ref().unwrap().2 - innermost.as_ref().unwrap().0
-            {
-                innermost = Some((m.start(), inner_start, full_end, p.to_string()));
+            let is_smaller = innermost
+                .as_ref()
+                .map_or(true, |prev| span < prev.full_end - prev.full_start);
+            if is_smaller {
+                innermost = Some(CondMatch {
+                    full_start: m.start(),
+                    inner_start,
+                    full_end,
+                    path: p.to_string(),
+                });
             }
         }
     }
 
-    let (full_start, inner_start, full_end, path) = innermost?;
-    let inner = &input[inner_start..full_end - format!("<!--seam:endif:{}-->", path).len()];
+    let cm = innermost?;
+    let inner = &input[cm.inner_start..cm.full_end - format!("<!--seam:endif:{}-->", cm.path).len()];
 
-    let replacement = match resolve(&path, data) {
+    let replacement = match resolve(&cm.path, data) {
         Some(v) if is_truthy(v) => inner.to_string(),
         _ => String::new(),
     };
 
     let mut out = String::with_capacity(input.len());
-    out.push_str(&input[..full_start]);
+    out.push_str(&input[..cm.full_start]);
     out.push_str(&replacement);
-    out.push_str(&input[full_end..]);
+    out.push_str(&input[cm.full_end..]);
     Some(out)
 }
 

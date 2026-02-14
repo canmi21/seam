@@ -117,11 +117,12 @@ async fn handle_page(
 
   let mut join_set = JoinSet::new();
 
+  let handlers = state.handlers.clone();
   for loader in &page.loaders {
     let input = (loader.input_fn)(&params);
     let proc_name = loader.procedure.clone();
     let data_key = loader.data_key.clone();
-    let handlers = state.handlers.clone();
+    let handlers = handlers.clone();
 
     join_set.spawn(async move {
       let proc = handlers
@@ -135,8 +136,8 @@ async fn handle_page(
   let mut data = serde_json::Map::new();
   while let Some(result) = join_set.join_next().await {
     let (key, value) = result
-      .map_err(|e| SeamError::internal(e.to_string()))?
-      .map_err(|e: SeamError| SeamError::internal(e.to_string()))?;
+      .map_err(|e| SeamError::internal(e.to_string()))? // JoinError -> Internal (task panic)
+      ?; // SeamError propagates unchanged
     data.insert(key, value);
   }
 

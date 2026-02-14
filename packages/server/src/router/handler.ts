@@ -1,18 +1,9 @@
-import type { Schema } from "jtd";
 import { SeamError } from "../errors.js";
 import type { ErrorCode } from "../errors.js";
+import type { HandleResult, InternalProcedure } from "../procedure.js";
 import { validateInput } from "../validation/index.js";
 
-export interface HandleResult {
-  status: number;
-  body: unknown;
-}
-
-export interface InternalProcedure {
-  inputSchema: Schema;
-  outputSchema: Schema;
-  handler: (params: { input: unknown }) => unknown | Promise<unknown>;
-}
+export type { HandleResult, InternalProcedure } from "../procedure.js";
 
 const STATUS_MAP: Record<ErrorCode, number> = {
   VALIDATION_ERROR: 400,

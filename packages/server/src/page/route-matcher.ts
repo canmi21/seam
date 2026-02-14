@@ -1,10 +1,5 @@
-export interface MatchResult {
-  params: Record<string, string>;
-}
-
 interface CompiledRoute {
   segments: RouteSegment[];
-  pattern: string;
 }
 
 type RouteSegment =
@@ -20,7 +15,7 @@ function compileRoute(pattern: string): CompiledRoute {
         ? { kind: "param", name: seg.slice(1) }
         : { kind: "static", value: seg },
     );
-  return { segments, pattern };
+  return { segments };
 }
 
 function matchRoute(
