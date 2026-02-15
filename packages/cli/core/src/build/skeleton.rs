@@ -104,8 +104,18 @@ pub fn detect_conditional(
     .take_while(|(a, b)| a == b)
     .count();
 
-  let block_start = prefix_len;
-  let block_end = full_html.len() - suffix_len;
+  let mut block_start = prefix_len;
+  let mut block_end = full_html.len() - suffix_len;
+
+  // Adjust for shared `<` at prefix boundary
+  if block_start > 0 && full_html.as_bytes()[block_start - 1] == b'<' {
+    block_start -= 1;
+  }
+
+  // Adjust for shared `<` at suffix boundary
+  if block_end > block_start && full_html.as_bytes()[block_end - 1] == b'<' {
+    block_end -= 1;
+  }
 
   if block_start >= block_end {
     return None;
@@ -149,7 +159,8 @@ pub struct ArrayBlock {
 
 /// Detect the repeating template block for an array field by diffing
 /// full HTML (1-element array) against emptied HTML (0-element array).
-/// Same prefix/suffix algorithm as conditional detection.
+/// Same prefix/suffix algorithm as conditional detection, with boundary
+/// adjustment for shared `<` characters between adjacent tags.
 pub fn detect_array_block(
   full_html: &str,
   emptied_html: &str,
@@ -159,7 +170,8 @@ pub fn detect_array_block(
     return None;
   }
 
-  let prefix_len = full_html.bytes().zip(emptied_html.bytes()).take_while(|(a, b)| a == b).count();
+  let prefix_len =
+    full_html.bytes().zip(emptied_html.bytes()).take_while(|(a, b)| a == b).count();
 
   let full_remaining = &full_html[prefix_len..];
   let emptied_remaining = &emptied_html[prefix_len..];
@@ -170,8 +182,20 @@ pub fn detect_array_block(
     .take_while(|(a, b)| a == b)
     .count();
 
-  let block_start = prefix_len;
-  let block_end = full_html.len() - suffix_len;
+  let mut block_start = prefix_len;
+  let mut block_end = full_html.len() - suffix_len;
+
+  // Adjust for shared `<` at prefix boundary: if the last matched char
+  // is `<`, it belongs to the block's opening tag, not the container.
+  if block_start > 0 && full_html.as_bytes()[block_start - 1] == b'<' {
+    block_start -= 1;
+  }
+
+  // Adjust for shared `<` at suffix boundary: if the block's last char
+  // is `<`, it belongs to the container's closing tag, not the block.
+  if block_end > block_start && full_html.as_bytes()[block_end - 1] == b'<' {
+    block_end -= 1;
+  }
 
   if block_start >= block_end {
     return None;
@@ -368,9 +392,17 @@ mod tests {
 
   #[test]
   fn array_block_detection() {
-    // Clean boundaries (no shared `<` between item tags and container)
     let full = "before<li><!--seam:items.$.name--></li>after";
     let emptied = "beforeafter";
+    let block = detect_array_block(full, emptied, "items").unwrap();
+    assert_eq!(&full[block.start..block.end], "<li><!--seam:items.$.name--></li>");
+  }
+
+  #[test]
+  fn array_block_detection_shared_angle_bracket() {
+    // Shared `<` between <li> and </ul> -- boundary adjustment needed
+    let full = "<ul><li><!--seam:items.$.name--></li></ul>";
+    let emptied = "<ul></ul>";
     let block = detect_array_block(full, emptied, "items").unwrap();
     assert_eq!(&full[block.start..block.end], "<li><!--seam:items.$.name--></li>");
   }
