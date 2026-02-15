@@ -267,7 +267,7 @@ fn render(nodes: &[AstNode], data: &Value, ctx: &mut RenderContext) -> String {
 
       AstNode::If { path, then_nodes, else_nodes } => {
         let value = resolve(path, data);
-        if value.is_some_and(|v| is_truthy(v)) {
+        if value.is_some_and(is_truthy) {
           out.push_str(&render(then_nodes, data, ctx));
         } else {
           out.push_str(&render(else_nodes, data, ctx));

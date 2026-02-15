@@ -81,102 +81,6 @@ pub fn sentinel_to_slots(html: &str) -> String {
   output.into_owned()
 }
 
-// Legacy v1 functions kept for test coverage but no longer used in production pipeline.
-
-fn detect_conditional(full_html: &str, nulled_html: &str, field: &str) -> Option<ConditionalBlock> {
-  if full_html == nulled_html {
-    return None;
-  }
-  let prefix_len = full_html.bytes().zip(nulled_html.bytes()).take_while(|(a, b)| a == b).count();
-  let full_remaining = &full_html[prefix_len..];
-  let nulled_remaining = &nulled_html[prefix_len..];
-  let suffix_len = full_remaining
-    .bytes()
-    .rev()
-    .zip(nulled_remaining.bytes().rev())
-    .take_while(|(a, b)| a == b)
-    .count();
-  let mut block_start = prefix_len;
-  let mut block_end = full_html.len() - suffix_len;
-  if block_start > 0 && full_html.as_bytes()[block_start - 1] == b'<' {
-    block_start -= 1;
-  }
-  if block_end > block_start && full_html.as_bytes()[block_end - 1] == b'<' {
-    block_end -= 1;
-  }
-  if block_start >= block_end {
-    return None;
-  }
-  Some(ConditionalBlock { start: block_start, end: block_end, field: field.to_string() })
-}
-
-#[derive(Debug)]
-struct ConditionalBlock {
-  start: usize,
-  end: usize,
-  field: String,
-}
-
-fn apply_conditionals(html: &str, mut blocks: Vec<ConditionalBlock>) -> String {
-  let mut result = html.to_string();
-  blocks.sort_by(|a, b| b.start.cmp(&a.start));
-  for block in &blocks {
-    let endif = format!("<!--seam:endif:{}-->", block.field);
-    let ifstart = format!("<!--seam:if:{}-->", block.field);
-    result.insert_str(block.end, &endif);
-    result.insert_str(block.start, &ifstart);
-  }
-  result
-}
-
-fn detect_array_block(full_html: &str, emptied_html: &str, field: &str) -> Option<ArrayBlock> {
-  if full_html == emptied_html {
-    return None;
-  }
-  let prefix_len = full_html.bytes().zip(emptied_html.bytes()).take_while(|(a, b)| a == b).count();
-  let full_remaining = &full_html[prefix_len..];
-  let emptied_remaining = &emptied_html[prefix_len..];
-  let suffix_len = full_remaining
-    .bytes()
-    .rev()
-    .zip(emptied_remaining.bytes().rev())
-    .take_while(|(a, b)| a == b)
-    .count();
-  let mut block_start = prefix_len;
-  let mut block_end = full_html.len() - suffix_len;
-  if block_start > 0 && full_html.as_bytes()[block_start - 1] == b'<' {
-    block_start -= 1;
-  }
-  if block_end > block_start && full_html.as_bytes()[block_end - 1] == b'<' {
-    block_end -= 1;
-  }
-  if block_start >= block_end {
-    return None;
-  }
-  Some(ArrayBlock { start: block_start, end: block_end, field: field.to_string() })
-}
-
-#[derive(Debug)]
-struct ArrayBlock {
-  start: usize,
-  end: usize,
-  field: String,
-}
-
-fn apply_array_blocks(html: &str, mut blocks: Vec<ArrayBlock>) -> String {
-  let mut result = html.to_string();
-  blocks.sort_by(|a, b| b.start.cmp(&a.start));
-  for block in &blocks {
-    let body = &result[block.start..block.end];
-    let field_prefix = format!("<!--seam:{}.", block.field);
-    let replacement_prefix = "<!--seam:";
-    let renamed = body.replace(&field_prefix, replacement_prefix);
-    let wrapped = format!("<!--seam:each:{}-->{}<!--seam:endeach-->", block.field, renamed);
-    result = format!("{}{}{}", &result[..block.start], wrapped, &result[block.end..]);
-  }
-  result
-}
-
 // -- Multi-variant diff (CTR v2) --
 
 /// Axis describes one structural dimension that affects template rendering.
@@ -522,6 +426,102 @@ pub fn wrap_document(skeleton: &str, css_files: &[String], js_files: &[String]) 
 mod tests {
   use super::*;
   use serde_json::json;
+
+  // -- Legacy v1 helpers (test-only) --
+
+  fn detect_conditional(full_html: &str, nulled_html: &str, field: &str) -> Option<ConditionalBlock> {
+    if full_html == nulled_html {
+      return None;
+    }
+    let prefix_len = full_html.bytes().zip(nulled_html.bytes()).take_while(|(a, b)| a == b).count();
+    let full_remaining = &full_html[prefix_len..];
+    let nulled_remaining = &nulled_html[prefix_len..];
+    let suffix_len = full_remaining
+      .bytes()
+      .rev()
+      .zip(nulled_remaining.bytes().rev())
+      .take_while(|(a, b)| a == b)
+      .count();
+    let mut block_start = prefix_len;
+    let mut block_end = full_html.len() - suffix_len;
+    if block_start > 0 && full_html.as_bytes()[block_start - 1] == b'<' {
+      block_start -= 1;
+    }
+    if block_end > block_start && full_html.as_bytes()[block_end - 1] == b'<' {
+      block_end -= 1;
+    }
+    if block_start >= block_end {
+      return None;
+    }
+    Some(ConditionalBlock { start: block_start, end: block_end, field: field.to_string() })
+  }
+
+  #[derive(Debug)]
+  struct ConditionalBlock {
+    start: usize,
+    end: usize,
+    field: String,
+  }
+
+  fn apply_conditionals(html: &str, mut blocks: Vec<ConditionalBlock>) -> String {
+    let mut result = html.to_string();
+    blocks.sort_by(|a, b| b.start.cmp(&a.start));
+    for block in &blocks {
+      let endif = format!("<!--seam:endif:{}-->", block.field);
+      let ifstart = format!("<!--seam:if:{}-->", block.field);
+      result.insert_str(block.end, &endif);
+      result.insert_str(block.start, &ifstart);
+    }
+    result
+  }
+
+  fn detect_array_block(full_html: &str, emptied_html: &str, field: &str) -> Option<ArrayBlock> {
+    if full_html == emptied_html {
+      return None;
+    }
+    let prefix_len = full_html.bytes().zip(emptied_html.bytes()).take_while(|(a, b)| a == b).count();
+    let full_remaining = &full_html[prefix_len..];
+    let emptied_remaining = &emptied_html[prefix_len..];
+    let suffix_len = full_remaining
+      .bytes()
+      .rev()
+      .zip(emptied_remaining.bytes().rev())
+      .take_while(|(a, b)| a == b)
+      .count();
+    let mut block_start = prefix_len;
+    let mut block_end = full_html.len() - suffix_len;
+    if block_start > 0 && full_html.as_bytes()[block_start - 1] == b'<' {
+      block_start -= 1;
+    }
+    if block_end > block_start && full_html.as_bytes()[block_end - 1] == b'<' {
+      block_end -= 1;
+    }
+    if block_start >= block_end {
+      return None;
+    }
+    Some(ArrayBlock { start: block_start, end: block_end, field: field.to_string() })
+  }
+
+  #[derive(Debug)]
+  struct ArrayBlock {
+    start: usize,
+    end: usize,
+    field: String,
+  }
+
+  fn apply_array_blocks(html: &str, mut blocks: Vec<ArrayBlock>) -> String {
+    let mut result = html.to_string();
+    blocks.sort_by(|a, b| b.start.cmp(&a.start));
+    for block in &blocks {
+      let body = &result[block.start..block.end];
+      let field_prefix = format!("<!--seam:{}.", block.field);
+      let replacement_prefix = "<!--seam:";
+      let renamed = body.replace(&field_prefix, replacement_prefix);
+      let wrapped = format!("<!--seam:each:{}-->{}<!--seam:endeach-->", block.field, renamed);
+      result = format!("{}{}{}", &result[..block.start], wrapped, &result[block.end..]);
+    }
+    result
+  }
 
   // -- sentinel_to_slots --
 

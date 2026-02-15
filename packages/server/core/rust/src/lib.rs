@@ -108,6 +108,7 @@ mod tests {
   }
 
   #[derive(SeamType)]
+  #[allow(dead_code)]
   enum Role {
     Admin,
     Member,
