@@ -74,7 +74,7 @@ struct AssetFiles {
 
 // -- Shared helpers --
 
-/// Run a shell command, bail on failure
+/// Run a shell command, bail on failure (shows both stdout and stderr on error)
 fn run_command(base_dir: &Path, command: &str, label: &str) -> Result<()> {
   ui::detail(&format!("{DIM}{command}{RESET}"));
   let output = Command::new("sh")
@@ -83,8 +83,18 @@ fn run_command(base_dir: &Path, command: &str, label: &str) -> Result<()> {
     .output()
     .with_context(|| format!("failed to run {label}"))?;
   if !output.status.success() {
+    let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    bail!("{label} exited with status {}\n{stderr}", output.status);
+    let mut msg = format!("{label} exited with status {}", output.status);
+    if !stderr.is_empty() {
+      msg.push('\n');
+      msg.push_str(&stderr);
+    }
+    if !stdout.is_empty() {
+      msg.push('\n');
+      msg.push_str(&stdout);
+    }
+    bail!("{msg}");
   }
   Ok(())
 }

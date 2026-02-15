@@ -6,6 +6,9 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [tailwindcss(), react()],
+  build: {
+    manifest: true,
+  },
   server: {
     // Proxy seam routes to the backend in dev
     proxy: {

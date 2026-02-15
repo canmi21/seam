@@ -1,7 +1,15 @@
 /* examples/fullstack/react-hono-tanstack/src/server/router.ts */
 
 import { createRouter } from "@canmi/seam-server";
+import type { RouterOptions } from "@canmi/seam-server";
 import { getMessages, addMessage } from "./procedures.js";
 import { onMessage } from "./subscriptions.js";
 
-export const router = createRouter({ getMessages, addMessage, onMessage });
+export const procedures = { getMessages, addMessage, onMessage };
+
+export function buildRouter(opts?: RouterOptions) {
+  return createRouter(procedures, opts);
+}
+
+// Default router without pages (used by manifest extraction)
+export const router = buildRouter();
