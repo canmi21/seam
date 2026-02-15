@@ -10,10 +10,11 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
 
   let body = match &input.data {
     Data::Struct(data) => expand_struct(&data.fields)?,
+    Data::Enum(data) => expand_enum(data)?,
     _ => {
       return Err(syn::Error::new_spanned(
         &input.ident,
-        "SeamType can only be derived for structs",
+        "SeamType can only be derived for structs and enums",
       ));
     }
   };
@@ -24,6 +25,24 @@ pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
         #body
       }
     }
+  })
+}
+
+fn expand_enum(data: &syn::DataEnum) -> syn::Result<TokenStream> {
+  let mut values = Vec::new();
+  for variant in &data.variants {
+    if !variant.fields.is_empty() {
+      return Err(syn::Error::new_spanned(
+        variant,
+        "SeamType enum derive only supports unit variants (no fields)",
+      ));
+    }
+    let name = variant.ident.to_string().to_lowercase();
+    values.push(name);
+  }
+
+  Ok(quote! {
+    serde_json::json!({ "enum": [#(#values),*] })
   })
 }
 

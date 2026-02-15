@@ -71,6 +71,9 @@ impl<T: SeamType> SeamType for std::collections::BTreeMap<String, T> {
 }
 
 #[cfg(test)]
+extern crate self as seam_server;
+
+#[cfg(test)]
 mod tests {
   use super::*;
 
@@ -101,6 +104,21 @@ mod tests {
     assert_eq!(
       std::collections::HashMap::<String, f64>::jtd_schema(),
       serde_json::json!({"values": {"type": "float64"}}),
+    );
+  }
+
+  #[derive(SeamType)]
+  enum Role {
+    Admin,
+    Member,
+    Guest,
+  }
+
+  #[test]
+  fn enum_schema() {
+    assert_eq!(
+      Role::jtd_schema(),
+      serde_json::json!({"enum": ["admin", "member", "guest"]}),
     );
   }
 }
