@@ -9,10 +9,7 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
 use super::config::BuildConfig;
-use super::skeleton::{
-  apply_array_blocks, apply_conditionals, detect_array_block, detect_conditional, sentinel_to_slots,
-  wrap_document,
-};
+use super::skeleton::{extract_template, sentinel_to_slots, wrap_document, Axis};
 use crate::codegen;
 use crate::config::SeamConfig;
 use crate::manifest::Manifest;
@@ -39,16 +36,14 @@ struct SkeletonOutput {
 struct SkeletonRoute {
   path: String,
   loaders: serde_json::Value,
-  #[serde(rename = "fullHtml")]
-  full_html: String,
-  #[serde(rename = "nullableFields")]
-  nullable_fields: Vec<String>,
-  #[serde(rename = "nulledHtmls")]
-  nulled_htmls: BTreeMap<String, String>,
-  #[serde(rename = "arrayFields", default)]
-  array_fields: Vec<String>,
-  #[serde(rename = "emptiedHtmls", default)]
-  emptied_htmls: BTreeMap<String, String>,
+  axes: Vec<Axis>,
+  variants: Vec<RenderedVariant>,
+}
+
+#[derive(Deserialize)]
+struct RenderedVariant {
+  variant: serde_json::Value,
+  html: String,
 }
 
 // -- Route manifest output --
@@ -139,11 +134,13 @@ fn print_asset_files(base_dir: &Path, dist_dir: &str, assets: &AssetFiles) {
 fn run_skeleton_renderer(
   script_path: &Path,
   routes_path: &Path,
+  manifest_path: &Path,
   base_dir: &Path,
 ) -> Result<SkeletonOutput> {
   let output = Command::new("node")
     .arg(script_path)
     .arg(routes_path)
+    .arg(manifest_path)
     .current_dir(base_dir)
     .output()
     .context("failed to spawn node for skeleton rendering")?;
@@ -165,37 +162,9 @@ fn process_routes(
   let mut manifest = RouteManifest { routes: BTreeMap::new() };
 
   for route in routes {
-    let mut processed = sentinel_to_slots(&route.full_html);
-
-    // Detect and apply array blocks from array field diffs
-    let mut array_blocks = Vec::new();
-    for field in &route.array_fields {
-      if let Some(emptied_html) = route.emptied_htmls.get(field) {
-        let emptied_processed = sentinel_to_slots(emptied_html);
-        if let Some(block) = detect_array_block(&processed, &emptied_processed, field) {
-          array_blocks.push(block);
-        }
-      }
-    }
-    if !array_blocks.is_empty() {
-      processed = apply_array_blocks(&processed, array_blocks);
-    }
-
-    // Detect and apply conditionals from nullable field diffs
-    let mut blocks = Vec::new();
-    for field in &route.nullable_fields {
-      if let Some(nulled_html) = route.nulled_htmls.get(field) {
-        let nulled_processed = sentinel_to_slots(nulled_html);
-        if let Some(block) = detect_conditional(&processed, &nulled_processed, field) {
-          blocks.push(block);
-        }
-      }
-    }
-    if !blocks.is_empty() {
-      processed = apply_conditionals(&processed, blocks);
-    }
-
-    let document = wrap_document(&processed, &assets.css, &assets.js);
+    let processed: Vec<_> = route.variants.iter().map(|v| sentinel_to_slots(&v.html)).collect();
+    let template = extract_template(&route.axes, &processed);
+    let document = wrap_document(&template, &assets.css, &assets.js);
 
     let filename = path_to_filename(&route.path);
     let filepath = templates_dir.join(&filename);
@@ -284,7 +253,8 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
     bail!("build-skeletons.mjs not found at {}", script_path.display());
   }
   let routes_path = base_dir.join(&build_config.routes);
-  let skeleton_output = run_skeleton_renderer(&script_path, &routes_path, base_dir)?;
+  let none_path = Path::new("none");
+  let skeleton_output = run_skeleton_renderer(&script_path, &routes_path, none_path, base_dir)?;
   ui::detail_ok(&format!("{} routes found", skeleton_output.routes.len()));
   ui::blank();
 
@@ -363,11 +333,7 @@ fn extract_manifest(base_dir: &Path, router_file: &str, out_dir: &Path) -> Resul
 
 /// Generate TypeScript client types from the manifest
 fn generate_types(manifest: &Manifest, config: &SeamConfig) -> Result<()> {
-  let out_dir_str = config
-    .generate
-    .out_dir
-    .as_deref()
-    .unwrap_or("src/generated");
+  let out_dir_str = config.generate.out_dir.as_deref().unwrap_or("src/generated");
 
   let code = codegen::generate_typescript(manifest)?;
   let line_count = code.lines().count();
@@ -377,10 +343,12 @@ fn generate_types(manifest: &Manifest, config: &SeamConfig) -> Result<()> {
   std::fs::create_dir_all(out_path)
     .with_context(|| format!("failed to create {}", out_path.display()))?;
   let file = out_path.join("client.ts");
-  std::fs::write(&file, &code)
-    .with_context(|| format!("failed to write {}", file.display()))?;
+  std::fs::write(&file, &code).with_context(|| format!("failed to write {}", file.display()))?;
 
-  ui::detail_ok(&format!("{proc_count} procedures \u{2192} {} ({line_count} lines)", file.display()));
+  ui::detail_ok(&format!(
+    "{proc_count} procedures \u{2192} {} ({line_count} lines)",
+    file.display()
+  ));
   Ok(())
 }
 
@@ -446,20 +414,14 @@ fn run_fullstack_build(
   // [1] Compile backend
   step_num += 1;
   ui::step(step_num, total, "Compiling backend");
-  run_command(
-    base_dir,
-    build_config.backend_build_command.as_deref().unwrap(),
-    "backend build",
-  )?;
+  run_command(base_dir, build_config.backend_build_command.as_deref().unwrap(), "backend build")?;
   ui::blank();
 
   // [2] Extract procedure manifest
   step_num += 1;
   ui::step(step_num, total, "Extracting procedure manifest");
-  let router_file = build_config
-    .router_file
-    .as_deref()
-    .context("router_file is required for fullstack build")?;
+  let router_file =
+    build_config.router_file.as_deref().context("router_file is required for fullstack build")?;
   let manifest = extract_manifest(base_dir, router_file, &out_dir)?;
   print_procedure_breakdown(&manifest);
   ui::blank();
@@ -495,7 +457,9 @@ fn run_fullstack_build(
     bail!("build-skeletons.mjs not found at {}", script_path.display());
   }
   let routes_path = base_dir.join(&build_config.routes);
-  let skeleton_output = run_skeleton_renderer(&script_path, &routes_path, base_dir)?;
+  let manifest_json_path = out_dir.join("seam-manifest.json");
+  let skeleton_output =
+    run_skeleton_renderer(&script_path, &routes_path, &manifest_json_path, base_dir)?;
 
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)

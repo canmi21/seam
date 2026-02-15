@@ -3,97 +3,76 @@
 import { build } from "esbuild";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
-import { unlinkSync } from "node:fs";
+import { readFileSync, unlinkSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SeamDataProvider, buildSentinelData } from "@canmi/seam-react";
+import {
+  collectStructuralAxes,
+  cartesianProduct,
+  buildVariantSentinel,
+} from "./variant-generator.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Set a dotted path to null in a deep-cloned object
-function setFieldNull(obj, dottedPath) {
-  const clone = JSON.parse(JSON.stringify(obj));
-  const parts = dottedPath.split(".");
-  let cur = clone;
-  for (let i = 0; i < parts.length - 1; i++) {
-    if (cur[parts[i]] === null || cur[parts[i]] === undefined || typeof cur[parts[i]] !== "object")
-      return clone;
-    cur = cur[parts[i]];
-  }
-  cur[parts[parts.length - 1]] = null;
-  return clone;
-}
-
-// Detect fields in mock data that are arrays of objects
-function detectArrayFields(mock, prefix = "") {
-  const fields = [];
-  for (const [key, value] of Object.entries(mock)) {
-    const path = prefix ? `${prefix}.${key}` : key;
-    if (
-      Array.isArray(value) &&
-      value.length > 0 &&
-      typeof value[0] === "object" &&
-      value[0] !== null
-    ) {
-      fields.push(path);
-    } else if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-      fields.push(...detectArrayFields(value, path));
-    }
-  }
-  return fields;
-}
-
-// Set a dotted path to an empty array in a deep-cloned sentinel object
-function setFieldEmptyArray(obj, dottedPath) {
-  const clone = JSON.parse(JSON.stringify(obj));
-  const parts = dottedPath.split(".");
-  let cur = clone;
-  for (let i = 0; i < parts.length - 1; i++) {
-    if (cur[parts[i]] === null || cur[parts[i]] === undefined || typeof cur[parts[i]] !== "object")
-      return clone;
-    cur = cur[parts[i]];
-  }
-  cur[parts[parts.length - 1]] = [];
-  return clone;
-}
-
-// -- Route rendering --
+// -- Rendering --
 
 function renderWithData(component, data) {
-  return renderToString(
-    createElement(SeamDataProvider, { value: data }, createElement(component)),
-  );
+  return renderToString(createElement(SeamDataProvider, { value: data }, createElement(component)));
 }
 
-function renderRoute(route) {
-  const sentinelData = buildSentinelData(route.mock);
-  const fullHtml = renderWithData(route.component, sentinelData);
+/**
+ * Merge loader procedure schemas from manifest into a combined page schema.
+ * Each loader contributes its output schema fields to the top-level properties.
+ */
+function buildPageSchema(route, manifest) {
+  if (!manifest) return null;
 
-  const nullableFields = route.nullable || [];
-  const nulledHtmls = {};
+  const properties = {};
+  const optionalProperties = {};
 
-  for (const field of nullableFields) {
-    const nulledSentinel = setFieldNull(sentinelData, field);
-    nulledHtmls[field] = renderWithData(route.component, nulledSentinel);
+  for (const [_loaderKey, loaderDef] of Object.entries(route.loaders || {})) {
+    const procName = loaderDef.procedure;
+    const proc = manifest.procedures?.[procName];
+    if (!proc?.output) continue;
+
+    const schema = proc.output;
+    // Merge output schema properties into the page schema
+    if (schema.properties) {
+      Object.assign(properties, schema.properties);
+    }
+    if (schema.optionalProperties) {
+      Object.assign(optionalProperties, schema.optionalProperties);
+    }
+    // If the output itself is an array or other non-object, wrap it under the loader key
+    if (schema.elements || schema.type || schema.enum) {
+      properties[_loaderKey] = schema;
+    }
   }
 
-  // Detect array-of-objects fields and render empty-array variants
-  const arrayFields = detectArrayFields(route.mock);
-  const emptiedHtmls = {};
+  const result = {};
+  if (Object.keys(properties).length > 0) result.properties = properties;
+  if (Object.keys(optionalProperties).length > 0) result.optionalProperties = optionalProperties;
+  return Object.keys(result).length > 0 ? result : null;
+}
 
-  for (const field of arrayFields) {
-    const emptiedSentinel = setFieldEmptyArray(sentinelData, field);
-    emptiedHtmls[field] = renderWithData(route.component, emptiedSentinel);
-  }
+function renderRoute(route, manifest) {
+  const baseSentinel = buildSentinelData(route.mock);
+  const pageSchema = buildPageSchema(route, manifest);
+  const axes = pageSchema ? collectStructuralAxes(pageSchema, route.mock) : [];
+  const combos = cartesianProduct(axes);
+
+  const variants = combos.map((variant) => {
+    const sentinel = buildVariantSentinel(baseSentinel, route.mock, variant);
+    const html = renderWithData(route.component, sentinel);
+    return { variant, html };
+  });
 
   return {
     path: route.path,
     loaders: route.loaders,
-    fullHtml,
-    nullableFields,
-    nulledHtmls,
-    arrayFields,
-    emptiedHtmls,
+    axes,
+    variants,
   };
 }
 
@@ -101,16 +80,26 @@ function renderRoute(route) {
 
 async function main() {
   const routesFile = process.argv[2];
+  const manifestFile = process.argv[3];
+
   if (!routesFile) {
-    console.error("Usage: node build-skeletons.mjs <routes-file>");
+    console.error("Usage: node build-skeletons.mjs <routes-file> [manifest-file]");
     process.exit(1);
+  }
+
+  // Load manifest if provided
+  let manifest = null;
+  if (manifestFile && manifestFile !== "none") {
+    try {
+      manifest = JSON.parse(readFileSync(resolve(manifestFile), "utf-8"));
+    } catch (e) {
+      console.error(`warning: could not read manifest: ${e.message}`);
+    }
   }
 
   const absRoutes = resolve(routesFile);
   const outfile = join(__dirname, ".tmp-routes-bundle.mjs");
 
-  // Bundle routes file with esbuild; keep react + seam-react external
-  // so module-level state is shared with this script
   await build({
     entryPoints: [absRoutes],
     bundle: true,
@@ -127,7 +116,7 @@ async function main() {
       throw new Error("Routes file must export default or named 'routes' as an array");
     }
 
-    const output = { routes: routes.map(renderRoute) };
+    const output = { routes: routes.map((r) => renderRoute(r, manifest)) };
     process.stdout.write(JSON.stringify(output));
   } finally {
     try {
