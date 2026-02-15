@@ -1,17 +1,147 @@
 /* packages/server/core/rust/src/injector.rs */
 
-use std::sync::LazyLock;
-
-use regex::Regex;
 use serde_json::Value;
 
-static COND_OPEN_RE: LazyLock<Regex> =
-  LazyLock::new(|| Regex::new(r"<!--seam:if:([\w.]+)-->").unwrap());
-static ATTR_RE: LazyLock<Regex> =
-  LazyLock::new(|| Regex::new(r"<!--seam:([\w.]+):attr:(\w+)-->").unwrap());
-static RAW_RE: LazyLock<Regex> =
-  LazyLock::new(|| Regex::new(r"<!--seam:([\w.]+):html-->").unwrap());
-static TEXT_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<!--seam:([\w.]+)-->").unwrap());
+// -- AST node types --
+
+#[derive(Debug)]
+enum AstNode {
+  Text(String),
+  Slot { path: String, mode: SlotMode },
+  Attr { path: String, attr_name: String },
+  If { path: String, then_nodes: Vec<AstNode>, else_nodes: Vec<AstNode> },
+  Each { path: String, body_nodes: Vec<AstNode> },
+}
+
+#[derive(Debug)]
+enum SlotMode {
+  Text,
+  Html,
+}
+
+// -- Tokenizer --
+
+#[derive(Debug)]
+enum Token {
+  Text(String),
+  Marker(String), // directive body (between <!--seam: and -->)
+}
+
+const MARKER_OPEN: &str = "<!--seam:";
+const MARKER_CLOSE: &str = "-->";
+
+fn tokenize(template: &str) -> Vec<Token> {
+  let mut tokens = Vec::new();
+  let mut pos = 0;
+  let bytes = template.as_bytes();
+
+  while pos < bytes.len() {
+    if let Some(rel) = template[pos..].find(MARKER_OPEN) {
+      let marker_start = pos + rel;
+      if marker_start > pos {
+        tokens.push(Token::Text(template[pos..marker_start].to_string()));
+      }
+      let after_open = marker_start + MARKER_OPEN.len();
+      if let Some(close_rel) = template[after_open..].find(MARKER_CLOSE) {
+        let directive = template[after_open..after_open + close_rel].to_string();
+        tokens.push(Token::Marker(directive));
+        pos = after_open + close_rel + MARKER_CLOSE.len();
+      } else {
+        // Unclosed marker -- treat rest as text
+        tokens.push(Token::Text(template[marker_start..].to_string()));
+        break;
+      }
+    } else {
+      tokens.push(Token::Text(template[pos..].to_string()));
+      break;
+    }
+  }
+
+  tokens
+}
+
+// -- Parser --
+
+fn parse(tokens: &[Token]) -> Vec<AstNode> {
+  let mut pos = 0;
+  parse_until(tokens, &mut pos, &|_| false)
+}
+
+fn parse_until(
+  tokens: &[Token],
+  pos: &mut usize,
+  stop: &dyn Fn(&str) -> bool,
+) -> Vec<AstNode> {
+  let mut nodes = Vec::new();
+
+  while *pos < tokens.len() {
+    match &tokens[*pos] {
+      Token::Text(value) => {
+        nodes.push(AstNode::Text(value.clone()));
+        *pos += 1;
+      }
+      Token::Marker(directive) => {
+        if stop(directive) {
+          return nodes;
+        }
+
+        if let Some(path) = directive.strip_prefix("if:") {
+          let path = path.to_string();
+          *pos += 1;
+          let endif_tag = format!("endif:{path}");
+          let then_nodes = parse_until(tokens, pos, &|d| d == "else" || d == endif_tag);
+
+          let else_nodes = if *pos < tokens.len() {
+            if let Token::Marker(d) = &tokens[*pos] {
+              if d == "else" {
+                *pos += 1;
+                parse_until(tokens, pos, &|d| d == endif_tag)
+              } else {
+                Vec::new()
+              }
+            } else {
+              Vec::new()
+            }
+          } else {
+            Vec::new()
+          };
+
+          // Skip endif token
+          if *pos < tokens.len() {
+            *pos += 1;
+          }
+          nodes.push(AstNode::If { path, then_nodes, else_nodes });
+        } else if let Some(path) = directive.strip_prefix("each:") {
+          let path = path.to_string();
+          *pos += 1;
+          let body_nodes = parse_until(tokens, pos, &|d| d == "endeach");
+          // Skip endeach token
+          if *pos < tokens.len() {
+            *pos += 1;
+          }
+          nodes.push(AstNode::Each { path, body_nodes });
+        } else if let Some(rest) = directive.find(":attr:") {
+          let path = directive[..rest].to_string();
+          let attr_name = directive[rest + 6..].to_string();
+          *pos += 1;
+          nodes.push(AstNode::Attr { path, attr_name });
+        } else if let Some(path) = directive.strip_suffix(":html") {
+          *pos += 1;
+          nodes.push(AstNode::Slot { path: path.to_string(), mode: SlotMode::Html });
+        } else {
+          // Plain text slot
+          let path = directive.clone();
+          *pos += 1;
+          nodes.push(AstNode::Slot { path, mode: SlotMode::Text });
+        }
+      }
+    }
+  }
+
+  nodes
+}
+
+// -- Resolve --
 
 fn resolve<'a>(path: &str, data: &'a Value) -> Option<&'a Value> {
   let mut current = data;
@@ -20,6 +150,8 @@ fn resolve<'a>(path: &str, data: &'a Value) -> Option<&'a Value> {
   }
   Some(current)
 }
+
+// -- Truthiness --
 
 fn is_truthy(value: &Value) -> bool {
   match value {
@@ -35,10 +167,12 @@ fn is_truthy(value: &Value) -> bool {
       }
     }
     Value::String(s) => !s.is_empty(),
-    // Objects and arrays are always truthy (JS-style)
-    _ => true,
+    Value::Array(arr) => !arr.is_empty(),
+    Value::Object(_) => true,
   }
 }
+
+// -- Stringify --
 
 fn stringify(value: &Value) -> String {
   match value {
@@ -49,6 +183,8 @@ fn stringify(value: &Value) -> String {
     other => other.to_string(),
   }
 }
+
+// -- Escape --
 
 fn escape_html(s: &str) -> String {
   let mut out = String::with_capacity(s.len());
@@ -65,90 +201,92 @@ fn escape_html(s: &str) -> String {
   out
 }
 
-struct CondMatch {
-  full_start: usize,
-  inner_start: usize,
-  inner_end: usize,
-  full_end: usize,
-  path: String,
+// -- Renderer --
+
+struct AttrEntry {
+  marker: String,
+  attr_name: String,
+  value: String,
 }
 
-/// Find innermost <!--seam:if:PATH-->...<!--seam:endif:PATH--> and replace.
-/// Returns None if no conditional pair found.
-fn replace_one_conditional(input: &str, data: &Value) -> Option<String> {
-  let mut innermost: Option<CondMatch> = None;
+struct RenderContext {
+  attrs: Vec<AttrEntry>,
+}
 
-  for m in COND_OPEN_RE.find_iter(input) {
-    let caps = COND_OPEN_RE.captures(&input[m.start()..]).unwrap();
-    let p = caps.get(1).unwrap().as_str();
-    let endif_tag = format!("<!--seam:endif:{}-->", p);
-    if let Some(endif_pos) = input[m.end()..].find(&endif_tag) {
-      let inner_start = m.end();
-      let full_end = inner_start + endif_pos + endif_tag.len();
-      let span = full_end - m.start();
-      let is_smaller = innermost.as_ref().is_none_or(|prev| span < prev.full_end - prev.full_start);
-      if is_smaller {
-        innermost = Some(CondMatch {
-          full_start: m.start(),
-          inner_start,
-          inner_end: inner_start + endif_pos,
-          full_end,
-          path: p.to_string(),
-        });
+fn render(nodes: &[AstNode], data: &Value, ctx: &mut RenderContext) -> String {
+  let mut out = String::new();
+
+  for node in nodes {
+    match node {
+      AstNode::Text(value) => out.push_str(value),
+
+      AstNode::Slot { path, mode } => {
+        let value = resolve(path, data);
+        match mode {
+          SlotMode::Html => {
+            out.push_str(&stringify(value.unwrap_or(&Value::Null)));
+          }
+          SlotMode::Text => {
+            out.push_str(&escape_html(&stringify(value.unwrap_or(&Value::Null))));
+          }
+        }
+      }
+
+      AstNode::Attr { path, attr_name } => {
+        if let Some(value) = resolve(path, data) {
+          let marker = format!("\x00SEAM_ATTR_{}\x00", ctx.attrs.len());
+          ctx.attrs.push(AttrEntry {
+            marker: marker.clone(),
+            attr_name: attr_name.clone(),
+            value: escape_html(&stringify(value)),
+          });
+          out.push_str(&marker);
+        }
+      }
+
+      AstNode::If { path, then_nodes, else_nodes } => {
+        let value = resolve(path, data);
+        if value.is_some_and(|v| is_truthy(v)) {
+          out.push_str(&render(then_nodes, data, ctx));
+        } else {
+          out.push_str(&render(else_nodes, data, ctx));
+        }
+      }
+
+      AstNode::Each { path, body_nodes } => {
+        if let Some(Value::Array(arr)) = resolve(path, data) {
+          for item in arr {
+            // Clone data and inject $ / $$ scope
+            let scoped = if let Value::Object(map) = data {
+              let mut new_map = map.clone();
+              if let Some(current_dollar) = new_map.get("$").cloned() {
+                new_map.insert("$$".to_string(), current_dollar);
+              }
+              new_map.insert("$".to_string(), item.clone());
+              Value::Object(new_map)
+            } else {
+              data.clone()
+            };
+            out.push_str(&render(body_nodes, &scoped, ctx));
+          }
+        }
       }
     }
   }
 
-  let cm = innermost?;
-  let inner = &input[cm.inner_start..cm.inner_end];
-
-  let replacement = match resolve(&cm.path, data) {
-    Some(v) if is_truthy(v) => inner.to_string(),
-    _ => String::new(),
-  };
-
-  let mut out = String::with_capacity(input.len());
-  out.push_str(&input[..cm.full_start]);
-  out.push_str(&replacement);
-  out.push_str(&input[cm.full_end..]);
-  Some(out)
+  out
 }
 
-pub fn inject(template: &str, data: &Value) -> String {
-  // 1. Conditionals (process innermost first, loop until none remain)
-  let mut result = template.to_string();
-  while let Some(replaced) = replace_one_conditional(&result, data) {
-    result = replaced;
-  }
+// -- Attribute injection (phase B) --
 
-  // 2. Attributes (two-phase)
-  let mut attrs: Vec<(String, String, String)> = Vec::new();
-  let mut attr_idx = 0usize;
-  result = ATTR_RE
-    .replace_all(&result, |caps: &regex::Captures| {
-      let path = &caps[1];
-      let attr_name = caps[2].to_string();
-      match resolve(path, data) {
-        Some(v) => {
-          let marker = format!("\x00SEAM_ATTR_{}\x00", attr_idx);
-          attr_idx += 1;
-          attrs.push((marker.clone(), attr_name, escape_html(&stringify(v))));
-          marker
-        }
-        None => String::new(),
-      }
-    })
-    .into_owned();
-
-  for (marker, attr_name, value) in &attrs {
-    if let Some(pos) = result.find(marker.as_str()) {
-      result = format!("{}{}", &result[..pos], &result[pos + marker.len()..]);
-      // Find next opening tag after marker position
-      if let Some(tag_start) = result[pos..].find('<') {
-        let abs_start = pos + tag_start;
-        // Find end of tag name
+fn inject_attributes(mut html: String, attrs: &[AttrEntry]) -> String {
+  for entry in attrs {
+    if let Some(pos) = html.find(&entry.marker) {
+      html = format!("{}{}", &html[..pos], &html[pos + entry.marker.len()..]);
+      if let Some(tag_rel) = html[pos..].find('<') {
+        let abs_start = pos + tag_rel;
         let mut tag_name_end = abs_start + 1;
-        let bytes = result.as_bytes();
+        let bytes = html.as_bytes();
         while tag_name_end < bytes.len()
           && bytes[tag_name_end] != b' '
           && bytes[tag_name_end] != b'>'
@@ -158,36 +296,32 @@ pub fn inject(template: &str, data: &Value) -> String {
         {
           tag_name_end += 1;
         }
-        let injection = format!(r#" {}="{}""#, attr_name, value);
-        result = format!("{}{}{}", &result[..tag_name_end], injection, &result[tag_name_end..]);
+        let injection = format!(r#" {}="{}""#, entry.attr_name, entry.value);
+        html = format!("{}{}{}", &html[..tag_name_end], injection, &html[tag_name_end..]);
       }
     }
   }
+  html
+}
 
-  // 3. Raw HTML
-  result = RAW_RE
-    .replace_all(&result, |caps: &regex::Captures| {
-      let path = &caps[1];
-      match resolve(path, data) {
-        Some(v) => stringify(v),
-        None => String::new(),
-      }
-    })
-    .into_owned();
+// -- Entry point --
 
-  // 4. Text (escaped)
-  result = TEXT_RE
-    .replace_all(&result, |caps: &regex::Captures| {
-      let path = &caps[1];
-      match resolve(path, data) {
-        Some(v) => escape_html(&stringify(v)),
-        None => String::new(),
-      }
-    })
-    .into_owned();
+pub fn inject(template: &str, data: &Value) -> String {
+  let tokens = tokenize(template);
+  let ast = parse(&tokens);
+  let mut ctx = RenderContext { attrs: Vec::new() };
+  let mut result = render(&ast, data, &mut ctx);
 
-  // 5. __SEAM_DATA__ script
-  let script = format!(r#"<script id="__SEAM_DATA__" type="application/json">{}</script>"#, data);
+  // Phase B: splice collected attributes
+  if !ctx.attrs.is_empty() {
+    result = inject_attributes(result, &ctx.attrs);
+  }
+
+  // __SEAM_DATA__ script
+  let script = format!(
+    r#"<script id="__SEAM_DATA__" type="application/json">{}</script>"#,
+    data
+  );
   if let Some(pos) = result.rfind("</body>") {
     result.insert_str(pos, &script);
   } else {
@@ -202,115 +336,279 @@ mod tests {
   use super::*;
   use serde_json::json;
 
+  // Helper: inject without data script for cleaner assertions
+  fn inject_no_script(template: &str, data: &Value) -> String {
+    let tokens = tokenize(template);
+    let ast = parse(&tokens);
+    let mut ctx = RenderContext { attrs: Vec::new() };
+    let mut result = render(&ast, data, &mut ctx);
+    if !ctx.attrs.is_empty() {
+      result = inject_attributes(result, &ctx.attrs);
+    }
+    result
+  }
+
+  // -- Text slots --
+
   #[test]
   fn text_slot_basic() {
-    let html = inject("<p><!--seam:name--></p>", &json!({"name": "Alice"}));
-    assert!(html.contains("<p>Alice</p>"));
+    let html = inject_no_script("<p><!--seam:name--></p>", &json!({"name": "Alice"}));
+    assert_eq!(html, "<p>Alice</p>");
   }
 
   #[test]
   fn text_slot_escapes_html() {
-    let html = inject("<p><!--seam:msg--></p>", &json!({"msg": "<script>alert(\"xss\")</script>"}));
-    assert!(html.contains("<p>&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;</p>"));
+    let html = inject_no_script(
+      "<p><!--seam:msg--></p>",
+      &json!({"msg": "<script>alert(\"xss\")</script>"}),
+    );
+    assert_eq!(
+      html,
+      "<p>&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;</p>"
+    );
   }
 
   #[test]
   fn text_slot_nested_path() {
-    let html = inject(
+    let html = inject_no_script(
       "<p><!--seam:user.address.city--></p>",
       &json!({"user": {"address": {"city": "Tokyo"}}}),
     );
-    assert!(html.contains("<p>Tokyo</p>"));
+    assert_eq!(html, "<p>Tokyo</p>");
   }
 
   #[test]
   fn text_slot_missing_path() {
-    let html = inject("<p><!--seam:missing--></p>", &json!({}));
-    assert!(html.contains("<p></p>"));
+    let html = inject_no_script("<p><!--seam:missing--></p>", &json!({}));
+    assert_eq!(html, "<p></p>");
   }
 
   #[test]
   fn text_slot_number() {
-    let html = inject("<p><!--seam:count--></p>", &json!({"count": 42}));
-    assert!(html.contains("<p>42</p>"));
+    let html = inject_no_script("<p><!--seam:count--></p>", &json!({"count": 42}));
+    assert_eq!(html, "<p>42</p>");
   }
+
+  // -- Raw HTML --
 
   #[test]
   fn raw_slot() {
-    let html = inject("<div><!--seam:content:html--></div>", &json!({"content": "<b>bold</b>"}));
-    assert!(html.contains("<div><b>bold</b></div>"));
+    let html = inject_no_script(
+      "<div><!--seam:content:html--></div>",
+      &json!({"content": "<b>bold</b>"}),
+    );
+    assert_eq!(html, "<div><b>bold</b></div>");
   }
+
+  // -- Attribute slots --
 
   #[test]
   fn attr_slot() {
-    let html = inject("<!--seam:cls:attr:class--><div>hi</div>", &json!({"cls": "active"}));
-    assert!(html.contains(r#"<div class="active">hi</div>"#));
+    let html = inject_no_script(
+      "<!--seam:cls:attr:class--><div>hi</div>",
+      &json!({"cls": "active"}),
+    );
+    assert_eq!(html, r#"<div class="active">hi</div>"#);
   }
 
   #[test]
   fn attr_slot_escapes_value() {
-    let html = inject("<!--seam:v:attr:title--><span>x</span>", &json!({"v": "a\"b"}));
-    assert!(html.contains(r#"<span title="a&quot;b">x</span>"#));
+    let html = inject_no_script(
+      "<!--seam:v:attr:title--><span>x</span>",
+      &json!({"v": "a\"b"}),
+    );
+    assert_eq!(html, r#"<span title="a&quot;b">x</span>"#);
   }
 
   #[test]
   fn attr_slot_missing_skips() {
-    let html = inject("<!--seam:missing:attr:class--><div>hi</div>", &json!({}));
-    assert!(html.contains("<div>hi</div>"));
+    let html = inject_no_script("<!--seam:missing:attr:class--><div>hi</div>", &json!({}));
+    assert_eq!(html, "<div>hi</div>");
   }
+
+  // -- Conditional --
 
   #[test]
   fn cond_truthy() {
-    let html =
-      inject("<!--seam:if:show--><p>visible</p><!--seam:endif:show-->", &json!({"show": true}));
-    assert!(html.contains("<p>visible</p>"));
+    let html = inject_no_script(
+      "<!--seam:if:show--><p>visible</p><!--seam:endif:show-->",
+      &json!({"show": true}),
+    );
+    assert_eq!(html, "<p>visible</p>");
   }
 
   #[test]
   fn cond_falsy_bool() {
-    let html =
-      inject("<!--seam:if:show--><p>hidden</p><!--seam:endif:show-->", &json!({"show": false}));
-    assert!(!html.contains("<p>hidden</p>"));
+    let html = inject_no_script(
+      "<!--seam:if:show--><p>hidden</p><!--seam:endif:show-->",
+      &json!({"show": false}),
+    );
+    assert_eq!(html, "");
   }
 
   #[test]
   fn cond_falsy_null() {
-    let html =
-      inject("<!--seam:if:show--><p>hidden</p><!--seam:endif:show-->", &json!({"show": null}));
-    assert!(!html.contains("<p>hidden</p>"));
+    let html = inject_no_script(
+      "<!--seam:if:show--><p>hidden</p><!--seam:endif:show-->",
+      &json!({"show": null}),
+    );
+    assert_eq!(html, "");
   }
 
   #[test]
   fn cond_falsy_zero() {
-    let html =
-      inject("<!--seam:if:count--><p>has</p><!--seam:endif:count-->", &json!({"count": 0}));
-    assert!(!html.contains("<p>has</p>"));
+    let html = inject_no_script(
+      "<!--seam:if:count--><p>has</p><!--seam:endif:count-->",
+      &json!({"count": 0}),
+    );
+    assert_eq!(html, "");
   }
 
   #[test]
   fn cond_falsy_empty_string() {
-    let html = inject("<!--seam:if:name--><p>hi</p><!--seam:endif:name-->", &json!({"name": ""}));
-    assert!(!html.contains("<p>hi</p>"));
+    let html = inject_no_script(
+      "<!--seam:if:name--><p>hi</p><!--seam:endif:name-->",
+      &json!({"name": ""}),
+    );
+    assert_eq!(html, "");
   }
 
   #[test]
   fn cond_missing_removes() {
-    let html = inject("<!--seam:if:missing--><p>gone</p><!--seam:endif:missing-->", &json!({}));
-    assert!(!html.contains("<p>gone</p>"));
+    let html = inject_no_script(
+      "<!--seam:if:missing--><p>gone</p><!--seam:endif:missing-->",
+      &json!({}),
+    );
+    assert_eq!(html, "");
   }
 
   #[test]
   fn cond_nested_different_paths() {
     let tmpl = "<!--seam:if:a-->[<!--seam:if:b-->inner<!--seam:endif:b-->]<!--seam:endif:a-->";
-    let html = inject(tmpl, &json!({"a": true, "b": true}));
-    assert!(html.contains("[inner]"));
-
-    let html2 = inject(tmpl, &json!({"a": true, "b": false}));
-    assert!(html2.contains("[]"));
-
-    let html3 = inject(tmpl, &json!({"a": false, "b": true}));
-    assert!(!html3.contains("["));
+    assert_eq!(inject_no_script(tmpl, &json!({"a": true, "b": true})), "[inner]");
+    assert_eq!(inject_no_script(tmpl, &json!({"a": true, "b": false})), "[]");
+    assert_eq!(inject_no_script(tmpl, &json!({"a": false, "b": true})), "");
   }
+
+  // -- Else branch --
+
+  #[test]
+  fn else_truthy() {
+    let tmpl = "<!--seam:if:logged-->Hello<!--seam:else-->Guest<!--seam:endif:logged-->";
+    assert_eq!(inject_no_script(tmpl, &json!({"logged": true})), "Hello");
+  }
+
+  #[test]
+  fn else_falsy() {
+    let tmpl = "<!--seam:if:logged-->Hello<!--seam:else-->Guest<!--seam:endif:logged-->";
+    assert_eq!(inject_no_script(tmpl, &json!({"logged": false})), "Guest");
+  }
+
+  #[test]
+  fn else_null() {
+    let tmpl = "<!--seam:if:user--><!--seam:user.name--><!--seam:else-->Anonymous<!--seam:endif:user-->";
+    assert_eq!(inject_no_script(tmpl, &json!({"user": null})), "Anonymous");
+  }
+
+  #[test]
+  fn else_empty_array() {
+    let tmpl = "<!--seam:if:items--><ul>list</ul><!--seam:else--><p>No items</p><!--seam:endif:items-->";
+    assert_eq!(inject_no_script(tmpl, &json!({"items": []})), "<p>No items</p>");
+  }
+
+  // -- Each iteration --
+
+  #[test]
+  fn each_basic() {
+    let tmpl = "<!--seam:each:items--><li><!--seam:$.name--></li><!--seam:endeach-->";
+    let data = json!({"items": [{"name": "a"}, {"name": "b"}]});
+    assert_eq!(inject_no_script(tmpl, &data), "<li>a</li><li>b</li>");
+  }
+
+  #[test]
+  fn each_empty() {
+    let tmpl = "<!--seam:each:items--><li><!--seam:$.name--></li><!--seam:endeach-->";
+    assert_eq!(inject_no_script(tmpl, &json!({"items": []})), "");
+  }
+
+  #[test]
+  fn each_missing_path() {
+    let tmpl = "<!--seam:each:items--><li>x</li><!--seam:endeach-->";
+    assert_eq!(inject_no_script(tmpl, &json!({})), "");
+  }
+
+  #[test]
+  fn each_attr_inside() {
+    let tmpl =
+      r#"<!--seam:each:links--><!--seam:$.url:attr:href--><a><!--seam:$.text--></a><!--seam:endeach-->"#;
+    let data = json!({"links": [{"url": "/a", "text": "A"}, {"url": "/b", "text": "B"}]});
+    assert_eq!(
+      inject_no_script(tmpl, &data),
+      r#"<a href="/a">A</a><a href="/b">B</a>"#
+    );
+  }
+
+  #[test]
+  fn each_nested_with_double_dollar() {
+    let tmpl = concat!(
+      "<!--seam:each:groups-->",
+      "<h2><!--seam:$.title--></h2>",
+      "<!--seam:each:$.items-->",
+      "<p><!--seam:$.label--> in <!--seam:$$.title--></p>",
+      "<!--seam:endeach-->",
+      "<!--seam:endeach-->"
+    );
+    let data = json!({
+      "groups": [
+        {"title": "G1", "items": [{"label": "x"}, {"label": "y"}]},
+        {"title": "G2", "items": [{"label": "z"}]}
+      ]
+    });
+    assert_eq!(
+      inject_no_script(tmpl, &data),
+      "<h2>G1</h2><p>x in G1</p><p>y in G1</p><h2>G2</h2><p>z in G2</p>"
+    );
+  }
+
+  // -- Empty array falsy --
+
+  #[test]
+  fn empty_array_falsy_in_if() {
+    let tmpl = "<!--seam:if:items-->has<!--seam:endif:items-->";
+    assert_eq!(inject_no_script(tmpl, &json!({"items": []})), "");
+    assert_eq!(inject_no_script(tmpl, &json!({"items": [1]})), "has");
+  }
+
+  // -- If inside each --
+
+  #[test]
+  fn if_inside_each() {
+    let tmpl = concat!(
+      "<!--seam:each:users-->",
+      "<!--seam:if:$.active--><b><!--seam:$.name--></b><!--seam:endif:$.active-->",
+      "<!--seam:endeach-->"
+    );
+    let data = json!({
+      "users": [
+        {"name": "Alice", "active": true},
+        {"name": "Bob", "active": false},
+        {"name": "Carol", "active": true}
+      ]
+    });
+    assert_eq!(inject_no_script(tmpl, &data), "<b>Alice</b><b>Carol</b>");
+  }
+
+  // -- Same-path nested if --
+
+  #[test]
+  fn same_path_nested_if() {
+    let tmpl =
+      "<!--seam:if:x-->outer[<!--seam:if:x-->inner<!--seam:endif:x-->]<!--seam:endif:x-->";
+    assert_eq!(inject_no_script(tmpl, &json!({"x": true})), "outer[inner]");
+    assert_eq!(inject_no_script(tmpl, &json!({"x": false})), "");
+  }
+
+  // -- Data script --
 
   #[test]
   fn data_script_before_body() {
