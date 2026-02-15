@@ -6,6 +6,202 @@ use super::Axis;
 
 // -- Diffing helpers --
 
+/// Snap a prefix-side boundary so it never falls inside `<tag ...>` or inside
+/// an element's text content where the text shares a prefix with another element.
+/// Scans backwards from `pos`; if the last `<` is unmatched, snap before it.
+/// If `pos` is in text content (after `>`, not before `<`), snap back to
+/// before the enclosing element's opening tag.
+fn snap_prefix_to_tag_boundary(html: &[u8], pos: usize) -> usize {
+  let mut i = pos;
+  while i > 0 {
+    i -= 1;
+    match html[i] {
+      b'>' => {
+        // If we're in text content (next char after `>` is not `<`),
+        // snap back to include the enclosing element's opening tag.
+        if pos < html.len() && html[pos] != b'<' {
+          let mut j = i;
+          while j > 0 {
+            j -= 1;
+            if html[j] == b'<' {
+              return j;
+            }
+          }
+        }
+        return pos;
+      }
+      b'<' => return i,
+      _ => {}
+    }
+  }
+  pos
+}
+
+/// Snap a suffix-side boundary forward so it never falls inside text content
+/// or inside a tag. Mirrors `snap_prefix_to_tag_boundary` for the end position.
+fn snap_suffix_to_tag_boundary(html: &[u8], end: usize) -> usize {
+  if end == 0 || end >= html.len() {
+    return end;
+  }
+  // Scan backward from end to determine context
+  let mut i = end;
+  while i > 0 {
+    i -= 1;
+    match html[i] {
+      b'>' => {
+        // After a closing `>`: check if end is in text content
+        if html[end] != b'<' {
+          // In text content — snap forward to next `<`
+          let mut j = end;
+          while j < html.len() && html[j] != b'<' {
+            j += 1;
+          }
+          return j;
+        }
+        return end;
+      }
+      b'<' => {
+        // Inside a tag — snap forward past the closing `>`
+        let mut j = end;
+        while j < html.len() && html[j] != b'>' {
+          j += 1;
+        }
+        if j < html.len() {
+          return j + 1;
+        }
+        return end;
+      }
+      _ => {}
+    }
+  }
+  end
+}
+
+/// Count net open-tag depth in a byte slice.
+/// Positive result means there are unclosed opening tags.
+fn tag_depth(block: &[u8]) -> i32 {
+  let mut depth: i32 = 0;
+  let mut i = 0;
+  while i < block.len() {
+    if block[i] == b'<' {
+      if i + 1 < block.len() && block[i + 1] == b'!' {
+        // HTML comment — skip entirely
+        i += 1;
+        continue;
+      }
+      // Find closing `>`
+      let mut j = i + 1;
+      while j < block.len() && block[j] != b'>' {
+        j += 1;
+      }
+      if i + 1 < block.len() && block[i + 1] == b'/' {
+        depth -= 1;
+      } else if j > 0 && j < block.len() && block[j - 1] == b'/' {
+        // Self-closing tag like <img/> — no depth change
+      } else {
+        depth += 1;
+      }
+      i = j;
+    }
+    i += 1;
+  }
+  depth
+}
+
+/// Extend `end` forward to close any unbalanced opening tags in `html[start..end]`.
+fn extend_to_balanced(html: &[u8], start: usize, end: usize) -> usize {
+  let depth = tag_depth(&html[start..end]);
+  if depth <= 0 {
+    return end;
+  }
+
+  // Scan forward from end, closing `depth` tags
+  let mut remaining = depth;
+  let mut j = end;
+  while j < html.len() && remaining > 0 {
+    if html[j] == b'<' {
+      if j + 1 < html.len() && html[j + 1] == b'/' {
+        remaining -= 1;
+        if remaining == 0 {
+          // Advance past the closing `>`
+          while j < html.len() && html[j] != b'>' {
+            j += 1;
+          }
+          return j + 1;
+        }
+      } else if j + 1 < html.len() && html[j + 1] != b'!' {
+        // Another opening tag in the suffix — account for it
+        let mut k = j + 1;
+        while k < html.len() && html[k] != b'>' {
+          k += 1;
+        }
+        if k > 0 && html[k - 1] != b'/' {
+          remaining += 1;
+        }
+      }
+    }
+    j += 1;
+  }
+  end
+}
+
+/// Only unwrap list-like container elements that hold repeating children.
+fn is_list_container(tag: &str) -> bool {
+  matches!(
+    tag,
+    "ul" | "ol" | "dl" | "table" | "tbody" | "thead" | "tfoot" | "select" | "datalist"
+  )
+}
+
+/// Try to unwrap a single list-container element from an array body.
+/// If `block` is `<ul ...>inner</ul>`, returns `Some((open, inner, close))`.
+/// Only applies to known list containers (ul, ol, table, etc.).
+fn unwrap_container(block: &str) -> Option<(&str, &str, &str)> {
+  let bytes = block.as_bytes();
+  if bytes.is_empty() || bytes[0] != b'<' || bytes[1] == b'/' || bytes[1] == b'!' {
+    return None;
+  }
+
+  // Extract tag name from opening tag
+  let mut name_end = 1;
+  while name_end < bytes.len() && bytes[name_end] != b' ' && bytes[name_end] != b'>' {
+    name_end += 1;
+  }
+  let tag_name = &block[1..name_end];
+
+  if !is_list_container(tag_name) {
+    return None;
+  }
+
+  // Find end of opening tag
+  let mut i = 1;
+  while i < bytes.len() && bytes[i] != b'>' {
+    i += 1;
+  }
+  if i >= bytes.len() {
+    return None;
+  }
+  let open_end = i + 1; // position after '>'
+
+  // Find matching closing tag from end
+  let close_tag = format!("</{tag_name}>");
+  if !block.ends_with(&close_tag) {
+    return None;
+  }
+  let inner_end = block.len() - close_tag.len();
+
+  // Verify the inner content is tag-balanced
+  if inner_end <= open_end {
+    return None;
+  }
+  let inner = &block[open_end..inner_end];
+  if tag_depth(inner.as_bytes()) != 0 {
+    return None;
+  }
+
+  Some((&block[..open_end], inner, &block[inner_end..]))
+}
+
 /// Two-way diff: find common prefix/suffix between two strings, return (start, end_a, end_b)
 /// where a[start..end_a] and b[start..end_b] are the differing regions.
 fn two_way_diff(a: &str, b: &str) -> (usize, usize, usize) {
@@ -13,22 +209,16 @@ fn two_way_diff(a: &str, b: &str) -> (usize, usize, usize) {
 
   let a_rem = &a[prefix_len..];
   let b_rem = &b[prefix_len..];
-  let suffix_len = a_rem
-    .bytes()
-    .rev()
-    .zip(b_rem.bytes().rev())
-    .take_while(|(x, y)| x == y)
-    .count();
+  let suffix_len = a_rem.bytes().rev().zip(b_rem.bytes().rev()).take_while(|(x, y)| x == y).count();
 
   let mut start = prefix_len;
   let mut end_a = a.len() - suffix_len;
   let mut end_b = b.len() - suffix_len;
 
-  // Adjust for shared `<` at prefix boundary: the `<` belongs to the block's tag
-  if start > 0 && a.as_bytes()[start - 1] == b'<' {
-    start -= 1;
-  }
-  // Adjust for shared `<` at end boundary
+  // Snap prefix so it never falls inside `<tag attrs...>`
+  start = snap_prefix_to_tag_boundary(a.as_bytes(), start);
+
+  // Adjust for shared `<` at end boundary: the `<` belongs to the suffix's tag
   if end_a > start && a.as_bytes()[end_a - 1] == b'<' {
     end_a -= 1;
   }
@@ -42,6 +232,14 @@ fn two_way_diff(a: &str, b: &str) -> (usize, usize, usize) {
   if end_b < b.len() && b.as_bytes()[end_b] == b'>' {
     end_b += 1;
   }
+
+  // Snap suffix so it never falls inside text content or a tag
+  end_a = snap_suffix_to_tag_boundary(a.as_bytes(), end_a);
+  end_b = snap_suffix_to_tag_boundary(b.as_bytes(), end_b);
+
+  // If snap_prefix opened a tag, ensure the block includes the matching close tag
+  end_a = extend_to_balanced(a.as_bytes(), start, end_a);
+  end_b = extend_to_balanced(b.as_bytes(), start, end_b);
 
   (start, end_a, end_b)
 }
@@ -72,7 +270,23 @@ fn n_way_prefix_suffix(variants: &[&str]) -> (usize, usize) {
     suffix_len += 1;
   }
 
-  (prefix_len, suffix_len)
+  // Snap prefix so it never falls inside a tag
+  let snapped_prefix = snap_prefix_to_tag_boundary(first.as_bytes(), prefix_len);
+
+  // Adjust suffix: if `<` at end-1, exclude it (belongs to suffix's tag)
+  let mut end = first.len() - suffix_len;
+  if end > snapped_prefix && first.as_bytes()[end - 1] == b'<' {
+    end -= 1;
+  }
+
+  // Snap suffix so it never falls inside text content or a tag
+  end = snap_suffix_to_tag_boundary(first.as_bytes(), end);
+
+  // Ensure extracted region is tag-balanced: if the middle has unclosed opening
+  // tags, extend end forward to include their closing tags (shrinks the suffix).
+  end = extend_to_balanced(first.as_bytes(), snapped_prefix, end);
+
+  (snapped_prefix, first.len() - end)
 }
 
 // -- Combo generation --
@@ -120,10 +334,9 @@ fn classify_axes(axes: &[Axis]) -> (Vec<usize>, Vec<AxisGroup>) {
     if let Some(pos) = axis.path.find(".$.") {
       let parent_path = axis.path[..pos].to_string();
       if let Some(parent_idx) = axes.iter().position(|a| a.path == parent_path) {
-        let group = group_map.entry(parent_path).or_insert_with(|| AxisGroup {
-          parent_axis_idx: parent_idx,
-          children: Vec::new(),
-        });
+        let group = group_map
+          .entry(parent_path)
+          .or_insert_with(|| AxisGroup { parent_axis_idx: parent_idx, children: Vec::new() });
         group.children.push(i);
       } else {
         // Orphaned nested axis (parent not in axes list): treat as top-level
@@ -181,7 +394,7 @@ fn find_pair_for_axis(
   None
 }
 
-/// Find N variant indices for each enum value on the given axis.
+/// Find one representative variant index per enum value (other axes at reference).
 fn find_enum_group_for_axis(
   axes: &[Axis],
   variant_count: usize,
@@ -220,6 +433,34 @@ fn find_enum_group_for_axis(
         break;
       }
     }
+  }
+
+  result
+}
+
+/// Find ALL variant indices for each enum value (other axes vary freely).
+fn find_enum_all_variants_for_axis(
+  axes: &[Axis],
+  variant_count: usize,
+  target_axis: usize,
+) -> Vec<(String, Vec<usize>)> {
+  let axis = &axes[target_axis];
+  let combos = generate_combos(axes);
+  let mut result = Vec::new();
+
+  for value in &axis.values {
+    let val_str = match value {
+      serde_json::Value::String(s) => s.clone(),
+      other => other.to_string(),
+    };
+    let indices: Vec<usize> = combos
+      .iter()
+      .enumerate()
+      .filter(|&(i, _)| i < variant_count)
+      .filter(|(_, combo)| &combo[target_axis] == value)
+      .map(|(i, _)| i)
+      .collect();
+    result.push((val_str, indices));
   }
 
   result
@@ -299,19 +540,47 @@ fn process_single_axis(
         return None;
       }
 
+      // Use representative variants to compute prefix/suffix boundaries
       let html_strs: Vec<&str> = groups.iter().map(|(_, vi)| variants[*vi].as_str()).collect();
       let (prefix_len, suffix_len) = n_way_prefix_suffix(&html_strs);
 
-      let mut start = prefix_len;
-      if start > 0 && html_strs[0].as_bytes()[start - 1] == b'<' {
-        start -= 1;
-      }
+      let start = prefix_len;
+
+      // Collect sibling axes (other non-enum axes at the same level)
+      let sibling_axes: Vec<Axis> = axes
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != axis_idx)
+        .map(|(_, a)| a.clone())
+        .collect();
+      let has_siblings = !sibling_axes.is_empty();
+
+      // Collect ALL variants per enum value for recursive processing
+      let all_groups = if has_siblings {
+        find_enum_all_variants_for_axis(axes, variants.len(), axis_idx)
+      } else {
+        Vec::new()
+      };
 
       let mut branches = String::new();
-      for (value, vi) in &groups {
-        let html = &variants[*vi];
-        let block = &html[start..html.len() - suffix_len];
-        branches.push_str(&format!("<!--seam:when:{value}-->{block}"));
+      for (idx, (value, _)) in groups.iter().enumerate() {
+        if has_siblings {
+          // Recursive: extract sibling axes within each match arm
+          let (_, ref arm_indices) = all_groups[idx];
+          let arm_bodies: Vec<String> = arm_indices
+            .iter()
+            .map(|&i| {
+              let v = &variants[i];
+              v[start..v.len() - suffix_len].to_string()
+            })
+            .collect();
+          let arm_body = extract_template_inner(&sibling_axes, &arm_bodies);
+          branches.push_str(&format!("<!--seam:when:{value}-->{arm_body}"));
+        } else {
+          let html = &variants[groups[idx].1];
+          let block = &html[start..html.len() - suffix_len];
+          branches.push_str(&format!("<!--seam:when:{value}-->{block}"));
+        }
       }
 
       let marker = format!("<!--seam:match:{}-->{branches}<!--seam:endmatch-->", axis.path);
@@ -328,7 +597,11 @@ fn process_single_axis(
       let field_prefix = format!("<!--seam:{}.", axis.path);
       let renamed = block.replace(&field_prefix, "<!--seam:");
 
-      let marker = format!("<!--seam:each:{}-->{}<!--seam:endeach-->", axis.path, renamed);
+      let marker = if let Some((open, inner, close)) = unwrap_container(&renamed) {
+        format!("{open}<!--seam:each:{}-->{inner}<!--seam:endeach-->{close}", axis.path)
+      } else {
+        format!("<!--seam:each:{}-->{}<!--seam:endeach-->", axis.path, renamed)
+      };
       let (base_start, base_end, _) = two_way_diff(base, html_empty);
       Some(AxisEffect { start: base_start, end: base_end, replacement: marker })
     }
@@ -351,24 +624,28 @@ fn process_array_with_children(
     return None;
   }
 
-  // 1. Find populated/empty pair
-  let (vi_pop, vi_empty) = find_pair_for_axis(axes, variants.len(), group.parent_axis_idx)?;
-  let html_pop = &variants[vi_pop];
+  // 1. Find populated/empty pair for the array itself
+  let (_, vi_empty) = find_pair_for_axis(axes, variants.len(), group.parent_axis_idx)?;
   let html_empty = &variants[vi_empty];
 
-  // 2. Get body boundaries from populated-vs-empty diff
-  let (diff_start, diff_end_pop, _) = two_way_diff(html_pop, html_empty);
-  let prefix_len = diff_start;
-  let suffix_len = html_pop.len() - diff_end_pop;
-
-  // 3. Find all variants where array=populated, non-child axes match reference
+  // 2. Find all variants where array=populated, non-child axes match reference
   let scoped_indices =
     find_scoped_variant_indices(axes, variants.len(), group.parent_axis_idx, &group.children);
   if scoped_indices.is_empty() {
     return None;
   }
 
-  // 4. Extract body from each scoped variant
+  // 3. Compute stable body boundaries using N-way prefix/suffix across ALL
+  //    populated variants + the empty variant. This ensures boundaries are
+  //    independent of child-axis variation (fixes overlapping effect ranges).
+  let mut boundary_strs: Vec<&str> = scoped_indices
+    .iter()
+    .map(|&i| variants[i].as_str())
+    .collect();
+  boundary_strs.push(html_empty.as_str());
+  let (prefix_len, suffix_len) = n_way_prefix_suffix(&boundary_strs);
+
+  // 4. Extract body from each scoped variant using stable boundaries
   let body_variants: Vec<String> = scoped_indices
     .iter()
     .map(|&i| {
@@ -399,8 +676,12 @@ fn process_array_with_children(
   let slot_prefix = format!("<!--seam:{}.", array_axis.path);
   let renamed = template_body.replace(&slot_prefix, "<!--seam:");
 
-  // 8. Wrap with each markers
-  let marker = format!("<!--seam:each:{}-->{}<!--seam:endeach-->", array_axis.path, renamed);
+  // 8. Wrap with each markers, unwrapping container if present
+  let marker = if let Some((open, inner, close)) = unwrap_container(&renamed) {
+    format!("{open}<!--seam:each:{}-->{inner}<!--seam:endeach-->{close}", array_axis.path)
+  } else {
+    format!("<!--seam:each:{}-->{}<!--seam:endeach-->", array_axis.path, renamed)
+  };
 
   let (base_start, base_end, _) = two_way_diff(base, html_empty);
   Some(AxisEffect { start: base_start, end: base_end, replacement: marker })
@@ -444,12 +725,29 @@ fn extract_template_inner(axes: &[Axis], variants: &[String]) -> String {
     }
   }
 
-  // 4. Apply effects back-to-front
+  // 4. Apply effects back-to-front, adjusting indices for overlapping ranges.
+  //    When a higher-start effect is applied first and a lower-start effect's
+  //    end extends past it (overlap), the lower effect's end must be adjusted
+  //    by the length delta of the higher effect's replacement.
   effects.sort_by(|a, b| b.start.cmp(&a.start));
 
   let mut result = base.to_string();
-  for effect in &effects {
-    result = format!("{}{}{}", &result[..effect.start], effect.replacement, &result[effect.end..]);
+  for i in 0..effects.len() {
+    let start = effects[i].start;
+    let end = effects[i].end;
+    let old_len = end - start;
+    let new_len = effects[i].replacement.len();
+    result = format!("{}{}{}", &result[..start], effects[i].replacement, &result[end..]);
+
+    // Adjust subsequent effects whose end extends past this effect's start
+    if old_len != new_len {
+      let delta = new_len as isize - old_len as isize;
+      for effect in effects.iter_mut().skip(i + 1) {
+        if effect.end > start {
+          effect.end = (effect.end as isize + delta) as usize;
+        }
+      }
+    }
   }
 
   result
@@ -478,8 +776,7 @@ mod tests {
     if full_html == nulled_html {
       return None;
     }
-    let prefix_len =
-      full_html.bytes().zip(nulled_html.bytes()).take_while(|(a, b)| a == b).count();
+    let prefix_len = full_html.bytes().zip(nulled_html.bytes()).take_while(|(a, b)| a == b).count();
     let full_remaining = &full_html[prefix_len..];
     let nulled_remaining = &nulled_html[prefix_len..];
     let suffix_len = full_remaining
@@ -778,21 +1075,21 @@ mod tests {
 
     // 16 variants: cartesian product of (isAdmin, posts, hasImage, caption)
     let variants = vec![
-      gen(true, true, true, true),    // 0
-      gen(true, true, true, false),   // 1
-      gen(true, true, false, true),   // 2
-      gen(true, true, false, false),  // 3
-      gen(true, false, true, true),   // 4
-      gen(true, false, true, false),  // 5
-      gen(true, false, false, true),  // 6
-      gen(true, false, false, false), // 7
-      gen(false, true, true, true),   // 8
-      gen(false, true, true, false),  // 9
-      gen(false, true, false, true),  // 10
-      gen(false, true, false, false), // 11
-      gen(false, false, true, true),  // 12
-      gen(false, false, true, false), // 13
-      gen(false, false, false, true), // 14
+      gen(true, true, true, true),     // 0
+      gen(true, true, true, false),    // 1
+      gen(true, true, false, true),    // 2
+      gen(true, true, false, false),   // 3
+      gen(true, false, true, true),    // 4
+      gen(true, false, true, false),   // 5
+      gen(true, false, false, true),   // 6
+      gen(true, false, false, false),  // 7
+      gen(false, true, true, true),    // 8
+      gen(false, true, true, false),   // 9
+      gen(false, true, false, true),   // 10
+      gen(false, true, false, false),  // 11
+      gen(false, false, true, true),   // 12
+      gen(false, false, true, false),  // 13
+      gen(false, false, false, true),  // 14
       gen(false, false, false, false), // 15
     ];
 
@@ -818,10 +1115,7 @@ mod tests {
     // Nested nullable inside array
     assert!(result.contains("<!--seam:if:$.caption-->"), "missing if:$.caption in: {result}");
     assert!(result.contains("<em>Cap</em>"), "missing Cap block in: {result}");
-    assert!(
-      result.contains("<!--seam:endif:$.caption-->"),
-      "missing endif:$.caption in: {result}"
-    );
+    assert!(result.contains("<!--seam:endif:$.caption-->"), "missing endif:$.caption in: {result}");
 
     // No leaked full paths
     assert!(!result.contains("posts.$."), "leaked nested path in: {result}");
@@ -837,6 +1131,151 @@ mod tests {
     assert_eq!(
       result,
       "<ul><!--seam:each:posts--><li><!--seam:$.name--></li><!--seam:endeach--></ul>"
+    );
+  }
+
+
+  // -- HomeSkeleton regression: exercises all 4 extraction bugs --
+
+  #[test]
+  fn extract_home_skeleton_regression() {
+    // Models the actual HomeSkeleton component: top-level boolean that causes
+    // class-attribute splitting (Bug 4), array with nested boolean + enum
+    // causing overlapping effects (Bugs 2 & 3), and container duplication (Bug 1).
+    let axes = vec![
+      make_axis("isLoggedIn", "boolean", vec![json!(true), json!(false)]),
+      make_axis("posts", "array", vec![json!("populated"), json!("empty")]),
+      make_axis("posts.$.isPublished", "boolean", vec![json!(true), json!(false)]),
+      make_axis("posts.$.priority", "enum", vec![json!("high"), json!("medium"), json!("low")]),
+    ];
+
+    // Variant HTML mimics the skeleton renderer output.
+    // The isLoggedIn axis changes a class value AND text content (triggers Bug 4).
+    // The posts array wraps <li> items in <ul> (triggers Bug 1).
+    // Nested isPublished + priority overlap in the <li> body (triggers Bugs 2 & 3).
+    fn gen(logged_in: bool, posts_pop: bool, published: bool, priority: &str) -> String {
+      let status = if logged_in {
+        r#"<p class="text-green">Signed in</p>"#
+      } else {
+        r#"<p class="text-gray">Please sign in</p>"#
+      };
+      let posts_html = if posts_pop {
+        let border = match priority {
+          "high" => "border-red",
+          "medium" => "border-amber",
+          _ => "border-gray",
+        };
+        let pri_label = match priority {
+          "high" => "High",
+          "medium" => "Medium",
+          _ => "Low",
+        };
+        let pub_html = if published { "<span>Published</span>" } else { "" };
+        format!(
+          r#"<ul class="list"><li class="{border}"><!--seam:posts.$.title-->{pub_html}<span>Priority: {pri_label}</span></li></ul>"#
+        )
+      } else {
+        "<p>No posts</p>".to_string()
+      };
+      format!("<div>{status}{posts_html}</div>")
+    }
+
+    // Cartesian product: isLoggedIn(2) * posts(2) * isPublished(2) * priority(3) = 24
+    let mut variants = Vec::new();
+    for &logged_in in &[true, false] {
+      for &posts_pop in &[true, false] {
+        for &published in &[true, false] {
+          for priority in &["high", "medium", "low"] {
+            variants.push(gen(logged_in, posts_pop, published, priority));
+          }
+        }
+      }
+    }
+
+    let result = extract_template(&axes, &variants);
+
+    // Bug 4: diff boundary must not split inside class attribute
+    assert!(
+      !result.contains(r#"class="text-<!--seam:"#),
+      "Bug 4: diff split inside class attribute in:\n{result}"
+    );
+
+    // Bug 1: <ul> must NOT be inside the each loop (container should stay outside)
+    assert!(
+      !result.contains("<!--seam:each:posts--><ul"),
+      "Bug 1: container duplicated inside each loop in:\n{result}"
+    );
+
+    // Bug 2: all seam comments must be well-formed (no broken "-seam:" without "<!--")
+    for (i, _) in result.match_indices("-seam:endif") {
+      assert!(
+        i >= 3 && &result[i - 3..i] == "<!-",
+        "Bug 2: malformed endif comment at byte {i} in:\n{result}"
+      );
+    }
+
+    // Bug 3: no stale content leaking after endmatch
+    if let Some(after) = result.split("<!--seam:endmatch-->").nth(1) {
+      let before_next_tag = after.split('<').next().unwrap_or("");
+      assert!(
+        !before_next_tag.contains("Priority:"),
+        "Bug 3: stale content after endmatch in:\n{result}"
+      );
+    }
+
+    // Positive structural assertions
+    assert!(result.contains("<!--seam:if:isLoggedIn-->"), "missing if:isLoggedIn in:\n{result}");
+    assert!(result.contains("<!--seam:else-->"), "missing else in:\n{result}");
+    assert!(result.contains("<!--seam:endif:isLoggedIn-->"), "missing endif:isLoggedIn in:\n{result}");
+    assert!(result.contains("<!--seam:each:posts-->"), "missing each:posts in:\n{result}");
+    assert!(result.contains("<!--seam:endeach-->"), "missing endeach in:\n{result}");
+    assert!(result.contains("<!--seam:if:$.isPublished-->"), "missing if:$.isPublished in:\n{result}");
+    assert!(result.contains("<!--seam:endif:$.isPublished-->"), "missing endif:$.isPublished in:\n{result}");
+    assert!(result.contains("<!--seam:match:$.priority-->"), "missing match:$.priority in:\n{result}");
+    assert!(result.contains("<!--seam:when:high-->"), "missing when:high in:\n{result}");
+    assert!(result.contains("<!--seam:endmatch-->"), "missing endmatch in:\n{result}");
+    assert!(!result.contains("posts.$."), "leaked nested path in:\n{result}");
+  }
+
+  #[test]
+  fn extract_boolean_if_else_in_class_attribute() {
+    // Targeted Bug 4 test: boolean axis where diff falls inside a class attribute
+    let axes = vec![make_axis("dark", "boolean", vec![json!(true), json!(false)])];
+    let variants = vec![
+      r#"<div class="bg-black text-white">Dark</div>"#.to_string(),
+      r#"<div class="bg-white text-black">Light</div>"#.to_string(),
+    ];
+    let result = extract_template(&axes, &variants);
+    // The entire <div> should be wrapped, not just partial class values
+    assert!(
+      !result.contains(r#"class=""#) || !result.contains("<!--seam:if:dark-->text-"),
+      "diff boundary inside class attribute in:\n{result}"
+    );
+    // The if/else should wrap complete elements
+    assert!(result.contains("<!--seam:if:dark-->"), "missing if in:\n{result}");
+    assert!(result.contains("<!--seam:else-->"), "missing else in:\n{result}");
+    assert!(result.contains("<!--seam:endif:dark-->"), "missing endif in:\n{result}");
+  }
+
+  #[test]
+  fn extract_array_container_unwrap() {
+    // Targeted Bug 1 test: array body captured with its <ul> container
+    let axes = vec![
+      make_axis("items", "array", vec![json!("populated"), json!("empty")]),
+    ];
+    let variants = vec![
+      r#"<div><ul class="list"><li><!--seam:items.$.name--></li></ul></div>"#.to_string(),
+      r#"<div><p>No items</p></div>"#.to_string(),
+    ];
+    let result = extract_template(&axes, &variants);
+    // The <ul> should be OUTSIDE the each loop, only <li> inside
+    assert!(
+      result.contains("<ul") && result.contains("<!--seam:each:items-->"),
+      "missing structure in:\n{result}"
+    );
+    assert!(
+      !result.contains("<!--seam:each:items--><ul"),
+      "container inside each loop in:\n{result}"
     );
   }
 }
