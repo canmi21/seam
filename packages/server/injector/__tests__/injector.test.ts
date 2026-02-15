@@ -306,6 +306,67 @@ describe("inject", () => {
     });
   });
 
+  describe("match/when/endmatch", () => {
+    it("renders matching branch from 3 options", () => {
+      const tmpl = [
+        "<!--seam:match:role-->",
+        "<!--seam:when:admin--><b>Admin</b>",
+        "<!--seam:when:member--><i>Member</i>",
+        "<!--seam:when:guest--><span>Guest</span>",
+        "<!--seam:endmatch-->",
+      ].join("");
+
+      expect(inject(tmpl, { role: "admin" }, { skipDataScript: true })).toBe("<b>Admin</b>");
+      expect(inject(tmpl, { role: "member" }, { skipDataScript: true })).toBe("<i>Member</i>");
+      expect(inject(tmpl, { role: "guest" }, { skipDataScript: true })).toBe("<span>Guest</span>");
+    });
+
+    it("renders nothing when value does not match any branch", () => {
+      const tmpl = [
+        "<!--seam:match:role-->",
+        "<!--seam:when:admin-->Admin",
+        "<!--seam:when:guest-->Guest",
+        "<!--seam:endmatch-->",
+      ].join("");
+      expect(inject(tmpl, { role: "unknown" }, { skipDataScript: true })).toBe("");
+    });
+
+    it("renders nothing when path is missing", () => {
+      const tmpl = [
+        "<!--seam:match:role-->",
+        "<!--seam:when:admin-->Admin",
+        "<!--seam:endmatch-->",
+      ].join("");
+      expect(inject(tmpl, {}, { skipDataScript: true })).toBe("");
+    });
+
+    it("supports match inside each", () => {
+      const tmpl = [
+        "<!--seam:each:items-->",
+        "<!--seam:match:$.priority-->",
+        "<!--seam:when:high--><b>!</b>",
+        "<!--seam:when:low--><span>~</span>",
+        "<!--seam:endmatch-->",
+        "<!--seam:endeach-->",
+      ].join("");
+      const data = {
+        items: [{ priority: "high" }, { priority: "low" }, { priority: "medium" }],
+      };
+      expect(inject(tmpl, data, { skipDataScript: true })).toBe("<b>!</b><span>~</span>");
+    });
+
+    it("supports slots inside match branches", () => {
+      const tmpl = [
+        "<!--seam:match:role-->",
+        "<!--seam:when:admin--><b><!--seam:name--></b>",
+        "<!--seam:when:guest--><span>Guest</span>",
+        "<!--seam:endmatch-->",
+      ].join("");
+      expect(inject(tmpl, { role: "admin", name: "Alice" }, { skipDataScript: true }))
+        .toBe("<b>Alice</b>");
+    });
+  });
+
   describe("__SEAM_DATA__ script", () => {
     it("inserts before </body>", () => {
       const html = inject("<body><p>hi</p></body>", { x: 1 });

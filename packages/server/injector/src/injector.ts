@@ -9,7 +9,7 @@ export interface InjectOptions {
 
 // -- AST node types --
 
-type AstNode = TextNode | SlotNode | AttrNode | IfNode | EachNode;
+type AstNode = TextNode | SlotNode | AttrNode | IfNode | EachNode | MatchNode;
 
 interface TextNode {
   type: "text";
@@ -39,6 +39,12 @@ interface EachNode {
   type: "each";
   path: string;
   bodyNodes: AstNode[];
+}
+
+interface MatchNode {
+  type: "match";
+  path: string;
+  branches: Map<string, AstNode[]>;
 }
 
 // -- Tokenizer --
@@ -100,7 +106,31 @@ function parse(tokens: Token[]): AstNode[] {
         return nodes;
       }
 
-      if (directive.startsWith("if:")) {
+      if (directive.startsWith("match:")) {
+        const path = directive.slice(6);
+        pos++;
+        const branches = new Map<string, AstNode[]>();
+        // Expect one or more when:VALUE blocks until endmatch
+        while (pos < tokens.length) {
+          const cur = tokens[pos];
+          if (cur.kind === "marker" && cur.value === "endmatch") {
+            pos++;
+            break;
+          }
+          if (cur.kind === "marker" && cur.value.startsWith("when:")) {
+            const branchValue = cur.value.slice(5);
+            pos++;
+            const branchNodes = parseUntil(
+              (d) => d.startsWith("when:") || d === "endmatch",
+            );
+            branches.set(branchValue, branchNodes);
+          } else {
+            // Skip unexpected tokens between match and first when
+            pos++;
+          }
+        }
+        nodes.push({ type: "match", path, branches });
+      } else if (directive.startsWith("if:")) {
         const path = directive.slice(3);
         pos++;
         const thenNodes = parseUntil(
@@ -216,6 +246,16 @@ function render(
             const scopedData: Record<string, unknown> = { ...data, $$: data.$, $: item };
             out += render(node.bodyNodes, scopedData, attrs);
           }
+        }
+        break;
+      }
+
+      case "match": {
+        const value = resolve(node.path, data);
+        const key = stringify(value);
+        const branch = node.branches.get(key);
+        if (branch) {
+          out += render(branch, data, attrs);
         }
         break;
       }

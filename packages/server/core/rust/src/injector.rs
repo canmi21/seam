@@ -11,6 +11,7 @@ enum AstNode {
   Attr { path: String, attr_name: String },
   If { path: String, then_nodes: Vec<AstNode>, else_nodes: Vec<AstNode> },
   Each { path: String, body_nodes: Vec<AstNode> },
+  Match { path: String, branches: Vec<(String, Vec<AstNode>)> },
 }
 
 #[derive(Debug)]
@@ -85,7 +86,31 @@ fn parse_until(
           return nodes;
         }
 
-        if let Some(path) = directive.strip_prefix("if:") {
+        if let Some(path) = directive.strip_prefix("match:") {
+          let path = path.to_string();
+          *pos += 1;
+          let mut branches: Vec<(String, Vec<AstNode>)> = Vec::new();
+          while *pos < tokens.len() {
+            if let Token::Marker(d) = &tokens[*pos] {
+              if d == "endmatch" {
+                *pos += 1;
+                break;
+              }
+              if let Some(value) = d.strip_prefix("when:") {
+                let value = value.to_string();
+                *pos += 1;
+                let body = parse_until(tokens, pos, &|d| d.starts_with("when:") || d == "endmatch");
+                branches.push((value, body));
+              } else {
+                // Skip unexpected tokens between match and first when
+                *pos += 1;
+              }
+            } else {
+              *pos += 1;
+            }
+          }
+          nodes.push(AstNode::Match { path, branches });
+        } else if let Some(path) = directive.strip_prefix("if:") {
           let path = path.to_string();
           *pos += 1;
           let endif_tag = format!("endif:{path}");
@@ -268,6 +293,17 @@ fn render(nodes: &[AstNode], data: &Value, ctx: &mut RenderContext) -> String {
               data.clone()
             };
             out.push_str(&render(body_nodes, &scoped, ctx));
+          }
+        }
+      }
+
+      AstNode::Match { path, branches } => {
+        let value = resolve(path, data);
+        let key = stringify(value.unwrap_or(&Value::Null));
+        for (branch_value, branch_nodes) in branches {
+          if *branch_value == key {
+            out.push_str(&render(branch_nodes, data, ctx));
+            break;
           }
         }
       }
@@ -606,6 +642,75 @@ mod tests {
       "<!--seam:if:x-->outer[<!--seam:if:x-->inner<!--seam:endif:x-->]<!--seam:endif:x-->";
     assert_eq!(inject_no_script(tmpl, &json!({"x": true})), "outer[inner]");
     assert_eq!(inject_no_script(tmpl, &json!({"x": false})), "");
+  }
+
+  // -- Match/when/endmatch --
+
+  #[test]
+  fn match_basic_3_branches() {
+    let tmpl = concat!(
+      "<!--seam:match:role-->",
+      "<!--seam:when:admin--><b>Admin</b>",
+      "<!--seam:when:member--><i>Member</i>",
+      "<!--seam:when:guest--><span>Guest</span>",
+      "<!--seam:endmatch-->"
+    );
+    assert_eq!(inject_no_script(tmpl, &json!({"role": "admin"})), "<b>Admin</b>");
+    assert_eq!(inject_no_script(tmpl, &json!({"role": "member"})), "<i>Member</i>");
+    assert_eq!(inject_no_script(tmpl, &json!({"role": "guest"})), "<span>Guest</span>");
+  }
+
+  #[test]
+  fn match_missing_value() {
+    let tmpl = concat!(
+      "<!--seam:match:role-->",
+      "<!--seam:when:admin-->Admin",
+      "<!--seam:when:guest-->Guest",
+      "<!--seam:endmatch-->"
+    );
+    assert_eq!(inject_no_script(tmpl, &json!({"role": "unknown"})), "");
+  }
+
+  #[test]
+  fn match_missing_path() {
+    let tmpl = concat!(
+      "<!--seam:match:role-->",
+      "<!--seam:when:admin-->Admin",
+      "<!--seam:endmatch-->"
+    );
+    assert_eq!(inject_no_script(tmpl, &json!({})), "");
+  }
+
+  #[test]
+  fn match_inside_each() {
+    let tmpl = concat!(
+      "<!--seam:each:items-->",
+      "<!--seam:match:$.priority-->",
+      "<!--seam:when:high--><b>!</b>",
+      "<!--seam:when:low--><span>~</span>",
+      "<!--seam:endmatch-->",
+      "<!--seam:endeach-->"
+    );
+    let data = json!({"items": [
+      {"priority": "high"},
+      {"priority": "low"},
+      {"priority": "medium"}
+    ]});
+    assert_eq!(inject_no_script(tmpl, &data), "<b>!</b><span>~</span>");
+  }
+
+  #[test]
+  fn match_with_nested_slots() {
+    let tmpl = concat!(
+      "<!--seam:match:role-->",
+      "<!--seam:when:admin--><b><!--seam:name--></b>",
+      "<!--seam:when:guest--><span>Guest</span>",
+      "<!--seam:endmatch-->"
+    );
+    assert_eq!(
+      inject_no_script(tmpl, &json!({"role": "admin", "name": "Alice"})),
+      "<b>Alice</b>"
+    );
   }
 
   // -- Data script --
