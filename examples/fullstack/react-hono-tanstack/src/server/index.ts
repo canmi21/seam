@@ -1,12 +1,8 @@
 /* examples/fullstack/react-hono-tanstack/src/server/index.ts */
 
 import { Hono } from "hono";
-import { createRouter } from "@canmi/seam-server";
 import { seam } from "@canmi/seam-adapter-hono";
-import { getMessages, addMessage } from "./procedures.js";
-import { onMessage } from "./subscriptions.js";
-
-const router = createRouter({ getMessages, addMessage, onMessage });
+import { router } from "./router.js";
 
 const app = new Hono();
 

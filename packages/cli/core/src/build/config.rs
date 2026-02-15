@@ -12,6 +12,10 @@ pub struct BuildConfig {
   pub routes: String,
   pub out_dir: String,
   pub renderer: String,
+  pub backend_build_command: Option<String>,
+  pub router_file: Option<String>,
+  pub typecheck_command: Option<String>,
+  pub is_fullstack: bool,
 }
 
 impl BuildConfig {
@@ -42,7 +46,22 @@ impl BuildConfig {
 
     let renderer = build.renderer.clone().unwrap_or_else(|| "react".to_string());
 
-    Ok(Self { bundler_command, bundler_manifest, routes, out_dir, renderer })
+    let backend_build_command = build.backend_build_command.clone();
+    let router_file = build.router_file.clone();
+    let typecheck_command = build.typecheck_command.clone();
+    let is_fullstack = backend_build_command.is_some();
+
+    Ok(Self {
+      bundler_command,
+      bundler_manifest,
+      routes,
+      out_dir,
+      renderer,
+      backend_build_command,
+      router_file,
+      typecheck_command,
+      is_fullstack,
+    })
   }
 }
 
@@ -75,6 +94,35 @@ renderer = "react"
     assert_eq!(build.routes, "./src/routes.ts");
     assert_eq!(build.out_dir, "dist");
     assert_eq!(build.renderer, "react");
+    assert!(!build.is_fullstack);
+    assert!(build.backend_build_command.is_none());
+  }
+
+  #[test]
+  fn from_seam_config_fullstack() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[build]
+routes = "./src/routes.ts"
+out_dir = ".seam/output"
+bundler_command = "bunx vite build"
+bundler_manifest = "dist/.vite/manifest.json"
+backend_build_command = "bun build src/server/index.ts --target=bun --outdir=.seam/output/server"
+router_file = "src/server/router.ts"
+typecheck_command = "bunx tsc --noEmit"
+"#,
+    );
+    let build = BuildConfig::from_seam_config(&config).unwrap();
+    assert!(build.is_fullstack);
+    assert_eq!(
+      build.backend_build_command.as_deref(),
+      Some("bun build src/server/index.ts --target=bun --outdir=.seam/output/server")
+    );
+    assert_eq!(build.router_file.as_deref(), Some("src/server/router.ts"));
+    assert_eq!(build.typecheck_command.as_deref(), Some("bunx tsc --noEmit"));
   }
 
   #[test]

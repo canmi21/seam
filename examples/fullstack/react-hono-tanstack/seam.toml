@@ -9,3 +9,12 @@ port = 3000
 [frontend]
 dev_command = "bunx vite dev --port 5173"
 dev_port = 5173
+
+[build]
+backend_build_command = "bun build src/server/index.ts --target=bun --outdir=.seam/output/server"
+router_file = "src/server/router.ts"
+routes = "./src/client/routes.ts"
+bundler_command = "bunx vite build"
+bundler_manifest = "dist/.vite/manifest.json"
+out_dir = ".seam/output"
+typecheck_command = "bunx tsc --noEmit"

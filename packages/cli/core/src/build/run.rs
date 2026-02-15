@@ -10,8 +10,10 @@ use serde::{Deserialize, Serialize};
 
 use super::config::BuildConfig;
 use super::skeleton::{apply_conditionals, detect_conditional, sentinel_to_slots, wrap_document};
+use crate::codegen;
 use crate::config::SeamConfig;
-use crate::ui::{self, DIM, RESET};
+use crate::manifest::Manifest;
+use crate::ui::{self, DIM, GREEN, RESET};
 
 // -- Vite manifest types --
 
@@ -70,16 +72,19 @@ struct AssetFiles {
   js: Vec<String>,
 }
 
-fn run_bundler(base_dir: &Path, command: &str) -> Result<()> {
+// -- Shared helpers --
+
+/// Run a shell command, bail on failure
+fn run_command(base_dir: &Path, command: &str, label: &str) -> Result<()> {
   ui::detail(&format!("{DIM}{command}{RESET}"));
   let output = Command::new("sh")
     .args(["-c", command])
     .current_dir(base_dir)
     .output()
-    .context("failed to run bundler")?;
+    .with_context(|| format!("failed to run {label}"))?;
   if !output.status.success() {
     let stderr = String::from_utf8_lossy(&output.stderr);
-    bail!("bundler exited with status {}\n{stderr}", output.status);
+    bail!("{label} exited with status {}\n{stderr}", output.status);
   }
   Ok(())
 }
@@ -182,15 +187,59 @@ fn process_routes(
   Ok(manifest)
 }
 
+/// Print procedure breakdown (reused from pull.rs logic)
+fn print_procedure_breakdown(manifest: &Manifest) {
+  let total = manifest.procedures.len();
+  let mut queries = 0u32;
+  let mut mutations = 0u32;
+  let mut subscriptions = 0u32;
+  for proc in manifest.procedures.values() {
+    match proc.proc_type.as_str() {
+      "query" => queries += 1,
+      "mutation" => mutations += 1,
+      "subscription" => subscriptions += 1,
+      _ => queries += 1,
+    }
+  }
+  let mut parts = Vec::new();
+  if queries > 0 {
+    parts.push(format!("{queries} {}", if queries == 1 { "query" } else { "queries" }));
+  }
+  if mutations > 0 {
+    parts.push(format!("{mutations} {}", if mutations == 1 { "mutation" } else { "mutations" }));
+  }
+  if subscriptions > 0 {
+    parts.push(format!(
+      "{subscriptions} {}",
+      if subscriptions == 1 { "subscription" } else { "subscriptions" }
+    ));
+  }
+  let breakdown =
+    if parts.is_empty() { String::new() } else { format!(" \u{2014} {}", parts.join(", ")) };
+  ui::detail_ok(&format!("{total} procedures{breakdown}"));
+}
+
+// -- Entry point --
+
 pub fn run_build(config: &SeamConfig, base_dir: &Path) -> Result<()> {
-  let started = Instant::now();
   let build_config = BuildConfig::from_seam_config(config)?;
+  if build_config.is_fullstack {
+    run_fullstack_build(config, &build_config, base_dir)
+  } else {
+    run_frontend_build(&build_config, base_dir)
+  }
+}
+
+// -- Frontend-only build (existing behavior, unchanged) --
+
+fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()> {
+  let started = Instant::now();
 
   ui::banner("build");
 
   // [1/4] Bundle frontend
   ui::step(1, 4, "Bundling frontend");
-  run_bundler(base_dir, &build_config.bundler_command)?;
+  run_command(base_dir, &build_config.bundler_command, "bundler")?;
 
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
   let assets = read_vite_manifest(&manifest_path)?;
@@ -233,6 +282,217 @@ pub fn run_build(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   ui::ok(&format!("build complete in {elapsed:.1}s"));
   ui::detail(&format!(
     "{template_count} templates \u{00b7} {asset_count} assets \u{00b7} route-manifest.json"
+  ));
+
+  Ok(())
+}
+
+// -- Fullstack build (7 phases) --
+
+/// Extract procedure manifest by importing the router file at build time
+fn extract_manifest(base_dir: &Path, router_file: &str, out_dir: &Path) -> Result<Manifest> {
+  // Prefer bun (handles .ts natively), fall back to node
+  let runtime = if which_exists("bun") { "bun" } else { "node" };
+
+  let script = format!(
+    "import('./{router_file}').then(m => {{ \
+       const r = m.router || m.default; \
+       console.log(JSON.stringify(r.manifest())); \
+     }})"
+  );
+
+  ui::detail(&format!("{DIM}{runtime} -e \"import('{router_file}')...\"{RESET}"));
+
+  let output = Command::new(runtime)
+    .args(["-e", &script])
+    .current_dir(base_dir)
+    .output()
+    .with_context(|| format!("failed to run {runtime} for manifest extraction"))?;
+
+  if !output.status.success() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    bail!("manifest extraction failed:\n{stderr}");
+  }
+
+  let stdout = String::from_utf8(output.stdout).context("invalid UTF-8 from manifest output")?;
+  let manifest: Manifest =
+    serde_json::from_str(&stdout).context("failed to parse manifest JSON")?;
+
+  // Write seam-manifest.json
+  std::fs::create_dir_all(out_dir)
+    .with_context(|| format!("failed to create {}", out_dir.display()))?;
+  let manifest_path = out_dir.join("seam-manifest.json");
+  let json = serde_json::to_string_pretty(&manifest)?;
+  std::fs::write(&manifest_path, &json)
+    .with_context(|| format!("failed to write {}", manifest_path.display()))?;
+  ui::detail_ok("seam-manifest.json");
+
+  Ok(manifest)
+}
+
+/// Generate TypeScript client types from the manifest
+fn generate_types(manifest: &Manifest, config: &SeamConfig) -> Result<()> {
+  let out_dir_str = config
+    .generate
+    .out_dir
+    .as_deref()
+    .unwrap_or("src/generated");
+
+  let code = codegen::generate_typescript(manifest)?;
+  let line_count = code.lines().count();
+  let proc_count = manifest.procedures.len();
+
+  let out_path = Path::new(out_dir_str);
+  std::fs::create_dir_all(out_path)
+    .with_context(|| format!("failed to create {}", out_path.display()))?;
+  let file = out_path.join("client.ts");
+  std::fs::write(&file, &code)
+    .with_context(|| format!("failed to write {}", file.display()))?;
+
+  ui::detail_ok(&format!("{proc_count} procedures \u{2192} {} ({line_count} lines)", file.display()));
+  Ok(())
+}
+
+/// Run type checking (optional step)
+fn run_typecheck(base_dir: &Path, command: &str) -> Result<()> {
+  run_command(base_dir, command, "type checker")?;
+  ui::detail_ok(&format!("{GREEN}passed{RESET}"));
+  Ok(())
+}
+
+/// Copy frontend assets from Vite dist/ to {out_dir}/public/
+fn package_static_assets(base_dir: &Path, assets: &AssetFiles, out_dir: &Path) -> Result<()> {
+  let public_dir = out_dir.join("public");
+
+  let all_files: Vec<&str> =
+    assets.js.iter().chain(assets.css.iter()).map(|s| s.as_str()).collect();
+
+  for file in all_files {
+    let src = base_dir.join("dist").join(file);
+    let dst = public_dir.join(file);
+
+    if let Some(parent) = dst.parent() {
+      std::fs::create_dir_all(parent)
+        .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+
+    std::fs::copy(&src, &dst)
+      .with_context(|| format!("failed to copy {} -> {}", src.display(), dst.display()))?;
+
+    let size = std::fs::metadata(&dst).map(|m| m.len()).unwrap_or(0);
+    ui::detail_ok(&format!("public/{file}  {DIM}({}){RESET}", ui::format_size(size)));
+  }
+
+  Ok(())
+}
+
+/// Check if a command exists on PATH
+fn which_exists(cmd: &str) -> bool {
+  Command::new("which")
+    .arg(cmd)
+    .stdout(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null())
+    .status()
+    .map(|s| s.success())
+    .unwrap_or(false)
+}
+
+fn run_fullstack_build(
+  config: &SeamConfig,
+  build_config: &BuildConfig,
+  base_dir: &Path,
+) -> Result<()> {
+  let started = Instant::now();
+  let out_dir = base_dir.join(&build_config.out_dir);
+
+  // Determine total steps (typecheck is optional)
+  let has_typecheck = build_config.typecheck_command.is_some();
+  let total: u32 = if has_typecheck { 7 } else { 6 };
+  let mut step_num: u32 = 0;
+
+  ui::banner("build");
+
+  // [1] Compile backend
+  step_num += 1;
+  ui::step(step_num, total, "Compiling backend");
+  run_command(
+    base_dir,
+    build_config.backend_build_command.as_deref().unwrap(),
+    "backend build",
+  )?;
+  ui::blank();
+
+  // [2] Extract procedure manifest
+  step_num += 1;
+  ui::step(step_num, total, "Extracting procedure manifest");
+  let router_file = build_config
+    .router_file
+    .as_deref()
+    .context("router_file is required for fullstack build")?;
+  let manifest = extract_manifest(base_dir, router_file, &out_dir)?;
+  print_procedure_breakdown(&manifest);
+  ui::blank();
+
+  // [3] Generate client types
+  step_num += 1;
+  ui::step(step_num, total, "Generating client types");
+  generate_types(&manifest, config)?;
+  ui::blank();
+
+  // [4] Bundle frontend
+  step_num += 1;
+  ui::step(step_num, total, "Bundling frontend");
+  run_command(base_dir, &build_config.bundler_command, "bundler")?;
+  let vite_manifest_path = base_dir.join(&build_config.bundler_manifest);
+  let assets = read_vite_manifest(&vite_manifest_path)?;
+  print_asset_files(base_dir, "dist", &assets);
+  ui::blank();
+
+  // [5] Type check (optional)
+  if let Some(cmd) = &build_config.typecheck_command {
+    step_num += 1;
+    ui::step(step_num, total, "Type checking");
+    run_typecheck(base_dir, cmd)?;
+    ui::blank();
+  }
+
+  // [6] Generate skeletons
+  step_num += 1;
+  ui::step(step_num, total, "Generating skeletons");
+  let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
+  if !script_path.exists() {
+    bail!("build-skeletons.mjs not found at {}", script_path.display());
+  }
+  let routes_path = base_dir.join(&build_config.routes);
+  let skeleton_output = run_skeleton_renderer(&script_path, &routes_path, base_dir)?;
+
+  let templates_dir = out_dir.join("templates");
+  std::fs::create_dir_all(&templates_dir)
+    .with_context(|| format!("failed to create {}", templates_dir.display()))?;
+  let route_manifest = process_routes(&skeleton_output.routes, &templates_dir, &assets)?;
+
+  // Write route-manifest.json
+  let route_manifest_path = out_dir.join("route-manifest.json");
+  let route_manifest_json = serde_json::to_string_pretty(&route_manifest)?;
+  std::fs::write(&route_manifest_path, &route_manifest_json)
+    .with_context(|| format!("failed to write {}", route_manifest_path.display()))?;
+  ui::detail_ok("route-manifest.json");
+  ui::blank();
+
+  // [7] Package output
+  step_num += 1;
+  ui::step(step_num, total, "Packaging output");
+  package_static_assets(base_dir, &assets, &out_dir)?;
+  ui::blank();
+
+  // Summary
+  let elapsed = started.elapsed().as_secs_f64();
+  let proc_count = manifest.procedures.len();
+  let template_count = skeleton_output.routes.len();
+  let asset_count = assets.js.len() + assets.css.len();
+  ui::ok(&format!("build complete in {elapsed:.1}s"));
+  ui::detail(&format!(
+    "{proc_count} procedures \u{00b7} {template_count} templates \u{00b7} {asset_count} assets"
   ));
 
   Ok(())

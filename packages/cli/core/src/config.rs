@@ -56,6 +56,9 @@ pub struct BuildSection {
   pub bundler_command: Option<String>,
   pub bundler_manifest: Option<String>,
   pub renderer: Option<String>,
+  pub backend_build_command: Option<String>,
+  pub router_file: Option<String>,
+  pub typecheck_command: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -147,6 +150,30 @@ out_dir = "src/generated"
     assert_eq!(config.frontend.dev_port, Some(5173));
     assert_eq!(config.build.renderer.as_deref(), Some("react"));
     assert_eq!(config.generate.out_dir.as_deref(), Some("src/generated"));
+  }
+
+  #[test]
+  fn parse_fullstack_build_config() {
+    let toml_str = r#"
+[project]
+name = "fullstack-app"
+
+[build]
+routes = "./src/routes.ts"
+bundler_command = "bunx vite build"
+bundler_manifest = "dist/.vite/manifest.json"
+out_dir = ".seam/output"
+backend_build_command = "bun build src/server/index.ts --target=bun --outdir=.seam/output/server"
+router_file = "src/server/router.ts"
+typecheck_command = "bunx tsc --noEmit"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(
+      config.build.backend_build_command.as_deref(),
+      Some("bun build src/server/index.ts --target=bun --outdir=.seam/output/server")
+    );
+    assert_eq!(config.build.router_file.as_deref(), Some("src/server/router.ts"));
+    assert_eq!(config.build.typecheck_command.as_deref(), Some("bunx tsc --noEmit"));
   }
 
   #[test]
