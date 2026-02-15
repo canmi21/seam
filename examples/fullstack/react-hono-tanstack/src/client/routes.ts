@@ -8,11 +8,23 @@ export default defineRoutes([
     path: "/",
     component: HomeSkeleton,
     loaders: {
-      messages: { procedure: "getMessages" },
+      page: { procedure: "getPageData" },
     },
     mock: {
-      messages: [
-        { id: "mock-1", text: "Welcome to SeamJS!", createdAt: "2025-01-01T00:00:00Z" },
+      title: "SeamJS Dashboard",
+      isAdmin: true,
+      isLoggedIn: true,
+      subtitle: "Compile-Time Rendering Demo",
+      role: "admin",
+      posts: [
+        {
+          id: "mock-1",
+          title: "Getting Started with SeamJS",
+          isPublished: true,
+          priority: "high",
+          author: "Alice",
+          tags: [{ name: "tutorial" }, { name: "intro" }],
+        },
       ],
     },
   },

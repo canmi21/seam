@@ -34,3 +34,49 @@ export const addMessage: ProcedureDef<{ text: string }, Message> = {
     return msg;
   },
 };
+
+export const getPageData: ProcedureDef = {
+  input: t.object({}),
+  output: t.object({
+    title: t.string(),
+    isAdmin: t.boolean(),
+    isLoggedIn: t.boolean(),
+    subtitle: t.nullable(t.string()),
+    role: t.enum(["admin", "member", "guest"]),
+    posts: t.array(
+      t.object({
+        id: t.string(),
+        title: t.string(),
+        isPublished: t.boolean(),
+        priority: t.enum(["high", "medium", "low"]),
+        author: t.nullable(t.string()),
+        tags: t.array(t.object({ name: t.string() })),
+      }),
+    ),
+  }),
+  handler: () => ({
+    title: "SeamJS Dashboard",
+    isAdmin: true,
+    isLoggedIn: true,
+    subtitle: "Compile-Time Rendering Demo",
+    role: "admin",
+    posts: [
+      {
+        id: "post-1",
+        title: "Getting Started with SeamJS",
+        isPublished: true,
+        priority: "high",
+        author: "Alice",
+        tags: [{ name: "tutorial" }, { name: "intro" }],
+      },
+      {
+        id: "post-2",
+        title: "Advanced CTR Patterns",
+        isPublished: false,
+        priority: "medium",
+        author: null,
+        tags: [{ name: "advanced" }],
+      },
+    ],
+  }),
+};
