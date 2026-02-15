@@ -116,9 +116,6 @@ mod tests {
 
   #[test]
   fn enum_schema() {
-    assert_eq!(
-      Role::jtd_schema(),
-      serde_json::json!({"enum": ["admin", "member", "guest"]}),
-    );
+    assert_eq!(Role::jtd_schema(), serde_json::json!({"enum": ["admin", "member", "guest"]}),);
   }
 }

@@ -1,4 +1,4 @@
-/* packages/cli/core/src/ui.rs — shared terminal output helpers */
+/* packages/cli/core/src/ui.rs */
 
 pub const RESET: &str = "\x1b[0m";
 pub const BOLD: &str = "\x1b[1m";

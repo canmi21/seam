@@ -38,4 +38,6 @@ export default {
   idleTimeout: 255, // max value; keep SSE connections alive
 };
 
-console.log(`Seam backend running on http://localhost:${port} (${isProd ? "production" : "development"})`);
+console.log(
+  `Seam backend running on http://localhost:${port} (${isProd ? "production" : "development"})`,
+);

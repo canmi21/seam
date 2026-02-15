@@ -120,9 +120,7 @@ function parse(tokens: Token[]): AstNode[] {
           if (cur.kind === "marker" && cur.value.startsWith("when:")) {
             const branchValue = cur.value.slice(5);
             pos++;
-            const branchNodes = parseUntil(
-              (d) => d.startsWith("when:") || d === "endmatch",
-            );
+            const branchNodes = parseUntil((d) => d.startsWith("when:") || d === "endmatch");
             branches.set(branchValue, branchNodes);
           } else {
             // Skip unexpected tokens between match and first when
@@ -133,9 +131,7 @@ function parse(tokens: Token[]): AstNode[] {
       } else if (directive.startsWith("if:")) {
         const path = directive.slice(3);
         pos++;
-        const thenNodes = parseUntil(
-          (d) => d === "else" || d === `endif:${path}`,
-        );
+        const thenNodes = parseUntil((d) => d === "else" || d === `endif:${path}`);
         let elseNodes: AstNode[] = [];
         if (pos < tokens.length && tokens[pos].kind === "marker" && tokens[pos].value === "else") {
           pos++;
@@ -200,11 +196,7 @@ interface AttrEntry {
   value: string;
 }
 
-function render(
-  nodes: AstNode[],
-  data: Record<string, unknown>,
-  attrs: AttrEntry[],
-): string {
+function render(nodes: AstNode[], data: Record<string, unknown>, attrs: AttrEntry[]): string {
   let out = "";
 
   for (const node of nodes) {

@@ -87,7 +87,11 @@ function detectArrayBlock(
 ): { start: number; end: number; field: string } | null {
   if (fullHtml === emptiedHtml) return null;
   let prefixLen = 0;
-  while (prefixLen < fullHtml.length && prefixLen < emptiedHtml.length && fullHtml[prefixLen] === emptiedHtml[prefixLen]) {
+  while (
+    prefixLen < fullHtml.length &&
+    prefixLen < emptiedHtml.length &&
+    fullHtml[prefixLen] === emptiedHtml[prefixLen]
+  ) {
     prefixLen++;
   }
   const fullRem = fullHtml.slice(prefixLen);
@@ -198,9 +202,7 @@ describe("round-trip: render -> slots -> inject", () => {
       return createElement(
         "ul",
         null,
-        messages.map((m) =>
-          createElement("li", { key: m.id }, m.text),
-        ),
+        messages.map((m) => createElement("li", { key: m.id }, m.text)),
       );
     }
 
@@ -227,7 +229,7 @@ describe("round-trip: render -> slots -> inject", () => {
     expect(block).not.toBeNull();
 
     // Apply array blocks
-    let processed = applyArrayBlocks(fullHtml, [block!]);
+    const processed = applyArrayBlocks(fullHtml, [block!]);
     expect(processed).toContain("<!--seam:each:messages-->");
     expect(processed).toContain("<!--seam:endeach-->");
     expect(processed).toContain("<!--seam:$.text-->");

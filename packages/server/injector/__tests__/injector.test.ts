@@ -188,15 +188,13 @@ describe("inject", () => {
 
   describe("else branch", () => {
     it("renders then-block when truthy", () => {
-      const tmpl =
-        "<!--seam:if:logged-->Hello<!--seam:else-->Guest<!--seam:endif:logged-->";
+      const tmpl = "<!--seam:if:logged-->Hello<!--seam:else-->Guest<!--seam:endif:logged-->";
       const html = inject(tmpl, { logged: true }, { skipDataScript: true });
       expect(html).toBe("Hello");
     });
 
     it("renders else-block when falsy", () => {
-      const tmpl =
-        "<!--seam:if:logged-->Hello<!--seam:else-->Guest<!--seam:endif:logged-->";
+      const tmpl = "<!--seam:if:logged-->Hello<!--seam:else-->Guest<!--seam:endif:logged-->";
       const html = inject(tmpl, { logged: false }, { skipDataScript: true });
       expect(html).toBe("Guest");
     });
@@ -241,10 +239,15 @@ describe("inject", () => {
 
     it("handles attribute inside each", () => {
       const tmpl =
-        '<!--seam:each:links--><!--seam:$.url:attr:href--><a><!--seam:$.text--></a><!--seam:endeach-->';
+        "<!--seam:each:links--><!--seam:$.url:attr:href--><a><!--seam:$.text--></a><!--seam:endeach-->";
       const html = inject(
         tmpl,
-        { links: [{ url: "/a", text: "A" }, { url: "/b", text: "B" }] },
+        {
+          links: [
+            { url: "/a", text: "A" },
+            { url: "/b", text: "B" },
+          ],
+        },
         { skipDataScript: true },
       );
       expect(html).toBe('<a href="/a">A</a><a href="/b">B</a>');
@@ -362,8 +365,9 @@ describe("inject", () => {
         "<!--seam:when:guest--><span>Guest</span>",
         "<!--seam:endmatch-->",
       ].join("");
-      expect(inject(tmpl, { role: "admin", name: "Alice" }, { skipDataScript: true }))
-        .toBe("<b>Alice</b>");
+      expect(inject(tmpl, { role: "admin", name: "Alice" }, { skipDataScript: true })).toBe(
+        "<b>Alice</b>",
+      );
     });
   });
 

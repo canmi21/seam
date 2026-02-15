@@ -68,11 +68,7 @@ fn parse(tokens: &[Token]) -> Vec<AstNode> {
   parse_until(tokens, &mut pos, &|_| false)
 }
 
-fn parse_until(
-  tokens: &[Token],
-  pos: &mut usize,
-  stop: &dyn Fn(&str) -> bool,
-) -> Vec<AstNode> {
+fn parse_until(tokens: &[Token], pos: &mut usize, stop: &dyn Fn(&str) -> bool) -> Vec<AstNode> {
   let mut nodes = Vec::new();
 
   while *pos < tokens.len() {
@@ -354,10 +350,7 @@ pub fn inject(template: &str, data: &Value) -> String {
   }
 
   // __SEAM_DATA__ script
-  let script = format!(
-    r#"<script id="__SEAM_DATA__" type="application/json">{}</script>"#,
-    data
-  );
+  let script = format!(r#"<script id="__SEAM_DATA__" type="application/json">{}</script>"#, data);
   if let Some(pos) = result.rfind("</body>") {
     result.insert_str(pos, &script);
   } else {
@@ -398,10 +391,7 @@ mod tests {
       "<p><!--seam:msg--></p>",
       &json!({"msg": "<script>alert(\"xss\")</script>"}),
     );
-    assert_eq!(
-      html,
-      "<p>&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;</p>"
-    );
+    assert_eq!(html, "<p>&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;</p>");
   }
 
   #[test]
@@ -429,10 +419,8 @@ mod tests {
 
   #[test]
   fn raw_slot() {
-    let html = inject_no_script(
-      "<div><!--seam:content:html--></div>",
-      &json!({"content": "<b>bold</b>"}),
-    );
+    let html =
+      inject_no_script("<div><!--seam:content:html--></div>", &json!({"content": "<b>bold</b>"}));
     assert_eq!(html, "<div><b>bold</b></div>");
   }
 
@@ -440,19 +428,14 @@ mod tests {
 
   #[test]
   fn attr_slot() {
-    let html = inject_no_script(
-      "<!--seam:cls:attr:class--><div>hi</div>",
-      &json!({"cls": "active"}),
-    );
+    let html =
+      inject_no_script("<!--seam:cls:attr:class--><div>hi</div>", &json!({"cls": "active"}));
     assert_eq!(html, r#"<div class="active">hi</div>"#);
   }
 
   #[test]
   fn attr_slot_escapes_value() {
-    let html = inject_no_script(
-      "<!--seam:v:attr:title--><span>x</span>",
-      &json!({"v": "a\"b"}),
-    );
+    let html = inject_no_script("<!--seam:v:attr:title--><span>x</span>", &json!({"v": "a\"b"}));
     assert_eq!(html, r#"<span title="a&quot;b">x</span>"#);
   }
 
@@ -502,19 +485,15 @@ mod tests {
 
   #[test]
   fn cond_falsy_empty_string() {
-    let html = inject_no_script(
-      "<!--seam:if:name--><p>hi</p><!--seam:endif:name-->",
-      &json!({"name": ""}),
-    );
+    let html =
+      inject_no_script("<!--seam:if:name--><p>hi</p><!--seam:endif:name-->", &json!({"name": ""}));
     assert_eq!(html, "");
   }
 
   #[test]
   fn cond_missing_removes() {
-    let html = inject_no_script(
-      "<!--seam:if:missing--><p>gone</p><!--seam:endif:missing-->",
-      &json!({}),
-    );
+    let html =
+      inject_no_script("<!--seam:if:missing--><p>gone</p><!--seam:endif:missing-->", &json!({}));
     assert_eq!(html, "");
   }
 
@@ -542,13 +521,15 @@ mod tests {
 
   #[test]
   fn else_null() {
-    let tmpl = "<!--seam:if:user--><!--seam:user.name--><!--seam:else-->Anonymous<!--seam:endif:user-->";
+    let tmpl =
+      "<!--seam:if:user--><!--seam:user.name--><!--seam:else-->Anonymous<!--seam:endif:user-->";
     assert_eq!(inject_no_script(tmpl, &json!({"user": null})), "Anonymous");
   }
 
   #[test]
   fn else_empty_array() {
-    let tmpl = "<!--seam:if:items--><ul>list</ul><!--seam:else--><p>No items</p><!--seam:endif:items-->";
+    let tmpl =
+      "<!--seam:if:items--><ul>list</ul><!--seam:else--><p>No items</p><!--seam:endif:items-->";
     assert_eq!(inject_no_script(tmpl, &json!({"items": []})), "<p>No items</p>");
   }
 
@@ -575,13 +556,9 @@ mod tests {
 
   #[test]
   fn each_attr_inside() {
-    let tmpl =
-      r#"<!--seam:each:links--><!--seam:$.url:attr:href--><a><!--seam:$.text--></a><!--seam:endeach-->"#;
+    let tmpl = r#"<!--seam:each:links--><!--seam:$.url:attr:href--><a><!--seam:$.text--></a><!--seam:endeach-->"#;
     let data = json!({"links": [{"url": "/a", "text": "A"}, {"url": "/b", "text": "B"}]});
-    assert_eq!(
-      inject_no_script(tmpl, &data),
-      r#"<a href="/a">A</a><a href="/b">B</a>"#
-    );
+    assert_eq!(inject_no_script(tmpl, &data), r#"<a href="/a">A</a><a href="/b">B</a>"#);
   }
 
   #[test]
@@ -638,8 +615,7 @@ mod tests {
 
   #[test]
   fn same_path_nested_if() {
-    let tmpl =
-      "<!--seam:if:x-->outer[<!--seam:if:x-->inner<!--seam:endif:x-->]<!--seam:endif:x-->";
+    let tmpl = "<!--seam:if:x-->outer[<!--seam:if:x-->inner<!--seam:endif:x-->]<!--seam:endif:x-->";
     assert_eq!(inject_no_script(tmpl, &json!({"x": true})), "outer[inner]");
     assert_eq!(inject_no_script(tmpl, &json!({"x": false})), "");
   }
@@ -673,11 +649,8 @@ mod tests {
 
   #[test]
   fn match_missing_path() {
-    let tmpl = concat!(
-      "<!--seam:match:role-->",
-      "<!--seam:when:admin-->Admin",
-      "<!--seam:endmatch-->"
-    );
+    let tmpl =
+      concat!("<!--seam:match:role-->", "<!--seam:when:admin-->Admin", "<!--seam:endmatch-->");
     assert_eq!(inject_no_script(tmpl, &json!({})), "");
   }
 
@@ -707,10 +680,7 @@ mod tests {
       "<!--seam:when:guest--><span>Guest</span>",
       "<!--seam:endmatch-->"
     );
-    assert_eq!(
-      inject_no_script(tmpl, &json!({"role": "admin", "name": "Alice"})),
-      "<b>Alice</b>"
-    );
+    assert_eq!(inject_no_script(tmpl, &json!({"role": "admin", "name": "Alice"})), "<b>Alice</b>");
   }
 
   // -- Data script --

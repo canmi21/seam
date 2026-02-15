@@ -125,7 +125,7 @@ function getNestedValue(obj, dottedPath) {
   const parts = dottedPath.split(".");
   let cur = obj;
   for (const part of parts) {
-    if (cur == null || typeof cur !== "object") return undefined;
+    if (cur === null || cur === undefined || typeof cur !== "object") return undefined;
     cur = cur[part];
   }
   return cur;
@@ -134,7 +134,8 @@ function getNestedValue(obj, dottedPath) {
 function setNestedValue(obj, parts, value) {
   let cur = obj;
   for (let i = 0; i < parts.length - 1; i++) {
-    if (cur[parts[i]] == null || typeof cur[parts[i]] !== "object") return;
+    if (cur[parts[i]] === null || cur[parts[i]] === undefined || typeof cur[parts[i]] !== "object")
+      return;
     cur = cur[parts[i]];
   }
   cur[parts[parts.length - 1]] = value;

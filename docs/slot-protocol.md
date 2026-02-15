@@ -4,14 +4,14 @@ Server-side HTML data injection. Backends receive an HTML template with slot mar
 
 ## Slot Syntax
 
-| Type           | Syntax                                         | Behavior                              |
-| -------------- | ---------------------------------------------- | ------------------------------------- |
-| Text (escaped) | `<!--seam:path-->`                             | Replace with HTML-escaped value       |
-| Raw HTML       | `<!--seam:path:html-->`                        | Replace with unescaped value          |
-| Attribute      | `<!--seam:path:attr:name-->`                   | Inject attribute on next opening tag  |
-| Conditional    | `<!--seam:if:path-->...<!--seam:endif:path-->` | Keep block if truthy, remove if falsy |
+| Type           | Syntax                                                            | Behavior                                       |
+| -------------- | ----------------------------------------------------------------- | ---------------------------------------------- |
+| Text (escaped) | `<!--seam:path-->`                                                | Replace with HTML-escaped value                |
+| Raw HTML       | `<!--seam:path:html-->`                                           | Replace with unescaped value                   |
+| Attribute      | `<!--seam:path:attr:name-->`                                      | Inject attribute on next opening tag           |
+| Conditional    | `<!--seam:if:path-->...<!--seam:endif:path-->`                    | Keep block if truthy, remove if falsy          |
 | Else branch    | `<!--seam:if:path-->...<!--seam:else-->...<!--seam:endif:path-->` | Keep then-block if truthy, else-block if falsy |
-| Iteration      | `<!--seam:each:path-->...<!--seam:endeach-->`  | Repeat body for each array element    |
+| Iteration      | `<!--seam:each:path-->...<!--seam:endeach-->`                     | Repeat body for each array element             |
 
 ## Path Resolution
 
@@ -28,6 +28,7 @@ Given `{ user: { address: { city: "Tokyo" } } }`, resolves to `"Tokyo"`.
 `<!--seam:each:path-->` repeats the body for each element in the array at `path`.
 
 Inside the body:
+
 - `$` refers to the current array element
 - `$$` refers to the outer item when `each` blocks are nested
 
@@ -35,25 +36,29 @@ Example:
 
 ```html
 <!--seam:each:messages-->
-  <li><!--seam:$.text--></li>
+<li><!--seam:$.text--></li>
 <!--seam:endeach-->
 ```
 
 With `{ messages: [{ text: "hi" }, { text: "bye" }] }` produces:
 
 ```html
-  <li>hi</li>
-  <li>bye</li>
+<li>hi</li>
+<li>bye</li>
 ```
 
 Nested example:
 
 ```html
 <!--seam:each:groups-->
-  <h2><!--seam:$.name--></h2>
-  <!--seam:each:$.items-->
-    <p><!--seam:$.label--> (group: <!--seam:$$.name-->)</p>
-  <!--seam:endeach-->
+<h2><!--seam:$.name--></h2>
+<!--seam:each:$.items-->
+<p>
+  <!--seam:$.label-->
+  (group:
+  <!--seam:$$.name-->)
+</p>
+<!--seam:endeach-->
 <!--seam:endeach-->
 ```
 
@@ -111,14 +116,14 @@ This replaces the previous multi-pass regex approach, enabling arbitrary nesting
 
 ## Edge Cases
 
-| Scenario                    | Behavior                          |
-| --------------------------- | --------------------------------- |
-| Missing data path (text/raw)| Empty string                      |
-| Missing data path (attr)    | Skip injection                    |
-| Missing data path (if)      | Remove block (use else if present)|
-| Missing data path (each)    | Skip block (no iteration)         |
-| Non-string values           | `String(value)` / `.to_string()`  |
-| Nested `if/endif` any paths | Supported (AST handles nesting)   |
-| `each` with non-array value | Skip block (no iteration)         |
-| Empty array in `each`       | No output (zero iterations)       |
-| Empty array in `if`         | Falsy (removed / else branch)     |
+| Scenario                     | Behavior                           |
+| ---------------------------- | ---------------------------------- |
+| Missing data path (text/raw) | Empty string                       |
+| Missing data path (attr)     | Skip injection                     |
+| Missing data path (if)       | Remove block (use else if present) |
+| Missing data path (each)     | Skip block (no iteration)          |
+| Non-string values            | `String(value)` / `.to_string()`   |
+| Nested `if/endif` any paths  | Supported (AST handles nesting)    |
+| `each` with non-array value  | Skip block (no iteration)          |
+| Empty array in `each`        | No output (zero iterations)        |
+| Empty array in `if`          | Falsy (removed / else branch)      |
