@@ -1,25 +1,20 @@
 /* packages/client/react/src/use-seam-data.ts */
 
-let ssrData: Record<string, unknown> | null = null;
-let cachedBrowserData: Record<string, unknown> | null = null;
+import { createContext, useContext } from "react";
 
-export function setSSRData(data: Record<string, unknown>): void {
-  ssrData = data;
-}
+const SeamDataContext = createContext<unknown>(null);
 
-export function clearSSRData(): void {
-  ssrData = null;
-}
+export const SeamDataProvider = SeamDataContext.Provider;
 
 export function useSeamData<T extends Record<string, unknown>>(): T {
-  if (ssrData) return ssrData as T;
-  if (typeof document !== "undefined") {
-    if (cachedBrowserData) return cachedBrowserData as T;
-    const el = document.getElementById("__SEAM_DATA__");
-    if (el?.textContent) {
-      cachedBrowserData = JSON.parse(el.textContent) as Record<string, unknown>;
-      return cachedBrowserData as T;
-    }
-  }
-  throw new Error("No seam data available");
+  const value = useContext(SeamDataContext);
+  if (value === null || value === undefined)
+    throw new Error("useSeamData must be used inside <SeamDataProvider>");
+  return value as T;
+}
+
+export function parseSeamData(): Record<string, unknown> {
+  const el = document.getElementById("__SEAM_DATA__");
+  if (!el?.textContent) throw new Error("__SEAM_DATA__ not found");
+  return JSON.parse(el.textContent) as Record<string, unknown>;
 }

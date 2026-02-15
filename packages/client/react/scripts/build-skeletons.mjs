@@ -6,7 +6,7 @@ import { renderToString } from "react-dom/server";
 import { unlinkSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { setSSRData, clearSSRData, buildSentinelData } from "@canmi/seam-react";
+import { SeamDataProvider, buildSentinelData } from "@canmi/seam-react";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -59,20 +59,22 @@ function setFieldEmptyArray(obj, dottedPath) {
 
 // -- Route rendering --
 
+function renderWithData(component, data) {
+  return renderToString(
+    createElement(SeamDataProvider, { value: data }, createElement(component)),
+  );
+}
+
 function renderRoute(route) {
   const sentinelData = buildSentinelData(route.mock);
-  setSSRData(sentinelData);
-  const fullHtml = renderToString(createElement(route.component));
-  clearSSRData();
+  const fullHtml = renderWithData(route.component, sentinelData);
 
   const nullableFields = route.nullable || [];
   const nulledHtmls = {};
 
   for (const field of nullableFields) {
     const nulledSentinel = setFieldNull(sentinelData, field);
-    setSSRData(nulledSentinel);
-    nulledHtmls[field] = renderToString(createElement(route.component));
-    clearSSRData();
+    nulledHtmls[field] = renderWithData(route.component, nulledSentinel);
   }
 
   // Detect array-of-objects fields and render empty-array variants
@@ -81,9 +83,7 @@ function renderRoute(route) {
 
   for (const field of arrayFields) {
     const emptiedSentinel = setFieldEmptyArray(sentinelData, field);
-    setSSRData(emptiedSentinel);
-    emptiedHtmls[field] = renderToString(createElement(route.component));
-    clearSSRData();
+    emptiedHtmls[field] = renderWithData(route.component, emptiedSentinel);
   }
 
   return {
