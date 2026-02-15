@@ -68,6 +68,48 @@ The diff reveals which HTML fragment disappears when a field is null. That fragm
 
 Known limitation: when `<` is shared between the conditional block boundary and an adjacent tag, the diff may produce an off-by-one boundary. The build pipeline uses space separators at conditional edges to avoid this.
 
+## Array Handling
+
+Arrays of objects are detected and converted to `each` iteration blocks.
+
+### Sentinel Generation
+
+When `buildSentinelData` encounters an array of objects (length > 0, first element is a plain object), it produces a **1-element sentinel array** with `$.field` path prefixes:
+
+```js
+buildSentinelData({ messages: [{ id: "1", text: "hello" }] });
+// => { messages: [{ id: "%%SEAM:messages.$.id%%", text: "%%SEAM:messages.$.text%%" }] }
+```
+
+Arrays of primitives, empty arrays, and null remain leaf sentinels (`%%SEAM:path%%`).
+
+### Two-Render Diff Detection
+
+Same algorithm as conditional detection:
+
+1. **Full render**: component rendered with 1-element sentinel array (produces one list item)
+2. **Emptied render**: same sentinel data but the array field set to `[]` (produces no list items)
+3. **Diff**: longest common prefix + suffix reveals the repeating item template
+4. **Wrap**: detected block is wrapped in `<!--seam:each:FIELD-->...<!--seam:endeach-->` markers
+5. **Rename**: internal paths `FIELD.$.xxx` are shortened to `$.xxx` (the `each` block provides the `$` scope)
+
+### Pipeline
+
+```
+messages: [{ id: "%%SEAM:messages.$.id%%", text: "%%SEAM:messages.$.text%%" }]
+        |
+        v  renderToString()
+   <ul><li>%%SEAM:messages.$.id%%: %%SEAM:messages.$.text%%</li></ul>
+        |
+        v  sentinel_to_slots()
+   <ul><li><!--seam:messages.$.id-->: <!--seam:messages.$.text--></li></ul>
+        |
+        v  detect_array_block() + apply_array_blocks()
+   <ul><!--seam:each:messages--><li><!--seam:$.id-->: <!--seam:$.text--></li><!--seam:endeach--></ul>
+```
+
+Known limitation: when `<` is shared between the item boundary and the container tag (e.g. `</li></ul>`), the diff may produce an off-by-one boundary. React output typically inserts comment nodes or whitespace at these edges, avoiding the issue in practice.
+
 ## Dual Implementation
 
 The sentinel-to-slot conversion exists in both Rust and JS:

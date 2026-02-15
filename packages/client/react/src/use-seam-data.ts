@@ -1,6 +1,7 @@
 /* packages/client/react/src/use-seam-data.ts */
 
 let ssrData: Record<string, unknown> | null = null;
+let cachedBrowserData: Record<string, unknown> | null = null;
 
 export function setSSRData(data: Record<string, unknown>): void {
   ssrData = data;
@@ -13,8 +14,12 @@ export function clearSSRData(): void {
 export function useSeamData<T extends Record<string, unknown>>(): T {
   if (ssrData) return ssrData as T;
   if (typeof document !== "undefined") {
+    if (cachedBrowserData) return cachedBrowserData as T;
     const el = document.getElementById("__SEAM_DATA__");
-    if (el?.textContent) return JSON.parse(el.textContent) as T;
+    if (el?.textContent) {
+      cachedBrowserData = JSON.parse(el.textContent) as Record<string, unknown>;
+      return cachedBrowserData as T;
+    }
   }
   throw new Error("No seam data available");
 }

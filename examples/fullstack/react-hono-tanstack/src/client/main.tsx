@@ -3,6 +3,7 @@
 import { StrictMode } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { App } from "./app.js";
+import { HomeSkeleton } from "./pages/home-skeleton.js";
 import "./index.css";
 
 const seamRoot = document.getElementById("__SEAM_ROOT__");
@@ -12,7 +13,7 @@ if (seamRoot) {
   hydrateRoot(
     seamRoot,
     <StrictMode>
-      <App />
+      <HomeSkeleton />
     </StrictMode>,
   );
 } else if (devRoot) {
