@@ -16,7 +16,7 @@
     },
     "examples/fullstack/react-hono-tanstack": {
       "name": "demo-fullstack-react-hono-tanstack",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "dependencies": {
         "@canmi/seam-adapter-hono": "workspace:*",
         "@canmi/seam-client": "workspace:*",
@@ -33,13 +33,14 @@
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
         "@vitejs/plugin-react": "^4.0.0",
+        "bun-types": "^1.2.0",
         "typescript": "^5.7.0",
         "vite": "^6.0.0",
       },
     },
     "examples/standalone/client-react": {
       "name": "demo-client-react",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "dependencies": {
         "@canmi/seam-react": "workspace:*",
         "react": "^19.0.0",
@@ -55,14 +56,14 @@
     },
     "examples/standalone/client-vanilla": {
       "name": "demo-client-vanilla",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "dependencies": {
         "@canmi/seam-client": "workspace:*",
       },
     },
     "examples/standalone/server-bun": {
       "name": "demo-server-bun",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "dependencies": {
         "@canmi/seam-adapter-bun": "workspace:*",
         "@canmi/seam-server": "workspace:*",
@@ -70,7 +71,7 @@
     },
     "examples/standalone/server-node": {
       "name": "demo-server-node",
-      "version": "0.1.0",
+      "version": "1.0.0",
       "dependencies": {
         "@canmi/seam-adapter-node": "workspace:*",
         "@canmi/seam-server": "workspace:*",
@@ -78,7 +79,7 @@
     },
     "packages/cli/pkg": {
       "name": "@canmi/seam-cli",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "bin": {
         "seam": "./dist/index.js",
       },
@@ -97,7 +98,7 @@
     },
     "packages/client/react": {
       "name": "@canmi/seam-react",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "dependencies": {
         "@canmi/seam-client": "workspace:*",
         "esbuild": "^0.25.0",
@@ -119,7 +120,7 @@
     },
     "packages/client/vanilla": {
       "name": "@canmi/seam-client",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "devDependencies": {
         "tsdown": "^0.12.0",
         "typescript": "^5.7.0",
@@ -128,7 +129,7 @@
     },
     "packages/server/adapter/bun": {
       "name": "@canmi/seam-adapter-bun",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "devDependencies": {
         "@canmi/seam-server": "workspace:*",
         "@types/bun": "^1.2.0",
@@ -142,7 +143,7 @@
     },
     "packages/server/adapter/hono": {
       "name": "@canmi/seam-adapter-hono",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "devDependencies": {
         "@canmi/seam-server": "workspace:*",
         "hono": "^4.0.0",
@@ -157,7 +158,7 @@
     },
     "packages/server/adapter/node": {
       "name": "@canmi/seam-adapter-node",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "devDependencies": {
         "@canmi/seam-server": "workspace:*",
         "@types/node": "^22.0.0",
@@ -171,7 +172,7 @@
     },
     "packages/server/core/typescript": {
       "name": "@canmi/seam-server",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "dependencies": {
         "@canmi/seam-injector": "workspace:*",
         "jtd": "^0.1.1",
@@ -185,7 +186,7 @@
     },
     "packages/server/injector": {
       "name": "@canmi/seam-injector",
-      "version": "0.1.0",
+      "version": "0.2.1",
       "devDependencies": {
         "tsdown": "^0.12.0",
         "typescript": "^5.7.0",

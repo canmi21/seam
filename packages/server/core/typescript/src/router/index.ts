@@ -24,7 +24,8 @@ export interface SubscriptionDef<TIn = unknown, TOut = unknown> {
   handler: (params: { input: TIn }) => AsyncIterable<TOut>;
 }
 
-export type DefinitionMap = Record<string, ProcedureDef | SubscriptionDef>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type DefinitionMap = Record<string, ProcedureDef<any, any> | SubscriptionDef<any, any>>;
 
 /** @deprecated Use DefinitionMap instead */
 export type ProcedureMap = DefinitionMap;

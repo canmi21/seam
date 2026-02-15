@@ -24,7 +24,7 @@ if (isProd) {
   app.get("*", async (c) => {
     const result = await router.handlePage(c.req.path);
     if (result) {
-      return c.html(result.html, result.status);
+      return c.html(result.html, result.status as 200);
     }
     return c.text("Not Found", 404);
   });

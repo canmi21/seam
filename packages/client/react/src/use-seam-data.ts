@@ -6,7 +6,7 @@ const SeamDataContext = createContext<unknown>(null);
 
 export const SeamDataProvider = SeamDataContext.Provider;
 
-export function useSeamData<T extends Record<string, unknown>>(): T {
+export function useSeamData<T extends object = Record<string, unknown>>(): T {
   const value = useContext(SeamDataContext);
   if (value === null || value === undefined)
     throw new Error("useSeamData must be used inside <SeamDataProvider>");
