@@ -261,7 +261,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "demo-server-rust"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "async-stream",
  "seam-server",
@@ -1139,7 +1139,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "seam-cli"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "seam-macros"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1162,7 +1162,7 @@ dependencies = [
 
 [[package]]
 name = "seam-server"
-version = "0.1.0"
+version = "0.2.1"
 dependencies = [
  "axum",
  "futures-core",
