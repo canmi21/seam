@@ -24,6 +24,39 @@ function setFieldNull(obj, dottedPath) {
   return clone;
 }
 
+// Detect fields in mock data that are arrays of objects
+function detectArrayFields(mock, prefix = "") {
+  const fields = [];
+  for (const [key, value] of Object.entries(mock)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (
+      Array.isArray(value) &&
+      value.length > 0 &&
+      typeof value[0] === "object" &&
+      value[0] !== null
+    ) {
+      fields.push(path);
+    } else if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+      fields.push(...detectArrayFields(value, path));
+    }
+  }
+  return fields;
+}
+
+// Set a dotted path to an empty array in a deep-cloned sentinel object
+function setFieldEmptyArray(obj, dottedPath) {
+  const clone = JSON.parse(JSON.stringify(obj));
+  const parts = dottedPath.split(".");
+  let cur = clone;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (cur[parts[i]] === null || cur[parts[i]] === undefined || typeof cur[parts[i]] !== "object")
+      return clone;
+    cur = cur[parts[i]];
+  }
+  cur[parts[parts.length - 1]] = [];
+  return clone;
+}
+
 // -- Route rendering --
 
 function renderRoute(route) {
@@ -36,11 +69,20 @@ function renderRoute(route) {
   const nulledHtmls = {};
 
   for (const field of nullableFields) {
-    // Build sentinels from full mock, then null the specific field
-    // so the component's conditional (e.g. `user.avatar && ...`) evaluates to false
     const nulledSentinel = setFieldNull(sentinelData, field);
     setSSRData(nulledSentinel);
     nulledHtmls[field] = renderToString(createElement(route.component));
+    clearSSRData();
+  }
+
+  // Detect array-of-objects fields and render empty-array variants
+  const arrayFields = detectArrayFields(route.mock);
+  const emptiedHtmls = {};
+
+  for (const field of arrayFields) {
+    const emptiedSentinel = setFieldEmptyArray(sentinelData, field);
+    setSSRData(emptiedSentinel);
+    emptiedHtmls[field] = renderToString(createElement(route.component));
     clearSSRData();
   }
 
@@ -50,6 +92,8 @@ function renderRoute(route) {
     fullHtml,
     nullableFields,
     nulledHtmls,
+    arrayFields,
+    emptiedHtmls,
   };
 }
 

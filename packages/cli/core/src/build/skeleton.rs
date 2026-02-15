@@ -137,6 +137,73 @@ pub fn apply_conditionals(html: &str, mut blocks: Vec<ConditionalBlock>) -> Stri
   result
 }
 
+// -- Array block detection --
+
+/// Detected repeating block for an array field.
+#[derive(Debug)]
+pub struct ArrayBlock {
+  pub start: usize,
+  pub end: usize,
+  pub field: String,
+}
+
+/// Detect the repeating template block for an array field by diffing
+/// full HTML (1-element array) against emptied HTML (0-element array).
+/// Same prefix/suffix algorithm as conditional detection.
+pub fn detect_array_block(
+  full_html: &str,
+  emptied_html: &str,
+  field: &str,
+) -> Option<ArrayBlock> {
+  if full_html == emptied_html {
+    return None;
+  }
+
+  let prefix_len = full_html.bytes().zip(emptied_html.bytes()).take_while(|(a, b)| a == b).count();
+
+  let full_remaining = &full_html[prefix_len..];
+  let emptied_remaining = &emptied_html[prefix_len..];
+  let suffix_len = full_remaining
+    .bytes()
+    .rev()
+    .zip(emptied_remaining.bytes().rev())
+    .take_while(|(a, b)| a == b)
+    .count();
+
+  let block_start = prefix_len;
+  let block_end = full_html.len() - suffix_len;
+
+  if block_start >= block_end {
+    return None;
+  }
+
+  Some(ArrayBlock { start: block_start, end: block_end, field: field.to_string() })
+}
+
+/// Wrap detected array blocks in `<!--seam:each:FIELD-->...<!--seam:endeach-->` markers
+/// and rename internal paths from `FIELD.$.xxx` to `$.xxx`.
+pub fn apply_array_blocks(html: &str, mut blocks: Vec<ArrayBlock>) -> String {
+  let mut result = html.to_string();
+  // Sort by start position descending so insertions don't shift earlier positions
+  blocks.sort_by(|a, b| b.start.cmp(&a.start));
+
+  for block in &blocks {
+    let body = &result[block.start..block.end];
+    // Rename internal slot paths: <!--seam:FIELD.$.xxx--> => <!--seam:$.xxx-->
+    // Also handles attr patterns: <!--seam:FIELD.$.xxx:attr:name-->
+    let field_prefix = format!("<!--seam:{}.", block.field);
+    let replacement_prefix = "<!--seam:";
+    let renamed = body.replace(&field_prefix, replacement_prefix);
+
+    let wrapped = format!(
+      "<!--seam:each:{}-->{}<!--seam:endeach-->",
+      block.field, renamed
+    );
+    result = format!("{}{}{}", &result[..block.start], wrapped, &result[block.end..]);
+  }
+  result
+}
+
 /// Wrap a skeleton HTML fragment in a full HTML5 document with asset references.
 pub fn wrap_document(skeleton: &str, css_files: &[String], js_files: &[String]) -> String {
   let css_links: String = css_files
@@ -295,6 +362,45 @@ mod tests {
     assert!(doc.contains("<!--seam:if:user.avatar-->"));
     assert!(doc.contains("app.css"));
     assert!(doc.contains("app.js"));
+  }
+
+  // -- detect_array_block --
+
+  #[test]
+  fn array_block_detection() {
+    // Clean boundaries (no shared `<` between item tags and container)
+    let full = "before<li><!--seam:items.$.name--></li>after";
+    let emptied = "beforeafter";
+    let block = detect_array_block(full, emptied, "items").unwrap();
+    assert_eq!(&full[block.start..block.end], "<li><!--seam:items.$.name--></li>");
+  }
+
+  #[test]
+  fn array_block_identical_no_detection() {
+    assert!(detect_array_block("<ul></ul>", "<ul></ul>", "items").is_none());
+  }
+
+  #[test]
+  fn apply_array_blocks_wraps_and_renames() {
+    let html = "<ul><li><!--seam:items.$.name--></li></ul>";
+    let blocks = vec![ArrayBlock { start: 4, end: 37, field: "items".into() }];
+    let result = apply_array_blocks(html, blocks);
+    assert!(result.contains("<!--seam:each:items-->"));
+    assert!(result.contains("<!--seam:endeach-->"));
+    assert!(result.contains("<!--seam:$.name-->"));
+    assert!(!result.contains("items.$.name"));
+  }
+
+  #[test]
+  fn apply_array_blocks_renames_attr_paths() {
+    let html = "<ul><!--seam:items.$.url:attr:href--><a><!--seam:items.$.text--></a></ul>";
+    let block_start = 4;
+    let block_end = html.len() - 5; // before </ul>
+    let blocks = vec![ArrayBlock { start: block_start, end: block_end, field: "items".into() }];
+    let result = apply_array_blocks(html, blocks);
+    assert!(result.contains("<!--seam:$.url:attr:href-->"));
+    assert!(result.contains("<!--seam:$.text-->"));
+    assert!(!result.contains("items.$"));
   }
 
   #[test]

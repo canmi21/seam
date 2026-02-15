@@ -78,6 +78,50 @@ function UserPage() {
   );
 }
 
+// -- Array block helpers (mirrors Rust logic) --
+
+function detectArrayBlock(
+  fullHtml: string,
+  emptiedHtml: string,
+  field: string,
+): { start: number; end: number; field: string } | null {
+  if (fullHtml === emptiedHtml) return null;
+  let prefixLen = 0;
+  while (prefixLen < fullHtml.length && prefixLen < emptiedHtml.length && fullHtml[prefixLen] === emptiedHtml[prefixLen]) {
+    prefixLen++;
+  }
+  const fullRem = fullHtml.slice(prefixLen);
+  const emptiedRem = emptiedHtml.slice(prefixLen);
+  let suffixLen = 0;
+  while (
+    suffixLen < fullRem.length &&
+    suffixLen < emptiedRem.length &&
+    fullRem[fullRem.length - 1 - suffixLen] === emptiedRem[emptiedRem.length - 1 - suffixLen]
+  ) {
+    suffixLen++;
+  }
+  const start = prefixLen;
+  const end = fullHtml.length - suffixLen;
+  if (start >= end) return null;
+  return { start, end, field };
+}
+
+function applyArrayBlocks(
+  html: string,
+  blocks: { start: number; end: number; field: string }[],
+): string {
+  let result = html;
+  blocks.sort((a, b) => b.start - a.start);
+  for (const block of blocks) {
+    let body = result.slice(block.start, block.end);
+    const fieldPrefix = `<!--seam:${block.field}.`;
+    body = body.replaceAll(fieldPrefix, "<!--seam:");
+    const wrapped = `<!--seam:each:${block.field}-->${body}<!--seam:endeach-->`;
+    result = result.slice(0, block.start) + wrapped + result.slice(block.end);
+  }
+  return result;
+}
+
 describe("round-trip: render -> slots -> inject", () => {
   it("produces correct HTML with real data after full pipeline", () => {
     const mock = {
@@ -143,5 +187,63 @@ describe("round-trip: render -> slots -> inject", () => {
     });
     expect(withAvatar).toContain("Bob");
     expect(withAvatar).toContain('src="bob.png"');
+  });
+
+  it("handles array fields via each wrapping", () => {
+    // Component that renders a list
+    function MessageList() {
+      const { messages } = useSeamData<{
+        messages: { id: string; text: string }[];
+      }>();
+      return createElement(
+        "ul",
+        null,
+        messages.map((m) =>
+          createElement("li", { key: m.id }, m.text),
+        ),
+      );
+    }
+
+    const mock = {
+      messages: [{ id: "1", text: "hello" }],
+    };
+
+    // Full render (1-element sentinel array)
+    const sentinelData = buildSentinelData(mock);
+    expect(sentinelData.messages).toHaveLength(1);
+    setSSRData(sentinelData);
+    const fullHtml = sentinelToSlots(renderToString(createElement(MessageList)));
+    clearSSRData();
+
+    // Emptied render (empty array)
+    const emptiedSentinel = JSON.parse(JSON.stringify(sentinelData));
+    emptiedSentinel.messages = [];
+    setSSRData(emptiedSentinel);
+    const emptiedHtml = sentinelToSlots(renderToString(createElement(MessageList)));
+    clearSSRData();
+
+    // Detect array block
+    const block = detectArrayBlock(fullHtml, emptiedHtml, "messages");
+    expect(block).not.toBeNull();
+
+    // Apply array blocks
+    let processed = applyArrayBlocks(fullHtml, [block!]);
+    expect(processed).toContain("<!--seam:each:messages-->");
+    expect(processed).toContain("<!--seam:endeach-->");
+    expect(processed).toContain("<!--seam:$.text-->");
+    expect(processed).not.toContain("messages.$.text");
+
+    // Wrap and inject with real data
+    const template = wrapDocument(processed, [], []);
+    const realData = {
+      messages: [
+        { id: "1", text: "hello" },
+        { id: "2", text: "world" },
+      ],
+    };
+    const finalHtml = inject(template, realData);
+    expect(finalHtml).toContain("hello");
+    expect(finalHtml).toContain("world");
+    expect(finalHtml).toContain("__SEAM_DATA__");
   });
 });

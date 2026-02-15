@@ -31,9 +31,31 @@ describe("buildSentinelData", () => {
     });
   });
 
-  it("treats arrays as leaf values", () => {
+  it("treats arrays of primitives as leaf values", () => {
     const result = buildSentinelData({ tags: ["a", "b"] });
     expect(result).toEqual({ tags: "%%SEAM:tags%%" });
+  });
+
+  it("produces 1-element sentinel array for arrays of objects", () => {
+    const result = buildSentinelData({
+      messages: [
+        { id: "1", text: "hello" },
+        { id: "2", text: "world" },
+      ],
+    });
+    expect(result).toEqual({
+      messages: [{ id: "%%SEAM:messages.$.id%%", text: "%%SEAM:messages.$.text%%" }],
+    });
+  });
+
+  it("treats empty arrays as leaf values", () => {
+    const result = buildSentinelData({ items: [] });
+    expect(result).toEqual({ items: "%%SEAM:items%%" });
+  });
+
+  it("treats arrays of nulls as leaf values", () => {
+    const result = buildSentinelData({ items: [null, null] });
+    expect(result).toEqual({ items: "%%SEAM:items%%" });
   });
 
   it("handles null values as leaves", () => {

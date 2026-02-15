@@ -9,7 +9,10 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
 use super::config::BuildConfig;
-use super::skeleton::{apply_conditionals, detect_conditional, sentinel_to_slots, wrap_document};
+use super::skeleton::{
+  apply_array_blocks, apply_conditionals, detect_array_block, detect_conditional, sentinel_to_slots,
+  wrap_document,
+};
 use crate::codegen;
 use crate::config::SeamConfig;
 use crate::manifest::Manifest;
@@ -42,6 +45,10 @@ struct SkeletonRoute {
   nullable_fields: Vec<String>,
   #[serde(rename = "nulledHtmls")]
   nulled_htmls: BTreeMap<String, String>,
+  #[serde(rename = "arrayFields", default)]
+  array_fields: Vec<String>,
+  #[serde(rename = "emptiedHtmls", default)]
+  emptied_htmls: BTreeMap<String, String>,
 }
 
 // -- Route manifest output --
@@ -159,6 +166,20 @@ fn process_routes(
 
   for route in routes {
     let mut processed = sentinel_to_slots(&route.full_html);
+
+    // Detect and apply array blocks from array field diffs
+    let mut array_blocks = Vec::new();
+    for field in &route.array_fields {
+      if let Some(emptied_html) = route.emptied_htmls.get(field) {
+        let emptied_processed = sentinel_to_slots(emptied_html);
+        if let Some(block) = detect_array_block(&processed, &emptied_processed, field) {
+          array_blocks.push(block);
+        }
+      }
+    }
+    if !array_blocks.is_empty() {
+      processed = apply_array_blocks(&processed, array_blocks);
+    }
 
     // Detect and apply conditionals from nullable field diffs
     let mut blocks = Vec::new();
