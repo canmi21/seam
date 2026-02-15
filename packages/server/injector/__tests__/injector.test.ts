@@ -163,13 +163,13 @@ describe("inject", () => {
       expect(html).toBe("<p>logged in</p>");
     });
 
-    it("keeps block for empty array (truthy)", () => {
+    it("removes block for empty array (falsy)", () => {
       const html = inject(
         "<!--seam:if:items--><p>yes</p><!--seam:endif:items-->",
         { items: [] },
         { skipDataScript: true },
       );
-      expect(html).toBe("<p>yes</p>");
+      expect(html).toBe("");
     });
 
     it("supports nested conditionals with different paths", () => {
@@ -183,6 +183,126 @@ describe("inject", () => {
       const tmpl = "<!--seam:if:show--><p><!--seam:name--></p><!--seam:endif:show-->";
       const html = inject(tmpl, { show: false, name: "Alice" }, { skipDataScript: true });
       expect(html).toBe("");
+    });
+  });
+
+  describe("else branch", () => {
+    it("renders then-block when truthy", () => {
+      const tmpl =
+        "<!--seam:if:logged-->Hello<!--seam:else-->Guest<!--seam:endif:logged-->";
+      const html = inject(tmpl, { logged: true }, { skipDataScript: true });
+      expect(html).toBe("Hello");
+    });
+
+    it("renders else-block when falsy", () => {
+      const tmpl =
+        "<!--seam:if:logged-->Hello<!--seam:else-->Guest<!--seam:endif:logged-->";
+      const html = inject(tmpl, { logged: false }, { skipDataScript: true });
+      expect(html).toBe("Guest");
+    });
+
+    it("renders else-block when null", () => {
+      const tmpl =
+        "<!--seam:if:user--><!--seam:user.name--><!--seam:else-->Anonymous<!--seam:endif:user-->";
+      const html = inject(tmpl, { user: null }, { skipDataScript: true });
+      expect(html).toBe("Anonymous");
+    });
+
+    it("renders else-block for empty array", () => {
+      const tmpl =
+        "<!--seam:if:items--><ul>list</ul><!--seam:else--><p>No items</p><!--seam:endif:items-->";
+      const html = inject(tmpl, { items: [] }, { skipDataScript: true });
+      expect(html).toBe("<p>No items</p>");
+    });
+  });
+
+  describe("each iteration", () => {
+    it("repeats body for each array element", () => {
+      const tmpl = "<!--seam:each:items--><li><!--seam:$.name--></li><!--seam:endeach-->";
+      const html = inject(
+        tmpl,
+        { items: [{ name: "a" }, { name: "b" }] },
+        { skipDataScript: true },
+      );
+      expect(html).toBe("<li>a</li><li>b</li>");
+    });
+
+    it("produces no output for empty array", () => {
+      const tmpl = "<!--seam:each:items--><li><!--seam:$.name--></li><!--seam:endeach-->";
+      const html = inject(tmpl, { items: [] }, { skipDataScript: true });
+      expect(html).toBe("");
+    });
+
+    it("produces no output for missing path", () => {
+      const tmpl = "<!--seam:each:items--><li>x</li><!--seam:endeach-->";
+      const html = inject(tmpl, {}, { skipDataScript: true });
+      expect(html).toBe("");
+    });
+
+    it("handles attribute inside each", () => {
+      const tmpl =
+        '<!--seam:each:links--><!--seam:$.url:attr:href--><a><!--seam:$.text--></a><!--seam:endeach-->';
+      const html = inject(
+        tmpl,
+        { links: [{ url: "/a", text: "A" }, { url: "/b", text: "B" }] },
+        { skipDataScript: true },
+      );
+      expect(html).toBe('<a href="/a">A</a><a href="/b">B</a>');
+    });
+
+    it("supports nested each with $$ reference", () => {
+      const tmpl = [
+        "<!--seam:each:groups-->",
+        "<h2><!--seam:$.title--></h2>",
+        "<!--seam:each:$.items-->",
+        "<p><!--seam:$.label--> in <!--seam:$$.title--></p>",
+        "<!--seam:endeach-->",
+        "<!--seam:endeach-->",
+      ].join("");
+      const data = {
+        groups: [
+          { title: "G1", items: [{ label: "x" }, { label: "y" }] },
+          { title: "G2", items: [{ label: "z" }] },
+        ],
+      };
+      const html = inject(tmpl, data, { skipDataScript: true });
+      expect(html).toBe("<h2>G1</h2><p>x in G1</p><p>y in G1</p><h2>G2</h2><p>z in G2</p>");
+    });
+  });
+
+  describe("empty array falsy", () => {
+    it("treats empty array as falsy in if block", () => {
+      const tmpl = "<!--seam:if:items-->has<!--seam:endif:items-->";
+      expect(inject(tmpl, { items: [] }, { skipDataScript: true })).toBe("");
+      expect(inject(tmpl, { items: [1] }, { skipDataScript: true })).toBe("has");
+    });
+  });
+
+  describe("if inside each", () => {
+    it("applies conditional per item", () => {
+      const tmpl = [
+        "<!--seam:each:users-->",
+        "<!--seam:if:$.active--><b><!--seam:$.name--></b><!--seam:endif:$.active-->",
+        "<!--seam:endeach-->",
+      ].join("");
+      const data = {
+        users: [
+          { name: "Alice", active: true },
+          { name: "Bob", active: false },
+          { name: "Carol", active: true },
+        ],
+      };
+      const html = inject(tmpl, data, { skipDataScript: true });
+      expect(html).toBe("<b>Alice</b><b>Carol</b>");
+    });
+  });
+
+  describe("same-path nested if", () => {
+    it("supports same-path nested if blocks (AST handles it)", () => {
+      const tmpl =
+        "<!--seam:if:x-->outer[<!--seam:if:x-->inner<!--seam:endif:x-->]<!--seam:endif:x-->";
+      expect(inject(tmpl, { x: true }, { skipDataScript: true })).toBe("outer[inner]");
+      expect(inject(tmpl, { x: false }, { skipDataScript: true })).toBe("");
     });
   });
 
