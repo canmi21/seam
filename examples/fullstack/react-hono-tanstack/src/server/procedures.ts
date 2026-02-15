@@ -35,6 +35,59 @@ export const addMessage: ProcedureDef<{ text: string }, Message> = {
   },
 };
 
+export const getAboutData: ProcedureDef = {
+  input: t.object({}),
+  output: t.object({
+    teamName: t.string(),
+    description: t.string(),
+    isHiring: t.boolean(),
+    contactEmail: t.nullable(t.string()),
+  }),
+  handler: () => ({
+    teamName: "SeamJS Core",
+    description: "Building the next generation of compile-time rendering tools.",
+    isHiring: true,
+    contactEmail: "team@seamjs.dev",
+  }),
+};
+
+export const getPosts: ProcedureDef = {
+  input: t.object({}),
+  output: t.object({
+    heading: t.string(),
+    showDrafts: t.boolean(),
+    posts: t.array(
+      t.object({
+        id: t.string(),
+        title: t.string(),
+        isPublished: t.boolean(),
+        excerpt: t.string(),
+        author: t.nullable(t.string()),
+      }),
+    ),
+  }),
+  handler: () => ({
+    heading: "Recent Posts",
+    showDrafts: true,
+    posts: [
+      {
+        id: "post-1",
+        title: "Getting Started with SeamJS",
+        isPublished: true,
+        excerpt: "Learn how to set up CTR in your project.",
+        author: "Alice",
+      },
+      {
+        id: "post-2",
+        title: "Advanced CTR Patterns",
+        isPublished: false,
+        excerpt: "Deep dive into multi-variant skeleton extraction.",
+        author: null,
+      },
+    ],
+  }),
+};
+
 export const getPageData: ProcedureDef = {
   input: t.object({}),
   output: t.object({

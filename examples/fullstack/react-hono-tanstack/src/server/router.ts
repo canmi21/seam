@@ -2,10 +2,17 @@
 
 import { createRouter } from "@canmi/seam-server";
 import type { RouterOptions } from "@canmi/seam-server";
-import { getMessages, addMessage, getPageData } from "./procedures.js";
+import { getMessages, addMessage, getAboutData, getPosts, getPageData } from "./procedures.js";
 import { onMessage } from "./subscriptions.js";
 
-export const procedures = { getMessages, addMessage, getPageData, onMessage };
+export const procedures = {
+  getMessages,
+  addMessage,
+  getAboutData,
+  getPosts,
+  getPageData,
+  onMessage,
+};
 
 export function buildRouter(opts?: RouterOptions) {
   return createRouter(procedures, opts);

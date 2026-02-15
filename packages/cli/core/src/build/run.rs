@@ -42,6 +42,7 @@ struct SkeletonRoute {
 
 #[derive(Deserialize)]
 struct RenderedVariant {
+  #[serde(rename = "variant")]
   _variant: serde_json::Value,
   html: String,
 }

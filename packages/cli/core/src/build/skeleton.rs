@@ -429,7 +429,11 @@ mod tests {
 
   // -- Legacy v1 helpers (test-only) --
 
-  fn detect_conditional(full_html: &str, nulled_html: &str, field: &str) -> Option<ConditionalBlock> {
+  fn detect_conditional(
+    full_html: &str,
+    nulled_html: &str,
+    field: &str,
+  ) -> Option<ConditionalBlock> {
     if full_html == nulled_html {
       return None;
     }
@@ -479,7 +483,8 @@ mod tests {
     if full_html == emptied_html {
       return None;
     }
-    let prefix_len = full_html.bytes().zip(emptied_html.bytes()).take_while(|(a, b)| a == b).count();
+    let prefix_len =
+      full_html.bytes().zip(emptied_html.bytes()).take_while(|(a, b)| a == b).count();
     let full_remaining = &full_html[prefix_len..];
     let emptied_remaining = &emptied_html[prefix_len..];
     let suffix_len = full_remaining

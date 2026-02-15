@@ -28,7 +28,16 @@ export async function handlePageRequest(
       }),
     );
 
-    const html = inject(page.template, Object.fromEntries(results));
+    // Build keyed data (e.g. { page: { ... } }) for __SEAM_DATA__,
+    // and merge loader results flat for template slot resolution.
+    const keyed = Object.fromEntries(results);
+    const merged: Record<string, unknown> = { ...keyed };
+    for (const [, value] of results) {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        Object.assign(merged, value as Record<string, unknown>);
+      }
+    }
+    const html = inject(page.template, merged);
     return { status: 200, html };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
