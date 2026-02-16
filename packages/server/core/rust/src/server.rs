@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::extract::{MatchedPath, Path, Query, State};
@@ -125,33 +126,49 @@ async fn handle_subscribe(
   State(state): State<Arc<AppState>>,
   Path(name): Path<String>,
   Query(query): Query<SubscribeQuery>,
-) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, SeamError> {
-  let sub = state
-    .subscriptions
-    .get(&name)
-    .ok_or_else(|| SeamError::not_found(format!("Subscription '{name}' not found")))?;
+) -> Sse<Pin<Box<dyn Stream<Item = Result<Event, Infallible>> + Send>>> {
+  let setup = async {
+    let sub = state
+      .subscriptions
+      .get(&name)
+      .ok_or_else(|| SeamError::not_found(format!("Subscription '{name}' not found")))?;
 
-  let raw_input = match &query.input {
-    Some(s) => serde_json::from_str(s).map_err(|e| SeamError::validation(e.to_string()))?,
-    None => serde_json::Value::Object(serde_json::Map::new()),
+    let raw_input = match &query.input {
+      Some(s) => serde_json::from_str(s).map_err(|e| SeamError::validation(e.to_string()))?,
+      None => serde_json::Value::Object(serde_json::Map::new()),
+    };
+
+    let data_stream = (sub.handler)(raw_input).await?;
+    Ok::<_, SeamError>(data_stream)
   };
 
-  let data_stream = (sub.handler)(raw_input).await?;
-
-  let event_stream = data_stream
-    .map(|item| match item {
-      Ok(value) => {
-        let data = serde_json::to_string(&value).unwrap_or_default();
-        Ok(Event::default().event("data").data(data))
-      }
-      Err(e) => {
-        let payload = serde_json::json!({ "code": e.to_string().split(':').next().unwrap_or("INTERNAL_ERROR"), "message": e.to_string() });
-        Ok(Event::default().event("error").data(payload.to_string()))
-      }
-    })
-    .chain(tokio_stream::once(Ok(Event::default().event("complete").data("{}"))));
-
-  Ok(Sse::new(event_stream))
+  match setup.await {
+    Ok(data_stream) => {
+      let event_stream = data_stream
+        .map(|item| match item {
+          Ok(value) => {
+            let data = serde_json::to_string(&value).unwrap_or_default();
+            Ok(Event::default().event("data").data(data))
+          }
+          Err(e) => {
+            let payload = serde_json::json!({ "code": e.to_string().split(':').next().unwrap_or("INTERNAL_ERROR"), "message": e.to_string() });
+            Ok(Event::default().event("error").data(payload.to_string()))
+          }
+        })
+        .chain(tokio_stream::once(Ok(Event::default().event("complete").data("{}"))));
+      Sse::new(Box::pin(event_stream))
+    }
+    Err(err) => {
+      let (code, message) = match &err {
+        SeamError::Validation(m) => ("VALIDATION_ERROR", m.as_str()),
+        SeamError::NotFound(m) => ("NOT_FOUND", m.as_str()),
+        SeamError::Internal(m) => ("INTERNAL_ERROR", m.as_str()),
+      };
+      let payload = serde_json::json!({ "code": code, "message": message });
+      let error_event = Event::default().event("error").data(payload.to_string());
+      Sse::new(Box::pin(tokio_stream::once(Ok(error_event))))
+    }
+  }
 }
 
 async fn handle_page(

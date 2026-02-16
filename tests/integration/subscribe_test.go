@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -55,7 +56,7 @@ func TestSubscribeEndpoint(t *testing.T) {
 		t.Run(b.Name, func(t *testing.T) {
 			t.Run("onCount streams data events", func(t *testing.T) {
 				url := fmt.Sprintf("%s/_seam/subscribe/onCount?input=%s",
-					b.BaseURL, `{"max":3}`)
+					b.BaseURL, url.QueryEscape(`{"max":3}`))
 				events := readSSE(t, url)
 
 				// Should have 3 data events + 1 complete event
@@ -90,9 +91,8 @@ func TestSubscribeEndpoint(t *testing.T) {
 					t.Fatalf("GET: %v", err)
 				}
 				resp.Body.Close()
-				// TS returns SSE stream with error event, Rust returns 404
-				if resp.StatusCode != 200 && resp.StatusCode != 404 {
-					t.Errorf("status = %d, want 200 or 404", resp.StatusCode)
+				if resp.StatusCode != 200 {
+					t.Errorf("status = %d, want 200", resp.StatusCode)
 				}
 			})
 		})
