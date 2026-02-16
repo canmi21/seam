@@ -1,13 +1,11 @@
+/* packages/cli/core/src/build/skeleton/extract/tests.rs */
+
 use super::*;
 use serde_json::json;
 
 // -- Legacy v1 helpers (test-only, kept for regression coverage) --
 
-fn detect_conditional(
-  full_html: &str,
-  nulled_html: &str,
-  field: &str,
-) -> Option<ConditionalBlock> {
+fn detect_conditional(full_html: &str, nulled_html: &str, field: &str) -> Option<ConditionalBlock> {
   if full_html == nulled_html {
     return None;
   }
@@ -57,8 +55,7 @@ fn detect_array_block(full_html: &str, emptied_html: &str, field: &str) -> Optio
   if full_html == emptied_html {
     return None;
   }
-  let prefix_len =
-    full_html.bytes().zip(emptied_html.bytes()).take_while(|(a, b)| a == b).count();
+  let prefix_len = full_html.bytes().zip(emptied_html.bytes()).take_while(|(a, b)| a == b).count();
   let full_remaining = &full_html[prefix_len..];
   let emptied_remaining = &emptied_html[prefix_len..];
   let suffix_len = full_remaining
@@ -206,8 +203,7 @@ fn extract_boolean_if_else() {
 
 #[test]
 fn extract_enum_match() {
-  let axes =
-    vec![make_axis("role", "enum", vec![json!("admin"), json!("member"), json!("guest")])];
+  let axes = vec![make_axis("role", "enum", vec![json!("admin"), json!("member"), json!("guest")])];
   let variants = vec![
     "<div><b>Admin Panel</b></div>".to_string(),
     "<div><i>Member Area</i></div>".to_string(),
@@ -331,10 +327,7 @@ fn extract_mixed_toplevel_and_nested() {
   assert!(result.contains("<!--seam:endeach-->"), "missing endeach in: {result}");
   assert!(result.contains("<!--seam:if:$.hasImage-->"), "missing if:$.hasImage in: {result}");
   assert!(result.contains("<img/>"), "missing img in: {result}");
-  assert!(
-    result.contains("<!--seam:endif:$.hasImage-->"),
-    "missing endif:$.hasImage in: {result}"
-  );
+  assert!(result.contains("<!--seam:endif:$.hasImage-->"), "missing endif:$.hasImage in: {result}");
   assert!(result.contains("<!--seam:if:$.caption-->"), "missing if:$.caption in: {result}");
   assert!(result.contains("<em>Cap</em>"), "missing Cap block in: {result}");
   assert!(result.contains("<!--seam:endif:$.caption-->"), "missing endif:$.caption in: {result}");
@@ -562,10 +555,7 @@ fn extract_array_with_all_child_types() {
   assert!(result.contains("<!--seam:match:role-->"), "missing role match in:\n{result}");
   // Nested directives
   assert!(result.contains("<!--seam:if:$.isPublished-->"), "missing isPublished in:\n{result}");
-  assert!(
-    result.contains("<!--seam:match:$.priority-->"),
-    "missing priority match in:\n{result}"
-  );
+  assert!(result.contains("<!--seam:match:$.priority-->"), "missing priority match in:\n{result}");
   assert!(result.contains("<!--seam:if:$.author-->"), "missing author conditional in:\n{result}");
   assert!(result.contains("<!--seam:each:$.tags-->"), "missing tags each in:\n{result}");
   assert!(result.contains("<!--seam:endeach-->"), "missing endeach in:\n{result}");

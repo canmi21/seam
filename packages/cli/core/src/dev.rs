@@ -1,4 +1,4 @@
-/* .worktrees/cli-refactor/packages/cli/core/src/dev.rs */
+/* packages/cli/core/src/dev.rs */
 
 use std::path::Path;
 

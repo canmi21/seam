@@ -1,4 +1,4 @@
-/* .worktrees/cli-refactor/packages/cli/core/src/build/route.rs */
+/* packages/cli/core/src/build/route.rs */
 
 // Build pipeline steps: skeleton rendering, route processing,
 // manifest extraction, codegen, type checking, and asset packaging.

@@ -1,4 +1,4 @@
-/* .worktrees/cli-refactor/packages/cli/core/src/build/skeleton/extract/mod.rs */
+/* packages/cli/core/src/build/skeleton/extract/mod.rs */
 
 mod array;
 mod boolean;

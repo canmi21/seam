@@ -6,22 +6,22 @@ See root CLAUDE.md for general conventions.
 
 ## Architecture
 
-| Module                  | Responsibility                                                                    |
-| ----------------------- | --------------------------------------------------------------------------------- |
-| `main.rs`               | CLI entry point (clap); dispatches `pull`, `generate`, `build`, `dev` subcommands |
-| `config.rs`             | Parses `seam.toml`; walks upward to find config (like Cargo.toml discovery)       |
-| `manifest.rs`           | `Manifest` / `ProcedureSchema` types (serde, shared across commands)              |
-| `pull.rs`               | Fetches `/_seam/manifest.json` from a running server via reqwest                  |
-| `codegen/typescript.rs` | JTD schema -> TypeScript interfaces + `createSeamClient` factory                  |
-| `build/config.rs`       | `BuildConfig` + `BundlerMode` enum derived from `SeamConfig`; detects fullstack vs frontend-only |
-| `build/run.rs`          | Build orchestrator: dispatches frontend-only (4 steps) or fullstack (7 steps) builds |
+| Module                  | Responsibility                                                                                      |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| `main.rs`               | CLI entry point (clap); dispatches `pull`, `generate`, `build`, `dev` subcommands                   |
+| `config.rs`             | Parses `seam.toml`; walks upward to find config (like Cargo.toml discovery)                         |
+| `manifest.rs`           | `Manifest` / `ProcedureSchema` types (serde, shared across commands)                                |
+| `pull.rs`               | Fetches `/_seam/manifest.json` from a running server via reqwest                                    |
+| `codegen/typescript.rs` | JTD schema -> TypeScript interfaces + `createSeamClient` factory                                    |
+| `build/config.rs`       | `BuildConfig` + `BundlerMode` enum derived from `SeamConfig`; detects fullstack vs frontend-only    |
+| `build/run.rs`          | Build orchestrator: dispatches frontend-only (4 steps) or fullstack (7 steps) builds                |
 | `build/route.rs`        | Pipeline steps: skeleton rendering, route processing, manifest extraction, codegen, asset packaging |
-| `build/types.rs`        | Shared build types (`AssetFiles`, `SeamManifest`) and manifest reader             |
-| `build/skeleton/`       | HTML template extraction pipeline (slot, extract, document)                       |
-| `shell.rs`              | Shell command helpers shared across build and dev (`run_command`, `run_builtin_bundler`) |
-| `dev.rs`                | Spawns backend + frontend dev processes, pipes labeled output, handles Ctrl+C     |
-| `dev_server.rs`         | Embedded axum dev server (static files + API proxy + SPA fallback)                |
-| `ui.rs`                 | Terminal output helpers (ANSI colors, step counters, file size formatting)        |
+| `build/types.rs`        | Shared build types (`AssetFiles`, `SeamManifest`) and manifest reader                               |
+| `build/skeleton/`       | HTML template extraction pipeline (slot, extract, document)                                         |
+| `shell.rs`              | Shell command helpers shared across build and dev (`run_command`, `run_builtin_bundler`)            |
+| `dev.rs`                | Spawns backend + frontend dev processes, pipes labeled output, handles Ctrl+C                       |
+| `dev_server.rs`         | Embedded axum dev server (static files + API proxy + SPA fallback)                                  |
+| `ui.rs`                 | Terminal output helpers (ANSI colors, step counters, file size formatting)                          |
 
 ## Skeleton Pipeline
 

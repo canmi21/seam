@@ -1,4 +1,4 @@
-/* .worktrees/cli-refactor/packages/cli/core/src/shell.rs */
+/* packages/cli/core/src/shell.rs */
 
 // Shell command helpers shared across build and dev.
 

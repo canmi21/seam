@@ -1,4 +1,4 @@
-/* .worktrees/cli-refactor/packages/cli/core/src/dev_server.rs */
+/* packages/cli/core/src/dev_server.rs */
 
 // Embedded dev server: static files + reverse proxy + SPA fallback.
 // Used when frontend.entry is set but no frontend.dev_command is configured.

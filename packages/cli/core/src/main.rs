@@ -1,4 +1,4 @@
-/* .worktrees/cli-refactor/packages/cli/core/src/main.rs */
+/* packages/cli/core/src/main.rs */
 
 mod build;
 mod codegen;
