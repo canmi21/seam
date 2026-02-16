@@ -27,6 +27,7 @@ export default tseslint.config(
   {
     files: [
       "**/__tests__/**",
+      "tests/**",
       "**/tsdown.config.ts",
       "**/scripts/**",
       "eslint.config.mjs",
