@@ -77,10 +77,10 @@ func TestMain(m *testing.M) {
 
 	// Start backend processes
 	var daemons []*exec.Cmd
-	startDaemon(&daemons, root, "4001", "TS backend", "bun", "run", "examples/server-bun/src/index.ts")
+	startDaemon(&daemons, root, "4001", "TS backend", "bun", "run", "examples/standalone/server-bun/src/index.ts")
 	startDaemon(&daemons, root, "4002", "Rust backend", "cargo", "run", "-p", "demo-server-rust")
 	startDaemon(&daemons, root, "4003", "Node backend",
-		filepath.Join(root, "node_modules", ".bin", "tsx"), "examples/server-node/src/index.ts")
+		filepath.Join(root, "node_modules", ".bin", "tsx"), "examples/standalone/server-node/src/index.ts")
 
 	backends = []Backend{
 		{Name: "typescript", BaseURL: "http://localhost:4001"},
