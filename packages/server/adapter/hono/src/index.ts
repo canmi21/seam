@@ -1,12 +1,7 @@
 /* packages/server/adapter/hono/src/index.ts */
 
 import { createHttpHandler, toWebResponse } from "@canmi/seam-server";
-import type {
-  DefinitionMap,
-  Router,
-  HttpHandler,
-  HttpHandlerOptions,
-} from "@canmi/seam-server";
+import type { DefinitionMap, Router, HttpHandler, HttpHandlerOptions } from "@canmi/seam-server";
 import type { MiddlewareHandler } from "hono";
 
 export interface SeamHonoOptions {
