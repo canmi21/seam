@@ -13,7 +13,7 @@ const router = createRouter(
   { greet, getUser, listUsers, onCount },
   { pages: { "/user/:id": userPage } },
 );
-const port = Number(process.env.PORT) || 3000;
+const port = process.env.PORT !== undefined ? Number(process.env.PORT) : 3000;
 // Dev mode: pass fallback to proxy non-seam requests to a frontend dev server
 // import { createDevProxy } from "@canmi/seam-server";
 // const server = serveBun(router, { port, fallback: createDevProxy({ target: "http://localhost:5173" }) });

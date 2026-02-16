@@ -13,9 +13,13 @@ const router = createRouter(
   { greet, getUser, listUsers, onCount },
   { pages: { "/user/:id": userPage } },
 );
-const port = Number(process.env.PORT) || 3000;
+const port = process.env.PORT !== undefined ? Number(process.env.PORT) : 3000;
 // Dev mode: pass fallback + wsProxy to proxy non-seam requests to a frontend dev server
 // import { createDevProxy } from "@canmi/seam-server";
 // serveNode(router, { port, fallback: createDevProxy({ target: "http://localhost:5173" }), wsProxy: "ws://localhost:5173" });
-serveNode(router, { port });
-console.log(`Seam Node backend running on http://localhost:${port}`);
+const server = serveNode(router, { port });
+server.on("listening", () => {
+  const addr = server.address();
+  const actualPort = typeof addr === "object" && addr ? addr.port : port;
+  console.log(`Seam Node backend running on http://localhost:${actualPort}`);
+});

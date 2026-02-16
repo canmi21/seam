@@ -37,7 +37,16 @@ export async function handlePageRequest(
         Object.assign(merged, value as Record<string, unknown>);
       }
     }
-    const html = inject(page.template, merged);
+    // Render template with merged (flattened) data for slot resolution,
+    // but inject keyed-only data into __SEAM_DATA__ for the client.
+    let html = inject(page.template, merged, { skipDataScript: true });
+    const script = `<script id="__SEAM_DATA__" type="application/json">${JSON.stringify(keyed)}</script>`;
+    const bodyClose = html.lastIndexOf("</body>");
+    if (bodyClose !== -1) {
+      html = html.slice(0, bodyClose) + script + html.slice(bodyClose);
+    } else {
+      html += script;
+    }
     return { status: 200, html };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

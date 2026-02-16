@@ -84,7 +84,8 @@ impl SeamServer {
   pub async fn serve(self, addr: &str) -> Result<(), Box<dyn std::error::Error>> {
     let router = self.into_router();
     let listener = TcpListener::bind(addr).await?;
-    println!("Seam Rust backend running on http://{addr}");
+    let local_addr = listener.local_addr()?;
+    println!("Seam Rust backend running on http://localhost:{}", local_addr.port());
     axum::serve(listener, router).await?;
     Ok(())
   }

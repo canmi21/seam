@@ -42,7 +42,7 @@ func TestManifest(t *testing.T) {
 				if !ok {
 					t.Fatalf("procedures not an object: %T", body["procedures"])
 				}
-				expected := []string{"greet", "getUser", "listUsers"}
+				expected := []string{"greet", "getUser", "listUsers", "onCount"}
 				if len(procs) != len(expected) {
 					t.Errorf("procedure count = %d, want %d", len(procs), len(expected))
 				}

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -38,11 +39,20 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	// Find a free port to avoid conflicts with other processes
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to find free port: %v\n", err)
+		os.Exit(1)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+
 	// Start the server from the build output directory
 	serverEntry := filepath.Join(buildDir, "server", "index.js")
 	cmd := exec.Command("bun", "run", serverEntry)
 	cmd.Dir = buildDir
-	cmd.Env = append(os.Environ(), "PORT=3456")
+	cmd.Env = append(os.Environ(), fmt.Sprintf("PORT=%d", port))
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
@@ -50,7 +60,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	baseURL = "http://localhost:3456"
+	baseURL = fmt.Sprintf("http://localhost:%d", port)
 
 	// Health check: poll manifest endpoint
 	ready := make(chan struct{})
