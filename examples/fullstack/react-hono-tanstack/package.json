@@ -5,17 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "seam dev",
-    "dev:server": "bun --watch src/server/index.ts",
-    "dev:client": "bunx vite dev --port 5173"
+    "dev:server": "bun --watch src/server/index.ts"
   },
   "dependencies": {
     "@canmi/seam-adapter-hono": "workspace:*",
     "@canmi/seam-client": "workspace:*",
     "@canmi/seam-react": "workspace:*",
     "@canmi/seam-server": "workspace:*",
-    "@tailwindcss/vite": "^4.1.18",
+    "@tailwindcss/postcss": "^4.1.18",
     "@tanstack/react-query": "^5.0.0",
     "hono": "^4.0.0",
+    "postcss": "^8.5.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "tailwindcss": "^4.1.18"
@@ -23,9 +23,7 @@
   "devDependencies": {
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^4.0.0",
     "bun-types": "^1.2.0",
-    "typescript": "^5.7.0",
-    "vite": "^6.0.0"
+    "typescript": "^5.7.0"
   }
 }

@@ -27,7 +27,7 @@ src/
 
 ## Commands
 
-- Dev: `seam dev` (starts both server + Vite client)
+- Dev: `seam dev` (starts backend + embedded dev server with Rolldown)
 - Build: `seam build` (outputs to `.seam/output/`)
 - Build output must exist at `.seam/output/` before fullstack integration tests can run
 
