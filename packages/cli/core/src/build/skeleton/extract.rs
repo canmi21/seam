@@ -147,10 +147,7 @@ fn extend_to_balanced(html: &[u8], start: usize, end: usize) -> usize {
 
 /// Only unwrap list-like container elements that hold repeating children.
 fn is_list_container(tag: &str) -> bool {
-  matches!(
-    tag,
-    "ul" | "ol" | "dl" | "table" | "tbody" | "thead" | "tfoot" | "select" | "datalist"
-  )
+  matches!(tag, "ul" | "ol" | "dl" | "table" | "tbody" | "thead" | "tfoot" | "select" | "datalist")
 }
 
 /// Try to unwrap a single list-container element from an array body.
@@ -543,12 +540,8 @@ fn process_single_axis(
       let start = prefix_len;
 
       // Collect sibling axes (other non-enum axes at the same level)
-      let sibling_axes: Vec<Axis> = axes
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| *i != axis_idx)
-        .map(|(_, a)| a.clone())
-        .collect();
+      let sibling_axes: Vec<Axis> =
+        axes.iter().enumerate().filter(|(i, _)| *i != axis_idx).map(|(_, a)| a.clone()).collect();
       let has_siblings = !sibling_axes.is_empty();
 
       // Collect ALL variants per enum value for recursive processing
@@ -646,10 +639,7 @@ fn process_array_with_children(
   // 3. Compute stable body boundaries using N-way prefix/suffix across ALL
   //    populated variants + the empty variant. This ensures boundaries are
   //    independent of child-axis variation (fixes overlapping effect ranges).
-  let mut boundary_strs: Vec<&str> = scoped_indices
-    .iter()
-    .map(|&i| variants[i].as_str())
-    .collect();
+  let mut boundary_strs: Vec<&str> = scoped_indices.iter().map(|&i| variants[i].as_str()).collect();
   boundary_strs.push(html_empty.as_str());
   let (prefix_len, suffix_len) = n_way_prefix_suffix(&boundary_strs);
 
@@ -1144,7 +1134,6 @@ mod tests {
     );
   }
 
-
   // -- HomeSkeleton regression: exercises all 4 extraction bugs --
 
   #[test]
@@ -1236,12 +1225,24 @@ mod tests {
     // Positive structural assertions
     assert!(result.contains("<!--seam:if:isLoggedIn-->"), "missing if:isLoggedIn in:\n{result}");
     assert!(result.contains("<!--seam:else-->"), "missing else in:\n{result}");
-    assert!(result.contains("<!--seam:endif:isLoggedIn-->"), "missing endif:isLoggedIn in:\n{result}");
+    assert!(
+      result.contains("<!--seam:endif:isLoggedIn-->"),
+      "missing endif:isLoggedIn in:\n{result}"
+    );
     assert!(result.contains("<!--seam:each:posts-->"), "missing each:posts in:\n{result}");
     assert!(result.contains("<!--seam:endeach-->"), "missing endeach in:\n{result}");
-    assert!(result.contains("<!--seam:if:$.isPublished-->"), "missing if:$.isPublished in:\n{result}");
-    assert!(result.contains("<!--seam:endif:$.isPublished-->"), "missing endif:$.isPublished in:\n{result}");
-    assert!(result.contains("<!--seam:match:$.priority-->"), "missing match:$.priority in:\n{result}");
+    assert!(
+      result.contains("<!--seam:if:$.isPublished-->"),
+      "missing if:$.isPublished in:\n{result}"
+    );
+    assert!(
+      result.contains("<!--seam:endif:$.isPublished-->"),
+      "missing endif:$.isPublished in:\n{result}"
+    );
+    assert!(
+      result.contains("<!--seam:match:$.priority-->"),
+      "missing match:$.priority in:\n{result}"
+    );
     assert!(result.contains("<!--seam:when:high-->"), "missing when:high in:\n{result}");
     assert!(result.contains("<!--seam:endmatch-->"), "missing endmatch in:\n{result}");
     assert!(!result.contains("posts.$."), "leaked nested path in:\n{result}");
@@ -1270,9 +1271,7 @@ mod tests {
   #[test]
   fn extract_array_container_unwrap() {
     // Targeted Bug 1 test: array body captured with its <ul> container
-    let axes = vec![
-      make_axis("items", "array", vec![json!("populated"), json!("empty")]),
-    ];
+    let axes = vec![make_axis("items", "array", vec![json!("populated"), json!("empty")])];
     let variants = vec![
       r#"<div><ul class="list"><li><!--seam:items.$.name--></li></ul></div>"#.to_string(),
       r#"<div><p>No items</p></div>"#.to_string(),

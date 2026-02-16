@@ -108,19 +108,18 @@ export function HomeSkeleton() {
                 <span className="ml-2 text-xs text-neutral-400">by {post.author}</span>
               )}
 
-              {/* 11. Nested array (tags) */}
-              {post.tags.length > 0 && (
-                <div className="mt-1 flex gap-1">
-                  {post.tags.map((tag) => (
-                    <span
-                      key={tag.name}
-                      className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
-                    >
-                      {tag.name}
-                    </span>
-                  ))}
-                </div>
-              )}
+              {/* 11. Nested array (tags) — wrapper always renders so extraction
+                  captures only the inner <span> as the repeating element */}
+              <div className="mt-1 flex gap-1">
+                {post.tags.map((tag) => (
+                  <span
+                    key={tag.name}
+                    className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+                  >
+                    {tag.name}
+                  </span>
+                ))}
+              </div>
             </li>
           ))}
         </ul>
