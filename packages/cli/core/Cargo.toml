@@ -3,6 +3,12 @@ name = "seam-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "CLI for the SeamJS compile-time rendering framework"
+readme = "README.md"
+keywords = ["seam", "ctr", "cli", "codegen", "skeleton"]
+categories = ["command-line-utilities", "development-tools::build-utils"]
 
 [[bin]]
 name = "seam"

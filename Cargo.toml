@@ -11,3 +11,5 @@ members = [
 version = "0.2.1"
 edition = "2021"
 license = "MIT"
+authors = ["Canmi(Canmi21) <t@canmi.icu>"]
+repository = "https://github.com/canmi21/seam"
