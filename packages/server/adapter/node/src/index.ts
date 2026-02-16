@@ -2,7 +2,7 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer, request as httpRequest } from "node:http";
-import { createHttpHandler } from "@canmi/seam-server";
+import { createHttpHandler, serialize } from "@canmi/seam-server";
 import type { DefinitionMap, Router, HttpHandler, HttpResponse } from "@canmi/seam-server";
 
 export interface ServeNodeOptions {
@@ -20,10 +20,6 @@ function readBody(req: IncomingMessage): Promise<string> {
     req.on("end", () => resolve(Buffer.concat(chunks).toString()));
     req.on("error", reject);
   });
-}
-
-function serialize(body: unknown): string {
-  return typeof body === "string" ? body : JSON.stringify(body);
 }
 
 async function sendResponse(res: ServerResponse, result: HttpResponse): Promise<void> {

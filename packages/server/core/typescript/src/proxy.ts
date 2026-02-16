@@ -3,26 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join, extname } from "node:path";
 import type { HttpHandler, HttpBodyResponse } from "./http.js";
-
-const MIME_TYPES: Record<string, string> = {
-  ".js": "application/javascript",
-  ".mjs": "application/javascript",
-  ".css": "text/css",
-  ".html": "text/html",
-  ".json": "application/json",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".ttf": "font/ttf",
-  ".ico": "image/x-icon",
-  ".map": "application/json",
-  ".ts": "application/javascript",
-  ".tsx": "application/javascript",
-};
+import { MIME_TYPES } from "./mime.js";
 
 export interface DevProxyOptions {
   /** Target URL to forward requests to (e.g. "http://localhost:5173") */

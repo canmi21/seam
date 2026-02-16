@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join, extname } from "node:path";
 import type { Router, DefinitionMap } from "./router/index.js";
 import { SeamError, type ErrorCode } from "./errors.js";
+import { MIME_TYPES } from "./mime.js";
 
 export interface HttpRequest {
   method: string;
@@ -46,23 +47,6 @@ const SSE_HEADER = {
   Connection: "keep-alive",
 };
 const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
-
-const MIME_TYPES: Record<string, string> = {
-  ".js": "application/javascript",
-  ".mjs": "application/javascript",
-  ".css": "text/css",
-  ".html": "text/html",
-  ".json": "application/json",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".ttf": "font/ttf",
-  ".ico": "image/x-icon",
-};
 
 function jsonResponse(status: number, body: unknown): HttpBodyResponse {
   return { status, headers: JSON_HEADER, body };
@@ -192,4 +176,30 @@ export function createHttpHandler<T extends DefinitionMap>(
     if (opts?.fallback) return opts.fallback(req);
     return errorResponse(404, "NOT_FOUND", "Not found");
   };
+}
+
+export function serialize(body: unknown): string {
+  return typeof body === "string" ? body : JSON.stringify(body);
+}
+
+/** Convert an HttpResponse to a Web API Response (for adapters using fetch-compatible runtimes) */
+export function toWebResponse(result: HttpResponse): Response {
+  if ("stream" in result) {
+    const stream = result.stream;
+    const readable = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            controller.enqueue(new TextEncoder().encode(chunk));
+          }
+        } catch {
+          // Client disconnected
+        } finally {
+          controller.close();
+        }
+      },
+    });
+    return new Response(readable, { status: result.status, headers: result.headers });
+  }
+  return new Response(serialize(result.body), { status: result.status, headers: result.headers });
 }
