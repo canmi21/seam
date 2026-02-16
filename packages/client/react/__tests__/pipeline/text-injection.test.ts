@@ -77,4 +77,78 @@ describe("1.1 text content injection", () => {
       realData: { zero: 0, one: 1, neg: -1, pi: 3.14 },
     });
   });
+
+  it("06. long text (10k chars)", () => {
+    function App() {
+      const { content } = useSeamData<{ content: string }>();
+      return createElement("p", null, content);
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { content: "placeholder" },
+      realData: { content: "a".repeat(10000) },
+    });
+  });
+
+  it("07. multiline text (contains newlines)", () => {
+    function App() {
+      const { content } = useSeamData<{ content: string }>();
+      return createElement("pre", null, content);
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { content: "placeholder" },
+      realData: { content: "line one\nline two\nline three" },
+    });
+  });
+
+  it("08. string containing HTML tags <b>bold</b>", () => {
+    function App() {
+      const { content } = useSeamData<{ content: string }>();
+      return createElement("p", null, content);
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { content: "placeholder" },
+      realData: { content: "<b>bold</b> <img src=x onerror=alert(1)>" },
+    });
+  });
+
+  it("09. string resembling sentinel %%SEAM:foo%%", () => {
+    function App() {
+      const { content } = useSeamData<{ content: string }>();
+      return createElement("p", null, content);
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { content: "placeholder" },
+      realData: { content: "%%SEAM:foo%% and %%SEAM:bar%%" },
+    });
+  });
+
+  it("10. null value renders empty", () => {
+    function App() {
+      const { value } = useSeamData<{ value: string | null }>();
+      return createElement("div", null, value);
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { value: "placeholder" },
+      realData: { value: null },
+    });
+  });
+
+  it("11. undefined value renders empty", () => {
+    function App() {
+      const { value } = useSeamData<{ value: string | undefined }>();
+      return createElement("div", null, value);
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { value: "placeholder" },
+      realData: { value: undefined },
+    });
+  });
+
+  it.todo("12. boolean true/false as text — sentinel always truthy, React skips boolean children");
 });
