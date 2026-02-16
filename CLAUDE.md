@@ -16,7 +16,7 @@
 
 ## Version Control
 
-- Before every `git commit`, run `bun fmt && bun lint` and fix any errors first
+- Before every `git commit`, run `bun fmt && bun lint` and fix any errors first; for TS-only changes also run `bun run test:ts`, for Rust changes run `bun run test:rs`
 - Run `git commit` after each plan mode phase completes, do not push
 - Commit messages: concise English describing the change
 
@@ -83,14 +83,14 @@
 
 ## Running Tests
 
-| Command                    | Scope                                         |
-| -------------------------- | --------------------------------------------- |
-| `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)    |
-| `bun run test:ts`          | TS unit tests (vitest across 6 packages)      |
-| `bun run test:unit`        | All unit tests (Rust + TS)                    |
-| `bun run test:integration` | Go integration tests (standalone + fullstack) |
-| `bun run test:e2e`         | Playwright E2E tests                          |
-| `bun run test`             | All layers, fail-fast                         |
+| Command                    | Scope                                            |
+| -------------------------- | ------------------------------------------------ |
+| `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)       |
+| `bun run test:ts`          | TS unit tests (vitest across 7 packages)         |
+| `bun run test:unit`        | All unit tests (Rust + TS)                       |
+| `bun run test:integration` | Go integration tests (standalone + fullstack)    |
+| `bun run test:e2e`         | Playwright E2E tests                             |
+| `bun run test`             | All layers (unit + integration + e2e), fail-fast |
 
 - Integration and E2E tests require fullstack build output: `cd examples/fullstack/react-hono-tanstack && seam build`
 - `scripts/smoke-fullstack.sh` runs the full build-and-test pipeline for integration + E2E

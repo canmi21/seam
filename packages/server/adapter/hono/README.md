@@ -13,6 +13,7 @@ Exports a single `seam()` function that returns a Hono `MiddlewareHandler`. Wrap
 ## Development
 
 - Build: `bun run --filter '@canmi/seam-adapter-hono' build`
+- Test: `bun run --filter '@canmi/seam-adapter-hono' test`
 
 ## Notes
 

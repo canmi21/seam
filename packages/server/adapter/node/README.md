@@ -8,8 +8,7 @@ Exports `serveNode()` which creates a Node.js HTTP server with seam routing and 
 
 ## Structure
 
-- `src/index.ts` — `serveNode()` entry point
-- `src/response.ts` — Node-specific `sendResponse` (writes directly to Node streams)
+- `src/index.ts` — `serveNode()` entry point with inline `sendResponse` (writes directly to Node streams)
 
 ## Development
 

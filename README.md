@@ -100,6 +100,6 @@ bun run --filter '<pkg>' test
 cargo test --workspace
 
 # Go integration tests
-cd tests/integration && go test -v
-cd tests/fullstack && go test -v
+cd tests/integration && go test -v -count=1
+cd tests/fullstack && go test -v -count=1
 ```

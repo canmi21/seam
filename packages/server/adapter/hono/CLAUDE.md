@@ -13,9 +13,10 @@ See root CLAUDE.md for general project rules.
 
 ## Key Files
 
-| File           | Purpose                                                             |
-| -------------- | ------------------------------------------------------------------- |
-| `src/index.ts` | Sole source file; exports `seam()` middleware and `SeamHonoOptions` |
+| File                        | Purpose                                                             |
+| --------------------------- | ------------------------------------------------------------------- |
+| `src/index.ts`              | Sole source file; exports `seam()` middleware and `SeamHonoOptions` |
+| `__tests__/adapter.test.ts` | Integration tests using shared fixtures                             |
 
 ## Conventions
 
@@ -30,7 +31,7 @@ bun run --filter '@canmi/seam-adapter-hono' test
 ```
 
 - Uses vitest (`vitest run`)
-- No tests exist yet; test files go in `__tests__/*.test.ts`
+- 6 test cases: manifest, RPC happy path, validation error, 404, non-JSON body, passthrough for non-seam routes
 
 ## Gotchas
 

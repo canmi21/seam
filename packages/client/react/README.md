@@ -16,14 +16,16 @@ React bindings for SeamJS, providing hooks and components to consume server-inje
 ## Structure
 
 - `src/index.ts` — Public API exports
-- `src/data.tsx` — Data provider and hooks
-- `src/subscription.ts` — SSE subscription hook
-- `src/routes.ts` — Route definition utilities
+- `src/use-seam-data.ts` — Data provider and hooks
+- `src/use-seam-subscription.ts` — SSE subscription hook
+- `src/define-routes.ts` — Route definition utilities
+- `src/sentinel.ts` — Sentinel data builder for skeleton rendering
 - `scripts/` — Build-time scripts
 
 ## Development
 
 - Build: `bun run --filter '@canmi/seam-react' build`
+- Test: `bun run --filter '@canmi/seam-react' test`
 
 ## Notes
 

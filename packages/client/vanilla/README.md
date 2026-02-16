@@ -13,10 +13,12 @@ Framework-agnostic client for calling seam procedures and subscribing to server 
 
 - `src/index.ts` — Public API exports
 - `src/client.ts` — `SeamClient` implementation (RPC calls, SSE subscriptions)
+- `src/errors.ts` — `SeamClientError` typed error class
 
 ## Development
 
 - Build: `bun run --filter '@canmi/seam-client' build`
+- Test: `bun run --filter '@canmi/seam-client' test`
 
 ## Notes
 

@@ -6,7 +6,7 @@ See root CLAUDE.md for general project rules.
 
 ## How It Works
 
-- `TestMain` builds all backends, starts them on ports 4001-4003, health-checks via `/_seam/manifest.json`
+- `TestMain` builds all backends, starts them on OS-assigned random ports (`PORT=0`), health-checks via `/_seam/manifest.json`
 - Each test iterates over all backends and runs the same assertions against each
 - Tests cover: manifest, RPC (query, not-found, invalid body), page rendering, static assets, SSE subscriptions
 
@@ -34,5 +34,4 @@ cd tests/integration && go test -v -count=1
 ## Gotchas
 
 - SSE test posts a message to trigger data flow; without this, headers may not flush (Bun behavior)
-- Backends are killed via `Process.Kill()` in cleanup; stale processes on fixed ports will cause failures
-- Port conflicts: tests use 4001-4003; ensure these are free before running
+- Backends are killed via `Process.Kill()` in cleanup; stale processes will cause failures
