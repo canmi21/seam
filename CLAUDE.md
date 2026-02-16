@@ -16,6 +16,7 @@
 
 ## Version Control
 
+- Before every `git commit`, run `bun fmt && bun lint` and fix any errors first
 - Run `git commit` after each plan mode phase completes, do not push
 - Commit messages: concise English describing the change
 
@@ -67,6 +68,11 @@
 - Always run a unified verification (`cargo test --workspace`) after agents finish before committing
 - Shut down agents (SendMessage shutdown_request) once their work is verified
 - Discard unrelated formatter diffs (`git checkout -- <file>`) before committing to keep commits focused
+
+## Type Dependencies
+
+- When adding TS code that uses Node.js APIs (`path`, `fs`, `process`, etc.), ensure `@types/node` is in the package's devDependencies and tsconfig includes `"types": ["node"]`
+- Same applies to other ambient types (e.g. `@types/bun`) — always verify type resolution before committing
 
 ## Testing Philosophy
 

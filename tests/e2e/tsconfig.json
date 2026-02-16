@@ -4,7 +4,8 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "strict": true,
-    "noEmit": true
+    "noEmit": true,
+    "types": ["node"]
   },
   "include": ["specs/**/*.ts", "playwright.config.ts"]
 }

@@ -4,7 +4,7 @@ import path from "node:path";
 
 const buildDir = path.resolve(
   __dirname,
-  "../../examples/fullstack/react-hono-tanstack/.seam/output"
+  "../../examples/fullstack/react-hono-tanstack/.seam/output",
 );
 
 export default defineConfig({
