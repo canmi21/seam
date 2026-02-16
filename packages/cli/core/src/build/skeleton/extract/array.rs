@@ -4,7 +4,7 @@ use std::collections::HashSet;
 
 use super::boolean::insert_boolean_directives;
 use super::combo::AxisGroup;
-use super::container::unwrap_container_tree;
+use super::container::{hoist_list_container, unwrap_container_tree};
 use super::dom::{parse_html, serialize, DomNode};
 use super::tree_diff::{diff_children, DiffOp};
 use super::variant::{find_pair_for_axis, find_scoped_variant_indices};
@@ -158,23 +158,37 @@ fn insert_array_modified(
 
 /// Wrap array body nodes with each/endeach, unwrapping container if applicable.
 fn wrap_array_body(body: &[DomNode], path: &str) -> Vec<DomNode> {
+  // Simple case: single list container
   if let Some((tag, attrs, inner)) = unwrap_container_tree(body) {
-    // Container unwrap: <ul>each...endeach</ul>
     let mut inner_with_directives = vec![DomNode::Comment(format!("seam:each:{path}"))];
     inner_with_directives.extend(inner.iter().cloned());
     inner_with_directives.push(DomNode::Comment("seam:endeach".into()));
-    vec![DomNode::Element {
+    return vec![DomNode::Element {
       tag: tag.to_string(),
       attrs: attrs.to_string(),
       children: inner_with_directives,
       self_closing: false,
-    }]
-  } else {
-    let mut nodes = vec![DomNode::Comment(format!("seam:each:{path}"))];
-    nodes.extend(body.iter().cloned());
-    nodes.push(DomNode::Comment("seam:endeach".into()));
-    nodes
+    }];
   }
+
+  // Hoist case: directive comments wrap identical list containers
+  if let Some((tag, attrs, inner)) = hoist_list_container(body) {
+    let mut inner_with_directives = vec![DomNode::Comment(format!("seam:each:{path}"))];
+    inner_with_directives.extend(inner);
+    inner_with_directives.push(DomNode::Comment("seam:endeach".into()));
+    return vec![DomNode::Element {
+      tag: tag.to_string(),
+      attrs: attrs.to_string(),
+      children: inner_with_directives,
+      self_closing: false,
+    }];
+  }
+
+  // No container unwrap
+  let mut nodes = vec![DomNode::Comment(format!("seam:each:{path}"))];
+  nodes.extend(body.iter().cloned());
+  nodes.push(DomNode::Comment("seam:endeach".into()));
+  nodes
 }
 
 /// Recursively find the body location by diffing populated vs empty trees.

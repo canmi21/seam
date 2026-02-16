@@ -3,10 +3,6 @@ import { test, expect, type ConsoleMessage } from "@playwright/test";
 
 const ROUTES = ["/", "/about", "/posts"] as const;
 
-// Routes with known hydration mismatches (template <ul> duplication,
-// comment node differences). Remove entries as mismatches are fixed.
-const KNOWN_FAILURES = new Set<string>(["/", "/posts"]);
-
 const HYDRATION_ERROR_PATTERNS = [
   "Text content did not match",
   "Hydration failed",
@@ -30,8 +26,6 @@ function isHydrationPageError(error: Error): boolean {
 test.describe("hydration", () => {
   for (const route of ROUTES) {
     test(`no hydration errors on ${route}`, async ({ page }) => {
-      if (KNOWN_FAILURES.has(route)) test.fail();
-
       const consoleErrors: ConsoleMessage[] = [];
       page.on("console", (msg) => {
         if (isHydrationError(msg)) consoleErrors.push(msg);

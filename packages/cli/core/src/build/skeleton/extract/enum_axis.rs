@@ -79,16 +79,19 @@ fn find_enum_region(base: &[DomNode], others: &[Vec<DomNode>]) -> Option<EnumReg
 }
 
 /// Process a single enum axis: insert match/when/endmatch directives.
+/// Returns `(result, consumed_siblings)` — when `consumed_siblings` is true,
+/// all sibling axes were recursively processed inside each arm body and must
+/// NOT be re-processed by the caller.
 pub(super) fn process_enum(
   result: Vec<DomNode>,
   axes: &[Axis],
   variants: &[String],
   axis_idx: usize,
-) -> Vec<DomNode> {
+) -> (Vec<DomNode>, bool) {
   let axis = &axes[axis_idx];
   let groups = find_enum_group_for_axis(axes, variants.len(), axis_idx);
   if groups.len() < 2 {
-    return result;
+    return (result, false);
   }
 
   // Parse all representative variant trees
@@ -98,7 +101,7 @@ pub(super) fn process_enum(
   let other_trees: Vec<Vec<DomNode>> = trees[1..].to_vec();
   let region = match find_enum_region(base_tree, &other_trees) {
     Some(r) => r,
-    None => return result,
+    None => return (result, false),
   };
 
   // Collect sibling axes for recursive processing within each arm
@@ -142,7 +145,7 @@ pub(super) fn process_enum(
   }
 
   // Insert match/when/endmatch into the result tree at the region location
-  apply_enum_directives(result, &region, &axis.path, &branches)
+  (apply_enum_directives(result, &region, &axis.path, &branches), has_siblings)
 }
 
 /// Apply enum directives (match/when/endmatch) at a specific region in the result tree.

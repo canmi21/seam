@@ -107,7 +107,19 @@ fn extract_template_inner(axes: &[Axis], variants: &[String]) -> String {
     let axis = &axes[idx];
     result = match axis.kind.as_str() {
       "boolean" | "nullable" => process_boolean(result, axes, variants, idx),
-      "enum" => process_enum(result, axes, variants, idx),
+      "enum" => {
+        let (new_result, consumed_siblings) = process_enum(result, axes, variants, idx);
+        if consumed_siblings {
+          // All sibling axes were recursively processed inside each enum arm,
+          // so mark them handled to prevent doubled directives.
+          for &other in &top_level {
+            if other != idx {
+              handled.insert(other);
+            }
+          }
+        }
+        new_result
+      }
       "array" => process_array(result, axes, variants, idx),
       _ => result,
     };
@@ -582,6 +594,137 @@ mod tests {
     assert!(result.contains("<!--seam:when:high-->"), "missing when:high in:\n{result}");
     assert!(result.contains("<!--seam:endmatch-->"), "missing endmatch in:\n{result}");
     assert!(!result.contains("posts.$."), "leaked nested path in:\n{result}");
+  }
+
+  #[test]
+  fn extract_array_with_all_child_types() {
+    // Full home page scenario: top-level axes + posts array with 4 child axis types.
+    let axes = vec![
+      make_axis("isAdmin", "boolean", vec![json!(true), json!(false)]),
+      make_axis("isLoggedIn", "boolean", vec![json!(true), json!(false)]),
+      make_axis("subtitle", "nullable", vec![json!("present"), json!(null)]),
+      make_axis("role", "enum", vec![json!("admin"), json!("member"), json!("guest")]),
+      make_axis("posts", "array", vec![json!("populated"), json!("empty")]),
+      make_axis("posts.$.isPublished", "boolean", vec![json!(true), json!(false)]),
+      make_axis("posts.$.priority", "enum", vec![json!("high"), json!("medium"), json!("low")]),
+      make_axis("posts.$.author", "nullable", vec![json!("present"), json!(null)]),
+      make_axis("posts.$.tags", "array", vec![json!("populated"), json!("empty")]),
+    ];
+
+    #[allow(clippy::too_many_arguments)]
+    fn gen(
+      is_admin: bool,
+      is_logged_in: bool,
+      subtitle: bool,
+      role: &str,
+      pop: bool,
+      published: bool,
+      priority: &str,
+      author: bool,
+      tags: bool,
+    ) -> String {
+      let admin = if is_admin { "<span>Admin</span>" } else { "" };
+      let status = if is_logged_in { "Signed in" } else { "Please sign in" };
+      let sub = if subtitle { "<p><!--seam:subtitle--></p>" } else { "" };
+      let role_html = match role {
+        "admin" => "<span>Full access</span>",
+        "member" => "<span>Member access</span>",
+        _ => "<span>Read-only</span>",
+      };
+      let posts_html = if pop {
+        let pub_html = if published { "<span>Published</span>" } else { "<span>Draft</span>" };
+        let border = match priority {
+          "high" => "border-red",
+          "medium" => "border-amber",
+          _ => "border-gray",
+        };
+        let author_html = if author { "<span>by <!--seam:posts.$.author--></span>" } else { "" };
+        let tags_html = if tags { "<span><!--seam:posts.$.tags.$.name--></span>" } else { "" };
+        format!(
+          r#"<ul class="list"><li class="{border}"><!--seam:posts.$.title-->{pub_html}{author_html}<div>{tags_html}</div></li></ul>"#
+        )
+      } else {
+        "<p>No posts</p>".to_string()
+      };
+      format!("<div>{admin}<p>{status}</p>{sub}{role_html}{posts_html}</div>")
+    }
+
+    let mut variants = Vec::new();
+    for &is_admin in &[true, false] {
+      for &is_logged_in in &[true, false] {
+        for &subtitle in &[true, false] {
+          for role in &["admin", "member", "guest"] {
+            for &pop in &[true, false] {
+              for &published in &[true, false] {
+                for priority in &["high", "medium", "low"] {
+                  for &author in &[true, false] {
+                    for &tags in &[true, false] {
+                      variants.push(gen(
+                        is_admin,
+                        is_logged_in,
+                        subtitle,
+                        role,
+                        pop,
+                        published,
+                        priority,
+                        author,
+                        tags,
+                      ));
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    assert_eq!(variants.len(), 1152);
+    let result = extract_template(&axes, &variants);
+
+    // Container unwrap: <ul> must be OUTSIDE the each loop
+    assert!(
+      !result.contains("<!--seam:each:posts--><ul"),
+      "container duplicated inside each loop in:\n{result}"
+    );
+    assert!(
+      result.contains("<ul") && result.contains("<!--seam:each:posts-->"),
+      "missing structure in:\n{result}"
+    );
+    // Top-level directives
+    assert!(result.contains("<!--seam:if:isAdmin-->"), "missing isAdmin in:\n{result}");
+    assert!(result.contains("<!--seam:if:isLoggedIn-->"), "missing isLoggedIn in:\n{result}");
+    assert!(result.contains("<!--seam:if:subtitle-->"), "missing subtitle in:\n{result}");
+    assert!(result.contains("<!--seam:match:role-->"), "missing role match in:\n{result}");
+    // Nested directives
+    assert!(result.contains("<!--seam:if:$.isPublished-->"), "missing isPublished in:\n{result}");
+    assert!(
+      result.contains("<!--seam:match:$.priority-->"),
+      "missing priority match in:\n{result}"
+    );
+    assert!(result.contains("<!--seam:if:$.author-->"), "missing author conditional in:\n{result}");
+    assert!(result.contains("<!--seam:each:$.tags-->"), "missing tags each in:\n{result}");
+    assert!(result.contains("<!--seam:endeach-->"), "missing endeach in:\n{result}");
+    assert!(!result.contains("posts.$."), "leaked nested path in:\n{result}");
+
+    // No doubled directives: role wraps everything (3 arms), $.priority inside each (3 arms).
+    // Nested directives appear 3 × 3 = 9 times; top-level ones appear 3 times (once per role arm).
+    assert_eq!(
+      result.matches("<!--seam:each:$.tags-->").count(),
+      9,
+      "wrong each:$.tags count in:\n{result}"
+    );
+    assert_eq!(
+      result.matches("<!--seam:if:$.author-->").count(),
+      9,
+      "wrong if:$.author count in:\n{result}"
+    );
+    assert_eq!(
+      result.matches("<!--seam:if:subtitle-->").count(),
+      3,
+      "wrong if:subtitle count in:\n{result}"
+    );
   }
 
   #[test]

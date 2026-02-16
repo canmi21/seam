@@ -76,8 +76,7 @@ pub fn sentinel_to_slots(html: &str) -> String {
   result.push_str(&html[last_end..]);
 
   // Second pass: replace remaining text sentinels
-  let output = text_re.replace_all(&result, "<!--seam:$1-->");
-  output.into_owned()
+  text_re.replace_all(&result, "<!--seam:$1-->").into_owned()
 }
 
 #[cfg(test)]
@@ -119,5 +118,15 @@ mod tests {
     let html = "<div>%%SEAM:a%% and %%SEAM:b%%</div>";
     let result = sentinel_to_slots(html);
     assert_eq!(result, "<div><!--seam:a--> and <!--seam:b--></div>");
+  }
+
+  #[test]
+  fn preserves_react_ssr_comment_boundaries() {
+    // React's renderToString inserts `<!-- -->` between adjacent text
+    // fragments as text node boundaries. These MUST be preserved so
+    // hydration sees the same DOM structure React expects.
+    let html = "<span>by <!-- -->%%SEAM:author%%</span>";
+    let result = sentinel_to_slots(html);
+    assert_eq!(result, "<span>by <!-- --><!--seam:author--></span>");
   }
 }
