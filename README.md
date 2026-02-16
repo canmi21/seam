@@ -1,8 +1,16 @@
 # SeamJS
 
-A compile-time rendering (CTR) framework: extract HTML skeletons from React components at build time, inject server data through typed procedures at request time. Instead of blurring the server-client boundary, SeamJS re-establishes it — data fetching stays on the server as typed procedures, rendering stays on the client as React components, and the framework bridges them through schema-driven codegen and template injection.
+A compile-time rendering (CTR) framework: extract HTML skeletons from UI components at build time, inject server data through typed procedures at request time. Instead of blurring the server-client boundary, SeamJS re-establishes it — data fetching stays on the server as typed procedures, rendering stays on the client as UI components, and the framework bridges them through schema-driven codegen and template injection.
 
-> Status: core concepts validated; runtime adapters and client libraries in early development.
+> Status: core concepts validated with React; runtime adapters and client libraries in early development.
+
+## Design Philosophy
+
+SeamJS is a **rendering strategy**, not a full-stack framework tied to specific technologies.
+
+- **UI stack**: React-first for concept validation. The CTR pipeline (skeleton extraction + template injection) is UI-agnostic — adapting other frameworks (Vue, Svelte, Solid, ...) requires a corresponding skeleton extractor and client bindings. Community contributions welcome.
+- **API bridge**: Currently uses JSON-RPC over HTTP. Not married to this approach — if a better protocol fits, open an issue or send a PR.
+- **Backend runtime**: The server core defines a protocol, not a runtime. TypeScript and Rust implementations are provided as reference; any language can implement the seam protocol by serving the `/_seam/*` endpoints.
 
 ## Packages
 
