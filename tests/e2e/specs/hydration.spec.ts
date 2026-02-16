@@ -1,0 +1,49 @@
+/* tests/e2e/specs/hydration.spec.ts */
+import { test, expect, type ConsoleMessage } from "@playwright/test";
+
+const ROUTES = ["/", "/about", "/posts"];
+
+const HYDRATION_ERROR_PATTERNS = [
+  "Text content did not match",
+  "Hydration failed",
+  "An error occurred during hydration",
+  "There was an error while hydrating",
+  "Minified React error #418",
+  "Minified React error #423",
+  "Minified React error #425",
+];
+
+function isHydrationError(msg: ConsoleMessage): boolean {
+  if (msg.type() !== "error") return false;
+  const text = msg.text();
+  return HYDRATION_ERROR_PATTERNS.some((p) => text.includes(p));
+}
+
+test.describe("hydration", () => {
+  for (const route of ROUTES) {
+    test(`no hydration errors on ${route}`, async ({ page }) => {
+      const errors: ConsoleMessage[] = [];
+      page.on("console", (msg) => {
+        if (isHydrationError(msg)) errors.push(msg);
+      });
+
+      await page.goto(route, { waitUntil: "networkidle" });
+
+      // wait for React to mount inside the seam root
+      await page
+        .locator("#__SEAM_ROOT__")
+        .locator(":scope > *")
+        .first()
+        .waitFor({ timeout: 5_000 })
+        .catch(() => {
+          /* root may already have children from SSR */
+        });
+
+      // short grace period for late console errors
+      await page.waitForTimeout(500);
+
+      const details = errors.map((e) => e.text());
+      expect(details, `hydration errors on ${route}`).toEqual([]);
+    });
+  }
+});
