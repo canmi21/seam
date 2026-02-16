@@ -13,10 +13,10 @@ export default defineRoutes([
       page: { procedure: "getPageData" },
     },
     mock: {
-      title: "SeamJS Dashboard",
+      title: "SeamJS",
       isAdmin: true,
       isLoggedIn: true,
-      subtitle: "Compile-Time Rendering Demo",
+      subtitle: "Compile-time rendering for React",
       role: "admin",
       posts: [
         {

@@ -108,10 +108,10 @@ export const getPageData: ProcedureDef = {
     ),
   }),
   handler: () => ({
-    title: "SeamJS Dashboard",
+    title: "SeamJS",
     isAdmin: true,
     isLoggedIn: true,
-    subtitle: "Compile-Time Rendering Demo",
+    subtitle: "Compile-time rendering for React",
     role: "admin",
     posts: [
       {

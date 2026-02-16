@@ -13,27 +13,38 @@ export function AboutSkeleton() {
   const data = useSeamData<AboutData>();
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
+    <div className="mx-auto max-w-2xl px-6 py-10">
+      {/* Nav */}
+      <nav className="mb-10 flex items-center gap-6 text-sm">
+        <span className="font-semibold text-accent">SeamJS</span>
+        <a href="/" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">Home</a>
+        <a href="/about" className="font-medium text-accent">About</a>
+        <a href="/posts" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">Posts</a>
+      </nav>
+
       <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
-          {data.teamName}
-        </h1>
-        <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">{data.description}</p>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+            {data.teamName}
+          </h1>
+          {data.isHiring && (
+            <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-200">
+              Hiring
+            </span>
+          )}
+        </div>
+        <p className="mt-3 text-base text-neutral-600 dark:text-neutral-400">{data.description}</p>
       </header>
 
-      {data.isHiring && (
-        <span className="mb-4 inline-block rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800 dark:bg-green-900 dark:text-green-200">
-          Hiring
-        </span>
-      )}
-
       {data.contactEmail && (
-        <p className="mt-4 text-sm text-neutral-500 dark:text-neutral-400">
-          Contact: {data.contactEmail}
+        <p className="text-sm text-neutral-500 dark:text-neutral-400">
+          Contact: <span className="text-accent">{data.contactEmail}</span>
         </p>
       )}
 
-      <footer className="mt-10 text-xs text-neutral-400">Powered by SeamJS CTR</footer>
+      <footer className="mt-12 border-t border-neutral-200 pt-6 text-xs text-neutral-400 dark:border-neutral-800">
+        Built with <span className="text-accent">SeamJS</span>
+      </footer>
     </div>
   );
 }
