@@ -28,7 +28,13 @@
     "fmt:md": "dprint fmt",
     "fmt:rust": "cargo fmt --all",
     "fmt:check": "oxfmt --check . && dprint check",
-    "fmt:path": "chore ."
+    "fmt:path": "chore .",
+    "build:ts:p1": "bun run --filter '@canmi/seam-injector' build && bun run --filter '@canmi/seam-client' build && bun run --filter '@canmi/seam-cli' build",
+    "build:ts:p2": "bun run --filter '@canmi/seam-server' build && bun run --filter '@canmi/seam-react' build",
+    "build:ts:p3": "bun run --filter '@canmi/seam-adapter-hono' build && bun run --filter '@canmi/seam-adapter-bun' build && bun run --filter '@canmi/seam-adapter-node' build",
+    "build:ts": "bun run build:ts:p1 && bun run build:ts:p2 && bun run build:ts:p3",
+    "build:rs": "cargo build --workspace",
+    "build": "bun run build:ts && bun run build:rs"
   },
   "devDependencies": {
     "dprint": "^0.51.1",
