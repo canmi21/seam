@@ -135,7 +135,8 @@ export default defineRoutes([{
     const output = JSON.parse(stdout);
     expect(output.routes).toHaveLength(1);
     expect(output.routes[0].path).toBe("/");
-    expect(output.routes[0].fullHtml).toContain("%%SEAM:greeting%%");
+    expect(output.routes[0].axes).toBeDefined();
+    expect(output.routes[0].variants[0].html).toContain("%%SEAM:greeting%%");
     expect(output.routes[0].loaders).toEqual({ greeting: { procedure: "getGreeting" } });
   });
 });

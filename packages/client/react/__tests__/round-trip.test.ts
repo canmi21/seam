@@ -4,7 +4,7 @@ import { describe, it, expect } from "vitest";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { inject } from "@canmi/seam-injector";
-import { setSSRData, clearSSRData, useSeamData } from "../src/index.js";
+import { SeamDataProvider, useSeamData } from "../src/index.js";
 import { buildSentinelData } from "../src/sentinel.js";
 
 // -- Slot replacement (mirrors Rust logic) --
@@ -61,6 +61,10 @@ function wrapDocument(skeleton: string, css: string[], js: string[]): string {
   for (const f of js) doc += `    <script type="module" src="/_seam/static/${f}"></script>\n`;
   doc += "</body>\n</html>";
   return doc;
+}
+
+function renderWithProvider(component: React.FC, data: unknown): string {
+  return renderToString(createElement(SeamDataProvider, { value: data }, createElement(component)));
 }
 
 // -- Test component --
@@ -134,9 +138,7 @@ describe("round-trip: render -> slots -> inject", () => {
 
     // Step 1: Build sentinel data and render
     const sentinelData = buildSentinelData(mock);
-    setSSRData(sentinelData);
-    const rawHtml = renderToString(createElement(UserPage));
-    clearSSRData();
+    const rawHtml = renderWithProvider(UserPage, sentinelData);
 
     // Step 2: Convert sentinels to slots
     const slotHtml = sentinelToSlots(rawHtml);
@@ -168,17 +170,13 @@ describe("round-trip: render -> slots -> inject", () => {
 
     // Full render
     const sentinelData = buildSentinelData(mock);
-    setSSRData(sentinelData);
-    const fullHtml = sentinelToSlots(renderToString(createElement(UserPage)));
-    clearSSRData();
+    const fullHtml = sentinelToSlots(renderWithProvider(UserPage, sentinelData));
 
     // Nulled render: null the field in sentinel data (not in mock)
     // so the component's conditional `user.avatar && ...` evaluates to false
     const nulledSentinel = JSON.parse(JSON.stringify(sentinelData));
     nulledSentinel.user.avatar = null;
-    setSSRData(nulledSentinel);
-    const nulledHtml = sentinelToSlots(renderToString(createElement(UserPage)));
-    clearSSRData();
+    const nulledHtml = sentinelToSlots(renderWithProvider(UserPage, nulledSentinel));
 
     // The nulled version should lack the img element
     expect(fullHtml).toContain("img");
@@ -213,16 +211,12 @@ describe("round-trip: render -> slots -> inject", () => {
     // Full render (1-element sentinel array)
     const sentinelData = buildSentinelData(mock);
     expect(sentinelData.messages).toHaveLength(1);
-    setSSRData(sentinelData);
-    const fullHtml = sentinelToSlots(renderToString(createElement(MessageList)));
-    clearSSRData();
+    const fullHtml = sentinelToSlots(renderWithProvider(MessageList, sentinelData));
 
     // Emptied render (empty array)
     const emptiedSentinel = JSON.parse(JSON.stringify(sentinelData));
     emptiedSentinel.messages = [];
-    setSSRData(emptiedSentinel);
-    const emptiedHtml = sentinelToSlots(renderToString(createElement(MessageList)));
-    clearSSRData();
+    const emptiedHtml = sentinelToSlots(renderWithProvider(MessageList, emptiedSentinel));
 
     // Detect array block
     const block = detectArrayBlock(fullHtml, emptiedHtml, "messages");

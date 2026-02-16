@@ -1,27 +1,36 @@
 /* packages/client/react/__tests__/use-seam-data.test.ts */
 
-import { describe, it, expect, afterEach } from "vitest";
-import { useSeamData, setSSRData, clearSSRData } from "../src/index.js";
+import { describe, it, expect } from "vitest";
+import { createElement } from "react";
+import { renderToString } from "react-dom/server";
+import { useSeamData, SeamDataProvider } from "../src/index.js";
+
+// Helper component that renders useSeamData() result as JSON
+function DataCapture() {
+  const data = useSeamData();
+  return createElement("pre", null, JSON.stringify(data));
+}
 
 describe("useSeamData", () => {
-  afterEach(() => {
-    clearSSRData();
-  });
-
-  it("returns SSR data when set", () => {
+  it("returns provided data from SeamDataProvider", () => {
     const data = { user: { id: 1, name: "Alice" } };
-    setSSRData(data);
-    const result = useSeamData<typeof data>();
-    expect(result).toBe(data);
+    const html = renderToString(
+      createElement(SeamDataProvider, { value: data }, createElement(DataCapture)),
+    );
+    // renderToString HTML-escapes quotes; decode before comparing
+    const decoded = html.replace(/<\/?pre>/g, "").replaceAll("&quot;", '"');
+    expect(JSON.parse(decoded)).toEqual(data);
   });
 
-  it("throws when no data is available", () => {
-    expect(() => useSeamData()).toThrow("No seam data available");
+  it("throws when used outside SeamDataProvider", () => {
+    expect(() => renderToString(createElement(DataCapture))).toThrow(
+      "useSeamData must be used inside <SeamDataProvider>",
+    );
   });
 
-  it("clears SSR data", () => {
-    setSSRData({ user: { id: 1 } });
-    clearSSRData();
-    expect(() => useSeamData()).toThrow("No seam data available");
+  it("throws when provider value is null", () => {
+    expect(() =>
+      renderToString(createElement(SeamDataProvider, { value: null }, createElement(DataCapture))),
+    ).toThrow("useSeamData must be used inside <SeamDataProvider>");
   });
 });
