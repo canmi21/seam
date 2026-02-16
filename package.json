@@ -34,7 +34,14 @@
     "build:ts:p3": "bun run --filter '@canmi/seam-adapter-hono' build && bun run --filter '@canmi/seam-adapter-bun' build && bun run --filter '@canmi/seam-adapter-node' build",
     "build:ts": "bun run build:ts:p1 && bun run build:ts:p2 && bun run build:ts:p3",
     "build:rs": "cargo build --workspace",
-    "build": "bun run build:ts && bun run build:rs"
+    "build": "bun run build:ts && bun run build:rs",
+    "test:rs": "cargo test --workspace",
+    "test:ts": "bun run --filter '@canmi/seam-server' test && bun run --filter '@canmi/seam-injector' test && bun run --filter '@canmi/seam-adapter-bun' test && bun run --filter '@canmi/seam-adapter-node' test && bun run --filter '@canmi/seam-client' test && bun run --filter '@canmi/seam-react' test",
+    "test:unit": "bun run test:rs && bun run test:ts",
+    "test:integration": "cd tests/integration && go test -v -count=1 && cd ../fullstack && go test -v -count=1",
+    "test:e2e": "cd tests/e2e && bunx playwright test",
+    "test:all": "bun run test:unit && bun run test:integration && bun run test:e2e",
+    "test": "bun run test:all"
   },
   "devDependencies": {
     "dprint": "^0.51.1",

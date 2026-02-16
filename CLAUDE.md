@@ -80,3 +80,17 @@
 - Composition/orchestration functions: integration-level tests only, do not re-test inner functions
 - Go integration tests: separate test directory per backend type (`tests/integration/` for standalone, `tests/fullstack/` for fullstack)
 - SSE endpoint tests need a mechanism to trigger data flow (e.g. post a message) since long-lived streams may not flush headers until first chunk
+
+## Running Tests
+
+| Command                    | Scope                                         |
+| -------------------------- | --------------------------------------------- |
+| `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)    |
+| `bun run test:ts`          | TS unit tests (vitest across 6 packages)      |
+| `bun run test:unit`        | All unit tests (Rust + TS)                    |
+| `bun run test:integration` | Go integration tests (standalone + fullstack) |
+| `bun run test:e2e`         | Playwright E2E tests                          |
+| `bun run test`             | All layers, fail-fast                         |
+
+- Integration and E2E tests require fullstack build output: `cd examples/fullstack/react-hono-tanstack && seam build`
+- `scripts/smoke-fullstack.sh` runs the full build-and-test pipeline for integration + E2E
