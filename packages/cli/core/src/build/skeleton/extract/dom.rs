@@ -298,4 +298,29 @@ mod tests {
       r#"<div><p class="text-green">Signed in</p><ul class="list"><li class="border-red"><!--seam:posts.$.title--><span>Published</span><span>Priority: High</span></li></ul></div>"#,
     );
   }
+
+  // React 19 comment markers
+  #[test]
+  fn roundtrip_react_suspense_markers() {
+    roundtrip("<!--$--><div>Content</div><!--/$-->");
+  }
+
+  #[test]
+  fn roundtrip_react_activity_markers() {
+    roundtrip("<!--&--><div>visible</div><!--/&-->");
+  }
+
+  #[test]
+  fn parse_react_suspense_as_comment_nodes() {
+    let nodes = parse_html("<!--$--><div>Content</div><!--/$-->");
+    assert_eq!(nodes.len(), 3);
+    assert_eq!(nodes[0], DomNode::Comment("$".to_string()));
+    assert_eq!(nodes[2], DomNode::Comment("/$".to_string()));
+  }
+
+  #[test]
+  fn roundtrip_react_markers_with_seam_slots() {
+    // Suspense boundary wrapping content with Seam slot markers
+    roundtrip("<!--$--><div><!--seam:title--></div><!--/$-->");
+  }
 }

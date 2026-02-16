@@ -129,4 +129,21 @@ mod tests {
     let result = sentinel_to_slots(html);
     assert_eq!(result, "<span>by <!-- --><!--seam:author--></span>");
   }
+
+  // React 19 comment markers
+  #[test]
+  fn preserves_react_suspense_markers() {
+    // React wraps resolved Suspense boundaries in <!--$-->...<!--/$-->
+    let html = "<!--$--><div>%%SEAM:title%%</div><!--/$-->";
+    let result = sentinel_to_slots(html);
+    assert_eq!(result, "<!--$--><div><!--seam:title--></div><!--/$-->");
+  }
+
+  #[test]
+  fn preserves_react_activity_markers() {
+    // React wraps visible Activity boundaries in <!--&-->...<!--/&-->
+    let html = "<!--&--><div>%%SEAM:content%%</div><!--/&-->";
+    let result = sentinel_to_slots(html);
+    assert_eq!(result, "<!--&--><div><!--seam:content--></div><!--/&-->");
+  }
 }
