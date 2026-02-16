@@ -4,6 +4,7 @@ dist/
 .turbo/
 .plans/
 *.swp
+.worktrees/
 
 # Playwright
 tests/e2e/test-results/
