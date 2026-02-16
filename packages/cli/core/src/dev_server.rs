@@ -1,4 +1,4 @@
-/* packages/cli/core/src/dev_server.rs */
+/* .worktrees/cli-refactor/packages/cli/core/src/dev_server.rs */
 
 // Embedded dev server: static files + reverse proxy + SPA fallback.
 // Used when frontend.entry is set but no frontend.dev_command is configured.
@@ -7,6 +7,8 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use axum::body::Body;
+
+use crate::build::types::AssetFiles;
 use axum::extract::State;
 use axum::http::{Request, StatusCode};
 use axum::response::{Html, Response};
@@ -84,11 +86,6 @@ async fn proxy_handler(
 /// SPA fallback: any non-asset, non-proxy route returns the SPA HTML.
 async fn spa_fallback(State(state): State<DevState>) -> Html<String> {
   Html(state.spa_html.clone())
-}
-
-pub struct AssetFiles {
-  pub css: Vec<String>,
-  pub js: Vec<String>,
 }
 
 pub async fn start_dev_server(

@@ -1,4 +1,4 @@
-/* packages/cli/core/src/build/run.rs */
+/* .worktrees/cli-refactor/packages/cli/core/src/build/run.rs */
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -12,18 +12,11 @@ use std::path::PathBuf;
 
 use super::config::{BuildConfig, BundlerMode};
 use super::skeleton::{extract_template, sentinel_to_slots, wrap_document, Axis};
+use super::types::{read_bundle_manifest, AssetFiles};
 use crate::codegen;
 use crate::config::SeamConfig;
 use crate::manifest::Manifest;
 use crate::ui::{self, DIM, GREEN, RESET};
-
-// -- Seam bundle manifest --
-
-#[derive(Deserialize)]
-struct SeamManifest {
-  js: Vec<String>,
-  css: Vec<String>,
-}
 
 // -- Node script output types --
 
@@ -68,11 +61,6 @@ fn path_to_filename(path: &str) -> String {
   }
   let slug = trimmed.replace('/', "-").replace(':', "");
   format!("{slug}.html")
-}
-
-struct AssetFiles {
-  css: Vec<String>,
-  js: Vec<String>,
 }
 
 // -- Shared helpers --
@@ -147,14 +135,6 @@ fn find_cli_script(base_dir: &Path, name: &str) -> Result<PathBuf> {
     "{name} not found at {} -- install @canmi/seam-cli or set build.bundler_command",
     path.display()
   );
-}
-
-fn read_bundle_manifest(path: &Path) -> Result<AssetFiles> {
-  let content = std::fs::read_to_string(path)
-    .with_context(|| format!("failed to read bundle manifest at {}", path.display()))?;
-  let manifest: SeamManifest =
-    serde_json::from_str(&content).context("failed to parse bundle manifest")?;
-  Ok(AssetFiles { css: manifest.css, js: manifest.js })
 }
 
 /// Print each asset file with its size from disk

@@ -1,13 +1,14 @@
-/* packages/cli/core/src/dev.rs */
+/* .worktrees/cli-refactor/packages/cli/core/src/dev.rs */
 
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::signal;
 
 use crate::build::config::{BuildConfig, BundlerMode};
+use crate::build::types::read_bundle_manifest;
 use crate::config::SeamConfig;
 use crate::dev_server;
 use crate::ui::{BOLD, CYAN, DIM, GREEN, MAGENTA, RED, RESET, YELLOW};
@@ -92,21 +93,6 @@ async fn wait_any(
   }
 }
 
-/// Read Seam bundle manifest and return asset file lists
-fn read_dev_manifest(base_dir: &Path, manifest_path: &str) -> Result<dev_server::AssetFiles> {
-  let path = base_dir.join(manifest_path);
-  let content = std::fs::read_to_string(&path)
-    .with_context(|| format!("failed to read bundle manifest at {}", path.display()))?;
-
-  #[derive(serde::Deserialize)]
-  struct M {
-    js: Vec<String>,
-    css: Vec<String>,
-  }
-  let m: M = serde_json::from_str(&content).context("failed to parse bundle manifest")?;
-  Ok(dev_server::AssetFiles { css: m.css, js: m.js })
-}
-
 pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   let backend_cmd = config.backend.dev_command.as_deref();
   let frontend_cmd = config.frontend.dev_command.as_deref();
@@ -183,8 +169,8 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   // Wait for Ctrl+C, child exit, or dev server error
   if use_embedded {
     let dev_port = config.frontend.dev_port.unwrap_or(5173);
-    let manifest_path = "dist/.seam/manifest.json";
-    let assets = read_dev_manifest(base_dir, manifest_path)?;
+    let manifest_path = base_dir.join("dist/.seam/manifest.json");
+    let assets = read_bundle_manifest(&manifest_path)?;
     let static_dir = base_dir.join("dist");
 
     if children.is_empty() {
