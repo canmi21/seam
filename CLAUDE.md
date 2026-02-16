@@ -1,5 +1,8 @@
 # SeamJS — Project Rules
 
+> This file contains rules that apply to **all** packages. Package-specific conventions live in each package's own CLAUDE.md.
+> Review and update these rules when project conventions change or no longer apply. Remove outdated rules rather than leaving them as dead weight.
+
 ## Communication
 
 - Speak Chinese with the user, keep technical terms in English (e.g. procedure, manifest, codegen)
@@ -47,3 +50,27 @@
 
 - Use tmux sessions for long-running tasks (builds, tests, server processes)
 - Do not block the main terminal
+
+## Refactoring
+
+- Rust file split: convert `foo.rs` to `foo/mod.rs` + sub-modules; inner functions become `pub(super)`, only entry-point stays `pub`
+- Verify `cargo test --workspace && cargo clippy --workspace` after every Rust structural change
+- TS dedup: add shared functions to `@canmi/seam-server`, update adapters to import; node adapter keeps its own `sendResponse` (Node streams differ from Web Response)
+- After TS changes: `bun run --filter '<pkg>' build && bun run --filter '<pkg>' test`
+
+## Agent Team Strategy
+
+- Use Agent Team (TeamCreate) when a plan has 2+ independent sub-tasks that touch different files
+- Typical split: Rust agents work in parallel on separate crates/modules, lead handles TS and coordination
+- Provide agents with full file contents and exact split instructions; do not rely on agents to read large files themselves
+- Agents create their own sub-tasks; lead monitors via TaskList and waits with `sleep` + periodic checks
+- Always run a unified verification (`cargo test --workspace`) after agents finish before committing
+- Shut down agents (SendMessage shutdown_request) once their work is verified
+- Discard unrelated formatter diffs (`git checkout -- <file>`) before committing to keep commits focused
+
+## Testing Philosophy
+
+- Pure stateless functions: test correct path + error path (boundary values, empty input, missing keys)
+- Composition/orchestration functions: integration-level tests only, do not re-test inner functions
+- Go integration tests: separate test directory per backend type (`tests/integration/` for standalone, `tests/fullstack/` for fullstack)
+- SSE endpoint tests need a mechanism to trigger data flow (e.g. post a message) since long-lived streams may not flush headers until first chunk
