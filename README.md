@@ -12,54 +12,59 @@ SeamJS is a **rendering strategy**, not a full-stack framework tied to specific 
 - **API bridge**: Currently uses JSON-RPC over HTTP. Not married to this approach — if a better protocol fits, open an issue or send a PR.
 - **Backend runtime**: The server core defines a protocol, not a runtime. TypeScript and Rust implementations are provided as reference; any language can implement the seam protocol by serving the `/_seam/*` endpoints.
 
+### How CTR Differs
+
+- **vs SSG / SSR**: SSG bakes data into HTML at build time (static); SSR renders full HTML at every request (dynamic). CTR splits the two — structure is extracted once at build time, data is injected per request. No server-side rendering runtime, no stale static pages.
+- **vs CSR / SSR**: CSR ships an empty shell and renders everything client-side; SSR duplicates rendering logic on the server to produce HTML. CTR avoids both extremes — the server never runs UI components, it only fills typed slots in a pre-built skeleton. The client hydrates a known structure instead of reconciling server-rendered markup.
+
 ## Packages
 
 ### CLI
 
-| Package | Crate / npm | Description |
-|---------|-------------|-------------|
-| [cli/core](packages/cli/core/) | `seam-cli` | Build skeletons, generate typed clients, orchestrate dev servers |
-| [cli/pkg](packages/cli/pkg/) | `@canmi/seam-cli` | npm distribution wrapper for the CLI binary |
+| Package                        | Crate / npm       | Description                                                      |
+| ------------------------------ | ----------------- | ---------------------------------------------------------------- |
+| [cli/core](packages/cli/core/) | `seam-cli`        | Build skeletons, generate typed clients, orchestrate dev servers |
+| [cli/pkg](packages/cli/pkg/)   | `@canmi/seam-cli` | npm distribution wrapper for the CLI binary                      |
 
 ### Server Core
 
-| Package | Crate / npm | Description |
-|---------|-------------|-------------|
-| [server/core/typescript](packages/server/core/typescript/) | `@canmi/seam-server` | Framework-agnostic server core (procedures, subscriptions, pages, HTTP layer) |
-| [server/core/rust](packages/server/core/rust/) | `seam-server` | Rust server core with built-in HTML template injector, built on axum |
-| [server/core/rust-macros](packages/server/core/rust-macros/) | `seam-macros` | Proc macros: `#[derive(SeamType)]`, `#[seam_procedure]`, `#[seam_subscription]` |
+| Package                                                      | Crate / npm          | Description                                                                     |
+| ------------------------------------------------------------ | -------------------- | ------------------------------------------------------------------------------- |
+| [server/core/typescript](packages/server/core/typescript/)   | `@canmi/seam-server` | Framework-agnostic server core (procedures, subscriptions, pages, HTTP layer)   |
+| [server/core/rust](packages/server/core/rust/)               | `seam-server`        | Rust server core with built-in HTML template injector, built on axum            |
+| [server/core/rust-macros](packages/server/core/rust-macros/) | `seam-macros`        | Proc macros: `#[derive(SeamType)]`, `#[seam_procedure]`, `#[seam_subscription]` |
 
 ### Server Adapters
 
-| Package | npm | Description |
-|---------|-----|-------------|
-| [adapter/hono](packages/server/adapter/hono/) | `@canmi/seam-adapter-hono` | Hono middleware adapter |
-| [adapter/bun](packages/server/adapter/bun/) | `@canmi/seam-adapter-bun` | Standalone Bun server adapter |
-| [adapter/node](packages/server/adapter/node/) | `@canmi/seam-adapter-node` | Node.js HTTP adapter |
+| Package                                       | npm                        | Description                   |
+| --------------------------------------------- | -------------------------- | ----------------------------- |
+| [adapter/hono](packages/server/adapter/hono/) | `@canmi/seam-adapter-hono` | Hono middleware adapter       |
+| [adapter/bun](packages/server/adapter/bun/)   | `@canmi/seam-adapter-bun`  | Standalone Bun server adapter |
+| [adapter/node](packages/server/adapter/node/) | `@canmi/seam-adapter-node` | Node.js HTTP adapter          |
 
 ### Client Libraries
 
-| Package | npm | Description |
-|---------|-----|-------------|
+| Package                                    | npm                  | Description                                              |
+| ------------------------------------------ | -------------------- | -------------------------------------------------------- |
 | [client/vanilla](packages/client/vanilla/) | `@canmi/seam-client` | Framework-agnostic client (RPC calls, SSE subscriptions) |
-| [client/react](packages/client/react/) | `@canmi/seam-react` | React bindings (hooks, data provider, route definitions) |
+| [client/react](packages/client/react/)     | `@canmi/seam-react`  | React bindings (hooks, data provider, route definitions) |
 
 ### Template Engine
 
-| Package | npm | Description |
-|---------|-----|-------------|
+| Package                                      | npm                    | Description                                                   |
+| -------------------------------------------- | ---------------------- | ------------------------------------------------------------- |
 | [server/injector](packages/server/injector/) | `@canmi/seam-injector` | HTML template injector (`<!--seam:...-->` marker replacement) |
 
 ## Examples
 
-| Example | Description |
-|---------|-------------|
+| Example                                                        | Description                                                    |
+| -------------------------------------------------------------- | -------------------------------------------------------------- |
 | [react-hono-tanstack](examples/fullstack/react-hono-tanstack/) | Fullstack demo: Hono server + React client with TanStack Query |
-| [server-rust](examples/standalone/server-rust/) | Standalone Rust backend |
-| [server-bun](examples/standalone/server-bun/) | Standalone Bun server |
-| [server-node](examples/standalone/server-node/) | Standalone Node.js server |
-| [client-vanilla](examples/standalone/client-vanilla/) | Vanilla JS client |
-| [client-react](examples/standalone/client-react/) | React client |
+| [server-rust](examples/standalone/server-rust/)                | Standalone Rust backend                                        |
+| [server-bun](examples/standalone/server-bun/)                  | Standalone Bun server                                          |
+| [server-node](examples/standalone/server-node/)                | Standalone Node.js server                                      |
+| [client-vanilla](examples/standalone/client-vanilla/)          | Vanilla JS client                                              |
+| [client-react](examples/standalone/client-react/)              | React client                                                   |
 
 ## Development
 
