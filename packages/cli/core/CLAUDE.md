@@ -13,10 +13,11 @@ See root CLAUDE.md for general conventions.
 | `manifest.rs`           | `Manifest` / `ProcedureSchema` types (serde, shared across commands)              |
 | `pull.rs`               | Fetches `/_seam/manifest.json` from a running server via reqwest                  |
 | `codegen/typescript.rs` | JTD schema -> TypeScript interfaces + `createSeamClient` factory                  |
-| `build/config.rs`       | `BuildConfig` derived from `SeamConfig`; detects fullstack vs frontend-only       |
+| `build/config.rs`       | `BuildConfig` + `BundlerMode` enum derived from `SeamConfig`; detects fullstack vs frontend-only |
 | `build/run.rs`          | Build orchestrator: frontend-only (4 steps) or fullstack (7 steps)                |
 | `build/skeleton/`       | HTML template extraction pipeline (slot, extract, document)                       |
 | `dev.rs`                | Spawns backend + frontend dev processes, pipes labeled output, handles Ctrl+C     |
+| `dev_server.rs`         | Embedded axum dev server (static files + API proxy + SPA fallback)                |
 | `ui.rs`                 | Terminal output helpers (ANSI colors, step counters, file size formatting)        |
 
 ## Skeleton Pipeline
@@ -29,18 +30,21 @@ Three-stage pipeline in `build/skeleton/`:
 
 The extract module is the most complex part, split into sub-modules:
 
-- `diff.rs` -- byte-level diff to find changed regions between variants
+- `tree_diff.rs` -- DOM tree diffing to find changed/added/removed nodes between variants
 - `variant.rs` -- selects which variants correspond to each axis value
 - `container.rs` -- unwraps container elements (e.g. `<ul>`) from array loop bodies
 - `combo.rs` -- classifies axes into top-level vs nested groups
-- `process.rs` -- applies axis-specific logic (if/else, match, each) to produce `AxisEffect`s
+- `boolean.rs` -- if/else directive generation for boolean and nullable axes
+- `enum_axis.rs` -- match/when directive generation for enum axes
+- `array.rs` -- each/endeach directive generation for array axes (with nested child support)
+- `dom.rs` -- lightweight HTML parser/serializer for DOM tree representation
 
 ## Key Files
 
 - `src/main.rs` -- CLI definition and command dispatch (~137 lines)
-- `src/build/run.rs` -- build orchestrator (~520 lines, largest file)
+- `src/build/run.rs` -- build orchestrator (~580 lines, largest file)
 - `src/codegen/typescript.rs` -- JTD-to-TypeScript codegen (~450 lines with tests)
-- `src/build/skeleton/extract/mod.rs` -- template extraction engine (~610 lines with tests)
+- `src/build/skeleton/extract/mod.rs` -- template extraction engine (~790 lines with tests)
 
 ## Conventions
 
@@ -65,4 +69,4 @@ cargo test -p seam-cli
 - `cargo build -p seam` does NOT work; the Cargo.toml package name is `seam-cli`
 - Skeleton rendering shells out to `node_modules/@canmi/seam-react/scripts/build-skeletons.mjs`; this must be installed
 - Manifest extraction prefers `bun` over `node` (checks via `which`)
-- The extract engine applies effects back-to-front with index adjustment for overlapping ranges
+- The extract engine uses DOM tree diffing (`tree_diff.rs`) to locate changed nodes, then wraps them in directive comments
