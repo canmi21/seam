@@ -7,7 +7,7 @@ import oxlint from "eslint-plugin-oxlint";
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/node_modules/**", "examples/**", "packages/cli/**"],
+    ignores: ["**/dist/**", "**/node_modules/**", "**/target/**", "examples/**", "packages/cli/**"],
   },
   ...tseslint.configs.recommendedTypeChecked,
   {
