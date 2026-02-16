@@ -24,9 +24,18 @@ export function PostsSkeleton() {
       {/* Nav */}
       <nav className="mb-10 flex items-center gap-6 text-sm">
         <span className="font-semibold text-accent">SeamJS</span>
-        <a href="/" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">Home</a>
-        <a href="/about" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">About</a>
-        <a href="/posts" className="font-medium text-accent">Posts</a>
+        <a href="/" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">
+          Home
+        </a>
+        <a
+          href="/about"
+          className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+        >
+          About
+        </a>
+        <a href="/posts" className="font-medium text-accent">
+          Posts
+        </a>
       </nav>
 
       <header className="mb-8">
@@ -56,9 +65,13 @@ export function PostsSkeleton() {
                 </h2>
 
                 {post.isPublished ? (
-                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">Published</span>
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">
+                    Published
+                  </span>
                 ) : (
-                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">Draft</span>
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                    Draft
+                  </span>
                 )}
               </div>
 

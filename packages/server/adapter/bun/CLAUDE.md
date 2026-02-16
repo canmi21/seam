@@ -13,9 +13,9 @@ See root CLAUDE.md for general project rules.
 
 ## Key Files
 
-| File | Purpose |
-|------|---------|
-| `src/index.ts` | Sole source file; exports `serveBun()` and `ServeBunOptions` |
+| File                        | Purpose                                                           |
+| --------------------------- | ----------------------------------------------------------------- |
+| `src/index.ts`              | Sole source file; exports `serveBun()` and `ServeBunOptions`      |
 | `__tests__/adapter.test.ts` | Integration tests: manifest, RPC, validation errors, static files |
 
 ## Conventions

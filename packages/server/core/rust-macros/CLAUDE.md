@@ -13,11 +13,11 @@ Proc-macro crate providing derive and attribute macros for Seam server definitio
 
 ## Key Files
 
-| File | Purpose |
-|------|---------|
-| `src/lib.rs` | Macro entry points |
-| `src/seam_type.rs` | `#[derive(SeamType)]` -- struct/enum to JTD schema |
-| `src/seam_procedure.rs` | `#[seam_procedure]` -- generates `{fn_name}_procedure()` factory |
+| File                       | Purpose                                                                |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `src/lib.rs`               | Macro entry points                                                     |
+| `src/seam_type.rs`         | `#[derive(SeamType)]` -- struct/enum to JTD schema                     |
+| `src/seam_procedure.rs`    | `#[seam_procedure]` -- generates `{fn_name}_procedure()` factory       |
 | `src/seam_subscription.rs` | `#[seam_subscription]` -- generates `{fn_name}_subscription()` factory |
 
 ## Testing

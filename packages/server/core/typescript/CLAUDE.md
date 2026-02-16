@@ -51,9 +51,9 @@ src/
 
 ## Dependencies
 
-| Dependency | Purpose |
-|---|---|
-| `jtd` | JSON Type Definition validation |
+| Dependency             | Purpose                                   |
+| ---------------------- | ----------------------------------------- |
+| `jtd`                  | JSON Type Definition validation           |
 | `@canmi/seam-injector` | Template injection (used in page handler) |
 
 ## Commands

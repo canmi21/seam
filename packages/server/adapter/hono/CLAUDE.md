@@ -13,8 +13,8 @@ See root CLAUDE.md for general project rules.
 
 ## Key Files
 
-| File | Purpose |
-|------|---------|
+| File           | Purpose                                                             |
+| -------------- | ------------------------------------------------------------------- |
 | `src/index.ts` | Sole source file; exports `seam()` middleware and `SeamHonoOptions` |
 
 ## Conventions

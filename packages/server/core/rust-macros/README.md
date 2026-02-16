@@ -4,11 +4,11 @@ Procedural macro crate providing derive and attribute macros for seam-server.
 
 ## Macros
 
-| Macro | Purpose |
-|-------|---------|
-| `#[derive(SeamType)]` | Generate `SeamType` trait impl with JTD schema from struct fields |
-| `#[seam_procedure]` | Wrap an async function into a `ProcedureDef` factory |
-| `#[seam_subscription]` | Wrap an async function into a `SubscriptionDef` factory |
+| Macro                  | Purpose                                                           |
+| ---------------------- | ----------------------------------------------------------------- |
+| `#[derive(SeamType)]`  | Generate `SeamType` trait impl with JTD schema from struct fields |
+| `#[seam_procedure]`    | Wrap an async function into a `ProcedureDef` factory              |
+| `#[seam_subscription]` | Wrap an async function into a `SubscriptionDef` factory           |
 
 ## Structure
 

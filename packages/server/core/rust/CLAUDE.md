@@ -6,19 +6,20 @@ See root CLAUDE.md for general project rules.
 
 ## Architecture
 
-| Module | Responsibility |
-|---|---|
-| `server.rs` | `SeamServer` builder + axum route handlers (manifest, RPC, SSE, page) |
+| Module         | Responsibility                                                                          |
+| -------------- | --------------------------------------------------------------------------------------- |
+| `server.rs`    | `SeamServer` builder + axum route handlers (manifest, RPC, SSE, page)                   |
 | `procedure.rs` | `ProcedureDef` / `SubscriptionDef` type aliases (`HandlerFn`, `BoxFuture`, `BoxStream`) |
-| `page.rs` | `PageDef` / `LoaderDef` -- page routes with data loaders that call procedures |
-| `manifest.rs` | Builds JSON manifest from registered procedures and subscriptions |
-| `errors.rs` | `SeamError` enum (Validation/NotFound/Internal) implementing axum `IntoResponse` |
-| `injector/` | HTML template engine: tokenize -> parse -> render pipeline |
-| `lib.rs` | Re-exports, `SeamType` trait + primitive JTD schema impls |
+| `page.rs`      | `PageDef` / `LoaderDef` -- page routes with data loaders that call procedures           |
+| `manifest.rs`  | Builds JSON manifest from registered procedures and subscriptions                       |
+| `errors.rs`    | `SeamError` enum (Validation/NotFound/Internal) implementing axum `IntoResponse`        |
+| `injector/`    | HTML template engine: tokenize -> parse -> render pipeline                              |
+| `lib.rs`       | Re-exports, `SeamType` trait + primitive JTD schema impls                               |
 
 ## Injector Pipeline
 
 `injector::inject(template, data)` runs three phases:
+
 1. **Tokenize** (`token.rs`) -- split HTML into `Text` / `Marker` tokens at `<!--seam:...-->` boundaries
 2. **Parse** (`parser.rs`) -- build AST nodes: `Slot`, `Attr`, `If`/`Else`, `Each`, `Match`/`When`
 3. **Render** (`render.rs`) -- walk AST against JSON data, collect deferred attribute injections
@@ -48,14 +49,14 @@ User code -> SeamServer::new().procedure(...).page(...).serve()
 
 ## Template Syntax (injector directives)
 
-| Directive | Purpose |
-|---|---|
-| `<!--seam:path-->` | Text slot (HTML-escaped) |
-| `<!--seam:path:html-->` | Raw HTML slot (no escaping) |
-| `<!--seam:path:attr:name-->` | Inject attribute on next sibling element |
-| `<!--seam:if:path-->...<!--seam:else-->...<!--seam:endif:path-->` | Conditional |
-| `<!--seam:each:path-->...<!--seam:endeach-->` | Iteration (`$` = current, `$$` = parent) |
-| `<!--seam:match:path--><!--seam:when:val-->...<!--seam:endmatch-->` | Pattern matching |
+| Directive                                                           | Purpose                                  |
+| ------------------------------------------------------------------- | ---------------------------------------- |
+| `<!--seam:path-->`                                                  | Text slot (HTML-escaped)                 |
+| `<!--seam:path:html-->`                                             | Raw HTML slot (no escaping)              |
+| `<!--seam:path:attr:name-->`                                        | Inject attribute on next sibling element |
+| `<!--seam:if:path-->...<!--seam:else-->...<!--seam:endif:path-->`   | Conditional                              |
+| `<!--seam:each:path-->...<!--seam:endeach-->`                       | Iteration (`$` = current, `$$` = parent) |
+| `<!--seam:match:path--><!--seam:when:val-->...<!--seam:endmatch-->` | Pattern matching                         |
 
 ## Testing
 

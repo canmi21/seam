@@ -16,15 +16,15 @@ Framework-agnostic server core that defines procedures, subscriptions, pages, an
 
 ## Key Exports
 
-| Export | Purpose |
-|--------|---------|
-| `createRouter` | Wire procedures, subscriptions, and pages into a router |
-| `createHttpHandler` | Create HTTP request handler from a router |
-| `definePage` | Define a page with loaders and route patterns |
-| `t` | JTD schema builder (`t.string()`, `t.object()`, etc.) |
-| `toWebResponse` | Convert internal response to Web `Response` |
-| `serialize` | Serialize response body to JSON |
-| `loadBuildOutput` | Load pre-built skeleton templates |
+| Export              | Purpose                                                 |
+| ------------------- | ------------------------------------------------------- |
+| `createRouter`      | Wire procedures, subscriptions, and pages into a router |
+| `createHttpHandler` | Create HTTP request handler from a router               |
+| `definePage`        | Define a page with loaders and route patterns           |
+| `t`                 | JTD schema builder (`t.string()`, `t.object()`, etc.)   |
+| `toWebResponse`     | Convert internal response to Web `Response`             |
+| `serialize`         | Serialize response body to JSON                         |
+| `loadBuildOutput`   | Load pre-built skeleton templates                       |
 
 ## Development
 

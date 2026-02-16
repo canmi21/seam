@@ -5,7 +5,7 @@ import { escapeHtml } from "../src/escape.js";
 
 describe("escapeHtml", () => {
   it("escapes all special characters", () => {
-    expect(escapeHtml('<script>"xss"&\'done\'</script>')).toBe(
+    expect(escapeHtml("<script>\"xss\"&'done'</script>")).toBe(
       "&lt;script&gt;&quot;xss&quot;&amp;&#x27;done&#x27;&lt;/script&gt;",
     );
   });
@@ -23,8 +23,6 @@ describe("escapeHtml", () => {
   });
 
   it("escapes only special chars, preserves rest", () => {
-    expect(escapeHtml("price > 0 && price < 100")).toBe(
-      "price &gt; 0 &amp;&amp; price &lt; 100",
-    );
+    expect(escapeHtml("price > 0 && price < 100")).toBe("price &gt; 0 &amp;&amp; price &lt; 100");
   });
 });

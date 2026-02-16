@@ -17,9 +17,18 @@ export function AboutSkeleton() {
       {/* Nav */}
       <nav className="mb-10 flex items-center gap-6 text-sm">
         <span className="font-semibold text-accent">SeamJS</span>
-        <a href="/" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">Home</a>
-        <a href="/about" className="font-medium text-accent">About</a>
-        <a href="/posts" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">Posts</a>
+        <a href="/" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">
+          Home
+        </a>
+        <a href="/about" className="font-medium text-accent">
+          About
+        </a>
+        <a
+          href="/posts"
+          className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+        >
+          Posts
+        </a>
       </nav>
 
       <header className="mb-8">

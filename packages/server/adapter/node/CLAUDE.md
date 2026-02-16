@@ -10,10 +10,10 @@ Node.js HTTP adapter for `@canmi/seam-server` — wraps the core router into a `
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `src/index.ts` | Single-file adapter: `serveNode`, `sendResponse`, `readBody` |
-| `__tests__/adapter.test.ts` | Integration tests against a real HTTP server on port 0 |
+| File                        | Role                                                         |
+| --------------------------- | ------------------------------------------------------------ |
+| `src/index.ts`              | Single-file adapter: `serveNode`, `sendResponse`, `readBody` |
+| `__tests__/adapter.test.ts` | Integration tests against a real HTTP server on port 0       |
 
 ## Conventions
 

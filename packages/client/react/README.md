@@ -4,13 +4,13 @@ React bindings for SeamJS, providing hooks and components to consume server-inje
 
 ## Key Exports
 
-| Export | Purpose |
-|--------|---------|
-| `defineRoutes` | Define client-side route configuration |
-| `useSeamData` | Access server-injected data from `SeamDataProvider` context |
-| `SeamDataProvider` | Context provider for server data |
-| `parseSeamData` | Parse JSON from `<script id="__SEAM_DATA__">` |
-| `buildSentinelData` | Build sentinel data for skeleton rendering |
+| Export                | Purpose                                                       |
+| --------------------- | ------------------------------------------------------------- |
+| `defineRoutes`        | Define client-side route configuration                        |
+| `useSeamData`         | Access server-injected data from `SeamDataProvider` context   |
+| `SeamDataProvider`    | Context provider for server data                              |
+| `parseSeamData`       | Parse JSON from `<script id="__SEAM_DATA__">`                 |
+| `buildSentinelData`   | Build sentinel data for skeleton rendering                    |
 | `useSeamSubscription` | Hook for SSE subscriptions, returns `{ data, error, status }` |
 
 ## Structure

@@ -4,10 +4,10 @@ Framework-agnostic client for calling seam procedures and subscribing to server 
 
 ## Key Exports
 
-| Export | Purpose |
-|--------|---------|
-| `createClient` | Create a `SeamClient` instance with `call()`, `subscribe()`, `fetchManifest()` |
-| `SeamClientError` | Typed error class with error codes |
+| Export            | Purpose                                                                        |
+| ----------------- | ------------------------------------------------------------------------------ |
+| `createClient`    | Create a `SeamClient` instance with `call()`, `subscribe()`, `fetchManifest()` |
+| `SeamClientError` | Typed error class with error codes                                             |
 
 ## Structure
 

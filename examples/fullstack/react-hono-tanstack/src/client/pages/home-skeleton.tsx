@@ -39,9 +39,21 @@ export function HomeSkeleton() {
       {/* Nav */}
       <nav className="mb-10 flex items-center gap-6 text-sm">
         <span className="font-semibold text-accent">SeamJS</span>
-        <a href="/" className="font-medium text-accent">Home</a>
-        <a href="/about" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">About</a>
-        <a href="/posts" className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">Posts</a>
+        <a href="/" className="font-medium text-accent">
+          Home
+        </a>
+        <a
+          href="/about"
+          className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+        >
+          About
+        </a>
+        <a
+          href="/posts"
+          className="text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100"
+        >
+          Posts
+        </a>
       </nav>
 
       {/* 1. Static content */}
@@ -109,9 +121,13 @@ export function HomeSkeleton() {
 
                 {/* 9. Item boolean condition */}
                 {post.isPublished ? (
-                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">Published</span>
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">
+                    Published
+                  </span>
                 ) : (
-                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">Draft</span>
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400">
+                    Draft
+                  </span>
                 )}
               </div>
 
@@ -124,9 +140,7 @@ export function HomeSkeleton() {
                 </span>
 
                 {/* Post author (nullable inside array item) */}
-                {post.author && (
-                  <span className="text-neutral-400">by {post.author}</span>
-                )}
+                {post.author && <span className="text-neutral-400">by {post.author}</span>}
               </div>
 
               {/* 11. Nested array (tags) — wrapper always renders so extraction

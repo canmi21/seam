@@ -6,18 +6,18 @@ See root CLAUDE.md for general conventions.
 
 ## Architecture
 
-| Module | Responsibility |
-|---|---|
-| `main.rs` | CLI entry point (clap); dispatches `pull`, `generate`, `build`, `dev` subcommands |
-| `config.rs` | Parses `seam.toml`; walks upward to find config (like Cargo.toml discovery) |
-| `manifest.rs` | `Manifest` / `ProcedureSchema` types (serde, shared across commands) |
-| `pull.rs` | Fetches `/_seam/manifest.json` from a running server via reqwest |
-| `codegen/typescript.rs` | JTD schema -> TypeScript interfaces + `createSeamClient` factory |
-| `build/config.rs` | `BuildConfig` derived from `SeamConfig`; detects fullstack vs frontend-only |
-| `build/run.rs` | Build orchestrator: frontend-only (4 steps) or fullstack (7 steps) |
-| `build/skeleton/` | HTML template extraction pipeline (slot, extract, document) |
-| `dev.rs` | Spawns backend + frontend dev processes, pipes labeled output, handles Ctrl+C |
-| `ui.rs` | Terminal output helpers (ANSI colors, step counters, file size formatting) |
+| Module                  | Responsibility                                                                    |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| `main.rs`               | CLI entry point (clap); dispatches `pull`, `generate`, `build`, `dev` subcommands |
+| `config.rs`             | Parses `seam.toml`; walks upward to find config (like Cargo.toml discovery)       |
+| `manifest.rs`           | `Manifest` / `ProcedureSchema` types (serde, shared across commands)              |
+| `pull.rs`               | Fetches `/_seam/manifest.json` from a running server via reqwest                  |
+| `codegen/typescript.rs` | JTD schema -> TypeScript interfaces + `createSeamClient` factory                  |
+| `build/config.rs`       | `BuildConfig` derived from `SeamConfig`; detects fullstack vs frontend-only       |
+| `build/run.rs`          | Build orchestrator: frontend-only (4 steps) or fullstack (7 steps)                |
+| `build/skeleton/`       | HTML template extraction pipeline (slot, extract, document)                       |
+| `dev.rs`                | Spawns backend + frontend dev processes, pipes labeled output, handles Ctrl+C     |
+| `ui.rs`                 | Terminal output helpers (ANSI colors, step counters, file size formatting)        |
 
 ## Skeleton Pipeline
 
@@ -28,6 +28,7 @@ Three-stage pipeline in `build/skeleton/`:
 3. **document** (`document.rs`) -- wraps skeleton fragment in minimal HTML5 document with CSS/JS asset references under `/_seam/static/`
 
 The extract module is the most complex part, split into sub-modules:
+
 - `diff.rs` -- byte-level diff to find changed regions between variants
 - `variant.rs` -- selects which variants correspond to each axis value
 - `container.rs` -- unwraps container elements (e.g. `<ul>`) from array loop bodies

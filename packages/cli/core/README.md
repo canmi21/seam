@@ -15,12 +15,12 @@ SeamJS command-line tool for building HTML skeleton templates, generating typed 
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `seam pull` | Fetch procedure manifest from a running server |
-| `seam generate` | Generate typed client from a manifest file |
-| `seam build` | Extract HTML skeletons and run full build pipeline |
-| `seam dev` | Start backend and frontend dev servers |
+| Command         | Description                                        |
+| --------------- | -------------------------------------------------- |
+| `seam pull`     | Fetch procedure manifest from a running server     |
+| `seam generate` | Generate typed client from a manifest file         |
+| `seam build`    | Extract HTML skeletons and run full build pipeline |
+| `seam dev`      | Start backend and frontend dev servers             |
 
 ## Development
 
