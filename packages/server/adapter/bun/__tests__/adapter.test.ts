@@ -4,16 +4,8 @@ import { afterAll, describe, expect, it } from "bun:test";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createRouter, t } from "@canmi/seam-server";
+import { greetRouter as router } from "../../../core/typescript/__tests__/fixtures.js";
 import { serveBun } from "../src/index.js";
-
-const router = createRouter({
-  greet: {
-    input: t.object({ name: t.string() }),
-    output: t.object({ message: t.string() }),
-    handler: ({ input }) => ({ message: `Hello, ${input.name}!` }),
-  },
-});
 
 const server = serveBun(router, { port: 0 });
 const base = `http://localhost:${server.port}`;

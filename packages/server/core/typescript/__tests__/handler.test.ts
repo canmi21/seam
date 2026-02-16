@@ -3,21 +3,18 @@
 import { describe, expect, it } from "vitest";
 import { handleRequest } from "../src/router/handler.js";
 import type { InternalProcedure } from "../src/router/handler.js";
-import { t } from "../src/types/index.js";
+import { greetInputSchema, greetOutputSchema } from "./fixtures.js";
 
 function makeProcedures(...entries: [string, InternalProcedure][]) {
   return new Map(entries);
 }
-
-const greetSchema = t.object({ name: t.string() });
-const greetOutputSchema = t.object({ message: t.string() });
 
 describe("handleRequest", () => {
   it("returns 200 for valid sync handler", async () => {
     const procs = makeProcedures([
       "greet",
       {
-        inputSchema: greetSchema._schema,
+        inputSchema: greetInputSchema._schema,
         outputSchema: greetOutputSchema._schema,
         handler: ({ input }) => ({ message: `Hi, ${(input as { name: string }).name}!` }),
       },
@@ -31,7 +28,7 @@ describe("handleRequest", () => {
     const procs = makeProcedures([
       "greet",
       {
-        inputSchema: greetSchema._schema,
+        inputSchema: greetInputSchema._schema,
         outputSchema: greetOutputSchema._schema,
         handler: async ({ input }) => ({ message: `Hi, ${(input as { name: string }).name}!` }),
       },
@@ -54,7 +51,7 @@ describe("handleRequest", () => {
     const procs = makeProcedures([
       "greet",
       {
-        inputSchema: greetSchema._schema,
+        inputSchema: greetInputSchema._schema,
         outputSchema: greetOutputSchema._schema,
         handler: () => ({ message: "unreachable" }),
       },
@@ -70,7 +67,7 @@ describe("handleRequest", () => {
     const procs = makeProcedures([
       "greet",
       {
-        inputSchema: greetSchema._schema,
+        inputSchema: greetInputSchema._schema,
         outputSchema: greetOutputSchema._schema,
         handler: () => {
           throw new Error("db connection lost");
@@ -89,7 +86,7 @@ describe("handleRequest", () => {
     const procs = makeProcedures([
       "greet",
       {
-        inputSchema: greetSchema._schema,
+        inputSchema: greetInputSchema._schema,
         outputSchema: greetOutputSchema._schema,
         handler: () => {
           throw new SeamError("VALIDATION_ERROR", "custom validation");
@@ -107,7 +104,7 @@ describe("handleRequest", () => {
     const procs = makeProcedures([
       "greet",
       {
-        inputSchema: greetSchema._schema,
+        inputSchema: greetInputSchema._schema,
         outputSchema: greetOutputSchema._schema,
         handler: () => {
           throw "string error";

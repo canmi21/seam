@@ -1,18 +1,10 @@
 /* packages/server/adapter/node/__tests__/adapter.test.ts */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createRouter, t } from "@canmi/seam-server";
+import { greetRouter as router } from "../../../core/typescript/__tests__/fixtures.js";
 import { serveNode } from "../src/index.js";
 import type { Server } from "node:http";
 import type { AddressInfo } from "node:net";
-
-const router = createRouter({
-  greet: {
-    input: t.object({ name: t.string() }),
-    output: t.object({ message: t.string() }),
-    handler: ({ input }) => ({ message: `Hello, ${input.name}!` }),
-  },
-});
 
 let server: Server;
 let base: string;

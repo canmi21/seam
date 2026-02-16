@@ -1,15 +1,8 @@
 /* packages/server/core/typescript/__tests__/http-handler.test.ts */
 
 import { describe, expect, it } from "vitest";
-import { createRouter, t, createHttpHandler } from "../src/index.js";
-
-const router = createRouter({
-  greet: {
-    input: t.object({ name: t.string() }),
-    output: t.object({ message: t.string() }),
-    handler: ({ input }) => ({ message: `Hello, ${input.name}!` }),
-  },
-});
+import { createHttpHandler } from "../src/index.js";
+import { greetRouter as router } from "./fixtures.js";
 
 const handler = createHttpHandler(router);
 
