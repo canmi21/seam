@@ -282,10 +282,6 @@ fn n_way_prefix_suffix(variants: &[&str]) -> (usize, usize) {
   // Snap suffix so it never falls inside text content or a tag
   end = snap_suffix_to_tag_boundary(first.as_bytes(), end);
 
-  // Ensure extracted region is tag-balanced: if the middle has unclosed opening
-  // tags, extend end forward to include their closing tags (shrinks the suffix).
-  end = extend_to_balanced(first.as_bytes(), snapped_prefix, end);
-
   (snapped_prefix, first.len() - end)
 }
 
@@ -565,26 +561,38 @@ fn process_single_axis(
       let mut branches = String::new();
       for (idx, (value, _)) in groups.iter().enumerate() {
         if has_siblings {
-          // Recursive: extract sibling axes within each match arm
+          // Recursive: extract sibling axes within each match arm.
+          // Balance each arm body individually so unclosed tags in the
+          // stripped region get their closing tags included.
+          // Guard: sibling axis variation may make some variants shorter
+          // than the prefix computed from representatives.
           let (_, ref arm_indices) = all_groups[idx];
           let arm_bodies: Vec<String> = arm_indices
             .iter()
             .map(|&i| {
               let v = &variants[i];
-              v[start..v.len() - suffix_len].to_string()
+              if start >= v.len() {
+                return String::new();
+              }
+              let raw_end = v.len().saturating_sub(suffix_len).max(start);
+              let balanced_end = extend_to_balanced(v.as_bytes(), start, raw_end);
+              v[start..balanced_end].to_string()
             })
             .collect();
           let arm_body = extract_template_inner(&sibling_axes, &arm_bodies);
           branches.push_str(&format!("<!--seam:when:{value}-->{arm_body}"));
         } else {
           let html = &variants[groups[idx].1];
-          let block = &html[start..html.len() - suffix_len];
+          let raw_end = html.len().saturating_sub(suffix_len).max(start);
+          let balanced_end = extend_to_balanced(html.as_bytes(), start, raw_end);
+          let block = &html[start..balanced_end];
           branches.push_str(&format!("<!--seam:when:{value}-->{block}"));
         }
       }
 
       let marker = format!("<!--seam:match:{}-->{branches}<!--seam:endmatch-->", axis.path);
-      let base_end = base.len() - suffix_len;
+      let raw_end = base.len().saturating_sub(suffix_len).max(start);
+      let base_end = extend_to_balanced(base.as_bytes(), start, raw_end);
       Some(AxisEffect { start, end: base_end, replacement: marker })
     }
     "array" => {
@@ -669,18 +677,20 @@ fn process_array_with_children(
     })
     .collect();
 
+  // 5b. Pre-rename slot markers in body variants so inner recursive
+  //     extraction can match child axis paths (e.g. posts.$.tags.$.name -> $.tags.$.name)
+  let slot_prefix = format!("<!--seam:{}.", array_axis.path);
+  let body_variants: Vec<String> =
+    body_variants.into_iter().map(|b| b.replace(&slot_prefix, "<!--seam:")).collect();
+
   // 6. Recursively extract template from body variants
   let template_body = extract_template_inner(&child_axes, &body_variants);
 
-  // 7. Rename slot marker paths: <!--seam:posts. -> <!--seam:
-  let slot_prefix = format!("<!--seam:{}.", array_axis.path);
-  let renamed = template_body.replace(&slot_prefix, "<!--seam:");
-
-  // 8. Wrap with each markers, unwrapping container if present
-  let marker = if let Some((open, inner, close)) = unwrap_container(&renamed) {
+  // 7. Wrap with each markers, unwrapping container if present
+  let marker = if let Some((open, inner, close)) = unwrap_container(&template_body) {
     format!("{open}<!--seam:each:{}-->{inner}<!--seam:endeach-->{close}", array_axis.path)
   } else {
-    format!("<!--seam:each:{}-->{}<!--seam:endeach-->", array_axis.path, renamed)
+    format!("<!--seam:each:{}-->{}<!--seam:endeach-->", array_axis.path, template_body)
   };
 
   let (base_start, base_end, _) = two_way_diff(base, html_empty);
