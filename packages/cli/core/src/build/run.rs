@@ -8,21 +8,21 @@ use std::time::Instant;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
-use super::config::BuildConfig;
+use std::path::PathBuf;
+
+use super::config::{BuildConfig, BundlerMode};
 use super::skeleton::{extract_template, sentinel_to_slots, wrap_document, Axis};
 use crate::codegen;
 use crate::config::SeamConfig;
 use crate::manifest::Manifest;
 use crate::ui::{self, DIM, GREEN, RESET};
 
-// -- Vite manifest types --
+// -- Seam bundle manifest --
 
 #[derive(Deserialize)]
-struct ViteManifestEntry {
-  file: String,
-  css: Option<Vec<String>>,
-  #[serde(rename = "isEntry")]
-  is_entry: Option<bool>,
+struct SeamManifest {
+  js: Vec<String>,
+  css: Vec<String>,
 }
 
 // -- Node script output types --
@@ -102,23 +102,59 @@ fn run_command(base_dir: &Path, command: &str, label: &str) -> Result<()> {
   Ok(())
 }
 
-fn read_vite_manifest(path: &Path) -> Result<AssetFiles> {
-  let content = std::fs::read_to_string(path)
-    .with_context(|| format!("failed to read Vite manifest at {}", path.display()))?;
-  let manifest: BTreeMap<String, ViteManifestEntry> =
-    serde_json::from_str(&content).context("failed to parse Vite manifest")?;
-
-  let mut css = Vec::new();
-  let mut js = Vec::new();
-  for entry in manifest.values() {
-    if entry.is_entry == Some(true) {
-      js.push(entry.file.clone());
-    }
-    if let Some(css_list) = &entry.css {
-      css.extend(css_list.iter().cloned());
-    }
+/// Dispatch bundler based on mode
+fn run_bundler(base_dir: &Path, mode: &BundlerMode) -> Result<()> {
+  match mode {
+    BundlerMode::BuiltIn { entry } => run_builtin_bundler(base_dir, entry, "dist"),
+    BundlerMode::Custom { command } => run_command(base_dir, command, "bundler"),
   }
-  Ok(AssetFiles { css, js })
+}
+
+/// Run the built-in Rolldown bundler via the packaged build script
+fn run_builtin_bundler(base_dir: &Path, entry: &str, out_dir: &str) -> Result<()> {
+  let runtime = if which_exists("bun") { "bun" } else { "node" };
+  let script = find_cli_script(base_dir, "build-frontend.mjs")?;
+  ui::detail(&format!("{DIM}{runtime} build-frontend.mjs {entry} {out_dir}{RESET}"));
+  let output = Command::new(runtime)
+    .args([script.to_str().unwrap(), entry, out_dir])
+    .current_dir(base_dir)
+    .output()
+    .context("failed to run built-in bundler")?;
+  if !output.status.success() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut msg = format!("built-in bundler exited with status {}", output.status);
+    if !stderr.is_empty() {
+      msg.push('\n');
+      msg.push_str(&stderr);
+    }
+    if !stdout.is_empty() {
+      msg.push('\n');
+      msg.push_str(&stdout);
+    }
+    bail!("{msg}");
+  }
+  Ok(())
+}
+
+/// Locate a script bundled with @canmi/seam-cli
+fn find_cli_script(base_dir: &Path, name: &str) -> Result<PathBuf> {
+  let path = base_dir.join("node_modules/@canmi/seam-cli/scripts").join(name);
+  if path.exists() {
+    return Ok(path);
+  }
+  bail!(
+    "{name} not found at {} -- install @canmi/seam-cli or set build.bundler_command",
+    path.display()
+  );
+}
+
+fn read_bundle_manifest(path: &Path) -> Result<AssetFiles> {
+  let content = std::fs::read_to_string(path)
+    .with_context(|| format!("failed to read bundle manifest at {}", path.display()))?;
+  let manifest: SeamManifest =
+    serde_json::from_str(&content).context("failed to parse bundle manifest")?;
+  Ok(AssetFiles { css: manifest.css, js: manifest.js })
 }
 
 /// Print each asset file with its size from disk
@@ -240,10 +276,10 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
 
   // [1/4] Bundle frontend
   ui::step(1, 4, "Bundling frontend");
-  run_command(base_dir, &build_config.bundler_command, "bundler")?;
+  run_bundler(base_dir, &build_config.bundler_mode)?;
 
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
-  let assets = read_vite_manifest(&manifest_path)?;
+  let assets = read_bundle_manifest(&manifest_path)?;
   print_asset_files(base_dir, "dist", &assets);
   ui::blank();
 
@@ -360,7 +396,7 @@ fn run_typecheck(base_dir: &Path, command: &str) -> Result<()> {
   Ok(())
 }
 
-/// Copy frontend assets from Vite dist/ to {out_dir}/public/
+/// Copy frontend assets from dist/ to {out_dir}/public/
 fn package_static_assets(base_dir: &Path, assets: &AssetFiles, out_dir: &Path) -> Result<()> {
   let public_dir = out_dir.join("public");
 
@@ -436,9 +472,9 @@ fn run_fullstack_build(
   // [4] Bundle frontend
   step_num += 1;
   ui::step(step_num, total, "Bundling frontend");
-  run_command(base_dir, &build_config.bundler_command, "bundler")?;
-  let vite_manifest_path = base_dir.join(&build_config.bundler_manifest);
-  let assets = read_vite_manifest(&vite_manifest_path)?;
+  run_bundler(base_dir, &build_config.bundler_mode)?;
+  let manifest_path = base_dir.join(&build_config.bundler_manifest);
+  let assets = read_bundle_manifest(&manifest_path)?;
   print_asset_files(base_dir, "dist", &assets);
   ui::blank();
 
@@ -516,5 +552,30 @@ mod tests {
   #[test]
   fn path_to_filename_nested() {
     assert_eq!(path_to_filename("/user/:id/posts"), "user-id-posts.html");
+  }
+
+  #[test]
+  fn read_seam_manifest() {
+    let dir = std::env::temp_dir().join("seam-test-manifest");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("manifest.json");
+    std::fs::write(&path, r#"{"js":["assets/main-abc123.js"],"css":["assets/style-xyz789.css"]}"#)
+      .unwrap();
+    let assets = read_bundle_manifest(&path).unwrap();
+    assert_eq!(assets.js, vec!["assets/main-abc123.js"]);
+    assert_eq!(assets.css, vec!["assets/style-xyz789.css"]);
+    std::fs::remove_dir_all(&dir).ok();
+  }
+
+  #[test]
+  fn read_seam_manifest_empty() {
+    let dir = std::env::temp_dir().join("seam-test-manifest-empty");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("manifest.json");
+    std::fs::write(&path, r#"{"js":[],"css":[]}"#).unwrap();
+    let assets = read_bundle_manifest(&path).unwrap();
+    assert!(assets.js.is_empty());
+    assert!(assets.css.is_empty());
+    std::fs::remove_dir_all(&dir).ok();
   }
 }

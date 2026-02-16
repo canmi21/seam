@@ -5,12 +5,16 @@
     "seam": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "scripts"
   ],
   "type": "module",
   "scripts": {
     "build": "tsdown src/index.ts",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "rolldown": "^1.0.0-rc"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -43,6 +43,7 @@ impl Default for BackendConfig {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct FrontendConfig {
+  pub entry: Option<String>,
   pub dev_command: Option<String>,
   pub dev_port: Option<u16>,
   pub build_command: Option<String>,
@@ -174,6 +175,28 @@ typecheck_command = "bunx tsc --noEmit"
     );
     assert_eq!(config.build.router_file.as_deref(), Some("src/server/router.ts"));
     assert_eq!(config.build.typecheck_command.as_deref(), Some("bunx tsc --noEmit"));
+  }
+
+  #[test]
+  fn parse_builtin_bundler_config() {
+    let toml_str = r#"
+[project]
+name = "builtin-app"
+
+[frontend]
+entry = "src/client/main.tsx"
+dev_port = 5173
+
+[build]
+routes = "./src/routes.ts"
+out_dir = ".seam/output"
+backend_build_command = "bun build src/server/index.ts --target=bun --outdir=.seam/output/server"
+router_file = "src/server/router.ts"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.frontend.entry.as_deref(), Some("src/client/main.tsx"));
+    assert!(config.build.bundler_command.is_none());
+    assert!(config.build.bundler_manifest.is_none());
   }
 
   #[test]
