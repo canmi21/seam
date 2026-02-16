@@ -31,6 +31,7 @@
         "tailwindcss": "^4.1.18",
       },
       "devDependencies": {
+        "@canmi/seam-cli": "workspace:*",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
         "bun-types": "^1.2.0",

@@ -8,12 +8,14 @@ import { App } from "./app.js";
 import { HomeSkeleton } from "./pages/home-skeleton.js";
 import { AboutSkeleton } from "./pages/about-skeleton.js";
 import { PostsSkeleton } from "./pages/posts-skeleton.js";
+import { React19Skeleton } from "./pages/react19-skeleton.js";
 import "./index.css";
 
 const routeMap: Record<string, ComponentType> = {
   "/": HomeSkeleton,
   "/about": AboutSkeleton,
   "/posts": PostsSkeleton,
+  "/react19": React19Skeleton,
 };
 
 const seamRoot = document.getElementById("__SEAM_ROOT__");

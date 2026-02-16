@@ -4,6 +4,7 @@ import { defineRoutes } from "@canmi/seam-react";
 import { HomeSkeleton } from "./pages/home-skeleton.js";
 import { AboutSkeleton } from "./pages/about-skeleton.js";
 import { PostsSkeleton } from "./pages/posts-skeleton.js";
+import { React19Skeleton } from "./pages/react19-skeleton.js";
 
 export default defineRoutes([
   {
@@ -61,6 +62,18 @@ export default defineRoutes([
           author: "Alice",
         },
       ],
+    },
+  },
+  {
+    path: "/react19",
+    component: React19Skeleton,
+    loaders: {
+      page: { procedure: "getReact19Data" },
+    },
+    mock: {
+      heading: "React 19 Features",
+      description:
+        "Demonstrating useId, Suspense, useState, useRef, useMemo, and metadata hoisting.",
     },
   },
 ]);

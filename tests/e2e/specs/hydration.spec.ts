@@ -1,7 +1,7 @@
 /* tests/e2e/specs/hydration.spec.ts */
 import { test, expect, type ConsoleMessage } from "@playwright/test";
 
-const ROUTES = ["/", "/about", "/posts"] as const;
+const ROUTES = ["/", "/about", "/posts", "/react19"] as const;
 
 const HYDRATION_ERROR_PATTERNS = [
   "Text content did not match",
@@ -61,4 +61,51 @@ test.describe("hydration", () => {
       expect(details, `hydration errors on ${route}`).toEqual([]);
     });
   }
+});
+
+test.describe("react 19 features", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/react19", { waitUntil: "networkidle" });
+    await page
+      .locator("#__SEAM_ROOT__")
+      .locator(":scope > *")
+      .first()
+      .waitFor({ timeout: 5_000 })
+      .catch(() => {});
+    await page.waitForTimeout(500);
+  });
+
+  test("useId: label[for] matches input[id]", async ({ page }) => {
+    const labels = page.locator("label[for]");
+    const count = await labels.count();
+    expect(count).toBeGreaterThanOrEqual(2);
+
+    for (let i = 0; i < count; i++) {
+      const forAttr = await labels.nth(i).getAttribute("for");
+      expect(forAttr).toBeTruthy();
+      const input = page.locator(`input[id="${forAttr}"]`);
+      await expect(input).toBeVisible();
+    }
+  });
+
+  test("suspense content is visible", async ({ page }) => {
+    await expect(page.getByTestId("suspense-content")).toBeVisible();
+    await expect(page.getByTestId("suspense-content")).toContainText("loaded successfully");
+  });
+
+  test("interactive counter works after hydration", async ({ page }) => {
+    const counter = page.getByTestId("counter-value");
+    await expect(counter).toContainText("Count: 0");
+
+    await page.getByTestId("increment-btn").click();
+    await expect(counter).toContainText("Count: 1");
+
+    await page.getByTestId("increment-btn").click();
+    await expect(counter).toContainText("Count: 2");
+  });
+
+  test("metadata hoisting: document.title set by component", async ({ page }) => {
+    const title = await page.title();
+    expect(title).toBe("React 19 Features");
+  });
 });

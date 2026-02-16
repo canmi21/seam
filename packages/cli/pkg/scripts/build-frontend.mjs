@@ -40,13 +40,13 @@ async function resolvePostcssPlugins(configPath) {
 
 function postcssPlugin(postcssPlugins) {
   let postcss;
+  const require = createRequire(path.join(cwd, "__placeholder__.js"));
   return {
     name: "seam-postcss",
     async transform(code, id) {
       if (!id.endsWith(".css")) return null;
       if (!postcss) {
-        const mod = await import("postcss");
-        postcss = mod.default;
+        postcss = require("postcss");
       }
       const result = await postcss(postcssPlugins).process(code, { from: id });
       return { code: result.css, map: result.map?.toJSON() };
