@@ -14,8 +14,11 @@ See root CLAUDE.md for general conventions.
 | `pull.rs`               | Fetches `/_seam/manifest.json` from a running server via reqwest                  |
 | `codegen/typescript.rs` | JTD schema -> TypeScript interfaces + `createSeamClient` factory                  |
 | `build/config.rs`       | `BuildConfig` + `BundlerMode` enum derived from `SeamConfig`; detects fullstack vs frontend-only |
-| `build/run.rs`          | Build orchestrator: frontend-only (4 steps) or fullstack (7 steps)                |
+| `build/run.rs`          | Build orchestrator: dispatches frontend-only (4 steps) or fullstack (7 steps) builds |
+| `build/route.rs`        | Pipeline steps: skeleton rendering, route processing, manifest extraction, codegen, asset packaging |
+| `build/types.rs`        | Shared build types (`AssetFiles`, `SeamManifest`) and manifest reader             |
 | `build/skeleton/`       | HTML template extraction pipeline (slot, extract, document)                       |
+| `shell.rs`              | Shell command helpers shared across build and dev (`run_command`, `run_builtin_bundler`) |
 | `dev.rs`                | Spawns backend + frontend dev processes, pipes labeled output, handles Ctrl+C     |
 | `dev_server.rs`         | Embedded axum dev server (static files + API proxy + SPA fallback)                |
 | `ui.rs`                 | Terminal output helpers (ANSI colors, step counters, file size formatting)        |
@@ -41,10 +44,11 @@ The extract module is the most complex part, split into sub-modules:
 
 ## Key Files
 
-- `src/main.rs` -- CLI definition and command dispatch (~137 lines)
-- `src/build/run.rs` -- build orchestrator (~580 lines, largest file)
-- `src/codegen/typescript.rs` -- JTD-to-TypeScript codegen (~450 lines with tests)
-- `src/build/skeleton/extract/mod.rs` -- template extraction engine (~790 lines with tests)
+- `src/main.rs` -- CLI definition and command dispatch (~138 lines)
+- `src/build/run.rs` -- build orchestrator (~224 lines)
+- `src/build/route.rs` -- pipeline step implementations (~291 lines)
+- `src/codegen/typescript.rs` -- JTD-to-TypeScript codegen (~448 lines with tests)
+- `src/build/skeleton/extract/mod.rs` -- template extraction engine (~137 lines, tests in `tests.rs`)
 
 ## Conventions
 
@@ -62,7 +66,7 @@ cargo test -p seam-cli
 
 - Unit tests colocated in each module (`#[cfg(test)] mod tests`)
 - Integration tests in `build/skeleton/mod.rs` span the full slot -> extract -> document pipeline
-- `extract/mod.rs` contains legacy v1 helper tests and regression tests for known bugs (container unwrap, class attribute splitting, stale content after endmatch)
+- `extract/tests.rs` contains legacy v1 helper tests and regression tests for known bugs (container unwrap, class attribute splitting, stale content after endmatch)
 
 ## Gotchas
 
