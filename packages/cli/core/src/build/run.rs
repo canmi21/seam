@@ -78,7 +78,7 @@ struct AssetFiles {
 // -- Shared helpers --
 
 /// Run a shell command, bail on failure (shows both stdout and stderr on error)
-fn run_command(base_dir: &Path, command: &str, label: &str) -> Result<()> {
+pub fn run_command(base_dir: &Path, command: &str, label: &str) -> Result<()> {
   ui::detail(&format!("{DIM}{command}{RESET}"));
   let output = Command::new("sh")
     .args(["-c", command])
@@ -111,7 +111,7 @@ fn run_bundler(base_dir: &Path, mode: &BundlerMode) -> Result<()> {
 }
 
 /// Run the built-in Rolldown bundler via the packaged build script
-fn run_builtin_bundler(base_dir: &Path, entry: &str, out_dir: &str) -> Result<()> {
+pub fn run_builtin_bundler(base_dir: &Path, entry: &str, out_dir: &str) -> Result<()> {
   let runtime = if which_exists("bun") { "bun" } else { "node" };
   let script = find_cli_script(base_dir, "build-frontend.mjs")?;
   ui::detail(&format!("{DIM}{runtime} build-frontend.mjs {entry} {out_dir}{RESET}"));

@@ -4,6 +4,7 @@ mod build;
 mod codegen;
 mod config;
 mod dev;
+mod dev_server;
 mod manifest;
 mod pull;
 mod ui;
