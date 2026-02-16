@@ -143,10 +143,10 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
     let build_config = BuildConfig::from_seam_config(config)?;
     match &build_config.bundler_mode {
       BundlerMode::BuiltIn { entry } => {
-        crate::build::run::run_builtin_bundler(base_dir, entry, "dist")?;
+        crate::shell::run_builtin_bundler(base_dir, entry, "dist")?;
       }
       BundlerMode::Custom { command } => {
-        crate::build::run::run_command(base_dir, command, "bundler")?;
+        crate::shell::run_command(base_dir, command, "bundler")?;
       }
     }
     crate::ui::blank();

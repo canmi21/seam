@@ -8,14 +8,13 @@ use std::time::Instant;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
-use std::path::PathBuf;
-
 use super::config::{BuildConfig, BundlerMode};
 use super::skeleton::{extract_template, sentinel_to_slots, wrap_document, Axis};
 use super::types::{read_bundle_manifest, AssetFiles};
 use crate::codegen;
 use crate::config::SeamConfig;
 use crate::manifest::Manifest;
+use crate::shell::{run_builtin_bundler, run_command, which_exists};
 use crate::ui::{self, DIM, GREEN, RESET};
 
 // -- Node script output types --
@@ -63,78 +62,12 @@ fn path_to_filename(path: &str) -> String {
   format!("{slug}.html")
 }
 
-// -- Shared helpers --
-
-/// Run a shell command, bail on failure (shows both stdout and stderr on error)
-pub fn run_command(base_dir: &Path, command: &str, label: &str) -> Result<()> {
-  ui::detail(&format!("{DIM}{command}{RESET}"));
-  let output = Command::new("sh")
-    .args(["-c", command])
-    .current_dir(base_dir)
-    .output()
-    .with_context(|| format!("failed to run {label}"))?;
-  if !output.status.success() {
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let mut msg = format!("{label} exited with status {}", output.status);
-    if !stderr.is_empty() {
-      msg.push('\n');
-      msg.push_str(&stderr);
-    }
-    if !stdout.is_empty() {
-      msg.push('\n');
-      msg.push_str(&stdout);
-    }
-    bail!("{msg}");
-  }
-  Ok(())
-}
-
 /// Dispatch bundler based on mode
 fn run_bundler(base_dir: &Path, mode: &BundlerMode) -> Result<()> {
   match mode {
     BundlerMode::BuiltIn { entry } => run_builtin_bundler(base_dir, entry, "dist"),
     BundlerMode::Custom { command } => run_command(base_dir, command, "bundler"),
   }
-}
-
-/// Run the built-in Rolldown bundler via the packaged build script
-pub fn run_builtin_bundler(base_dir: &Path, entry: &str, out_dir: &str) -> Result<()> {
-  let runtime = if which_exists("bun") { "bun" } else { "node" };
-  let script = find_cli_script(base_dir, "build-frontend.mjs")?;
-  ui::detail(&format!("{DIM}{runtime} build-frontend.mjs {entry} {out_dir}{RESET}"));
-  let output = Command::new(runtime)
-    .args([script.to_str().unwrap(), entry, out_dir])
-    .current_dir(base_dir)
-    .output()
-    .context("failed to run built-in bundler")?;
-  if !output.status.success() {
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut msg = format!("built-in bundler exited with status {}", output.status);
-    if !stderr.is_empty() {
-      msg.push('\n');
-      msg.push_str(&stderr);
-    }
-    if !stdout.is_empty() {
-      msg.push('\n');
-      msg.push_str(&stdout);
-    }
-    bail!("{msg}");
-  }
-  Ok(())
-}
-
-/// Locate a script bundled with @canmi/seam-cli
-fn find_cli_script(base_dir: &Path, name: &str) -> Result<PathBuf> {
-  let path = base_dir.join("node_modules/@canmi/seam-cli/scripts").join(name);
-  if path.exists() {
-    return Ok(path);
-  }
-  bail!(
-    "{name} not found at {} -- install @canmi/seam-cli or set build.bundler_command",
-    path.display()
-  );
 }
 
 /// Print each asset file with its size from disk
@@ -400,17 +333,6 @@ fn package_static_assets(base_dir: &Path, assets: &AssetFiles, out_dir: &Path) -
   }
 
   Ok(())
-}
-
-/// Check if a command exists on PATH
-fn which_exists(cmd: &str) -> bool {
-  Command::new("which")
-    .arg(cmd)
-    .stdout(std::process::Stdio::null())
-    .stderr(std::process::Stdio::null())
-    .status()
-    .map(|s| s.success())
-    .unwrap_or(false)
 }
 
 fn run_fullstack_build(

@@ -1,4 +1,4 @@
-/* packages/cli/core/src/main.rs */
+/* .worktrees/cli-refactor/packages/cli/core/src/main.rs */
 
 mod build;
 mod codegen;
@@ -7,6 +7,7 @@ mod dev;
 mod dev_server;
 mod manifest;
 mod pull;
+mod shell;
 mod ui;
 
 use std::path::PathBuf;
