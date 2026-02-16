@@ -2,10 +2,7 @@
 import { defineConfig } from "@playwright/test";
 import path from "node:path";
 
-const buildDir = path.resolve(
-  __dirname,
-  "../../examples/fullstack/react-hono-tanstack/.seam/output",
-);
+const buildDir = path.resolve(__dirname, "fixture/.seam/output");
 
 export default defineConfig({
   testDir: "./specs",

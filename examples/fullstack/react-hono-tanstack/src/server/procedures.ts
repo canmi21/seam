@@ -88,18 +88,6 @@ export const getPosts: ProcedureDef = {
   }),
 };
 
-export const getReact19Data: ProcedureDef = {
-  input: t.object({}),
-  output: t.object({
-    heading: t.string(),
-    description: t.string(),
-  }),
-  handler: () => ({
-    heading: "React 19 Features",
-    description: "Demonstrating useId, Suspense, useState, useRef, useMemo, and metadata hoisting.",
-  }),
-};
-
 export const getPageData: ProcedureDef = {
   input: t.object({}),
   output: t.object({

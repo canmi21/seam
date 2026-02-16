@@ -9,3 +9,6 @@ dist/
 # Playwright
 tests/e2e/test-results/
 tests/e2e/playwright-report/
+
+# E2E fixture build output
+tests/e2e/fixture/.seam/

@@ -9,14 +9,18 @@ echo "Building seam CLI..."
 cargo build -p seam-cli --release
 
 # 2. Run seam build in fullstack example
-echo "Running seam build..."
+echo "Running seam build (fullstack)..."
 (cd "$EXAMPLE" && "$ROOT/target/release/seam" build)
 
 # 3. Run Go fullstack tests (HTTP-level)
 echo "Running Go fullstack tests..."
 (cd "$ROOT/tests/fullstack" && go test -v -count=1)
 
-# 4. Run Playwright E2E (browser-level)
+# 4. Build E2E fixture
+echo "Building E2E fixture..."
+(cd "$ROOT/tests/e2e/fixture" && "$ROOT/target/release/seam" build)
+
+# 5. Run Playwright E2E (browser-level)
 echo "Running Playwright E2E tests..."
 (cd "$ROOT/tests/e2e" && bunx playwright test)
 

@@ -1,7 +1,7 @@
 /* tests/e2e/specs/hydration.spec.ts */
 import { test, expect, type ConsoleMessage } from "@playwright/test";
 
-const ROUTES = ["/", "/about", "/posts", "/react19"] as const;
+const ROUTES = ["/", "/react19"] as const;
 
 const HYDRATION_ERROR_PATTERNS = [
   "Text content did not match",

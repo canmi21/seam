@@ -1,0 +1,19 @@
+{
+  "name": "e2e-fixture",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@canmi/seam-adapter-bun": "workspace:*",
+    "@canmi/seam-react": "workspace:*",
+    "@canmi/seam-server": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@canmi/seam-cli": "workspace:*",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "bun-types": "^1.2.0",
+    "typescript": "^5.7.0"
+  }
+}
