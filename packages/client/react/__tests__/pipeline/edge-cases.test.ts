@@ -11,7 +11,7 @@ import {
   wrapDocument,
 } from "./test-utils.js";
 
-describe("8. edge cases and defense", () => {
+describe("8a data handling", () => {
   it("101. missing data field renders empty", () => {
     function App() {
       const { title, subtitle } = useSeamData<{ title: string; subtitle: string }>();
@@ -66,7 +66,9 @@ describe("8. edge cases and defense", () => {
       realData: { text: "x".repeat(1_000_000) },
     });
   });
+});
 
+describe("8b scalability", () => {
   it("106. 1000 list items", () => {
     function App() {
       const { items } = useSeamData<{ items: { id: string; label: string }[] }>();

@@ -10,6 +10,9 @@ readme = "README.md"
 keywords = ["seam", "ctr", "proc-macro", "derive"]
 categories = ["development-tools::procedural-macro-helpers"]
 
+[lints]
+workspace = true
+
 [lib]
 proc-macro = true
 

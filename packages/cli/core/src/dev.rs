@@ -93,21 +93,12 @@ async fn wait_any(
   }
 }
 
-pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
-  let backend_cmd = config.backend.dev_command.as_deref();
-  let frontend_cmd = config.frontend.dev_command.as_deref();
-  let has_entry = config.frontend.entry.is_some();
-
-  // Determine frontend mode: external command, embedded dev server, or none
-  let use_embedded = frontend_cmd.is_none() && has_entry;
-
-  if backend_cmd.is_none() && frontend_cmd.is_none() && !has_entry {
-    bail!(
-      "no dev_command configured in seam.toml \
-       (set backend.dev_command, frontend.dev_command, or frontend.entry)"
-    );
-  }
-
+fn print_dev_banner(
+  config: &SeamConfig,
+  backend_cmd: Option<&str>,
+  frontend_cmd: Option<&str>,
+  use_embedded: bool,
+) {
   crate::ui::banner("dev");
 
   if let Some(cmd) = backend_cmd {
@@ -135,21 +126,42 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   println!();
   println!("  {GREEN}\u{2192}{RESET} {BOLD}http://localhost:{primary_port}{RESET}");
   println!();
+}
 
-  // If using embedded dev server, build frontend first
-  if use_embedded {
-    crate::ui::step(1, 1, "Building frontend");
-    // Use the build infrastructure to run the bundler
-    let build_config = BuildConfig::from_seam_config(config)?;
-    match &build_config.bundler_mode {
-      BundlerMode::BuiltIn { entry } => {
-        crate::shell::run_builtin_bundler(base_dir, entry, "dist")?;
-      }
-      BundlerMode::Custom { command } => {
-        crate::shell::run_command(base_dir, command, "bundler")?;
-      }
+fn build_frontend(config: &SeamConfig, base_dir: &Path) -> Result<()> {
+  crate::ui::step(1, 1, "Building frontend");
+  let build_config = BuildConfig::from_seam_config(config)?;
+  match &build_config.bundler_mode {
+    BundlerMode::BuiltIn { entry } => {
+      crate::shell::run_builtin_bundler(base_dir, entry, "dist")?;
     }
-    crate::ui::blank();
+    BundlerMode::Custom { command } => {
+      crate::shell::run_command(base_dir, command, "bundler")?;
+    }
+  }
+  crate::ui::blank();
+  Ok(())
+}
+
+pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
+  let backend_cmd = config.backend.dev_command.as_deref();
+  let frontend_cmd = config.frontend.dev_command.as_deref();
+  let has_entry = config.frontend.entry.is_some();
+
+  // Determine frontend mode: external command, embedded dev server, or none
+  let use_embedded = frontend_cmd.is_none() && has_entry;
+
+  if backend_cmd.is_none() && frontend_cmd.is_none() && !has_entry {
+    bail!(
+      "no dev_command configured in seam.toml \
+       (set backend.dev_command, frontend.dev_command, or frontend.entry)"
+    );
+  }
+
+  print_dev_banner(config, backend_cmd, frontend_cmd, use_embedded);
+
+  if use_embedded {
+    build_frontend(config, base_dir)?;
   }
 
   let mut children: Vec<ChildProcess> = Vec::new();

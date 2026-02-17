@@ -452,6 +452,44 @@ fn extract_home_skeleton_regression() {
   assert!(!result.contains("posts.$."), "leaked nested path in:\n{result}");
 }
 
+#[allow(clippy::too_many_arguments)]
+fn gen_all_child_types(
+  is_admin: bool,
+  is_logged_in: bool,
+  subtitle: bool,
+  role: &str,
+  pop: bool,
+  published: bool,
+  priority: &str,
+  author: bool,
+  tags: bool,
+) -> String {
+  let admin = if is_admin { "<span>Admin</span>" } else { "" };
+  let status = if is_logged_in { "Signed in" } else { "Please sign in" };
+  let sub = if subtitle { "<p><!--seam:subtitle--></p>" } else { "" };
+  let role_html = match role {
+    "admin" => "<span>Full access</span>",
+    "member" => "<span>Member access</span>",
+    _ => "<span>Read-only</span>",
+  };
+  let posts_html = if pop {
+    let pub_html = if published { "<span>Published</span>" } else { "<span>Draft</span>" };
+    let border = match priority {
+      "high" => "border-red",
+      "medium" => "border-amber",
+      _ => "border-gray",
+    };
+    let author_html = if author { "<span>by <!--seam:posts.$.author--></span>" } else { "" };
+    let tags_html = if tags { "<span><!--seam:posts.$.tags.$.name--></span>" } else { "" };
+    format!(
+      r#"<ul class="list"><li class="{border}"><!--seam:posts.$.title-->{pub_html}{author_html}<div>{tags_html}</div></li></ul>"#
+    )
+  } else {
+    "<p>No posts</p>".to_string()
+  };
+  format!("<div>{admin}<p>{status}</p>{sub}{role_html}{posts_html}</div>")
+}
+
 #[test]
 fn extract_array_with_all_child_types() {
   // Full home page scenario: top-level axes + posts array with 4 child axis types.
@@ -467,44 +505,6 @@ fn extract_array_with_all_child_types() {
     make_axis("posts.$.tags", "array", vec![json!("populated"), json!("empty")]),
   ];
 
-  #[allow(clippy::too_many_arguments)]
-  fn gen(
-    is_admin: bool,
-    is_logged_in: bool,
-    subtitle: bool,
-    role: &str,
-    pop: bool,
-    published: bool,
-    priority: &str,
-    author: bool,
-    tags: bool,
-  ) -> String {
-    let admin = if is_admin { "<span>Admin</span>" } else { "" };
-    let status = if is_logged_in { "Signed in" } else { "Please sign in" };
-    let sub = if subtitle { "<p><!--seam:subtitle--></p>" } else { "" };
-    let role_html = match role {
-      "admin" => "<span>Full access</span>",
-      "member" => "<span>Member access</span>",
-      _ => "<span>Read-only</span>",
-    };
-    let posts_html = if pop {
-      let pub_html = if published { "<span>Published</span>" } else { "<span>Draft</span>" };
-      let border = match priority {
-        "high" => "border-red",
-        "medium" => "border-amber",
-        _ => "border-gray",
-      };
-      let author_html = if author { "<span>by <!--seam:posts.$.author--></span>" } else { "" };
-      let tags_html = if tags { "<span><!--seam:posts.$.tags.$.name--></span>" } else { "" };
-      format!(
-        r#"<ul class="list"><li class="{border}"><!--seam:posts.$.title-->{pub_html}{author_html}<div>{tags_html}</div></li></ul>"#
-      )
-    } else {
-      "<p>No posts</p>".to_string()
-    };
-    format!("<div>{admin}<p>{status}</p>{sub}{role_html}{posts_html}</div>")
-  }
-
   let mut variants = Vec::new();
   for &is_admin in &[true, false] {
     for &is_logged_in in &[true, false] {
@@ -515,7 +515,7 @@ fn extract_array_with_all_child_types() {
               for priority in &["high", "medium", "low"] {
                 for &author in &[true, false] {
                   for &tags in &[true, false] {
-                    variants.push(gen(
+                    variants.push(gen_all_child_types(
                       is_admin,
                       is_logged_in,
                       subtitle,

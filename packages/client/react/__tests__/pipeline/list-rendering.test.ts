@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { useSeamData } from "../../src/index.js";
 import { assertPipelineFidelity, renderWithProvider } from "./test-utils.js";
 
-describe("3.1 basic list rendering", () => {
+describe("3.1a simple lists", () => {
   it("41. empty array yields no output", () => {
     function App() {
       const { items } = useSeamData<{ items: { name: string }[] }>();
@@ -83,7 +83,9 @@ describe("3.1 basic list rendering", () => {
       },
     });
   });
+});
 
+describe("3.1b complex items", () => {
   it("45. list items are complex components", () => {
     function App() {
       const { users } = useSeamData<{ users: { name: string; bio: string }[] }>();

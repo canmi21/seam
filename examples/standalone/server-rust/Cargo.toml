@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 publish = false
 
+[lints]
+workspace = true
+
 [dependencies]
 async-stream = "0.3"
 seam-server = { path = "../../../packages/server/core/rust" }

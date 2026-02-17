@@ -152,7 +152,7 @@ describe("round-trip: render -> slots -> inject", () => {
   });
 });
 
-describe("react 19 feature compatibility", () => {
+describe("react 19: useId", () => {
   it("useId values survive the full CTR pipeline", () => {
     function IdForm() {
       const id = useId();
@@ -214,7 +214,9 @@ describe("react 19 feature compatibility", () => {
     // StrictMode is transparent to useId generation
     expect(buildHtml).toBe(hydrateHtml);
   });
+});
 
+describe("react 19: markers and metadata", () => {
   it("Suspense comment markers preserved through pipeline", () => {
     function SuspenseWrapper() {
       const { title } = useSeamData<{ title: string }>();
@@ -305,7 +307,9 @@ describe("react 19 feature compatibility", () => {
     const finalHtml = inject(template, { pageTitle: "My Page" });
     expect(finalHtml).toContain("My Page");
   });
+});
 
+describe("react 19: ref and hooks", () => {
   it("common hooks (useState, useRef, useMemo, useCallback) render valid HTML", () => {
     function HooksComponent() {
       const data = useSeamData<{ label: string; count: number }>();

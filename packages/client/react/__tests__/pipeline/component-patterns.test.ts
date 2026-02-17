@@ -14,7 +14,7 @@ import type { ReactNode } from "react";
 import { useSeamData } from "../../src/index.js";
 import { assertPipelineFidelity } from "./test-utils.js";
 
-describe("7. component patterns", () => {
+describe("7a basic component patterns", () => {
   it("89. component returns null", () => {
     function App() {
       useSeamData<{ unused: string }>();
@@ -103,7 +103,9 @@ describe("7. component patterns", () => {
       realData: { items: "real item" },
     });
   });
+});
 
+describe("7b advanced component patterns", () => {
   it("95. forwardRef component", () => {
     const FancyButton = forwardRef<HTMLButtonElement, { label: string }>(
       function FancyButton(props, ref) {

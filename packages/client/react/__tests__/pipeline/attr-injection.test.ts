@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { useSeamData } from "../../src/index.js";
 import { assertPipelineFidelity } from "./test-utils.js";
 
-describe("1.2 attribute injection", () => {
+describe("1.2a standard attributes", () => {
   it("13. className replacement", () => {
     function App() {
       const { cls } = useSeamData<{ cls: string }>();
@@ -69,7 +69,9 @@ describe("1.2 attribute injection", () => {
       realData: { styles: { marginTop: 0 } },
     });
   });
+});
 
+describe("1.2b data and accessibility attributes", () => {
   it("16. data-* custom attributes", () => {
     function App() {
       const { tid } = useSeamData<{ tid: string }>();
@@ -153,7 +155,9 @@ describe("1.2 attribute injection", () => {
       realData: { title: "" },
     });
   });
+});
 
+describe("1.2c boolean and numeric attributes", () => {
   it("21. dynamic boolean attr (disabled) via boolean axis", () => {
     function App() {
       const { dis } = useSeamData<{ dis: boolean }>();

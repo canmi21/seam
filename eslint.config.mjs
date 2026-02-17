@@ -7,7 +7,14 @@ import oxlint from "eslint-plugin-oxlint";
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/node_modules/**", "**/target/**", "examples/**", "packages/cli/**"],
+    ignores: [
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/target/**",
+      "**/.seam/**",
+      "examples/**",
+      "packages/cli/**",
+    ],
   },
   ...tseslint.configs.recommendedTypeChecked,
   {
@@ -20,6 +27,8 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/no-require-imports": "off",
+      "max-lines": ["warn", { max: 500, skipBlankLines: true, skipComments: true }],
+      "max-lines-per-function": ["warn", { max: 100, skipBlankLines: true, skipComments: true }],
     },
   },
   // disable type-checked rules for files outside tsconfig (tests, configs, scripts)

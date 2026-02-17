@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { useSeamData } from "../../src/index.js";
 import { assertPipelineFidelity } from "./test-utils.js";
 
-describe("2.1 boolean conditions", () => {
+describe("2.1a basic boolean conditions", () => {
   it("26. conditional rendering with && operator", () => {
     function App() {
       const { show, text } = useSeamData<{ show: boolean; text: string }>();
@@ -51,7 +51,9 @@ describe("2.1 boolean conditions", () => {
       realData: { show: false, text: "middle" },
     });
   });
+});
 
+describe("2.1b nested boolean conditions", () => {
   // Nested booleans: sequential extraction does not yet rebase inner offsets
   it.fails("28. nested boolean: outer true + inner true", () => {
     function App() {
@@ -123,7 +125,7 @@ describe("2.1 boolean conditions", () => {
   });
 });
 
-describe("2.2 ternary conditions", () => {
+describe("2.2a basic ternary conditions", () => {
   it("31. ternary true branch", () => {
     function App() {
       const { active } = useSeamData<{ active: boolean }>();
@@ -187,7 +189,9 @@ describe("2.2 ternary conditions", () => {
       realData: { mode: false },
     });
   });
+});
 
+describe("2.2b complex ternary conditions", () => {
   it("34. one branch is null", () => {
     function App() {
       const { visible, text } = useSeamData<{ visible: boolean; text: string }>();

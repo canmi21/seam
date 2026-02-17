@@ -5,7 +5,7 @@ import { createElement } from "react";
 import { useSeamData } from "../../src/index.js";
 import { assertPipelineFidelity } from "./test-utils.js";
 
-describe("1.1 text content injection", () => {
+describe("1.1a basic types", () => {
   it("01. plain English text", () => {
     function App() {
       const { title } = useSeamData<{ title: string }>();
@@ -89,7 +89,9 @@ describe("1.1 text content injection", () => {
       realData: { content: "a".repeat(10000) },
     });
   });
+});
 
+describe("1.1b special strings", () => {
   it("07. multiline text (contains newlines)", () => {
     function App() {
       const { content } = useSeamData<{ content: string }>();

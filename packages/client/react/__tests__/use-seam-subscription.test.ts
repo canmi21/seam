@@ -80,7 +80,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-describe("useSeamSubscription", () => {
+describe("useSeamSubscription: connection", () => {
   it("creates EventSource with correct URL", async () => {
     await act(async () => {
       root.render(
@@ -123,7 +123,9 @@ describe("useSeamSubscription", () => {
 
     expect(readState()).toEqual({ data: { count: 42 }, error: null, status: "active" });
   });
+});
 
+describe("useSeamSubscription: errors", () => {
   it("transitions to error on data parse failure and closes EventSource", async () => {
     await act(async () => {
       root.render(
@@ -197,7 +199,9 @@ describe("useSeamSubscription", () => {
     expect(state.error.message).toBe("SSE connection error");
     expect(lastEs.close).toHaveBeenCalled();
   });
+});
 
+describe("useSeamSubscription: lifecycle", () => {
   it("transitions to closed on complete event", async () => {
     await act(async () => {
       root.render(

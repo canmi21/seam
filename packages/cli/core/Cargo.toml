@@ -10,6 +10,9 @@ readme = "README.md"
 keywords = ["seam", "ctr", "cli", "codegen", "skeleton"]
 categories = ["command-line-utilities", "development-tools::build-utils"]
 
+[lints]
+workspace = true
+
 [[bin]]
 name = "seam"
 path = "src/main.rs"

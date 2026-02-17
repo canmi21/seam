@@ -9,7 +9,7 @@ function makeProcedures(...entries: [string, InternalProcedure][]) {
   return new Map(entries);
 }
 
-describe("handleRequest", () => {
+describe("handleRequest: success", () => {
   it("returns 200 for valid sync handler", async () => {
     const procs = makeProcedures([
       "greet",
@@ -37,7 +37,9 @@ describe("handleRequest", () => {
     expect(result.status).toBe(200);
     expect(result.body).toEqual({ message: "Hi, Bob!" });
   });
+});
 
+describe("handleRequest: errors", () => {
   it("returns 404 for unknown procedure", async () => {
     const procs = makeProcedures();
     const result = await handleRequest(procs, "missing", {});

@@ -7,6 +7,9 @@ members = [
   "examples/standalone/server-rust",
 ]
 
+[workspace.lints.clippy]
+too_many_lines = "warn"
+
 [workspace.package]
 version = "0.2.1"
 edition = "2021"
