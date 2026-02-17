@@ -36,11 +36,29 @@ describe("1.2 attribute injection", () => {
 
   it.todo("15. style object — per-property sentinels not supported by sentinelToSlots");
 
-  it.todo(
-    "16. data-* custom attributes — sentinelToSlots attrRe uses (\\w+) which cannot match hyphenated attr names like data-testid",
-  );
+  it("16. data-* custom attributes", () => {
+    function App() {
+      const { tid } = useSeamData<{ tid: string }>();
+      return createElement("div", { "data-testid": tid }, "content");
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { tid: "card-mock" },
+      realData: { tid: "card-main" },
+    });
+  });
 
-  it.todo("17. aria-* accessibility attributes — same (\\w+) regex limitation as data-* attrs");
+  it("17. aria-* accessibility attributes", () => {
+    function App() {
+      const { label } = useSeamData<{ label: string }>();
+      return createElement("button", { "aria-label": label }, "click");
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { label: "placeholder" },
+      realData: { label: "Submit form" },
+    });
+  });
 
   it("18. id attribute", () => {
     function App() {
@@ -79,10 +97,12 @@ describe("1.2 attribute injection", () => {
   });
 
   it.todo(
-    '21. dynamic boolean attr (disabled) — disabled={true} renders disabled="" in React but inject produces disabled="true"',
+    "21. dynamic boolean attr (disabled) — React SSR converts sentinel string to disabled=\"\", losing the sentinel; injector fix exists but pipeline can't extract the slot",
   );
 
-  it.todo("22. checked/selected/readOnly/multiple — same boolean attr issue");
+  it.todo(
+    "22. checked/selected/readOnly/multiple — same React SSR boolean attr sentinel loss as #21",
+  );
 
   it("23. numeric attr (width)", () => {
     function App() {
@@ -97,7 +117,7 @@ describe("1.2 attribute injection", () => {
   });
 
   it.todo(
-    "23b. tabIndex — sentinelToSlots leaves trailing whitespace on void elements after attr removal",
+    "23b. tabIndex — reclassified: not a bug; tabIndex matches [\\w-]+ and trim() cleans whitespace",
   );
 });
 

@@ -97,7 +97,9 @@ describe("4.1 tag types", () => {
     });
   });
 
-  it.todo("58. select + option selected — React has special handling for selected attr");
+  it.todo(
+    "58. select + option selected — React SSR computes selected from defaultValue match, sentinel string matches no option so selected is lost",
+  );
 });
 
 describe("4.2 nesting depth", () => {

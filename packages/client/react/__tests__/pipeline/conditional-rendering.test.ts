@@ -277,7 +277,7 @@ describe("2.3 multi-branch conditions", () => {
     });
   });
 
-  it.todo("37. switch/case mapping — needs enum extraction");
+  it.todo("37. switch/case mapping — pipeline supports enum; needs enums config in test");
 });
 
 describe("2.4 condition-attribute mix", () => {
