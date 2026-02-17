@@ -188,6 +188,32 @@ function stringify(value: unknown): string {
   return String(value);
 }
 
+// -- HTML boolean attributes --
+
+const HTML_BOOLEAN_ATTRS = new Set([
+  "allowfullscreen",
+  "async",
+  "autofocus",
+  "autoplay",
+  "checked",
+  "controls",
+  "default",
+  "defer",
+  "disabled",
+  "formnovalidate",
+  "hidden",
+  "loop",
+  "multiple",
+  "muted",
+  "nomodule",
+  "novalidate",
+  "open",
+  "readonly",
+  "required",
+  "reversed",
+  "selected",
+]);
+
 // -- Renderer --
 
 interface AttrEntry {
@@ -214,9 +240,18 @@ function render(nodes: AstNode[], data: Record<string, unknown>, attrs: AttrEntr
       case "attr": {
         const value = resolve(node.path, data);
         if (value !== undefined) {
-          const marker = `\x00SEAM_ATTR_${attrs.length}\x00`;
-          attrs.push({ marker, attrName: node.attrName, value: escapeHtml(stringify(value)) });
-          out += marker;
+          if (HTML_BOOLEAN_ATTRS.has(node.attrName)) {
+            // Boolean HTML attrs: truthy -> attr="", falsy -> omit
+            if (isTruthy(value)) {
+              const marker = `\x00SEAM_ATTR_${attrs.length}\x00`;
+              attrs.push({ marker, attrName: node.attrName, value: "" });
+              out += marker;
+            }
+          } else {
+            const marker = `\x00SEAM_ATTR_${attrs.length}\x00`;
+            attrs.push({ marker, attrName: node.attrName, value: escapeHtml(stringify(value)) });
+            out += marker;
+          }
         }
         break;
       }

@@ -392,6 +392,63 @@ describe("inject", () => {
     });
   });
 
+  describe("boolean HTML attributes", () => {
+    it('renders disabled="" for truthy value', () => {
+      const html = inject(
+        "<!--seam:dis:attr:disabled--><input>",
+        { dis: true },
+        { skipDataScript: true },
+      );
+      expect(html).toBe('<input disabled="">');
+    });
+
+    it("omits disabled for falsy value", () => {
+      const html = inject(
+        "<!--seam:dis:attr:disabled--><input>",
+        { dis: false },
+        { skipDataScript: true },
+      );
+      expect(html).toBe("<input>");
+    });
+
+    it('renders checked="" for truthy value', () => {
+      // Attribute injection inserts after tag name, before existing attrs
+      const html = inject(
+        '<!--seam:chk:attr:checked--><input type="checkbox">',
+        { chk: true },
+        { skipDataScript: true },
+      );
+      expect(html).toBe('<input checked="" type="checkbox">');
+    });
+
+    it('renders selected="" for truthy value', () => {
+      const html = inject(
+        "<!--seam:sel:attr:selected--><option>A</option>",
+        { sel: true },
+        { skipDataScript: true },
+      );
+      expect(html).toBe('<option selected="">A</option>');
+    });
+
+    it("omits selected for falsy value", () => {
+      const html = inject(
+        "<!--seam:sel:attr:selected--><option>A</option>",
+        { sel: false },
+        { skipDataScript: true },
+      );
+      expect(html).toBe("<option>A</option>");
+    });
+
+    it("does not apply boolean logic to non-boolean attrs", () => {
+      const html = inject(
+        "<!--seam:cls:attr:class--><div>hi</div>",
+        { cls: true },
+        { skipDataScript: true },
+      );
+      expect(html).toBe('<div class="true">hi</div>');
+    });
+  });
+
   describe("combined", () => {
     it("handles all slot types in one template", () => {
       const tmpl = [

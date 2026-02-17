@@ -379,50 +379,41 @@ mod tests {
   #[test]
   fn attr_boolean_true_produces_empty_value() {
     // #21: disabled={true} should render disabled="" (React behavior), not disabled="true"
-    let html = inject_no_script(
-      "<!--seam:dis:attr:disabled--><input>",
-      &json!({"dis": true}),
-    );
+    let html = inject_no_script("<!--seam:dis:attr:disabled--><input>", &json!({"dis": true}));
     assert_eq!(html, r#"<input disabled="">"#);
   }
 
   #[test]
   fn attr_boolean_false_omitted() {
     // #21: disabled={false} should omit the attribute entirely
-    let html = inject_no_script(
-      "<!--seam:dis:attr:disabled--><input>",
-      &json!({"dis": false}),
-    );
+    let html = inject_no_script("<!--seam:dis:attr:disabled--><input>", &json!({"dis": false}));
     assert_eq!(html, "<input>");
   }
 
   #[test]
   fn attr_checked_boolean() {
     // #22: checked={true} -> checked=""
+    // Attribute injection inserts after tag name, before existing attrs
     let html = inject_no_script(
       "<!--seam:chk:attr:checked--><input type=\"checkbox\">",
       &json!({"chk": true}),
     );
-    assert_eq!(html, r#"<input type="checkbox" checked="">"#);
+    assert_eq!(html, r#"<input checked="" type="checkbox">"#);
   }
 
   #[test]
   fn attr_selected_boolean() {
     // #58: selected={true} -> selected=""
-    let html = inject_no_script(
-      "<!--seam:sel:attr:selected--><option>A</option>",
-      &json!({"sel": true}),
-    );
+    let html =
+      inject_no_script("<!--seam:sel:attr:selected--><option>A</option>", &json!({"sel": true}));
     assert_eq!(html, r#"<option selected="">A</option>"#);
   }
 
   #[test]
   fn attr_data_hyphenated_injection() {
     // Injector handles hyphenated attr names correctly (bug is in slot.rs, not here)
-    let html = inject_no_script(
-      "<!--seam:tid:attr:data-testid--><div>hi</div>",
-      &json!({"tid": "card"}),
-    );
+    let html =
+      inject_no_script("<!--seam:tid:attr:data-testid--><div>hi</div>", &json!({"tid": "card"}));
     assert_eq!(html, r#"<div data-testid="card">hi</div>"#);
   }
 

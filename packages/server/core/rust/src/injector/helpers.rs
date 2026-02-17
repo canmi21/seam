@@ -39,6 +39,36 @@ pub(super) fn stringify(value: &Value) -> String {
   }
 }
 
+// HTML boolean attributes: present means true, absent means false.
+// When value is truthy, render as `attr=""`. When falsy, omit entirely.
+const HTML_BOOLEAN_ATTRS: &[&str] = &[
+  "allowfullscreen",
+  "async",
+  "autofocus",
+  "autoplay",
+  "checked",
+  "controls",
+  "default",
+  "defer",
+  "disabled",
+  "formnovalidate",
+  "hidden",
+  "loop",
+  "multiple",
+  "muted",
+  "nomodule",
+  "novalidate",
+  "open",
+  "readonly",
+  "required",
+  "reversed",
+  "selected",
+];
+
+pub(super) fn is_html_boolean_attr(name: &str) -> bool {
+  HTML_BOOLEAN_ATTRS.contains(&name)
+}
+
 pub(super) fn escape_html(s: &str) -> String {
   let mut out = String::with_capacity(s.len());
   for ch in s.chars() {

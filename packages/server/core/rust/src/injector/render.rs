@@ -3,7 +3,7 @@
 use serde_json::Value;
 
 use super::ast::{AstNode, SlotMode};
-use super::helpers::{escape_html, is_truthy, resolve, stringify};
+use super::helpers::{escape_html, is_html_boolean_attr, is_truthy, resolve, stringify};
 
 pub(super) struct AttrEntry {
   pub(super) marker: String,
@@ -36,13 +36,26 @@ pub(super) fn render(nodes: &[AstNode], data: &Value, ctx: &mut RenderContext) -
 
       AstNode::Attr { path, attr_name } => {
         if let Some(value) = resolve(path, data) {
-          let marker = format!("\x00SEAM_ATTR_{}\x00", ctx.attrs.len());
-          ctx.attrs.push(AttrEntry {
-            marker: marker.clone(),
-            attr_name: attr_name.clone(),
-            value: escape_html(&stringify(value)),
-          });
-          out.push_str(&marker);
+          if is_html_boolean_attr(attr_name) {
+            // Boolean HTML attrs: truthy -> attr="", falsy -> omit
+            if is_truthy(value) {
+              let marker = format!("\x00SEAM_ATTR_{}\x00", ctx.attrs.len());
+              ctx.attrs.push(AttrEntry {
+                marker: marker.clone(),
+                attr_name: attr_name.clone(),
+                value: String::new(),
+              });
+              out.push_str(&marker);
+            }
+          } else {
+            let marker = format!("\x00SEAM_ATTR_{}\x00", ctx.attrs.len());
+            ctx.attrs.push(AttrEntry {
+              marker: marker.clone(),
+              attr_name: attr_name.clone(),
+              value: escape_html(&stringify(value)),
+            });
+            out.push_str(&marker);
+          }
         }
       }
 
