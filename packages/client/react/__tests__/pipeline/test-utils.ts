@@ -12,7 +12,7 @@ export { inject, buildSentinelData };
 // -- Slot replacement (mirrors Rust sentinel_to_slots) --
 
 export function sentinelToSlots(html: string): string {
-  const attrRe = /(\w+)="%%SEAM:([^%]+)%%"/g;
+  const attrRe = /([\w-]+)="%%SEAM:([^%]+)%%"/g;
   const textRe = /%%SEAM:([^%]+)%%/g;
   const tagRe = /<([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g;
 

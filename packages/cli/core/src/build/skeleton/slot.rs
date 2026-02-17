@@ -6,7 +6,7 @@ use regex::Regex;
 
 fn attr_re() -> &'static Regex {
   static RE: OnceLock<Regex> = OnceLock::new();
-  RE.get_or_init(|| Regex::new(r#"(\w+)="%%SEAM:([^%]+)%%""#).unwrap())
+  RE.get_or_init(|| Regex::new(r#"([\w-]+)="%%SEAM:([^%]+)%%""#).unwrap())
 }
 
 fn text_re() -> &'static Regex {
