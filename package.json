@@ -42,7 +42,8 @@
     "test:integration": "cd tests/integration && go test -v -count=1 && cd ../fullstack && go test -v -count=1",
     "test:e2e": "cd tests/e2e && bunx playwright test",
     "test:all": "bun run test:unit && bun run test:integration && bun run test:e2e",
-    "test": "bun run test:all"
+    "test": "bun run test:all",
+    "verify": "bash scripts/verify-all.sh"
   },
   "devDependencies": {
     "dprint": "^0.51.1",

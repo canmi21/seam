@@ -17,6 +17,7 @@
 ## Version Control
 
 - Before every `git commit`, run `bun fmt && bun lint` and fix any errors first; for TS-only changes also run `bun run test:ts`, for Rust changes run `bun run test:rs`
+- For full verification (fmt + lint + build + all tests): `bun run verify`
 - Run `git commit` after each plan mode phase completes, do not push
 - Commit messages: concise English describing the change
 
@@ -94,3 +95,9 @@
 
 - Integration and E2E tests require fullstack build output: `cd examples/fullstack/react-hono-tanstack && seam build`
 - `scripts/smoke-fullstack.sh` runs the full build-and-test pipeline for integration + E2E
+
+## CLI Binary
+
+- Always use the locally compiled CLI from `target/release/seam`, never the system-installed binary
+- `cargo build -p seam-cli --release` builds it; Rust incremental caching makes no-op rebuilds fast
+- `scripts/verify-all.sh` and `scripts/smoke-fullstack.sh` already handle this automatically

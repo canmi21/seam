@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Subset of verify-all.sh: CLI build + fullstack/e2e builds + integration/e2e tests.
+# For full pipeline (fmt + lint + unit tests + everything), use: bun run verify
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
