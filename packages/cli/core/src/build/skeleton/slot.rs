@@ -146,4 +146,51 @@ mod tests {
     let result = sentinel_to_slots(html);
     assert_eq!(result, "<!--&--><div><!--seam:content--></div><!--/&-->");
   }
+
+  // -- Diagnostic: hyphenated attribute names (#16, #17) --
+
+  #[test]
+  fn data_attr_sentinel() {
+    // #16: data-* attrs use hyphens which \w does not match
+    let html = r#"<div data-testid="%%SEAM:tid%%">content</div>"#;
+    let result = sentinel_to_slots(html);
+    assert!(result.contains("<!--seam:tid:attr:data-testid-->"), "data-testid sentinel not extracted: {result}");
+    assert!(!result.contains("%%SEAM:"), "raw sentinel remains: {result}");
+  }
+
+  #[test]
+  fn aria_attr_sentinel() {
+    // #17: aria-* attrs same hyphen issue
+    let html = r#"<button aria-label="%%SEAM:label%%">click</button>"#;
+    let result = sentinel_to_slots(html);
+    assert!(result.contains("<!--seam:label:attr:aria-label-->"), "aria-label sentinel not extracted: {result}");
+    assert!(!result.contains("%%SEAM:"), "raw sentinel remains: {result}");
+  }
+
+  #[test]
+  fn tabindex_void_element_no_trailing_space() {
+    // #23b reclassification: tabIndex matches \w+, trim() cleans whitespace
+    let html = r#"<input tabIndex="%%SEAM:ti%%">"#;
+    let result = sentinel_to_slots(html);
+    assert!(result.contains("<!--seam:ti:attr:tabIndex-->"), "tabIndex sentinel not extracted: {result}");
+    assert_eq!(result, "<!--seam:ti:attr:tabIndex--><input>");
+  }
+
+  #[test]
+  fn data_attr_with_other_attrs() {
+    // Compound case: non-hyphenated attr works but hyphenated fails
+    let html = r#"<div class="x" data-id="%%SEAM:id%%">text</div>"#;
+    let result = sentinel_to_slots(html);
+    assert!(result.contains("<!--seam:id:attr:data-id-->"), "data-id sentinel not extracted: {result}");
+    assert!(!result.contains("%%SEAM:"), "raw sentinel remains: {result}");
+  }
+
+  #[test]
+  fn multiple_hyphenated_attrs() {
+    let html = r#"<div data-a="%%SEAM:a%%" aria-b="%%SEAM:b%%">text</div>"#;
+    let result = sentinel_to_slots(html);
+    assert!(result.contains("<!--seam:a:attr:data-a-->"), "data-a sentinel not extracted: {result}");
+    assert!(result.contains("<!--seam:b:attr:aria-b-->"), "aria-b sentinel not extracted: {result}");
+    assert!(!result.contains("%%SEAM:"), "raw sentinel remains: {result}");
+  }
 }
