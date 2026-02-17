@@ -60,6 +60,30 @@ describe("1.2 attribute injection", () => {
     });
   });
 
+  it("16b. data-* with boolean false value", () => {
+    function App() {
+      const { active } = useSeamData<{ active: boolean }>();
+      return createElement("div", { "data-active": active }, "content");
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { active: false },
+      realData: { active: false },
+    });
+  });
+
+  it("17b. aria-* with boolean false value", () => {
+    function App() {
+      const { expanded } = useSeamData<{ expanded: boolean }>();
+      return createElement("div", { "aria-expanded": expanded }, "content");
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { expanded: false },
+      realData: { expanded: false },
+    });
+  });
+
   it("18. id attribute", () => {
     function App() {
       const { id } = useSeamData<{ id: string }>();
@@ -96,13 +120,62 @@ describe("1.2 attribute injection", () => {
     });
   });
 
-  it.todo(
-    "21. dynamic boolean attr (disabled) — React SSR converts sentinel string to disabled=\"\", losing the sentinel; injector fix exists but pipeline can't extract the slot",
-  );
+  it("21. dynamic boolean attr (disabled) via boolean axis", () => {
+    function App() {
+      const { dis } = useSeamData<{ dis: boolean }>();
+      return createElement("input", { disabled: dis });
+    }
+    // Truthy: inject produces <input disabled="">, matches React
+    assertPipelineFidelity({
+      component: App,
+      mock: { dis: true },
+      realData: { dis: true },
+      booleans: ["dis"],
+    });
+    // Falsy: inject produces <input>, matches React
+    assertPipelineFidelity({
+      component: App,
+      mock: { dis: true },
+      realData: { dis: false },
+      booleans: ["dis"],
+    });
+  });
 
-  it.todo(
-    "22. checked/selected/readOnly/multiple — same React SSR boolean attr sentinel loss as #21",
-  );
+  it("22. checked/selected boolean attrs via boolean axis", () => {
+    function CheckedApp() {
+      const { chk } = useSeamData<{ chk: boolean }>();
+      return createElement("input", { type: "checkbox", checked: chk });
+    }
+    assertPipelineFidelity({
+      component: CheckedApp,
+      mock: { chk: true },
+      realData: { chk: true },
+      booleans: ["chk"],
+    });
+    assertPipelineFidelity({
+      component: CheckedApp,
+      mock: { chk: true },
+      realData: { chk: false },
+      booleans: ["chk"],
+    });
+
+    function SelectedApp() {
+      const { sel } = useSeamData<{ sel: boolean }>();
+      return createElement("option", { selected: sel }, "A");
+    }
+    assertPipelineFidelity({
+      component: SelectedApp,
+      mock: { sel: true },
+      realData: { sel: true },
+      booleans: ["sel"],
+    });
+    assertPipelineFidelity({
+      component: SelectedApp,
+      mock: { sel: true },
+      realData: { sel: false },
+      booleans: ["sel"],
+    });
+  });
 
   it("23. numeric attr (width)", () => {
     function App() {
