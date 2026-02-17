@@ -29,7 +29,7 @@ describe("3.1 Float hoisted metadata", () => {
       return createElement(
         "div",
         null,
-        createElement("title", null, "Page: ", t),
+        createElement("title", null, `Page: ${t}`),
         createElement("p", null, "body"),
       );
     }
@@ -74,9 +74,22 @@ describe("3.1 Float hoisted metadata", () => {
     });
   });
 
-  // Multi-dynamic-attr injection reverses attribute order: injector inserts
-  // each attr at tag-name position, so the last processed appears first
-  it.todo("113. <meta> dual dynamic attrs (property + content)");
+  it("113. <meta> dual dynamic attrs (property + content)", () => {
+    function App() {
+      const data = useSeamData<{ ogProp: string; ogContent: string }>();
+      return createElement(
+        "div",
+        null,
+        createElement("meta", { property: data.ogProp, content: data.ogContent }),
+        createElement("p", null, "body"),
+      );
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { ogProp: "og:title", ogContent: "mock content" },
+      realData: { ogProp: "og:title", ogContent: "SeamJS - Modern SSR" },
+    });
+  });
 
   it("114. <title> + <meta> + <link> coexist", () => {
     function App() {
@@ -142,9 +155,25 @@ describe("3.1b Float hoisted metadata (advanced)", () => {
     });
   });
 
-  // Float hoisting + array loop + attr injection is not yet supported:
-  // applyArrayBlocks does not strip field prefix from attr comment markers
-  it.todo("117. <meta> in array loop (content-only dynamic attr)");
+  it("117. <meta> in array loop (content-only dynamic attr)", () => {
+    function App() {
+      const { metas } = useSeamData<{ metas: { content: string }[] }>();
+      return createElement(
+        "div",
+        null,
+        metas.map((m, i) =>
+          createElement("meta", { key: i, content: m.content, name: "description" }),
+        ),
+        createElement("p", null, "body"),
+      );
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { metas: [{ content: "mock" }] },
+      arrays: ["metas"],
+      realData: { metas: [{ content: "News" }, { content: "Blog" }] },
+    });
+  });
 
   it("118. <head> separation structural assertion", () => {
     function App() {

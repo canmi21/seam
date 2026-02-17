@@ -86,7 +86,12 @@ export function sentinelToSlots(html: string): string {
     const cleanedAttrs = workingAttrs.replace(attrRe, "").trim();
 
     for (const c of comments) result += c;
-    result += cleanedAttrs ? `<${tagName} ${cleanedAttrs}>` : `<${tagName}>`;
+    // Handle self-closing void elements: strip trailing '/' from attrs and
+    // reattach it directly (no space) to match React's renderToString format
+    const selfClose = cleanedAttrs.endsWith("/");
+    const finalAttrs = selfClose ? cleanedAttrs.slice(0, -1).trim() : cleanedAttrs;
+    const close = selfClose ? "/>" : ">";
+    result += finalAttrs ? `<${tagName} ${finalAttrs}${close}` : `<${tagName}${close}`;
     lastEnd = matchEnd;
   }
   result += html.slice(lastEnd);
@@ -129,6 +134,11 @@ export function detectArrayBlock(
     fullHtml[prefixLen] === emptiedHtml[prefixLen]
   ) {
     prefixLen++;
+  }
+
+  // Snap back to after last '>' to avoid splitting inside a tag or comment
+  while (prefixLen > 0 && fullHtml[prefixLen - 1] !== ">") {
+    prefixLen--;
   }
 
   const fullRem = fullHtml.slice(prefixLen);

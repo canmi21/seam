@@ -1,6 +1,6 @@
 /* packages/client/react/__tests__/pipeline/attr-injection.test.ts */
 
-import { describe, it } from "vitest";
+import { describe, it, vi } from "vitest";
 import { createElement } from "react";
 import { useSeamData } from "../../src/index.js";
 import { assertPipelineFidelity } from "./test-utils.js";
@@ -182,7 +182,7 @@ describe("1.2c boolean and numeric attributes", () => {
   it("22. checked/selected boolean attrs via boolean axis", () => {
     function CheckedApp() {
       const { chk } = useSeamData<{ chk: boolean }>();
-      return createElement("input", { type: "checkbox", checked: chk });
+      return createElement("input", { type: "checkbox", checked: chk, onChange: () => {} });
     }
     assertPipelineFidelity({
       component: CheckedApp,
@@ -201,6 +201,9 @@ describe("1.2c boolean and numeric attributes", () => {
       const { sel } = useSeamData<{ sel: boolean }>();
       return createElement("option", { selected: sel }, "A");
     }
+    // React warns about selected on <option> (prefers <select defaultValue>),
+    // but we are specifically testing the selected boolean attr pipeline
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     assertPipelineFidelity({
       component: SelectedApp,
       mock: { sel: true },
@@ -213,6 +216,7 @@ describe("1.2c boolean and numeric attributes", () => {
       realData: { sel: false },
       booleans: ["sel"],
     });
+    spy.mockRestore();
   });
 
   it("23. numeric attr (width)", () => {

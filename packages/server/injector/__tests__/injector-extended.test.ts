@@ -193,6 +193,42 @@ describe("metadata tag injection", () => {
     expect(html).toBe('<link href="https://example.com" rel="canonical">');
   });
 
+  it("preserves order for multiple dynamic attrs on same element", () => {
+    const html = inject(
+      '<!--seam:a:attr:property--><!--seam:b:attr:content--><meta name="og">',
+      { a: "og:title", b: "My Page" },
+      { skipDataScript: true },
+    );
+    expect(html).toBe('<meta property="og:title" content="My Page" name="og">');
+  });
+
+  it("preserves order for three dynamic attrs", () => {
+    const html = inject(
+      "<!--seam:x:attr:id--><!--seam:y:attr:class--><!--seam:z:attr:title--><div>text</div>",
+      { x: "main", y: "active", z: "hello" },
+      { skipDataScript: true },
+    );
+    expect(html).toBe('<div id="main" class="active" title="hello">text</div>');
+  });
+
+  it("handles dynamic attr alongside existing static attr", () => {
+    const html = inject(
+      '<!--seam:d:attr:content--><meta name="description">',
+      { d: "A description" },
+      { skipDataScript: true },
+    );
+    expect(html).toBe('<meta content="A description" name="description">');
+  });
+
+  it("handles boolean + non-boolean attrs on same element", () => {
+    const html = inject(
+      '<!--seam:cls:attr:class--><!--seam:dis:attr:disabled--><input type="text">',
+      { cls: "field", dis: true },
+      { skipDataScript: true },
+    );
+    expect(html).toBe('<input class="field" disabled="" type="text">');
+  });
+
   it("injects into full document with hoisted metadata", () => {
     const tmpl = [
       '<!DOCTYPE html><html><head><meta charset="utf-8">',
