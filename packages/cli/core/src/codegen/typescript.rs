@@ -71,8 +71,16 @@ pub fn generate_typescript(manifest: &Manifest) -> Result<String> {
 
 /// Render a top-level named type declaration.
 /// Properties form -> `export interface`, other forms -> `export type`.
+/// Empty properties form -> `Record<string, never>` to avoid lint-unfriendly empty interfaces.
 fn render_top_level(name: &str, schema: &Value) -> Result<String> {
   if is_properties_form(schema) {
+    let has_props =
+      schema.get("properties").and_then(|v| v.as_object()).is_some_and(|o| !o.is_empty());
+    let has_opt =
+      schema.get("optionalProperties").and_then(|v| v.as_object()).is_some_and(|o| !o.is_empty());
+    if !has_props && !has_opt {
+      return Ok(format!("export type {name} = Record<string, never>;\n"));
+    }
     render_interface(name, schema)
   } else {
     let ts = render_type(schema).with_context(|| format!("rendering type for {name}"))?;
@@ -433,6 +441,18 @@ mod tests {
     )
     .unwrap();
     assert!(ts.starts_with("export type ListUsersOutput = Array<"));
+  }
+
+  #[test]
+  fn empty_properties_uses_type_alias() {
+    let ts = render_top_level("EmptyInput", &json!({"properties": {}})).unwrap();
+    assert_eq!(ts, "export type EmptyInput = Record<string, never>;\n");
+  }
+
+  #[test]
+  fn empty_optional_properties_uses_type_alias() {
+    let ts = render_top_level("EmptyInput", &json!({"optionalProperties": {}})).unwrap();
+    assert_eq!(ts, "export type EmptyInput = Record<string, never>;\n");
   }
 
   #[test]
