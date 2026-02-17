@@ -71,4 +71,51 @@ mod tests {
     assert!(doc.contains("<!--seam:link.text-->"));
     assert!(!doc.contains("%%SEAM:"));
   }
+
+  #[test]
+  fn float_hoisted_metadata_pipeline() {
+    // Float metadata: title + meta + link alongside regular content
+    let html = r#"<title>%%SEAM:t%%</title><meta name="desc" content="%%SEAM:d%%"><link rel="canonical" href="%%SEAM:u%%"><div><p>%%SEAM:body%%</p></div>"#;
+
+    let slotted = sentinel_to_slots(html);
+    assert!(slotted.contains("<!--seam:t-->"));
+    assert!(slotted.contains("<!--seam:d:attr:content-->"));
+    assert!(slotted.contains("<!--seam:u:attr:href-->"));
+
+    let doc = wrap_document(&slotted, &["style.css".into()], &["app.js".into()]);
+    assert!(doc.starts_with("<!DOCTYPE html>"));
+
+    // Markers stay in __SEAM_ROOT__, not in <head>
+    let head = doc.split("</head>").next().unwrap();
+    assert!(!head.contains("<!--seam:"), "no seam markers in <head>");
+    assert!(head.contains("style.css"));
+
+    let root = &doc[doc.find("__SEAM_ROOT__").unwrap()..];
+    assert!(root.contains("<!--seam:t-->"));
+    assert!(root.contains("<!--seam:d:attr:content-->"));
+    assert!(root.contains("<!--seam:u:attr:href-->"));
+    assert!(root.contains("<!--seam:body-->"));
+  }
+
+  #[test]
+  fn float_metadata_with_boolean_axis() {
+    // Conditional <meta> tag via nullable axis
+    let with_meta = sentinel_to_slots(
+      r#"<title>%%SEAM:t%%</title><meta name="og" content="%%SEAM:og%%"><p>%%SEAM:body%%</p>"#,
+    );
+    let without_meta = sentinel_to_slots(r#"<title>%%SEAM:t%%</title><p>%%SEAM:body%%</p>"#);
+
+    let axes = vec![make_axis("og", "nullable", vec![json!("present"), json!(null)])];
+    let variants = vec![with_meta, without_meta];
+    let template = extract_template(&axes, &variants);
+
+    assert!(template.contains("<!--seam:if:og-->"));
+    assert!(template.contains("<!--seam:endif:og-->"));
+    assert!(template.contains("<!--seam:t-->"));
+    assert!(template.contains("<!--seam:body-->"));
+
+    let doc = wrap_document(&template, &[], &[]);
+    let head = doc.split("</head>").next().unwrap();
+    assert!(!head.contains("<!--seam:"), "no seam markers in <head>");
+  }
 }

@@ -312,4 +312,48 @@ mod tests {
     let html = r#"<div style="color:red;font-size:14px">text</div>"#;
     assert_eq!(sentinel_to_slots(html), html);
   }
+
+  #[test]
+  fn title_text_sentinel() {
+    let html = "<title>%%SEAM:x%%</title>";
+    assert_eq!(sentinel_to_slots(html), "<title><!--seam:x--></title>");
+  }
+
+  #[test]
+  fn meta_content_attr_sentinel() {
+    let html = r#"<meta name="desc" content="%%SEAM:x%%">"#;
+    let result = sentinel_to_slots(html);
+    assert!(result.contains("<!--seam:x:attr:content-->"));
+    assert!(result.contains(r#"name="desc""#));
+    assert!(!result.contains("%%SEAM:"));
+  }
+
+  #[test]
+  fn link_href_attr_sentinel() {
+    let html = r#"<link rel="canonical" href="%%SEAM:x%%">"#;
+    let result = sentinel_to_slots(html);
+    assert!(result.contains("<!--seam:x:attr:href-->"));
+    assert!(result.contains(r#"rel="canonical""#));
+    assert!(!result.contains("%%SEAM:"));
+  }
+
+  #[test]
+  fn meta_multiple_attr_sentinels() {
+    let html = r#"<meta property="%%SEAM:a%%" content="%%SEAM:b%%">"#;
+    let result = sentinel_to_slots(html);
+    assert!(result.contains("<!--seam:a:attr:property-->"));
+    assert!(result.contains("<!--seam:b:attr:content-->"));
+    assert!(!result.contains("%%SEAM:"));
+  }
+
+  #[test]
+  fn hoisted_metadata_mixed() {
+    let html = r#"<title>%%SEAM:t%%</title><meta name="desc" content="%%SEAM:d%%"><link rel="canonical" href="%%SEAM:u%%"><div><p>%%SEAM:body%%</p></div>"#;
+    let result = sentinel_to_slots(html);
+    assert!(result.contains("<!--seam:t-->"));
+    assert!(result.contains("<!--seam:d:attr:content-->"));
+    assert!(result.contains("<!--seam:u:attr:href-->"));
+    assert!(result.contains("<!--seam:body-->"));
+    assert!(!result.contains("%%SEAM:"));
+  }
 }

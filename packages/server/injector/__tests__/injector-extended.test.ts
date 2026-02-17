@@ -168,3 +168,56 @@ describe("combined", () => {
     expect(html).toContain('id="__SEAM_DATA__"');
   });
 });
+
+describe("metadata tag injection", () => {
+  it("injects text inside <title>", () => {
+    const html = inject("<title><!--seam:t--></title>", { t: "My Page" }, { skipDataScript: true });
+    expect(html).toBe("<title>My Page</title>");
+  });
+
+  it("injects attr on void <meta>", () => {
+    const html = inject(
+      '<!--seam:d:attr:content--><meta name="description">',
+      { d: "A description" },
+      { skipDataScript: true },
+    );
+    expect(html).toBe('<meta content="A description" name="description">');
+  });
+
+  it("injects attr on void <link>", () => {
+    const html = inject(
+      '<!--seam:u:attr:href--><link rel="canonical">',
+      { u: "https://example.com" },
+      { skipDataScript: true },
+    );
+    expect(html).toBe('<link href="https://example.com" rel="canonical">');
+  });
+
+  it("injects into full document with hoisted metadata", () => {
+    const tmpl = [
+      '<!DOCTYPE html><html><head><meta charset="utf-8">',
+      '<link rel="stylesheet" href="/_seam/static/style.css">',
+      '</head><body><div id="__SEAM_ROOT__">',
+      "<title><!--seam:t--></title>",
+      '<!--seam:d:attr:content--><meta name="description">',
+      "<p><!--seam:body--></p>",
+      "</div></body></html>",
+    ].join("");
+
+    const html = inject(
+      tmpl,
+      { t: "Home", d: "Welcome page", body: "Hello world" },
+      { skipDataScript: true },
+    );
+
+    // <head> section untouched
+    const head = html.split("</head>")[0];
+    expect(head).toContain("style.css");
+    expect(head).not.toContain("<!--seam:");
+
+    // Content injected correctly
+    expect(html).toContain("<title>Home</title>");
+    expect(html).toContain('content="Welcome page"');
+    expect(html).toContain("<p>Hello world</p>");
+  });
+});

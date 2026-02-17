@@ -50,4 +50,36 @@ mod tests {
       )
     );
   }
+
+  #[test]
+  fn wraps_with_hoisted_metadata() {
+    // Float-hoisted metadata stays inside __SEAM_ROOT__, not in <head>
+    let skeleton =
+      "<title><!--seam:t--></title><!--seam:d:attr:content--><meta name=\"desc\"><p>content</p>";
+    let result = wrap_document(skeleton, &["style.css".into()], &[]);
+
+    let head = result.split("</head>").next().unwrap();
+    assert!(!head.contains("<!--seam:"), "seam markers must not leak into <head>");
+    assert!(head.contains("style.css"));
+
+    let root_start = result.find("__SEAM_ROOT__").unwrap();
+    let root_section = &result[root_start..];
+    assert!(root_section.contains("<!--seam:t-->"));
+    assert!(root_section.contains("<!--seam:d:attr:content-->"));
+  }
+
+  #[test]
+  fn wraps_with_link_in_skeleton() {
+    // <link> slot in skeleton must not conflict with <link> CSS refs in <head>
+    let skeleton = "<!--seam:u:attr:href--><link rel=\"canonical\"><p>page</p>";
+    let result = wrap_document(skeleton, &["app.css".into()], &[]);
+
+    let head = result.split("</head>").next().unwrap();
+    assert!(head.contains("app.css"));
+    assert!(!head.contains("<!--seam:"), "slot markers must stay out of <head>");
+
+    let body = result.split("__SEAM_ROOT__").nth(1).unwrap();
+    assert!(body.contains("<!--seam:u:attr:href-->"));
+    assert!(body.contains("rel=\"canonical\""));
+  }
 }
