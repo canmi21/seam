@@ -9,7 +9,7 @@ export interface InjectOptions {
 
 // -- AST node types --
 
-type AstNode = TextNode | SlotNode | AttrNode | IfNode | EachNode | MatchNode;
+type AstNode = TextNode | SlotNode | AttrNode | StylePropNode | IfNode | EachNode | MatchNode;
 
 interface TextNode {
   type: "text";
@@ -26,6 +26,12 @@ interface AttrNode {
   type: "attr";
   path: string;
   attrName: string;
+}
+
+interface StylePropNode {
+  type: "styleProp";
+  path: string;
+  cssProperty: string;
 }
 
 interface IfNode {
@@ -147,6 +153,12 @@ function parse(tokens: Token[]): AstNode[] {
         // Skip the endeach token
         if (pos < tokens.length) pos++;
         nodes.push({ type: "each", path, bodyNodes });
+      } else if (directive.includes(":style:")) {
+        const colonIdx = directive.indexOf(":style:");
+        const path = directive.slice(0, colonIdx);
+        const cssProperty = directive.slice(colonIdx + 7);
+        pos++;
+        nodes.push({ type: "styleProp", path, cssProperty });
       } else if (directive.includes(":attr:")) {
         const colonIdx = directive.indexOf(":attr:");
         const path = directive.slice(0, colonIdx);
@@ -214,6 +226,66 @@ const HTML_BOOLEAN_ATTRS = new Set([
   "selected",
 ]);
 
+// -- CSS unitless properties --
+
+const CSS_UNITLESS_PROPERTIES = new Set([
+  "animation-iteration-count",
+  "border-image-outset",
+  "border-image-slice",
+  "border-image-width",
+  "box-flex",
+  "box-flex-group",
+  "box-ordinal-group",
+  "column-count",
+  "columns",
+  "flex",
+  "flex-grow",
+  "flex-positive",
+  "flex-shrink",
+  "flex-negative",
+  "flex-order",
+  "font-weight",
+  "grid-area",
+  "grid-column",
+  "grid-column-end",
+  "grid-column-span",
+  "grid-column-start",
+  "grid-row",
+  "grid-row-end",
+  "grid-row-span",
+  "grid-row-start",
+  "line-clamp",
+  "line-height",
+  "opacity",
+  "order",
+  "orphans",
+  "tab-size",
+  "widows",
+  "z-index",
+  "zoom",
+  "fill-opacity",
+  "flood-opacity",
+  "stop-opacity",
+  "stroke-dasharray",
+  "stroke-dashoffset",
+  "stroke-miterlimit",
+  "stroke-opacity",
+  "stroke-width",
+]);
+
+function formatStyleValue(cssProperty: string, value: unknown): string | null {
+  if (value === null || value === undefined || value === false) return null;
+  if (typeof value === "number") {
+    if (value === 0) return "0";
+    if (CSS_UNITLESS_PROPERTIES.has(cssProperty)) return String(value);
+    return `${value}px`;
+  }
+  if (typeof value === "string") {
+    return value || null; // empty string returns null (skip)
+  }
+  return null;
+}
+
 // -- Renderer --
 
 interface AttrEntry {
@@ -222,7 +294,18 @@ interface AttrEntry {
   value: string;
 }
 
-function render(nodes: AstNode[], data: Record<string, unknown>, attrs: AttrEntry[]): string {
+interface StyleAttrEntry {
+  marker: string;
+  cssProperty: string;
+  value: string;
+}
+
+function render(
+  nodes: AstNode[],
+  data: Record<string, unknown>,
+  attrs: AttrEntry[],
+  styleAttrs: StyleAttrEntry[],
+): string {
   let out = "";
 
   for (const node of nodes) {
@@ -256,12 +339,25 @@ function render(nodes: AstNode[], data: Record<string, unknown>, attrs: AttrEntr
         break;
       }
 
+      case "styleProp": {
+        const value = resolve(node.path, data);
+        if (value !== undefined) {
+          const formatted = formatStyleValue(node.cssProperty, value);
+          if (formatted !== null) {
+            const marker = `\x00SEAM_STYLE_${styleAttrs.length}\x00`;
+            styleAttrs.push({ marker, cssProperty: node.cssProperty, value: formatted });
+            out += marker;
+          }
+        }
+        break;
+      }
+
       case "if": {
         const value = resolve(node.path, data);
         if (isTruthy(value)) {
-          out += render(node.thenNodes, data, attrs);
+          out += render(node.thenNodes, data, attrs, styleAttrs);
         } else {
-          out += render(node.elseNodes, data, attrs);
+          out += render(node.elseNodes, data, attrs, styleAttrs);
         }
         break;
       }
@@ -271,7 +367,7 @@ function render(nodes: AstNode[], data: Record<string, unknown>, attrs: AttrEntr
         if (Array.isArray(value)) {
           for (const item of value) {
             const scopedData: Record<string, unknown> = { ...data, $$: data.$, $: item };
-            out += render(node.bodyNodes, scopedData, attrs);
+            out += render(node.bodyNodes, scopedData, attrs, styleAttrs);
           }
         }
         break;
@@ -282,7 +378,7 @@ function render(nodes: AstNode[], data: Record<string, unknown>, attrs: AttrEntr
         const key = stringify(value);
         const branch = node.branches.get(key);
         if (branch) {
-          out += render(branch, data, attrs);
+          out += render(branch, data, attrs, styleAttrs);
         }
         break;
       }
@@ -319,6 +415,51 @@ function injectAttributes(html: string, attrs: AttrEntry[]): string {
   return result;
 }
 
+// -- Style attribute injection (phase B) --
+
+function injectStyleAttributes(html: string, entries: StyleAttrEntry[]): string {
+  let result = html;
+  for (const { marker, cssProperty, value } of entries) {
+    const pos = result.indexOf(marker);
+    if (pos === -1) continue;
+    result = result.slice(0, pos) + result.slice(pos + marker.length);
+
+    const tagStart = result.indexOf("<", pos);
+    if (tagStart === -1) continue;
+    const tagEnd = result.indexOf(">", tagStart);
+    if (tagEnd === -1) continue;
+
+    const tagContent = result.slice(tagStart, tagEnd);
+    const styleIdx = tagContent.indexOf('style="');
+
+    if (styleIdx !== -1) {
+      // Merge into existing style
+      const absStyleValStart = tagStart + styleIdx + 7;
+      const styleValEnd = result.indexOf('"', absStyleValStart);
+      if (styleValEnd !== -1) {
+        const injection = `;${cssProperty}:${value}`;
+        result = result.slice(0, styleValEnd) + injection + result.slice(styleValEnd);
+      }
+    } else {
+      // Insert new style attribute after tag name
+      let tagNameEnd = tagStart + 1;
+      while (
+        tagNameEnd < result.length &&
+        result[tagNameEnd] !== " " &&
+        result[tagNameEnd] !== ">" &&
+        result[tagNameEnd] !== "/" &&
+        result[tagNameEnd] !== "\n" &&
+        result[tagNameEnd] !== "\t"
+      ) {
+        tagNameEnd++;
+      }
+      const injection = ` style="${cssProperty}:${value}"`;
+      result = result.slice(0, tagNameEnd) + injection + result.slice(tagNameEnd);
+    }
+  }
+  return result;
+}
+
 // -- Entry point --
 
 export function inject(
@@ -329,7 +470,13 @@ export function inject(
   const tokens = tokenize(template);
   const ast = parse(tokens);
   const attrs: AttrEntry[] = [];
-  let result = render(ast, data, attrs);
+  const styleAttrs: StyleAttrEntry[] = [];
+  let result = render(ast, data, attrs, styleAttrs);
+
+  // Phase B: splice style attributes first
+  if (styleAttrs.length > 0) {
+    result = injectStyleAttributes(result, styleAttrs);
+  }
 
   // Phase B: splice collected attributes into their target tags
   if (attrs.length > 0) {

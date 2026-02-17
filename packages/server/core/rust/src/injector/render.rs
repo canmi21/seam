@@ -3,7 +3,9 @@
 use serde_json::Value;
 
 use super::ast::{AstNode, SlotMode};
-use super::helpers::{escape_html, is_html_boolean_attr, is_truthy, resolve, stringify};
+use super::helpers::{
+  escape_html, format_style_value, is_html_boolean_attr, is_truthy, resolve, stringify,
+};
 
 pub(super) struct AttrEntry {
   pub(super) marker: String,
@@ -11,8 +13,15 @@ pub(super) struct AttrEntry {
   pub(super) value: String,
 }
 
+pub(super) struct StyleAttrEntry {
+  pub(super) marker: String,
+  pub(super) css_property: String,
+  pub(super) value: String,
+}
+
 pub(super) struct RenderContext {
   pub(super) attrs: Vec<AttrEntry>,
+  pub(super) style_attrs: Vec<StyleAttrEntry>,
 }
 
 pub(super) fn render(nodes: &[AstNode], data: &Value, ctx: &mut RenderContext) -> String {
@@ -53,6 +62,20 @@ pub(super) fn render(nodes: &[AstNode], data: &Value, ctx: &mut RenderContext) -
               marker: marker.clone(),
               attr_name: attr_name.clone(),
               value: escape_html(&stringify(value)),
+            });
+            out.push_str(&marker);
+          }
+        }
+      }
+
+      AstNode::StyleProp { path, css_property } => {
+        if let Some(value) = resolve(path, data) {
+          if let Some(formatted) = format_style_value(css_property, value) {
+            let marker = format!("\x00SEAM_STYLE_{}\x00", ctx.style_attrs.len());
+            ctx.style_attrs.push(StyleAttrEntry {
+              marker: marker.clone(),
+              css_property: css_property.clone(),
+              value: formatted,
             });
             out.push_str(&marker);
           }
@@ -122,6 +145,48 @@ pub(super) fn inject_attributes(mut html: String, attrs: &[AttrEntry]) -> String
         }
         let injection = format!(r#" {}="{}""#, entry.attr_name, entry.value);
         html = format!("{}{}{}", &html[..tag_name_end], injection, &html[tag_name_end..]);
+      }
+    }
+  }
+  html
+}
+
+pub(super) fn inject_style_attributes(mut html: String, entries: &[StyleAttrEntry]) -> String {
+  for entry in entries {
+    if let Some(pos) = html.find(&entry.marker) {
+      // Remove marker
+      html = format!("{}{}", &html[..pos], &html[pos + entry.marker.len()..]);
+      // Find next opening tag
+      if let Some(tag_rel) = html[pos..].find('<') {
+        let abs_start = pos + tag_rel;
+        let tag_end = html[abs_start..].find('>').map(|p| abs_start + p).unwrap_or(html.len());
+        let tag_content = &html[abs_start..tag_end];
+
+        if let Some(style_rel) = tag_content.find("style=\"") {
+          // Merge into existing style attribute
+          let abs_style_val_start = abs_start + style_rel + 7;
+          let style_val_end = html[abs_style_val_start..]
+            .find('"')
+            .map(|p| abs_style_val_start + p)
+            .unwrap_or(html.len());
+          let injection = format!(";{}:{}", entry.css_property, entry.value);
+          html.insert_str(style_val_end, &injection);
+        } else {
+          // Insert new style attribute after tag name
+          let mut tag_name_end = abs_start + 1;
+          let bytes = html.as_bytes();
+          while tag_name_end < bytes.len()
+            && bytes[tag_name_end] != b' '
+            && bytes[tag_name_end] != b'>'
+            && bytes[tag_name_end] != b'/'
+            && bytes[tag_name_end] != b'\n'
+            && bytes[tag_name_end] != b'\t'
+          {
+            tag_name_end += 1;
+          }
+          let injection = format!(r#" style="{}:{}""#, entry.css_property, entry.value);
+          html = format!("{}{}{}", &html[..tag_name_end], injection, &html[tag_name_end..]);
+        }
       }
     }
   }

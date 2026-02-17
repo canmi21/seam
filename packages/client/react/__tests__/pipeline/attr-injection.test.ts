@@ -34,7 +34,41 @@ describe("1.2 attribute injection", () => {
     "14b. src attr on img — React 19 emits <link rel=preload> whose attr order diverges after sentinelToSlots round-trip",
   );
 
-  it.todo("15. style object — per-property sentinels not supported by sentinelToSlots");
+  it("15. style object — per-property sentinels", () => {
+    function App() {
+      const { styles } = useSeamData<{ styles: { marginTop: string; fontSize: string } }>();
+      return createElement("div", { style: styles }, "content");
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { styles: { marginTop: "8px", fontSize: "12px" } },
+      realData: { styles: { marginTop: "16px", fontSize: "14px" } },
+    });
+  });
+
+  it("15b. style with number values", () => {
+    function App() {
+      const { styles } = useSeamData<{ styles: { marginTop: number; opacity: number } }>();
+      return createElement("div", { style: styles }, "content");
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { styles: { marginTop: 8, opacity: 0.5 } },
+      realData: { styles: { marginTop: 16, opacity: 0.8 } },
+    });
+  });
+
+  it("15c. style with zero value", () => {
+    function App() {
+      const { styles } = useSeamData<{ styles: { marginTop: number } }>();
+      return createElement("div", { style: styles }, "content");
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { styles: { marginTop: 8 } },
+      realData: { styles: { marginTop: 0 } },
+    });
+  });
 
   it("16. data-* custom attributes", () => {
     function App() {

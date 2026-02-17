@@ -9,6 +9,11 @@ fn attr_re() -> &'static Regex {
   RE.get_or_init(|| Regex::new(r#"([\w-]+)="%%SEAM:([^%]+)%%""#).unwrap())
 }
 
+fn style_sentinel_re() -> &'static Regex {
+  static RE: OnceLock<Regex> = OnceLock::new();
+  RE.get_or_init(|| Regex::new(r#"style="([^"]*%%SEAM:[^"]*)""#).unwrap())
+}
+
 fn text_re() -> &'static Regex {
   static RE: OnceLock<Regex> = OnceLock::new();
   RE.get_or_init(|| Regex::new(r"%%SEAM:([^%]+)%%").unwrap())
@@ -22,10 +27,13 @@ fn tag_re() -> &'static Regex {
 /// Replace text sentinels `%%SEAM:path%%` with slot markers `<!--seam:path-->`.
 /// Also handle attribute sentinels: `attr="%%SEAM:path%%"` inside tags
 /// becomes a `<!--seam:path:attr:attrName-->` comment before the tag.
+/// Style sentinels: `style="margin-top:%%SEAM:mt%%"` inside tags
+/// becomes `<!--seam:mt:style:margin-top-->` comment before the tag.
 pub fn sentinel_to_slots(html: &str) -> String {
   let attr_re = attr_re();
   let text_re = text_re();
   let tag_re = tag_re();
+  let style_re = style_sentinel_re();
 
   let mut result = String::with_capacity(html.len());
   let mut last_end = 0;
@@ -34,9 +42,11 @@ pub fn sentinel_to_slots(html: &str) -> String {
     let full_match = cap.get(0).unwrap();
     let attrs_part = cap.get(2).unwrap().as_str();
 
-    // Check if this tag contains attribute sentinels
-    if !attr_re.is_match(attrs_part) {
-      // No attribute sentinels, copy as-is up to end of this match
+    let has_attr_sentinels = attr_re.is_match(attrs_part);
+    let has_style_sentinels = style_re.is_match(attrs_part);
+
+    // No sentinels at all, copy as-is
+    if !has_attr_sentinels && !has_style_sentinels {
       result.push_str(&html[last_end..full_match.end()]);
       last_end = full_match.end();
       continue;
@@ -45,12 +55,60 @@ pub fn sentinel_to_slots(html: &str) -> String {
     // Copy text between previous match and start of this tag
     result.push_str(&html[last_end..full_match.start()]);
 
-    // Collect attribute sentinel comments to insert before the tag
+    let mut working_attrs = attrs_part.to_string();
     let mut comments = Vec::new();
-    for attr_cap in attr_re.captures_iter(attrs_part) {
-      let attr_name = &attr_cap[1];
-      let path = &attr_cap[2];
-      comments.push(format!("<!--seam:{path}:attr:{attr_name}-->"));
+
+    // Process style sentinels first
+    if has_style_sentinels {
+      if let Some(style_cap) = style_re.captures(&working_attrs) {
+        let style_value = style_cap[1].to_string();
+        let mut static_pairs = Vec::new();
+
+        for pair in style_value.split(';') {
+          let pair = pair.trim();
+          if pair.is_empty() {
+            continue;
+          }
+          if pair.contains("%%SEAM:") {
+            // Extract css_property (before first ':') and path (from sentinel)
+            if let Some(colon_pos) = pair.find(':') {
+              let css_property = &pair[..colon_pos];
+              let value_part = &pair[colon_pos + 1..];
+              // Extract path from %%SEAM:path%%
+              if let (Some(start), Some(_end)) = (value_part.find("%%SEAM:"), value_part.find("%%"))
+              {
+                let after_prefix = &value_part[start + 7..];
+                if let Some(end2) = after_prefix.find("%%") {
+                  let path = &after_prefix[..end2];
+                  comments.push(format!("<!--seam:{path}:style:{css_property}-->"));
+                }
+              }
+            }
+          } else {
+            static_pairs.push(pair.to_string());
+          }
+        }
+
+        // Replace style attribute in working attrs
+        let full_style_match = style_cap.get(0).unwrap().as_str();
+        if static_pairs.is_empty() {
+          working_attrs = working_attrs.replace(full_style_match, "");
+        } else {
+          let new_style = format!(r#"style="{}""#, static_pairs.join(";"));
+          working_attrs = working_attrs.replace(full_style_match, &new_style);
+        }
+      }
+    }
+
+    // Collect regular attribute sentinel comments
+    if has_attr_sentinels {
+      for attr_cap in attr_re.captures_iter(&working_attrs) {
+        let attr_name = &attr_cap[1];
+        let path = &attr_cap[2];
+        comments.push(format!("<!--seam:{path}:attr:{attr_name}-->"));
+      }
+      // Remove attr sentinels from working attrs
+      working_attrs = attr_re.replace_all(&working_attrs, "").to_string();
     }
 
     // Insert comments before the tag
@@ -58,10 +116,9 @@ pub fn sentinel_to_slots(html: &str) -> String {
       result.push_str(comment);
     }
 
-    // Rebuild the tag without the sentinel attributes
+    // Rebuild the tag
     let tag_name = cap.get(1).unwrap().as_str();
-    let cleaned_attrs = attr_re.replace_all(attrs_part, "");
-    let cleaned_attrs = cleaned_attrs.trim();
+    let cleaned_attrs = working_attrs.trim();
 
     if cleaned_attrs.is_empty() {
       result.push_str(&format!("<{tag_name}>"));
@@ -147,6 +204,16 @@ mod tests {
     assert_eq!(result, "<!--&--><div><!--seam:content--></div><!--/&-->");
   }
 
+  // -- Text escaping: sentinel in HTML-escaped context --
+
+  #[test]
+  fn sentinel_in_escaped_html_context() {
+    // Sentinel surrounded by HTML entities — entities must not interfere
+    let html = "<p>&amp; %%SEAM:user%% &lt;end&gt;</p>";
+    let result = sentinel_to_slots(html);
+    assert_eq!(result, "<p>&amp; <!--seam:user--> &lt;end&gt;</p>");
+  }
+
   // -- Diagnostic: hyphenated attribute names (#16, #17) --
 
   #[test]
@@ -210,5 +277,39 @@ mod tests {
       "aria-b sentinel not extracted: {result}"
     );
     assert!(!result.contains("%%SEAM:"), "raw sentinel remains: {result}");
+  }
+
+  // -- Style sentinel extraction --
+
+  #[test]
+  fn style_all_dynamic() {
+    let html = r#"<div style="margin-top:%%SEAM:mt%%">text</div>"#;
+    let result = sentinel_to_slots(html);
+    assert_eq!(result, "<!--seam:mt:style:margin-top--><div>text</div>");
+  }
+
+  #[test]
+  fn style_multi_dynamic() {
+    let html = r#"<div style="margin-top:%%SEAM:mt%%;font-size:%%SEAM:fs%%">text</div>"#;
+    let result = sentinel_to_slots(html);
+    assert!(result.contains("<!--seam:mt:style:margin-top-->"));
+    assert!(result.contains("<!--seam:fs:style:font-size-->"));
+    assert!(result.contains("<div>text</div>"));
+    assert!(!result.contains("style="));
+  }
+
+  #[test]
+  fn style_mixed_static_dynamic() {
+    let html = r#"<div style="color:red;margin-top:%%SEAM:mt%%">text</div>"#;
+    let result = sentinel_to_slots(html);
+    assert!(result.contains("<!--seam:mt:style:margin-top-->"));
+    assert!(result.contains(r#"style="color:red""#));
+    assert!(!result.contains("%%SEAM:"));
+  }
+
+  #[test]
+  fn style_all_static_unchanged() {
+    let html = r#"<div style="color:red;font-size:14px">text</div>"#;
+    assert_eq!(sentinel_to_slots(html), html);
   }
 }

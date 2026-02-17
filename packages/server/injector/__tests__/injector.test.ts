@@ -449,6 +449,89 @@ describe("inject", () => {
     });
   });
 
+  describe("style property slots", () => {
+    it("injects single style property", () => {
+      const html = inject(
+        "<!--seam:mt:style:margin-top--><div>text</div>",
+        { mt: 16 },
+        { skipDataScript: true },
+      );
+      expect(html).toBe('<div style="margin-top:16px">text</div>');
+    });
+
+    it("injects multiple style properties", () => {
+      const html = inject(
+        "<!--seam:mt:style:margin-top--><!--seam:fs:style:font-size--><div>text</div>",
+        { mt: 16, fs: 14 },
+        { skipDataScript: true },
+      );
+      expect(html).toBe('<div style="margin-top:16px;font-size:14px">text</div>');
+    });
+
+    it("adds px to numbers for non-unitless properties", () => {
+      const html = inject(
+        "<!--seam:mt:style:margin-top--><div>text</div>",
+        { mt: 16 },
+        { skipDataScript: true },
+      );
+      expect(html).toBe('<div style="margin-top:16px">text</div>');
+    });
+
+    it("omits px for unitless properties", () => {
+      const html = inject(
+        "<!--seam:op:style:opacity--><span>text</span>",
+        { op: 0.5 },
+        { skipDataScript: true },
+      );
+      expect(html).toBe('<span style="opacity:0.5">text</span>');
+    });
+
+    it("renders zero without px", () => {
+      const html = inject(
+        "<!--seam:mt:style:margin-top--><div>text</div>",
+        { mt: 0 },
+        { skipDataScript: true },
+      );
+      expect(html).toBe('<div style="margin-top:0">text</div>');
+    });
+
+    it("skips null values", () => {
+      const html = inject(
+        "<!--seam:mt:style:margin-top--><div>text</div>",
+        { mt: null },
+        { skipDataScript: true },
+      );
+      expect(html).toBe("<div>text</div>");
+    });
+
+    it("skips false values", () => {
+      const html = inject(
+        "<!--seam:mt:style:margin-top--><div>text</div>",
+        { mt: false },
+        { skipDataScript: true },
+      );
+      expect(html).toBe("<div>text</div>");
+    });
+
+    it("merges with existing static style", () => {
+      const html = inject(
+        '<!--seam:mt:style:margin-top--><div style="color:red">text</div>',
+        { mt: 16 },
+        { skipDataScript: true },
+      );
+      expect(html).toBe('<div style="color:red;margin-top:16px">text</div>');
+    });
+
+    it("passes string values through", () => {
+      const html = inject(
+        "<!--seam:c:style:color--><div>text</div>",
+        { c: "blue" },
+        { skipDataScript: true },
+      );
+      expect(html).toBe('<div style="color:blue">text</div>');
+    });
+  });
+
   describe("combined", () => {
     it("handles all slot types in one template", () => {
       const tmpl = [

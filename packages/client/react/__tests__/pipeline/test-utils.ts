@@ -15,6 +15,8 @@ export function sentinelToSlots(html: string): string {
   const attrRe = /([\w-]+)="%%SEAM:([^%]+)%%"/g;
   const textRe = /%%SEAM:([^%]+)%%/g;
   const tagRe = /<([a-zA-Z][a-zA-Z0-9]*)\b([^>]*)>/g;
+  const styleSentinelRe = /style="([^"]*%%SEAM:[^"]*)"/;
+  const sentinelExtractRe = /%%SEAM:([^%]+)%%/;
 
   let result = "";
   let lastEnd = 0;
@@ -26,24 +28,62 @@ export function sentinelToSlots(html: string): string {
     const matchStart = match.index!;
     const matchEnd = matchStart + fullMatch.length;
 
-    if (!attrRe.test(attrsStr)) {
-      result += html.slice(lastEnd, matchEnd);
-      lastEnd = matchEnd;
-      attrRe.lastIndex = 0;
-      continue;
-    }
+    const hasStyleSentinels = styleSentinelRe.test(attrsStr);
+    attrRe.lastIndex = 0;
+    const hasAttrSentinels = attrRe.test(attrsStr);
     attrRe.lastIndex = 0;
 
-    result += html.slice(lastEnd, matchStart);
+    if (!hasStyleSentinels && !hasAttrSentinels) {
+      result += html.slice(lastEnd, matchEnd);
+      lastEnd = matchEnd;
+      continue;
+    }
 
+    result += html.slice(lastEnd, matchStart);
+    let workingAttrs = attrsStr;
+
+    // Process style sentinels
+    if (hasStyleSentinels) {
+      const styleMatch = styleSentinelRe.exec(workingAttrs);
+      if (styleMatch) {
+        const styleValue = styleMatch[1];
+        const parts = styleValue.split(";");
+        const staticParts: string[] = [];
+
+        for (const part of parts) {
+          const trimmed = part.trim();
+          if (!trimmed) continue;
+
+          if (trimmed.includes("%%SEAM:")) {
+            const colonPos = trimmed.indexOf(":");
+            if (colonPos !== -1) {
+              const cssProperty = trimmed.slice(0, colonPos).trim();
+              const sentMatch = sentinelExtractRe.exec(trimmed);
+              if (sentMatch) {
+                result += `<!--seam:${sentMatch[1]}:style:${cssProperty}-->`;
+              }
+            }
+          } else {
+            staticParts.push(trimmed);
+          }
+        }
+
+        if (staticParts.length === 0) {
+          workingAttrs = workingAttrs.replace(styleMatch[0], "");
+        } else {
+          workingAttrs = workingAttrs.replace(styleMatch[0], `style="${staticParts.join(";")}"`);
+        }
+      }
+    }
+
+    // Process regular attr sentinels
     const comments: string[] = [];
-    let cleanedAttrs = attrsStr;
-    for (const attrMatch of attrsStr.matchAll(attrRe)) {
+    for (const attrMatch of workingAttrs.matchAll(attrRe)) {
       const attrName = attrMatch[1];
       const path = attrMatch[2];
       comments.push(`<!--seam:${path}:attr:${attrName}-->`);
     }
-    cleanedAttrs = cleanedAttrs.replace(attrRe, "").trim();
+    const cleanedAttrs = workingAttrs.replace(attrRe, "").trim();
 
     for (const c of comments) result += c;
     result += cleanedAttrs ? `<${tagName} ${cleanedAttrs}>` : `<${tagName}>`;

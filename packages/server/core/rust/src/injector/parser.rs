@@ -85,6 +85,11 @@ pub(super) fn parse_until(
             *pos += 1;
           }
           nodes.push(AstNode::Each { path, body_nodes });
+        } else if let Some(rest) = directive.find(":style:") {
+          let path = directive[..rest].to_string();
+          let css_property = directive[rest + 7..].to_string();
+          *pos += 1;
+          nodes.push(AstNode::StyleProp { path, css_property });
         } else if let Some(rest) = directive.find(":attr:") {
           let path = directive[..rest].to_string();
           let attr_name = directive[rest + 6..].to_string();

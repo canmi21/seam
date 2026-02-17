@@ -69,6 +69,94 @@ pub(super) fn is_html_boolean_attr(name: &str) -> bool {
   HTML_BOOLEAN_ATTRS.contains(&name)
 }
 
+const CSS_UNITLESS_PROPERTIES: &[&str] = &[
+  "animation-iteration-count",
+  "border-image-outset",
+  "border-image-slice",
+  "border-image-width",
+  "box-flex",
+  "box-flex-group",
+  "box-ordinal-group",
+  "column-count",
+  "columns",
+  "flex",
+  "flex-grow",
+  "flex-positive",
+  "flex-shrink",
+  "flex-negative",
+  "flex-order",
+  "font-weight",
+  "grid-area",
+  "grid-column",
+  "grid-column-end",
+  "grid-column-span",
+  "grid-column-start",
+  "grid-row",
+  "grid-row-end",
+  "grid-row-span",
+  "grid-row-start",
+  "line-clamp",
+  "line-height",
+  "opacity",
+  "order",
+  "orphans",
+  "tab-size",
+  "widows",
+  "z-index",
+  "zoom",
+  "fill-opacity",
+  "flood-opacity",
+  "stop-opacity",
+  "stroke-dasharray",
+  "stroke-dashoffset",
+  "stroke-miterlimit",
+  "stroke-opacity",
+  "stroke-width",
+];
+
+pub(super) fn format_style_value(css_property: &str, value: &Value) -> Option<String> {
+  match value {
+    Value::Null => None,
+    Value::Bool(false) => None,
+    Value::Number(n) => {
+      if let Some(i) = n.as_i64() {
+        if i == 0 {
+          Some("0".to_string())
+        } else if CSS_UNITLESS_PROPERTIES.contains(&css_property) {
+          Some(i.to_string())
+        } else {
+          Some(format!("{i}px"))
+        }
+      } else if let Some(f) = n.as_f64() {
+        if f == 0.0 {
+          Some("0".to_string())
+        } else if CSS_UNITLESS_PROPERTIES.contains(&css_property) {
+          // Avoid trailing .0 for whole numbers
+          if f.fract() == 0.0 {
+            Some(format!("{}", f as i64))
+          } else {
+            Some(f.to_string())
+          }
+        } else if f.fract() == 0.0 {
+          Some(format!("{}px", f as i64))
+        } else {
+          Some(format!("{f}px"))
+        }
+      } else {
+        None
+      }
+    }
+    Value::String(s) => {
+      if s.is_empty() {
+        None
+      } else {
+        Some(s.clone())
+      }
+    }
+    _ => None,
+  }
+}
+
 pub(super) fn escape_html(s: &str) -> String {
   let mut out = String::with_capacity(s.len());
   for ch in s.chars() {
@@ -180,5 +268,39 @@ mod tests {
   #[test]
   fn escape_html_empty() {
     assert_eq!(escape_html(""), "");
+  }
+
+  // -- format_style_value --
+
+  #[test]
+  fn format_style_value_number_with_px() {
+    assert_eq!(format_style_value("margin-top", &json!(16)), Some("16px".to_string()));
+  }
+
+  #[test]
+  fn format_style_value_zero() {
+    assert_eq!(format_style_value("margin-top", &json!(0)), Some("0".to_string()));
+  }
+
+  #[test]
+  fn format_style_value_unitless() {
+    assert_eq!(format_style_value("opacity", &json!(0.5)), Some("0.5".to_string()));
+    assert_eq!(format_style_value("z-index", &json!(10)), Some("10".to_string()));
+    assert_eq!(format_style_value("font-weight", &json!(700)), Some("700".to_string()));
+  }
+
+  #[test]
+  fn format_style_value_string() {
+    assert_eq!(format_style_value("color", &json!("red")), Some("red".to_string()));
+  }
+
+  #[test]
+  fn format_style_value_null_skipped() {
+    assert_eq!(format_style_value("margin-top", &json!(null)), None);
+  }
+
+  #[test]
+  fn format_style_value_false_skipped() {
+    assert_eq!(format_style_value("margin-top", &json!(false)), None);
   }
 }

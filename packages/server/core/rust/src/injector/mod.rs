@@ -7,7 +7,7 @@ mod render;
 mod token;
 
 use parser::parse;
-use render::{inject_attributes, render, RenderContext};
+use render::{inject_attributes, inject_style_attributes, render, RenderContext};
 use token::tokenize;
 
 use serde_json::Value;
@@ -15,8 +15,13 @@ use serde_json::Value;
 pub fn inject(template: &str, data: &Value) -> String {
   let tokens = tokenize(template);
   let ast = parse(&tokens);
-  let mut ctx = RenderContext { attrs: Vec::new() };
+  let mut ctx = RenderContext { attrs: Vec::new(), style_attrs: Vec::new() };
   let mut result = render(&ast, data, &mut ctx);
+
+  // Phase B: splice style attributes first
+  if !ctx.style_attrs.is_empty() {
+    result = inject_style_attributes(result, &ctx.style_attrs);
+  }
 
   // Phase B: splice collected attributes
   if !ctx.attrs.is_empty() {
@@ -43,8 +48,11 @@ mod tests {
   fn inject_no_script(template: &str, data: &Value) -> String {
     let tokens = tokenize(template);
     let ast = parse(&tokens);
-    let mut ctx = RenderContext { attrs: Vec::new() };
+    let mut ctx = RenderContext { attrs: Vec::new(), style_attrs: Vec::new() };
     let mut result = render(&ast, data, &mut ctx);
+    if !ctx.style_attrs.is_empty() {
+      result = inject_style_attributes(result, &ctx.style_attrs);
+    }
     if !ctx.attrs.is_empty() {
       result = inject_attributes(result, &ctx.attrs);
     }
@@ -439,5 +447,73 @@ mod tests {
       inject_no_script(tmpl, &json!({"status": "pending"})),
       r#"<span class="yellow">Pending</span>"#
     );
+  }
+
+  // -- Style property slots --
+
+  #[test]
+  fn style_single_prop() {
+    let html =
+      inject_no_script("<!--seam:mt:style:margin-top--><div>text</div>", &json!({"mt": 16}));
+    assert_eq!(html, r#"<div style="margin-top:16px">text</div>"#);
+  }
+
+  #[test]
+  fn style_multiple_props() {
+    let html = inject_no_script(
+      "<!--seam:mt:style:margin-top--><!--seam:fs:style:font-size--><div>text</div>",
+      &json!({"mt": 16, "fs": 14}),
+    );
+    assert_eq!(html, r#"<div style="margin-top:16px;font-size:14px">text</div>"#);
+  }
+
+  #[test]
+  fn style_number_px() {
+    let html =
+      inject_no_script("<!--seam:mt:style:margin-top--><div>text</div>", &json!({"mt": 16}));
+    assert_eq!(html, r#"<div style="margin-top:16px">text</div>"#);
+  }
+
+  #[test]
+  fn style_unitless() {
+    let html =
+      inject_no_script("<!--seam:op:style:opacity--><span>text</span>", &json!({"op": 0.5}));
+    assert_eq!(html, r#"<span style="opacity:0.5">text</span>"#);
+  }
+
+  #[test]
+  fn style_zero() {
+    let html =
+      inject_no_script("<!--seam:mt:style:margin-top--><div>text</div>", &json!({"mt": 0}));
+    assert_eq!(html, r#"<div style="margin-top:0">text</div>"#);
+  }
+
+  #[test]
+  fn style_null_skipped() {
+    let html =
+      inject_no_script("<!--seam:mt:style:margin-top--><div>text</div>", &json!({"mt": null}));
+    assert_eq!(html, "<div>text</div>");
+  }
+
+  #[test]
+  fn style_false_skipped() {
+    let html =
+      inject_no_script("<!--seam:mt:style:margin-top--><div>text</div>", &json!({"mt": false}));
+    assert_eq!(html, "<div>text</div>");
+  }
+
+  #[test]
+  fn style_merge_with_existing() {
+    let html = inject_no_script(
+      r#"<!--seam:mt:style:margin-top--><div style="color:red">text</div>"#,
+      &json!({"mt": 16}),
+    );
+    assert_eq!(html, r#"<div style="color:red;margin-top:16px">text</div>"#);
+  }
+
+  #[test]
+  fn style_string_value() {
+    let html = inject_no_script("<!--seam:c:style:color--><div>text</div>", &json!({"c": "blue"}));
+    assert_eq!(html, r#"<div style="color:blue">text</div>"#);
   }
 }
