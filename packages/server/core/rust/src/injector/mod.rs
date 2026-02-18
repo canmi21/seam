@@ -549,7 +549,7 @@ mod tests {
       r#"<!--seam:a:attr:property--><!--seam:b:attr:content--><meta name="og">"#,
       &json!({"a": "og:title", "b": "My Page"}),
     );
-    assert_eq!(html, r#"<meta content="My Page" property="og:title" name="og">"#);
+    assert_eq!(html, r#"<meta property="og:title" content="My Page" name="og">"#);
   }
 
   #[test]

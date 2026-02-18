@@ -127,7 +127,7 @@ pub(super) fn render(nodes: &[AstNode], data: &Value, ctx: &mut RenderContext) -
 }
 
 pub(super) fn inject_attributes(mut html: String, attrs: &[AttrEntry]) -> String {
-  for entry in attrs {
+  for entry in attrs.iter().rev() {
     if let Some(pos) = html.find(&entry.marker) {
       html = format!("{}{}", &html[..pos], &html[pos + entry.marker.len()..]);
       if let Some(tag_rel) = html[pos..].find('<') {
