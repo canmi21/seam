@@ -8,19 +8,16 @@ import seamPlugin from "./packages/eslint-plugin-seam/src/index.ts";
 
 export default tseslint.config(
   {
-    ignores: [
-      "**/dist/**",
-      "**/node_modules/**",
-      "**/target/**",
-      "**/.seam/**",
-      "examples/**",
-      "packages/cli/**",
-    ],
+    ignores: ["**/dist/**", "**/node_modules/**", "**/target/**", "**/.seam/**", "packages/cli/**"],
   },
   {
     plugins: { seam: seamPlugin },
   },
-  ...tseslint.configs.recommendedTypeChecked,
+  // type-checked rules: skip examples entirely (no tsconfig project)
+  ...tseslint.configs.recommendedTypeChecked.map((c) => ({
+    ...c,
+    ignores: [...(c.ignores ?? []), "examples/**"],
+  })),
   {
     languageOptions: {
       parserOptions: {
@@ -28,6 +25,7 @@ export default tseslint.config(
         tsconfigRootDir: import.meta.dirname,
       },
     },
+    ignores: ["examples/**"],
     rules: {
       "@typescript-eslint/no-unused-vars": "off",
       "@typescript-eslint/no-require-imports": "off",
@@ -35,8 +33,24 @@ export default tseslint.config(
       "max-lines-per-function": ["warn", { max: 100, skipBlankLines: true, skipComments: true }],
     },
   },
-  // disable type-checked rules for files outside tsconfig (tests, configs, scripts)
-  // and Bun adapter (Bun globals unresolvable by standard TS project service)
+  // skeleton files in examples need TS parser (type-checked configs skip examples/)
+  {
+    files: ["examples/**/*-skeleton.tsx"],
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+  },
+  // skeleton-specific seam rules (covers examples/ and tests/)
+  {
+    files: ["**/*-skeleton.tsx"],
+    rules: {
+      "seam/no-async-in-skeleton": "error",
+      "seam/no-nondeterministic-in-skeleton": "error",
+      "seam/no-browser-apis-in-skeleton": "error",
+    },
+  },
+  // disable type-checked rules for files outside tsconfig
   {
     files: [
       "**/__tests__/**",
@@ -45,6 +59,7 @@ export default tseslint.config(
       "**/scripts/**",
       "eslint.config.mjs",
       "packages/server/adapter/bun/**",
+      "examples/**",
     ],
     ...tseslint.configs.disableTypeChecked,
   },
