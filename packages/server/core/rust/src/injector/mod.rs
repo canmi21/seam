@@ -552,6 +552,49 @@ mod tests {
     assert_eq!(html, r#"<meta property="og:title" content="My Page" name="og">"#);
   }
 
+  // -- HTML slot no escape --
+
+  #[test]
+  fn html_slot_no_escape() {
+    let html =
+      inject_no_script("<div><!--seam:content:html--></div>", &json!({"content": "<b>bold</b>"}));
+    assert_eq!(html, "<div><b>bold</b></div>");
+  }
+
+  // -- Each with non-array value --
+
+  #[test]
+  fn each_non_array_value() {
+    // Object value (not array) should produce empty output
+    let tmpl = "<!--seam:each:items--><li><!--seam:$.x--></li><!--seam:endeach-->";
+    let html = inject_no_script(tmpl, &json!({"items": {"x": 1}}));
+    assert_eq!(html, "");
+  }
+
+  // -- Match with numeric value --
+
+  #[test]
+  fn match_numeric_value() {
+    let tmpl = concat!(
+      "<!--seam:match:code-->",
+      "<!--seam:when:200-->OK",
+      "<!--seam:when:404-->Not Found",
+      "<!--seam:endmatch-->"
+    );
+    let html = inject_no_script(tmpl, &json!({"code": 200}));
+    assert_eq!(html, "OK");
+  }
+
+  // -- Non-boolean attr with null value --
+
+  #[test]
+  fn non_boolean_attr_null_value() {
+    // null value should cause attribute to be omitted (resolve returns Some(&Null),
+    // but stringify produces empty string which still gets injected)
+    let html = inject_no_script("<!--seam:v:attr:class--><div>hi</div>", &json!({"v": null}));
+    assert_eq!(html, r#"<div class="">hi</div>"#);
+  }
+
   #[test]
   fn float_full_document() {
     let tmpl = concat!(

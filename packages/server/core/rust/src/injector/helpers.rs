@@ -303,4 +303,61 @@ mod tests {
   fn format_style_value_false_skipped() {
     assert_eq!(format_style_value("margin-top", &json!(false)), None);
   }
+
+  #[test]
+  fn truthy_empty_object() {
+    assert!(is_truthy(&json!({})));
+  }
+
+  #[test]
+  fn stringify_array() {
+    let result = stringify(&json!([1, 2]));
+    assert_eq!(result, "[1,2]");
+  }
+
+  #[test]
+  fn stringify_object() {
+    let result = stringify(&json!({"a": 1}));
+    assert_eq!(result, r#"{"a":1}"#);
+  }
+
+  #[test]
+  fn format_style_value_float_px() {
+    assert_eq!(format_style_value("width", &json!(1.5)), Some("1.5px".to_string()));
+  }
+
+  #[test]
+  fn format_style_value_integer_float_px() {
+    assert_eq!(format_style_value("width", &json!(16.0)), Some("16px".to_string()));
+  }
+
+  #[test]
+  fn format_style_value_zero_float() {
+    assert_eq!(format_style_value("width", &json!(0.0)), Some("0".to_string()));
+  }
+
+  #[test]
+  fn format_style_value_empty_string() {
+    assert_eq!(format_style_value("width", &json!("")), None);
+  }
+
+  #[test]
+  fn format_style_value_bool_true() {
+    // true is not false, so it falls through to the _ => None arm
+    assert_eq!(format_style_value("width", &json!(true)), None);
+  }
+
+  #[test]
+  fn resolve_dollar_path() {
+    // Simulates $ scope inside each loop
+    let data = json!({"$": {"name": "Alice"}});
+    assert_eq!(resolve("$.name", &data), Some(&json!("Alice")));
+  }
+
+  #[test]
+  fn resolve_double_dollar_path() {
+    // Simulates $$ scope in nested each loop
+    let data = json!({"$$": {"title": "Group1"}, "$": {"label": "Item"}});
+    assert_eq!(resolve("$$.title", &data), Some(&json!("Group1")));
+  }
 }

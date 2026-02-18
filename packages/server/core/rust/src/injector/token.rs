@@ -38,3 +38,66 @@ pub(super) fn tokenize(template: &str) -> Vec<Token> {
 
   tokens
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn tokenize_empty_template() {
+    let tokens = tokenize("");
+    assert!(tokens.is_empty());
+  }
+
+  #[test]
+  fn tokenize_plain_html() {
+    let tokens = tokenize("<p>hello</p>");
+    assert_eq!(tokens.len(), 1);
+    assert!(matches!(&tokens[0], Token::Text(s) if s == "<p>hello</p>"));
+  }
+
+  #[test]
+  fn tokenize_single_marker() {
+    let tokens = tokenize("<!--seam:x-->");
+    assert_eq!(tokens.len(), 1);
+    assert!(matches!(&tokens[0], Token::Marker(s) if s == "x"));
+  }
+
+  #[test]
+  fn tokenize_marker_at_start() {
+    let tokens = tokenize("<!--seam:x-->tail");
+    assert_eq!(tokens.len(), 2);
+    assert!(matches!(&tokens[0], Token::Marker(s) if s == "x"));
+    assert!(matches!(&tokens[1], Token::Text(s) if s == "tail"));
+  }
+
+  #[test]
+  fn tokenize_marker_at_end() {
+    let tokens = tokenize("head<!--seam:x-->");
+    assert_eq!(tokens.len(), 2);
+    assert!(matches!(&tokens[0], Token::Text(s) if s == "head"));
+    assert!(matches!(&tokens[1], Token::Marker(s) if s == "x"));
+  }
+
+  #[test]
+  fn tokenize_adjacent_markers() {
+    let tokens = tokenize("<!--seam:a--><!--seam:b-->");
+    assert_eq!(tokens.len(), 2);
+    assert!(matches!(&tokens[0], Token::Marker(s) if s == "a"));
+    assert!(matches!(&tokens[1], Token::Marker(s) if s == "b"));
+  }
+
+  #[test]
+  fn tokenize_unclosed_marker() {
+    let tokens = tokenize("<!--seam:x");
+    assert_eq!(tokens.len(), 1);
+    assert!(matches!(&tokens[0], Token::Text(s) if s == "<!--seam:x"));
+  }
+
+  #[test]
+  fn tokenize_empty_directive() {
+    let tokens = tokenize("<!--seam:-->");
+    assert_eq!(tokens.len(), 1);
+    assert!(matches!(&tokens[0], Token::Marker(s) if s.is_empty()));
+  }
+}

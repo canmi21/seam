@@ -323,4 +323,21 @@ mod tests {
     // Suspense boundary wrapping content with Seam slot markers
     roundtrip("<!--$--><div><!--seam:title--></div><!--/$-->");
   }
+
+  #[test]
+  fn unterminated_comment() {
+    let nodes = parse_html("<!--unterminated");
+    assert_eq!(nodes.len(), 1);
+    assert_eq!(nodes[0], DomNode::Comment("unterminated".to_string()));
+  }
+
+  #[test]
+  fn self_closing_with_attrs_roundtrip() {
+    roundtrip(r#"<input type="text"/>"#);
+  }
+
+  #[test]
+  fn deep_nested_roundtrip() {
+    roundtrip("<div><ul><li>text</li></ul></div>");
+  }
 }

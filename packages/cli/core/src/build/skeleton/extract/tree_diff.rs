@@ -222,4 +222,38 @@ mod tests {
     let result = diff_children(&a, &b);
     assert_eq!(result, vec![DiffOp::Modified(0, 0)]);
   }
+
+  #[test]
+  fn diff_empty_left_nonempty_right() {
+    let b = vec![el("div", vec![])];
+    let result = diff_children(&[], &b);
+    assert_eq!(result, vec![DiffOp::OnlyRight(0)]);
+  }
+
+  #[test]
+  fn diff_nonempty_left_empty_right() {
+    let a = vec![el("div", vec![])];
+    let result = diff_children(&a, &[]);
+    assert_eq!(result, vec![DiffOp::OnlyLeft(0)]);
+  }
+
+  #[test]
+  fn diff_completely_disjoint() {
+    let a = vec![el("div", vec![]), el("span", vec![])];
+    let b = vec![el("p", vec![]), el("a", vec![])];
+    let result = diff_children(&a, &b);
+    assert_eq!(
+      result,
+      vec![DiffOp::OnlyLeft(0), DiffOp::OnlyLeft(1), DiffOp::OnlyRight(0), DiffOp::OnlyRight(1)]
+    );
+  }
+
+  #[test]
+  fn diff_multiple_modified() {
+    // Same tags but different children -> Modified pairs
+    let a = vec![el("div", vec![text("old1")]), el("span", vec![text("old2")])];
+    let b = vec![el("div", vec![text("new1")]), el("span", vec![text("new2")])];
+    let result = diff_children(&a, &b);
+    assert_eq!(result, vec![DiffOp::Modified(0, 0), DiffOp::Modified(1, 1)]);
+  }
 }

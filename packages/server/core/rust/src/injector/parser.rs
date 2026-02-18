@@ -110,3 +110,134 @@ pub(super) fn parse_until(
 
   nodes
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn parse_empty_tokens() {
+    let ast = parse(&[]);
+    assert!(ast.is_empty());
+  }
+
+  #[test]
+  fn parse_text_only() {
+    let tokens = vec![Token::Text("hello".to_string())];
+    let ast = parse(&tokens);
+    assert_eq!(ast.len(), 1);
+    assert!(matches!(&ast[0], AstNode::Text(s) if s == "hello"));
+  }
+
+  #[test]
+  fn parse_if_without_endif() {
+    // EOF truncated: no endif token
+    let tokens = vec![Token::Marker("if:x".to_string()), Token::Text("body".to_string())];
+    let ast = parse(&tokens);
+    assert_eq!(ast.len(), 1);
+    match &ast[0] {
+      AstNode::If { path, then_nodes, else_nodes } => {
+        assert_eq!(path, "x");
+        assert_eq!(then_nodes.len(), 1);
+        assert!(matches!(&then_nodes[0], AstNode::Text(s) if s == "body"));
+        assert!(else_nodes.is_empty());
+      }
+      other => panic!("expected If, got {other:?}"),
+    }
+  }
+
+  #[test]
+  fn parse_each_without_endeach() {
+    let tokens = vec![Token::Marker("each:items".to_string()), Token::Text("body".to_string())];
+    let ast = parse(&tokens);
+    assert_eq!(ast.len(), 1);
+    match &ast[0] {
+      AstNode::Each { path, body_nodes } => {
+        assert_eq!(path, "items");
+        assert_eq!(body_nodes.len(), 1);
+        assert!(matches!(&body_nodes[0], AstNode::Text(s) if s == "body"));
+      }
+      other => panic!("expected Each, got {other:?}"),
+    }
+  }
+
+  #[test]
+  fn parse_match_without_when() {
+    let tokens =
+      vec![Token::Marker("match:status".to_string()), Token::Marker("endmatch".to_string())];
+    let ast = parse(&tokens);
+    assert_eq!(ast.len(), 1);
+    match &ast[0] {
+      AstNode::Match { path, branches } => {
+        assert_eq!(path, "status");
+        assert!(branches.is_empty());
+      }
+      other => panic!("expected Match, got {other:?}"),
+    }
+  }
+
+  #[test]
+  fn parse_match_unexpected_token() {
+    // Non-when marker between match and endmatch is skipped
+    let tokens = vec![
+      Token::Marker("match:status".to_string()),
+      Token::Marker("something_unexpected".to_string()),
+      Token::Marker("when:active".to_string()),
+      Token::Text("Active".to_string()),
+      Token::Marker("endmatch".to_string()),
+    ];
+    let ast = parse(&tokens);
+    assert_eq!(ast.len(), 1);
+    match &ast[0] {
+      AstNode::Match { path, branches } => {
+        assert_eq!(path, "status");
+        assert_eq!(branches.len(), 1);
+        assert_eq!(branches[0].0, "active");
+      }
+      other => panic!("expected Match, got {other:?}"),
+    }
+  }
+
+  #[test]
+  fn parse_style_priority() {
+    // `:style:` prefix should be matched before `:attr:`
+    let tokens = vec![Token::Marker("color:style:color".to_string())];
+    let ast = parse(&tokens);
+    assert_eq!(ast.len(), 1);
+    match &ast[0] {
+      AstNode::StyleProp { path, css_property } => {
+        assert_eq!(path, "color");
+        assert_eq!(css_property, "color");
+      }
+      other => panic!("expected StyleProp, got {other:?}"),
+    }
+  }
+
+  #[test]
+  fn parse_empty_path_slot() {
+    let tokens = vec![Token::Marker(String::new())];
+    let ast = parse(&tokens);
+    assert_eq!(ast.len(), 1);
+    match &ast[0] {
+      AstNode::Slot { path, mode } => {
+        assert!(path.is_empty());
+        assert!(matches!(mode, SlotMode::Text));
+      }
+      other => panic!("expected Slot, got {other:?}"),
+    }
+  }
+
+  #[test]
+  fn parse_html_suffix() {
+    let tokens = vec![Token::Marker("content:html".to_string())];
+    let ast = parse(&tokens);
+    assert_eq!(ast.len(), 1);
+    match &ast[0] {
+      AstNode::Slot { path, mode } => {
+        assert_eq!(path, "content");
+        assert!(matches!(mode, SlotMode::Html));
+      }
+      other => panic!("expected Slot(Html), got {other:?}"),
+    }
+  }
+}
