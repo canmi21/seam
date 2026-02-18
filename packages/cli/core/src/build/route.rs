@@ -23,6 +23,8 @@ use crate::ui::{self, DIM, GREEN, RESET};
 #[derive(Deserialize)]
 pub(super) struct SkeletonOutput {
   pub(super) routes: Vec<SkeletonRoute>,
+  #[serde(default)]
+  pub(super) warnings: Vec<String>,
 }
 
 #[derive(Deserialize)]

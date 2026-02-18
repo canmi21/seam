@@ -1,7 +1,7 @@
 /* packages/client/react/__tests__/build-skeletons.test.ts */
 
 import { describe, it, expect, afterAll } from "vitest";
-import { execSync } from "node:child_process";
+import { execSync, spawnSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -138,5 +138,108 @@ export default defineRoutes([{
     expect(output.routes[0].axes).toBeDefined();
     expect(output.routes[0].variants[0].html).toContain("%%SEAM:greeting%%");
     expect(output.routes[0].loaders).toEqual({ greeting: { procedure: "getGreeting" } });
+  });
+});
+
+describe("render guards", () => {
+  const tmpDirs: string[] = [];
+  const scriptPath = resolve(__dirname, "../scripts/build-skeletons.mjs");
+
+  afterAll(() => {
+    for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: true });
+  });
+
+  function runBuild(routesContent: string) {
+    const dir = mkdtempSync(join(tmpdir(), "seam-guard-"));
+    tmpDirs.push(dir);
+    const routesFile = join(dir, "routes.tsx");
+    writeFileSync(routesFile, routesContent);
+    return spawnSync("node", [scriptPath, routesFile], {
+      cwd: dir,
+      encoding: "utf-8",
+      env: { ...process.env, NODE_PATH: resolve(__dirname, "../../..") },
+    });
+  }
+
+  it("fails build on Suspense abort", () => {
+    const result = runBuild(`
+import React, { Suspense, use } from "react";
+import { defineRoutes } from "@canmi/seam-react";
+
+function Inner() {
+  use(new Promise(() => {}));
+  return React.createElement("div", null, "never");
+}
+
+function Page() {
+  return React.createElement(
+    Suspense,
+    { fallback: React.createElement("div", null, "loading") },
+    React.createElement(Inner),
+  );
+}
+
+export default defineRoutes([{
+  path: "/",
+  component: Page,
+  loaders: {},
+  mock: {},
+}]);
+`);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Suspense abort");
+  });
+
+  it("strips resource hints and emits warning", () => {
+    const result = runBuild(`
+import React from "react";
+import { preload } from "react-dom";
+import { defineRoutes, useSeamData } from "@canmi/seam-react";
+
+function Page() {
+  preload("/font.woff2", { as: "font" });
+  const { title } = useSeamData();
+  return React.createElement("h1", null, title);
+}
+
+export default defineRoutes([{
+  path: "/",
+  component: Page,
+  loaders: { title: { procedure: "getTitle" } },
+  mock: { title: "Hello" },
+}]);
+`);
+    expect(result.status).toBe(0);
+    const output = JSON.parse(result.stdout as string);
+    expect(output.warnings.length).toBeGreaterThan(0);
+    expect(output.warnings[0]).toContain("resource hint");
+    for (const route of output.routes) {
+      for (const v of route.variants) {
+        expect(v.html).not.toMatch(/<link[^>]+rel="preload"/);
+      }
+    }
+  });
+
+  it("passes clean build for normal skeleton", () => {
+    const result = runBuild(`
+import React from "react";
+import { defineRoutes, useSeamData } from "@canmi/seam-react";
+
+function Page() {
+  const { greeting } = useSeamData();
+  return React.createElement("p", null, greeting);
+}
+
+export default defineRoutes([{
+  path: "/",
+  component: Page,
+  loaders: { greeting: { procedure: "getGreeting" } },
+  mock: { greeting: "Hello World" },
+}]);
+`);
+    expect(result.status).toBe(0);
+    const output = JSON.parse(result.stdout as string);
+    expect(output.warnings).toEqual([]);
+    expect(output.routes[0].variants[0].html).toContain("%%SEAM:greeting%%");
   });
 });

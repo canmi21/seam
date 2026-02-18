@@ -4,6 +4,7 @@ import { describe, it, expect } from "vitest";
 import {
   createElement,
   useId,
+  use,
   Suspense,
   StrictMode,
   useState,
@@ -12,6 +13,7 @@ import {
   useMemo,
 } from "react";
 import { renderToString } from "react-dom/server";
+import { preload, preinit, prefetchDNS, preconnect } from "react-dom";
 import { SeamDataProvider, useSeamData } from "../src/index.js";
 import {
   inject,
@@ -344,5 +346,169 @@ describe("react 19: ref and hooks", () => {
     expect(finalHtml).toContain("Products");
     expect(finalHtml).toContain("7");
     expect(finalHtml).toContain("initial");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P0: preload()/preinit() resource hints injection during renderToString
+// ---------------------------------------------------------------------------
+// React 19 Resource Hints API injects <link> tags into renderToString output.
+// These extra nodes are NOT driven by sentinel data, so they create noise in
+// the Rust variant diff and corrupt extracted templates.
+//
+// Verified on React 19.2.4: all four APIs inject tags BEFORE the component's
+// own HTML. Example output:
+//   <link rel="preload" href="/fonts/inter.woff2" as="font" .../><h1>%%SEAM:title%%</h1>
+
+describe("P0: resource hints injection in renderToString", () => {
+  it('preload() prepends <link rel="preload"> before component output', () => {
+    function PreloadComponent() {
+      const { title } = useSeamData<{ title: string }>();
+      preload("/fonts/inter.woff2", { as: "font", type: "font/woff2" });
+      return createElement("h1", null, title);
+    }
+
+    const mock = { title: "Hello" };
+    const sentinelData = buildSentinelData(mock);
+    const rawHtml = renderWithProvider(PreloadComponent, sentinelData);
+
+    // React injects the link tag at the start of the output
+    expect(rawHtml).toContain('<link rel="preload"');
+    expect(rawHtml).toContain('href="/fonts/inter.woff2"');
+    // Sentinel data still present after the injected tag
+    expect(rawHtml).toContain("%%SEAM:title%%");
+    // The link tag appears BEFORE the component content
+    const linkIdx = rawHtml.indexOf("<link");
+    const h1Idx = rawHtml.indexOf("<h1>");
+    expect(linkIdx).toBeLessThan(h1Idx);
+  });
+
+  it('preinit() prepends <link rel="stylesheet"> before component output', () => {
+    function PreinitComponent() {
+      const { title } = useSeamData<{ title: string }>();
+      preinit("/styles/main.css", { as: "style" });
+      return createElement("h1", null, title);
+    }
+
+    const mock = { title: "Hello" };
+    const sentinelData = buildSentinelData(mock);
+    const rawHtml = renderWithProvider(PreinitComponent, sentinelData);
+
+    expect(rawHtml).toContain('<link rel="stylesheet"');
+    expect(rawHtml).toContain('href="/styles/main.css"');
+    expect(rawHtml).toContain("%%SEAM:title%%");
+  });
+
+  it("prefetchDNS() and preconnect() prepend <link> tags before component output", () => {
+    function DnsComponent() {
+      const { title } = useSeamData<{ title: string }>();
+      prefetchDNS("https://cdn.example.com");
+      preconnect("https://api.example.com");
+      return createElement("h1", null, title);
+    }
+
+    const mock = { title: "Hello" };
+    const sentinelData = buildSentinelData(mock);
+    const rawHtml = renderWithProvider(DnsComponent, sentinelData);
+
+    expect(rawHtml).toContain('rel="dns-prefetch"');
+    expect(rawHtml).toContain('rel="preconnect"');
+    expect(rawHtml).toContain("%%SEAM:title%%");
+  });
+
+  it("variant diff is stable when resource hints are absent", () => {
+    function StableComponent() {
+      const { title } = useSeamData<{ title: string }>();
+      return createElement("h1", null, title);
+    }
+
+    const mock = { title: "Hello" };
+    const sentinelData = buildSentinelData(mock);
+    const html1 = renderWithProvider(StableComponent, sentinelData);
+    const html2 = renderWithProvider(StableComponent, sentinelData);
+    expect(html1).toBe(html2);
+    // No injected link tags when resource hints APIs are not called
+    expect(html1).not.toContain("<link ");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P1: use() hook behavior during build-time renderToString
+// ---------------------------------------------------------------------------
+// Three distinct scenarios with different risk profiles:
+//   1. use(unresolvedPromise) WITHOUT Suspense: throws (safe — detectable)
+//   2. use(unresolvedPromise) WITH Suspense: renders fallback (dangerous — silent)
+//   3. use(resolvedThenable): works correctly (safe)
+
+describe("P1: use() hook in build-time renderToString", () => {
+  it("use() with unresolved Promise throws without Suspense boundary", () => {
+    function UsePromiseComponent() {
+      const { title } = useSeamData<{ title: string }>();
+      const _data = use(new Promise<string>(() => {})); // never resolves
+      return createElement("h1", null, title, _data);
+    }
+
+    const mock = { title: "Hello" };
+    const sentinelData = buildSentinelData(mock);
+
+    // Safe: renderToString throws, build-skeletons.mjs will propagate the error
+    expect(() => renderWithProvider(UsePromiseComponent, sentinelData)).toThrow();
+  });
+
+  it("use() with Suspense boundary silently bakes fallback into template", () => {
+    function UseInSuspenseComponent() {
+      const _data = use(new Promise<string>(() => {}));
+      return createElement("span", null, _data);
+    }
+
+    function PageWithSuspense() {
+      const { title } = useSeamData<{ title: string }>();
+      return createElement(
+        "div",
+        null,
+        createElement("h1", null, title),
+        createElement(
+          Suspense,
+          { fallback: createElement("span", null, "Loading...") },
+          createElement(UseInSuspenseComponent),
+        ),
+      );
+    }
+
+    const mock = { title: "Hello" };
+    const sentinelData = buildSentinelData(mock);
+
+    // Dangerous: renderToString does NOT throw — it renders the fallback
+    const result = renderWithProvider(PageWithSuspense, sentinelData);
+
+    // The sentinel data for the non-suspended part is present
+    expect(result).toContain("%%SEAM:title%%");
+    // The Suspense fallback is baked in as static content
+    expect(result).toContain("Loading...");
+    // React emits a client-rendering-abort template marker
+    expect(result).toContain("<!--$!-->");
+  });
+
+  it("use() with already-resolved thenable works correctly", () => {
+    function UseResolvedComponent() {
+      const { title } = useSeamData<{ title: string }>();
+      const resolvedThenable = {
+        status: "fulfilled",
+        value: "extra-data",
+        then(resolve: (v: string) => void) {
+          resolve("extra-data");
+        },
+      };
+      const _data = use(resolvedThenable as unknown as Promise<string>);
+      return createElement("h1", null, title, " ", _data);
+    }
+
+    const mock = { title: "Hello" };
+    const sentinelData = buildSentinelData(mock);
+    const result = renderWithProvider(UseResolvedComponent, sentinelData);
+
+    // Both sentinel and resolved data present
+    expect(result).toContain("%%SEAM:title%%");
+    expect(result).toContain("extra-data");
   });
 });

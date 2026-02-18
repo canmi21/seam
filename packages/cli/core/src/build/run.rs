@@ -15,7 +15,7 @@ use super::route::{
 use super::types::read_bundle_manifest;
 use crate::config::SeamConfig;
 use crate::shell::{run_builtin_bundler, run_command};
-use crate::ui;
+use crate::ui::{self, RESET, YELLOW};
 
 /// Dispatch bundler based on mode
 fn run_bundler(base_dir: &Path, mode: &BundlerMode) -> Result<()> {
@@ -61,6 +61,9 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
   let routes_path = base_dir.join(&build_config.routes);
   let none_path = Path::new("none");
   let skeleton_output = run_skeleton_renderer(&script_path, &routes_path, none_path, base_dir)?;
+  for w in &skeleton_output.warnings {
+    ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
+  }
   ui::detail_ok(&format!("{} routes found", skeleton_output.routes.len()));
   ui::blank();
 
@@ -160,6 +163,9 @@ fn run_fullstack_build(
   let manifest_json_path = out_dir.join("seam-manifest.json");
   let skeleton_output =
     run_skeleton_renderer(&script_path, &routes_path, &manifest_json_path, base_dir)?;
+  for w in &skeleton_output.warnings {
+    ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
+  }
 
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
