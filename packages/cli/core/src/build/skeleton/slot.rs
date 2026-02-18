@@ -29,6 +29,12 @@ fn tag_re() -> &'static Regex {
 /// becomes a `<!--seam:path:attr:attrName-->` comment before the tag.
 /// Style sentinels: `style="margin-top:%%SEAM:mt%%"` inside tags
 /// becomes `<!--seam:mt:style:margin-top-->` comment before the tag.
+///
+/// Non-sentinel attributes (e.g. `id="_R_1_"` from React's `useId`) pass through
+/// verbatim. These values are baked into the template as static literals and must
+/// match what `hydrateRoot` regenerates on the client. The ID format is React-version
+/// dependent (18.x `:R1:`, 19.1 `<<R1>>`, 19.2 `_R_1_`), so the React version used
+/// at build time and in the client bundle must be identical.
 pub fn sentinel_to_slots(html: &str) -> String {
   let attr_re = attr_re();
   let text_re = text_re();

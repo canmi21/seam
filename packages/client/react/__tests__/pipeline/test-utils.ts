@@ -12,6 +12,10 @@ import type { Axis } from "./extract/index.js";
 export { inject, buildSentinelData };
 
 // -- Slot replacement (mirrors Rust sentinel_to_slots) --
+// Non-sentinel attributes (e.g. id="_R_1_" from React's useId) pass through
+// verbatim as static template literals. The ID format is React-version dependent
+// (18.x `:R1:`, 19.1 `<<R1>>`, 19.2 `_R_1_`), so the React version at build
+// time and in the client bundle must be identical for hydration to match.
 
 export function sentinelToSlots(html: string): string {
   const attrRe = /([\w-]+)="%%SEAM:([^%]+)%%"/g;
