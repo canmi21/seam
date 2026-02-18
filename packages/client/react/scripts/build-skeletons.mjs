@@ -32,9 +32,11 @@ class SeamBuildError extends Error {
 
 const buildWarnings = [];
 
-// Matches React-injected resource hint <link> tags, excluding user-authored ones with %%SEAM:
+// Matches React-injected resource hint <link> tags, excluding user-authored ones with %%SEAM:.
+// Stylesheets are only stripped when they carry data-precedence (React's preinit() marker),
+// so user-authored <link rel="stylesheet"> tags survive.
 const RESOURCE_HINT_RE =
-  /<link[^>]+rel\s*=\s*"(?:preload|stylesheet|dns-prefetch|preconnect)"[^>]*>/gi;
+  /<link[^>]+rel\s*=\s*"(?:preload|dns-prefetch|preconnect)"[^>]*>|<link[^>]+data-precedence[^>]*>/gi;
 
 function installRenderTraps(violations, teardowns) {
   function trapCall(obj, prop, label) {
