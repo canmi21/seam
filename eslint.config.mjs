@@ -4,6 +4,7 @@
 
 import tseslint from "typescript-eslint";
 import oxlint from "eslint-plugin-oxlint";
+import seamPlugin from "./packages/eslint-plugin-seam/src/index.ts";
 
 export default tseslint.config(
   {
@@ -15,6 +16,9 @@ export default tseslint.config(
       "examples/**",
       "packages/cli/**",
     ],
+  },
+  {
+    plugins: { seam: seamPlugin },
   },
   ...tseslint.configs.recommendedTypeChecked,
   {

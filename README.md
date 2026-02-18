@@ -55,6 +55,12 @@ SeamJS is a **rendering strategy**, not a full-stack framework tied to specific 
 | -------------------------------------------- | ---------------------- | ------------------------------------------------------------- |
 | [server/injector](packages/server/injector/) | `@canmi/seam-injector` | HTML template injector (`<!--seam:...-->` marker replacement) |
 
+### Tooling
+
+| Package                                            | npm                         | Description                                |
+| -------------------------------------------------- | --------------------------- | ------------------------------------------ |
+| [eslint-plugin-seam](packages/eslint-plugin-seam/) | `@canmi/eslint-plugin-seam` | ESLint rules for skeleton component safety |
+
 ## Examples
 
 | Example                                                        | Description                                                    |
