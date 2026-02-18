@@ -495,7 +495,7 @@ describe("P1: use() hook in build-time renderToString", () => {
       const resolvedThenable = {
         status: "fulfilled",
         value: "extra-data",
-        then(resolve: (v: string) => void) {
+        then(resolve: (v: string) => void) { // oxlint-disable-line unicorn/no-thenable -- testing React's thenable protocol
           resolve("extra-data");
         },
       };
