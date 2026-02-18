@@ -175,6 +175,66 @@ fn apply_array_blocks_renames_attr_paths() {
   assert!(!result.contains("items.$"));
 }
 
+// -- extract_template: array empty-state fallback tests --
+
+#[test]
+fn extract_array_with_empty_fallback() {
+  // Flat array where empty variant has completely different content (not just empty container)
+  let axes = vec![make_axis("items", "array", vec![json!("populated"), json!("empty")])];
+  let variants =
+    vec!["<li><!--seam:items.$.name--></li>".to_string(), "<p>No items</p>".to_string()];
+  let result = extract_template(&axes, &variants);
+  assert!(result.contains("<!--seam:if:items-->"), "missing if:items in:\n{result}");
+  assert!(result.contains("<!--seam:each:items-->"), "missing each:items in:\n{result}");
+  assert!(result.contains("<!--seam:$.name-->"), "missing $.name in:\n{result}");
+  assert!(result.contains("<!--seam:endeach-->"), "missing endeach in:\n{result}");
+  assert!(result.contains("<!--seam:else-->"), "missing else in:\n{result}");
+  assert!(result.contains("<p>No items</p>"), "missing fallback in:\n{result}");
+  assert!(result.contains("<!--seam:endif:items-->"), "missing endif:items in:\n{result}");
+}
+
+#[test]
+fn extract_array_with_empty_fallback_nested() {
+  // Array inside a shared parent <div> — exercises Modified → recurse → OnlyLeft+OnlyRight
+  let axes = vec![make_axis("items", "array", vec![json!("populated"), json!("empty")])];
+  let variants = vec![
+    "<div><ul><li><!--seam:items.$.name--></li></ul></div>".to_string(),
+    "<div><p>No items yet</p></div>".to_string(),
+  ];
+  let result = extract_template(&axes, &variants);
+  assert!(result.contains("<!--seam:if:items-->"), "missing if:items in:\n{result}");
+  assert!(result.contains("<!--seam:each:items-->"), "missing each:items in:\n{result}");
+  assert!(result.contains("<!--seam:endeach-->"), "missing endeach in:\n{result}");
+  assert!(result.contains("<!--seam:else-->"), "missing else in:\n{result}");
+  assert!(result.contains("<p>No items yet</p>"), "missing fallback in:\n{result}");
+  assert!(result.contains("<!--seam:endif:items-->"), "missing endif:items in:\n{result}");
+}
+
+#[test]
+fn extract_array_with_children_and_fallback() {
+  // Array with nested child axis AND empty state fallback
+  let axes = vec![
+    make_axis("posts", "array", vec![json!("populated"), json!("empty")]),
+    make_axis("posts.$.hasAuthor", "boolean", vec![json!(true), json!(false)]),
+  ];
+  let variants = vec![
+    "<div><ul><li>Title<span>Author</span></li></ul></div>".to_string(),
+    "<div><ul><li>Title</li></ul></div>".to_string(),
+    "<div><p>No posts</p></div>".to_string(),
+    "<div><p>No posts</p></div>".to_string(),
+  ];
+  let result = extract_template(&axes, &variants);
+  assert!(result.contains("<!--seam:if:posts-->"), "missing if:posts in:\n{result}");
+  assert!(result.contains("<!--seam:each:posts-->"), "missing each:posts in:\n{result}");
+  assert!(result.contains("<!--seam:if:$.hasAuthor-->"), "missing if:$.hasAuthor in:\n{result}");
+  assert!(result.contains("<span>Author</span>"), "missing Author in:\n{result}");
+  assert!(result.contains("<!--seam:endif:$.hasAuthor-->"), "missing endif in:\n{result}");
+  assert!(result.contains("<!--seam:endeach-->"), "missing endeach in:\n{result}");
+  assert!(result.contains("<!--seam:else-->"), "missing else in:\n{result}");
+  assert!(result.contains("<p>No posts</p>"), "missing fallback in:\n{result}");
+  assert!(result.contains("<!--seam:endif:posts-->"), "missing endif:posts in:\n{result}");
+}
+
 // -- extract_template: flat axis tests --
 
 #[test]
@@ -433,8 +493,11 @@ fn extract_home_skeleton_regression() {
     result.contains("<!--seam:endif:isLoggedIn-->"),
     "missing endif:isLoggedIn in:\n{result}"
   );
+  assert!(result.contains("<!--seam:if:posts-->"), "missing if:posts in:\n{result}");
   assert!(result.contains("<!--seam:each:posts-->"), "missing each:posts in:\n{result}");
   assert!(result.contains("<!--seam:endeach-->"), "missing endeach in:\n{result}");
+  assert!(result.contains("<p>No posts</p>"), "missing posts fallback in:\n{result}");
+  assert!(result.contains("<!--seam:endif:posts-->"), "missing endif:posts in:\n{result}");
   assert!(
     result.contains("<!--seam:if:$.isPublished-->"),
     "missing if:$.isPublished in:\n{result}"
@@ -548,6 +611,10 @@ fn extract_array_with_all_child_types() {
     result.contains("<ul") && result.contains("<!--seam:each:posts-->"),
     "missing structure in:\n{result}"
   );
+  // Array empty-state fallback
+  assert!(result.contains("<!--seam:if:posts-->"), "missing if:posts in:\n{result}");
+  assert!(result.contains("<p>No posts</p>"), "missing posts fallback in:\n{result}");
+  assert!(result.contains("<!--seam:endif:posts-->"), "missing endif:posts in:\n{result}");
   // Top-level directives
   assert!(result.contains("<!--seam:if:isAdmin-->"), "missing isAdmin in:\n{result}");
   assert!(result.contains("<!--seam:if:isLoggedIn-->"), "missing isLoggedIn in:\n{result}");
@@ -613,6 +680,10 @@ fn extract_array_container_unwrap() {
     !result.contains("<!--seam:each:items--><ul"),
     "container inside each loop in:\n{result}"
   );
+  // Empty-state fallback
+  assert!(result.contains("<!--seam:if:items-->"), "missing if:items in:\n{result}");
+  assert!(result.contains("<p>No items</p>"), "missing fallback in:\n{result}");
+  assert!(result.contains("<!--seam:endif:items-->"), "missing endif:items in:\n{result}");
 }
 
 // -- Motivating bug: sibling boolean conditionals --

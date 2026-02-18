@@ -80,6 +80,26 @@ fn insert_array_directives(
   // Container unwrap + each/endeach wrapping
   let each_nodes = wrap_array_body(&body, path);
 
+  // If empty variant has replacement content, wrap each in if/else
+  let final_nodes = if has_only_right {
+    let fallback: Vec<DomNode> = ops
+      .iter()
+      .filter_map(|op| match op {
+        DiffOp::OnlyRight(bi) => Some(empty_nodes[*bi].clone()),
+        _ => None,
+      })
+      .collect();
+
+    let mut nodes = vec![DomNode::Comment(format!("seam:if:{path}"))];
+    nodes.extend(each_nodes);
+    nodes.push(DomNode::Comment("seam:else".into()));
+    nodes.extend(fallback);
+    nodes.push(DomNode::Comment(format!("seam:endif:{path}")));
+    nodes
+  } else {
+    each_nodes
+  };
+
   // Build result: copy content map approach
   let content_map = content_indices(&tree);
 
@@ -103,9 +123,9 @@ fn insert_array_directives(
         tree_content_idx += 1;
       }
       DiffOp::OnlyLeft(ai) => {
-        // First body node gets the each_nodes, rest are consumed
+        // First body node gets the final_nodes, rest are consumed
         if *ai == body_indices[0] {
-          result.extend(each_nodes.iter().cloned());
+          result.extend(final_nodes.iter().cloned());
         }
         tree_pos += 1;
         tree_content_idx += 1;
@@ -196,6 +216,7 @@ fn wrap_array_body(body: &[DomNode], path: &str) -> Vec<DomNode> {
 struct BodyLocation {
   path: Vec<usize>,
   body_indices: Vec<usize>,
+  fallback_indices: Vec<usize>,
 }
 
 fn find_body_in_trees(pop: &[DomNode], empty: &[DomNode]) -> Option<BodyLocation> {
@@ -207,7 +228,15 @@ fn find_body_in_trees(pop: &[DomNode], empty: &[DomNode]) -> Option<BodyLocation
     .collect();
 
   if !body_idx.is_empty() {
-    return Some(BodyLocation { path: vec![], body_indices: body_idx });
+    let fallback_idx: Vec<usize> = ops
+      .iter()
+      .filter_map(|op| if let DiffOp::OnlyRight(bi) = op { Some(*bi) } else { None })
+      .collect();
+    return Some(BodyLocation {
+      path: vec![],
+      body_indices: body_idx,
+      fallback_indices: fallback_idx,
+    });
   }
 
   // Recurse into Modified elements to find body deeper
@@ -337,10 +366,29 @@ pub(super) fn process_array_with_children(
   let mut body_tree = parse_html(&template_body);
   rename_slot_markers(&mut body_tree, &array_axis.path);
 
-  // 8. Wrap with each markers
+  // 8. Wrap with each markers, adding if/else fallback when present
   let each_nodes = wrap_array_body(&body_tree, &array_axis.path);
 
+  let final_nodes = if !body_loc.fallback_indices.is_empty() {
+    let empty_children = navigate_to_children(&tree_empty, &body_loc.path);
+    let fallback: Vec<DomNode> = body_loc
+      .fallback_indices
+      .iter()
+      .filter(|&&i| i < empty_children.len())
+      .map(|&i| empty_children[i].clone())
+      .collect();
+
+    let mut nodes = vec![DomNode::Comment(format!("seam:if:{}", array_axis.path))];
+    nodes.extend(each_nodes);
+    nodes.push(DomNode::Comment("seam:else".into()));
+    nodes.extend(fallback);
+    nodes.push(DomNode::Comment(format!("seam:endif:{}", array_axis.path)));
+    nodes
+  } else {
+    each_nodes
+  };
+
   // 9. Insert into result tree at the body location
-  replace_body_at_path(&mut result, &body_loc.path, &body_loc.body_indices, each_nodes);
+  replace_body_at_path(&mut result, &body_loc.path, &body_loc.body_indices, final_nodes);
   result
 }
