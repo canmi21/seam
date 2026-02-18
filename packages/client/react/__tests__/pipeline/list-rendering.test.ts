@@ -151,7 +151,7 @@ describe("3.1b complex items", () => {
   });
 });
 
-describe("3.2 nested lists and conditionals", () => {
+describe("3.2a boolean-gated lists", () => {
   it("47. top-level boolean wrapping a list", () => {
     function App() {
       const { show, items } = useSeamData<{ show: boolean; items: { name: string }[] }>();
@@ -174,8 +174,6 @@ describe("3.2 nested lists and conditionals", () => {
       realData: { show: true, items: [{ name: "Alice" }, { name: "Bob" }] },
     });
   });
-
-  it.todo("48. nested list (2D array) — buildSentinelData only supports 1-level array-of-objects");
 
   it("49. conditional wrapping a list", () => {
     function App() {
@@ -202,8 +200,86 @@ describe("3.2 nested lists and conditionals", () => {
       },
     });
   });
+});
 
-  it.todo("50. list + condition + list (3 levels) — nested array limitation");
+describe("3.2b deeply nested lists", () => {
+  it("48. nested list (2D array)", () => {
+    function App() {
+      const { groups } = useSeamData<{
+        groups: { title: string; items: { name: string }[] }[];
+      }>();
+      return createElement(
+        "div",
+        null,
+        groups.map((group, gi) =>
+          createElement(
+            "section",
+            { key: gi },
+            createElement("h2", null, group.title),
+            createElement(
+              "ul",
+              null,
+              group.items.map((item, ii) => createElement("li", { key: ii }, item.name)),
+            ),
+          ),
+        ),
+      );
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { groups: [{ title: "A", items: [{ name: "x" }] }] },
+      arrays: ["groups", "groups.$.items"],
+      realData: {
+        groups: [
+          { title: "Group 1", items: [{ name: "Alice" }, { name: "Bob" }] },
+          { title: "Group 2", items: [{ name: "Carol" }] },
+        ],
+      },
+    });
+    assertPipelineFidelity({
+      component: App,
+      mock: { groups: [{ title: "A", items: [{ name: "x" }] }] },
+      arrays: ["groups", "groups.$.items"],
+      realData: { groups: [] },
+    });
+  });
+
+  it("50. list + condition + list", () => {
+    function App() {
+      const { posts } = useSeamData<{
+        posts: { title: string; visible: boolean; tags: { label: string }[] }[];
+      }>();
+      return createElement(
+        "div",
+        null,
+        posts.map((post, pi) =>
+          createElement(
+            "article",
+            { key: pi },
+            createElement("h3", null, post.title),
+            post.visible &&
+              createElement(
+                "ul",
+                null,
+                post.tags.map((tag, ti) => createElement("li", { key: ti }, tag.label)),
+              ),
+          ),
+        ),
+      );
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { posts: [{ title: "P", visible: true, tags: [{ label: "t" }] }] },
+      arrays: ["posts", "posts.$.tags"],
+      booleans: ["posts.$.visible"],
+      realData: {
+        posts: [
+          { title: "First", visible: true, tags: [{ label: "react" }, { label: "seam" }] },
+          { title: "Second", visible: false, tags: [] },
+        ],
+      },
+    });
+  });
 });
 
 describe("3.3 key handling", () => {

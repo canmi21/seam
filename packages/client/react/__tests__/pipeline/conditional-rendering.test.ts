@@ -54,8 +54,7 @@ describe("2.1a basic boolean conditions", () => {
 });
 
 describe("2.1b nested boolean conditions", () => {
-  // Nested booleans: sequential extraction does not yet rebase inner offsets
-  it.fails("28. nested boolean: outer true + inner true", () => {
+  it("28. nested boolean: outer true + inner true", () => {
     function App() {
       const { outer, inner } = useSeamData<{ outer: boolean; inner: boolean }>();
       return createElement(
@@ -78,7 +77,7 @@ describe("2.1b nested boolean conditions", () => {
     });
   });
 
-  it.fails("29. nested boolean: outer true + inner false", () => {
+  it("29. nested boolean: outer true + inner false", () => {
     function App() {
       const { outer, inner } = useSeamData<{ outer: boolean; inner: boolean }>();
       return createElement(
@@ -101,7 +100,7 @@ describe("2.1b nested boolean conditions", () => {
     });
   });
 
-  it.fails("30. nested boolean: outer false", () => {
+  it("30. nested boolean: outer false", () => {
     function App() {
       const { outer, inner } = useSeamData<{ outer: boolean; inner: boolean }>();
       return createElement(
@@ -211,8 +210,7 @@ describe("2.2b complex ternary conditions", () => {
     });
   });
 
-  // Nested ternary: inner boolean block offset shifts after outer extraction
-  it.fails("35. nested ternary", () => {
+  it("35. nested ternary", () => {
     function App() {
       const { a, b } = useSeamData<{ a: boolean; b: boolean }>();
       return createElement(
@@ -247,7 +245,8 @@ describe("2.2b complex ternary conditions", () => {
 });
 
 describe("2.3 multi-branch conditions", () => {
-  // Chained ternary with two booleans: same nested extraction limitation
+  // Chained ternary: b only varies inside a's else branch; extract engine
+  // cannot detect scoped boolean without enum-level grouping.
   it.fails("36. if/else if/else chain via two booleans", () => {
     function App() {
       const { a, b } = useSeamData<{ a: boolean; b: boolean }>();
@@ -281,7 +280,38 @@ describe("2.3 multi-branch conditions", () => {
     });
   });
 
-  it.todo("37. switch/case mapping — pipeline supports enum; needs enums config in test");
+  it("37. switch/case mapping via enum axis", () => {
+    function App() {
+      const { status } = useSeamData<{ status: string }>();
+      return createElement(
+        "div",
+        null,
+        status === "loading"
+          ? createElement("span", null, "Loading...")
+          : status === "error"
+            ? createElement("span", null, "Error!")
+            : createElement("span", null, "Done"),
+      );
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { status: "loading" },
+      enums: [{ field: "status", values: ["loading", "error", "success"] }],
+      realData: { status: "loading" },
+    });
+    assertPipelineFidelity({
+      component: App,
+      mock: { status: "loading" },
+      enums: [{ field: "status", values: ["loading", "error", "success"] }],
+      realData: { status: "error" },
+    });
+    assertPipelineFidelity({
+      component: App,
+      mock: { status: "loading" },
+      enums: [{ field: "status", values: ["loading", "error", "success"] }],
+      realData: { status: "success" },
+    });
+  });
 });
 
 describe("2.4 condition-attribute mix", () => {
@@ -304,7 +334,8 @@ describe("2.4 condition-attribute mix", () => {
     });
   });
 
-  // Attr slot inside boolean block: inject cannot resolve slots within if blocks
+  // Attr ordering: injector prepends dynamic attrs before static ones,
+  // but React outputs static attrs first (href before title).
   it.fails("39. condition determines attr presence", () => {
     function App() {
       const { show, label } = useSeamData<{ show: boolean; label: string }>();

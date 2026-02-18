@@ -6,6 +6,8 @@ import { expect } from "vitest";
 import { inject } from "@canmi/seam-injector";
 import { SeamDataProvider } from "../../src/index.js";
 import { buildSentinelData } from "../../src/sentinel.js";
+import { extractTemplate, generateCombos } from "./extract/index.js";
+import type { Axis } from "./extract/index.js";
 
 export { inject, buildSentinelData };
 
@@ -118,188 +120,51 @@ export function renderWithProvider(component: React.FC, data: unknown): string {
   return renderToString(createElement(SeamDataProvider, { value: data }, createElement(component)));
 }
 
-// -- Array block detection (mirrors Rust logic) --
+// -- Axis conversion --
 
-export function detectArrayBlock(
-  fullHtml: string,
-  emptiedHtml: string,
-  field: string,
-): { start: number; end: number; field: string } | null {
-  if (fullHtml === emptiedHtml) return null;
-
-  let prefixLen = 0;
-  while (
-    prefixLen < fullHtml.length &&
-    prefixLen < emptiedHtml.length &&
-    fullHtml[prefixLen] === emptiedHtml[prefixLen]
-  ) {
-    prefixLen++;
-  }
-
-  // Snap back to after last '>' to avoid splitting inside a tag or comment
-  while (prefixLen > 0 && fullHtml[prefixLen - 1] !== ">") {
-    prefixLen--;
-  }
-
-  const fullRem = fullHtml.slice(prefixLen);
-  const emptiedRem = emptiedHtml.slice(prefixLen);
-  let suffixLen = 0;
-  while (
-    suffixLen < fullRem.length &&
-    suffixLen < emptiedRem.length &&
-    fullRem[fullRem.length - 1 - suffixLen] === emptiedRem[emptiedRem.length - 1 - suffixLen]
-  ) {
-    suffixLen++;
-  }
-
-  const start = prefixLen;
-  const end = fullHtml.length - suffixLen;
-  if (start >= end) return null;
-  return { start, end, field };
-}
-
-export function applyArrayBlocks(
-  html: string,
-  blocks: { start: number; end: number; field: string }[],
-): string {
-  let result = html;
-  blocks.sort((a, b) => b.start - a.start);
-  for (const block of blocks) {
-    let body = result.slice(block.start, block.end);
-    const fieldPrefix = `<!--seam:${block.field}.`;
-    body = body.replaceAll(fieldPrefix, "<!--seam:");
-    const wrapped = `<!--seam:each:${block.field}-->${body}<!--seam:endeach-->`;
-    result = result.slice(0, block.start) + wrapped + result.slice(block.end);
-  }
-  return result;
-}
-
-// -- Boolean block detection --
-
-export interface BooleanBlock {
-  start: number;
-  end: number;
-  field: string;
-  thenContent: string;
-  elseContent: string;
-}
-
-export function detectBooleanBlock(
-  truthyHtml: string,
-  falsyHtml: string,
-  field: string,
-): BooleanBlock | null {
-  if (truthyHtml === falsyHtml) return null;
-
-  let prefixLen = 0;
-  while (
-    prefixLen < truthyHtml.length &&
-    prefixLen < falsyHtml.length &&
-    truthyHtml[prefixLen] === falsyHtml[prefixLen]
-  ) {
-    prefixLen++;
-  }
-
-  const truthyRem = truthyHtml.slice(prefixLen);
-  const falsyRem = falsyHtml.slice(prefixLen);
-  let suffixLen = 0;
-  while (
-    suffixLen < truthyRem.length &&
-    suffixLen < falsyRem.length &&
-    truthyRem[truthyRem.length - 1 - suffixLen] === falsyRem[falsyRem.length - 1 - suffixLen]
-  ) {
-    suffixLen++;
-  }
-
-  const start = prefixLen;
-  const truthyEnd = truthyHtml.length - suffixLen;
-  const falsyEnd = falsyHtml.length - suffixLen;
-
-  const thenContent = truthyHtml.slice(start, truthyEnd);
-  const elseContent = falsyHtml.slice(start, falsyEnd);
-
-  // Both empty means no real difference (edge case)
-  if (!thenContent && !elseContent) return null;
-
-  return { start, end: truthyEnd, field, thenContent, elseContent };
-}
-
-export function applyBooleanBlocks(html: string, blocks: BooleanBlock[]): string {
-  let result = html;
-  blocks.sort((a, b) => b.start - a.start);
-  for (const block of blocks) {
-    const wrapped = block.elseContent
-      ? `<!--seam:if:${block.field}-->${block.thenContent}<!--seam:else-->${block.elseContent}<!--seam:endif:${block.field}-->`
-      : `<!--seam:if:${block.field}-->${block.thenContent}<!--seam:endif:${block.field}-->`;
-    result = result.slice(0, block.start) + wrapped + result.slice(block.end);
-  }
-  return result;
-}
-
-// -- Enum block detection --
-
-export interface EnumBlock {
-  start: number;
-  end: number;
-  field: string;
-  variants: Map<string, string>;
-}
-
-export function detectEnumBlock(
-  variantHtmls: Map<string, string>,
-  field: string,
-): EnumBlock | null {
-  const entries = [...variantHtmls.entries()];
-  if (entries.length < 2) return null;
-
-  const htmls = entries.map(([, html]) => html);
-
-  // Common prefix across all variants
-  let prefixLen = 0;
-  const minLen = Math.min(...htmls.map((h) => h.length));
-  outer_prefix: while (prefixLen < minLen) {
-    const ch = htmls[0][prefixLen];
-    for (let i = 1; i < htmls.length; i++) {
-      if (htmls[i][prefixLen] !== ch) break outer_prefix;
+function configToAxes(config: TemplateConfig): Axis[] {
+  const axes: Axis[] = [];
+  if (config.arrays) {
+    for (const field of config.arrays) {
+      axes.push({ path: field, kind: "array", values: ["populated", "empty"] });
     }
-    prefixLen++;
   }
-
-  // Common suffix across all variants
-  let suffixLen = 0;
-  outer_suffix: while (suffixLen < minLen - prefixLen) {
-    const ch = htmls[0][htmls[0].length - 1 - suffixLen];
-    for (let i = 1; i < htmls.length; i++) {
-      if (htmls[i][htmls[i].length - 1 - suffixLen] !== ch) break outer_suffix;
+  if (config.booleans) {
+    for (const field of config.booleans) {
+      axes.push({ path: field, kind: "boolean", values: [true, false] });
     }
-    suffixLen++;
   }
-
-  const variants = new Map<string, string>();
-  for (const [value, html] of entries) {
-    variants.set(value, html.slice(prefixLen, html.length - suffixLen));
+  if (config.enums) {
+    for (const { field, values } of config.enums) {
+      axes.push({ path: field, kind: "enum", values });
+    }
   }
-
-  // All variants identical means no real enum branching
-  const contents = [...variants.values()];
-  if (contents.every((c) => c === contents[0])) return null;
-
-  const end = htmls[0].length - suffixLen;
-  return { start: prefixLen, end, field, variants };
+  return axes;
 }
 
-export function applyEnumBlocks(html: string, blocks: EnumBlock[]): string {
-  let result = html;
-  blocks.sort((a, b) => b.start - a.start);
-  for (const block of blocks) {
-    let inner = "";
-    for (const [value, content] of block.variants) {
-      inner += `<!--seam:when:${value}-->${content}`;
+function applyCombToSentinel(
+  baseSentinel: Record<string, unknown>,
+  axes: Axis[],
+  combo: unknown[],
+): Record<string, unknown> {
+  const data: Record<string, unknown> = JSON.parse(JSON.stringify(baseSentinel));
+  for (let i = 0; i < axes.length; i++) {
+    const axis = axes[i];
+    const value = combo[i];
+    switch (axis.kind) {
+      case "boolean":
+      case "nullable":
+        if (value === false || value === null) setNestedValue(data, axis.path, null);
+        break;
+      case "array":
+        if (value === "empty") setNestedValue(data, axis.path, []);
+        break;
+      case "enum":
+        setNestedValue(data, axis.path, value);
+        break;
     }
-    const wrapped = `<!--seam:match:${block.field}-->${inner}<!--seam:endmatch-->`;
-    result = result.slice(0, block.start) + wrapped + result.slice(block.end);
   }
-  return result;
+  return data;
 }
 
 // -- High-level orchestrators --
@@ -315,76 +180,20 @@ export interface TemplateConfig {
 /**
  * Build a template from a React component + mock data by running the
  * full JS-side CTR pipeline: sentinel -> render -> slot conversion ->
- * structural extraction -> document wrapping.
+ * DOM tree diffing extraction -> document wrapping.
  */
 export function buildTemplate(config: TemplateConfig): string {
   const sentinelData = buildSentinelData(config.mock);
-  const rawHtml = renderWithProvider(config.component, sentinelData);
-  let processed = sentinelToSlots(rawHtml);
+  const axes = configToAxes(config);
+  const combos = generateCombos(axes);
 
-  // Array extraction
-  if (config.arrays) {
-    const arrayBlocks: ReturnType<typeof detectArrayBlock>[] = [];
-    for (const field of config.arrays) {
-      const emptiedSentinel = JSON.parse(JSON.stringify(sentinelData));
-      setNestedValue(emptiedSentinel, field, []);
-      const emptiedHtml = sentinelToSlots(renderWithProvider(config.component, emptiedSentinel));
-      const block = detectArrayBlock(processed, emptiedHtml, field);
-      if (block) arrayBlocks.push(block);
-    }
-    processed = applyArrayBlocks(
-      processed,
-      arrayBlocks.filter((b): b is NonNullable<typeof b> => b !== null),
-    );
-  }
+  const variants = combos.map((combo) => {
+    const data = applyCombToSentinel(sentinelData, axes, combo);
+    return sentinelToSlots(renderWithProvider(config.component, data));
+  });
 
-  // Boolean extraction
-  if (config.booleans) {
-    const boolBlocks: BooleanBlock[] = [];
-    for (const field of config.booleans) {
-      // Truthy render uses the existing sentinel (string sentinels are truthy)
-      const truthyHtml = processed;
-
-      // Falsy render: set the field to null
-      const falsySentinel = JSON.parse(JSON.stringify(sentinelData));
-      setNestedValue(falsySentinel, field, null);
-      let falsyHtml = sentinelToSlots(renderWithProvider(config.component, falsySentinel));
-
-      // Re-apply any prior array blocks to keep positions aligned
-      if (config.arrays) {
-        const emptiedSentinel = JSON.parse(JSON.stringify(falsySentinel));
-        for (const af of config.arrays) setNestedValue(emptiedSentinel, af, []);
-        const emptiedHtml = sentinelToSlots(renderWithProvider(config.component, emptiedSentinel));
-        const blocks = config.arrays
-          .map((af) => detectArrayBlock(falsyHtml, emptiedHtml, af))
-          .filter((b): b is NonNullable<typeof b> => b !== null);
-        falsyHtml = applyArrayBlocks(falsyHtml, blocks);
-      }
-
-      const block = detectBooleanBlock(truthyHtml, falsyHtml, field);
-      if (block) boolBlocks.push(block);
-    }
-    processed = applyBooleanBlocks(processed, boolBlocks);
-  }
-
-  // Enum extraction
-  if (config.enums) {
-    const enumBlocks: EnumBlock[] = [];
-    for (const { field, values } of config.enums) {
-      const variantHtmls = new Map<string, string>();
-      for (const value of values) {
-        const variantSentinel = JSON.parse(JSON.stringify(sentinelData));
-        setNestedValue(variantSentinel, field, value);
-        const html = sentinelToSlots(renderWithProvider(config.component, variantSentinel));
-        variantHtmls.set(value, html);
-      }
-      const block = detectEnumBlock(variantHtmls, field);
-      if (block) enumBlocks.push(block);
-    }
-    processed = applyEnumBlocks(processed, enumBlocks);
-  }
-
-  return wrapDocument(processed, [], []);
+  const skeleton = extractTemplate(axes, variants);
+  return wrapDocument(skeleton, [], []);
 }
 
 // -- Core fidelity assertion --
@@ -413,9 +222,22 @@ export function assertPipelineFidelity(config: FidelityTestConfig): void {
 
 function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
   const parts = path.split(".");
-  let current: Record<string, unknown> = obj;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let current: any = obj;
   for (let i = 0; i < parts.length - 1; i++) {
-    current = current[parts[i]] as Record<string, unknown>;
+    if (parts[i] === "$") {
+      // $ refers to first element of the parent array (sentinel arrays have length 1)
+      if (!Array.isArray(current) || current.length === 0) return;
+      current = current[0];
+    } else {
+      current = current[parts[i]];
+    }
+    if (current === null || current === undefined) return;
   }
-  current[parts[parts.length - 1]] = value;
+  const lastPart = parts[parts.length - 1];
+  if (lastPart === "$") {
+    if (Array.isArray(current)) current[0] = value;
+  } else {
+    current[lastPart] = value;
+  }
 }

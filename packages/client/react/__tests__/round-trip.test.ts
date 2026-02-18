@@ -19,9 +19,9 @@ import {
   sentinelToSlots,
   wrapDocument,
   renderWithProvider,
-  detectArrayBlock,
-  applyArrayBlocks,
 } from "./pipeline/test-utils.js";
+import { extractTemplate } from "./pipeline/extract/index.js";
+import type { Axis } from "./pipeline/extract/index.js";
 
 // -- Test component --
 
@@ -126,19 +126,16 @@ describe("round-trip: render -> slots -> inject", () => {
     emptiedSentinel.messages = [];
     const emptiedHtml = sentinelToSlots(renderWithProvider(MessageList, emptiedSentinel));
 
-    // Detect array block
-    const block = detectArrayBlock(fullHtml, emptiedHtml, "messages");
-    expect(block).not.toBeNull();
-
-    // Apply array blocks
-    const processed = applyArrayBlocks(fullHtml, [block!]);
-    expect(processed).toContain("<!--seam:each:messages-->");
-    expect(processed).toContain("<!--seam:endeach-->");
-    expect(processed).toContain("<!--seam:$.text-->");
-    expect(processed).not.toContain("messages.$.text");
+    // Extract template via DOM tree diffing
+    const axes: Axis[] = [{ path: "messages", kind: "array", values: ["populated", "empty"] }];
+    const skeleton = extractTemplate(axes, [fullHtml, emptiedHtml]);
+    expect(skeleton).toContain("<!--seam:each:messages-->");
+    expect(skeleton).toContain("<!--seam:endeach-->");
+    expect(skeleton).toContain("<!--seam:$.text-->");
+    expect(skeleton).not.toContain("messages.$.text");
 
     // Wrap and inject with real data
-    const template = wrapDocument(processed, [], []);
+    const template = wrapDocument(skeleton, [], []);
     const realData = {
       messages: [
         { id: "1", text: "hello" },
