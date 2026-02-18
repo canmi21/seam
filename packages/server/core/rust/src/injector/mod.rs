@@ -516,4 +516,70 @@ mod tests {
     let html = inject_no_script("<!--seam:c:style:color--><div>text</div>", &json!({"c": "blue"}));
     assert_eq!(html, r#"<div style="color:blue">text</div>"#);
   }
+
+  // -- Float-hoisted metadata --
+
+  #[test]
+  fn float_title_text() {
+    let html = inject_no_script("<title><!--seam:t--></title>", &json!({"t": "My Page"}));
+    assert_eq!(html, "<title>My Page</title>");
+  }
+
+  #[test]
+  fn float_meta_attr() {
+    let html = inject_no_script(
+      r#"<!--seam:d:attr:content--><meta name="description">"#,
+      &json!({"d": "A description"}),
+    );
+    assert_eq!(html, r#"<meta content="A description" name="description">"#);
+  }
+
+  #[test]
+  fn float_link_attr() {
+    let html = inject_no_script(
+      r#"<!--seam:u:attr:href--><link rel="canonical">"#,
+      &json!({"u": "https://example.com"}),
+    );
+    assert_eq!(html, r#"<link href="https://example.com" rel="canonical">"#);
+  }
+
+  #[test]
+  fn float_dual_attrs_on_meta() {
+    let html = inject_no_script(
+      r#"<!--seam:a:attr:property--><!--seam:b:attr:content--><meta name="og">"#,
+      &json!({"a": "og:title", "b": "My Page"}),
+    );
+    assert_eq!(html, r#"<meta content="My Page" property="og:title" name="og">"#);
+  }
+
+  #[test]
+  fn float_full_document() {
+    let tmpl = concat!(
+      r#"<!DOCTYPE html><html><head><meta charset="utf-8">"#,
+      r#"<link rel="stylesheet" href="/_seam/static/style.css">"#,
+      r#"</head><body><div id="__SEAM_ROOT__">"#,
+      "<title><!--seam:t--></title>",
+      r#"<!--seam:d:attr:content--><meta name="description">"#,
+      "<p><!--seam:body--></p>",
+      "</div></body></html>",
+    );
+    let data = json!({"t": "Home", "d": "Welcome page", "body": "Hello world"});
+    let html = inject(tmpl, &data);
+
+    // <head> section untouched
+    let head = html.split("</head>").next().unwrap();
+    assert!(head.contains("style.css"));
+    assert!(!head.contains("<!--seam:"));
+
+    // Content injected correctly
+    assert!(html.contains("<title>Home</title>"));
+    assert!(html.contains(r#"content="Welcome page""#));
+    assert!(html.contains("<p>Hello world</p>"));
+
+    // __SEAM_DATA__ script lands before </body>
+    assert!(html.contains(r#"<script id="__SEAM_DATA__" type="application/json">"#));
+    let body_end = html.rfind("</body>").unwrap();
+    let script_end = html.rfind("</script>").unwrap();
+    assert!(script_end < body_end);
+  }
 }
