@@ -13,7 +13,12 @@ const rule: Rule.RuleModule = {
     },
     schema: [],
     messages: {
-      noUse: "use() is not allowed in skeleton components. Move async data to a loader.",
+      noUse:
+        "use() is not allowed in skeleton components.\n" +
+        "  Safe: use(thenable with status:'fulfilled') works at build time,\n" +
+        "        but static analysis cannot verify this.\n" +
+        "  Risk: use(Promise.resolve()) silently suspends and corrupts the template.\n" +
+        "  Fix:  Move data fetching to a loader. Use useSeamData() to consume it.",
       noAsyncComponent:
         "Async components are not allowed in skeleton files. Skeleton components must render synchronously.",
       noSuspense:

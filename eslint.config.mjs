@@ -46,6 +46,7 @@ export default tseslint.config(
     files: ["**/*-skeleton.tsx"],
     rules: {
       "seam/no-async-in-skeleton": "error",
+      "seam/no-effect-in-skeleton": "warn",
       "seam/no-nondeterministic-in-skeleton": "error",
       "seam/no-browser-apis-in-skeleton": "error",
     },

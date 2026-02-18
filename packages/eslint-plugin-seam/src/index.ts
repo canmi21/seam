@@ -3,11 +3,13 @@
 import type { ESLint, Linter } from "eslint";
 import noBrowserApis from "./rules/no-browser-apis-in-skeleton.js";
 import noAsync from "./rules/no-async-in-skeleton.js";
+import noEffect from "./rules/no-effect-in-skeleton.js";
 import noNondeterministic from "./rules/no-nondeterministic-in-skeleton.js";
 
 const rules: NonNullable<ESLint.Plugin["rules"]> = {
   "no-browser-apis-in-skeleton": noBrowserApis,
   "no-async-in-skeleton": noAsync,
+  "no-effect-in-skeleton": noEffect,
   "no-nondeterministic-in-skeleton": noNondeterministic,
 };
 
@@ -25,6 +27,7 @@ const plugin: ESLint.Plugin = {
     rules: {
       "seam/no-browser-apis-in-skeleton": "error",
       "seam/no-async-in-skeleton": "error",
+      "seam/no-effect-in-skeleton": "warn",
       "seam/no-nondeterministic-in-skeleton": "error",
     },
   },

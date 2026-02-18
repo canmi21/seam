@@ -57,6 +57,15 @@ function installRenderTraps(violations, teardowns) {
     trapCall(globalThis.crypto, "randomUUID", "crypto.randomUUID()");
   }
 
+  // Timer APIs — these don't affect renderToString output, but pending handles
+  // prevent the build process from exiting (Node keeps the event loop alive).
+  trapCall(globalThis, "setTimeout", "setTimeout()");
+  trapCall(globalThis, "setInterval", "setInterval()");
+  if (globalThis.setImmediate) {
+    trapCall(globalThis, "setImmediate", "setImmediate()");
+  }
+  trapCall(globalThis, "queueMicrotask", "queueMicrotask()");
+
   // Trap browser globals (only if not already defined — these are undefined in Node;
   // typeof checks bypass getters, so `typeof window !== 'undefined'` remains safe)
   for (const name of ["window", "document", "localStorage"]) {
