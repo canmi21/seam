@@ -1186,6 +1186,7 @@ dependencies = [
  "clap",
  "regex",
  "reqwest",
+ "seam-server",
  "serde",
  "serde_json",
  "tokio",

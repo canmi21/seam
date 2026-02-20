@@ -182,11 +182,16 @@ function renderRoute(route, manifest) {
     return { variant, html };
   });
 
+  // Render with real mock data for CTR equivalence check
+  const mockHtml = stripResourceHints(guardedRender(route.path, route.component, route.mock));
+
   return {
     path: route.path,
     loaders: route.loaders,
     axes,
     variants,
+    mockHtml,
+    mock: route.mock,
   };
 }
 

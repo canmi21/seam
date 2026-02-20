@@ -10,6 +10,7 @@ use std::process::Command;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
+use super::ctr_check;
 use super::skeleton::{extract_template, sentinel_to_slots, wrap_document, Axis};
 use super::types::AssetFiles;
 use crate::codegen;
@@ -33,6 +34,9 @@ pub(super) struct SkeletonRoute {
   loaders: serde_json::Value,
   axes: Vec<Axis>,
   variants: Vec<RenderedVariant>,
+  #[serde(rename = "mockHtml")]
+  mock_html: String,
+  mock: serde_json::Value,
 }
 
 #[derive(Deserialize)]
@@ -109,6 +113,10 @@ pub(super) fn process_routes(
   for route in routes {
     let processed: Vec<_> = route.variants.iter().map(|v| sentinel_to_slots(&v.html)).collect();
     let template = extract_template(&route.axes, &processed);
+
+    // CTR equivalence check: verify template + mock data == React render
+    ctr_check::verify_ctr_equivalence(&route.path, &route.mock_html, &template, &route.mock)?;
+
     let document = wrap_document(&template, &assets.css, &assets.js);
 
     let filename = path_to_filename(&route.path);
