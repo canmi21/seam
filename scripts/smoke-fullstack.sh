@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-EXAMPLE="$ROOT/examples/fullstack/react-hono-tanstack"
+EXAMPLE="$ROOT/examples/github-dashboard/seam-app"
 
 # 1. Build seam CLI
 echo "Building seam CLI..."

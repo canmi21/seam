@@ -1,0 +1,14 @@
+{
+  "name": "@github-dashboard/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./types": "./types.ts",
+    "./styles/*": "./styles/*",
+    "./components/*": "./components/*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}

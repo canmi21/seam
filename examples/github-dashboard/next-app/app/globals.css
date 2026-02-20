@@ -1,0 +1,18 @@
+/* examples/github-dashboard/next-app/app/globals.css */
+
+@import "tailwindcss";
+@import "@github-dashboard/shared/styles/theme.css";
+@source "../../../shared/components";
+
+@theme {
+  --color-surface: var(--c-surface);
+  --color-surface-alt: var(--c-surface-secondary);
+  --color-primary: var(--c-text-primary);
+  --color-secondary: var(--c-text-secondary);
+  --color-muted: var(--c-text-muted);
+  --color-accent: var(--c-accent);
+  --color-accent-hover: var(--c-accent-hover);
+  --color-accent-subtle: var(--c-accent-subtle);
+  --color-border: var(--c-border);
+  --color-input: var(--c-surface-input);
+}

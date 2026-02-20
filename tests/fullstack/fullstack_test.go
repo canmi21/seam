@@ -30,12 +30,12 @@ func projectRoot() string {
 
 func TestMain(m *testing.M) {
 	root := projectRoot()
-	exampleDir := filepath.Join(root, "examples", "fullstack", "react-hono-tanstack")
+	exampleDir := filepath.Join(root, "examples", "github-dashboard", "seam-app")
 	buildDir := filepath.Join(exampleDir, ".seam", "output")
 
 	// Verify build output exists (seam build must have been run beforehand)
 	if _, err := os.Stat(filepath.Join(buildDir, "route-manifest.json")); os.IsNotExist(err) {
-		fmt.Fprintln(os.Stderr, "build output not found: run 'seam build' in the fullstack example first")
+		fmt.Fprintln(os.Stderr, "build output not found: run 'seam build' in the github-dashboard seam-app first")
 		os.Exit(1)
 	}
 
@@ -184,8 +184,7 @@ func TestManifestEndpoint(t *testing.T) {
 		t.Fatalf("procedures not an object: %T", body["procedures"])
 	}
 
-	// Fullstack example has these procedures
-	expected := []string{"getPageData", "getAboutData", "getPosts", "getMessages", "addMessage", "onMessage"}
+	expected := []string{"getHomeData", "getUser", "getUserRepos"}
 	for _, name := range expected {
 		if _, exists := procs[name]; !exists {
 			t.Errorf("missing procedure %q in manifest", name)
@@ -196,17 +195,18 @@ func TestManifestEndpoint(t *testing.T) {
 // -- RPC tests --
 
 func TestRPCQuery(t *testing.T) {
-	status, body := postJSON(t, baseURL+"/_seam/rpc/getPageData", map[string]any{})
+	status, body := postJSON(t, baseURL+"/_seam/rpc/getUser", map[string]any{
+		"username": "octocat",
+	})
 	if status != 200 {
 		t.Fatalf("status = %d, want 200", status)
 	}
 
-	// getPageData returns an object with title, posts array, etc.
-	if _, ok := body["title"]; !ok {
-		t.Error("response missing 'title' field")
+	if _, ok := body["login"]; !ok {
+		t.Error("response missing 'login' field")
 	}
-	if _, ok := body["posts"]; !ok {
-		t.Error("response missing 'posts' field")
+	if _, ok := body["avatar_url"]; !ok {
+		t.Error("response missing 'avatar_url' field")
 	}
 }
 
@@ -219,7 +219,7 @@ func TestRPCNotFound(t *testing.T) {
 }
 
 func TestRPCInvalidBody(t *testing.T) {
-	resp, err := http.Post(baseURL+"/_seam/rpc/getPageData", "application/json", strings.NewReader("not json{"))
+	resp, err := http.Post(baseURL+"/_seam/rpc/getHomeData", "application/json", strings.NewReader("not json{"))
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}
@@ -254,7 +254,6 @@ func assertPageHTML(t *testing.T, path string) string {
 	}
 	// No unresolved seam markers should remain
 	if strings.Contains(html, "<!--seam:") {
-		// Extract the unresolved marker for debugging
 		idx := strings.Index(html, "<!--seam:")
 		end := idx + 60
 		if end > len(html) {
@@ -270,21 +269,20 @@ func TestPageHome(t *testing.T) {
 	assertPageHTML(t, "/_seam/page/")
 }
 
-func TestPageAbout(t *testing.T) {
-	assertPageHTML(t, "/_seam/page/about")
-}
+func TestPageDashboard(t *testing.T) {
+	html := assertPageHTML(t, "/_seam/page/dashboard/octocat")
 
-func TestPagePosts(t *testing.T) {
-	assertPageHTML(t, "/_seam/page/posts")
+	// Verify real GitHub data was injected
+	if !strings.Contains(html, "octocat") {
+		t.Error("dashboard HTML missing 'octocat' username")
+	}
 }
 
 // -- Static asset tests --
 
 func TestStaticAsset(t *testing.T) {
-	// Fetch a page and extract a static asset URL from it
 	_, html := getHTML(t, baseURL+"/_seam/page/")
 
-	// Look for CSS or JS asset references in the HTML
 	assetRe := regexp.MustCompile(`/_seam/static/[^"'\s]+`)
 	matches := assetRe.FindAllString(html, -1)
 	if len(matches) == 0 {
@@ -306,41 +304,4 @@ func TestStaticAsset(t *testing.T) {
 	if !strings.Contains(cc, "immutable") {
 		t.Errorf("Cache-Control = %q, want 'immutable'", cc)
 	}
-}
-
-// -- SSE subscription tests --
-
-func TestSSESubscription(t *testing.T) {
-	// onMessage is a long-lived stream. Post a message to trigger data flow,
-	// then verify we get SSE headers and at least one data event.
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		// Small delay to let the SSE connection establish
-		time.Sleep(200 * time.Millisecond)
-		// Post a message to trigger the SSE stream
-		postJSON(t, baseURL+"/_seam/rpc/addMessage", map[string]any{"text": "test-sse"})
-	}()
-
-	// Connect to SSE with a short transport-level header timeout
-	transport := &http.Transport{
-		ResponseHeaderTimeout: 5 * time.Second,
-	}
-	client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
-	resp, err := client.Get(baseURL + "/_seam/subscribe/onMessage")
-	if err != nil {
-		t.Fatalf("GET subscribe: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		t.Fatalf("status = %d, want 200", resp.StatusCode)
-	}
-
-	ct := resp.Header.Get("Content-Type")
-	if !strings.HasPrefix(ct, "text/event-stream") {
-		t.Errorf("Content-Type = %q, want prefix 'text/event-stream'", ct)
-	}
-
-	<-done
 }

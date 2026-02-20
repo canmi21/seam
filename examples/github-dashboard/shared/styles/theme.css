@@ -1,0 +1,50 @@
+/* examples/github-dashboard/shared/styles/theme.css */
+
+/* Warm brown color system */
+:root {
+  /* Surface */
+  --c-surface: #f4f3ee;
+  --c-surface-secondary: #eae8e0;
+  --c-surface-input: #fff;
+
+  /* Text */
+  --c-text-primary: #3d3325;
+  --c-text-secondary: #6b5d4d;
+  --c-text-muted: #9a8b78;
+
+  /* Accent */
+  --c-accent: #c15f3c;
+  --c-accent-hover: #a8502f;
+  --c-accent-subtle: #f0ddd5;
+
+  /* Border */
+  --c-border: #d6d0c4;
+
+  /* Code */
+  --c-code-bg: #eae8e0;
+  --c-code-text: #6b5d4d;
+}
+
+.dark {
+  /* Surface */
+  --c-surface: #1a1714;
+  --c-surface-secondary: #262220;
+  --c-surface-input: #2e2a26;
+
+  /* Text */
+  --c-text-primary: #ede9e0;
+  --c-text-secondary: #b0a594;
+  --c-text-muted: #7a6f62;
+
+  /* Accent */
+  --c-accent: #e07850;
+  --c-accent-hover: #f08a62;
+  --c-accent-subtle: #3a2520;
+
+  /* Border */
+  --c-border: #3d3630;
+
+  /* Code */
+  --c-code-bg: #262220;
+  --c-code-text: #b0a594;
+}

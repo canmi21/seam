@@ -1,0 +1,29 @@
+{
+  "name": "github-dashboard-seam",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "seam dev",
+    "build": "seam build"
+  },
+  "dependencies": {
+    "@canmi/seam-adapter-hono": "workspace:*",
+    "@canmi/seam-client": "workspace:*",
+    "@canmi/seam-react": "workspace:*",
+    "@canmi/seam-server": "workspace:*",
+    "@github-dashboard/shared": "workspace:*",
+    "hono": "^4.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@canmi/seam-cli": "workspace:*",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "postcss": "^8.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.0"
+  }
+}

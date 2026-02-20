@@ -5,7 +5,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SEAM="$ROOT/target/release/seam"
-FULLSTACK="$ROOT/examples/fullstack/react-hono-tanstack"
+FULLSTACK="$ROOT/examples/github-dashboard/seam-app"
 E2E_FIXTURE="$ROOT/tests/e2e/fixture"
 
 step() { printf '\n==> %s\n' "$1"; }

@@ -63,14 +63,14 @@ SeamJS is a **rendering strategy**, not a full-stack framework tied to specific 
 
 ## Examples
 
-| Example                                                        | Description                                                    |
-| -------------------------------------------------------------- | -------------------------------------------------------------- |
-| [react-hono-tanstack](examples/fullstack/react-hono-tanstack/) | Fullstack demo: Hono server + React client with TanStack Query |
-| [server-rust](examples/standalone/server-rust/)                | Standalone Rust backend                                        |
-| [server-bun](examples/standalone/server-bun/)                  | Standalone Bun server                                          |
-| [server-node](examples/standalone/server-node/)                | Standalone Node.js server                                      |
-| [client-vanilla](examples/standalone/client-vanilla/)          | Vanilla JS client                                              |
-| [client-react](examples/standalone/client-react/)              | React client                                                   |
+| Example                                               | Description                                            |
+| ----------------------------------------------------- | ------------------------------------------------------ |
+| [github-dashboard](examples/github-dashboard/)        | GitHub Dashboard: SeamJS CTR vs Next.js SSR comparison |
+| [server-rust](examples/standalone/server-rust/)       | Standalone Rust backend                                |
+| [server-bun](examples/standalone/server-bun/)         | Standalone Bun server                                  |
+| [server-node](examples/standalone/server-node/)       | Standalone Node.js server                              |
+| [client-vanilla](examples/standalone/client-vanilla/) | Vanilla JS client                                      |
+| [client-react](examples/standalone/client-react/)     | React client                                           |
 
 ## Development
 

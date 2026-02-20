@@ -15,7 +15,9 @@
     "examples/standalone/server-node",
     "examples/standalone/client-vanilla",
     "examples/standalone/client-react",
-    "examples/fullstack/react-hono-tanstack",
+    "examples/github-dashboard/shared",
+    "examples/github-dashboard/seam-app",
+    "examples/github-dashboard/next-app",
     "tests/e2e/fixture"
   ],
   "type": "module",

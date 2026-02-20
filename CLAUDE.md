@@ -93,7 +93,7 @@
 | `bun run test:e2e`         | Playwright E2E tests                             |
 | `bun run test`             | All layers (unit + integration + e2e), fail-fast |
 
-- Integration and E2E tests require fullstack build output: `cd examples/fullstack/react-hono-tanstack && seam build`
+- Integration and E2E tests require fullstack build output: `cd examples/github-dashboard/seam-app && seam build`
 - `scripts/smoke-fullstack.sh` runs the full build-and-test pipeline for integration + E2E
 
 ## CLI Binary

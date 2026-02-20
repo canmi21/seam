@@ -1,0 +1,9 @@
+{
+  "name": "github-dashboard",
+  "private": true,
+  "scripts": {
+    "dev:seam": "cd seam-app && seam dev",
+    "dev:next": "cd next-app && next dev --port 3001",
+    "build:seam": "cd seam-app && seam build"
+  }
+}
