@@ -12,6 +12,7 @@ import {
   cartesianProduct,
   buildVariantSentinel,
 } from "./variant-generator.mjs";
+import { generateMockFromSchema, flattenLoaderMock, deepMerge } from "./mock-generator.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -170,20 +171,51 @@ function buildPageSchema(route, manifest) {
   return Object.keys(result).length > 0 ? result : null;
 }
 
-function renderRoute(route, manifest) {
-  const baseSentinel = buildSentinelData(route.mock);
+/**
+ * Resolve mock data for a route: auto-generate from schema when available,
+ * then deep-merge any user-provided partial mock on top.
+ */
+function resolveRouteMock(route, manifest) {
   const pageSchema = buildPageSchema(route, manifest);
-  const axes = pageSchema ? collectStructuralAxes(pageSchema, route.mock) : [];
+
+  if (pageSchema) {
+    const keyedMock = generateMockFromSchema(pageSchema);
+    const autoMock = flattenLoaderMock(keyedMock);
+    return route.mock ? deepMerge(autoMock, route.mock) : autoMock;
+  }
+
+  // No manifest (frontend-only mode) — mock is required
+  if (route.mock) return route.mock;
+
+  throw new SeamBuildError(
+    `[seam] error: Mock data required for route "${route.path}"\n\n` +
+      "  No procedure manifest found \u2014 cannot auto-generate mock data.\n" +
+      "  Provide mock data in your route definition:\n\n" +
+      "    defineRoutes([{\n" +
+      `      path: "${route.path}",\n` +
+      "      component: YourComponent,\n" +
+      '      mock: { user: { name: "..." }, repos: [...] }\n' +
+      "    }])\n\n" +
+      "  Or switch to fullstack mode with typed Procedures\n" +
+      "  to enable automatic mock generation from schema.",
+  );
+}
+
+function renderRoute(route, manifest) {
+  const mock = resolveRouteMock(route, manifest);
+  const baseSentinel = buildSentinelData(mock);
+  const pageSchema = buildPageSchema(route, manifest);
+  const axes = pageSchema ? collectStructuralAxes(pageSchema, mock) : [];
   const combos = cartesianProduct(axes);
 
   const variants = combos.map((variant) => {
-    const sentinel = buildVariantSentinel(baseSentinel, route.mock, variant);
+    const sentinel = buildVariantSentinel(baseSentinel, mock, variant);
     const html = guardedRender(route.path, route.component, sentinel);
     return { variant, html };
   });
 
   // Render with real mock data for CTR equivalence check
-  const mockHtml = stripResourceHints(guardedRender(route.path, route.component, route.mock));
+  const mockHtml = stripResourceHints(guardedRender(route.path, route.component, mock));
 
   return {
     path: route.path,
@@ -191,7 +223,7 @@ function renderRoute(route, manifest) {
     axes,
     variants,
     mockHtml,
-    mock: route.mock,
+    mock,
   };
 }
 
