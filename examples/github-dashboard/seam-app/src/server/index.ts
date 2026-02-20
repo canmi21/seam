@@ -21,17 +21,15 @@ app.get("*", async (c) => {
   const result = await router.handlePage(new URL(c.req.url).pathname);
   if (!result) return c.text("Not Found", 404);
 
-  const { dataFetch, inject } = result.timing;
-  const overlay = [
-    `<div style="position:fixed;bottom:0;left:0;right:0;padding:6px 16px;`,
-    `background:rgba(0,0,0,.75);color:#ede9e0;font:12px/1.6 monospace;`,
-    `display:flex;gap:24px;z-index:9999">`,
-    `<span>Data Fetch: <b>${dataFetch.toFixed(2)}ms</b></span>`,
-    `<span>Inject: <b>${inject < 1 ? `${(inject * 1000).toFixed(0)}\u00b5s` : `${inject.toFixed(2)}ms`}</b></span>`,
-    `</div>`,
-  ].join("");
+  const { dataFetch, inject: injectTime } = result.timing;
+  const fmt = (ms: number) => (ms < 1 ? `${(ms * 1000).toFixed(0)}\u00b5s` : `${ms.toFixed(2)}ms`);
+  const timing = `\u00a0\u00b7 Data Fetch ${fmt(dataFetch)} \u00b7 Inject ${fmt(injectTime)}`;
 
-  const html = result.html.replace("</body>", overlay + "</body>");
+  // Append timing after __SEAM_ROOT__ (scripts are invisible, so it renders right below the footer)
+  const html = result.html.replace(
+    "</body>",
+    `<div style="text-align:center;font-size:.875rem;color:var(--c-text-muted);padding-bottom:2rem">${timing}</div></body>`,
+  );
   return c.html(html, result.status as 200);
 });
 
