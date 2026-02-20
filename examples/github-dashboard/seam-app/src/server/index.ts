@@ -16,24 +16,22 @@ const app = new Hono();
 // Seam middleware: handles /_seam/* (RPC, manifest, static, pages)
 app.use("/*", seam(router, { staticDir: resolve(BUILD_DIR, "public") }));
 
-// Inject _meta into __SEAM_DATA__ JSON so the client can read it via useSeamData()
-const SEAM_DATA_RE = /(<script id="__SEAM_DATA__" type="application\/json">)(.*?)(<\/script>)/;
-
-function injectMeta(html: string, meta: Record<string, unknown>): string {
-  return html.replace(SEAM_DATA_RE, (_m, open, json, close) => {
-    const data = JSON.parse(json);
-    data._meta = meta;
-    return `${open}${JSON.stringify(data)}${close}`;
-  });
-}
-
-// Root-path page serving with response timing
+// Root-path page serving — inject performance overlay outside React tree
 app.get("*", async (c) => {
-  const start = performance.now();
   const result = await router.handlePage(new URL(c.req.url).pathname);
   if (!result) return c.text("Not Found", 404);
-  const ms = (performance.now() - start).toFixed(2);
-  const html = injectMeta(result.html, { renderTime: ms });
+
+  const { dataFetch, inject } = result.timing;
+  const overlay = [
+    `<div style="position:fixed;bottom:0;left:0;right:0;padding:6px 16px;`,
+    `background:rgba(0,0,0,.75);color:#ede9e0;font:12px/1.6 monospace;`,
+    `display:flex;gap:24px;z-index:9999">`,
+    `<span>Data Fetch: <b>${dataFetch.toFixed(2)}ms</b></span>`,
+    `<span>Inject: <b>${inject < 1 ? `${(inject * 1000).toFixed(0)}\u00b5s` : `${inject.toFixed(2)}ms`}</b></span>`,
+    `</div>`,
+  ].join("");
+
+  const html = result.html.replace("</body>", overlay + "</body>");
   return c.html(html, result.status as 200);
 });
 

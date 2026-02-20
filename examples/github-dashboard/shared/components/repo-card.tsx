@@ -2,24 +2,6 @@
 
 import type { GitHubRepo } from "../types.js";
 
-const LANGUAGE_COLORS: Record<string, string> = {
-  TypeScript: "#3178c6",
-  JavaScript: "#f1e05a",
-  Rust: "#dea584",
-  Go: "#00add8",
-  Python: "#3572a5",
-  Java: "#b07219",
-  Ruby: "#701516",
-  C: "#555555",
-  "C++": "#f34b7d",
-  "C#": "#178600",
-  Swift: "#f05138",
-  Kotlin: "#a97bff",
-  Shell: "#89e051",
-  HTML: "#e34c26",
-  CSS: "#563d7c",
-};
-
 export function RepoCard({ repo }: { repo: GitHubRepo }) {
   return (
     <a
@@ -35,12 +17,7 @@ export function RepoCard({ repo }: { repo: GitHubRepo }) {
       <div className="mt-3 flex items-center gap-4 text-sm text-muted">
         {repo.language && (
           <span className="flex items-center gap-1">
-            <span
-              className="inline-block h-3 w-3 rounded-full"
-              style={{
-                backgroundColor: LANGUAGE_COLORS[repo.language] ?? "var(--c-text-muted)",
-              }}
-            />
+            <span className="inline-block h-3 w-3 rounded-full bg-muted" />
             {repo.language}
           </span>
         )}
