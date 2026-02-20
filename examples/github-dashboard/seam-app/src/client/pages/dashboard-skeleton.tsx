@@ -7,8 +7,12 @@ import { ProfileHeader } from "@github-dashboard/shared/components/profile-heade
 import { StatsBar } from "@github-dashboard/shared/components/stats-bar.js";
 import { RepoGrid } from "@github-dashboard/shared/components/repo-grid.js";
 
+interface PageData extends DashboardData {
+  _meta?: { renderTime: string };
+}
+
 export function DashboardSkeleton() {
-  const data = useSeamData<DashboardData & Record<string, unknown>>();
+  const data = useSeamData<PageData & Record<string, unknown>>();
 
   return (
     <div className="min-h-screen bg-surface px-4 py-8">
@@ -33,11 +37,9 @@ export function DashboardSkeleton() {
         <h2 className="mb-4 text-xl font-semibold text-primary">Top Repositories</h2>
         <RepoGrid repos={data.repos} />
 
-        <footer
-          suppressHydrationWarning
-          className="mt-8 border-t border-border pt-4 text-center text-sm text-muted"
-        >
-          Rendered via SeamJS CTR &middot; Response time: __RENDER_TIME__ms
+        <footer className="mt-8 border-t border-border pt-4 text-center text-sm text-muted">
+          Rendered via SeamJS CTR
+          {data._meta?.renderTime && <> &middot; Response time: {data._meta.renderTime}ms</>}
         </footer>
       </div>
     </div>
