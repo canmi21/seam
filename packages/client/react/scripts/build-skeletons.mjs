@@ -155,28 +155,18 @@ function buildPageSchema(route, manifest) {
   const properties = {};
   const optionalProperties = {};
 
-  for (const [_loaderKey, loaderDef] of Object.entries(route.loaders || {})) {
+  for (const [loaderKey, loaderDef] of Object.entries(route.loaders || {})) {
     const procName = loaderDef.procedure;
     const proc = manifest.procedures?.[procName];
     if (!proc?.output) continue;
 
-    const schema = proc.output;
-    // Merge output schema properties into the page schema
-    if (schema.properties) {
-      Object.assign(properties, schema.properties);
-    }
-    if (schema.optionalProperties) {
-      Object.assign(optionalProperties, schema.optionalProperties);
-    }
-    // If the output itself is an array or other non-object, wrap it under the loader key
-    if (schema.elements || schema.type || schema.enum) {
-      properties[_loaderKey] = schema;
-    }
+    // Always nest under the loader key so axis paths (e.g. "user.bio")
+    // align with sentinel data paths built from mock (e.g. sentinel.user.bio).
+    properties[loaderKey] = proc.output;
   }
 
   const result = {};
   if (Object.keys(properties).length > 0) result.properties = properties;
-  if (Object.keys(optionalProperties).length > 0) result.optionalProperties = optionalProperties;
   return Object.keys(result).length > 0 ? result : null;
 }
 
