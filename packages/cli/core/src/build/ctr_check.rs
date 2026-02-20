@@ -1,8 +1,15 @@
 /* packages/cli/core/src/build/ctr_check.rs */
 
-// CTR equivalence check: compare React-rendered HTML (with real data)
-// against template-injected HTML to detect runtime computations that
-// consume sentinel placeholders.
+// CTR equivalence check: verify that template injection produces
+// **semantically equivalent** HTML to React's renderToString -- not
+// byte-identical output.
+//
+// Differences that don't affect rendering or hydration are normalized
+// away before comparison:
+//  - CSS property order within style attributes (normalize_style_order)
+//  - Resource hint <link> tags injected by React (strip_resource_hints)
+//
+// Long-term this should migrate to DOM tree comparison for robustness.
 
 use std::sync::OnceLock;
 
@@ -39,6 +46,25 @@ fn strip_resource_hints(html: &str) -> String {
   resource_hint_re().replace_all(html, "").into_owned()
 }
 
+fn style_attr_re() -> &'static Regex {
+  static RE: OnceLock<Regex> = OnceLock::new();
+  RE.get_or_init(|| Regex::new(r#"style="([^"]*)""#).unwrap())
+}
+
+/// Sort CSS properties alphabetically within each `style="..."` attribute.
+/// CSS property order has no effect on rendering and React 19 hydration
+/// compares properties individually, so order differences are harmless.
+fn normalize_style_order(html: &str) -> String {
+  style_attr_re()
+    .replace_all(html, |caps: &regex::Captures| {
+      let value = &caps[1];
+      let mut props: Vec<&str> = value.split(';').filter(|s| !s.is_empty()).collect();
+      props.sort_unstable();
+      format!(r#"style="{}""#, props.join(";"))
+    })
+    .into_owned()
+}
+
 /// Verify that template injection with mock data produces identical
 /// HTML to React's `renderToString` with the same mock data.
 pub(super) fn verify_ctr_equivalence(
@@ -50,11 +76,14 @@ pub(super) fn verify_ctr_equivalence(
   let injected_raw = seam_server::injector::inject(template, mock_data);
   let injected_clean = strip_resource_hints(strip_data_script(&injected_raw));
 
-  if react_html == injected_clean {
+  let react_norm = normalize_style_order(react_html);
+  let inject_norm = normalize_style_order(&injected_clean);
+
+  if react_norm == inject_norm {
     return Ok(());
   }
 
-  bail!("{}", format_ctr_error(route_path, react_html, &injected_clean));
+  bail!("{}", format_ctr_error(route_path, &react_norm, &inject_norm));
 }
 
 fn format_ctr_error(route_path: &str, react_html: &str, injected_html: &str) -> String {
@@ -189,5 +218,82 @@ mod tests {
     // <link rel="canonical"> is NOT a resource hint, must not be stripped
     let html = r#"<link rel="canonical" href="/page"><div>content</div>"#;
     assert_eq!(strip_resource_hints(html), html);
+  }
+
+  /// Full pipeline: sentinel HTML → sentinel_to_slots → inject → compare.
+  /// This verifies style={{ backgroundColor: data.color }} works end-to-end.
+  #[test]
+  fn style_binding_full_pipeline() {
+    use crate::build::skeleton::sentinel_to_slots;
+
+    // React renderToString(<span style={{ backgroundColor: "%%SEAM:color%%" }}>test</span>)
+    let sentinel_html = r#"<span style="background-color:%%SEAM:color%%">test</span>"#;
+    let template = sentinel_to_slots(sentinel_html);
+    assert_eq!(template, "<!--seam:color:style:background-color--><span>test</span>");
+
+    // React renderToString(<span style={{ backgroundColor: "#f1e05a" }}>test</span>)
+    let react_html = r#"<span style="background-color:#f1e05a">test</span>"#;
+    let data = json!({"color": "#f1e05a"});
+
+    let result = verify_ctr_equivalence("/test", react_html, &template, &data);
+    assert!(result.is_ok(), "style binding round-trip failed: {result:?}");
+  }
+
+  /// Different property order in style attributes should pass CTR check.
+  #[test]
+  fn style_property_order_mismatch_passes() {
+    // Verify the normalization mechanism directly
+    let a = normalize_style_order(r#"style="a:x;b:y""#);
+    let b = normalize_style_order(r#"style="b:y;a:x""#);
+    assert_eq!(a, b, "normalization should make order irrelevant");
+
+    // Full CTR check: inject appends dynamic props at end (static first),
+    // but React preserves JSX order (dynamic first). Should still pass.
+    let template =
+      r#"<!--seam:color:style:background-color--><span style="display:inline-block"></span>"#;
+    let react_html = r#"<span style="background-color:#f1e05a;display:inline-block"></span>"#;
+    let data = json!({"color": "#f1e05a"});
+
+    let result = verify_ctr_equivalence("/test", react_html, template, &data);
+    assert!(result.is_ok(), "style order mismatch should pass: {result:?}");
+  }
+
+  /// Full pipeline where dynamic property PRECEDES static in JSX order.
+  /// This is the exact case that triggered the false positive.
+  #[test]
+  fn style_order_with_real_pipeline() {
+    use crate::build::skeleton::sentinel_to_slots;
+
+    // JSX: style={{ backgroundColor: sentinel, display: 'inline-block' }}
+    // renderToString keeps JSX order: dynamic first, static second
+    let sentinel_html =
+      r#"<span style="background-color:%%SEAM:color%%;display:inline-block">test</span>"#;
+    let template = sentinel_to_slots(sentinel_html);
+
+    // React with real data preserves JSX order: dynamic first
+    let react_html = r#"<span style="background-color:#f1e05a;display:inline-block">test</span>"#;
+    let data = json!({"color": "#f1e05a"});
+
+    let result = verify_ctr_equivalence("/test", react_html, &template, &data);
+    assert!(result.is_ok(), "dynamic-before-static order should pass: {result:?}");
+  }
+
+  /// Style binding with mixed static + dynamic properties.
+  #[test]
+  fn style_binding_mixed_static_dynamic() {
+    use crate::build::skeleton::sentinel_to_slots;
+
+    // style={{ display: "inline-block", backgroundColor: sentinel }}
+    let sentinel_html =
+      r#"<span style="display:inline-block;background-color:%%SEAM:color%%">test</span>"#;
+    let template = sentinel_to_slots(sentinel_html);
+    assert!(template.contains("<!--seam:color:style:background-color-->"));
+    assert!(template.contains(r#"style="display:inline-block""#));
+
+    let react_html = r#"<span style="display:inline-block;background-color:#f1e05a">test</span>"#;
+    let data = json!({"color": "#f1e05a"});
+
+    let result = verify_ctr_equivalence("/test", react_html, &template, &data);
+    assert!(result.is_ok(), "mixed style binding failed: {result:?}");
   }
 }
