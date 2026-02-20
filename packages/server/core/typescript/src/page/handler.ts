@@ -5,9 +5,17 @@ import { SeamError } from "../errors.js";
 import type { InternalProcedure } from "../procedure.js";
 import type { PageDef } from "./index.js";
 
+export interface PageTiming {
+  /** Procedure execution time in milliseconds */
+  dataFetch: number;
+  /** Template injection time in milliseconds */
+  inject: number;
+}
+
 export interface HandlePageResult {
   status: number;
   html: string;
+  timing: PageTiming;
 }
 
 export async function handlePageRequest(
@@ -16,6 +24,8 @@ export async function handlePageRequest(
   procedures: Map<string, InternalProcedure>,
 ): Promise<HandlePageResult> {
   try {
+    const t0 = performance.now();
+
     const entries = Object.entries(page.loaders);
     const results = await Promise.all(
       entries.map(async ([key, loader]) => {
@@ -27,6 +37,8 @@ export async function handlePageRequest(
         return [key, result] as const;
       }),
     );
+
+    const t1 = performance.now();
 
     // Build keyed data (e.g. { page: { ... } }) for __SEAM_DATA__,
     // and merge loader results flat for template slot resolution.
@@ -47,7 +59,14 @@ export async function handlePageRequest(
     } else {
       html += script;
     }
-    return { status: 200, html };
+
+    const t2 = performance.now();
+
+    return {
+      status: 200,
+      html,
+      timing: { dataFetch: t1 - t0, inject: t2 - t1 },
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return {
