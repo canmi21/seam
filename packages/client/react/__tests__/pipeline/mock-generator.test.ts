@@ -7,70 +7,72 @@ import {
   deepMerge,
 } from "../../scripts/mock-generator.mjs";
 
-// -- generateMockFromSchema --
+// -- generateMockFromSchema: primitives --
 
-describe("generateMockFromSchema", () => {
-  describe("primitive types", () => {
-    it("generates semantic string for 'name' field", () => {
-      expect(generateMockFromSchema({ type: "string" }, "user.name")).toBe("Example Name");
-    });
-
-    it("generates URL for url/href/src fields", () => {
-      expect(generateMockFromSchema({ type: "string" }, "avatar_url")).toBe("https://example.com");
-      expect(generateMockFromSchema({ type: "string" }, "href")).toBe("https://example.com");
-      expect(generateMockFromSchema({ type: "string" }, "icon_src")).toBe("https://example.com");
-    });
-
-    it("generates email for email field", () => {
-      expect(generateMockFromSchema({ type: "string" }, "user.email")).toBe("user@example.com");
-    });
-
-    it("generates color for color field", () => {
-      expect(generateMockFromSchema({ type: "string" }, "bg_color")).toBe("#888888");
-    });
-
-    it("generates description for description/bio/summary fields", () => {
-      expect(generateMockFromSchema({ type: "string" }, "bio")).toBe("Sample description");
-      expect(generateMockFromSchema({ type: "string" }, "description")).toBe("Sample description");
-      expect(generateMockFromSchema({ type: "string" }, "summary")).toBe("Sample description");
-    });
-
-    it("generates title for title field", () => {
-      expect(generateMockFromSchema({ type: "string" }, "page.title")).toBe("Sample Title");
-    });
-
-    it("generates id for id field", () => {
-      expect(generateMockFromSchema({ type: "string" }, "user.id")).toBe("sample-id");
-    });
-
-    it("generates fallback string for unknown fields", () => {
-      expect(generateMockFromSchema({ type: "string" }, "login")).toBe("Sample Login");
-    });
-
-    it("generates boolean true", () => {
-      expect(generateMockFromSchema({ type: "boolean" })).toBe(true);
-    });
-
-    it("generates 1 for numeric types", () => {
-      for (const t of [
-        "int8",
-        "int16",
-        "int32",
-        "uint8",
-        "uint16",
-        "uint32",
-        "float32",
-        "float64",
-      ]) {
-        expect(generateMockFromSchema({ type: t })).toBe(1);
-      }
-    });
-
-    it("generates timestamp string", () => {
-      expect(generateMockFromSchema({ type: "timestamp" })).toBe("2024-01-01T00:00:00Z");
-    });
+describe("generateMockFromSchema - primitives", () => {
+  it("generates semantic string for 'name' field", () => {
+    expect(generateMockFromSchema({ type: "string" }, "user.name")).toBe("Example Name");
   });
 
+  it("generates URL for url/href/src fields", () => {
+    expect(generateMockFromSchema({ type: "string" }, "avatar_url")).toBe("https://example.com");
+    expect(generateMockFromSchema({ type: "string" }, "href")).toBe("https://example.com");
+    expect(generateMockFromSchema({ type: "string" }, "icon_src")).toBe("https://example.com");
+  });
+
+  it("generates email for email field", () => {
+    expect(generateMockFromSchema({ type: "string" }, "user.email")).toBe("user@example.com");
+  });
+
+  it("generates color for color field", () => {
+    expect(generateMockFromSchema({ type: "string" }, "bg_color")).toBe("#888888");
+  });
+
+  it("generates description for description/bio/summary fields", () => {
+    expect(generateMockFromSchema({ type: "string" }, "bio")).toBe("Sample description");
+    expect(generateMockFromSchema({ type: "string" }, "description")).toBe("Sample description");
+    expect(generateMockFromSchema({ type: "string" }, "summary")).toBe("Sample description");
+  });
+
+  it("generates title for title field", () => {
+    expect(generateMockFromSchema({ type: "string" }, "page.title")).toBe("Sample Title");
+  });
+
+  it("generates id for id field", () => {
+    expect(generateMockFromSchema({ type: "string" }, "user.id")).toBe("sample-id");
+  });
+
+  it("generates fallback string for unknown fields", () => {
+    expect(generateMockFromSchema({ type: "string" }, "login")).toBe("Sample Login");
+  });
+
+  it("generates boolean true", () => {
+    expect(generateMockFromSchema({ type: "boolean" })).toBe(true);
+  });
+
+  it("generates 1 for numeric types", () => {
+    for (const t of [
+      "int8",
+      "int16",
+      "int32",
+      "uint8",
+      "uint16",
+      "uint32",
+      "float32",
+      "float64",
+    ]) {
+      expect(generateMockFromSchema({ type: t })).toBe(1);
+    }
+  });
+
+  it("generates timestamp string", () => {
+    expect(generateMockFromSchema({ type: "timestamp" })).toBe("2024-01-01T00:00:00Z");
+  });
+});
+
+// -- generateMockFromSchema: composite types --
+
+describe("generateMockFromSchema - composites", () => {
   it("uses first enum value", () => {
     expect(generateMockFromSchema({ enum: ["active", "inactive", "banned"] })).toBe("active");
   });
@@ -129,7 +131,11 @@ describe("generateMockFromSchema", () => {
   it("returns {} for empty schema", () => {
     expect(generateMockFromSchema({})).toEqual({});
   });
+});
 
+// -- generateMockFromSchema: integration --
+
+describe("generateMockFromSchema - integration", () => {
   it("is deterministic across calls", () => {
     const schema = {
       properties: {
@@ -150,7 +156,6 @@ describe("generateMockFromSchema", () => {
   });
 
   it("handles real-world getUser schema", () => {
-    // Mirrors github-dashboard getUser procedure output
     const schema = {
       properties: {
         avatar_url: { type: "string" },
@@ -221,9 +226,7 @@ describe("flattenLoaderMock", () => {
       repos: [{ id: 1 }],
     };
     const flat = flattenLoaderMock(keyed);
-    // user object fields flatten to root
     expect(flat.login).toBe("octocat");
-    // array values stay keyed only (not flattened)
     expect(flat.repos).toEqual([{ id: 1 }]);
   });
 

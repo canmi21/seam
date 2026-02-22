@@ -154,7 +154,6 @@ function buildPageSchema(route, manifest) {
   if (!manifest) return null;
 
   const properties = {};
-  const optionalProperties = {};
 
   for (const [loaderKey, loaderDef] of Object.entries(route.loaders || {})) {
     const procName = loaderDef.procedure;
