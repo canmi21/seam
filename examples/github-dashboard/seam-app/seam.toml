@@ -14,3 +14,4 @@ backend_build_command = "bun build src/server/index.ts --target=bun --outdir=.se
 router_file = "src/server/router.ts"
 routes = "./src/client/routes.ts"
 out_dir = ".seam/output"
+suspense_depth = 2

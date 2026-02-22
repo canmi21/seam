@@ -60,6 +60,10 @@ pub struct BuildSection {
   pub backend_build_command: Option<String>,
   pub router_file: Option<String>,
   pub typecheck_command: Option<String>,
+  /// Number of React Suspense boundary markers to inject around skeleton content.
+  /// Matches the `<Suspense>` nesting depth in the client router tree.
+  #[serde(default)]
+  pub suspense_depth: u32,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -197,6 +201,29 @@ router_file = "src/server/router.ts"
     assert_eq!(config.frontend.entry.as_deref(), Some("src/client/main.tsx"));
     assert!(config.build.bundler_command.is_none());
     assert!(config.build.bundler_manifest.is_none());
+  }
+
+  #[test]
+  fn parse_suspense_depth() {
+    let toml_str = r#"
+[project]
+name = "suspense-app"
+
+[build]
+suspense_depth = 2
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.build.suspense_depth, 2);
+  }
+
+  #[test]
+  fn suspense_depth_defaults_to_zero() {
+    let toml_str = r#"
+[project]
+name = "no-suspense"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.build.suspense_depth, 0);
   }
 
   #[test]

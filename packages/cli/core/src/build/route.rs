@@ -110,6 +110,7 @@ pub(super) fn process_routes(
   routes: &[SkeletonRoute],
   templates_dir: &Path,
   assets: &AssetFiles,
+  suspense_depth: u32,
 ) -> Result<RouteManifest> {
   let mut manifest = RouteManifest { routes: BTreeMap::new() };
 
@@ -127,7 +128,7 @@ pub(super) fn process_routes(
       }
     }
 
-    let document = wrap_document(&template, &assets.css, &assets.js);
+    let document = wrap_document(&template, &assets.css, &assets.js, suspense_depth);
 
     let filename = path_to_filename(&route.path);
     let filepath = templates_dir.join(&filename);

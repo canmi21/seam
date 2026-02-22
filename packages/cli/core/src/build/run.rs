@@ -73,7 +73,8 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
-  let route_manifest = process_routes(&skeleton_output.routes, &templates_dir, &assets)?;
+  let route_manifest =
+    process_routes(&skeleton_output.routes, &templates_dir, &assets, build_config.suspense_depth)?;
   ui::blank();
 
   // [4/4] Write route manifest
@@ -170,7 +171,8 @@ fn run_fullstack_build(
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
-  let route_manifest = process_routes(&skeleton_output.routes, &templates_dir, &assets)?;
+  let route_manifest =
+    process_routes(&skeleton_output.routes, &templates_dir, &assets, build_config.suspense_depth)?;
 
   // Write route-manifest.json
   let route_manifest_path = out_dir.join("route-manifest.json");
