@@ -4,10 +4,10 @@ import {
   createRouter as createTanStackRouter,
   createRootRoute,
   createRoute,
-  Outlet,
 } from "@tanstack/react-router";
 import { seamRpc } from "@canmi/seam-client";
 import { parseSeamData } from "@canmi/seam-react";
+import { SeamOutlet } from "./seam-outlet.js";
 import { convertPath } from "./convert-routes.js";
 import { createLoaderFromDefs } from "./create-loader.js";
 import { matchSeamRoute } from "./route-matcher.js";
@@ -40,9 +40,10 @@ export function createSeamRouter(opts: SeamRouterOptions) {
     }
   }
 
-  // Build route tree
+  // SeamOutlet skips the <Suspense> wrapper that standard Outlet adds for root
+  // routes — CTR HTML has no Suspense markers so the wrapper causes hydration mismatch.
   const rootRoute = createRootRoute({
-    component: () => Outlet({}),
+    component: SeamOutlet,
   });
 
   const childRoutes = routes.map((def) => {
