@@ -1,5 +1,6 @@
 /* packages/client/tanstack-router/src/types.ts */
 
+import type { ComponentType } from "react";
 import type { RouteDef } from "@canmi/seam-react";
 
 export interface SeamRouteDef extends RouteDef {
@@ -13,6 +14,8 @@ export type ClientLoaderFn = (ctx: {
 
 export interface SeamRouterOptions {
   routes: SeamRouteDef[];
+  /** Runtime-only page components keyed by route path (e.g. "/dashboard/:username") */
+  pages?: Record<string, ComponentType>;
   defaultStaleTime?: number;
   basePath?: string;
 }

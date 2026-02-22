@@ -1,6 +1,6 @@
 /* examples/github-dashboard/seam-app/src/client/pages/home-skeleton.tsx */
 
-import { useSeamData } from "@canmi/seam-react";
+import { useSeamData, useSeamNavigate } from "@canmi/seam-react";
 import { DarkModeToggle } from "@github-dashboard/shared/components/dark-mode-toggle.js";
 import { UsernameForm } from "@github-dashboard/shared/components/username-form.js";
 
@@ -10,6 +10,7 @@ interface HomeData extends Record<string, unknown> {
 
 export function HomeSkeleton() {
   const data = useSeamData<HomeData>();
+  const navigate = useSeamNavigate();
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-surface px-4">
@@ -21,7 +22,7 @@ export function HomeSkeleton() {
       <div className="w-full max-w-md">
         <UsernameForm
           onSubmit={(username) => {
-            globalThis.location.href = `/dashboard/${username}`;
+            navigate(`/dashboard/${username}`);
           }}
         />
       </div>

@@ -15,7 +15,7 @@ import { SeamDataBridge } from "./seam-data-bridge.js";
 import type { SeamRouterOptions, SeamRouterContext } from "./types.js";
 
 export function createSeamRouter(opts: SeamRouterOptions) {
-  const { routes, defaultStaleTime = 30_000 } = opts;
+  const { routes, pages, defaultStaleTime = 30_000 } = opts;
 
   // Parse initial data from __SEAM_DATA__ (browser only)
   let initialData: Record<string, unknown> | null = null;
@@ -51,7 +51,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
     return createRoute({
       getParentRoute: () => rootRoute,
       path: tanstackPath,
-      component: def.component,
+      component: pages?.[def.path] ?? def.component,
       loader: def.clientLoader
         ? ({ params, context }) =>
             def.clientLoader!({

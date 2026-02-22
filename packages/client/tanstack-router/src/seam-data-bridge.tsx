@@ -1,12 +1,13 @@
 /* packages/client/tanstack-router/src/seam-data-bridge.tsx */
 
-import { useMatches } from "@tanstack/react-router";
-import { SeamDataProvider } from "@canmi/seam-react";
+import { useMatches, useRouter } from "@tanstack/react-router";
+import { SeamDataProvider, SeamNavigateProvider } from "@canmi/seam-react";
+import { useCallback } from "react";
 import type { ReactNode } from "react";
 
 /**
- * InnerWrap component that bridges TanStack Router's loaderData to SeamDataProvider.
- * Uses useMatches() to read from router.__store (works in InnerWrap context).
+ * InnerWrap component that bridges TanStack Router's loaderData to SeamDataProvider
+ * and provides SPA navigation via SeamNavigateProvider.
  */
 export function SeamDataBridge({ children }: { children: ReactNode }) {
   const matches = useMatches();
@@ -16,5 +17,12 @@ export function SeamDataBridge({ children }: { children: ReactNode }) {
   // Replicate the unwrapping from main.tsx: single "page" loader gets unwrapped
   const seamData = loaderData ? (loaderData.page ?? loaderData) : {};
 
-  return <SeamDataProvider value={seamData}>{children}</SeamDataProvider>;
+  const router = useRouter();
+  const navigate = useCallback((url: string) => router.navigate({ to: url }), [router]);
+
+  return (
+    <SeamNavigateProvider value={navigate}>
+      <SeamDataProvider value={seamData}>{children}</SeamDataProvider>
+    </SeamNavigateProvider>
+  );
 }
