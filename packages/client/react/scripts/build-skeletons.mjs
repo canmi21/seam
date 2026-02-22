@@ -33,9 +33,9 @@ class SeamBuildError extends Error {
 
 const buildWarnings = [];
 
-// Matches React-injected resource hint <link> tags, excluding user-authored ones with %%SEAM:.
-// Stylesheets are only stripped when they carry data-precedence (React's preinit() marker),
-// so user-authored <link rel="stylesheet"> tags survive.
+// Matches React-injected resource hint <link> tags.
+// Only rel values used by React's resource APIs are targeted (preload, dns-prefetch, preconnect,
+// data-precedence); user-authored <link> tags (canonical, alternate, stylesheet) are unaffected.
 const RESOURCE_HINT_RE =
   /<link[^>]+rel\s*=\s*"(?:preload|dns-prefetch|preconnect)"[^>]*>|<link[^>]+data-precedence[^>]*>/gi;
 
@@ -97,9 +97,7 @@ function validateOutput(html, violations) {
     });
   }
 
-  const hints = Array.from(html.matchAll(RESOURCE_HINT_RE)).filter(
-    (m) => !m[0].includes("%%SEAM:"),
-  );
+  const hints = Array.from(html.matchAll(RESOURCE_HINT_RE));
   if (hints.length > 0) {
     violations.push({
       severity: "warning",
@@ -111,7 +109,7 @@ function validateOutput(html, violations) {
 }
 
 function stripResourceHints(html) {
-  return html.replace(RESOURCE_HINT_RE, (m) => (m.includes("%%SEAM:") ? m : ""));
+  return html.replace(RESOURCE_HINT_RE, "");
 }
 
 function guardedRender(routePath, component, data) {

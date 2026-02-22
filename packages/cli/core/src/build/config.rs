@@ -22,7 +22,6 @@ pub struct BuildConfig {
   pub router_file: Option<String>,
   pub typecheck_command: Option<String>,
   pub is_fullstack: bool,
-  pub suspense_depth: u32,
 }
 
 impl BuildConfig {
@@ -62,7 +61,6 @@ impl BuildConfig {
     let router_file = build.router_file.clone();
     let typecheck_command = build.typecheck_command.clone();
     let is_fullstack = backend_build_command.is_some();
-    let suspense_depth = config.build.suspense_depth;
 
     Ok(Self {
       bundler_mode,
@@ -74,7 +72,6 @@ impl BuildConfig {
       router_file,
       typecheck_command,
       is_fullstack,
-      suspense_depth,
     })
   }
 }
