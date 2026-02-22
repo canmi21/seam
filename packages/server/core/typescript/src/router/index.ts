@@ -36,6 +36,7 @@ function isSubscriptionDef(def: ProcedureDef | SubscriptionDef): def is Subscrip
 
 export interface RouterOptions {
   pages?: Record<string, PageDef>;
+  validateOutput?: boolean;
 }
 
 export interface Router<T extends DefinitionMap> {
@@ -71,6 +72,10 @@ export function createRouter<T extends DefinitionMap>(
     }
   }
 
+  const shouldValidateOutput =
+    opts?.validateOutput ??
+    (typeof process !== "undefined" && process.env.NODE_ENV !== "production");
+
   const pageMatcher = new RouteMatcher<PageDef>();
   const pages = opts?.pages;
   if (pages) {
@@ -86,10 +91,10 @@ export function createRouter<T extends DefinitionMap>(
       return buildManifest(procedures);
     },
     handle(procedureName, body) {
-      return handleRequest(procedureMap, procedureName, body);
+      return handleRequest(procedureMap, procedureName, body, shouldValidateOutput);
     },
     handleSubscription(name, input) {
-      return handleSubscription(subscriptionMap, name, input);
+      return handleSubscription(subscriptionMap, name, input, shouldValidateOutput);
     },
     async handlePage(path) {
       const match = pageMatcher.match(path);

@@ -72,6 +72,34 @@ describe("router.handleSubscription", () => {
   });
 });
 
+describe("subscription output validation", () => {
+  it("emits SSE error when subscription yields invalid output", async () => {
+    const validatedRouter = createRouter(
+      {
+        badSub: {
+          type: "subscription",
+          input: t.object({}),
+          output: t.object({ n: t.int32() }),
+          handler: async function* () {
+            yield { wrong: "field" };
+          },
+        } satisfies SubscriptionDef<Record<string, never>, { n: number }>,
+      },
+      { validateOutput: true },
+    );
+    const handler = createHttpHandler(validatedRouter);
+    const res = await handler({
+      method: "GET",
+      url: "http://localhost/_seam/subscribe/badSub",
+      body: () => Promise.reject(new Error("no body")),
+    });
+    expect("stream" in res).toBe(true);
+    const chunks = await collectStrings((res as HttpStreamResponse).stream);
+    expect(chunks[0]).toContain("INTERNAL_ERROR");
+    expect(chunks[0]).toContain("Output validation failed");
+  });
+});
+
 // -- Manifest type field --
 
 describe("manifest type field", () => {

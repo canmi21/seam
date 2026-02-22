@@ -15,3 +15,13 @@ export function validateInput(schema: Schema, data: unknown): ValidationResult {
     errors,
   };
 }
+
+export function formatValidationErrors(errors: JTDValidationError[]): string {
+  return errors
+    .map((e) => {
+      const path = e.instancePath.length > 0 ? e.instancePath.join("/") : "(root)";
+      const schema = e.schemaPath.join("/");
+      return `${path} (schema: ${schema})`;
+    })
+    .join("; ");
+}

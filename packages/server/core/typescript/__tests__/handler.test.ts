@@ -120,3 +120,52 @@ describe("handleRequest: errors", () => {
     });
   });
 });
+
+describe("handleRequest: output validation", () => {
+  it("returns 500 when handler output is missing required fields", async () => {
+    const procs = makeProcedures([
+      "greet",
+      {
+        inputSchema: greetInputSchema._schema,
+        outputSchema: greetOutputSchema._schema,
+        handler: () => ({}),
+      },
+    ]);
+    const result = await handleRequest(procs, "greet", { name: "Alice" }, true);
+    expect(result.status).toBe(500);
+    expect(result.body).toEqual(
+      expect.objectContaining({ error: expect.objectContaining({ code: "INTERNAL_ERROR" }) }),
+    );
+    expect((result.body as { error: { message: string } }).error.message).toContain(
+      "Output validation failed",
+    );
+  });
+
+  it("passes when output matches schema exactly", async () => {
+    const procs = makeProcedures([
+      "greet",
+      {
+        inputSchema: greetInputSchema._schema,
+        outputSchema: greetOutputSchema._schema,
+        handler: () => ({ message: "Hi!" }),
+      },
+    ]);
+    const result = await handleRequest(procs, "greet", { name: "Alice" }, true);
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({ message: "Hi!" });
+  });
+
+  it("skips output validation when disabled", async () => {
+    const procs = makeProcedures([
+      "greet",
+      {
+        inputSchema: greetInputSchema._schema,
+        outputSchema: greetOutputSchema._schema,
+        handler: () => ({}),
+      },
+    ]);
+    const result = await handleRequest(procs, "greet", { name: "Alice" }, false);
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual({});
+  });
+});
