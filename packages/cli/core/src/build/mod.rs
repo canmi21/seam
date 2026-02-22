@@ -5,4 +5,5 @@ mod ctr_check;
 pub mod route;
 pub mod run;
 pub mod skeleton;
+mod slot_warning;
 pub mod types;

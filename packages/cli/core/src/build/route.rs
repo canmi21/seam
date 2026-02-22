@@ -12,12 +12,13 @@ use serde::{Deserialize, Serialize};
 
 use super::ctr_check;
 use super::skeleton::{extract_template, sentinel_to_slots, wrap_document, Axis};
+use super::slot_warning;
 use super::types::AssetFiles;
 use crate::codegen;
 use crate::config::SeamConfig;
 use crate::manifest::Manifest;
 use crate::shell::{run_command, which_exists};
-use crate::ui::{self, DIM, GREEN, RESET};
+use crate::ui::{self, DIM, GREEN, RESET, YELLOW};
 
 // -- Node script output types --
 
@@ -37,6 +38,8 @@ pub(super) struct SkeletonRoute {
   #[serde(rename = "mockHtml")]
   mock_html: String,
   mock: serde_json::Value,
+  #[serde(rename = "pageSchema")]
+  page_schema: Option<serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -116,6 +119,13 @@ pub(super) fn process_routes(
 
     // CTR equivalence check: verify template + mock data == React render
     ctr_check::verify_ctr_equivalence(&route.path, &route.mock_html, &template, &route.mock)?;
+
+    // Warn about open-string fields in style/class contexts
+    if let Some(schema) = &route.page_schema {
+      for w in slot_warning::check_slot_types(&template, schema) {
+        ui::detail(&format!("{YELLOW}warning{RESET}: {} {w}", route.path));
+      }
+    }
 
     let document = wrap_document(&template, &assets.css, &assets.js);
 

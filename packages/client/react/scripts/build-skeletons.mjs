@@ -224,6 +224,7 @@ function renderRoute(route, manifest) {
     variants,
     mockHtml,
     mock,
+    pageSchema,
   };
 }
 
