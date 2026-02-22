@@ -1,0 +1,39 @@
+{
+  "name": "@canmi/seam-tanstack-router",
+  "version": "0.2.3",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./routes": {
+      "types": "./dist/define-routes.d.ts",
+      "import": "./dist/define-routes.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@canmi/seam-client": "workspace:*",
+    "@canmi/seam-react": "workspace:*"
+  },
+  "devDependencies": {
+    "@tanstack/react-router": "^1.127.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tsdown": "^0.20.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "peerDependencies": {
+    "@tanstack/react-router": "^1.0.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  }
+}

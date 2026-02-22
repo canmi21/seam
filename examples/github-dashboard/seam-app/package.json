@@ -12,7 +12,9 @@
     "@canmi/seam-client": "workspace:*",
     "@canmi/seam-react": "workspace:*",
     "@canmi/seam-server": "workspace:*",
+    "@canmi/seam-tanstack-router": "workspace:*",
     "@github-dashboard/shared": "workspace:*",
+    "@tanstack/react-router": "^1.162.2",
     "hono": "^4.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

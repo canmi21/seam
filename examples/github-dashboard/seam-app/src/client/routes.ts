@@ -1,10 +1,10 @@
 /* examples/github-dashboard/seam-app/src/client/routes.ts */
 
-import { defineRoutes } from "@canmi/seam-react";
+import { defineSeamRoutes } from "@canmi/seam-tanstack-router/routes";
 import { HomeSkeleton } from "./pages/home-skeleton.js";
 import { DashboardSkeleton } from "./pages/dashboard-skeleton.js";
 
-export default defineRoutes([
+export default defineSeamRoutes([
   {
     path: "/",
     component: HomeSkeleton,
