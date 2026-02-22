@@ -26,9 +26,10 @@ app.get("*", async (c) => {
   const timing = `\u00a0\u00b7 Data Fetch ${fmt(dataFetch)} \u00b7 Inject ${fmt(injectTime)}`;
 
   // Append timing after __SEAM_ROOT__ (scripts are invisible, so it renders right below the footer)
-  const html = result.html.replace(
+  let html = result.html.replace("<body>", '<body style="background-color:var(--c-surface)">');
+  html = html.replace(
     "</body>",
-    `<div style="text-align:center;font-size:.875rem;color:var(--c-text-muted);padding-bottom:2rem">${timing}</div></body>`,
+    `<div style="max-width:48rem;margin:0 auto;padding:0 1rem 2rem;text-align:center;font-size:.875rem;color:var(--c-text-muted)">${timing}</div></body>`,
   );
   return c.html(html, result.status as 200);
 });
