@@ -24,5 +24,8 @@
     "@canmi/seam-cli-darwin-x64": "0.2.3",
     "@canmi/seam-cli-linux-arm64": "0.2.3",
     "@canmi/seam-cli-linux-x64": "0.2.3"
+  },
+  "dependencies": {
+    "rolldown": "^1.0.0-rc.5"
   }
 }
