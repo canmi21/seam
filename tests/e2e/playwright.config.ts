@@ -2,7 +2,11 @@
 import { defineConfig } from "@playwright/test";
 import path from "node:path";
 
-const buildDir = path.resolve(__dirname, "fixture/.seam/output");
+const fixtureDir = path.resolve(__dirname, "fixture/.seam/output");
+const fullstackDir = path.resolve(
+  __dirname,
+  "../../examples/github-dashboard/seam-app/.seam/output",
+);
 
 export default defineConfig({
   testDir: "./specs",
@@ -11,17 +15,36 @@ export default defineConfig({
   reporter: "list",
 
   use: {
-    baseURL: "http://localhost:3456",
     screenshot: "only-on-failure",
   },
 
-  projects: [{ name: "chromium", use: { browserName: "chromium" } }],
+  projects: [
+    {
+      name: "chromium",
+      use: { browserName: "chromium", baseURL: "http://localhost:3456" },
+      testIgnore: /fullstack/,
+    },
+    {
+      name: "fullstack",
+      use: { browserName: "chromium", baseURL: "http://localhost:3457" },
+      testMatch: /fullstack/,
+    },
+  ],
 
-  webServer: {
-    command: "bun run server/index.js",
-    cwd: buildDir,
-    port: 3456,
-    env: { PORT: "3456" },
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: [
+    {
+      command: "bun run server/index.js",
+      cwd: fixtureDir,
+      port: 3456,
+      env: { PORT: "3456" },
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: "bun run server/index.js",
+      cwd: fullstackDir,
+      port: 3457,
+      env: { PORT: "3457" },
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
 });
