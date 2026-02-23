@@ -21,6 +21,14 @@
 - Run `git commit` after each plan mode phase completes, do not push
 - Commit messages: concise English describing the change
 
+## Versioning
+
+- Single source of truth: `Cargo.toml` workspace `version` field; all packages share one version
+- After completing a set of business-logic changes (e.g. a plan mode session), bump patch: `bash scripts/bump-version.sh x.y.(z+1)` — this syncs all `package.json`, Rust path dep versions, and CLI wrapper references
+- Only bump minor (`x.(y+1).0`, patch resets to 0) for breaking changes: architecture shifts, API incompatibilities, or removed functionality — this **requires explicit user confirmation** before proceeding
+- Chore-only changes (docs, CI, formatting, tooling) do not bump the version
+- Go modules are not yet covered by `bump-version.sh`; version managed separately via git tags when needed
+
 ## Monorepo Structure
 
 - The project uses monorepo layout; plan package boundaries upfront
@@ -84,14 +92,16 @@
 
 ## Running Tests
 
-| Command                    | Scope                                            |
-| -------------------------- | ------------------------------------------------ |
-| `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)       |
-| `bun run test:ts`          | TS unit tests (vitest across 7 packages)         |
-| `bun run test:unit`        | All unit tests (Rust + TS)                       |
-| `bun run test:integration` | Go integration tests (standalone + fullstack)    |
-| `bun run test:e2e`         | Playwright E2E tests                             |
-| `bun run test`             | All layers (unit + integration + e2e), fail-fast |
+| Command                    | Scope                                             |
+| -------------------------- | ------------------------------------------------- |
+| `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)        |
+| `bun run test:ts`          | TS unit tests (vitest across 10 packages)         |
+| `bun run test:unit`        | All unit tests (Rust + TS)                        |
+| `bun run test:integration` | Go integration tests (standalone + fullstack)     |
+| `bun run test:e2e`         | Playwright E2E tests                              |
+| `bun run test`             | All layers (unit + integration + e2e), fail-fast  |
+| `bun run typecheck`        | TypeScript type checking across all TS packages   |
+| `bun run verify`           | Full pipeline: fmt + lint + build + all tests     |
 
 - Integration and E2E tests require fullstack build output: `cd examples/github-dashboard/seam-app && seam build`
 - `scripts/smoke-fullstack.sh` runs the full build-and-test pipeline for integration + E2E
