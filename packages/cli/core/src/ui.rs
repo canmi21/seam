@@ -31,9 +31,13 @@ pub fn detail_ok(msg: &str) {
   println!("        {GREEN}\u{2713}{RESET} {msg}");
 }
 
-pub fn banner(cmd: &str) {
+pub fn banner(cmd: &str, project_name: Option<&str>) {
   println!();
-  println!("  {BOLD}SeamJS{RESET} {cmd} {DIM}v{VERSION}{RESET}");
+  if let Some(name) = project_name {
+    println!("  {BOLD}SeamJS{RESET} {cmd} {DIM}v{VERSION}{RESET}  {DIM}{name}{RESET}");
+  } else {
+    println!("  {BOLD}SeamJS{RESET} {cmd} {DIM}v{VERSION}{RESET}");
+  }
   println!();
 }
 

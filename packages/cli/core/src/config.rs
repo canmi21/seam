@@ -6,7 +6,6 @@ use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct SeamConfig {
   pub project: ProjectConfig,
   #[serde(default)]
@@ -20,13 +19,11 @@ pub struct SeamConfig {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct ProjectConfig {
   pub name: String,
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct BackendConfig {
   #[serde(default = "default_lang")]
   pub lang: String,

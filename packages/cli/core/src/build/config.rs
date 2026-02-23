@@ -11,7 +11,6 @@ pub enum BundlerMode {
 }
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct BuildConfig {
   pub bundler_mode: BundlerMode,
   pub bundler_manifest: String,
@@ -57,6 +56,9 @@ impl BuildConfig {
     };
 
     let renderer = build.renderer.clone().unwrap_or_else(|| "react".to_string());
+    if renderer != "react" {
+      bail!("unsupported renderer '{}' (only 'react' is currently supported)", renderer);
+    }
     let backend_build_command = build.backend_build_command.clone();
     let router_file = build.router_file.clone();
     let typecheck_command = build.typecheck_command.clone();

@@ -41,7 +41,7 @@ pub fn run_build(config: &SeamConfig, base_dir: &Path) -> Result<()> {
 fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()> {
   let started = Instant::now();
 
-  ui::banner("build");
+  ui::banner("build", None);
 
   // [1/4] Bundle frontend
   ui::step(1, 4, "Bundling frontend");
@@ -92,7 +92,8 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
   let asset_count = assets.js.len() + assets.css.len();
   ui::ok(&format!("build complete in {elapsed:.1}s"));
   ui::detail(&format!(
-    "{template_count} templates \u{00b7} {asset_count} assets \u{00b7} route-manifest.json"
+    "{template_count} templates \u{00b7} {asset_count} assets \u{00b7} {} \u{00b7} route-manifest.json",
+    build_config.renderer,
   ));
 
   Ok(())
@@ -113,7 +114,7 @@ fn run_fullstack_build(
   let total: u32 = if has_typecheck { 7 } else { 6 };
   let mut step_num: u32 = 0;
 
-  ui::banner("build");
+  ui::banner("build", Some(&config.project.name));
 
   // [1] Compile backend
   step_num += 1;
@@ -195,7 +196,8 @@ fn run_fullstack_build(
   let asset_count = assets.js.len() + assets.css.len();
   ui::ok(&format!("build complete in {elapsed:.1}s"));
   ui::detail(&format!(
-    "{proc_count} procedures \u{00b7} {template_count} templates \u{00b7} {asset_count} assets"
+    "{proc_count} procedures \u{00b7} {template_count} templates \u{00b7} {asset_count} assets \u{00b7} {}",
+    build_config.renderer,
   ));
 
   Ok(())

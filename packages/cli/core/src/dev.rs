@@ -99,10 +99,11 @@ fn print_dev_banner(
   frontend_cmd: Option<&str>,
   use_embedded: bool,
 ) {
-  crate::ui::banner("dev");
+  crate::ui::banner("dev", Some(&config.project.name));
 
   if let Some(cmd) = backend_cmd {
-    println!("  {CYAN}backend{RESET}   {DIM}{cmd}{RESET}");
+    let lang = &config.backend.lang;
+    println!("  {CYAN}backend{RESET}   {DIM}[{lang}]{RESET} {DIM}{cmd}{RESET}");
   }
 
   if let Some(cmd) = frontend_cmd {
