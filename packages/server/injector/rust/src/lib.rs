@@ -6,11 +6,14 @@ mod parser;
 mod render;
 mod token;
 
-use parser::parse;
+pub use parser::{DiagnosticKind, ParseDiagnostic};
+
+use parser::parse_with_diagnostics;
 use render::{inject_attributes, inject_style_attributes, render, RenderContext};
 use token::tokenize;
 
 use serde_json::Value;
+use std::borrow::Cow;
 
 /// Inject data into template and append __SEAM_DATA__ script before </body>.
 pub fn inject(template: &str, data: &Value) -> String {
@@ -29,18 +32,27 @@ pub fn inject(template: &str, data: &Value) -> String {
 
 /// Inject data into template without appending the __SEAM_DATA__ script.
 pub fn inject_no_script(template: &str, data: &Value) -> String {
+  inject_no_script_with_diagnostics(template, data).0
+}
+
+/// Like `inject_no_script` but also returns parse diagnostics for malformed
+/// templates (unmatched block-close, unclosed block-open).
+pub fn inject_no_script_with_diagnostics(
+  template: &str,
+  data: &Value,
+) -> (String, Vec<ParseDiagnostic>) {
   // Null-byte marker safety: Phase B uses \x00SEAM_ATTR_N\x00 / \x00SEAM_STYLE_N\x00
   // as deferred attribute-injection placeholders. HTML spec forbids U+0000, so valid
   // templates never contain them. Strip any stray null bytes from malformed SSR output
   // to prevent marker collisions in the find/indexOf lookups.
-  use std::borrow::Cow;
   let clean: Cow<'_, str> = if template.contains('\0') {
     Cow::Owned(template.replace('\0', ""))
   } else {
     Cow::Borrowed(template)
   };
   let tokens = tokenize(&clean);
-  let ast = parse(&tokens);
+  let mut diagnostics = Vec::new();
+  let ast = parse_with_diagnostics(&tokens, &mut diagnostics);
   let mut ctx = RenderContext { attrs: Vec::new(), style_attrs: Vec::new() };
   let mut result = render(&ast, data, &mut ctx);
 
@@ -54,7 +66,7 @@ pub fn inject_no_script(template: &str, data: &Value) -> String {
     result = inject_attributes(result, &ctx.attrs);
   }
 
-  result
+  (result, diagnostics)
 }
 
 #[cfg(test)]
@@ -643,5 +655,28 @@ mod tests {
     let body_end = html.rfind("</body>").unwrap();
     let script_end = html.rfind("</script>").unwrap();
     assert!(script_end < body_end);
+  }
+
+  // -- Diagnostics integration --
+
+  #[test]
+  fn diagnostics_on_malformed_template() {
+    // Orphan endif + unclosed if via typo
+    let tmpl = "<!--seam:if:show--><p>hi</p><!--seam:endif:shwo-->";
+    let (_, diags) = inject_no_script_with_diagnostics(tmpl, &json!({"show": true}));
+    assert!(!diags.is_empty());
+    let kinds: Vec<_> = diags.iter().map(|d| &d.kind).collect();
+    assert!(kinds.contains(&&DiagnosticKind::UnmatchedBlockClose));
+    assert!(kinds.contains(&&DiagnosticKind::UnclosedBlock));
+  }
+
+  #[test]
+  fn malformed_template_still_renders() {
+    // Even with diagnostics, valid parts render correctly
+    let tmpl = "<h1><!--seam:title--></h1><!--seam:endif:orphan--><p>ok</p>";
+    let (html, diags) = inject_no_script_with_diagnostics(tmpl, &json!({"title": "Hello"}));
+    assert_eq!(html, "<h1>Hello</h1><p>ok</p>");
+    assert_eq!(diags.len(), 1);
+    assert_eq!(diags[0].kind, DiagnosticKind::UnmatchedBlockClose);
   }
 }
