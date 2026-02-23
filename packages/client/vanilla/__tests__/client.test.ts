@@ -111,6 +111,23 @@ describe("call(): errors", () => {
     }
   });
 
+  it("preserves unknown error code from server", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ error: { code: "RATE_LIMITED", message: "too fast" } }, 429),
+    );
+
+    const client = createClient({ baseUrl: "http://localhost:3000" });
+
+    try {
+      await client.call("greet", {});
+    } catch (e) {
+      const err = e as SeamClientError;
+      expect(err.code).toBe("RATE_LIMITED");
+      expect(err.status).toBe(429);
+      expect(err.message).toBe("too fast");
+    }
+  });
+
   it("falls back to INTERNAL_ERROR for non-standard error body", async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse({ unexpected: "shape" }, 500));
 

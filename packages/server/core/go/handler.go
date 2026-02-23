@@ -320,14 +320,10 @@ func writeSSEError(w http.ResponseWriter, e *Error) {
 }
 
 func errorHTTPStatus(e *Error) int {
-	switch e.Code {
-	case "VALIDATION_ERROR":
-		return http.StatusBadRequest
-	case "NOT_FOUND":
-		return http.StatusNotFound
-	default:
-		return http.StatusInternalServerError
+	if e.Status != 0 {
+		return e.Status
 	}
+	return defaultStatus(e.Code)
 }
 
 func mustJSON(v any) string {

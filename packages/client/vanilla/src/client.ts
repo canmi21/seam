@@ -1,7 +1,6 @@
 /* packages/client/vanilla/src/client.ts */
 
 import { SeamClientError } from "./errors.js";
-import type { ErrorCode } from "./errors.js";
 
 export interface ClientOptions {
   baseUrl: string;
@@ -18,12 +17,6 @@ export interface SeamClient {
     onError?: (err: SeamClientError) => void,
   ): Unsubscribe;
   fetchManifest(): Promise<unknown>;
-}
-
-const KNOWN_CODES = new Set<string>(["VALIDATION_ERROR", "NOT_FOUND", "INTERNAL_ERROR"]);
-
-function isKnownCode(code: unknown): code is ErrorCode {
-  return typeof code === "string" && KNOWN_CODES.has(code);
 }
 
 interface ErrorPayload {
@@ -50,7 +43,7 @@ async function request(url: string, init?: RequestInit): Promise<unknown> {
     }
 
     const err = (parsed as ErrorPayload)?.error;
-    const code = isKnownCode(err?.code) ? err.code : "INTERNAL_ERROR";
+    const code = typeof err?.code === "string" ? err.code : "INTERNAL_ERROR";
     const message = typeof err?.message === "string" ? err.message : `HTTP ${res.status}`;
     throw new SeamClientError(code, message, res.status);
   }
@@ -87,7 +80,7 @@ export function createClient(opts: ClientOptions): SeamClient {
         if (e instanceof MessageEvent) {
           try {
             const payload = JSON.parse(e.data as string) as { code?: string; message?: string };
-            const code = isKnownCode(payload.code) ? payload.code : "INTERNAL_ERROR";
+            const code = typeof payload.code === "string" ? payload.code : "INTERNAL_ERROR";
             const message = typeof payload.message === "string" ? payload.message : "SSE error";
             onError?.(new SeamClientError(code, message, 0));
           } catch {

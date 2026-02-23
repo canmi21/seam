@@ -13,22 +13,59 @@ import (
 type Error struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+	Status  int    `json:"-"`
 }
 
 func (e *Error) Error() string {
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
 
+func defaultStatus(code string) int {
+	switch code {
+	case "VALIDATION_ERROR":
+		return http.StatusBadRequest
+	case "UNAUTHORIZED":
+		return http.StatusUnauthorized
+	case "FORBIDDEN":
+		return http.StatusForbidden
+	case "NOT_FOUND":
+		return http.StatusNotFound
+	case "RATE_LIMITED":
+		return http.StatusTooManyRequests
+	case "INTERNAL_ERROR":
+		return http.StatusInternalServerError
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// NewError creates an Error with an explicit HTTP status.
+func NewError(code, message string, status int) *Error {
+	return &Error{Code: code, Message: message, Status: status}
+}
+
 func ValidationError(msg string) *Error {
-	return &Error{Code: "VALIDATION_ERROR", Message: msg}
+	return &Error{Code: "VALIDATION_ERROR", Message: msg, Status: http.StatusBadRequest}
 }
 
 func NotFoundError(msg string) *Error {
-	return &Error{Code: "NOT_FOUND", Message: msg}
+	return &Error{Code: "NOT_FOUND", Message: msg, Status: http.StatusNotFound}
 }
 
 func InternalError(msg string) *Error {
-	return &Error{Code: "INTERNAL_ERROR", Message: msg}
+	return &Error{Code: "INTERNAL_ERROR", Message: msg, Status: http.StatusInternalServerError}
+}
+
+func UnauthorizedError(msg string) *Error {
+	return &Error{Code: "UNAUTHORIZED", Message: msg, Status: http.StatusUnauthorized}
+}
+
+func ForbiddenError(msg string) *Error {
+	return &Error{Code: "FORBIDDEN", Message: msg, Status: http.StatusForbidden}
+}
+
+func RateLimitedError(msg string) *Error {
+	return &Error{Code: "RATE_LIMITED", Message: msg, Status: http.StatusTooManyRequests}
 }
 
 // HandlerFunc processes a raw JSON input and returns a result or error.

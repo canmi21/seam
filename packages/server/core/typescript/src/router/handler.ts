@@ -1,17 +1,10 @@
 /* packages/server/core/typescript/src/router/handler.ts */
 
 import { SeamError } from "../errors.js";
-import type { ErrorCode } from "../errors.js";
 import type { HandleResult, InternalProcedure, InternalSubscription } from "../procedure.js";
 import { validateInput, formatValidationErrors } from "../validation/index.js";
 
 export type { HandleResult, InternalProcedure } from "../procedure.js";
-
-const STATUS_MAP: Record<ErrorCode, number> = {
-  VALIDATION_ERROR: 400,
-  NOT_FOUND: 404,
-  INTERNAL_ERROR: 500,
-};
 
 export async function handleRequest(
   procedures: Map<string, InternalProcedure>,
@@ -52,7 +45,7 @@ export async function handleRequest(
     return { status: 200, body: result };
   } catch (error) {
     if (error instanceof SeamError) {
-      return { status: STATUS_MAP[error.code], body: error.toJSON() };
+      return { status: error.status, body: error.toJSON() };
     }
     const message = error instanceof Error ? error.message : "Unknown error";
     return {

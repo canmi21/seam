@@ -8,11 +8,11 @@ See root CLAUDE.md for general project rules.
 
 | Module         | Responsibility                                                                          |
 | -------------- | --------------------------------------------------------------------------------------- |
-| `server.rs`    | `SeamServer` builder + axum route handlers (manifest, RPC, SSE, page)                   |
+| `server.rs`    | `SeamServer` builder + axum route handlers + `IntoResponse` for `SeamError`             |
 | `procedure.rs` | `ProcedureDef` / `SubscriptionDef` type aliases (`HandlerFn`, `BoxFuture`, `BoxStream`) |
 | `page.rs`      | `PageDef` / `LoaderDef` -- page routes with data loaders that call procedures           |
 | `manifest.rs`  | Builds JSON manifest from registered procedures and subscriptions                       |
-| `errors.rs`    | `SeamError` enum (Validation/NotFound/Internal) implementing axum `IntoResponse`        |
+| `errors.rs`    | `SeamError` struct (open code + status), axum-free                                      |
 | `injector/`    | HTML template engine: tokenize -> parse -> render pipeline                              |
 | `lib.rs`       | Re-exports, `SeamType` trait + primitive JTD schema impls                               |
 

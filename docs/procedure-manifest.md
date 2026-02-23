@@ -208,8 +208,13 @@ All error responses use a consistent envelope:
 | Code               | HTTP Status | Meaning                               |
 | ------------------ | ----------- | ------------------------------------- |
 | `VALIDATION_ERROR` | 400         | Request body failed input validation. |
+| `UNAUTHORIZED`     | 401         | Missing or invalid authentication.    |
+| `FORBIDDEN`        | 403         | Insufficient permissions.             |
 | `NOT_FOUND`        | 404         | Procedure name not found in manifest. |
+| `RATE_LIMITED`     | 429         | Too many requests.                    |
 | `INTERNAL_ERROR`   | 500         | Unhandled error in procedure handler. |
+
+Servers may use any string as an error code. Custom codes default to HTTP 500 unless an explicit status is provided.
 
 ## Complete Example
 

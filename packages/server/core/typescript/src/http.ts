@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { join, extname } from "node:path";
 import type { Router, DefinitionMap } from "./router/index.js";
-import { SeamError, type ErrorCode } from "./errors.js";
+import { SeamError } from "./errors.js";
 import { MIME_TYPES } from "./mime.js";
 
 export interface HttpRequest {
@@ -52,7 +52,7 @@ function jsonResponse(status: number, body: unknown): HttpBodyResponse {
   return { status, headers: JSON_HEADER, body };
 }
 
-function errorResponse(status: number, code: ErrorCode, message: string): HttpBodyResponse {
+function errorResponse(status: number, code: string, message: string): HttpBodyResponse {
   return jsonResponse(status, new SeamError(code, message).toJSON());
 }
 
@@ -85,7 +85,7 @@ export function sseDataEvent(data: unknown): string {
 }
 
 /** Format an SSE error event */
-export function sseErrorEvent(code: ErrorCode, message: string): string {
+export function sseErrorEvent(code: string, message: string): string {
   return `event: error\ndata: ${JSON.stringify({ code, message })}\n\n`;
 }
 

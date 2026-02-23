@@ -9,7 +9,7 @@ Rust implementation of the SeamJS server core, defining procedures, subscription
 - `src/procedure.rs` — `ProcedureDef` / `SubscriptionDef` type aliases
 - `src/page.rs` — `PageDef` / `LoaderDef` types
 - `src/manifest.rs` — Build JSON manifest from procedure and subscription definitions
-- `src/errors.rs` — `SeamError` enum
+- `src/errors.rs` — `SeamError` struct (open code + status)
 - `src/injector/` — HTML template engine (tokenize, parse, render)
 
 ## Template Directives

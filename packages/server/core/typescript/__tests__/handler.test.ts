@@ -102,6 +102,25 @@ describe("handleRequest: errors", () => {
     });
   });
 
+  it("propagates custom error code with correct status", async () => {
+    const { SeamError } = await import("../src/errors.js");
+    const procs = makeProcedures([
+      "greet",
+      {
+        inputSchema: greetInputSchema._schema,
+        outputSchema: greetOutputSchema._schema,
+        handler: () => {
+          throw new SeamError("RATE_LIMITED", "too fast", 429);
+        },
+      },
+    ]);
+    const result = await handleRequest(procs, "greet", { name: "Alice" });
+    expect(result.status).toBe(429);
+    expect(result.body).toEqual({
+      error: { code: "RATE_LIMITED", message: "too fast" },
+    });
+  });
+
   it("returns 500 for non-Error throws", async () => {
     const procs = makeProcedures([
       "greet",

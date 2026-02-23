@@ -1,12 +1,19 @@
 /* packages/client/vanilla/src/errors.ts */
 
-export type ErrorCode = "VALIDATION_ERROR" | "NOT_FOUND" | "INTERNAL_ERROR";
+export type ErrorCode =
+  | "VALIDATION_ERROR"
+  | "NOT_FOUND"
+  | "UNAUTHORIZED"
+  | "FORBIDDEN"
+  | "RATE_LIMITED"
+  | "INTERNAL_ERROR"
+  | (string & {});
 
 export class SeamClientError extends Error {
-  readonly code: ErrorCode;
+  readonly code: string;
   readonly status: number;
 
-  constructor(code: ErrorCode, message: string, status: number) {
+  constructor(code: string, message: string, status: number) {
     super(message);
     this.code = code;
     this.status = status;

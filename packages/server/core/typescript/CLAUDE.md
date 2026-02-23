@@ -13,7 +13,7 @@ src/
   proxy.ts          -- createDevProxy (forward to Vite), createStaticHandler
   procedure.ts      -- Internal types: InternalProcedure, InternalSubscription, HandleResult
   subscription.ts   -- fromCallback: bridge callback event sources to AsyncGenerator
-  errors.ts         -- SeamError class with error codes
+  errors.ts         -- SeamError class with open error codes + status, DEFAULT_STATUS map
   mime.ts            -- MIME_TYPES lookup table
   types/
     schema.ts       -- SchemaNode<T> wrapper around JTD Schema (phantom type)

@@ -6,8 +6,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::extract::{MatchedPath, Path, Query, State};
+use axum::http::StatusCode;
 use axum::response::sse::{Event, Sse};
-use axum::response::{Html, IntoResponse};
+use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use futures_core::Stream;
@@ -96,6 +97,19 @@ impl Default for SeamServer {
   }
 }
 
+impl IntoResponse for SeamError {
+  fn into_response(self) -> Response {
+    let status = StatusCode::from_u16(self.status()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+    let body = serde_json::json!({
+      "error": {
+        "code": self.code(),
+        "message": self.message(),
+      }
+    });
+    (status, axum::Json(body)).into_response()
+  }
+}
+
 async fn handle_manifest(State(state): State<Arc<AppState>>) -> impl IntoResponse {
   axum::Json(state.manifest_json.clone())
 }
@@ -151,7 +165,7 @@ async fn handle_subscribe(
             Ok(Event::default().event("data").data(data))
           }
           Err(e) => {
-            let payload = serde_json::json!({ "code": e.to_string().split(':').next().unwrap_or("INTERNAL_ERROR"), "message": e.to_string() });
+            let payload = serde_json::json!({ "code": e.code(), "message": e.message() });
             Ok(Event::default().event("error").data(payload.to_string()))
           }
         })
@@ -159,12 +173,7 @@ async fn handle_subscribe(
       Sse::new(Box::pin(event_stream))
     }
     Err(err) => {
-      let (code, message) = match &err {
-        SeamError::Validation(m) => ("VALIDATION_ERROR", m.as_str()),
-        SeamError::NotFound(m) => ("NOT_FOUND", m.as_str()),
-        SeamError::Internal(m) => ("INTERNAL_ERROR", m.as_str()),
-      };
-      let payload = serde_json::json!({ "code": code, "message": message });
+      let payload = serde_json::json!({ "code": err.code(), "message": err.message() });
       let error_event = Event::default().event("error").data(payload.to_string());
       Sse::new(Box::pin(tokio_stream::once(Ok(error_event))))
     }
