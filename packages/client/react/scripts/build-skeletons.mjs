@@ -12,7 +12,12 @@ import {
   cartesianProduct,
   buildVariantSentinel,
 } from "./variant-generator.mjs";
-import { generateMockFromSchema, flattenLoaderMock, deepMerge } from "./mock-generator.mjs";
+import {
+  generateMockFromSchema,
+  flattenLoaderMock,
+  deepMerge,
+  collectHtmlPaths,
+} from "./mock-generator.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -200,8 +205,9 @@ function resolveRouteMock(route, manifest) {
 
 function renderRoute(route, manifest) {
   const mock = resolveRouteMock(route, manifest);
-  const baseSentinel = buildSentinelData(mock);
   const pageSchema = buildPageSchema(route, manifest);
+  const htmlPaths = pageSchema ? collectHtmlPaths(pageSchema) : new Set();
+  const baseSentinel = buildSentinelData(mock, "", htmlPaths);
   const axes = pageSchema ? collectStructuralAxes(pageSchema, mock) : [];
   const combos = cartesianProduct(axes);
 
@@ -276,7 +282,10 @@ function resolveLayoutMock(entry, manifest) {
 /** Render layout with seam-outlet placeholder, optionally with sentinel data */
 function renderLayout(LayoutComponent, id, entry, manifest) {
   const mock = resolveLayoutMock(entry, manifest);
-  const data = Object.keys(mock).length > 0 ? buildSentinelData(mock) : {};
+  const schema =
+    Object.keys(entry.loaders || {}).length > 0 ? buildPageSchema(entry, manifest) : null;
+  const htmlPaths = schema ? collectHtmlPaths(schema) : new Set();
+  const data = Object.keys(mock).length > 0 ? buildSentinelData(mock, "", htmlPaths) : {};
   function LayoutWithOutlet() {
     return createElement(LayoutComponent, null, createElement("seam-outlet", null));
   }

@@ -5,6 +5,7 @@ import {
   generateMockFromSchema,
   flattenLoaderMock,
   deepMerge,
+  collectHtmlPaths,
 } from "../../scripts/mock-generator.mjs";
 
 // -- generateMockFromSchema: primitives --
@@ -281,5 +282,108 @@ describe("deepMerge", () => {
 
   it("replaces object base with primitive override", () => {
     expect(deepMerge({ a: 1 }, 42)).toBe(42);
+  });
+});
+
+// -- generateMockFromSchema: html format --
+
+describe("generateMockFromSchema - html format", () => {
+  it("returns sample HTML for string with html metadata", () => {
+    const schema = { type: "string", metadata: { format: "html" } };
+    expect(generateMockFromSchema(schema, "content")).toBe("<p>Sample HTML content</p>");
+  });
+
+  it("returns sample HTML for nullable html string", () => {
+    const schema = { nullable: true, type: "string", metadata: { format: "html" } };
+    expect(generateMockFromSchema(schema, "body")).toBe("<p>Sample HTML content</p>");
+  });
+
+  it("returns plain string for non-html metadata", () => {
+    const schema = { type: "string", metadata: { format: "uri" } };
+    expect(generateMockFromSchema(schema, "link")).toBe("Sample Link");
+  });
+});
+
+// -- collectHtmlPaths --
+
+describe("collectHtmlPaths", () => {
+  it("collects path for flat html field", () => {
+    const schema = {
+      properties: {
+        content: { type: "string", metadata: { format: "html" } },
+        title: { type: "string" },
+      },
+    };
+    const paths = collectHtmlPaths(schema);
+    expect(paths.has("content")).toBe(true);
+    expect(paths.has("title")).toBe(false);
+  });
+
+  it("collects nested html paths", () => {
+    const schema = {
+      properties: {
+        post: {
+          properties: {
+            body: { type: "string", metadata: { format: "html" } },
+            title: { type: "string" },
+          },
+        },
+      },
+    };
+    const paths = collectHtmlPaths(schema);
+    expect(paths.has("post.body")).toBe(true);
+    expect(paths.has("post.title")).toBe(false);
+  });
+
+  it("collects html paths inside array elements", () => {
+    const schema = {
+      properties: {
+        items: {
+          elements: {
+            properties: {
+              desc: { type: "string", metadata: { format: "html" } },
+            },
+          },
+        },
+      },
+    };
+    const paths = collectHtmlPaths(schema);
+    expect(paths.has("items.$.desc")).toBe(true);
+  });
+
+  it("handles nullable wrapper", () => {
+    const schema = {
+      properties: {
+        bio: { nullable: true, type: "string", metadata: { format: "html" } },
+      },
+    };
+    const paths = collectHtmlPaths(schema);
+    expect(paths.has("bio")).toBe(true);
+  });
+
+  it("adds flattened paths (strip first segment)", () => {
+    const schema = {
+      properties: {
+        getPost: {
+          properties: {
+            body: { type: "string", metadata: { format: "html" } },
+          },
+        },
+      },
+    };
+    const paths = collectHtmlPaths(schema);
+    expect(paths.has("getPost.body")).toBe(true);
+    expect(paths.has("body")).toBe(true);
+  });
+
+  it("returns empty set when no html fields", () => {
+    const schema = {
+      properties: {
+        name: { type: "string" },
+        count: { type: "uint32" },
+      },
+    };
+    const paths = collectHtmlPaths(schema);
+    expect(paths.size).toBe(0);
   });
 });

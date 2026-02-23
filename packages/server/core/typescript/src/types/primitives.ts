@@ -46,3 +46,7 @@ export function float64(): SchemaNode<number> {
 export function timestamp(): SchemaNode<string> {
   return createSchemaNode<string>({ type: "timestamp" });
 }
+
+export function html(): SchemaNode<string> {
+  return createSchemaNode<string>({ type: "string", metadata: { format: "html" } });
+}

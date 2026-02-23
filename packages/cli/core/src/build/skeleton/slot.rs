@@ -362,4 +362,10 @@ mod tests {
     assert!(result.contains("<!--seam:body-->"));
     assert!(!result.contains("%%SEAM:"));
   }
+
+  #[test]
+  fn html_suffix_preserved() {
+    let html = "<div>%%SEAM:content:html%%</div>";
+    assert_eq!(sentinel_to_slots(html), "<div><!--seam:content:html--></div>");
+  }
 }

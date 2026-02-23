@@ -92,6 +92,39 @@ describe("buildSentinelData", () => {
       active: "%%SEAM:active%%",
     });
   });
+
+  it("appends :html suffix for paths in htmlPaths set", () => {
+    const result = buildSentinelData({ title: "text", body: "<p>html</p>" }, "", new Set(["body"]));
+    expect(result).toEqual({
+      title: "%%SEAM:title%%",
+      body: "%%SEAM:body:html%%",
+    });
+  });
+
+  it("appends :html suffix for nested paths", () => {
+    const result = buildSentinelData(
+      { post: { title: "text", content: "<p>html</p>" } },
+      "",
+      new Set(["post.content"]),
+    );
+    expect(result).toEqual({
+      post: {
+        title: "%%SEAM:post.title%%",
+        content: "%%SEAM:post.content:html%%",
+      },
+    });
+  });
+
+  it("appends :html suffix for array element paths", () => {
+    const result = buildSentinelData(
+      { items: [{ name: "text", body: "<p>html</p>" }] },
+      "",
+      new Set(["items.$.body"]),
+    );
+    expect(result).toEqual({
+      items: [{ name: "%%SEAM:items.$.name%%", body: "%%SEAM:items.$.body:html%%" }],
+    });
+  });
 });
 
 describe("build-skeletons.mjs integration", () => {

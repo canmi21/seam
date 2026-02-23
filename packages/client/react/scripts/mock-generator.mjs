@@ -41,6 +41,11 @@ export function generateMockFromSchema(schema, fieldPath = "") {
     return generateMockFromSchema(inner, fieldPath);
   }
 
+  // HTML format: return sample HTML content instead of plain text
+  if (schema.type === "string" && schema.metadata?.format === "html") {
+    return "<p>Sample HTML content</p>";
+  }
+
   // Primitive type forms
   if (schema.type) {
     switch (schema.type) {
@@ -162,4 +167,60 @@ export function deepMerge(base, override) {
     }
   }
   return result;
+}
+
+/**
+ * Recursively walk a JTD schema collecting dot-separated paths
+ * where metadata.format === "html".
+ * Returns a Set including both full paths and flattened paths
+ * (first segment stripped) to match flattenLoaderMock behavior.
+ * @param {object} schema - page-level JTD schema
+ * @returns {Set<string>}
+ */
+export function collectHtmlPaths(schema) {
+  const paths = new Set();
+
+  function walk(node, prefix) {
+    if (!node || typeof node !== "object") return;
+
+    if (node.nullable) {
+      const inner = { ...node };
+      delete inner.nullable;
+      walk(inner, prefix);
+      return;
+    }
+
+    if (node.type === "string" && node.metadata?.format === "html") {
+      paths.add(prefix);
+      return;
+    }
+
+    if (node.properties || node.optionalProperties) {
+      for (const [key, sub] of Object.entries(node.properties || {})) {
+        walk(sub, prefix ? `${prefix}.${key}` : key);
+      }
+      for (const [key, sub] of Object.entries(node.optionalProperties || {})) {
+        walk(sub, prefix ? `${prefix}.${key}` : key);
+      }
+      return;
+    }
+
+    if (node.elements) {
+      walk(node.elements, prefix ? `${prefix}.$` : "$");
+      return;
+    }
+  }
+
+  walk(schema, "");
+
+  // Add flattened paths (strip first segment) to match flattenLoaderMock
+  const flattened = new Set(paths);
+  for (const p of paths) {
+    const dot = p.indexOf(".");
+    if (dot !== -1) {
+      flattened.add(p.slice(dot + 1));
+    }
+  }
+
+  return flattened;
 }

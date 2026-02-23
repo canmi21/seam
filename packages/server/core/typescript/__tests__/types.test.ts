@@ -47,6 +47,10 @@ describe("primitive types", () => {
   it("t.timestamp() produces JTD type schema", () => {
     expect(t.timestamp()._schema).toEqual({ type: "timestamp" });
   });
+
+  it("t.html() produces JTD string schema with html metadata", () => {
+    expect(t.html()._schema).toEqual({ type: "string", metadata: { format: "html" } });
+  });
 });
 
 describe("composite types", () => {
