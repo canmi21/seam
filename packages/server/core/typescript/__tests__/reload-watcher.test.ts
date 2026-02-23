@@ -66,14 +66,17 @@ describe("watchReloadTrigger", () => {
     try {
       // Create the trigger file after watcher is set up
       writeFileSync(triggerPath, "1");
-      await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, 300));
 
-      // Dir watcher detects creation, then file watcher is attached.
-      // Mutate again to test the file watcher that was attached on detection.
-      writeFileSync(triggerPath, "2");
-      await new Promise((r) => setTimeout(r, 200));
-
+      // First creation must fire onReload immediately (the first-reload fix)
       expect(reloads.length).toBeGreaterThanOrEqual(1);
+      const countAfterFirstCreate = reloads.length;
+
+      // Subsequent writes go through the file watcher
+      writeFileSync(triggerPath, "2");
+      await new Promise((r) => setTimeout(r, 300));
+
+      expect(reloads.length).toBeGreaterThan(countAfterFirstCreate);
     } finally {
       watcher.close();
       rmSync(freshDir, { recursive: true, force: true });

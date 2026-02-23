@@ -18,6 +18,8 @@ export function watchReloadTrigger(distDir: string, onReload: () => void): Reloa
       if (filename === ".reload-trigger") {
         dirWatcher.close();
         watcher = watch(triggerPath, () => onReload());
+        // First creation IS the reload signal -- fire immediately
+        onReload();
       }
     });
     return {
