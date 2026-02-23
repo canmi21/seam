@@ -29,7 +29,17 @@ pub fn inject(template: &str, data: &Value) -> String {
 
 /// Inject data into template without appending the __SEAM_DATA__ script.
 pub fn inject_no_script(template: &str, data: &Value) -> String {
-  let tokens = tokenize(template);
+  // Null-byte marker safety: Phase B uses \x00SEAM_ATTR_N\x00 / \x00SEAM_STYLE_N\x00
+  // as deferred attribute-injection placeholders. HTML spec forbids U+0000, so valid
+  // templates never contain them. Strip any stray null bytes from malformed SSR output
+  // to prevent marker collisions in the find/indexOf lookups.
+  use std::borrow::Cow;
+  let clean: Cow<'_, str> = if template.contains('\0') {
+    Cow::Owned(template.replace('\0', ""))
+  } else {
+    Cow::Borrowed(template)
+  };
+  let tokens = tokenize(&clean);
   let ast = parse(&tokens);
   let mut ctx = RenderContext { attrs: Vec::new(), style_attrs: Vec::new() };
   let mut result = render(&ast, data, &mut ctx);
@@ -586,6 +596,22 @@ mod tests {
     // but stringify produces empty string which still gets injected)
     let html = inject_no_script("<!--seam:v:attr:class--><div>hi</div>", &json!({"v": null}));
     assert_eq!(html, r#"<div class="">hi</div>"#);
+  }
+
+  // -- Null-byte safety --
+
+  #[test]
+  fn null_byte_in_template_stripped() {
+    // Null bytes near seam directives should be stripped, leaving injection intact
+    let html = inject_no_script("<p>\x00<!--seam:name-->\x00</p>", &json!({"name": "Alice"}));
+    assert_eq!(html, "<p>Alice</p>");
+  }
+
+  #[test]
+  fn null_byte_in_attr_template_stripped() {
+    let html =
+      inject_no_script("\x00<!--seam:cls:attr:class--><div>hi</div>", &json!({"cls": "active"}));
+    assert_eq!(html, r#"<div class="active">hi</div>"#);
   }
 
   #[test]

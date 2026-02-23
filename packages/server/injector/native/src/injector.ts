@@ -470,7 +470,12 @@ export function inject(
   data: Record<string, unknown>,
   options?: InjectOptions,
 ): string {
-  const tokens = tokenize(template);
+  // Null-byte marker safety: Phase B uses \x00SEAM_ATTR_N\x00 / \x00SEAM_STYLE_N\x00
+  // as deferred attribute-injection placeholders. HTML spec forbids U+0000, so valid
+  // templates never contain them. Strip any stray null bytes from malformed SSR output
+  // to prevent marker collisions in the indexOf lookups.
+  const clean = template.includes("\x00") ? template.replaceAll("\x00", "") : template;
+  const tokens = tokenize(clean);
   const ast = parse(tokens);
   const attrs: AttrEntry[] = [];
   const styleAttrs: StyleAttrEntry[] = [];

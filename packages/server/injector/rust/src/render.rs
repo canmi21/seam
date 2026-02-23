@@ -45,6 +45,9 @@ pub(crate) fn render(nodes: &[AstNode], data: &Value, ctx: &mut RenderContext) -
 
       AstNode::Attr { path, attr_name } => {
         if let Some(value) = resolve(path, data) {
+          // Null-byte delimited markers (\x00SEAM_ATTR_N\x00) are collected here and
+          // resolved in Phase B (inject_attributes). Null bytes are safe delimiters
+          // because the HTML spec forbids U+0000 and we strip them from input.
           if is_html_boolean_attr(attr_name) {
             // Boolean HTML attrs: truthy -> attr="", falsy -> omit
             if is_truthy(value) {

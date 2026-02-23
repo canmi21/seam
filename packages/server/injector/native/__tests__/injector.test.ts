@@ -366,6 +366,26 @@ describe("match/when/endmatch", () => {
   });
 });
 
+describe("null-byte safety", () => {
+  it("strips null bytes from template before injection", () => {
+    const html = inject(
+      "<p>\x00<!--seam:name-->\x00</p>",
+      { name: "Alice" },
+      { skipDataScript: true },
+    );
+    expect(html).toBe("<p>Alice</p>");
+  });
+
+  it("strips null bytes near attr directives", () => {
+    const html = inject(
+      "\x00<!--seam:cls:attr:class--><div>hi</div>",
+      { cls: "active" },
+      { skipDataScript: true },
+    );
+    expect(html).toBe('<div class="active">hi</div>');
+  });
+});
+
 describe("__SEAM_DATA__ script", () => {
   it("inserts before </body>", () => {
     const html = inject("<body><p>hi</p></body>", { x: 1 });
