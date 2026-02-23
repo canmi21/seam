@@ -20,7 +20,8 @@
     "examples/github-dashboard/shared",
     "examples/github-dashboard/seam-app",
     "examples/github-dashboard/next-app",
-    "tests/e2e/fixture"
+    "tests/e2e/fixture",
+    "tests/e2e"
   ],
   "type": "module",
   "scripts": {
