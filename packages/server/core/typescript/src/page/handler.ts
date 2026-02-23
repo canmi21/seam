@@ -3,7 +3,7 @@
 import { inject, escapeHtml } from "@canmi/seam-injector";
 import { SeamError } from "../errors.js";
 import type { InternalProcedure } from "../procedure.js";
-import type { PageDef } from "./index.js";
+import type { PageDef, LayoutDef } from "./index.js";
 
 export interface PageTiming {
   /** Procedure execution time in milliseconds */
@@ -15,7 +15,7 @@ export interface PageTiming {
 export interface HandlePageResult {
   status: number;
   html: string;
-  timing: PageTiming;
+  timing?: PageTiming;
 }
 
 export async function handlePageRequest(
@@ -26,44 +26,100 @@ export async function handlePageRequest(
   try {
     const t0 = performance.now();
 
-    const entries = Object.entries(page.loaders);
-    const results = await Promise.all(
-      entries.map(async ([key, loader]) => {
+    // Collect all loaders from layout chain + page, execute in parallel
+    const layoutEntries: { layout: LayoutDef; entries: [string, unknown][] }[] = [];
+    const allPromises: Promise<{ source: "layout"; layoutIdx: number; key: string; result: unknown } | { source: "page"; key: string; result: unknown }>[] = [];
+
+    for (let i = 0; i < page.layoutChain.length; i++) {
+      const layout = page.layoutChain[i];
+      layoutEntries.push({ layout, entries: [] });
+      for (const [key, loader] of Object.entries(layout.loaders)) {
         const { procedure, input } = loader(params);
         const proc = procedures.get(procedure);
         if (!proc) throw new SeamError("INTERNAL_ERROR", `Procedure '${procedure}' not found`);
-        // Skip JTD validation -- loader input is trusted server-side code
-        const result = await proc.handler({ input });
-        return [key, result] as const;
-      }),
-    );
+        allPromises.push(
+          proc.handler({ input }).then((result) => ({ source: "layout" as const, layoutIdx: i, key, result })),
+        );
+      }
+    }
+
+    for (const [key, loader] of Object.entries(page.loaders)) {
+      const { procedure, input } = loader(params);
+      const proc = procedures.get(procedure);
+      if (!proc) throw new SeamError("INTERNAL_ERROR", `Procedure '${procedure}' not found`);
+      allPromises.push(
+        proc.handler({ input }).then((result) => ({ source: "page" as const, key, result })),
+      );
+    }
+
+    const results = await Promise.all(allPromises);
 
     const t1 = performance.now();
 
-    // Build keyed data (e.g. { page: { ... } }) for __SEAM_DATA__,
-    // and merge loader results flat for template slot resolution.
-    const keyed = Object.fromEntries(results);
-    const merged: Record<string, unknown> = { ...keyed };
-    for (const [, value] of results) {
-      if (value && typeof value === "object" && !Array.isArray(value)) {
-        Object.assign(merged, value as Record<string, unknown>);
+    // Partition results into layout-keyed and page-keyed
+    const layoutKeyed: Record<string, Record<string, unknown>> = {};
+    const pageKeyed: Record<string, unknown> = {};
+
+    for (const r of results) {
+      if (r.source === "layout") {
+        const layoutId = page.layoutChain[r.layoutIdx].id;
+        if (!layoutKeyed[layoutId]) layoutKeyed[layoutId] = {};
+        layoutKeyed[layoutId][r.key] = r.result;
+      } else {
+        pageKeyed[r.key] = r.result;
       }
     }
-    // Render template with merged (flattened) data for slot resolution,
-    // but inject keyed-only data into __SEAM_DATA__ for the client.
-    // Compose layout + page fragment
-    let fullTemplate = page.template;
-    if (page.layoutTemplate) {
-      fullTemplate = page.layoutTemplate.replace("<!--seam:outlet-->", page.template);
+
+    // Inject page template with page merged data
+    const pageMerged: Record<string, unknown> = { ...pageKeyed };
+    for (const value of Object.values(pageKeyed)) {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        Object.assign(pageMerged, value as Record<string, unknown>);
+      }
+    }
+    let innerContent = inject(page.template, pageMerged, { skipDataScript: true });
+
+    // Compose layouts from innermost to outermost
+    for (let i = page.layoutChain.length - 1; i >= 0; i--) {
+      const layout = page.layoutChain[i];
+      const layoutData = layoutKeyed[layout.id] ?? {};
+
+      // Flatten layout data for slot resolution
+      const layoutMerged: Record<string, unknown> = { ...layoutData };
+      for (const value of Object.values(layoutData)) {
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+          Object.assign(layoutMerged, value as Record<string, unknown>);
+        }
+      }
+
+      // Split template on <!--seam:outlet--> to avoid inject eating the marker
+      const outletMarker = "<!--seam:outlet-->";
+      const outletIdx = layout.template.indexOf(outletMarker);
+      if (outletIdx === -1) {
+        // No outlet — inject the whole template (unusual but safe)
+        innerContent = inject(layout.template, layoutMerged, { skipDataScript: true });
+      } else {
+        const before = layout.template.slice(0, outletIdx);
+        const after = layout.template.slice(outletIdx + outletMarker.length);
+        const injectedBefore = inject(before, layoutMerged, { skipDataScript: true });
+        const injectedAfter = inject(after, layoutMerged, { skipDataScript: true });
+        innerContent = injectedBefore + innerContent + injectedAfter;
+      }
     }
 
-    let html = inject(fullTemplate, merged, { skipDataScript: true });
-    const script = `<script id="__SEAM_DATA__" type="application/json">${JSON.stringify(keyed)}</script>`;
-    const bodyClose = html.lastIndexOf("</body>");
+    // Build __SEAM_DATA__: layout data under _layouts key, page data at top level
+    const seamData: Record<string, unknown> = { ...pageKeyed };
+    if (Object.keys(layoutKeyed).length > 0) {
+      seamData._layouts = layoutKeyed;
+    }
+
+    const script = `<script id="__SEAM_DATA__" type="application/json">${JSON.stringify(seamData)}</script>`;
+    const bodyClose = innerContent.lastIndexOf("</body>");
+    let html: string;
     if (bodyClose !== -1) {
-      html = html.slice(0, bodyClose) + script + html.slice(bodyClose);
+      html = innerContent.slice(0, bodyClose) + script + innerContent.slice(bodyClose);
     } else {
-      html += script;
+      html = innerContent + script;
     }
 
     const t2 = performance.now();

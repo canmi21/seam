@@ -36,5 +36,7 @@ export interface SeamInitialData {
   path: string | null;
   params: Record<string, string>;
   data: Record<string, unknown>;
+  layouts: Record<string, Record<string, unknown>>;
   consumed: boolean;
+  consumedLayouts: Set<string>;
 }

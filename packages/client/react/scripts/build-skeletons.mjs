@@ -234,27 +234,35 @@ function toLayoutId(path) {
     : `_layout_${path.replace(/^\/|\/$/g, "").replace(/\//g, "-")}`;
 }
 
-/** Extract layout components from route tree */
+/** Extract layout components and metadata from route tree */
 function extractLayouts(routes) {
   const seen = new Map();
-  (function walk(defs) {
+  (function walk(defs, parentId) {
     for (const def of defs) {
       if (def.layout && def.children) {
         const id = toLayoutId(def.path);
-        if (!seen.has(id)) seen.set(id, def.layout);
-        walk(def.children);
+        if (!seen.has(id)) {
+          seen.set(id, {
+            component: def.layout,
+            loaders: def.loaders || {},
+            mock: def.mock || null,
+            parentId: parentId || null,
+          });
+        }
+        walk(def.children, id);
       }
     }
-  })(routes);
+  })(routes, null);
   return seen;
 }
 
-/** Render layout with seam-outlet placeholder */
-function renderLayout(LayoutComponent, id) {
+/** Render layout with seam-outlet placeholder, optionally with sentinel data */
+function renderLayout(LayoutComponent, id, mock) {
+  const data = mock ? buildSentinelData(mock) : {};
   function LayoutWithOutlet() {
     return createElement(LayoutComponent, null, createElement("seam-outlet", null));
   }
-  return guardedRender(`layout:${id}`, LayoutWithOutlet, {});
+  return guardedRender(`layout:${id}`, LayoutWithOutlet, data);
 }
 
 /** Flatten routes, annotating each leaf with its parent layout id */
@@ -314,9 +322,11 @@ async function main() {
     }
 
     const layoutMap = extractLayouts(routes);
-    const layouts = [...layoutMap.entries()].map(([id, component]) => ({
+    const layouts = [...layoutMap.entries()].map(([id, entry]) => ({
       id,
-      html: renderLayout(component, id),
+      html: renderLayout(entry.component, id, entry.mock),
+      loaders: entry.loaders,
+      parent: entry.parentId,
     }));
     const flat = flattenRoutes(routes);
     const output = {

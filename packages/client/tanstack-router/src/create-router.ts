@@ -10,7 +10,7 @@ import type { ComponentType } from "react";
 import { seamRpc } from "@canmi/seam-client";
 import type { RouteDef } from "@canmi/seam-react";
 import { parseSeamData } from "@canmi/seam-react";
-import { SeamOutlet, createLayoutWrapper } from "./seam-outlet.js";
+import { SeamOutlet, createLayoutWrapper, createPageWrapper } from "./seam-outlet.js";
 import { convertPath } from "./convert-routes.js";
 import { createLoaderFromDefs } from "./create-loader.js";
 import { matchSeamRoute } from "./route-matcher.js";
@@ -40,20 +40,24 @@ function buildRoutes(
       // after TanStack Router's joinPaths + cleanPath normalization.
       const segment =
         def.path === "/" ? "root" : def.path.replace(/^\/|\/$/g, "").replace(/\//g, "-");
+      const layoutId = `_layout_${segment}`;
+      const hasLoaders = def.loaders && Object.keys(def.loaders).length > 0;
       const layoutRoute = createRoute({
         getParentRoute: () => parent,
-        id: `_layout_${segment}`,
-        component: createLayoutWrapper(def.layout),
+        id: layoutId,
+        component: createLayoutWrapper(def.layout, hasLoaders),
+        loader: hasLoaders ? createLoaderFromDefs(def.loaders!, def.path, layoutId) : undefined,
       });
       const children = buildRoutes(def.children, layoutRoute, pages);
       return layoutRoute.addChildren(children);
     }
 
-    // Leaf node — page route
+    // Leaf node — page route, wrapped with SeamDataProvider for scoped useSeamData()
+    const pageComponent = pages?.[def.path] ?? (def.component as ComponentType);
     return createRoute({
       getParentRoute: () => parent,
       path: convertPath(def.path),
-      component: pages?.[def.path] ?? (def.component as ComponentType),
+      component: createPageWrapper(pageComponent),
       loader: def.clientLoader
         ? ({ params, context }) =>
             def.clientLoader!({
@@ -70,14 +74,21 @@ export function createSeamRouter(opts: SeamRouterOptions) {
 
   // Parse initial data from __SEAM_DATA__ (browser only)
   let initialData: Record<string, unknown> | null = null;
+  let initialLayouts: Record<string, Record<string, unknown>> = {};
   let initialPath: string | null = null;
   let initialParams: Record<string, string> = {};
 
   if (typeof document !== "undefined") {
     try {
       const raw = parseSeamData();
+      // Extract layout data stored under _layouts key
+      if (raw._layouts && typeof raw._layouts === "object") {
+        initialLayouts = raw._layouts as Record<string, Record<string, unknown>>;
+      }
+      // Page data is everything except _layouts
+      const { _layouts: _, ...pageData } = raw;
       // Unwrap: single "page" loader gets flattened
-      initialData = raw.page ?? raw;
+      initialData = pageData.page ?? pageData;
       const matched = matchSeamRoute(collectLeafPaths(routes), window.location.pathname);
       if (matched) {
         initialPath = matched.path;
@@ -100,7 +111,14 @@ export function createSeamRouter(opts: SeamRouterOptions) {
   const context: SeamRouterContext = {
     seamRpc,
     _seamInitial: initialData
-      ? { path: initialPath, params: initialParams, data: initialData, consumed: false }
+      ? {
+          path: initialPath,
+          params: initialParams,
+          data: initialData,
+          layouts: initialLayouts,
+          consumed: false,
+          consumedLayouts: new Set(),
+        }
       : null,
   };
 
