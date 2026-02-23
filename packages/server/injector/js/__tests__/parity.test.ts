@@ -2,10 +2,8 @@
 
 import { describe, expect, it } from "vitest";
 import { inject, escapeHtml } from "../src/index.js";
-import {
-  inject as nativeInject,
-  escapeHtml as nativeEscapeHtml,
-} from "@canmi/seam-injector-native";
+// Import from source to avoid requiring a build before test
+import { inject as nativeInject, escapeHtml as nativeEscapeHtml } from "../../native/src/index.js";
 
 const fixtures = [
   {
