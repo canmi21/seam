@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 
@@ -28,18 +27,10 @@ func main() {
 	r.Subscription(subscriptions.OnCount())
 	r.Page(pages.UserPage())
 
-	http.Handle("/_seam/", r.Handler())
+	mux := http.NewServeMux()
+	mux.Handle("/_seam/", r.Handler())
 
-	addr := "0.0.0.0:" + port
-	ln, err := net.Listen("tcp", addr)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to listen: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Print actual port for integration test discovery
-	fmt.Printf("Seam Go backend running on http://localhost:%d\n", ln.Addr().(*net.TCPAddr).Port)
-	if err := http.Serve(ln, nil); err != nil {
+	if err := seam.ListenAndServe("0.0.0.0:"+port, mux); err != nil {
 		fmt.Fprintf(os.Stderr, "server error: %v\n", err)
 		os.Exit(1)
 	}

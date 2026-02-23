@@ -3,6 +3,7 @@
 package seam
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	injector "github.com/canmi21/seam/packages/server/injector/go"
 )
@@ -18,12 +20,14 @@ type appState struct {
 	manifestJSON []byte
 	handlers     map[string]*ProcedureDef
 	subs         map[string]*SubscriptionDef
+	opts         HandlerOptions
 }
 
-func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef) http.Handler {
+func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef, opts HandlerOptions) http.Handler {
 	state := &appState{
 		handlers: make(map[string]*ProcedureDef),
 		subs:     make(map[string]*SubscriptionDef),
+		opts:     opts,
 	}
 
 	// Build manifest
@@ -123,8 +127,19 @@ func (s *appState) handleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := proc.Handler(r.Context(), body)
+	ctx := r.Context()
+	if s.opts.RPCTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.opts.RPCTimeout)
+		defer cancel()
+	}
+
+	result, err := proc.Handler(ctx, body)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			writeError(w, http.StatusGatewayTimeout, NewError("INTERNAL_ERROR", "RPC timed out", http.StatusGatewayTimeout))
+			return
+		}
 		if seamErr, ok := err.(*Error); ok {
 			status := errorHTTPStatus(seamErr)
 			writeError(w, status, seamErr)
@@ -172,20 +187,37 @@ func (s *appState) handleSubscribe(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 
 	flusher, canFlush := w.(http.Flusher)
+	idle := s.opts.SSEIdleTimeout
 
-	for ev := range ch {
-		if ev.Err != nil {
-			fmt.Fprintf(w, "event: error\ndata: %s\n\n", mustJSON(map[string]string{
-				"code": ev.Err.Code, "message": ev.Err.Message,
-			}))
+	for {
+		if idle > 0 {
+			select {
+			case ev, ok := <-ch:
+				if !ok {
+					goto complete
+				}
+				writeSSEEvent(w, ev)
+				if canFlush {
+					flusher.Flush()
+				}
+			case <-time.After(idle):
+				goto complete
+			case <-r.Context().Done():
+				return
+			}
 		} else {
-			fmt.Fprintf(w, "event: data\ndata: %s\n\n", mustJSON(ev.Value))
-		}
-		if canFlush {
-			flusher.Flush()
+			ev, ok := <-ch
+			if !ok {
+				goto complete
+			}
+			writeSSEEvent(w, ev)
+			if canFlush {
+				flusher.Flush()
+			}
 		}
 	}
 
+complete:
 	fmt.Fprintf(w, "event: complete\ndata: {}\n\n")
 	if canFlush {
 		flusher.Flush()
@@ -202,6 +234,13 @@ func (s *appState) makePageHandler(page *PageDef) http.HandlerFunc {
 
 func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageDef) {
 	params := extractParams(page.Route, r)
+
+	ctx := r.Context()
+	if s.opts.PageTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.opts.PageTimeout)
+		defer cancel()
+	}
 
 	// Run loaders concurrently
 	type loaderResult struct {
@@ -230,7 +269,7 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 				return
 			}
 
-			result, err := proc.Handler(r.Context(), inputJSON)
+			result, err := proc.Handler(ctx, inputJSON)
 			results <- loaderResult{key: ld.DataKey, value: result, err: err}
 		}(loader)
 	}
@@ -244,6 +283,10 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 	data := make(map[string]any)
 	for res := range results {
 		if res.err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				writeError(w, http.StatusGatewayTimeout, NewError("INTERNAL_ERROR", "Page loader timed out", http.StatusGatewayTimeout))
+				return
+			}
 			if seamErr, ok := res.err.(*Error); ok {
 				status := errorHTTPStatus(seamErr)
 				writeError(w, status, seamErr)
@@ -306,6 +349,16 @@ func writeError(w http.ResponseWriter, status int, e *Error) {
 			"message": e.Message,
 		},
 	})
+}
+
+func writeSSEEvent(w http.ResponseWriter, ev SubscriptionEvent) {
+	if ev.Err != nil {
+		fmt.Fprintf(w, "event: error\ndata: %s\n\n", mustJSON(map[string]string{
+			"code": ev.Err.Code, "message": ev.Err.Message,
+		}))
+	} else {
+		fmt.Fprintf(w, "event: data\ndata: %s\n\n", mustJSON(ev.Value))
+	}
 }
 
 func writeSSEError(w http.ResponseWriter, e *Error) {

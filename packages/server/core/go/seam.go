@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
 
 // Error represents a typed RPC error with a machine-readable code.
@@ -110,6 +111,20 @@ type PageDef struct {
 	Loaders  []LoaderDef
 }
 
+// HandlerOptions configures timeout behavior for the generated handler.
+// Zero values disable the corresponding timeout.
+type HandlerOptions struct {
+	RPCTimeout     time.Duration // per-RPC call timeout (default 30s)
+	PageTimeout    time.Duration // aggregate page-loader timeout (default 30s)
+	SSEIdleTimeout time.Duration // idle timeout between SSE events (default 30s)
+}
+
+var defaultHandlerOptions = HandlerOptions{
+	RPCTimeout:     30 * time.Second,
+	PageTimeout:    30 * time.Second,
+	SSEIdleTimeout: 30 * time.Second,
+}
+
 // Router collects procedure, subscription, and page definitions and
 // produces an http.Handler serving the /_seam/* protocol.
 type Router struct {
@@ -138,6 +153,11 @@ func (r *Router) Page(def PageDef) *Router {
 }
 
 // Handler returns an http.Handler that serves all /_seam/* routes.
-func (r *Router) Handler() http.Handler {
-	return buildHandler(r.procedures, r.subscriptions, r.pages)
+// When called with no arguments, default timeouts (30s) are used.
+func (r *Router) Handler(opts ...HandlerOptions) http.Handler {
+	o := defaultHandlerOptions
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	return buildHandler(r.procedures, r.subscriptions, r.pages, o)
 }
