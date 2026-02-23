@@ -10,6 +10,7 @@ export {
   sseErrorEvent,
   sseCompleteEvent,
   serialize,
+  drainStream,
   toWebResponse,
 } from "./http.js";
 export { loadBuildOutput } from "./page/build-loader.js";

@@ -182,21 +182,31 @@ export function serialize(body: unknown): string {
   return typeof body === "string" ? body : JSON.stringify(body);
 }
 
+/** Consume an async stream chunk-by-chunk; return false from write to stop early. */
+export async function drainStream(
+  stream: AsyncIterable<string>,
+  write: (chunk: string) => boolean | void,
+): Promise<void> {
+  try {
+    for await (const chunk of stream) {
+      if (write(chunk) === false) break;
+    }
+  } catch {
+    // Client disconnected
+  }
+}
+
 /** Convert an HttpResponse to a Web API Response (for adapters using fetch-compatible runtimes) */
 export function toWebResponse(result: HttpResponse): Response {
   if ("stream" in result) {
     const stream = result.stream;
+    const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
-        try {
-          for await (const chunk of stream) {
-            controller.enqueue(new TextEncoder().encode(chunk));
-          }
-        } catch {
-          // Client disconnected
-        } finally {
-          controller.close();
-        }
+        await drainStream(stream, (chunk) => {
+          controller.enqueue(encoder.encode(chunk));
+        });
+        controller.close();
       },
     });
     return new Response(readable, { status: result.status, headers: result.headers });

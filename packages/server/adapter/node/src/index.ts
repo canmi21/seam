@@ -2,7 +2,7 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer, request as httpRequest } from "node:http";
-import { createHttpHandler, serialize } from "@canmi/seam-server";
+import { createHttpHandler, serialize, drainStream } from "@canmi/seam-server";
 import type { DefinitionMap, Router, HttpHandler, HttpResponse } from "@canmi/seam-server";
 
 export interface ServeNodeOptions {
@@ -23,21 +23,15 @@ function readBody(req: IncomingMessage): Promise<string> {
 }
 
 async function sendResponse(res: ServerResponse, result: HttpResponse): Promise<void> {
+  res.writeHead(result.status, result.headers);
   if ("stream" in result) {
-    res.writeHead(result.status, result.headers);
-    try {
-      for await (const chunk of result.stream) {
-        if (!res.writable) break;
-        res.write(chunk);
-      }
-    } catch {
-      // Client disconnected
-    }
+    await drainStream(result.stream, (chunk) => {
+      if (!res.writable) return false;
+      res.write(chunk);
+    });
     res.end();
     return;
   }
-
-  res.writeHead(result.status, result.headers);
   res.end(serialize(result.body));
 }
 

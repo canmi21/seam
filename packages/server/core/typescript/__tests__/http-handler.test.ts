@@ -1,7 +1,7 @@
 /* packages/server/core/typescript/__tests__/http-handler.test.ts */
 
 import { describe, expect, it } from "vitest";
-import { createHttpHandler } from "../src/index.js";
+import { createHttpHandler, drainStream } from "../src/index.js";
 import { greetRouter as router } from "./fixtures.js";
 
 const handler = createHttpHandler(router);
@@ -62,5 +62,46 @@ describe("createHttpHandler", () => {
     expect(router.hasPages).toBe(false);
     const res = await req("GET", "/_seam/page/anything");
     expect(res.status).toBe(404);
+  });
+});
+
+describe("drainStream", () => {
+  it("drains all chunks from an async iterable", async () => {
+    async function* source() {
+      yield "a";
+      yield "b";
+      yield "c";
+    }
+    const written: string[] = [];
+    await drainStream(source(), (chunk) => {
+      written.push(chunk);
+    });
+    expect(written).toEqual(["a", "b", "c"]);
+  });
+
+  it("stops early when write returns false", async () => {
+    async function* source() {
+      yield "a";
+      yield "b";
+      yield "c";
+    }
+    const written: string[] = [];
+    await drainStream(source(), (chunk) => {
+      written.push(chunk);
+      if (chunk === "b") return false;
+    });
+    expect(written).toEqual(["a", "b"]);
+  });
+
+  it("absorbs errors from the stream without propagating", async () => {
+    async function* source() {
+      yield "a";
+      throw new Error("connection reset");
+    }
+    const written: string[] = [];
+    await drainStream(source(), (chunk) => {
+      written.push(chunk);
+    });
+    expect(written).toEqual(["a"]);
   });
 });
