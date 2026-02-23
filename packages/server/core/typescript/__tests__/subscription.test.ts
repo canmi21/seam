@@ -68,7 +68,7 @@ describe("router.handleSubscription", () => {
 
   it("throws VALIDATION_ERROR for invalid input", async () => {
     const iter = router.handleSubscription("onCount", { max: "not a number" });
-    await expect(collect(iter)).rejects.toThrow("validation");
+    await expect(collect(iter)).rejects.toThrow("Input validation failed:");
   });
 });
 

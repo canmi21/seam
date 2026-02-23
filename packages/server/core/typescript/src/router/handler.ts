@@ -22,9 +22,10 @@ export async function handleRequest(
 
   const validation = validateInput(procedure.inputSchema, rawBody);
   if (!validation.valid) {
+    const details = formatValidationErrors(validation.errors);
     return {
       status: 400,
-      body: new SeamError("VALIDATION_ERROR", "Input validation failed").toJSON(),
+      body: new SeamError("VALIDATION_ERROR", `Input validation failed: ${details}`).toJSON(),
     };
   }
 
@@ -68,7 +69,8 @@ export async function* handleSubscription(
 
   const validation = validateInput(sub.inputSchema, rawInput);
   if (!validation.valid) {
-    throw new SeamError("VALIDATION_ERROR", "Input validation failed");
+    const details = formatValidationErrors(validation.errors);
+    throw new SeamError("VALIDATION_ERROR", `Input validation failed: ${details}`);
   }
 
   for await (const value of sub.handler({ input: rawInput })) {

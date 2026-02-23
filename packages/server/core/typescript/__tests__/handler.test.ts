@@ -60,9 +60,9 @@ describe("handleRequest: errors", () => {
     ]);
     const result = await handleRequest(procs, "greet", { name: 123 });
     expect(result.status).toBe(400);
-    expect(result.body).toEqual({
-      error: { code: "VALIDATION_ERROR", message: "Input validation failed" },
-    });
+    const { error } = result.body as { error: { code: string; message: string } };
+    expect(error.code).toBe("VALIDATION_ERROR");
+    expect(error.message).toContain("Input validation failed:");
   });
 
   it("returns 500 when handler throws generic error", async () => {
