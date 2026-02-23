@@ -1,10 +1,15 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/server/core/typescript" },
-    { "path": "packages/server/adapter/bun" },
-    { "path": "packages/client/vanilla" },
+    { "path": "packages/server/injector/js" },
     { "path": "packages/server/injector/native" },
+    { "path": "packages/server/core/typescript" },
+    { "path": "packages/server/adapter/hono" },
+    { "path": "packages/server/adapter/bun" },
+    { "path": "packages/server/adapter/node" },
+    { "path": "packages/client/vanilla" },
+    { "path": "packages/client/react" },
+    { "path": "packages/client/tanstack-router" },
     { "path": "packages/eslint-plugin-seam" }
   ]
 }

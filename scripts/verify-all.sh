@@ -10,11 +10,11 @@ require_cmd cargo "https://rustup.rs"
 require_cmd bun   "https://bun.sh"
 require_cmd go    "https://go.dev/dl"
 
-bash "$DIR/ci/fmt.sh"
+bash "$DIR/ci/fmt-check.sh"
 bash "$DIR/ci/lint.sh"
 
 run_parallel "build-cli" "$DIR/ci/build-cli.sh" "build-ts" "$DIR/ci/build-ts.sh"
-run_parallel "test-rs" "$DIR/ci/test-rs.sh" "test-ts" "$DIR/ci/test-ts.sh"
+run_parallel "typecheck" "$DIR/ci/typecheck.sh" "test-rs" "$DIR/ci/test-rs.sh" "test-ts" "$DIR/ci/test-ts.sh"
 
 bash "$DIR/ci/build-fixtures.sh"
 
