@@ -9,6 +9,12 @@ export default defineSeamRoutes([
   {
     path: "/",
     layout: AppLayout,
+    loaders: {
+      session: { procedure: "getSession" },
+    },
+    mock: {
+      session: { username: "visitor", theme: "light" },
+    },
     children: [
       {
         path: "/",
