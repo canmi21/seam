@@ -26,3 +26,47 @@ export const getReact19Data: ProcedureDef = {
     description: "Demonstrating useId, Suspense, useState, useRef, useMemo, and metadata hoisting.",
   }),
 };
+
+export const getFormPageData: ProcedureDef = {
+  input: t.object({}),
+  output: t.object({ heading: t.string() }),
+  handler: () => ({ heading: "Contact Form" }),
+};
+
+export const submitContact: ProcedureDef = {
+  input: t.object({
+    name: t.string(),
+    email: t.string(),
+  }),
+  output: t.object({ message: t.string() }),
+  handler: (ctx) => {
+    const { name, email } = (ctx as { input: { name: string; email: string } }).input;
+    return { message: `Thanks, ${name}! We will contact you at ${email}.` };
+  },
+};
+
+export const getErrorPageData: ProcedureDef = {
+  input: t.object({}),
+  output: t.object({ heading: t.string() }),
+  handler: () => ({ heading: "Error Boundary Test" }),
+};
+
+export const getAsyncPageData: ProcedureDef = {
+  input: t.object({}),
+  output: t.object({ heading: t.string() }),
+  handler: () => ({ heading: "Async Loading Test" }),
+};
+
+export const getAsyncItems: ProcedureDef = {
+  input: t.object({}),
+  output: t.object({
+    items: t.array(t.object({ id: t.int32(), label: t.string() })),
+  }),
+  handler: () => ({
+    items: [
+      { id: 1, label: "Alpha" },
+      { id: 2, label: "Beta" },
+      { id: 3, label: "Gamma" },
+    ],
+  }),
+};

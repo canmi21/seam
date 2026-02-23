@@ -14,6 +14,30 @@ export function HomeSkeleton() {
     <div>
       <h1>{data.title}</h1>
       <p>{data.message}</p>
+      <nav>
+        <ul>
+          <li>
+            <a href="/react19" data-testid="link-react19">
+              React 19
+            </a>
+          </li>
+          <li>
+            <a href="/form" data-testid="link-form">
+              Form
+            </a>
+          </li>
+          <li>
+            <a href="/error" data-testid="link-error">
+              Error Boundary
+            </a>
+          </li>
+          <li>
+            <a href="/async" data-testid="link-async">
+              Async Loading
+            </a>
+          </li>
+        </ul>
+      </nav>
     </div>
   );
 }
