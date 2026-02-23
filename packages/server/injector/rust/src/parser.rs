@@ -40,6 +40,7 @@ fn is_orphan_block_close(directive: &str) -> bool {
     || directive.starts_with("when:")
 }
 
+#[allow(clippy::too_many_lines)]
 fn parse_until(
   tokens: &[Token],
   pos: &mut usize,
