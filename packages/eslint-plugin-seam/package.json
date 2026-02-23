@@ -1,6 +1,6 @@
 {
   "name": "@canmi/eslint-plugin-seam",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "ESLint rules for SeamJS skeleton components",
   "files": [
     "dist"
