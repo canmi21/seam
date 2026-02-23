@@ -43,6 +43,9 @@ jobs:
       - name: TS unit tests
         run: bash scripts/ci/test-ts.sh
 
+      - name: Build WASM
+        run: cargo install wasm-pack && bun run build:wasm
+
       - name: Build fixtures
         run: bash scripts/ci/build-fixtures.sh
 
