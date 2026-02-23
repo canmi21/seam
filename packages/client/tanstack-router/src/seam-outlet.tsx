@@ -2,7 +2,13 @@
 
 import { useContext } from "react";
 import type { ComponentType, ReactNode } from "react";
-import { Match, matchContext, useLoaderData, useRouter, useRouterState } from "@tanstack/react-router";
+import {
+  Match,
+  matchContext,
+  useLoaderData,
+  useRouter,
+  useRouterState,
+} from "@tanstack/react-router";
 import { SeamDataProvider } from "@canmi/seam-react";
 
 /**

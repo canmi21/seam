@@ -3,7 +3,7 @@
 import { inject, escapeHtml } from "@canmi/seam-injector";
 import { SeamError } from "../errors.js";
 import type { InternalProcedure } from "../procedure.js";
-import type { PageDef, LayoutDef } from "./index.js";
+import type { PageDef, LoaderFn } from "./index.js";
 
 export interface PageTiming {
   /** Procedure execution time in milliseconds */
@@ -18,6 +18,51 @@ export interface HandlePageResult {
   timing?: PageTiming;
 }
 
+/** Flatten keyed loader results: spread object values into a flat map for slot resolution */
+function flattenForSlots(keyed: Record<string, unknown>): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...keyed };
+  for (const value of Object.values(keyed)) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      Object.assign(merged, value as Record<string, unknown>);
+    }
+  }
+  return merged;
+}
+
+/** Execute loaders, returning keyed results */
+async function executeLoaders(
+  loaders: Record<string, LoaderFn>,
+  params: Record<string, string>,
+  procedures: Map<string, InternalProcedure>,
+): Promise<Record<string, unknown>> {
+  const entries = Object.entries(loaders);
+  const results = await Promise.all(
+    entries.map(async ([key, loader]) => {
+      const { procedure, input } = loader(params);
+      const proc = procedures.get(procedure);
+      if (!proc) throw new SeamError("INTERNAL_ERROR", `Procedure '${procedure}' not found`);
+      // Skip JTD validation -- loader input is trusted server-side code
+      const result = await proc.handler({ input });
+      return [key, result] as const;
+    }),
+  );
+  return Object.fromEntries(results);
+}
+
+/** Split-inject a layout template around its outlet marker */
+function injectLayout(template: string, data: Record<string, unknown>, inner: string): string {
+  const outletMarker = "<!--seam:outlet-->";
+  const outletIdx = template.indexOf(outletMarker);
+  if (outletIdx === -1) {
+    return inject(template, data, { skipDataScript: true });
+  }
+  const before = template.slice(0, outletIdx);
+  const after = template.slice(outletIdx + outletMarker.length);
+  const injectedBefore = inject(before, data, { skipDataScript: true });
+  const injectedAfter = inject(after, data, { skipDataScript: true });
+  return injectedBefore + inner + injectedAfter;
+}
+
 export async function handlePageRequest(
   page: PageDef,
   params: Record<string, string>,
@@ -26,88 +71,31 @@ export async function handlePageRequest(
   try {
     const t0 = performance.now();
 
-    // Collect all loaders from layout chain + page, execute in parallel
-    const layoutEntries: { layout: LayoutDef; entries: [string, unknown][] }[] = [];
-    const allPromises: Promise<{ source: "layout"; layoutIdx: number; key: string; result: unknown } | { source: "page"; key: string; result: unknown }>[] = [];
-
-    for (let i = 0; i < page.layoutChain.length; i++) {
-      const layout = page.layoutChain[i];
-      layoutEntries.push({ layout, entries: [] });
-      for (const [key, loader] of Object.entries(layout.loaders)) {
-        const { procedure, input } = loader(params);
-        const proc = procedures.get(procedure);
-        if (!proc) throw new SeamError("INTERNAL_ERROR", `Procedure '${procedure}' not found`);
-        allPromises.push(
-          proc.handler({ input }).then((result) => ({ source: "layout" as const, layoutIdx: i, key, result })),
-        );
-      }
-    }
-
-    for (const [key, loader] of Object.entries(page.loaders)) {
-      const { procedure, input } = loader(params);
-      const proc = procedures.get(procedure);
-      if (!proc) throw new SeamError("INTERNAL_ERROR", `Procedure '${procedure}' not found`);
-      allPromises.push(
-        proc.handler({ input }).then((result) => ({ source: "page" as const, key, result })),
-      );
-    }
-
-    const results = await Promise.all(allPromises);
+    // Execute all loaders (layout chain + page) in parallel
+    const loaderResults = await Promise.all([
+      ...page.layoutChain.map((layout) => executeLoaders(layout.loaders, params, procedures)),
+      executeLoaders(page.loaders, params, procedures),
+    ]);
 
     const t1 = performance.now();
 
-    // Partition results into layout-keyed and page-keyed
-    const layoutKeyed: Record<string, Record<string, unknown>> = {};
-    const pageKeyed: Record<string, unknown> = {};
+    // Partition: first N results are layout, last is page
+    const layoutResults = loaderResults.slice(0, page.layoutChain.length);
+    const pageKeyed = loaderResults[loaderResults.length - 1];
 
-    for (const r of results) {
-      if (r.source === "layout") {
-        const layoutId = page.layoutChain[r.layoutIdx].id;
-        if (!layoutKeyed[layoutId]) layoutKeyed[layoutId] = {};
-        layoutKeyed[layoutId][r.key] = r.result;
-      } else {
-        pageKeyed[r.key] = r.result;
-      }
-    }
-
-    // Inject page template with page merged data
-    const pageMerged: Record<string, unknown> = { ...pageKeyed };
-    for (const value of Object.values(pageKeyed)) {
-      if (value && typeof value === "object" && !Array.isArray(value)) {
-        Object.assign(pageMerged, value as Record<string, unknown>);
-      }
-    }
-    let innerContent = inject(page.template, pageMerged, { skipDataScript: true });
+    // Inject page template
+    let innerContent = inject(page.template, flattenForSlots(pageKeyed), { skipDataScript: true });
 
     // Compose layouts from innermost to outermost
+    const layoutKeyed: Record<string, Record<string, unknown>> = {};
     for (let i = page.layoutChain.length - 1; i >= 0; i--) {
       const layout = page.layoutChain[i];
-      const layoutData = layoutKeyed[layout.id] ?? {};
-
-      // Flatten layout data for slot resolution
-      const layoutMerged: Record<string, unknown> = { ...layoutData };
-      for (const value of Object.values(layoutData)) {
-        if (value && typeof value === "object" && !Array.isArray(value)) {
-          Object.assign(layoutMerged, value as Record<string, unknown>);
-        }
-      }
-
-      // Split template on <!--seam:outlet--> to avoid inject eating the marker
-      const outletMarker = "<!--seam:outlet-->";
-      const outletIdx = layout.template.indexOf(outletMarker);
-      if (outletIdx === -1) {
-        // No outlet — inject the whole template (unusual but safe)
-        innerContent = inject(layout.template, layoutMerged, { skipDataScript: true });
-      } else {
-        const before = layout.template.slice(0, outletIdx);
-        const after = layout.template.slice(outletIdx + outletMarker.length);
-        const injectedBefore = inject(before, layoutMerged, { skipDataScript: true });
-        const injectedAfter = inject(after, layoutMerged, { skipDataScript: true });
-        innerContent = injectedBefore + innerContent + injectedAfter;
-      }
+      const data = layoutResults[i];
+      layoutKeyed[layout.id] = data;
+      innerContent = injectLayout(layout.template, flattenForSlots(data), innerContent);
     }
 
-    // Build __SEAM_DATA__: layout data under _layouts key, page data at top level
+    // Build __SEAM_DATA__: page data at top level, layout data under _layouts
     const seamData: Record<string, unknown> = { ...pageKeyed };
     if (Object.keys(layoutKeyed).length > 0) {
       seamData._layouts = layoutKeyed;
