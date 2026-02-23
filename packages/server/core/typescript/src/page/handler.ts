@@ -70,17 +70,18 @@ export async function handlePageRequest(
 ): Promise<HandlePageResult> {
   try {
     const t0 = performance.now();
+    const layoutChain = page.layoutChain ?? [];
 
     // Execute all loaders (layout chain + page) in parallel
     const loaderResults = await Promise.all([
-      ...page.layoutChain.map((layout) => executeLoaders(layout.loaders, params, procedures)),
+      ...layoutChain.map((layout) => executeLoaders(layout.loaders, params, procedures)),
       executeLoaders(page.loaders, params, procedures),
     ]);
 
     const t1 = performance.now();
 
     // Partition: first N results are layout, last is page
-    const layoutResults = loaderResults.slice(0, page.layoutChain.length);
+    const layoutResults = loaderResults.slice(0, layoutChain.length);
     const pageKeyed = loaderResults[loaderResults.length - 1];
 
     // Inject page template
@@ -88,8 +89,8 @@ export async function handlePageRequest(
 
     // Compose layouts from innermost to outermost
     const layoutKeyed: Record<string, Record<string, unknown>> = {};
-    for (let i = page.layoutChain.length - 1; i >= 0; i--) {
-      const layout = page.layoutChain[i];
+    for (let i = layoutChain.length - 1; i >= 0; i--) {
+      const layout = layoutChain[i];
       const data = layoutResults[i];
       layoutKeyed[layout.id] = data;
       innerContent = injectLayout(layout.template, flattenForSlots(data), innerContent);

@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { handlePageRequest } from "../src/page/handler.js";
 import type { InternalProcedure } from "../src/procedure.js";
+import { definePage } from "../src/page/index.js";
 import type { PageDef, LayoutDef } from "../src/page/index.js";
 
 function makeProcedures(...entries: [string, InternalProcedure][]) {
@@ -129,6 +130,17 @@ describe("handlePageRequest", () => {
 
     const data = extractSeamData(result.html);
     expect(data._layouts).toBeUndefined();
+  });
+
+  it("works without explicit layoutChain (standalone definePage)", async () => {
+    const page = definePage({
+      template: "<h1><!--seam:user.name--></h1>",
+      loaders: { user: () => ({ procedure: "getUser", input: {} }) },
+    });
+    const procs = makeProcedures(["getUser", mockProcedure(() => ({ name: "Alice" }))]);
+    const result = await handlePageRequest(page, {}, procs);
+    expect(result.status).toBe(200);
+    expect(result.html).toContain("Alice");
   });
 });
 

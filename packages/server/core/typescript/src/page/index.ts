@@ -16,9 +16,9 @@ export interface LayoutDef {
 export interface PageDef {
   template: string;
   loaders: Record<string, LoaderFn>;
-  layoutChain: LayoutDef[];
+  layoutChain?: LayoutDef[];
 }
 
 export function definePage(config: PageDef): PageDef {
-  return config;
+  return { ...config, layoutChain: config.layoutChain ?? [] };
 }
