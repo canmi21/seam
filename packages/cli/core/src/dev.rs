@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::signal;
@@ -22,7 +22,7 @@ fn spawn_child(
   label: &'static str,
   command: &str,
   base_dir: &Path,
-  port: Option<u16>,
+  env_vars: &[(&str, &str)],
 ) -> Result<ChildProcess> {
   let mut cmd = Command::new("sh");
   cmd.args(["-c", command]);
@@ -31,8 +31,8 @@ fn spawn_child(
   cmd.stderr(std::process::Stdio::piped());
   cmd.kill_on_drop(true);
 
-  if let Some(p) = port {
-    cmd.env("PORT", p.to_string());
+  for (key, val) in env_vars {
+    cmd.env(key, val);
   }
 
   let child = cmd.spawn()?;
@@ -93,6 +93,18 @@ async fn wait_any(
   }
 }
 
+fn find_available_port(preferred: u16) -> Result<u16> {
+  if std::net::TcpListener::bind(("0.0.0.0", preferred)).is_ok() {
+    return Ok(preferred);
+  }
+  for port in 3000..3100 {
+    if port != preferred && std::net::TcpListener::bind(("0.0.0.0", port)).is_ok() {
+      return Ok(port);
+    }
+  }
+  bail!("no available port found in range 3000-3099");
+}
+
 fn print_dev_banner(
   config: &SeamConfig,
   backend_cmd: Option<&str>,
@@ -145,6 +157,11 @@ fn build_frontend(config: &SeamConfig, base_dir: &Path) -> Result<()> {
 }
 
 pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
+  let build_config = BuildConfig::from_seam_config(config);
+  if build_config.as_ref().is_ok_and(|bc| bc.is_fullstack) {
+    return run_dev_fullstack(config, base_dir).await;
+  }
+
   let backend_cmd = config.backend.dev_command.as_deref();
   let frontend_cmd = config.frontend.dev_command.as_deref();
   let has_entry = config.frontend.entry.is_some();
@@ -168,13 +185,14 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   let mut children: Vec<ChildProcess> = Vec::new();
 
   if let Some(cmd) = backend_cmd {
-    let mut proc = spawn_child("backend", cmd, base_dir, Some(config.backend.port))?;
+    let port_str = config.backend.port.to_string();
+    let mut proc = spawn_child("backend", cmd, base_dir, &[("PORT", &port_str)])?;
     pipe_output(&mut proc).await;
     children.push(proc);
   }
 
   if let Some(cmd) = frontend_cmd {
-    let mut proc = spawn_child("frontend", cmd, base_dir, None)?;
+    let mut proc = spawn_child("frontend", cmd, base_dir, &[])?;
     pipe_output(&mut proc).await;
     children.push(proc);
   }
@@ -236,6 +254,96 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
           Ok(s) => println!("  {RED}{label} exited with {s}{RESET}"),
           Err(e) => println!("  {RED}{label} error: {e}{RESET}"),
         }
+      }
+    }
+  }
+
+  Ok(())
+}
+
+async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
+  let build_config = BuildConfig::from_seam_config(config)?;
+  let out_dir = base_dir.join(&build_config.out_dir);
+
+  // Skip build if route-manifest.json already exists
+  let route_manifest_path = out_dir.join("route-manifest.json");
+  if route_manifest_path.exists() {
+    println!("  {DIM}route-manifest.json found, skipping initial build{RESET}");
+    println!("  {DIM}(delete {} to force rebuild){RESET}", out_dir.display());
+    println!();
+  } else {
+    crate::build::run::run_dev_build(config, &build_config, base_dir)?;
+    println!();
+  }
+
+  // Find available port
+  let port = find_available_port(config.dev.port)?;
+
+  // Resolve absolute output dir for SEAM_OUTPUT_DIR env var
+  let abs_out_dir = if out_dir.is_absolute() {
+    out_dir.clone()
+  } else {
+    base_dir
+      .join(&out_dir)
+      .canonicalize()
+      .with_context(|| format!("failed to resolve {}", out_dir.display()))?
+  };
+  let out_dir_str = abs_out_dir.to_string_lossy().to_string();
+  let port_str = port.to_string();
+
+  // Print banner
+  let backend_cmd =
+    config.backend.dev_command.as_deref().unwrap_or("bun --watch src/server/index.ts");
+  let lang = &config.backend.lang;
+
+  crate::ui::banner("dev", Some(&config.project.name));
+  println!("  {CYAN}backend{RESET}   {DIM}[{lang}]{RESET} {DIM}{backend_cmd}{RESET}");
+  println!("  {GREEN}mode{RESET}      fullstack CTR");
+  println!();
+  if port == 80 {
+    println!("  {GREEN}\u{2192}{RESET} {BOLD}http://localhost{RESET}");
+  } else {
+    println!("  {GREEN}\u{2192}{RESET} {BOLD}http://localhost:{port}{RESET}");
+  }
+  println!();
+
+  let mut children: Vec<ChildProcess> = Vec::new();
+
+  // Spawn backend with env vars
+  let backend_cmd_str = config
+    .backend
+    .dev_command
+    .as_deref()
+    .context("backend.dev_command is required for fullstack dev mode")?;
+  let mut proc = spawn_child(
+    "backend",
+    backend_cmd_str,
+    base_dir,
+    &[("PORT", &port_str), ("SEAM_DEV", "1"), ("SEAM_OUTPUT_DIR", &out_dir_str)],
+  )?;
+  pipe_output(&mut proc).await;
+  children.push(proc);
+
+  // Optionally spawn frontend dev process
+  if let Some(cmd) = config.frontend.dev_command.as_deref() {
+    let mut proc = spawn_child("frontend", cmd, base_dir, &[])?;
+    pipe_output(&mut proc).await;
+    children.push(proc);
+  }
+
+  // Wait for Ctrl+C or child exit
+  tokio::select! {
+    _ = signal::ctrl_c() => {
+      println!();
+      println!("  {DIM}shutting down...{RESET}");
+    }
+    result = wait_any(&mut children) => {
+      let (label, status) = result;
+      let color = label_color(label);
+      match status {
+        Ok(s) if s.success() => println!("  {color}{label}{RESET} exited"),
+        Ok(s) => println!("  {RED}{label} exited with {s}{RESET}"),
+        Err(e) => println!("  {RED}{label} error: {e}{RESET}"),
       }
     }
   }

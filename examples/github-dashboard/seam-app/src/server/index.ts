@@ -2,13 +2,13 @@
 
 import { resolve } from "node:path";
 import { Hono } from "hono";
-import { loadBuildOutput } from "@canmi/seam-server";
+import { loadBuildOutput, loadBuildOutputDev } from "@canmi/seam-server";
 import { seam } from "@canmi/seam-adapter-hono";
 import { buildRouter } from "./router.js";
 
-// When compiled to .seam/output/server/index.js, parent dir is the build root
-const BUILD_DIR = resolve(import.meta.dir, "..");
-const pages = loadBuildOutput(BUILD_DIR);
+const isDev = process.env.SEAM_DEV === "1";
+const BUILD_DIR = isDev ? process.env.SEAM_OUTPUT_DIR! : resolve(import.meta.dir, "..");
+const pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR);
 const router = buildRouter({ pages });
 
 const app = new Hono();

@@ -16,6 +16,8 @@ pub struct SeamConfig {
   pub build: BuildSection,
   #[serde(default)]
   pub generate: GenerateSection,
+  #[serde(default)]
+  pub dev: DevSection,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,6 +64,22 @@ pub struct BuildSection {
 #[derive(Debug, Default, Deserialize)]
 pub struct GenerateSection {
   pub out_dir: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DevSection {
+  #[serde(default = "default_dev_port")]
+  pub port: u16,
+}
+
+impl Default for DevSection {
+  fn default() -> Self {
+    Self { port: default_dev_port() }
+  }
+}
+
+fn default_dev_port() -> u16 {
+  80
 }
 
 fn default_lang() -> String {
@@ -194,6 +212,29 @@ router_file = "src/server/router.ts"
     assert_eq!(config.frontend.entry.as_deref(), Some("src/client/main.tsx"));
     assert!(config.build.bundler_command.is_none());
     assert!(config.build.bundler_manifest.is_none());
+  }
+
+  #[test]
+  fn parse_dev_section_defaults() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.dev.port, 80);
+  }
+
+  #[test]
+  fn parse_dev_section_explicit() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+
+[dev]
+port = 3000
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.dev.port, 3000);
   }
 
   #[test]

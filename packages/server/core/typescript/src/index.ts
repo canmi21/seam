@@ -13,7 +13,7 @@ export {
   drainStream,
   toWebResponse,
 } from "./http.js";
-export { loadBuildOutput } from "./page/build-loader.js";
+export { loadBuildOutput, loadBuildOutputDev } from "./page/build-loader.js";
 export { fromCallback } from "./subscription.js";
 export { createDevProxy, createStaticHandler } from "./proxy.js";
 

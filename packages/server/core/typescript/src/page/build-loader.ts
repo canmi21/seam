@@ -77,6 +77,36 @@ function resolveLayoutChain(
   return chain;
 }
 
+/** Resolve layout chain with lazy template getters (re-read from disk on each access) */
+function resolveLayoutChainDev(
+  layoutId: string,
+  layoutEntries: Record<string, LayoutManifestEntry>,
+  distDir: string,
+): LayoutDef[] {
+  const chain: LayoutDef[] = [];
+  let currentId: string | undefined = layoutId;
+
+  while (currentId) {
+    const entry: LayoutManifestEntry | undefined = layoutEntries[currentId];
+    if (!entry) break;
+    const layoutTemplatePath = join(distDir, entry.template);
+    const def: LayoutDef = {
+      id: currentId,
+      template: "", // placeholder, overridden by getter
+      loaders: buildLoaderFns(entry.loaders ?? {}),
+    };
+    Object.defineProperty(def, "template", {
+      get: () => readFileSync(layoutTemplatePath, "utf-8"),
+      enumerable: true,
+    });
+    chain.push(def);
+    currentId = entry.parent;
+  }
+
+  chain.reverse();
+  return chain;
+}
+
 export function loadBuildOutput(distDir: string): Record<string, PageDef> {
   const manifestPath = join(distDir, "route-manifest.json");
   const raw = readFileSync(manifestPath, "utf-8");
@@ -100,6 +130,36 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
       : [];
 
     pages[path] = { template, loaders, layoutChain };
+  }
+  return pages;
+}
+
+/** Load build output with lazy template getters — templates re-read from disk on each access */
+export function loadBuildOutputDev(distDir: string): Record<string, PageDef> {
+  const manifestPath = join(distDir, "route-manifest.json");
+  const raw = readFileSync(manifestPath, "utf-8");
+  const manifest = JSON.parse(raw) as RouteManifest;
+
+  const layoutEntries = manifest.layouts ?? {};
+
+  const pages: Record<string, PageDef> = {};
+  for (const [path, entry] of Object.entries(manifest.routes)) {
+    const templatePath = join(distDir, entry.template);
+    const loaders = buildLoaderFns(entry.loaders);
+    const layoutChain = entry.layout
+      ? resolveLayoutChainDev(entry.layout, layoutEntries, distDir)
+      : [];
+
+    const page: PageDef = {
+      template: "", // placeholder, overridden by getter
+      loaders,
+      layoutChain,
+    };
+    Object.defineProperty(page, "template", {
+      get: () => readFileSync(templatePath, "utf-8"),
+      enumerable: true,
+    });
+    pages[path] = page;
   }
   return pages;
 }

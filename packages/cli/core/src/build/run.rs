@@ -208,6 +208,86 @@ fn run_fullstack_build(
   Ok(())
 }
 
+// -- Dev build (5 phases, skips backend compile + typecheck) --
+
+pub fn run_dev_build(
+  config: &SeamConfig,
+  build_config: &BuildConfig,
+  base_dir: &Path,
+) -> Result<()> {
+  let started = Instant::now();
+  let out_dir = base_dir.join(&build_config.out_dir);
+
+  ui::banner("dev build", Some(&config.project.name));
+
+  // [1/5] Extract procedure manifest
+  ui::step(1, 5, "Extracting procedure manifest");
+  let router_file =
+    build_config.router_file.as_deref().context("router_file is required for fullstack build")?;
+  let manifest = extract_manifest(base_dir, router_file, &out_dir)?;
+  print_procedure_breakdown(&manifest);
+  copy_wasm_binary(base_dir, &out_dir)?;
+  ui::blank();
+
+  // [2/5] Generate client types
+  ui::step(2, 5, "Generating client types");
+  generate_types(&manifest, config)?;
+  ui::blank();
+
+  // [3/5] Bundle frontend
+  ui::step(3, 5, "Bundling frontend");
+  run_bundler(base_dir, &build_config.bundler_mode)?;
+  let manifest_path = base_dir.join(&build_config.bundler_manifest);
+  let assets = read_bundle_manifest(&manifest_path)?;
+  print_asset_files(base_dir, "dist", &assets);
+  ui::blank();
+
+  // [4/5] Generate skeletons
+  ui::step(4, 5, "Generating skeletons");
+  let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
+  if !script_path.exists() {
+    bail!("build-skeletons.mjs not found at {}", script_path.display());
+  }
+  let routes_path = base_dir.join(&build_config.routes);
+  let manifest_json_path = out_dir.join("seam-manifest.json");
+  let skeleton_output =
+    run_skeleton_renderer(&script_path, &routes_path, &manifest_json_path, base_dir)?;
+  for w in &skeleton_output.warnings {
+    ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
+  }
+
+  let templates_dir = out_dir.join("templates");
+  std::fs::create_dir_all(&templates_dir)
+    .with_context(|| format!("failed to create {}", templates_dir.display()))?;
+  let route_manifest =
+    process_routes(&skeleton_output.layouts, &skeleton_output.routes, &templates_dir, &assets)?;
+
+  let route_manifest_path = out_dir.join("route-manifest.json");
+  let route_manifest_json = serde_json::to_string_pretty(&route_manifest)?;
+  std::fs::write(&route_manifest_path, &route_manifest_json)
+    .with_context(|| format!("failed to write {}", route_manifest_path.display()))?;
+  ui::detail_ok("route-manifest.json");
+  ui::blank();
+
+  // [5/5] Package output
+  ui::step(5, 5, "Packaging output");
+  package_static_assets(base_dir, &assets, &out_dir)?;
+  ui::blank();
+
+  // Summary
+  let elapsed = started.elapsed().as_secs_f64();
+  let proc_count = manifest.procedures.len();
+  let template_count = skeleton_output.routes.len();
+  let asset_count = assets.js.len() + assets.css.len();
+  ui::ok(&format!("dev build complete in {elapsed:.1}s"));
+  ui::detail(&format!(
+    "{proc_count} procedures \u{00b7} {template_count} templates \u{00b7} {asset_count} assets \u{00b7} {}",
+    build_config.renderer,
+  ));
+
+  Ok(())
+}
+
 const WASM_FILENAME: &str = "seam_injector_wasm_bg.wasm";
 
 /// Search for the injector WASM binary and copy it to {out_dir}/pkg/.

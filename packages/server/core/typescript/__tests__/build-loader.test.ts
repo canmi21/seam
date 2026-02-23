@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadBuildOutput } from "../src/page/build-loader.js";
+import { loadBuildOutput, loadBuildOutputDev } from "../src/page/build-loader.js";
 
 let distDir: string;
 
@@ -114,5 +114,38 @@ describe("loadBuildOutput", () => {
     } finally {
       rmSync(emptyDir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("loadBuildOutputDev", () => {
+  it("loads pages with correct routes", () => {
+    const pages = loadBuildOutputDev(distDir);
+    expect(Object.keys(pages)).toEqual(["/user/:id", "/about"]);
+  });
+
+  it("returns fresh template content on each access", () => {
+    const pages = loadBuildOutputDev(distDir);
+    const first = pages["/user/:id"].template;
+    expect(first).toContain("<!--seam:user.name-->");
+
+    // Modify template on disk
+    const tplPath = join(distDir, "templates/user-id.html");
+    writeFileSync(tplPath, "<!DOCTYPE html><html><body>UPDATED</body></html>");
+
+    const second = pages["/user/:id"].template;
+    expect(second).toContain("UPDATED");
+
+    // Restore original
+    writeFileSync(tplPath, "<!DOCTYPE html><html><body><!--seam:user.name--></body></html>");
+  });
+
+  it("creates loader functions that coerce int params", () => {
+    const pages = loadBuildOutputDev(distDir);
+    const result = pages["/user/:id"].loaders.user({ id: "42" });
+    expect(result).toEqual({ procedure: "getUser", input: { id: 42 } });
+  });
+
+  it("throws when route-manifest.json is missing", () => {
+    expect(() => loadBuildOutputDev("/nonexistent/path")).toThrow();
   });
 });
