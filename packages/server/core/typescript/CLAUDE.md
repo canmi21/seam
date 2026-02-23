@@ -63,7 +63,6 @@ src/
 
 ## Gotchas
 
-- `ProcedureMap` is deprecated, use `DefinitionMap` instead
 - Page handler skips JTD validation on loader input (trusted server-side code)
 - `serialize` handles both string passthrough and JSON.stringify -- used by adapters for body serialization
 - Build tool is `tsdown`, not `tsc` -- single ESM entry point with .d.ts generation

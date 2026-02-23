@@ -30,7 +30,6 @@ export type {
   ProcedureDef,
   SubscriptionDef,
   DefinitionMap,
-  ProcedureMap,
   Router,
   RouterOptions,
 } from "./router/index.js";

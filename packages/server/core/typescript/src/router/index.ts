@@ -27,9 +27,6 @@ export interface SubscriptionDef<TIn = unknown, TOut = unknown> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type DefinitionMap = Record<string, ProcedureDef<any, any> | SubscriptionDef<any, any>>;
 
-/** @deprecated Use DefinitionMap instead */
-export type ProcedureMap = DefinitionMap;
-
 function isSubscriptionDef(def: ProcedureDef | SubscriptionDef): def is SubscriptionDef {
   return "type" in def && def.type === "subscription";
 }
