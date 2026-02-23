@@ -19,51 +19,67 @@ afterEach(() => {
 });
 
 describe("seamRpc()", () => {
-  it("calls the correct RPC URL with relative base", async () => {
-    vi.mocked(fetch).mockResolvedValue(jsonResponse({ name: "octocat" }));
+  it("batches calls through /_seam/rpc/_batch", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        results: [{ ok: true, data: { name: "octocat" } }],
+      }),
+    );
     const { seamRpc } = await import("../src/rpc.js");
 
     const result = await seamRpc("getUser", { username: "octocat" });
 
     expect(result).toEqual({ name: "octocat" });
-    expect(fetch).toHaveBeenCalledWith("/_seam/rpc/getUser", {
+    expect(fetch).toHaveBeenCalledWith("/_seam/rpc/_batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: "octocat" }),
+      body: JSON.stringify({
+        calls: [{ procedure: "getUser", input: { username: "octocat" } }],
+      }),
     });
   });
 
   it("defaults input to empty object when omitted", async () => {
-    vi.mocked(fetch).mockResolvedValue(jsonResponse({ ok: true }));
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        results: [{ ok: true, data: { ok: true } }],
+      }),
+    );
     const { seamRpc } = await import("../src/rpc.js");
 
     await seamRpc("getHomeData");
 
-    expect(fetch).toHaveBeenCalledWith("/_seam/rpc/getHomeData", {
+    expect(fetch).toHaveBeenCalledWith("/_seam/rpc/_batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({
+        calls: [{ procedure: "getHomeData", input: {} }],
+      }),
     });
   });
 
-  it("reuses the same client across calls", async () => {
-    // Return fresh Response per call to avoid "body already read"
-    vi.mocked(fetch).mockImplementation(() => Promise.resolve(jsonResponse({ ok: true })));
+  it("batches same-tick calls into one request", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        results: [
+          { ok: true, data: "a" },
+          { ok: true, data: "b" },
+        ],
+      }),
+    );
     const { seamRpc } = await import("../src/rpc.js");
 
-    await seamRpc("a", {});
-    await seamRpc("b", {});
+    const [r1, r2] = await Promise.all([seamRpc("a", {}), seamRpc("b", {})]);
 
-    const calls = vi.mocked(fetch).mock.calls;
-    expect(calls[0][0]).toBe("/_seam/rpc/a");
-    expect(calls[1][0]).toBe("/_seam/rpc/b");
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(r1).toBe("a");
+    expect(r2).toBe("b");
   });
 
-  it("propagates SeamClientError on failure", async () => {
+  it("propagates SeamClientError on batch failure", async () => {
     vi.mocked(fetch).mockResolvedValue(
       jsonResponse({ error: { code: "NOT_FOUND", message: "not found" } }, 404),
     );
-    // Import SeamClientError from same module graph to match class identity
     const { seamRpc } = await import("../src/rpc.js");
 
     try {

@@ -34,7 +34,7 @@ export type {
   RouterOptions,
 } from "./router/index.js";
 export type { ProcedureManifest, ProcedureEntry, ProcedureType } from "./manifest/index.js";
-export type { HandleResult } from "./router/handler.js";
+export type { HandleResult, BatchCall, BatchResultItem } from "./router/handler.js";
 export type { HandlePageResult, PageTiming } from "./page/handler.js";
 export type { PageDef, LayoutDef, LoaderFn } from "./page/index.js";
 export type { ErrorCode } from "./errors.js";

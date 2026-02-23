@@ -56,6 +56,33 @@ export async function handleRequest(
   }
 }
 
+export interface BatchCall {
+  procedure: string;
+  input: unknown;
+}
+
+export type BatchResultItem =
+  | { ok: true; data: unknown }
+  | { ok: false; error: { code: string; message: string } };
+
+export async function handleBatchRequest(
+  procedures: Map<string, InternalProcedure>,
+  calls: BatchCall[],
+  validateOutput?: boolean,
+): Promise<{ results: BatchResultItem[] }> {
+  const results = await Promise.all(
+    calls.map(async (call) => {
+      const result = await handleRequest(procedures, call.procedure, call.input, validateOutput);
+      if (result.status === 200) {
+        return { ok: true as const, data: result.body };
+      }
+      const envelope = result.body as { error: { code: string; message: string } };
+      return { ok: false as const, error: envelope.error };
+    }),
+  );
+  return { results };
+}
+
 export async function* handleSubscription(
   subscriptions: Map<string, InternalSubscription>,
   name: string,

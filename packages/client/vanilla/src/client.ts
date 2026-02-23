@@ -10,6 +10,11 @@ export type Unsubscribe = () => void;
 
 export interface SeamClient {
   call(procedureName: string, input: unknown): Promise<unknown>;
+  callBatch(calls: Array<{ procedure: string; input: unknown }>): Promise<{
+    results: Array<
+      { ok: true; data: unknown } | { ok: false; error: { code: string; message: string } }
+    >;
+  }>;
   subscribe(
     name: string,
     input: unknown,
@@ -61,6 +66,18 @@ export function createClient(opts: ClientOptions): SeamClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
+    },
+
+    callBatch(calls) {
+      return request(`${baseUrl}/_seam/rpc/_batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ calls }),
+      }) as Promise<{
+        results: Array<
+          { ok: true; data: unknown } | { ok: false; error: { code: string; message: string } }
+        >;
+      }>;
     },
 
     subscribe(name, input, onData, onError) {

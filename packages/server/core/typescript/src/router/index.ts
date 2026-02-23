@@ -7,7 +7,8 @@ import type { InternalSubscription } from "../procedure.js";
 import type { HandlePageResult } from "../page/handler.js";
 import type { PageDef } from "../page/index.js";
 import { buildManifest } from "../manifest/index.js";
-import { handleRequest, handleSubscription } from "./handler.js";
+import { handleRequest, handleSubscription, handleBatchRequest } from "./handler.js";
+import type { BatchCall, BatchResultItem } from "./handler.js";
 import { handlePageRequest } from "../page/handler.js";
 import { RouteMatcher } from "../page/route-matcher.js";
 
@@ -39,6 +40,7 @@ export interface RouterOptions {
 export interface Router<T extends DefinitionMap> {
   manifest(): ProcedureManifest;
   handle(procedureName: string, body: unknown): Promise<HandleResult>;
+  handleBatch(calls: BatchCall[]): Promise<{ results: BatchResultItem[] }>;
   handleSubscription(name: string, input: unknown): AsyncIterable<unknown>;
   handlePage(path: string): Promise<HandlePageResult | null>;
   readonly hasPages: boolean;
@@ -89,6 +91,9 @@ export function createRouter<T extends DefinitionMap>(
     },
     handle(procedureName, body) {
       return handleRequest(procedureMap, procedureName, body, shouldValidateOutput);
+    },
+    handleBatch(calls) {
+      return handleBatchRequest(procedureMap, calls, shouldValidateOutput);
     },
     handleSubscription(name, input) {
       return handleSubscription(subscriptionMap, name, input, shouldValidateOutput);
