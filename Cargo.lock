@@ -1186,12 +1186,20 @@ dependencies = [
  "clap",
  "regex",
  "reqwest",
+ "seam-injector",
  "seam-server",
  "serde",
  "serde_json",
  "tokio",
  "toml",
  "tower-http",
+]
+
+[[package]]
+name = "seam-injector"
+version = "0.2.3"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
@@ -1210,6 +1218,7 @@ dependencies = [
  "axum",
  "futures-core",
  "regex",
+ "seam-injector",
  "seam-macros",
  "serde",
  "serde_json",

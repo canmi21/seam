@@ -1,4 +1,4 @@
-/* packages/server/core/rust/src/injector/mod.rs */
+/* packages/server/injector/rust/src/lib.rs */
 
 mod ast;
 mod helpers;
@@ -12,7 +12,23 @@ use token::tokenize;
 
 use serde_json::Value;
 
+/// Inject data into template and append __SEAM_DATA__ script before </body>.
 pub fn inject(template: &str, data: &Value) -> String {
+  let mut result = inject_no_script(template, data);
+
+  // __SEAM_DATA__ script
+  let script = format!(r#"<script id="__SEAM_DATA__" type="application/json">{}</script>"#, data);
+  if let Some(pos) = result.rfind("</body>") {
+    result.insert_str(pos, &script);
+  } else {
+    result.push_str(&script);
+  }
+
+  result
+}
+
+/// Inject data into template without appending the __SEAM_DATA__ script.
+pub fn inject_no_script(template: &str, data: &Value) -> String {
   let tokens = tokenize(template);
   let ast = parse(&tokens);
   let mut ctx = RenderContext { attrs: Vec::new(), style_attrs: Vec::new() };
@@ -28,14 +44,6 @@ pub fn inject(template: &str, data: &Value) -> String {
     result = inject_attributes(result, &ctx.attrs);
   }
 
-  // __SEAM_DATA__ script
-  let script = format!(r#"<script id="__SEAM_DATA__" type="application/json">{}</script>"#, data);
-  if let Some(pos) = result.rfind("</body>") {
-    result.insert_str(pos, &script);
-  } else {
-    result.push_str(&script);
-  }
-
   result
 }
 
@@ -43,21 +51,6 @@ pub fn inject(template: &str, data: &Value) -> String {
 mod tests {
   use super::*;
   use serde_json::json;
-
-  // Helper: inject without data script for cleaner assertions
-  fn inject_no_script(template: &str, data: &Value) -> String {
-    let tokens = tokenize(template);
-    let ast = parse(&tokens);
-    let mut ctx = RenderContext { attrs: Vec::new(), style_attrs: Vec::new() };
-    let mut result = render(&ast, data, &mut ctx);
-    if !ctx.style_attrs.is_empty() {
-      result = inject_style_attributes(result, &ctx.style_attrs);
-    }
-    if !ctx.attrs.is_empty() {
-      result = inject_attributes(result, &ctx.attrs);
-    }
-    result
-  }
 
   // -- Text slots --
 

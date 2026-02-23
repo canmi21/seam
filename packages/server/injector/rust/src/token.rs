@@ -1,15 +1,15 @@
-/* packages/server/core/rust/src/injector/token.rs */
+/* packages/server/injector/rust/src/token.rs */
 
 #[derive(Debug)]
-pub(super) enum Token {
+pub(crate) enum Token {
   Text(String),
   Marker(String), // directive body (between <!--seam: and -->)
 }
 
-pub(super) const MARKER_OPEN: &str = "<!--seam:";
-pub(super) const MARKER_CLOSE: &str = "-->";
+pub(crate) const MARKER_OPEN: &str = "<!--seam:";
+pub(crate) const MARKER_CLOSE: &str = "-->";
 
-pub(super) fn tokenize(template: &str) -> Vec<Token> {
+pub(crate) fn tokenize(template: &str) -> Vec<Token> {
   let mut tokens = Vec::new();
   let mut pos = 0;
   let bytes = template.as_bytes();

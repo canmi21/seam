@@ -1,14 +1,14 @@
-/* packages/server/core/rust/src/injector/parser.rs */
+/* packages/server/injector/rust/src/parser.rs */
 
-use super::ast::{AstNode, SlotMode};
-use super::token::Token;
+use crate::ast::{AstNode, SlotMode};
+use crate::token::Token;
 
-pub(super) fn parse(tokens: &[Token]) -> Vec<AstNode> {
+pub(crate) fn parse(tokens: &[Token]) -> Vec<AstNode> {
   let mut pos = 0;
   parse_until(tokens, &mut pos, &|_| false)
 }
 
-pub(super) fn parse_until(
+pub(crate) fn parse_until(
   tokens: &[Token],
   pos: &mut usize,
   stop: &dyn Fn(&str) -> bool,

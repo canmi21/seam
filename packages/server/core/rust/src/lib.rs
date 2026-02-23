@@ -1,7 +1,6 @@
 /* packages/server/core/rust/src/lib.rs */
 
 pub mod errors;
-pub mod injector;
 pub mod manifest;
 pub mod page;
 pub mod procedure;

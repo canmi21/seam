@@ -16,7 +16,6 @@ use tokio::task::JoinSet;
 use tokio_stream::StreamExt;
 
 use crate::errors::SeamError;
-use crate::injector;
 use crate::manifest::build_manifest;
 use crate::page::PageDef;
 use crate::procedure::{ProcedureDef, SubscriptionDef};
@@ -207,6 +206,6 @@ async fn handle_page(
     data.insert(key, value);
   }
 
-  let html = injector::inject(&page.template, &serde_json::Value::Object(data));
+  let html = seam_injector::inject(&page.template, &serde_json::Value::Object(data));
   Ok(Html(html))
 }

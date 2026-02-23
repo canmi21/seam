@@ -3,6 +3,7 @@ resolver = "2"
 members = [
   "packages/server/core/rust",
   "packages/server/core/rust-macros",
+  "packages/server/injector/rust",
   "packages/cli/core",
   "examples/standalone/server-rust",
 ]

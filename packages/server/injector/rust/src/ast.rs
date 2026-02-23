@@ -1,7 +1,7 @@
-/* packages/server/core/rust/src/injector/ast.rs */
+/* packages/server/injector/rust/src/ast.rs */
 
 #[derive(Debug)]
-pub(super) enum AstNode {
+pub(crate) enum AstNode {
   Text(String),
   Slot { path: String, mode: SlotMode },
   Attr { path: String, attr_name: String },
@@ -12,7 +12,7 @@ pub(super) enum AstNode {
 }
 
 #[derive(Debug)]
-pub(super) enum SlotMode {
+pub(crate) enum SlotMode {
   Text,
   Html,
 }

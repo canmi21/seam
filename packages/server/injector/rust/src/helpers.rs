@@ -1,8 +1,8 @@
-/* packages/server/core/rust/src/injector/helpers.rs */
+/* packages/server/injector/rust/src/helpers.rs */
 
 use serde_json::Value;
 
-pub(super) fn resolve<'a>(path: &str, data: &'a Value) -> Option<&'a Value> {
+pub(crate) fn resolve<'a>(path: &str, data: &'a Value) -> Option<&'a Value> {
   let mut current = data;
   for key in path.split('.') {
     current = current.get(key)?;
@@ -10,7 +10,7 @@ pub(super) fn resolve<'a>(path: &str, data: &'a Value) -> Option<&'a Value> {
   Some(current)
 }
 
-pub(super) fn is_truthy(value: &Value) -> bool {
+pub(crate) fn is_truthy(value: &Value) -> bool {
   match value {
     Value::Null => false,
     Value::Bool(b) => *b,
@@ -29,7 +29,7 @@ pub(super) fn is_truthy(value: &Value) -> bool {
   }
 }
 
-pub(super) fn stringify(value: &Value) -> String {
+pub(crate) fn stringify(value: &Value) -> String {
   match value {
     Value::Null => String::new(),
     Value::Bool(b) => b.to_string(),
@@ -65,7 +65,7 @@ const HTML_BOOLEAN_ATTRS: &[&str] = &[
   "selected",
 ];
 
-pub(super) fn is_html_boolean_attr(name: &str) -> bool {
+pub(crate) fn is_html_boolean_attr(name: &str) -> bool {
   HTML_BOOLEAN_ATTRS.contains(&name)
 }
 
@@ -114,7 +114,7 @@ const CSS_UNITLESS_PROPERTIES: &[&str] = &[
   "stroke-width",
 ];
 
-pub(super) fn format_style_value(css_property: &str, value: &Value) -> Option<String> {
+pub(crate) fn format_style_value(css_property: &str, value: &Value) -> Option<String> {
   match value {
     Value::Null => None,
     Value::Bool(false) => None,
@@ -157,7 +157,7 @@ pub(super) fn format_style_value(css_property: &str, value: &Value) -> Option<St
   }
 }
 
-pub(super) fn escape_html(s: &str) -> String {
+pub(crate) fn escape_html(s: &str) -> String {
   let mut out = String::with_capacity(s.len());
   for ch in s.chars() {
     match ch {

@@ -1,30 +1,30 @@
-/* packages/server/core/rust/src/injector/render.rs */
+/* packages/server/injector/rust/src/render.rs */
 
 use serde_json::Value;
 
-use super::ast::{AstNode, SlotMode};
-use super::helpers::{
+use crate::ast::{AstNode, SlotMode};
+use crate::helpers::{
   escape_html, format_style_value, is_html_boolean_attr, is_truthy, resolve, stringify,
 };
 
-pub(super) struct AttrEntry {
-  pub(super) marker: String,
-  pub(super) attr_name: String,
-  pub(super) value: String,
+pub(crate) struct AttrEntry {
+  pub(crate) marker: String,
+  pub(crate) attr_name: String,
+  pub(crate) value: String,
 }
 
-pub(super) struct StyleAttrEntry {
-  pub(super) marker: String,
-  pub(super) css_property: String,
-  pub(super) value: String,
+pub(crate) struct StyleAttrEntry {
+  pub(crate) marker: String,
+  pub(crate) css_property: String,
+  pub(crate) value: String,
 }
 
-pub(super) struct RenderContext {
-  pub(super) attrs: Vec<AttrEntry>,
-  pub(super) style_attrs: Vec<StyleAttrEntry>,
+pub(crate) struct RenderContext {
+  pub(crate) attrs: Vec<AttrEntry>,
+  pub(crate) style_attrs: Vec<StyleAttrEntry>,
 }
 
-pub(super) fn render(nodes: &[AstNode], data: &Value, ctx: &mut RenderContext) -> String {
+pub(crate) fn render(nodes: &[AstNode], data: &Value, ctx: &mut RenderContext) -> String {
   let mut out = String::new();
 
   for node in nodes {
@@ -126,7 +126,7 @@ pub(super) fn render(nodes: &[AstNode], data: &Value, ctx: &mut RenderContext) -
   out
 }
 
-pub(super) fn inject_attributes(mut html: String, attrs: &[AttrEntry]) -> String {
+pub(crate) fn inject_attributes(mut html: String, attrs: &[AttrEntry]) -> String {
   for entry in attrs.iter().rev() {
     if let Some(pos) = html.find(&entry.marker) {
       html = format!("{}{}", &html[..pos], &html[pos + entry.marker.len()..]);
@@ -151,7 +151,7 @@ pub(super) fn inject_attributes(mut html: String, attrs: &[AttrEntry]) -> String
   html
 }
 
-pub(super) fn inject_style_attributes(mut html: String, entries: &[StyleAttrEntry]) -> String {
+pub(crate) fn inject_style_attributes(mut html: String, entries: &[StyleAttrEntry]) -> String {
   for entry in entries {
     if let Some(pos) = html.find(&entry.marker) {
       // Remove marker
