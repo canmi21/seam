@@ -51,7 +51,13 @@ export async function handlePageRequest(
     }
     // Render template with merged (flattened) data for slot resolution,
     // but inject keyed-only data into __SEAM_DATA__ for the client.
-    let html = inject(page.template, merged, { skipDataScript: true });
+    // Compose layout + page fragment
+    let fullTemplate = page.template;
+    if (page.layoutTemplate) {
+      fullTemplate = page.layoutTemplate.replace("<!--seam:outlet-->", page.template);
+    }
+
+    let html = inject(fullTemplate, merged, { skipDataScript: true });
     const script = `<script id="__SEAM_DATA__" type="application/json">${JSON.stringify(keyed)}</script>`;
     const bodyClose = html.lastIndexOf("</body>");
     if (bodyClose !== -1) {

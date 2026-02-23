@@ -9,6 +9,7 @@ export type LoaderFn = (params: Record<string, string>) => LoaderResult;
 
 export interface PageDef {
   template: string;
+  layoutTemplate?: string;
   loaders: Record<string, LoaderFn>;
 }
 

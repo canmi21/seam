@@ -5,11 +5,13 @@ import { join } from "node:path";
 import type { PageDef, LoaderFn, LoaderResult } from "./index.js";
 
 interface RouteManifest {
+  layouts?: Record<string, { template: string }>;
   routes: Record<string, RouteManifestEntry>;
 }
 
 interface RouteManifestEntry {
   template: string;
+  layout?: string;
   loaders: Record<string, LoaderConfig>;
 }
 
@@ -41,6 +43,14 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
   const raw = readFileSync(manifestPath, "utf-8");
   const manifest = JSON.parse(raw) as RouteManifest;
 
+  // Load layout templates
+  const layoutTemplates: Record<string, string> = {};
+  if (manifest.layouts) {
+    for (const [id, entry] of Object.entries(manifest.layouts)) {
+      layoutTemplates[id] = readFileSync(join(distDir, entry.template), "utf-8");
+    }
+  }
+
   const pages: Record<string, PageDef> = {};
   for (const [path, entry] of Object.entries(manifest.routes)) {
     const templatePath = join(distDir, entry.template);
@@ -51,7 +61,8 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
       loaders[key] = buildLoaderFn(loaderConfig);
     }
 
-    pages[path] = { template, loaders };
+    const layoutTemplate = entry.layout ? layoutTemplates[entry.layout] : undefined;
+    pages[path] = { template, layoutTemplate, loaders };
   }
   return pages;
 }

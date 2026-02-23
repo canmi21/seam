@@ -217,6 +217,7 @@ function renderRoute(route, manifest) {
   return {
     path: route.path,
     loaders: route.loaders,
+    layout: route._layoutId || undefined,
     axes,
     variants,
     mockHtml,
@@ -225,15 +226,47 @@ function renderRoute(route, manifest) {
   };
 }
 
-// -- Route flattening --
+// -- Layout helpers --
 
-/** Extract leaf routes from nested layout structure for CTR rendering */
-function flattenRoutes(routes) {
+function toLayoutId(path) {
+  return path === "/"
+    ? "_layout_root"
+    : `_layout_${path.replace(/^\/|\/$/g, "").replace(/\//g, "-")}`;
+}
+
+/** Extract layout components from route tree */
+function extractLayouts(routes) {
+  const seen = new Map();
+  (function walk(defs) {
+    for (const def of defs) {
+      if (def.layout && def.children) {
+        const id = toLayoutId(def.path);
+        if (!seen.has(id)) seen.set(id, def.layout);
+        walk(def.children);
+      }
+    }
+  })(routes);
+  return seen;
+}
+
+/** Render layout with seam-outlet placeholder */
+function renderLayout(LayoutComponent, id) {
+  function LayoutWithOutlet() {
+    return createElement(LayoutComponent, null, createElement("seam-outlet", null));
+  }
+  return guardedRender(`layout:${id}`, LayoutWithOutlet, {});
+}
+
+/** Flatten routes, annotating each leaf with its parent layout id */
+function flattenRoutes(routes, currentLayout) {
   const leaves = [];
   for (const route of routes) {
-    if (route.children) {
-      leaves.push(...flattenRoutes(route.children));
+    if (route.layout && route.children) {
+      leaves.push(...flattenRoutes(route.children, toLayoutId(route.path)));
+    } else if (route.children) {
+      leaves.push(...flattenRoutes(route.children, currentLayout));
     } else {
+      if (currentLayout) route._layoutId = currentLayout;
       leaves.push(route);
     }
   }
@@ -280,8 +313,17 @@ async function main() {
       throw new Error("Routes file must export default or named 'routes' as an array");
     }
 
+    const layoutMap = extractLayouts(routes);
+    const layouts = [...layoutMap.entries()].map(([id, component]) => ({
+      id,
+      html: renderLayout(component, id),
+    }));
     const flat = flattenRoutes(routes);
-    const output = { routes: flat.map((r) => renderRoute(r, manifest)), warnings: buildWarnings };
+    const output = {
+      layouts,
+      routes: flat.map((r) => renderRoute(r, manifest)),
+      warnings: buildWarnings,
+    };
     process.stdout.write(JSON.stringify(output));
   } finally {
     try {
