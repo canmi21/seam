@@ -4,6 +4,7 @@ members = [
   "packages/server/core/rust",
   "packages/server/core/rust-macros",
   "packages/server/injector/rust",
+  "packages/server/injector/wasm",
   "packages/cli/core",
   "examples/standalone/server-rust",
 ]

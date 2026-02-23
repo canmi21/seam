@@ -1203,6 +1203,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "seam-injector-wasm"
+version = "0.2.3"
+dependencies = [
+ "seam-injector",
+ "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "seam-macros"
 version = "0.2.3"
 dependencies = [
