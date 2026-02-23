@@ -1,4 +1,5 @@
 /* packages/client/react/__tests__/build-skeletons.test.ts */
+/* eslint-disable max-lines-per-function */
 
 import { describe, it, expect, afterAll } from "vitest";
 import { execSync, spawnSync } from "node:child_process";

@@ -114,6 +114,29 @@ async function* sseStream<T extends DefinitionMap>(
   }
 }
 
+async function handleBatchHttp<T extends DefinitionMap>(
+  req: HttpRequest,
+  router: Router<T>,
+): Promise<HttpBodyResponse> {
+  let body: unknown;
+  try {
+    body = await req.body();
+  } catch {
+    return errorResponse(400, "VALIDATION_ERROR", "Invalid JSON body");
+  }
+  if (!body || typeof body !== "object" || !Array.isArray((body as { calls?: unknown }).calls)) {
+    return errorResponse(400, "VALIDATION_ERROR", "Batch request must have a 'calls' array");
+  }
+  const calls = (body as { calls: Array<{ procedure?: unknown; input?: unknown }> }).calls.map(
+    (c) => ({
+      procedure: typeof c.procedure === "string" ? c.procedure : "",
+      input: c.input ?? {},
+    }),
+  );
+  const result = await router.handleBatch(calls);
+  return jsonResponse(200, result);
+}
+
 export function createHttpHandler<T extends DefinitionMap>(
   router: Router<T>,
   opts?: HttpHandlerOptions,
@@ -132,30 +155,7 @@ export function createHttpHandler<T extends DefinitionMap>(
         return errorResponse(404, "NOT_FOUND", "Empty procedure name");
       }
 
-      // Batch endpoint: POST /_seam/rpc/_batch
-      if (name === "_batch") {
-        let body: unknown;
-        try {
-          body = await req.body();
-        } catch {
-          return errorResponse(400, "VALIDATION_ERROR", "Invalid JSON body");
-        }
-        if (
-          !body ||
-          typeof body !== "object" ||
-          !Array.isArray((body as { calls?: unknown }).calls)
-        ) {
-          return errorResponse(400, "VALIDATION_ERROR", "Batch request must have a 'calls' array");
-        }
-        const calls = (
-          body as { calls: Array<{ procedure?: unknown; input?: unknown }> }
-        ).calls.map((c) => ({
-          procedure: typeof c.procedure === "string" ? c.procedure : "",
-          input: c.input ?? {},
-        }));
-        const result = await router.handleBatch(calls);
-        return jsonResponse(200, result);
-      }
+      if (name === "_batch") return handleBatchHttp(req, router);
 
       let body: unknown;
       try {
