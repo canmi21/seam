@@ -109,6 +109,11 @@ func TestMain(m *testing.M) {
 	// Build Rust backend upfront
 	runBuild(root, "cargo build", "cargo", "build", "-p", "demo-server-rust")
 
+	// Build Go backend
+	goBin := filepath.Join(root, "examples", "standalone", "server-go", "server-go")
+	goDir := filepath.Join(root, "examples", "standalone", "server-go")
+	runBuild(goDir, "go build server-go", "go", "build", "-o", goBin, ".")
+
 	// Build TS packages for Node example
 	for _, pkg := range []string{"server/injector", "server/core/typescript", "server/adapter/bun", "server/adapter/node"} {
 		runBuild(root, "build "+pkg, "bun", "run", "--cwd", filepath.Join("packages", pkg), "build")
@@ -120,11 +125,13 @@ func TestMain(m *testing.M) {
 	rustURL := startDaemon(&daemons, root, "Rust backend", "cargo", "run", "-p", "demo-server-rust")
 	nodeURL := startDaemon(&daemons, root, "Node backend",
 		filepath.Join(root, "node_modules", ".bin", "tsx"), "examples/standalone/server-node/src/index.ts")
+	goURL := startDaemon(&daemons, root, "Go backend", goBin)
 
 	backends = []Backend{
 		{Name: "typescript", BaseURL: tsURL},
 		{Name: "rust", BaseURL: rustURL},
 		{Name: "node", BaseURL: nodeURL},
+		{Name: "go", BaseURL: goURL},
 	}
 
 	// Health check: poll manifest endpoint with 15s timeout
