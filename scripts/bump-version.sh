@@ -34,11 +34,25 @@ while IFS= read -r pkg; do
   fi
 done < <(find "$ROOT/packages" -name "package.json" -not -path "*/node_modules/*" | sort)
 
-# 3. Update version in Cargo.toml path dependencies (version = "...", path = "...")
+# 3. Update version in Cargo.toml internal path dependencies
+#    Handles both formats:
+#      a) version + path:  { version = "...", path = "..." }
+#      b) path-only:       { path = "..." }  -> adds version field
+INTERNAL_CRATES="seam-injector\|seam-macros\|seam-server"
 echo "Updating Rust path dependency versions..."
 while IFS= read -r cargo; do
+  changed=false
+  # 3a. Update existing version+path entries
   if grep -q 'version = ".*", path = "' "$cargo"; then
     sed -i '' 's/version = "[^"]*", path = "/version = "'"$VERSION"'", path = "/g' "$cargo"
+    changed=true
+  fi
+  # 3b. Add version to path-only entries for known internal crates
+  if grep -qE "^(${INTERNAL_CRATES//\\|/|}) = \{ path = " "$cargo"; then
+    sed -i '' '/^\('"$INTERNAL_CRATES"'\) = { path = /s/{ path = /{ version = "'"$VERSION"'", path = /g' "$cargo"
+    changed=true
+  fi
+  if $changed; then
     echo "  ${cargo#$ROOT/}"
   fi
 done < <(find "$ROOT/packages" "$ROOT/examples" -name "Cargo.toml" | sort)
