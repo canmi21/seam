@@ -20,4 +20,5 @@ export interface RouteDef {
   loaders?: Record<string, LoaderDef>;
   mock?: Record<string, unknown>;
   nullable?: string[];
+  staleTime?: number;
 }

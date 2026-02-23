@@ -47,6 +47,7 @@ function buildRoutes(
         id: layoutId,
         component: createLayoutWrapper(def.layout, hasLoaders),
         loader: hasLoaders ? createLoaderFromDefs(def.loaders!, def.path, layoutId) : undefined,
+        staleTime: def.staleTime,
       });
       const children = buildRoutes(def.children, layoutRoute, pages);
       return layoutRoute.addChildren(children);
@@ -64,6 +65,7 @@ function buildRoutes(
             return def.clientLoader!({ params, seamRpc: ctx.seamRpc });
           }
         : createLoaderFromDefs(def.loaders ?? {}, def.path),
+      staleTime: def.staleTime,
     });
   });
 }

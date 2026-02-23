@@ -9,6 +9,7 @@ export default defineSeamRoutes([
   {
     path: "/",
     layout: AppLayout,
+    staleTime: 300_000,
     loaders: {
       session: { procedure: "getSession" },
     },
