@@ -4,10 +4,15 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$DIR/ci/_lib.sh"
+
+require_cmd cargo "https://rustup.rs"
+require_cmd bun   "https://bun.sh"
+require_cmd go    "https://go.dev/dl"
 
 bash "$DIR/ci/build-cli.sh"
 bash "$DIR/ci/build-fixtures.sh"
-bash "$DIR/ci/test-integration.sh"
-bash "$DIR/ci/test-e2e.sh"
+
+run_parallel "test-integration" "$DIR/ci/test-integration.sh" "test-e2e" "$DIR/ci/test-e2e.sh"
 
 printf '\n==> All smoke tests passed.\n'
