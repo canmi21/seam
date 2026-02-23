@@ -1,4 +1,4 @@
-/* packages/server/injector/src/resolve.ts */
+/* packages/server/injector/native/src/resolve.ts */
 
 export function resolve(path: string, data: Record<string, unknown>): unknown {
   const keys = path.split(".");

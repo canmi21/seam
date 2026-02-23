@@ -1,5 +1,5 @@
 {
-  "name": "@canmi/seam-injector",
+  "name": "@canmi/seam-injector-native",
   "version": "0.2.3",
   "files": [
     "dist"

@@ -1,4 +1,4 @@
-/* packages/server/injector/src/injector.ts */
+/* packages/server/injector/native/src/injector.ts */
 
 import { escapeHtml } from "./escape.js";
 import { resolve } from "./resolve.js";

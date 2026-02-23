@@ -1,4 +1,4 @@
-/* packages/server/injector/tsdown.config.ts */
+/* packages/server/injector/native/tsdown.config.ts */
 
 import { defineConfig } from "tsdown";
 

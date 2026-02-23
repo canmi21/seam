@@ -1,4 +1,4 @@
-/* packages/server/injector/src/escape.ts */
+/* packages/server/injector/native/src/escape.ts */
 
 const ESCAPE_MAP: Record<string, string> = {
   "&": "&amp;",

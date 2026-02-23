@@ -1,4 +1,4 @@
-# @canmi/seam-injector
+# @canmi/seam-injector-native
 
 HTML template injector that replaces `<!--seam:...-->` markers with data-driven content.
 
@@ -21,7 +21,7 @@ HTML template injector that replaces `<!--seam:...-->` markers with data-driven 
 ## Testing
 
 ```sh
-bun run --filter '@canmi/seam-injector' test
+bun run --filter '@canmi/seam-injector-native' test
 ```
 
 - Tests in `__tests__/`: `injector.test.ts`, `escape.test.ts`, `resolve.test.ts`

@@ -1,6 +1,6 @@
 /* packages/server/core/typescript/src/page/handler.ts */
 
-import { inject, escapeHtml } from "@canmi/seam-injector";
+import { inject, escapeHtml } from "@canmi/seam-injector-native";
 import { SeamError } from "../errors.js";
 import type { InternalProcedure } from "../procedure.js";
 import type { PageDef } from "./index.js";

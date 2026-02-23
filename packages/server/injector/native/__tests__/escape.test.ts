@@ -1,4 +1,4 @@
-/* packages/server/injector/__tests__/escape.test.ts */
+/* packages/server/injector/native/__tests__/escape.test.ts */
 
 import { describe, expect, it } from "vitest";
 import { escapeHtml } from "../src/escape.js";

@@ -1,4 +1,4 @@
-/* packages/server/injector/__tests__/injector.test.ts */
+/* packages/server/injector/native/__tests__/injector.test.ts */
 
 import { describe, expect, it } from "vitest";
 import { inject } from "../src/injector.js";

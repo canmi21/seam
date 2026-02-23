@@ -1,4 +1,4 @@
-# @canmi/seam-injector
+# @canmi/seam-injector-native
 
 HTML template injector that replaces `<!--seam:...-->` comment markers with data-driven content.
 
@@ -14,8 +14,8 @@ HTML template injector that replaces `<!--seam:...-->` comment markers with data
 
 ## Development
 
-- Build: `bun run --filter '@canmi/seam-injector' build`
-- Test: `bun run --filter '@canmi/seam-injector' test`
+- Build: `bun run --filter '@canmi/seam-injector-native' build`
+- Test: `bun run --filter '@canmi/seam-injector-native' test`
 
 ## Notes
 

@@ -1,4 +1,4 @@
-/* packages/server/injector/__tests__/resolve.test.ts */
+/* packages/server/injector/native/__tests__/resolve.test.ts */
 
 import { describe, expect, it } from "vitest";
 import { resolve } from "../src/resolve.js";
