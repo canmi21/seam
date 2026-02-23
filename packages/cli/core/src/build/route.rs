@@ -23,7 +23,15 @@ use crate::ui::{self, DIM, GREEN, RESET, YELLOW};
 // -- Node script output types --
 
 #[derive(Deserialize)]
+pub(super) struct SkeletonLayout {
+  pub(super) id: String,
+  pub(super) html: String,
+}
+
+#[derive(Deserialize)]
 pub(super) struct SkeletonOutput {
+  #[serde(default)]
+  pub(super) layouts: Vec<SkeletonLayout>,
   pub(super) routes: Vec<SkeletonRoute>,
   #[serde(default)]
   pub(super) warnings: Vec<String>,
@@ -40,6 +48,8 @@ pub(super) struct SkeletonRoute {
   mock: serde_json::Value,
   #[serde(rename = "pageSchema")]
   page_schema: Option<serde_json::Value>,
+  #[serde(default)]
+  layout: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -52,13 +62,22 @@ struct RenderedVariant {
 // -- Route manifest output --
 
 #[derive(Serialize)]
+struct LayoutManifestEntry {
+  template: String,
+}
+
+#[derive(Serialize)]
 pub(super) struct RouteManifest {
+  #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+  layouts: BTreeMap<String, LayoutManifestEntry>,
   routes: BTreeMap<String, RouteManifestEntry>,
 }
 
 #[derive(Serialize)]
 struct RouteManifestEntry {
   template: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  layout: Option<String>,
   loaders: serde_json::Value,
 }
 
@@ -107,11 +126,26 @@ pub(super) fn run_skeleton_renderer(
 }
 
 pub(super) fn process_routes(
+  layouts: &[SkeletonLayout],
   routes: &[SkeletonRoute],
   templates_dir: &Path,
   assets: &AssetFiles,
 ) -> Result<RouteManifest> {
-  let mut manifest = RouteManifest { routes: BTreeMap::new() };
+  // Process layouts first -- replace <seam-outlet> with server-composable directive
+  let mut layout_manifest = BTreeMap::new();
+  for layout in layouts {
+    let html = layout.html.replace("<seam-outlet></seam-outlet>", "<!--seam:outlet-->");
+    let document = wrap_document(&html, &assets.css, &assets.js);
+    let filename = format!("{}.html", layout.id);
+    let filepath = templates_dir.join(&filename);
+    std::fs::write(&filepath, &document)
+      .with_context(|| format!("failed to write {}", filepath.display()))?;
+    let template_rel = format!("templates/{filename}");
+    ui::detail_ok(&format!("layout {} -> {template_rel}", layout.id));
+    layout_manifest.insert(layout.id.clone(), LayoutManifestEntry { template: template_rel });
+  }
+
+  let mut manifest = RouteManifest { layouts: layout_manifest, routes: BTreeMap::new() };
 
   for route in routes {
     let processed: Vec<_> = route.variants.iter().map(|v| sentinel_to_slots(&v.html)).collect();
@@ -127,7 +161,12 @@ pub(super) fn process_routes(
       }
     }
 
-    let document = wrap_document(&template, &assets.css, &assets.js);
+    // Routes with a layout are fragments; the server composes them at runtime
+    let document = if route.layout.is_some() {
+      template.clone()
+    } else {
+      wrap_document(&template, &assets.css, &assets.js)
+    };
 
     let filename = path_to_filename(&route.path);
     let filepath = templates_dir.join(&filename);
@@ -144,7 +183,11 @@ pub(super) fn process_routes(
 
     manifest.routes.insert(
       route.path.clone(),
-      RouteManifestEntry { template: template_rel, loaders: route.loaders.clone() },
+      RouteManifestEntry {
+        template: template_rel,
+        layout: route.layout.clone(),
+        loaders: route.loaders.clone(),
+      },
     );
   }
   Ok(manifest)
