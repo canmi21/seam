@@ -10,15 +10,12 @@
   ],
   "type": "module",
   "scripts": {
-    "build": "tsdown src/index.ts",
+    "build": "tsdown",
     "test": "vitest run"
-  },
-  "dependencies": {
-    "rolldown": "^1.0.0-rc"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "tsdown": "^0.12.0",
+    "tsdown": "^0.20.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   },
