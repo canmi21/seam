@@ -7,10 +7,16 @@ export interface LoaderResult {
 
 export type LoaderFn = (params: Record<string, string>) => LoaderResult;
 
+export interface LayoutDef {
+  id: string;
+  template: string;
+  loaders: Record<string, LoaderFn>;
+}
+
 export interface PageDef {
   template: string;
-  layoutTemplate?: string;
   loaders: Record<string, LoaderFn>;
+  layoutChain: LayoutDef[];
 }
 
 export function definePage(config: PageDef): PageDef {

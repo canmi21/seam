@@ -9,6 +9,18 @@ const ghHeaders = (): Record<string, string> => {
   return h;
 };
 
+export const getSession: ProcedureDef = {
+  input: t.object({}),
+  output: t.object({
+    username: t.string(),
+    theme: t.string(),
+  }),
+  handler: () => ({
+    username: "visitor",
+    theme: "light",
+  }),
+};
+
 export const getHomeData: ProcedureDef = {
   input: t.object({}),
   output: t.object({

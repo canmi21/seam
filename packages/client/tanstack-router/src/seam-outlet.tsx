@@ -2,7 +2,14 @@
 
 import { useContext } from "react";
 import type { ComponentType, ReactNode } from "react";
-import { Match, matchContext, useRouter, useRouterState } from "@tanstack/react-router";
+import {
+  Match,
+  matchContext,
+  useLoaderData,
+  useRouter,
+  useRouterState,
+} from "@tanstack/react-router";
+import { SeamDataProvider } from "@canmi/seam-react";
 
 /**
  * Drop-in replacement for TanStack Router's Outlet that skips the
@@ -26,13 +33,45 @@ export function SeamOutlet() {
   return <Match matchId={childMatchId} />;
 }
 
-/** Wrap a layout component so it receives <SeamOutlet /> as children */
-export function createLayoutWrapper(Layout: ComponentType<{ children: ReactNode }>) {
+/**
+ * Wrap a layout component so it receives <SeamOutlet /> as children.
+ * When the layout has loaders, wrap with SeamDataProvider so useSeamData()
+ * returns layout-scoped data within the layout component.
+ */
+export function createLayoutWrapper(
+  Layout: ComponentType<{ children: ReactNode }>,
+  hasLoaders?: boolean,
+) {
+  if (hasLoaders) {
+    return function LayoutWrapperWithData() {
+      const data = useLoaderData({ strict: false });
+      return (
+        <SeamDataProvider value={data}>
+          <Layout>
+            <SeamOutlet />
+          </Layout>
+        </SeamDataProvider>
+      );
+    };
+  }
+
   return function LayoutWrapper() {
     return (
       <Layout>
         <SeamOutlet />
       </Layout>
+    );
+  };
+}
+
+/** Wrap a page component with SeamDataProvider so useSeamData() returns page-scoped data */
+export function createPageWrapper(Page: ComponentType) {
+  return function PageWrapper() {
+    const data = useLoaderData({ strict: false });
+    return (
+      <SeamDataProvider value={data}>
+        <Page />
+      </SeamDataProvider>
     );
   };
 }

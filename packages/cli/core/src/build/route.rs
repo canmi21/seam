@@ -26,6 +26,9 @@ use crate::ui::{self, DIM, GREEN, RESET, YELLOW};
 pub(super) struct SkeletonLayout {
   pub(super) id: String,
   pub(super) html: String,
+  #[serde(default)]
+  pub(super) loaders: serde_json::Value,
+  pub(super) parent: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -64,6 +67,10 @@ struct RenderedVariant {
 #[derive(Serialize)]
 struct LayoutManifestEntry {
   template: String,
+  #[serde(skip_serializing_if = "serde_json::Value::is_null")]
+  loaders: serde_json::Value,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  parent: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -131,10 +138,12 @@ pub(super) fn process_routes(
   templates_dir: &Path,
   assets: &AssetFiles,
 ) -> Result<RouteManifest> {
-  // Process layouts first -- replace <seam-outlet> with server-composable directive
+  // Process layouts: replace <seam-outlet>, convert sentinels to slots, wrap document
   let mut layout_manifest = BTreeMap::new();
   for layout in layouts {
     let html = layout.html.replace("<seam-outlet></seam-outlet>", "<!--seam:outlet-->");
+    // Convert %%SEAM:path%% sentinels to <!--seam:path--> slots for server injection
+    let html = sentinel_to_slots(&html);
     let document = wrap_document(&html, &assets.css, &assets.js);
     let filename = format!("{}.html", layout.id);
     let filepath = templates_dir.join(&filename);
@@ -142,7 +151,14 @@ pub(super) fn process_routes(
       .with_context(|| format!("failed to write {}", filepath.display()))?;
     let template_rel = format!("templates/{filename}");
     ui::detail_ok(&format!("layout {} -> {template_rel}", layout.id));
-    layout_manifest.insert(layout.id.clone(), LayoutManifestEntry { template: template_rel });
+    layout_manifest.insert(
+      layout.id.clone(),
+      LayoutManifestEntry {
+        template: template_rel,
+        loaders: layout.loaders.clone(),
+        parent: layout.parent.clone(),
+      },
+    );
   }
 
   let mut manifest = RouteManifest { layouts: layout_manifest, routes: BTreeMap::new() };

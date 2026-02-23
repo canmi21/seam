@@ -2,9 +2,9 @@
 
 import { createRouter } from "@canmi/seam-server";
 import type { RouterOptions } from "@canmi/seam-server";
-import { getHomeData, getUser, getUserRepos } from "./procedures.js";
+import { getSession, getHomeData, getUser, getUserRepos } from "./procedures.js";
 
-export const procedures = { getHomeData, getUser, getUserRepos };
+export const procedures = { getSession, getHomeData, getUser, getUserRepos };
 
 export function buildRouter(opts?: RouterOptions) {
   return createRouter(procedures, opts);

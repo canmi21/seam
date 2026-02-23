@@ -2,11 +2,17 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { PageDef, LoaderFn, LoaderResult } from "./index.js";
+import type { PageDef, LayoutDef, LoaderFn, LoaderResult } from "./index.js";
 
 interface RouteManifest {
-  layouts?: Record<string, { template: string }>;
+  layouts?: Record<string, LayoutManifestEntry>;
   routes: Record<string, RouteManifestEntry>;
+}
+
+interface LayoutManifestEntry {
+  template: string;
+  loaders?: Record<string, LoaderConfig>;
+  parent?: string;
 }
 
 interface RouteManifestEntry {
@@ -38,6 +44,39 @@ function buildLoaderFn(config: LoaderConfig): LoaderFn {
   };
 }
 
+function buildLoaderFns(configs: Record<string, LoaderConfig>): Record<string, LoaderFn> {
+  const fns: Record<string, LoaderFn> = {};
+  for (const [key, config] of Object.entries(configs)) {
+    fns[key] = buildLoaderFn(config);
+  }
+  return fns;
+}
+
+/** Resolve parent chain for a layout, returning outer-to-inner order */
+function resolveLayoutChain(
+  layoutId: string,
+  layoutEntries: Record<string, LayoutManifestEntry>,
+  templates: Record<string, string>,
+): LayoutDef[] {
+  const chain: LayoutDef[] = [];
+  let currentId: string | undefined = layoutId;
+
+  while (currentId) {
+    const entry = layoutEntries[currentId];
+    if (!entry) break;
+    chain.push({
+      id: currentId,
+      template: templates[currentId],
+      loaders: buildLoaderFns(entry.loaders ?? {}),
+    });
+    currentId = entry.parent;
+  }
+
+  // Reverse: we walked inner→outer, but want outer→inner
+  chain.reverse();
+  return chain;
+}
+
 export function loadBuildOutput(distDir: string): Record<string, PageDef> {
   const manifestPath = join(distDir, "route-manifest.json");
   const raw = readFileSync(manifestPath, "utf-8");
@@ -45,10 +84,9 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
 
   // Load layout templates
   const layoutTemplates: Record<string, string> = {};
-  if (manifest.layouts) {
-    for (const [id, entry] of Object.entries(manifest.layouts)) {
-      layoutTemplates[id] = readFileSync(join(distDir, entry.template), "utf-8");
-    }
+  const layoutEntries = manifest.layouts ?? {};
+  for (const [id, entry] of Object.entries(layoutEntries)) {
+    layoutTemplates[id] = readFileSync(join(distDir, entry.template), "utf-8");
   }
 
   const pages: Record<string, PageDef> = {};
@@ -56,13 +94,12 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
     const templatePath = join(distDir, entry.template);
     const template = readFileSync(templatePath, "utf-8");
 
-    const loaders: Record<string, LoaderFn> = {};
-    for (const [key, loaderConfig] of Object.entries(entry.loaders)) {
-      loaders[key] = buildLoaderFn(loaderConfig);
-    }
+    const loaders = buildLoaderFns(entry.loaders);
+    const layoutChain = entry.layout
+      ? resolveLayoutChain(entry.layout, layoutEntries, layoutTemplates)
+      : [];
 
-    const layoutTemplate = entry.layout ? layoutTemplates[entry.layout] : undefined;
-    pages[path] = { template, layoutTemplate, loaders };
+    pages[path] = { template, loaders, layoutChain };
   }
   return pages;
 }
