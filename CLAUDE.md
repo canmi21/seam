@@ -92,16 +92,16 @@
 
 ## Running Tests
 
-| Command                    | Scope                                             |
-| -------------------------- | ------------------------------------------------- |
-| `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)        |
-| `bun run test:ts`          | TS unit tests (vitest across 10 packages)         |
-| `bun run test:unit`        | All unit tests (Rust + TS)                        |
-| `bun run test:integration` | Go integration tests (standalone + fullstack)     |
-| `bun run test:e2e`         | Playwright E2E tests                              |
-| `bun run test`             | All layers (unit + integration + e2e), fail-fast  |
-| `bun run typecheck`        | TypeScript type checking across all TS packages   |
-| `bun run verify`           | Full pipeline: fmt + lint + build + all tests     |
+| Command                    | Scope                                            |
+| -------------------------- | ------------------------------------------------ |
+| `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)       |
+| `bun run test:ts`          | TS unit tests (vitest across 10 packages)        |
+| `bun run test:unit`        | All unit tests (Rust + TS)                       |
+| `bun run test:integration` | Go integration tests (standalone + fullstack)    |
+| `bun run test:e2e`         | Playwright E2E tests                             |
+| `bun run test`             | All layers (unit + integration + e2e), fail-fast |
+| `bun run typecheck`        | TypeScript type checking across all TS packages  |
+| `bun run verify`           | Full pipeline: fmt + lint + build + all tests    |
 
 - Integration and E2E tests require fullstack build output: `cd examples/github-dashboard/seam-app && seam build`
 - `scripts/smoke-fullstack.sh` runs the full build-and-test pipeline for integration + E2E

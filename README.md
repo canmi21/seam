@@ -45,23 +45,23 @@ SeamJS is a **rendering strategy**, not a full-stack framework tied to specific 
 
 ### Client Libraries
 
-| Package                                                    | npm                            | Description                                              |
-| ---------------------------------------------------------- | ------------------------------ | -------------------------------------------------------- |
-| [client/vanilla](packages/client/vanilla/)                 | `@canmi/seam-client`           | Framework-agnostic client (RPC calls, SSE subscriptions) |
-| [client/react](packages/client/react/)                     | `@canmi/seam-react`            | React bindings (hooks, data provider, route definitions) |
-| [client/tanstack-router](packages/client/tanstack-router/) | `@canmi/seam-tanstack-router`  | TanStack Router integration (route definitions, loaders) |
+| Package                                                    | npm                           | Description                                              |
+| ---------------------------------------------------------- | ----------------------------- | -------------------------------------------------------- |
+| [client/vanilla](packages/client/vanilla/)                 | `@canmi/seam-client`          | Framework-agnostic client (RPC calls, SSE subscriptions) |
+| [client/react](packages/client/react/)                     | `@canmi/seam-react`           | React bindings (hooks, data provider, route definitions) |
+| [client/tanstack-router](packages/client/tanstack-router/) | `@canmi/seam-tanstack-router` | TanStack Router integration (route definitions, loaders) |
 
 ### Template Injector
 
 Replaces `<!--seam:...-->` markers in HTML skeletons with server data. The Rust library is the core implementation; other packages provide language-specific bindings.
 
-| Package                                                  | Crate / npm                    | Description                                          |
-| -------------------------------------------------------- | ------------------------------ | ---------------------------------------------------- |
-| [injector/rust](packages/server/injector/rust/)          | `seam-injector`                | Core injector library (tokenize, parse, render)      |
-| [injector/wasm](packages/server/injector/wasm/)          | `seam-injector-wasm`           | WASM bindings for cross-language use                  |
-| [injector/go](packages/server/injector/go/)              | Go module                      | Go wrapper running WASM via Wazero                    |
-| [injector/native](packages/server/injector/native/)      | `@canmi/seam-injector-native`  | Node.js bindings (napi-rs)                            |
-| [injector/js](packages/server/injector/js/)              | `@canmi/seam-injector`         | Pure TypeScript fallback implementation               |
+| Package                                             | Crate / npm                   | Description                                     |
+| --------------------------------------------------- | ----------------------------- | ----------------------------------------------- |
+| [injector/rust](packages/server/injector/rust/)     | `seam-injector`               | Core injector library (tokenize, parse, render) |
+| [injector/wasm](packages/server/injector/wasm/)     | `seam-injector-wasm`          | WASM bindings for cross-language use            |
+| [injector/go](packages/server/injector/go/)         | Go module                     | Go wrapper running WASM via Wazero              |
+| [injector/native](packages/server/injector/native/) | `@canmi/seam-injector-native` | Node.js bindings (napi-rs)                      |
+| [injector/js](packages/server/injector/js/)         | `@canmi/seam-injector`        | Pure TypeScript fallback implementation         |
 
 ### Tooling
 
