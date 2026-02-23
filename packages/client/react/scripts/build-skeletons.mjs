@@ -256,9 +256,27 @@ function extractLayouts(routes) {
   return seen;
 }
 
+/**
+ * Resolve mock data for a layout: auto-generate from schema when loaders exist,
+ * then deep-merge any user-provided partial mock on top.
+ * Unlike resolveRouteMock, a layout with no loaders and no mock is valid (empty shell).
+ */
+function resolveLayoutMock(entry, manifest) {
+  if (Object.keys(entry.loaders).length > 0) {
+    const schema = buildPageSchema(entry, manifest);
+    if (schema) {
+      const keyedMock = generateMockFromSchema(schema);
+      const autoMock = flattenLoaderMock(keyedMock);
+      return entry.mock ? deepMerge(autoMock, entry.mock) : autoMock;
+    }
+  }
+  return entry.mock || {};
+}
+
 /** Render layout with seam-outlet placeholder, optionally with sentinel data */
-function renderLayout(LayoutComponent, id, mock) {
-  const data = mock ? buildSentinelData(mock) : {};
+function renderLayout(LayoutComponent, id, entry, manifest) {
+  const mock = resolveLayoutMock(entry, manifest);
+  const data = Object.keys(mock).length > 0 ? buildSentinelData(mock) : {};
   function LayoutWithOutlet() {
     return createElement(LayoutComponent, null, createElement("seam-outlet", null));
   }
@@ -324,7 +342,7 @@ async function main() {
     const layoutMap = extractLayouts(routes);
     const layouts = [...layoutMap.entries()].map(([id, entry]) => ({
       id,
-      html: renderLayout(entry.component, id, entry.mock),
+      html: renderLayout(entry.component, id, entry, manifest),
       loaders: entry.loaders,
       parent: entry.parentId,
     }));
