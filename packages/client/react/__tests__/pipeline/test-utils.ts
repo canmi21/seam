@@ -3,7 +3,7 @@
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { expect } from "vitest";
-import { inject } from "@canmi/seam-injector-native";
+import { inject } from "@canmi/seam-injector";
 import { SeamDataProvider } from "../../src/index.js";
 import { buildSentinelData } from "../../src/sentinel.js";
 import { extractTemplate, generateCombos } from "./extract/index.js";

@@ -8,7 +8,14 @@ import seamPlugin from "./packages/eslint-plugin-seam/src/index.ts";
 
 export default tseslint.config(
   {
-    ignores: ["**/dist/**", "**/node_modules/**", "**/target/**", "**/.seam/**", "packages/cli/**"],
+    ignores: [
+      "**/dist/**",
+      "**/node_modules/**",
+      "**/target/**",
+      "**/.seam/**",
+      "**/pkg/**",
+      "packages/cli/**",
+    ],
   },
   {
     plugins: { seam: seamPlugin },

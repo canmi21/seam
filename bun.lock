@@ -132,7 +132,7 @@
         "esbuild": "^0.25.0",
       },
       "devDependencies": {
-        "@canmi/seam-injector-native": "workspace:*",
+        "@canmi/seam-injector": "workspace:*",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
         "jsdom": "^28.1.0",
@@ -238,10 +238,21 @@
       "name": "@canmi/seam-server",
       "version": "0.2.3",
       "dependencies": {
-        "@canmi/seam-injector-native": "workspace:*",
+        "@canmi/seam-injector": "workspace:*",
         "jtd": "^0.1.1",
       },
       "devDependencies": {
+        "@types/node": "^22.0.0",
+        "tsdown": "^0.20.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.0.0",
+      },
+    },
+    "packages/server/injector/js": {
+      "name": "@canmi/seam-injector",
+      "version": "0.3.0",
+      "devDependencies": {
+        "@canmi/seam-injector-native": "workspace:*",
         "@types/node": "^22.0.0",
         "tsdown": "^0.20.0",
         "typescript": "^5.7.0",
@@ -337,6 +348,8 @@
     "@canmi/seam-cli": ["@canmi/seam-cli@workspace:packages/cli/pkg"],
 
     "@canmi/seam-client": ["@canmi/seam-client@workspace:packages/client/vanilla"],
+
+    "@canmi/seam-injector": ["@canmi/seam-injector@workspace:packages/server/injector/js"],
 
     "@canmi/seam-injector-native": ["@canmi/seam-injector-native@workspace:packages/server/injector/native"],
 
