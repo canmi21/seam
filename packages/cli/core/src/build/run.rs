@@ -120,6 +120,11 @@ fn run_fullstack_build(
   step_num += 1;
   ui::step(step_num, total, "Compiling backend");
   run_command(base_dir, build_config.backend_build_command.as_deref().unwrap(), "backend build")?;
+
+  // Copy WASM binary next to bundled server output so runtime readFileSync resolves correctly.
+  // The bundled injector code does: resolve(__dirname, "../pkg/seam_injector_wasm_bg.wasm")
+  // which, from {out_dir}/server/index.js, resolves to {out_dir}/pkg/.
+  copy_wasm_binary(base_dir, &out_dir)?;
   ui::blank();
 
   // [2] Extract procedure manifest
@@ -201,6 +206,49 @@ fn run_fullstack_build(
   ));
 
   Ok(())
+}
+
+const WASM_FILENAME: &str = "seam_injector_wasm_bg.wasm";
+
+/// Search for the injector WASM binary and copy it to {out_dir}/pkg/.
+/// Checks workspace source first, then node_modules.
+fn copy_wasm_binary(base_dir: &Path, out_dir: &Path) -> Result<()> {
+  let candidates: Vec<std::path::PathBuf> = [
+    // node_modules (npm/pnpm install)
+    Some(base_dir.join("node_modules/@canmi/seam-injector/pkg").join(WASM_FILENAME)),
+    // Workspace source (bun workspace — no node_modules symlink)
+    find_workspace_wasm(base_dir),
+  ]
+  .into_iter()
+  .flatten()
+  .collect();
+
+  for src in candidates {
+    if src.exists() {
+      let dest_dir = out_dir.join("pkg");
+      std::fs::create_dir_all(&dest_dir)
+        .with_context(|| format!("failed to create {}", dest_dir.display()))?;
+      std::fs::copy(&src, dest_dir.join(WASM_FILENAME))
+        .with_context(|| format!("failed to copy WASM binary from {}", src.display()))?;
+      return Ok(());
+    }
+  }
+  Ok(())
+}
+
+/// Walk up from base_dir looking for packages/server/injector/js/pkg/{WASM_FILENAME}.
+fn find_workspace_wasm(base_dir: &Path) -> Option<std::path::PathBuf> {
+  let mut dir = base_dir.to_path_buf();
+  for _ in 0..5 {
+    let candidate = dir.join("packages/server/injector/js/pkg").join(WASM_FILENAME);
+    if candidate.exists() {
+      return Some(candidate);
+    }
+    if !dir.pop() {
+      break;
+    }
+  }
+  None
 }
 
 #[cfg(test)]
