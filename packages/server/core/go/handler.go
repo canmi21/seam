@@ -18,12 +18,6 @@ type appState struct {
 	manifestJSON []byte
 	handlers     map[string]*ProcedureDef
 	subs         map[string]*SubscriptionDef
-	pages        []pageEntry
-}
-
-type pageEntry struct {
-	pattern string // Go ServeMux pattern (e.g. "/_seam/page/user/{id}")
-	def     *PageDef
 }
 
 func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef) http.Handler {
@@ -50,12 +44,8 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pa
 
 	for i := range pages {
 		goPattern := seamRouteToGoPattern(pages[i].Route)
-		entry := pageEntry{
-			pattern: goPattern,
-			def:     &pages[i],
-		}
-		state.pages = append(state.pages, entry)
-		mux.HandleFunc("GET /_seam/page"+goPattern, state.handlePage)
+		page := &pages[i]
+		mux.HandleFunc("GET /_seam/page"+goPattern, state.makePageHandler(page))
 	}
 
 	return mux
@@ -204,21 +194,13 @@ func (s *appState) handleSubscribe(w http.ResponseWriter, r *http.Request) {
 
 // --- page handler ---
 
-func (s *appState) handlePage(w http.ResponseWriter, r *http.Request) {
-	// Find matching page entry by comparing the registered pattern
-	var page *PageDef
-	for _, entry := range s.pages {
-		if matchesRequest(entry.pattern, r) {
-			page = entry.def
-			break
-		}
+func (s *appState) makePageHandler(page *PageDef) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		s.servePage(w, r, page)
 	}
-	if page == nil {
-		http.NotFound(w, r)
-		return
-	}
+}
 
-	// Extract route params
+func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageDef) {
 	params := extractParams(page.Route, r)
 
 	// Run loaders concurrently
@@ -302,14 +284,6 @@ func (s *appState) handlePage(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- helpers ---
-
-func matchesRequest(pattern string, r *http.Request) bool {
-	// Go 1.22+ ServeMux handles matching; we always match since we're
-	// already dispatched to this handler by the mux.
-	_ = pattern
-	_ = r
-	return true
-}
 
 func extractParams(seamRoute string, r *http.Request) map[string]string {
 	params := make(map[string]string)
