@@ -249,6 +249,7 @@ describe("4.3 Fragment", () => {
   });
 });
 
+// eslint-disable-next-line max-lines-per-function -- test suite grows with HTML edge cases
 describe("4.4 special HTML", () => {
   it("67. table strict nesting", () => {
     function App() {

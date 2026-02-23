@@ -28,6 +28,7 @@ function extractSeamData(html: string): Record<string, unknown> {
 // ---------------------------------------------------------------------------
 // Page without layouts (existing tests, fixed for layoutChain)
 // ---------------------------------------------------------------------------
+// eslint-disable-next-line max-lines-per-function -- test suite grows with page handler features
 describe("handlePageRequest", () => {
   it("injects loader data", async () => {
     const procs = makeProcedures([

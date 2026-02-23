@@ -107,6 +107,7 @@ describe("7a basic component patterns", () => {
   });
 });
 
+// eslint-disable-next-line max-lines-per-function -- test suite grows with component patterns
 describe("7b advanced component patterns", () => {
   it("95. forwardRef component", () => {
     const FancyButton = forwardRef<HTMLButtonElement, { label: string }>(
