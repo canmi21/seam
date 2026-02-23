@@ -23,7 +23,7 @@ pub(super) fn verify_ctr_equivalence(
   template: &str,
   mock_data: &Value,
 ) -> Result<()> {
-  let injected_raw = seam_server::injector::inject(template, mock_data);
+  let injected_raw = seam_injector::inject(template, mock_data);
 
   let mut react_tree = parse::parse_ctr_tree(react_html);
   let mut inject_tree = parse::parse_ctr_tree(&injected_raw);

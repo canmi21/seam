@@ -4,7 +4,7 @@
     { "path": "packages/server/core/typescript" },
     { "path": "packages/server/adapter/bun" },
     { "path": "packages/client/vanilla" },
-    { "path": "packages/server/injector" },
+    { "path": "packages/server/injector/native" },
     { "path": "packages/eslint-plugin-seam" }
   ]
 }

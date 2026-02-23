@@ -1,0 +1,26 @@
+{
+  "name": "@canmi/seam-injector",
+  "version": "0.3.0",
+  "files": [
+    "dist",
+    "pkg"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@canmi/seam-injector-native": "workspace:*",
+    "@types/node": "^22.0.0",
+    "tsdown": "^0.20.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
