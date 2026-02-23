@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync version from Cargo.toml workspace to all package.json files.
+# Sync version from Cargo.toml workspace to all package.json and Cargo.toml files.
 # Usage: bash scripts/bump-version.sh [version]
 #   If version arg is omitted, reads from Cargo.toml workspace.
 set -euo pipefail
@@ -8,21 +8,39 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 if [ $# -ge 1 ]; then
   VERSION="$1"
-  # Also update Cargo.toml
   sed -i '' "s/^version = \".*\"/version = \"$VERSION\"/" "$ROOT/Cargo.toml"
   echo "Set Cargo.toml workspace version to $VERSION"
 else
   VERSION=$(grep '^version' "$ROOT/Cargo.toml" | head -1 | sed 's/version = "\(.*\)"/\1/')
 fi
 
-echo "Syncing version $VERSION to all package.json files..."
+echo "Syncing version $VERSION..."
 
+# 1. Update "version" field in all package.json under packages/
 count=0
 while IFS= read -r pkg; do
-  # Replace the top-level "version" field
   sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$pkg"
   count=$((count + 1))
   echo "  ${pkg#$ROOT/}"
 done < <(find "$ROOT/packages" -name "package.json" -not -path "*/node_modules/*" | sort)
+echo "Updated $count package.json files"
 
-echo "Done: $count package.json files updated to $VERSION"
+# 2. Update internal @canmi/* version references in optionalDependencies
+echo "Updating internal dependency version references..."
+while IFS= read -r pkg; do
+  if grep -q '"@canmi/seam-cli-' "$pkg"; then
+    sed -i '' "s/\"@canmi\/seam-cli-\([^\"]*\)\": \"[^\"]*\"/\"@canmi\/seam-cli-\1\": \"$VERSION\"/g" "$pkg"
+    echo "  ${pkg#$ROOT/} (optionalDependencies)"
+  fi
+done < <(find "$ROOT/packages" -name "package.json" -not -path "*/node_modules/*" | sort)
+
+# 3. Update version in Cargo.toml path dependencies (version = "...", path = "...")
+echo "Updating Rust path dependency versions..."
+while IFS= read -r cargo; do
+  if grep -q 'version = ".*", path = "' "$cargo"; then
+    sed -i '' 's/version = "[^"]*", path = "/version = "'"$VERSION"'", path = "/g' "$cargo"
+    echo "  ${cargo#$ROOT/}"
+  fi
+done < <(find "$ROOT/packages" "$ROOT/examples" -name "Cargo.toml" | sort)
+
+echo "Done: all versions synced to $VERSION"
