@@ -57,6 +57,18 @@ export const getAsyncPageData: ProcedureDef = {
   handler: () => ({ heading: "Async Loading Test" }),
 };
 
+export const getRenderedContent: ProcedureDef = {
+  input: t.object({}),
+  output: t.object({
+    title: t.string(),
+    bodyHtml: t.html(),
+  }),
+  handler: () => ({
+    title: "Test Post",
+    bodyHtml: "<h2>Hello from <em>HTML slot</em></h2><p>This was <strong>not</strong> escaped.</p>",
+  }),
+};
+
 export const getAsyncItems: ProcedureDef = {
   input: t.object({}),
   output: t.object({

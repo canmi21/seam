@@ -36,6 +36,11 @@ export function HomeSkeleton() {
               Async Loading
             </a>
           </li>
+          <li>
+            <a href="/test-html" data-testid="link-html-slot">
+              HTML Slot
+            </a>
+          </li>
         </ul>
       </nav>
     </div>

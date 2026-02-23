@@ -9,6 +9,7 @@ import { React19Skeleton } from "./pages/react19-skeleton.js";
 import { FormSkeleton } from "./pages/form-skeleton.js";
 import { ErrorSkeleton } from "./pages/error-skeleton.js";
 import { AsyncSkeleton } from "./pages/async-skeleton.js";
+import { HtmlSlotSkeleton } from "./pages/html-slot-skeleton.js";
 
 const routeMap: Record<string, ComponentType> = {
   "/": HomeSkeleton,
@@ -16,6 +17,7 @@ const routeMap: Record<string, ComponentType> = {
   "/form": FormSkeleton,
   "/error": ErrorSkeleton,
   "/async": AsyncSkeleton,
+  "/test-html": HtmlSlotSkeleton,
 };
 
 const seamRoot = document.getElementById("__SEAM_ROOT__");

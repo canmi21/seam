@@ -6,6 +6,7 @@ import { React19Skeleton } from "./pages/react19-skeleton.js";
 import { FormSkeleton } from "./pages/form-skeleton.js";
 import { ErrorSkeleton } from "./pages/error-skeleton.js";
 import { AsyncSkeleton } from "./pages/async-skeleton.js";
+import { HtmlSlotSkeleton } from "./pages/html-slot-skeleton.js";
 
 export default defineRoutes([
   {
@@ -59,6 +60,13 @@ export default defineRoutes([
     },
     mock: {
       heading: "Async Loading Test",
+    },
+  },
+  {
+    path: "/test-html",
+    component: HtmlSlotSkeleton,
+    loaders: {
+      page: { procedure: "getRenderedContent" },
     },
   },
 ]);

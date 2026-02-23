@@ -10,6 +10,7 @@ import {
   getErrorPageData,
   getAsyncPageData,
   getAsyncItems,
+  getRenderedContent,
 } from "./procedures.js";
 
 export const procedures = {
@@ -20,6 +21,7 @@ export const procedures = {
   getErrorPageData,
   getAsyncPageData,
   getAsyncItems,
+  getRenderedContent,
 };
 
 export function buildRouter(opts?: RouterOptions) {
