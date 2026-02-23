@@ -41,7 +41,8 @@ describe("8a data handling", () => {
     });
   });
 
-  it.todo("103. type mismatch — React renders [object Object], injector uses JSON.stringify");
+  // 103: type mismatch is outside the pipeline contract — JTD schema
+  // enforces types at the boundary so mismatched data is never valid input.
 
   it("104. data containing Seam marker strings", () => {
     function App() {

@@ -388,7 +388,12 @@ describe("4.5 innerHTML", () => {
     });
   });
 
-  it.todo("74. innerHTML dynamic — needs :html mode slot which sentinelToSlots doesn't generate");
-
-  it.todo("75. innerHTML with script tag — same as 74");
+  // 74–75: dynamic innerHTML requires an html-slot generation mechanism.
+  // The injector already supports <!--seam:path:html--> (raw HTML injection),
+  // but buildSentinelData / sentinelToSlots have no way to detect
+  // the innerHTML prop and emit :html markers. Needs design: schema-level
+  // t.html() type, or component-level detection.
+  // 75 additionally raises XSS concerns (script tag injection).
+  it.todo("74. innerHTML dynamic — needs html-slot generation design");
+  it.todo("75. innerHTML with script tag — same as 74, plus XSS safety considerations");
 });
