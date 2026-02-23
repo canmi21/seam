@@ -90,6 +90,23 @@ crate_exists() {
   [ "$status" = "200" ]
 }
 
+# --- Helper: poll crates.io until version is indexed (1s interval, 60s timeout) ---
+wait_for_crate() {
+  local name="$1" ver="$2"
+  local elapsed=0
+  info "Waiting for $name@$ver to appear on crates.io..."
+  while [ $elapsed -lt 60 ]; do
+    sleep 1
+    elapsed=$((elapsed + 1))
+    if crate_exists "$name" "$ver"; then
+      ok "$name@$ver indexed after ${elapsed}s"
+      return 0
+    fi
+  done
+  fail "$name@$ver not indexed after 60s"
+  return 1
+}
+
 # --- Helper: check if npm package version exists ---
 npm_pkg_exists() {
   local name="$1" ver="$2"
@@ -134,10 +151,12 @@ if ! $NPM_ONLY; then
       if (cd "$ROOT" && cargo publish -p "$crate"); then
         ok "$crate"
         PUBLISHED=$((PUBLISHED + 1))
-        # Wait for crates.io index propagation (skip after last crate)
+        # Poll crates.io until indexed (skip after last crate)
         if [ "$crate" != "seam-cli" ]; then
-          info "Waiting 30s for crates.io index propagation..."
-          sleep 30
+          if ! wait_for_crate "$crate" "$VERSION"; then
+            fail "Aborting: downstream crates need $crate indexed"
+            break
+          fi
         fi
       else
         fail "$crate"
