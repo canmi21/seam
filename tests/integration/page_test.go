@@ -57,9 +57,6 @@ func TestPageEndpoint(t *testing.T) {
 				if status != 200 {
 					t.Fatalf("status = %d, want 200", status)
 				}
-				if !strings.Contains(html, "text/html") || true {
-					// Content-Type checked via response, HTML content checked below
-				}
 				if !strings.Contains(html, "Alice") {
 					t.Error("HTML missing 'Alice'")
 				}
@@ -69,6 +66,12 @@ func TestPageEndpoint(t *testing.T) {
 				if !strings.Contains(html, "<img") {
 					t.Error("HTML missing avatar <img> tag")
 				}
+				if !strings.Contains(html, `src="https://example.com/alice.png"`) {
+					t.Error("HTML missing avatar src attribute injection")
+				}
+				if !strings.Contains(html, "<title>Alice - Seam User</title>") {
+					t.Error("HTML missing injected <title>")
+				}
 
 				data := extractSeamData(t, html)
 				user, ok := data["user"].(map[string]any)
@@ -77,6 +80,18 @@ func TestPageEndpoint(t *testing.T) {
 				}
 				if name, _ := user["name"].(string); name != "Alice" {
 					t.Errorf("user.name = %q, want 'Alice'", name)
+				}
+				if email, _ := user["email"].(string); email != "alice@example.com" {
+					t.Errorf("user.email = %q, want 'alice@example.com'", email)
+				}
+				if avatar, _ := user["avatar"].(string); avatar != "https://example.com/alice.png" {
+					t.Errorf("user.avatar = %q, want 'https://example.com/alice.png'", avatar)
+				}
+				if id, _ := user["id"].(float64); id != 1 {
+					t.Errorf("user.id = %v, want 1", id)
+				}
+				if _, hasLayouts := data["_layouts"]; hasLayouts {
+					t.Error("standalone page should not have _layouts in __SEAM_DATA__")
 				}
 			})
 
@@ -95,6 +110,33 @@ func TestPageEndpoint(t *testing.T) {
 				if strings.Contains(html, "<img") {
 					t.Error("HTML should not contain <img> for user without avatar")
 				}
+				if !strings.Contains(html, "<title>Bob - Seam User</title>") {
+					t.Error("HTML missing injected <title>")
+				}
+				if strings.Contains(html, "<!--seam:") {
+					t.Error("HTML contains unprocessed seam directives")
+				}
+
+				stripped := stripSeamData(html)
+				if strings.Contains(stripped, "avatar") {
+					t.Error("conditional avatar block not fully removed from HTML")
+				}
+
+				data := extractSeamData(t, html)
+				user, ok := data["user"].(map[string]any)
+				if !ok {
+					t.Fatalf("__SEAM_DATA__.user not an object: %v", data)
+				}
+				if name, _ := user["name"].(string); name != "Bob" {
+					t.Errorf("user.name = %q, want 'Bob'", name)
+				}
+				if email, _ := user["email"].(string); email != "bob@example.com" {
+					t.Errorf("user.email = %q, want 'bob@example.com'", email)
+				}
+				// Avatar differs across backends: TS sends null, Rust/Go omit the key
+				if av, exists := user["avatar"]; exists && av != nil {
+					t.Errorf("user.avatar should be absent or null, got %v", av)
+				}
 			})
 
 			t.Run("user id=999", func(t *testing.T) {
@@ -109,6 +151,22 @@ func TestPageEndpoint(t *testing.T) {
 				stripped := stripSeamData(html)
 				if !strings.Contains(stripped, "Alice") {
 					t.Error("'Alice' not visible outside __SEAM_DATA__ script")
+				}
+				if !strings.Contains(stripped, "alice@example.com") {
+					t.Error("email not visible outside __SEAM_DATA__ script")
+				}
+			})
+
+			t.Run("HTML structure", func(t *testing.T) {
+				_, html := getHTML(t, b.BaseURL+"/_seam/page/user/1")
+				if !strings.Contains(html, "<h1>Alice</h1>") {
+					t.Error("HTML missing exact <h1>Alice</h1>")
+				}
+				if !strings.Contains(html, `alt="avatar"`) {
+					t.Error("HTML missing alt=\"avatar\" on <img>")
+				}
+				if strings.Contains(html, "<!--seam:") {
+					t.Error("HTML contains unprocessed seam directives")
 				}
 			})
 		})
