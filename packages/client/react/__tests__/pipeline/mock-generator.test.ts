@@ -51,16 +51,7 @@ describe("generateMockFromSchema - primitives", () => {
   });
 
   it("generates 1 for numeric types", () => {
-    for (const t of [
-      "int8",
-      "int16",
-      "int32",
-      "uint8",
-      "uint16",
-      "uint32",
-      "float32",
-      "float64",
-    ]) {
+    for (const t of ["int8", "int16", "int32", "uint8", "uint16", "uint32", "float32", "float64"]) {
       expect(generateMockFromSchema({ type: t })).toBe(1);
     }
   });

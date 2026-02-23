@@ -16,7 +16,7 @@ const app = new Hono();
 // Seam middleware: handles /_seam/* (RPC, manifest, static, pages)
 app.use("/*", seam(router, { staticDir: resolve(BUILD_DIR, "public") }));
 
-// Root-path page serving — inject performance overlay outside React tree
+// Root-path page serving — inject timing into __SEAM_DATA__._meta
 app.get("*", async (c) => {
   const result = await router.handlePage(new URL(c.req.url).pathname);
   if (!result) return c.text("Not Found", 404);
@@ -25,11 +25,16 @@ app.get("*", async (c) => {
   const fmt = (ms: number) => (ms < 1 ? `${(ms * 1000).toFixed(0)}\u00b5s` : `${ms.toFixed(2)}ms`);
   const timing = `\u00a0\u00b7 Data Fetch ${fmt(dataFetch)} \u00b7 Inject ${fmt(injectTime)}`;
 
-  // Append timing after __SEAM_ROOT__ (scripts are invisible, so it renders right below the footer)
   let html = result.html.replace("<body>", '<body style="background-color:var(--c-surface)">');
+
+  // Append _meta.timing into the __SEAM_DATA__ JSON
   html = html.replace(
-    "</body>",
-    `<div style="max-width:48rem;margin:0 auto;padding:0 1rem 2rem;text-align:center;font-size:.875rem;color:var(--c-text-muted)">${timing}</div></body>`,
+    /<script id="__SEAM_DATA__" type="application\/json">(.*?)<\/script>/,
+    (_match, json) => {
+      const data = JSON.parse(json);
+      data._meta = { timing };
+      return `<script id="__SEAM_DATA__" type="application/json">${JSON.stringify(data)}</script>`;
+    },
   );
   return c.html(html, result.status as 200);
 });
