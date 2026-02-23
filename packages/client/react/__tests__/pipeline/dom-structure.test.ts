@@ -332,7 +332,26 @@ describe("4.4 special HTML", () => {
     });
   });
 
-  it.todo("71. MathML — React 19 has limited MathML support");
+  it("71. MathML basic fraction", () => {
+    function App() {
+      const { num, den } = useSeamData<{ num: string; den: string }>();
+      return createElement(
+        "math",
+        { xmlns: "http://www.w3.org/1998/Math/MathML" },
+        createElement(
+          "mfrac",
+          null,
+          createElement("mi", null, num),
+          createElement("mi", null, den),
+        ),
+      );
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { num: "x", den: "y" },
+      realData: { num: "a", den: "b" },
+    });
+  });
 
   it("72. pre preserves whitespace", () => {
     function App() {

@@ -231,9 +231,17 @@ describe("1.2c boolean and numeric attributes", () => {
     });
   });
 
-  it.todo(
-    "23b. tabIndex — reclassified: not a bug; tabIndex matches [\\w-]+ and trim() cleans whitespace",
-  );
+  it("23b. tabIndex attr", () => {
+    function App() {
+      const { tab } = useSeamData<{ tab: string }>();
+      return createElement("div", { tabIndex: tab }, "focusable");
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { tab: "0" },
+      realData: { tab: "-1" },
+    });
+  });
 });
 
 describe("1.3 dynamic props spread", () => {

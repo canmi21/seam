@@ -4,8 +4,10 @@ import { describe, it } from "vitest";
 import {
   createElement,
   forwardRef,
+  lazy,
   memo,
   createContext,
+  Suspense,
   useContext,
   useId,
   Component,
@@ -138,7 +140,22 @@ describe("7b advanced component patterns", () => {
     });
   });
 
-  it.todo("97. React.lazy + Suspense");
+  it("97. React.lazy + Suspense — fallback renders synchronously", () => {
+    const LazyChild = lazy(() => new Promise<never>(() => {}));
+    function App() {
+      const { text } = useSeamData<{ text: string }>();
+      return createElement(
+        Suspense,
+        { fallback: createElement("p", null, text) },
+        createElement(LazyChild, null),
+      );
+    }
+    assertPipelineFidelity({
+      component: App,
+      mock: { text: "placeholder" },
+      realData: { text: "Loading..." },
+    });
+  });
 
   it("98. Error Boundary (normal path)", () => {
     class ErrorBoundary extends Component<{ children: ReactNode }, { error: boolean }> {
