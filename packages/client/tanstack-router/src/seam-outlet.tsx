@@ -1,6 +1,7 @@
 /* packages/client/tanstack-router/src/seam-outlet.tsx */
 
 import { useContext } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { Match, matchContext, useRouter, useRouterState } from "@tanstack/react-router";
 
 /**
@@ -23,4 +24,15 @@ export function SeamOutlet() {
 
   if (!childMatchId) return null;
   return <Match matchId={childMatchId} />;
+}
+
+/** Wrap a layout component so it receives <SeamOutlet /> as children */
+export function createLayoutWrapper(Layout: ComponentType<{ children: ReactNode }>) {
+  return function LayoutWrapper() {
+    return (
+      <Layout>
+        <SeamOutlet />
+      </Layout>
+    );
+  };
 }

@@ -4,6 +4,7 @@ import type { ComponentType } from "react";
 import type { RouteDef } from "@canmi/seam-react";
 
 export interface SeamRouteDef extends RouteDef {
+  children?: SeamRouteDef[];
   clientLoader?: ClientLoaderFn;
 }
 

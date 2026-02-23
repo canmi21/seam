@@ -225,6 +225,21 @@ function renderRoute(route, manifest) {
   };
 }
 
+// -- Route flattening --
+
+/** Extract leaf routes from nested layout structure for CTR rendering */
+function flattenRoutes(routes) {
+  const leaves = [];
+  for (const route of routes) {
+    if (route.children) {
+      leaves.push(...flattenRoutes(route.children));
+    } else {
+      leaves.push(route);
+    }
+  }
+  return leaves;
+}
+
 // -- Main --
 
 async function main() {
@@ -265,7 +280,8 @@ async function main() {
       throw new Error("Routes file must export default or named 'routes' as an array");
     }
 
-    const output = { routes: routes.map((r) => renderRoute(r, manifest)), warnings: buildWarnings };
+    const flat = flattenRoutes(routes);
+    const output = { routes: flat.map((r) => renderRoute(r, manifest)), warnings: buildWarnings };
     process.stdout.write(JSON.stringify(output));
   } finally {
     try {

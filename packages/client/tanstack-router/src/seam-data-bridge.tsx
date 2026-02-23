@@ -11,11 +11,16 @@ import type { ReactNode } from "react";
  */
 export function SeamDataBridge({ children }: { children: ReactNode }) {
   const matches = useMatches();
-  const leafMatch = matches[matches.length - 1];
-  const loaderData = leafMatch?.loaderData as Record<string, unknown> | undefined;
 
-  // Replicate the unwrapping from main.tsx: single "page" loader gets unwrapped
-  const seamData = loaderData ? (loaderData.page ?? loaderData) : {};
+  // Merge loaderData from all matched routes (layout + page levels)
+  const merged: Record<string, unknown> = {};
+  for (const match of matches) {
+    const ld = match.loaderData as Record<string, unknown> | undefined;
+    if (ld && typeof ld === "object") {
+      Object.assign(merged, ld);
+    }
+  }
+  const seamData = merged.page ?? merged;
 
   const router = useRouter();
   const navigate = useCallback((url: string) => router.navigate({ to: url }), [router]);

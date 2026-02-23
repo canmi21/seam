@@ -1,6 +1,6 @@
 /* packages/client/react/src/types.ts */
 
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 export interface ParamMapping {
   from: "route";
@@ -14,8 +14,10 @@ export interface LoaderDef {
 
 export interface RouteDef {
   path: string;
-  component: ComponentType<Record<string, unknown>>;
-  loaders: Record<string, LoaderDef>;
+  component?: ComponentType<Record<string, unknown>>;
+  layout?: ComponentType<{ children: ReactNode }>;
+  children?: RouteDef[];
+  loaders?: Record<string, LoaderDef>;
   mock?: Record<string, unknown>;
   nullable?: string[];
 }

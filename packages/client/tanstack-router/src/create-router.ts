@@ -5,14 +5,61 @@ import {
   createRootRoute,
   createRoute,
 } from "@tanstack/react-router";
+import type { AnyRoute } from "@tanstack/react-router";
+import type { ComponentType } from "react";
 import { seamRpc } from "@canmi/seam-client";
+import type { RouteDef } from "@canmi/seam-react";
 import { parseSeamData } from "@canmi/seam-react";
-import { SeamOutlet } from "./seam-outlet.js";
+import { SeamOutlet, createLayoutWrapper } from "./seam-outlet.js";
 import { convertPath } from "./convert-routes.js";
 import { createLoaderFromDefs } from "./create-loader.js";
 import { matchSeamRoute } from "./route-matcher.js";
 import { SeamDataBridge } from "./seam-data-bridge.js";
-import type { SeamRouterOptions, SeamRouterContext } from "./types.js";
+import type { SeamRouteDef, SeamRouterOptions, SeamRouterContext } from "./types.js";
+
+/** Extract all leaf paths from a potentially nested route tree */
+function collectLeafPaths(defs: RouteDef[]): string[] {
+  const paths: string[] = [];
+  for (const d of defs) {
+    if (d.children) paths.push(...collectLeafPaths(d.children));
+    else paths.push(d.path);
+  }
+  return paths;
+}
+
+/** Recursively build TanStack Router route tree from SeamJS route definitions */
+function buildRoutes(
+  defs: SeamRouteDef[],
+  parent: AnyRoute,
+  pages?: Record<string, ComponentType>,
+): AnyRoute[] {
+  return defs.map((def) => {
+    if (def.layout && def.children) {
+      // Layout node — pathless route that wraps children
+      const layoutRoute = createRoute({
+        getParentRoute: () => parent,
+        id: `_layout_${def.path}`,
+        component: createLayoutWrapper(def.layout),
+      });
+      const children = buildRoutes(def.children, layoutRoute, pages);
+      return layoutRoute.addChildren(children);
+    }
+
+    // Leaf node — page route
+    return createRoute({
+      getParentRoute: () => parent,
+      path: convertPath(def.path),
+      component: pages?.[def.path] ?? (def.component as ComponentType),
+      loader: def.clientLoader
+        ? ({ params, context }) =>
+            def.clientLoader!({
+              params,
+              seamRpc: (context as SeamRouterContext).seamRpc,
+            })
+        : createLoaderFromDefs(def.loaders ?? {}, def.path),
+    });
+  });
+}
 
 export function createSeamRouter(opts: SeamRouterOptions) {
   const { routes, pages, defaultStaleTime = 30_000 } = opts;
@@ -27,10 +74,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
       const raw = parseSeamData();
       // Unwrap: single "page" loader gets flattened
       initialData = raw.page ?? raw;
-      const matched = matchSeamRoute(
-        routes.map((r) => r.path),
-        window.location.pathname,
-      );
+      const matched = matchSeamRoute(collectLeafPaths(routes), window.location.pathname);
       if (matched) {
         initialPath = matched.path;
         initialParams = matched.params;
@@ -46,23 +90,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
     component: SeamOutlet,
   });
 
-  const childRoutes = routes.map((def) => {
-    const tanstackPath = convertPath(def.path);
-
-    return createRoute({
-      getParentRoute: () => rootRoute,
-      path: tanstackPath,
-      component: pages?.[def.path] ?? def.component,
-      loader: def.clientLoader
-        ? ({ params, context }) =>
-            def.clientLoader!({
-              params,
-              seamRpc: (context as SeamRouterContext).seamRpc,
-            })
-        : createLoaderFromDefs(def.loaders, def.path),
-    });
-  });
-
+  const childRoutes = buildRoutes(routes, rootRoute, pages);
   const routeTree = rootRoute.addChildren(childRoutes);
 
   const context: SeamRouterContext = {
