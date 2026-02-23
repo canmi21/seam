@@ -35,10 +35,14 @@ function buildRoutes(
 ): AnyRoute[] {
   return defs.map((def) => {
     if (def.layout && def.children) {
-      // Layout node — pathless route that wraps children
+      // Layout node — pathless route that wraps children.
+      // ID must not end with "/" to avoid colliding with index child route
+      // after TanStack Router's joinPaths + cleanPath normalization.
+      const segment =
+        def.path === "/" ? "root" : def.path.replace(/^\/|\/$/g, "").replace(/\//g, "-");
       const layoutRoute = createRoute({
         getParentRoute: () => parent,
-        id: `_layout_${def.path}`,
+        id: `_layout_${segment}`,
         component: createLayoutWrapper(def.layout),
       });
       const children = buildRoutes(def.children, layoutRoute, pages);
