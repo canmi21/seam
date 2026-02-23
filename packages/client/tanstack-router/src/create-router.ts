@@ -2,7 +2,7 @@
 
 import {
   createRouter as createTanStackRouter,
-  createRootRoute,
+  createRootRouteWithContext,
   createRoute,
 } from "@tanstack/react-router";
 import type { AnyRoute } from "@tanstack/react-router";
@@ -87,7 +87,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
       // Page data is everything except _layouts
       const { _layouts: _, ...pageData } = raw;
       // Unwrap: single "page" loader gets flattened
-      initialData = pageData.page ?? pageData;
+      initialData = (pageData.page ?? pageData) as Record<string, unknown>;
       const matched = matchSeamRoute(collectLeafPaths(routes), window.location.pathname);
       if (matched) {
         initialPath = matched.path;
@@ -100,7 +100,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
 
   // SeamOutlet skips the <Suspense> wrapper that standard Outlet adds for root
   // routes — CTR HTML has no Suspense markers so the wrapper causes hydration mismatch.
-  const rootRoute = createRootRoute({
+  const rootRoute = createRootRouteWithContext<SeamRouterContext>()({
     component: SeamOutlet,
   });
 
@@ -124,7 +124,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
   const router = createTanStackRouter({
     routeTree,
     defaultStaleTime,
-    context: context as Record<string, unknown>,
+    context,
     InnerWrap: SeamDataBridge,
   });
 

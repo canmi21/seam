@@ -1,7 +1,5 @@
 /* packages/server/injector/js/src/wasm-bridge.ts */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return -- wasm-pack glue code is untyped */
-
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
