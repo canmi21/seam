@@ -39,6 +39,7 @@
     "build:ts:p2": "bun run --filter '@canmi/seam-server' build && bun run --filter '@canmi/seam-react' build",
     "build:ts:p3": "bun run --filter '@canmi/seam-adapter-hono' build && bun run --filter '@canmi/seam-adapter-bun' build && bun run --filter '@canmi/seam-adapter-node' build && bun run --filter '@canmi/seam-tanstack-router' build",
     "build:ts": "bun run build:ts:p1 && bun run build:ts:p2 && bun run build:ts:p3",
+    "build:wasm": "bash packages/server/injector/build-wasm.sh",
     "build:rs": "cargo build --workspace",
     "build": "bun run build:ts && bun run build:rs",
     "test:rs": "cargo test --workspace",
