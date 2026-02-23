@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct SeamConfig {
   pub project: ProjectConfig,
   #[serde(default)]
@@ -20,12 +20,12 @@ pub struct SeamConfig {
   pub dev: DevSection,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ProjectConfig {
   pub name: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BackendConfig {
   #[serde(default = "default_lang")]
   pub lang: String,
@@ -40,7 +40,7 @@ impl Default for BackendConfig {
   }
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct FrontendConfig {
   pub entry: Option<String>,
   pub dev_command: Option<String>,
@@ -49,7 +49,7 @@ pub struct FrontendConfig {
   pub out_dir: Option<String>,
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct BuildSection {
   pub routes: Option<String>,
   pub out_dir: Option<String>,
@@ -61,12 +61,12 @@ pub struct BuildSection {
   pub typecheck_command: Option<String>,
 }
 
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct GenerateSection {
   pub out_dir: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct DevSection {
   #[serde(default = "default_dev_port")]
   pub port: u16,

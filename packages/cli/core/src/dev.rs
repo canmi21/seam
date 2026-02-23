@@ -1,13 +1,16 @@
 /* packages/cli/core/src/dev.rs */
 
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
+use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::signal;
 
 use crate::build::config::{BuildConfig, BundlerMode};
+use crate::build::run::{run_incremental_rebuild, RebuildMode};
 use crate::build::types::read_bundle_manifest;
 use crate::config::SeamConfig;
 use crate::dev_server;
@@ -261,6 +264,88 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   Ok(())
 }
 
+fn setup_watcher() -> Result<(RecommendedWatcher, tokio::sync::mpsc::Receiver<()>)> {
+  let (tx, rx) = tokio::sync::mpsc::channel(16);
+  let watcher = RecommendedWatcher::new(
+    move |res: std::result::Result<notify::Event, notify::Error>| {
+      if res.is_ok() {
+        let _ = tx.blocking_send(());
+      }
+    },
+    notify::Config::default(),
+  )?;
+  // Directories are watched in run_dev_fullstack after watcher creation
+  Ok((watcher, rx))
+}
+
+#[allow(dead_code)]
+fn classify_change(path: &Path, base_dir: &Path) -> Option<RebuildMode> {
+  let rel = path.strip_prefix(base_dir).ok()?;
+  let parts: Vec<_> = rel.components().collect();
+  if parts.len() >= 2 && parts[0].as_os_str() == "src" && parts[1].as_os_str() == "server" {
+    Some(RebuildMode::Full)
+  } else {
+    Some(RebuildMode::FrontendOnly)
+  }
+}
+
+fn write_reload_trigger(out_dir: &Path) {
+  let trigger = out_dir.join(".reload-trigger");
+  let ts = std::time::SystemTime::now()
+    .duration_since(std::time::UNIX_EPOCH)
+    .unwrap_or_default()
+    .as_millis()
+    .to_string();
+  let _ = std::fs::write(&trigger, &ts);
+}
+
+fn print_fullstack_banner(config: &SeamConfig, port: u16, watched_dirs: &[String]) {
+  let backend_cmd =
+    config.backend.dev_command.as_deref().unwrap_or("bun --watch src/server/index.ts");
+  let lang = &config.backend.lang;
+
+  crate::ui::banner("dev", Some(&config.project.name));
+  println!("  {CYAN}backend{RESET}   {DIM}[{lang}]{RESET} {DIM}{backend_cmd}{RESET}");
+  println!("  {GREEN}mode{RESET}      fullstack CTR");
+  if !watched_dirs.is_empty() {
+    println!("  {GREEN}watching{RESET}  {DIM}{}{RESET}", watched_dirs.join(", "));
+  }
+  println!();
+  if port == 80 {
+    println!("  {GREEN}\u{2192}{RESET} {BOLD}http://localhost{RESET}");
+  } else {
+    println!("  {GREEN}\u{2192}{RESET} {BOLD}http://localhost:{port}{RESET}");
+  }
+  println!();
+}
+
+async fn handle_rebuild(
+  config: &SeamConfig,
+  build_config: &BuildConfig,
+  base_dir: &Path,
+  out_dir: &Path,
+) {
+  let started = Instant::now();
+  println!("  {CYAN}[seam]{RESET} rebuilding...");
+
+  let cfg = config.clone();
+  let bc = build_config.clone();
+  let bd = base_dir.to_path_buf();
+  let result = tokio::task::spawn_blocking(move || {
+    run_incremental_rebuild(&cfg, &bc, &bd, RebuildMode::FrontendOnly)
+  })
+  .await;
+
+  match result {
+    Ok(Ok(())) => {
+      println!("  {GREEN}[seam]{RESET} rebuild complete ({:.1}s)", started.elapsed().as_secs_f64());
+      write_reload_trigger(out_dir);
+    }
+    Ok(Err(e)) => println!("  {RED}[seam]{RESET} rebuild error: {e}"),
+    Err(e) => println!("  {RED}[seam]{RESET} rebuild panicked: {e}"),
+  }
+}
+
 async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   let build_config = BuildConfig::from_seam_config(config)?;
   let out_dir = base_dir.join(&build_config.out_dir);
@@ -276,7 +361,17 @@ async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
     println!();
   }
 
-  // Find available port
+  // Set up file watcher before spawning backend
+  let (mut _watcher, mut watcher_rx) = setup_watcher()?;
+  let mut watched_dirs = Vec::new();
+  for dir in ["src/client", "src/server", "shared"] {
+    let path = base_dir.join(dir);
+    if path.exists() {
+      _watcher.watch(&path, RecursiveMode::Recursive)?;
+      watched_dirs.push(format!("{dir}/"));
+    }
+  }
+
   let port = find_available_port(config.dev.port)?;
 
   // Resolve absolute output dir for SEAM_OUTPUT_DIR env var
@@ -291,25 +386,10 @@ async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   let out_dir_str = abs_out_dir.to_string_lossy().to_string();
   let port_str = port.to_string();
 
-  // Print banner
-  let backend_cmd =
-    config.backend.dev_command.as_deref().unwrap_or("bun --watch src/server/index.ts");
-  let lang = &config.backend.lang;
-
-  crate::ui::banner("dev", Some(&config.project.name));
-  println!("  {CYAN}backend{RESET}   {DIM}[{lang}]{RESET} {DIM}{backend_cmd}{RESET}");
-  println!("  {GREEN}mode{RESET}      fullstack CTR");
-  println!();
-  if port == 80 {
-    println!("  {GREEN}\u{2192}{RESET} {BOLD}http://localhost{RESET}");
-  } else {
-    println!("  {GREEN}\u{2192}{RESET} {BOLD}http://localhost:{port}{RESET}");
-  }
-  println!();
+  print_fullstack_banner(config, port, &watched_dirs);
 
   let mut children: Vec<ChildProcess> = Vec::new();
 
-  // Spawn backend with env vars
   let backend_cmd_str = config
     .backend
     .dev_command
@@ -324,26 +404,35 @@ async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   pipe_output(&mut proc).await;
   children.push(proc);
 
-  // Optionally spawn frontend dev process
   if let Some(cmd) = config.frontend.dev_command.as_deref() {
     let mut proc = spawn_child("frontend", cmd, base_dir, &[])?;
     pipe_output(&mut proc).await;
     children.push(proc);
   }
 
-  // Wait for Ctrl+C or child exit
-  tokio::select! {
-    _ = signal::ctrl_c() => {
-      println!();
-      println!("  {DIM}shutting down...{RESET}");
-    }
-    result = wait_any(&mut children) => {
-      let (label, status) = result;
-      let color = label_color(label);
-      match status {
-        Ok(s) if s.success() => println!("  {color}{label}{RESET} exited"),
-        Ok(s) => println!("  {RED}{label} exited with {s}{RESET}"),
-        Err(e) => println!("  {RED}{label} error: {e}{RESET}"),
+  // Event loop: Ctrl+C, child exit, or file change triggers rebuild
+  loop {
+    tokio::select! {
+      _ = signal::ctrl_c() => {
+        println!();
+        println!("  {DIM}shutting down...{RESET}");
+        break;
+      }
+      result = wait_any(&mut children) => {
+        let (label, status) = result;
+        let color = label_color(label);
+        match status {
+          Ok(s) if s.success() => println!("  {color}{label}{RESET} exited"),
+          Ok(s) => println!("  {RED}{label} exited with {s}{RESET}"),
+          Err(e) => println!("  {RED}{label} error: {e}{RESET}"),
+        }
+        break;
+      }
+      Some(()) = watcher_rx.recv() => {
+        // Debounce: wait 300ms, drain pending events
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        while watcher_rx.try_recv().is_ok() {}
+        handle_rebuild(config, &build_config, base_dir, &out_dir).await;
       }
     }
   }

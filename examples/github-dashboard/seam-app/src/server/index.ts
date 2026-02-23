@@ -2,9 +2,12 @@
 
 import { resolve } from "node:path";
 import { Hono } from "hono";
-import { loadBuildOutput, loadBuildOutputDev } from "@canmi/seam-server";
+import { createBunWebSocket } from "hono/bun";
+import { loadBuildOutput, loadBuildOutputDev, watchReloadTrigger } from "@canmi/seam-server";
 import { seam } from "@canmi/seam-adapter-hono";
 import { buildRouter } from "./router.js";
+
+import type { ServerWebSocket } from "bun";
 
 const isDev = process.env.SEAM_DEV === "1";
 const BUILD_DIR = isDev ? process.env.SEAM_OUTPUT_DIR! : resolve(import.meta.dir, "..");
@@ -12,6 +15,34 @@ const pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR)
 const router = buildRouter({ pages });
 
 const app = new Hono();
+
+// Dev-mode WebSocket for live reload
+const { upgradeWebSocket, websocket } = createBunWebSocket();
+const devClients = new Set<ServerWebSocket>();
+
+if (isDev) {
+  app.get(
+    "/_seam/dev/ws",
+    upgradeWebSocket(() => ({
+      onOpen(_ev, ws) {
+        devClients.add(ws.raw as ServerWebSocket);
+      },
+      onClose(_ev, ws) {
+        devClients.delete(ws.raw as ServerWebSocket);
+      },
+    })),
+  );
+
+  watchReloadTrigger(BUILD_DIR, () => {
+    for (const c of devClients) {
+      try {
+        c.send("reload");
+      } catch {
+        devClients.delete(c);
+      }
+    }
+  });
+}
 
 // Seam middleware: handles /_seam/* (RPC, manifest, static, pages)
 app.use("/*", seam(router, { staticDir: resolve(BUILD_DIR, "public") }));
@@ -41,9 +72,10 @@ app.get("*", async (c) => {
 
 const port = Number(process.env.PORT) || 3000;
 
-export default {
+Bun.serve({
   port,
   fetch: app.fetch,
-};
+  ...(isDev ? { websocket } : {}),
+});
 
 console.log(`GitHub Dashboard running on http://localhost:${port}`);

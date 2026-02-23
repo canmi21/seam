@@ -17,6 +17,14 @@ use crate::config::SeamConfig;
 use crate::shell::{run_builtin_bundler, run_command};
 use crate::ui::{self, RESET, YELLOW};
 
+#[derive(Debug, Clone, Copy)]
+pub enum RebuildMode {
+  /// src/server/** changed — full rebuild (manifest + codegen + bundle + skeletons + assets)
+  Full,
+  /// src/client/** or shared/** changed — frontend only (bundle + skeletons + assets)
+  FrontendOnly,
+}
+
 /// Dispatch bundler based on mode
 fn run_bundler(base_dir: &Path, mode: &BundlerMode) -> Result<()> {
   match mode {
@@ -73,8 +81,13 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
-  let route_manifest =
-    process_routes(&skeleton_output.layouts, &skeleton_output.routes, &templates_dir, &assets)?;
+  let route_manifest = process_routes(
+    &skeleton_output.layouts,
+    &skeleton_output.routes,
+    &templates_dir,
+    &assets,
+    false,
+  )?;
   ui::blank();
 
   // [4/4] Write route manifest
@@ -177,8 +190,13 @@ fn run_fullstack_build(
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
-  let route_manifest =
-    process_routes(&skeleton_output.layouts, &skeleton_output.routes, &templates_dir, &assets)?;
+  let route_manifest = process_routes(
+    &skeleton_output.layouts,
+    &skeleton_output.routes,
+    &templates_dir,
+    &assets,
+    false,
+  )?;
 
   // Write route-manifest.json
   let route_manifest_path = out_dir.join("route-manifest.json");
@@ -259,8 +277,13 @@ pub fn run_dev_build(
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
-  let route_manifest =
-    process_routes(&skeleton_output.layouts, &skeleton_output.routes, &templates_dir, &assets)?;
+  let route_manifest = process_routes(
+    &skeleton_output.layouts,
+    &skeleton_output.routes,
+    &templates_dir,
+    &assets,
+    true,
+  )?;
 
   let route_manifest_path = out_dir.join("route-manifest.json");
   let route_manifest_json = serde_json::to_string_pretty(&route_manifest)?;
@@ -284,6 +307,59 @@ pub fn run_dev_build(
     "{proc_count} procedures \u{00b7} {template_count} templates \u{00b7} {asset_count} assets \u{00b7} {}",
     build_config.renderer,
   ));
+
+  Ok(())
+}
+
+/// Incremental rebuild for dev mode — skips banner/summary to keep output compact.
+pub fn run_incremental_rebuild(
+  config: &SeamConfig,
+  build_config: &BuildConfig,
+  base_dir: &Path,
+  mode: RebuildMode,
+) -> Result<()> {
+  let out_dir = base_dir.join(&build_config.out_dir);
+
+  // Full mode reruns manifest extraction + codegen before frontend steps
+  if matches!(mode, RebuildMode::Full) {
+    let router_file =
+      build_config.router_file.as_deref().context("router_file is required for fullstack build")?;
+    let manifest = extract_manifest(base_dir, router_file, &out_dir)?;
+    generate_types(&manifest, config)?;
+    copy_wasm_binary(base_dir, &out_dir)?;
+  }
+
+  // Frontend steps: bundle + skeletons + assets
+  run_bundler(base_dir, &build_config.bundler_mode)?;
+  let manifest_path = base_dir.join(&build_config.bundler_manifest);
+  let assets = read_bundle_manifest(&manifest_path)?;
+
+  let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
+  if !script_path.exists() {
+    bail!("build-skeletons.mjs not found at {}", script_path.display());
+  }
+  let routes_path = base_dir.join(&build_config.routes);
+  let manifest_json_path = out_dir.join("seam-manifest.json");
+  let skeleton_output =
+    run_skeleton_renderer(&script_path, &routes_path, &manifest_json_path, base_dir)?;
+
+  let templates_dir = out_dir.join("templates");
+  std::fs::create_dir_all(&templates_dir)
+    .with_context(|| format!("failed to create {}", templates_dir.display()))?;
+  let route_manifest = process_routes(
+    &skeleton_output.layouts,
+    &skeleton_output.routes,
+    &templates_dir,
+    &assets,
+    true,
+  )?;
+
+  let route_manifest_path = out_dir.join("route-manifest.json");
+  let route_manifest_json = serde_json::to_string_pretty(&route_manifest)?;
+  std::fs::write(&route_manifest_path, &route_manifest_json)
+    .with_context(|| format!("failed to write {}", route_manifest_path.display()))?;
+
+  package_static_assets(base_dir, &assets, &out_dir)?;
 
   Ok(())
 }

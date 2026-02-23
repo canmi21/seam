@@ -4,13 +4,13 @@ use anyhow::{bail, Result};
 
 use crate::config::SeamConfig;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BundlerMode {
   BuiltIn { entry: String },
   Custom { command: String },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BuildConfig {
   pub bundler_mode: BundlerMode,
   pub bundler_manifest: String,

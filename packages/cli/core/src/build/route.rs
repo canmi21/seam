@@ -137,6 +137,7 @@ pub(super) fn process_routes(
   routes: &[SkeletonRoute],
   templates_dir: &Path,
   assets: &AssetFiles,
+  dev_mode: bool,
 ) -> Result<RouteManifest> {
   // Process layouts: replace <seam-outlet>, convert sentinels to slots, wrap document
   let mut layout_manifest = BTreeMap::new();
@@ -144,7 +145,7 @@ pub(super) fn process_routes(
     let html = layout.html.replace("<seam-outlet></seam-outlet>", "<!--seam:outlet-->");
     // Convert %%SEAM:path%% sentinels to <!--seam:path--> slots for server injection
     let html = sentinel_to_slots(&html);
-    let document = wrap_document(&html, &assets.css, &assets.js);
+    let document = wrap_document(&html, &assets.css, &assets.js, dev_mode);
     let filename = format!("{}.html", layout.id);
     let filepath = templates_dir.join(&filename);
     std::fs::write(&filepath, &document)
@@ -181,7 +182,7 @@ pub(super) fn process_routes(
     let document = if route.layout.is_some() {
       template.clone()
     } else {
-      wrap_document(&template, &assets.css, &assets.js)
+      wrap_document(&template, &assets.css, &assets.js, dev_mode)
     };
 
     let filename = path_to_filename(&route.path);

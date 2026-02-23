@@ -16,6 +16,7 @@ export {
 export { loadBuildOutput, loadBuildOutputDev } from "./page/build-loader.js";
 export { fromCallback } from "./subscription.js";
 export { createDevProxy, createStaticHandler } from "./proxy.js";
+export { watchReloadTrigger } from "./dev/index.js";
 
 export type {
   HttpHandler,
@@ -40,3 +41,4 @@ export type { PageDef, LayoutDef, LoaderFn } from "./page/index.js";
 export type { ErrorCode } from "./errors.js";
 export type { CallbackSink } from "./subscription.js";
 export type { DevProxyOptions, StaticHandlerOptions } from "./proxy.js";
+export type { ReloadWatcher } from "./dev/index.js";
