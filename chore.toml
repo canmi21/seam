@@ -11,5 +11,5 @@ enabled = true
 ".tsx" = "/* $path$file */"
 
 [path_comment.exclude]
-dirs = ["node_modules", "target", "dist", ".seam"]
+dirs = ["node_modules", "target", "dist", ".seam", "generated"]
 patterns = []

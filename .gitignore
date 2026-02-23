@@ -6,6 +6,7 @@ dist/
 *.swp
 .claude
 .worktrees/
+generated/
 
 # Playwright
 tests/e2e/test-results/
