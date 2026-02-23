@@ -33,6 +33,7 @@ SeamJS is a **rendering strategy**, not a full-stack framework tied to specific 
 | [server/core/typescript](packages/server/core/typescript/)   | `@canmi/seam-server` | Framework-agnostic server core (procedures, subscriptions, pages, HTTP layer)   |
 | [server/core/rust](packages/server/core/rust/)               | `seam-server`        | Rust server core with built-in HTML template injector, built on axum            |
 | [server/core/rust-macros](packages/server/core/rust-macros/) | `seam-macros`        | Proc macros: `#[derive(SeamType)]`, `#[seam_procedure]`, `#[seam_subscription]` |
+| [server/core/go](packages/server/core/go/)                   | Go module            | Go server core with Router, RPC, SSE, pages, and graceful shutdown              |
 
 ### Server Adapters
 
@@ -44,16 +45,23 @@ SeamJS is a **rendering strategy**, not a full-stack framework tied to specific 
 
 ### Client Libraries
 
-| Package                                    | npm                  | Description                                              |
-| ------------------------------------------ | -------------------- | -------------------------------------------------------- |
-| [client/vanilla](packages/client/vanilla/) | `@canmi/seam-client` | Framework-agnostic client (RPC calls, SSE subscriptions) |
-| [client/react](packages/client/react/)     | `@canmi/seam-react`  | React bindings (hooks, data provider, route definitions) |
+| Package                                                    | npm                            | Description                                              |
+| ---------------------------------------------------------- | ------------------------------ | -------------------------------------------------------- |
+| [client/vanilla](packages/client/vanilla/)                 | `@canmi/seam-client`           | Framework-agnostic client (RPC calls, SSE subscriptions) |
+| [client/react](packages/client/react/)                     | `@canmi/seam-react`            | React bindings (hooks, data provider, route definitions) |
+| [client/tanstack-router](packages/client/tanstack-router/) | `@canmi/seam-tanstack-router`  | TanStack Router integration (route definitions, loaders) |
 
-### Template Engine
+### Template Injector
 
-| Package                                      | npm                    | Description                                                   |
-| -------------------------------------------- | ---------------------- | ------------------------------------------------------------- |
-| [server/injector](packages/server/injector/) | `@canmi/seam-injector` | HTML template injector (`<!--seam:...-->` marker replacement) |
+Replaces `<!--seam:...-->` markers in HTML skeletons with server data. The Rust library is the core implementation; other packages provide language-specific bindings.
+
+| Package                                                  | Crate / npm                    | Description                                          |
+| -------------------------------------------------------- | ------------------------------ | ---------------------------------------------------- |
+| [injector/rust](packages/server/injector/rust/)          | `seam-injector`                | Core injector library (tokenize, parse, render)      |
+| [injector/wasm](packages/server/injector/wasm/)          | `seam-injector-wasm`           | WASM bindings for cross-language use                  |
+| [injector/go](packages/server/injector/go/)              | Go module                      | Go wrapper running WASM via Wazero                    |
+| [injector/native](packages/server/injector/native/)      | `@canmi/seam-injector-native`  | Node.js bindings (napi-rs)                            |
+| [injector/js](packages/server/injector/js/)              | `@canmi/seam-injector`         | Pure TypeScript fallback implementation               |
 
 ### Tooling
 
@@ -69,6 +77,8 @@ SeamJS is a **rendering strategy**, not a full-stack framework tied to specific 
 | [server-rust](examples/standalone/server-rust/)       | Standalone Rust backend                                |
 | [server-bun](examples/standalone/server-bun/)         | Standalone Bun server                                  |
 | [server-node](examples/standalone/server-node/)       | Standalone Node.js server                              |
+| [server-go](examples/standalone/server-go/)           | Standalone Go backend                                  |
+| [server-go-gin](examples/standalone/server-go-gin/)   | Standalone Go backend with Gin framework               |
 | [client-vanilla](examples/standalone/client-vanilla/) | Vanilla JS client                                      |
 | [client-react](examples/standalone/client-react/)     | React client                                           |
 
