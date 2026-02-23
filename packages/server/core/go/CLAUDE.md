@@ -16,15 +16,15 @@ See root CLAUDE.md for general project rules.
 
 `seam.Error` struct carries `Code`, `Message`, and `Status`. Constructor functions:
 
-| Constructor          | Code               | HTTP Status |
-| -------------------- | ------------------ | ----------- |
-| `ValidationError()`  | VALIDATION_ERROR   | 400         |
-| `UnauthorizedError()` | UNAUTHORIZED      | 401         |
-| `ForbiddenError()`   | FORBIDDEN          | 403         |
-| `NotFoundError()`    | NOT_FOUND          | 404         |
-| `RateLimitedError()` | RATE_LIMITED       | 429         |
-| `InternalError()`    | INTERNAL_ERROR     | 500         |
-| `NewError()`         | custom             | custom      |
+| Constructor           | Code             | HTTP Status |
+| --------------------- | ---------------- | ----------- |
+| `ValidationError()`   | VALIDATION_ERROR | 400         |
+| `UnauthorizedError()` | UNAUTHORIZED     | 401         |
+| `ForbiddenError()`    | FORBIDDEN        | 403         |
+| `NotFoundError()`     | NOT_FOUND        | 404         |
+| `RateLimitedError()`  | RATE_LIMITED     | 429         |
+| `InternalError()`     | INTERNAL_ERROR   | 500         |
+| `NewError()`          | custom           | custom      |
 
 Error dispatch in handlers: check `context.DeadlineExceeded` first, then type-assert `*Error`, then wrap unknown errors with `InternalError`.
 
