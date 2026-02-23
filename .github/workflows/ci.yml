@@ -28,14 +28,14 @@ jobs:
       - name: Format
         run: bash scripts/ci/fmt.sh && git diff --exit-code
 
-      - name: Lint
-        run: bash scripts/ci/lint.sh
-
       - name: Build CLI
         run: bash scripts/ci/build-cli.sh
 
       - name: Build TS
         run: bash scripts/ci/build-ts.sh
+
+      - name: Lint
+        run: bash scripts/ci/lint.sh
 
       - name: Rust unit tests
         run: bash scripts/ci/test-rs.sh
