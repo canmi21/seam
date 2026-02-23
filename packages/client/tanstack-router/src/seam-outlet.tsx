@@ -2,13 +2,7 @@
 
 import { useContext } from "react";
 import type { ComponentType, ReactNode } from "react";
-import {
-  Match,
-  matchContext,
-  useLoaderData,
-  useRouter,
-  useRouterState,
-} from "@tanstack/react-router";
+import { Match, matchContext, useLoaderData, useRouterState } from "@tanstack/react-router";
 import { SeamDataProvider } from "@canmi/seam-react";
 
 /**
@@ -19,7 +13,6 @@ import { SeamDataProvider } from "@canmi/seam-react";
  * those markers, so hydration fails with a mismatch.
  */
 export function SeamOutlet() {
-  const router = useRouter();
   const matchId = useContext(matchContext);
   const childMatchId = useRouterState({
     select: (s) => {
@@ -44,7 +37,7 @@ export function createLayoutWrapper(
 ) {
   if (hasLoaders) {
     return function LayoutWrapperWithData() {
-      const data = useLoaderData({ strict: false });
+      const data: unknown = useLoaderData({ strict: false });
       return (
         <SeamDataProvider value={data}>
           <Layout>
@@ -67,7 +60,7 @@ export function createLayoutWrapper(
 /** Wrap a page component with SeamDataProvider so useSeamData() returns page-scoped data */
 export function createPageWrapper(Page: ComponentType) {
   return function PageWrapper() {
-    const data = useLoaderData({ strict: false });
+    const data: unknown = useLoaderData({ strict: false });
     return (
       <SeamDataProvider value={data}>
         <Page />

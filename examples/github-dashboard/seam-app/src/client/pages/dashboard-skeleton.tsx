@@ -11,7 +11,9 @@ export function DashboardSkeleton() {
   const data = useSeamData<DashboardData & Record<string, unknown>>();
   const [timing, setTiming] = useState("");
 
+  // eslint-disable-next-line seam/no-effect-in-skeleton -- timing reads DOM post-hydration, no SSR side-effect
   useEffect(() => {
+    // eslint-disable-next-line seam/no-browser-apis-in-skeleton -- runs only after hydration
     const el = document.getElementById("__SEAM_DATA__");
     if (el) {
       const raw = JSON.parse(el.textContent || "{}");

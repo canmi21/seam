@@ -59,11 +59,10 @@ function buildRoutes(
       path: convertPath(def.path),
       component: createPageWrapper(pageComponent),
       loader: def.clientLoader
-        ? ({ params, context }) =>
-            def.clientLoader!({
-              params,
-              seamRpc: (context as SeamRouterContext).seamRpc,
-            })
+        ? ({ params, context }: { params: Record<string, string>; context: unknown }) => {
+            const ctx = context as SeamRouterContext;
+            return def.clientLoader!({ params, seamRpc: ctx.seamRpc });
+          }
         : createLoaderFromDefs(def.loaders ?? {}, def.path),
     });
   });

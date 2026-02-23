@@ -66,6 +66,7 @@ export default tseslint.config(
       "**/__tests__/**",
       "tests/**",
       "**/tsdown.config.ts",
+      "**/vitest.config.*",
       "**/scripts/**",
       "eslint.config.mjs",
       "packages/server/adapter/bun/**",

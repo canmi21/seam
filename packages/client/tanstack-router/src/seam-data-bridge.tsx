@@ -23,7 +23,12 @@ export function SeamDataBridge({ children }: { children: ReactNode }) {
   const seamData = merged.page ?? merged;
 
   const router = useRouter();
-  const navigate = useCallback((url: string) => router.navigate({ to: url }), [router]);
+  const navigate = useCallback(
+    (url: string): void => {
+      void router.navigate({ to: url });
+    },
+    [router],
+  );
 
   return (
     <SeamNavigateProvider value={navigate}>

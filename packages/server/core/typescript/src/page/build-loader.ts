@@ -62,7 +62,7 @@ function resolveLayoutChain(
   let currentId: string | undefined = layoutId;
 
   while (currentId) {
-    const entry = layoutEntries[currentId];
+    const entry: LayoutManifestEntry | undefined = layoutEntries[currentId];
     if (!entry) break;
     chain.push({
       id: currentId,
