@@ -1,5 +1,7 @@
 /* eslint.config.mjs */
 
+/* eslint.config.mjs */
+
 /* eslint.config.mjs -- type-checked rules only; oxlint handles the rest */
 
 import tseslint from "typescript-eslint";
