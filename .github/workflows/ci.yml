@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Format
+        run: bash scripts/ci/fmt.sh && git diff --exit-code
+
+      - name: Lint
+        run: bash scripts/ci/lint.sh
+
+      - name: Build CLI
+        run: bash scripts/ci/build-cli.sh
+
+      - name: Build TS
+        run: bash scripts/ci/build-ts.sh
+
+      - name: Rust unit tests
+        run: bash scripts/ci/test-rs.sh
+
+      - name: TS unit tests
+        run: bash scripts/ci/test-ts.sh
+
+      - name: Build fixtures
+        run: bash scripts/ci/build-fixtures.sh
+
+      - name: Go integration tests
+        run: bash scripts/ci/test-integration.sh
+
+      - name: Install Playwright
+        run: bunx playwright install --with-deps chromium
+
+      - name: Playwright E2E
+        run: bash scripts/ci/test-e2e.sh

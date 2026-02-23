@@ -3,27 +3,11 @@
 # For full pipeline (fmt + lint + unit tests + everything), use: bun run verify
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-EXAMPLE="$ROOT/examples/github-dashboard/seam-app"
+DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# 1. Build seam CLI
-echo "Building seam CLI..."
-cargo build -p seam-cli --release
+bash "$DIR/ci/build-cli.sh"
+bash "$DIR/ci/build-fixtures.sh"
+bash "$DIR/ci/test-integration.sh"
+bash "$DIR/ci/test-e2e.sh"
 
-# 2. Run seam build in fullstack example
-echo "Running seam build (fullstack)..."
-(cd "$EXAMPLE" && "$ROOT/target/release/seam" build)
-
-# 3. Run Go fullstack tests (HTTP-level)
-echo "Running Go fullstack tests..."
-(cd "$ROOT/tests/fullstack" && go test -v -count=1)
-
-# 4. Build E2E fixture
-echo "Building E2E fixture..."
-(cd "$ROOT/tests/e2e/fixture" && "$ROOT/target/release/seam" build)
-
-# 5. Run Playwright E2E (browser-level)
-echo "Running Playwright E2E tests..."
-(cd "$ROOT/tests/e2e" && bunx playwright test)
-
-echo "All smoke tests passed."
+printf '\n==> All smoke tests passed.\n'
