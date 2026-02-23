@@ -8,6 +8,9 @@
     "./styles/*": "./styles/*",
     "./components/*": "./components/*"
   },
+  "dependencies": {
+    "@canmi/seam-react": "workspace:*"
+  },
   "peerDependencies": {
     "react": "^19.0.0"
   }

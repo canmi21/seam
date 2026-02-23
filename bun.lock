@@ -59,6 +59,9 @@
     "examples/github-dashboard/shared": {
       "name": "@github-dashboard/shared",
       "version": "0.0.0",
+      "dependencies": {
+        "@canmi/seam-react": "workspace:*",
+      },
       "peerDependencies": {
         "react": "^19.0.0",
       },
