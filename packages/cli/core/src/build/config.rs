@@ -23,6 +23,7 @@ pub struct BuildConfig {
   pub is_fullstack: bool,
   pub obfuscate: bool,
   pub sourcemap: bool,
+  pub typehint: bool,
   pub rpc_salt: Option<String>,
 }
 
@@ -68,6 +69,7 @@ impl BuildConfig {
     let is_fullstack = backend_build_command.is_some();
     let obfuscate = build.obfuscate.unwrap_or(true);
     let sourcemap = build.sourcemap.unwrap_or(false);
+    let typehint = build.typehint.unwrap_or(true);
 
     Ok(Self {
       bundler_mode,
@@ -81,6 +83,7 @@ impl BuildConfig {
       is_fullstack,
       obfuscate,
       sourcemap,
+      typehint,
       rpc_salt: None,
     })
   }
@@ -89,6 +92,7 @@ impl BuildConfig {
     let mut bc = Self::from_seam_config(config)?;
     bc.obfuscate = config.dev.obfuscate.unwrap_or(false);
     bc.sourcemap = config.dev.sourcemap.unwrap_or(true);
+    bc.typehint = config.dev.typehint.unwrap_or(true);
     bc.rpc_salt = None;
     Ok(bc)
   }
@@ -292,6 +296,58 @@ sourcemap = false
     let bc_dev = BuildConfig::from_seam_config_dev(&config).unwrap();
     assert!(bc_dev.obfuscate);
     assert!(!bc_dev.sourcemap);
+  }
+
+  #[test]
+  fn build_config_typehint_defaults() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+routes = "./src/routes.ts"
+out_dir = ".seam/output"
+backend_build_command = "bun build"
+router_file = "src/server/router.ts"
+"#,
+    );
+    let bc = BuildConfig::from_seam_config(&config).unwrap();
+    assert!(bc.typehint, "build defaults to typehint=true");
+
+    let bc_dev = BuildConfig::from_seam_config_dev(&config).unwrap();
+    assert!(bc_dev.typehint, "dev defaults to typehint=true");
+  }
+
+  #[test]
+  fn explicit_typehint_overrides() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+routes = "./src/routes.ts"
+out_dir = ".seam/output"
+backend_build_command = "bun build"
+router_file = "src/server/router.ts"
+typehint = false
+
+[dev]
+typehint = false
+"#,
+    );
+    let bc = BuildConfig::from_seam_config(&config).unwrap();
+    assert!(!bc.typehint);
+
+    let bc_dev = BuildConfig::from_seam_config_dev(&config).unwrap();
+    assert!(!bc_dev.typehint);
   }
 
   #[test]

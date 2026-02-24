@@ -49,7 +49,7 @@ fn maybe_generate_rpc_hashes(
     .as_deref()
     .map(|s| s.to_string())
     .unwrap_or_else(super::rpc_hash::generate_random_salt);
-  let map = super::rpc_hash::generate_rpc_hash_map(&names, &salt)?;
+  let map = super::rpc_hash::generate_rpc_hash_map(&names, &salt, build_config.typehint)?;
   let path = out_dir.join("rpc-hash-map.json");
   std::fs::write(&path, serde_json::to_string_pretty(&map)?)?;
   ui::detail_ok("rpc-hash-map.json");
@@ -212,6 +212,7 @@ fn run_fullstack_build(
   let bundler_env: Vec<(&str, &str)> = vec![
     ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
     ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
+    ("SEAM_TYPEHINT", if build_config.typehint { "1" } else { "0" }),
   ];
   run_bundler(base_dir, &build_config.bundler_mode, &bundler_env)?;
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
@@ -333,6 +334,7 @@ pub fn run_dev_build(
   let bundler_env: Vec<(&str, &str)> = vec![
     ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
     ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
+    ("SEAM_TYPEHINT", if build_config.typehint { "1" } else { "0" }),
   ];
   let assets = if is_vite {
     AssetFiles { css: vec![], js: vec![] }
@@ -448,6 +450,7 @@ pub fn run_incremental_rebuild(
   let bundler_env: Vec<(&str, &str)> = vec![
     ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
     ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
+    ("SEAM_TYPEHINT", if build_config.typehint { "1" } else { "0" }),
   ];
   let assets = if is_vite {
     AssetFiles { css: vec![], js: vec![] }

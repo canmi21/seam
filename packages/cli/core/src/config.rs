@@ -63,6 +63,8 @@ pub struct BuildSection {
   pub obfuscate: Option<bool>,
   #[serde(default)]
   pub sourcemap: Option<bool>,
+  #[serde(default)]
+  pub typehint: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -79,11 +81,19 @@ pub struct DevSection {
   pub obfuscate: Option<bool>,
   #[serde(default)]
   pub sourcemap: Option<bool>,
+  #[serde(default)]
+  pub typehint: Option<bool>,
 }
 
 impl Default for DevSection {
   fn default() -> Self {
-    Self { port: default_dev_port(), vite_port: None, obfuscate: None, sourcemap: None }
+    Self {
+      port: default_dev_port(),
+      vite_port: None,
+      obfuscate: None,
+      sourcemap: None,
+      typehint: None,
+    }
   }
 }
 
@@ -302,6 +312,33 @@ name = "my-app"
     assert!(config.build.sourcemap.is_none());
     assert!(config.dev.obfuscate.is_none());
     assert!(config.dev.sourcemap.is_none());
+  }
+
+  #[test]
+  fn parse_typehint_config() {
+    // Explicit values
+    let toml_str = r#"
+[project]
+name = "my-app"
+
+[build]
+typehint = false
+
+[dev]
+typehint = true
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.build.typehint, Some(false));
+    assert_eq!(config.dev.typehint, Some(true));
+
+    // Defaults to None when omitted
+    let toml_str = r#"
+[project]
+name = "my-app"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert!(config.build.typehint.is_none());
+    assert!(config.dev.typehint.is_none());
   }
 
   #[test]

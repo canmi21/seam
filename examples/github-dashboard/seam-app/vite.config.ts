@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 import { watchReloadTrigger } from "@canmi/seam-server";
 
 const obfuscate = process.env.SEAM_OBFUSCATE === "1";
+const typehint = process.env.SEAM_TYPEHINT !== "0";
 
 function seamReloadPlugin(outDir = ".seam/dev-output"): Plugin {
   return {
@@ -33,10 +34,18 @@ export default defineConfig({
         ? {
             output: {
               hashCharacters: "hex",
-              entryFileNames: "script-[hash:8].js",
-              chunkFileNames: "chunk-[hash:8].js",
-              assetFileNames: (info: { names?: string[] }) =>
-                info.names?.[0]?.endsWith(".css") ? "style-[hash:8].css" : "[hash:8].[ext]",
+              ...(typehint
+                ? {
+                    entryFileNames: "script-[hash:12].js",
+                    chunkFileNames: "chunk-[hash:12].js",
+                    assetFileNames: (info: { names?: string[] }) =>
+                      info.names?.[0]?.endsWith(".css") ? "style-[hash:12].css" : "[hash:12].[ext]",
+                  }
+                : {
+                    entryFileNames: "[hash:16].js",
+                    chunkFileNames: "[hash:16].js",
+                    assetFileNames: "[hash:16].[ext]",
+                  }),
             },
           }
         : {}),

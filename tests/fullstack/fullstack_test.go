@@ -245,7 +245,7 @@ func TestRPCQuery(t *testing.T) {
 }
 
 func TestRPCNotFound(t *testing.T) {
-	status, body := postJSON(t, baseURL+"/_seam/rpc/deadbeef", map[string]any{})
+	status, body := postJSON(t, baseURL+"/_seam/rpc/deadbeefcafe", map[string]any{})
 	if status != 404 {
 		t.Fatalf("status = %d, want 404", status)
 	}
