@@ -368,9 +368,7 @@ async function computeComponentHashes(names, importMap, routesDir) {
             if (s === specifier) hashes.set(n, hash);
           }
         })
-        .catch(() => {
-          // Hash computation failed — skip caching for this component
-        }),
+        .catch(() => {}),
     );
   }
   await Promise.all(tasks);
