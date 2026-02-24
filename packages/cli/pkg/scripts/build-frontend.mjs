@@ -64,13 +64,15 @@ function rpcHashPlugin() {
     name: "seam-rpc-transform",
     buildStart() {
       try {
-        procedures = JSON.parse(fs.readFileSync(mapPath, "utf-8")).procedures;
+        const map = JSON.parse(fs.readFileSync(mapPath, "utf-8"));
+        procedures = { ...map.procedures, _batch: map.batch };
       } catch {
         /* obfuscation off or file missing */
       }
     },
     transform(code, id) {
-      if (!Object.keys(procedures).length || id.includes("node_modules")) return null;
+      if (!Object.keys(procedures).length) return null;
+      if (id.includes("node_modules") && !id.includes("@canmi/seam-")) return null;
       let result = code;
       for (const [name, hash] of Object.entries(procedures)) {
         result = result.replaceAll(`"${name}"`, `"${hash}"`);

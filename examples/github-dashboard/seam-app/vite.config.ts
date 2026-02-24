@@ -17,13 +17,15 @@ function seamRpcPlugin(): Plugin {
     name: "seam-rpc-transform",
     buildStart() {
       try {
-        procedures = JSON.parse(readFileSync(mapPath, "utf-8")).procedures;
+        const map = JSON.parse(readFileSync(mapPath, "utf-8"));
+        procedures = { ...map.procedures, _batch: map.batch };
       } catch {
         /* obfuscation off or file missing */
       }
     },
     transform(code, id) {
-      if (!Object.keys(procedures).length || id.includes("node_modules")) return;
+      if (!Object.keys(procedures).length) return;
+      if (id.includes("node_modules") && !id.includes("@canmi/seam-")) return;
       let result = code;
       for (const [name, hash] of Object.entries(procedures)) {
         result = result.replaceAll(`"${name}"`, `"${hash}"`);

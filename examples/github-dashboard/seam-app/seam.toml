@@ -16,6 +16,9 @@ bundler_manifest = "dist/.vite/manifest.json"
 router_file = "src/server/router.ts"
 routes = "./src/client/routes.ts"
 out_dir = ".seam/output"
+obfuscate = true
+hash_length = 16
+type_hint = false
 
 [dev]
 port = 3000
