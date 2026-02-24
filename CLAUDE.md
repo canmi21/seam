@@ -24,9 +24,9 @@
 ## Versioning
 
 - Single source of truth: `Cargo.toml` workspace `version` field; all packages share one version
-- After completing a set of business-logic changes (e.g. a plan mode session), bump patch: `bash scripts/bump-version.sh x.y.(z+1)` — this syncs all `package.json`, Rust path dep versions, and CLI wrapper references
+- After completing a set of business-logic changes (e.g. a plan mode session), bump patch in the final commit: run `bash scripts/bump-version.sh x.y.(z+1)` then stage the version changes alongside the last logical commit — do not create a separate `chore: bump version` commit
 - Only bump minor (`x.(y+1).0`, patch resets to 0) for breaking changes: architecture shifts, API incompatibilities, or removed functionality — this **requires explicit user confirmation** before proceeding
-- Chore-only changes (docs, CI, formatting, tooling) do not bump the version
+- Chore-only changes (docs, CI, formatting, tooling) and test-only changes do not bump the version
 - Go modules are not yet covered by `bump-version.sh`; version managed separately via git tags when needed
 
 ## Monorepo Structure
