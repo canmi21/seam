@@ -22,6 +22,9 @@ test.describe("production assets", () => {
     expect(html).not.toContain("/@vite/client");
     expect(html).not.toContain("@react-refresh");
     expect(html).not.toContain("/_seam/dev/ws");
+
+    // RPC hash map must not be exposed in production HTML
+    expect(html).not.toContain("__SEAM_RPC_MAP__");
   });
 
   test("CSS asset returns 200 with immutable cache", async ({ request }) => {

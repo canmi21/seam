@@ -1,5 +1,6 @@
 /* examples/github-dashboard/seam-app/vite.config.ts */
 import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { watchReloadTrigger } from "@canmi/seam-server";
@@ -7,6 +8,30 @@ import { watchReloadTrigger } from "@canmi/seam-server";
 const obfuscate = process.env.SEAM_OBFUSCATE === "1";
 const typeHint = process.env.SEAM_TYPE_HINT !== "0";
 const hashLength = Number(process.env.SEAM_HASH_LENGTH) || 12;
+
+function seamRpcPlugin(): Plugin {
+  const mapPath = process.env.SEAM_RPC_MAP_PATH;
+  if (!mapPath) return { name: "seam-rpc-noop" };
+  let procedures: Record<string, string> = {};
+  return {
+    name: "seam-rpc-transform",
+    buildStart() {
+      try {
+        procedures = JSON.parse(readFileSync(mapPath, "utf-8")).procedures;
+      } catch {
+        /* obfuscation off or file missing */
+      }
+    },
+    transform(code, id) {
+      if (!Object.keys(procedures).length || id.includes("node_modules")) return;
+      let result = code;
+      for (const [name, hash] of Object.entries(procedures)) {
+        result = result.replaceAll(`"${name}"`, `"${hash}"`);
+      }
+      return result !== code ? result : undefined;
+    },
+  };
+}
 
 function seamReloadPlugin(outDir = ".seam/dev-output"): Plugin {
   return {
@@ -21,7 +46,7 @@ function seamReloadPlugin(outDir = ".seam/dev-output"): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), seamReloadPlugin()],
+  plugins: [react(), seamRpcPlugin(), seamReloadPlugin()],
   appType: "custom",
   server: {
     origin: "http://localhost:5173",

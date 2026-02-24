@@ -135,7 +135,6 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
     &assets,
     false,
     None,
-    None,
   )?;
   ui::blank();
 
@@ -216,11 +215,17 @@ fn run_fullstack_build(
   step_num += 1;
   ui::step(step_num, total, "Bundling frontend");
   let hash_length_str = build_config.hash_length.to_string();
+  let rpc_map_path_str = if rpc_hashes.is_some() {
+    out_dir.join("rpc-hash-map.json").to_string_lossy().to_string()
+  } else {
+    String::new()
+  };
   let bundler_env: Vec<(&str, &str)> = vec![
     ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
     ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
     ("SEAM_TYPE_HINT", if build_config.type_hint { "1" } else { "0" }),
     ("SEAM_HASH_LENGTH", &hash_length_str),
+    ("SEAM_RPC_MAP_PATH", &rpc_map_path_str),
   ];
   run_bundler(base_dir, &build_config.bundler_mode, &bundler_env)?;
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
@@ -256,13 +261,6 @@ fn run_fullstack_build(
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
-  let rpc_hash_json = rpc_hashes.as_ref().map(|h| {
-    serde_json::json!({
-      "procedures": h.procedures,
-      "batch": h.batch,
-    })
-    .to_string()
-  });
   let route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -270,7 +268,6 @@ fn run_fullstack_build(
     &assets,
     false,
     None,
-    rpc_hash_json.as_deref(),
   )?;
 
   // Write route-manifest.json
@@ -341,11 +338,17 @@ pub fn run_dev_build(
 
   // [3] Bundle frontend (skipped in Vite mode — Vite serves assets directly)
   let hash_length_str = build_config.hash_length.to_string();
+  let rpc_map_path_str = if rpc_hashes.is_some() {
+    out_dir.join("rpc-hash-map.json").to_string_lossy().to_string()
+  } else {
+    String::new()
+  };
   let bundler_env: Vec<(&str, &str)> = vec![
     ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
     ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
     ("SEAM_TYPE_HINT", if build_config.type_hint { "1" } else { "0" }),
     ("SEAM_HASH_LENGTH", &hash_length_str),
+    ("SEAM_RPC_MAP_PATH", &rpc_map_path_str),
   ];
   let assets = if is_vite {
     AssetFiles { css: vec![], js: vec![] }
@@ -380,13 +383,6 @@ pub fn run_dev_build(
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
-  let rpc_hash_json = rpc_hashes.as_ref().map(|h| {
-    serde_json::json!({
-      "procedures": h.procedures,
-      "batch": h.batch,
-    })
-    .to_string()
-  });
   let route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -394,7 +390,6 @@ pub fn run_dev_build(
     &assets,
     true,
     vite.as_ref(),
-    rpc_hash_json.as_deref(),
   )?;
 
   let route_manifest_path = out_dir.join("route-manifest.json");
@@ -459,11 +454,15 @@ pub fn run_incremental_rebuild(
 
   // Frontend steps: bundle + skeletons + assets (bundle/assets skipped in Vite mode)
   let hash_length_str = build_config.hash_length.to_string();
+  let rpc_map_path = out_dir.join("rpc-hash-map.json");
+  let rpc_map_path_str =
+    if rpc_map_path.exists() { rpc_map_path.to_string_lossy().to_string() } else { String::new() };
   let bundler_env: Vec<(&str, &str)> = vec![
     ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
     ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
     ("SEAM_TYPE_HINT", if build_config.type_hint { "1" } else { "0" }),
     ("SEAM_HASH_LENGTH", &hash_length_str),
+    ("SEAM_RPC_MAP_PATH", &rpc_map_path_str),
   ];
   let assets = if is_vite {
     AssetFiles { css: vec![], js: vec![] }
@@ -492,26 +491,6 @@ pub fn run_incremental_rebuild(
     .with_context(|| format!("failed to parse {}", manifest_json_path.display()))?;
   validate_procedure_references(&manifest, &skeleton_output)?;
 
-  // Read RPC hash map from disk (generated in Full mode or a previous build)
-  let rpc_hash_json = {
-    let path = out_dir.join("rpc-hash-map.json");
-    if path.exists() {
-      let raw = std::fs::read_to_string(&path)
-        .with_context(|| format!("failed to read {}", path.display()))?;
-      let map: serde_json::Value = serde_json::from_str(&raw)
-        .with_context(|| format!("failed to parse {}", path.display()))?;
-      Some(
-        serde_json::json!({
-          "procedures": map["procedures"],
-          "batch": map["batch"],
-        })
-        .to_string(),
-      )
-    } else {
-      None
-    }
-  };
-
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
@@ -522,7 +501,6 @@ pub fn run_incremental_rebuild(
     &assets,
     true,
     vite.as_ref(),
-    rpc_hash_json.as_deref(),
   )?;
 
   let route_manifest_path = out_dir.join("route-manifest.json");

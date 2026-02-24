@@ -53,7 +53,7 @@ mod tests {
     assert!(template.contains("<span>Has avatar</span>"));
 
     // Step 3: document wrapping
-    let doc = wrap_document(&template, &["app.css".into()], &["app.js".into()], false, None, None);
+    let doc = wrap_document(&template, &["app.css".into()], &["app.js".into()], false, None);
     assert!(doc.starts_with("<!DOCTYPE html>"));
     assert!(doc.contains("__SEAM_ROOT__"));
     assert!(doc.contains("<!--seam:user.name-->"));
@@ -66,7 +66,7 @@ mod tests {
   fn attribute_and_text_mixed_pipeline() {
     let html = r#"<div><a href="%%SEAM:link.url%%">%%SEAM:link.text%%</a></div>"#;
     let result = sentinel_to_slots(html);
-    let doc = wrap_document(&result, &[], &[], false, None, None);
+    let doc = wrap_document(&result, &[], &[], false, None);
     assert!(doc.contains("<!--seam:link.url:attr:href-->"));
     assert!(doc.contains("<!--seam:link.text-->"));
     assert!(!doc.contains("%%SEAM:"));
@@ -82,7 +82,7 @@ mod tests {
     assert!(slotted.contains("<!--seam:d:attr:content-->"));
     assert!(slotted.contains("<!--seam:u:attr:href-->"));
 
-    let doc = wrap_document(&slotted, &["style.css".into()], &["app.js".into()], false, None, None);
+    let doc = wrap_document(&slotted, &["style.css".into()], &["app.js".into()], false, None);
     assert!(doc.starts_with("<!DOCTYPE html>"));
 
     // Markers stay in __SEAM_ROOT__, not in <head>
@@ -114,7 +114,7 @@ mod tests {
     assert!(template.contains("<!--seam:t-->"));
     assert!(template.contains("<!--seam:body-->"));
 
-    let doc = wrap_document(&template, &[], &[], false, None, None);
+    let doc = wrap_document(&template, &[], &[], false, None);
     let head = doc.split("</head>").next().unwrap();
     assert!(!head.contains("<!--seam:"), "no seam markers in <head>");
   }

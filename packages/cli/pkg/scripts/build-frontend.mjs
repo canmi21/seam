@@ -54,9 +54,38 @@ function postcssPlugin(postcssPlugins) {
   };
 }
 
+// -- RPC hash transform plugin (compile-time string replacement) --
+
+function rpcHashPlugin() {
+  const mapPath = process.env.SEAM_RPC_MAP_PATH;
+  if (!mapPath) return null;
+  let procedures = {};
+  return {
+    name: "seam-rpc-transform",
+    buildStart() {
+      try {
+        procedures = JSON.parse(fs.readFileSync(mapPath, "utf-8")).procedures;
+      } catch {
+        /* obfuscation off or file missing */
+      }
+    },
+    transform(code, id) {
+      if (!Object.keys(procedures).length || id.includes("node_modules")) return null;
+      let result = code;
+      for (const [name, hash] of Object.entries(procedures)) {
+        result = result.replaceAll(`"${name}"`, `"${hash}"`);
+      }
+      return result !== code ? { code: result } : null;
+    },
+  };
+}
+
 // -- Main --
 
 const plugins = [];
+
+const rpcPlugin = rpcHashPlugin();
+if (rpcPlugin) plugins.push(rpcPlugin);
 
 const postcssConfigPath = loadPostcssConfig();
 if (postcssConfigPath) {
