@@ -18,6 +18,7 @@ export interface PageDef {
   loaders: Record<string, LoaderFn>;
   layoutChain?: LayoutDef[];
   headMeta?: string;
+  dataId?: string;
 }
 
 export function definePage(config: PageDef): PageDef {

@@ -71,7 +71,7 @@ function buildRoutes(
 }
 
 export function createSeamRouter(opts: SeamRouterOptions) {
-  const { routes, pages, defaultStaleTime = 30_000 } = opts;
+  const { routes, pages, defaultStaleTime = 30_000, dataId } = opts;
 
   // Parse initial data from __SEAM_DATA__ (browser only)
   let initialData: Record<string, unknown> | null = null;
@@ -81,7 +81,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
 
   if (typeof document !== "undefined") {
     try {
-      const raw = parseSeamData();
+      const raw = parseSeamData(dataId);
       // Extract layout data stored under _layouts key
       if (raw._layouts && typeof raw._layouts === "object") {
         initialLayouts = raw._layouts as Record<string, Record<string, unknown>>;

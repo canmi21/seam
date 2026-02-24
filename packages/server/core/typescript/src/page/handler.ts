@@ -120,7 +120,8 @@ export async function handlePageRequest(
       seamData._layouts = layoutKeyed;
     }
 
-    const script = `<script id="__SEAM_DATA__" type="application/json">${JSON.stringify(seamData)}</script>`;
+    const dataId = page.dataId ?? "__SEAM_DATA__";
+    const script = `<script id="${dataId}" type="application/json">${JSON.stringify(seamData)}</script>`;
     const bodyClose = innerContent.lastIndexOf("</body>");
     let html: string;
     if (bodyClose !== -1) {

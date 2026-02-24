@@ -19,9 +19,10 @@ function simplePage(template: string, loaders: PageDef["loaders"]): PageDef {
 }
 
 /** Extract __SEAM_DATA__ JSON from rendered HTML */
-function extractSeamData(html: string): Record<string, unknown> {
-  const match = html.match(/<script id="__SEAM_DATA__" type="application\/json">(.*?)<\/script>/);
-  if (!match) throw new Error("__SEAM_DATA__ script not found");
+function extractSeamData(html: string, dataId = "__SEAM_DATA__"): Record<string, unknown> {
+  const re = new RegExp(`<script id="${dataId}" type="application/json">(.*?)</script>`);
+  const match = html.match(re);
+  if (!match) throw new Error(`${dataId} script not found`);
   return JSON.parse(match[1]);
 }
 
@@ -485,5 +486,38 @@ describe("handlePageRequest — data script placement", () => {
     expect(result.html).toContain("__SEAM_DATA__");
     // Script should be at the end
     expect(result.html).toMatch(/<\/script>$/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Custom dataId
+// ---------------------------------------------------------------------------
+describe("handlePageRequest — custom dataId", () => {
+  it("uses custom dataId for script tag", async () => {
+    const page: PageDef = {
+      template: "<body><p>hi</p></body>",
+      loaders: { page: () => ({ procedure: "getData", input: {} }) },
+      layoutChain: [],
+      dataId: "__sd",
+    };
+    const procs = makeProcedures(["getData", mockProcedure(() => ({ v: 1 }))]);
+    const result = await handlePageRequest(page, {}, procs);
+
+    expect(result.html).toContain('id="__sd"');
+    expect(result.html).not.toContain('id="__SEAM_DATA__"');
+    const data = extractSeamData(result.html, "__sd");
+    expect(data.page).toEqual({ v: 1 });
+  });
+
+  it("defaults to __SEAM_DATA__ when dataId is undefined", async () => {
+    const page: PageDef = {
+      template: "<body><p>hi</p></body>",
+      loaders: { page: () => ({ procedure: "getData", input: {} }) },
+      layoutChain: [],
+    };
+    const procs = makeProcedures(["getData", mockProcedure(() => ({ v: 1 }))]);
+    const result = await handlePageRequest(page, {}, procs);
+
+    expect(result.html).toContain('id="__SEAM_DATA__"');
   });
 });

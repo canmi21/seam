@@ -49,6 +49,8 @@ pub struct FrontendConfig {
   pub out_dir: Option<String>,
   #[serde(default = "default_root_id")]
   pub root_id: String,
+  #[serde(default = "default_data_id")]
+  pub data_id: String,
 }
 
 impl Default for FrontendConfig {
@@ -60,12 +62,17 @@ impl Default for FrontendConfig {
       build_command: None,
       out_dir: None,
       root_id: default_root_id(),
+      data_id: default_data_id(),
     }
   }
 }
 
 fn default_root_id() -> String {
   "__seam".to_string()
+}
+
+fn default_data_id() -> String {
+  "__SEAM_DATA__".to_string()
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -413,6 +420,29 @@ root_id = "app"
 "#;
     let config: SeamConfig = toml::from_str(toml_str).unwrap();
     assert_eq!(config.frontend.root_id, "app");
+  }
+
+  #[test]
+  fn parse_data_id_default() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.frontend.data_id, "__SEAM_DATA__");
+  }
+
+  #[test]
+  fn parse_data_id_explicit() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+
+[frontend]
+data_id = "__sd"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.frontend.data_id, "__sd");
   }
 
   #[test]

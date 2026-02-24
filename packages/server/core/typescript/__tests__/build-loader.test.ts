@@ -155,6 +155,37 @@ describe("loadBuildOutput — head_meta", () => {
   });
 });
 
+describe("loadBuildOutput — data_id", () => {
+  it("sets dataId from manifest data_id field", () => {
+    const dir = mkdtempSync(join(tmpdir(), "seam-dataid-"));
+    mkdirSync(join(dir, "templates"));
+    writeFileSync(join(dir, "templates/index.html"), "<p>body</p>");
+    writeFileSync(
+      join(dir, "route-manifest.json"),
+      JSON.stringify({
+        routes: {
+          "/": {
+            template: "templates/index.html",
+            loaders: {},
+          },
+        },
+        data_id: "__sd",
+      }),
+    );
+    try {
+      const pages = loadBuildOutput(dir);
+      expect(pages["/"].dataId).toBe("__sd");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("dataId is undefined when data_id absent from manifest", () => {
+    const pages = loadBuildOutput(distDir);
+    expect(pages["/user/:id"].dataId).toBeUndefined();
+  });
+});
+
 describe("loadRpcHashMap", () => {
   it("returns hash map when file exists", () => {
     const hashDir = mkdtempSync(join(tmpdir(), "seam-hashmap-"));

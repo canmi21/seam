@@ -1,7 +1,8 @@
 /* examples/github-dashboard/seam-app/src/client/pages/dashboard-skeleton.tsx */
 
 import { useEffect, useState } from "react";
-import { useSeamData } from "@canmi/seam-react";
+import { useSeamData, parseSeamData } from "@canmi/seam-react";
+import { DATA_ID } from "../../generated/client.js";
 import type { DashboardData } from "@github-dashboard/shared/types.js";
 import { ProfileHeader } from "@github-dashboard/shared/components/profile-header.js";
 import { StatsBar } from "@github-dashboard/shared/components/stats-bar.js";
@@ -13,13 +14,17 @@ export function DashboardSkeleton() {
 
   // eslint-disable-next-line seam/no-effect-in-skeleton -- timing reads DOM post-hydration, no SSR side-effect
   useEffect(() => {
-    // eslint-disable-next-line seam/no-browser-apis-in-skeleton -- runs only after hydration
-    const el = document.getElementById("__SEAM_DATA__");
-    if (el) {
-      const raw = JSON.parse(el.textContent || "{}");
-      if (raw._meta?.timing) {
-        setTiming(raw._meta.timing);
+    try {
+      const raw = parseSeamData(DATA_ID);
+      if (
+        raw._meta &&
+        typeof raw._meta === "object" &&
+        (raw._meta as Record<string, unknown>).timing
+      ) {
+        setTiming((raw._meta as Record<string, unknown>).timing as string);
       }
+    } catch {
+      // No data script — not a CTR page
     }
   }, []);
 

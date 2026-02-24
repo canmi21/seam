@@ -8,6 +8,7 @@ import type { RpcHashMap } from "../http.js";
 interface RouteManifest {
   layouts?: Record<string, LayoutManifestEntry>;
   routes: Record<string, RouteManifestEntry>;
+  data_id?: string;
 }
 
 interface LayoutManifestEntry {
@@ -141,7 +142,13 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
       ? resolveLayoutChain(entry.layout, layoutEntries, layoutTemplates)
       : [];
 
-    pages[path] = { template, loaders, layoutChain, headMeta: entry.head_meta };
+    pages[path] = {
+      template,
+      loaders,
+      layoutChain,
+      headMeta: entry.head_meta,
+      dataId: manifest.data_id,
+    };
   }
   return pages;
 }
@@ -166,6 +173,7 @@ export function loadBuildOutputDev(distDir: string): Record<string, PageDef> {
       template: "", // placeholder, overridden by getter
       loaders,
       layoutChain,
+      dataId: manifest.data_id,
     };
     Object.defineProperty(page, "template", {
       get: () => readFileSync(templatePath, "utf-8"),

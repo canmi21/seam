@@ -19,6 +19,7 @@ const isVite = process.env.SEAM_VITE === "1";
 const BUILD_DIR = isDev ? process.env.SEAM_OUTPUT_DIR! : resolve(import.meta.dir, "..");
 const pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR);
 const rpcHashMap = loadRpcHashMap(BUILD_DIR);
+const dataId = Object.values(pages)[0]?.dataId ?? "__SEAM_DATA__";
 const router = buildRouter({ pages });
 
 const app = new Hono();
@@ -65,15 +66,13 @@ app.get("*", async (c) => {
 
   let html = result.html.replace("<body>", '<body style="background-color:var(--c-surface)">');
 
-  // Append _meta.timing into the __SEAM_DATA__ JSON
-  html = html.replace(
-    /<script id="__SEAM_DATA__" type="application\/json">(.*?)<\/script>/,
-    (_match, json) => {
-      const data = JSON.parse(json);
-      data._meta = { timing };
-      return `<script id="__SEAM_DATA__" type="application/json">${JSON.stringify(data)}</script>`;
-    },
-  );
+  // Append _meta.timing into the data script JSON
+  const dataIdPattern = new RegExp(`<script id="${dataId}" type="application/json">(.*?)</script>`);
+  html = html.replace(dataIdPattern, (_match, json) => {
+    const data = JSON.parse(json);
+    data._meta = { timing };
+    return `<script id="${dataId}" type="application/json">${JSON.stringify(data)}</script>`;
+  });
   return c.html(html, result.status as 200);
 });
 

@@ -19,6 +19,7 @@ export interface SeamRouterOptions {
   pages?: Record<string, ComponentType>;
   defaultStaleTime?: number;
   basePath?: string;
+  dataId?: string;
 }
 
 export interface HydrateOptions extends SeamRouterOptions {

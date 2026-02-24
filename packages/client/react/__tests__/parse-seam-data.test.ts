@@ -41,4 +41,17 @@ describe("parseSeamData", () => {
     stubDocument({ textContent: "{invalid json" });
     expect(() => parseSeamData()).toThrow();
   });
+
+  it("accepts custom dataId parameter", () => {
+    const data = { count: 42 };
+    stubDocument({ textContent: JSON.stringify(data) });
+
+    expect(parseSeamData("__sd")).toEqual(data);
+    expect(document.getElementById).toHaveBeenCalledWith("__sd");
+  });
+
+  it("throws with custom dataId in error message", () => {
+    stubDocument(null);
+    expect(() => parseSeamData("__sd")).toThrow("__sd not found");
+  });
 });

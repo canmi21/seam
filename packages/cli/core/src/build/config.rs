@@ -27,6 +27,7 @@ pub struct BuildConfig {
   pub hash_length: usize,
   pub rpc_salt: Option<String>,
   pub root_id: String,
+  pub data_id: String,
 }
 
 impl BuildConfig {
@@ -78,6 +79,7 @@ impl BuildConfig {
     }
 
     let root_id = config.frontend.root_id.clone();
+    let data_id = config.frontend.data_id.clone();
 
     Ok(Self {
       bundler_mode,
@@ -95,6 +97,7 @@ impl BuildConfig {
       hash_length,
       rpc_salt: None,
       root_id,
+      data_id,
     })
   }
 

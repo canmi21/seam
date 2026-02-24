@@ -88,6 +88,8 @@ pub(super) struct RouteManifest {
   #[serde(skip_serializing_if = "BTreeMap::is_empty")]
   layouts: BTreeMap<String, LayoutManifestEntry>,
   routes: BTreeMap<String, RouteManifestEntry>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  data_id: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -145,6 +147,7 @@ pub(super) fn run_skeleton_renderer(
   serde_json::from_str(&stdout).context("failed to parse skeleton output JSON")
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn process_routes(
   layouts: &[SkeletonLayout],
   routes: &[SkeletonRoute],
@@ -153,6 +156,7 @@ pub(super) fn process_routes(
   dev_mode: bool,
   vite: Option<&ViteDevInfo>,
   root_id: &str,
+  data_id: &str,
 ) -> Result<RouteManifest> {
   // Process layouts: replace <seam-outlet>, convert sentinels to slots, wrap document
   let mut layout_manifest = BTreeMap::new();
@@ -177,7 +181,9 @@ pub(super) fn process_routes(
     );
   }
 
-  let mut manifest = RouteManifest { layouts: layout_manifest, routes: BTreeMap::new() };
+  let manifest_data_id = if data_id == "__SEAM_DATA__" { None } else { Some(data_id.to_string()) };
+  let mut manifest =
+    RouteManifest { layouts: layout_manifest, routes: BTreeMap::new(), data_id: manifest_data_id };
 
   for route in routes {
     let processed: Vec<_> = route.variants.iter().map(|v| sentinel_to_slots(&v.html)).collect();
@@ -404,7 +410,7 @@ pub(super) fn generate_types(
 ) -> Result<()> {
   let out_dir_str = config.generate.out_dir.as_deref().unwrap_or("src/generated");
 
-  let code = codegen::generate_typescript(manifest, rpc_hashes)?;
+  let code = codegen::generate_typescript(manifest, rpc_hashes, &config.frontend.data_id)?;
   let line_count = code.lines().count();
   let proc_count = manifest.procedures.len();
 
