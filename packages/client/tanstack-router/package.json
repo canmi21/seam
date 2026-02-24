@@ -1,6 +1,6 @@
 {
   "name": "@canmi/seam-tanstack-router",
-  "version": "0.2.12",
+  "version": "0.2.13",
   "files": [
     "dist"
   ],

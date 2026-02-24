@@ -64,7 +64,9 @@ pub struct BuildSection {
   #[serde(default)]
   pub sourcemap: Option<bool>,
   #[serde(default)]
-  pub typehint: Option<bool>,
+  pub type_hint: Option<bool>,
+  #[serde(default)]
+  pub hash_length: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -82,7 +84,9 @@ pub struct DevSection {
   #[serde(default)]
   pub sourcemap: Option<bool>,
   #[serde(default)]
-  pub typehint: Option<bool>,
+  pub type_hint: Option<bool>,
+  #[serde(default)]
+  pub hash_length: Option<u32>,
 }
 
 impl Default for DevSection {
@@ -92,7 +96,8 @@ impl Default for DevSection {
       vite_port: None,
       obfuscate: None,
       sourcemap: None,
-      typehint: None,
+      type_hint: None,
+      hash_length: None,
     }
   }
 }
@@ -315,21 +320,21 @@ name = "my-app"
   }
 
   #[test]
-  fn parse_typehint_config() {
+  fn parse_type_hint_config() {
     // Explicit values
     let toml_str = r#"
 [project]
 name = "my-app"
 
 [build]
-typehint = false
+type_hint = false
 
 [dev]
-typehint = true
+type_hint = true
 "#;
     let config: SeamConfig = toml::from_str(toml_str).unwrap();
-    assert_eq!(config.build.typehint, Some(false));
-    assert_eq!(config.dev.typehint, Some(true));
+    assert_eq!(config.build.type_hint, Some(false));
+    assert_eq!(config.dev.type_hint, Some(true));
 
     // Defaults to None when omitted
     let toml_str = r#"
@@ -337,8 +342,35 @@ typehint = true
 name = "my-app"
 "#;
     let config: SeamConfig = toml::from_str(toml_str).unwrap();
-    assert!(config.build.typehint.is_none());
-    assert!(config.dev.typehint.is_none());
+    assert!(config.build.type_hint.is_none());
+    assert!(config.dev.type_hint.is_none());
+  }
+
+  #[test]
+  fn parse_hash_length_config() {
+    // Explicit values
+    let toml_str = r#"
+[project]
+name = "my-app"
+
+[build]
+hash_length = 20
+
+[dev]
+hash_length = 8
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.build.hash_length, Some(20));
+    assert_eq!(config.dev.hash_length, Some(8));
+
+    // Defaults to None when omitted
+    let toml_str = r#"
+[project]
+name = "my-app"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert!(config.build.hash_length.is_none());
+    assert!(config.dev.hash_length.is_none());
   }
 
   #[test]

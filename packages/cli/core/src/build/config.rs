@@ -23,7 +23,8 @@ pub struct BuildConfig {
   pub is_fullstack: bool,
   pub obfuscate: bool,
   pub sourcemap: bool,
-  pub typehint: bool,
+  pub type_hint: bool,
+  pub hash_length: usize,
   pub rpc_salt: Option<String>,
 }
 
@@ -69,7 +70,11 @@ impl BuildConfig {
     let is_fullstack = backend_build_command.is_some();
     let obfuscate = build.obfuscate.unwrap_or(true);
     let sourcemap = build.sourcemap.unwrap_or(false);
-    let typehint = build.typehint.unwrap_or(true);
+    let type_hint = build.type_hint.unwrap_or(true);
+    let hash_length = build.hash_length.unwrap_or(12) as usize;
+    if !(4..=64).contains(&hash_length) {
+      bail!("hash_length must be between 4 and 64 (got {hash_length})");
+    }
 
     Ok(Self {
       bundler_mode,
@@ -83,7 +88,8 @@ impl BuildConfig {
       is_fullstack,
       obfuscate,
       sourcemap,
-      typehint,
+      type_hint,
+      hash_length,
       rpc_salt: None,
     })
   }
@@ -92,7 +98,10 @@ impl BuildConfig {
     let mut bc = Self::from_seam_config(config)?;
     bc.obfuscate = config.dev.obfuscate.unwrap_or(false);
     bc.sourcemap = config.dev.sourcemap.unwrap_or(true);
-    bc.typehint = config.dev.typehint.unwrap_or(true);
+    bc.type_hint = config.dev.type_hint.unwrap_or(true);
+    if let Some(n) = config.dev.hash_length {
+      bc.hash_length = n as usize;
+    }
     bc.rpc_salt = None;
     Ok(bc)
   }
@@ -299,7 +308,7 @@ sourcemap = false
   }
 
   #[test]
-  fn build_config_typehint_defaults() {
+  fn build_config_type_hint_defaults() {
     let config = parse_config(
       r#"
 [project]
@@ -316,14 +325,14 @@ router_file = "src/server/router.ts"
 "#,
     );
     let bc = BuildConfig::from_seam_config(&config).unwrap();
-    assert!(bc.typehint, "build defaults to typehint=true");
+    assert!(bc.type_hint, "build defaults to type_hint=true");
 
     let bc_dev = BuildConfig::from_seam_config_dev(&config).unwrap();
-    assert!(bc_dev.typehint, "dev defaults to typehint=true");
+    assert!(bc_dev.type_hint, "dev defaults to type_hint=true");
   }
 
   #[test]
-  fn explicit_typehint_overrides() {
+  fn explicit_type_hint_overrides() {
     let config = parse_config(
       r#"
 [project]
@@ -337,17 +346,112 @@ routes = "./src/routes.ts"
 out_dir = ".seam/output"
 backend_build_command = "bun build"
 router_file = "src/server/router.ts"
-typehint = false
+type_hint = false
 
 [dev]
-typehint = false
+type_hint = false
 "#,
     );
     let bc = BuildConfig::from_seam_config(&config).unwrap();
-    assert!(!bc.typehint);
+    assert!(!bc.type_hint);
 
     let bc_dev = BuildConfig::from_seam_config_dev(&config).unwrap();
-    assert!(!bc_dev.typehint);
+    assert!(!bc_dev.type_hint);
+  }
+
+  #[test]
+  fn build_config_hash_length_defaults() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+routes = "./src/routes.ts"
+out_dir = ".seam/output"
+backend_build_command = "bun build"
+router_file = "src/server/router.ts"
+"#,
+    );
+    let bc = BuildConfig::from_seam_config(&config).unwrap();
+    assert_eq!(bc.hash_length, 12, "build defaults to hash_length=12");
+
+    let bc_dev = BuildConfig::from_seam_config_dev(&config).unwrap();
+    assert_eq!(bc_dev.hash_length, 12, "dev inherits hash_length from build");
+  }
+
+  #[test]
+  fn explicit_hash_length_overrides() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+routes = "./src/routes.ts"
+out_dir = ".seam/output"
+backend_build_command = "bun build"
+router_file = "src/server/router.ts"
+hash_length = 20
+
+[dev]
+hash_length = 8
+"#,
+    );
+    let bc = BuildConfig::from_seam_config(&config).unwrap();
+    assert_eq!(bc.hash_length, 20);
+
+    let bc_dev = BuildConfig::from_seam_config_dev(&config).unwrap();
+    assert_eq!(bc_dev.hash_length, 8);
+  }
+
+  #[test]
+  fn hash_length_validation() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+routes = "./src/routes.ts"
+out_dir = ".seam/output"
+backend_build_command = "bun build"
+router_file = "src/server/router.ts"
+hash_length = 3
+"#,
+    );
+    let result = BuildConfig::from_seam_config(&config);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("hash_length"));
+
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+routes = "./src/routes.ts"
+out_dir = ".seam/output"
+backend_build_command = "bun build"
+router_file = "src/server/router.ts"
+hash_length = 65
+"#,
+    );
+    let result = BuildConfig::from_seam_config(&config);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("hash_length"));
   }
 
   #[test]

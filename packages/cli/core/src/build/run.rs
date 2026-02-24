@@ -49,7 +49,12 @@ fn maybe_generate_rpc_hashes(
     .as_deref()
     .map(|s| s.to_string())
     .unwrap_or_else(super::rpc_hash::generate_random_salt);
-  let map = super::rpc_hash::generate_rpc_hash_map(&names, &salt, build_config.typehint)?;
+  let map = super::rpc_hash::generate_rpc_hash_map(
+    &names,
+    &salt,
+    build_config.hash_length,
+    build_config.type_hint,
+  )?;
   let path = out_dir.join("rpc-hash-map.json");
   std::fs::write(&path, serde_json::to_string_pretty(&map)?)?;
   ui::detail_ok("rpc-hash-map.json");
@@ -158,6 +163,7 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
 
 // -- Fullstack build (7 phases) --
 
+#[allow(clippy::too_many_lines)]
 fn run_fullstack_build(
   config: &SeamConfig,
   build_config: &BuildConfig,
@@ -209,10 +215,12 @@ fn run_fullstack_build(
   // [4] Bundle frontend
   step_num += 1;
   ui::step(step_num, total, "Bundling frontend");
+  let hash_length_str = build_config.hash_length.to_string();
   let bundler_env: Vec<(&str, &str)> = vec![
     ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
     ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
-    ("SEAM_TYPEHINT", if build_config.typehint { "1" } else { "0" }),
+    ("SEAM_TYPE_HINT", if build_config.type_hint { "1" } else { "0" }),
+    ("SEAM_HASH_LENGTH", &hash_length_str),
   ];
   run_bundler(base_dir, &build_config.bundler_mode, &bundler_env)?;
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
@@ -295,6 +303,7 @@ fn run_fullstack_build(
 
 // -- Dev build (5 phases, skips backend compile + typecheck) --
 
+#[allow(clippy::too_many_lines)]
 pub fn run_dev_build(
   config: &SeamConfig,
   build_config: &BuildConfig,
@@ -331,10 +340,12 @@ pub fn run_dev_build(
   ui::blank();
 
   // [3] Bundle frontend (skipped in Vite mode — Vite serves assets directly)
+  let hash_length_str = build_config.hash_length.to_string();
   let bundler_env: Vec<(&str, &str)> = vec![
     ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
     ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
-    ("SEAM_TYPEHINT", if build_config.typehint { "1" } else { "0" }),
+    ("SEAM_TYPE_HINT", if build_config.type_hint { "1" } else { "0" }),
+    ("SEAM_HASH_LENGTH", &hash_length_str),
   ];
   let assets = if is_vite {
     AssetFiles { css: vec![], js: vec![] }
@@ -447,10 +458,12 @@ pub fn run_incremental_rebuild(
   }
 
   // Frontend steps: bundle + skeletons + assets (bundle/assets skipped in Vite mode)
+  let hash_length_str = build_config.hash_length.to_string();
   let bundler_env: Vec<(&str, &str)> = vec![
     ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
     ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
-    ("SEAM_TYPEHINT", if build_config.typehint { "1" } else { "0" }),
+    ("SEAM_TYPE_HINT", if build_config.type_hint { "1" } else { "0" }),
+    ("SEAM_HASH_LENGTH", &hash_length_str),
   ];
   let assets = if is_vite {
     AssetFiles { css: vec![], js: vec![] }

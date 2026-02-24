@@ -5,7 +5,8 @@ import react from "@vitejs/plugin-react";
 import { watchReloadTrigger } from "@canmi/seam-server";
 
 const obfuscate = process.env.SEAM_OBFUSCATE === "1";
-const typehint = process.env.SEAM_TYPEHINT !== "0";
+const typeHint = process.env.SEAM_TYPE_HINT !== "0";
+const hashLength = Number(process.env.SEAM_HASH_LENGTH) || 12;
 
 function seamReloadPlugin(outDir = ".seam/dev-output"): Plugin {
   return {
@@ -34,17 +35,19 @@ export default defineConfig({
         ? {
             output: {
               hashCharacters: "hex",
-              ...(typehint
+              ...(typeHint
                 ? {
-                    entryFileNames: "script-[hash:12].js",
-                    chunkFileNames: "chunk-[hash:12].js",
+                    entryFileNames: `script-[hash:${hashLength}].js`,
+                    chunkFileNames: `chunk-[hash:${hashLength}].js`,
                     assetFileNames: (info: { names?: string[] }) =>
-                      info.names?.[0]?.endsWith(".css") ? "style-[hash:12].css" : "[hash:12].[ext]",
+                      info.names?.[0]?.endsWith(".css")
+                        ? `style-[hash:${hashLength}].css`
+                        : `[hash:${hashLength}].[ext]`,
                   }
                 : {
-                    entryFileNames: "[hash:16].js",
-                    chunkFileNames: "[hash:16].js",
-                    assetFileNames: "[hash:16].[ext]",
+                    entryFileNames: `[hash:${hashLength}].js`,
+                    chunkFileNames: `[hash:${hashLength}].js`,
+                    assetFileNames: `[hash:${hashLength}].[ext]`,
                   }),
             },
           }
