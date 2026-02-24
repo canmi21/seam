@@ -3,12 +3,19 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer, request as httpRequest } from "node:http";
 import { createHttpHandler, serialize, drainStream } from "@canmi/seam-server";
-import type { DefinitionMap, Router, HttpHandler, HttpResponse } from "@canmi/seam-server";
+import type {
+  DefinitionMap,
+  Router,
+  HttpHandler,
+  HttpResponse,
+  RpcHashMap,
+} from "@canmi/seam-server";
 
 export interface ServeNodeOptions {
   port?: number;
   staticDir?: string;
   fallback?: HttpHandler;
+  rpcHashMap?: RpcHashMap;
   /** WebSocket proxy target for HMR (e.g. "ws://localhost:5173") */
   wsProxy?: string;
 }
@@ -39,6 +46,7 @@ export function serveNode<T extends DefinitionMap>(router: Router<T>, opts?: Ser
   const handler = createHttpHandler(router, {
     staticDir: opts?.staticDir,
     fallback: opts?.fallback,
+    rpcHashMap: opts?.rpcHashMap,
   });
   const server = createServer((req, res) => {
     const raw = readBody(req);

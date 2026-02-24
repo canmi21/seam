@@ -111,7 +111,7 @@ async fn main() -> Result<()> {
         serde_json::from_str(&content).context("failed to parse manifest")?;
 
       let proc_count = parsed.procedures.len();
-      let code = codegen::generate_typescript(&parsed)?;
+      let code = codegen::generate_typescript(&parsed, None)?;
       let line_count = code.lines().count();
 
       std::fs::create_dir_all(&out)

@@ -27,11 +27,33 @@ pub enum RebuildMode {
 }
 
 /// Dispatch bundler based on mode
-fn run_bundler(base_dir: &Path, mode: &BundlerMode) -> Result<()> {
+fn run_bundler(base_dir: &Path, mode: &BundlerMode, env: &[(&str, &str)]) -> Result<()> {
   match mode {
-    BundlerMode::BuiltIn { entry } => run_builtin_bundler(base_dir, entry, "dist"),
-    BundlerMode::Custom { command } => run_command(base_dir, command, "bundler"),
+    BundlerMode::BuiltIn { entry } => run_builtin_bundler(base_dir, entry, "dist", env),
+    BundlerMode::Custom { command } => run_command(base_dir, command, "bundler", env),
   }
+}
+
+/// Generate RPC hash map when obfuscation is enabled, write to out_dir
+fn maybe_generate_rpc_hashes(
+  build_config: &BuildConfig,
+  manifest: &crate::manifest::Manifest,
+  out_dir: &Path,
+) -> Result<Option<super::rpc_hash::RpcHashMap>> {
+  if !build_config.obfuscate {
+    return Ok(None);
+  }
+  let names: Vec<&str> = manifest.procedures.keys().map(|s| s.as_str()).collect();
+  let salt = build_config
+    .rpc_salt
+    .as_deref()
+    .map(|s| s.to_string())
+    .unwrap_or_else(super::rpc_hash::generate_random_salt);
+  let map = super::rpc_hash::generate_rpc_hash_map(&names, &salt)?;
+  let path = out_dir.join("rpc-hash-map.json");
+  std::fs::write(&path, serde_json::to_string_pretty(&map)?)?;
+  ui::detail_ok("rpc-hash-map.json");
+  Ok(Some(map))
 }
 
 /// Construct ViteDevInfo when vite_port is configured
@@ -72,7 +94,7 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
 
   // [1/4] Bundle frontend
   ui::step(1, 4, "Bundling frontend");
-  run_bundler(base_dir, &build_config.bundler_mode)?;
+  run_bundler(base_dir, &build_config.bundler_mode, &[])?;
 
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
   let assets = read_bundle_manifest(&manifest_path)?;
@@ -153,7 +175,12 @@ fn run_fullstack_build(
   // [1] Compile backend
   step_num += 1;
   ui::step(step_num, total, "Compiling backend");
-  run_command(base_dir, build_config.backend_build_command.as_deref().unwrap(), "backend build")?;
+  run_command(
+    base_dir,
+    build_config.backend_build_command.as_deref().unwrap(),
+    "backend build",
+    &[],
+  )?;
 
   // Copy WASM binary next to bundled server output so runtime readFileSync resolves correctly.
   // The bundled injector code does: resolve(__dirname, "../pkg/seam_injector_wasm_bg.wasm")
@@ -170,16 +197,22 @@ fn run_fullstack_build(
   print_procedure_breakdown(&manifest);
   ui::blank();
 
+  let rpc_hashes = maybe_generate_rpc_hashes(build_config, &manifest, &out_dir)?;
+
   // [3] Generate client types
   step_num += 1;
   ui::step(step_num, total, "Generating client types");
-  generate_types(&manifest, config)?;
+  generate_types(&manifest, config, rpc_hashes.as_ref())?;
   ui::blank();
 
   // [4] Bundle frontend
   step_num += 1;
   ui::step(step_num, total, "Bundling frontend");
-  run_bundler(base_dir, &build_config.bundler_mode)?;
+  let bundler_env: Vec<(&str, &str)> = vec![
+    ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
+    ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
+  ];
+  run_bundler(base_dir, &build_config.bundler_mode, &bundler_env)?;
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
   let assets = read_bundle_manifest(&manifest_path)?;
   print_asset_files(base_dir, "dist", &assets);
@@ -279,19 +312,25 @@ pub fn run_dev_build(
   copy_wasm_binary(base_dir, &out_dir)?;
   ui::blank();
 
+  let rpc_hashes = maybe_generate_rpc_hashes(build_config, &manifest, &out_dir)?;
+
   // [2] Generate client types
   step_num += 1;
   ui::step(step_num, total, "Generating client types");
-  generate_types(&manifest, config)?;
+  generate_types(&manifest, config, rpc_hashes.as_ref())?;
   ui::blank();
 
   // [3] Bundle frontend (skipped in Vite mode — Vite serves assets directly)
+  let bundler_env: Vec<(&str, &str)> = vec![
+    ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
+    ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
+  ];
   let assets = if is_vite {
     AssetFiles { css: vec![], js: vec![] }
   } else {
     step_num += 1;
     ui::step(step_num, total, "Bundling frontend");
-    run_bundler(base_dir, &build_config.bundler_mode)?;
+    run_bundler(base_dir, &build_config.bundler_mode, &bundler_env)?;
     let manifest_path = base_dir.join(&build_config.bundler_manifest);
     let a = read_bundle_manifest(&manifest_path)?;
     print_asset_files(base_dir, "dist", &a);
@@ -381,15 +420,22 @@ pub fn run_incremental_rebuild(
     let router_file =
       build_config.router_file.as_deref().context("router_file is required for fullstack build")?;
     let manifest = extract_manifest(base_dir, router_file, &out_dir)?;
-    generate_types(&manifest, config)?;
+
+    let rpc_hashes = maybe_generate_rpc_hashes(build_config, &manifest, &out_dir)?;
+
+    generate_types(&manifest, config, rpc_hashes.as_ref())?;
     copy_wasm_binary(base_dir, &out_dir)?;
   }
 
   // Frontend steps: bundle + skeletons + assets (bundle/assets skipped in Vite mode)
+  let bundler_env: Vec<(&str, &str)> = vec![
+    ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
+    ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
+  ];
   let assets = if is_vite {
     AssetFiles { css: vec![], js: vec![] }
   } else {
-    run_bundler(base_dir, &build_config.bundler_mode)?;
+    run_bundler(base_dir, &build_config.bundler_mode, &bundler_env)?;
     let manifest_path = base_dir.join(&build_config.bundler_manifest);
     read_bundle_manifest(&manifest_path)?
   };

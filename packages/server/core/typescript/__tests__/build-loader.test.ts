@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadBuildOutput, loadBuildOutputDev } from "../src/page/build-loader.js";
+import { loadBuildOutput, loadBuildOutputDev, loadRpcHashMap } from "../src/page/build-loader.js";
 
 let distDir: string;
 
@@ -111,6 +111,38 @@ describe("loadBuildOutput", () => {
     try {
       const pages = loadBuildOutput(emptyDir);
       expect(pages).toEqual({});
+    } finally {
+      rmSync(emptyDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("loadRpcHashMap", () => {
+  it("returns hash map when file exists", () => {
+    const hashDir = mkdtempSync(join(tmpdir(), "seam-hashmap-"));
+    writeFileSync(
+      join(hashDir, "rpc-hash-map.json"),
+      JSON.stringify({
+        salt: "abcd1234abcd1234",
+        batch: "e5f6a7b8",
+        procedures: { getUser: "a1b2c3d4", getSession: "c9d0e1f2" },
+      }),
+    );
+    try {
+      const map = loadRpcHashMap(hashDir);
+      expect(map).toBeDefined();
+      expect(map!.batch).toBe("e5f6a7b8");
+      expect(map!.procedures.getUser).toBe("a1b2c3d4");
+    } finally {
+      rmSync(hashDir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns undefined when file does not exist", () => {
+    const emptyDir = mkdtempSync(join(tmpdir(), "seam-no-hashmap-"));
+    try {
+      const map = loadRpcHashMap(emptyDir);
+      expect(map).toBeUndefined();
     } finally {
       rmSync(emptyDir, { recursive: true, force: true });
     }

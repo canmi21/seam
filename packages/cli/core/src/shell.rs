@@ -10,13 +10,20 @@ use anyhow::{bail, Context, Result};
 use crate::ui::{self, DIM, RESET};
 
 /// Run a shell command, bail on failure (shows both stdout and stderr on error).
-pub(crate) fn run_command(base_dir: &Path, command: &str, label: &str) -> Result<()> {
+pub(crate) fn run_command(
+  base_dir: &Path,
+  command: &str,
+  label: &str,
+  env: &[(&str, &str)],
+) -> Result<()> {
   ui::detail(&format!("{DIM}{command}{RESET}"));
-  let output = Command::new("sh")
-    .args(["-c", command])
-    .current_dir(base_dir)
-    .output()
-    .with_context(|| format!("failed to run {label}"))?;
+  let mut cmd = Command::new("sh");
+  cmd.args(["-c", command]);
+  cmd.current_dir(base_dir);
+  for (k, v) in env {
+    cmd.env(k, v);
+  }
+  let output = cmd.output().with_context(|| format!("failed to run {label}"))?;
   if !output.status.success() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -35,15 +42,22 @@ pub(crate) fn run_command(base_dir: &Path, command: &str, label: &str) -> Result
 }
 
 /// Run the built-in Rolldown bundler via the packaged build script.
-pub(crate) fn run_builtin_bundler(base_dir: &Path, entry: &str, out_dir: &str) -> Result<()> {
+pub(crate) fn run_builtin_bundler(
+  base_dir: &Path,
+  entry: &str,
+  out_dir: &str,
+  env: &[(&str, &str)],
+) -> Result<()> {
   let runtime = if which_exists("bun") { "bun" } else { "node" };
   let script = find_cli_script(base_dir, "build-frontend.mjs")?;
   ui::detail(&format!("{DIM}{runtime} build-frontend.mjs {entry} {out_dir}{RESET}"));
-  let output = Command::new(runtime)
-    .args([script.to_str().unwrap(), entry, out_dir])
-    .current_dir(base_dir)
-    .output()
-    .context("failed to run built-in bundler")?;
+  let mut cmd = Command::new(runtime);
+  cmd.args([script.to_str().unwrap(), entry, out_dir]);
+  cmd.current_dir(base_dir);
+  for (k, v) in env {
+    cmd.env(k, v);
+  }
+  let output = cmd.output().context("failed to run built-in bundler")?;
   if !output.status.success() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     let stdout = String::from_utf8_lossy(&output.stdout);

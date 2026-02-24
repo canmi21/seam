@@ -380,10 +380,14 @@ pub(super) fn extract_manifest(
 }
 
 /// Generate TypeScript client types from the manifest
-pub(super) fn generate_types(manifest: &Manifest, config: &SeamConfig) -> Result<()> {
+pub(super) fn generate_types(
+  manifest: &Manifest,
+  config: &SeamConfig,
+  rpc_hashes: Option<&super::rpc_hash::RpcHashMap>,
+) -> Result<()> {
   let out_dir_str = config.generate.out_dir.as_deref().unwrap_or("src/generated");
 
-  let code = codegen::generate_typescript(manifest)?;
+  let code = codegen::generate_typescript(manifest, rpc_hashes)?;
   let line_count = code.lines().count();
   let proc_count = manifest.procedures.len();
 
@@ -402,7 +406,7 @@ pub(super) fn generate_types(manifest: &Manifest, config: &SeamConfig) -> Result
 
 /// Run type checking (optional step)
 pub(super) fn run_typecheck(base_dir: &Path, command: &str) -> Result<()> {
-  run_command(base_dir, command, "type checker")?;
+  run_command(base_dir, command, "type checker", &[])?;
   ui::detail_ok(&format!("{GREEN}passed{RESET}"));
   Ok(())
 }

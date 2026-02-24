@@ -28,9 +28,15 @@ export type HttpResponse = HttpBodyResponse | HttpStreamResponse;
 
 export type HttpHandler = (req: HttpRequest) => Promise<HttpResponse>;
 
+export interface RpcHashMap {
+  procedures: Record<string, string>;
+  batch: string;
+}
+
 export interface HttpHandlerOptions {
   staticDir?: string;
   fallback?: HttpHandler;
+  rpcHashMap?: RpcHashMap;
 }
 
 const RPC_PREFIX = "/_seam/rpc/";
@@ -117,6 +123,7 @@ async function* sseStream<T extends DefinitionMap>(
 async function handleBatchHttp<T extends DefinitionMap>(
   req: HttpRequest,
   router: Router<T>,
+  hashToName: Map<string, string> | null,
 ): Promise<HttpBodyResponse> {
   let body: unknown;
   try {
@@ -129,7 +136,8 @@ async function handleBatchHttp<T extends DefinitionMap>(
   }
   const calls = (body as { calls: Array<{ procedure?: unknown; input?: unknown }> }).calls.map(
     (c) => ({
-      procedure: typeof c.procedure === "string" ? c.procedure : "",
+      procedure:
+        typeof c.procedure === "string" ? (hashToName?.get(c.procedure) ?? c.procedure) : "",
       input: c.input ?? {},
     }),
   );
@@ -141,21 +149,38 @@ export function createHttpHandler<T extends DefinitionMap>(
   router: Router<T>,
   opts?: HttpHandlerOptions,
 ): HttpHandler {
+  // Build reverse lookup (hash -> original name) when obfuscation is active
+  const hashToName: Map<string, string> | null = opts?.rpcHashMap
+    ? new Map(Object.entries(opts.rpcHashMap.procedures).map(([n, h]) => [h, n]))
+    : null;
+  const batchHash = opts?.rpcHashMap?.batch ?? null;
+
   return async (req) => {
     const url = new URL(req.url, "http://localhost");
     const { pathname } = url;
 
     if (req.method === "GET" && pathname === MANIFEST_PATH) {
+      if (opts?.rpcHashMap) return errorResponse(403, "FORBIDDEN", "Manifest disabled");
       return jsonResponse(200, router.manifest());
     }
 
     if (req.method === "POST" && pathname.startsWith(RPC_PREFIX)) {
-      const name = pathname.slice(RPC_PREFIX.length);
+      let name = pathname.slice(RPC_PREFIX.length);
       if (!name) {
         return errorResponse(404, "NOT_FOUND", "Empty procedure name");
       }
 
-      if (name === "_batch") return handleBatchHttp(req, router);
+      // Batch: match both original "_batch" and hashed batch endpoint
+      if (name === "_batch" || (batchHash && name === batchHash)) {
+        return handleBatchHttp(req, router, hashToName);
+      }
+
+      // Resolve hash -> original name when obfuscation is active
+      if (hashToName) {
+        const resolved = hashToName.get(name);
+        if (!resolved) return errorResponse(404, "NOT_FOUND", "Not found");
+        name = resolved;
+      }
 
       let body: unknown;
       try {
@@ -169,9 +194,16 @@ export function createHttpHandler<T extends DefinitionMap>(
     }
 
     if (req.method === "GET" && pathname.startsWith(SUBSCRIBE_PREFIX)) {
-      const name = pathname.slice(SUBSCRIBE_PREFIX.length);
+      let name = pathname.slice(SUBSCRIBE_PREFIX.length);
       if (!name) {
         return errorResponse(404, "NOT_FOUND", "Empty subscription name");
+      }
+
+      // Resolve hash -> original name for subscriptions
+      if (hashToName) {
+        const resolved = hashToName.get(name);
+        if (!resolved) return errorResponse(404, "NOT_FOUND", "Not found");
+        name = resolved;
       }
 
       const rawInput = url.searchParams.get("input");

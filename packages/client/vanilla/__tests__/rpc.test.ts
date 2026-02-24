@@ -75,6 +75,51 @@ describe("seamRpc()", () => {
     expect(r1).toBe("a");
     expect(r2).toBe("b");
   });
+});
+
+describe("seamRpc() with configureRpcMap", () => {
+  it("uses hash map for wire names when configureRpcMap is called", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        results: [{ ok: true, data: { name: "octocat" } }],
+      }),
+    );
+    const { seamRpc, configureRpcMap } = await import("../src/rpc.js");
+    configureRpcMap({
+      getUser: "a1b2c3d4",
+      _batch: "c9d0e1f2",
+    });
+
+    await seamRpc("getUser", { username: "octocat" });
+
+    expect(fetch).toHaveBeenCalledWith("/_seam/rpc/c9d0e1f2", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        calls: [{ procedure: "a1b2c3d4", input: { username: "octocat" } }],
+      }),
+    });
+  });
+
+  it("falls back to original name for unmapped procedures", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({
+        results: [{ ok: true, data: "ok" }],
+      }),
+    );
+    const { seamRpc, configureRpcMap } = await import("../src/rpc.js");
+    configureRpcMap({ getUser: "a1b2c3d4" });
+
+    await seamRpc("unknownProc", {});
+
+    expect(fetch).toHaveBeenCalledWith("/_seam/rpc/_batch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        calls: [{ procedure: "unknownProc", input: {} }],
+      }),
+    });
+  });
 
   it("propagates SeamClientError on batch failure", async () => {
     vi.mocked(fetch).mockResolvedValue(

@@ -4,6 +4,7 @@ import { SeamClientError } from "./errors.js";
 
 export interface ClientOptions {
   baseUrl: string;
+  batchEndpoint?: string;
 }
 
 export type Unsubscribe = () => void;
@@ -58,6 +59,7 @@ async function request(url: string, init?: RequestInit): Promise<unknown> {
 
 export function createClient(opts: ClientOptions): SeamClient {
   const baseUrl = opts.baseUrl.replace(/\/+$/, "");
+  const batchPath = opts.batchEndpoint ?? "_batch";
 
   return {
     call(procedureName, input) {
@@ -69,7 +71,7 @@ export function createClient(opts: ClientOptions): SeamClient {
     },
 
     callBatch(calls) {
-      return request(`${baseUrl}/_seam/rpc/_batch`, {
+      return request(`${baseUrl}/_seam/rpc/${batchPath}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ calls }),

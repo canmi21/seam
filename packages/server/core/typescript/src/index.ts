@@ -13,7 +13,7 @@ export {
   drainStream,
   toWebResponse,
 } from "./http.js";
-export { loadBuildOutput, loadBuildOutputDev } from "./page/build-loader.js";
+export { loadBuildOutput, loadBuildOutputDev, loadRpcHashMap } from "./page/build-loader.js";
 export { fromCallback } from "./subscription.js";
 export { createDevProxy, createStaticHandler } from "./proxy.js";
 export { watchReloadTrigger } from "./dev/index.js";
@@ -25,6 +25,7 @@ export type {
   HttpResponse,
   HttpBodyResponse,
   HttpStreamResponse,
+  RpcHashMap,
 } from "./http.js";
 export type { SchemaNode, OptionalSchemaNode, Infer } from "./types/schema.js";
 export type {

@@ -1,12 +1,19 @@
 /* packages/server/adapter/hono/src/index.ts */
 
 import { createHttpHandler, toWebResponse } from "@canmi/seam-server";
-import type { DefinitionMap, Router, HttpHandler, HttpHandlerOptions } from "@canmi/seam-server";
+import type {
+  DefinitionMap,
+  Router,
+  HttpHandler,
+  HttpHandlerOptions,
+  RpcHashMap,
+} from "@canmi/seam-server";
 import type { MiddlewareHandler } from "hono";
 
 export interface SeamHonoOptions {
   staticDir?: string;
   fallback?: HttpHandler;
+  rpcHashMap?: RpcHashMap;
 }
 
 const SEAM_PREFIX = "/_seam/";
@@ -19,6 +26,7 @@ export function seam<T extends DefinitionMap>(
   const handlerOpts: HttpHandlerOptions = {};
   if (opts?.staticDir) handlerOpts.staticDir = opts.staticDir;
   if (opts?.fallback) handlerOpts.fallback = opts.fallback;
+  if (opts?.rpcHashMap) handlerOpts.rpcHashMap = opts.rpcHashMap;
 
   const handler = createHttpHandler(router, handlerOpts);
 

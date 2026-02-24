@@ -3,7 +3,12 @@
 import { resolve } from "node:path";
 import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
-import { loadBuildOutput, loadBuildOutputDev, watchReloadTrigger } from "@canmi/seam-server";
+import {
+  loadBuildOutput,
+  loadBuildOutputDev,
+  loadRpcHashMap,
+  watchReloadTrigger,
+} from "@canmi/seam-server";
 import { seam } from "@canmi/seam-adapter-hono";
 import { buildRouter } from "./router.js";
 
@@ -13,6 +18,7 @@ const isDev = process.env.SEAM_DEV === "1";
 const isVite = process.env.SEAM_VITE === "1";
 const BUILD_DIR = isDev ? process.env.SEAM_OUTPUT_DIR! : resolve(import.meta.dir, "..");
 const pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR);
+const rpcHashMap = loadRpcHashMap(BUILD_DIR);
 const router = buildRouter({ pages });
 
 const app = new Hono();
@@ -46,7 +52,7 @@ if (isDev && !isVite) {
 }
 
 // Seam middleware: handles /_seam/* (RPC, manifest, static, pages)
-app.use("/*", seam(router, { staticDir: resolve(BUILD_DIR, "public") }));
+app.use("/*", seam(router, { staticDir: resolve(BUILD_DIR, "public"), rpcHashMap }));
 
 // Root-path page serving — inject timing into __SEAM_DATA__._meta
 app.get("*", async (c) => {

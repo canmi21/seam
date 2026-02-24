@@ -21,6 +21,9 @@ pub struct BuildConfig {
   pub router_file: Option<String>,
   pub typecheck_command: Option<String>,
   pub is_fullstack: bool,
+  pub obfuscate: bool,
+  pub sourcemap: bool,
+  pub rpc_salt: Option<String>,
 }
 
 impl BuildConfig {
@@ -63,6 +66,8 @@ impl BuildConfig {
     let router_file = build.router_file.clone();
     let typecheck_command = build.typecheck_command.clone();
     let is_fullstack = backend_build_command.is_some();
+    let obfuscate = build.obfuscate.unwrap_or(true);
+    let sourcemap = build.sourcemap.unwrap_or(false);
 
     Ok(Self {
       bundler_mode,
@@ -74,7 +79,18 @@ impl BuildConfig {
       router_file,
       typecheck_command,
       is_fullstack,
+      obfuscate,
+      sourcemap,
+      rpc_salt: None,
     })
+  }
+
+  pub fn from_seam_config_dev(config: &SeamConfig) -> Result<Self> {
+    let mut bc = Self::from_seam_config(config)?;
+    bc.obfuscate = config.dev.obfuscate.unwrap_or(false);
+    bc.sourcemap = config.dev.sourcemap.unwrap_or(true);
+    bc.rpc_salt = None;
+    Ok(bc)
   }
 }
 
@@ -199,6 +215,83 @@ routes = "./src/routes.ts"
     assert!(result.is_err());
     let msg = result.unwrap_err().to_string();
     assert!(msg.contains("frontend.entry"));
+  }
+
+  #[test]
+  fn build_config_obfuscate_defaults() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+routes = "./src/routes.ts"
+out_dir = ".seam/output"
+backend_build_command = "bun build"
+router_file = "src/server/router.ts"
+"#,
+    );
+    let bc = BuildConfig::from_seam_config(&config).unwrap();
+    assert!(bc.obfuscate, "build defaults to obfuscate=true");
+    assert!(!bc.sourcemap, "build defaults to sourcemap=false");
+    assert!(bc.rpc_salt.is_none());
+  }
+
+  #[test]
+  fn dev_config_obfuscate_defaults() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+routes = "./src/routes.ts"
+out_dir = ".seam/output"
+backend_build_command = "bun build"
+router_file = "src/server/router.ts"
+"#,
+    );
+    let bc = BuildConfig::from_seam_config_dev(&config).unwrap();
+    assert!(!bc.obfuscate, "dev defaults to obfuscate=false");
+    assert!(bc.sourcemap, "dev defaults to sourcemap=true");
+  }
+
+  #[test]
+  fn explicit_obfuscate_overrides_defaults() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+routes = "./src/routes.ts"
+out_dir = ".seam/output"
+backend_build_command = "bun build"
+router_file = "src/server/router.ts"
+obfuscate = false
+sourcemap = true
+
+[dev]
+obfuscate = true
+sourcemap = false
+"#,
+    );
+    let bc = BuildConfig::from_seam_config(&config).unwrap();
+    assert!(!bc.obfuscate);
+    assert!(bc.sourcemap);
+
+    let bc_dev = BuildConfig::from_seam_config_dev(&config).unwrap();
+    assert!(bc_dev.obfuscate);
+    assert!(!bc_dev.sourcemap);
   }
 
   #[test]

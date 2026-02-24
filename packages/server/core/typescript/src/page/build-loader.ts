@@ -3,6 +3,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { PageDef, LayoutDef, LoaderFn, LoaderResult } from "./index.js";
+import type { RpcHashMap } from "../http.js";
 
 interface RouteManifest {
   layouts?: Record<string, LayoutManifestEntry>;
@@ -105,6 +106,16 @@ function resolveLayoutChainDev(
 
   chain.reverse();
   return chain;
+}
+
+/** Load the RPC hash map from build output (returns undefined when obfuscation is off) */
+export function loadRpcHashMap(distDir: string): RpcHashMap | undefined {
+  const hashMapPath = join(distDir, "rpc-hash-map.json");
+  try {
+    return JSON.parse(readFileSync(hashMapPath, "utf-8")) as RpcHashMap;
+  } catch {
+    return undefined;
+  }
 }
 
 export function loadBuildOutput(distDir: string): Record<string, PageDef> {

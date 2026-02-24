@@ -65,6 +65,56 @@ describe("createHttpHandler", () => {
   });
 });
 
+describe("createHttpHandler with rpcHashMap", () => {
+  const hashMap = {
+    procedures: { greet: "a1b2c3d4" },
+    batch: "e5f6a7b8",
+  };
+  const obfHandler = createHttpHandler(router, { rpcHashMap: hashMap });
+
+  function obfReq(method: string, url: string, body?: unknown) {
+    return obfHandler({
+      method,
+      url: `http://localhost${url}`,
+      body: () =>
+        body !== undefined ? Promise.resolve(body) : Promise.reject(new Error("no body")),
+    });
+  }
+
+  it("resolves hashed RPC endpoint to original procedure", async () => {
+    const res = await obfReq("POST", "/_seam/rpc/a1b2c3d4", { name: "Alice" });
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ message: "Hello, Alice!" });
+  });
+
+  it("returns 404 for unknown hash in obfuscated mode", async () => {
+    const res = await obfReq("POST", "/_seam/rpc/deadbeef", { name: "Alice" });
+    expect(res.status).toBe(404);
+  });
+
+  it("resolves hashed batch endpoint", async () => {
+    const res = await obfReq("POST", "/_seam/rpc/e5f6a7b8", {
+      calls: [{ procedure: "a1b2c3d4", input: { name: "Bob" } }],
+    });
+    expect(res.status).toBe(200);
+    const body = res.body as { results: Array<{ ok: boolean; data: unknown }> };
+    expect(body.results[0].ok).toBe(true);
+    expect(body.results[0].data).toEqual({ message: "Hello, Bob!" });
+  });
+
+  it("still accepts original _batch endpoint in obfuscated mode", async () => {
+    const res = await obfReq("POST", "/_seam/rpc/_batch", {
+      calls: [{ procedure: "a1b2c3d4", input: { name: "Eve" } }],
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("disables manifest endpoint when obfuscated", async () => {
+    const res = await obfReq("GET", "/_seam/manifest.json");
+    expect(res.status).toBe(403);
+  });
+});
+
 describe("drainStream", () => {
   it("drains all chunks from an async iterable", async () => {
     async function* source() {

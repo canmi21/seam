@@ -188,10 +188,10 @@ fn build_frontend(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   let build_config = BuildConfig::from_seam_config(config)?;
   match &build_config.bundler_mode {
     BundlerMode::BuiltIn { entry } => {
-      crate::shell::run_builtin_bundler(base_dir, entry, "dist")?;
+      crate::shell::run_builtin_bundler(base_dir, entry, "dist", &[])?;
     }
     BundlerMode::Custom { command } => {
-      crate::shell::run_command(base_dir, command, "bundler")?;
+      crate::shell::run_command(base_dir, command, "bundler", &[])?;
     }
   }
   crate::ui::blank();
@@ -393,8 +393,60 @@ async fn handle_rebuild(
   }
 }
 
+async fn spawn_fullstack_children(
+  config: &SeamConfig,
+  base_dir: &Path,
+  port_str: &str,
+  out_dir_str: &str,
+  obfuscate_str: &str,
+  sourcemap_str: &str,
+  vite_port: Option<u16>,
+) -> Result<Vec<ChildProcess>> {
+  let mut children: Vec<ChildProcess> = Vec::new();
+
+  // Spawn Vite dev server when configured (direct binary, no sh/npx overhead)
+  if let Some(vp) = vite_port {
+    let vite_bin = base_dir.join("node_modules/.bin/vite");
+    let vp_str = vp.to_string();
+    let mut proc = spawn_binary("vite", &vite_bin, &["--port", &vp_str], base_dir, &[])?;
+    pipe_output(&mut proc).await;
+    children.push(proc);
+
+    println!("  {DIM}waiting for vite on :{vp}...{RESET}");
+    wait_for_port(vp, Duration::from_secs(10)).await?;
+    println!("  {GREEN}vite ready{RESET}");
+  }
+
+  let backend_cmd_str = config
+    .backend
+    .dev_command
+    .as_deref()
+    .context("backend.dev_command is required for fullstack dev mode")?;
+  let mut env_vars: Vec<(&str, &str)> = vec![
+    ("PORT", port_str),
+    ("SEAM_DEV", "1"),
+    ("SEAM_OUTPUT_DIR", out_dir_str),
+    ("SEAM_OBFUSCATE", obfuscate_str),
+    ("SEAM_SOURCEMAP", sourcemap_str),
+  ];
+  if vite_port.is_some() {
+    env_vars.push(("SEAM_VITE", "1"));
+  }
+  let mut proc = spawn_child("backend", backend_cmd_str, base_dir, &env_vars)?;
+  pipe_output(&mut proc).await;
+  children.push(proc);
+
+  if let Some(cmd) = config.frontend.dev_command.as_deref() {
+    let mut proc = spawn_child("frontend", cmd, base_dir, &[])?;
+    pipe_output(&mut proc).await;
+    children.push(proc);
+  }
+
+  Ok(children)
+}
+
 async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
-  let mut build_config = BuildConfig::from_seam_config(config)?;
+  let mut build_config = BuildConfig::from_seam_config_dev(config)?;
   // Dev writes to sibling dir to avoid overwriting production output
   let dev_dir = std::path::Path::new(&build_config.out_dir)
     .parent()
@@ -402,6 +454,11 @@ async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
     .join("dev-output");
   build_config.out_dir = dev_dir.to_string_lossy().to_string();
   let out_dir = base_dir.join(&build_config.out_dir);
+
+  // Generate stable salt once per dev session
+  if build_config.obfuscate {
+    build_config.rpc_salt = Some(crate::build::rpc_hash::generate_random_salt());
+  }
 
   // Skip build if route-manifest.json already exists
   let route_manifest_path = out_dir.join("route-manifest.json");
@@ -440,42 +497,21 @@ async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   let out_dir_str = abs_out_dir.to_string_lossy().to_string();
   let port_str = port.to_string();
 
+  let obfuscate_str = if build_config.obfuscate { "1" } else { "0" };
+  let sourcemap_str = if build_config.sourcemap { "1" } else { "0" };
+
   print_fullstack_banner(config, port, &watched_dirs, vite_port);
 
-  let mut children: Vec<ChildProcess> = Vec::new();
-
-  // Spawn Vite dev server when configured (direct binary, no sh/npx overhead)
-  if let Some(vp) = vite_port {
-    let vite_bin = base_dir.join("node_modules/.bin/vite");
-    let vp_str = vp.to_string();
-    let mut proc = spawn_binary("vite", &vite_bin, &["--port", &vp_str], base_dir, &[])?;
-    pipe_output(&mut proc).await;
-    children.push(proc);
-
-    println!("  {DIM}waiting for vite on :{vp}...{RESET}");
-    wait_for_port(vp, Duration::from_secs(10)).await?;
-    println!("  {GREEN}vite ready{RESET}");
-  }
-
-  let backend_cmd_str = config
-    .backend
-    .dev_command
-    .as_deref()
-    .context("backend.dev_command is required for fullstack dev mode")?;
-  let mut env_vars: Vec<(&str, &str)> =
-    vec![("PORT", &port_str), ("SEAM_DEV", "1"), ("SEAM_OUTPUT_DIR", &out_dir_str)];
-  if vite_port.is_some() {
-    env_vars.push(("SEAM_VITE", "1"));
-  }
-  let mut proc = spawn_child("backend", backend_cmd_str, base_dir, &env_vars)?;
-  pipe_output(&mut proc).await;
-  children.push(proc);
-
-  if let Some(cmd) = config.frontend.dev_command.as_deref() {
-    let mut proc = spawn_child("frontend", cmd, base_dir, &[])?;
-    pipe_output(&mut proc).await;
-    children.push(proc);
-  }
+  let mut children = spawn_fullstack_children(
+    config,
+    base_dir,
+    &port_str,
+    &out_dir_str,
+    obfuscate_str,
+    sourcemap_str,
+    vite_port,
+  )
+  .await?;
 
   // Event loop: Ctrl+C, child exit, or file change triggers rebuild
   loop {

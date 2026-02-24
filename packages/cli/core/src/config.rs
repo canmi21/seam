@@ -59,6 +59,10 @@ pub struct BuildSection {
   pub backend_build_command: Option<String>,
   pub router_file: Option<String>,
   pub typecheck_command: Option<String>,
+  #[serde(default)]
+  pub obfuscate: Option<bool>,
+  #[serde(default)]
+  pub sourcemap: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -71,11 +75,15 @@ pub struct DevSection {
   #[serde(default = "default_dev_port")]
   pub port: u16,
   pub vite_port: Option<u16>,
+  #[serde(default)]
+  pub obfuscate: Option<bool>,
+  #[serde(default)]
+  pub sourcemap: Option<bool>,
 }
 
 impl Default for DevSection {
   fn default() -> Self {
-    Self { port: default_dev_port(), vite_port: None }
+    Self { port: default_dev_port(), vite_port: None, obfuscate: None, sourcemap: None }
   }
 }
 
@@ -261,6 +269,39 @@ name = "my-app"
 "#;
     let config: SeamConfig = toml::from_str(toml_str).unwrap();
     assert!(config.dev.vite_port.is_none());
+  }
+
+  #[test]
+  fn parse_obfuscate_config() {
+    // Explicit values
+    let toml_str = r#"
+[project]
+name = "my-app"
+
+[build]
+obfuscate = false
+sourcemap = true
+
+[dev]
+obfuscate = true
+sourcemap = false
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.build.obfuscate, Some(false));
+    assert_eq!(config.build.sourcemap, Some(true));
+    assert_eq!(config.dev.obfuscate, Some(true));
+    assert_eq!(config.dev.sourcemap, Some(false));
+
+    // Defaults to None when omitted
+    let toml_str = r#"
+[project]
+name = "my-app"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert!(config.build.obfuscate.is_none());
+    assert!(config.build.sourcemap.is_none());
+    assert!(config.dev.obfuscate.is_none());
+    assert!(config.dev.sourcemap.is_none());
   }
 
   #[test]

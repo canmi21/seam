@@ -143,6 +143,32 @@ describe("call(): errors", () => {
   });
 });
 
+describe("callBatch(): batchEndpoint", () => {
+  it("uses custom batch endpoint when configured", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ results: [{ ok: true, data: "ok" }] }));
+
+    const client = createClient({ baseUrl: "http://localhost:3000", batchEndpoint: "c9d0e1f2" });
+    await client.callBatch([{ procedure: "a1b2c3d4", input: {} }]);
+
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:3000/_seam/rpc/c9d0e1f2",
+      expect.any(Object),
+    );
+  });
+
+  it("defaults to _batch when batchEndpoint is omitted", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ results: [{ ok: true, data: "ok" }] }));
+
+    const client = createClient({ baseUrl: "http://localhost:3000" });
+    await client.callBatch([{ procedure: "greet", input: {} }]);
+
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:3000/_seam/rpc/_batch",
+      expect.any(Object),
+    );
+  });
+});
+
 describe("fetchManifest()", () => {
   it("returns manifest on success", async () => {
     const manifest = { procedures: { greet: {} } };
