@@ -177,6 +177,254 @@ export function deepMerge(base, override) {
  * @param {object} schema - page-level JTD schema
  * @returns {Set<string>}
  */
+/**
+ * Walk JTD schema collecting all valid dot-separated field paths.
+ * Returns a Set including both keyed paths and flattened paths
+ * (first segment stripped) to match flattenLoaderMock behavior.
+ * @param {object} schema - page-level JTD schema
+ * @returns {Set<string>}
+ */
+export function collectSchemaPaths(schema) {
+  const paths = new Set();
+
+  function walk(node, prefix) {
+    if (!node || typeof node !== "object") return;
+
+    if (node.nullable) {
+      const inner = { ...node };
+      delete inner.nullable;
+      walk(inner, prefix);
+      return;
+    }
+
+    if (node.properties || node.optionalProperties) {
+      for (const [key, sub] of Object.entries({
+        ...node.properties,
+        ...node.optionalProperties,
+      })) {
+        const path = prefix ? `${prefix}.${key}` : key;
+        paths.add(path);
+        walk(sub, path);
+      }
+      return;
+    }
+
+    if (node.elements) {
+      walk(node.elements, prefix ? `${prefix}.$` : "$");
+      return;
+    }
+  }
+
+  walk(schema, "");
+
+  // Add flattened paths (strip first segment) to match flattenLoaderMock.
+  // Snapshot before iterating because we mutate paths in the loop body.
+  const snapshot = Array.from(paths);
+  for (const p of snapshot) {
+    const dot = p.indexOf(".");
+    if (dot !== -1) paths.add(p.slice(dot + 1));
+  }
+  return paths;
+}
+
+/**
+ * Standard Levenshtein distance between two strings.
+ * @param {string} a
+ * @param {string} b
+ * @returns {number}
+ */
+export function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => Array.from({ length: n + 1 }, () => 0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] =
+        a[i - 1] === b[j - 1]
+          ? dp[i - 1][j - 1]
+          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+/**
+ * Return the closest candidate within Levenshtein distance <= 3, or null.
+ * @param {string} name
+ * @param {Iterable<string>} candidates
+ * @returns {string | null}
+ */
+export function didYouMean(name, candidates) {
+  let best = null;
+  let bestDist = 4; // threshold: distance must be <= 3
+  for (const c of candidates) {
+    const d = levenshtein(name, c);
+    if (d < bestDist) {
+      bestDist = d;
+      best = c;
+    }
+  }
+  return best;
+}
+
+// Keys to ignore in Proxy tracking — React internals, framework hooks, and prototype methods
+const SKIP_KEYS = new Set([
+  "$$typeof",
+  "then",
+  "toJSON",
+  "constructor",
+  "valueOf",
+  "toString",
+  "hasOwnProperty",
+  "isPrototypeOf",
+  "propertyIsEnumerable",
+  "toLocaleString",
+  "__proto__",
+  "_owner",
+  "_store",
+  "ref",
+  "key",
+  "type",
+  "props",
+  "_self",
+  "_source",
+]);
+
+const ARRAY_METHODS = new Set([
+  "length",
+  "map",
+  "filter",
+  "forEach",
+  "find",
+  "findIndex",
+  "some",
+  "every",
+  "reduce",
+  "reduceRight",
+  "includes",
+  "indexOf",
+  "lastIndexOf",
+  "flat",
+  "flatMap",
+  "slice",
+  "concat",
+  "join",
+  "sort",
+  "reverse",
+  "entries",
+  "keys",
+  "values",
+  "at",
+  "fill",
+  "copyWithin",
+  "push",
+  "pop",
+  "shift",
+  "unshift",
+  "splice",
+]);
+
+/**
+ * Wrap an object with a Proxy that records all property access paths into `accessed`.
+ * Nested objects/arrays are recursively wrapped.
+ * @param {unknown} obj - object to wrap
+ * @param {Set<string>} accessed - set to record accessed paths
+ * @param {string} [prefix=""] - current dot-separated path prefix
+ * @returns {unknown}
+ */
+export function createAccessTracker(obj, accessed, prefix = "") {
+  if (obj === null || obj === undefined || typeof obj !== "object") return obj;
+
+  return new Proxy(obj, {
+    get(target, prop, receiver) {
+      // Skip symbols (React internals: Symbol.toPrimitive, Symbol.iterator, etc.)
+      if (typeof prop === "symbol") return Reflect.get(target, prop, receiver);
+
+      // Skip framework / prototype keys
+      if (SKIP_KEYS.has(prop)) return Reflect.get(target, prop, receiver);
+
+      const isArr = Array.isArray(target);
+
+      // Skip array methods but still wrap returned object values
+      if (isArr && ARRAY_METHODS.has(prop)) {
+        const val = Reflect.get(target, prop, receiver);
+        return val;
+      }
+
+      // Numeric index on array — record as prefix.$
+      if (isArr && /^\d+$/.test(prop)) {
+        const path = prefix ? `${prefix}.$` : "$";
+        accessed.add(path);
+        const val = target[prop];
+        if (val !== null && val !== undefined && typeof val === "object") {
+          return createAccessTracker(val, accessed, path);
+        }
+        return val;
+      }
+
+      const path = prefix ? `${prefix}.${prop}` : prop;
+      accessed.add(path);
+
+      const val = Reflect.get(target, prop, receiver);
+      if (val !== null && val !== undefined && typeof val === "object") {
+        return createAccessTracker(val, accessed, path);
+      }
+      return val;
+    },
+  });
+}
+
+/**
+ * Compare accessed property paths against schema-defined paths.
+ * Returns an array of warning strings for fields accessed but not in schema.
+ * @param {Set<string>} accessed - paths recorded by createAccessTracker
+ * @param {object | null} schema - page-level JTD schema
+ * @param {string} routePath - route path for warning messages
+ * @returns {string[]}
+ */
+export function checkFieldAccess(accessed, schema, routePath) {
+  if (!schema) return [];
+
+  const known = collectSchemaPaths(schema);
+  if (known.size === 0) return [];
+
+  const warnings = [];
+  // Collect leaf field names for did-you-mean suggestions
+  const leafNames = new Set();
+  for (const p of known) {
+    const dot = p.lastIndexOf(".");
+    leafNames.add(dot === -1 ? p : p.slice(dot + 1));
+  }
+
+  for (const path of accessed) {
+    if (known.has(path)) continue;
+
+    // Skip if it's a parent prefix of a known path (e.g. "user" when "user.name" exists)
+    let isParent = false;
+    for (const k of known) {
+      if (k.startsWith(path + ".")) {
+        isParent = true;
+        break;
+      }
+    }
+    if (isParent) continue;
+
+    const fieldName = path.includes(".") ? path.slice(path.lastIndexOf(".") + 1) : path;
+    const suggestion = didYouMean(fieldName, leafNames);
+
+    const knownList = [...leafNames].sort().join(", ");
+    let msg = `Route "${routePath}" component accessed data.${path},\n       but schema only defines: ${knownList}`;
+    if (suggestion) {
+      msg += `\n       Did you mean: ${suggestion}?`;
+    }
+    warnings.push(msg);
+  }
+
+  return warnings;
+}
+
 export function collectHtmlPaths(schema) {
   const paths = new Set();
 

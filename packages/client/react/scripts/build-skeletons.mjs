@@ -18,6 +18,8 @@ import {
   flattenLoaderMock,
   deepMerge,
   collectHtmlPaths,
+  createAccessTracker,
+  checkFieldAccess,
 } from "./mock-generator.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -223,8 +225,20 @@ function renderRoute(route, manifest) {
     return { variant, html };
   });
 
-  // Render with real mock data for CTR equivalence check
-  const mockHtml = stripResourceHints(guardedRender(route.path, route.component, mock));
+  // Render with real mock data for CTR equivalence check.
+  // Wrap mock with Proxy to track field accesses and detect schema mismatches.
+  const accessed = new Set();
+  const trackedMock = createAccessTracker(mock, accessed);
+  const mockHtml = stripResourceHints(guardedRender(route.path, route.component, trackedMock));
+
+  const fieldWarnings = checkFieldAccess(accessed, pageSchema, route.path);
+  for (const w of fieldWarnings) {
+    const msg = `[seam] warning: ${w}`;
+    if (!seenWarnings.has(msg)) {
+      seenWarnings.add(msg);
+      buildWarnings.push(msg);
+    }
+  }
 
   return {
     path: route.path,
@@ -292,10 +306,26 @@ function renderLayout(LayoutComponent, id, entry, manifest) {
     Object.keys(entry.loaders || {}).length > 0 ? buildPageSchema(entry, manifest) : null;
   const htmlPaths = schema ? collectHtmlPaths(schema) : new Set();
   const data = Object.keys(mock).length > 0 ? buildSentinelData(mock, "", htmlPaths) : {};
+
+  // Wrap data with Proxy to detect schema/component field mismatches
+  const accessed = new Set();
+  const trackedData = Object.keys(data).length > 0 ? createAccessTracker(data, accessed) : data;
+
   function LayoutWithOutlet() {
     return createElement(LayoutComponent, null, createElement("seam-outlet", null));
   }
-  return guardedRender(`layout:${id}`, LayoutWithOutlet, data);
+  const html = guardedRender(`layout:${id}`, LayoutWithOutlet, trackedData);
+
+  const fieldWarnings = checkFieldAccess(accessed, schema, `layout:${id}`);
+  for (const w of fieldWarnings) {
+    const msg = `[seam] warning: ${w}`;
+    if (!seenWarnings.has(msg)) {
+      seenWarnings.add(msg);
+      buildWarnings.push(msg);
+    }
+  }
+
+  return html;
 }
 
 /** Flatten routes, annotating each leaf with its parent layout id */
