@@ -115,20 +115,21 @@ pub(super) fn run_skeleton_renderer(
   manifest_path: &Path,
   base_dir: &Path,
 ) -> Result<SkeletonOutput> {
-  let output = Command::new("node")
+  let runtime = if which_exists("bun") { "bun" } else { "node" };
+  let output = Command::new(runtime)
     .arg(script_path)
     .arg(routes_path)
     .arg(manifest_path)
     .current_dir(base_dir)
     .output()
-    .context("failed to spawn node for skeleton rendering")?;
+    .with_context(|| format!("failed to spawn {runtime} for skeleton rendering"))?;
 
   if !output.status.success() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     bail!("skeleton rendering failed:\n{stderr}");
   }
 
-  let stdout = String::from_utf8(output.stdout).context("invalid UTF-8 from node")?;
+  let stdout = String::from_utf8(output.stdout).context("invalid UTF-8 from skeleton renderer")?;
   serde_json::from_str(&stdout).context("failed to parse skeleton output JSON")
 }
 

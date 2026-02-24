@@ -42,6 +42,28 @@ fn spawn_child(
   Ok(ChildProcess { label, child })
 }
 
+/// Spawn a binary directly, bypassing sh -c overhead.
+/// Use for framework-internal binaries (not user-configurable commands).
+fn spawn_binary(
+  label: &'static str,
+  bin: &Path,
+  args: &[&str],
+  base_dir: &Path,
+  env_vars: &[(&str, &str)],
+) -> Result<ChildProcess> {
+  let mut cmd = Command::new(bin);
+  cmd.args(args);
+  cmd.current_dir(base_dir);
+  cmd.stdout(std::process::Stdio::piped());
+  cmd.stderr(std::process::Stdio::piped());
+  cmd.kill_on_drop(true);
+  for (key, val) in env_vars {
+    cmd.env(key, val);
+  }
+  let child = cmd.spawn().with_context(|| format!("failed to start {}", bin.display()))?;
+  Ok(ChildProcess { label, child })
+}
+
 fn label_color(label: &str) -> &'static str {
   match label {
     "backend" => CYAN,
@@ -422,10 +444,11 @@ async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
 
   let mut children: Vec<ChildProcess> = Vec::new();
 
-  // Spawn Vite dev server when configured
+  // Spawn Vite dev server when configured (direct binary, no sh/npx overhead)
   if let Some(vp) = vite_port {
-    let vite_cmd = format!("npx vite --port {vp}");
-    let mut proc = spawn_child("vite", &vite_cmd, base_dir, &[])?;
+    let vite_bin = base_dir.join("node_modules/.bin/vite");
+    let vp_str = vp.to_string();
+    let mut proc = spawn_binary("vite", &vite_bin, &["--port", &vp_str], base_dir, &[])?;
     pipe_output(&mut proc).await;
     children.push(proc);
 
