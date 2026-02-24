@@ -220,6 +220,88 @@ pub(super) fn process_routes(
   Ok(manifest)
 }
 
+// -- Procedure reference validation --
+
+/// Extract (source, loader_name, procedure_name) tuples from a loaders JSON object.
+/// Loaders shape: `{ "loaderKey": { "procedure": "name" } }`
+fn collect_loader_procedures(
+  loaders: &serde_json::Value,
+  source: &str,
+) -> Vec<(String, String, String)> {
+  let Some(obj) = loaders.as_object() else { return vec![] };
+  let mut result = Vec::new();
+  for (loader_name, loader_def) in obj {
+    if let Some(proc_name) = loader_def.get("procedure").and_then(|v| v.as_str()) {
+      result.push((source.to_string(), loader_name.clone(), proc_name.to_string()));
+    }
+  }
+  result
+}
+
+fn levenshtein(a: &str, b: &str) -> usize {
+  let n = b.len();
+  let mut prev: Vec<usize> = (0..=n).collect();
+  let mut curr = vec![0; n + 1];
+  for (i, ca) in a.chars().enumerate() {
+    curr[0] = i + 1;
+    for (j, cb) in b.chars().enumerate() {
+      let cost = if ca == cb { 0 } else { 1 };
+      curr[j + 1] = (prev[j] + cost).min(prev[j + 1] + 1).min(curr[j] + 1);
+    }
+    std::mem::swap(&mut prev, &mut curr);
+  }
+  prev[n]
+}
+
+fn did_you_mean<'a>(name: &str, candidates: &[&'a str]) -> Option<&'a str> {
+  candidates
+    .iter()
+    .map(|c| (*c, levenshtein(name, c)))
+    .filter(|(_, d)| *d <= 3 && *d > 0)
+    .min_by_key(|(_, d)| *d)
+    .map(|(c, _)| c)
+}
+
+/// Validate that all procedure references in routes/layouts exist in the manifest.
+/// Collects all errors and reports them together.
+pub(super) fn validate_procedure_references(
+  manifest: &Manifest,
+  skeleton_output: &SkeletonOutput,
+) -> Result<()> {
+  let mut refs = Vec::new();
+  for route in &skeleton_output.routes {
+    refs.extend(collect_loader_procedures(&route.loaders, &format!("Route \"{}\"", route.path)));
+  }
+  for layout in &skeleton_output.layouts {
+    refs.extend(collect_loader_procedures(&layout.loaders, &format!("Layout \"{}\"", layout.id)));
+  }
+
+  let available: Vec<&str> = manifest.procedures.keys().map(|s| s.as_str()).collect();
+  let mut errors = Vec::new();
+
+  for (source, loader_name, proc_name) in &refs {
+    if manifest.procedures.contains_key(proc_name.as_str()) {
+      continue;
+    }
+    let mut block = format!(
+      "  {source} loader \"{loader_name}\" references procedure \"{proc_name}\",\n  \
+       but no procedure with that name is registered.\n\n  \
+       Available procedures: {}",
+      available.join(", ")
+    );
+    if let Some(suggestion) = did_you_mean(proc_name, &available) {
+      block.push_str(&format!("\n\n  Did you mean: {suggestion}?"));
+    }
+    errors.push(block);
+  }
+
+  if errors.is_empty() {
+    return Ok(());
+  }
+
+  bail!("[seam] error: unknown procedure reference\n\n{}", errors.join("\n\n"));
+}
+
 /// Print procedure breakdown (reused from pull.rs logic)
 pub(super) fn print_procedure_breakdown(manifest: &Manifest) {
   let total = manifest.procedures.len();
@@ -377,5 +459,138 @@ mod tests {
   #[test]
   fn path_to_filename_nested() {
     assert_eq!(path_to_filename("/user/:id/posts"), "user-id-posts.html");
+  }
+
+  // -- Levenshtein distance tests --
+
+  #[test]
+  fn levenshtein_identical() {
+    assert_eq!(levenshtein("abc", "abc"), 0);
+  }
+
+  #[test]
+  fn levenshtein_single_char() {
+    assert_eq!(levenshtein("abc", "abd"), 1);
+  }
+
+  #[test]
+  fn levenshtein_empty() {
+    assert_eq!(levenshtein("", "abc"), 3);
+    assert_eq!(levenshtein("abc", ""), 3);
+  }
+
+  #[test]
+  fn levenshtein_completely_different() {
+    assert_eq!(levenshtein("abc", "xyz"), 3);
+  }
+
+  #[test]
+  fn did_you_mean_close_match() {
+    let candidates = vec!["getHomeData", "getSession", "getUser"];
+    assert_eq!(did_you_mean("getHomedata", &candidates), Some("getHomeData"));
+  }
+
+  #[test]
+  fn did_you_mean_no_match() {
+    let candidates = vec!["getHomeData", "getSession"];
+    assert_eq!(did_you_mean("totallyDifferent", &candidates), None);
+  }
+
+  // -- Procedure validation tests --
+
+  fn make_manifest(names: &[&str]) -> Manifest {
+    use crate::manifest::ProcedureSchema;
+    let mut procedures = BTreeMap::new();
+    for name in names {
+      procedures.insert(
+        name.to_string(),
+        ProcedureSchema {
+          proc_type: "query".to_string(),
+          input: serde_json::Value::Null,
+          output: serde_json::Value::Null,
+        },
+      );
+    }
+    Manifest { version: "1".to_string(), procedures }
+  }
+
+  fn make_skeleton(
+    routes: Vec<(&str, serde_json::Value)>,
+    layouts: Vec<(&str, serde_json::Value)>,
+  ) -> SkeletonOutput {
+    SkeletonOutput {
+      routes: routes
+        .into_iter()
+        .map(|(path, loaders)| SkeletonRoute {
+          path: path.to_string(),
+          loaders,
+          axes: vec![],
+          variants: vec![],
+          mock_html: String::new(),
+          mock: serde_json::Value::Null,
+          page_schema: None,
+          layout: None,
+        })
+        .collect(),
+      layouts: layouts
+        .into_iter()
+        .map(|(id, loaders)| SkeletonLayout {
+          id: id.to_string(),
+          html: String::new(),
+          loaders,
+          parent: None,
+        })
+        .collect(),
+      warnings: vec![],
+      cache: None,
+    }
+  }
+
+  #[test]
+  fn validate_all_procedures_exist() {
+    let manifest = make_manifest(&["getHomeData", "getSession"]);
+    let skeleton = make_skeleton(
+      vec![("/", serde_json::json!({ "page": { "procedure": "getHomeData" } }))],
+      vec![("_layout_root", serde_json::json!({ "session": { "procedure": "getSession" } }))],
+    );
+    assert!(validate_procedure_references(&manifest, &skeleton).is_ok());
+  }
+
+  #[test]
+  fn validate_missing_procedure_in_route() {
+    let manifest = make_manifest(&["getHomeData", "getSession"]);
+    let skeleton = make_skeleton(
+      vec![("/", serde_json::json!({ "page": { "procedure": "getNonexistent" } }))],
+      vec![],
+    );
+    let err = validate_procedure_references(&manifest, &skeleton).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("Route \"/\""), "should mention route path");
+    assert!(msg.contains("\"page\""), "should mention loader name");
+    assert!(msg.contains("\"getNonexistent\""), "should mention procedure name");
+  }
+
+  #[test]
+  fn validate_did_you_mean_suggestion() {
+    let manifest = make_manifest(&["getHomeData", "getSession"]);
+    let skeleton = make_skeleton(
+      vec![("/", serde_json::json!({ "page": { "procedure": "getHomedata" } }))],
+      vec![],
+    );
+    let err = validate_procedure_references(&manifest, &skeleton).unwrap_err();
+    assert!(err.to_string().contains("Did you mean: getHomeData?"));
+  }
+
+  #[test]
+  fn validate_missing_procedure_in_layout() {
+    let manifest = make_manifest(&["getSession"]);
+    let skeleton = make_skeleton(
+      vec![],
+      vec![("_layout_root", serde_json::json!({ "session": { "procedure": "getSesssion" } }))],
+    );
+    let err = validate_procedure_references(&manifest, &skeleton).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("Layout \"_layout_root\""), "should mention layout id");
+    assert!(msg.contains("Did you mean: getSession?"));
   }
 }

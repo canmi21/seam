@@ -10,7 +10,8 @@ use anyhow::{bail, Context, Result};
 use super::config::{BuildConfig, BundlerMode};
 use super::route::{
   extract_manifest, generate_types, package_static_assets, print_asset_files,
-  print_procedure_breakdown, process_routes, run_skeleton_renderer, run_typecheck, CacheStats,
+  print_procedure_breakdown, process_routes, run_skeleton_renderer, run_typecheck,
+  validate_procedure_references, CacheStats,
 };
 use super::types::{read_bundle_manifest, AssetFiles, ViteDevInfo};
 use crate::config::SeamConfig;
@@ -207,6 +208,7 @@ fn run_fullstack_build(
     ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
   }
   print_cache_stats(&skeleton_output.cache);
+  validate_procedure_references(&manifest, &skeleton_output)?;
 
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
@@ -312,6 +314,7 @@ pub fn run_dev_build(
     ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
   }
   print_cache_stats(&skeleton_output.cache);
+  validate_procedure_references(&manifest, &skeleton_output)?;
 
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
@@ -400,6 +403,12 @@ pub fn run_incremental_rebuild(
   let skeleton_output =
     run_skeleton_renderer(&script_path, &routes_path, &manifest_json_path, base_dir)?;
   print_cache_stats(&skeleton_output.cache);
+
+  let manifest_str = std::fs::read_to_string(&manifest_json_path)
+    .with_context(|| format!("failed to read {}", manifest_json_path.display()))?;
+  let manifest: crate::manifest::Manifest = serde_json::from_str(&manifest_str)
+    .with_context(|| format!("failed to parse {}", manifest_json_path.display()))?;
+  validate_procedure_references(&manifest, &skeleton_output)?;
 
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
