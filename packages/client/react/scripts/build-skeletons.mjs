@@ -130,6 +130,15 @@ function guardedRender(routePath, component, data) {
   let html;
   try {
     html = renderWithData(component, data);
+  } catch (e) {
+    if (e instanceof SeamBuildError) {
+      throw new SeamBuildError(
+        `[seam] error: Skeleton rendering failed for route "${routePath}":\n` +
+          `       ${e.message}\n\n` +
+          "       Move browser API calls into useEffect() or event handlers.",
+      );
+    }
+    throw e;
   } finally {
     for (const teardown of teardowns) teardown();
   }
