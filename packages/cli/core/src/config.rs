@@ -70,11 +70,12 @@ pub struct GenerateSection {
 pub struct DevSection {
   #[serde(default = "default_dev_port")]
   pub port: u16,
+  pub vite_port: Option<u16>,
 }
 
 impl Default for DevSection {
   fn default() -> Self {
-    Self { port: default_dev_port() }
+    Self { port: default_dev_port(), vite_port: None }
   }
 }
 
@@ -235,6 +236,31 @@ port = 3000
 "#;
     let config: SeamConfig = toml::from_str(toml_str).unwrap();
     assert_eq!(config.dev.port, 3000);
+  }
+
+  #[test]
+  fn parse_dev_section_with_vite_port() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+
+[dev]
+port = 3000
+vite_port = 5173
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.dev.port, 3000);
+    assert_eq!(config.dev.vite_port, Some(5173));
+  }
+
+  #[test]
+  fn parse_dev_section_vite_port_defaults_to_none() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert!(config.dev.vite_port.is_none());
   }
 
   #[test]

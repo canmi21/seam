@@ -17,3 +17,4 @@ out_dir = ".seam/output"
 
 [dev]
 port = 3000
+vite_port = 5173

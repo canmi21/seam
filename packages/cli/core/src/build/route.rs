@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use super::ctr_check;
 use super::skeleton::{extract_template, sentinel_to_slots, wrap_document, Axis};
 use super::slot_warning;
-use super::types::AssetFiles;
+use super::types::{AssetFiles, ViteDevInfo};
 use crate::codegen;
 use crate::config::SeamConfig;
 use crate::manifest::Manifest;
@@ -138,6 +138,7 @@ pub(super) fn process_routes(
   templates_dir: &Path,
   assets: &AssetFiles,
   dev_mode: bool,
+  vite: Option<&ViteDevInfo>,
 ) -> Result<RouteManifest> {
   // Process layouts: replace <seam-outlet>, convert sentinels to slots, wrap document
   let mut layout_manifest = BTreeMap::new();
@@ -145,7 +146,7 @@ pub(super) fn process_routes(
     let html = layout.html.replace("<seam-outlet></seam-outlet>", "<!--seam:outlet-->");
     // Convert %%SEAM:path%% sentinels to <!--seam:path--> slots for server injection
     let html = sentinel_to_slots(&html);
-    let document = wrap_document(&html, &assets.css, &assets.js, dev_mode);
+    let document = wrap_document(&html, &assets.css, &assets.js, dev_mode, vite);
     let filename = format!("{}.html", layout.id);
     let filepath = templates_dir.join(&filename);
     std::fs::write(&filepath, &document)
@@ -182,7 +183,7 @@ pub(super) fn process_routes(
     let document = if route.layout.is_some() {
       template.clone()
     } else {
-      wrap_document(&template, &assets.css, &assets.js, dev_mode)
+      wrap_document(&template, &assets.css, &assets.js, dev_mode, vite)
     };
 
     let filename = path_to_filename(&route.path);

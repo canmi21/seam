@@ -12,7 +12,7 @@ use super::route::{
   extract_manifest, generate_types, package_static_assets, print_asset_files,
   print_procedure_breakdown, process_routes, run_skeleton_renderer, run_typecheck,
 };
-use super::types::read_bundle_manifest;
+use super::types::{read_bundle_manifest, AssetFiles, ViteDevInfo};
 use crate::config::SeamConfig;
 use crate::shell::{run_builtin_bundler, run_command};
 use crate::ui::{self, RESET, YELLOW};
@@ -31,6 +31,18 @@ fn run_bundler(base_dir: &Path, mode: &BundlerMode) -> Result<()> {
     BundlerMode::BuiltIn { entry } => run_builtin_bundler(base_dir, entry, "dist"),
     BundlerMode::Custom { command } => run_command(base_dir, command, "bundler"),
   }
+}
+
+/// Construct ViteDevInfo when vite_port is configured
+fn vite_info_from_config(config: &SeamConfig) -> Option<ViteDevInfo> {
+  config.dev.vite_port.map(|port| ViteDevInfo {
+    origin: format!("http://localhost:{port}"),
+    entry: config
+      .frontend
+      .entry
+      .clone()
+      .expect("frontend.entry is required when dev.vite_port is set"),
+  })
 }
 
 // -- Entry point --
@@ -87,6 +99,7 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
     &templates_dir,
     &assets,
     false,
+    None,
   )?;
   ui::blank();
 
@@ -196,6 +209,7 @@ fn run_fullstack_build(
     &templates_dir,
     &assets,
     false,
+    None,
   )?;
 
   // Write route-manifest.json
@@ -235,11 +249,19 @@ pub fn run_dev_build(
 ) -> Result<()> {
   let started = Instant::now();
   let out_dir = base_dir.join(&build_config.out_dir);
+  let vite = vite_info_from_config(config);
+  let is_vite = vite.is_some();
+
+  // Vite mode: 3 steps (manifest + codegen + skeletons), no bundler/packaging
+  // Normal mode: 5 steps (manifest + codegen + bundle + skeletons + package)
+  let total: u32 = if is_vite { 3 } else { 5 };
+  let mut step_num: u32 = 0;
 
   ui::banner("dev build", Some(&config.project.name));
 
-  // [1/5] Extract procedure manifest
-  ui::step(1, 5, "Extracting procedure manifest");
+  // [1] Extract procedure manifest
+  step_num += 1;
+  ui::step(step_num, total, "Extracting procedure manifest");
   let router_file =
     build_config.router_file.as_deref().context("router_file is required for fullstack build")?;
   let manifest = extract_manifest(base_dir, router_file, &out_dir)?;
@@ -247,21 +269,29 @@ pub fn run_dev_build(
   copy_wasm_binary(base_dir, &out_dir)?;
   ui::blank();
 
-  // [2/5] Generate client types
-  ui::step(2, 5, "Generating client types");
+  // [2] Generate client types
+  step_num += 1;
+  ui::step(step_num, total, "Generating client types");
   generate_types(&manifest, config)?;
   ui::blank();
 
-  // [3/5] Bundle frontend
-  ui::step(3, 5, "Bundling frontend");
-  run_bundler(base_dir, &build_config.bundler_mode)?;
-  let manifest_path = base_dir.join(&build_config.bundler_manifest);
-  let assets = read_bundle_manifest(&manifest_path)?;
-  print_asset_files(base_dir, "dist", &assets);
-  ui::blank();
+  // [3] Bundle frontend (skipped in Vite mode — Vite serves assets directly)
+  let assets = if is_vite {
+    AssetFiles { css: vec![], js: vec![] }
+  } else {
+    step_num += 1;
+    ui::step(step_num, total, "Bundling frontend");
+    run_bundler(base_dir, &build_config.bundler_mode)?;
+    let manifest_path = base_dir.join(&build_config.bundler_manifest);
+    let a = read_bundle_manifest(&manifest_path)?;
+    print_asset_files(base_dir, "dist", &a);
+    ui::blank();
+    a
+  };
 
-  // [4/5] Generate skeletons
-  ui::step(4, 5, "Generating skeletons");
+  // [N] Generate skeletons
+  step_num += 1;
+  ui::step(step_num, total, "Generating skeletons");
   let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
   if !script_path.exists() {
     bail!("build-skeletons.mjs not found at {}", script_path.display());
@@ -283,6 +313,7 @@ pub fn run_dev_build(
     &templates_dir,
     &assets,
     true,
+    vite.as_ref(),
   )?;
 
   let route_manifest_path = out_dir.join("route-manifest.json");
@@ -292,10 +323,13 @@ pub fn run_dev_build(
   ui::detail_ok("route-manifest.json");
   ui::blank();
 
-  // [5/5] Package output
-  ui::step(5, 5, "Packaging output");
-  package_static_assets(base_dir, &assets, &out_dir)?;
-  ui::blank();
+  // [N] Package output (skipped in Vite mode)
+  if !is_vite {
+    step_num += 1;
+    ui::step(step_num, total, "Packaging output");
+    package_static_assets(base_dir, &assets, &out_dir)?;
+    ui::blank();
+  }
 
   // Summary
   let elapsed = started.elapsed().as_secs_f64();
@@ -303,15 +337,23 @@ pub fn run_dev_build(
   let template_count = skeleton_output.routes.len();
   let asset_count = assets.js.len() + assets.css.len();
   ui::ok(&format!("dev build complete in {elapsed:.1}s"));
-  ui::detail(&format!(
-    "{proc_count} procedures \u{00b7} {template_count} templates \u{00b7} {asset_count} assets \u{00b7} {}",
-    build_config.renderer,
-  ));
+  if is_vite {
+    ui::detail(&format!(
+      "{proc_count} procedures \u{00b7} {template_count} templates \u{00b7} vite mode \u{00b7} {}",
+      build_config.renderer,
+    ));
+  } else {
+    ui::detail(&format!(
+      "{proc_count} procedures \u{00b7} {template_count} templates \u{00b7} {asset_count} assets \u{00b7} {}",
+      build_config.renderer,
+    ));
+  }
 
   Ok(())
 }
 
 /// Incremental rebuild for dev mode — skips banner/summary to keep output compact.
+/// In Vite mode, skips bundler + manifest read + asset packaging (Vite serves assets directly).
 pub fn run_incremental_rebuild(
   config: &SeamConfig,
   build_config: &BuildConfig,
@@ -319,6 +361,8 @@ pub fn run_incremental_rebuild(
   mode: RebuildMode,
 ) -> Result<()> {
   let out_dir = base_dir.join(&build_config.out_dir);
+  let vite = vite_info_from_config(config);
+  let is_vite = vite.is_some();
 
   // Full mode reruns manifest extraction + codegen before frontend steps
   if matches!(mode, RebuildMode::Full) {
@@ -329,10 +373,14 @@ pub fn run_incremental_rebuild(
     copy_wasm_binary(base_dir, &out_dir)?;
   }
 
-  // Frontend steps: bundle + skeletons + assets
-  run_bundler(base_dir, &build_config.bundler_mode)?;
-  let manifest_path = base_dir.join(&build_config.bundler_manifest);
-  let assets = read_bundle_manifest(&manifest_path)?;
+  // Frontend steps: bundle + skeletons + assets (bundle/assets skipped in Vite mode)
+  let assets = if is_vite {
+    AssetFiles { css: vec![], js: vec![] }
+  } else {
+    run_bundler(base_dir, &build_config.bundler_mode)?;
+    let manifest_path = base_dir.join(&build_config.bundler_manifest);
+    read_bundle_manifest(&manifest_path)?
+  };
 
   let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
   if !script_path.exists() {
@@ -352,6 +400,7 @@ pub fn run_incremental_rebuild(
     &templates_dir,
     &assets,
     true,
+    vite.as_ref(),
   )?;
 
   let route_manifest_path = out_dir.join("route-manifest.json");
@@ -359,7 +408,9 @@ pub fn run_incremental_rebuild(
   std::fs::write(&route_manifest_path, &route_manifest_json)
     .with_context(|| format!("failed to write {}", route_manifest_path.display()))?;
 
-  package_static_assets(base_dir, &assets, &out_dir)?;
+  if !is_vite {
+    package_static_assets(base_dir, &assets, &out_dir)?;
+  }
 
   Ok(())
 }

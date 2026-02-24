@@ -25,6 +25,14 @@ impl From<SeamManifest> for AssetFiles {
   }
 }
 
+/// Vite dev server info, threaded through the build pipeline to replace
+/// static asset references with Vite-served modules.
+#[derive(Debug, Clone)]
+pub struct ViteDevInfo {
+  pub origin: String,
+  pub entry: String,
+}
+
 pub fn read_bundle_manifest(path: &Path) -> Result<AssetFiles> {
   let content = std::fs::read_to_string(path)
     .with_context(|| format!("failed to read bundle manifest at {}", path.display()))?;

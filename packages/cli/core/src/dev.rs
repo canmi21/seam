@@ -45,7 +45,7 @@ fn spawn_child(
 fn label_color(label: &str) -> &'static str {
   match label {
     "backend" => CYAN,
-    "frontend" => MAGENTA,
+    "frontend" | "vite" => MAGENTA,
     _ => DIM,
   }
 }
@@ -106,6 +106,23 @@ fn find_available_port(preferred: u16) -> Result<u16> {
     }
   }
   bail!("no available port found in range 3000-3099");
+}
+
+/// Poll a TCP port until it accepts connections, or bail after timeout.
+/// Tries both IPv6 (::1) and IPv4 (127.0.0.1) since Vite v7 binds IPv6-only on macOS.
+async fn wait_for_port(port: u16, timeout: Duration) -> Result<()> {
+  let deadline = Instant::now() + timeout;
+  loop {
+    if tokio::net::TcpStream::connect(("::1", port)).await.is_ok()
+      || tokio::net::TcpStream::connect(("127.0.0.1", port)).await.is_ok()
+    {
+      return Ok(());
+    }
+    if Instant::now() >= deadline {
+      bail!("timed out waiting for port {port} to become ready");
+    }
+    tokio::time::sleep(Duration::from_millis(100)).await;
+  }
 }
 
 fn print_dev_banner(
@@ -299,12 +316,20 @@ fn write_reload_trigger(out_dir: &Path) {
   let _ = std::fs::write(&trigger, &ts);
 }
 
-fn print_fullstack_banner(config: &SeamConfig, port: u16, watched_dirs: &[String]) {
+fn print_fullstack_banner(
+  config: &SeamConfig,
+  port: u16,
+  watched_dirs: &[String],
+  vite_port: Option<u16>,
+) {
   let backend_cmd =
     config.backend.dev_command.as_deref().unwrap_or("bun --watch src/server/index.ts");
   let lang = &config.backend.lang;
 
   crate::ui::banner("dev", Some(&config.project.name));
+  if let Some(vp) = vite_port {
+    println!("  {MAGENTA}vite{RESET}      {DIM}http://localhost:{vp}{RESET}");
+  }
   println!("  {CYAN}backend{RESET}   {DIM}[{lang}]{RESET} {DIM}{backend_cmd}{RESET}");
   println!("  {GREEN}mode{RESET}      fullstack CTR");
   if !watched_dirs.is_empty() {
@@ -373,6 +398,7 @@ async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   }
 
   let port = find_available_port(config.dev.port)?;
+  let vite_port = config.dev.vite_port;
 
   // Resolve absolute output dir for SEAM_OUTPUT_DIR env var
   let abs_out_dir = if out_dir.is_absolute() {
@@ -386,9 +412,21 @@ async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   let out_dir_str = abs_out_dir.to_string_lossy().to_string();
   let port_str = port.to_string();
 
-  print_fullstack_banner(config, port, &watched_dirs);
+  print_fullstack_banner(config, port, &watched_dirs, vite_port);
 
   let mut children: Vec<ChildProcess> = Vec::new();
+
+  // Spawn Vite dev server when configured
+  if let Some(vp) = vite_port {
+    let vite_cmd = format!("npx vite --port {vp}");
+    let mut proc = spawn_child("vite", &vite_cmd, base_dir, &[])?;
+    pipe_output(&mut proc).await;
+    children.push(proc);
+
+    println!("  {DIM}waiting for vite on :{vp}...{RESET}");
+    wait_for_port(vp, Duration::from_secs(10)).await?;
+    println!("  {GREEN}vite ready{RESET}");
+  }
 
   let backend_cmd_str = config
     .backend

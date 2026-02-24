@@ -1,5 +1,7 @@
 /* packages/cli/core/src/build/skeleton/document.rs */
 
+use super::super::types::ViteDevInfo;
+
 const LIVE_RELOAD_SCRIPT: &str = concat!(
   r#"<script>(function(){var ws,t;function c(){"#,
   r#"ws=new WebSocket((location.protocol==="https:"?"wss:":"ws:")"#,
@@ -11,21 +13,52 @@ const LIVE_RELOAD_SCRIPT: &str = concat!(
 /// Wrap a skeleton HTML fragment in a compact HTML5 document with asset references.
 /// Produces minimal single-line output for production templates.
 /// When `dev_mode` is true, injects a live reload WebSocket script before `</body>`.
+/// When `vite` is Some, replaces static CSS/JS refs with Vite dev server scripts.
 pub fn wrap_document(
   skeleton: &str,
   css_files: &[String],
   js_files: &[String],
   dev_mode: bool,
+  vite: Option<&ViteDevInfo>,
 ) -> String {
   let mut doc = String::from("<!DOCTYPE html><html><head><meta charset=\"utf-8\">");
-  for f in css_files {
-    doc.push_str(&format!(r#"<link rel="stylesheet" href="/_seam/static/{f}">"#));
+  if let Some(v) = vite {
+    // React Fast Refresh preamble
+    doc.push_str(&format!(
+      concat!(
+        "<script type=\"module\">",
+        "import RefreshRuntime from '{origin}/@react-refresh';",
+        "RefreshRuntime.injectIntoGlobalHook(window);",
+        "window.$RefreshReg$ = () => {{}};",
+        "window.$RefreshSig$ = () => (type) => type;",
+        "window.__vite_plugin_react_preamble_installed__ = true",
+        "</script>"
+      ),
+      origin = v.origin,
+    ));
+    // Vite HMR client
+    doc.push_str(&format!(
+      r#"<script type="module" src="{origin}/@vite/client"></script>"#,
+      origin = v.origin,
+    ));
+    // App entry
+    doc.push_str(&format!(
+      r#"<script type="module" src="{origin}/{entry}"></script>"#,
+      origin = v.origin,
+      entry = v.entry,
+    ));
+  } else {
+    for f in css_files {
+      doc.push_str(&format!(r#"<link rel="stylesheet" href="/_seam/static/{f}">"#));
+    }
   }
   doc.push_str("</head><body><div id=\"__SEAM_ROOT__\">");
   doc.push_str(skeleton);
   doc.push_str("</div>");
-  for f in js_files {
-    doc.push_str(&format!(r#"<script type="module" src="/_seam/static/{f}"></script>"#));
+  if vite.is_none() {
+    for f in js_files {
+      doc.push_str(&format!(r#"<script type="module" src="/_seam/static/{f}"></script>"#));
+    }
   }
   if dev_mode {
     doc.push_str(LIVE_RELOAD_SCRIPT);
@@ -40,8 +73,13 @@ mod tests {
 
   #[test]
   fn wraps_with_assets() {
-    let result =
-      wrap_document("<p>Hello</p>", &["style-abc.css".into()], &["main-xyz.js".into()], false);
+    let result = wrap_document(
+      "<p>Hello</p>",
+      &["style-abc.css".into()],
+      &["main-xyz.js".into()],
+      false,
+      None,
+    );
     assert_eq!(
       result,
       concat!(
@@ -57,7 +95,7 @@ mod tests {
 
   #[test]
   fn wraps_without_assets() {
-    let result = wrap_document("<p>Hi</p>", &[], &[], false);
+    let result = wrap_document("<p>Hi</p>", &[], &[], false, None);
     assert_eq!(
       result,
       concat!(
@@ -71,10 +109,9 @@ mod tests {
 
   #[test]
   fn wraps_with_hoisted_metadata() {
-    // Float-hoisted metadata stays inside __SEAM_ROOT__, not in <head>
     let skeleton =
       "<title><!--seam:t--></title><!--seam:d:attr:content--><meta name=\"desc\"><p>content</p>";
-    let result = wrap_document(skeleton, &["style.css".into()], &[], false);
+    let result = wrap_document(skeleton, &["style.css".into()], &[], false, None);
 
     let head = result.split("</head>").next().unwrap();
     assert!(!head.contains("<!--seam:"), "seam markers must not leak into <head>");
@@ -88,9 +125,8 @@ mod tests {
 
   #[test]
   fn wraps_with_link_in_skeleton() {
-    // <link> slot in skeleton must not conflict with <link> CSS refs in <head>
     let skeleton = "<!--seam:u:attr:href--><link rel=\"canonical\"><p>page</p>";
-    let result = wrap_document(skeleton, &["app.css".into()], &[], false);
+    let result = wrap_document(skeleton, &["app.css".into()], &[], false, None);
 
     let head = result.split("</head>").next().unwrap();
     assert!(head.contains("app.css"));
@@ -103,10 +139,9 @@ mod tests {
 
   #[test]
   fn dev_mode_injects_live_reload_script() {
-    let result = wrap_document("<p>dev</p>", &[], &["app.js".into()], true);
+    let result = wrap_document("<p>dev</p>", &[], &["app.js".into()], true, None);
     assert!(result.contains("WebSocket"), "dev_mode should inject WebSocket live reload");
     assert!(result.contains("/_seam/dev/ws"));
-    // Script must appear after JS modules but before </body>
     let script_pos = result.find("WebSocket").unwrap();
     let module_pos = result.find("app.js").unwrap();
     let body_end = result.find("</body>").unwrap();
@@ -116,7 +151,46 @@ mod tests {
 
   #[test]
   fn production_mode_no_reload_script() {
-    let result = wrap_document("<p>prod</p>", &[], &["app.js".into()], false);
+    let result = wrap_document("<p>prod</p>", &[], &["app.js".into()], false, None);
     assert!(!result.contains("WebSocket"), "production mode must not inject live reload");
+  }
+
+  #[test]
+  fn vite_mode_injects_three_scripts() {
+    let vite = ViteDevInfo {
+      origin: "http://localhost:5173".to_string(),
+      entry: "src/client/main.tsx".to_string(),
+    };
+    let result = wrap_document(
+      "<p>vite</p>",
+      &["ignored.css".into()],
+      &["ignored.js".into()],
+      false,
+      Some(&vite),
+    );
+
+    // All three Vite scripts present
+    assert!(result.contains("@react-refresh"), "must inject React Refresh preamble");
+    assert!(result.contains("/@vite/client"), "must inject Vite HMR client");
+    assert!(result.contains("src/client/main.tsx"), "must inject app entry");
+
+    // No static asset references
+    assert!(!result.contains("/_seam/static/"), "vite mode must not reference static assets");
+    assert!(!result.contains("ignored.css"));
+    assert!(!result.contains("ignored.js"));
+  }
+
+  #[test]
+  fn vite_mode_preserves_live_reload() {
+    let vite = ViteDevInfo {
+      origin: "http://localhost:5173".to_string(),
+      entry: "src/client/main.tsx".to_string(),
+    };
+    let result = wrap_document("<p>vite-dev</p>", &[], &[], true, Some(&vite));
+
+    // Vite scripts present
+    assert!(result.contains("/@vite/client"));
+    // WebSocket live reload also present (dev_mode=true)
+    assert!(result.contains("WebSocket"), "live reload must still be injected in dev_mode");
   }
 }
