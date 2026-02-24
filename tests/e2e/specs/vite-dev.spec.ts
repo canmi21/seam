@@ -75,7 +75,10 @@ test.describe("vite dev integration", () => {
     // 2. No production asset references
     expect(html).not.toMatch(/\/_seam\/static\/assets\//);
 
-    // 3. [vite] connected appears in console (HMR handshake)
+    // 3. No independent WebSocket reload (Vite HMR handles it)
+    expect(html).not.toContain("/_seam/dev/ws");
+
+    // 4. [vite] connected appears in console (HMR handshake)
     await expect
       .poll(() => consoleMessages.some((m) => m.includes("[vite] connected")), {
         timeout: 10_000,

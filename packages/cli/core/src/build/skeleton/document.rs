@@ -60,7 +60,7 @@ pub fn wrap_document(
       doc.push_str(&format!(r#"<script type="module" src="/_seam/static/{f}"></script>"#));
     }
   }
-  if dev_mode {
+  if dev_mode && vite.is_none() {
     doc.push_str(LIVE_RELOAD_SCRIPT);
   }
   doc.push_str("</body></html>");
@@ -181,7 +181,7 @@ mod tests {
   }
 
   #[test]
-  fn vite_mode_preserves_live_reload() {
+  fn vite_mode_skips_websocket_reload() {
     let vite = ViteDevInfo {
       origin: "http://localhost:5173".to_string(),
       entry: "src/client/main.tsx".to_string(),
@@ -190,7 +190,7 @@ mod tests {
 
     // Vite scripts present
     assert!(result.contains("/@vite/client"));
-    // WebSocket live reload also present (dev_mode=true)
-    assert!(result.contains("WebSocket"), "live reload must still be injected in dev_mode");
+    // WebSocket live reload must NOT be injected — Vite HMR handles reload
+    assert!(!result.contains("/_seam/dev/ws"), "vite mode must not inject WebSocket reload");
   }
 }

@@ -10,17 +10,18 @@ import { buildRouter } from "./router.js";
 import type { ServerWebSocket } from "bun";
 
 const isDev = process.env.SEAM_DEV === "1";
+const isVite = process.env.SEAM_VITE === "1";
 const BUILD_DIR = isDev ? process.env.SEAM_OUTPUT_DIR! : resolve(import.meta.dir, "..");
 const pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR);
 const router = buildRouter({ pages });
 
 const app = new Hono();
 
-// Dev-mode WebSocket for live reload
+// Dev-mode WebSocket for live reload (skipped when Vite handles HMR)
 const { upgradeWebSocket, websocket } = createBunWebSocket();
 const devClients = new Set<ServerWebSocket>();
 
-if (isDev) {
+if (isDev && !isVite) {
   app.get(
     "/_seam/dev/ws",
     upgradeWebSocket(() => ({

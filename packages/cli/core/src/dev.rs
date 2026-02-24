@@ -433,12 +433,12 @@ async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
     .dev_command
     .as_deref()
     .context("backend.dev_command is required for fullstack dev mode")?;
-  let mut proc = spawn_child(
-    "backend",
-    backend_cmd_str,
-    base_dir,
-    &[("PORT", &port_str), ("SEAM_DEV", "1"), ("SEAM_OUTPUT_DIR", &out_dir_str)],
-  )?;
+  let mut env_vars: Vec<(&str, &str)> =
+    vec![("PORT", &port_str), ("SEAM_DEV", "1"), ("SEAM_OUTPUT_DIR", &out_dir_str)];
+  if vite_port.is_some() {
+    env_vars.push(("SEAM_VITE", "1"));
+  }
+  let mut proc = spawn_child("backend", backend_cmd_str, base_dir, &env_vars)?;
   pipe_output(&mut proc).await;
   children.push(proc);
 
