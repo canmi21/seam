@@ -402,6 +402,9 @@ pub fn run_incremental_rebuild(
   let manifest_json_path = out_dir.join("seam-manifest.json");
   let skeleton_output =
     run_skeleton_renderer(&script_path, &routes_path, &manifest_json_path, base_dir)?;
+  for w in &skeleton_output.warnings {
+    ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
+  }
   print_cache_stats(&skeleton_output.cache);
 
   let manifest_str = std::fs::read_to_string(&manifest_json_path)
