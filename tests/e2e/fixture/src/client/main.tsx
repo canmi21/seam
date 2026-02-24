@@ -20,7 +20,7 @@ const routeMap: Record<string, ComponentType> = {
   "/test-html": HtmlSlotSkeleton,
 };
 
-const seamRoot = document.getElementById("__SEAM_ROOT__");
+const seamRoot = document.getElementById("__seam");
 
 if (seamRoot) {
   const Component = routeMap[window.location.pathname];

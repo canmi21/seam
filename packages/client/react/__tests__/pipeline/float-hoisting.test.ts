@@ -192,12 +192,14 @@ describe("3.1b Float hoisted metadata (advanced)", () => {
     });
 
     const headSection = template.split("</head>")[0];
-    expect(headSection).not.toContain("<!--seam:");
+    expect(headSection).toContain("<!--seam:");
     expect(headSection).toContain("<meta charset");
 
-    const rootMatch = template.match(/__SEAM_ROOT__">([\s\S]*?)<\/div>\n<\/body>/);
+    const rootMatch = template.match(/__seam">([\s\S]*?)<\/div>\n<\/body>/);
     expect(rootMatch).not.toBeNull();
     const rootContent = rootMatch![1];
-    expect(rootContent).toContain("<!--seam:");
+    // Metadata extracted to <head>, only body content remains in root
+    expect(rootContent).toContain("content");
+    expect(rootContent).not.toContain("<title>");
   });
 });

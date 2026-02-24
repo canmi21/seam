@@ -6,7 +6,7 @@ test.describe("async loading", () => {
     await page.goto("/async", { waitUntil: "networkidle" });
     // Hydration turns the static HTML into the React tree with loading state
     await page
-      .locator("#__SEAM_ROOT__")
+      .locator("#__seam")
       .locator(":scope > *")
       .first()
       .waitFor({ timeout: 5_000 })

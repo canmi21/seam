@@ -630,24 +630,23 @@ mod tests {
   fn float_full_document() {
     let tmpl = concat!(
       r#"<!DOCTYPE html><html><head><meta charset="utf-8">"#,
-      r#"<link rel="stylesheet" href="/_seam/static/style.css">"#,
-      r#"</head><body><div id="__SEAM_ROOT__">"#,
       "<title><!--seam:t--></title>",
       r#"<!--seam:d:attr:content--><meta name="description">"#,
+      r#"<link rel="stylesheet" href="/_seam/static/style.css">"#,
+      r#"</head><body><div id="__seam">"#,
       "<p><!--seam:body--></p>",
       "</div></body></html>",
     );
     let data = json!({"t": "Home", "d": "Welcome page", "body": "Hello world"});
     let html = inject(tmpl, &data);
 
-    // <head> section untouched
+    // <head> section has injected values
     let head = html.split("</head>").next().unwrap();
     assert!(head.contains("style.css"));
-    assert!(!head.contains("<!--seam:"));
+    assert!(head.contains("<title>Home</title>"), "injected title in <head>");
+    assert!(head.contains(r#"content="Welcome page""#), "injected meta in <head>");
 
     // Content injected correctly
-    assert!(html.contains("<title>Home</title>"));
-    assert!(html.contains(r#"content="Welcome page""#));
     assert!(html.contains("<p>Hello world</p>"));
 
     // __SEAM_DATA__ script lands before </body>

@@ -26,6 +26,7 @@ pub struct BuildConfig {
   pub type_hint: bool,
   pub hash_length: usize,
   pub rpc_salt: Option<String>,
+  pub root_id: String,
 }
 
 impl BuildConfig {
@@ -76,6 +77,8 @@ impl BuildConfig {
       bail!("hash_length must be between 4 and 64 (got {hash_length})");
     }
 
+    let root_id = config.frontend.root_id.clone();
+
     Ok(Self {
       bundler_mode,
       bundler_manifest,
@@ -91,6 +94,7 @@ impl BuildConfig {
       type_hint,
       hash_length,
       rpc_salt: None,
+      root_id,
     })
   }
 

@@ -59,7 +59,7 @@ describe("round-trip: render -> slots -> inject", () => {
     // Step 3: Wrap in document
     const template = wrapDocument(slotHtml, ["style.css"], ["main.js"]);
     expect(template).toContain("<!DOCTYPE html>");
-    expect(template).toContain("__SEAM_ROOT__");
+    expect(template).toContain("__seam");
 
     // Step 4: Inject real data
     const realData = {
@@ -296,11 +296,11 @@ describe("react 19: markers and metadata", () => {
     const slotHtml = sentinelToSlots(rawHtml);
     expect(slotHtml).toContain("<!--seam:pageTitle-->");
 
-    // wrapDocument adds its own <head>; hoisted metadata stays inside __SEAM_ROOT__
+    // wrapDocument extracts metadata to <head>; body content stays inside __seam root div
     const template = wrapDocument(slotHtml, ["style.css"], []);
     const headSection = template.split("</head>")[0];
     expect(headSection).toContain("style.css");
-    expect(headSection).not.toContain("<!--seam:pageTitle-->");
+    expect(headSection).toContain("<!--seam:pageTitle-->");
 
     // Inject real data
     const finalHtml = inject(template, { pageTitle: "My Page" });

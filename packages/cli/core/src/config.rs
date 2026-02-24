@@ -40,13 +40,32 @@ impl Default for BackendConfig {
   }
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct FrontendConfig {
   pub entry: Option<String>,
   pub dev_command: Option<String>,
   pub dev_port: Option<u16>,
   pub build_command: Option<String>,
   pub out_dir: Option<String>,
+  #[serde(default = "default_root_id")]
+  pub root_id: String,
+}
+
+impl Default for FrontendConfig {
+  fn default() -> Self {
+    Self {
+      entry: None,
+      dev_command: None,
+      dev_port: None,
+      build_command: None,
+      out_dir: None,
+      root_id: default_root_id(),
+    }
+  }
+}
+
+fn default_root_id() -> String {
+  "__seam".to_string()
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -371,6 +390,29 @@ name = "my-app"
     let config: SeamConfig = toml::from_str(toml_str).unwrap();
     assert!(config.build.hash_length.is_none());
     assert!(config.dev.hash_length.is_none());
+  }
+
+  #[test]
+  fn parse_root_id_default() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.frontend.root_id, "__seam");
+  }
+
+  #[test]
+  fn parse_root_id_explicit() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+
+[frontend]
+root_id = "app"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.frontend.root_id, "app");
   }
 
   #[test]

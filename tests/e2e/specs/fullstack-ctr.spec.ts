@@ -26,8 +26,8 @@ test.describe("fullstack CTR first-screen", () => {
     expect(html).toContain("Top Repositories");
     expect(html).toContain("__SEAM_DATA__");
 
-    // Verify __SEAM_ROOT__ has content
-    const rootContent = await page.locator("#__SEAM_ROOT__").innerHTML();
+    // Verify __seam has content
+    const rootContent = await page.locator("#__seam").innerHTML();
     expect(rootContent.length).toBeGreaterThan(0);
 
     await waitForHydration(page);

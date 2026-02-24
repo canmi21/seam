@@ -42,7 +42,7 @@ test.describe("hydration", () => {
 
       // wait for React to mount inside the seam root
       await page
-        .locator("#__SEAM_ROOT__")
+        .locator("#__seam")
         .locator(":scope > *")
         .first()
         .waitFor({ timeout: 5_000 })
@@ -67,7 +67,7 @@ test.describe("react 19 features", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/react19", { waitUntil: "networkidle" });
     await page
-      .locator("#__SEAM_ROOT__")
+      .locator("#__seam")
       .locator(":scope > *")
       .first()
       .waitFor({ timeout: 5_000 })

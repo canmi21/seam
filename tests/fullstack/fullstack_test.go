@@ -280,8 +280,8 @@ func assertPageHTML(t *testing.T, path string) string {
 		t.Fatalf("GET %s: status = %d, want 200", path, status)
 	}
 
-	if !strings.Contains(html, "__SEAM_ROOT__") {
-		t.Errorf("HTML missing __SEAM_ROOT__")
+	if !strings.Contains(html, "__seam") {
+		t.Errorf("HTML missing __seam")
 	}
 	if !strings.Contains(html, "__SEAM_DATA__") {
 		t.Errorf("HTML missing __SEAM_DATA__")

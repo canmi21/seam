@@ -6,5 +6,5 @@ import routes from "./routes.js";
 
 seamHydrate({
   routes,
-  root: document.getElementById("__SEAM_ROOT__")!,
+  root: document.getElementById("__seam")!,
 });

@@ -6,7 +6,7 @@ test.describe("form interaction", () => {
     await page.goto("/form", { waitUntil: "networkidle" });
     // Wait for hydration
     await page
-      .locator("#__SEAM_ROOT__")
+      .locator("#__seam")
       .locator(":scope > *")
       .first()
       .waitFor({ timeout: 5_000 })

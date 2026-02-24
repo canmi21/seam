@@ -53,9 +53,10 @@ mod tests {
     assert!(template.contains("<span>Has avatar</span>"));
 
     // Step 3: document wrapping
-    let doc = wrap_document(&template, &["app.css".into()], &["app.js".into()], false, None);
+    let doc =
+      wrap_document(&template, &["app.css".into()], &["app.js".into()], false, None, "__seam");
     assert!(doc.starts_with("<!DOCTYPE html>"));
-    assert!(doc.contains("__SEAM_ROOT__"));
+    assert!(doc.contains("__seam"));
     assert!(doc.contains("<!--seam:user.name-->"));
     assert!(doc.contains("<!--seam:if:user.avatar-->"));
     assert!(doc.contains("app.css"));
@@ -66,7 +67,7 @@ mod tests {
   fn attribute_and_text_mixed_pipeline() {
     let html = r#"<div><a href="%%SEAM:link.url%%">%%SEAM:link.text%%</a></div>"#;
     let result = sentinel_to_slots(html);
-    let doc = wrap_document(&result, &[], &[], false, None);
+    let doc = wrap_document(&result, &[], &[], false, None, "__seam");
     assert!(doc.contains("<!--seam:link.url:attr:href-->"));
     assert!(doc.contains("<!--seam:link.text-->"));
     assert!(!doc.contains("%%SEAM:"));
@@ -82,19 +83,20 @@ mod tests {
     assert!(slotted.contains("<!--seam:d:attr:content-->"));
     assert!(slotted.contains("<!--seam:u:attr:href-->"));
 
-    let doc = wrap_document(&slotted, &["style.css".into()], &["app.js".into()], false, None);
+    let doc =
+      wrap_document(&slotted, &["style.css".into()], &["app.js".into()], false, None, "__seam");
     assert!(doc.starts_with("<!DOCTYPE html>"));
 
-    // Markers stay in __SEAM_ROOT__, not in <head>
+    // Markers extracted into <head>
     let head = doc.split("</head>").next().unwrap();
-    assert!(!head.contains("<!--seam:"), "no seam markers in <head>");
+    assert!(head.contains("<!--seam:t-->"), "title slot in <head>");
+    assert!(head.contains("<!--seam:d:attr:content-->"), "meta slot in <head>");
+    assert!(head.contains("<!--seam:u:attr:href-->"), "link slot in <head>");
     assert!(head.contains("style.css"));
 
-    let root = &doc[doc.find("__SEAM_ROOT__").unwrap()..];
-    assert!(root.contains("<!--seam:t-->"));
-    assert!(root.contains("<!--seam:d:attr:content-->"));
-    assert!(root.contains("<!--seam:u:attr:href-->"));
-    assert!(root.contains("<!--seam:body-->"));
+    let root = &doc[doc.find("__seam").unwrap()..];
+    assert!(!root.contains("<title>"), "title not in root");
+    assert!(root.contains("<!--seam:body-->"), "body content in root");
   }
 
   #[test]
@@ -114,8 +116,10 @@ mod tests {
     assert!(template.contains("<!--seam:t-->"));
     assert!(template.contains("<!--seam:body-->"));
 
-    let doc = wrap_document(&template, &[], &[], false, None);
+    let doc = wrap_document(&template, &[], &[], false, None, "__seam");
     let head = doc.split("</head>").next().unwrap();
-    assert!(!head.contains("<!--seam:"), "no seam markers in <head>");
+    assert!(head.contains("<!--seam:t-->"), "title slot in <head>");
+    // Conditional meta also extracted since if/endif + meta are all metadata-like
+    assert!(head.contains("<!--seam:if:og-->"), "conditional in <head>");
   }
 }

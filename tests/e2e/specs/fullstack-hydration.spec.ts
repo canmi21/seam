@@ -15,7 +15,7 @@ test.describe("fullstack hydration interaction", () => {
 
     // Stamp the layout root node — React re-mount destroys it
     await page.evaluate(() => {
-      const layout = document.querySelector("#__SEAM_ROOT__ > div") as HTMLElement;
+      const layout = document.querySelector("#__seam > div") as HTMLElement;
       layout.dataset.spaStamp = "layout-alive";
     });
 
@@ -27,7 +27,7 @@ test.describe("fullstack hydration interaction", () => {
 
     // Layout root should survive SPA navigation (not re-mounted)
     const stampSurvived = await page.evaluate(() => {
-      const layout = document.querySelector("#__SEAM_ROOT__ > div") as HTMLElement;
+      const layout = document.querySelector("#__seam > div") as HTMLElement;
       return layout?.dataset.spaStamp;
     });
     expect(stampSurvived, "layout DOM re-mounted during SPA navigation").toBe("layout-alive");

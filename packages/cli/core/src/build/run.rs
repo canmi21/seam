@@ -135,6 +135,7 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
     &assets,
     false,
     None,
+    &build_config.root_id,
   )?;
   ui::blank();
 
@@ -268,6 +269,7 @@ fn run_fullstack_build(
     &assets,
     false,
     None,
+    &build_config.root_id,
   )?;
 
   // Write route-manifest.json
@@ -390,6 +392,7 @@ pub fn run_dev_build(
     &assets,
     true,
     vite.as_ref(),
+    &build_config.root_id,
   )?;
 
   let route_manifest_path = out_dir.join("route-manifest.json");
@@ -501,6 +504,7 @@ pub fn run_incremental_rebuild(
     &assets,
     true,
     vite.as_ref(),
+    &build_config.root_id,
   )?;
 
   let route_manifest_path = out_dir.join("route-manifest.json");

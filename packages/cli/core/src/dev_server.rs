@@ -131,8 +131,8 @@ mod tests {
     assert!(html.contains(r#"<div id="root">"#));
     assert!(html.contains(r#"href="/assets/style-abc.css""#));
     assert!(html.contains(r#"src="/assets/main-xyz.js""#));
-    // Must NOT contain __SEAM_ROOT__ (that triggers hydration mode)
-    assert!(!html.contains("__SEAM_ROOT__"));
+    // Must NOT contain __seam (CTR root id)
+    assert!(!html.contains("__seam"));
   }
 
   #[test]

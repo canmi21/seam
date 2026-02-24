@@ -232,10 +232,10 @@ describe("metadata tag injection", () => {
   it("injects into full document with hoisted metadata", () => {
     const tmpl = [
       '<!DOCTYPE html><html><head><meta charset="utf-8">',
-      '<link rel="stylesheet" href="/_seam/static/style.css">',
-      '</head><body><div id="__SEAM_ROOT__">',
       "<title><!--seam:t--></title>",
       '<!--seam:d:attr:content--><meta name="description">',
+      '<link rel="stylesheet" href="/_seam/static/style.css">',
+      '</head><body><div id="__seam">',
       "<p><!--seam:body--></p>",
       "</div></body></html>",
     ].join("");
@@ -246,14 +246,13 @@ describe("metadata tag injection", () => {
       { skipDataScript: true },
     );
 
-    // <head> section untouched
+    // <head> section has injected values
     const head = html.split("</head>")[0];
     expect(head).toContain("style.css");
-    expect(head).not.toContain("<!--seam:");
+    expect(head).toContain("<title>Home</title>");
+    expect(head).toContain('content="Welcome page"');
 
     // Content injected correctly
-    expect(html).toContain("<title>Home</title>");
-    expect(html).toContain('content="Welcome page"');
     expect(html).toContain("<p>Hello world</p>");
   });
 });

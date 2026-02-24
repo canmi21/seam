@@ -43,7 +43,7 @@ export function setupHydrationErrorCollector(page: Page): () => string[] {
 /** Wait for hydration: root content rendered + 500ms grace period. */
 export async function waitForHydration(page: Page): Promise<void> {
   await page
-    .locator("#__SEAM_ROOT__")
+    .locator("#__seam")
     .locator(":scope > *")
     .first()
     .waitFor({ timeout: 5_000 })

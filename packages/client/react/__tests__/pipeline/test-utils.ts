@@ -105,13 +105,94 @@ export function sentinelToSlots(html: string): string {
   return result.replace(textRe, "<!--seam:$1-->");
 }
 
+// -- Metadata extraction (mirrors Rust extract_head_metadata) --
+// Comments are consumed speculatively; only actual metadata elements advance
+// the "confirmed" boundary. After the last metadata, trailing endif/else
+// directives are included to keep if/endif pairs intact.
+
+function extractHeadMetadata(skeleton: string): [string, string] {
+  let pos = 0;
+  let confirmed = 0;
+  const len = skeleton.length;
+
+  while (pos < len) {
+    if (/\s/.test(skeleton[pos])) {
+      pos++;
+      continue;
+    }
+    if (skeleton[pos] !== "<") break;
+
+    // Comments: consume speculatively (don't advance confirmed)
+    if (skeleton.startsWith("<!--", pos)) {
+      const end = skeleton.indexOf("-->", pos);
+      if (end === -1) break;
+      pos = end + 3;
+      continue;
+    }
+
+    // Metadata elements: consume and confirm
+    if (skeleton.startsWith("<title", pos)) {
+      const end = skeleton.indexOf("</title>", pos);
+      if (end === -1) break;
+      pos = end + 8;
+      confirmed = pos;
+      continue;
+    }
+    if (skeleton.startsWith("<meta", pos)) {
+      const end = skeleton.indexOf(">", pos);
+      if (end === -1) break;
+      pos = end + 1;
+      confirmed = pos;
+      continue;
+    }
+    if (skeleton.startsWith("<link", pos)) {
+      const end = skeleton.indexOf(">", pos);
+      if (end === -1) break;
+      pos = end + 1;
+      confirmed = pos;
+      continue;
+    }
+
+    break;
+  }
+
+  // Include trailing endif/else directives that pair with consumed if directives
+  if (confirmed > 0) {
+    let trail = confirmed;
+    while (trail < len) {
+      while (trail < len && /\s/.test(skeleton[trail])) trail++;
+      if (trail >= len) break;
+      const rest = skeleton.slice(trail);
+      if (rest.startsWith("<!--seam:end") || rest.startsWith("<!--seam:else")) {
+        const end = skeleton.indexOf("-->", trail);
+        if (end === -1) break;
+        trail = end + 3;
+        continue;
+      }
+      break;
+    }
+    confirmed = trail;
+  }
+
+  return [skeleton.slice(0, confirmed), skeleton.slice(confirmed)];
+}
+
 // -- Document wrapper --
 
-export function wrapDocument(skeleton: string, css: string[], js: string[]): string {
+export function wrapDocument(
+  skeleton: string,
+  css: string[],
+  js: string[],
+  rootId = "__seam",
+): string {
+  const [headMeta, bodySkeleton] = extractHeadMetadata(skeleton);
   let doc = '<!DOCTYPE html>\n<html>\n<head>\n    <meta charset="utf-8">\n';
+  // No extra formatting around headMeta — inject doesn't strip whitespace
+  // from empty conditional blocks, so extra indentation would cause mismatches.
+  if (headMeta) doc += headMeta;
   for (const f of css) doc += `    <link rel="stylesheet" href="/_seam/static/${f}">\n`;
-  doc += '</head>\n<body>\n    <div id="__SEAM_ROOT__">';
-  doc += skeleton;
+  doc += `</head>\n<body>\n    <div id="${rootId}">`;
+  doc += bodySkeleton;
   doc += "</div>\n";
   for (const f of js) doc += `    <script type="module" src="/_seam/static/${f}"></script>\n`;
   doc += "</body>\n</html>";

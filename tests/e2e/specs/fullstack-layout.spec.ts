@@ -41,7 +41,7 @@ test.describe("fullstack layout", () => {
     await page.goto("/", { waitUntil: "networkidle" });
 
     await page
-      .locator("#__SEAM_ROOT__")
+      .locator("#__seam")
       .locator(":scope > *")
       .first()
       .waitFor({ timeout: 5_000 })
