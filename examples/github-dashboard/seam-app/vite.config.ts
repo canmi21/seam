@@ -4,7 +4,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { watchReloadTrigger } from "@canmi/seam-server";
 
-function seamReloadPlugin(outDir = ".seam/output"): Plugin {
+function seamReloadPlugin(outDir = ".seam/dev-output"): Plugin {
   return {
     name: "seam-reload",
     configureServer(server) {

@@ -39,7 +39,7 @@ let devProc: ChildProcess;
 test.beforeAll(async () => {
   // Force dev build by removing production route-manifest.json.
   // Without this, seam dev skips initial build and serves stale production templates.
-  const manifest = path.join(appDir, ".seam/output/route-manifest.json");
+  const manifest = path.join(appDir, ".seam/dev-output/route-manifest.json");
   if (fs.existsSync(manifest)) fs.unlinkSync(manifest);
 
   devProc = spawn(seamBin, ["dev"], {

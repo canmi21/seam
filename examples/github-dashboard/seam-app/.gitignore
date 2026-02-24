@@ -1,3 +1,4 @@
 .seam/output/
+.seam/dev-output/
 src/generated/
 dist/

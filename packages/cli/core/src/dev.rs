@@ -372,7 +372,13 @@ async fn handle_rebuild(
 }
 
 async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
-  let build_config = BuildConfig::from_seam_config(config)?;
+  let mut build_config = BuildConfig::from_seam_config(config)?;
+  // Dev writes to sibling dir to avoid overwriting production output
+  let dev_dir = std::path::Path::new(&build_config.out_dir)
+    .parent()
+    .unwrap_or(std::path::Path::new("."))
+    .join("dev-output");
+  build_config.out_dir = dev_dir.to_string_lossy().to_string();
   let out_dir = base_dir.join(&build_config.out_dir);
 
   // Skip build if route-manifest.json already exists
