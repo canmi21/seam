@@ -22,12 +22,19 @@ export default defineConfig({
     {
       name: "chromium",
       use: { browserName: "chromium", baseURL: "http://localhost:3456" },
-      testIgnore: /fullstack/,
+      testIgnore: /fullstack|vite-dev/,
     },
     {
       name: "fullstack",
       use: { browserName: "chromium", baseURL: "http://localhost:3457" },
       testMatch: /fullstack/,
+    },
+    {
+      name: "vite-dev",
+      use: { browserName: "chromium", baseURL: "http://localhost:3000" },
+      testMatch: /vite-dev/,
+      dependencies: ["fullstack"],
+      timeout: 60_000,
     },
   ],
 
