@@ -2,6 +2,7 @@
 
 // Shared types for the build pipeline.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -25,6 +26,16 @@ impl From<SeamManifest> for AssetFiles {
   }
 }
 
+/// Single entry in Vite's `.vite/manifest.json`.
+#[derive(Debug, Deserialize)]
+struct ViteManifestEntry {
+  file: String,
+  #[serde(default)]
+  css: Vec<String>,
+  #[serde(default, rename = "isEntry")]
+  is_entry: bool,
+}
+
 /// Vite dev server info, threaded through the build pipeline to replace
 /// static asset references with Vite-served modules.
 #[derive(Debug, Clone)]
@@ -36,6 +47,23 @@ pub struct ViteDevInfo {
 pub fn read_bundle_manifest(path: &Path) -> Result<AssetFiles> {
   let content = std::fs::read_to_string(path)
     .with_context(|| format!("failed to read bundle manifest at {}", path.display()))?;
+
+  // Try Vite format: { "src/...": { file, css, isEntry } }
+  if let Ok(vite) = serde_json::from_str::<HashMap<String, ViteManifestEntry>>(&content) {
+    if vite.values().any(|e| e.is_entry) {
+      let mut js = vec![];
+      let mut css = vec![];
+      for entry in vite.values() {
+        if entry.is_entry {
+          js.push(entry.file.clone());
+          css.extend(entry.css.iter().cloned());
+        }
+      }
+      return Ok(AssetFiles { js, css });
+    }
+  }
+
+  // Fallback: Seam format { js: [], css: [] }
   let manifest: SeamManifest =
     serde_json::from_str(&content).context("failed to parse bundle manifest")?;
   Ok(manifest.into())
