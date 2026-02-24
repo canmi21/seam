@@ -3,7 +3,8 @@
 import { build } from "esbuild";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
-import { readFileSync, unlinkSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { readFileSync, writeFileSync, mkdirSync, unlinkSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SeamDataProvider, buildSentinelData } from "@canmi/seam-react";
@@ -37,6 +38,7 @@ class SeamBuildError extends Error {
 }
 
 const buildWarnings = [];
+const seenWarnings = new Set();
 
 // Matches React-injected resource hint <link> tags.
 // Only rel values used by React's resource APIs are targeted (preload, dns-prefetch, preconnect,
@@ -138,9 +140,13 @@ function guardedRender(routePath, component, data) {
     throw new SeamBuildError(msg);
   }
 
-  // After fatal check, only warnings remain
+  // After fatal check, only warnings remain — dedup per message
   for (const v of violations) {
-    buildWarnings.push(`[seam] warning: ${routePath}\n  ${v.reason}`);
+    const msg = `[seam] warning: ${routePath}\n  ${v.reason}`;
+    if (!seenWarnings.has(msg)) {
+      seenWarnings.add(msg);
+      buildWarnings.push(msg);
+    }
   }
   if (violations.length > 0) {
     html = stripResourceHints(html);
@@ -308,6 +314,159 @@ function flattenRoutes(routes, currentLayout) {
   return leaves;
 }
 
+// -- Cache helpers --
+
+/** Parse import statements to map local names to specifiers */
+function parseComponentImports(source) {
+  const map = new Map();
+  const re = /import\s+(?:(\w+)\s*,?\s*)?(?:\{([^}]*)\}\s*)?from\s+['"]([^'"]+)['"]/g;
+  let m;
+  while ((m = re.exec(source)) !== null) {
+    const [, defaultName, namedPart, specifier] = m;
+    if (defaultName) map.set(defaultName, specifier);
+    if (namedPart) {
+      for (const part of namedPart.split(",")) {
+        const t = part.trim();
+        if (!t) continue;
+        const asMatch = t.match(/^(\w+)\s+as\s+(\w+)$/);
+        if (asMatch) {
+          map.set(asMatch[2], specifier);
+          map.set(asMatch[1], specifier);
+        } else {
+          map.set(t, specifier);
+        }
+      }
+    }
+  }
+  return map;
+}
+
+/** Bundle each component via esbuild (write: false) and SHA-256 hash the output */
+async function computeComponentHashes(names, importMap, routesDir) {
+  const hashes = new Map();
+  const seen = new Set();
+  const tasks = [];
+  for (const name of names) {
+    const specifier = importMap.get(name);
+    if (!specifier || seen.has(specifier)) continue;
+    seen.add(specifier);
+    tasks.push(
+      build({
+        stdin: { contents: `import '${specifier}'`, resolveDir: routesDir, loader: "js" },
+        bundle: true,
+        write: false,
+        format: "esm",
+        platform: "node",
+        treeShaking: false,
+        external: ["react", "react-dom", "@canmi/seam-react"],
+        logLevel: "silent",
+      })
+        .then((result) => {
+          const content = result.outputFiles[0]?.text || "";
+          const hash = createHash("sha256").update(content).digest("hex");
+          for (const [n, s] of importMap) {
+            if (s === specifier) hashes.set(n, hash);
+          }
+        })
+        .catch(() => {
+          // Hash computation failed — skip caching for this component
+        }),
+    );
+  }
+  await Promise.all(tasks);
+  return hashes;
+}
+
+function computeScriptHash() {
+  const files = ["build-skeletons.mjs", "variant-generator.mjs", "mock-generator.mjs"];
+  const h = createHash("sha256");
+  for (const f of files) h.update(readFileSync(join(__dirname, f), "utf-8"));
+  return h.digest("hex");
+}
+
+function pathToSlug(path) {
+  const t = path
+    .replace(/^\/|\/$/g, "")
+    .replace(/\//g, "-")
+    .replace(/:/g, "");
+  return t || "index";
+}
+
+function readCache(cacheDir, slug) {
+  try {
+    return JSON.parse(readFileSync(join(cacheDir, `${slug}.json`), "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(cacheDir, slug, key, data) {
+  writeFileSync(join(cacheDir, `${slug}.json`), JSON.stringify({ key, data }));
+}
+
+function computeCacheKey(componentHash, manifestContent, config, scriptHash) {
+  const h = createHash("sha256");
+  h.update(componentHash);
+  h.update(manifestContent);
+  h.update(JSON.stringify(config));
+  h.update(scriptHash);
+  return h.digest("hex").slice(0, 16);
+}
+
+function processLayoutsWithCache(layoutMap, ctx) {
+  return [...layoutMap.entries()].map(([id, entry]) => {
+    const compHash = ctx.componentHashes.get(entry.component?.name);
+    if (compHash) {
+      const config = { id, loaders: entry.loaders, mock: entry.mock };
+      const key = computeCacheKey(compHash, ctx.manifestContent, config, ctx.scriptHash);
+      const slug = `layout_${id}`;
+      const cached = readCache(ctx.cacheDir, slug);
+      if (cached && cached.key === key) {
+        ctx.stats.hits++;
+        return cached.data;
+      }
+      const data = {
+        id,
+        html: renderLayout(entry.component, id, entry, ctx.manifest),
+        loaders: entry.loaders,
+        parent: entry.parentId,
+      };
+      writeCache(ctx.cacheDir, slug, key, data);
+      ctx.stats.misses++;
+      return data;
+    }
+    ctx.stats.misses++;
+    return {
+      id,
+      html: renderLayout(entry.component, id, entry, ctx.manifest),
+      loaders: entry.loaders,
+      parent: entry.parentId,
+    };
+  });
+}
+
+function processRoutesWithCache(flat, ctx) {
+  return flat.map((r) => {
+    const compHash = ctx.componentHashes.get(r.component?.name);
+    if (compHash) {
+      const config = { path: r.path, loaders: r.loaders, mock: r.mock, nullable: r.nullable };
+      const key = computeCacheKey(compHash, ctx.manifestContent, config, ctx.scriptHash);
+      const slug = `route_${pathToSlug(r.path)}`;
+      const cached = readCache(ctx.cacheDir, slug);
+      if (cached && cached.key === key) {
+        ctx.stats.hits++;
+        return cached.data;
+      }
+      const data = renderRoute(r, ctx.manifest);
+      writeCache(ctx.cacheDir, slug, key, data);
+      ctx.stats.misses++;
+      return data;
+    }
+    ctx.stats.misses++;
+    return renderRoute(r, ctx.manifest);
+  });
+}
+
 // -- Main --
 
 async function main() {
@@ -321,16 +480,23 @@ async function main() {
 
   // Load manifest if provided
   let manifest = null;
+  let manifestContent = "";
   if (manifestFile && manifestFile !== "none") {
     try {
-      manifest = JSON.parse(readFileSync(resolve(manifestFile), "utf-8"));
+      manifestContent = readFileSync(resolve(manifestFile), "utf-8");
+      manifest = JSON.parse(manifestContent);
     } catch (e) {
       console.error(`warning: could not read manifest: ${e.message}`);
     }
   }
 
   const absRoutes = resolve(routesFile);
+  const routesDir = dirname(absRoutes);
   const outfile = join(__dirname, ".tmp-routes-bundle.mjs");
+
+  // Parse imports from source (before bundle) for component hash resolution
+  const routesSource = readFileSync(absRoutes, "utf-8");
+  const importMap = parseComponentImports(routesSource);
 
   await build({
     entryPoints: [absRoutes],
@@ -349,17 +515,43 @@ async function main() {
     }
 
     const layoutMap = extractLayouts(routes);
-    const layouts = [...layoutMap.entries()].map(([id, entry]) => ({
-      id,
-      html: renderLayout(entry.component, id, entry, manifest),
-      loaders: entry.loaders,
-      parent: entry.parentId,
-    }));
     const flat = flattenRoutes(routes);
+
+    // Collect all unique component names for hashing
+    const componentNames = new Set();
+    for (const [, entry] of layoutMap) {
+      if (entry.component?.name) componentNames.add(entry.component.name);
+    }
+    for (const route of flat) {
+      if (route.component?.name) componentNames.add(route.component.name);
+    }
+
+    const [componentHashes, scriptHash] = await Promise.all([
+      computeComponentHashes([...componentNames], importMap, routesDir),
+      Promise.resolve(computeScriptHash()),
+    ]);
+
+    // Set up cache directory
+    const cacheDir = join(process.cwd(), ".seam", "cache", "skeletons");
+    mkdirSync(cacheDir, { recursive: true });
+
+    const ctx = {
+      componentHashes,
+      scriptHash,
+      manifestContent,
+      manifest,
+      cacheDir,
+      stats: { hits: 0, misses: 0 },
+    };
+
+    const layouts = processLayoutsWithCache(layoutMap, ctx);
+    const renderedRoutes = processRoutesWithCache(flat, ctx);
+
     const output = {
       layouts,
-      routes: flat.map((r) => renderRoute(r, manifest)),
+      routes: renderedRoutes,
       warnings: buildWarnings,
+      cacheStats: ctx.stats,
     };
     process.stdout.write(JSON.stringify(output));
   } finally {

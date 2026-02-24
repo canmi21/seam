@@ -10,7 +10,7 @@ use anyhow::{bail, Context, Result};
 use super::config::{BuildConfig, BundlerMode};
 use super::route::{
   extract_manifest, generate_types, package_static_assets, print_asset_files,
-  print_procedure_breakdown, process_routes, run_skeleton_renderer, run_typecheck,
+  print_procedure_breakdown, process_routes, run_skeleton_renderer, run_typecheck, CacheStats,
 };
 use super::types::{read_bundle_manifest, AssetFiles, ViteDevInfo};
 use crate::config::SeamConfig;
@@ -43,6 +43,12 @@ fn vite_info_from_config(config: &SeamConfig) -> Option<ViteDevInfo> {
       .clone()
       .expect("frontend.entry is required when dev.vite_port is set"),
   })
+}
+
+fn print_cache_stats(cache: &Option<CacheStats>) {
+  if let Some(stats) = cache {
+    ui::detail(&format!("skeleton cache: {} hit, {} miss", stats.hits, stats.misses));
+  }
 }
 
 // -- Entry point --
@@ -84,6 +90,7 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
   for w in &skeleton_output.warnings {
     ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
   }
+  print_cache_stats(&skeleton_output.cache);
   ui::detail_ok(&format!("{} routes found", skeleton_output.routes.len()));
   ui::blank();
 
@@ -199,6 +206,7 @@ fn run_fullstack_build(
   for w in &skeleton_output.warnings {
     ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
   }
+  print_cache_stats(&skeleton_output.cache);
 
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
@@ -303,6 +311,7 @@ pub fn run_dev_build(
   for w in &skeleton_output.warnings {
     ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
   }
+  print_cache_stats(&skeleton_output.cache);
 
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
@@ -390,6 +399,7 @@ pub fn run_incremental_rebuild(
   let manifest_json_path = out_dir.join("seam-manifest.json");
   let skeleton_output =
     run_skeleton_renderer(&script_path, &routes_path, &manifest_json_path, base_dir)?;
+  print_cache_stats(&skeleton_output.cache);
 
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)

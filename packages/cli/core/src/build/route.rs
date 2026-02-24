@@ -32,12 +32,20 @@ pub(super) struct SkeletonLayout {
 }
 
 #[derive(Deserialize)]
+pub(super) struct CacheStats {
+  pub(super) hits: u32,
+  pub(super) misses: u32,
+}
+
+#[derive(Deserialize)]
 pub(super) struct SkeletonOutput {
   #[serde(default)]
   pub(super) layouts: Vec<SkeletonLayout>,
   pub(super) routes: Vec<SkeletonRoute>,
   #[serde(default)]
   pub(super) warnings: Vec<String>,
+  #[serde(rename = "cacheStats", default)]
+  pub(super) cache: Option<CacheStats>,
 }
 
 #[derive(Deserialize)]
