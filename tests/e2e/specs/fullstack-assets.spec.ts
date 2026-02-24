@@ -2,8 +2,9 @@
 
 import { test, expect } from "@playwright/test";
 
-const ASSET_CSS_RE = /\/_seam\/static\/style-[0-9a-f]{12}\.css/;
-const ASSET_JS_RE = /\/_seam\/static\/script-[0-9a-f]{12}\.js/;
+// Matches both type_hint formats: "style-{hash}.css" or "{hash}.css"
+const ASSET_CSS_RE = /\/_seam\/static\/(?:style-)?[0-9a-f]+\.css/;
+const ASSET_JS_RE = /\/_seam\/static\/(?:script-)?[0-9a-f]+\.js/;
 const IMMUTABLE_CACHE = "public, max-age=31536000, immutable";
 
 test.describe("production assets", () => {
