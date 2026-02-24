@@ -96,6 +96,24 @@ export async function handlePageRequest(
       innerContent = injectLayout(layout.template, flattenForSlots(data), innerContent);
     }
 
+    // Inject page-level metadata (<title>, <meta>, <link>) into <head>.
+    // These were extracted from the page fragment at build time so they don't
+    // end up inside the root div via <!--seam:outlet--> substitution.
+    // Inserted after <meta charset="utf-8"> so page <title> wins over layout metadata
+    // (first <title> wins in HTML5).
+    if (page.headMeta) {
+      const injectedMeta = inject(page.headMeta, flattenForSlots(pageKeyed), {
+        skipDataScript: true,
+      });
+      const charset = '<meta charset="utf-8">';
+      const charsetIdx = innerContent.indexOf(charset);
+      if (charsetIdx !== -1) {
+        const insertAt = charsetIdx + charset.length;
+        innerContent =
+          innerContent.slice(0, insertAt) + injectedMeta + innerContent.slice(insertAt);
+      }
+    }
+
     // Build __SEAM_DATA__: page data at top level, layout data under _layouts
     const seamData: Record<string, unknown> = { ...pageKeyed };
     if (Object.keys(layoutKeyed).length > 0) {

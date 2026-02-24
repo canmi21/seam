@@ -20,6 +20,7 @@ interface RouteManifestEntry {
   template: string;
   layout?: string;
   loaders: Record<string, LoaderConfig>;
+  head_meta?: string;
 }
 
 interface LoaderConfig {
@@ -140,7 +141,7 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
       ? resolveLayoutChain(entry.layout, layoutEntries, layoutTemplates)
       : [];
 
-    pages[path] = { template, loaders, layoutChain };
+    pages[path] = { template, loaders, layoutChain, headMeta: entry.head_meta };
   }
   return pages;
 }

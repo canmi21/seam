@@ -4,6 +4,7 @@ mod document;
 mod extract;
 mod slot;
 
+pub(crate) use document::extract_head_metadata;
 pub use document::wrap_document;
 pub use extract::extract_template;
 pub use slot::sentinel_to_slots;

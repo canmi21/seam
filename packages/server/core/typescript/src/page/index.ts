@@ -17,6 +17,7 @@ export interface PageDef {
   template: string;
   loaders: Record<string, LoaderFn>;
   layoutChain?: LayoutDef[];
+  headMeta?: string;
 }
 
 export function definePage(config: PageDef): PageDef {

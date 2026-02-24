@@ -117,6 +117,44 @@ describe("loadBuildOutput", () => {
   });
 });
 
+describe("loadBuildOutput — head_meta", () => {
+  it("loads head_meta from manifest into headMeta field", () => {
+    const dir = mkdtempSync(join(tmpdir(), "seam-headmeta-"));
+    mkdirSync(join(dir, "templates"));
+    writeFileSync(join(dir, "templates/index.html"), "<p>body</p>");
+    writeFileSync(
+      join(dir, "route-manifest.json"),
+      JSON.stringify({
+        routes: {
+          "/": {
+            template: "templates/index.html",
+            layout: "root",
+            loaders: {},
+            head_meta: "<title><!--seam:t--></title>",
+          },
+        },
+        layouts: {
+          root: {
+            template: "templates/index.html",
+            loaders: {},
+          },
+        },
+      }),
+    );
+    try {
+      const pages = loadBuildOutput(dir);
+      expect(pages["/"].headMeta).toBe("<title><!--seam:t--></title>");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("headMeta is undefined when head_meta absent from manifest", () => {
+    const pages = loadBuildOutput(distDir);
+    expect(pages["/user/:id"].headMeta).toBeUndefined();
+  });
+});
+
 describe("loadRpcHashMap", () => {
   it("returns hash map when file exists", () => {
     const hashDir = mkdtempSync(join(tmpdir(), "seam-hashmap-"));

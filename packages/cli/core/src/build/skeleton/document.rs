@@ -18,7 +18,7 @@ const LIVE_RELOAD_SCRIPT: &str = concat!(
 /// non-metadata element (e.g. `<!--seam:cls:attr:class--><div>`), they stay
 /// with the body. After the last metadata element, trailing `<!--seam:endif:*-->`
 /// and `<!--seam:else-->` directives are included to keep if/endif pairs intact.
-fn extract_head_metadata(skeleton: &str) -> (&str, &str) {
+pub(crate) fn extract_head_metadata(skeleton: &str) -> (&str, &str) {
   let bytes = skeleton.as_bytes();
   let len = bytes.len();
   let mut pos = 0;

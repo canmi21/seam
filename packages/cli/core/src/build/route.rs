@@ -11,7 +11,9 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 
 use super::ctr_check;
-use super::skeleton::{extract_template, sentinel_to_slots, wrap_document, Axis};
+use super::skeleton::{
+  extract_head_metadata, extract_template, sentinel_to_slots, wrap_document, Axis,
+};
 use super::slot_warning;
 use super::types::{AssetFiles, ViteDevInfo};
 use crate::codegen;
@@ -94,6 +96,8 @@ struct RouteManifestEntry {
   #[serde(skip_serializing_if = "Option::is_none")]
   layout: Option<String>,
   loaders: serde_json::Value,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  head_meta: Option<String>,
 }
 
 /// Convert route path to filename: `/user/:id` -> `user-id.html`, `/` -> `index.html`
@@ -189,11 +193,22 @@ pub(super) fn process_routes(
       }
     }
 
-    // Routes with a layout are fragments; the server composes them at runtime
-    let document = if route.layout.is_some() {
-      template.clone()
+    // Routes with a layout are fragments; the server composes them at runtime.
+    // In production, extract <title>/<meta>/<link> from page fragments so the
+    // server can inject them into <head> (page metadata would otherwise end up
+    // inside the root div via <!--seam:outlet--> substitution).
+    // Dev mode skips extraction: lazy getters re-read template files but not
+    // manifest strings, so keeping metadata inline avoids stale-manifest issues.
+    let (document, head_meta) = if route.layout.is_some() {
+      if dev_mode {
+        (template.clone(), None)
+      } else {
+        let (meta, body) = extract_head_metadata(&template);
+        let hm = if meta.is_empty() { None } else { Some(meta.to_string()) };
+        (body.to_string(), hm)
+      }
     } else {
-      wrap_document(&template, &assets.css, &assets.js, dev_mode, vite, root_id)
+      (wrap_document(&template, &assets.css, &assets.js, dev_mode, vite, root_id), None)
     };
 
     let filename = path_to_filename(&route.path);
@@ -215,6 +230,7 @@ pub(super) fn process_routes(
         template: template_rel,
         layout: route.layout.clone(),
         loaders: route.loaders.clone(),
+        head_meta,
       },
     );
   }
@@ -584,6 +600,66 @@ mod tests {
     );
     let err = validate_procedure_references(&manifest, &skeleton).unwrap_err();
     assert!(err.to_string().contains("Did you mean: getHomeData?"));
+  }
+
+  // -- head_meta extraction tests --
+
+  #[test]
+  fn head_meta_extracted_for_page_with_layout() {
+    // Simulates what process_routes does for a page fragment with a layout in production mode
+    let template = "<title><!--seam:t--></title><div>body</div>";
+    let (meta, body) = extract_head_metadata(template);
+    assert_eq!(meta, "<title><!--seam:t--></title>");
+    assert_eq!(body, "<div>body</div>");
+    // head_meta would be Some(meta.to_string())
+    let head_meta: Option<String> = if meta.is_empty() { None } else { Some(meta.to_string()) };
+    assert_eq!(head_meta, Some("<title><!--seam:t--></title>".to_string()));
+  }
+
+  #[test]
+  fn head_meta_none_for_page_without_metadata() {
+    let template = "<div><p>just body</p></div>";
+    let (meta, body) = extract_head_metadata(template);
+    assert!(meta.is_empty(), "no metadata to extract");
+    assert_eq!(body, template, "body unchanged");
+    let head_meta: Option<String> = if meta.is_empty() { None } else { Some(meta.to_string()) };
+    assert!(head_meta.is_none());
+  }
+
+  #[test]
+  fn head_meta_with_conditional_meta_tag() {
+    let template =
+      "<!--seam:if:og--><!--seam:d:attr:content--><meta name=\"og\"><!--seam:endif:og--><p>body</p>";
+    let (meta, body) = extract_head_metadata(template);
+    assert!(meta.contains("<!--seam:if:og-->"), "conditional directive extracted");
+    assert!(meta.contains("<meta name=\"og\">"), "meta element extracted");
+    assert!(meta.contains("<!--seam:endif:og-->"), "endif directive extracted");
+    assert_eq!(body, "<p>body</p>");
+  }
+
+  #[test]
+  fn head_meta_serialization_skips_none() {
+    let entry = RouteManifestEntry {
+      template: "templates/index.html".to_string(),
+      layout: None,
+      loaders: serde_json::Value::Null,
+      head_meta: None,
+    };
+    let json = serde_json::to_string(&entry).unwrap();
+    assert!(!json.contains("head_meta"), "None head_meta should be skipped in JSON");
+  }
+
+  #[test]
+  fn head_meta_serialization_includes_some() {
+    let entry = RouteManifestEntry {
+      template: "templates/index.html".to_string(),
+      layout: Some("root".to_string()),
+      loaders: serde_json::Value::Null,
+      head_meta: Some("<title><!--seam:t--></title>".to_string()),
+    };
+    let json = serde_json::to_string(&entry).unwrap();
+    assert!(json.contains("head_meta"), "Some head_meta should be present in JSON");
+    assert!(json.contains("<!--seam:t-->"), "head_meta value preserved");
   }
 
   #[test]

@@ -364,6 +364,93 @@ describe("handlePageRequest — flattenForSlots", () => {
 });
 
 // ---------------------------------------------------------------------------
+// headMeta injection into <head>
+// ---------------------------------------------------------------------------
+describe("handlePageRequest — headMeta", () => {
+  const layoutWithHead: LayoutDef = {
+    id: "root",
+    template:
+      '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><!--seam:outlet--></body></html>',
+    loaders: {},
+  };
+
+  it("injects headMeta into <head> after charset", async () => {
+    const page: PageDef = {
+      template: "<main><h1><!--seam:page.title--></h1></main>",
+      loaders: { page: () => ({ procedure: "getData", input: {} }) },
+      layoutChain: [layoutWithHead],
+      headMeta: "<title><!--seam:page.title--></title>",
+    };
+    const procs = makeProcedures(["getData", mockProcedure(() => ({ title: "Hello" }))]);
+    const result = await handlePageRequest(page, {}, procs);
+
+    expect(result.status).toBe(200);
+    // Title should be in <head>, injected with resolved data
+    const head = result.html.split("</head>")[0];
+    expect(head).toContain("<title>Hello</title>");
+    // Title should NOT be in body
+    const body = result.html.split("</head>")[1];
+    expect(body).not.toContain("<title>");
+  });
+
+  it("does not modify output when headMeta is undefined", async () => {
+    const page: PageDef = {
+      template: "<main><h1><!--seam:page.title--></h1></main>",
+      loaders: { page: () => ({ procedure: "getData", input: {} }) },
+      layoutChain: [layoutWithHead],
+    };
+    const procs = makeProcedures(["getData", mockProcedure(() => ({ title: "Hello" }))]);
+    const result = await handlePageRequest(page, {}, procs);
+
+    expect(result.status).toBe(200);
+    const head = result.html.split("</head>")[0];
+    expect(head).not.toContain("<title>");
+    expect(result.html).toContain("<h1>Hello</h1>");
+  });
+
+  it("injects headMeta with conditional directives", async () => {
+    const page: PageDef = {
+      template: "<p>body</p>",
+      loaders: { page: () => ({ procedure: "getData", input: {} }) },
+      layoutChain: [layoutWithHead],
+      headMeta:
+        '<!--seam:if:page.ogTitle--><!--seam:page.ogTitle:attr:content--><meta name="og:title"><!--seam:endif:page.ogTitle-->',
+    };
+    const procs = makeProcedures(["getData", mockProcedure(() => ({ ogTitle: "Share Me" }))]);
+    const result = await handlePageRequest(page, {}, procs);
+
+    const head = result.html.split("</head>")[0];
+    expect(head).toContain('content="Share Me"');
+    expect(head).toContain('name="og:title"');
+  });
+
+  it("page title comes before layout content (first-title-wins)", async () => {
+    const layoutWithTitle: LayoutDef = {
+      id: "root",
+      template:
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Default</title></head><body><!--seam:outlet--></body></html>',
+      loaders: {},
+    };
+    const page: PageDef = {
+      template: "<p>body</p>",
+      loaders: { page: () => ({ procedure: "getData", input: {} }) },
+      layoutChain: [layoutWithTitle],
+      headMeta: "<title><!--seam:page.title--></title>",
+    };
+    const procs = makeProcedures(["getData", mockProcedure(() => ({ title: "Page Title" }))]);
+    const result = await handlePageRequest(page, {}, procs);
+
+    const head = result.html.split("</head>")[0];
+    // Page title should appear before layout default title
+    const pageTitleIdx = head.indexOf("<title>Page Title</title>");
+    const defaultTitleIdx = head.indexOf("<title>Default</title>");
+    expect(pageTitleIdx).toBeGreaterThan(-1);
+    expect(defaultTitleIdx).toBeGreaterThan(-1);
+    expect(pageTitleIdx).toBeLessThan(defaultTitleIdx);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // __SEAM_DATA__ placement
 // ---------------------------------------------------------------------------
 describe("handlePageRequest — data script placement", () => {
