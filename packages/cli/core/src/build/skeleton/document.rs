@@ -14,12 +14,14 @@ const LIVE_RELOAD_SCRIPT: &str = concat!(
 /// Produces minimal single-line output for production templates.
 /// When `dev_mode` is true, injects a live reload WebSocket script before `</body>`.
 /// When `vite` is Some, replaces static CSS/JS refs with Vite dev server scripts.
+/// When `rpc_hash_json` is Some, embeds RPC hash map as a JSON script tag for browser hydration.
 pub fn wrap_document(
   skeleton: &str,
   css_files: &[String],
   js_files: &[String],
   dev_mode: bool,
   vite: Option<&ViteDevInfo>,
+  rpc_hash_json: Option<&str>,
 ) -> String {
   let mut doc = String::from("<!DOCTYPE html><html><head><meta charset=\"utf-8\">");
   if let Some(v) = vite {
@@ -60,6 +62,11 @@ pub fn wrap_document(
       doc.push_str(&format!(r#"<script type="module" src="/_seam/static/{f}"></script>"#));
     }
   }
+  if let Some(json) = rpc_hash_json {
+    doc.push_str(&format!(
+      r#"<script id="__SEAM_RPC_MAP__" type="application/json">{json}</script>"#
+    ));
+  }
   if dev_mode && vite.is_none() {
     doc.push_str(LIVE_RELOAD_SCRIPT);
   }
@@ -79,6 +86,7 @@ mod tests {
       &["main-xyz.js".into()],
       false,
       None,
+      None,
     );
     assert_eq!(
       result,
@@ -95,7 +103,7 @@ mod tests {
 
   #[test]
   fn wraps_without_assets() {
-    let result = wrap_document("<p>Hi</p>", &[], &[], false, None);
+    let result = wrap_document("<p>Hi</p>", &[], &[], false, None, None);
     assert_eq!(
       result,
       concat!(
@@ -111,7 +119,7 @@ mod tests {
   fn wraps_with_hoisted_metadata() {
     let skeleton =
       "<title><!--seam:t--></title><!--seam:d:attr:content--><meta name=\"desc\"><p>content</p>";
-    let result = wrap_document(skeleton, &["style.css".into()], &[], false, None);
+    let result = wrap_document(skeleton, &["style.css".into()], &[], false, None, None);
 
     let head = result.split("</head>").next().unwrap();
     assert!(!head.contains("<!--seam:"), "seam markers must not leak into <head>");
@@ -126,7 +134,7 @@ mod tests {
   #[test]
   fn wraps_with_link_in_skeleton() {
     let skeleton = "<!--seam:u:attr:href--><link rel=\"canonical\"><p>page</p>";
-    let result = wrap_document(skeleton, &["app.css".into()], &[], false, None);
+    let result = wrap_document(skeleton, &["app.css".into()], &[], false, None, None);
 
     let head = result.split("</head>").next().unwrap();
     assert!(head.contains("app.css"));
@@ -139,7 +147,7 @@ mod tests {
 
   #[test]
   fn dev_mode_injects_live_reload_script() {
-    let result = wrap_document("<p>dev</p>", &[], &["app.js".into()], true, None);
+    let result = wrap_document("<p>dev</p>", &[], &["app.js".into()], true, None, None);
     assert!(result.contains("WebSocket"), "dev_mode should inject WebSocket live reload");
     assert!(result.contains("/_seam/dev/ws"));
     let script_pos = result.find("WebSocket").unwrap();
@@ -151,7 +159,7 @@ mod tests {
 
   #[test]
   fn production_mode_no_reload_script() {
-    let result = wrap_document("<p>prod</p>", &[], &["app.js".into()], false, None);
+    let result = wrap_document("<p>prod</p>", &[], &["app.js".into()], false, None, None);
     assert!(!result.contains("WebSocket"), "production mode must not inject live reload");
   }
 
@@ -167,6 +175,7 @@ mod tests {
       &["ignored.js".into()],
       false,
       Some(&vite),
+      None,
     );
 
     // All three Vite scripts present
@@ -186,7 +195,7 @@ mod tests {
       origin: "http://localhost:5173".to_string(),
       entry: "src/client/main.tsx".to_string(),
     };
-    let result = wrap_document("<p>vite-dev</p>", &[], &[], true, Some(&vite));
+    let result = wrap_document("<p>vite-dev</p>", &[], &[], true, Some(&vite), None);
 
     // Vite scripts present
     assert!(result.contains("/@vite/client"));

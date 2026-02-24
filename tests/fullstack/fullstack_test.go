@@ -20,6 +20,11 @@ import (
 
 var baseURL string
 
+var rpcHashMap struct {
+	Procedures map[string]string `json:"procedures"`
+	Batch      string            `json:"batch"`
+}
+
 func projectRoot() string {
 	abs, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -37,6 +42,14 @@ func TestMain(m *testing.M) {
 	if _, err := os.Stat(filepath.Join(buildDir, "route-manifest.json")); os.IsNotExist(err) {
 		fmt.Fprintln(os.Stderr, "build output not found: run 'seam build' in the github-dashboard seam-app first")
 		os.Exit(1)
+	}
+
+	// Load RPC hash map if present (obfuscation enabled)
+	if data, err := os.ReadFile(filepath.Join(buildDir, "rpc-hash-map.json")); err == nil {
+		if err := json.Unmarshal(data, &rpcHashMap); err != nil {
+			fmt.Fprintf(os.Stderr, "failed to parse rpc-hash-map.json: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	// Find a free port to avoid conflicts with other processes
@@ -62,12 +75,12 @@ func TestMain(m *testing.M) {
 
 	baseURL = fmt.Sprintf("http://localhost:%d", port)
 
-	// Health check: poll manifest endpoint
+	// Health check: poll homepage (manifest may be 403 when obfuscated)
 	ready := make(chan struct{})
 	go func() {
 		deadline := time.Now().Add(15 * time.Second)
 		for time.Now().Before(deadline) {
-			resp, err := http.Get(baseURL + "/_seam/manifest.json")
+			resp, err := http.Get(baseURL + "/")
 			if err == nil && resp.StatusCode == 200 {
 				resp.Body.Close()
 				close(ready)
@@ -166,9 +179,30 @@ func assertErrorResponse(t *testing.T, body map[string]any, expectedCode string)
 	}
 }
 
+// rpcEndpoint returns the full URL for an RPC call, using hash map when obfuscation is active.
+func rpcEndpoint(procedure string) string {
+	if hash, ok := rpcHashMap.Procedures[procedure]; ok {
+		return baseURL + "/_seam/rpc/" + hash
+	}
+	return baseURL + "/_seam/rpc/" + procedure
+}
+
 // -- Manifest tests --
 
 func TestManifestEndpoint(t *testing.T) {
+	if rpcHashMap.Batch != "" {
+		// Obfuscation active: manifest endpoint returns 403
+		resp, err := http.Get(baseURL + "/_seam/manifest.json")
+		if err != nil {
+			t.Fatalf("GET manifest: %v", err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != 403 {
+			t.Fatalf("status = %d, want 403 (obfuscated)", resp.StatusCode)
+		}
+		return
+	}
+
 	status, body := getJSON(t, baseURL+"/_seam/manifest.json")
 	if status != 200 {
 		t.Fatalf("status = %d, want 200", status)
@@ -195,7 +229,7 @@ func TestManifestEndpoint(t *testing.T) {
 // -- RPC tests --
 
 func TestRPCQuery(t *testing.T) {
-	status, body := postJSON(t, baseURL+"/_seam/rpc/getUser", map[string]any{
+	status, body := postJSON(t, rpcEndpoint("getUser"), map[string]any{
 		"username": "octocat",
 	})
 	if status != 200 {
@@ -211,7 +245,7 @@ func TestRPCQuery(t *testing.T) {
 }
 
 func TestRPCNotFound(t *testing.T) {
-	status, body := postJSON(t, baseURL+"/_seam/rpc/nonexistent", map[string]any{})
+	status, body := postJSON(t, baseURL+"/_seam/rpc/deadbeef", map[string]any{})
 	if status != 404 {
 		t.Fatalf("status = %d, want 404", status)
 	}
@@ -219,7 +253,7 @@ func TestRPCNotFound(t *testing.T) {
 }
 
 func TestRPCInvalidBody(t *testing.T) {
-	resp, err := http.Post(baseURL+"/_seam/rpc/getHomeData", "application/json", strings.NewReader("not json{"))
+	resp, err := http.Post(rpcEndpoint("getHomeData"), "application/json", strings.NewReader("not json{"))
 	if err != nil {
 		t.Fatalf("POST: %v", err)
 	}

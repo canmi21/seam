@@ -32,6 +32,7 @@ export default defineConfig({
       ...(obfuscate
         ? {
             output: {
+              hashCharacters: "hex",
               entryFileNames: "script-[hash:8].js",
               chunkFileNames: "chunk-[hash:8].js",
               assetFileNames: (info: { names?: string[] }) =>

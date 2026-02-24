@@ -130,6 +130,7 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
     &assets,
     false,
     None,
+    None,
   )?;
   ui::blank();
 
@@ -246,6 +247,13 @@ fn run_fullstack_build(
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
+  let rpc_hash_json = rpc_hashes.as_ref().map(|h| {
+    serde_json::json!({
+      "procedures": h.procedures,
+      "batch": h.batch,
+    })
+    .to_string()
+  });
   let route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -253,6 +261,7 @@ fn run_fullstack_build(
     &assets,
     false,
     None,
+    rpc_hash_json.as_deref(),
   )?;
 
   // Write route-manifest.json
@@ -358,6 +367,13 @@ pub fn run_dev_build(
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
+  let rpc_hash_json = rpc_hashes.as_ref().map(|h| {
+    serde_json::json!({
+      "procedures": h.procedures,
+      "batch": h.batch,
+    })
+    .to_string()
+  });
   let route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -365,6 +381,7 @@ pub fn run_dev_build(
     &assets,
     true,
     vite.as_ref(),
+    rpc_hash_json.as_deref(),
   )?;
 
   let route_manifest_path = out_dir.join("route-manifest.json");
@@ -459,6 +476,26 @@ pub fn run_incremental_rebuild(
     .with_context(|| format!("failed to parse {}", manifest_json_path.display()))?;
   validate_procedure_references(&manifest, &skeleton_output)?;
 
+  // Read RPC hash map from disk (generated in Full mode or a previous build)
+  let rpc_hash_json = {
+    let path = out_dir.join("rpc-hash-map.json");
+    if path.exists() {
+      let raw = std::fs::read_to_string(&path)
+        .with_context(|| format!("failed to read {}", path.display()))?;
+      let map: serde_json::Value = serde_json::from_str(&raw)
+        .with_context(|| format!("failed to parse {}", path.display()))?;
+      Some(
+        serde_json::json!({
+          "procedures": map["procedures"],
+          "batch": map["batch"],
+        })
+        .to_string(),
+      )
+    } else {
+      None
+    }
+  };
+
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
@@ -469,6 +506,7 @@ pub fn run_incremental_rebuild(
     &assets,
     true,
     vite.as_ref(),
+    rpc_hash_json.as_deref(),
   )?;
 
   let route_manifest_path = out_dir.join("route-manifest.json");
