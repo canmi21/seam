@@ -19,6 +19,7 @@ import (
 )
 
 var baseURL string
+var dataID = "__SEAM_DATA__"
 
 var rpcHashMap struct {
 	Procedures map[string]string `json:"procedures"`
@@ -42,6 +43,14 @@ func TestMain(m *testing.M) {
 	if _, err := os.Stat(filepath.Join(buildDir, "route-manifest.json")); os.IsNotExist(err) {
 		fmt.Fprintln(os.Stderr, "build output not found: run 'seam build' in the github-dashboard seam-app first")
 		os.Exit(1)
+	}
+
+	// Read data_id from seam.toml (default: __SEAM_DATA__)
+	if tomlBytes, err := os.ReadFile(filepath.Join(exampleDir, "seam.toml")); err == nil {
+		re := regexp.MustCompile(`(?m)^data_id\s*=\s*"(.+)"`)
+		if m := re.FindSubmatch(tomlBytes); len(m) > 1 {
+			dataID = string(m[1])
+		}
 	}
 
 	// Load RPC hash map if present (obfuscation enabled)
@@ -74,6 +83,7 @@ func TestMain(m *testing.M) {
 	}
 
 	baseURL = fmt.Sprintf("http://localhost:%d", port)
+	seamDataRe = regexp.MustCompile(`<script id="` + regexp.QuoteMeta(dataID) + `" type="application/json">(.+?)</script>`)
 
 	// Health check: poll homepage (manifest may be 403 when obfuscated)
 	ready := make(chan struct{})
@@ -271,7 +281,7 @@ func TestRPCInvalidBody(t *testing.T) {
 
 // -- Page rendering tests --
 
-var seamDataRe = regexp.MustCompile(`<script id="__SEAM_DATA__" type="application/json">(.+?)</script>`)
+var seamDataRe *regexp.Regexp
 
 func assertPageHTML(t *testing.T, path string) string {
 	t.Helper()
@@ -283,8 +293,8 @@ func assertPageHTML(t *testing.T, path string) string {
 	if !strings.Contains(html, "__seam") {
 		t.Errorf("HTML missing __seam")
 	}
-	if !strings.Contains(html, "__SEAM_DATA__") {
-		t.Errorf("HTML missing __SEAM_DATA__")
+	if !strings.Contains(html, dataID) {
+		t.Errorf("HTML missing %s", dataID)
 	}
 	// No unresolved seam markers should remain
 	if strings.Contains(html, "<!--seam:") {

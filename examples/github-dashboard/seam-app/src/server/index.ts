@@ -55,7 +55,7 @@ if (isDev && !isVite) {
 // Seam middleware: handles /_seam/* (RPC, manifest, static, pages)
 app.use("/*", seam(router, { staticDir: resolve(BUILD_DIR, "public"), rpcHashMap }));
 
-// Root-path page serving — inject timing into __SEAM_DATA__._meta
+// Root-path page serving — inject timing into data script's _meta
 app.get("*", async (c) => {
   const result = await router.handlePage(new URL(c.req.url).pathname);
   if (!result) return c.text("Not Found", 404);
