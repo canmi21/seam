@@ -66,8 +66,10 @@ test.describe("vite dev integration", () => {
     const consoleMessages: string[] = [];
     page.on("console", (msg) => consoleMessages.push(msg.text()));
 
-    const response = await page.goto("/", { waitUntil: "networkidle" });
-    const html = await response!.text();
+    await page.goto("/", { waitUntil: "networkidle" });
+    // Use page.content() instead of response.text() — CDP may evict the
+    // response body buffer on resource-constrained CI runners.
+    const html = await page.content();
 
     // 1. Vite HMR client script present
     expect(html).toContain("/@vite/client");
