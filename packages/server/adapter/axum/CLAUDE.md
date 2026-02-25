@@ -9,8 +9,8 @@ See root CLAUDE.md for general project rules.
 | Module       | Responsibility                                                           |
 | ------------ | ------------------------------------------------------------------------ |
 | `lib.rs`     | `IntoAxumRouter` trait + impl for `SeamServer`, re-exports `seam_server` |
-| `handler.rs` | `AppState`, `build_router()`, 4 handler fns (manifest, rpc, sse, page)  |
-| `error.rs`   | `AxumError` newtype, `impl IntoResponse`, `impl From<SeamError>`        |
+| `handler.rs` | `AppState`, `build_router()`, 4 handler fns (manifest, rpc, sse, page)   |
+| `error.rs`   | `AxumError` newtype, `impl IntoResponse`, `impl From<SeamError>`         |
 
 ## Data Flow
 
