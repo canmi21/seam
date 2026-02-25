@@ -192,8 +192,14 @@ type batchCall struct {
 }
 
 type batchResult struct {
-	Data  any  `json:"data,omitempty"`
-	Error *Error `json:"error,omitempty"`
+	Ok    bool          `json:"ok"`
+	Data  any           `json:"data,omitempty"`
+	Error *batchError   `json:"error,omitempty"`
+}
+
+type batchError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }
 
 func (s *appState) handleBatch(w http.ResponseWriter, r *http.Request) {
@@ -223,7 +229,7 @@ func (s *appState) handleBatch(w http.ResponseWriter, r *http.Request) {
 		if s.hashToName != nil {
 			resolved, ok := s.hashToName[name]
 			if !ok {
-				results[i] = batchResult{Error: NotFoundError(fmt.Sprintf("Procedure '%s' not found", name))}
+				results[i] = batchResult{Ok: false, Error: &batchError{Code: "NOT_FOUND", Message: fmt.Sprintf("Procedure '%s' not found", name)}}
 				continue
 			}
 			name = resolved
@@ -231,7 +237,7 @@ func (s *appState) handleBatch(w http.ResponseWriter, r *http.Request) {
 
 		proc, ok := s.handlers[name]
 		if !ok {
-			results[i] = batchResult{Error: NotFoundError(fmt.Sprintf("Procedure '%s' not found", name))}
+			results[i] = batchResult{Ok: false, Error: &batchError{Code: "NOT_FOUND", Message: fmt.Sprintf("Procedure '%s' not found", name)}}
 			continue
 		}
 
@@ -243,21 +249,21 @@ func (s *appState) handleBatch(w http.ResponseWriter, r *http.Request) {
 		result, err := proc.Handler(ctx, input)
 		if err != nil {
 			if ctx.Err() == context.DeadlineExceeded {
-				results[i] = batchResult{Error: NewError("INTERNAL_ERROR", "RPC timed out", http.StatusGatewayTimeout)}
+				results[i] = batchResult{Ok: false, Error: &batchError{Code: "INTERNAL_ERROR", Message: "RPC timed out"}}
 				continue
 			}
 			if seamErr, ok := err.(*Error); ok {
-				results[i] = batchResult{Error: seamErr}
+				results[i] = batchResult{Ok: false, Error: &batchError{Code: seamErr.Code, Message: seamErr.Message}}
 			} else {
-				results[i] = batchResult{Error: InternalError(err.Error())}
+				results[i] = batchResult{Ok: false, Error: &batchError{Code: "INTERNAL_ERROR", Message: err.Error()}}
 			}
 			continue
 		}
-		results[i] = batchResult{Data: result}
+		results[i] = batchResult{Ok: true, Data: result}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(results)
+	json.NewEncoder(w).Encode(map[string]any{"results": results})
 }
 
 // --- subscribe handler ---

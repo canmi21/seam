@@ -7,6 +7,8 @@ const fullstackDir = path.resolve(
   __dirname,
   "../../examples/github-dashboard/seam-app/.seam/output",
 );
+const workspaceRoot = path.resolve(__dirname, "../..");
+const workspaceExampleDir = path.resolve(workspaceRoot, "examples/github-dashboard");
 
 export default defineConfig({
   testDir: "./specs",
@@ -22,7 +24,7 @@ export default defineConfig({
     {
       name: "chromium",
       use: { browserName: "chromium", baseURL: "http://localhost:3456" },
-      testIgnore: /fullstack|vite-dev/,
+      testIgnore: /fullstack|vite-dev|workspace/,
     },
     {
       name: "fullstack",
@@ -35,6 +37,21 @@ export default defineConfig({
       testMatch: /vite-dev/,
       dependencies: ["fullstack"],
       timeout: 60_000,
+    },
+    {
+      name: "workspace-ts-hono",
+      use: { browserName: "chromium", baseURL: "http://localhost:3460" },
+      testMatch: /workspace/,
+    },
+    {
+      name: "workspace-rust-axum",
+      use: { browserName: "chromium", baseURL: "http://localhost:3461" },
+      testMatch: /workspace/,
+    },
+    {
+      name: "workspace-go-gin",
+      use: { browserName: "chromium", baseURL: "http://localhost:3462" },
+      testMatch: /workspace/,
     },
   ],
 
@@ -51,6 +68,31 @@ export default defineConfig({
       cwd: fullstackDir,
       port: 3457,
       env: { PORT: "3457" },
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: "bun run backends/ts-hono/src/index.ts",
+      cwd: workspaceExampleDir,
+      port: 3460,
+      env: { PORT: "3460", SEAM_OUTPUT_DIR: "seam-app/.seam/output" },
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: path.join(workspaceRoot, "target/release/github-dashboard-axum"),
+      port: 3461,
+      env: {
+        PORT: "3461",
+        SEAM_OUTPUT_DIR: path.join(workspaceExampleDir, "seam-app/.seam/output"),
+      },
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: path.join(workspaceExampleDir, "backends/go-gin/server"),
+      port: 3462,
+      env: {
+        PORT: "3462",
+        SEAM_OUTPUT_DIR: path.join(workspaceExampleDir, "seam-app/.seam/output"),
+      },
       reuseExistingServer: !process.env.CI,
     },
   ],
