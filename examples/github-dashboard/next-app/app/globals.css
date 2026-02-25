@@ -2,7 +2,7 @@
 
 @import "tailwindcss";
 @import "@github-dashboard/shared/styles/theme.css";
-@source "../../../shared/components";
+@source "../../shared/components";
 
 @theme {
   --color-surface: var(--c-surface);

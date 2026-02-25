@@ -19,3 +19,6 @@ examples/github-dashboard/backends/go-gin/go-gin
 examples/github-dashboard/backends/go-gin/server
 examples/github-dashboard/backends/go-gin/server-go
 examples/github-dashboard/.seam/
+
+# Next.js
+.next/

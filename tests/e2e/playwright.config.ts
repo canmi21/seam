@@ -24,7 +24,7 @@ export default defineConfig({
     {
       name: "chromium",
       use: { browserName: "chromium", baseURL: "http://localhost:3456" },
-      testIgnore: /fullstack|vite-dev|workspace/,
+      testIgnore: /fullstack|vite-dev|workspace|nextjs/,
     },
     {
       name: "fullstack",
@@ -52,6 +52,12 @@ export default defineConfig({
       name: "workspace-go-gin",
       use: { browserName: "chromium", baseURL: "http://localhost:3462" },
       testMatch: /workspace/,
+    },
+    {
+      name: "nextjs",
+      use: { browserName: "chromium", baseURL: "http://localhost:3463" },
+      testMatch: /nextjs/,
+      timeout: 60_000,
     },
   ],
 
@@ -93,6 +99,12 @@ export default defineConfig({
         PORT: "3462",
         SEAM_OUTPUT_DIR: path.join(workspaceExampleDir, "seam-app/.seam/output"),
       },
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: "bunx next dev --port 3463",
+      cwd: path.join(workspaceExampleDir, "next-app"),
+      port: 3463,
       reuseExistingServer: !process.env.CI,
     },
   ],
