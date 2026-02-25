@@ -70,18 +70,33 @@ Replaces `<!--seam:...-->` markers in HTML skeletons with server data. Only the 
 | -------------------------------------------------- | --------------------------- | ------------------------------------------ |
 | [eslint-plugin-seam](packages/eslint-plugin-seam/) | `@canmi/eslint-plugin-seam` | ESLint rules for skeleton component safety |
 
+## Demo
+
+[**GitHub Dashboard**](examples/github-dashboard/) — same React UI rendered two ways: SeamJS CTR vs Next.js SSR. The CTR side runs on three interchangeable backends (TypeScript, Rust, Go) sharing one React frontend; the Next.js side uses conventional server components. Both fetch live data from the GitHub API.
+
+|   | App | Backend | Description |
+| - | --- | ------- | ----------- |
+| **CTR** | [seam-app](examples/github-dashboard/seam-app/) | Hono on Bun | Fullstack — frontend and server in one package |
+| **CTR** | [frontend](examples/github-dashboard/frontend/) + [ts-hono](examples/github-dashboard/backends/ts-hono/) | Hono on Bun | Workspace — shared frontend, TypeScript backend |
+| **CTR** | [frontend](examples/github-dashboard/frontend/) + [rust-axum](examples/github-dashboard/backends/rust-axum/) | Axum | Workspace — shared frontend, Rust backend |
+| **CTR** | [frontend](examples/github-dashboard/frontend/) + [go-gin](examples/github-dashboard/backends/go-gin/) | Gin | Workspace — shared frontend, Go backend |
+| **SSR** | [next-app](examples/github-dashboard/next-app/) | Next.js | Server-rendered comparison (same UI, no CTR) |
+
+The three workspace backends serve identical CTR-rendered pages with the same RPC procedures — a cross-language parity test for the seam protocol.
+
 ## Examples
 
-| Example                                               | Description                                            |
-| ----------------------------------------------------- | ------------------------------------------------------ |
-| [github-dashboard](examples/github-dashboard/)        | GitHub Dashboard: SeamJS CTR vs Next.js SSR comparison |
-| [server-rust](examples/standalone/server-rust/)       | Standalone Rust backend                                |
-| [server-bun](examples/standalone/server-bun/)         | Standalone Bun server                                  |
-| [server-node](examples/standalone/server-node/)       | Standalone Node.js server                              |
-| [server-go](examples/standalone/server-go/)           | Standalone Go backend                                  |
-| [server-go-gin](examples/standalone/server-go-gin/)   | Standalone Go backend with Gin framework               |
-| [client-vanilla](examples/standalone/client-vanilla/) | Vanilla JS client                                      |
-| [client-react](examples/standalone/client-react/)     | React client                                           |
+Minimal standalone examples showing SDK usage for each language and runtime.
+
+| Example                                               | Description                                  |
+| ----------------------------------------------------- | -------------------------------------------- |
+| [server-rust](examples/standalone/server-rust/)       | Rust + Axum backend with `#[seam_procedure]` macros |
+| [server-bun](examples/standalone/server-bun/)         | Bun server with Hono adapter                 |
+| [server-node](examples/standalone/server-node/)       | Node.js HTTP server                          |
+| [server-go](examples/standalone/server-go/)           | Go backend with standard library             |
+| [server-go-gin](examples/standalone/server-go-gin/)   | Go backend with Gin framework                |
+| [client-vanilla](examples/standalone/client-vanilla/) | Vanilla JS client (RPC + SSE)                |
+| [client-react](examples/standalone/client-react/)     | React client with hooks and routing          |
 
 ## Development
 
