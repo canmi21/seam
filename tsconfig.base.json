@@ -12,7 +12,18 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "resolveJsonModule": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "paths": {
+      "@canmi/seam-server": ["packages/server/core/typescript/src/index.ts"],
+      "@canmi/seam-client": ["packages/client/vanilla/src/index.ts"],
+      "@canmi/seam-react": ["packages/client/react/src/index.ts"],
+      "@canmi/seam-tanstack-router": ["packages/client/tanstack-router/src/index.ts"],
+      "@canmi/seam-adapter-hono": ["packages/server/adapter/hono/src/index.ts"],
+      "@canmi/seam-adapter-bun": ["packages/server/adapter/bun/src/index.ts"],
+      "@canmi/seam-adapter-node": ["packages/server/adapter/node/src/index.ts"],
+      "@canmi/seam-injector": ["packages/server/injector/js/src/index.ts"],
+      "@canmi/eslint-plugin-seam": ["packages/eslint-plugin-seam/src/index.ts"]
+    }
   },
   "files": []
 }
