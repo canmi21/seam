@@ -1,6 +1,6 @@
 # seam-server (Rust)
 
-Rust server core: defines procedures, subscriptions, pages, and the HTML template injector. Built on axum.
+Framework-agnostic Rust server core: defines procedures, subscriptions, pages, and the HTML template injector. Use with an adapter crate (e.g. `seam-server-axum`) for HTTP routing.
 
 See root CLAUDE.md for general project rules.
 
@@ -8,7 +8,7 @@ See root CLAUDE.md for general project rules.
 
 | Module         | Responsibility                                                                          |
 | -------------- | --------------------------------------------------------------------------------------- |
-| `server.rs`    | `SeamServer` builder + axum route handlers + `IntoResponse` for `SeamError`             |
+| `server.rs`    | `SeamServer` builder + `SeamParts` extraction for adapter crates                        |
 | `procedure.rs` | `ProcedureDef` / `SubscriptionDef` type aliases (`HandlerFn`, `BoxFuture`, `BoxStream`) |
 | `page.rs`      | `PageDef` / `LoaderDef` -- page routes with data loaders that call procedures           |
 | `manifest.rs`  | Builds JSON manifest from registered procedures and subscriptions                       |
@@ -31,15 +31,15 @@ See root CLAUDE.md for general project rules.
 ## Data Flow
 
 ```
-User code -> SeamServer::new().procedure(...).page(...).serve()
+User code -> SeamServer::new().procedure(...).page(...)
                                 |
-                         into_router() builds AppState (manifest, handlers, subscriptions, pages)
+                         into_parts() returns SeamParts (procedures, subscriptions, pages)
                                 |
-         /_seam/manifest.json   /_seam/rpc/{name}   /_seam/subscribe/{name}   /_seam/page{route}
+                   Adapter crate (e.g. seam-server-axum) builds framework-specific router
 ```
 
-- Page handler: runs loaders concurrently via `JoinSet`, merges results, calls `injector::inject`
-- Subscribe handler: wraps `BoxStream` into SSE events with `data`/`error`/`complete` event types
+- Core is framework-agnostic: no HTTP framework, no async runtime
+- Adapter crates consume `SeamParts` to build routers, run handlers, serve HTTP
 
 ## Key Types
 

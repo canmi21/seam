@@ -295,10 +295,11 @@ dependencies = [
 
 [[package]]
 name = "demo-server-rust"
-version = "0.2.15"
+version = "0.2.16"
 dependencies = [
  "async-stream",
  "seam-server",
+ "seam-server-axum",
  "serde",
  "serde_json",
  "tokio",
@@ -1405,7 +1406,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "seam-cli"
-version = "0.2.15"
+version = "0.2.16"
 dependencies = [
  "anyhow",
  "axum",
@@ -1427,14 +1428,14 @@ dependencies = [
 
 [[package]]
 name = "seam-injector"
-version = "0.2.15"
+version = "0.2.16"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "seam-injector-wasm"
-version = "0.2.15"
+version = "0.2.16"
 dependencies = [
  "seam-injector",
  "serde_json",
@@ -1443,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "seam-macros"
-version = "0.2.15"
+version = "0.2.16"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1452,13 +1453,24 @@ dependencies = [
 
 [[package]]
 name = "seam-server"
-version = "0.2.15"
+version = "0.2.16"
 dependencies = [
- "axum",
  "futures-core",
  "regex",
  "seam-injector",
  "seam-macros",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "seam-server-axum"
+version = "0.2.16"
+dependencies = [
+ "axum",
+ "futures-core",
+ "seam-injector",
+ "seam-server",
  "serde",
  "serde_json",
  "tokio",

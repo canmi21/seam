@@ -7,7 +7,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync, unlinkSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { SeamDataProvider, buildSentinelData } from "@canmi/seam-react";
+import { SeamDataProvider, buildSentinelData, I18nProvider } from "@canmi/seam-react";
 import {
   collectStructuralAxes,
   cartesianProduct,
@@ -26,8 +26,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // -- Rendering --
 
-function renderWithData(component, data) {
-  return renderToString(createElement(SeamDataProvider, { value: data }, createElement(component)));
+function renderWithData(component, data, i18nValue) {
+  const inner = createElement(SeamDataProvider, { value: data }, createElement(component));
+  if (i18nValue) {
+    return renderToString(createElement(I18nProvider, { value: i18nValue }, inner));
+  }
+  return renderToString(inner);
 }
 
 // -- Render guards --
@@ -121,7 +125,7 @@ function stripResourceHints(html) {
   return html.replace(RESOURCE_HINT_RE, "");
 }
 
-function guardedRender(routePath, component, data) {
+function guardedRender(routePath, component, data, i18nValue) {
   const violations = [];
   const teardowns = [];
 
@@ -129,7 +133,7 @@ function guardedRender(routePath, component, data) {
 
   let html;
   try {
-    html = renderWithData(component, data);
+    html = renderWithData(component, data, i18nValue);
   } catch (e) {
     if (e instanceof SeamBuildError) {
       throw new SeamBuildError(
@@ -220,7 +224,7 @@ function resolveRouteMock(route, manifest) {
   );
 }
 
-function renderRoute(route, manifest) {
+function renderRoute(route, manifest, i18nValue) {
   const mock = resolveRouteMock(route, manifest);
   const pageSchema = buildPageSchema(route, manifest);
   const htmlPaths = pageSchema ? collectHtmlPaths(pageSchema) : new Set();
@@ -230,7 +234,7 @@ function renderRoute(route, manifest) {
 
   const variants = combos.map((variant) => {
     const sentinel = buildVariantSentinel(baseSentinel, mock, variant);
-    const html = guardedRender(route.path, route.component, sentinel);
+    const html = guardedRender(route.path, route.component, sentinel, i18nValue);
     return { variant, html };
   });
 
@@ -238,7 +242,9 @@ function renderRoute(route, manifest) {
   // Wrap mock with Proxy to track field accesses and detect schema mismatches.
   const accessed = new Set();
   const trackedMock = createAccessTracker(mock, accessed);
-  const mockHtml = stripResourceHints(guardedRender(route.path, route.component, trackedMock));
+  const mockHtml = stripResourceHints(
+    guardedRender(route.path, route.component, trackedMock, i18nValue),
+  );
 
   const fieldWarnings = checkFieldAccess(accessed, pageSchema, route.path);
   for (const w of fieldWarnings) {
@@ -309,7 +315,7 @@ function resolveLayoutMock(entry, manifest) {
 }
 
 /** Render layout with seam-outlet placeholder, optionally with sentinel data */
-function renderLayout(LayoutComponent, id, entry, manifest) {
+function renderLayout(LayoutComponent, id, entry, manifest, i18nValue) {
   const mock = resolveLayoutMock(entry, manifest);
   const schema =
     Object.keys(entry.loaders || {}).length > 0 ? buildPageSchema(entry, manifest) : null;
@@ -323,7 +329,7 @@ function renderLayout(LayoutComponent, id, entry, manifest) {
   function LayoutWithOutlet() {
     return createElement(LayoutComponent, null, createElement("seam-outlet", null));
   }
-  const html = guardedRender(`layout:${id}`, LayoutWithOutlet, trackedData);
+  const html = guardedRender(`layout:${id}`, LayoutWithOutlet, trackedData, i18nValue);
 
   const fieldWarnings = checkFieldAccess(accessed, schema, `layout:${id}`);
   for (const w of fieldWarnings) {
@@ -441,17 +447,61 @@ function writeCache(cacheDir, slug, key, data) {
   writeFileSync(join(cacheDir, `${slug}.json`), JSON.stringify({ key, data }));
 }
 
-function computeCacheKey(componentHash, manifestContent, config, scriptHash) {
+function computeCacheKey(componentHash, manifestContent, config, scriptHash, locale, messagesJson) {
   const h = createHash("sha256");
   h.update(componentHash);
   h.update(manifestContent);
   h.update(JSON.stringify(config));
   h.update(scriptHash);
+  if (locale) h.update(locale);
+  if (messagesJson) h.update(messagesJson);
   return h.digest("hex").slice(0, 16);
+}
+
+function buildI18nValue(locale, messages) {
+  const localeMessages = messages?.[locale] || {};
+  return { locale, t: (key) => localeMessages[key] ?? key };
 }
 
 function processLayoutsWithCache(layoutMap, ctx) {
   return [...layoutMap.entries()].map(([id, entry]) => {
+    // i18n: render once per locale, return localeHtml map
+    if (ctx.i18n) {
+      const localeHtml = {};
+      for (const locale of ctx.i18n.locales) {
+        const i18nValue = buildI18nValue(locale, ctx.i18n.messages);
+        const messagesJson = JSON.stringify(ctx.i18n.messages?.[locale] || {});
+        const compHash = ctx.componentHashes.get(entry.component?.name);
+        if (compHash) {
+          const config = { id, loaders: entry.loaders, mock: entry.mock };
+          const key = computeCacheKey(
+            compHash,
+            ctx.manifestContent,
+            config,
+            ctx.scriptHash,
+            locale,
+            messagesJson,
+          );
+          const slug = `layout_${id}_${locale}`;
+          const cached = readCache(ctx.cacheDir, slug);
+          if (cached && cached.key === key) {
+            ctx.stats.hits++;
+            localeHtml[locale] = cached.data;
+            continue;
+          }
+          const html = renderLayout(entry.component, id, entry, ctx.manifest, i18nValue);
+          writeCache(ctx.cacheDir, slug, key, html);
+          ctx.stats.misses++;
+          localeHtml[locale] = html;
+        } else {
+          ctx.stats.misses++;
+          localeHtml[locale] = renderLayout(entry.component, id, entry, ctx.manifest, i18nValue);
+        }
+      }
+      return { id, localeHtml, loaders: entry.loaders, parent: entry.parentId };
+    }
+
+    // No i18n: original behavior
     const compHash = ctx.componentHashes.get(entry.component?.name);
     if (compHash) {
       const config = { id, loaders: entry.loaders, mock: entry.mock };
@@ -484,6 +534,57 @@ function processLayoutsWithCache(layoutMap, ctx) {
 
 function processRoutesWithCache(flat, ctx) {
   return flat.map((r) => {
+    // i18n: render once per locale, return localeVariants map
+    if (ctx.i18n) {
+      const localeVariants = {};
+      for (const locale of ctx.i18n.locales) {
+        const i18nValue = buildI18nValue(locale, ctx.i18n.messages);
+        const messagesJson = JSON.stringify(ctx.i18n.messages?.[locale] || {});
+        const compHash = ctx.componentHashes.get(r.component?.name);
+        if (compHash) {
+          const config = { path: r.path, loaders: r.loaders, mock: r.mock, nullable: r.nullable };
+          const key = computeCacheKey(
+            compHash,
+            ctx.manifestContent,
+            config,
+            ctx.scriptHash,
+            locale,
+            messagesJson,
+          );
+          const slug = `route_${pathToSlug(r.path)}_${locale}`;
+          const cached = readCache(ctx.cacheDir, slug);
+          if (cached && cached.key === key) {
+            ctx.stats.hits++;
+            localeVariants[locale] = cached.data;
+            continue;
+          }
+          const data = renderRoute(r, ctx.manifest, i18nValue);
+          writeCache(ctx.cacheDir, slug, key, data);
+          ctx.stats.misses++;
+          localeVariants[locale] = data;
+        } else {
+          ctx.stats.misses++;
+          localeVariants[locale] = renderRoute(r, ctx.manifest, i18nValue);
+        }
+      }
+      // Combine per-locale data into the expected output format
+      const first = localeVariants[ctx.i18n.locales[0]];
+      return {
+        path: r.path,
+        loaders: first.loaders,
+        layout: first.layout,
+        mock: first.mock,
+        pageSchema: first.pageSchema,
+        localeVariants: Object.fromEntries(
+          Object.entries(localeVariants).map(([loc, data]) => [
+            loc,
+            { axes: data.axes, variants: data.variants, mockHtml: data.mockHtml },
+          ]),
+        ),
+      };
+    }
+
+    // No i18n: original behavior
     const compHash = ctx.componentHashes.get(r.component?.name);
     if (compHash) {
       const config = { path: r.path, loaders: r.loaders, mock: r.mock, nullable: r.nullable };
@@ -509,9 +610,10 @@ function processRoutesWithCache(flat, ctx) {
 async function main() {
   const routesFile = process.argv[2];
   const manifestFile = process.argv[3];
+  const i18nArg = process.argv[4];
 
   if (!routesFile) {
-    console.error("Usage: node build-skeletons.mjs <routes-file> [manifest-file]");
+    console.error("Usage: node build-skeletons.mjs <routes-file> [manifest-file] [i18n-json]");
     process.exit(1);
   }
 
@@ -524,6 +626,16 @@ async function main() {
       manifest = JSON.parse(manifestContent);
     } catch (e) {
       console.error(`warning: could not read manifest: ${e.message}`);
+    }
+  }
+
+  // Parse i18n config if provided
+  let i18n = null;
+  if (i18nArg && i18nArg !== "none") {
+    try {
+      i18n = JSON.parse(i18nArg);
+    } catch (e) {
+      console.error(`warning: could not parse i18n config: ${e.message}`);
     }
   }
 
@@ -578,6 +690,7 @@ async function main() {
       manifestContent,
       manifest,
       cacheDir,
+      i18n,
       stats: { hits: 0, misses: 0 },
     };
 
