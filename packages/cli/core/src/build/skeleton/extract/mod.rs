@@ -134,5 +134,4 @@ pub fn extract_template(axes: &[Axis], variants: &[String]) -> String {
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;
