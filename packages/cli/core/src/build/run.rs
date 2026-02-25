@@ -78,6 +78,20 @@ fn dispatch_extract_manifest(
   }
 }
 
+/// Public wrapper for workspace module access
+pub fn maybe_generate_rpc_hashes_pub(
+  build_config: &BuildConfig,
+  manifest: &crate::manifest::Manifest,
+  out_dir: &std::path::Path,
+) -> Result<Option<super::rpc_hash::RpcHashMap>> {
+  maybe_generate_rpc_hashes(build_config, manifest, out_dir)
+}
+
+/// Public wrapper for workspace module access
+pub fn copy_wasm_binary_pub(base_dir: &Path, out_dir: &Path) -> Result<()> {
+  copy_wasm_binary(base_dir, out_dir)
+}
+
 /// Construct ViteDevInfo when vite_port is configured
 fn vite_info_from_config(config: &SeamConfig) -> Option<ViteDevInfo> {
   config.dev.vite_port.map(|port| ViteDevInfo {
