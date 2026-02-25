@@ -9,9 +9,9 @@ use anyhow::{bail, Context, Result};
 
 use super::config::{BuildConfig, BundlerMode};
 use super::route::{
-  extract_manifest, generate_types, package_static_assets, print_asset_files,
-  print_procedure_breakdown, process_routes, run_skeleton_renderer, run_typecheck,
-  validate_procedure_references, CacheStats,
+  extract_manifest, extract_manifest_command, generate_types, package_static_assets,
+  print_asset_files, print_procedure_breakdown, process_routes, run_skeleton_renderer,
+  run_typecheck, validate_procedure_references, CacheStats,
 };
 use super::types::{read_bundle_manifest, AssetFiles, ViteDevInfo};
 use crate::config::SeamConfig;
@@ -59,6 +59,23 @@ fn maybe_generate_rpc_hashes(
   std::fs::write(&path, serde_json::to_string_pretty(&map)?)?;
   ui::detail_ok("rpc-hash-map.json");
   Ok(Some(map))
+}
+
+/// Dispatch manifest extraction: manifest_command for non-JS backends, router_file for JS/TS
+fn dispatch_extract_manifest(
+  build_config: &BuildConfig,
+  base_dir: &Path,
+  out_dir: &Path,
+) -> Result<crate::manifest::Manifest> {
+  if let Some(cmd) = &build_config.manifest_command {
+    extract_manifest_command(base_dir, cmd, out_dir)
+  } else {
+    let router_file = build_config
+      .router_file
+      .as_deref()
+      .context("either router_file or manifest_command is required")?;
+    extract_manifest(base_dir, router_file, out_dir)
+  }
 }
 
 /// Construct ViteDevInfo when vite_port is configured
@@ -206,9 +223,7 @@ fn run_fullstack_build(
   // [2] Extract procedure manifest
   step_num += 1;
   ui::step(step_num, total, "Extracting procedure manifest");
-  let router_file =
-    build_config.router_file.as_deref().context("router_file is required for fullstack build")?;
-  let manifest = extract_manifest(base_dir, router_file, &out_dir)?;
+  let manifest = dispatch_extract_manifest(build_config, base_dir, &out_dir)?;
   print_procedure_breakdown(&manifest);
   ui::blank();
 
@@ -338,9 +353,7 @@ pub fn run_dev_build(
   // [1] Extract procedure manifest
   step_num += 1;
   ui::step(step_num, total, "Extracting procedure manifest");
-  let router_file =
-    build_config.router_file.as_deref().context("router_file is required for fullstack build")?;
-  let manifest = extract_manifest(base_dir, router_file, &out_dir)?;
+  let manifest = dispatch_extract_manifest(build_config, base_dir, &out_dir)?;
   print_procedure_breakdown(&manifest);
   copy_wasm_binary(base_dir, &out_dir)?;
   ui::blank();
@@ -467,9 +480,7 @@ pub fn run_incremental_rebuild(
 
   // Full mode reruns manifest extraction + codegen before frontend steps
   if matches!(mode, RebuildMode::Full) {
-    let router_file =
-      build_config.router_file.as_deref().context("router_file is required for fullstack build")?;
-    let manifest = extract_manifest(base_dir, router_file, &out_dir)?;
+    let manifest = dispatch_extract_manifest(build_config, base_dir, &out_dir)?;
 
     let rpc_hashes = maybe_generate_rpc_hashes(build_config, &manifest, &out_dir)?;
 

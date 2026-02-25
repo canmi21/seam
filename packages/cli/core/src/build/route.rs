@@ -524,6 +524,42 @@ pub(super) fn print_procedure_breakdown(manifest: &Manifest) {
   ui::detail_ok(&format!("{total} procedures{breakdown}"));
 }
 
+/// Run a shell command that prints Manifest JSON to stdout.
+/// Used for Rust/Go backends that can't be imported via bun -e.
+pub(super) fn extract_manifest_command(
+  base_dir: &Path,
+  command: &str,
+  out_dir: &Path,
+) -> Result<Manifest> {
+  ui::detail(&format!("{DIM}{command}{RESET}"));
+
+  let output = Command::new("sh")
+    .args(["-c", command])
+    .current_dir(base_dir)
+    .output()
+    .with_context(|| format!("failed to run manifest command: {command}"))?;
+
+  if !output.status.success() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    bail!("manifest command failed:\n{stderr}");
+  }
+
+  let stdout = String::from_utf8(output.stdout).context("invalid UTF-8 from manifest command")?;
+  let manifest: Manifest =
+    serde_json::from_str(&stdout).context("failed to parse manifest JSON from command output")?;
+
+  // Write seam-manifest.json
+  std::fs::create_dir_all(out_dir)
+    .with_context(|| format!("failed to create {}", out_dir.display()))?;
+  let manifest_path = out_dir.join("seam-manifest.json");
+  let json = serde_json::to_string_pretty(&manifest)?;
+  std::fs::write(&manifest_path, &json)
+    .with_context(|| format!("failed to write {}", manifest_path.display()))?;
+  ui::detail_ok("seam-manifest.json");
+
+  Ok(manifest)
+}
+
 /// Extract procedure manifest by importing the router file at build time
 pub(super) fn extract_manifest(
   base_dir: &Path,
@@ -837,6 +873,54 @@ mod tests {
     let json = serde_json::to_string(&entry).unwrap();
     assert!(json.contains("head_meta"), "Some head_meta should be present in JSON");
     assert!(json.contains("<!--seam:t-->"), "head_meta value preserved");
+  }
+
+  #[test]
+  fn extract_manifest_command_success() {
+    let dir = std::env::temp_dir().join("seam-test-manifest-cmd");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let out = dir.join("output");
+
+    let manifest_json = r#"{"version":"0.1.0","procedures":{"getUser":{"type":"query","input":{"properties":{"username":{"type":"string"}}},"output":{"properties":{"login":{"type":"string"}}}}}}"#;
+    let command = format!("echo '{manifest_json}'");
+
+    let manifest = extract_manifest_command(&dir, &command, &out).unwrap();
+    assert_eq!(manifest.procedures.len(), 1);
+    assert!(manifest.procedures.contains_key("getUser"));
+
+    // Verify seam-manifest.json was written
+    let written = std::fs::read_to_string(out.join("seam-manifest.json")).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&written).unwrap();
+    assert!(parsed["procedures"]["getUser"].is_object());
+
+    let _ = std::fs::remove_dir_all(&dir);
+  }
+
+  #[test]
+  fn extract_manifest_command_failure() {
+    let dir = std::env::temp_dir().join("seam-test-manifest-cmd-fail");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let out = dir.join("output");
+
+    let err = extract_manifest_command(&dir, "exit 1", &out).unwrap_err();
+    assert!(err.to_string().contains("manifest command failed"));
+
+    let _ = std::fs::remove_dir_all(&dir);
+  }
+
+  #[test]
+  fn extract_manifest_command_invalid_json() {
+    let dir = std::env::temp_dir().join("seam-test-manifest-cmd-json");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let out = dir.join("output");
+
+    let err = extract_manifest_command(&dir, "echo 'not json'", &out).unwrap_err();
+    assert!(err.to_string().contains("failed to parse manifest JSON"));
+
+    let _ = std::fs::remove_dir_all(&dir);
   }
 
   #[test]
