@@ -213,9 +213,19 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
         }
       }
     }
-    all_loaders.extend(parse_loaders(&entry.loaders));
+    let page_loaders = parse_loaders(&entry.loaders);
+    let page_loader_keys: Vec<String> = page_loaders.iter().map(|l| l.data_key.clone()).collect();
+    all_loaders.extend(page_loaders);
 
-    pages.push(PageDef { route: axum_route, template, loaders: all_loaders });
+    let data_id = manifest.data_id.clone().unwrap_or_else(|| "__SEAM_DATA__".to_string());
+    pages.push(PageDef {
+      route: axum_route,
+      template,
+      loaders: all_loaders,
+      data_id: data_id.clone(),
+      layout_id: entry.layout.clone(),
+      page_loader_keys,
+    });
   }
 
   Ok(pages)

@@ -208,12 +208,24 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 				}
 			}
 		}
-		allLoaders = append(allLoaders, parseLoaders(entry.Loaders)...)
+		pageLoaders := parseLoaders(entry.Loaders)
+		var pageLoaderKeys []string
+		for _, ld := range pageLoaders {
+			pageLoaderKeys = append(pageLoaderKeys, ld.DataKey)
+		}
+		allLoaders = append(allLoaders, pageLoaders...)
 
+		dataID := manifest.DataID
+		if dataID == "" {
+			dataID = "__SEAM_DATA__"
+		}
 		pages = append(pages, PageDef{
-			Route:    routePath,
-			Template: template,
-			Loaders:  allLoaders,
+			Route:          routePath,
+			Template:       template,
+			Loaders:        allLoaders,
+			DataID:         dataID,
+			LayoutID:       entry.Layout,
+			PageLoaderKeys: pageLoaderKeys,
 		})
 	}
 

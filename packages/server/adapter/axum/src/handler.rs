@@ -273,6 +273,52 @@ async fn handle_page(
     data.insert(key, value);
   }
 
-  let html = seam_injector::inject(&page.template, &serde_json::Value::Object(data));
+  // Flatten keyed loader results for slot resolution: spread nested object
+  // values to the top level so slots like <!--seam:tagline--> can resolve from
+  // data like {page: {tagline: "..."}} (matching TS `flattenForSlots`).
+  let mut inject_map = data.clone();
+  for value in data.values() {
+    if let serde_json::Value::Object(nested) = value {
+      for (nk, nv) in nested {
+        inject_map.entry(nk.clone()).or_insert_with(|| nv.clone());
+      }
+    }
+  }
+  let inject_data = serde_json::Value::Object(inject_map);
+  let mut html = seam_injector::inject_no_script(&page.template, &inject_data);
+
+  // Build data script JSON: page data at top level, layout data under _layouts
+  let mut script_data = serde_json::Map::new();
+  if let Some(ref layout_id) = page.layout_id {
+    let page_keys: std::collections::HashSet<&str> =
+      page.page_loader_keys.iter().map(|s| s.as_str()).collect();
+    let mut layout_data = serde_json::Map::new();
+    for (k, v) in &data {
+      if page_keys.contains(k.as_str()) {
+        script_data.insert(k.clone(), v.clone());
+      } else {
+        layout_data.insert(k.clone(), v.clone());
+      }
+    }
+    if !layout_data.is_empty() {
+      let mut layouts_map = serde_json::Map::new();
+      layouts_map.insert(layout_id.clone(), serde_json::Value::Object(layout_data));
+      script_data.insert("_layouts".to_string(), serde_json::Value::Object(layouts_map));
+    }
+  } else {
+    script_data = data;
+  }
+
+  let script = format!(
+    r#"<script id="{}" type="application/json">{}</script>"#,
+    page.data_id,
+    serde_json::Value::Object(script_data),
+  );
+  if let Some(pos) = html.rfind("</body>") {
+    html.insert_str(pos, &script);
+  } else {
+    html.push_str(&script);
+  }
+
   Ok(Html(html))
 }

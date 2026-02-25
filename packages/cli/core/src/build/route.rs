@@ -135,6 +135,35 @@ struct RouteManifestEntry {
   head_meta: Option<String>,
 }
 
+/// Read i18n message files from disk, keyed by locale.
+pub(crate) fn read_i18n_messages(
+  base_dir: &Path,
+  i18n: &I18nSection,
+) -> Result<BTreeMap<String, serde_json::Value>> {
+  let mut messages = BTreeMap::new();
+  for locale in &i18n.locales {
+    let path = base_dir.join(&i18n.messages_dir).join(format!("{locale}.json"));
+    let content = std::fs::read_to_string(&path)
+      .with_context(|| format!("i18n: failed to read {}", path.display()))?;
+    let parsed: serde_json::Value = serde_json::from_str(&content)
+      .with_context(|| format!("i18n: invalid JSON in {}", path.display()))?;
+    messages.insert(locale.clone(), parsed);
+  }
+  Ok(messages)
+}
+
+/// Embed i18n locale + messages as a `<script>` tag in the HTML document.
+/// The client reads this during hydration to provide I18nProvider context,
+/// ensuring `useT()` returns translated strings that match the server-rendered HTML.
+fn embed_i18n_script(document: &str, locale: &str, messages: &serde_json::Value) -> String {
+  let i18n_data = serde_json::json!({ "locale": locale, "messages": messages });
+  let script = format!(
+    "<script id=\"__seam_i18n\" type=\"application/json\">{}</script>",
+    serde_json::to_string(&i18n_data).unwrap_or_default()
+  );
+  document.replace("</body>", &format!("{script}</body>"))
+}
+
 /// Convert route path to filename: `/user/:id` -> `user-id.html`, `/` -> `index.html`
 fn path_to_filename(path: &str) -> String {
   let trimmed = path.trim_matches('/');
@@ -215,6 +244,7 @@ pub(crate) fn process_routes(
   root_id: &str,
   data_id: &str,
   i18n: Option<&I18nSection>,
+  i18n_messages: Option<&BTreeMap<String, serde_json::Value>>,
 ) -> Result<RouteManifest> {
   let manifest_data_id = if data_id == "__SEAM_DATA__" { None } else { Some(data_id.to_string()) };
   let i18n_manifest =
@@ -234,7 +264,10 @@ pub(crate) fn process_routes(
       for (locale, html) in locale_html {
         let html = html.replace("<seam-outlet></seam-outlet>", "<!--seam:outlet-->");
         let html = sentinel_to_slots(&html);
-        let document = wrap_document(&html, &assets.css, &assets.js, dev_mode, vite, root_id);
+        let mut document = wrap_document(&html, &assets.css, &assets.js, dev_mode, vite, root_id);
+        if let Some(msgs) = i18n_messages.and_then(|m| m.get(locale)) {
+          document = embed_i18n_script(&document, locale, msgs);
+        }
         let locale_dir = templates_dir.join(locale);
         std::fs::create_dir_all(&locale_dir)
           .with_context(|| format!("failed to create {}", locale_dir.display()))?;
@@ -304,7 +337,11 @@ pub(crate) fn process_routes(
             (body.to_string(), hm)
           }
         } else {
-          (wrap_document(&template, &assets.css, &assets.js, dev_mode, vite, root_id), None)
+          let mut doc = wrap_document(&template, &assets.css, &assets.js, dev_mode, vite, root_id);
+          if let Some(msgs) = i18n_messages.and_then(|m| m.get(locale)) {
+            doc = embed_i18n_script(&doc, locale, msgs);
+          }
+          (doc, None)
         };
 
         let locale_dir = templates_dir.join(locale);

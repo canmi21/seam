@@ -16,7 +16,8 @@ import type { ServerWebSocket } from "bun";
 
 const isDev = process.env.SEAM_DEV === "1";
 const isVite = process.env.SEAM_VITE === "1";
-const BUILD_DIR = isDev ? process.env.SEAM_OUTPUT_DIR! : resolve(import.meta.dir, "..");
+const BUILD_DIR =
+  process.env.SEAM_OUTPUT_DIR ?? (isDev ? ".seam/output" : resolve(import.meta.dir, ".."));
 
 // Gracefully handle missing build output (API-only mode without page serving)
 let pages: Record<string, unknown> = {};

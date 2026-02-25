@@ -106,9 +106,12 @@ type LoaderDef struct {
 
 // PageDef defines a server-rendered page with loaders that fetch data before injection.
 type PageDef struct {
-	Route    string
-	Template string
-	Loaders  []LoaderDef
+	Route          string
+	Template       string
+	Loaders        []LoaderDef
+	DataID         string   // script ID for the injected data JSON (default "__SEAM_DATA__")
+	LayoutID       string   // layout ID for separating layout vs page data in data script
+	PageLoaderKeys []string // data keys from page-level loaders (not layout)
 }
 
 // HandlerOptions configures timeout behavior for the generated handler.

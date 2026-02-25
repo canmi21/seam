@@ -417,16 +417,71 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 		orderedData[k] = data[k]
 	}
 
-	dataJSON, err := json.Marshal(orderedData)
+	// Flatten keyed loader results for slot resolution: spread nested object
+	// values to the top level so slots like <!--seam:tagline--> can resolve from
+	// data like {page: {tagline: "..."}} (matching TS flattenForSlots).
+	// JSON round-trip normalizes Go types (map[string]string -> map[string]any).
+	rawJSON, err := json.Marshal(orderedData)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, InternalError("Failed to serialize page data"))
+		return
+	}
+	var flatData map[string]any
+	json.Unmarshal(rawJSON, &flatData)
+	for _, v := range flatData {
+		if nested, ok := v.(map[string]any); ok {
+			for nk, nv := range nested {
+				if _, exists := flatData[nk]; !exists {
+					flatData[nk] = nv
+				}
+			}
+		}
+	}
+
+	dataJSON, err := json.Marshal(flatData)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, InternalError("Failed to serialize page data"))
 		return
 	}
 
-	html, err := injector.Inject(page.Template, string(dataJSON))
+	html, err := injector.InjectNoScript(page.Template, string(dataJSON))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, InternalError(fmt.Sprintf("Template injection failed: %v", err)))
 		return
+	}
+
+	// Build data script JSON: page data at top level, layout data under _layouts
+	scriptData := orderedData
+	if page.LayoutID != "" {
+		pageKeys := make(map[string]bool)
+		for _, k := range page.PageLoaderKeys {
+			pageKeys[k] = true
+		}
+		layoutData := make(map[string]any)
+		pageData := make(map[string]any)
+		for k, v := range orderedData {
+			if pageKeys[k] {
+				pageData[k] = v
+			} else {
+				layoutData[k] = v
+			}
+		}
+		scriptData = pageData
+		if len(layoutData) > 0 {
+			scriptData["_layouts"] = map[string]any{page.LayoutID: layoutData}
+		}
+	}
+
+	dataID := page.DataID
+	if dataID == "" {
+		dataID = "__SEAM_DATA__"
+	}
+	scriptJSON, _ := json.Marshal(scriptData)
+	script := fmt.Sprintf(`<script id="%s" type="application/json">%s</script>`, dataID, string(scriptJSON))
+	if idx := strings.LastIndex(html, "</body>"); idx != -1 {
+		html = html[:idx] + script + html[idx:]
+	} else {
+		html += script
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

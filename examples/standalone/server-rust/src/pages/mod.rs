@@ -16,5 +16,8 @@ pub fn user_page() -> PageDef {
         serde_json::json!({ "id": id })
       }),
     }],
+    data_id: "__SEAM_DATA__".to_string(),
+    layout_id: None,
+    page_loader_keys: vec!["user".to_string()],
   }
 }

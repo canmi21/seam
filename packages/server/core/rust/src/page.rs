@@ -16,4 +16,10 @@ pub struct PageDef {
   pub route: String,
   pub template: String,
   pub loaders: Vec<LoaderDef>,
+  /// Script ID for the injected data JSON. Defaults to "__SEAM_DATA__".
+  pub data_id: String,
+  /// Layout ID this page belongs to. Layout loaders stored under `_layouts.{id}` in data script.
+  pub layout_id: Option<String>,
+  /// Data keys from page-level loaders (not layout). Used to split data in the data script.
+  pub page_loader_keys: Vec<String>,
 }

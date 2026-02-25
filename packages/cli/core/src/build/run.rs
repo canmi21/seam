@@ -10,8 +10,8 @@ use anyhow::{Context, Result};
 use super::config::{BuildConfig, BundlerMode};
 use super::route::{
   extract_manifest, extract_manifest_command, generate_types, package_static_assets,
-  print_asset_files, print_procedure_breakdown, process_routes, run_skeleton_renderer,
-  run_typecheck, validate_procedure_references, CacheStats,
+  print_asset_files, print_procedure_breakdown, process_routes, read_i18n_messages,
+  run_skeleton_renderer, run_typecheck, validate_procedure_references, CacheStats,
 };
 use super::types::{read_bundle_manifest, AssetFiles, ViteDevInfo};
 use crate::config::SeamConfig;
@@ -163,6 +163,10 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
+  let i18n_messages = match &build_config.i18n {
+    Some(cfg) => Some(read_i18n_messages(base_dir, cfg)?),
+    None => None,
+  };
   let route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -173,6 +177,7 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
     &build_config.root_id,
     &build_config.data_id,
     build_config.i18n.as_ref(),
+    i18n_messages.as_ref(),
   )?;
   ui::blank();
 
@@ -300,6 +305,10 @@ fn run_fullstack_build(
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
+  let i18n_messages = match &build_config.i18n {
+    Some(cfg) => Some(read_i18n_messages(base_dir, cfg)?),
+    None => None,
+  };
   let route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -310,6 +319,7 @@ fn run_fullstack_build(
     &build_config.root_id,
     &build_config.data_id,
     build_config.i18n.as_ref(),
+    i18n_messages.as_ref(),
   )?;
 
   // Write route-manifest.json
@@ -426,6 +436,10 @@ pub fn run_dev_build(
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
+  let i18n_messages = match &build_config.i18n {
+    Some(cfg) => Some(read_i18n_messages(base_dir, cfg)?),
+    None => None,
+  };
   let route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -436,6 +450,7 @@ pub fn run_dev_build(
     &build_config.root_id,
     &build_config.data_id,
     build_config.i18n.as_ref(),
+    i18n_messages.as_ref(),
   )?;
 
   let route_manifest_path = out_dir.join("route-manifest.json");
@@ -541,6 +556,10 @@ pub fn run_incremental_rebuild(
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
+  let i18n_messages = match &build_config.i18n {
+    Some(cfg) => Some(read_i18n_messages(base_dir, cfg)?),
+    None => None,
+  };
   let route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -551,6 +570,7 @@ pub fn run_incremental_rebuild(
     &build_config.root_id,
     &build_config.data_id,
     build_config.i18n.as_ref(),
+    i18n_messages.as_ref(),
   )?;
 
   let route_manifest_path = out_dir.join("route-manifest.json");
