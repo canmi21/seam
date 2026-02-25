@@ -1,0 +1,30 @@
+[project]
+name = "github-dashboard"
+
+[frontend]
+entry = "frontend/src/client/main.tsx"
+data_id = "__data"
+
+[build]
+routes = "frontend/src/client/routes.ts"
+bundler_command = "cd frontend && bunx vite build"
+bundler_manifest = "frontend/dist/.vite/manifest.json"
+out_dir = ".seam/output"
+obfuscate = true
+hash_length = 16
+type_hint = false
+
+[generate]
+out_dir = "frontend/src/generated"
+
+[i18n]
+locales = ["origin", "zh"]
+default = "origin"
+messages_dir = "frontend/locales"
+
+[dev]
+port = 3000
+vite_port = 5173
+
+[workspace]
+members = ["backends/ts-hono", "backends/rust-axum", "backends/go-gin"]

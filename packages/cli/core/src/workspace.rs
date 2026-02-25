@@ -53,12 +53,7 @@ pub fn resolve_members(
     let merged = resolve_member_config(root, &dir)?;
     let build_config = BuildConfig::from_seam_config(&merged)?;
 
-    members.push(ResolvedMember {
-      name,
-      member_dir: dir,
-      merged_config: merged,
-      build_config,
-    });
+    members.push(ResolvedMember { name, member_dir: dir, merged_config: merged, build_config });
   }
 
   if let Some(f) = filter {
@@ -108,10 +103,14 @@ fn validate_manifest_compatibility(
         ));
       }
       if ref_proc.input != cand_proc.input {
-        errors.push(format!("procedure \"{name}\" input schema mismatch between {ref_name} and {cand_name}"));
+        errors.push(format!(
+          "procedure \"{name}\" input schema mismatch between {ref_name} and {cand_name}"
+        ));
       }
       if ref_proc.output != cand_proc.output {
-        errors.push(format!("procedure \"{name}\" output schema mismatch between {ref_name} and {cand_name}"));
+        errors.push(format!(
+          "procedure \"{name}\" output schema mismatch between {ref_name} and {cand_name}"
+        ));
       }
     }
   }
@@ -144,20 +143,13 @@ fn extract_member_manifest(
 
 /// Run workspace build: build frontend once, then compile + validate each backend member.
 #[allow(clippy::too_many_lines)]
-pub fn run_workspace_build(
-  root: &SeamConfig,
-  base_dir: &Path,
-  filter: Option<&str>,
-) -> Result<()> {
+pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&str>) -> Result<()> {
   let started = Instant::now();
   let members = resolve_members(root, base_dir, filter)?;
 
   let member_count = members.len();
-  let total_label = if member_count == 1 {
-    format!("1 member")
-  } else {
-    format!("{member_count} members")
-  };
+  let total_label =
+    if member_count == 1 { format!("1 member") } else { format!("{member_count} members") };
   ui::banner("workspace build", Some(&format!("{} — {total_label}", root.project.name)));
 
   // Use first member as the reference for shared frontend steps
@@ -180,8 +172,11 @@ pub fn run_workspace_build(
     extract_member_manifest(&first.build_config, &first.member_dir, &shared_out_dir)?;
   print_procedure_breakdown(&reference_manifest);
 
-  let rpc_hashes =
-    super::build::run::maybe_generate_rpc_hashes_pub(&first.build_config, &reference_manifest, &shared_out_dir)?;
+  let rpc_hashes = super::build::run::maybe_generate_rpc_hashes_pub(
+    &first.build_config,
+    &reference_manifest,
+    &shared_out_dir,
+  )?;
 
   // [1.3] Generate client types (shared)
   ui::detail(&format!("{DIM}[shared]{RESET} generating client types"));

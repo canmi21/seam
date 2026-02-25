@@ -273,10 +273,7 @@ pub fn validate_workspace(config: &SeamConfig, base_dir: &Path) -> Result<()> {
     }
 
     // Extract basename for duplicate check
-    let name = Path::new(member_path)
-      .file_name()
-      .and_then(|n| n.to_str())
-      .unwrap_or(member_path);
+    let name = Path::new(member_path).file_name().and_then(|n| n.to_str()).unwrap_or(member_path);
     if !seen_names.insert(name.to_string()) {
       bail!("duplicate workspace member name: {name}");
     }
@@ -586,7 +583,10 @@ members = ["backends/ts-hono", "backends/rust-axum", "backends/go-gin"]
 "#;
     let config: SeamConfig = toml::from_str(toml_str).unwrap();
     assert!(config.is_workspace());
-    assert_eq!(config.member_paths(), &["backends/ts-hono", "backends/rust-axum", "backends/go-gin"]);
+    assert_eq!(
+      config.member_paths(),
+      &["backends/ts-hono", "backends/rust-axum", "backends/go-gin"]
+    );
   }
 
   #[test]
@@ -614,10 +614,7 @@ bundler_command = "cd frontend && bunx vite build"
 bundler_manifest = "frontend/dist/.vite/manifest.json"
 "#;
     let config: SeamConfig = toml::from_str(toml_str).unwrap();
-    assert_eq!(
-      config.build.manifest_command.as_deref(),
-      Some("cargo run --release -- --manifest")
-    );
+    assert_eq!(config.build.manifest_command.as_deref(), Some("cargo run --release -- --manifest"));
     assert!(config.build.router_file.is_none());
   }
 

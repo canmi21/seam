@@ -323,10 +323,7 @@ mod tests {
   #[test]
   fn resolve_layout_nested() {
     let mut layouts = HashMap::new();
-    layouts.insert(
-      "root".to_string(),
-      ("<html><!--seam:outlet--></html>".to_string(), None),
-    );
+    layouts.insert("root".to_string(), ("<html><!--seam:outlet--></html>".to_string(), None));
     layouts.insert(
       "dashboard".to_string(),
       ("<nav>nav</nav><!--seam:outlet-->".to_string(), Some("root".to_string())),
@@ -378,8 +375,11 @@ mod tests {
         }
       }
     });
-    std::fs::write(dir.join("route-manifest.json"), serde_json::to_string_pretty(&manifest).unwrap())
-      .unwrap();
+    std::fs::write(
+      dir.join("route-manifest.json"),
+      serde_json::to_string_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
 
     let pages = load_build_output(dir.to_str().unwrap()).unwrap();
     assert_eq!(pages.len(), 1);
@@ -423,8 +423,11 @@ mod tests {
         }
       }
     });
-    std::fs::write(dir.join("route-manifest.json"), serde_json::to_string_pretty(&manifest).unwrap())
-      .unwrap();
+    std::fs::write(
+      dir.join("route-manifest.json"),
+      serde_json::to_string_pretty(&manifest).unwrap(),
+    )
+    .unwrap();
 
     let pages = load_build_output(dir.to_str().unwrap()).unwrap();
     assert_eq!(pages.len(), 1);

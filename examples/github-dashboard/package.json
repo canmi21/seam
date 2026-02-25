@@ -2,8 +2,13 @@
   "name": "github-dashboard",
   "private": true,
   "scripts": {
-    "dev:seam": "cd seam-app && seam dev",
+    "dev:ts": "seam dev --member ts-hono",
+    "dev:rust": "seam dev --member rust-axum",
+    "dev:go": "seam dev --member go-gin",
     "dev:next": "cd next-app && next dev --port 3001",
-    "build:seam": "cd seam-app && seam build"
+    "build": "seam build",
+    "build:ts": "seam build --member ts-hono",
+    "build:rust": "seam build --member rust-axum",
+    "build:go": "seam build --member go-gin"
   }
 }
