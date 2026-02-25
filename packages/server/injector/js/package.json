@@ -1,6 +1,6 @@
 {
   "name": "@canmi/seam-injector",
-  "version": "0.2.15",
+  "version": "0.2.16",
   "files": [
     "dist",
     "pkg"
