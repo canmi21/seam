@@ -1,7 +1,7 @@
 /* examples/github-dashboard/backends/rust-axum/src/procedures.rs */
 
-use serde::{Deserialize, Serialize};
 use seam_server::{seam_procedure, SeamError, SeamType};
+use serde::{Deserialize, Serialize};
 
 // -- getSession --
 
@@ -106,10 +106,7 @@ pub struct RepoItem {
 
 #[seam_procedure(name = "getUserRepos")]
 pub async fn get_user_repos(input: GetUserReposInput) -> Result<Vec<RepoItem>, SeamError> {
-  let url = format!(
-    "https://api.github.com/users/{}/repos?sort=stars&per_page=6",
-    input.username
-  );
+  let url = format!("https://api.github.com/users/{}/repos?sort=stars&per_page=6", input.username);
   let client = reqwest::Client::new();
   let resp = client
     .get(&url)
@@ -123,10 +120,8 @@ pub async fn get_user_repos(input: GetUserReposInput) -> Result<Vec<RepoItem>, S
     return Err(SeamError::internal(format!("GitHub repos API returned {}", resp.status())));
   }
 
-  let data: Vec<serde_json::Value> = resp
-    .json()
-    .await
-    .map_err(|e| SeamError::internal(format!("failed to parse repos: {e}")))?;
+  let data: Vec<serde_json::Value> =
+    resp.json().await.map_err(|e| SeamError::internal(format!("failed to parse repos: {e}")))?;
 
   Ok(
     data

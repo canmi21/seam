@@ -1,6 +1,7 @@
 /* packages/cli/core/src/main.rs */
 
 mod build;
+mod clean;
 mod codegen;
 mod config;
 mod dev;
@@ -60,6 +61,15 @@ enum Command {
     #[arg(short, long)]
     config: Option<PathBuf>,
     /// Run dev mode for a specific workspace member
+    #[arg(short, long)]
+    member: Option<String>,
+  },
+  /// Remove build output, codegen artifacts, and run cleanup commands
+  Clean {
+    /// Path to seam.toml (auto-detected if omitted)
+    #[arg(short, long)]
+    config: Option<PathBuf>,
+    /// Clean a specific workspace member only
     #[arg(short, long)]
     member: Option<String>,
   },
@@ -163,6 +173,11 @@ async fn main() -> Result<()> {
       } else {
         dev::run_dev(&seam_config, base_dir).await?;
       }
+    }
+    Command::Clean { config, member } => {
+      let (config_path, seam_config) = resolve_config(config)?;
+      let base_dir = config_path.parent().unwrap_or_else(|| std::path::Path::new("."));
+      clean::run_clean(&seam_config, base_dir, member.as_deref())?;
     }
   }
 

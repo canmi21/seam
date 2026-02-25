@@ -22,11 +22,19 @@ pub struct SeamConfig {
   pub i18n: Option<I18nSection>,
   #[serde(default)]
   pub workspace: Option<WorkspaceSection>,
+  #[serde(default)]
+  pub clean: CleanSection,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct WorkspaceSection {
   pub members: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct CleanSection {
+  #[serde(default)]
+  pub commands: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -246,6 +254,9 @@ pub fn resolve_member_config(root: &SeamConfig, member_dir: &Path) -> Result<Sea
   if member.build.out_dir.is_some() {
     merged.build.out_dir = member.build.out_dir;
   }
+
+  // Clean section from member (not merged with root)
+  merged.clean = member.clean;
 
   // Strip workspace section from merged config (members are not workspaces)
   merged.workspace = None;
