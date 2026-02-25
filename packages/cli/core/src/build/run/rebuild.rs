@@ -7,8 +7,8 @@ use anyhow::{Context, Result};
 use super::super::config::BuildConfig;
 use super::super::route::generate_types;
 use super::super::route::{
-  package_static_assets, process_routes, read_i18n_messages, run_skeleton_renderer,
-  validate_procedure_references,
+  export_i18n_messages, package_static_assets, process_routes, read_i18n_messages,
+  run_skeleton_renderer, validate_procedure_references,
 };
 use super::super::types::{read_bundle_manifest, AssetFiles};
 use super::helpers::{
@@ -102,6 +102,9 @@ pub fn run_incremental_rebuild(
     build_config.i18n.as_ref(),
     i18n_messages.as_ref(),
   )?;
+  if let Some(ref msgs) = i18n_messages {
+    export_i18n_messages(&out_dir, msgs)?;
+  }
 
   let route_manifest_path = out_dir.join("route-manifest.json");
   let route_manifest_json = serde_json::to_string_pretty(&route_manifest)?;

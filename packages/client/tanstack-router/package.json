@@ -1,6 +1,6 @@
 {
   "name": "@canmi/seam-tanstack-router",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "files": [
     "dist"
   ],
@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@canmi/seam-client": "workspace:*",
+    "@canmi/seam-i18n": "workspace:*",
     "@canmi/seam-react": "workspace:*"
   },
   "devDependencies": {

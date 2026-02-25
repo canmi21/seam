@@ -22,8 +22,8 @@ hash_length = 16
 type_hint = false
 
 [i18n]
-locales = ["origin", "zh"]
-default = "origin"
+locales = ["en", "zh"]
+default = "en"
 
 [dev]
 port = 3000

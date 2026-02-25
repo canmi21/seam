@@ -26,20 +26,23 @@ pub(crate) fn read_i18n_messages(
   Ok(messages)
 }
 
-/// Embed i18n locale + messages as a `<script>` tag in the HTML document.
-/// The client reads this during hydration to provide I18nProvider context,
-/// ensuring `useT()` returns translated strings that match the server-rendered HTML.
-pub(super) fn embed_i18n_script(
-  document: &str,
-  locale: &str,
-  messages: &serde_json::Value,
-) -> String {
-  let i18n_data = serde_json::json!({ "locale": locale, "messages": messages });
-  let script = format!(
-    "<script id=\"__seam_i18n\" type=\"application/json\">{}</script>",
-    serde_json::to_string(&i18n_data).unwrap_or_default()
-  );
-  document.replace("</body>", &format!("{script}</body>"))
+/// Export i18n messages as separate JSON files in {out_dir}/locales/{locale}.json.
+/// The server reads these at startup to inject _i18n into page data at request time.
+pub(crate) fn export_i18n_messages(
+  out_dir: &Path,
+  messages: &BTreeMap<String, serde_json::Value>,
+) -> Result<()> {
+  let locales_dir = out_dir.join("locales");
+  std::fs::create_dir_all(&locales_dir)
+    .with_context(|| format!("failed to create {}", locales_dir.display()))?;
+  for (locale, data) in messages {
+    let path = locales_dir.join(format!("{locale}.json"));
+    let json = serde_json::to_string_pretty(data)
+      .with_context(|| format!("i18n: failed to serialize {locale}"))?;
+    std::fs::write(&path, json)
+      .with_context(|| format!("i18n: failed to write {}", path.display()))?;
+  }
+  Ok(())
 }
 
 /// Convert route path to filename: `/user/:id` -> `user-id.html`, `/` -> `index.html`

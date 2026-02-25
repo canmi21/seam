@@ -18,8 +18,8 @@ type_hint = false
 out_dir = "frontend/src/generated"
 
 [i18n]
-locales = ["origin", "zh"]
-default = "origin"
+locales = ["en", "zh"]
+default = "en"
 messages_dir = "frontend/locales"
 
 [dev]

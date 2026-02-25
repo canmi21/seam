@@ -15,7 +15,7 @@ members = [
 too_many_lines = "warn"
 
 [workspace.package]
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 license = "MIT"
 authors = ["Canmi(Canmi21) <t@canmi.icu>"]

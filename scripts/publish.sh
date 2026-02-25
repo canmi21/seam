@@ -207,7 +207,8 @@ if ! $RUST_ONLY; then
   NPM_LAYER_1=(
     "packages/server/injector/native:@canmi/seam-injector-native"
     "packages/client/vanilla:@canmi/seam-client"
-    "packages/eslint-plugin-seam:@canmi/eslint-plugin-seam"
+    "packages/eslint:@canmi/eslint-plugin-seam"
+    "packages/i18n:@canmi/seam-i18n"
     "packages/server/injector/js:@canmi/seam-injector"
   )
   NPM_LAYER_2=(

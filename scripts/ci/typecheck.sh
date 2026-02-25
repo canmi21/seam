@@ -14,7 +14,8 @@ packages=(
   packages/client/vanilla
   packages/client/react
   packages/client/tanstack-router
-  packages/eslint-plugin-seam
+  packages/eslint
+  packages/i18n
 )
 
 failed=()

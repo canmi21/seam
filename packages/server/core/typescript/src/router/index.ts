@@ -5,7 +5,7 @@ import type { ProcedureManifest } from "../manifest/index.js";
 import type { HandleResult, InternalProcedure } from "./handler.js";
 import type { InternalSubscription } from "../procedure.js";
 import type { HandlePageResult } from "../page/handler.js";
-import type { PageDef } from "../page/index.js";
+import type { PageDef, I18nConfig } from "../page/index.js";
 import { buildManifest } from "../manifest/index.js";
 import { handleRequest, handleSubscription, handleBatchRequest } from "./handler.js";
 import type { BatchCall, BatchResultItem } from "./handler.js";
@@ -34,6 +34,7 @@ function isSubscriptionDef(def: ProcedureDef | SubscriptionDef): def is Subscrip
 
 export interface RouterOptions {
   pages?: Record<string, PageDef>;
+  i18n?: I18nConfig | null;
   validateOutput?: boolean;
 }
 
@@ -83,6 +84,9 @@ export function createRouter<T extends DefinitionMap>(
     }
   }
 
+  const i18nConfig = opts?.i18n ?? null;
+  const localeSet = i18nConfig ? new Set(i18nConfig.locales) : null;
+
   return {
     procedures,
     hasPages: !!pages && Object.keys(pages).length > 0,
@@ -99,9 +103,25 @@ export function createRouter<T extends DefinitionMap>(
       return handleSubscription(subscriptionMap, name, input, shouldValidateOutput);
     },
     async handlePage(path) {
+      let locale: string | undefined;
+
+      // Extract locale prefix from URL path when i18n is configured
+      if (localeSet && i18nConfig) {
+        const segments = path.split("/").filter(Boolean);
+        if (segments.length > 0 && localeSet.has(segments[0])) {
+          locale = segments[0];
+          path = "/" + segments.slice(1).join("/");
+          if (path === "/") path = "/"; // normalize
+        } else {
+          locale = i18nConfig.default;
+        }
+      }
+
       const match = pageMatcher.match(path);
       if (!match) return null;
-      return handlePageRequest(match.value, match.params, procedureMap);
+
+      const i18nOpts = locale && i18nConfig ? { locale, config: i18nConfig } : undefined;
+      return handlePageRequest(match.value, match.params, procedureMap, i18nOpts);
     },
   };
 }

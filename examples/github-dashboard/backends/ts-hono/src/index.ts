@@ -7,6 +7,7 @@ import {
   loadBuildOutput,
   loadBuildOutputDev,
   loadRpcHashMap,
+  loadI18nMessages,
   watchReloadTrigger,
 } from "@canmi/seam-server";
 import { seam } from "@canmi/seam-adapter-hono";
@@ -24,11 +25,12 @@ let pages: Record<string, unknown> = {};
 try {
   pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR);
 } catch {
-  // No build output available — RPC still works, page serving disabled
+  // No build output available -- RPC still works, page serving disabled
 }
 const rpcHashMap = loadRpcHashMap(BUILD_DIR);
+const i18nConfig = loadI18nMessages(BUILD_DIR);
 const dataId = Object.values(pages)[0]?.dataId ?? "__data";
-const router = buildRouter({ pages });
+const router = buildRouter({ pages, i18n: i18nConfig });
 
 const app = new Hono();
 

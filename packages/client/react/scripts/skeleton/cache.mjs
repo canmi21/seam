@@ -4,6 +4,7 @@ import { build } from "esbuild";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createI18n } from "@canmi/seam-i18n";
 
 /** Parse import statements to map local names to specifiers */
 function parseComponentImports(source) {
@@ -105,9 +106,11 @@ function computeCacheKey(componentHash, manifestContent, config, scriptHash, loc
   return h.digest("hex").slice(0, 16);
 }
 
-function buildI18nValue(locale, messages) {
+function buildI18nValue(locale, messages, defaultLocale) {
   const localeMessages = messages?.[locale] || {};
-  return { locale, t: (key) => localeMessages[key] ?? key };
+  const fallback =
+    defaultLocale && locale !== defaultLocale ? messages?.[defaultLocale] || {} : undefined;
+  return createI18n(locale, localeMessages, fallback);
 }
 
 export {

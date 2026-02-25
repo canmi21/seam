@@ -10,7 +10,7 @@ function processLayoutsWithCache(layoutMap, ctx) {
     if (ctx.i18n) {
       const localeHtml = {};
       for (const locale of ctx.i18n.locales) {
-        const i18nValue = buildI18nValue(locale, ctx.i18n.messages);
+        const i18nValue = buildI18nValue(locale, ctx.i18n.messages, ctx.i18n.default);
         const messagesJson = JSON.stringify(ctx.i18n.messages?.[locale] || {});
         const compHash = ctx.componentHashes.get(entry.component?.name);
         if (compHash) {
@@ -93,7 +93,7 @@ function processRoutesWithCache(flat, ctx) {
     if (ctx.i18n) {
       const localeVariants = {};
       for (const locale of ctx.i18n.locales) {
-        const i18nValue = buildI18nValue(locale, ctx.i18n.messages);
+        const i18nValue = buildI18nValue(locale, ctx.i18n.messages, ctx.i18n.default);
         const messagesJson = JSON.stringify(ctx.i18n.messages?.[locale] || {});
         const compHash = ctx.componentHashes.get(r.component?.name);
         if (compHash) {

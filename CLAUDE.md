@@ -20,6 +20,7 @@
 - For full verification (fmt + lint + build + all tests): `bun run verify`
 - Run `git commit` after each plan mode phase completes, do not push
 - Commit messages: concise English describing the change
+- Never add AI co-authorship (e.g., "Co-Authored-By: Claude")
 
 ## Versioning
 
@@ -95,7 +96,7 @@
 | Command                    | Scope                                            |
 | -------------------------- | ------------------------------------------------ |
 | `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)       |
-| `bun run test:ts`          | TS unit tests (vitest across 10 packages)        |
+| `bun run test:ts`          | TS unit tests (vitest across 11 packages)        |
 | `bun run test:unit`        | All unit tests (Rust + TS)                       |
 | `bun run test:integration` | Go integration tests (standalone + fullstack)    |
 | `bun run test:e2e`         | Playwright E2E tests                             |

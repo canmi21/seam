@@ -3,7 +3,7 @@
 import { inject, escapeHtml } from "@canmi/seam-injector";
 import { SeamError } from "../errors.js";
 import type { InternalProcedure } from "../procedure.js";
-import type { PageDef, LoaderFn } from "./index.js";
+import type { PageDef, LoaderFn, I18nConfig } from "./index.js";
 
 export interface PageTiming {
   /** Procedure execution time in milliseconds */
@@ -16,6 +16,11 @@ export interface HandlePageResult {
   status: number;
   html: string;
   timing?: PageTiming;
+}
+
+export interface I18nOpts {
+  locale: string;
+  config: I18nConfig;
 }
 
 /** Flatten keyed loader results: spread object values into a flat map for slot resolution */
@@ -63,14 +68,28 @@ function injectLayout(template: string, data: Record<string, unknown>, inner: st
   return injectedBefore + inner + injectedAfter;
 }
 
+/** Select the template for a given locale, falling back to the default template */
+function selectTemplate(
+  defaultTemplate: string,
+  localeTemplates: Record<string, string> | undefined,
+  locale: string | undefined,
+): string {
+  if (locale && localeTemplates) {
+    return localeTemplates[locale] ?? defaultTemplate;
+  }
+  return defaultTemplate;
+}
+
 export async function handlePageRequest(
   page: PageDef,
   params: Record<string, string>,
   procedures: Map<string, InternalProcedure>,
+  i18nOpts?: I18nOpts,
 ): Promise<HandlePageResult> {
   try {
     const t0 = performance.now();
     const layoutChain = page.layoutChain ?? [];
+    const locale = i18nOpts?.locale;
 
     // Execute all loaders (layout chain + page) in parallel
     const loaderResults = await Promise.all([
@@ -84,8 +103,11 @@ export async function handlePageRequest(
     const layoutResults = loaderResults.slice(0, layoutChain.length);
     const pageKeyed = loaderResults[loaderResults.length - 1];
 
+    // Select locale-specific template
+    const pageTemplate = selectTemplate(page.template, page.localeTemplates, locale);
+
     // Inject page template
-    let innerContent = inject(page.template, flattenForSlots(pageKeyed), { skipDataScript: true });
+    let innerContent = inject(pageTemplate, flattenForSlots(pageKeyed), { skipDataScript: true });
 
     // Compose layouts from innermost to outermost
     const layoutKeyed: Record<string, Record<string, unknown>> = {};
@@ -93,7 +115,8 @@ export async function handlePageRequest(
       const layout = layoutChain[i];
       const data = layoutResults[i];
       layoutKeyed[layout.id] = data;
-      innerContent = injectLayout(layout.template, flattenForSlots(data), innerContent);
+      const layoutTemplate = selectTemplate(layout.template, layout.localeTemplates, locale);
+      innerContent = injectLayout(layoutTemplate, flattenForSlots(data), innerContent);
     }
 
     // Inject page-level metadata (<title>, <meta>, <link>) into <head>.
@@ -114,10 +137,29 @@ export async function handlePageRequest(
       }
     }
 
+    // Set <html lang="..."> when locale is known
+    if (locale) {
+      innerContent = innerContent.replace(/<html(?=[\s>])/, `<html lang="${locale}"`);
+    }
+
     // Build __SEAM_DATA__: page data at top level, layout data under _layouts
     const seamData: Record<string, unknown> = { ...pageKeyed };
     if (Object.keys(layoutKeyed).length > 0) {
       seamData._layouts = layoutKeyed;
+    }
+
+    // Inject i18n data so the client can hydrate with matching translations
+    if (i18nOpts) {
+      const { config } = i18nOpts;
+      const i18nData: Record<string, unknown> = {
+        locale: i18nOpts.locale,
+        messages: config.messages[i18nOpts.locale] ?? {},
+      };
+      // Include fallback messages when locale differs from default
+      if (i18nOpts.locale !== config.default) {
+        i18nData.fallbackMessages = config.messages[config.default] ?? {};
+      }
+      seamData._i18n = i18nData;
     }
 
     const dataId = page.dataId ?? "__SEAM_DATA__";

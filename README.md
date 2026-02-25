@@ -64,11 +64,17 @@ Replaces `<!--seam:...-->` markers in HTML skeletons with server data. The Rust 
 | [injector/go](packages/server/injector/go/)         | Go module                     | Go wrapper running WASM via Wazero                           |
 | [injector/native](packages/server/injector/native/) | `@canmi/seam-injector-native` | Original pure TypeScript implementation (deprecated, frozen) |
 
+### Core Libraries
+
+| Package                | npm                | Description                                                      |
+| ---------------------- | ------------------ | ---------------------------------------------------------------- |
+| [i18n](packages/i18n/) | `@canmi/seam-i18n` | Framework-agnostic i18n core (translation lookup, interpolation) |
+
 ### Tooling
 
-| Package                                            | npm                         | Description                                |
-| -------------------------------------------------- | --------------------------- | ------------------------------------------ |
-| [eslint-plugin-seam](packages/eslint-plugin-seam/) | `@canmi/eslint-plugin-seam` | ESLint rules for skeleton component safety |
+| Package                    | npm                         | Description                                |
+| -------------------------- | --------------------------- | ------------------------------------------ |
+| [eslint](packages/eslint/) | `@canmi/eslint-plugin-seam` | ESLint rules for skeleton component safety |
 
 ## Documentation
 

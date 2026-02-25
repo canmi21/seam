@@ -1,6 +1,7 @@
 {
-  "name": "@canmi/seam-server",
+  "name": "@canmi/eslint-plugin-seam",
   "version": "0.3.2",
+  "description": "ESLint rules for SeamJS skeleton components",
   "files": [
     "dist"
   ],
@@ -15,14 +16,13 @@
     "build": "tsdown",
     "test": "vitest run"
   },
-  "dependencies": {
-    "@canmi/seam-injector": "workspace:*",
-    "jtd": "^0.1.1"
-  },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "eslint": "^10.0.0",
     "tsdown": "^0.20.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
+  },
+  "peerDependencies": {
+    "eslint": ">=9"
   }
 }

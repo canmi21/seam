@@ -10,6 +10,7 @@
     { "path": "packages/client/vanilla" },
     { "path": "packages/client/react" },
     { "path": "packages/client/tanstack-router" },
-    { "path": "packages/eslint-plugin-seam" }
+    { "path": "packages/eslint" },
+    { "path": "packages/i18n" }
   ]
 }

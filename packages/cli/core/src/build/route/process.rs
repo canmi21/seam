@@ -12,7 +12,7 @@ use super::super::skeleton::{
 };
 use super::super::slot_warning;
 use super::super::types::{AssetFiles, ViteDevInfo};
-use super::helpers::{embed_i18n_script, path_to_filename};
+use super::helpers::path_to_filename;
 use super::types::{
   I18nManifest, LayoutManifestEntry, RouteManifest, RouteManifestEntry, SkeletonLayout,
   SkeletonOutput, SkeletonRoute,
@@ -80,7 +80,7 @@ pub(crate) fn process_routes(
   root_id: &str,
   data_id: &str,
   i18n: Option<&I18nSection>,
-  i18n_messages: Option<&BTreeMap<String, serde_json::Value>>,
+  _i18n_messages: Option<&BTreeMap<String, serde_json::Value>>,
 ) -> Result<RouteManifest> {
   let manifest_data_id = if data_id == "__SEAM_DATA__" { None } else { Some(data_id.to_string()) };
   let i18n_manifest =
@@ -100,10 +100,7 @@ pub(crate) fn process_routes(
       for (locale, html) in locale_html {
         let html = html.replace("<seam-outlet></seam-outlet>", "<!--seam:outlet-->");
         let html = sentinel_to_slots(&html);
-        let mut document = wrap_document(&html, &assets.css, &assets.js, dev_mode, vite, root_id);
-        if let Some(msgs) = i18n_messages.and_then(|m| m.get(locale)) {
-          document = embed_i18n_script(&document, locale, msgs);
-        }
+        let document = wrap_document(&html, &assets.css, &assets.js, dev_mode, vite, root_id);
         let locale_dir = templates_dir.join(locale);
         std::fs::create_dir_all(&locale_dir)
           .with_context(|| format!("failed to create {}", locale_dir.display()))?;
@@ -173,10 +170,7 @@ pub(crate) fn process_routes(
             (body.to_string(), hm)
           }
         } else {
-          let mut doc = wrap_document(&template, &assets.css, &assets.js, dev_mode, vite, root_id);
-          if let Some(msgs) = i18n_messages.and_then(|m| m.get(locale)) {
-            doc = embed_i18n_script(&doc, locale, msgs);
-          }
+          let doc = wrap_document(&template, &assets.css, &assets.js, dev_mode, vite, root_id);
           (doc, None)
         };
 

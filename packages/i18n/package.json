@@ -1,7 +1,6 @@
 {
-  "name": "@canmi/eslint-plugin-seam",
-  "version": "0.3.1",
-  "description": "ESLint rules for SeamJS skeleton components",
+  "name": "@canmi/seam-i18n",
+  "version": "0.3.2",
   "files": [
     "dist"
   ],
@@ -17,12 +16,8 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "eslint": "^10.0.0",
     "tsdown": "^0.20.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
-  },
-  "peerDependencies": {
-    "eslint": ">=9"
   }
 }

@@ -6,7 +6,7 @@
 
 import tseslint from "typescript-eslint";
 import oxlint from "eslint-plugin-oxlint";
-import seamPlugin from "./packages/eslint-plugin-seam/src/index.ts";
+import seamPlugin from "./packages/eslint/src/index.ts";
 
 export default tseslint.config(
   {
