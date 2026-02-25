@@ -10,7 +10,7 @@ pub mod server;
 pub use errors::SeamError;
 pub use procedure::{BoxFuture, BoxStream, ProcedureDef, SubscriptionDef};
 pub use seam_macros::{seam_procedure, seam_subscription, SeamType};
-pub use server::SeamServer;
+pub use server::{SeamParts, SeamServer};
 
 /// Trait for types that can describe themselves as a JTD schema.
 /// Derive with `#[derive(SeamType)]` or implement manually.

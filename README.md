@@ -31,14 +31,15 @@ SeamJS is a **rendering strategy**, not a full-stack framework tied to specific 
 | Package                                                      | Crate / npm          | Description                                                                     |
 | ------------------------------------------------------------ | -------------------- | ------------------------------------------------------------------------------- |
 | [server/core/typescript](packages/server/core/typescript/)   | `@canmi/seam-server` | Framework-agnostic server core (procedures, subscriptions, pages, HTTP layer)   |
-| [server/core/rust](packages/server/core/rust/)               | `seam-server`        | Rust server core with built-in HTML template injector, built on axum            |
+| [server/core/rust](packages/server/core/rust/)               | `seam-server`        | Framework-agnostic Rust server core with built-in HTML template injector        |
 | [server/core/rust-macros](packages/server/core/rust-macros/) | `seam-macros`        | Proc macros: `#[derive(SeamType)]`, `#[seam_procedure]`, `#[seam_subscription]` |
 | [server/core/go](packages/server/core/go/)                   | Go module            | Go server core with Router, RPC, SSE, pages, and graceful shutdown              |
 
 ### Server Adapters
 
-| Package                                       | npm                        | Description                   |
+| Package                                       | Crate / npm                | Description                   |
 | --------------------------------------------- | -------------------------- | ----------------------------- |
+| [adapter/axum](packages/server/adapter/axum/) | `seam-server-axum`         | Axum adapter for Rust core    |
 | [adapter/hono](packages/server/adapter/hono/) | `@canmi/seam-adapter-hono` | Hono middleware adapter       |
 | [adapter/bun](packages/server/adapter/bun/)   | `@canmi/seam-adapter-bun`  | Standalone Bun server adapter |
 | [adapter/node](packages/server/adapter/node/) | `@canmi/seam-adapter-node` | Node.js HTTP adapter          |

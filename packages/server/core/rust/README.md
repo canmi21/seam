@@ -1,11 +1,11 @@
 # seam-server
 
-Rust implementation of the SeamJS server core, defining procedures, subscriptions, pages, and an HTML template injector. Built on axum.
+Framework-agnostic Rust server core for SeamJS, defining procedures, subscriptions, pages, and an HTML template injector. Use with an adapter crate (e.g. [seam-server-axum](../../adapter/axum/)) for HTTP routing.
 
 ## Structure
 
 - `src/lib.rs` — `SeamType` trait and primitive JTD schema implementations
-- `src/server.rs` — `SeamServer` builder and axum route handlers
+- `src/server.rs` — `SeamServer` builder and `SeamParts` extraction
 - `src/procedure.rs` — `ProcedureDef` / `SubscriptionDef` type aliases
 - `src/page.rs` — `PageDef` / `LoaderDef` types
 - `src/manifest.rs` — Build JSON manifest from procedure and subscription definitions

@@ -7,6 +7,7 @@ mod subscriptions;
 use std::env;
 
 use seam_server::SeamServer;
+use seam_server_axum::IntoAxumRouter;
 
 use pages::user_page;
 use procedures::get_user::get_user_procedure;

@@ -299,6 +299,7 @@ version = "0.2.15"
 dependencies = [
  "async-stream",
  "seam-server",
+ "seam-server-axum",
  "serde",
  "serde_json",
  "tokio",
@@ -1454,11 +1455,22 @@ dependencies = [
 name = "seam-server"
 version = "0.2.15"
 dependencies = [
- "axum",
  "futures-core",
  "regex",
  "seam-injector",
  "seam-macros",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "seam-server-axum"
+version = "0.2.15"
+dependencies = [
+ "axum",
+ "futures-core",
+ "seam-injector",
+ "seam-server",
  "serde",
  "serde_json",
  "tokio",
