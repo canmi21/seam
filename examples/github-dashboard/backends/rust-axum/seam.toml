@@ -1,3 +1,6 @@
+[project]
+name = "rust-axum"
+
 [backend]
 lang = "rust"
 dev_command = "cargo watch -x run"

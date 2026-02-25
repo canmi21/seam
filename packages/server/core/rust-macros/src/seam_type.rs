@@ -46,6 +46,24 @@ fn expand_enum(data: &syn::DataEnum) -> syn::Result<TokenStream> {
   })
 }
 
+fn has_seam_optional(field: &syn::Field) -> bool {
+  for attr in &field.attrs {
+    if attr.path().is_ident("seam") {
+      // Parse #[seam(optional)]
+      if let Ok(nested) = attr.parse_args_with(
+        syn::punctuated::Punctuated::<syn::Ident, syn::Token![,]>::parse_terminated,
+      ) {
+        for ident in &nested {
+          if ident == "optional" {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  false
+}
+
 fn expand_struct(fields: &Fields) -> syn::Result<TokenStream> {
   let named = match fields {
     Fields::Named(f) => f,
@@ -61,17 +79,36 @@ fn expand_struct(fields: &Fields) -> syn::Result<TokenStream> {
     let field_name = field.ident.as_ref().unwrap();
     let key = field_name.to_string();
     let ty = &field.ty;
+    let is_optional = has_seam_optional(field);
 
     if is_option_type(ty) {
       let inner = extract_option_inner(ty)
         .ok_or_else(|| syn::Error::new_spanned(ty, "could not extract inner type from Option"))?;
-      // Optional fields use nullable wrapping
-      optional_inserts.push(quote! {
+      // Option<T>: nullable schema. Placement depends on #[seam(optional)].
+      let insert = quote! {
         let mut schema = <#inner as seam_server::SeamType>::jtd_schema();
         if let Some(obj) = schema.as_object_mut() {
           obj.insert("nullable".to_string(), serde_json::Value::Bool(true));
         }
-        opt_props.insert(#key.to_string(), schema);
+      };
+      if is_optional {
+        optional_inserts.push(quote! {
+          #insert
+          opt_props.insert(#key.to_string(), schema);
+        });
+      } else {
+        required_inserts.push(quote! {
+          #insert
+          props.insert(#key.to_string(), schema);
+        });
+      }
+    } else if is_optional {
+      // Non-Option with #[seam(optional)]: field may be absent, not nullable
+      optional_inserts.push(quote! {
+        opt_props.insert(
+          #key.to_string(),
+          <#ty as seam_server::SeamType>::jtd_schema(),
+        );
       });
     } else {
       required_inserts.push(quote! {

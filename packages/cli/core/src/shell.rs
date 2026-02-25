@@ -77,14 +77,39 @@ pub(crate) fn run_builtin_bundler(
 
 /// Locate a script bundled with @canmi/seam-cli.
 fn find_cli_script(base_dir: &Path, name: &str) -> Result<PathBuf> {
-  let path = base_dir.join("node_modules/@canmi/seam-cli/scripts").join(name);
-  if path.exists() {
-    return Ok(path);
+  let suffix = format!("@canmi/seam-cli/scripts/{name}");
+  resolve_node_module(base_dir, &suffix).ok_or_else(|| {
+    anyhow::anyhow!("{name} not found -- install @canmi/seam-cli or set build.bundler_command")
+  })
+}
+
+/// Resolve a path inside node_modules by walking up parent directories.
+/// Mirrors Node.js module resolution: checks `<dir>/node_modules/<suffix>` at each level.
+/// Also scans immediate subdirectories of `start` (bun workspace puts symlinks in member node_modules).
+pub(crate) fn resolve_node_module(start: &Path, suffix: &str) -> Option<PathBuf> {
+  // Walk up from start
+  let mut dir = start.to_path_buf();
+  loop {
+    let candidate = dir.join("node_modules").join(suffix);
+    if candidate.exists() {
+      return Some(candidate);
+    }
+    if !dir.pop() {
+      break;
+    }
   }
-  bail!(
-    "{name} not found at {} -- install @canmi/seam-cli or set build.bundler_command",
-    path.display()
-  );
+  // Scan immediate subdirectories (bun workspace hoists into member node_modules)
+  if let Ok(entries) = std::fs::read_dir(start) {
+    for entry in entries.flatten() {
+      if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
+        let candidate = entry.path().join("node_modules").join(suffix);
+        if candidate.exists() {
+          return Some(candidate);
+        }
+      }
+    }
+  }
+  None
 }
 
 /// Check if a command exists on PATH.

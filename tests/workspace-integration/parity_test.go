@@ -7,8 +7,8 @@ import (
 )
 
 // TestManifestParity compares procedure names and types across backends.
-// Full JSON equality is not expected because the TS SDK puts nullable fields
-// in "properties" while Rust/Go use "optionalProperties" (JTD spec).
+// All SDKs now place nullable fields in "properties" (with nullable: true)
+// and only use "optionalProperties" for truly absent-able fields.
 func TestManifestParity(t *testing.T) {
 	if len(backends) < 2 {
 		t.Skip("need at least 2 backends for parity test")

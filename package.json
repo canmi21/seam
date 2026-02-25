@@ -19,6 +19,7 @@
     "examples/standalone/client-react",
     "examples/github-dashboard/shared",
     "examples/github-dashboard/backends/ts-hono",
+    "examples/github-dashboard/frontend",
     "examples/github-dashboard/seam-app",
     "examples/github-dashboard/next-app",
     "tests/e2e/fixture",

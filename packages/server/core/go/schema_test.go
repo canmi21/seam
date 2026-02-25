@@ -74,6 +74,20 @@ func TestSchemaOfOptional(t *testing.T) {
 	}
 }
 
+// Pointer field without omitempty: required but nullable (properties + nullable)
+type WithNullable struct {
+	ID   uint32  `json:"id"`
+	Name *string `json:"name"`
+}
+
+func TestSchemaOfNullable(t *testing.T) {
+	got := mustMarshal(t, SchemaOf[WithNullable]())
+	want := `{"properties":{"id":{"type":"uint32"},"name":{"nullable":true,"type":"string"}}}`
+	if got != want {
+		t.Errorf("got %s, want %s", got, want)
+	}
+}
+
 type EmptyStruct struct{}
 
 func TestSchemaOfEmptyStruct(t *testing.T) {

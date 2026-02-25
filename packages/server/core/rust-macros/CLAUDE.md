@@ -34,6 +34,7 @@ cargo test --workspace
 - `seam_procedure` expects exactly one input parameter and a `Result<T, SeamError>` return type; it extracts `T` as the output schema type
 - `seam_subscription` digs three levels deep into generics to extract the output type from `Result<BoxStream<Result<T, SeamError>>, SeamError>`
 - `SeamType` derive only supports structs with named fields and enums with unit variants -- tuple structs and enums with data will fail at compile time
-- `Option<T>` fields are emitted as JTD `optionalProperties` with `nullable: true`
+- `Option<T>` fields are emitted as `properties` with `nullable: true` (required but nullable, per JTD spec)
+- `#[seam(optional)]` on a field puts it in `optionalProperties` (may be absent); combine with `Option<T>` for optional + nullable
 
 See root CLAUDE.md for project-wide conventions.

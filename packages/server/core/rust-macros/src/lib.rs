@@ -6,7 +6,7 @@ mod seam_type;
 
 use proc_macro::TokenStream;
 
-#[proc_macro_derive(SeamType)]
+#[proc_macro_derive(SeamType, attributes(seam))]
 pub fn derive_seam_type(input: TokenStream) -> TokenStream {
   let input = syn::parse_macro_input!(input as syn::DeriveInput);
   match seam_type::expand(input) {

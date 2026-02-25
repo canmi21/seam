@@ -1,3 +1,6 @@
+[project]
+name = "ts-hono"
+
 [backend]
 lang = "typescript"
 dev_command = "bun --watch src/index.ts"

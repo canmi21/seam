@@ -638,10 +638,12 @@ pub(crate) fn run_typecheck(base_dir: &Path, command: &str) -> Result<()> {
 }
 
 /// Copy frontend assets from dist/ to {out_dir}/public/
+/// `dist_dir` is the directory containing bundler output (e.g. "dist" or "frontend/dist").
 pub(crate) fn package_static_assets(
   base_dir: &Path,
   assets: &AssetFiles,
   out_dir: &Path,
+  dist_dir: &str,
 ) -> Result<()> {
   let public_dir = out_dir.join("public");
 
@@ -649,7 +651,7 @@ pub(crate) fn package_static_assets(
     assets.js.iter().chain(assets.css.iter()).map(|s| s.as_str()).collect();
 
   for file in all_files {
-    let src = base_dir.join("dist").join(file);
+    let src = base_dir.join(dist_dir).join(file);
     let dst = public_dir.join(file);
 
     if let Some(parent) = dst.parent() {

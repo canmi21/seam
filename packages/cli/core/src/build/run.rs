@@ -5,7 +5,7 @@
 use std::path::Path;
 use std::time::Instant;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 
 use super::config::{BuildConfig, BundlerMode};
 use super::route::{
@@ -15,7 +15,7 @@ use super::route::{
 };
 use super::types::{read_bundle_manifest, AssetFiles, ViteDevInfo};
 use crate::config::SeamConfig;
-use crate::shell::{run_builtin_bundler, run_command};
+use crate::shell::{resolve_node_module, run_builtin_bundler, run_command};
 use crate::ui::{self, RESET, YELLOW};
 
 #[derive(Debug, Clone, Copy)]
@@ -134,15 +134,13 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
 
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
   let assets = read_bundle_manifest(&manifest_path)?;
-  print_asset_files(base_dir, "dist", &assets);
+  print_asset_files(base_dir, build_config.dist_dir(), &assets);
   ui::blank();
 
   // [2/4] Extract routes
   ui::step(2, 4, "Extracting routes");
-  let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
-  if !script_path.exists() {
-    bail!("build-skeletons.mjs not found at {}", script_path.display());
-  }
+  let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
+    .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&build_config.routes);
   let none_path = Path::new("none");
   let skeleton_output = run_skeleton_renderer(
@@ -268,7 +266,7 @@ fn run_fullstack_build(
   run_bundler(base_dir, &build_config.bundler_mode, &bundler_env)?;
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
   let assets = read_bundle_manifest(&manifest_path)?;
-  print_asset_files(base_dir, "dist", &assets);
+  print_asset_files(base_dir, build_config.dist_dir(), &assets);
   ui::blank();
 
   // [5] Type check (optional)
@@ -282,10 +280,8 @@ fn run_fullstack_build(
   // [6] Generate skeletons
   step_num += 1;
   ui::step(step_num, total, "Generating skeletons");
-  let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
-  if !script_path.exists() {
-    bail!("build-skeletons.mjs not found at {}", script_path.display());
-  }
+  let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
+    .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&build_config.routes);
   let manifest_json_path = out_dir.join("seam-manifest.json");
   let skeleton_output = run_skeleton_renderer(
@@ -327,7 +323,7 @@ fn run_fullstack_build(
   // [7] Package output
   step_num += 1;
   ui::step(step_num, total, "Packaging output");
-  package_static_assets(base_dir, &assets, &out_dir)?;
+  package_static_assets(base_dir, &assets, &out_dir, build_config.dist_dir())?;
   ui::blank();
 
   // Summary
@@ -402,7 +398,7 @@ pub fn run_dev_build(
     run_bundler(base_dir, &build_config.bundler_mode, &bundler_env)?;
     let manifest_path = base_dir.join(&build_config.bundler_manifest);
     let a = read_bundle_manifest(&manifest_path)?;
-    print_asset_files(base_dir, "dist", &a);
+    print_asset_files(base_dir, build_config.dist_dir(), &a);
     ui::blank();
     a
   };
@@ -410,10 +406,8 @@ pub fn run_dev_build(
   // [N] Generate skeletons
   step_num += 1;
   ui::step(step_num, total, "Generating skeletons");
-  let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
-  if !script_path.exists() {
-    bail!("build-skeletons.mjs not found at {}", script_path.display());
-  }
+  let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
+    .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&build_config.routes);
   let manifest_json_path = out_dir.join("seam-manifest.json");
   let skeleton_output = run_skeleton_renderer(
@@ -455,7 +449,7 @@ pub fn run_dev_build(
   if !is_vite {
     step_num += 1;
     ui::step(step_num, total, "Packaging output");
-    package_static_assets(base_dir, &assets, &out_dir)?;
+    package_static_assets(base_dir, &assets, &out_dir, build_config.dist_dir())?;
     ui::blank();
   }
 
@@ -522,10 +516,8 @@ pub fn run_incremental_rebuild(
     read_bundle_manifest(&manifest_path)?
   };
 
-  let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
-  if !script_path.exists() {
-    bail!("build-skeletons.mjs not found at {}", script_path.display());
-  }
+  let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
+    .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&build_config.routes);
   let manifest_json_path = out_dir.join("seam-manifest.json");
   let skeleton_output = run_skeleton_renderer(
@@ -567,7 +559,7 @@ pub fn run_incremental_rebuild(
     .with_context(|| format!("failed to write {}", route_manifest_path.display()))?;
 
   if !is_vite {
-    package_static_assets(base_dir, &assets, &out_dir)?;
+    package_static_assets(base_dir, &assets, &out_dir, build_config.dist_dir())?;
   }
 
   Ok(())

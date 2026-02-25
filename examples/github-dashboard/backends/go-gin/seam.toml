@@ -1,3 +1,6 @@
+[project]
+name = "go-gin"
+
 [backend]
 lang = "go"
 dev_command = "go run ."

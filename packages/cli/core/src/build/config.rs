@@ -107,6 +107,15 @@ impl BuildConfig {
     })
   }
 
+  /// Derive the dist directory from `bundler_manifest` (e.g. "frontend/dist/.vite/manifest.json" -> "frontend/dist").
+  pub fn dist_dir(&self) -> &str {
+    std::path::Path::new(&self.bundler_manifest)
+      .parent()
+      .and_then(|p| p.parent())
+      .and_then(|p| p.to_str())
+      .unwrap_or("dist")
+  }
+
   pub fn from_seam_config_dev(config: &SeamConfig) -> Result<Self> {
     let mut bc = Self::from_seam_config(config)?;
     bc.obfuscate = config.dev.obfuscate.unwrap_or(false);

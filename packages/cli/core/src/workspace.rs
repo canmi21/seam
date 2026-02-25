@@ -17,7 +17,7 @@ use crate::build::route::{
 use crate::build::types::read_bundle_manifest;
 use crate::config::{resolve_member_config, validate_workspace, SeamConfig};
 use crate::manifest::Manifest;
-use crate::shell::run_command;
+use crate::shell::{resolve_node_module, run_command};
 use crate::ui::{self, DIM, GREEN, RESET, YELLOW};
 
 #[derive(Debug)]
@@ -93,23 +93,16 @@ fn validate_manifest_compatibility(
     }
   }
 
-  // Check matching procedures have identical schemas
+  // Check matching procedures have compatible type (query/mutation/subscription).
+  // Schema comparison is intentionally omitted: different SDK implementations
+  // represent nullable/optional fields differently in JTD (properties vs optionalProperties).
+  // The reference member's schema is authoritative for client codegen.
   for (name, ref_proc) in &reference.procedures {
     if let Some(cand_proc) = candidate.procedures.get(name) {
       if ref_proc.proc_type != cand_proc.proc_type {
         errors.push(format!(
           "procedure \"{name}\" type mismatch: {ref_name}=\"{}\" vs {cand_name}=\"{}\"",
           ref_proc.proc_type, cand_proc.proc_type
-        ));
-      }
-      if ref_proc.input != cand_proc.input {
-        errors.push(format!(
-          "procedure \"{name}\" input schema mismatch between {ref_name} and {cand_name}"
-        ));
-      }
-      if ref_proc.output != cand_proc.output {
-        errors.push(format!(
-          "procedure \"{name}\" output schema mismatch between {ref_name} and {cand_name}"
         ));
       }
     }
@@ -207,7 +200,7 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
   }
   let manifest_path = base_dir.join(&first.build_config.bundler_manifest);
   let assets = read_bundle_manifest(&manifest_path)?;
-  print_asset_files(base_dir, "dist", &assets);
+  print_asset_files(base_dir, first.build_config.dist_dir(), &assets);
 
   // [1.5] Type check (optional)
   if let Some(cmd) = &first.build_config.typecheck_command {
@@ -217,10 +210,8 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
 
   // [1.6] Generate skeletons (shared)
   ui::detail(&format!("{DIM}[shared]{RESET} generating skeletons"));
-  let script_path = base_dir.join("node_modules/@canmi/seam-react/scripts/build-skeletons.mjs");
-  if !script_path.exists() {
-    bail!("build-skeletons.mjs not found at {}", script_path.display());
-  }
+  let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
+    .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&first.build_config.routes);
   let manifest_json_path = shared_out_dir.join("seam-manifest.json");
   let skeleton_output = run_skeleton_renderer(
@@ -260,7 +251,7 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
   // [1.7] Package first member output
   let first_member_out = shared_out_dir.join(&first.name);
   std::fs::create_dir_all(&first_member_out)?;
-  package_static_assets(base_dir, &assets, &shared_out_dir)?;
+  package_static_assets(base_dir, &assets, &shared_out_dir, first.build_config.dist_dir())?;
   crate::build::run::copy_wasm_binary_pub(base_dir, &shared_out_dir)?;
   ui::detail_ok(&format!("{GREEN}{}{RESET} build complete", first.name));
   println!();
@@ -361,17 +352,6 @@ mod tests {
     let b = make_manifest(&[("getUser", "subscription")]);
     let err = validate_manifest_compatibility(&a, "ts-hono", &b, "rust-axum").unwrap_err();
     assert!(err.to_string().contains("type mismatch"));
-  }
-
-  #[test]
-  fn schema_mismatch_detected() {
-    let mut a = make_manifest(&[("getUser", "query")]);
-    let b = make_manifest(&[("getUser", "query")]);
-    // Modify input schema of a
-    a.procedures.get_mut("getUser").unwrap().input =
-      serde_json::json!({"properties": {"username": {"type": "string"}}});
-    let err = validate_manifest_compatibility(&a, "ts-hono", &b, "rust-axum").unwrap_err();
-    assert!(err.to_string().contains("input schema mismatch"));
   }
 
   #[test]

@@ -15,8 +15,8 @@ func SchemaOf[T any]() any {
 }
 
 func schemaFor(t reflect.Type) any {
-	// Unwrap pointer for the underlying type analysis,
-	// but pointer-ness is handled at the struct field level (optionalProperties).
+	// Unwrap pointer for the underlying type analysis;
+	// pointer-ness is handled at the struct field level (nullable in properties).
 	if t.Kind() == reflect.Ptr {
 		return schemaFor(t.Elem())
 	}
@@ -84,19 +84,29 @@ func schemaForStruct(t reflect.Type) any {
 			continue
 		}
 
-		isOptional := field.Type.Kind() == reflect.Ptr || omit
+		isPtr := field.Type.Kind() == reflect.Ptr
 
-		if isOptional {
+		if omit {
+			// omitempty: field may be absent (optionalProperties)
 			inner := field.Type
-			if inner.Kind() == reflect.Ptr {
+			if isPtr {
 				inner = inner.Elem()
 			}
 			schema := schemaFor(inner)
-			// Add nullable: true to match Rust Option<T> behavior
+			if isPtr {
+				if m, ok := schema.(map[string]any); ok {
+					m["nullable"] = true
+				}
+			}
+			optProps[name] = schema
+		} else if isPtr {
+			// Pointer without omitempty: required but nullable (properties + nullable)
+			inner := field.Type.Elem()
+			schema := schemaFor(inner)
 			if m, ok := schema.(map[string]any); ok {
 				m["nullable"] = true
 			}
-			optProps[name] = schema
+			props[name] = schema
 		} else {
 			props[name] = schemaFor(field.Type)
 		}
