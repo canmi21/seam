@@ -10,7 +10,7 @@ SeamJS is a **rendering strategy**, not a full-stack framework tied to specific 
 
 - **UI stack**: React-first for concept validation. The CTR pipeline (skeleton extraction + template injection) is UI-agnostic — adapting other frameworks (Vue, Svelte, Solid, ...) requires a corresponding skeleton extractor and client bindings. Community contributions welcome.
 - **API bridge**: Currently uses JSON-RPC over HTTP. Not married to this approach — if a better protocol fits, open an issue or send a PR.
-- **Backend runtime**: The server core defines a protocol, not a runtime. TypeScript and Rust implementations are provided as reference; any language can implement the seam protocol by serving the `/_seam/*` endpoints.
+- **Backend runtime**: The server core defines a protocol, not a runtime. TypeScript, Rust, and Go implementations are provided as reference; any language can implement the seam protocol by serving the `/_seam/*` endpoints.
 
 ### How CTR Differs
 
@@ -28,12 +28,12 @@ SeamJS is a **rendering strategy**, not a full-stack framework tied to specific 
 
 ### Server Core
 
-| Package                                                      | Crate / npm          | Description                                                                     |
-| ------------------------------------------------------------ | -------------------- | ------------------------------------------------------------------------------- |
-| [server/core/typescript](packages/server/core/typescript/)   | `@canmi/seam-server` | Framework-agnostic server core (procedures, subscriptions, pages, HTTP layer)   |
-| [server/core/rust](packages/server/core/rust/)               | `seam-server`        | Framework-agnostic Rust server core with built-in HTML template injector        |
-| [server/core/rust-macros](packages/server/core/rust-macros/) | `seam-macros`        | Proc macros: `#[derive(SeamType)]`, `#[seam_procedure]`, `#[seam_subscription]` |
-| [server/core/go](packages/server/core/go/)                   | Go module            | Go server core with Router, RPC, SSE, pages, and graceful shutdown              |
+| Package                                                      | Crate / npm          | Description                                                                          |
+| ------------------------------------------------------------ | -------------------- | ------------------------------------------------------------------------------------ |
+| [server/core/typescript](packages/server/core/typescript/)   | `@canmi/seam-server` | Framework-agnostic server core (procedures, subscriptions, pages, HTTP layer)        |
+| [server/core/rust](packages/server/core/rust/)               | `seam-server`        | Framework-agnostic Rust server core (procedures, subscriptions, pages, typed schema) |
+| [server/core/rust-macros](packages/server/core/rust-macros/) | `seam-macros`        | Proc macros: `#[derive(SeamType)]`, `#[seam_procedure]`, `#[seam_subscription]`      |
+| [server/core/go](packages/server/core/go/)                   | Go module            | Go server core with Router, RPC, SSE, pages, and graceful shutdown                   |
 
 ### Server Adapters
 
@@ -54,7 +54,7 @@ SeamJS is a **rendering strategy**, not a full-stack framework tied to specific 
 
 ### Template Injector
 
-Replaces `<!--seam:...-->` markers in HTML skeletons with server data. Only the Rust implementation is actively maintained; other packages are WASM bindings or wrappers.
+Replaces `<!--seam:...-->` markers in HTML skeletons with server data. The Rust implementation is the only source of truth; WASM bindings and Go/JS wrappers provide cross-language support.
 
 | Package                                             | Crate / npm                   | Description                                                  |
 | --------------------------------------------------- | ----------------------------- | ------------------------------------------------------------ |
@@ -70,17 +70,29 @@ Replaces `<!--seam:...-->` markers in HTML skeletons with server data. Only the 
 | -------------------------------------------------- | --------------------------- | ------------------------------------------ |
 | [eslint-plugin-seam](packages/eslint-plugin-seam/) | `@canmi/eslint-plugin-seam` | ESLint rules for skeleton component safety |
 
+## Documentation
+
+Protocol specifications and design constraints for implementors.
+
+| Document                                               | Description                                            |
+| ------------------------------------------------------ | ------------------------------------------------------ |
+| [Slot Protocol](docs/slot-protocol.md)                 | Server-side HTML injection syntax (`<!--seam:path-->`) |
+| [Sentinel Protocol](docs/sentinel-protocol.md)         | Build-time placeholder format for skeleton extraction  |
+| [Procedure Manifest](docs/procedure-manifest.md)       | JSON schema for the `/_seam/manifest.json` endpoint    |
+| [Subscription Protocol](docs/subscription-protocol.md) | SSE-based real-time streaming specification            |
+| [Skeleton Constraints](docs/skeleton-constraints.md)   | Rules for build-safe skeleton components               |
+
 ## Demo
 
 [**GitHub Dashboard**](examples/github-dashboard/) — same React UI rendered two ways: SeamJS CTR vs Next.js SSR. The CTR side runs on three interchangeable backends (TypeScript, Rust, Go) sharing one React frontend; the Next.js side uses conventional server components. Both fetch live data from the GitHub API.
 
-|   | App | Backend | Description |
-| - | --- | ------- | ----------- |
-| **CTR** | [seam-app](examples/github-dashboard/seam-app/) | Hono on Bun | Fullstack — frontend and server in one package |
-| **CTR** | [frontend](examples/github-dashboard/frontend/) + [ts-hono](examples/github-dashboard/backends/ts-hono/) | Hono on Bun | Workspace — shared frontend, TypeScript backend |
-| **CTR** | [frontend](examples/github-dashboard/frontend/) + [rust-axum](examples/github-dashboard/backends/rust-axum/) | Axum | Workspace — shared frontend, Rust backend |
-| **CTR** | [frontend](examples/github-dashboard/frontend/) + [go-gin](examples/github-dashboard/backends/go-gin/) | Gin | Workspace — shared frontend, Go backend |
-| **SSR** | [next-app](examples/github-dashboard/next-app/) | Next.js | Server-rendered comparison (same UI, no CTR) |
+|         | App                                                                                                          | Backend     | Description                                     |
+| ------- | ------------------------------------------------------------------------------------------------------------ | ----------- | ----------------------------------------------- |
+| **CTR** | [seam-app](examples/github-dashboard/seam-app/)                                                              | Hono on Bun | Fullstack — frontend and server in one package  |
+| **CTR** | [frontend](examples/github-dashboard/frontend/) + [ts-hono](examples/github-dashboard/backends/ts-hono/)     | Hono on Bun | Workspace — shared frontend, TypeScript backend |
+| **CTR** | [frontend](examples/github-dashboard/frontend/) + [rust-axum](examples/github-dashboard/backends/rust-axum/) | Axum        | Workspace — shared frontend, Rust backend       |
+| **CTR** | [frontend](examples/github-dashboard/frontend/) + [go-gin](examples/github-dashboard/backends/go-gin/)       | Gin         | Workspace — shared frontend, Go backend         |
+| **SSR** | [next-app](examples/github-dashboard/next-app/)                                                              | Next.js     | Server-rendered comparison (same UI, no CTR)    |
 
 The three workspace backends serve identical CTR-rendered pages with the same RPC procedures — a cross-language parity test for the seam protocol.
 
@@ -88,15 +100,15 @@ The three workspace backends serve identical CTR-rendered pages with the same RP
 
 Minimal standalone examples showing SDK usage for each language and runtime.
 
-| Example                                               | Description                                  |
-| ----------------------------------------------------- | -------------------------------------------- |
+| Example                                               | Description                                         |
+| ----------------------------------------------------- | --------------------------------------------------- |
 | [server-rust](examples/standalone/server-rust/)       | Rust + Axum backend with `#[seam_procedure]` macros |
-| [server-bun](examples/standalone/server-bun/)         | Bun server with Hono adapter                 |
-| [server-node](examples/standalone/server-node/)       | Node.js HTTP server                          |
-| [server-go](examples/standalone/server-go/)           | Go backend with standard library             |
-| [server-go-gin](examples/standalone/server-go-gin/)   | Go backend with Gin framework                |
-| [client-vanilla](examples/standalone/client-vanilla/) | Vanilla JS client (RPC + SSE)                |
-| [client-react](examples/standalone/client-react/)     | React client with hooks and routing          |
+| [server-bun](examples/standalone/server-bun/)         | Bun server with Hono adapter                        |
+| [server-node](examples/standalone/server-node/)       | Node.js HTTP server                                 |
+| [server-go](examples/standalone/server-go/)           | Go backend with standard library                    |
+| [server-go-gin](examples/standalone/server-go-gin/)   | Go backend with Gin framework                       |
+| [client-vanilla](examples/standalone/client-vanilla/) | Vanilla JS client (RPC + SSE)                       |
+| [client-react](examples/standalone/client-react/)     | React client with hooks and routing                 |
 
 ## Development
 
@@ -115,23 +127,28 @@ bun install
 ### Build
 
 ```bash
-# TypeScript packages
-bun run --filter '<pkg>' build
-
-# Rust workspace
-cargo build --workspace
+bun run build:ts         # All TypeScript packages
+cargo build --workspace  # All Rust crates
 ```
 
 ### Test
 
+| Command                    | Scope                                            |
+| -------------------------- | ------------------------------------------------ |
+| `bun run test:unit`        | All unit tests (Rust + TypeScript)               |
+| `bun run test:integration` | Go integration tests                             |
+| `bun run test:e2e`         | Playwright E2E tests                             |
+| `bun run test`             | All layers (unit + integration + e2e)            |
+| `bun run typecheck`        | TypeScript type checking across all packages     |
+| `bun run verify`           | Full pipeline: format + lint + build + all tests |
+
+### Environment
+
+GitHub Dashboard demo and E2E tests call the GitHub API. Set a token to avoid rate limits:
+
 ```bash
-# TypeScript packages
-bun run --filter '<pkg>' test
-
-# Rust workspace
-cargo test --workspace
-
-# Go integration tests
-cd tests/integration && go test -v -count=1
-cd tests/fullstack && go test -v -count=1
+# .env (gitignored)
+GITHUB_TOKEN=ghp_...
 ```
+
+Create a [fine-grained token](https://github.com/settings/tokens?type=beta) with no permissions — it only needs to identify the caller for rate limit purposes (60 -> 5000 req/hour).
