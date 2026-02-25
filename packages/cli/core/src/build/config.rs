@@ -19,6 +19,7 @@ pub struct BuildConfig {
   pub renderer: String,
   pub backend_build_command: Option<String>,
   pub router_file: Option<String>,
+  pub manifest_command: Option<String>,
   pub typecheck_command: Option<String>,
   pub is_fullstack: bool,
   pub obfuscate: bool,
@@ -69,6 +70,7 @@ impl BuildConfig {
     }
     let backend_build_command = build.backend_build_command.clone();
     let router_file = build.router_file.clone();
+    let manifest_command = build.manifest_command.clone();
     let typecheck_command = build.typecheck_command.clone();
     let is_fullstack = backend_build_command.is_some();
     let obfuscate = build.obfuscate.unwrap_or(true);
@@ -91,6 +93,7 @@ impl BuildConfig {
       renderer,
       backend_build_command,
       router_file,
+      manifest_command,
       typecheck_command,
       is_fullstack,
       obfuscate,
