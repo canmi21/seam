@@ -15,3 +15,5 @@ tests/e2e/playwright-report/
 # E2E fixture build output
 tests/e2e/fixture/.seam/
 examples/standalone/server-go/server-go
+examples/github-dashboard/backends/go-gin/go-gin
+examples/github-dashboard/backends/go-gin/server

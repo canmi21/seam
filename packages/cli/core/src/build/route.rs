@@ -25,38 +25,38 @@ use crate::ui::{self, DIM, GREEN, RESET, YELLOW};
 // -- Node script output types --
 
 #[derive(Deserialize)]
-pub(super) struct SkeletonLayout {
-  pub(super) id: String,
+pub(crate) struct SkeletonLayout {
+  pub(crate) id: String,
   // i18n OFF: single html
   #[serde(default)]
-  pub(super) html: Option<String>,
+  pub(crate) html: Option<String>,
   // i18n ON: per-locale html
   #[serde(rename = "localeHtml", default)]
-  pub(super) locale_html: Option<BTreeMap<String, String>>,
+  pub(crate) locale_html: Option<BTreeMap<String, String>>,
   #[serde(default)]
-  pub(super) loaders: serde_json::Value,
-  pub(super) parent: Option<String>,
+  pub(crate) loaders: serde_json::Value,
+  pub(crate) parent: Option<String>,
 }
 
 #[derive(Deserialize)]
-pub(super) struct CacheStats {
-  pub(super) hits: u32,
-  pub(super) misses: u32,
+pub(crate) struct CacheStats {
+  pub(crate) hits: u32,
+  pub(crate) misses: u32,
 }
 
 #[derive(Deserialize)]
-pub(super) struct SkeletonOutput {
+pub(crate) struct SkeletonOutput {
   #[serde(default)]
-  pub(super) layouts: Vec<SkeletonLayout>,
-  pub(super) routes: Vec<SkeletonRoute>,
+  pub(crate) layouts: Vec<SkeletonLayout>,
+  pub(crate) routes: Vec<SkeletonRoute>,
   #[serde(default)]
-  pub(super) warnings: Vec<String>,
+  pub(crate) warnings: Vec<String>,
   #[serde(rename = "cacheStats", default)]
-  pub(super) cache: Option<CacheStats>,
+  pub(crate) cache: Option<CacheStats>,
 }
 
 #[derive(Deserialize)]
-pub(super) struct SkeletonRoute {
+pub(crate) struct SkeletonRoute {
   path: String,
   loaders: serde_json::Value,
   // i18n OFF: flat fields (backward compatible)
@@ -106,7 +106,7 @@ struct LayoutManifestEntry {
 }
 
 #[derive(Serialize)]
-pub(super) struct RouteManifest {
+pub(crate) struct RouteManifest {
   #[serde(skip_serializing_if = "BTreeMap::is_empty")]
   layouts: BTreeMap<String, LayoutManifestEntry>,
   routes: BTreeMap<String, RouteManifestEntry>,
@@ -146,7 +146,7 @@ fn path_to_filename(path: &str) -> String {
 }
 
 /// Print each asset file with its size from disk
-pub(super) fn print_asset_files(base_dir: &Path, dist_dir: &str, assets: &AssetFiles) {
+pub(crate) fn print_asset_files(base_dir: &Path, dist_dir: &str, assets: &AssetFiles) {
   let all_files: Vec<&str> =
     assets.js.iter().chain(assets.css.iter()).map(|s| s.as_str()).collect();
   for file in all_files {
@@ -156,7 +156,7 @@ pub(super) fn print_asset_files(base_dir: &Path, dist_dir: &str, assets: &AssetF
   }
 }
 
-pub(super) fn run_skeleton_renderer(
+pub(crate) fn run_skeleton_renderer(
   script_path: &Path,
   routes_path: &Path,
   manifest_path: &Path,
@@ -205,7 +205,7 @@ pub(super) fn run_skeleton_renderer(
 }
 
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
-pub(super) fn process_routes(
+pub(crate) fn process_routes(
   layouts: &[SkeletonLayout],
   routes: &[SkeletonRoute],
   templates_dir: &Path,
@@ -454,7 +454,7 @@ fn did_you_mean<'a>(name: &str, candidates: &[&'a str]) -> Option<&'a str> {
 
 /// Validate that all procedure references in routes/layouts exist in the manifest.
 /// Collects all errors and reports them together.
-pub(super) fn validate_procedure_references(
+pub(crate) fn validate_procedure_references(
   manifest: &Manifest,
   skeleton_output: &SkeletonOutput,
 ) -> Result<()> {
@@ -493,7 +493,7 @@ pub(super) fn validate_procedure_references(
 }
 
 /// Print procedure breakdown (reused from pull.rs logic)
-pub(super) fn print_procedure_breakdown(manifest: &Manifest) {
+pub(crate) fn print_procedure_breakdown(manifest: &Manifest) {
   let total = manifest.procedures.len();
   let mut queries = 0u32;
   let mut mutations = 0u32;
@@ -524,8 +524,44 @@ pub(super) fn print_procedure_breakdown(manifest: &Manifest) {
   ui::detail_ok(&format!("{total} procedures{breakdown}"));
 }
 
+/// Run a shell command that prints Manifest JSON to stdout.
+/// Used for Rust/Go backends that can't be imported via bun -e.
+pub(crate) fn extract_manifest_command(
+  base_dir: &Path,
+  command: &str,
+  out_dir: &Path,
+) -> Result<Manifest> {
+  ui::detail(&format!("{DIM}{command}{RESET}"));
+
+  let output = Command::new("sh")
+    .args(["-c", command])
+    .current_dir(base_dir)
+    .output()
+    .with_context(|| format!("failed to run manifest command: {command}"))?;
+
+  if !output.status.success() {
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    bail!("manifest command failed:\n{stderr}");
+  }
+
+  let stdout = String::from_utf8(output.stdout).context("invalid UTF-8 from manifest command")?;
+  let manifest: Manifest =
+    serde_json::from_str(&stdout).context("failed to parse manifest JSON from command output")?;
+
+  // Write seam-manifest.json
+  std::fs::create_dir_all(out_dir)
+    .with_context(|| format!("failed to create {}", out_dir.display()))?;
+  let manifest_path = out_dir.join("seam-manifest.json");
+  let json = serde_json::to_string_pretty(&manifest)?;
+  std::fs::write(&manifest_path, &json)
+    .with_context(|| format!("failed to write {}", manifest_path.display()))?;
+  ui::detail_ok("seam-manifest.json");
+
+  Ok(manifest)
+}
+
 /// Extract procedure manifest by importing the router file at build time
-pub(super) fn extract_manifest(
+pub(crate) fn extract_manifest(
   base_dir: &Path,
   router_file: &str,
   out_dir: &Path,
@@ -570,7 +606,7 @@ pub(super) fn extract_manifest(
 }
 
 /// Generate TypeScript client types from the manifest
-pub(super) fn generate_types(
+pub(crate) fn generate_types(
   manifest: &Manifest,
   config: &SeamConfig,
   rpc_hashes: Option<&super::rpc_hash::RpcHashMap>,
@@ -595,14 +631,14 @@ pub(super) fn generate_types(
 }
 
 /// Run type checking (optional step)
-pub(super) fn run_typecheck(base_dir: &Path, command: &str) -> Result<()> {
+pub(crate) fn run_typecheck(base_dir: &Path, command: &str) -> Result<()> {
   run_command(base_dir, command, "type checker", &[])?;
   ui::detail_ok(&format!("{GREEN}passed{RESET}"));
   Ok(())
 }
 
 /// Copy frontend assets from dist/ to {out_dir}/public/
-pub(super) fn package_static_assets(
+pub(crate) fn package_static_assets(
   base_dir: &Path,
   assets: &AssetFiles,
   out_dir: &Path,
@@ -837,6 +873,54 @@ mod tests {
     let json = serde_json::to_string(&entry).unwrap();
     assert!(json.contains("head_meta"), "Some head_meta should be present in JSON");
     assert!(json.contains("<!--seam:t-->"), "head_meta value preserved");
+  }
+
+  #[test]
+  fn extract_manifest_command_success() {
+    let dir = std::env::temp_dir().join("seam-test-manifest-cmd");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let out = dir.join("output");
+
+    let manifest_json = r#"{"version":"0.1.0","procedures":{"getUser":{"type":"query","input":{"properties":{"username":{"type":"string"}}},"output":{"properties":{"login":{"type":"string"}}}}}}"#;
+    let command = format!("echo '{manifest_json}'");
+
+    let manifest = extract_manifest_command(&dir, &command, &out).unwrap();
+    assert_eq!(manifest.procedures.len(), 1);
+    assert!(manifest.procedures.contains_key("getUser"));
+
+    // Verify seam-manifest.json was written
+    let written = std::fs::read_to_string(out.join("seam-manifest.json")).unwrap();
+    let parsed: serde_json::Value = serde_json::from_str(&written).unwrap();
+    assert!(parsed["procedures"]["getUser"].is_object());
+
+    let _ = std::fs::remove_dir_all(&dir);
+  }
+
+  #[test]
+  fn extract_manifest_command_failure() {
+    let dir = std::env::temp_dir().join("seam-test-manifest-cmd-fail");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let out = dir.join("output");
+
+    let err = extract_manifest_command(&dir, "exit 1", &out).unwrap_err();
+    assert!(err.to_string().contains("manifest command failed"));
+
+    let _ = std::fs::remove_dir_all(&dir);
+  }
+
+  #[test]
+  fn extract_manifest_command_invalid_json() {
+    let dir = std::env::temp_dir().join("seam-test-manifest-cmd-json");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let out = dir.join("output");
+
+    let err = extract_manifest_command(&dir, "echo 'not json'", &out).unwrap_err();
+    assert!(err.to_string().contains("failed to parse manifest JSON"));
+
+    let _ = std::fs::remove_dir_all(&dir);
   }
 
   #[test]

@@ -9,6 +9,7 @@ mod manifest;
 mod pull;
 mod shell;
 mod ui;
+mod workspace;
 
 use std::path::PathBuf;
 
@@ -49,12 +50,18 @@ enum Command {
     /// Path to seam.toml (auto-detected if omitted)
     #[arg(short, long)]
     config: Option<PathBuf>,
+    /// Build a specific workspace member (workspace mode only)
+    #[arg(short, long)]
+    member: Option<String>,
   },
   /// Start dev servers (backend + frontend)
   Dev {
     /// Path to seam.toml (auto-detected if omitted)
     #[arg(short, long)]
     config: Option<PathBuf>,
+    /// Run dev mode for a specific workspace member
+    #[arg(short, long)]
+    member: Option<String>,
   },
 }
 
@@ -124,15 +131,38 @@ async fn main() -> Result<()> {
       ui::ok(&format!("generated {proc_count} procedures"));
       ui::ok(&format!("{}  {line_count} lines", file.display()));
     }
-    Command::Build { config } => {
+    Command::Build { config, member } => {
       let (config_path, seam_config) = resolve_config(config)?;
       let base_dir = config_path.parent().unwrap_or_else(|| std::path::Path::new("."));
-      build::run::run_build(&seam_config, base_dir)?;
+      if seam_config.is_workspace() {
+        workspace::run_workspace_build(&seam_config, base_dir, member.as_deref())?;
+      } else if member.is_some() {
+        anyhow::bail!("--member flag requires a workspace project (add [workspace] to seam.toml)");
+      } else {
+        build::run::run_build(&seam_config, base_dir)?;
+      }
     }
-    Command::Dev { config } => {
+    Command::Dev { config, member } => {
       let (config_path, seam_config) = resolve_config(config)?;
       let base_dir = config_path.parent().unwrap_or_else(|| std::path::Path::new("."));
-      dev::run_dev(&seam_config, base_dir).await?;
+      if seam_config.is_workspace() {
+        let member_name = member.as_deref().with_context(|| {
+          let available: Vec<_> = seam_config
+            .member_paths()
+            .iter()
+            .filter_map(|p| std::path::Path::new(p).file_name().and_then(|n| n.to_str()))
+            .collect();
+          format!(
+            "--member is required for workspace dev mode\navailable members: {}",
+            available.join(", ")
+          )
+        })?;
+        dev::run_dev_workspace(&seam_config, base_dir, member_name).await?;
+      } else if member.is_some() {
+        anyhow::bail!("--member flag requires a workspace project (add [workspace] to seam.toml)");
+      } else {
+        dev::run_dev(&seam_config, base_dir).await?;
+      }
     }
   }
 

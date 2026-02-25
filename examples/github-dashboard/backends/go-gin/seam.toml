@@ -1,0 +1,8 @@
+[backend]
+lang = "go"
+dev_command = "go run ."
+port = 3000
+
+[build]
+backend_build_command = "go build -o server ."
+manifest_command = "./server --manifest"

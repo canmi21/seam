@@ -1,0 +1,84 @@
+/* examples/github-dashboard/frontend/vite.config.ts */
+import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { defineConfig, type Plugin } from "vite";
+import react from "@vitejs/plugin-react";
+import { watchReloadTrigger } from "@canmi/seam-server";
+
+const obfuscate = process.env.SEAM_OBFUSCATE === "1";
+const typeHint = process.env.SEAM_TYPE_HINT !== "0";
+const hashLength = Number(process.env.SEAM_HASH_LENGTH) || 12;
+
+function seamRpcPlugin(): Plugin {
+  const mapPath = process.env.SEAM_RPC_MAP_PATH;
+  if (!mapPath) return { name: "seam-rpc-noop" };
+  let procedures: Record<string, string> = {};
+  return {
+    name: "seam-rpc-transform",
+    buildStart() {
+      try {
+        const map = JSON.parse(readFileSync(mapPath, "utf-8"));
+        procedures = { ...map.procedures, _batch: map.batch };
+      } catch {
+        /* obfuscation off or file missing */
+      }
+    },
+    transform(code, id) {
+      if (!Object.keys(procedures).length) return;
+      if (id.includes("node_modules") && !id.includes("@canmi/seam-")) return;
+      let result = code;
+      for (const [name, hash] of Object.entries(procedures)) {
+        result = result.replaceAll(`"${name}"`, `"${hash}"`);
+      }
+      return result !== code ? result : undefined;
+    },
+  };
+}
+
+function seamReloadPlugin(outDir = "../.seam/dev-output"): Plugin {
+  return {
+    name: "seam-reload",
+    configureServer(server) {
+      const watcher = watchReloadTrigger(resolve(outDir), () => {
+        server.ws.send({ type: "full-reload" });
+      });
+      server.httpServer?.on("close", () => watcher.close());
+    },
+  };
+}
+
+export default defineConfig({
+  plugins: [react(), seamRpcPlugin(), seamReloadPlugin()],
+  appType: "custom",
+  server: {
+    origin: "http://localhost:5173",
+  },
+  build: {
+    manifest: true,
+    sourcemap: process.env.SEAM_SOURCEMAP === "1",
+    rollupOptions: {
+      input: "src/client/main.tsx",
+      ...(obfuscate
+        ? {
+            output: {
+              hashCharacters: "hex",
+              ...(typeHint
+                ? {
+                    entryFileNames: `script-[hash:${hashLength}].js`,
+                    chunkFileNames: `chunk-[hash:${hashLength}].js`,
+                    assetFileNames: (info: { names?: string[] }) =>
+                      info.names?.[0]?.endsWith(".css")
+                        ? `style-[hash:${hashLength}].css`
+                        : `[hash:${hashLength}].[ext]`,
+                  }
+                : {
+                    entryFileNames: `[hash:${hashLength}].js`,
+                    chunkFileNames: `[hash:${hashLength}].js`,
+                    assetFileNames: `[hash:${hashLength}].[ext]`,
+                  }),
+            },
+          }
+        : {}),
+    },
+  },
+});

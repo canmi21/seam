@@ -20,6 +20,13 @@ pub struct SeamConfig {
   pub dev: DevSection,
   #[serde(default)]
   pub i18n: Option<I18nSection>,
+  #[serde(default)]
+  pub workspace: Option<WorkspaceSection>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WorkspaceSection {
+  pub members: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -115,6 +122,7 @@ pub struct BuildSection {
   pub renderer: Option<String>,
   pub backend_build_command: Option<String>,
   pub router_file: Option<String>,
+  pub manifest_command: Option<String>,
   pub typecheck_command: Option<String>,
   #[serde(default)]
   pub obfuscate: Option<bool>,
@@ -195,6 +203,91 @@ pub fn load_seam_config(path: &Path) -> Result<SeamConfig> {
     i18n.validate()?;
   }
   Ok(config)
+}
+
+impl SeamConfig {
+  pub fn is_workspace(&self) -> bool {
+    self.workspace.as_ref().is_some_and(|w| !w.members.is_empty())
+  }
+
+  pub fn member_paths(&self) -> &[String] {
+    match &self.workspace {
+      Some(w) => &w.members,
+      None => &[],
+    }
+  }
+}
+
+/// Load and merge root + member config.
+/// Member overrides: [backend], [build].{backend_build_command, router_file, manifest_command, out_dir}
+/// Root provides: [project], [frontend], [build] (shared fields), [i18n], [dev], [generate]
+pub fn resolve_member_config(root: &SeamConfig, member_dir: &Path) -> Result<SeamConfig> {
+  let member_toml = member_dir.join("seam.toml");
+  let content = std::fs::read_to_string(&member_toml)
+    .with_context(|| format!("failed to read {}", member_toml.display()))?;
+  let member: SeamConfig = toml::from_str(&content)
+    .with_context(|| format!("failed to parse {}", member_toml.display()))?;
+
+  let mut merged = root.clone();
+
+  // Backend entirely from member
+  merged.backend = member.backend;
+
+  // Build: member overrides backend-specific fields only
+  if member.build.backend_build_command.is_some() {
+    merged.build.backend_build_command = member.build.backend_build_command;
+  }
+  if member.build.router_file.is_some() {
+    merged.build.router_file = member.build.router_file;
+  }
+  if member.build.manifest_command.is_some() {
+    merged.build.manifest_command = member.build.manifest_command;
+  }
+  if member.build.out_dir.is_some() {
+    merged.build.out_dir = member.build.out_dir;
+  }
+
+  // Strip workspace section from merged config (members are not workspaces)
+  merged.workspace = None;
+
+  Ok(merged)
+}
+
+/// Validate workspace: member dirs exist, contain seam.toml, no duplicates,
+/// each member has either router_file or manifest_command.
+pub fn validate_workspace(config: &SeamConfig, base_dir: &Path) -> Result<()> {
+  let members = config.member_paths();
+  if members.is_empty() {
+    bail!("workspace.members must not be empty");
+  }
+
+  let mut seen_names = std::collections::HashSet::new();
+  for member_path in members {
+    let dir = base_dir.join(member_path);
+    if !dir.is_dir() {
+      bail!("workspace member directory not found: {}", dir.display());
+    }
+    let toml_path = dir.join("seam.toml");
+    if !toml_path.is_file() {
+      bail!("workspace member missing seam.toml: {}", toml_path.display());
+    }
+
+    // Extract basename for duplicate check
+    let name = Path::new(member_path).file_name().and_then(|n| n.to_str()).unwrap_or(member_path);
+    if !seen_names.insert(name.to_string()) {
+      bail!("duplicate workspace member name: {name}");
+    }
+
+    // Load and check manifest extraction method
+    let member_config = resolve_member_config(config, &dir)?;
+    if member_config.build.router_file.is_none() && member_config.build.manifest_command.is_none() {
+      bail!(
+        "workspace member \"{member_path}\" must have either build.router_file or build.manifest_command"
+      );
+    }
+  }
+
+  Ok(())
 }
 
 #[cfg(test)]
@@ -477,6 +570,253 @@ data_id = "__sd"
 "#;
     let config: SeamConfig = toml::from_str(toml_str).unwrap();
     assert_eq!(config.frontend.data_id, "__sd");
+  }
+
+  #[test]
+  fn parse_workspace_config() {
+    let toml_str = r#"
+[project]
+name = "github-dashboard"
+
+[workspace]
+members = ["backends/ts-hono", "backends/rust-axum", "backends/go-gin"]
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert!(config.is_workspace());
+    assert_eq!(
+      config.member_paths(),
+      &["backends/ts-hono", "backends/rust-axum", "backends/go-gin"]
+    );
+  }
+
+  #[test]
+  fn parse_no_workspace() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert!(!config.is_workspace());
+    assert!(config.member_paths().is_empty());
+  }
+
+  #[test]
+  fn parse_manifest_command() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+
+[build]
+manifest_command = "cargo run --release -- --manifest"
+backend_build_command = "cargo build --release"
+routes = "frontend/src/client/routes.ts"
+bundler_command = "cd frontend && bunx vite build"
+bundler_manifest = "frontend/dist/.vite/manifest.json"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert_eq!(config.build.manifest_command.as_deref(), Some("cargo run --release -- --manifest"));
+    assert!(config.build.router_file.is_none());
+  }
+
+  #[test]
+  fn workspace_member_config_merge() {
+    use std::io::Write;
+
+    let tmp = std::env::temp_dir().join("seam-test-workspace-merge");
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(tmp.join("backends/ts-hono")).unwrap();
+
+    // Write member seam.toml
+    let mut f = std::fs::File::create(tmp.join("backends/ts-hono/seam.toml")).unwrap();
+    writeln!(
+      f,
+      r#"[project]
+name = "ignored"
+
+[backend]
+lang = "typescript"
+dev_command = "bun --watch src/index.ts"
+port = 4000
+
+[build]
+backend_build_command = "bun build src/index.ts"
+router_file = "src/router.ts"
+"#
+    )
+    .unwrap();
+
+    // Root config
+    let root: SeamConfig = toml::from_str(
+      r#"
+[project]
+name = "github-dashboard"
+
+[frontend]
+entry = "frontend/src/client/main.tsx"
+
+[build]
+routes = "frontend/src/client/routes.ts"
+bundler_command = "cd frontend && bunx vite build"
+bundler_manifest = "frontend/dist/.vite/manifest.json"
+out_dir = ".seam/output"
+
+[workspace]
+members = ["backends/ts-hono"]
+"#,
+    )
+    .unwrap();
+
+    let merged = resolve_member_config(&root, &tmp.join("backends/ts-hono")).unwrap();
+
+    // Project from root
+    assert_eq!(merged.project.name, "github-dashboard");
+    // Backend from member
+    assert_eq!(merged.backend.lang, "typescript");
+    assert_eq!(merged.backend.port, 4000);
+    assert_eq!(merged.backend.dev_command.as_deref(), Some("bun --watch src/index.ts"));
+    // Build: shared fields from root
+    assert_eq!(merged.build.routes.as_deref(), Some("frontend/src/client/routes.ts"));
+    assert_eq!(merged.build.bundler_command.as_deref(), Some("cd frontend && bunx vite build"));
+    // Build: overridden fields from member
+    assert_eq!(merged.build.backend_build_command.as_deref(), Some("bun build src/index.ts"));
+    assert_eq!(merged.build.router_file.as_deref(), Some("src/router.ts"));
+    // Workspace stripped from merged
+    assert!(!merged.is_workspace());
+
+    let _ = std::fs::remove_dir_all(&tmp);
+  }
+
+  #[test]
+  fn workspace_validation_missing_dir() {
+    let tmp = std::env::temp_dir().join("seam-test-ws-missing-dir");
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(&tmp).unwrap();
+
+    let config: SeamConfig = toml::from_str(
+      r#"
+[project]
+name = "test"
+
+[workspace]
+members = ["nonexistent"]
+"#,
+    )
+    .unwrap();
+
+    let err = validate_workspace(&config, &tmp).unwrap_err();
+    assert!(err.to_string().contains("not found"));
+
+    let _ = std::fs::remove_dir_all(&tmp);
+  }
+
+  #[test]
+  fn workspace_validation_missing_toml() {
+    let tmp = std::env::temp_dir().join("seam-test-ws-missing-toml");
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(tmp.join("member-a")).unwrap();
+
+    let config: SeamConfig = toml::from_str(
+      r#"
+[project]
+name = "test"
+
+[workspace]
+members = ["member-a"]
+"#,
+    )
+    .unwrap();
+
+    let err = validate_workspace(&config, &tmp).unwrap_err();
+    assert!(err.to_string().contains("missing seam.toml"));
+
+    let _ = std::fs::remove_dir_all(&tmp);
+  }
+
+  #[test]
+  fn workspace_validation_duplicate_names() {
+    use std::io::Write;
+
+    let tmp = std::env::temp_dir().join("seam-test-ws-dup-names");
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(tmp.join("a/hono")).unwrap();
+    std::fs::create_dir_all(tmp.join("b/hono")).unwrap();
+
+    for dir in ["a/hono", "b/hono"] {
+      let mut f = std::fs::File::create(tmp.join(dir).join("seam.toml")).unwrap();
+      writeln!(
+        f,
+        r#"[project]
+name = "x"
+
+[build]
+router_file = "src/router.ts"
+"#
+      )
+      .unwrap();
+    }
+
+    let config: SeamConfig = toml::from_str(
+      r#"
+[project]
+name = "test"
+
+[build]
+routes = "routes.ts"
+bundler_command = "vite build"
+bundler_manifest = "dist/manifest.json"
+
+[workspace]
+members = ["a/hono", "b/hono"]
+"#,
+    )
+    .unwrap();
+
+    let err = validate_workspace(&config, &tmp).unwrap_err();
+    assert!(err.to_string().contains("duplicate"));
+
+    let _ = std::fs::remove_dir_all(&tmp);
+  }
+
+  #[test]
+  fn workspace_validation_no_manifest_method() {
+    use std::io::Write;
+
+    let tmp = std::env::temp_dir().join("seam-test-ws-no-manifest");
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir_all(tmp.join("member")).unwrap();
+
+    let mut f = std::fs::File::create(tmp.join("member/seam.toml")).unwrap();
+    writeln!(
+      f,
+      r#"[project]
+name = "x"
+
+[backend]
+lang = "rust"
+"#
+    )
+    .unwrap();
+
+    let config: SeamConfig = toml::from_str(
+      r#"
+[project]
+name = "test"
+
+[build]
+routes = "routes.ts"
+bundler_command = "vite build"
+bundler_manifest = "dist/manifest.json"
+
+[workspace]
+members = ["member"]
+"#,
+    )
+    .unwrap();
+
+    let err = validate_workspace(&config, &tmp).unwrap_err();
+    assert!(err.to_string().contains("router_file or build.manifest_command"));
+
+    let _ = std::fs::remove_dir_all(&tmp);
   }
 
   #[test]

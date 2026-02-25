@@ -445,6 +445,17 @@ async fn spawn_fullstack_children(
   Ok(children)
 }
 
+/// Workspace dev mode: resolve a single member, then run fullstack dev with merged config
+pub async fn run_dev_workspace(
+  root: &SeamConfig,
+  base_dir: &Path,
+  member_name: &str,
+) -> Result<()> {
+  let members = crate::workspace::resolve_members(root, base_dir, Some(member_name))?;
+  let member = &members[0];
+  run_dev_fullstack(&member.merged_config, base_dir).await
+}
+
 async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   let mut build_config = BuildConfig::from_seam_config_dev(config)?;
   // Dev writes to sibling dir to avoid overwriting production output

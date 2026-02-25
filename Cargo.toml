@@ -8,13 +8,14 @@ members = [
   "packages/server/injector/wasm",
   "packages/cli/core",
   "examples/standalone/server-rust",
+  "examples/github-dashboard/backends/rust-axum",
 ]
 
 [workspace.lints.clippy]
 too_many_lines = "warn"
 
 [workspace.package]
-version = "0.2.17"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
 authors = ["Canmi(Canmi21) <t@canmi.icu>"]

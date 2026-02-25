@@ -1,0 +1,8 @@
+[backend]
+lang = "typescript"
+dev_command = "bun --watch src/index.ts"
+port = 3000
+
+[build]
+backend_build_command = "bun build src/index.ts --target=bun --outdir=../../.seam/output/ts-hono/server"
+router_file = "src/router.ts"

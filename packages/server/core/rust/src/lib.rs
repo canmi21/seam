@@ -1,5 +1,6 @@
 /* packages/server/core/rust/src/lib.rs */
 
+pub mod build_loader;
 pub mod errors;
 pub mod manifest;
 pub mod page;
@@ -7,6 +8,7 @@ pub mod procedure;
 pub mod server;
 
 // Re-exports for ergonomic use
+pub use build_loader::load_build_output;
 pub use errors::SeamError;
 pub use procedure::{BoxFuture, BoxStream, ProcedureDef, SubscriptionDef};
 pub use seam_macros::{seam_procedure, seam_subscription, SeamType};
