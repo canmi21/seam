@@ -6,22 +6,22 @@ See root CLAUDE.md for general conventions.
 
 ## Architecture
 
-| Module                  | Responsibility                                                                                      |
-| ----------------------- | --------------------------------------------------------------------------------------------------- |
-| `main.rs`               | CLI entry point (clap); dispatches `pull`, `generate`, `build`, `dev` subcommands                   |
-| `config.rs`             | Parses `seam.toml`; walks upward to find config (like Cargo.toml discovery)                         |
-| `manifest.rs`           | `Manifest` / `ProcedureSchema` types (serde, shared across commands)                                |
-| `pull.rs`               | Fetches `/_seam/manifest.json` from a running server via reqwest                                    |
-| `codegen/typescript.rs` | JTD schema -> TypeScript interfaces + `createSeamClient` factory                                    |
-| `build/config.rs`       | `BuildConfig` + `BundlerMode` enum derived from `SeamConfig`; detects fullstack vs frontend-only    |
-| `build/run.rs`          | Build orchestrator: dispatches frontend-only (4 steps) or fullstack (7 steps) builds                |
-| `build/route.rs`        | Pipeline steps: skeleton rendering, route processing, manifest extraction, codegen, asset packaging |
-| `build/types.rs`        | Shared build types (`AssetFiles`, `SeamManifest`) and manifest reader                               |
-| `build/skeleton/`       | HTML template extraction pipeline (slot, extract, document)                                         |
-| `shell.rs`              | Shell command helpers shared across build and dev (`run_command`, `run_builtin_bundler`)            |
-| `dev.rs`                | Spawns backend + frontend dev processes, pipes labeled output, handles Ctrl+C                       |
-| `dev_server.rs`         | Embedded axum dev server (static files + API proxy + SPA fallback)                                  |
-| `ui.rs`                 | Terminal output helpers (ANSI colors, step counters, file size formatting)                          |
+| Module                | Responsibility                                                                                      |
+| --------------------- | --------------------------------------------------------------------------------------------------- |
+| `main.rs`             | CLI entry point (clap); dispatches `pull`, `generate`, `build`, `dev` subcommands                   |
+| `config/`             | Parses `seam.toml`; walks upward to find config (like Cargo.toml discovery)                         |
+| `manifest.rs`         | `Manifest` / `ProcedureSchema` types (serde, shared across commands)                                |
+| `pull.rs`             | Fetches `/_seam/manifest.json` from a running server via reqwest                                    |
+| `codegen/typescript/` | JTD schema -> TypeScript interfaces + `createSeamClient` factory                                    |
+| `build/config.rs`     | `BuildConfig` + `BundlerMode` enum derived from `SeamConfig`; detects fullstack vs frontend-only    |
+| `build/run/`          | Build orchestrator: dispatches frontend-only (4 steps) or fullstack (7 steps) builds                |
+| `build/route/`        | Pipeline steps: skeleton rendering, route processing, manifest extraction, codegen, asset packaging |
+| `build/types.rs`      | Shared build types (`AssetFiles`, `SeamManifest`) and manifest reader                               |
+| `build/skeleton/`     | HTML template extraction pipeline (slot, extract, document)                                         |
+| `shell.rs`            | Shell command helpers shared across build and dev (`run_command`, `run_builtin_bundler`)            |
+| `dev/`                | Spawns backend + frontend dev processes, pipes labeled output, handles Ctrl+C                       |
+| `dev_server.rs`       | Embedded axum dev server (static files + API proxy + SPA fallback)                                  |
+| `ui.rs`               | Terminal output helpers (ANSI colors, step counters, file size formatting)                          |
 
 ## Skeleton Pipeline
 
@@ -44,11 +44,13 @@ The extract module is the most complex part, split into sub-modules:
 
 ## Key Files
 
-- `src/main.rs` -- CLI definition and command dispatch (~138 lines)
-- `src/build/run.rs` -- build orchestrator (~224 lines)
-- `src/build/route.rs` -- pipeline step implementations (~291 lines)
-- `src/codegen/typescript.rs` -- JTD-to-TypeScript codegen (~448 lines with tests)
-- `src/build/skeleton/extract/mod.rs` -- template extraction engine (~137 lines, tests in `tests.rs`)
+- `src/main.rs` -- CLI definition and command dispatch
+- `src/config/` -- types (structs), loader (find/load), tests (parsing, workspace, i18n)
+- `src/codegen/typescript/` -- generator (entry), render (type rendering), tests
+- `src/build/run/` -- mod (run_build entry), helpers, frontend, fullstack, rebuild, tests
+- `src/build/route/` -- mod (re-exports), types, helpers, process, manifest, tests
+- `src/build/skeleton/extract/` -- mod (engine), tests/ (legacy, flat_axis, regression, nested)
+- `src/dev/` -- mod (run_dev entry), process, network, ui, fullstack
 
 ## Conventions
 
@@ -66,7 +68,7 @@ cargo test -p seam-cli
 
 - Unit tests colocated in each module (`#[cfg(test)] mod tests`)
 - Integration tests in `build/skeleton/mod.rs` span the full slot -> extract -> document pipeline
-- `extract/tests.rs` contains legacy v1 helper tests and regression tests for known bugs (container unwrap, class attribute splitting, stale content after endmatch)
+- `extract/tests/` split into legacy, flat_axis, regression, and nested sub-modules for regression coverage
 
 ## Gotchas
 

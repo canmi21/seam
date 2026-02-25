@@ -7,7 +7,9 @@ See root CLAUDE.md for general project rules.
 ## Architecture
 
 - `seam.go` — public API: `Router`, `HandlerOptions`, type definitions, error constructors
-- `handler.go` — internal HTTP handler: mux wiring, RPC/SSE/page handlers, timeout enforcement
+- `handler.go` — core handler: `appState`, `buildHandler`, manifest, RPC handler, error helpers
+- `handler_batch.go` — batch RPC handler, SSE subscribe handler, SSE helpers
+- `handler_page.go` — page handler: `makePageHandler`, `servePage`, loader orchestration
 - `generics.go` — `Query[In, Out]` and `Subscribe[In, Out]` typed wrappers using generics
 - `schema.go` — JTD schema reflection (`SchemaOf[T]()`)
 - `serve.go` — `ListenAndServe` with SIGINT/SIGTERM graceful shutdown

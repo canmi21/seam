@@ -89,10 +89,10 @@ Protocol specifications and design constraints for implementors.
 |         | App                                                                                                          | Backend     | Description                                     |
 | ------- | ------------------------------------------------------------------------------------------------------------ | ----------- | ----------------------------------------------- |
 | **CTR** | [seam-app](examples/github-dashboard/seam-app/)                                                              | Hono on Bun | Fullstack — frontend and server in one package  |
+| **SSR** | [next-app](examples/github-dashboard/next-app/)                                                              | Next.js     | Server-rendered comparison (same UI, no CTR)    |
 | **CTR** | [frontend](examples/github-dashboard/frontend/) + [ts-hono](examples/github-dashboard/backends/ts-hono/)     | Hono on Bun | Workspace — shared frontend, TypeScript backend |
 | **CTR** | [frontend](examples/github-dashboard/frontend/) + [rust-axum](examples/github-dashboard/backends/rust-axum/) | Axum        | Workspace — shared frontend, Rust backend       |
 | **CTR** | [frontend](examples/github-dashboard/frontend/) + [go-gin](examples/github-dashboard/backends/go-gin/)       | Gin         | Workspace — shared frontend, Go backend         |
-| **SSR** | [next-app](examples/github-dashboard/next-app/)                                                              | Next.js     | Server-rendered comparison (same UI, no CTR)    |
 
 The three workspace backends serve identical CTR-rendered pages with the same RPC procedures — a cross-language parity test for the seam protocol.
 
@@ -142,13 +142,6 @@ cargo build --workspace  # All Rust crates
 | `bun run typecheck`        | TypeScript type checking across all packages     |
 | `bun run verify`           | Full pipeline: format + lint + build + all tests |
 
-### Environment
+## License
 
-GitHub Dashboard demo and E2E tests call the GitHub API. Set a token to avoid rate limits:
-
-```bash
-# .env (gitignored)
-GITHUB_TOKEN=ghp_...
-```
-
-Create a [fine-grained token](https://github.com/settings/tokens?type=beta) with no permissions — it only needs to identify the caller for rate limit purposes (60 -> 5000 req/hour).
+MIT License © 2026 [Canmi](https://github.com/canmi21)

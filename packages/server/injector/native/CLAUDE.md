@@ -11,12 +11,15 @@ HTML template injector that replaces `<!--seam:...-->` markers with data-driven 
 
 ## Key Files
 
-| File              | Purpose                                                 |
-| ----------------- | ------------------------------------------------------- |
-| `src/injector.ts` | Tokenizer, parser, renderer, and `inject()` entry point |
-| `src/resolve.ts`  | Dot-path resolver (`"a.b.c"` -> nested value lookup)    |
-| `src/escape.ts`   | HTML entity escaping (`&`, `<`, `>`, `"`, `'`)          |
-| `src/index.ts`    | Public exports: `inject`, `escapeHtml`, `InjectOptions` |
+| File              | Purpose                                                       |
+| ----------------- | ------------------------------------------------------------- |
+| `src/injector.ts` | Entry point `inject()`, phase B attribute/style injection     |
+| `src/ast.ts`      | AST node type definitions (`AstNode` union and member types)  |
+| `src/parser.ts`   | `tokenize()` and `parse()` — template string to AST           |
+| `src/renderer.ts` | `render()`, `isTruthy`, `stringify`, constants, style helpers |
+| `src/resolve.ts`  | Dot-path resolver (`"a.b.c"` -> nested value lookup)          |
+| `src/escape.ts`   | HTML entity escaping (`&`, `<`, `>`, `"`, `'`)                |
+| `src/index.ts`    | Public exports: `inject`, `escapeHtml`, `InjectOptions`       |
 
 ## Testing
 
