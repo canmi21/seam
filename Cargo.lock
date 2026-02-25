@@ -518,6 +518,7 @@ dependencies = [
 name = "github-dashboard-axum"
 version = "0.3.0"
 dependencies = [
+ "axum",
  "reqwest",
  "seam-server",
  "seam-server-axum",

@@ -17,7 +17,14 @@ import type { ServerWebSocket } from "bun";
 const isDev = process.env.SEAM_DEV === "1";
 const isVite = process.env.SEAM_VITE === "1";
 const BUILD_DIR = isDev ? process.env.SEAM_OUTPUT_DIR! : resolve(import.meta.dir, "..");
-const pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR);
+
+// Gracefully handle missing build output (API-only mode without page serving)
+let pages: Record<string, unknown> = {};
+try {
+  pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR);
+} catch {
+  // No build output available — RPC still works, page serving disabled
+}
 const rpcHashMap = loadRpcHashMap(BUILD_DIR);
 const dataId = Object.values(pages)[0]?.dataId ?? "__data";
 const router = buildRouter({ pages });
@@ -76,12 +83,12 @@ app.get("*", async (c) => {
   return c.html(html, result.status as 200);
 });
 
-const port = Number(process.env.PORT) || 3000;
+const port = process.env.PORT !== undefined ? Number(process.env.PORT) : 3000;
 
-Bun.serve({
+const server = Bun.serve({
   port,
   fetch: app.fetch,
   ...(isDev ? { websocket } : {}),
 });
 
-console.log(`GitHub Dashboard (ts-hono) running on http://localhost:${port}`);
+console.log(`GitHub Dashboard (ts-hono) running on http://localhost:${server.port}`);

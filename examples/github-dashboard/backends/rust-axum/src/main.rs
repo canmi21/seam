@@ -44,6 +44,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     server = server.page(page);
   }
 
-  println!("GitHub Dashboard (rust-axum) running on http://localhost:{port}");
-  server.serve(&addr).await
+  let router = server.into_axum_router();
+  let listener = tokio::net::TcpListener::bind(&addr).await?;
+  let actual_port = listener.local_addr()?.port();
+  println!("GitHub Dashboard (rust-axum) running on http://localhost:{actual_port}");
+  axum::serve(listener, router).await?;
+  Ok(())
 }

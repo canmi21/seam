@@ -5,6 +5,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/gin-gonic/gin"
@@ -36,8 +37,14 @@ func main() {
 	g.Any("/_seam/*path", gin.WrapH(r.Handler()))
 
 	addr := fmt.Sprintf(":%s", port)
-	fmt.Printf("GitHub Dashboard (go-gin) running on http://localhost:%s\n", port)
-	g.Run(addr)
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "listen: %v\n", err)
+		os.Exit(1)
+	}
+	actualPort := ln.Addr().(*net.TCPAddr).Port
+	fmt.Printf("GitHub Dashboard (go-gin) running on http://localhost:%d\n", actualPort)
+	g.RunListener(ln)
 }
 
 func printManifest() {
