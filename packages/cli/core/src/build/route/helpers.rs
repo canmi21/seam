@@ -1,0 +1,64 @@
+/* packages/cli/core/src/build/route/helpers.rs */
+
+use std::collections::BTreeMap;
+use std::path::Path;
+
+use anyhow::{Context, Result};
+
+use super::super::types::AssetFiles;
+use crate::config::I18nSection;
+use crate::ui::{self, DIM, RESET};
+
+/// Read i18n message files from disk, keyed by locale.
+pub(crate) fn read_i18n_messages(
+  base_dir: &Path,
+  i18n: &I18nSection,
+) -> Result<BTreeMap<String, serde_json::Value>> {
+  let mut messages = BTreeMap::new();
+  for locale in &i18n.locales {
+    let path = base_dir.join(&i18n.messages_dir).join(format!("{locale}.json"));
+    let content = std::fs::read_to_string(&path)
+      .with_context(|| format!("i18n: failed to read {}", path.display()))?;
+    let parsed: serde_json::Value = serde_json::from_str(&content)
+      .with_context(|| format!("i18n: invalid JSON in {}", path.display()))?;
+    messages.insert(locale.clone(), parsed);
+  }
+  Ok(messages)
+}
+
+/// Embed i18n locale + messages as a `<script>` tag in the HTML document.
+/// The client reads this during hydration to provide I18nProvider context,
+/// ensuring `useT()` returns translated strings that match the server-rendered HTML.
+pub(super) fn embed_i18n_script(
+  document: &str,
+  locale: &str,
+  messages: &serde_json::Value,
+) -> String {
+  let i18n_data = serde_json::json!({ "locale": locale, "messages": messages });
+  let script = format!(
+    "<script id=\"__seam_i18n\" type=\"application/json\">{}</script>",
+    serde_json::to_string(&i18n_data).unwrap_or_default()
+  );
+  document.replace("</body>", &format!("{script}</body>"))
+}
+
+/// Convert route path to filename: `/user/:id` -> `user-id.html`, `/` -> `index.html`
+pub(super) fn path_to_filename(path: &str) -> String {
+  let trimmed = path.trim_matches('/');
+  if trimmed.is_empty() {
+    return "index.html".to_string();
+  }
+  let slug = trimmed.replace('/', "-").replace(':', "");
+  format!("{slug}.html")
+}
+
+/// Print each asset file with its size from disk
+pub(crate) fn print_asset_files(base_dir: &Path, dist_dir: &str, assets: &AssetFiles) {
+  let all_files: Vec<&str> =
+    assets.js.iter().chain(assets.css.iter()).map(|s| s.as_str()).collect();
+  for file in all_files {
+    let full_path = base_dir.join(dist_dir).join(file);
+    let size = std::fs::metadata(&full_path).map(|m| m.len()).unwrap_or(0);
+    ui::detail_ok(&format!("{dist_dir}/{file}  {DIM}({}){RESET}", ui::format_size(size)));
+  }
+}
