@@ -18,6 +18,37 @@ pub struct SeamConfig {
   pub generate: GenerateSection,
   #[serde(default)]
   pub dev: DevSection,
+  #[serde(default)]
+  pub i18n: Option<I18nSection>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct I18nSection {
+  pub locales: Vec<String>,
+  #[serde(default = "default_i18n_default")]
+  pub default: String,
+  #[serde(default = "default_messages_dir")]
+  pub messages_dir: String,
+}
+
+impl I18nSection {
+  pub fn validate(&self) -> Result<()> {
+    if self.locales.is_empty() {
+      bail!("i18n.locales must not be empty");
+    }
+    if !self.locales.contains(&self.default) {
+      bail!("i18n.default \"{}\" is not in i18n.locales {:?}", self.default, self.locales);
+    }
+    Ok(())
+  }
+}
+
+fn default_i18n_default() -> String {
+  "origin".to_string()
+}
+
+fn default_messages_dir() -> String {
+  "locales".to_string()
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -160,6 +191,9 @@ pub fn load_seam_config(path: &Path) -> Result<SeamConfig> {
     std::fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
   let config: SeamConfig =
     toml::from_str(&content).with_context(|| format!("failed to parse {}", path.display()))?;
+  if let Some(ref i18n) = config.i18n {
+    i18n.validate()?;
+  }
   Ok(config)
 }
 
@@ -453,5 +487,82 @@ port = 3000
 "#;
     let result = toml::from_str::<SeamConfig>(toml_str);
     assert!(result.is_err());
+  }
+
+  #[test]
+  fn parse_i18n_section() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+
+[i18n]
+locales = ["origin", "zh"]
+default = "zh"
+messages_dir = "translations"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    let i18n = config.i18n.unwrap();
+    assert_eq!(i18n.locales, vec!["origin", "zh"]);
+    assert_eq!(i18n.default, "zh");
+    assert_eq!(i18n.messages_dir, "translations");
+    assert!(i18n.validate().is_ok());
+  }
+
+  #[test]
+  fn parse_i18n_default_values() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+
+[i18n]
+locales = ["origin", "zh"]
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    let i18n = config.i18n.unwrap();
+    assert_eq!(i18n.locales, vec!["origin", "zh"]);
+    assert_eq!(i18n.default, "origin");
+    assert_eq!(i18n.messages_dir, "locales");
+  }
+
+  #[test]
+  fn parse_no_i18n() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    assert!(config.i18n.is_none());
+  }
+
+  #[test]
+  fn parse_i18n_validation_default_not_in_locales() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+
+[i18n]
+locales = ["origin", "zh"]
+default = "ja"
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    let i18n = config.i18n.unwrap();
+    let err = i18n.validate().unwrap_err();
+    assert!(err.to_string().contains("\"ja\""));
+    assert!(err.to_string().contains("not in"));
+  }
+
+  #[test]
+  fn parse_i18n_validation_empty_locales() {
+    let toml_str = r#"
+[project]
+name = "my-app"
+
+[i18n]
+locales = []
+"#;
+    let config: SeamConfig = toml::from_str(toml_str).unwrap();
+    let i18n = config.i18n.unwrap();
+    let err = i18n.validate().unwrap_err();
+    assert!(err.to_string().contains("must not be empty"));
   }
 }

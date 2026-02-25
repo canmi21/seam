@@ -2,7 +2,7 @@
 
 use anyhow::{bail, Result};
 
-use crate::config::SeamConfig;
+use crate::config::{I18nSection, SeamConfig};
 
 #[derive(Debug, Clone)]
 pub enum BundlerMode {
@@ -28,6 +28,7 @@ pub struct BuildConfig {
   pub rpc_salt: Option<String>,
   pub root_id: String,
   pub data_id: String,
+  pub i18n: Option<I18nSection>,
 }
 
 impl BuildConfig {
@@ -80,6 +81,7 @@ impl BuildConfig {
 
     let root_id = config.frontend.root_id.clone();
     let data_id = config.frontend.data_id.clone();
+    let i18n = config.i18n.clone();
 
     Ok(Self {
       bundler_mode,
@@ -98,6 +100,7 @@ impl BuildConfig {
       rpc_salt: None,
       root_id,
       data_id,
+      i18n,
     })
   }
 

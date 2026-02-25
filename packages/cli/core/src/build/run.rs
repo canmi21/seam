@@ -114,7 +114,13 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
   }
   let routes_path = base_dir.join(&build_config.routes);
   let none_path = Path::new("none");
-  let skeleton_output = run_skeleton_renderer(&script_path, &routes_path, none_path, base_dir)?;
+  let skeleton_output = run_skeleton_renderer(
+    &script_path,
+    &routes_path,
+    none_path,
+    base_dir,
+    build_config.i18n.as_ref(),
+  )?;
   for w in &skeleton_output.warnings {
     ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
   }
@@ -137,6 +143,7 @@ fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()>
     None,
     &build_config.root_id,
     &build_config.data_id,
+    build_config.i18n.as_ref(),
   )?;
   ui::blank();
 
@@ -252,8 +259,13 @@ fn run_fullstack_build(
   }
   let routes_path = base_dir.join(&build_config.routes);
   let manifest_json_path = out_dir.join("seam-manifest.json");
-  let skeleton_output =
-    run_skeleton_renderer(&script_path, &routes_path, &manifest_json_path, base_dir)?;
+  let skeleton_output = run_skeleton_renderer(
+    &script_path,
+    &routes_path,
+    &manifest_json_path,
+    base_dir,
+    build_config.i18n.as_ref(),
+  )?;
   for w in &skeleton_output.warnings {
     ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
   }
@@ -272,6 +284,7 @@ fn run_fullstack_build(
     None,
     &build_config.root_id,
     &build_config.data_id,
+    build_config.i18n.as_ref(),
   )?;
 
   // Write route-manifest.json
@@ -376,8 +389,13 @@ pub fn run_dev_build(
   }
   let routes_path = base_dir.join(&build_config.routes);
   let manifest_json_path = out_dir.join("seam-manifest.json");
-  let skeleton_output =
-    run_skeleton_renderer(&script_path, &routes_path, &manifest_json_path, base_dir)?;
+  let skeleton_output = run_skeleton_renderer(
+    &script_path,
+    &routes_path,
+    &manifest_json_path,
+    base_dir,
+    build_config.i18n.as_ref(),
+  )?;
   for w in &skeleton_output.warnings {
     ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
   }
@@ -396,6 +414,7 @@ pub fn run_dev_build(
     vite.as_ref(),
     &build_config.root_id,
     &build_config.data_id,
+    build_config.i18n.as_ref(),
   )?;
 
   let route_manifest_path = out_dir.join("route-manifest.json");
@@ -484,8 +503,13 @@ pub fn run_incremental_rebuild(
   }
   let routes_path = base_dir.join(&build_config.routes);
   let manifest_json_path = out_dir.join("seam-manifest.json");
-  let skeleton_output =
-    run_skeleton_renderer(&script_path, &routes_path, &manifest_json_path, base_dir)?;
+  let skeleton_output = run_skeleton_renderer(
+    &script_path,
+    &routes_path,
+    &manifest_json_path,
+    base_dir,
+    build_config.i18n.as_ref(),
+  )?;
   for w in &skeleton_output.warnings {
     ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
   }
@@ -509,6 +533,7 @@ pub fn run_incremental_rebuild(
     vite.as_ref(),
     &build_config.root_id,
     &build_config.data_id,
+    build_config.i18n.as_ref(),
   )?;
 
   let route_manifest_path = out_dir.join("route-manifest.json");

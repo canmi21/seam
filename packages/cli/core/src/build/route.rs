@@ -17,7 +17,7 @@ use super::skeleton::{
 use super::slot_warning;
 use super::types::{AssetFiles, ViteDevInfo};
 use crate::codegen;
-use crate::config::SeamConfig;
+use crate::config::{I18nSection, SeamConfig};
 use crate::manifest::Manifest;
 use crate::shell::{run_command, which_exists};
 use crate::ui::{self, DIM, GREEN, RESET, YELLOW};
@@ -27,7 +27,12 @@ use crate::ui::{self, DIM, GREEN, RESET, YELLOW};
 #[derive(Deserialize)]
 pub(super) struct SkeletonLayout {
   pub(super) id: String,
-  pub(super) html: String,
+  // i18n OFF: single html
+  #[serde(default)]
+  pub(super) html: Option<String>,
+  // i18n ON: per-locale html
+  #[serde(rename = "localeHtml", default)]
+  pub(super) locale_html: Option<BTreeMap<String, String>>,
   #[serde(default)]
   pub(super) loaders: serde_json::Value,
   pub(super) parent: Option<String>,
@@ -54,15 +59,29 @@ pub(super) struct SkeletonOutput {
 pub(super) struct SkeletonRoute {
   path: String,
   loaders: serde_json::Value,
-  axes: Vec<Axis>,
-  variants: Vec<RenderedVariant>,
-  #[serde(rename = "mockHtml")]
-  mock_html: String,
+  // i18n OFF: flat fields (backward compatible)
+  #[serde(default)]
+  axes: Option<Vec<Axis>>,
+  #[serde(default)]
+  variants: Option<Vec<RenderedVariant>>,
+  #[serde(rename = "mockHtml", default)]
+  mock_html: Option<String>,
+  // i18n ON: per-locale data
+  #[serde(rename = "localeVariants", default)]
+  locale_variants: Option<BTreeMap<String, LocaleRouteData>>,
   mock: serde_json::Value,
   #[serde(rename = "pageSchema")]
   page_schema: Option<serde_json::Value>,
   #[serde(default)]
   layout: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct LocaleRouteData {
+  axes: Vec<Axis>,
+  variants: Vec<RenderedVariant>,
+  #[serde(rename = "mockHtml")]
+  mock_html: String,
 }
 
 #[derive(Deserialize)]
@@ -76,7 +95,10 @@ struct RenderedVariant {
 
 #[derive(Serialize)]
 struct LayoutManifestEntry {
-  template: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  template: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  templates: Option<BTreeMap<String, String>>,
   #[serde(skip_serializing_if = "serde_json::Value::is_null")]
   loaders: serde_json::Value,
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -90,11 +112,22 @@ pub(super) struct RouteManifest {
   routes: BTreeMap<String, RouteManifestEntry>,
   #[serde(skip_serializing_if = "Option::is_none")]
   data_id: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  i18n: Option<I18nManifest>,
+}
+
+#[derive(Serialize)]
+struct I18nManifest {
+  locales: Vec<String>,
+  default: String,
 }
 
 #[derive(Serialize)]
 struct RouteManifestEntry {
-  template: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  template: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  templates: Option<BTreeMap<String, String>>,
   #[serde(skip_serializing_if = "Option::is_none")]
   layout: Option<String>,
   loaders: serde_json::Value,
@@ -128,12 +161,36 @@ pub(super) fn run_skeleton_renderer(
   routes_path: &Path,
   manifest_path: &Path,
   base_dir: &Path,
+  i18n: Option<&I18nSection>,
 ) -> Result<SkeletonOutput> {
   let runtime = if which_exists("bun") { "bun" } else { "node" };
+
+  // Build i18n JSON argument: read locale message files and serialize as a single blob
+  let i18n_arg = match i18n {
+    Some(cfg) => {
+      let mut messages = serde_json::Map::new();
+      for locale in &cfg.locales {
+        let path = base_dir.join(&cfg.messages_dir).join(format!("{locale}.json"));
+        let content = std::fs::read_to_string(&path)
+          .with_context(|| format!("i18n: failed to read {}", path.display()))?;
+        let parsed: serde_json::Value = serde_json::from_str(&content)
+          .with_context(|| format!("i18n: invalid JSON in {}", path.display()))?;
+        messages.insert(locale.clone(), parsed);
+      }
+      serde_json::to_string(&serde_json::json!({
+        "locales": cfg.locales,
+        "default": cfg.default,
+        "messages": messages,
+      }))?
+    }
+    None => "none".to_string(),
+  };
+
   let output = Command::new(runtime)
     .arg(script_path)
     .arg(routes_path)
     .arg(manifest_path)
+    .arg(&i18n_arg)
     .current_dir(base_dir)
     .output()
     .with_context(|| format!("failed to spawn {runtime} for skeleton rendering"))?;
@@ -147,7 +204,7 @@ pub(super) fn run_skeleton_renderer(
   serde_json::from_str(&stdout).context("failed to parse skeleton output JSON")
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 pub(super) fn process_routes(
   layouts: &[SkeletonLayout],
   routes: &[SkeletonRoute],
@@ -157,88 +214,198 @@ pub(super) fn process_routes(
   vite: Option<&ViteDevInfo>,
   root_id: &str,
   data_id: &str,
+  i18n: Option<&I18nSection>,
 ) -> Result<RouteManifest> {
-  // Process layouts: replace <seam-outlet>, convert sentinels to slots, wrap document
-  let mut layout_manifest = BTreeMap::new();
+  let manifest_data_id = if data_id == "__SEAM_DATA__" { None } else { Some(data_id.to_string()) };
+  let i18n_manifest =
+    i18n.map(|cfg| I18nManifest { locales: cfg.locales.clone(), default: cfg.default.clone() });
+  let mut manifest = RouteManifest {
+    layouts: BTreeMap::new(),
+    routes: BTreeMap::new(),
+    data_id: manifest_data_id,
+    i18n: i18n_manifest,
+  };
+
+  // Process layouts
   for layout in layouts {
-    let html = layout.html.replace("<seam-outlet></seam-outlet>", "<!--seam:outlet-->");
-    // Convert %%SEAM:path%% sentinels to <!--seam:path--> slots for server injection
-    let html = sentinel_to_slots(&html);
-    let document = wrap_document(&html, &assets.css, &assets.js, dev_mode, vite, root_id);
-    let filename = format!("{}.html", layout.id);
-    let filepath = templates_dir.join(&filename);
-    std::fs::write(&filepath, &document)
-      .with_context(|| format!("failed to write {}", filepath.display()))?;
-    let template_rel = format!("templates/{filename}");
-    ui::detail_ok(&format!("layout {} -> {template_rel}", layout.id));
-    layout_manifest.insert(
-      layout.id.clone(),
-      LayoutManifestEntry {
-        template: template_rel,
-        loaders: layout.loaders.clone(),
-        parent: layout.parent.clone(),
-      },
-    );
+    if let Some(ref locale_html) = layout.locale_html {
+      // i18n ON: write per-locale templates
+      let mut templates = BTreeMap::new();
+      for (locale, html) in locale_html {
+        let html = html.replace("<seam-outlet></seam-outlet>", "<!--seam:outlet-->");
+        let html = sentinel_to_slots(&html);
+        let document = wrap_document(&html, &assets.css, &assets.js, dev_mode, vite, root_id);
+        let locale_dir = templates_dir.join(locale);
+        std::fs::create_dir_all(&locale_dir)
+          .with_context(|| format!("failed to create {}", locale_dir.display()))?;
+        let filename = format!("{}.html", layout.id);
+        let filepath = locale_dir.join(&filename);
+        std::fs::write(&filepath, &document)
+          .with_context(|| format!("failed to write {}", filepath.display()))?;
+        let template_rel = format!("templates/{locale}/{filename}");
+        templates.insert(locale.clone(), template_rel);
+      }
+      ui::detail_ok(&format!("layout {} -> {} locales", layout.id, locale_html.len()));
+      manifest.layouts.insert(
+        layout.id.clone(),
+        LayoutManifestEntry {
+          template: None,
+          templates: Some(templates),
+          loaders: layout.loaders.clone(),
+          parent: layout.parent.clone(),
+        },
+      );
+    } else if let Some(ref html) = layout.html {
+      // i18n OFF: single template (original behavior)
+      let html = html.replace("<seam-outlet></seam-outlet>", "<!--seam:outlet-->");
+      let html = sentinel_to_slots(&html);
+      let document = wrap_document(&html, &assets.css, &assets.js, dev_mode, vite, root_id);
+      let filename = format!("{}.html", layout.id);
+      let filepath = templates_dir.join(&filename);
+      std::fs::write(&filepath, &document)
+        .with_context(|| format!("failed to write {}", filepath.display()))?;
+      let template_rel = format!("templates/{filename}");
+      ui::detail_ok(&format!("layout {} -> {template_rel}", layout.id));
+      manifest.layouts.insert(
+        layout.id.clone(),
+        LayoutManifestEntry {
+          template: Some(template_rel),
+          templates: None,
+          loaders: layout.loaders.clone(),
+          parent: layout.parent.clone(),
+        },
+      );
+    }
   }
 
-  let manifest_data_id = if data_id == "__SEAM_DATA__" { None } else { Some(data_id.to_string()) };
-  let mut manifest =
-    RouteManifest { layouts: layout_manifest, routes: BTreeMap::new(), data_id: manifest_data_id };
-
+  // Process routes
   for route in routes {
-    let processed: Vec<_> = route.variants.iter().map(|v| sentinel_to_slots(&v.html)).collect();
-    let template = extract_template(&route.axes, &processed);
+    if let Some(ref locale_variants) = route.locale_variants {
+      // i18n ON: write per-locale templates
+      let mut templates = BTreeMap::new();
+      for (locale, data) in locale_variants {
+        let processed: Vec<_> = data.variants.iter().map(|v| sentinel_to_slots(&v.html)).collect();
+        let template = extract_template(&data.axes, &processed);
 
-    // CTR equivalence check: verify template + mock data == React render
-    ctr_check::verify_ctr_equivalence(&route.path, &route.mock_html, &template, &route.mock)?;
+        ctr_check::verify_ctr_equivalence(&route.path, &data.mock_html, &template, &route.mock)?;
 
-    // Warn about open-string fields in style/class contexts
-    if let Some(schema) = &route.page_schema {
-      for w in slot_warning::check_slot_types(&template, schema) {
-        ui::detail(&format!("{YELLOW}warning{RESET}: {} {w}", route.path));
+        if let Some(schema) = &route.page_schema {
+          for w in slot_warning::check_slot_types(&template, schema) {
+            ui::detail(&format!("{YELLOW}warning{RESET}: {} [{locale}] {w}", route.path));
+          }
+        }
+
+        let (document, head_meta) = if route.layout.is_some() {
+          if dev_mode {
+            (template.clone(), None)
+          } else {
+            let (meta, body) = extract_head_metadata(&template);
+            let hm = if meta.is_empty() { None } else { Some(meta.to_string()) };
+            (body.to_string(), hm)
+          }
+        } else {
+          (wrap_document(&template, &assets.css, &assets.js, dev_mode, vite, root_id), None)
+        };
+
+        let locale_dir = templates_dir.join(locale);
+        std::fs::create_dir_all(&locale_dir)
+          .with_context(|| format!("failed to create {}", locale_dir.display()))?;
+        let filename = path_to_filename(&route.path);
+        let filepath = locale_dir.join(&filename);
+        std::fs::write(&filepath, &document)
+          .with_context(|| format!("failed to write {}", filepath.display()))?;
+
+        let template_rel = format!("templates/{locale}/{filename}");
+        templates.insert(locale.clone(), template_rel);
+
+        // Store head_meta from the default locale only
+        if i18n.is_some_and(|cfg| locale == &cfg.default) {
+          manifest.routes.entry(route.path.clone()).or_insert_with(|| RouteManifestEntry {
+            template: None,
+            templates: None,
+            layout: route.layout.clone(),
+            loaders: route.loaders.clone(),
+            head_meta,
+          });
+        }
       }
-    }
 
-    // Routes with a layout are fragments; the server composes them at runtime.
-    // In production, extract <title>/<meta>/<link> from page fragments so the
-    // server can inject them into <head> (page metadata would otherwise end up
-    // inside the root div via <!--seam:outlet--> substitution).
-    // Dev mode skips extraction: lazy getters re-read template files but not
-    // manifest strings, so keeping metadata inline avoids stale-manifest issues.
-    let (document, head_meta) = if route.layout.is_some() {
-      if dev_mode {
-        (template.clone(), None)
+      let size = locale_variants.values().next().map(|d| d.mock_html.len() as u64).unwrap_or(0);
+      ui::detail_ok(&format!(
+        "{}  \u{2192} {} locales  {DIM}(~{}){RESET}",
+        route.path,
+        locale_variants.len(),
+        ui::format_size(size)
+      ));
+
+      // Update the entry with templates map
+      if let Some(entry) = manifest.routes.get_mut(&route.path) {
+        entry.templates = Some(templates);
       } else {
-        let (meta, body) = extract_head_metadata(&template);
-        let hm = if meta.is_empty() { None } else { Some(meta.to_string()) };
-        (body.to_string(), hm)
+        manifest.routes.insert(
+          route.path.clone(),
+          RouteManifestEntry {
+            template: None,
+            templates: Some(templates),
+            layout: route.layout.clone(),
+            loaders: route.loaders.clone(),
+            head_meta: None,
+          },
+        );
       }
     } else {
-      (wrap_document(&template, &assets.css, &assets.js, dev_mode, vite, root_id), None)
-    };
+      // i18n OFF: original behavior
+      let axes = route.axes.as_ref().expect("axes required when i18n is off");
+      let variants = route.variants.as_ref().expect("variants required when i18n is off");
+      let mock_html = route.mock_html.as_ref().expect("mock_html required when i18n is off");
 
-    let filename = path_to_filename(&route.path);
-    let filepath = templates_dir.join(&filename);
-    std::fs::write(&filepath, &document)
-      .with_context(|| format!("failed to write {}", filepath.display()))?;
+      let processed: Vec<_> = variants.iter().map(|v| sentinel_to_slots(&v.html)).collect();
+      let template = extract_template(axes, &processed);
 
-    let size = document.len() as u64;
-    let template_rel = format!("templates/{filename}");
-    ui::detail_ok(&format!(
-      "{}  \u{2192} {template_rel}  {DIM}({}){RESET}",
-      route.path,
-      ui::format_size(size)
-    ));
+      ctr_check::verify_ctr_equivalence(&route.path, mock_html, &template, &route.mock)?;
 
-    manifest.routes.insert(
-      route.path.clone(),
-      RouteManifestEntry {
-        template: template_rel,
-        layout: route.layout.clone(),
-        loaders: route.loaders.clone(),
-        head_meta,
-      },
-    );
+      if let Some(schema) = &route.page_schema {
+        for w in slot_warning::check_slot_types(&template, schema) {
+          ui::detail(&format!("{YELLOW}warning{RESET}: {} {w}", route.path));
+        }
+      }
+
+      let (document, head_meta) = if route.layout.is_some() {
+        if dev_mode {
+          (template.clone(), None)
+        } else {
+          let (meta, body) = extract_head_metadata(&template);
+          let hm = if meta.is_empty() { None } else { Some(meta.to_string()) };
+          (body.to_string(), hm)
+        }
+      } else {
+        (wrap_document(&template, &assets.css, &assets.js, dev_mode, vite, root_id), None)
+      };
+
+      let filename = path_to_filename(&route.path);
+      let filepath = templates_dir.join(&filename);
+      std::fs::write(&filepath, &document)
+        .with_context(|| format!("failed to write {}", filepath.display()))?;
+
+      let size = document.len() as u64;
+      let template_rel = format!("templates/{filename}");
+      ui::detail_ok(&format!(
+        "{}  \u{2192} {template_rel}  {DIM}({}){RESET}",
+        route.path,
+        ui::format_size(size)
+      ));
+
+      manifest.routes.insert(
+        route.path.clone(),
+        RouteManifestEntry {
+          template: Some(template_rel),
+          templates: None,
+          layout: route.layout.clone(),
+          loaders: route.loaders.clone(),
+          head_meta,
+        },
+      );
+    }
   }
   Ok(manifest)
 }
@@ -551,9 +718,10 @@ mod tests {
         .map(|(path, loaders)| SkeletonRoute {
           path: path.to_string(),
           loaders,
-          axes: vec![],
-          variants: vec![],
-          mock_html: String::new(),
+          axes: Some(vec![]),
+          variants: Some(vec![]),
+          mock_html: Some(String::new()),
+          locale_variants: None,
           mock: serde_json::Value::Null,
           page_schema: None,
           layout: None,
@@ -563,7 +731,8 @@ mod tests {
         .into_iter()
         .map(|(id, loaders)| SkeletonLayout {
           id: id.to_string(),
-          html: String::new(),
+          html: Some(String::new()),
+          locale_html: None,
           loaders,
           parent: None,
         })
@@ -646,7 +815,8 @@ mod tests {
   #[test]
   fn head_meta_serialization_skips_none() {
     let entry = RouteManifestEntry {
-      template: "templates/index.html".to_string(),
+      template: Some("templates/index.html".to_string()),
+      templates: None,
       layout: None,
       loaders: serde_json::Value::Null,
       head_meta: None,
@@ -658,7 +828,8 @@ mod tests {
   #[test]
   fn head_meta_serialization_includes_some() {
     let entry = RouteManifestEntry {
-      template: "templates/index.html".to_string(),
+      template: Some("templates/index.html".to_string()),
+      templates: None,
       layout: Some("root".to_string()),
       loaders: serde_json::Value::Null,
       head_meta: Some("<title><!--seam:t--></title>".to_string()),
