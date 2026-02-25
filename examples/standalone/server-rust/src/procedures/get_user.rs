@@ -13,6 +13,7 @@ pub struct GetUserOutput {
   pub id: u32,
   pub name: String,
   pub email: String,
+  #[seam(optional)]
   #[serde(skip_serializing_if = "Option::is_none")]
   pub avatar: Option<String>,
 }
