@@ -4,14 +4,16 @@ Server-side HTML data injection. Backends receive an HTML template with slot mar
 
 ## Slot Syntax
 
-| Type           | Syntax                                                            | Behavior                                       |
-| -------------- | ----------------------------------------------------------------- | ---------------------------------------------- |
-| Text (escaped) | `<!--seam:path-->`                                                | Replace with HTML-escaped value                |
-| Raw HTML       | `<!--seam:path:html-->`                                           | Replace with unescaped value                   |
-| Attribute      | `<!--seam:path:attr:name-->`                                      | Inject attribute on next opening tag           |
-| Conditional    | `<!--seam:if:path-->...<!--seam:endif:path-->`                    | Keep block if truthy, remove if falsy          |
-| Else branch    | `<!--seam:if:path-->...<!--seam:else-->...<!--seam:endif:path-->` | Keep then-block if truthy, else-block if falsy |
-| Iteration      | `<!--seam:each:path-->...<!--seam:endeach-->`                     | Repeat body for each array element             |
+| Type           | Syntax                                                              | Behavior                                       |
+| -------------- | ------------------------------------------------------------------- | ---------------------------------------------- |
+| Text (escaped) | `<!--seam:path-->`                                                  | Replace with HTML-escaped value                |
+| Raw HTML       | `<!--seam:path:html-->`                                             | Replace with unescaped value                   |
+| Attribute      | `<!--seam:path:attr:name-->`                                        | Inject attribute on next opening tag           |
+| Conditional    | `<!--seam:if:path-->...<!--seam:endif:path-->`                      | Keep block if truthy, remove if falsy          |
+| Else branch    | `<!--seam:if:path-->...<!--seam:else-->...<!--seam:endif:path-->`   | Keep then-block if truthy, else-block if falsy |
+| Iteration      | `<!--seam:each:path-->...<!--seam:endeach-->`                       | Repeat body for each array element             |
+| Style prop     | `<!--seam:path:style:property-->`                                   | Inject CSS property on next opening tag        |
+| Match          | `<!--seam:match:path--><!--seam:when:val-->...<!--seam:endmatch-->` | Pattern matching on string value               |
 
 ## Path Resolution
 
@@ -62,6 +64,40 @@ Nested example:
 <!--seam:endeach-->
 ```
 
+## Style Property Injection
+
+`<!--seam:path:style:property-->` injects a CSS property on the next opening tag.
+
+Example:
+
+```html
+<!--seam:bgColor:style:background-color-->
+<div>content</div>
+```
+
+With `{ bgColor: "#f00" }` produces:
+
+```html
+<div style="background-color:#f00">content</div>
+```
+
+Numeric values for dimensional properties receive an automatic `px` suffix.
+Unitless CSS properties (`opacity`, `z-index`, `flex-grow`, etc.) remain bare numbers.
+
+## Pattern Matching
+
+`<!--seam:match:path-->` selects a branch based on the string value at `path`.
+
+```html
+<!--seam:match:status-->
+<!--seam:when:active--><span class="green">Active</span>
+<!--seam:when:disabled--><span class="red">Disabled</span>
+<!--seam:endmatch-->
+```
+
+With `{ status: "active" }` produces `<span class="green">Active</span>`.
+If no `when` branch matches, the block produces no output.
+
 ## Truthiness
 
 JS-style with one extension. Falsy values: `null`, `undefined`, `false`, `0`, `""`, **empty array `[]`**.
@@ -106,8 +142,10 @@ AST-based. The template is parsed into a tree of nodes:
 TextNode(value)
 SlotNode(path, mode: text|html)
 AttrNode(path, attrName)
+StylePropNode(path, cssProperty)
 IfNode(path, thenNodes[], elseNodes[])
 EachNode(path, bodyNodes[])
+MatchNode(path, branches: Map<string, nodes[]>)
 ```
 
 The parser tokenizes the template by scanning for `<!--seam:...-->` markers and builds the tree recursively. The renderer traverses the AST and outputs the final string in a single pass.
