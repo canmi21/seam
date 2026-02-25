@@ -149,7 +149,7 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
 
   let member_count = members.len();
   let total_label =
-    if member_count == 1 { format!("1 member") } else { format!("{member_count} members") };
+    if member_count == 1 { "1 member".to_string() } else { format!("{member_count} members") };
   ui::banner("workspace build", Some(&format!("{} — {total_label}", root.project.name)));
 
   // Use first member as the reference for shared frontend steps

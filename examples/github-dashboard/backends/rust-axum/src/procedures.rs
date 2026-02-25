@@ -63,16 +63,16 @@ pub async fn get_user(input: GetUserInput) -> Result<GetUserOutput, SeamError> {
     .header("User-Agent", "seam-github-dashboard")
     .send()
     .await
-    .map_err(|e| SeamError::internal(&format!("GitHub API error: {e}")))?;
+    .map_err(|e| SeamError::internal(format!("GitHub API error: {e}")))?;
 
   if !resp.status().is_success() {
-    return Err(SeamError::not_found(&format!("GitHub user '{}' not found", input.username)));
+    return Err(SeamError::not_found(format!("GitHub user '{}' not found", input.username)));
   }
 
   let data: serde_json::Value = resp
     .json()
     .await
-    .map_err(|e| SeamError::internal(&format!("failed to parse GitHub response: {e}")))?;
+    .map_err(|e| SeamError::internal(format!("failed to parse GitHub response: {e}")))?;
 
   Ok(GetUserOutput {
     login: data["login"].as_str().unwrap_or_default().to_string(),
@@ -117,16 +117,16 @@ pub async fn get_user_repos(input: GetUserReposInput) -> Result<Vec<RepoItem>, S
     .header("User-Agent", "seam-github-dashboard")
     .send()
     .await
-    .map_err(|e| SeamError::internal(&format!("GitHub API error: {e}")))?;
+    .map_err(|e| SeamError::internal(format!("GitHub API error: {e}")))?;
 
   if !resp.status().is_success() {
-    return Err(SeamError::internal(&format!("GitHub repos API returned {}", resp.status())));
+    return Err(SeamError::internal(format!("GitHub repos API returned {}", resp.status())));
   }
 
   let data: Vec<serde_json::Value> = resp
     .json()
     .await
-    .map_err(|e| SeamError::internal(&format!("failed to parse repos: {e}")))?;
+    .map_err(|e| SeamError::internal(format!("failed to parse repos: {e}")))?;
 
   Ok(
     data

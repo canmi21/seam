@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -17,8 +18,8 @@ func GetSession() seam.ProcedureDef {
 		Name:         "getSession",
 		InputSchema:  json.RawMessage(`{"properties":{}}`),
 		OutputSchema: json.RawMessage(`{"properties":{"username":{"type":"string"},"theme":{"type":"string"}}}`),
-		Handler: func(input json.RawMessage) (json.RawMessage, error) {
-			return json.Marshal(map[string]string{"username": "visitor", "theme": "light"})
+		Handler: func(_ context.Context, _ json.RawMessage) (any, error) {
+			return map[string]string{"username": "visitor", "theme": "light"}, nil
 		},
 	}
 }
@@ -28,8 +29,8 @@ func GetHomeData() seam.ProcedureDef {
 		Name:         "getHomeData",
 		InputSchema:  json.RawMessage(`{"properties":{}}`),
 		OutputSchema: json.RawMessage(`{"properties":{"tagline":{"type":"string"}}}`),
-		Handler: func(input json.RawMessage) (json.RawMessage, error) {
-			return json.Marshal(map[string]string{"tagline": "Compile-Time Rendering for React"})
+		Handler: func(_ context.Context, _ json.RawMessage) (any, error) {
+			return map[string]string{"tagline": "Compile-Time Rendering for React"}, nil
 		},
 	}
 }
@@ -39,7 +40,7 @@ func GetUser() seam.ProcedureDef {
 		Name:         "getUser",
 		InputSchema:  json.RawMessage(`{"properties":{"username":{"type":"string"}}}`),
 		OutputSchema: json.RawMessage(`{"properties":{"login":{"type":"string"},"avatar_url":{"type":"string"},"public_repos":{"type":"uint32"},"followers":{"type":"uint32"},"following":{"type":"uint32"}},"optionalProperties":{"name":{"type":"string","nullable":true},"bio":{"type":"string","nullable":true},"location":{"type":"string","nullable":true}}}`),
-		Handler: func(input json.RawMessage) (json.RawMessage, error) {
+		Handler: func(_ context.Context, input json.RawMessage) (any, error) {
 			var req struct {
 				Username string `json:"username"`
 			}
@@ -59,7 +60,7 @@ func GetUser() seam.ProcedureDef {
 			var data map[string]interface{}
 			json.Unmarshal(body, &data)
 
-			result := map[string]interface{}{
+			return map[string]interface{}{
 				"login":        data["login"],
 				"name":         data["name"],
 				"avatar_url":   data["avatar_url"],
@@ -68,8 +69,7 @@ func GetUser() seam.ProcedureDef {
 				"public_repos": uint32(toFloat(data["public_repos"])),
 				"followers":    uint32(toFloat(data["followers"])),
 				"following":    uint32(toFloat(data["following"])),
-			}
-			return json.Marshal(result)
+			}, nil
 		},
 	}
 }
@@ -79,7 +79,7 @@ func GetUserRepos() seam.ProcedureDef {
 		Name:         "getUserRepos",
 		InputSchema:  json.RawMessage(`{"properties":{"username":{"type":"string"}}}`),
 		OutputSchema: json.RawMessage(`{"elements":{"properties":{"id":{"type":"uint32"},"name":{"type":"string"},"stargazers_count":{"type":"uint32"},"forks_count":{"type":"uint32"},"html_url":{"type":"string"}},"optionalProperties":{"description":{"type":"string","nullable":true},"language":{"type":"string","nullable":true}}}}`),
-		Handler: func(input json.RawMessage) (json.RawMessage, error) {
+		Handler: func(_ context.Context, input json.RawMessage) (any, error) {
 			var req struct {
 				Username string `json:"username"`
 			}
@@ -111,7 +111,7 @@ func GetUserRepos() seam.ProcedureDef {
 					"html_url":         r["html_url"],
 				})
 			}
-			return json.Marshal(result)
+			return result, nil
 		},
 	}
 }

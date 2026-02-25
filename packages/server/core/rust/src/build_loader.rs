@@ -12,6 +12,7 @@ use serde::Deserialize;
 use crate::page::{LoaderDef, PageDef};
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct RouteManifest {
   #[serde(default)]
   layouts: HashMap<String, LayoutEntry>,
