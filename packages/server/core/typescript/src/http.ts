@@ -217,6 +217,9 @@ export function createHttpHandler<T extends DefinitionMap>(
       return { status: 200, headers: SSE_HEADER, stream: sseStream(router, name, input) };
     }
 
+    // Pages are served under /_seam/page/* prefix only.
+    // Root-path serving is the application's responsibility — see the
+    // github-dashboard ts-hono example for the fallback pattern.
     if (req.method === "GET" && pathname.startsWith(PAGE_PREFIX) && router.hasPages) {
       const pagePath = "/" + pathname.slice(PAGE_PREFIX.length);
       const result = await router.handlePage(pagePath);

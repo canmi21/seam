@@ -8,7 +8,7 @@ pub mod procedure;
 pub mod server;
 
 // Re-exports for ergonomic use
-pub use build_loader::load_build_output;
+pub use build_loader::{load_build_output, load_rpc_hash_map, RpcHashMap};
 pub use errors::SeamError;
 pub use procedure::{BoxFuture, BoxStream, ProcedureDef, SubscriptionDef};
 pub use seam_macros::{seam_procedure, seam_subscription, SeamType};

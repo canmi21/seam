@@ -7,13 +7,13 @@ use std::sync::Arc;
 
 use axum::extract::{MatchedPath, Path, Query, State};
 use axum::response::sse::{Event, Sse};
-use axum::response::{Html, IntoResponse};
+use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::Router;
 use futures_core::Stream;
 use seam_server::page::PageDef;
 use seam_server::procedure::{ProcedureDef, SubscriptionDef};
-use seam_server::SeamError;
+use seam_server::{RpcHashMap, SeamError};
 use tokio::task::JoinSet;
 use tokio_stream::StreamExt;
 
@@ -24,6 +24,8 @@ pub(crate) struct AppState {
   pub handlers: HashMap<String, Arc<ProcedureDef>>,
   pub subscriptions: HashMap<String, Arc<SubscriptionDef>>,
   pub pages: HashMap<String, Arc<PageDef>>,
+  pub rpc_hash_map: Option<HashMap<String, String>>,
+  pub batch_hash: Option<String>,
 }
 
 pub(crate) fn build_router(
@@ -31,43 +33,153 @@ pub(crate) fn build_router(
   handlers: HashMap<String, Arc<ProcedureDef>>,
   subscriptions: HashMap<String, Arc<SubscriptionDef>>,
   pages: Vec<PageDef>,
+  hash_map: Option<RpcHashMap>,
 ) -> Router {
+  let (rpc_hash_map, batch_hash) = match hash_map {
+    Some(m) => (Some(m.reverse_lookup()), Some(m.batch)),
+    None => (None, None),
+  };
+
   let mut page_map = HashMap::new();
   let mut router = Router::new()
     .route("/_seam/manifest.json", get(handle_manifest))
     .route("/_seam/rpc/{name}", post(handle_rpc))
     .route("/_seam/subscribe/{name}", get(handle_subscribe));
 
+  // Pages are served under /_seam/page/* prefix only.
+  // Root-path page serving (e.g. "/" or "/dashboard/:id") is the application's
+  // responsibility — use Router::fallback to forward unmatched GET requests
+  // to /_seam/page/* via tower::ServiceExt::oneshot. See the github-dashboard
+  // rust-axum example for the pattern.
   for page in pages {
     let full_route = format!("/_seam/page{}", page.route);
     page_map.insert(full_route.clone(), Arc::new(page));
     router = router.route(&full_route, get(handle_page));
   }
 
-  let state = Arc::new(AppState { manifest_json, handlers, subscriptions, pages: page_map });
+  let state = Arc::new(AppState {
+    manifest_json,
+    handlers,
+    subscriptions,
+    pages: page_map,
+    rpc_hash_map,
+    batch_hash,
+  });
 
   router.with_state(state)
 }
 
-async fn handle_manifest(State(state): State<Arc<AppState>>) -> impl IntoResponse {
-  axum::Json(state.manifest_json.clone())
+async fn handle_manifest(
+  State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, AxumError> {
+  if state.rpc_hash_map.is_some() {
+    return Err(SeamError::forbidden("Manifest disabled").into());
+  }
+  Ok(axum::Json(state.manifest_json.clone()))
 }
 
 async fn handle_rpc(
   State(state): State<Arc<AppState>>,
   Path(name): Path<String>,
   body: axum::body::Bytes,
-) -> Result<impl IntoResponse, AxumError> {
+) -> Result<Response, AxumError> {
+  // Batch: match both original "_batch" and hashed batch endpoint
+  if name == "_batch" || state.batch_hash.as_deref() == Some(&name) {
+    return handle_batch(State(state), body).await;
+  }
+
+  // Resolve hash -> original name when obfuscation is active
+  let resolved = if let Some(ref map) = state.rpc_hash_map {
+    map.get(&name).cloned().ok_or_else(|| SeamError::not_found("Not found"))?
+  } else {
+    name.clone()
+  };
+
   let proc = state
     .handlers
-    .get(&name)
-    .ok_or_else(|| SeamError::not_found(format!("Procedure '{name}' not found")))?;
+    .get(&resolved)
+    .ok_or_else(|| SeamError::not_found(format!("Procedure '{resolved}' not found")))?;
 
   let input: serde_json::Value =
     serde_json::from_slice(&body).map_err(|e| SeamError::validation(e.to_string()))?;
 
   let result = (proc.handler)(input).await?;
-  Ok(axum::Json(result))
+  Ok(axum::Json(result).into_response())
+}
+
+#[derive(serde::Deserialize)]
+struct BatchRequest {
+  calls: Vec<BatchCall>,
+}
+
+#[derive(serde::Deserialize)]
+struct BatchCall {
+  procedure: String,
+  #[serde(default)]
+  input: serde_json::Value,
+}
+
+#[derive(serde::Serialize)]
+#[serde(untagged)]
+enum BatchResultItem {
+  Ok { ok: bool, data: serde_json::Value },
+  Err { ok: bool, error: BatchError },
+}
+
+#[derive(serde::Serialize)]
+struct BatchError {
+  code: String,
+  message: String,
+}
+
+async fn handle_batch(
+  State(state): State<Arc<AppState>>,
+  body: axum::body::Bytes,
+) -> Result<Response, AxumError> {
+  let batch: BatchRequest = serde_json::from_slice(&body)
+    .map_err(|_| SeamError::validation("Batch request must have a 'calls' array"))?;
+
+  let mut join_set = JoinSet::new();
+  for (idx, call) in batch.calls.into_iter().enumerate() {
+    let state = state.clone();
+    join_set.spawn(async move {
+      // Resolve hash -> original name
+      let proc_name = if let Some(ref map) = state.rpc_hash_map {
+        map.get(&call.procedure).cloned().unwrap_or(call.procedure)
+      } else {
+        call.procedure
+      };
+
+      let result = match state.handlers.get(&proc_name) {
+        Some(proc) => match (proc.handler)(call.input).await {
+          Ok(data) => BatchResultItem::Ok { ok: true, data },
+          Err(e) => BatchResultItem::Err {
+            ok: false,
+            error: BatchError { code: e.code().to_string(), message: e.message().to_string() },
+          },
+        },
+        None => BatchResultItem::Err {
+          ok: false,
+          error: BatchError {
+            code: "NOT_FOUND".to_string(),
+            message: format!("Procedure '{proc_name}' not found"),
+          },
+        },
+      };
+      (idx, result)
+    });
+  }
+
+  // Collect results preserving original order
+  let mut indexed: Vec<(usize, BatchResultItem)> = Vec::new();
+  while let Some(result) = join_set.join_next().await {
+    let (idx, item) = result.map_err(|e| SeamError::internal(e.to_string()))?;
+    indexed.push((idx, item));
+  }
+  indexed.sort_by_key(|(i, _)| *i);
+  let results: Vec<BatchResultItem> = indexed.into_iter().map(|(_, item)| item).collect();
+
+  Ok(axum::Json(serde_json::json!({ "results": results })).into_response())
 }
 
 #[derive(serde::Deserialize)]
@@ -81,10 +193,17 @@ async fn handle_subscribe(
   Query(query): Query<SubscribeQuery>,
 ) -> Sse<Pin<Box<dyn Stream<Item = Result<Event, Infallible>> + Send>>> {
   let setup = async {
+    // Resolve hash -> original name for subscriptions
+    let resolved = if let Some(ref map) = state.rpc_hash_map {
+      map.get(&name).cloned().ok_or_else(|| SeamError::not_found("Not found"))?
+    } else {
+      name.clone()
+    };
+
     let sub = state
       .subscriptions
-      .get(&name)
-      .ok_or_else(|| SeamError::not_found(format!("Subscription '{name}' not found")))?;
+      .get(&resolved)
+      .ok_or_else(|| SeamError::not_found(format!("Subscription '{resolved}' not found")))?;
 
     let raw_input = match &query.input {
       Some(s) => serde_json::from_str(s).map_err(|e| SeamError::validation(e.to_string()))?,

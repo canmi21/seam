@@ -21,13 +21,20 @@ type appState struct {
 	handlers     map[string]*ProcedureDef
 	subs         map[string]*SubscriptionDef
 	opts         HandlerOptions
+	hashToName   map[string]string // reverse lookup: hash -> original name (nil if no hash map)
+	batchHash    string            // batch endpoint hash (empty if no hash map)
 }
 
-func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef, opts HandlerOptions) http.Handler {
+func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef, rpcHashMap *RpcHashMap, opts HandlerOptions) http.Handler {
 	state := &appState{
 		handlers: make(map[string]*ProcedureDef),
 		subs:     make(map[string]*SubscriptionDef),
 		opts:     opts,
+	}
+
+	if rpcHashMap != nil {
+		state.hashToName = rpcHashMap.ReverseLookup()
+		state.batchHash = rpcHashMap.Batch
 	}
 
 	// Build manifest
@@ -46,6 +53,10 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pa
 	mux.HandleFunc("POST /_seam/rpc/{name}", state.handleRPC)
 	mux.HandleFunc("GET /_seam/subscribe/{name}", state.handleSubscribe)
 
+	// Pages are served under /_seam/page/* prefix only.
+	// Root-path serving (e.g. "/" or "/dashboard/:id") is the application's
+	// responsibility — use http.Handler fallback (e.g. gin.NoRoute) to rewrite
+	// paths to /_seam/page/*. See the github-dashboard go-gin example.
 	for i := range pages {
 		goPattern := seamRouteToGoPattern(pages[i].Route)
 		page := &pages[i]
@@ -110,6 +121,22 @@ func (s *appState) handleManifest(w http.ResponseWriter, r *http.Request) {
 func (s *appState) handleRPC(w http.ResponseWriter, r *http.Request) {
 	name := r.PathValue("name")
 
+	// Batch endpoint: hash matches the batch hash from rpc-hash-map.json
+	if s.batchHash != "" && name == s.batchHash {
+		s.handleBatch(w, r)
+		return
+	}
+
+	// Resolve hash -> original name when hash map is present
+	if s.hashToName != nil {
+		resolved, ok := s.hashToName[name]
+		if !ok {
+			writeError(w, http.StatusNotFound, NotFoundError(fmt.Sprintf("Procedure '%s' not found", name)))
+			return
+		}
+		name = resolved
+	}
+
 	proc, ok := s.handlers[name]
 	if !ok {
 		writeError(w, http.StatusNotFound, NotFoundError(fmt.Sprintf("Procedure '%s' not found", name)))
@@ -151,6 +178,86 @@ func (s *appState) handleRPC(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
+}
+
+// --- batch RPC handler ---
+
+type batchRequest struct {
+	Calls []batchCall `json:"calls"`
+}
+
+type batchCall struct {
+	Procedure string          `json:"procedure"`
+	Input     json.RawMessage `json:"input"`
+}
+
+type batchResult struct {
+	Data  any  `json:"data,omitempty"`
+	Error *Error `json:"error,omitempty"`
+}
+
+func (s *appState) handleBatch(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, ValidationError("Failed to read request body"))
+		return
+	}
+
+	var batch batchRequest
+	if err := json.Unmarshal(body, &batch); err != nil {
+		writeError(w, http.StatusBadRequest, ValidationError("Invalid batch JSON"))
+		return
+	}
+
+	ctx := r.Context()
+	if s.opts.RPCTimeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.opts.RPCTimeout)
+		defer cancel()
+	}
+
+	results := make([]batchResult, len(batch.Calls))
+	for i, call := range batch.Calls {
+		// Resolve hash -> original name
+		name := call.Procedure
+		if s.hashToName != nil {
+			resolved, ok := s.hashToName[name]
+			if !ok {
+				results[i] = batchResult{Error: NotFoundError(fmt.Sprintf("Procedure '%s' not found", name))}
+				continue
+			}
+			name = resolved
+		}
+
+		proc, ok := s.handlers[name]
+		if !ok {
+			results[i] = batchResult{Error: NotFoundError(fmt.Sprintf("Procedure '%s' not found", name))}
+			continue
+		}
+
+		input := call.Input
+		if len(input) == 0 {
+			input = json.RawMessage("{}")
+		}
+
+		result, err := proc.Handler(ctx, input)
+		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				results[i] = batchResult{Error: NewError("INTERNAL_ERROR", "RPC timed out", http.StatusGatewayTimeout)}
+				continue
+			}
+			if seamErr, ok := err.(*Error); ok {
+				results[i] = batchResult{Error: seamErr}
+			} else {
+				results[i] = batchResult{Error: InternalError(err.Error())}
+			}
+			continue
+		}
+		results[i] = batchResult{Data: result}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
 }
 
 // --- subscribe handler ---

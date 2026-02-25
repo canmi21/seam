@@ -25,6 +25,8 @@ struct RouteManifest {
 struct LayoutEntry {
   template: Option<String>,
   #[serde(default)]
+  templates: Option<HashMap<String, String>>,
+  #[serde(default)]
   loaders: serde_json::Value,
   #[serde(default)]
   parent: Option<String>,
@@ -34,11 +36,31 @@ struct LayoutEntry {
 struct RouteEntry {
   template: Option<String>,
   #[serde(default)]
+  templates: Option<HashMap<String, String>>,
+  #[serde(default)]
   layout: Option<String>,
   #[serde(default)]
   loaders: serde_json::Value,
   #[serde(default)]
   head_meta: Option<String>,
+}
+
+/// Pick a template path: prefer singular `template`, fall back to first value in `templates` (i18n).
+fn pick_template(
+  single: &Option<String>,
+  multi: &Option<HashMap<String, String>>,
+) -> Option<String> {
+  if let Some(t) = single {
+    return Some(t.clone());
+  }
+  if let Some(map) = multi {
+    // Prefer "origin" locale, otherwise take any
+    if let Some(t) = map.get("origin") {
+      return Some(t.clone());
+    }
+    return map.values().next().cloned();
+  }
+  None
 }
 
 #[derive(Deserialize)]
@@ -144,8 +166,8 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
   // Load layout templates
   let mut layout_templates: HashMap<String, (String, Option<String>)> = HashMap::new();
   for (id, entry) in &manifest.layouts {
-    if let Some(ref tmpl_path) = entry.template {
-      let full_path = base.join(tmpl_path);
+    if let Some(tmpl_path) = pick_template(&entry.template, &entry.templates) {
+      let full_path = base.join(&tmpl_path);
       let tmpl = std::fs::read_to_string(&full_path)?;
       layout_templates.insert(id.clone(), (tmpl, entry.parent.clone()));
     }
@@ -155,8 +177,8 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
 
   for (route_path, entry) in &manifest.routes {
     // Load page template
-    let page_template = if let Some(ref tmpl_path) = entry.template {
-      let full_path = base.join(tmpl_path);
+    let page_template = if let Some(tmpl_path) = pick_template(&entry.template, &entry.templates) {
+      let full_path = base.join(&tmpl_path);
       std::fs::read_to_string(&full_path)?
     } else {
       continue;
@@ -197,6 +219,28 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
   }
 
   Ok(pages)
+}
+
+/// RPC hash map loaded from build output. Maps hashed names back to original procedure names.
+#[derive(Deserialize, Clone, Debug)]
+pub struct RpcHashMap {
+  pub salt: String,
+  pub batch: String,
+  pub procedures: HashMap<String, String>,
+}
+
+impl RpcHashMap {
+  /// Build a reverse lookup: hash -> original name
+  pub fn reverse_lookup(&self) -> HashMap<String, String> {
+    self.procedures.iter().map(|(name, hash)| (hash.clone(), name.clone())).collect()
+  }
+}
+
+/// Load the RPC hash map from build output (returns None when not present).
+pub fn load_rpc_hash_map(dir: &str) -> Option<RpcHashMap> {
+  let path = Path::new(dir).join("rpc-hash-map.json");
+  let content = std::fs::read_to_string(&path).ok()?;
+  serde_json::from_str(&content).ok()
 }
 
 /// Convert client route path to Axum format: /:param -> /{param}

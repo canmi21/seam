@@ -131,6 +131,7 @@ type Router struct {
 	procedures    []ProcedureDef
 	subscriptions []SubscriptionDef
 	pages         []PageDef
+	rpcHashMap    *RpcHashMap
 }
 
 func NewRouter() *Router {
@@ -152,6 +153,11 @@ func (r *Router) Page(def PageDef) *Router {
 	return r
 }
 
+func (r *Router) RpcHashMap(m *RpcHashMap) *Router {
+	r.rpcHashMap = m
+	return r
+}
+
 // Handler returns an http.Handler that serves all /_seam/* routes.
 // When called with no arguments, default timeouts (30s) are used.
 func (r *Router) Handler(opts ...HandlerOptions) http.Handler {
@@ -159,5 +165,5 @@ func (r *Router) Handler(opts ...HandlerOptions) http.Handler {
 	if len(opts) > 0 {
 		o = opts[0]
 	}
-	return buildHandler(r.procedures, r.subscriptions, r.pages, o)
+	return buildHandler(r.procedures, r.subscriptions, r.pages, r.rpcHashMap, o)
 }

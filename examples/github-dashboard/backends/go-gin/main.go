@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -33,8 +35,55 @@ func main() {
 	r.Procedure(GetUser())
 	r.Procedure(GetUserRepos())
 
+	// Load pages from build output if available
+	buildDir := os.Getenv("SEAM_OUTPUT_DIR")
+	if buildDir == "" {
+		buildDir = ".seam/output"
+	}
+	pages, err := seam.LoadBuildOutput(buildDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "No build output at %s: %v (API-only mode)\n", buildDir, err)
+	} else {
+		fmt.Fprintf(os.Stderr, "Loaded %d pages from %s\n", len(pages), buildDir)
+		for _, page := range pages {
+			r.Page(page)
+		}
+	}
+
+	// Load RPC hash map for production hashed procedure names
+	if hashMap := seam.LoadRpcHashMap(buildDir); hashMap != nil {
+		fmt.Fprintf(os.Stderr, "RPC hash map loaded (%d procedures)\n", len(hashMap.Procedures))
+		r.RpcHashMap(hashMap)
+	}
+
+	seamHandler := r.Handler()
+
+	// Static assets from build output, served under /_seam/static/*
+	publicDir := buildDir + "/public"
+	staticFS := http.StripPrefix("/_seam/static/", http.FileServer(http.Dir(publicDir)))
+
 	g := gin.Default()
-	g.Any("/_seam/*path", gin.WrapH(r.Handler()))
+	g.Any("/_seam/*path", func(c *gin.Context) {
+		if strings.HasPrefix(c.Param("path"), "/static/") {
+			staticFS.ServeHTTP(c.Writer, c.Request)
+			return
+		}
+		seamHandler.ServeHTTP(c.Writer, c.Request)
+	})
+
+	// Root-path page serving: the seam SDK serves pages under /_seam/page/*
+	// only, so the application controls its own URL space (public APIs, auth,
+	// static files, etc.). Unmatched GET requests are rewritten to /_seam/page/*
+	// and forwarded to the seam handler.
+	g.NoRoute(func(c *gin.Context) {
+		if c.Request.Method != http.MethodGet {
+			return
+		}
+		c.Request.URL.Path = "/_seam/page" + c.Request.URL.Path
+		// Reset gin's pending 404 — the seam handler sets the real status
+		c.Writer.WriteHeader(http.StatusOK)
+		seamHandler.ServeHTTP(c.Writer, c.Request)
+	})
 
 	addr := fmt.Sprintf(":%s", port)
 	ln, err := net.Listen("tcp", addr)
@@ -67,7 +116,6 @@ func printManifest() {
 				"output": map[string]interface{}{"properties": map[string]interface{}{
 					"login": map[string]string{"type": "string"}, "avatar_url": map[string]string{"type": "string"},
 					"public_repos": map[string]string{"type": "uint32"}, "followers": map[string]string{"type": "uint32"}, "following": map[string]string{"type": "uint32"},
-				}, "optionalProperties": map[string]interface{}{
 					"name": map[string]interface{}{"type": "string", "nullable": true}, "bio": map[string]interface{}{"type": "string", "nullable": true}, "location": map[string]interface{}{"type": "string", "nullable": true},
 				}},
 			},
@@ -77,7 +125,6 @@ func printManifest() {
 				"output": map[string]interface{}{"elements": map[string]interface{}{"properties": map[string]interface{}{
 					"id": map[string]string{"type": "uint32"}, "name": map[string]string{"type": "string"},
 					"stargazers_count": map[string]string{"type": "uint32"}, "forks_count": map[string]string{"type": "uint32"}, "html_url": map[string]string{"type": "string"},
-				}, "optionalProperties": map[string]interface{}{
 					"description": map[string]interface{}{"type": "string", "nullable": true}, "language": map[string]interface{}{"type": "string", "nullable": true},
 				}}},
 			},
