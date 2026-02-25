@@ -9,16 +9,19 @@ interface RouteManifest {
   layouts?: Record<string, LayoutManifestEntry>;
   routes: Record<string, RouteManifestEntry>;
   data_id?: string;
+  i18n?: { locales: string[]; default: string };
 }
 
 interface LayoutManifestEntry {
-  template: string;
+  template?: string;
+  templates?: Record<string, string>;
   loaders?: Record<string, LoaderConfig>;
   parent?: string;
 }
 
 interface RouteManifestEntry {
-  template: string;
+  template?: string;
+  templates?: Record<string, string>;
   layout?: string;
   loaders: Record<string, LoaderConfig>;
   head_meta?: string;
@@ -55,6 +58,20 @@ function buildLoaderFns(configs: Record<string, LoaderConfig>): Record<string, L
   return fns;
 }
 
+function resolveTemplatePath(
+  entry: { template?: string; templates?: Record<string, string> },
+  defaultLocale: string | undefined,
+): string {
+  if (entry.template) return entry.template;
+  if (entry.templates) {
+    const locale = defaultLocale ?? Object.keys(entry.templates)[0];
+    const path = entry.templates[locale];
+    if (!path) throw new Error(`No template for locale "${locale}"`);
+    return path;
+  }
+  throw new Error("Manifest entry has neither 'template' nor 'templates'");
+}
+
 /** Resolve parent chain for a layout, returning outer-to-inner order */
 function resolveLayoutChain(
   layoutId: string,
@@ -85,6 +102,7 @@ function resolveLayoutChainDev(
   layoutId: string,
   layoutEntries: Record<string, LayoutManifestEntry>,
   distDir: string,
+  defaultLocale: string | undefined,
 ): LayoutDef[] {
   const chain: LayoutDef[] = [];
   let currentId: string | undefined = layoutId;
@@ -92,7 +110,7 @@ function resolveLayoutChainDev(
   while (currentId) {
     const entry: LayoutManifestEntry | undefined = layoutEntries[currentId];
     if (!entry) break;
-    const layoutTemplatePath = join(distDir, entry.template);
+    const layoutTemplatePath = join(distDir, resolveTemplatePath(entry, defaultLocale));
     const def: LayoutDef = {
       id: currentId,
       template: "", // placeholder, overridden by getter
@@ -124,17 +142,21 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
   const manifestPath = join(distDir, "route-manifest.json");
   const raw = readFileSync(manifestPath, "utf-8");
   const manifest = JSON.parse(raw) as RouteManifest;
+  const defaultLocale = manifest.i18n?.default;
 
   // Load layout templates
   const layoutTemplates: Record<string, string> = {};
   const layoutEntries = manifest.layouts ?? {};
   for (const [id, entry] of Object.entries(layoutEntries)) {
-    layoutTemplates[id] = readFileSync(join(distDir, entry.template), "utf-8");
+    layoutTemplates[id] = readFileSync(
+      join(distDir, resolveTemplatePath(entry, defaultLocale)),
+      "utf-8",
+    );
   }
 
   const pages: Record<string, PageDef> = {};
   for (const [path, entry] of Object.entries(manifest.routes)) {
-    const templatePath = join(distDir, entry.template);
+    const templatePath = join(distDir, resolveTemplatePath(entry, defaultLocale));
     const template = readFileSync(templatePath, "utf-8");
 
     const loaders = buildLoaderFns(entry.loaders);
@@ -158,15 +180,16 @@ export function loadBuildOutputDev(distDir: string): Record<string, PageDef> {
   const manifestPath = join(distDir, "route-manifest.json");
   const raw = readFileSync(manifestPath, "utf-8");
   const manifest = JSON.parse(raw) as RouteManifest;
+  const defaultLocale = manifest.i18n?.default;
 
   const layoutEntries = manifest.layouts ?? {};
 
   const pages: Record<string, PageDef> = {};
   for (const [path, entry] of Object.entries(manifest.routes)) {
-    const templatePath = join(distDir, entry.template);
+    const templatePath = join(distDir, resolveTemplatePath(entry, defaultLocale));
     const loaders = buildLoaderFns(entry.loaders);
     const layoutChain = entry.layout
-      ? resolveLayoutChainDev(entry.layout, layoutEntries, distDir)
+      ? resolveLayoutChainDev(entry.layout, layoutEntries, distDir, defaultLocale)
       : [];
 
     const page: PageDef = {

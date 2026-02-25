@@ -250,3 +250,172 @@ describe("loadBuildOutputDev", () => {
     expect(() => loadBuildOutputDev("/nonexistent/path")).toThrow();
   });
 });
+
+describe("loadBuildOutput — i18n manifest", () => {
+  let i18nDir: string;
+
+  beforeAll(() => {
+    i18nDir = mkdtempSync(join(tmpdir(), "seam-i18n-"));
+    mkdirSync(join(i18nDir, "templates/origin"), { recursive: true });
+    mkdirSync(join(i18nDir, "templates/zh"), { recursive: true });
+
+    writeFileSync(join(i18nDir, "templates/origin/index.html"), "<h1><!--seam:page.title--></h1>");
+    writeFileSync(
+      join(i18nDir, "templates/origin/_layout_root.html"),
+      "<html><body><!--seam:outlet--></body></html>",
+    );
+    writeFileSync(join(i18nDir, "templates/zh/index.html"), "<h1>ZH <!--seam:page.title--></h1>");
+    writeFileSync(
+      join(i18nDir, "templates/zh/_layout_root.html"),
+      "<html><body>ZH <!--seam:outlet--></body></html>",
+    );
+
+    writeFileSync(
+      join(i18nDir, "route-manifest.json"),
+      JSON.stringify({
+        routes: {
+          "/": {
+            templates: {
+              origin: "templates/origin/index.html",
+              zh: "templates/zh/index.html",
+            },
+            layout: "root",
+            loaders: { page: { procedure: "getPage" } },
+          },
+        },
+        layouts: {
+          root: {
+            templates: {
+              origin: "templates/origin/_layout_root.html",
+              zh: "templates/zh/_layout_root.html",
+            },
+          },
+        },
+        data_id: "__sd",
+        i18n: { locales: ["origin", "zh"], default: "origin" },
+      }),
+    );
+  });
+
+  afterAll(() => {
+    rmSync(i18nDir, { recursive: true, force: true });
+  });
+
+  it("loads default locale template", () => {
+    const pages = loadBuildOutput(i18nDir);
+    expect(pages["/"].template).toBe("<h1><!--seam:page.title--></h1>");
+  });
+
+  it("loads layout from default locale", () => {
+    const pages = loadBuildOutput(i18nDir);
+    expect(pages["/"].layoutChain).toHaveLength(1);
+    expect(pages["/"].layoutChain[0].template).toBe("<html><body><!--seam:outlet--></body></html>");
+  });
+
+  it("preserves dataId", () => {
+    const pages = loadBuildOutput(i18nDir);
+    expect(pages["/"].dataId).toBe("__sd");
+  });
+
+  it("missing locale throws", () => {
+    const badDir = mkdtempSync(join(tmpdir(), "seam-i18n-bad-locale-"));
+    mkdirSync(join(badDir, "templates/origin"), { recursive: true });
+    writeFileSync(join(badDir, "templates/origin/index.html"), "<p>ok</p>");
+    writeFileSync(
+      join(badDir, "route-manifest.json"),
+      JSON.stringify({
+        routes: {
+          "/": {
+            templates: { origin: "templates/origin/index.html" },
+            loaders: {},
+          },
+        },
+        i18n: { locales: ["origin", "fr"], default: "fr" },
+      }),
+    );
+    try {
+      expect(() => loadBuildOutput(badDir)).toThrow(/No template for locale "fr"/);
+    } finally {
+      rmSync(badDir, { recursive: true, force: true });
+    }
+  });
+
+  it("neither field throws", () => {
+    const badDir = mkdtempSync(join(tmpdir(), "seam-i18n-no-field-"));
+    writeFileSync(
+      join(badDir, "route-manifest.json"),
+      JSON.stringify({
+        routes: {
+          "/": { loaders: {} },
+        },
+      }),
+    );
+    try {
+      expect(() => loadBuildOutput(badDir)).toThrow(/neither 'template' nor 'templates'/);
+    } finally {
+      rmSync(badDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("loadBuildOutputDev — i18n manifest", () => {
+  let i18nDir: string;
+
+  beforeAll(() => {
+    i18nDir = mkdtempSync(join(tmpdir(), "seam-i18n-dev-"));
+    mkdirSync(join(i18nDir, "templates/origin"), { recursive: true });
+    mkdirSync(join(i18nDir, "templates/zh"), { recursive: true });
+
+    writeFileSync(join(i18nDir, "templates/origin/index.html"), "<h1><!--seam:page.title--></h1>");
+    writeFileSync(
+      join(i18nDir, "templates/origin/_layout_root.html"),
+      "<html><body><!--seam:outlet--></body></html>",
+    );
+    writeFileSync(join(i18nDir, "templates/zh/index.html"), "<h1>ZH <!--seam:page.title--></h1>");
+    writeFileSync(
+      join(i18nDir, "templates/zh/_layout_root.html"),
+      "<html><body>ZH <!--seam:outlet--></body></html>",
+    );
+
+    writeFileSync(
+      join(i18nDir, "route-manifest.json"),
+      JSON.stringify({
+        routes: {
+          "/": {
+            templates: {
+              origin: "templates/origin/index.html",
+              zh: "templates/zh/index.html",
+            },
+            layout: "root",
+            loaders: { page: { procedure: "getPage" } },
+          },
+        },
+        layouts: {
+          root: {
+            templates: {
+              origin: "templates/origin/_layout_root.html",
+              zh: "templates/zh/_layout_root.html",
+            },
+          },
+        },
+        data_id: "__sd",
+        i18n: { locales: ["origin", "zh"], default: "origin" },
+      }),
+    );
+  });
+
+  afterAll(() => {
+    rmSync(i18nDir, { recursive: true, force: true });
+  });
+
+  it("dev mode lazy getter resolves i18n template", () => {
+    const pages = loadBuildOutputDev(i18nDir);
+    expect(pages["/"].template).toBe("<h1><!--seam:page.title--></h1>");
+  });
+
+  it("dev mode layout chain resolves i18n template", () => {
+    const pages = loadBuildOutputDev(i18nDir);
+    expect(pages["/"].layoutChain).toHaveLength(1);
+    expect(pages["/"].layoutChain[0].template).toBe("<html><body><!--seam:outlet--></body></html>");
+  });
+});
