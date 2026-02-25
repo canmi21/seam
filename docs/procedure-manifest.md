@@ -190,6 +190,66 @@ Executes a procedure.
 - Content-Type: `application/json`
 - Body: JSON matching the procedure's `output` schema.
 
+### POST /\_seam/rpc/\_batch
+
+Executes multiple procedures in a single HTTP request.
+
+**Request**:
+
+- Content-Type: `application/json`
+- Body: JSON array of call objects:
+
+```json
+[
+  { "procedure": "greet", "input": { "name": "Alice" } },
+  { "procedure": "getUser", "input": { "id": 1 } }
+]
+```
+
+**Response** (success):
+
+- Status: `200`
+- Content-Type: `application/json`
+- Body: JSON array of results in the same order:
+
+```json
+[
+  { "result": { "message": "Hello, Alice!" } },
+  { "result": { "id": 1, "name": "Alice", "email": "alice@example.com" } }
+]
+```
+
+Individual failures return error objects in the array without failing the entire batch:
+
+```json
+[
+  { "result": { "message": "Hello, Alice!" } },
+  { "error": { "code": "NOT_FOUND", "message": "Procedure 'noSuch' not found" } }
+]
+```
+
+### GET /\_seam/page/{route}
+
+Serves a fully rendered HTML page. The server matches the route to a page definition, runs all associated data loaders in parallel, injects loader results into the HTML skeleton template, and returns the complete document.
+
+**Response** (success):
+
+- Status: `200`
+- Content-Type: `text/html`
+- Body: HTML document with injected data and `__SEAM_DATA__` script tag
+
+**Response** (not found):
+
+- Status: `404` if no page definition matches the route
+
+## RPC Hash Obfuscation
+
+Servers may optionally map procedure names to SHA2 hashes for production deployments. When enabled, clients call `POST /_seam/rpc/{hash}` instead of `POST /_seam/rpc/{name}`.
+
+The server maintains a reverse lookup map (`hash -> name`) provided via the `rpcHashMap` option. The CLI generates this map during `seam build` when obfuscation is enabled in `seam.toml`.
+
+This is a deployment optimization, not a security boundary — the manifest endpoint still exposes procedure schemas by name.
+
 ## Error Response Format
 
 All error responses use a consistent envelope:
