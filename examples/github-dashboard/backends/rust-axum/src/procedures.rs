@@ -3,6 +3,22 @@
 use seam_server::{seam_procedure, SeamError, SeamType};
 use serde::{Deserialize, Serialize};
 
+fn gh_client() -> reqwest::Client {
+  reqwest::Client::new()
+}
+
+fn gh_request(client: &reqwest::Client, url: &str) -> reqwest::RequestBuilder {
+  let req = client
+    .get(url)
+    .header("Accept", "application/vnd.github.v3+json")
+    .header("User-Agent", "seam-github-dashboard");
+  if let Ok(token) = std::env::var("GITHUB_TOKEN") {
+    req.bearer_auth(token)
+  } else {
+    req
+  }
+}
+
 // -- getSession --
 
 #[derive(Deserialize, SeamType)]
@@ -56,11 +72,8 @@ pub struct GetUserOutput {
 #[seam_procedure(name = "getUser")]
 pub async fn get_user(input: GetUserInput) -> Result<GetUserOutput, SeamError> {
   let url = format!("https://api.github.com/users/{}", input.username);
-  let client = reqwest::Client::new();
-  let resp = client
-    .get(&url)
-    .header("Accept", "application/vnd.github.v3+json")
-    .header("User-Agent", "seam-github-dashboard")
+  let client = gh_client();
+  let resp = gh_request(&client, &url)
     .send()
     .await
     .map_err(|e| SeamError::internal(format!("GitHub API error: {e}")))?;
@@ -107,11 +120,8 @@ pub struct RepoItem {
 #[seam_procedure(name = "getUserRepos")]
 pub async fn get_user_repos(input: GetUserReposInput) -> Result<Vec<RepoItem>, SeamError> {
   let url = format!("https://api.github.com/users/{}/repos?sort=stars&per_page=6", input.username);
-  let client = reqwest::Client::new();
-  let resp = client
-    .get(&url)
-    .header("Accept", "application/vnd.github.v3+json")
-    .header("User-Agent", "seam-github-dashboard")
+  let client = gh_client();
+  let resp = gh_request(&client, &url)
     .send()
     .await
     .map_err(|e| SeamError::internal(format!("GitHub API error: {e}")))?;

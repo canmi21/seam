@@ -9,9 +9,22 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 
 	seam "github.com/canmi21/seam/packages/server/core/go"
 )
+
+func ghGet(apiURL string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", apiURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	if token := os.Getenv("GITHUB_TOKEN"); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	return http.DefaultClient.Do(req)
+}
 
 func GetSession() seam.ProcedureDef {
 	return seam.ProcedureDef{
@@ -48,7 +61,7 @@ func GetUser() seam.ProcedureDef {
 				return nil, err
 			}
 			apiURL := fmt.Sprintf("https://api.github.com/users/%s", url.PathEscape(req.Username))
-			resp, err := http.Get(apiURL)
+			resp, err := ghGet(apiURL)
 			if err != nil {
 				return nil, fmt.Errorf("GitHub API error: %w", err)
 			}
@@ -87,7 +100,7 @@ func GetUserRepos() seam.ProcedureDef {
 				return nil, err
 			}
 			apiURL := fmt.Sprintf("https://api.github.com/users/%s/repos?sort=stars&per_page=6", url.PathEscape(req.Username))
-			resp, err := http.Get(apiURL)
+			resp, err := ghGet(apiURL)
 			if err != nil {
 				return nil, fmt.Errorf("GitHub API error: %w", err)
 			}
