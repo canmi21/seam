@@ -13,6 +13,7 @@
 
 - Discuss uncertain matters with the user before proceeding
 - Enter plan mode when a single request contains more than 3 tasks
+- When self-review reveals potential improvements (performance, design, consistency) that fall outside the current task scope, raise them with the user for discussion rather than silently deferring or silently applying
 
 ## Version Control
 
@@ -57,11 +58,20 @@
 
 - When the user says "简化代码", run the `code-simplifier:code-simplifier` agent to refine the codebase
 
+## Defaults vs Hard-coded Values
+
+- Never hard-code values that users might want to customize (cookie names, param names, storage keys, header names, etc.)
+- Always provide a sensible default but accept user override via parameter or option
+- Rule of thumb: if a user can encounter or configure the value, it must be configurable
+
 ## Long-running Tasks
 
 - Use tmux sessions for long-running tasks (builds, tests, server processes)
 - Do not block the main terminal
-- `bun run verify` (full pipeline) must always run in a tmux session: `tmux new-session -d -s verify 'bun run verify 2>&1 | tee /tmp/verify-output.log'`
+- Full verification (`bun run verify`) procedure:
+  1. Start in tmux: `tmux new-session -d -s verify 'bun run verify'`
+  2. Poll output every 15s via `tmux capture-pane -t verify -p | tail -20` — do NOT use `tee` or log files
+  3. Continue polling until the process exits (check with `tmux has-session -t verify 2>/dev/null`)
 
 ## Refactoring
 

@@ -6,16 +6,16 @@ See root CLAUDE.md for general project rules.
 
 ## Architecture
 
-| Module         | Responsibility                                                                          |
-| -------------- | --------------------------------------------------------------------------------------- |
-| `server.rs`    | `SeamServer` builder + `SeamParts` extraction for adapter crates                        |
-| `procedure.rs` | `ProcedureDef` / `SubscriptionDef` type aliases (`HandlerFn`, `BoxFuture`, `BoxStream`)  |
+| Module         | Responsibility                                                                                                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `server.rs`    | `SeamServer` builder + `SeamParts` extraction for adapter crates                                                                                                                |
+| `procedure.rs` | `ProcedureDef` / `SubscriptionDef` type aliases (`HandlerFn`, `BoxFuture`, `BoxStream`)                                                                                         |
 | `resolve.rs`   | `ResolveStrategy` trait, `ResolveData`, built-in strategies (`from_url_prefix`, `from_cookie`, `from_accept_language`, `from_url_query`), `resolve_chain`, `default_strategies` |
-| `page.rs`      | `PageDef` / `LoaderDef` / `LayoutChainEntry` -- page routes with layout chains          |
-| `manifest.rs`  | Builds JSON manifest from registered procedures and subscriptions                       |
-| `errors.rs`    | `SeamError` struct (open code + status), axum-free                                      |
-| `injector/`    | HTML template engine: tokenize -> parse -> render pipeline                              |
-| `lib.rs`       | Re-exports, `SeamType` trait + primitive JTD schema impls                               |
+| `page.rs`      | `PageDef` / `LoaderDef` / `LayoutChainEntry` -- page routes with layout chains                                                                                                  |
+| `manifest.rs`  | Builds JSON manifest from registered procedures and subscriptions                                                                                                               |
+| `errors.rs`    | `SeamError` struct (open code + status), axum-free                                                                                                                              |
+| `injector/`    | HTML template engine: tokenize -> parse -> render pipeline                                                                                                                      |
+| `lib.rs`       | Re-exports, `SeamType` trait + primitive JTD schema impls                                                                                                                       |
 
 ## Injector Pipeline
 

@@ -319,6 +319,7 @@ fn filter_i18n_messages(messages: &serde_json::Value, keys: &[String]) -> serde_
 async fn handle_page(
   State(state): State<Arc<AppState>>,
   matched: MatchedPath,
+  uri: axum::http::Uri,
   headers: axum::http::HeaderMap,
   Path(mut params): Path<HashMap<String, String>>,
 ) -> Result<Html<String>, AxumError> {
@@ -336,8 +337,9 @@ async fn handle_page(
       _ => {}
     }
     let i18n = state.i18n_config.as_ref().unwrap();
+    let url_str = uri.path_and_query().map(|pq| pq.as_str()).unwrap_or("");
     let data = seam_server::ResolveData {
-      url: "",
+      url: url_str,
       path_locale: extracted.as_deref(),
       cookie_header: headers.get(axum::http::header::COOKIE).and_then(|v| v.to_str().ok()),
       accept_language: headers
