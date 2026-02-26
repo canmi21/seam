@@ -157,6 +157,7 @@
         "seam": "./dist/index.js",
       },
       "dependencies": {
+        "postcss": "^8.5.0",
         "rolldown": "^1.0.0-rc.5",
       },
       "devDependencies": {

@@ -1,5 +1,4 @@
 {
-  "ignoreDependencies": ["hono"],
   "ignoreWorkspaces": ["examples/**", "tests/**"],
   "exclude": ["optionalPeerDependencies"],
   "ignoreExportsUsedInFile": true,
