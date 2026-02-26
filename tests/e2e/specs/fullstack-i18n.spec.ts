@@ -42,7 +42,8 @@ test.describe("fullstack i18n locale routing", () => {
     expect(state.i18n).not.toBeNull();
     expect(state.i18n.locale).toBe("en");
     expect(state.i18n.messages["dashboard.title"]).toBe("GitHub Dashboard");
-    expect(state.hasOldI18nScript).toBe(false);
+    // __seam_i18n script is embedded as fallback for backends without runtime _i18n
+    expect(state.hasOldI18nScript).toBe(true);
     expect(collectErrors(), "hydration errors on /").toEqual([]);
   });
 
@@ -79,7 +80,8 @@ test.describe("fullstack i18n locale routing", () => {
     expect(state.i18n.messages["dashboard.title"]).toBe("GitHub 仪表盘");
     expect(state.i18n.fallbackMessages).toBeTruthy();
     expect(state.i18n.fallbackMessages["dashboard.title"]).toBe("GitHub Dashboard");
-    expect(state.hasOldI18nScript).toBe(false);
+    // __seam_i18n script is embedded as fallback for backends without runtime _i18n
+    expect(state.hasOldI18nScript).toBe(true);
     expect(collectErrors(), "hydration errors on /zh/").toEqual([]);
   });
 
