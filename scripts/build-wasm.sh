@@ -20,6 +20,9 @@ if [[ -z "$PKG_DIR" || -z "$NAME" ]]; then
   exit 1
 fi
 
+# Resolve to absolute paths before cd changes the working directory
+PKG_DIR="$(cd "$PKG_DIR" && pwd)"
+
 # Derive the wasm-pack crate name from Cargo.toml
 CRATE_NAME=$(grep '^name' "$PKG_DIR/wasm/Cargo.toml" | head -1 | sed 's/.*"\(.*\)".*/\1/' | tr '-' '_')
 JS_PKG="$PKG_DIR/js/pkg"
@@ -39,7 +42,13 @@ cp "pkg/${CRATE_NAME}_bg.wasm.d.ts" "$JS_PKG/$NAME.wasm.d.ts"
 
 # bridge.js: bundler entry point (fix internal refs to renamed files)
 cp "pkg/${CRATE_NAME}.js" "$JS_PKG/bridge.js"
-sed -i '' "s|${CRATE_NAME}_bg\\.wasm|$NAME.wasm|g; s|${CRATE_NAME}_bg\\.js|$NAME.js|g" "$JS_PKG/bridge.js"
+# sed -i behaves differently on macOS (BSD) vs Linux (GNU):
+# macOS requires -i '', GNU requires -i without argument.
+if [[ "$OSTYPE" == darwin* ]]; then
+  sed -i '' "s|${CRATE_NAME}_bg\\.wasm|$NAME.wasm|g; s|${CRATE_NAME}_bg\\.js|$NAME.js|g" "$JS_PKG/bridge.js"
+else
+  sed -i "s|${CRATE_NAME}_bg\\.wasm|$NAME.wasm|g; s|${CRATE_NAME}_bg\\.js|$NAME.js|g" "$JS_PKG/bridge.js"
+fi
 
 # bridge.d.ts: types for bundler entry
 cp "pkg/${CRATE_NAME}.d.ts" "$JS_PKG/bridge.d.ts"
