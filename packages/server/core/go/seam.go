@@ -69,6 +69,22 @@ func RateLimitedError(msg string) *Error {
 	return &Error{Code: "RATE_LIMITED", Message: msg, Status: http.StatusTooManyRequests}
 }
 
+// seamCtxKey is the context key for SeamCtx.
+type seamCtxKey struct{}
+
+// SeamCtx carries request-scoped Seam context (e.g. locale) through context.Context.
+type SeamCtx struct {
+	Locale string
+}
+
+// CtxFromContext extracts SeamCtx from a context. Returns a zero-value SeamCtx if not set.
+func CtxFromContext(ctx context.Context) *SeamCtx {
+	if v, ok := ctx.Value(seamCtxKey{}).(*SeamCtx); ok {
+		return v
+	}
+	return &SeamCtx{}
+}
+
 // HandlerFunc processes a raw JSON input and returns a result or error.
 type HandlerFunc func(ctx context.Context, input json.RawMessage) (any, error)
 

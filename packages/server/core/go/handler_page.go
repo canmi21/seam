@@ -48,6 +48,9 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 	}
 
 	ctx := r.Context()
+	if locale != "" {
+		ctx = context.WithValue(ctx, seamCtxKey{}, &SeamCtx{Locale: locale})
+	}
 	if s.opts.PageTimeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, s.opts.PageTimeout)

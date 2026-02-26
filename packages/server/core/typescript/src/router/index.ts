@@ -2,7 +2,7 @@
 
 import type { SchemaNode } from "../types/schema.js";
 import type { ProcedureManifest } from "../manifest/index.js";
-import type { HandleResult, InternalProcedure } from "./handler.js";
+import type { HandleResult, InternalProcedure, ProcedureCtx } from "./handler.js";
 import type { InternalSubscription } from "../procedure.js";
 import type { HandlePageResult } from "../page/handler.js";
 import type { PageDef, I18nConfig } from "../page/index.js";
@@ -15,14 +15,14 @@ import { RouteMatcher } from "../page/route-matcher.js";
 export interface ProcedureDef<TIn = unknown, TOut = unknown> {
   input: SchemaNode<TIn>;
   output: SchemaNode<TOut>;
-  handler: (params: { input: TIn }) => TOut | Promise<TOut>;
+  handler: (params: { input: TIn; ctx?: ProcedureCtx }) => TOut | Promise<TOut>;
 }
 
 export interface SubscriptionDef<TIn = unknown, TOut = unknown> {
   type: "subscription";
   input: SchemaNode<TIn>;
   output: SchemaNode<TOut>;
-  handler: (params: { input: TIn }) => AsyncIterable<TOut>;
+  handler: (params: { input: TIn; ctx?: ProcedureCtx }) => AsyncIterable<TOut>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -40,9 +40,9 @@ export interface RouterOptions {
 
 export interface Router<T extends DefinitionMap> {
   manifest(): ProcedureManifest;
-  handle(procedureName: string, body: unknown): Promise<HandleResult>;
-  handleBatch(calls: BatchCall[]): Promise<{ results: BatchResultItem[] }>;
-  handleSubscription(name: string, input: unknown): AsyncIterable<unknown>;
+  handle(procedureName: string, body: unknown, ctx?: ProcedureCtx): Promise<HandleResult>;
+  handleBatch(calls: BatchCall[], ctx?: ProcedureCtx): Promise<{ results: BatchResultItem[] }>;
+  handleSubscription(name: string, input: unknown, ctx?: ProcedureCtx): AsyncIterable<unknown>;
   handlePage(path: string): Promise<HandlePageResult | null>;
   readonly hasPages: boolean;
   /** Exposed for adapter access to the definitions */
@@ -93,14 +93,14 @@ export function createRouter<T extends DefinitionMap>(
     manifest() {
       return buildManifest(procedures);
     },
-    handle(procedureName, body) {
-      return handleRequest(procedureMap, procedureName, body, shouldValidateOutput);
+    handle(procedureName, body, ctx) {
+      return handleRequest(procedureMap, procedureName, body, shouldValidateOutput, ctx);
     },
-    handleBatch(calls) {
-      return handleBatchRequest(procedureMap, calls, shouldValidateOutput);
+    handleBatch(calls, ctx) {
+      return handleBatchRequest(procedureMap, calls, shouldValidateOutput, ctx);
     },
-    handleSubscription(name, input) {
-      return handleSubscription(subscriptionMap, name, input, shouldValidateOutput);
+    handleSubscription(name, input, ctx) {
+      return handleSubscription(subscriptionMap, name, input, shouldValidateOutput, ctx);
     },
     async handlePage(path) {
       let locale: string | undefined;

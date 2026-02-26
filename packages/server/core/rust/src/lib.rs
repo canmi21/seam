@@ -13,7 +13,7 @@ pub use build_loader::{load_build_output, load_i18n_config, load_rpc_hash_map, R
 pub use errors::SeamError;
 pub use escape::ascii_escape_json;
 pub use page::I18nConfig;
-pub use procedure::{BoxFuture, BoxStream, ProcedureDef, SubscriptionDef};
+pub use procedure::{BoxFuture, BoxStream, ProcedureCtx, ProcedureDef, SubscriptionDef};
 pub use seam_macros::{seam_procedure, seam_subscription, SeamType};
 pub use server::{SeamParts, SeamServer};
 

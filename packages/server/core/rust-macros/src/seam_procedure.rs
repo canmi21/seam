@@ -34,6 +34,36 @@ pub fn expand(attr: TokenStream, item: ItemFn) -> syn::Result<TokenStream> {
   let output_type = extract_output_type(&item)?;
   let name_str = parsed_attr.name.unwrap_or_else(|| fn_name.to_string());
 
+  // Detect 1-arg (input only) vs 2-arg (input + ctx) user functions
+  let arg_count = item.sig.inputs.len();
+  let handler_body = if arg_count >= 2 {
+    // 2-arg: pass ctx to user function
+    quote! {
+      std::sync::Arc::new(|value: serde_json::Value, ctx: seam_server::ProcedureCtx| {
+        Box::pin(async move {
+          let input: #input_type = serde_json::from_value(value)
+            .map_err(|e| seam_server::SeamError::validation(e.to_string()))?;
+          let output = #fn_name(input, ctx).await?;
+          serde_json::to_value(output)
+            .map_err(|e| seam_server::SeamError::internal(e.to_string()))
+        })
+      })
+    }
+  } else {
+    // 1-arg: ignore ctx
+    quote! {
+      std::sync::Arc::new(|value: serde_json::Value, _ctx: seam_server::ProcedureCtx| {
+        Box::pin(async move {
+          let input: #input_type = serde_json::from_value(value)
+            .map_err(|e| seam_server::SeamError::validation(e.to_string()))?;
+          let output = #fn_name(input).await?;
+          serde_json::to_value(output)
+            .map_err(|e| seam_server::SeamError::internal(e.to_string()))
+        })
+      })
+    }
+  };
+
   // Emit original fn + a factory fn that returns ProcedureDef
   Ok(quote! {
     #item
@@ -43,15 +73,7 @@ pub fn expand(attr: TokenStream, item: ItemFn) -> syn::Result<TokenStream> {
         name: #name_str.to_string(),
         input_schema: <#input_type as seam_server::SeamType>::jtd_schema(),
         output_schema: <#output_type as seam_server::SeamType>::jtd_schema(),
-        handler: std::sync::Arc::new(|value: serde_json::Value| {
-          Box::pin(async move {
-            let input: #input_type = serde_json::from_value(value)
-              .map_err(|e| seam_server::SeamError::validation(e.to_string()))?;
-            let output = #fn_name(input).await?;
-            serde_json::to_value(output)
-              .map_err(|e| seam_server::SeamError::internal(e.to_string()))
-          })
-        }),
+        handler: #handler_body,
       }
     }
   })

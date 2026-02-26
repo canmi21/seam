@@ -12,7 +12,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use futures_core::Stream;
 use seam_server::page::PageDef;
-use seam_server::procedure::{ProcedureDef, SubscriptionDef};
+use seam_server::procedure::{ProcedureCtx, ProcedureDef, SubscriptionDef};
 use seam_server::{RpcHashMap, SeamError};
 use tokio::task::JoinSet;
 use tokio_stream::StreamExt;
@@ -120,7 +120,7 @@ async fn handle_rpc(
   let input: serde_json::Value =
     serde_json::from_slice(&body).map_err(|e| SeamError::validation(e.to_string()))?;
 
-  let result = (proc.handler)(input).await?;
+  let result = (proc.handler)(input, ProcedureCtx::default()).await?;
   Ok(axum::Json(result).into_response())
 }
 
@@ -168,7 +168,7 @@ async fn handle_batch(
       };
 
       let result = match state.handlers.get(&proc_name) {
-        Some(proc) => match (proc.handler)(call.input).await {
+        Some(proc) => match (proc.handler)(call.input, ProcedureCtx::default()).await {
           Ok(data) => BatchResultItem::Ok { ok: true, data },
           Err(e) => BatchResultItem::Err {
             ok: false,
@@ -302,6 +302,8 @@ async fn handle_page(
     &page.template
   };
 
+  let ctx = ProcedureCtx { locale: locale.clone() };
+
   let mut join_set = JoinSet::new();
 
   let handlers = state.handlers.clone();
@@ -310,12 +312,13 @@ async fn handle_page(
     let proc_name = loader.procedure.clone();
     let data_key = loader.data_key.clone();
     let handlers = handlers.clone();
+    let ctx = ctx.clone();
 
     join_set.spawn(async move {
       let proc = handlers
         .get(&proc_name)
         .ok_or_else(|| SeamError::internal(format!("Procedure '{proc_name}' not found")))?;
-      let result = (proc.handler)(input).await?;
+      let result = (proc.handler)(input, ctx).await?;
       Ok::<(String, serde_json::Value), SeamError>((data_key, result))
     });
   }

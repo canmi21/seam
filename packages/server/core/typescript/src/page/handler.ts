@@ -2,7 +2,7 @@
 
 import { inject, escapeHtml } from "@canmi/seam-injector";
 import { SeamError } from "../errors.js";
-import type { InternalProcedure } from "../procedure.js";
+import type { InternalProcedure, ProcedureCtx } from "../procedure.js";
 import type { PageDef, LoaderFn, I18nConfig } from "./index.js";
 
 export interface PageTiming {
@@ -39,6 +39,7 @@ async function executeLoaders(
   loaders: Record<string, LoaderFn>,
   params: Record<string, string>,
   procedures: Map<string, InternalProcedure>,
+  ctx?: ProcedureCtx,
 ): Promise<Record<string, unknown>> {
   const entries = Object.entries(loaders);
   const results = await Promise.all(
@@ -47,7 +48,7 @@ async function executeLoaders(
       const proc = procedures.get(procedure);
       if (!proc) throw new SeamError("INTERNAL_ERROR", `Procedure '${procedure}' not found`);
       // Skip JTD validation -- loader input is trusted server-side code
-      const result = await proc.handler({ input });
+      const result = await proc.handler({ input, ctx });
       return [key, result] as const;
     }),
   );
@@ -116,11 +117,12 @@ export async function handlePageRequest(
     const t0 = performance.now();
     const layoutChain = page.layoutChain ?? [];
     const locale = i18nOpts?.locale;
+    const ctx: ProcedureCtx | undefined = locale ? { locale } : undefined;
 
     // Execute all loaders (layout chain + page) in parallel
     const loaderResults = await Promise.all([
-      ...layoutChain.map((layout) => executeLoaders(layout.loaders, params, procedures)),
-      executeLoaders(page.loaders, params, procedures),
+      ...layoutChain.map((layout) => executeLoaders(layout.loaders, params, procedures, ctx)),
+      executeLoaders(page.loaders, params, procedures, ctx),
     ]);
 
     const t1 = performance.now();

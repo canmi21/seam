@@ -166,6 +166,7 @@ func (s *appState) handleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	ctx = context.WithValue(ctx, seamCtxKey{}, &SeamCtx{})
 	if s.opts.RPCTimeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, s.opts.RPCTimeout)
