@@ -10,7 +10,7 @@ See root CLAUDE.md for general project rules.
 - `handler.go` — core handler: `appState`, `buildHandler`, manifest, RPC handler (uses `engine.I18nQuery` for built-in i18n), error helpers
 - `handler_batch.go` — batch RPC handler, SSE subscribe handler, SSE helpers
 - `handler_page.go` — page handler: `makePageHandler`, `servePage`, loader orchestration (delegates to `engine.RenderPage` for slot injection, data script, head meta, and locale)
-- `resolve.go` — `ResolveStrategy` interface, `ResolveData`, built-in strategies (`FromUrlPrefix`, `FromCookie`, `FromAcceptLanguage`, `FromUrlQuery`), `ResolveChain`, `DefaultStrategies`; `ResolveLocaleFunc` kept for backward compat
+- `resolve.go` — `ResolveStrategy` interface, `ResolveData`, built-in strategies (`FromUrlPrefix`, `FromCookie`, `FromAcceptLanguage`, `FromUrlQuery`), `ResolveChain`, `DefaultStrategies`
 - `generics.go` — `Query[In, Out]` and `Subscribe[In, Out]` typed wrappers using generics
 - `schema.go` — JTD schema reflection (`SchemaOf[T]()`)
 - `serve.go` — `ListenAndServe` with SIGINT/SIGTERM graceful shutdown
@@ -59,7 +59,7 @@ Tests cover: RPC timeout (504), page loader timeout (504), SSE idle timeout (com
 
 - `appState` struct groups mutable state (manifest cache, handler/sub maps, strategies, options) — passed as receiver to all internal handlers
 - `seam.go` is the sole public API surface; `handler.go`, `resolve.go`, and `serve.go` are internal
-- Locale resolution uses `ResolveStrategy` chain (primary API); `ResolveLocaleFunc` kept for backward compat via `Router.ResolveLocale(fn)`
+- Locale resolution uses `ResolveStrategy` chain via `Router.ResolveStrategies(...)`; defaults to `DefaultStrategies()`
 - Zero-value `HandlerOptions` fields disable the corresponding timeout
 - Page loaders run concurrently via `sync.WaitGroup` + result channel
 - Sorted keys for deterministic JSON output (mirrors `BTreeMap` in Rust)
