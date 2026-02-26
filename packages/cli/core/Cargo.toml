@@ -26,8 +26,8 @@ notify = "7"
 rand = "0.8"
 regex = "1"
 reqwest = { version = "0.12", features = ["json", "stream"] }
-seam-injector = { version = "0.3.4", path = "../../server/injector/rust" }
-seam-server = { version = "0.3.4", path = "../../server/core/rust" }
+seam-injector = { version = "0.3.5", path = "../../server/injector/rust" }
+seam-server = { version = "0.3.5", path = "../../server/core/rust" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"

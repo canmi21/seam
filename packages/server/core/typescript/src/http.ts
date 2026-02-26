@@ -153,6 +153,10 @@ export function createHttpHandler<T extends DefinitionMap>(
   const hashToName: Map<string, string> | null = opts?.rpcHashMap
     ? new Map(Object.entries(opts.rpcHashMap.procedures).map(([n, h]) => [h, n]))
     : null;
+  // Built-in procedures bypass hash obfuscation (identity mapping)
+  if (hashToName) {
+    hashToName.set("__seam_i18n_query", "__seam_i18n_query");
+  }
   const batchHash = opts?.rpcHashMap?.batch ?? null;
 
   return async (req) => {

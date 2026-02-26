@@ -40,6 +40,8 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pa
 	if rpcHashMap != nil {
 		state.hashToName = rpcHashMap.ReverseLookup()
 		state.batchHash = rpcHashMap.Batch
+		// Built-in procedures bypass hash obfuscation (identity mapping)
+		state.hashToName["__seam_i18n_query"] = "__seam_i18n_query"
 	}
 
 	// Build manifest
@@ -51,6 +53,45 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pa
 	}
 	for i := range subscriptions {
 		state.subs[subscriptions[i].Name] = &subscriptions[i]
+	}
+
+	// Register built-in __seam_i18n_query procedure when i18n is configured
+	if i18nConfig != nil {
+		i18nQueryProc := ProcedureDef{
+			Name:         "__seam_i18n_query",
+			InputSchema:  map[string]any{},
+			OutputSchema: map[string]any{},
+			Handler: func(ctx context.Context, input json.RawMessage) (any, error) {
+				var req struct {
+					Keys   []string `json:"keys"`
+					Locale string   `json:"locale"`
+				}
+				if err := json.Unmarshal(input, &req); err != nil {
+					return nil, ValidationError("Invalid input")
+				}
+				msgs := i18nConfig.Messages[req.Locale]
+				if msgs == nil {
+					msgs = i18nConfig.Messages[i18nConfig.Default]
+				}
+				var allMsgs map[string]string
+				if msgs != nil {
+					json.Unmarshal(msgs, &allMsgs)
+				}
+				if allMsgs == nil {
+					allMsgs = map[string]string{}
+				}
+				messages := make(map[string]string, len(req.Keys))
+				for _, k := range req.Keys {
+					if v, ok := allMsgs[k]; ok {
+						messages[k] = v
+					} else {
+						messages[k] = k
+					}
+				}
+				return map[string]any{"messages": messages}, nil
+			},
+		}
+		state.handlers["__seam_i18n_query"] = &i18nQueryProc
 	}
 
 	mux := http.NewServeMux()

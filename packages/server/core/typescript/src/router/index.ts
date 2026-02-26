@@ -87,6 +87,23 @@ export function createRouter<T extends DefinitionMap>(
   const i18nConfig = opts?.i18n ?? null;
   const localeSet = i18nConfig ? new Set(i18nConfig.locales) : null;
 
+  // Register built-in __seam_i18n_query procedure when i18n is configured
+  if (i18nConfig) {
+    procedureMap.set("__seam_i18n_query", {
+      inputSchema: {},
+      outputSchema: {},
+      handler: ({ input }) => {
+        const { keys, locale } = input as { keys: string[]; locale: string };
+        const msgs = i18nConfig.messages[locale] ?? i18nConfig.messages[i18nConfig.default] ?? {};
+        const messages: Record<string, string> = {};
+        for (const k of keys) {
+          messages[k] = msgs[k] ?? k;
+        }
+        return { messages };
+      },
+    });
+  }
+
   return {
     procedures,
     hasPages: !!pages && Object.keys(pages).length > 0,

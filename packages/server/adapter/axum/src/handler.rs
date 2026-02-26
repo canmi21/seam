@@ -32,20 +32,57 @@ pub(crate) struct AppState {
 
 pub(crate) fn build_router(
   manifest_json: serde_json::Value,
-  handlers: HashMap<String, Arc<ProcedureDef>>,
+  mut handlers: HashMap<String, Arc<ProcedureDef>>,
   subscriptions: HashMap<String, Arc<SubscriptionDef>>,
   pages: Vec<PageDef>,
   hash_map: Option<RpcHashMap>,
   i18n_config: Option<seam_server::I18nConfig>,
 ) -> Router {
   let (rpc_hash_map, batch_hash) = match hash_map {
-    Some(m) => (Some(m.reverse_lookup()), Some(m.batch)),
+    Some(m) => {
+      let mut rev = m.reverse_lookup();
+      // Built-in procedures bypass hash obfuscation (identity mapping)
+      rev.insert("__seam_i18n_query".to_string(), "__seam_i18n_query".to_string());
+      (Some(rev), Some(m.batch))
+    }
     None => (None, None),
   };
 
   let locale_set = i18n_config
     .as_ref()
     .map(|c| c.locales.iter().cloned().collect::<std::collections::HashSet<_>>());
+
+  // Register built-in __seam_i18n_query procedure when i18n is configured
+  if let Some(ref i18n) = i18n_config {
+    let i18n_clone = i18n.clone();
+    handlers.insert(
+      "__seam_i18n_query".to_string(),
+      Arc::new(ProcedureDef {
+        name: "__seam_i18n_query".to_string(),
+        input_schema: serde_json::json!({}),
+        output_schema: serde_json::json!({}),
+        handler: Arc::new(move |input: serde_json::Value, _ctx: ProcedureCtx| {
+          let i18n = i18n_clone.clone();
+          Box::pin(async move {
+            let keys = input.get("keys").and_then(|v| v.as_array()).cloned().unwrap_or_default();
+            let locale = input.get("locale").and_then(|v| v.as_str()).unwrap_or(&i18n.default);
+            let msgs = i18n.messages.get(locale).or_else(|| i18n.messages.get(&i18n.default));
+            let empty = serde_json::Value::Object(Default::default());
+            let msgs = msgs.unwrap_or(&empty);
+
+            let mut messages = serde_json::Map::new();
+            for k in keys {
+              if let Some(key) = k.as_str() {
+                let val = msgs.get(key).and_then(|v| v.as_str()).unwrap_or(key).to_string();
+                messages.insert(key.to_string(), serde_json::Value::String(val));
+              }
+            }
+            Ok(serde_json::json!({ "messages": messages }))
+          })
+        }),
+      }),
+    );
+  }
 
   let mut page_map = HashMap::new();
   let mut router = Router::new()
