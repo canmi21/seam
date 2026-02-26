@@ -124,21 +124,6 @@ func (s urlQueryStrategy) Resolve(data *ResolveData) string {
 	return ""
 }
 
-// --- backward-compatible function ---
-
-// ResolveLocaleFunc determines the content locale from request context.
-type ResolveLocaleFunc func(r *http.Request, pathLocale string, locales []string, defaultLocale string) string
-
-// DefaultResolveLocale resolves locale via the default strategy chain.
-func DefaultResolveLocale(r *http.Request, pathLocale string, locales []string, defaultLocale string) string {
-	return ResolveChain(DefaultStrategies(), &ResolveData{
-		Request:       r,
-		PathLocale:    pathLocale,
-		Locales:       locales,
-		DefaultLocale: defaultLocale,
-	})
-}
-
 // --- helpers ---
 
 func buildLocaleSet(locales []string) map[string]bool {

@@ -333,41 +333,6 @@ func TestDefaultStrategies(t *testing.T) {
 	}
 }
 
-// --- backward-compat tests ---
-
-func TestDefaultResolveLocale(t *testing.T) {
-	locales := []string{"en", "zh", "ja"}
-
-	tests := []struct {
-		name           string
-		pathLocale     string
-		cookie         string
-		acceptLanguage string
-		want           string
-	}{
-		{"pathLocale wins", "zh", "", "", "zh"},
-		{"pathLocale beats cookie", "zh", "seam-locale=ja", "", "zh"},
-		{"cookie resolves", "", "seam-locale=ja", "", "ja"},
-		{"cookie beats Accept-Language", "", "seam-locale=ja", "zh", "ja"},
-		{"Accept-Language resolves", "", "", "zh,en;q=0.5", "zh"},
-		{"Accept-Language q-value priority", "", "", "en;q=0.5,zh;q=0.9", "zh"},
-		{"Accept-Language prefix match zh-CN -> zh", "", "", "zh-CN,en;q=0.5", "zh"},
-		{"unknown cookie falls through", "", "seam-locale=fr", "", "en"},
-		{"unknown Accept-Language falls through", "", "", "fr,de", "en"},
-		{"no input -> default", "", "", "", "en"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			r := makeRequest(tt.cookie, tt.acceptLanguage)
-			got := DefaultResolveLocale(r, tt.pathLocale, locales, "en")
-			if got != tt.want {
-				t.Errorf("DefaultResolveLocale() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestParseCookieLocale(t *testing.T) {
 	locales := []string{"en", "zh"}
 

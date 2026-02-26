@@ -32,18 +32,12 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 			writeError(w, http.StatusNotFound, NotFoundError("Unknown locale"))
 			return
 		}
-		if len(s.strategies) > 0 {
-			locale = ResolveChain(s.strategies, &ResolveData{
-				Request:       r,
-				PathLocale:    pathLocale,
-				Locales:       s.i18nConfig.Locales,
-				DefaultLocale: s.i18nConfig.Default,
-			})
-		} else if s.resolveLocale != nil {
-			locale = s.resolveLocale(r, pathLocale, s.i18nConfig.Locales, s.i18nConfig.Default)
-		} else {
-			locale = DefaultResolveLocale(r, pathLocale, s.i18nConfig.Locales, s.i18nConfig.Default)
-		}
+		locale = ResolveChain(s.strategies, &ResolveData{
+			Request:       r,
+			PathLocale:    pathLocale,
+			Locales:       s.i18nConfig.Locales,
+			DefaultLocale: s.i18nConfig.Default,
+		})
 	}
 
 	// Select locale-specific template (pre-resolved with layout chain)

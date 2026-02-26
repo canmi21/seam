@@ -22,11 +22,10 @@ type appState struct {
 	batchHash     string            // batch endpoint hash (empty if no hash map)
 	i18nConfig    *I18nConfig
 	localeSet     map[string]bool   // O(1) lookup for valid locales
-	strategies    []ResolveStrategy // strategy chain for locale resolution
-	resolveLocale ResolveLocaleFunc // backward compat
+	strategies []ResolveStrategy
 }
 
-func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, strategies []ResolveStrategy, resolveLocale ResolveLocaleFunc, opts HandlerOptions) http.Handler {
+func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, strategies []ResolveStrategy, opts HandlerOptions) http.Handler {
 	state := &appState{
 		handlers:   make(map[string]*ProcedureDef),
 		subs:       make(map[string]*SubscriptionDef),
@@ -34,14 +33,8 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pa
 		i18nConfig: i18nConfig,
 	}
 
-	// Determine locale resolution approach:
-	// 1. Explicit strategies -> use strategy chain
-	// 2. No strategies but custom resolveLocale -> backward compat function
-	// 3. Neither -> default strategies
 	if len(strategies) > 0 {
 		state.strategies = strategies
-	} else if resolveLocale != nil {
-		state.resolveLocale = resolveLocale
 	} else {
 		state.strategies = DefaultStrategies()
 	}

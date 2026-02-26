@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 import { createRouter } from "../src/router/index.js";
 import type { PageDef, I18nConfig } from "../src/page/index.js";
-import type { ResolveLocaleFn } from "../src/resolve.js";
+import type { ResolveStrategy } from "../src/resolve.js";
 import { t } from "../src/types/index.js";
 
 const page: PageDef = {
@@ -27,7 +27,7 @@ const i18nConfig: I18nConfig = {
   },
 };
 
-function makeRouter(i18n?: I18nConfig | null, resolveLocale?: ResolveLocaleFn) {
+function makeRouter(i18n?: I18nConfig | null, resolve?: ResolveStrategy[]) {
   return createRouter(
     {
       getUser: {
@@ -46,7 +46,7 @@ function makeRouter(i18n?: I18nConfig | null, resolveLocale?: ResolveLocaleFn) {
         "/user/:id": page,
       },
       i18n,
-      resolveLocale,
+      resolve,
     },
   );
 }
@@ -147,10 +147,10 @@ describe("router -- resolve with headers", () => {
     expect(result!.html).toContain('lang="en"');
   });
 
-  it("custom resolveLocale overrides default chain", async () => {
-    const custom: ResolveLocaleFn = () => "zh";
-    const router = makeRouter(i18nConfig, custom);
-    const result = await router.handlePage("/en/user/42", { cookie: "seam-locale=en" });
+  it("custom resolve strategies override default chain", async () => {
+    const alwaysZh: ResolveStrategy = { kind: "custom", resolve: () => "zh" };
+    const router = makeRouter(i18nConfig, [alwaysZh]);
+    const result = await router.handlePage("/user/42", { cookie: "seam-locale=en" });
     expect(result).not.toBeNull();
     expect(result!.html).toContain('lang="zh"');
   });

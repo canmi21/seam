@@ -105,27 +105,3 @@ export function resolveChain(strategies: ResolveStrategy[], data: ResolveData): 
 export function defaultStrategies(): ResolveStrategy[] {
   return [fromUrlPrefix(), fromCookie(), fromAcceptLanguage()];
 }
-
-// -- Backward-compatible API (deprecated, kept for existing consumers) --
-
-export interface ResolveContext {
-  pathLocale: string | null;
-  cookie?: string;
-  acceptLanguage?: string;
-  locales: string[];
-  defaultLocale: string;
-}
-
-export type ResolveLocaleFn = (ctx: ResolveContext) => string;
-
-/** Default resolve chain: pathLocale -> cookie("seam-locale") -> Accept-Language -> defaultLocale */
-export function defaultResolve(ctx: ResolveContext): string {
-  return resolveChain(defaultStrategies(), {
-    url: "",
-    pathLocale: ctx.pathLocale,
-    cookie: ctx.cookie,
-    acceptLanguage: ctx.acceptLanguage,
-    locales: ctx.locales,
-    defaultLocale: ctx.defaultLocale,
-  });
-}

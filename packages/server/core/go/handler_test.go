@@ -27,7 +27,7 @@ func slowHandler(d time.Duration) HandlerFunc {
 func TestRPCTimeout(t *testing.T) {
 	handler := buildHandler(
 		[]ProcedureDef{{Name: "slow", Handler: slowHandler(100 * time.Millisecond)}},
-		nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil,
 		HandlerOptions{RPCTimeout: 10 * time.Millisecond},
 	)
 
@@ -49,7 +49,7 @@ func TestRPCTimeout(t *testing.T) {
 func TestRPCZeroTimeout(t *testing.T) {
 	handler := buildHandler(
 		[]ProcedureDef{{Name: "slow", Handler: slowHandler(50 * time.Millisecond)}},
-		nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil,
 		HandlerOptions{RPCTimeout: 0},
 	)
 
@@ -75,7 +75,7 @@ func TestPageTimeout(t *testing.T) {
 				InputFn:   func(params map[string]string) any { return map[string]string{} },
 			}},
 		}},
-		nil, nil, nil, nil,
+		nil, nil, nil,
 		HandlerOptions{PageTimeout: 10 * time.Millisecond},
 	)
 
@@ -106,7 +106,7 @@ func TestSSEIdleTimeout(t *testing.T) {
 	handler := buildHandler(
 		nil,
 		[]SubscriptionDef{{Name: "idle-test", Handler: subHandler}},
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil,
 		HandlerOptions{SSEIdleTimeout: 50 * time.Millisecond},
 	)
 
@@ -135,7 +135,7 @@ func TestSSEZeroIdleTimeout(t *testing.T) {
 	handler := buildHandler(
 		nil,
 		[]SubscriptionDef{{Name: "no-idle", Handler: subHandler}},
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil,
 		HandlerOptions{SSEIdleTimeout: 0},
 	)
 

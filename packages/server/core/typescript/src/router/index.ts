@@ -12,7 +12,7 @@ import type { BatchCall, BatchResultItem } from "./handler.js";
 import { handlePageRequest } from "../page/handler.js";
 import { RouteMatcher } from "../page/route-matcher.js";
 import { defaultStrategies, resolveChain } from "../resolve.js";
-import type { ResolveLocaleFn, ResolveStrategy, ResolveData } from "../resolve.js";
+import type { ResolveStrategy } from "../resolve.js";
 
 export interface ProcedureDef<TIn = unknown, TOut = unknown> {
   input: SchemaNode<TIn>;
@@ -38,8 +38,7 @@ export interface RouterOptions {
   pages?: Record<string, PageDef>;
   i18n?: I18nConfig | null;
   validateOutput?: boolean;
-  resolveLocale?: ResolveLocaleFn;
-  resolveStrategies?: ResolveStrategy[];
+  resolve?: ResolveStrategy[];
 }
 
 export interface PageRequestHeaders {
@@ -59,31 +58,16 @@ export interface Router<T extends DefinitionMap> {
   readonly procedures: T;
 }
 
-/** Build the resolve strategy list from options, wrapping legacy resolveLocale if needed */
-function buildStrategies(opts?: RouterOptions): { strategies: ResolveStrategy[]; hasUrlPrefix: boolean } {
-  if (opts?.resolveStrategies) {
-    return {
-      strategies: opts.resolveStrategies,
-      hasUrlPrefix: opts.resolveStrategies.some((s) => s.kind === "url_prefix"),
-    };
-  }
-  if (opts?.resolveLocale) {
-    const legacyFn = opts.resolveLocale;
-    return {
-      strategies: [{
-        kind: "legacy",
-        resolve: (data: ResolveData) => legacyFn({
-          pathLocale: data.pathLocale,
-          cookie: data.cookie,
-          acceptLanguage: data.acceptLanguage,
-          locales: data.locales,
-          defaultLocale: data.defaultLocale,
-        }),
-      }],
-      hasUrlPrefix: true, // backward compat: always extract prefix
-    };
-  }
-  return { strategies: defaultStrategies(), hasUrlPrefix: true };
+/** Build the resolve strategy list from options */
+function buildStrategies(opts?: RouterOptions): {
+  strategies: ResolveStrategy[];
+  hasUrlPrefix: boolean;
+} {
+  const strategies = opts?.resolve ?? defaultStrategies();
+  return {
+    strategies,
+    hasUrlPrefix: strategies.some((s) => s.kind === "url_prefix"),
+  };
 }
 
 /** Register built-in __seam_i18n_query procedure */
