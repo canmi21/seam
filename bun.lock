@@ -182,7 +182,7 @@
         "esbuild": "^0.25.0",
       },
       "devDependencies": {
-        "@canmi/seam-injector": "workspace:*",
+        "@canmi/seam-engine": "workspace:*",
         "@types/react": "^19.0.0",
         "@types/react-dom": "^19.0.0",
         "jsdom": "^28.1.0",
