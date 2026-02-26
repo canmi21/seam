@@ -21,7 +21,7 @@ export interface InjectOptions {
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const wasmPath = resolve(__dirname, "../pkg/seam_engine_wasm_bg.wasm");
+const wasmPath = resolve(__dirname, "../pkg/engine.wasm");
 const wasmBytes = readFileSync(wasmPath);
 
 const wasmModule = new WebAssembly.Module(wasmBytes);

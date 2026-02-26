@@ -121,8 +121,8 @@ pub fn run_incremental_rebuild(
 
 /// WASM binaries to copy: (filename, npm package path, workspace source path)
 const WASM_BINARIES: &[(&str, &str, &str)] = &[
-  ("seam_injector_wasm_bg.wasm", "@canmi/seam-injector/pkg", "packages/server/injector/js/pkg"),
-  ("seam_engine_wasm_bg.wasm", "@canmi/seam-engine/pkg", "packages/server/engine/js/pkg"),
+  ("injector.wasm", "@canmi/seam-injector/pkg", "packages/server/injector/js/pkg"),
+  ("engine.wasm", "@canmi/seam-engine/pkg", "packages/server/engine/js/pkg"),
 ];
 
 /// Search for WASM binaries (injector + engine) and copy them to {out_dir}/pkg/.

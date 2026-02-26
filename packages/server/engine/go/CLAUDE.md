@@ -7,7 +7,7 @@ See root CLAUDE.md for general project rules.
 ## Architecture
 
 - `engine.go` — Embed WASM binary, wazero runtime init, generalized `callWasm` for N string args, public API
-- `seam_engine_wasm.wasm` — Embedded Rust engine binary (compiled from `packages/server/engine/wasm`)
+- `engine.wasm` — Embedded Rust engine binary (compiled from `packages/server/engine/wasm`)
 
 ## Public API
 

@@ -1,6 +1,6 @@
 /* packages/server/engine/js/pkg/seam_engine_wasm.js */
 
-import * as wasm from "./seam_engine_wasm_bg.wasm";
+import * as wasm from "./engine.wasm";
 import { __wbg_set_wasm } from "./seam_engine_wasm_bg.js";
 __wbg_set_wasm(wasm);
 wasm.__wbindgen_start();

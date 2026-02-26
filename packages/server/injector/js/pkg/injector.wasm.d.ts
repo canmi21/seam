@@ -1,4 +1,4 @@
-/* packages/server/injector/js/pkg/seam_injector_wasm_bg.wasm.d.ts */
+/* packages/server/injector/js/pkg/injector.wasm.d.ts */
 
 /* tslint:disable */
 /* eslint-disable */

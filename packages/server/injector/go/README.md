@@ -8,7 +8,7 @@ Go wrapper around the Rust injector WASM binary using wazero. Provides HTML temp
 ## Structure
 
 - `injector.go` — Embeds WASM binary, initializes wazero runtime, exposes `Inject` / `InjectNoScript`
-- `seam_injector_wasm.wasm` — Embedded Rust injector binary
+- `injector.wasm` — Embedded Rust injector binary
 
 ## Development
 

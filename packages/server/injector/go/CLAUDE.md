@@ -7,7 +7,7 @@ See root CLAUDE.md for general project rules.
 ## Architecture
 
 - `injector.go` — embed WASM binary, wazero runtime init, `Inject` / `InjectNoScript` public API
-- `seam_injector_wasm.wasm` — embedded Rust injector binary (compiled from `packages/server/injector/rust`)
+- `injector.wasm` — embedded Rust injector binary (compiled from `packages/server/injector/rust`)
 
 ## Key Details
 

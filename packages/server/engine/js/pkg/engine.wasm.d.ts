@@ -1,4 +1,4 @@
-/* packages/server/engine/js/pkg/seam_engine_wasm_bg.wasm.d.ts */
+/* packages/server/engine/js/pkg/engine.wasm.d.ts */
 
 /* tslint:disable */
 /* eslint-disable */

@@ -11,7 +11,7 @@ import (
 	"github.com/tetratelabs/wazero"
 )
 
-//go:embed seam_injector_wasm.wasm
+//go:embed injector.wasm
 var wasmBytes []byte
 
 var (
