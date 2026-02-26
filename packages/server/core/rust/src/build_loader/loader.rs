@@ -196,6 +196,21 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
     let page_loader_keys: Vec<String> = page_loaders.iter().map(|l| l.data_key.clone()).collect();
     all_loaders.extend(page_loaders);
 
+    // Merge i18n_keys from layout chain + route
+    let mut i18n_keys = Vec::new();
+    if let Some(ref layout_id) = entry.layout {
+      let mut chain = Some(layout_id.clone());
+      while let Some(id) = chain {
+        if let Some(layout_entry) = manifest.layouts.get(&id) {
+          i18n_keys.extend(layout_entry.i18n_keys.iter().cloned());
+          chain = layout_entry.parent.clone();
+        } else {
+          break;
+        }
+      }
+    }
+    i18n_keys.extend(entry.i18n_keys.iter().cloned());
+
     let data_id = manifest.data_id.clone().unwrap_or_else(|| "__SEAM_DATA__".to_string());
     pages.push(PageDef {
       route: axum_route,
@@ -205,6 +220,7 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
       data_id: data_id.clone(),
       layout_id: entry.layout.clone(),
       page_loader_keys,
+      i18n_keys,
     });
   }
 
@@ -231,7 +247,12 @@ pub fn load_i18n_config(dir: &str) -> Option<crate::page::I18nConfig> {
     messages.insert(locale.clone(), parsed);
   }
 
-  Some(crate::page::I18nConfig { locales: i18n.locales, default: i18n.default, messages })
+  Some(crate::page::I18nConfig {
+    locales: i18n.locales,
+    default: i18n.default,
+    messages,
+    versions: i18n.versions,
+  })
 }
 
 /// Load the RPC hash map from build output (returns None when not present).

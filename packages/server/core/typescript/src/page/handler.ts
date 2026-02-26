@@ -80,6 +80,19 @@ function selectTemplate(
   return defaultTemplate;
 }
 
+/** Filter messages to only include keys in the allow list. Empty/undefined list means include all. */
+function filterByKeys(
+  messages: Record<string, string>,
+  keys: string[] | undefined,
+): Record<string, string> {
+  if (!keys || keys.length === 0) return messages;
+  const filtered: Record<string, string> = {};
+  for (const k of keys) {
+    if (k in messages) filtered[k] = messages[k];
+  }
+  return filtered;
+}
+
 /** Escape non-ASCII chars in JSON string values to \uXXXX */
 function asciiEscapeJson(json: string): string {
   return json.replace(/[\u0080-\uffff]/gu, (c) => {
@@ -164,13 +177,18 @@ export async function handlePageRequest(
     // Inject i18n data so the client can hydrate with matching translations
     if (i18nOpts) {
       const { config } = i18nOpts;
+      const allMessages = config.messages[i18nOpts.locale] ?? {};
       const i18nData: Record<string, unknown> = {
         locale: i18nOpts.locale,
-        messages: config.messages[i18nOpts.locale] ?? {},
+        messages: filterByKeys(allMessages, page.i18nKeys),
       };
       // Include fallback messages when locale differs from default
       if (i18nOpts.locale !== config.default) {
-        i18nData.fallbackMessages = config.messages[config.default] ?? {};
+        const allFallback = config.messages[config.default] ?? {};
+        i18nData.fallbackMessages = filterByKeys(allFallback, page.i18nKeys);
+      }
+      if (config.versions) {
+        i18nData.versions = config.versions;
       }
       seamData._i18n = i18nData;
     }

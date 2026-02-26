@@ -9,7 +9,7 @@ interface RouteManifest {
   layouts?: Record<string, LayoutManifestEntry>;
   routes: Record<string, RouteManifestEntry>;
   data_id?: string;
-  i18n?: { locales: string[]; default: string };
+  i18n?: { locales: string[]; default: string; versions?: Record<string, string> };
 }
 
 interface LayoutManifestEntry {
@@ -17,6 +17,7 @@ interface LayoutManifestEntry {
   templates?: Record<string, string>;
   loaders?: Record<string, LoaderConfig>;
   parent?: string;
+  i18n_keys?: string[];
 }
 
 interface RouteManifestEntry {
@@ -25,6 +26,7 @@ interface RouteManifestEntry {
   layout?: string;
   loaders: Record<string, LoaderConfig>;
   head_meta?: string;
+  i18n_keys?: string[];
 }
 
 interface LoaderConfig {
@@ -162,6 +164,25 @@ function makeLocaleTemplateGetters(
   return obj;
 }
 
+/** Merge i18n_keys from route + layout chain into a single list */
+function mergeI18nKeys(
+  route: RouteManifestEntry,
+  layoutEntries: Record<string, LayoutManifestEntry>,
+): string[] | undefined {
+  const keys: string[] = [];
+  if (route.layout) {
+    let currentId: string | undefined = route.layout;
+    while (currentId) {
+      const entry: LayoutManifestEntry | undefined = layoutEntries[currentId];
+      if (!entry) break;
+      if (entry.i18n_keys) keys.push(...entry.i18n_keys);
+      currentId = entry.parent;
+    }
+  }
+  if (route.i18n_keys) keys.push(...route.i18n_keys);
+  return keys.length > 0 ? keys : undefined;
+}
+
 /** Load the RPC hash map from build output (returns undefined when obfuscation is off) */
 export function loadRpcHashMap(distDir: string): RpcHashMap | undefined {
   const hashMapPath = join(distDir, "rpc-hash-map.json");
@@ -194,6 +215,7 @@ export function loadI18nMessages(distDir: string): I18nConfig | null {
       locales: manifest.i18n.locales,
       default: manifest.i18n.default,
       messages,
+      versions: manifest.i18n.versions,
     };
   } catch {
     return null;
@@ -229,6 +251,9 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
       ? resolveLayoutChain(entry.layout, layoutEntries, layoutTemplates, layoutLocaleTemplates)
       : [];
 
+    // Merge i18n_keys from layout chain + route
+    const i18nKeys = mergeI18nKeys(entry, layoutEntries);
+
     pages[path] = {
       template,
       localeTemplates: loadLocaleTemplates(entry, distDir),
@@ -236,6 +261,7 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
       layoutChain,
       headMeta: entry.head_meta,
       dataId: manifest.data_id,
+      i18nKeys,
     };
   }
   return pages;
@@ -262,12 +288,16 @@ export function loadBuildOutputDev(distDir: string): Record<string, PageDef> {
       ? makeLocaleTemplateGetters(entry.templates, distDir)
       : undefined;
 
+    // Merge i18n_keys from layout chain + route
+    const i18nKeys = mergeI18nKeys(entry, layoutEntries);
+
     const page: PageDef = {
       template: "", // placeholder, overridden by getter
       localeTemplates,
       loaders,
       layoutChain,
       dataId: manifest.data_id,
+      i18nKeys,
     };
     Object.defineProperty(page, "template", {
       get: () => readFileSync(templatePath, "utf-8"),

@@ -181,10 +181,13 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 	if s.i18nConfig != nil && locale != "" {
 		i18nData := map[string]any{
 			"locale":   locale,
-			"messages": json.RawMessage(s.i18nConfig.Messages[locale]),
+			"messages": filterI18nMessages(s.i18nConfig.Messages[locale], page.I18nKeys),
 		}
 		if locale != s.i18nConfig.Default {
-			i18nData["fallbackMessages"] = json.RawMessage(s.i18nConfig.Messages[s.i18nConfig.Default])
+			i18nData["fallbackMessages"] = filterI18nMessages(s.i18nConfig.Messages[s.i18nConfig.Default], page.I18nKeys)
+		}
+		if len(s.i18nConfig.Versions) > 0 {
+			i18nData["versions"] = s.i18nConfig.Versions
 		}
 		scriptData["_i18n"] = i18nData
 	}
@@ -209,6 +212,26 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(html))
+}
+
+// filterI18nMessages filters a locale's messages JSON to only include the specified keys.
+// Empty keys list means include all messages (no filtering).
+func filterI18nMessages(messages json.RawMessage, keys []string) json.RawMessage {
+	if len(keys) == 0 {
+		return messages
+	}
+	var allMessages map[string]json.RawMessage
+	if err := json.Unmarshal(messages, &allMessages); err != nil {
+		return messages
+	}
+	filtered := make(map[string]json.RawMessage, len(keys))
+	for _, k := range keys {
+		if v, ok := allMessages[k]; ok {
+			filtered[k] = v
+		}
+	}
+	result, _ := json.Marshal(filtered)
+	return json.RawMessage(result)
 }
 
 // --- helpers ---

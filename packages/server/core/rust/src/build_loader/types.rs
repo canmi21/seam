@@ -22,6 +22,8 @@ pub(super) struct I18nManifest {
   pub(super) locales: Vec<String>,
   #[serde(default)]
   pub(super) default: String,
+  #[serde(default)]
+  pub(super) versions: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -33,6 +35,8 @@ pub(super) struct LayoutEntry {
   pub(super) loaders: serde_json::Value,
   #[serde(default)]
   pub(super) parent: Option<String>,
+  #[serde(default)]
+  pub(super) i18n_keys: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -46,6 +50,8 @@ pub(super) struct RouteEntry {
   pub(super) loaders: serde_json::Value,
   #[serde(default)]
   pub(super) head_meta: Option<String>,
+  #[serde(default)]
+  pub(super) i18n_keys: Vec<String>,
 }
 
 /// Pick a template path: prefer singular `template`, fall back to default locale or first value.

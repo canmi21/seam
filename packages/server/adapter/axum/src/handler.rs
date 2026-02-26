@@ -255,6 +255,19 @@ async fn handle_subscribe(
   }
 }
 
+/// Filter i18n messages to only include keys in the allow list. Empty list means include all.
+fn filter_i18n_messages(messages: &serde_json::Value, keys: &[String]) -> serde_json::Value {
+  if keys.is_empty() {
+    return messages.clone();
+  }
+  let Some(obj) = messages.as_object() else {
+    return messages.clone();
+  };
+  let filtered: serde_json::Map<String, serde_json::Value> =
+    keys.iter().filter_map(|k| obj.get(k).map(|v| (k.clone(), v.clone()))).collect();
+  serde_json::Value::Object(filtered)
+}
+
 #[allow(clippy::too_many_lines)]
 async fn handle_page(
   State(state): State<Arc<AppState>>,
@@ -353,21 +366,29 @@ async fn handle_page(
 
   // Inject _i18n data for client hydration
   if let (Some(ref loc), Some(ref i18n)) = (&locale, &state.i18n_config) {
+    let all_messages =
+      i18n.messages.get(loc).cloned().unwrap_or(serde_json::Value::Object(Default::default()));
+    let messages = filter_i18n_messages(&all_messages, &page.i18n_keys);
+
     let mut i18n_data = serde_json::Map::new();
     i18n_data.insert("locale".into(), serde_json::Value::String(loc.clone()));
-    i18n_data.insert(
-      "messages".into(),
-      i18n.messages.get(loc).cloned().unwrap_or(serde_json::Value::Object(Default::default())),
-    );
+    i18n_data.insert("messages".into(), messages);
     if loc != &i18n.default {
-      i18n_data.insert(
-        "fallbackMessages".into(),
-        i18n
-          .messages
-          .get(&i18n.default)
-          .cloned()
-          .unwrap_or(serde_json::Value::Object(Default::default())),
-      );
+      let all_fallback = i18n
+        .messages
+        .get(&i18n.default)
+        .cloned()
+        .unwrap_or(serde_json::Value::Object(Default::default()));
+      i18n_data
+        .insert("fallbackMessages".into(), filter_i18n_messages(&all_fallback, &page.i18n_keys));
+    }
+    if !i18n.versions.is_empty() {
+      let versions: serde_json::Map<String, serde_json::Value> = i18n
+        .versions
+        .iter()
+        .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
+        .collect();
+      i18n_data.insert("versions".into(), serde_json::Value::Object(versions));
     }
     script_data.insert("_i18n".into(), serde_json::Value::Object(i18n_data));
   }

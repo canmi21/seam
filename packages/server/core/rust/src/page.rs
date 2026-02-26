@@ -24,6 +24,8 @@ pub struct PageDef {
   pub layout_id: Option<String>,
   /// Data keys from page-level loaders (not layout). Used to split data in the data script.
   pub page_loader_keys: Vec<String>,
+  /// Merged i18n keys from route + layout chain. Empty means include all keys.
+  pub i18n_keys: Vec<String>,
 }
 
 /// Runtime i18n configuration loaded from build output.
@@ -33,4 +35,6 @@ pub struct I18nConfig {
   pub default: String,
   /// Locale -> messages JSON value (read from locales/{locale}.json)
   pub messages: HashMap<String, serde_json::Value>,
+  /// Per-locale content hash for cache invalidation
+  pub versions: HashMap<String, String>,
 }

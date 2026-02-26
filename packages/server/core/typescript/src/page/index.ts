@@ -12,6 +12,7 @@ export interface LayoutDef {
   template: string;
   localeTemplates?: Record<string, string>;
   loaders: Record<string, LoaderFn>;
+  i18nKeys?: string[];
 }
 
 export interface PageDef {
@@ -21,12 +22,14 @@ export interface PageDef {
   layoutChain?: LayoutDef[];
   headMeta?: string;
   dataId?: string;
+  i18nKeys?: string[];
 }
 
 export interface I18nConfig {
   locales: string[];
   default: string;
   messages: Record<string, Record<string, string>>;
+  versions?: Record<string, string>;
 }
 
 export function definePage(config: PageDef): PageDef {

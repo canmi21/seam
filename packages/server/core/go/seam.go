@@ -113,6 +113,7 @@ type PageDef struct {
 	DataID          string   // script ID for the injected data JSON (default "__SEAM_DATA__")
 	LayoutID        string   // layout ID for separating layout vs page data in data script
 	PageLoaderKeys  []string // data keys from page-level loaders (not layout)
+	I18nKeys        []string // merged i18n keys from route + layout chain; empty means include all
 }
 
 // I18nConfig holds runtime i18n state loaded from build output.
@@ -120,6 +121,7 @@ type I18nConfig struct {
 	Locales  []string
 	Default  string
 	Messages map[string]json.RawMessage // locale -> messages JSON
+	Versions map[string]string          // per-locale content hash for cache invalidation
 }
 
 // HandlerOptions configures timeout behavior for the generated handler.

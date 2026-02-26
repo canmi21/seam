@@ -21,8 +21,9 @@ type routeManifest struct {
 }
 
 type i18nManifest struct {
-	Locales []string `json:"locales"`
-	Default string   `json:"default"`
+	Locales  []string          `json:"locales"`
+	Default  string            `json:"default"`
+	Versions map[string]string `json:"versions"`
 }
 
 type layoutEntry struct {
@@ -30,6 +31,7 @@ type layoutEntry struct {
 	Templates map[string]string `json:"templates"`
 	Loaders   json.RawMessage   `json:"loaders"`
 	Parent    string            `json:"parent"`
+	I18nKeys  []string          `json:"i18n_keys"`
 }
 
 type routeEntry struct {
@@ -38,6 +40,7 @@ type routeEntry struct {
 	Layout    string            `json:"layout"`
 	Loaders   json.RawMessage   `json:"loaders"`
 	HeadMeta  string            `json:"head_meta"`
+	I18nKeys  []string          `json:"i18n_keys"`
 }
 
 // pickTemplate returns the template path: prefer singular "template",
@@ -281,6 +284,21 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 		if dataID == "" {
 			dataID = "__SEAM_DATA__"
 		}
+		// Merge i18n_keys from layout chain + route
+		var i18nKeys []string
+		if entry.Layout != "" {
+			current := entry.Layout
+			for current != "" {
+				if le, ok := manifest.Layouts[current]; ok {
+					i18nKeys = append(i18nKeys, le.I18nKeys...)
+					current = le.Parent
+				} else {
+					break
+				}
+			}
+		}
+		i18nKeys = append(i18nKeys, entry.I18nKeys...)
+
 		pages = append(pages, PageDef{
 			Route:           routePath,
 			Template:        template,
@@ -289,6 +307,7 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 			DataID:          dataID,
 			LayoutID:        entry.Layout,
 			PageLoaderKeys:  pageLoaderKeys,
+			I18nKeys:        i18nKeys,
 		})
 	}
 
@@ -326,5 +345,6 @@ func LoadI18nConfig(dir string) *I18nConfig {
 		Locales:  manifest.I18n.Locales,
 		Default:  manifest.I18n.Default,
 		Messages: messages,
+		Versions: manifest.I18n.Versions,
 	}
 }
