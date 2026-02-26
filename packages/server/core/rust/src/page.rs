@@ -15,6 +15,8 @@ pub struct PageDef {
   /// Axum route syntax, e.g. "/user/{id}"
   pub route: String,
   pub template: String,
+  /// Per-locale pre-resolved templates (layout chain already applied). Keyed by locale.
+  pub locale_templates: Option<HashMap<String, String>>,
   pub loaders: Vec<LoaderDef>,
   /// Script ID for the injected data JSON. Defaults to "__SEAM_DATA__".
   pub data_id: String,
@@ -22,4 +24,13 @@ pub struct PageDef {
   pub layout_id: Option<String>,
   /// Data keys from page-level loaders (not layout). Used to split data in the data script.
   pub page_loader_keys: Vec<String>,
+}
+
+/// Runtime i18n configuration loaded from build output.
+#[derive(Clone)]
+pub struct I18nConfig {
+  pub locales: Vec<String>,
+  pub default: String,
+  /// Locale -> messages JSON value (read from locales/{locale}.json)
+  pub messages: HashMap<String, serde_json::Value>,
 }

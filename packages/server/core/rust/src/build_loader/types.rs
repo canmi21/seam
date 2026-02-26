@@ -19,6 +19,8 @@ pub(super) struct RouteManifest {
 #[derive(Deserialize)]
 pub(super) struct I18nManifest {
   #[serde(default)]
+  pub(super) locales: Vec<String>,
+  #[serde(default)]
   pub(super) default: String,
 }
 

@@ -18,13 +18,23 @@ type appState struct {
 	opts         HandlerOptions
 	hashToName   map[string]string // reverse lookup: hash -> original name (nil if no hash map)
 	batchHash    string            // batch endpoint hash (empty if no hash map)
+	i18nConfig   *I18nConfig
+	localeSet    map[string]bool // O(1) lookup for valid locales
 }
 
-func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef, rpcHashMap *RpcHashMap, opts HandlerOptions) http.Handler {
+func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, opts HandlerOptions) http.Handler {
 	state := &appState{
-		handlers: make(map[string]*ProcedureDef),
-		subs:     make(map[string]*SubscriptionDef),
-		opts:     opts,
+		handlers:   make(map[string]*ProcedureDef),
+		subs:       make(map[string]*SubscriptionDef),
+		opts:       opts,
+		i18nConfig: i18nConfig,
+	}
+
+	if i18nConfig != nil {
+		state.localeSet = make(map[string]bool, len(i18nConfig.Locales))
+		for _, loc := range i18nConfig.Locales {
+			state.localeSet[loc] = true
+		}
 	}
 
 	if rpcHashMap != nil {
@@ -56,6 +66,12 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pa
 		goPattern := seamRouteToGoPattern(pages[i].Route)
 		page := &pages[i]
 		mux.HandleFunc("GET /_seam/page"+goPattern, state.makePageHandler(page))
+
+		// Register locale-prefixed routes when i18n is active
+		if i18nConfig != nil {
+			localePattern := "GET /_seam/page/{_seam_locale}" + goPattern
+			mux.HandleFunc(localePattern, state.makePageHandler(page))
+		}
 	}
 
 	return mux

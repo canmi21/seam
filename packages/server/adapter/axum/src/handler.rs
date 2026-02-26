@@ -26,6 +26,8 @@ pub(crate) struct AppState {
   pub pages: HashMap<String, Arc<PageDef>>,
   pub rpc_hash_map: Option<HashMap<String, String>>,
   pub batch_hash: Option<String>,
+  pub i18n_config: Option<seam_server::I18nConfig>,
+  pub locale_set: Option<std::collections::HashSet<String>>,
 }
 
 pub(crate) fn build_router(
@@ -34,11 +36,16 @@ pub(crate) fn build_router(
   subscriptions: HashMap<String, Arc<SubscriptionDef>>,
   pages: Vec<PageDef>,
   hash_map: Option<RpcHashMap>,
+  i18n_config: Option<seam_server::I18nConfig>,
 ) -> Router {
   let (rpc_hash_map, batch_hash) = match hash_map {
     Some(m) => (Some(m.reverse_lookup()), Some(m.batch)),
     None => (None, None),
   };
+
+  let locale_set = i18n_config
+    .as_ref()
+    .map(|c| c.locales.iter().cloned().collect::<std::collections::HashSet<_>>());
 
   let mut page_map = HashMap::new();
   let mut router = Router::new()
@@ -53,8 +60,16 @@ pub(crate) fn build_router(
   // rust-axum example for the pattern.
   for page in pages {
     let full_route = format!("/_seam/page{}", page.route);
-    page_map.insert(full_route.clone(), Arc::new(page));
+    let page_arc = Arc::new(page);
+    page_map.insert(full_route.clone(), page_arc.clone());
     router = router.route(&full_route, get(handle_page));
+
+    // Register locale-prefixed routes when i18n is active
+    if i18n_config.is_some() {
+      let locale_route = format!("/_seam/page/{{_seam_locale}}{}", page_arc.route);
+      page_map.insert(locale_route.clone(), page_arc.clone());
+      router = router.route(&locale_route, get(handle_page));
+    }
   }
 
   let state = Arc::new(AppState {
@@ -64,6 +79,8 @@ pub(crate) fn build_router(
     pages: page_map,
     rpc_hash_map,
     batch_hash,
+    i18n_config,
+    locale_set,
   });
 
   router.with_state(state)
@@ -238,14 +255,39 @@ async fn handle_subscribe(
   }
 }
 
+#[allow(clippy::too_many_lines)]
 async fn handle_page(
   State(state): State<Arc<AppState>>,
   matched: MatchedPath,
-  Path(params): Path<HashMap<String, String>>,
+  Path(mut params): Path<HashMap<String, String>>,
 ) -> Result<Html<String>, AxumError> {
   let route_pattern = matched.as_str().to_string();
   let page =
     state.pages.get(&route_pattern).ok_or_else(|| SeamError::not_found("Page not found"))?;
+
+  // Extract locale from params when i18n is active
+  let locale = if let Some(ref locale_set) = state.locale_set {
+    let extracted = params.remove("_seam_locale");
+    match extracted {
+      Some(loc) if locale_set.contains(&loc) => Some(loc),
+      Some(_) => return Err(SeamError::not_found("Unknown locale").into()),
+      None => state.i18n_config.as_ref().map(|c| c.default.clone()),
+    }
+  } else {
+    None
+  };
+
+  // Select locale-specific template (pre-resolved with layout chain)
+  let template = if let Some(ref loc) = locale {
+    page
+      .locale_templates
+      .as_ref()
+      .and_then(|lt| lt.get(loc))
+      .map(|s| s.as_str())
+      .unwrap_or(&page.template)
+  } else {
+    &page.template
+  };
 
   let mut join_set = JoinSet::new();
 
@@ -285,7 +327,7 @@ async fn handle_page(
     }
   }
   let inject_data = serde_json::Value::Object(inject_map);
-  let mut html = seam_injector::inject_no_script(&page.template, &inject_data);
+  let mut html = seam_injector::inject_no_script(template, &inject_data);
 
   // Build data script JSON: page data at top level, layout data under _layouts
   let mut script_data = serde_json::Map::new();
@@ -309,6 +351,27 @@ async fn handle_page(
     script_data = data;
   }
 
+  // Inject _i18n data for client hydration
+  if let (Some(ref loc), Some(ref i18n)) = (&locale, &state.i18n_config) {
+    let mut i18n_data = serde_json::Map::new();
+    i18n_data.insert("locale".into(), serde_json::Value::String(loc.clone()));
+    i18n_data.insert(
+      "messages".into(),
+      i18n.messages.get(loc).cloned().unwrap_or(serde_json::Value::Object(Default::default())),
+    );
+    if loc != &i18n.default {
+      i18n_data.insert(
+        "fallbackMessages".into(),
+        i18n
+          .messages
+          .get(&i18n.default)
+          .cloned()
+          .unwrap_or(serde_json::Value::Object(Default::default())),
+      );
+    }
+    script_data.insert("_i18n".into(), serde_json::Value::Object(i18n_data));
+  }
+
   let script = format!(
     r#"<script id="{}" type="application/json">{}</script>"#,
     page.data_id,
@@ -318,6 +381,11 @@ async fn handle_page(
     html.insert_str(pos, &script);
   } else {
     html.push_str(&script);
+  }
+
+  // Set <html lang="..."> attribute
+  if let Some(ref loc) = locale {
+    html = html.replacen("<html", &format!("<html lang=\"{loc}\""), 1);
   }
 
   Ok(Html(html))

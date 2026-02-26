@@ -106,12 +106,20 @@ type LoaderDef struct {
 
 // PageDef defines a server-rendered page with loaders that fetch data before injection.
 type PageDef struct {
-	Route          string
-	Template       string
-	Loaders        []LoaderDef
-	DataID         string   // script ID for the injected data JSON (default "__SEAM_DATA__")
-	LayoutID       string   // layout ID for separating layout vs page data in data script
-	PageLoaderKeys []string // data keys from page-level loaders (not layout)
+	Route           string
+	Template        string
+	LocaleTemplates map[string]string // locale -> pre-resolved template HTML (layout chain applied)
+	Loaders         []LoaderDef
+	DataID          string   // script ID for the injected data JSON (default "__SEAM_DATA__")
+	LayoutID        string   // layout ID for separating layout vs page data in data script
+	PageLoaderKeys  []string // data keys from page-level loaders (not layout)
+}
+
+// I18nConfig holds runtime i18n state loaded from build output.
+type I18nConfig struct {
+	Locales  []string
+	Default  string
+	Messages map[string]json.RawMessage // locale -> messages JSON
 }
 
 // HandlerOptions configures timeout behavior for the generated handler.
@@ -135,6 +143,7 @@ type Router struct {
 	subscriptions []SubscriptionDef
 	pages         []PageDef
 	rpcHashMap    *RpcHashMap
+	i18nConfig    *I18nConfig
 }
 
 func NewRouter() *Router {
@@ -161,6 +170,11 @@ func (r *Router) RpcHashMap(m *RpcHashMap) *Router {
 	return r
 }
 
+func (r *Router) I18nConfig(config *I18nConfig) *Router {
+	r.i18nConfig = config
+	return r
+}
+
 // Handler returns an http.Handler that serves all /_seam/* routes.
 // When called with no arguments, default timeouts (30s) are used.
 func (r *Router) Handler(opts ...HandlerOptions) http.Handler {
@@ -168,5 +182,5 @@ func (r *Router) Handler(opts ...HandlerOptions) http.Handler {
 	if len(opts) > 0 {
 		o = opts[0]
 	}
-	return buildHandler(r.procedures, r.subscriptions, r.pages, r.rpcHashMap, o)
+	return buildHandler(r.procedures, r.subscriptions, r.pages, r.rpcHashMap, r.i18nConfig, o)
 }

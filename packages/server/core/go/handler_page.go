@@ -25,6 +25,28 @@ func (s *appState) makePageHandler(page *PageDef) http.HandlerFunc {
 func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageDef) {
 	params := extractParams(page.Route, r)
 
+	// Extract locale from path params when i18n is active
+	var locale string
+	if s.i18nConfig != nil {
+		loc := r.PathValue("_seam_locale")
+		if loc != "" && s.localeSet[loc] {
+			locale = loc
+		} else if loc != "" {
+			writeError(w, http.StatusNotFound, NotFoundError("Unknown locale"))
+			return
+		} else {
+			locale = s.i18nConfig.Default
+		}
+	}
+
+	// Select locale-specific template (pre-resolved with layout chain)
+	tmpl := page.Template
+	if locale != "" && page.LocaleTemplates != nil {
+		if lt, ok := page.LocaleTemplates[locale]; ok {
+			tmpl = lt
+		}
+	}
+
 	ctx := r.Context()
 	if s.opts.PageTimeout > 0 {
 		var cancel context.CancelFunc
@@ -127,7 +149,7 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 		return
 	}
 
-	html, err := injector.InjectNoScript(page.Template, string(dataJSON))
+	html, err := injector.InjectNoScript(tmpl, string(dataJSON))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, InternalError(fmt.Sprintf("Template injection failed: %v", err)))
 		return
@@ -155,6 +177,18 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 		}
 	}
 
+	// Inject _i18n data for client hydration
+	if s.i18nConfig != nil && locale != "" {
+		i18nData := map[string]any{
+			"locale":   locale,
+			"messages": json.RawMessage(s.i18nConfig.Messages[locale]),
+		}
+		if locale != s.i18nConfig.Default {
+			i18nData["fallbackMessages"] = json.RawMessage(s.i18nConfig.Messages[s.i18nConfig.Default])
+		}
+		scriptData["_i18n"] = i18nData
+	}
+
 	dataID := page.DataID
 	if dataID == "" {
 		dataID = "__SEAM_DATA__"
@@ -165,6 +199,11 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 		html = html[:idx] + script + html[idx:]
 	} else {
 		html += script
+	}
+
+	// Set <html lang="..."> attribute
+	if locale != "" {
+		html = strings.Replace(html, "<html", fmt.Sprintf(`<html lang="%s"`, locale), 1)
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

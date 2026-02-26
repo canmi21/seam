@@ -100,7 +100,6 @@ pub fn run_incremental_rebuild(
     &build_config.root_id,
     &build_config.data_id,
     build_config.i18n.as_ref(),
-    i18n_messages.as_ref(),
   )?;
   if let Some(ref msgs) = i18n_messages {
     export_i18n_messages(&out_dir, msgs)?;

@@ -84,6 +84,7 @@ pub(super) fn resolve_layout_chain(
 
 /// Load page definitions from seam build output on disk.
 /// Reads route-manifest.json, loads templates, constructs PageDef with loaders.
+#[allow(clippy::too_many_lines)]
 pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::Error>> {
   let base = Path::new(dir);
   let manifest_path = base.join("route-manifest.json");
@@ -91,7 +92,7 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
   let manifest: RouteManifest = serde_json::from_str(&content)?;
   let default_locale = manifest.i18n.as_ref().map(|c| c.default.as_str());
 
-  // Load layout templates
+  // Load layout templates (default locale)
   let mut layout_templates: HashMap<String, (String, Option<String>)> = HashMap::new();
   for (id, entry) in &manifest.layouts {
     if let Some(tmpl_path) = pick_template(&entry.template, &entry.templates, default_locale) {
@@ -101,10 +102,28 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
     }
   }
 
+  // Load layout templates per locale for locale-specific resolution
+  let mut layout_locale_templates: HashMap<String, HashMap<String, (String, Option<String>)>> =
+    HashMap::new();
+  if manifest.i18n.is_some() {
+    for (id, entry) in &manifest.layouts {
+      if let Some(ref templates) = entry.templates {
+        for (locale, tmpl_path) in templates {
+          let full_path = base.join(tmpl_path);
+          let tmpl = std::fs::read_to_string(&full_path)?;
+          layout_locale_templates
+            .entry(locale.clone())
+            .or_default()
+            .insert(id.clone(), (tmpl, entry.parent.clone()));
+        }
+      }
+    }
+  }
+
   let mut pages = Vec::new();
 
   for (route_path, entry) in &manifest.routes {
-    // Load page template
+    // Load page template (default locale)
     let page_template =
       if let Some(tmpl_path) = pick_template(&entry.template, &entry.templates, default_locale) {
         let full_path = base.join(&tmpl_path);
@@ -123,6 +142,37 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
       full
     } else {
       page_template
+    };
+
+    // Build locale-specific pre-resolved templates when i18n is active
+    let locale_templates = if manifest.i18n.is_some() {
+      if let Some(ref templates) = entry.templates {
+        let mut lt = HashMap::new();
+        for (locale, tmpl_path) in templates {
+          let full_path = base.join(tmpl_path);
+          let page_tmpl = std::fs::read_to_string(&full_path)?;
+          let resolved = if let Some(ref layout_id) = entry.layout {
+            let locale_layouts = layout_locale_templates.get(locale).unwrap_or(&layout_templates);
+            let mut full = resolve_layout_chain(layout_id, &page_tmpl, locale_layouts);
+            if let Some(ref meta) = entry.head_meta {
+              full = full.replace("</head>", &format!("{meta}</head>"));
+            }
+            full
+          } else {
+            page_tmpl
+          };
+          lt.insert(locale.clone(), resolved);
+        }
+        if lt.is_empty() {
+          None
+        } else {
+          Some(lt)
+        }
+      } else {
+        None
+      }
+    } else {
+      None
     };
 
     // Convert route path from client format (/:param) to Axum format (/{param})
@@ -150,6 +200,7 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
     pages.push(PageDef {
       route: axum_route,
       template,
+      locale_templates,
       loaders: all_loaders,
       data_id: data_id.clone(),
       layout_id: entry.layout.clone(),
@@ -158,6 +209,29 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
   }
 
   Ok(pages)
+}
+
+/// Load i18n configuration and locale messages from build output.
+/// Returns None when i18n is not configured.
+pub fn load_i18n_config(dir: &str) -> Option<crate::page::I18nConfig> {
+  let base = Path::new(dir);
+  let manifest_path = base.join("route-manifest.json");
+  let content = std::fs::read_to_string(&manifest_path).ok()?;
+  let manifest: RouteManifest = serde_json::from_str(&content).ok()?;
+  let i18n = manifest.i18n?;
+
+  let mut messages = HashMap::new();
+  let locales_dir = base.join("locales");
+  for locale in &i18n.locales {
+    let locale_path = locales_dir.join(format!("{locale}.json"));
+    let parsed = std::fs::read_to_string(&locale_path)
+      .ok()
+      .and_then(|c| serde_json::from_str(&c).ok())
+      .unwrap_or(serde_json::Value::Object(Default::default()));
+    messages.insert(locale.clone(), parsed);
+  }
+
+  Some(crate::page::I18nConfig { locales: i18n.locales, default: i18n.default, messages })
 }
 
 /// Load the RPC hash map from build output (returns None when not present).

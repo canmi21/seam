@@ -61,6 +61,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     server = server.rpc_hash_map(hash_map);
   }
 
+  // Load i18n configuration for runtime locale routing
+  if let Some(i18n_config) = seam_server::load_i18n_config(&build_dir) {
+    eprintln!("i18n: {} locales, default={}", i18n_config.locales.len(), i18n_config.default);
+    server = server.i18n_config(i18n_config);
+  }
+
   for page in pages {
     server = server.page(page);
   }

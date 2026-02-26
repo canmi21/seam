@@ -8,6 +8,7 @@ pub fn user_page() -> PageDef {
   PageDef {
     route: "/user/{id}".to_string(),
     template: include_str!("../../../templates/user.html").to_string(),
+    locale_templates: None,
     loaders: vec![LoaderDef {
       data_key: "user".to_string(),
       procedure: "getUser".to_string(),

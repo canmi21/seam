@@ -9,5 +9,5 @@ mod types;
 #[cfg(test)]
 mod tests;
 
-pub use loader::{load_build_output, load_rpc_hash_map};
+pub use loader::{load_build_output, load_i18n_config, load_rpc_hash_map};
 pub use types::RpcHashMap;

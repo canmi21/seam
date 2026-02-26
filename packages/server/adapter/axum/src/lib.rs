@@ -29,7 +29,14 @@ impl IntoAxumRouter for SeamServer {
     let handlers = parts.procedures.into_iter().map(|p| (p.name.clone(), Arc::new(p))).collect();
     let subscriptions =
       parts.subscriptions.into_iter().map(|s| (s.name.clone(), Arc::new(s))).collect();
-    handler::build_router(manifest_json, handlers, subscriptions, parts.pages, parts.rpc_hash_map)
+    handler::build_router(
+      manifest_json,
+      handlers,
+      subscriptions,
+      parts.pages,
+      parts.rpc_hash_map,
+      parts.i18n_config,
+    )
   }
 
   async fn serve(self, addr: &str) -> Result<(), Box<dyn std::error::Error>> {

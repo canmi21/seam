@@ -1,7 +1,7 @@
 /* packages/server/core/rust/src/server.rs */
 
 use crate::build_loader::RpcHashMap;
-use crate::page::PageDef;
+use crate::page::{I18nConfig, PageDef};
 use crate::procedure::{ProcedureDef, SubscriptionDef};
 
 /// Framework-agnostic parts extracted from `SeamServer`.
@@ -11,6 +11,7 @@ pub struct SeamParts {
   pub subscriptions: Vec<SubscriptionDef>,
   pub pages: Vec<PageDef>,
   pub rpc_hash_map: Option<RpcHashMap>,
+  pub i18n_config: Option<I18nConfig>,
 }
 
 pub struct SeamServer {
@@ -18,6 +19,7 @@ pub struct SeamServer {
   subscriptions: Vec<SubscriptionDef>,
   pages: Vec<PageDef>,
   rpc_hash_map: Option<RpcHashMap>,
+  i18n_config: Option<I18nConfig>,
 }
 
 impl SeamServer {
@@ -27,6 +29,7 @@ impl SeamServer {
       subscriptions: Vec::new(),
       pages: Vec::new(),
       rpc_hash_map: None,
+      i18n_config: None,
     }
   }
 
@@ -50,6 +53,11 @@ impl SeamServer {
     self
   }
 
+  pub fn i18n_config(mut self, config: I18nConfig) -> Self {
+    self.i18n_config = Some(config);
+    self
+  }
+
   /// Consume the builder, returning framework-agnostic parts for an adapter.
   pub fn into_parts(self) -> SeamParts {
     SeamParts {
@@ -57,6 +65,7 @@ impl SeamServer {
       subscriptions: self.subscriptions,
       pages: self.pages,
       rpc_hash_map: self.rpc_hash_map,
+      i18n_config: self.i18n_config,
     }
   }
 }

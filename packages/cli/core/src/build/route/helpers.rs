@@ -26,22 +26,6 @@ pub(crate) fn read_i18n_messages(
   Ok(messages)
 }
 
-/// Embed i18n locale + messages as a `<script>` tag in the HTML document.
-/// Servers that inject _i18n at runtime (TS) override this via SeamRouterContext;
-/// servers that don't (Rust, Go) rely on this fallback for client hydration.
-pub(super) fn embed_i18n_script(
-  document: &str,
-  locale: &str,
-  messages: &serde_json::Value,
-) -> String {
-  let i18n_data = serde_json::json!({ "locale": locale, "messages": messages });
-  let script = format!(
-    "<script id=\"__seam_i18n\" type=\"application/json\">{}</script>",
-    serde_json::to_string(&i18n_data).unwrap_or_default()
-  );
-  document.replace("</body>", &format!("{script}</body>"))
-}
-
 /// Export i18n messages as separate JSON files in {out_dir}/locales/{locale}.json.
 /// The server reads these at startup to inject _i18n into page data at request time.
 pub(crate) fn export_i18n_messages(

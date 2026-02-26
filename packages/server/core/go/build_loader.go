@@ -21,7 +21,8 @@ type routeManifest struct {
 }
 
 type i18nManifest struct {
-	Default string `json:"default"`
+	Locales []string `json:"locales"`
+	Default string   `json:"default"`
 }
 
 type layoutEntry struct {
@@ -171,7 +172,7 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 		defaultLocale = manifest.I18n.Default
 	}
 
-	// Load layout templates
+	// Load layout templates (default locale)
 	layouts := make(map[string]layoutResolved)
 	for id, entry := range manifest.Layouts {
 		tmplPath := pickTemplate(entry.Template, entry.Templates, defaultLocale)
@@ -183,6 +184,30 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 			return nil, fmt.Errorf("read layout template %s: %w", tmplPath, err)
 		}
 		layouts[id] = layoutResolved{template: string(tmplBytes), parent: entry.Parent}
+	}
+
+	// Load layout templates per locale for locale-specific resolution
+	// layoutLocaleTemplates[locale][layoutID] = layoutResolved
+	layoutLocaleTemplates := make(map[string]map[string]layoutResolved)
+	if manifest.I18n != nil {
+		for id, entry := range manifest.Layouts {
+			if entry.Templates == nil {
+				continue
+			}
+			for locale, tmplPath := range entry.Templates {
+				tmplBytes, err := os.ReadFile(filepath.Join(dir, tmplPath))
+				if err != nil {
+					return nil, fmt.Errorf("read layout locale template %s: %w", tmplPath, err)
+				}
+				if layoutLocaleTemplates[locale] == nil {
+					layoutLocaleTemplates[locale] = make(map[string]layoutResolved)
+				}
+				layoutLocaleTemplates[locale][id] = layoutResolved{
+					template: string(tmplBytes),
+					parent:   entry.Parent,
+				}
+			}
+		}
 	}
 
 	var pages []PageDef
@@ -204,6 +229,31 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 			template = resolveLayoutChain(entry.Layout, pageTemplate, layouts)
 			if entry.HeadMeta != "" {
 				template = strings.Replace(template, "</head>", entry.HeadMeta+"</head>", 1)
+			}
+		}
+
+		// Build locale-specific pre-resolved templates when i18n is active
+		var localeTemplates map[string]string
+		if manifest.I18n != nil && entry.Templates != nil {
+			localeTemplates = make(map[string]string)
+			for locale, ltPath := range entry.Templates {
+				ltBytes, err := os.ReadFile(filepath.Join(dir, ltPath))
+				if err != nil {
+					return nil, fmt.Errorf("read route locale template %s: %w", ltPath, err)
+				}
+				pageTmpl := string(ltBytes)
+				resolved := pageTmpl
+				if entry.Layout != "" {
+					localeLayouts := layoutLocaleTemplates[locale]
+					if localeLayouts == nil {
+						localeLayouts = layouts
+					}
+					resolved = resolveLayoutChain(entry.Layout, pageTmpl, localeLayouts)
+					if entry.HeadMeta != "" {
+						resolved = strings.Replace(resolved, "</head>", entry.HeadMeta+"</head>", 1)
+					}
+				}
+				localeTemplates[locale] = resolved
 			}
 		}
 
@@ -232,14 +282,49 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 			dataID = "__SEAM_DATA__"
 		}
 		pages = append(pages, PageDef{
-			Route:          routePath,
-			Template:       template,
-			Loaders:        allLoaders,
-			DataID:         dataID,
-			LayoutID:       entry.Layout,
-			PageLoaderKeys: pageLoaderKeys,
+			Route:           routePath,
+			Template:        template,
+			LocaleTemplates: localeTemplates,
+			Loaders:         allLoaders,
+			DataID:          dataID,
+			LayoutID:        entry.Layout,
+			PageLoaderKeys:  pageLoaderKeys,
 		})
 	}
 
 	return pages, nil
+}
+
+// LoadI18nConfig loads i18n configuration and locale messages from build output.
+// Returns nil when i18n is not configured.
+func LoadI18nConfig(dir string) *I18nConfig {
+	manifestData, err := os.ReadFile(filepath.Join(dir, "route-manifest.json"))
+	if err != nil {
+		return nil
+	}
+	var manifest routeManifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		return nil
+	}
+	if manifest.I18n == nil || len(manifest.I18n.Locales) == 0 {
+		return nil
+	}
+
+	messages := make(map[string]json.RawMessage)
+	localesDir := filepath.Join(dir, "locales")
+	for _, locale := range manifest.I18n.Locales {
+		localePath := filepath.Join(localesDir, locale+".json")
+		data, err := os.ReadFile(localePath)
+		if err != nil {
+			messages[locale] = json.RawMessage("{}")
+		} else {
+			messages[locale] = json.RawMessage(data)
+		}
+	}
+
+	return &I18nConfig{
+		Locales:  manifest.I18n.Locales,
+		Default:  manifest.I18n.Default,
+		Messages: messages,
+	}
 }

@@ -56,6 +56,12 @@ func main() {
 		r.RpcHashMap(hashMap)
 	}
 
+	// Load i18n configuration for runtime locale routing
+	if i18nConfig := seam.LoadI18nConfig(buildDir); i18nConfig != nil {
+		fmt.Fprintf(os.Stderr, "i18n: %d locales, default=%s\n", len(i18nConfig.Locales), i18nConfig.Default)
+		r.I18nConfig(i18nConfig)
+	}
+
 	seamHandler := r.Handler()
 
 	// Static assets from build output, served under /_seam/static/*
