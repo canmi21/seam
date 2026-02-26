@@ -1,4 +1,4 @@
-/* packages/eslint-plugin-seam/tsdown.config.ts */
+/* packages/eslint/tsdown.config.ts */
 
 import { defineConfig } from "tsdown";
 

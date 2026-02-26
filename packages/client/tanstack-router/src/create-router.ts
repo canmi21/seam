@@ -78,6 +78,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
   let initialLayouts: Record<string, Record<string, unknown>> = {};
   let initialPath: string | null = null;
   let initialParams: Record<string, string> = {};
+  let initialI18n: unknown = null;
 
   if (typeof document !== "undefined") {
     try {
@@ -86,8 +87,9 @@ export function createSeamRouter(opts: SeamRouterOptions) {
       if (raw._layouts && typeof raw._layouts === "object") {
         initialLayouts = raw._layouts as Record<string, Record<string, unknown>>;
       }
-      // Page data is everything except _layouts
-      const { _layouts: _, ...pageData } = raw;
+      // Page data is everything except _layouts and _i18n
+      const { _layouts: _, _i18n: rawI18n, ...pageData } = raw;
+      initialI18n = rawI18n ?? null;
       // Unwrap: single "page" loader gets flattened
       initialData = (pageData.page ?? pageData) as Record<string, unknown>;
       const matched = matchSeamRoute(collectLeafPaths(routes), window.location.pathname);
@@ -121,6 +123,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
           consumedLayouts: new Set(),
         }
       : null,
+    _seamI18n: initialI18n,
   };
 
   const router = createTanStackRouter({

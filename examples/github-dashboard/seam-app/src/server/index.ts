@@ -6,6 +6,7 @@ import { createBunWebSocket } from "hono/bun";
 import {
   loadBuildOutput,
   loadBuildOutputDev,
+  loadI18nMessages,
   loadRpcHashMap,
   watchReloadTrigger,
 } from "@canmi/seam-server";
@@ -18,9 +19,10 @@ const isDev = process.env.SEAM_DEV === "1";
 const isVite = process.env.SEAM_VITE === "1";
 const BUILD_DIR = isDev ? process.env.SEAM_OUTPUT_DIR! : resolve(import.meta.dir, "..");
 const pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR);
+const i18nConfig = loadI18nMessages(BUILD_DIR);
 const rpcHashMap = loadRpcHashMap(BUILD_DIR);
 const dataId = Object.values(pages)[0]?.dataId ?? "__SEAM_DATA__";
-const router = buildRouter({ pages });
+const router = buildRouter({ pages, i18n: i18nConfig });
 
 const app = new Hono();
 

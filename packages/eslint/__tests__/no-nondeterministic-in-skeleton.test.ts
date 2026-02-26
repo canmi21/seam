@@ -1,4 +1,4 @@
-/* packages/eslint-plugin-seam/__tests__/no-nondeterministic-in-skeleton.test.ts */
+/* packages/eslint/__tests__/no-nondeterministic-in-skeleton.test.ts */
 
 import { RuleTester } from "eslint";
 import { afterAll, describe, it } from "vitest";

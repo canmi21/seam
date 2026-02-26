@@ -6,20 +6,19 @@ import { createI18n } from "@canmi/seam-i18n";
 import { useCallback, useMemo } from "react";
 import type { ReactNode } from "react";
 import type { I18nInstance } from "@canmi/seam-i18n";
+import type { SeamRouterContext } from "./types.js";
 
-// Read i18n context from two sources (new runtime-injected path first, old build-time fallback second).
-// Returns I18nInstance or null if absent.
-function readI18nContext(seamData: Record<string, unknown>): I18nInstance | null {
-  // New path: _i18n injected by server runtime into __SEAM_DATA__
-  const i18nData = seamData._i18n as
-    | {
-        locale: string;
-        messages: Record<string, string>;
-        fallbackMessages?: Record<string, string>;
-      }
-    | undefined;
-  if (i18nData?.locale) {
-    return createI18n(i18nData.locale, i18nData.messages ?? {}, i18nData.fallbackMessages);
+interface I18nRaw {
+  locale: string;
+  messages: Record<string, string>;
+  fallbackMessages?: Record<string, string>;
+}
+
+// Build I18nInstance from raw data stored in router context or DOM fallback.
+function readI18nContext(raw: unknown): I18nInstance | null {
+  const data = raw as I18nRaw | null | undefined;
+  if (data?.locale) {
+    return createI18n(data.locale, data.messages ?? {}, data.fallbackMessages);
   }
 
   // Fallback: <script id="__seam_i18n"> embedded by build pipeline (deprecated path)
@@ -64,7 +63,8 @@ export function SeamDataBridge({ children }: { children: ReactNode }) {
     [router],
   );
 
-  const i18n = useMemo(() => readI18nContext(seamData), [seamData]);
+  const rawI18n = (router.options.context as SeamRouterContext)?._seamI18n;
+  const i18n = useMemo(() => readI18nContext(rawI18n), [rawI18n]);
 
   let content = <SeamDataProvider value={seamData}>{children}</SeamDataProvider>;
   if (i18n) {

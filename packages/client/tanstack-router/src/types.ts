@@ -31,6 +31,7 @@ export interface HydrateOptions extends SeamRouterOptions {
 export interface SeamRouterContext {
   seamRpc: (procedure: string, input?: unknown) => Promise<unknown>;
   _seamInitial: SeamInitialData | null;
+  _seamI18n?: unknown;
 }
 
 export interface SeamInitialData {

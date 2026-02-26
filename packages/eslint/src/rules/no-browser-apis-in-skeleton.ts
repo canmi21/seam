@@ -1,4 +1,4 @@
-/* packages/eslint-plugin-seam/src/rules/no-browser-apis-in-skeleton.ts */
+/* packages/eslint/src/rules/no-browser-apis-in-skeleton.ts */
 
 import type { Rule } from "eslint";
 

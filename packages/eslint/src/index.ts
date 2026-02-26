@@ -1,4 +1,4 @@
-/* packages/eslint-plugin-seam/src/index.ts */
+/* packages/eslint/src/index.ts */
 
 import type { ESLint, Linter } from "eslint";
 import noBrowserApis from "./rules/no-browser-apis-in-skeleton.js";
