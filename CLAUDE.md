@@ -61,6 +61,7 @@
 
 - Use tmux sessions for long-running tasks (builds, tests, server processes)
 - Do not block the main terminal
+- `bun run verify` (full pipeline) must always run in a tmux session: `tmux new-session -d -s verify 'bun run verify 2>&1 | tee /tmp/verify-output.log'`
 
 ## Refactoring
 
