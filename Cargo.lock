@@ -1442,6 +1442,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "seam-engine"
+version = "0.3.5"
+dependencies = [
+ "seam-injector",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "seam-injector"
 version = "0.3.5"
 dependencies = [
