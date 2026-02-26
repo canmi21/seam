@@ -7,7 +7,7 @@ test.describe("workspace SPA navigation", () => {
   test("form submit navigates to dashboard without full reload", async ({ page }) => {
     const collectErrors = setupHydrationErrorCollector(page);
 
-    await page.goto("/", { waitUntil: "networkidle" });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await waitForHydration(page);
 
     // Plant a marker on window — full reload destroys it
@@ -30,7 +30,7 @@ test.describe("workspace SPA navigation", () => {
   });
 
   test("back link returns to home without full reload", async ({ page }) => {
-    await page.goto("/dashboard/octocat", { waitUntil: "networkidle" });
+    await page.goto("/dashboard/octocat", { waitUntil: "domcontentloaded" });
     await waitForHydration(page);
 
     await page.evaluate(() => {
