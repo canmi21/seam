@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	engine "github.com/canmi21/seam/packages/server/engine/go"
 	injector "github.com/canmi21/seam/packages/server/injector/go"
 )
 
@@ -216,7 +217,11 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 		dataID = "__SEAM_DATA__"
 	}
 	scriptJSON, _ := json.Marshal(scriptData)
-	escaped := asciiEscapeJSON(string(scriptJSON))
+	escaped, err := engine.AsciiEscapeJSON(string(scriptJSON))
+	if err != nil {
+		// Fall back to unescaped JSON if WASM fails
+		escaped = string(scriptJSON)
+	}
 	script := fmt.Sprintf(`<script id="%s" type="application/json">%s</script>`, dataID, escaped)
 	if idx := strings.LastIndex(html, "</body>"); idx != -1 {
 		html = html[:idx] + script + html[idx:]

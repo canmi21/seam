@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
+
+	engine "github.com/canmi21/seam/packages/server/engine/go"
 )
 
 type appState struct {
@@ -57,6 +59,9 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pa
 
 	// Register built-in __seam_i18n_query procedure when i18n is configured
 	if i18nConfig != nil {
+		// Pre-build all-messages JSON for engine i18n_query calls
+		allMessagesJSON, _ := json.Marshal(i18nConfig.Messages)
+		defaultLocale := i18nConfig.Default
 		i18nQueryProc := ProcedureDef{
 			Name:         "__seam_i18n_query",
 			InputSchema:  map[string]any{},
@@ -69,26 +74,14 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pa
 				if err := json.Unmarshal(input, &req); err != nil {
 					return nil, ValidationError("Invalid input")
 				}
-				msgs := i18nConfig.Messages[req.Locale]
-				if msgs == nil {
-					msgs = i18nConfig.Messages[i18nConfig.Default]
+				keysJSON, _ := json.Marshal(req.Keys)
+				resultJSON, err := engine.I18nQuery(string(keysJSON), req.Locale, defaultLocale, string(allMessagesJSON))
+				if err != nil {
+					return nil, InternalError(err.Error())
 				}
-				var allMsgs map[string]string
-				if msgs != nil {
-					json.Unmarshal(msgs, &allMsgs)
-				}
-				if allMsgs == nil {
-					allMsgs = map[string]string{}
-				}
-				messages := make(map[string]string, len(req.Keys))
-				for _, k := range req.Keys {
-					if v, ok := allMsgs[k]; ok {
-						messages[k] = v
-					} else {
-						messages[k] = k
-					}
-				}
-				return map[string]any{"messages": messages}, nil
+				var result any
+				json.Unmarshal([]byte(resultJSON), &result)
+				return result, nil
 			},
 		}
 		state.handlers["__seam_i18n_query"] = &i18nQueryProc
