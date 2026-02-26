@@ -12,7 +12,8 @@ require_cmd go    "https://go.dev/dl"
 
 bash "$DIR/ci/fmt-check.sh"
 
-run_parallel "build-cli" "$DIR/ci/build-cli.sh" "build-ts" "$DIR/ci/build-ts.sh"
+run_parallel "build-cli" "$DIR/ci/build-cli.sh" "build-wasm" "$DIR/ci/build-wasm.sh"
+bash "$DIR/ci/build-ts.sh"
 run_parallel "lint" "$DIR/ci/lint.sh" "typecheck" "$DIR/ci/typecheck.sh" "test-rs" "$DIR/ci/test-rs.sh" "test-ts" "$DIR/ci/test-ts.sh"
 
 bash "$DIR/ci/build-fixtures.sh"
