@@ -7,6 +7,7 @@ members = [
   "packages/server/injector/rust",
   "packages/server/injector/wasm",
   "packages/server/engine/rust",
+  "packages/server/engine/wasm",
   "packages/cli/core",
   "examples/standalone/server-rust",
   "examples/github-dashboard/backends/rust-axum",

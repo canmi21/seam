@@ -316,6 +316,16 @@
         "vitest": "^3.0.0",
       },
     },
+    "packages/server/engine/js": {
+      "name": "@canmi/seam-engine",
+      "version": "0.3.5",
+      "devDependencies": {
+        "@types/node": "^22.0.0",
+        "tsdown": "^0.20.0",
+        "typescript": "^5.7.0",
+        "vitest": "^3.0.0",
+      },
+    },
     "packages/server/injector/js": {
       "name": "@canmi/seam-injector",
       "version": "0.3.5",
@@ -423,6 +433,8 @@
     "@canmi/seam-cli": ["@canmi/seam-cli@workspace:packages/cli/pkg"],
 
     "@canmi/seam-client": ["@canmi/seam-client@workspace:packages/client/vanilla"],
+
+    "@canmi/seam-engine": ["@canmi/seam-engine@workspace:packages/server/engine/js"],
 
     "@canmi/seam-i18n": ["@canmi/seam-i18n@workspace:packages/i18n"],
 
