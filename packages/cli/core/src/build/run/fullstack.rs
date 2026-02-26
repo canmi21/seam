@@ -50,8 +50,8 @@ pub(super) fn run_fullstack_build(
     &[],
   )?;
 
-  // Copy WASM binary next to bundled server output so runtime readFileSync resolves correctly.
-  // The bundled injector code does: resolve(__dirname, "../pkg/seam_injector_wasm_bg.wasm")
+  // Copy WASM binaries next to bundled server output so runtime readFileSync resolves correctly.
+  // Bundled code does: resolve(__dirname, "../pkg/<wasm_file>.wasm")
   // which, from {out_dir}/server/index.js, resolves to {out_dir}/pkg/.
   copy_wasm_binary(base_dir, &out_dir)?;
   ui::blank();

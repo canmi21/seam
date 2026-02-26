@@ -51,10 +51,10 @@ src/
 
 ## Dependencies
 
-| Dependency             | Purpose                                   |
-| ---------------------- | ----------------------------------------- |
-| `jtd`                  | JSON Type Definition validation           |
-| `@canmi/seam-injector` | Template injection (used in page handler) |
+| Dependency           | Purpose                                               |
+| -------------------- | ----------------------------------------------------- |
+| `jtd`                | JSON Type Definition validation                       |
+| `@canmi/seam-engine` | Page assembly, template injection, i18n (WASM engine) |
 
 ## Commands
 

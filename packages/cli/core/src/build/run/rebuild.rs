@@ -119,29 +119,35 @@ pub fn run_incremental_rebuild(
   Ok(())
 }
 
-const WASM_FILENAME: &str = "seam_injector_wasm_bg.wasm";
+/// WASM binaries to copy: (filename, npm package path, workspace source path)
+const WASM_BINARIES: &[(&str, &str, &str)] = &[
+  ("seam_injector_wasm_bg.wasm", "@canmi/seam-injector/pkg", "packages/server/injector/js/pkg"),
+  ("seam_engine_wasm_bg.wasm", "@canmi/seam-engine/pkg", "packages/server/engine/js/pkg"),
+];
 
-/// Search for the injector WASM binary and copy it to {out_dir}/pkg/.
+/// Search for WASM binaries (injector + engine) and copy them to {out_dir}/pkg/.
 /// Checks workspace source first, then node_modules.
 pub(super) fn copy_wasm_binary(base_dir: &Path, out_dir: &Path) -> Result<()> {
-  let candidates: Vec<std::path::PathBuf> = [
-    // node_modules (npm/pnpm install)
-    Some(base_dir.join("node_modules/@canmi/seam-injector/pkg").join(WASM_FILENAME)),
-    // Workspace source (bun workspace — no node_modules symlink)
-    find_workspace_wasm(base_dir),
-  ]
-  .into_iter()
-  .flatten()
-  .collect();
+  for &(filename, npm_path, workspace_path) in WASM_BINARIES {
+    let candidates: Vec<std::path::PathBuf> = [
+      // node_modules (npm/pnpm install)
+      Some(base_dir.join("node_modules").join(npm_path).join(filename)),
+      // Workspace source (bun workspace — no node_modules symlink)
+      find_workspace_wasm(base_dir, workspace_path, filename),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
 
-  for src in candidates {
-    if src.exists() {
-      let dest_dir = out_dir.join("pkg");
-      std::fs::create_dir_all(&dest_dir)
-        .with_context(|| format!("failed to create {}", dest_dir.display()))?;
-      std::fs::copy(&src, dest_dir.join(WASM_FILENAME))
-        .with_context(|| format!("failed to copy WASM binary from {}", src.display()))?;
-      return Ok(());
+    for src in candidates {
+      if src.exists() {
+        let dest_dir = out_dir.join("pkg");
+        std::fs::create_dir_all(&dest_dir)
+          .with_context(|| format!("failed to create {}", dest_dir.display()))?;
+        std::fs::copy(&src, dest_dir.join(filename))
+          .with_context(|| format!("failed to copy WASM binary from {}", src.display()))?;
+        break;
+      }
     }
   }
   Ok(())
@@ -152,11 +158,15 @@ pub fn copy_wasm_binary_pub(base_dir: &Path, out_dir: &Path) -> Result<()> {
   copy_wasm_binary(base_dir, out_dir)
 }
 
-/// Walk up from base_dir looking for packages/server/injector/js/pkg/{WASM_FILENAME}.
-fn find_workspace_wasm(base_dir: &Path) -> Option<std::path::PathBuf> {
+/// Walk up from base_dir looking for {workspace_path}/{filename}.
+fn find_workspace_wasm(
+  base_dir: &Path,
+  workspace_path: &str,
+  filename: &str,
+) -> Option<std::path::PathBuf> {
   let mut dir = base_dir.to_path_buf();
   for _ in 0..5 {
-    let candidate = dir.join("packages/server/injector/js/pkg").join(WASM_FILENAME);
+    let candidate = dir.join(workspace_path).join(filename);
     if candidate.exists() {
       return Some(candidate);
     }

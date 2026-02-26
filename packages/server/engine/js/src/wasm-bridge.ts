@@ -1,10 +1,8 @@
 /* packages/server/engine/js/src/wasm-bridge.ts */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return */
 
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-// @ts-expect-error -- no type declarations for wasm-bindgen generated code
 import {
   __wbg_set_wasm,
   __wbindgen_init_externref_table,

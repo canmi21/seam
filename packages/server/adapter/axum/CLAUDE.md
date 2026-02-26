@@ -6,11 +6,11 @@ See root CLAUDE.md for general project rules.
 
 ## Architecture
 
-| Module       | Responsibility                                                           |
-| ------------ | ------------------------------------------------------------------------ |
-| `lib.rs`     | `IntoAxumRouter` trait + impl for `SeamServer`, re-exports `seam_server` |
-| `handler.rs` | `AppState`, `build_router()`, 4 handler fns (manifest, rpc, sse, page)   |
-| `error.rs`   | `AxumError` newtype, `impl IntoResponse`, `impl From<SeamError>`         |
+| Module       | Responsibility                                                                                                                              |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib.rs`     | `IntoAxumRouter` trait + impl for `SeamServer`, re-exports `seam_server`                                                                    |
+| `handler.rs` | `AppState`, `build_router()`, 4 handler fns (manifest, rpc, sse, page); page handler uses `layout_chain` for per-layout `_layouts` grouping |
+| `error.rs`   | `AxumError` newtype, `impl IntoResponse`, `impl From<SeamError>`                                                                            |
 
 ## Data Flow
 
@@ -44,4 +44,4 @@ cargo test -p seam-server-axum
 
 - Crate name is `seam-server-axum`, not `seam-axum`
 - `futures-core` is needed for `Stream` trait in SSE handler
-- `seam-injector` is a direct dependency (page handler calls `inject()`)
+- `seam-injector` and `seam-engine` are direct dependencies (page handler uses engine for data assembly, injector for slot injection)

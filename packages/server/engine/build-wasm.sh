@@ -16,6 +16,7 @@ cp pkg/seam_engine_wasm_bg.js "$SCRIPT_DIR/js/pkg/"
 cp pkg/seam_engine_wasm.js "$SCRIPT_DIR/js/pkg/"
 cp pkg/seam_engine_wasm.d.ts "$SCRIPT_DIR/js/pkg/"
 cp pkg/seam_engine_wasm_bg.wasm.d.ts "$SCRIPT_DIR/js/pkg/"
+# seam_engine_wasm_bg.d.ts is manually maintained in js/pkg/
 
 echo "Copying WASM to Go package..."
 cp pkg/seam_engine_wasm_bg.wasm "$SCRIPT_DIR/go/seam_engine_wasm.wasm"

@@ -7,9 +7,9 @@ See root CLAUDE.md for general project rules.
 ## Architecture
 
 - `seam.go` — public API: `Router`, `HandlerOptions`, type definitions, error constructors
-- `handler.go` — core handler: `appState`, `buildHandler`, manifest, RPC handler, error helpers
+- `handler.go` — core handler: `appState`, `buildHandler`, manifest, RPC handler (uses `engine.I18nQuery` for built-in i18n), error helpers
 - `handler_batch.go` — batch RPC handler, SSE subscribe handler, SSE helpers
-- `handler_page.go` — page handler: `makePageHandler`, `servePage`, loader orchestration
+- `handler_page.go` — page handler: `makePageHandler`, `servePage`, loader orchestration (uses `engine.AsciiEscapeJSON` for data script escaping)
 - `generics.go` — `Query[In, Out]` and `Subscribe[In, Out]` typed wrappers using generics
 - `schema.go` — JTD schema reflection (`SchemaOf[T]()`)
 - `serve.go` — `ListenAndServe` with SIGINT/SIGTERM graceful shutdown
@@ -65,7 +65,7 @@ Tests cover: RPC timeout (504), page loader timeout (504), SSE idle timeout (com
 
 ## Gotchas
 
-- `go.mod` uses `replace` directive to reference the injector package within the monorepo
+- `go.mod` uses `replace` directives to reference injector and engine packages within the monorepo
 - Requires `go 1.24.0` minimum (for `http.NewServeMux` enhanced routing and generics)
 - Use `PORT=0` (or `:0` addr) for test port allocation — `ListenAndServe` prints actual port
 - `Handler()` uses variadic signature (`opts ...HandlerOptions`) for backward compat, only first element is used

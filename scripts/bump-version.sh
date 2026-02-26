@@ -38,7 +38,7 @@ done < <(find "$ROOT/packages" -name "package.json" -not -path "*/node_modules/*
 #    Handles both formats:
 #      a) version + path:  { version = "...", path = "..." }
 #      b) path-only:       { path = "..." }  -> adds version field
-INTERNAL_CRATES="seam-injector\|seam-macros\|seam-server\|seam-server-axum"
+INTERNAL_CRATES="seam-injector\|seam-macros\|seam-engine\|seam-server\|seam-server-axum\|seam-engine-wasm"
 echo "Updating Rust path dependency versions..."
 while IFS= read -r cargo; do
   changed=false

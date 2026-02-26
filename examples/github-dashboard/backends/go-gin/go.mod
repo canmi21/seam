@@ -10,6 +10,7 @@ require (
 require (
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
+	github.com/canmi21/seam/packages/server/engine/go v0.0.0 // indirect
 	github.com/canmi21/seam/packages/server/injector/go v0.0.0 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
@@ -40,5 +41,6 @@ require (
 
 replace (
 	github.com/canmi21/seam/packages/server/core/go => ../../../../packages/server/core/go
+	github.com/canmi21/seam/packages/server/engine/go => ../../../../packages/server/engine/go
 	github.com/canmi21/seam/packages/server/injector/go => ../../../../packages/server/injector/go
 )

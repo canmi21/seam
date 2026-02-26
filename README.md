@@ -52,16 +52,27 @@ SeamJS is a **rendering strategy**, not a full-stack framework tied to specific 
 | [client/react](packages/client/react/)                     | `@canmi/seam-react`           | React bindings (hooks, data provider, route definitions) |
 | [client/tanstack-router](packages/client/tanstack-router/) | `@canmi/seam-tanstack-router` | TanStack Router integration (route definitions, loaders) |
 
+### Server Engine
+
+Page assembly, i18n, build output parsing, and JSON escaping — extracted from duplicated logic across TS/Rust/Go backends into a single Rust crate. The WASM build is a superset of the injector (includes `inject`/`inject_no_script`).
+
+| Package                                     | Crate / npm          | Description                                           |
+| ------------------------------------------- | -------------------- | ----------------------------------------------------- |
+| [engine/rust](packages/server/engine/rust/) | `seam-engine`        | Pure Rust engine (page assembly, i18n, build parsing) |
+| [engine/wasm](packages/server/engine/wasm/) | `seam-engine-wasm`   | WASM bindings (superset of injector WASM)             |
+| [engine/js](packages/server/engine/js/)     | `@canmi/seam-engine` | Node.js/Bun wrapper loading the WASM binary           |
+| [engine/go](packages/server/engine/go/)     | Go module            | Go wrapper running WASM via Wazero                    |
+
 ### Template Injector
 
-Replaces `<!--seam:...-->` markers in HTML skeletons with server data. The Rust implementation is the only source of truth; WASM bindings and Go/JS wrappers provide cross-language support.
+Replaces `<!--seam:...-->` markers in HTML skeletons with server data. The Rust implementation is the only source of truth. JS and Go consumers should prefer `@canmi/seam-engine` / `engine/go` which include injector functions as a superset.
 
 | Package                                             | Crate / npm                   | Description                                                  |
 | --------------------------------------------------- | ----------------------------- | ------------------------------------------------------------ |
 | [injector/rust](packages/server/injector/rust/)     | `seam-injector`               | Core injector library (tokenize, parse, render)              |
-| [injector/wasm](packages/server/injector/wasm/)     | `seam-injector-wasm`          | WASM bindings for cross-language use                         |
-| [injector/js](packages/server/injector/js/)         | `@canmi/seam-injector`        | Node.js/Bun wrapper loading the WASM binary                  |
-| [injector/go](packages/server/injector/go/)         | Go module                     | Go wrapper running WASM via Wazero                           |
+| [injector/wasm](packages/server/injector/wasm/)     | `seam-injector-wasm`          | WASM bindings (deprecated, use `seam-engine-wasm`)           |
+| [injector/js](packages/server/injector/js/)         | `@canmi/seam-injector`        | Node.js/Bun wrapper (deprecated, use `@canmi/seam-engine`)   |
+| [injector/go](packages/server/injector/go/)         | Go module                     | Go wrapper (deprecated, use `engine/go`)                     |
 | [injector/native](packages/server/injector/native/) | `@canmi/seam-injector-native` | Original pure TypeScript implementation (deprecated, frozen) |
 
 ### Core Libraries
