@@ -176,6 +176,7 @@
       "version": "0.3.5",
       "dependencies": {
         "@canmi/seam-client": "workspace:*",
+        "@canmi/seam-i18n": "workspace:*",
         "esbuild": "^0.25.0",
       },
       "devDependencies": {
