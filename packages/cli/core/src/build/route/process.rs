@@ -12,7 +12,7 @@ use super::super::skeleton::{
 };
 use super::super::slot_warning;
 use super::super::types::{AssetFiles, ViteDevInfo};
-use super::helpers::path_to_filename;
+use super::helpers::{embed_i18n_script, path_to_filename};
 use super::types::{
   I18nManifest, LayoutManifestEntry, RouteManifest, RouteManifestEntry, SkeletonLayout,
   SkeletonOutput, SkeletonRoute,
@@ -80,7 +80,7 @@ pub(crate) fn process_routes(
   root_id: &str,
   data_id: &str,
   i18n: Option<&I18nSection>,
-  _i18n_messages: Option<&BTreeMap<String, serde_json::Value>>,
+  i18n_messages: Option<&BTreeMap<String, serde_json::Value>>,
 ) -> Result<RouteManifest> {
   let manifest_data_id = if data_id == "__SEAM_DATA__" { None } else { Some(data_id.to_string()) };
   let i18n_manifest =
@@ -100,7 +100,13 @@ pub(crate) fn process_routes(
       for (locale, html) in locale_html {
         let html = html.replace("<seam-outlet></seam-outlet>", "<!--seam:outlet-->");
         let html = sentinel_to_slots(&html);
-        let document = wrap_document(&html, &assets.css, &assets.js, dev_mode, vite, root_id);
+        let mut document = wrap_document(&html, &assets.css, &assets.js, dev_mode, vite, root_id);
+        // Embed i18n fallback script for backends that don't inject _i18n at runtime
+        if let Some(msgs) = i18n_messages {
+          if let Some(locale_msgs) = msgs.get(locale) {
+            document = embed_i18n_script(&document, locale, locale_msgs);
+          }
+        }
         let locale_dir = templates_dir.join(locale);
         std::fs::create_dir_all(&locale_dir)
           .with_context(|| format!("failed to create {}", locale_dir.display()))?;
@@ -161,7 +167,7 @@ pub(crate) fn process_routes(
           }
         }
 
-        let (document, head_meta) = if route.layout.is_some() {
+        let (mut document, head_meta) = if route.layout.is_some() {
           if dev_mode {
             (template.clone(), None)
           } else {
@@ -173,6 +179,14 @@ pub(crate) fn process_routes(
           let doc = wrap_document(&template, &assets.css, &assets.js, dev_mode, vite, root_id);
           (doc, None)
         };
+        // Embed i18n fallback for standalone routes (layout routes get it from the layout)
+        if route.layout.is_none() {
+          if let Some(msgs) = i18n_messages {
+            if let Some(locale_msgs) = msgs.get(locale) {
+              document = embed_i18n_script(&document, locale, locale_msgs);
+            }
+          }
+        }
 
         let locale_dir = templates_dir.join(locale);
         std::fs::create_dir_all(&locale_dir)

@@ -17,6 +17,11 @@ type routeManifest struct {
 	Layouts map[string]layoutEntry `json:"layouts"`
 	Routes  map[string]routeEntry  `json:"routes"`
 	DataID  string                 `json:"data_id"`
+	I18n    *i18nManifest          `json:"i18n"`
+}
+
+type i18nManifest struct {
+	Default string `json:"default"`
 }
 
 type layoutEntry struct {
@@ -35,14 +40,16 @@ type routeEntry struct {
 }
 
 // pickTemplate returns the template path: prefer singular "template",
-// fall back to "origin" locale, then any first value from "templates".
-func pickTemplate(single string, multi map[string]string) string {
+// fall back to default locale, then any first value from "templates".
+func pickTemplate(single string, multi map[string]string, defaultLocale string) string {
 	if single != "" {
 		return single
 	}
 	if multi != nil {
-		if t, ok := multi["origin"]; ok {
-			return t
+		if defaultLocale != "" {
+			if t, ok := multi[defaultLocale]; ok {
+				return t
+			}
 		}
 		for _, t := range multi {
 			return t
@@ -159,10 +166,15 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 		return nil, fmt.Errorf("parse route-manifest.json: %w", err)
 	}
 
+	defaultLocale := ""
+	if manifest.I18n != nil {
+		defaultLocale = manifest.I18n.Default
+	}
+
 	// Load layout templates
 	layouts := make(map[string]layoutResolved)
 	for id, entry := range manifest.Layouts {
-		tmplPath := pickTemplate(entry.Template, entry.Templates)
+		tmplPath := pickTemplate(entry.Template, entry.Templates, defaultLocale)
 		if tmplPath == "" {
 			continue
 		}
@@ -176,7 +188,7 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 	var pages []PageDef
 
 	for routePath, entry := range manifest.Routes {
-		tmplPath := pickTemplate(entry.Template, entry.Templates)
+		tmplPath := pickTemplate(entry.Template, entry.Templates, defaultLocale)
 		if tmplPath == "" {
 			continue
 		}

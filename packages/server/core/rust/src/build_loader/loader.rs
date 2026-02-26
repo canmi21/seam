@@ -89,11 +89,12 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
   let manifest_path = base.join("route-manifest.json");
   let content = std::fs::read_to_string(&manifest_path)?;
   let manifest: RouteManifest = serde_json::from_str(&content)?;
+  let default_locale = manifest.i18n.as_ref().map(|c| c.default.as_str());
 
   // Load layout templates
   let mut layout_templates: HashMap<String, (String, Option<String>)> = HashMap::new();
   for (id, entry) in &manifest.layouts {
-    if let Some(tmpl_path) = pick_template(&entry.template, &entry.templates) {
+    if let Some(tmpl_path) = pick_template(&entry.template, &entry.templates, default_locale) {
       let full_path = base.join(&tmpl_path);
       let tmpl = std::fs::read_to_string(&full_path)?;
       layout_templates.insert(id.clone(), (tmpl, entry.parent.clone()));
@@ -104,12 +105,13 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
 
   for (route_path, entry) in &manifest.routes {
     // Load page template
-    let page_template = if let Some(tmpl_path) = pick_template(&entry.template, &entry.templates) {
-      let full_path = base.join(&tmpl_path);
-      std::fs::read_to_string(&full_path)?
-    } else {
-      continue;
-    };
+    let page_template =
+      if let Some(tmpl_path) = pick_template(&entry.template, &entry.templates, default_locale) {
+        let full_path = base.join(&tmpl_path);
+        std::fs::read_to_string(&full_path)?
+      } else {
+        continue;
+      };
 
     // Resolve layout chain if this page has a layout
     let template = if let Some(ref layout_id) = entry.layout {

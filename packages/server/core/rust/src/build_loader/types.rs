@@ -12,6 +12,14 @@ pub(super) struct RouteManifest {
   pub(super) routes: HashMap<String, RouteEntry>,
   #[serde(default)]
   pub(super) data_id: Option<String>,
+  #[serde(default)]
+  pub(super) i18n: Option<I18nManifest>,
+}
+
+#[derive(Deserialize)]
+pub(super) struct I18nManifest {
+  #[serde(default)]
+  pub(super) default: String,
 }
 
 #[derive(Deserialize)]
@@ -38,18 +46,21 @@ pub(super) struct RouteEntry {
   pub(super) head_meta: Option<String>,
 }
 
-/// Pick a template path: prefer singular `template`, fall back to first value in `templates` (i18n).
+/// Pick a template path: prefer singular `template`, fall back to default locale or first value.
 pub(super) fn pick_template(
   single: &Option<String>,
   multi: &Option<HashMap<String, String>>,
+  default_locale: Option<&str>,
 ) -> Option<String> {
   if let Some(t) = single {
     return Some(t.clone());
   }
   if let Some(map) = multi {
-    // Prefer "origin" locale, otherwise take any
-    if let Some(t) = map.get("origin") {
-      return Some(t.clone());
+    // Prefer the default locale from manifest
+    if let Some(loc) = default_locale {
+      if let Some(t) = map.get(loc) {
+        return Some(t.clone());
+      }
     }
     return map.values().next().cloned();
   }
