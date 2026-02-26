@@ -14,7 +14,7 @@ const i18nConfig: I18nConfig = {
   },
 };
 
-describe("handlePageRequest -- i18n", () => {
+describe("handlePageRequest -- i18n data injection", () => {
   it("injects _i18n into seamData when i18nOpts provided", async () => {
     const page: PageDef = {
       template: "<body><h1><!--seam:page.title--></h1></body>",
@@ -93,7 +93,9 @@ describe("handlePageRequest -- i18n", () => {
     expect(result.html).toContain("<html>");
     expect(result.html).not.toContain("lang=");
   });
+});
 
+describe("handlePageRequest -- i18n template selection", () => {
   it("selects locale-specific template via localeTemplates", async () => {
     const page: PageDef = {
       template: "<body><p>English</p></body>",

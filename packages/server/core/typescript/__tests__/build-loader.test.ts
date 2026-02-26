@@ -256,50 +256,53 @@ describe("loadBuildOutputDev", () => {
   });
 });
 
+/** Scaffold a temp dir with origin/zh i18n templates and layout for reuse across suites */
+function createI18nFixture(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  mkdirSync(join(dir, "templates/origin"), { recursive: true });
+  mkdirSync(join(dir, "templates/zh"), { recursive: true });
+
+  writeFileSync(join(dir, "templates/origin/index.html"), "<h1><!--seam:page.title--></h1>");
+  writeFileSync(
+    join(dir, "templates/origin/_layout_root.html"),
+    "<html><body><!--seam:outlet--></body></html>",
+  );
+  writeFileSync(join(dir, "templates/zh/index.html"), "<h1>ZH <!--seam:page.title--></h1>");
+  writeFileSync(
+    join(dir, "templates/zh/_layout_root.html"),
+    "<html><body>ZH <!--seam:outlet--></body></html>",
+  );
+
+  writeFileSync(
+    join(dir, "route-manifest.json"),
+    JSON.stringify({
+      routes: {
+        "/": {
+          templates: { origin: "templates/origin/index.html", zh: "templates/zh/index.html" },
+          layout: "root",
+          loaders: { page: { procedure: "getPage" } },
+        },
+      },
+      layouts: {
+        root: {
+          templates: {
+            origin: "templates/origin/_layout_root.html",
+            zh: "templates/zh/_layout_root.html",
+          },
+        },
+      },
+      data_id: "__sd",
+      i18n: { locales: ["origin", "zh"], default: "origin" },
+    }),
+  );
+  return dir;
+}
+
 describe("loadBuildOutput — i18n manifest", () => {
   let i18nDir: string;
 
   beforeAll(() => {
-    i18nDir = mkdtempSync(join(tmpdir(), "seam-i18n-"));
-    mkdirSync(join(i18nDir, "templates/origin"), { recursive: true });
-    mkdirSync(join(i18nDir, "templates/zh"), { recursive: true });
-
-    writeFileSync(join(i18nDir, "templates/origin/index.html"), "<h1><!--seam:page.title--></h1>");
-    writeFileSync(
-      join(i18nDir, "templates/origin/_layout_root.html"),
-      "<html><body><!--seam:outlet--></body></html>",
-    );
-    writeFileSync(join(i18nDir, "templates/zh/index.html"), "<h1>ZH <!--seam:page.title--></h1>");
-    writeFileSync(
-      join(i18nDir, "templates/zh/_layout_root.html"),
-      "<html><body>ZH <!--seam:outlet--></body></html>",
-    );
-
-    writeFileSync(
-      join(i18nDir, "route-manifest.json"),
-      JSON.stringify({
-        routes: {
-          "/": {
-            templates: {
-              origin: "templates/origin/index.html",
-              zh: "templates/zh/index.html",
-            },
-            layout: "root",
-            loaders: { page: { procedure: "getPage" } },
-          },
-        },
-        layouts: {
-          root: {
-            templates: {
-              origin: "templates/origin/_layout_root.html",
-              zh: "templates/zh/_layout_root.html",
-            },
-          },
-        },
-        data_id: "__sd",
-        i18n: { locales: ["origin", "zh"], default: "origin" },
-      }),
-    );
+    i18nDir = createI18nFixture("seam-i18n-");
   });
 
   afterAll(() => {
@@ -367,46 +370,7 @@ describe("loadBuildOutputDev — i18n manifest", () => {
   let i18nDir: string;
 
   beforeAll(() => {
-    i18nDir = mkdtempSync(join(tmpdir(), "seam-i18n-dev-"));
-    mkdirSync(join(i18nDir, "templates/origin"), { recursive: true });
-    mkdirSync(join(i18nDir, "templates/zh"), { recursive: true });
-
-    writeFileSync(join(i18nDir, "templates/origin/index.html"), "<h1><!--seam:page.title--></h1>");
-    writeFileSync(
-      join(i18nDir, "templates/origin/_layout_root.html"),
-      "<html><body><!--seam:outlet--></body></html>",
-    );
-    writeFileSync(join(i18nDir, "templates/zh/index.html"), "<h1>ZH <!--seam:page.title--></h1>");
-    writeFileSync(
-      join(i18nDir, "templates/zh/_layout_root.html"),
-      "<html><body>ZH <!--seam:outlet--></body></html>",
-    );
-
-    writeFileSync(
-      join(i18nDir, "route-manifest.json"),
-      JSON.stringify({
-        routes: {
-          "/": {
-            templates: {
-              origin: "templates/origin/index.html",
-              zh: "templates/zh/index.html",
-            },
-            layout: "root",
-            loaders: { page: { procedure: "getPage" } },
-          },
-        },
-        layouts: {
-          root: {
-            templates: {
-              origin: "templates/origin/_layout_root.html",
-              zh: "templates/zh/_layout_root.html",
-            },
-          },
-        },
-        data_id: "__sd",
-        i18n: { locales: ["origin", "zh"], default: "origin" },
-      }),
-    );
+    i18nDir = createI18nFixture("seam-i18n-dev-");
   });
 
   afterAll(() => {

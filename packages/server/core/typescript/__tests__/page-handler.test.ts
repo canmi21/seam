@@ -2,7 +2,6 @@
 
 import { describe, expect, it } from "vitest";
 import { handlePageRequest } from "../src/page/handler.js";
-import type { InternalProcedure } from "../src/procedure.js";
 import { definePage } from "../src/page/index.js";
 import type { LayoutDef } from "../src/page/index.js";
 import {

@@ -16,37 +16,36 @@ import { processLayoutsWithCache, processRoutesWithCache } from "./skeleton/proc
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+function loadManifest(manifestFile) {
+  if (!manifestFile || manifestFile === "none") return { manifest: null, manifestContent: "" };
+  try {
+    const content = readFileSync(resolve(manifestFile), "utf-8");
+    return { manifest: JSON.parse(content), manifestContent: content };
+  } catch (e) {
+    console.error(`warning: could not read manifest: ${e.message}`);
+    return { manifest: null, manifestContent: "" };
+  }
+}
+
+function loadI18nConfig(i18nArg) {
+  if (!i18nArg || i18nArg === "none") return null;
+  try {
+    return JSON.parse(i18nArg);
+  } catch (e) {
+    console.error(`warning: could not parse i18n config: ${e.message}`);
+    return null;
+  }
+}
+
 async function main() {
   const routesFile = process.argv[2];
-  const manifestFile = process.argv[3];
-  const i18nArg = process.argv[4];
-
   if (!routesFile) {
     console.error("Usage: node build-skeletons.mjs <routes-file> [manifest-file] [i18n-json]");
     process.exit(1);
   }
 
-  // Load manifest if provided
-  let manifest = null;
-  let manifestContent = "";
-  if (manifestFile && manifestFile !== "none") {
-    try {
-      manifestContent = readFileSync(resolve(manifestFile), "utf-8");
-      manifest = JSON.parse(manifestContent);
-    } catch (e) {
-      console.error(`warning: could not read manifest: ${e.message}`);
-    }
-  }
-
-  // Parse i18n config if provided
-  let i18n = null;
-  if (i18nArg && i18nArg !== "none") {
-    try {
-      i18n = JSON.parse(i18nArg);
-    } catch (e) {
-      console.error(`warning: could not parse i18n config: ${e.message}`);
-    }
-  }
+  const { manifest, manifestContent } = loadManifest(process.argv[3]);
+  const i18n = loadI18nConfig(process.argv[4]);
 
   if (i18n) {
     const { setI18nProvider } = await import("./skeleton/render.mjs");
