@@ -10,6 +10,7 @@ export interface HttpRequest {
   method: string;
   url: string;
   body: () => Promise<unknown>;
+  header?: (name: string) => string | null;
 }
 
 export interface HttpBodyResponse {
@@ -226,7 +227,13 @@ export function createHttpHandler<T extends DefinitionMap>(
     // github-dashboard ts-hono example for the fallback pattern.
     if (req.method === "GET" && pathname.startsWith(PAGE_PREFIX) && router.hasPages) {
       const pagePath = "/" + pathname.slice(PAGE_PREFIX.length);
-      const result = await router.handlePage(pagePath);
+      const headers = req.header
+        ? {
+            cookie: req.header("cookie") ?? undefined,
+            acceptLanguage: req.header("accept-language") ?? undefined,
+          }
+        : undefined;
+      const result = await router.handlePage(pagePath, headers);
       if (result) {
         return { status: result.status, headers: HTML_HEADER, body: result.html };
       }

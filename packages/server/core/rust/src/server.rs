@@ -3,6 +3,7 @@
 use crate::build_loader::RpcHashMap;
 use crate::page::{I18nConfig, PageDef};
 use crate::procedure::{ProcedureDef, SubscriptionDef};
+use crate::resolve::ResolveLocaleFn;
 
 /// Framework-agnostic parts extracted from `SeamServer`.
 /// Adapter crates consume this to build framework-specific routers.
@@ -12,6 +13,7 @@ pub struct SeamParts {
   pub pages: Vec<PageDef>,
   pub rpc_hash_map: Option<RpcHashMap>,
   pub i18n_config: Option<I18nConfig>,
+  pub resolve_locale: Option<ResolveLocaleFn>,
 }
 
 pub struct SeamServer {
@@ -20,6 +22,7 @@ pub struct SeamServer {
   pages: Vec<PageDef>,
   rpc_hash_map: Option<RpcHashMap>,
   i18n_config: Option<I18nConfig>,
+  resolve_locale: Option<ResolveLocaleFn>,
 }
 
 impl SeamServer {
@@ -30,6 +33,7 @@ impl SeamServer {
       pages: Vec::new(),
       rpc_hash_map: None,
       i18n_config: None,
+      resolve_locale: None,
     }
   }
 
@@ -58,6 +62,14 @@ impl SeamServer {
     self
   }
 
+  pub fn resolve_locale(
+    mut self,
+    f: impl Fn(&crate::resolve::ResolveContext) -> String + Send + Sync + 'static,
+  ) -> Self {
+    self.resolve_locale = Some(std::sync::Arc::new(f));
+    self
+  }
+
   /// Consume the builder, returning framework-agnostic parts for an adapter.
   pub fn into_parts(self) -> SeamParts {
     SeamParts {
@@ -66,6 +78,7 @@ impl SeamServer {
       pages: self.pages,
       rpc_hash_map: self.rpc_hash_map,
       i18n_config: self.i18n_config,
+      resolve_locale: self.resolve_locale,
     }
   }
 }

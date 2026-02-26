@@ -1,6 +1,6 @@
 {
   "name": "@canmi/seam-i18n",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "files": [
     "dist"
   ],
@@ -13,6 +13,10 @@
     "./react": {
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js"
+    },
+    "./storage": {
+      "types": "./dist/storage.d.ts",
+      "import": "./dist/storage.js"
     }
   },
   "scripts": {

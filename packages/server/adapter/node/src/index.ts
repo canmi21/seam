@@ -55,6 +55,10 @@ export function serveNode<T extends DefinitionMap>(router: Router<T>, opts?: Ser
         method: req.method || "GET",
         url: `http://localhost${req.url || "/"}`,
         body: async () => JSON.parse(await raw) as unknown,
+        header: (name) => {
+          const v = req.headers[name.toLowerCase()];
+          return typeof v === "string" ? v : Array.isArray(v) ? (v[0] ?? null) : null;
+        },
       });
       await sendResponse(res, result);
     })();

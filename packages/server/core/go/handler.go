@@ -14,22 +14,30 @@ import (
 )
 
 type appState struct {
-	manifestJSON []byte
-	handlers     map[string]*ProcedureDef
-	subs         map[string]*SubscriptionDef
-	opts         HandlerOptions
-	hashToName   map[string]string // reverse lookup: hash -> original name (nil if no hash map)
-	batchHash    string            // batch endpoint hash (empty if no hash map)
-	i18nConfig   *I18nConfig
-	localeSet    map[string]bool // O(1) lookup for valid locales
+	manifestJSON  []byte
+	handlers      map[string]*ProcedureDef
+	subs          map[string]*SubscriptionDef
+	opts          HandlerOptions
+	hashToName    map[string]string // reverse lookup: hash -> original name (nil if no hash map)
+	batchHash     string            // batch endpoint hash (empty if no hash map)
+	i18nConfig    *I18nConfig
+	localeSet     map[string]bool // O(1) lookup for valid locales
+	resolveLocale ResolveLocaleFunc
 }
 
-func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, opts HandlerOptions) http.Handler {
+func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, resolveLocale ResolveLocaleFunc, opts HandlerOptions) http.Handler {
 	state := &appState{
 		handlers:   make(map[string]*ProcedureDef),
 		subs:       make(map[string]*SubscriptionDef),
 		opts:       opts,
 		i18nConfig: i18nConfig,
+	}
+
+	// Set resolve function (default if nil)
+	if resolveLocale != nil {
+		state.resolveLocale = resolveLocale
+	} else {
+		state.resolveLocale = DefaultResolveLocale
 	}
 
 	if i18nConfig != nil {

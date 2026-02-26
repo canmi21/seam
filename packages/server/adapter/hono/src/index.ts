@@ -42,6 +42,7 @@ export function seam<T extends DefinitionMap>(
       method: raw.method,
       url: raw.url,
       body: () => raw.json(),
+      header: (name) => raw.headers.get(name),
     });
 
     return toWebResponse(result);

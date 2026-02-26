@@ -22,6 +22,7 @@ export {
 export { fromCallback } from "./subscription.js";
 export { createDevProxy, createStaticHandler } from "./proxy.js";
 export { watchReloadTrigger } from "./dev/index.js";
+export { defaultResolve } from "./resolve.js";
 
 export type {
   HttpHandler,
@@ -39,7 +40,9 @@ export type {
   DefinitionMap,
   Router,
   RouterOptions,
+  PageRequestHeaders,
 } from "./router/index.js";
+export type { ResolveLocaleFn, ResolveContext } from "./resolve.js";
 export type { ProcedureManifest, ProcedureEntry, ProcedureType } from "./manifest/index.js";
 export type { HandleResult, BatchCall, BatchResultItem, ProcedureCtx } from "./router/handler.js";
 export type { HandlePageResult, PageTiming, I18nOpts } from "./page/handler.js";

@@ -13,6 +13,7 @@ use axum::Router;
 use futures_core::Stream;
 use seam_server::page::PageDef;
 use seam_server::procedure::{ProcedureCtx, ProcedureDef, SubscriptionDef};
+use seam_server::resolve::ResolveLocaleFn;
 use seam_server::{RpcHashMap, SeamError};
 use tokio::task::JoinSet;
 use tokio_stream::StreamExt;
@@ -28,6 +29,7 @@ pub(crate) struct AppState {
   pub batch_hash: Option<String>,
   pub i18n_config: Option<seam_server::I18nConfig>,
   pub locale_set: Option<std::collections::HashSet<String>>,
+  pub resolve_locale: ResolveLocaleFn,
 }
 
 pub(crate) fn build_router(
@@ -37,6 +39,7 @@ pub(crate) fn build_router(
   pages: Vec<PageDef>,
   hash_map: Option<RpcHashMap>,
   i18n_config: Option<seam_server::I18nConfig>,
+  resolve_locale: Option<ResolveLocaleFn>,
 ) -> Router {
   let (rpc_hash_map, batch_hash) = match hash_map {
     Some(m) => {
@@ -109,6 +112,8 @@ pub(crate) fn build_router(
     }
   }
 
+  let resolve_locale = resolve_locale.unwrap_or_else(|| Arc::new(seam_server::default_resolve));
+
   let state = Arc::new(AppState {
     manifest_json,
     handlers,
@@ -118,6 +123,7 @@ pub(crate) fn build_router(
     batch_hash,
     i18n_config,
     locale_set,
+    resolve_locale,
   });
 
   router.with_state(state)
@@ -309,20 +315,37 @@ fn filter_i18n_messages(messages: &serde_json::Value, keys: &[String]) -> serde_
 async fn handle_page(
   State(state): State<Arc<AppState>>,
   matched: MatchedPath,
+  headers: axum::http::HeaderMap,
   Path(mut params): Path<HashMap<String, String>>,
 ) -> Result<Html<String>, AxumError> {
   let route_pattern = matched.as_str().to_string();
   let page =
     state.pages.get(&route_pattern).ok_or_else(|| SeamError::not_found("Page not found"))?;
 
-  // Extract locale from params when i18n is active
+  // Resolve locale when i18n is active
   let locale = if let Some(ref locale_set) = state.locale_set {
     let extracted = params.remove("_seam_locale");
     match extracted {
-      Some(loc) if locale_set.contains(&loc) => Some(loc),
-      Some(_) => return Err(SeamError::not_found("Unknown locale").into()),
-      None => state.i18n_config.as_ref().map(|c| c.default.clone()),
+      Some(ref loc) if !locale_set.contains(loc) => {
+        return Err(SeamError::not_found("Unknown locale").into());
+      }
+      _ => {}
     }
+    let i18n = state.i18n_config.as_ref().unwrap();
+    let ctx = seam_server::ResolveContext {
+      path_locale: extracted,
+      cookie_header: headers
+        .get(axum::http::header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .map(String::from),
+      accept_language: headers
+        .get(axum::http::header::ACCEPT_LANGUAGE)
+        .and_then(|v| v.to_str().ok())
+        .map(String::from),
+      locales: i18n.locales.clone(),
+      default_locale: i18n.default.clone(),
+    };
+    Some((state.resolve_locale)(&ctx))
   } else {
     None
   };

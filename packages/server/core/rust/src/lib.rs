@@ -6,6 +6,7 @@ pub mod escape;
 pub mod manifest;
 pub mod page;
 pub mod procedure;
+pub mod resolve;
 pub mod server;
 
 // Re-exports for ergonomic use
@@ -14,6 +15,7 @@ pub use errors::SeamError;
 pub use escape::ascii_escape_json;
 pub use page::I18nConfig;
 pub use procedure::{BoxFuture, BoxStream, ProcedureCtx, ProcedureDef, SubscriptionDef};
+pub use resolve::{default_resolve, ResolveContext, ResolveLocaleFn};
 pub use seam_macros::{seam_procedure, seam_subscription, SeamType};
 pub use server::{SeamParts, SeamServer};
 

@@ -19,7 +19,12 @@ export function serveBun<T extends DefinitionMap>(router: Router<T>, opts?: Serv
   return Bun.serve({
     port: opts?.port ?? 3000,
     async fetch(req) {
-      const result = await handler({ method: req.method, url: req.url, body: () => req.json() });
+      const result = await handler({
+        method: req.method,
+        url: req.url,
+        body: () => req.json(),
+        header: (name) => req.headers.get(name),
+      });
       return toWebResponse(result);
     },
   });

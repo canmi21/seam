@@ -11,6 +11,8 @@ import { handleRequest, handleSubscription, handleBatchRequest } from "./handler
 import type { BatchCall, BatchResultItem } from "./handler.js";
 import { handlePageRequest } from "../page/handler.js";
 import { RouteMatcher } from "../page/route-matcher.js";
+import { defaultResolve } from "../resolve.js";
+import type { ResolveLocaleFn } from "../resolve.js";
 
 export interface ProcedureDef<TIn = unknown, TOut = unknown> {
   input: SchemaNode<TIn>;
@@ -36,6 +38,12 @@ export interface RouterOptions {
   pages?: Record<string, PageDef>;
   i18n?: I18nConfig | null;
   validateOutput?: boolean;
+  resolveLocale?: ResolveLocaleFn;
+}
+
+export interface PageRequestHeaders {
+  cookie?: string;
+  acceptLanguage?: string;
 }
 
 export interface Router<T extends DefinitionMap> {
@@ -43,7 +51,7 @@ export interface Router<T extends DefinitionMap> {
   handle(procedureName: string, body: unknown, ctx?: ProcedureCtx): Promise<HandleResult>;
   handleBatch(calls: BatchCall[], ctx?: ProcedureCtx): Promise<{ results: BatchResultItem[] }>;
   handleSubscription(name: string, input: unknown, ctx?: ProcedureCtx): AsyncIterable<unknown>;
-  handlePage(path: string): Promise<HandlePageResult | null>;
+  handlePage(path: string, headers?: PageRequestHeaders): Promise<HandlePageResult | null>;
   readonly hasPages: boolean;
   /** Exposed for adapter access to the definitions */
   readonly procedures: T;
@@ -86,6 +94,7 @@ export function createRouter<T extends DefinitionMap>(
 
   const i18nConfig = opts?.i18n ?? null;
   const localeSet = i18nConfig ? new Set(i18nConfig.locales) : null;
+  const resolveLocaleFn = opts?.resolveLocale ?? defaultResolve;
 
   // Register built-in __seam_i18n_query procedure when i18n is configured
   if (i18nConfig) {
@@ -119,22 +128,32 @@ export function createRouter<T extends DefinitionMap>(
     handleSubscription(name, input, ctx) {
       return handleSubscription(subscriptionMap, name, input, shouldValidateOutput, ctx);
     },
-    async handlePage(path) {
-      let locale: string | undefined;
+    async handlePage(path, headers) {
+      let pathLocale: string | null = null;
+      let routePath = path;
 
-      // Extract locale prefix from URL path when i18n is configured
+      // Extract and strip URL prefix (routing concern)
       if (localeSet && i18nConfig) {
         const segments = path.split("/").filter(Boolean);
         if (segments.length > 0 && localeSet.has(segments[0])) {
-          locale = segments[0];
-          path = "/" + segments.slice(1).join("/");
-          if (path === "/") path = "/"; // normalize
-        } else {
-          locale = i18nConfig.default;
+          pathLocale = segments[0];
+          routePath = "/" + segments.slice(1).join("/") || "/";
         }
       }
 
-      const match = pageMatcher.match(path);
+      // Resolve content locale
+      let locale: string | undefined;
+      if (i18nConfig) {
+        locale = resolveLocaleFn({
+          pathLocale,
+          cookie: headers?.cookie,
+          acceptLanguage: headers?.acceptLanguage,
+          locales: i18nConfig.locales,
+          defaultLocale: i18nConfig.default,
+        });
+      }
+
+      const match = pageMatcher.match(routePath);
       if (!match) return null;
 
       const i18nOpts = locale && i18nConfig ? { locale, config: i18nConfig } : undefined;

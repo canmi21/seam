@@ -24,18 +24,15 @@ func (s *appState) makePageHandler(page *PageDef) http.HandlerFunc {
 func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageDef) {
 	params := extractParams(page.Route, r)
 
-	// Extract locale from path params when i18n is active
+	// Resolve locale when i18n is active
 	var locale string
 	if s.i18nConfig != nil {
-		loc := r.PathValue("_seam_locale")
-		if loc != "" && s.localeSet[loc] {
-			locale = loc
-		} else if loc != "" {
+		pathLocale := r.PathValue("_seam_locale")
+		if pathLocale != "" && !s.localeSet[pathLocale] {
 			writeError(w, http.StatusNotFound, NotFoundError("Unknown locale"))
 			return
-		} else {
-			locale = s.i18nConfig.Default
 		}
+		locale = s.resolveLocale(r, pathLocale, s.i18nConfig.Locales, s.i18nConfig.Default)
 	}
 
 	// Select locale-specific template (pre-resolved with layout chain)
