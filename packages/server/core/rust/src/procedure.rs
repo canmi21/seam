@@ -12,17 +12,8 @@ pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 
 pub type BoxStream<T> = Pin<Box<dyn Stream<Item = T> + Send>>;
 
-/// Request context passed to procedure handlers.
-#[derive(Clone, Default)]
-pub struct ProcedureCtx {
-  pub locale: Option<String>,
-}
-
-pub type HandlerFn = Arc<
-  dyn Fn(serde_json::Value, ProcedureCtx) -> BoxFuture<Result<serde_json::Value, SeamError>>
-    + Send
-    + Sync,
->;
+pub type HandlerFn =
+  Arc<dyn Fn(serde_json::Value) -> BoxFuture<Result<serde_json::Value, SeamError>> + Send + Sync>;
 
 pub type SubscriptionHandlerFn = Arc<
   dyn Fn(

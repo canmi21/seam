@@ -32,7 +32,18 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 			writeError(w, http.StatusNotFound, NotFoundError("Unknown locale"))
 			return
 		}
-		locale = s.resolveLocale(r, pathLocale, s.i18nConfig.Locales, s.i18nConfig.Default)
+		if len(s.strategies) > 0 {
+			locale = ResolveChain(s.strategies, &ResolveData{
+				Request:       r,
+				PathLocale:    pathLocale,
+				Locales:       s.i18nConfig.Locales,
+				DefaultLocale: s.i18nConfig.Default,
+			})
+		} else if s.resolveLocale != nil {
+			locale = s.resolveLocale(r, pathLocale, s.i18nConfig.Locales, s.i18nConfig.Default)
+		} else {
+			locale = DefaultResolveLocale(r, pathLocale, s.i18nConfig.Locales, s.i18nConfig.Default)
+		}
 	}
 
 	// Select locale-specific template (pre-resolved with layout chain)
@@ -44,9 +55,6 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 	}
 
 	ctx := r.Context()
-	if locale != "" {
-		ctx = context.WithValue(ctx, seamCtxKey{}, &SeamCtx{Locale: locale})
-	}
 	if s.opts.PageTimeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, s.opts.PageTimeout)

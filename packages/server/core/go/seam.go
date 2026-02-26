@@ -69,22 +69,6 @@ func RateLimitedError(msg string) *Error {
 	return &Error{Code: "RATE_LIMITED", Message: msg, Status: http.StatusTooManyRequests}
 }
 
-// seamCtxKey is the context key for SeamCtx.
-type seamCtxKey struct{}
-
-// SeamCtx carries request-scoped Seam context (e.g. locale) through context.Context.
-type SeamCtx struct {
-	Locale string
-}
-
-// CtxFromContext extracts SeamCtx from a context. Returns a zero-value SeamCtx if not set.
-func CtxFromContext(ctx context.Context) *SeamCtx {
-	if v, ok := ctx.Value(seamCtxKey{}).(*SeamCtx); ok {
-		return v
-	}
-	return &SeamCtx{}
-}
-
 // HandlerFunc processes a raw JSON input and returns a result or error.
 type HandlerFunc func(ctx context.Context, input json.RawMessage) (any, error)
 
@@ -170,7 +154,8 @@ type Router struct {
 	pages         []PageDef
 	rpcHashMap    *RpcHashMap
 	i18nConfig    *I18nConfig
-	resolveLocale ResolveLocaleFunc
+	strategies    []ResolveStrategy
+	resolveLocale ResolveLocaleFunc // backward compat
 }
 
 func NewRouter() *Router {
@@ -202,6 +187,12 @@ func (r *Router) I18nConfig(config *I18nConfig) *Router {
 	return r
 }
 
+func (r *Router) ResolveStrategies(strategies ...ResolveStrategy) *Router {
+	r.strategies = strategies
+	return r
+}
+
+// ResolveLocale sets a custom resolve function (backward compat).
 func (r *Router) ResolveLocale(fn ResolveLocaleFunc) *Router {
 	r.resolveLocale = fn
 	return r
@@ -214,5 +205,5 @@ func (r *Router) Handler(opts ...HandlerOptions) http.Handler {
 	if len(opts) > 0 {
 		o = opts[0]
 	}
-	return buildHandler(r.procedures, r.subscriptions, r.pages, r.rpcHashMap, r.i18nConfig, r.resolveLocale, o)
+	return buildHandler(r.procedures, r.subscriptions, r.pages, r.rpcHashMap, r.i18nConfig, r.strategies, r.resolveLocale, o)
 }

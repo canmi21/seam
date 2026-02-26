@@ -14,8 +14,11 @@ pub use build_loader::{load_build_output, load_i18n_config, load_rpc_hash_map, R
 pub use errors::SeamError;
 pub use escape::ascii_escape_json;
 pub use page::I18nConfig;
-pub use procedure::{BoxFuture, BoxStream, ProcedureCtx, ProcedureDef, SubscriptionDef};
-pub use resolve::{default_resolve, ResolveContext, ResolveLocaleFn};
+pub use procedure::{BoxFuture, BoxStream, ProcedureDef, SubscriptionDef};
+pub use resolve::{
+  default_strategies, from_accept_language, from_cookie, from_url_prefix, from_url_query,
+  resolve_chain, ResolveData, ResolveStrategy,
+};
 pub use seam_macros::{seam_procedure, seam_subscription, SeamType};
 pub use server::{SeamParts, SeamServer};
 

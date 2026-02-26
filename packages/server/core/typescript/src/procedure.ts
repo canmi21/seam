@@ -7,18 +7,14 @@ export interface HandleResult {
   body: unknown;
 }
 
-export interface ProcedureCtx {
-  locale?: string;
-}
-
 export interface InternalProcedure {
   inputSchema: Schema;
   outputSchema: Schema;
-  handler: (params: { input: unknown; ctx?: ProcedureCtx }) => unknown;
+  handler: (params: { input: unknown }) => unknown;
 }
 
 export interface InternalSubscription {
   inputSchema: Schema;
   outputSchema: Schema;
-  handler: (params: { input: unknown; ctx?: ProcedureCtx }) => AsyncIterable<unknown>;
+  handler: (params: { input: unknown }) => AsyncIterable<unknown>;
 }

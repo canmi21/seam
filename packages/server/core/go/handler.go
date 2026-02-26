@@ -21,11 +21,12 @@ type appState struct {
 	hashToName    map[string]string // reverse lookup: hash -> original name (nil if no hash map)
 	batchHash     string            // batch endpoint hash (empty if no hash map)
 	i18nConfig    *I18nConfig
-	localeSet     map[string]bool // O(1) lookup for valid locales
-	resolveLocale ResolveLocaleFunc
+	localeSet     map[string]bool   // O(1) lookup for valid locales
+	strategies    []ResolveStrategy // strategy chain for locale resolution
+	resolveLocale ResolveLocaleFunc // backward compat
 }
 
-func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, resolveLocale ResolveLocaleFunc, opts HandlerOptions) http.Handler {
+func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, strategies []ResolveStrategy, resolveLocale ResolveLocaleFunc, opts HandlerOptions) http.Handler {
 	state := &appState{
 		handlers:   make(map[string]*ProcedureDef),
 		subs:       make(map[string]*SubscriptionDef),
@@ -33,11 +34,16 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pa
 		i18nConfig: i18nConfig,
 	}
 
-	// Set resolve function (default if nil)
-	if resolveLocale != nil {
+	// Determine locale resolution approach:
+	// 1. Explicit strategies -> use strategy chain
+	// 2. No strategies but custom resolveLocale -> backward compat function
+	// 3. Neither -> default strategies
+	if len(strategies) > 0 {
+		state.strategies = strategies
+	} else if resolveLocale != nil {
 		state.resolveLocale = resolveLocale
 	} else {
-		state.resolveLocale = DefaultResolveLocale
+		state.strategies = DefaultStrategies()
 	}
 
 	if i18nConfig != nil {
@@ -104,13 +110,22 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pa
 	// Root-path serving (e.g. "/" or "/dashboard/:id") is the application's
 	// responsibility — use http.Handler fallback (e.g. gin.NoRoute) to rewrite
 	// paths to /_seam/page/*. See the github-dashboard go-gin example.
+	// Check if url_prefix strategy is present for locale-prefixed routes
+	hasUrlPrefix := false
+	for _, s := range state.strategies {
+		if s.Kind() == "url_prefix" {
+			hasUrlPrefix = true
+			break
+		}
+	}
+
 	for i := range pages {
 		goPattern := seamRouteToGoPattern(pages[i].Route)
 		page := &pages[i]
 		mux.HandleFunc("GET /_seam/page"+goPattern, state.makePageHandler(page))
 
-		// Register locale-prefixed routes when i18n is active
-		if i18nConfig != nil {
+		// Only register locale-prefixed routes when url_prefix strategy is present
+		if i18nConfig != nil && hasUrlPrefix {
 			localePattern := "GET /_seam/page/{_seam_locale}" + goPattern
 			mux.HandleFunc(localePattern, state.makePageHandler(page))
 		}
@@ -208,7 +223,6 @@ func (s *appState) handleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, seamCtxKey{}, &SeamCtx{})
 	if s.opts.RPCTimeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, s.opts.RPCTimeout)

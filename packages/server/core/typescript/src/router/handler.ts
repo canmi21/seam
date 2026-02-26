@@ -1,22 +1,16 @@
 /* packages/server/core/typescript/src/router/handler.ts */
 
 import { SeamError } from "../errors.js";
-import type {
-  HandleResult,
-  InternalProcedure,
-  InternalSubscription,
-  ProcedureCtx,
-} from "../procedure.js";
+import type { HandleResult, InternalProcedure, InternalSubscription } from "../procedure.js";
 import { validateInput, formatValidationErrors } from "../validation/index.js";
 
-export type { HandleResult, InternalProcedure, ProcedureCtx } from "../procedure.js";
+export type { HandleResult, InternalProcedure } from "../procedure.js";
 
 export async function handleRequest(
   procedures: Map<string, InternalProcedure>,
   procedureName: string,
   rawBody: unknown,
   validateOutput?: boolean,
-  ctx?: ProcedureCtx,
 ): Promise<HandleResult> {
   const procedure = procedures.get(procedureName);
   if (!procedure) {
@@ -36,7 +30,7 @@ export async function handleRequest(
   }
 
   try {
-    const result = await procedure.handler({ input: rawBody, ctx });
+    const result = await procedure.handler({ input: rawBody });
 
     if (validateOutput) {
       const outValidation = validateInput(procedure.outputSchema, result);
@@ -75,17 +69,10 @@ export async function handleBatchRequest(
   procedures: Map<string, InternalProcedure>,
   calls: BatchCall[],
   validateOutput?: boolean,
-  ctx?: ProcedureCtx,
 ): Promise<{ results: BatchResultItem[] }> {
   const results = await Promise.all(
     calls.map(async (call) => {
-      const result = await handleRequest(
-        procedures,
-        call.procedure,
-        call.input,
-        validateOutput,
-        ctx,
-      );
+      const result = await handleRequest(procedures, call.procedure, call.input, validateOutput);
       if (result.status === 200) {
         return { ok: true as const, data: result.body };
       }
@@ -101,7 +88,6 @@ export async function* handleSubscription(
   name: string,
   rawInput: unknown,
   validateOutput?: boolean,
-  ctx?: ProcedureCtx,
 ): AsyncIterable<unknown> {
   const sub = subscriptions.get(name);
   if (!sub) {
@@ -114,7 +100,7 @@ export async function* handleSubscription(
     throw new SeamError("VALIDATION_ERROR", `Input validation failed: ${details}`);
   }
 
-  for await (const value of sub.handler({ input: rawInput, ctx })) {
+  for await (const value of sub.handler({ input: rawInput })) {
     if (validateOutput) {
       const outValidation = validateInput(sub.outputSchema, value);
       if (!outValidation.valid) {

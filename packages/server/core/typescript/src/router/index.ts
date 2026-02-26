@@ -2,7 +2,7 @@
 
 import type { SchemaNode } from "../types/schema.js";
 import type { ProcedureManifest } from "../manifest/index.js";
-import type { HandleResult, InternalProcedure, ProcedureCtx } from "./handler.js";
+import type { HandleResult, InternalProcedure } from "./handler.js";
 import type { InternalSubscription } from "../procedure.js";
 import type { HandlePageResult } from "../page/handler.js";
 import type { PageDef, I18nConfig } from "../page/index.js";
@@ -11,20 +11,20 @@ import { handleRequest, handleSubscription, handleBatchRequest } from "./handler
 import type { BatchCall, BatchResultItem } from "./handler.js";
 import { handlePageRequest } from "../page/handler.js";
 import { RouteMatcher } from "../page/route-matcher.js";
-import { defaultResolve } from "../resolve.js";
-import type { ResolveLocaleFn } from "../resolve.js";
+import { defaultStrategies, resolveChain } from "../resolve.js";
+import type { ResolveLocaleFn, ResolveStrategy, ResolveData } from "../resolve.js";
 
 export interface ProcedureDef<TIn = unknown, TOut = unknown> {
   input: SchemaNode<TIn>;
   output: SchemaNode<TOut>;
-  handler: (params: { input: TIn; ctx?: ProcedureCtx }) => TOut | Promise<TOut>;
+  handler: (params: { input: TIn }) => TOut | Promise<TOut>;
 }
 
 export interface SubscriptionDef<TIn = unknown, TOut = unknown> {
   type: "subscription";
   input: SchemaNode<TIn>;
   output: SchemaNode<TOut>;
-  handler: (params: { input: TIn; ctx?: ProcedureCtx }) => AsyncIterable<TOut>;
+  handler: (params: { input: TIn }) => AsyncIterable<TOut>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -39,22 +39,68 @@ export interface RouterOptions {
   i18n?: I18nConfig | null;
   validateOutput?: boolean;
   resolveLocale?: ResolveLocaleFn;
+  resolveStrategies?: ResolveStrategy[];
 }
 
 export interface PageRequestHeaders {
+  url?: string;
   cookie?: string;
   acceptLanguage?: string;
 }
 
 export interface Router<T extends DefinitionMap> {
   manifest(): ProcedureManifest;
-  handle(procedureName: string, body: unknown, ctx?: ProcedureCtx): Promise<HandleResult>;
-  handleBatch(calls: BatchCall[], ctx?: ProcedureCtx): Promise<{ results: BatchResultItem[] }>;
-  handleSubscription(name: string, input: unknown, ctx?: ProcedureCtx): AsyncIterable<unknown>;
+  handle(procedureName: string, body: unknown): Promise<HandleResult>;
+  handleBatch(calls: BatchCall[]): Promise<{ results: BatchResultItem[] }>;
+  handleSubscription(name: string, input: unknown): AsyncIterable<unknown>;
   handlePage(path: string, headers?: PageRequestHeaders): Promise<HandlePageResult | null>;
   readonly hasPages: boolean;
   /** Exposed for adapter access to the definitions */
   readonly procedures: T;
+}
+
+/** Build the resolve strategy list from options, wrapping legacy resolveLocale if needed */
+function buildStrategies(opts?: RouterOptions): { strategies: ResolveStrategy[]; hasUrlPrefix: boolean } {
+  if (opts?.resolveStrategies) {
+    return {
+      strategies: opts.resolveStrategies,
+      hasUrlPrefix: opts.resolveStrategies.some((s) => s.kind === "url_prefix"),
+    };
+  }
+  if (opts?.resolveLocale) {
+    const legacyFn = opts.resolveLocale;
+    return {
+      strategies: [{
+        kind: "legacy",
+        resolve: (data: ResolveData) => legacyFn({
+          pathLocale: data.pathLocale,
+          cookie: data.cookie,
+          acceptLanguage: data.acceptLanguage,
+          locales: data.locales,
+          defaultLocale: data.defaultLocale,
+        }),
+      }],
+      hasUrlPrefix: true, // backward compat: always extract prefix
+    };
+  }
+  return { strategies: defaultStrategies(), hasUrlPrefix: true };
+}
+
+/** Register built-in __seam_i18n_query procedure */
+function registerI18nQuery(procedureMap: Map<string, InternalProcedure>, config: I18nConfig): void {
+  procedureMap.set("__seam_i18n_query", {
+    inputSchema: {},
+    outputSchema: {},
+    handler: ({ input }) => {
+      const { keys, locale } = input as { keys: string[]; locale: string };
+      const msgs = config.messages[locale] ?? config.messages[config.default] ?? {};
+      const messages: Record<string, string> = {};
+      for (const k of keys) {
+        messages[k] = msgs[k] ?? k;
+      }
+      return { messages };
+    },
+  });
 }
 
 export function createRouter<T extends DefinitionMap>(
@@ -93,25 +139,8 @@ export function createRouter<T extends DefinitionMap>(
   }
 
   const i18nConfig = opts?.i18n ?? null;
-  const localeSet = i18nConfig ? new Set(i18nConfig.locales) : null;
-  const resolveLocaleFn = opts?.resolveLocale ?? defaultResolve;
-
-  // Register built-in __seam_i18n_query procedure when i18n is configured
-  if (i18nConfig) {
-    procedureMap.set("__seam_i18n_query", {
-      inputSchema: {},
-      outputSchema: {},
-      handler: ({ input }) => {
-        const { keys, locale } = input as { keys: string[]; locale: string };
-        const msgs = i18nConfig.messages[locale] ?? i18nConfig.messages[i18nConfig.default] ?? {};
-        const messages: Record<string, string> = {};
-        for (const k of keys) {
-          messages[k] = msgs[k] ?? k;
-        }
-        return { messages };
-      },
-    });
-  }
+  const { strategies, hasUrlPrefix } = buildStrategies(opts);
+  if (i18nConfig) registerI18nQuery(procedureMap, i18nConfig);
 
   return {
     procedures,
@@ -119,32 +148,32 @@ export function createRouter<T extends DefinitionMap>(
     manifest() {
       return buildManifest(procedures);
     },
-    handle(procedureName, body, ctx) {
-      return handleRequest(procedureMap, procedureName, body, shouldValidateOutput, ctx);
+    handle(procedureName, body) {
+      return handleRequest(procedureMap, procedureName, body, shouldValidateOutput);
     },
-    handleBatch(calls, ctx) {
-      return handleBatchRequest(procedureMap, calls, shouldValidateOutput, ctx);
+    handleBatch(calls) {
+      return handleBatchRequest(procedureMap, calls, shouldValidateOutput);
     },
-    handleSubscription(name, input, ctx) {
-      return handleSubscription(subscriptionMap, name, input, shouldValidateOutput, ctx);
+    handleSubscription(name, input) {
+      return handleSubscription(subscriptionMap, name, input, shouldValidateOutput);
     },
     async handlePage(path, headers) {
       let pathLocale: string | null = null;
       let routePath = path;
 
-      // Extract and strip URL prefix (routing concern)
-      if (localeSet && i18nConfig) {
+      if (hasUrlPrefix && i18nConfig) {
         const segments = path.split("/").filter(Boolean);
+        const localeSet = new Set(i18nConfig.locales);
         if (segments.length > 0 && localeSet.has(segments[0])) {
           pathLocale = segments[0];
           routePath = "/" + segments.slice(1).join("/") || "/";
         }
       }
 
-      // Resolve content locale
       let locale: string | undefined;
       if (i18nConfig) {
-        locale = resolveLocaleFn({
+        locale = resolveChain(strategies, {
+          url: headers?.url ?? "",
           pathLocale,
           cookie: headers?.cookie,
           acceptLanguage: headers?.acceptLanguage,

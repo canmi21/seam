@@ -36,7 +36,7 @@ impl IntoAxumRouter for SeamServer {
       parts.pages,
       parts.rpc_hash_map,
       parts.i18n_config,
-      parts.resolve_locale,
+      parts.strategies,
     )
   }
 

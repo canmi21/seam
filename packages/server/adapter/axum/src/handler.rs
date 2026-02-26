@@ -12,8 +12,8 @@ use axum::routing::{get, post};
 use axum::Router;
 use futures_core::Stream;
 use seam_server::page::PageDef;
-use seam_server::procedure::{ProcedureCtx, ProcedureDef, SubscriptionDef};
-use seam_server::resolve::ResolveLocaleFn;
+use seam_server::procedure::{ProcedureDef, SubscriptionDef};
+use seam_server::resolve::ResolveStrategy;
 use seam_server::{RpcHashMap, SeamError};
 use tokio::task::JoinSet;
 use tokio_stream::StreamExt;
@@ -29,7 +29,7 @@ pub(crate) struct AppState {
   pub batch_hash: Option<String>,
   pub i18n_config: Option<seam_server::I18nConfig>,
   pub locale_set: Option<std::collections::HashSet<String>>,
-  pub resolve_locale: ResolveLocaleFn,
+  pub strategies: Vec<Box<dyn ResolveStrategy>>,
 }
 
 pub(crate) fn build_router(
@@ -39,7 +39,7 @@ pub(crate) fn build_router(
   pages: Vec<PageDef>,
   hash_map: Option<RpcHashMap>,
   i18n_config: Option<seam_server::I18nConfig>,
-  resolve_locale: Option<ResolveLocaleFn>,
+  strategies: Vec<Box<dyn ResolveStrategy>>,
 ) -> Router {
   let (rpc_hash_map, batch_hash) = match hash_map {
     Some(m) => {
@@ -55,6 +55,12 @@ pub(crate) fn build_router(
     .as_ref()
     .map(|c| c.locales.iter().cloned().collect::<std::collections::HashSet<_>>());
 
+  // Use default strategies when none provided
+  let strategies =
+    if strategies.is_empty() { seam_server::default_strategies() } else { strategies };
+
+  let has_url_prefix = strategies.iter().any(|s| s.kind() == "url_prefix");
+
   // Register built-in __seam_i18n_query procedure when i18n is configured
   if let Some(ref i18n) = i18n_config {
     let i18n_clone = i18n.clone();
@@ -64,7 +70,7 @@ pub(crate) fn build_router(
         name: "__seam_i18n_query".to_string(),
         input_schema: serde_json::json!({}),
         output_schema: serde_json::json!({}),
-        handler: Arc::new(move |input: serde_json::Value, _ctx: ProcedureCtx| {
+        handler: Arc::new(move |input: serde_json::Value| {
           let i18n = i18n_clone.clone();
           Box::pin(async move {
             let keys = input.get("keys").and_then(|v| v.as_array()).cloned().unwrap_or_default();
@@ -104,15 +110,13 @@ pub(crate) fn build_router(
     page_map.insert(full_route.clone(), page_arc.clone());
     router = router.route(&full_route, get(handle_page));
 
-    // Register locale-prefixed routes when i18n is active
-    if i18n_config.is_some() {
+    // Register locale-prefixed routes only when url_prefix strategy is active
+    if has_url_prefix {
       let locale_route = format!("/_seam/page/{{_seam_locale}}{}", page_arc.route);
       page_map.insert(locale_route.clone(), page_arc.clone());
       router = router.route(&locale_route, get(handle_page));
     }
   }
-
-  let resolve_locale = resolve_locale.unwrap_or_else(|| Arc::new(seam_server::default_resolve));
 
   let state = Arc::new(AppState {
     manifest_json,
@@ -123,7 +127,7 @@ pub(crate) fn build_router(
     batch_hash,
     i18n_config,
     locale_set,
-    resolve_locale,
+    strategies,
   });
 
   router.with_state(state)
@@ -163,7 +167,7 @@ async fn handle_rpc(
   let input: serde_json::Value =
     serde_json::from_slice(&body).map_err(|e| SeamError::validation(e.to_string()))?;
 
-  let result = (proc.handler)(input, ProcedureCtx::default()).await?;
+  let result = (proc.handler)(input).await?;
   Ok(axum::Json(result).into_response())
 }
 
@@ -211,7 +215,7 @@ async fn handle_batch(
       };
 
       let result = match state.handlers.get(&proc_name) {
-        Some(proc) => match (proc.handler)(call.input, ProcedureCtx::default()).await {
+        Some(proc) => match (proc.handler)(call.input).await {
           Ok(data) => BatchResultItem::Ok { ok: true, data },
           Err(e) => BatchResultItem::Err {
             ok: false,
@@ -332,20 +336,17 @@ async fn handle_page(
       _ => {}
     }
     let i18n = state.i18n_config.as_ref().unwrap();
-    let ctx = seam_server::ResolveContext {
-      path_locale: extracted,
-      cookie_header: headers
-        .get(axum::http::header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .map(String::from),
+    let data = seam_server::ResolveData {
+      url: "",
+      path_locale: extracted.as_deref(),
+      cookie_header: headers.get(axum::http::header::COOKIE).and_then(|v| v.to_str().ok()),
       accept_language: headers
         .get(axum::http::header::ACCEPT_LANGUAGE)
-        .and_then(|v| v.to_str().ok())
-        .map(String::from),
-      locales: i18n.locales.clone(),
-      default_locale: i18n.default.clone(),
+        .and_then(|v| v.to_str().ok()),
+      locales: &i18n.locales,
+      default_locale: &i18n.default,
     };
-    Some((state.resolve_locale)(&ctx))
+    Some(seam_server::resolve_chain(&state.strategies, &data))
   } else {
     None
   };
@@ -362,8 +363,6 @@ async fn handle_page(
     &page.template
   };
 
-  let ctx = ProcedureCtx { locale: locale.clone() };
-
   let mut join_set = JoinSet::new();
 
   let handlers = state.handlers.clone();
@@ -372,13 +371,12 @@ async fn handle_page(
     let proc_name = loader.procedure.clone();
     let data_key = loader.data_key.clone();
     let handlers = handlers.clone();
-    let ctx = ctx.clone();
 
     join_set.spawn(async move {
       let proc = handlers
         .get(&proc_name)
         .ok_or_else(|| SeamError::internal(format!("Procedure '{proc_name}' not found")))?;
-      let result = (proc.handler)(input, ctx).await?;
+      let result = (proc.handler)(input).await?;
       Ok::<(String, serde_json::Value), SeamError>((data_key, result))
     });
   }

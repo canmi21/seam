@@ -229,6 +229,7 @@ export function createHttpHandler<T extends DefinitionMap>(
       const pagePath = "/" + pathname.slice(PAGE_PREFIX.length);
       const headers = req.header
         ? {
+            url: req.url,
             cookie: req.header("cookie") ?? undefined,
             acceptLanguage: req.header("accept-language") ?? undefined,
           }

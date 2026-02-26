@@ -3,7 +3,7 @@
 use crate::build_loader::RpcHashMap;
 use crate::page::{I18nConfig, PageDef};
 use crate::procedure::{ProcedureDef, SubscriptionDef};
-use crate::resolve::ResolveLocaleFn;
+use crate::resolve::ResolveStrategy;
 
 /// Framework-agnostic parts extracted from `SeamServer`.
 /// Adapter crates consume this to build framework-specific routers.
@@ -13,7 +13,13 @@ pub struct SeamParts {
   pub pages: Vec<PageDef>,
   pub rpc_hash_map: Option<RpcHashMap>,
   pub i18n_config: Option<I18nConfig>,
-  pub resolve_locale: Option<ResolveLocaleFn>,
+  pub strategies: Vec<Box<dyn ResolveStrategy>>,
+}
+
+impl SeamParts {
+  pub fn has_url_prefix(&self) -> bool {
+    self.strategies.iter().any(|s| s.kind() == "url_prefix")
+  }
 }
 
 pub struct SeamServer {
@@ -22,7 +28,7 @@ pub struct SeamServer {
   pages: Vec<PageDef>,
   rpc_hash_map: Option<RpcHashMap>,
   i18n_config: Option<I18nConfig>,
-  resolve_locale: Option<ResolveLocaleFn>,
+  strategies: Vec<Box<dyn ResolveStrategy>>,
 }
 
 impl SeamServer {
@@ -33,7 +39,7 @@ impl SeamServer {
       pages: Vec::new(),
       rpc_hash_map: None,
       i18n_config: None,
-      resolve_locale: None,
+      strategies: Vec::new(),
     }
   }
 
@@ -62,11 +68,8 @@ impl SeamServer {
     self
   }
 
-  pub fn resolve_locale(
-    mut self,
-    f: impl Fn(&crate::resolve::ResolveContext) -> String + Send + Sync + 'static,
-  ) -> Self {
-    self.resolve_locale = Some(std::sync::Arc::new(f));
+  pub fn resolve_strategies(mut self, strategies: Vec<Box<dyn ResolveStrategy>>) -> Self {
+    self.strategies = strategies;
     self
   }
 
@@ -78,7 +81,7 @@ impl SeamServer {
       pages: self.pages,
       rpc_hash_map: self.rpc_hash_map,
       i18n_config: self.i18n_config,
-      resolve_locale: self.resolve_locale,
+      strategies: self.strategies,
     }
   }
 }
