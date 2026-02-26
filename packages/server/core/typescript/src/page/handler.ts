@@ -1,6 +1,6 @@
 /* packages/server/core/typescript/src/page/handler.ts */
 
-import { inject, escapeHtml } from "@canmi/seam-injector";
+import { renderPage, escapeHtml } from "@canmi/seam-engine";
 import { SeamError } from "../errors.js";
 import type { InternalProcedure, ProcedureCtx } from "../procedure.js";
 import type { PageDef, LoaderFn, I18nConfig } from "./index.js";
@@ -23,17 +23,6 @@ export interface I18nOpts {
   config: I18nConfig;
 }
 
-/** Flatten keyed loader results: spread object values into a flat map for slot resolution */
-function flattenForSlots(keyed: Record<string, unknown>): Record<string, unknown> {
-  const merged: Record<string, unknown> = { ...keyed };
-  for (const value of Object.values(keyed)) {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      Object.assign(merged, value as Record<string, unknown>);
-    }
-  }
-  return merged;
-}
-
 /** Execute loaders, returning keyed results */
 async function executeLoaders(
   loaders: Record<string, LoaderFn>,
@@ -53,20 +42,6 @@ async function executeLoaders(
     }),
   );
   return Object.fromEntries(results);
-}
-
-/** Split-inject a layout template around its outlet marker */
-function injectLayout(template: string, data: Record<string, unknown>, inner: string): string {
-  const outletMarker = "<!--seam:outlet-->";
-  const outletIdx = template.indexOf(outletMarker);
-  if (outletIdx === -1) {
-    return inject(template, data, { skipDataScript: true });
-  }
-  const before = template.slice(0, outletIdx);
-  const after = template.slice(outletIdx + outletMarker.length);
-  const injectedBefore = inject(before, data, { skipDataScript: true });
-  const injectedAfter = inject(after, data, { skipDataScript: true });
-  return injectedBefore + inner + injectedAfter;
 }
 
 /** Select the template for a given locale, falling back to the default template */
@@ -94,19 +69,6 @@ function filterByKeys(
   return filtered;
 }
 
-/** Escape non-ASCII chars in JSON string values to \uXXXX */
-function asciiEscapeJson(json: string): string {
-  return json.replace(/[\u0080-\uffff]/gu, (c) => {
-    const code = c.codePointAt(0)!;
-    if (code > 0xffff) {
-      const hi = Math.floor((code - 0x10000) / 0x400) + 0xd800;
-      const lo = ((code - 0x10000) % 0x400) + 0xdc00;
-      return `\\u${hi.toString(16)}\\u${lo.toString(16)}`;
-    }
-    return `\\u${code.toString(16).padStart(4, "0")}`;
-  });
-}
-
 export async function handlePageRequest(
   page: PageDef,
   params: Record<string, string>,
@@ -127,83 +89,58 @@ export async function handlePageRequest(
 
     const t1 = performance.now();
 
-    // Partition: first N results are layout, last is page
-    const layoutResults = loaderResults.slice(0, layoutChain.length);
-    const pageKeyed = loaderResults[loaderResults.length - 1];
+    // Merge all loader data into a single object
+    const allData: Record<string, unknown> = {};
+    for (const result of loaderResults) {
+      Object.assign(allData, result);
+    }
 
-    // Select locale-specific template
+    // Compose template: nest page inside layouts via outlet substitution
     const pageTemplate = selectTemplate(page.template, page.localeTemplates, locale);
-
-    // Inject page template
-    let innerContent = inject(pageTemplate, flattenForSlots(pageKeyed), { skipDataScript: true });
-
-    // Compose layouts from innermost to outermost
-    const layoutKeyed: Record<string, Record<string, unknown>> = {};
+    let composedTemplate = pageTemplate;
     for (let i = layoutChain.length - 1; i >= 0; i--) {
       const layout = layoutChain[i];
-      const data = layoutResults[i];
-      layoutKeyed[layout.id] = data;
       const layoutTemplate = selectTemplate(layout.template, layout.localeTemplates, locale);
-      innerContent = injectLayout(layoutTemplate, flattenForSlots(data), innerContent);
+      composedTemplate = layoutTemplate.replace("<!--seam:outlet-->", composedTemplate);
     }
 
-    // Inject page-level metadata (<title>, <meta>, <link>) into <head>.
-    // These were extracted from the page fragment at build time so they don't
-    // end up inside the root div via <!--seam:outlet--> substitution.
-    // Inserted after <meta charset="utf-8"> so page <title> wins over layout metadata
-    // (first <title> wins in HTML5).
-    if (page.headMeta) {
-      const injectedMeta = inject(page.headMeta, flattenForSlots(pageKeyed), {
-        skipDataScript: true,
-      });
-      const charset = '<meta charset="utf-8">';
-      const charsetIdx = innerContent.indexOf(charset);
-      if (charsetIdx !== -1) {
-        const insertAt = charsetIdx + charset.length;
-        innerContent =
-          innerContent.slice(0, insertAt) + injectedMeta + innerContent.slice(insertAt);
-      }
-    }
+    // Build PageConfig for engine
+    const config = {
+      layout_chain: layoutChain.map((l) => ({
+        id: l.id,
+        loader_keys: Object.keys(l.loaders),
+      })),
+      data_id: page.dataId ?? "__SEAM_DATA__",
+      head_meta: page.headMeta,
+    };
 
-    // Set <html lang="..."> when locale is known
-    if (locale) {
-      innerContent = innerContent.replace(/<html(?=[\s>])/, `<html lang="${locale}"`);
-    }
-
-    // Build __SEAM_DATA__: page data at top level, layout data under _layouts
-    const seamData: Record<string, unknown> = { ...pageKeyed };
-    if (Object.keys(layoutKeyed).length > 0) {
-      seamData._layouts = layoutKeyed;
-    }
-
-    // Inject i18n data so the client can hydrate with matching translations
+    // Build I18nOpts for engine
+    let i18nOptsJson: string | undefined;
     if (i18nOpts) {
-      const { config } = i18nOpts;
-      const allMessages = config.messages[i18nOpts.locale] ?? {};
+      const { config: i18nConfig } = i18nOpts;
+      const allMessages = i18nConfig.messages[i18nOpts.locale] ?? {};
       const i18nData: Record<string, unknown> = {
         locale: i18nOpts.locale,
+        default_locale: i18nConfig.default,
         messages: filterByKeys(allMessages, page.i18nKeys),
       };
-      // Include fallback messages when locale differs from default
-      if (i18nOpts.locale !== config.default) {
-        const allFallback = config.messages[config.default] ?? {};
-        i18nData.fallbackMessages = filterByKeys(allFallback, page.i18nKeys);
+      if (i18nOpts.locale !== i18nConfig.default) {
+        const allFallback = i18nConfig.messages[i18nConfig.default] ?? {};
+        i18nData.fallback_messages = filterByKeys(allFallback, page.i18nKeys);
       }
-      if (config.versions) {
-        i18nData.versions = config.versions;
+      if (i18nConfig.versions) {
+        i18nData.versions = i18nConfig.versions;
       }
-      seamData._i18n = i18nData;
+      i18nOptsJson = JSON.stringify(i18nData);
     }
 
-    const dataId = page.dataId ?? "__SEAM_DATA__";
-    const script = `<script id="${dataId}" type="application/json">${asciiEscapeJson(JSON.stringify(seamData))}</script>`;
-    const bodyClose = innerContent.lastIndexOf("</body>");
-    let html: string;
-    if (bodyClose !== -1) {
-      html = innerContent.slice(0, bodyClose) + script + innerContent.slice(bodyClose);
-    } else {
-      html = innerContent + script;
-    }
+    // Single WASM call: inject slots, compose data script, apply locale/meta
+    const html = renderPage(
+      composedTemplate,
+      JSON.stringify(allData),
+      JSON.stringify(config),
+      i18nOptsJson,
+    );
 
     const t2 = performance.now();
 

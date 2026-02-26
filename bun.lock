@@ -306,7 +306,7 @@
       "name": "@canmi/seam-server",
       "version": "0.3.5",
       "dependencies": {
-        "@canmi/seam-injector": "workspace:*",
+        "@canmi/seam-engine": "workspace:*",
         "jtd": "^0.1.1",
       },
       "devDependencies": {
