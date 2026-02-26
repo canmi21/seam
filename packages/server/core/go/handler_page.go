@@ -194,7 +194,8 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 		dataID = "__SEAM_DATA__"
 	}
 	scriptJSON, _ := json.Marshal(scriptData)
-	script := fmt.Sprintf(`<script id="%s" type="application/json">%s</script>`, dataID, string(scriptJSON))
+	escaped := asciiEscapeJSON(string(scriptJSON))
+	script := fmt.Sprintf(`<script id="%s" type="application/json">%s</script>`, dataID, escaped)
 	if idx := strings.LastIndex(html, "</body>"); idx != -1 {
 		html = html[:idx] + script + html[idx:]
 	} else {

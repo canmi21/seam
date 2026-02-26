@@ -372,11 +372,10 @@ async fn handle_page(
     script_data.insert("_i18n".into(), serde_json::Value::Object(i18n_data));
   }
 
-  let script = format!(
-    r#"<script id="{}" type="application/json">{}</script>"#,
-    page.data_id,
-    serde_json::Value::Object(script_data),
-  );
+  let json = serde_json::to_string(&serde_json::Value::Object(script_data)).unwrap_or_default();
+  let escaped = seam_server::ascii_escape_json(&json);
+  let script =
+    format!(r#"<script id="{}" type="application/json">{}</script>"#, page.data_id, escaped,);
   if let Some(pos) = html.rfind("</body>") {
     html.insert_str(pos, &script);
   } else {

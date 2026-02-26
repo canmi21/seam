@@ -80,6 +80,19 @@ function selectTemplate(
   return defaultTemplate;
 }
 
+/** Escape non-ASCII chars in JSON string values to \uXXXX */
+function asciiEscapeJson(json: string): string {
+  return json.replace(/[\u0080-\uffff]/gu, (c) => {
+    const code = c.codePointAt(0)!;
+    if (code > 0xffff) {
+      const hi = Math.floor((code - 0x10000) / 0x400) + 0xd800;
+      const lo = ((code - 0x10000) % 0x400) + 0xdc00;
+      return `\\u${hi.toString(16)}\\u${lo.toString(16)}`;
+    }
+    return `\\u${code.toString(16).padStart(4, "0")}`;
+  });
+}
+
 export async function handlePageRequest(
   page: PageDef,
   params: Record<string, string>,
@@ -163,7 +176,7 @@ export async function handlePageRequest(
     }
 
     const dataId = page.dataId ?? "__SEAM_DATA__";
-    const script = `<script id="${dataId}" type="application/json">${JSON.stringify(seamData)}</script>`;
+    const script = `<script id="${dataId}" type="application/json">${asciiEscapeJson(JSON.stringify(seamData))}</script>`;
     const bodyClose = innerContent.lastIndexOf("</body>");
     let html: string;
     if (bodyClose !== -1) {

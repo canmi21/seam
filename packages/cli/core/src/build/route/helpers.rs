@@ -40,6 +40,7 @@ pub(crate) fn export_i18n_messages(
     let path = locales_dir.join(format!("{locale}.json"));
     let json = serde_json::to_string_pretty(data)
       .with_context(|| format!("i18n: failed to serialize {locale}"))?;
+    let json = seam_server::ascii_escape_json(&json);
     std::fs::write(&path, json)
       .with_context(|| format!("i18n: failed to write {}", path.display()))?;
   }
@@ -54,25 +55,6 @@ pub(super) fn path_to_filename(path: &str) -> String {
   }
   let slug = trimmed.replace('/', "-").replace(':', "");
   format!("{slug}.html")
-}
-
-/// Sort i18n source files alphabetically by key, writing back only if changed.
-pub(crate) fn sort_i18n_source_files(base_dir: &Path, i18n: &I18nSection) -> Result<()> {
-  for locale in &i18n.locales {
-    let path = base_dir.join(&i18n.messages_dir).join(format!("{locale}.json"));
-    let content = std::fs::read_to_string(&path)
-      .with_context(|| format!("i18n: failed to read {}", path.display()))?;
-    let sorted: BTreeMap<String, serde_json::Value> = serde_json::from_str(&content)
-      .with_context(|| format!("i18n: invalid JSON in {}", path.display()))?;
-    let mut new_content = serde_json::to_string_pretty(&sorted)
-      .with_context(|| format!("i18n: failed to serialize {locale}"))?;
-    new_content.push('\n');
-    if new_content != content {
-      std::fs::write(&path, &new_content)
-        .with_context(|| format!("i18n: failed to write {}", path.display()))?;
-    }
-  }
-  Ok(())
 }
 
 /// Compute a per-locale content hash (first 8 bytes of SHA-256, hex-encoded).

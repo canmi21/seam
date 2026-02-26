@@ -2,6 +2,7 @@
 
 pub mod build_loader;
 pub mod errors;
+pub mod escape;
 pub mod manifest;
 pub mod page;
 pub mod procedure;
@@ -10,6 +11,7 @@ pub mod server;
 // Re-exports for ergonomic use
 pub use build_loader::{load_build_output, load_i18n_config, load_rpc_hash_map, RpcHashMap};
 pub use errors::SeamError;
+pub use escape::ascii_escape_json;
 pub use page::I18nConfig;
 pub use procedure::{BoxFuture, BoxStream, ProcedureDef, SubscriptionDef};
 pub use seam_macros::{seam_procedure, seam_subscription, SeamType};

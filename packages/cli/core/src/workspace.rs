@@ -12,8 +12,7 @@ use crate::build::config::BuildConfig;
 use crate::build::route::{
   compute_i18n_versions, extract_manifest, extract_manifest_command, generate_types,
   package_static_assets, print_asset_files, print_procedure_breakdown, process_routes,
-  read_i18n_messages, run_skeleton_renderer, run_typecheck, sort_i18n_source_files,
-  validate_procedure_references,
+  read_i18n_messages, run_skeleton_renderer, run_typecheck, validate_procedure_references,
 };
 use crate::build::types::read_bundle_manifest;
 use crate::config::{resolve_member_config, validate_workspace, SeamConfig};
@@ -211,9 +210,6 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
 
   // [1.6] Generate skeletons (shared)
   ui::detail(&format!("{DIM}[shared]{RESET} generating skeletons"));
-  if let Some(cfg) = &first.build_config.i18n {
-    sort_i18n_source_files(base_dir, cfg)?;
-  }
   let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
     .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&first.build_config.routes);
