@@ -20,8 +20,9 @@ src/
     primitives.ts   -- t.string(), t.int32(), t.float64(), etc.
     composites.ts   -- t.object(), t.array(), t.optional(), t.enum(), t.discriminator()
     index.ts        -- Assembles `t` namespace from primitives + composites
+  resolve.ts        -- ResolveStrategy interface, built-in strategies (fromUrlPrefix, fromCookie, fromAcceptLanguage, fromUrlQuery), resolveChain, defaultStrategies; ResolveLocaleFn/ResolveContext kept for backward compat
   router/
-    index.ts        -- createRouter: wires procedures, subscriptions, pages together
+    index.ts        -- createRouter: wires procedures, subscriptions, pages together; accepts resolveStrategies option
     handler.ts      -- handleRequest (RPC), handleSubscription (SSE stream)
   page/
     index.ts        -- PageDef, LoaderFn, definePage()

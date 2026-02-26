@@ -29,7 +29,7 @@ Rust orphan rule prevents `impl IntoResponse for SeamError` in this crate becaus
 
 - `IntoAxumRouter` — extension trait providing `.into_axum_router()` and `.serve(addr)`
 - `AxumError` — `pub(crate)` newtype around `SeamError` for `IntoResponse` impl
-- `AppState` — shared state holding manifest, handlers, subscriptions, pages
+- `AppState` — shared state holding manifest, handlers, subscriptions, pages, and `ResolveStrategy` chain for locale resolution
 
 ## Testing
 
