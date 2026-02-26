@@ -8,7 +8,7 @@ import {
   __wbindgen_init_externref_table,
   inject as wasmInject,
   inject_no_script as wasmInjectNoScript,
-} from "../pkg/seam_injector_wasm_bg.js";
+} from "../pkg/injector.js";
 
 export interface InjectOptions {
   skipDataScript?: boolean;

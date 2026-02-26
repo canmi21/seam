@@ -21,6 +21,10 @@ examples/github-dashboard/backends/go-gin/server
 examples/github-dashboard/backends/go-gin/server-go
 examples/github-dashboard/.seam/
 
+# WASM build artifacts (regenerate via build-wasm.sh)
+packages/server/*/js/pkg/
+packages/server/*/go/*.wasm
+
 # Next.js
 .next/
 next-env.d.ts

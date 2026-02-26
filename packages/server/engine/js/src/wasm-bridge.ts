@@ -14,7 +14,7 @@ import {
   i18n_query as wasmI18nQuery,
   inject as wasmInject,
   inject_no_script as wasmInjectNoScript,
-} from "../pkg/seam_engine_wasm_bg.js";
+} from "../pkg/engine.js";
 
 export interface InjectOptions {
   skipDataScript?: boolean;
