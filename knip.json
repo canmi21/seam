@@ -1,0 +1,17 @@
+{
+  "ignoreDependencies": ["hono"],
+  "ignoreWorkspaces": ["examples/**", "tests/**"],
+  "exclude": ["optionalPeerDependencies"],
+  "ignoreExportsUsedInFile": true,
+  "workspaces": {
+    "packages/client/react": {
+      "entry": ["scripts/**/*.mjs"]
+    },
+    "packages/cli/pkg": {
+      "entry": ["scripts/**/*.mjs"]
+    },
+    "packages/server/injector/js": {
+      "ignore": ["pkg/**"]
+    }
+  }
+}
