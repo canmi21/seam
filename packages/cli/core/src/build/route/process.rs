@@ -80,10 +80,14 @@ pub(crate) fn process_routes(
   root_id: &str,
   data_id: &str,
   i18n: Option<&I18nSection>,
+  i18n_versions: Option<&BTreeMap<String, String>>,
 ) -> Result<RouteManifest> {
   let manifest_data_id = if data_id == "__SEAM_DATA__" { None } else { Some(data_id.to_string()) };
-  let i18n_manifest =
-    i18n.map(|cfg| I18nManifest { locales: cfg.locales.clone(), default: cfg.default.clone() });
+  let i18n_manifest = i18n.map(|cfg| I18nManifest {
+    locales: cfg.locales.clone(),
+    default: cfg.default.clone(),
+    versions: i18n_versions.cloned(),
+  });
   let mut manifest = RouteManifest {
     layouts: BTreeMap::new(),
     routes: BTreeMap::new(),
@@ -118,6 +122,7 @@ pub(crate) fn process_routes(
           templates: Some(templates),
           loaders: layout.loaders.clone(),
           parent: layout.parent.clone(),
+          i18n_keys: layout.i18n_keys.clone(),
         },
       );
     } else if let Some(ref html) = layout.html {
@@ -138,6 +143,7 @@ pub(crate) fn process_routes(
           templates: None,
           loaders: layout.loaders.clone(),
           parent: layout.parent.clone(),
+          i18n_keys: layout.i18n_keys.clone(),
         },
       );
     }
@@ -192,6 +198,7 @@ pub(crate) fn process_routes(
             layout: route.layout.clone(),
             loaders: route.loaders.clone(),
             head_meta,
+            i18n_keys: route.i18n_keys.clone(),
           });
         }
       }
@@ -216,6 +223,7 @@ pub(crate) fn process_routes(
             layout: route.layout.clone(),
             loaders: route.loaders.clone(),
             head_meta: None,
+            i18n_keys: route.i18n_keys.clone(),
           },
         );
       }
@@ -269,6 +277,7 @@ pub(crate) fn process_routes(
           layout: route.layout.clone(),
           loaders: route.loaders.clone(),
           head_meta,
+          i18n_keys: route.i18n_keys.clone(),
         },
       );
     }

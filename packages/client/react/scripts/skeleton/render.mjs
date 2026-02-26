@@ -2,7 +2,13 @@
 
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
-import { SeamDataProvider, I18nProvider } from "@canmi/seam-react";
+import { SeamDataProvider } from "@canmi/seam-react";
+
+let _I18nProvider = null;
+
+export function setI18nProvider(provider) {
+  _I18nProvider = provider;
+}
 
 class SeamBuildError extends Error {
   constructor(message) {
@@ -19,8 +25,8 @@ const RESOURCE_HINT_RE =
 
 function renderWithData(component, data, i18nValue) {
   const inner = createElement(SeamDataProvider, { value: data }, createElement(component));
-  if (i18nValue) {
-    return renderToString(createElement(I18nProvider, { value: i18nValue }, inner));
+  if (i18nValue && _I18nProvider) {
+    return renderToString(createElement(_I18nProvider, { value: i18nValue }, inner));
   }
   return renderToString(inner);
 }

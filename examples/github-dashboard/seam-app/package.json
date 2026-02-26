@@ -10,6 +10,7 @@
   "dependencies": {
     "@canmi/seam-adapter-hono": "workspace:*",
     "@canmi/seam-client": "workspace:*",
+    "@canmi/seam-i18n": "workspace:*",
     "@canmi/seam-react": "workspace:*",
     "@canmi/seam-server": "workspace:*",
     "@canmi/seam-tanstack-router": "workspace:*",

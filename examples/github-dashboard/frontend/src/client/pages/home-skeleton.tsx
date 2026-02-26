@@ -1,6 +1,7 @@
 /* examples/github-dashboard/frontend/src/client/pages/home-skeleton.tsx */
 
-import { useSeamData, useSeamNavigate, useT } from "@canmi/seam-react";
+import { useSeamData, useSeamNavigate } from "@canmi/seam-react";
+import { useT } from "@canmi/seam-i18n/react";
 import { UsernameForm } from "@github-dashboard/shared/components/username-form.js";
 
 interface HomeData extends Record<string, unknown> {

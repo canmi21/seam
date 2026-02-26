@@ -7,8 +7,8 @@ use anyhow::{Context, Result};
 use super::super::config::BuildConfig;
 use super::super::route::generate_types;
 use super::super::route::{
-  export_i18n_messages, package_static_assets, process_routes, read_i18n_messages,
-  run_skeleton_renderer, validate_procedure_references,
+  compute_i18n_versions, export_i18n_messages, package_static_assets, process_routes,
+  read_i18n_messages, run_skeleton_renderer, sort_i18n_source_files, validate_procedure_references,
 };
 use super::super::types::{read_bundle_manifest, AssetFiles};
 use super::helpers::{
@@ -61,6 +61,9 @@ pub fn run_incremental_rebuild(
     read_bundle_manifest(&manifest_path)?
   };
 
+  if let Some(cfg) = &build_config.i18n {
+    sort_i18n_source_files(base_dir, cfg)?;
+  }
   let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
     .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&build_config.routes);
@@ -90,6 +93,7 @@ pub fn run_incremental_rebuild(
     Some(cfg) => Some(read_i18n_messages(base_dir, cfg)?),
     None => None,
   };
+  let i18n_versions = i18n_messages.as_ref().map(compute_i18n_versions);
   let route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -100,6 +104,7 @@ pub fn run_incremental_rebuild(
     &build_config.root_id,
     &build_config.data_id,
     build_config.i18n.as_ref(),
+    i18n_versions.as_ref(),
   )?;
   if let Some(ref msgs) = i18n_messages {
     export_i18n_messages(&out_dir, msgs)?;

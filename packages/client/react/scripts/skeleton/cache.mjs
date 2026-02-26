@@ -48,7 +48,7 @@ async function computeComponentHashes(names, importMap, routesDir) {
         format: "esm",
         platform: "node",
         treeShaking: false,
-        external: ["react", "react-dom", "@canmi/seam-react"],
+        external: ["react", "react-dom", "@canmi/seam-react", "@canmi/seam-i18n"],
         logLevel: "silent",
       })
         .then((result) => {
@@ -110,7 +110,17 @@ function buildI18nValue(locale, messages, defaultLocale) {
   const localeMessages = messages?.[locale] || {};
   const fallback =
     defaultLocale && locale !== defaultLocale ? messages?.[defaultLocale] || {} : undefined;
-  return createI18n(locale, localeMessages, fallback);
+  const instance = createI18n(locale, localeMessages, fallback);
+  const usedKeys = new Set();
+  const origT = instance.t;
+  return {
+    locale: instance.locale,
+    t(key, params) {
+      usedKeys.add(key);
+      return origT(key, params);
+    },
+    _usedKeys: usedKeys,
+  };
 }
 
 export {

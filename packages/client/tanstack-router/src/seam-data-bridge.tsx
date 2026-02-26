@@ -1,7 +1,8 @@
 /* packages/client/tanstack-router/src/seam-data-bridge.tsx */
 
 import { useMatches, useRouter } from "@tanstack/react-router";
-import { I18nProvider, SeamDataProvider, SeamNavigateProvider } from "@canmi/seam-react";
+import { SeamDataProvider, SeamNavigateProvider } from "@canmi/seam-react";
+import { I18nProvider } from "@canmi/seam-i18n/react";
 import { createI18n } from "@canmi/seam-i18n";
 import { useCallback, useMemo } from "react";
 import type { ReactNode } from "react";

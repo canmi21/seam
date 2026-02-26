@@ -99,6 +99,7 @@ fn make_skeleton(
         mock: serde_json::Value::Null,
         page_schema: None,
         layout: None,
+        i18n_keys: None,
       })
       .collect(),
     layouts: layouts
@@ -108,6 +109,7 @@ fn make_skeleton(
         html: Some(String::new()),
         locale_html: None,
         loaders,
+        i18n_keys: None,
         parent: None,
       })
       .collect(),
@@ -194,6 +196,7 @@ fn head_meta_serialization_skips_none() {
     layout: None,
     loaders: serde_json::Value::Null,
     head_meta: None,
+    i18n_keys: None,
   };
   let json = serde_json::to_string(&entry).unwrap();
   assert!(!json.contains("head_meta"), "None head_meta should be skipped in JSON");
@@ -207,6 +210,7 @@ fn head_meta_serialization_includes_some() {
     layout: Some("root".to_string()),
     loaders: serde_json::Value::Null,
     head_meta: Some("<title><!--seam:t--></title>".to_string()),
+    i18n_keys: None,
   };
   let json = serde_json::to_string(&entry).unwrap();
   assert!(json.contains("head_meta"), "Some head_meta should be present in JSON");

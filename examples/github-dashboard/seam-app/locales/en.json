@@ -1,5 +1,5 @@
 {
-  "dashboard.title": "GitHub Dashboard",
+  "dashboard.cta": "View",
   "dashboard.tagline": "Compile-Time Rendering for React",
-  "dashboard.cta": "View"
+  "dashboard.title": "GitHub Dashboard"
 }

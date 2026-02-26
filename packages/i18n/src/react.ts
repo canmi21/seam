@@ -1,10 +1,9 @@
-/* packages/client/react/src/use-i18n.ts */
+/* packages/i18n/src/react.ts */
 
 import { createContext, useContext } from "react";
-import type { I18nInstance } from "@canmi/seam-i18n";
+import type { I18nInstance } from "./index.js";
 
 const I18nContext = createContext<I18nInstance | null>(null);
-
 export const I18nProvider = I18nContext.Provider;
 
 export function useT(): (key: string, params?: Record<string, string | number>) => string {

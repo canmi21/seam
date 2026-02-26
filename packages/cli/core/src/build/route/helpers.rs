@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use sha2::{Digest, Sha256};
 
 use super::super::types::AssetFiles;
 use crate::config::I18nSection;
@@ -53,6 +54,41 @@ pub(super) fn path_to_filename(path: &str) -> String {
   }
   let slug = trimmed.replace('/', "-").replace(':', "");
   format!("{slug}.html")
+}
+
+/// Sort i18n source files alphabetically by key, writing back only if changed.
+pub(crate) fn sort_i18n_source_files(base_dir: &Path, i18n: &I18nSection) -> Result<()> {
+  for locale in &i18n.locales {
+    let path = base_dir.join(&i18n.messages_dir).join(format!("{locale}.json"));
+    let content = std::fs::read_to_string(&path)
+      .with_context(|| format!("i18n: failed to read {}", path.display()))?;
+    let sorted: BTreeMap<String, serde_json::Value> = serde_json::from_str(&content)
+      .with_context(|| format!("i18n: invalid JSON in {}", path.display()))?;
+    let mut new_content = serde_json::to_string_pretty(&sorted)
+      .with_context(|| format!("i18n: failed to serialize {locale}"))?;
+    new_content.push('\n');
+    if new_content != content {
+      std::fs::write(&path, &new_content)
+        .with_context(|| format!("i18n: failed to write {}", path.display()))?;
+    }
+  }
+  Ok(())
+}
+
+/// Compute a per-locale content hash (first 8 bytes of SHA-256, hex-encoded).
+pub(crate) fn compute_i18n_versions(
+  messages: &BTreeMap<String, serde_json::Value>,
+) -> BTreeMap<String, String> {
+  let mut versions = BTreeMap::new();
+  for (locale, value) in messages {
+    // Re-parse as BTreeMap to normalize key order
+    let normalized: BTreeMap<String, serde_json::Value> =
+      serde_json::from_value(value.clone()).unwrap_or_default();
+    let json = serde_json::to_string(&normalized).unwrap_or_default();
+    let hash = Sha256::digest(json.as_bytes());
+    versions.insert(locale.clone(), hex::encode(&hash[..8]));
+  }
+  versions
 }
 
 /// Print each asset file with its size from disk

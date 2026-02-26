@@ -48,6 +48,12 @@ async function main() {
     }
   }
 
+  if (i18n) {
+    const { setI18nProvider } = await import("./skeleton/render.mjs");
+    const { I18nProvider } = await import("@canmi/seam-i18n/react");
+    setI18nProvider(I18nProvider);
+  }
+
   const absRoutes = resolve(routesFile);
   const routesDir = dirname(absRoutes);
   const outfile = join(__dirname, ".tmp-routes-bundle.mjs");
@@ -62,7 +68,7 @@ async function main() {
     format: "esm",
     platform: "node",
     outfile,
-    external: ["react", "react-dom", "@canmi/seam-react"],
+    external: ["react", "react-dom", "@canmi/seam-react", "@canmi/seam-i18n"],
   });
 
   try {

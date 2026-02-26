@@ -19,6 +19,8 @@ pub(crate) struct SkeletonLayout {
   pub(crate) locale_html: Option<BTreeMap<String, String>>,
   #[serde(default)]
   pub(crate) loaders: serde_json::Value,
+  #[serde(rename = "i18nKeys", default)]
+  pub(crate) i18n_keys: Option<Vec<String>>,
   pub(crate) parent: Option<String>,
 }
 
@@ -58,6 +60,8 @@ pub(crate) struct SkeletonRoute {
   pub(super) page_schema: Option<serde_json::Value>,
   #[serde(default)]
   pub(super) layout: Option<String>,
+  #[serde(rename = "i18nKeys", default)]
+  pub(super) i18n_keys: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -87,6 +91,8 @@ pub(super) struct LayoutManifestEntry {
   pub(super) loaders: serde_json::Value,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub(super) parent: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub(super) i18n_keys: Option<Vec<String>>,
 }
 
 #[derive(Serialize)]
@@ -104,6 +110,8 @@ pub(crate) struct RouteManifest {
 pub(super) struct I18nManifest {
   pub(super) locales: Vec<String>,
   pub(super) default: String,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub(super) versions: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Serialize)]
@@ -117,4 +125,6 @@ pub(super) struct RouteManifestEntry {
   pub(super) loaders: serde_json::Value,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub(super) head_meta: Option<String>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub(super) i18n_keys: Option<Vec<String>>,
 }
