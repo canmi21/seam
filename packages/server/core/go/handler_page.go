@@ -158,25 +158,41 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 		return
 	}
 
-	// Build data script JSON: page data at top level, layout data under _layouts
+	// Build data script JSON: page data at top level, layout data under _layouts (per-layout grouping)
 	scriptData := orderedData
-	if page.LayoutID != "" {
-		pageKeys := make(map[string]bool)
-		for _, k := range page.PageLoaderKeys {
-			pageKeys[k] = true
+	if len(page.LayoutChain) > 0 {
+		// Collect all layout-claimed keys
+		claimedKeys := make(map[string]bool)
+		for _, entry := range page.LayoutChain {
+			for _, key := range entry.LoaderKeys {
+				claimedKeys[key] = true
+			}
 		}
-		layoutData := make(map[string]any)
+
+		// Page data = keys not claimed by any layout
 		pageData := make(map[string]any)
 		for k, v := range orderedData {
-			if pageKeys[k] {
+			if !claimedKeys[k] {
 				pageData[k] = v
-			} else {
-				layoutData[k] = v
 			}
 		}
 		scriptData = pageData
-		if len(layoutData) > 0 {
-			scriptData["_layouts"] = map[string]any{page.LayoutID: layoutData}
+
+		// Build per-layout _layouts grouping
+		layoutsMap := make(map[string]any)
+		for _, entry := range page.LayoutChain {
+			entryData := make(map[string]any)
+			for _, key := range entry.LoaderKeys {
+				if v, ok := orderedData[key]; ok {
+					entryData[key] = v
+				}
+			}
+			if len(entryData) > 0 {
+				layoutsMap[entry.ID] = entryData
+			}
+		}
+		if len(layoutsMap) > 0 {
+			scriptData["_layouts"] = layoutsMap
 		}
 	}
 

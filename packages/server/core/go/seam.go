@@ -120,16 +120,23 @@ type LoaderDef struct {
 	InputFn   func(params map[string]string) any
 }
 
+// LayoutChainEntry represents one layout in the chain (outer to inner order).
+// Each layout owns a set of loader data keys.
+type LayoutChainEntry struct {
+	ID         string
+	LoaderKeys []string
+}
+
 // PageDef defines a server-rendered page with loaders that fetch data before injection.
 type PageDef struct {
 	Route           string
 	Template        string
 	LocaleTemplates map[string]string // locale -> pre-resolved template HTML (layout chain applied)
 	Loaders         []LoaderDef
-	DataID          string   // script ID for the injected data JSON (default "__SEAM_DATA__")
-	LayoutID        string   // layout ID for separating layout vs page data in data script
-	PageLoaderKeys  []string // data keys from page-level loaders (not layout)
-	I18nKeys        []string // merged i18n keys from route + layout chain; empty means include all
+	DataID          string             // script ID for the injected data JSON (default "__SEAM_DATA__")
+	LayoutChain     []LayoutChainEntry // layout chain from outer to inner with per-layout loader keys
+	PageLoaderKeys  []string           // data keys from page-level loaders (not layout)
+	I18nKeys        []string           // merged i18n keys from route + layout chain; empty means include all
 }
 
 // I18nConfig holds runtime i18n state loaded from build output.

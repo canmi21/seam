@@ -179,18 +179,26 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
     let axum_route = convert_route_path(route_path);
 
     // Parse loaders: combine layout loaders + route loaders
+    // Also build layout chain with per-layout loader key assignments
     let mut all_loaders = Vec::new();
+    let mut layout_chain = Vec::new();
     if let Some(ref layout_id) = entry.layout {
-      // Collect loaders from the layout chain
+      // Collect loaders from the layout chain (inner->outer walk)
       let mut chain = Some(layout_id.clone());
       while let Some(id) = chain {
         if let Some(layout_entry) = manifest.layouts.get(&id) {
-          all_loaders.extend(parse_loaders(&layout_entry.loaders));
+          let layout_loaders = parse_loaders(&layout_entry.loaders);
+          let loader_keys: Vec<String> =
+            layout_loaders.iter().map(|l| l.data_key.clone()).collect();
+          layout_chain.push(crate::page::LayoutChainEntry { id, loader_keys });
+          all_loaders.extend(layout_loaders);
           chain = layout_entry.parent.clone();
         } else {
           break;
         }
       }
+      // Reverse: walked inner->outer, want outer->inner (matching TS)
+      layout_chain.reverse();
     }
     let page_loaders = parse_loaders(&entry.loaders);
     let page_loader_keys: Vec<String> = page_loaders.iter().map(|l| l.data_key.clone()).collect();
@@ -218,7 +226,7 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
       locale_templates,
       loaders: all_loaders,
       data_id: data_id.clone(),
-      layout_id: entry.layout.clone(),
+      layout_chain,
       page_loader_keys,
       i18n_keys,
     });

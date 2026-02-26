@@ -16,6 +16,7 @@ workspace = true
 [dependencies]
 axum = "0.8"
 futures-core = "0.3"
+seam-engine = { version = "0.3.5", path = "../../engine/rust" }
 seam-injector = { version = "0.3.5", path = "../../injector/rust" }
 seam-server = { version = "0.3.5", path = "../../core/rust" }
 serde = { version = "1", features = ["derive"] }

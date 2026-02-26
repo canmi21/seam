@@ -382,22 +382,38 @@ async fn handle_page(
   let inject_data = serde_json::Value::Object(inject_map);
   let mut html = seam_injector::inject_no_script(template, &inject_data);
 
-  // Build data script JSON: page data at top level, layout data under _layouts
+  // Build data script JSON: page data at top level, layout data under _layouts (per-layout grouping)
   let mut script_data = serde_json::Map::new();
-  if let Some(ref layout_id) = page.layout_id {
-    let page_keys: std::collections::HashSet<&str> =
-      page.page_loader_keys.iter().map(|s| s.as_str()).collect();
-    let mut layout_data = serde_json::Map::new();
-    for (k, v) in &data {
-      if page_keys.contains(k.as_str()) {
-        script_data.insert(k.clone(), v.clone());
-      } else {
-        layout_data.insert(k.clone(), v.clone());
+  if !page.layout_chain.is_empty() {
+    // Collect all layout-claimed keys
+    let mut claimed_keys = std::collections::HashSet::new();
+    for entry in &page.layout_chain {
+      for key in &entry.loader_keys {
+        claimed_keys.insert(key.as_str());
       }
     }
-    if !layout_data.is_empty() {
-      let mut layouts_map = serde_json::Map::new();
-      layouts_map.insert(layout_id.clone(), serde_json::Value::Object(layout_data));
+
+    // Page data = keys not claimed by any layout
+    for (k, v) in &data {
+      if !claimed_keys.contains(k.as_str()) {
+        script_data.insert(k.clone(), v.clone());
+      }
+    }
+
+    // Build per-layout _layouts grouping
+    let mut layouts_map = serde_json::Map::new();
+    for entry in &page.layout_chain {
+      let mut layout_data = serde_json::Map::new();
+      for key in &entry.loader_keys {
+        if let Some(v) = data.get(key) {
+          layout_data.insert(key.clone(), v.clone());
+        }
+      }
+      if !layout_data.is_empty() {
+        layouts_map.insert(entry.id.clone(), serde_json::Value::Object(layout_data));
+      }
+    }
+    if !layouts_map.is_empty() {
       script_data.insert("_layouts".to_string(), serde_json::Value::Object(layouts_map));
     }
   } else {

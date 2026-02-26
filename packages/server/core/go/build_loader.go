@@ -261,16 +261,28 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 		}
 
 		// Collect loaders: layout chain loaders + route loaders
+		// Also build layout chain with per-layout loader key assignments
 		var allLoaders []LoaderDef
+		var layoutChain []LayoutChainEntry
 		if entry.Layout != "" {
 			current := entry.Layout
 			for current != "" {
 				if le, ok := manifest.Layouts[current]; ok {
-					allLoaders = append(allLoaders, parseLoaders(le.Loaders)...)
+					layoutLoaders := parseLoaders(le.Loaders)
+					var loaderKeys []string
+					for _, ld := range layoutLoaders {
+						loaderKeys = append(loaderKeys, ld.DataKey)
+					}
+					layoutChain = append(layoutChain, LayoutChainEntry{ID: current, LoaderKeys: loaderKeys})
+					allLoaders = append(allLoaders, layoutLoaders...)
 					current = le.Parent
 				} else {
 					break
 				}
+			}
+			// Reverse: walked inner->outer, want outer->inner (matching TS)
+			for i, j := 0, len(layoutChain)-1; i < j; i, j = i+1, j-1 {
+				layoutChain[i], layoutChain[j] = layoutChain[j], layoutChain[i]
 			}
 		}
 		pageLoaders := parseLoaders(entry.Loaders)
@@ -305,7 +317,7 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 			LocaleTemplates: localeTemplates,
 			Loaders:         allLoaders,
 			DataID:          dataID,
-			LayoutID:        entry.Layout,
+			LayoutChain:     layoutChain,
 			PageLoaderKeys:  pageLoaderKeys,
 			I18nKeys:        i18nKeys,
 		})

@@ -11,6 +11,13 @@ pub struct LoaderDef {
   pub input_fn: LoaderInputFn,
 }
 
+/// One entry in a layout chain (outer to inner order).
+/// Each layout owns a set of loader data keys.
+pub struct LayoutChainEntry {
+  pub id: String,
+  pub loader_keys: Vec<String>,
+}
+
 pub struct PageDef {
   /// Axum route syntax, e.g. "/user/{id}"
   pub route: String,
@@ -20,8 +27,8 @@ pub struct PageDef {
   pub loaders: Vec<LoaderDef>,
   /// Script ID for the injected data JSON. Defaults to "__SEAM_DATA__".
   pub data_id: String,
-  /// Layout ID this page belongs to. Layout loaders stored under `_layouts.{id}` in data script.
-  pub layout_id: Option<String>,
+  /// Layout chain from outer to inner. Each entry records which loader keys belong to that layout.
+  pub layout_chain: Vec<LayoutChainEntry>,
   /// Data keys from page-level loaders (not layout). Used to split data in the data script.
   pub page_loader_keys: Vec<String>,
   /// Merged i18n keys from route + layout chain. Empty means include all keys.

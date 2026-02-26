@@ -1481,6 +1481,7 @@ version = "0.3.5"
 dependencies = [
  "futures-core",
  "regex",
+ "seam-engine",
  "seam-injector",
  "seam-macros",
  "serde",
@@ -1493,6 +1494,7 @@ version = "0.3.5"
 dependencies = [
  "axum",
  "futures-core",
+ "seam-engine",
  "seam-injector",
  "seam-server",
  "serde",
