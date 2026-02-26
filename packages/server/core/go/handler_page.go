@@ -7,12 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 	"sync"
 
 	engine "github.com/canmi21/seam/packages/server/engine/go"
-	injector "github.com/canmi21/seam/packages/server/injector/go"
 )
 
 // --- page handler ---
@@ -114,124 +112,57 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 		data[res.key] = res.value
 	}
 
-	// Sort keys for deterministic JSON
-	keys := make([]string, 0, len(data))
-	for k := range data {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	orderedData := make(map[string]any)
-	for _, k := range keys {
-		orderedData[k] = data[k]
-	}
-
-	// Flatten keyed loader results for slot resolution: spread nested object
-	// values to the top level so slots like <!--seam:tagline--> can resolve from
-	// data like {page: {tagline: "..."}} (matching TS flattenForSlots).
-	// JSON round-trip normalizes Go types (map[string]string -> map[string]any).
-	rawJSON, err := json.Marshal(orderedData)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, InternalError("Failed to serialize page data"))
-		return
-	}
-	var flatData map[string]any
-	json.Unmarshal(rawJSON, &flatData)
-	for _, v := range flatData {
-		if nested, ok := v.(map[string]any); ok {
-			for nk, nv := range nested {
-				if _, exists := flatData[nk]; !exists {
-					flatData[nk] = nv
-				}
-			}
-		}
-	}
-
-	dataJSON, err := json.Marshal(flatData)
+	// Marshal loader data to JSON (json.Marshal sorts map keys deterministically)
+	loaderDataJSON, err := json.Marshal(data)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, InternalError("Failed to serialize page data"))
 		return
 	}
 
-	html, err := injector.InjectNoScript(tmpl, string(dataJSON))
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, InternalError(fmt.Sprintf("Template injection failed: %v", err)))
-		return
+	// Build page config for engine
+	layoutChain := make([]map[string]any, 0, len(page.LayoutChain))
+	for _, entry := range page.LayoutChain {
+		layoutChain = append(layoutChain, map[string]any{
+			"id":          entry.ID,
+			"loader_keys": entry.LoaderKeys,
+		})
 	}
-
-	// Build data script JSON: page data at top level, layout data under _layouts (per-layout grouping)
-	scriptData := orderedData
-	if len(page.LayoutChain) > 0 {
-		// Collect all layout-claimed keys
-		claimedKeys := make(map[string]bool)
-		for _, entry := range page.LayoutChain {
-			for _, key := range entry.LoaderKeys {
-				claimedKeys[key] = true
-			}
-		}
-
-		// Page data = keys not claimed by any layout
-		pageData := make(map[string]any)
-		for k, v := range orderedData {
-			if !claimedKeys[k] {
-				pageData[k] = v
-			}
-		}
-		scriptData = pageData
-
-		// Build per-layout _layouts grouping
-		layoutsMap := make(map[string]any)
-		for _, entry := range page.LayoutChain {
-			entryData := make(map[string]any)
-			for _, key := range entry.LoaderKeys {
-				if v, ok := orderedData[key]; ok {
-					entryData[key] = v
-				}
-			}
-			if len(entryData) > 0 {
-				layoutsMap[entry.ID] = entryData
-			}
-		}
-		if len(layoutsMap) > 0 {
-			scriptData["_layouts"] = layoutsMap
-		}
-	}
-
-	// Inject _i18n data for client hydration
-	if s.i18nConfig != nil && locale != "" {
-		i18nData := map[string]any{
-			"locale":   locale,
-			"messages": filterI18nMessages(s.i18nConfig.Messages[locale], page.I18nKeys),
-		}
-		if locale != s.i18nConfig.Default {
-			i18nData["fallbackMessages"] = filterI18nMessages(s.i18nConfig.Messages[s.i18nConfig.Default], page.I18nKeys)
-		}
-		if len(s.i18nConfig.Versions) > 0 {
-			i18nData["versions"] = s.i18nConfig.Versions
-		}
-		scriptData["_i18n"] = i18nData
-	}
-
 	dataID := page.DataID
 	if dataID == "" {
 		dataID = "__SEAM_DATA__"
 	}
-	scriptJSON, _ := json.Marshal(scriptData)
-	escaped, err := engine.AsciiEscapeJSON(string(scriptJSON))
-	if err != nil {
-		// Fall back to unescaped JSON if WASM fails
-		escaped = string(scriptJSON)
+	config := map[string]any{
+		"layout_chain": layoutChain,
+		"data_id":      dataID,
 	}
-	script := fmt.Sprintf(`<script id="%s" type="application/json">%s</script>`, dataID, escaped)
-	if idx := strings.LastIndex(html, "</body>"); idx != -1 {
-		html = html[:idx] + script + html[idx:]
-	} else {
-		html += script
+	if page.HeadMeta != "" {
+		config["head_meta"] = page.HeadMeta
+	}
+	configJSON, _ := json.Marshal(config)
+
+	// Build i18n opts for engine
+	i18nOptsJSON := ""
+	if s.i18nConfig != nil && locale != "" {
+		i18nOpts := map[string]any{
+			"locale":         locale,
+			"default_locale": s.i18nConfig.Default,
+			"messages":       filterI18nMessages(s.i18nConfig.Messages[locale], page.I18nKeys),
+		}
+		if locale != s.i18nConfig.Default {
+			i18nOpts["fallback_messages"] = filterI18nMessages(s.i18nConfig.Messages[s.i18nConfig.Default], page.I18nKeys)
+		}
+		if len(s.i18nConfig.Versions) > 0 {
+			i18nOpts["versions"] = s.i18nConfig.Versions
+		}
+		i18nBytes, _ := json.Marshal(i18nOpts)
+		i18nOptsJSON = string(i18nBytes)
 	}
 
-	// Set <html lang="..."> attribute
-	if locale != "" {
-		html = strings.Replace(html, "<html", fmt.Sprintf(`<html lang="%s"`, locale), 1)
+	// Single WASM call: slot injection + data script + head meta + lang attribute
+	html, err := engine.RenderPage(tmpl, string(loaderDataJSON), string(configJSON), i18nOptsJSON)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, InternalError(fmt.Sprintf("Page render failed: %v", err)))
+		return
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

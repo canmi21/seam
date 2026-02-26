@@ -230,9 +230,6 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 		template := pageTemplate
 		if entry.Layout != "" {
 			template = resolveLayoutChain(entry.Layout, pageTemplate, layouts)
-			if entry.HeadMeta != "" {
-				template = strings.Replace(template, "</head>", entry.HeadMeta+"</head>", 1)
-			}
 		}
 
 		// Build locale-specific pre-resolved templates when i18n is active
@@ -252,9 +249,6 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 						localeLayouts = layouts
 					}
 					resolved = resolveLayoutChain(entry.Layout, pageTmpl, localeLayouts)
-					if entry.HeadMeta != "" {
-						resolved = strings.Replace(resolved, "</head>", entry.HeadMeta+"</head>", 1)
-					}
 				}
 				localeTemplates[locale] = resolved
 			}
@@ -320,6 +314,7 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 			LayoutChain:     layoutChain,
 			PageLoaderKeys:  pageLoaderKeys,
 			I18nKeys:        i18nKeys,
+			HeadMeta:        entry.HeadMeta,
 		})
 	}
 

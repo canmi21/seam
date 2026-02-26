@@ -137,6 +137,7 @@ type PageDef struct {
 	LayoutChain     []LayoutChainEntry // layout chain from outer to inner with per-layout loader keys
 	PageLoaderKeys  []string           // data keys from page-level loaders (not layout)
 	I18nKeys        []string           // merged i18n keys from route + layout chain; empty means include all
+	HeadMeta        string             // head metadata HTML (injected at render time by engine)
 }
 
 // I18nConfig holds runtime i18n state loaded from build output.
