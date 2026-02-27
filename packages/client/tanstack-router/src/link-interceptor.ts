@@ -36,7 +36,13 @@ export function setupLinkInterception(router: AnyRouter): () => void {
     if (anchor.href === location.href && anchor.hash) return;
 
     e.preventDefault();
-    void router.navigate({ to: anchor.pathname + anchor.search + anchor.hash });
+    // Strip basepath prefix so TanStack Router resolves the route correctly
+    let pathname = anchor.pathname;
+    const basepath = router.basepath;
+    if (basepath && basepath !== "/" && pathname.startsWith(basepath)) {
+      pathname = pathname.slice(basepath.length) || "/";
+    }
+    void router.navigate({ to: pathname + anchor.search + anchor.hash });
   }
 
   document.addEventListener("click", handler);

@@ -10,6 +10,7 @@ const fullstackDir = path.resolve(
 );
 const workspaceRoot = path.resolve(__dirname, "../..");
 const workspaceExampleDir = path.resolve(workspaceRoot, "examples/github-dashboard");
+const i18nOutputDir = path.resolve(workspaceRoot, "examples/i18n-demo/seam-app/.seam/output");
 
 // Load .env from workspace root (GITHUB_TOKEN raises API rate limit from 60 to 5000/hour)
 try {
@@ -38,7 +39,7 @@ export default defineConfig({
     {
       name: "chromium",
       use: { browserName: "chromium", baseURL: "http://localhost:3456" },
-      testIgnore: /fullstack|vite-dev|workspace|nextjs/,
+      testIgnore: /fullstack|vite-dev|workspace|nextjs|i18n/,
     },
     {
       name: "fullstack",
@@ -72,6 +73,16 @@ export default defineConfig({
       use: { browserName: "chromium", baseURL: "http://localhost:3463" },
       testMatch: /nextjs/,
       timeout: 60_000,
+    },
+    {
+      name: "i18n-prefix",
+      use: { browserName: "chromium", baseURL: "http://localhost:3470" },
+      testMatch: /i18n-prefix/,
+    },
+    {
+      name: "i18n-hidden",
+      use: { browserName: "chromium", baseURL: "http://localhost:3471" },
+      testMatch: /i18n-hidden/,
     },
   ],
 
@@ -122,6 +133,26 @@ export default defineConfig({
       cwd: path.join(workspaceExampleDir, "next-app"),
       port: 3463,
       env: { ...ghToken },
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: path.join(workspaceRoot, "target/release/i18n-demo-axum"),
+      port: 3470,
+      env: {
+        PORT: "3470",
+        I18N_MODE: "prefix",
+        SEAM_OUTPUT_DIR: i18nOutputDir,
+      },
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: path.join(workspaceRoot, "target/release/i18n-demo-axum"),
+      port: 3471,
+      env: {
+        PORT: "3471",
+        I18N_MODE: "hidden",
+        SEAM_OUTPUT_DIR: i18nOutputDir,
+      },
       reuseExistingServer: !process.env.CI,
     },
   ],

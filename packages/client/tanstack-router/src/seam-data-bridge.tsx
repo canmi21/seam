@@ -9,13 +9,15 @@ import { createI18nCache } from "@canmi/seam-i18n/cache";
 import type { I18nCache } from "@canmi/seam-i18n/cache";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { I18nInstance } from "@canmi/seam-i18n";
 import type { SeamRouterContext } from "./types.js";
 import { matchSeamRoute } from "./route-matcher.js";
 
-/** Build I18nInstance from raw metadata (initial load or fetched) */
-function buildI18n(locale: string, messages: Record<string, string>): I18nInstance {
-  return createI18n(locale, messages);
+/** Strip router basepath prefix from a pathname */
+function stripBasepath(basepath: string | undefined, pathname: string): string {
+  if (basepath && basepath !== "/" && pathname.startsWith(basepath)) {
+    return pathname.slice(basepath.length) || "/";
+  }
+  return pathname;
 }
 
 /** Resolve current seam route pattern from the URL pathname */
@@ -23,6 +25,16 @@ function resolveRoutePattern(leafPaths: string[] | undefined, pathname: string):
   if (!leafPaths?.length) return null;
   const match = matchSeamRoute(leafPaths, pathname);
   return match?.path ?? null;
+}
+
+/** Merge loaderData from all matched routes (layout + page levels) */
+function mergeLoaderData(matches: { loaderData?: unknown }[]): Record<string, unknown> {
+  const merged: Record<string, unknown> = {};
+  for (const match of matches) {
+    const ld = match.loaderData as Record<string, unknown> | undefined;
+    if (ld && typeof ld === "object") Object.assign(merged, ld);
+  }
+  return (merged.page ?? merged) as Record<string, unknown>;
 }
 
 // Singleton cache (created once when router data is present)
@@ -35,16 +47,7 @@ let globalCache: I18nCache | null = null;
  */
 export function SeamDataBridge({ children }: { children: ReactNode }) {
   const matches = useMatches();
-
-  // Merge loaderData from all matched routes (layout + page levels)
-  const merged: Record<string, unknown> = {};
-  for (const match of matches) {
-    const ld = match.loaderData as Record<string, unknown> | undefined;
-    if (ld && typeof ld === "object") {
-      Object.assign(merged, ld);
-    }
-  }
-  const seamData = (merged.page ?? merged) as Record<string, unknown>;
+  const seamData = mergeLoaderData(matches);
 
   const router = useRouter();
   const navigate = useCallback(
@@ -81,7 +84,11 @@ export function SeamDataBridge({ children }: { children: ReactNode }) {
   } | null>(i18nMeta ? { locale: i18nMeta.locale, messages: i18nMeta.messages } : null);
 
   // Track the current route hash for SPA message loading
-  const currentPathname = matches.length > 0 ? matches[matches.length - 1].pathname : "/";
+  const rawPathname = matches.length > 0 ? matches[matches.length - 1].pathname : "/";
+  const currentPathname = useMemo(
+    () => stripBasepath(router.basepath, rawPathname),
+    [router.basepath, rawPathname],
+  );
   const currentPattern = useMemo(
     () => resolveRoutePattern(leafPaths, currentPathname),
     [leafPaths, currentPathname],
@@ -127,9 +134,8 @@ export function SeamDataBridge({ children }: { children: ReactNode }) {
     });
   }, [currentPathname, currentRouteHash, i18nState, ctx]);
 
-  // Build I18nInstance from current state
   const i18n = useMemo(
-    () => (i18nState ? buildI18n(i18nState.locale, i18nState.messages) : null),
+    () => (i18nState ? createI18n(i18nState.locale, i18nState.messages) : null),
     [i18nState],
   );
 
