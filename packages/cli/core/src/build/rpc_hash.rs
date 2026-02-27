@@ -5,7 +5,6 @@
 use std::collections::BTreeMap;
 
 use anyhow::{bail, Result};
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -18,8 +17,7 @@ pub struct RpcHashMap {
 
 /// Generate 16 hex chars (8 random bytes) for use as a hash salt.
 pub fn generate_random_salt() -> String {
-  let mut rng = rand::thread_rng();
-  let bytes: [u8; 8] = rng.gen();
+  let bytes: [u8; 8] = rand::random();
   hex::encode(bytes)
 }
 
