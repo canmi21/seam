@@ -5,6 +5,19 @@ export interface I18nInstance {
   t: (key: string, params?: Record<string, string | number>) => string;
 }
 
+export interface SwitchLocaleOptions {
+  /** Full-page reload (default: true). When false, uses SPA mode via RPC. */
+  reload?: boolean;
+  /** Current route's hash (required for SPA mode to fetch messages) */
+  routeHash?: string;
+  /** RPC function to call __seam_i18n_query (required for SPA mode) */
+  rpc?: (procedure: string, input: unknown) => Promise<unknown>;
+  /** Callback to update i18n state with fetched messages (required for SPA mode) */
+  onMessages?: (locale: string, messages: Record<string, string>, hash?: string) => void;
+  /** Write cookie before switching. True uses defaults; CookieOptions for custom. */
+  writeCookie?: boolean | { name?: string; path?: string; maxAge?: number; sameSite?: string };
+}
+
 /** Interpolate `{name}` placeholders in a message string */
 function interpolate(template: string, params: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (_, name: string) => {
@@ -26,6 +39,40 @@ export function createI18n(locale: string, messages: Record<string, string>): I1
       return params ? interpolate(raw, params) : raw;
     },
   };
+}
+
+/**
+ * Switch to a different locale.
+ * Reload mode (default): writes cookie + redirects.
+ * SPA mode: calls RPC for new messages, invokes onMessages callback.
+ */
+export async function switchLocale(locale: string, opts?: SwitchLocaleOptions): Promise<void> {
+  // Write cookie if requested
+  if (opts?.writeCookie !== false && opts?.writeCookie !== undefined) {
+    const cookieOpts = typeof opts.writeCookie === "object" ? opts.writeCookie : undefined;
+    const name = cookieOpts?.name ?? "seam-locale";
+    const path = cookieOpts?.path ?? "/";
+    const maxAge = cookieOpts?.maxAge ?? 365 * 24 * 60 * 60;
+    const sameSite = cookieOpts?.sameSite ?? "lax";
+    if (typeof document !== "undefined") {
+      document.cookie = `${name}=${locale};path=${path};max-age=${maxAge};samesite=${sameSite}`;
+    }
+  }
+
+  // Reload mode: navigate to current URL (server will pick up cookie)
+  const reload = opts?.reload ?? true;
+  if (reload) {
+    if (typeof window !== "undefined") window.location.reload();
+    return;
+  }
+
+  // SPA mode: fetch messages via RPC
+  if (!opts?.rpc || !opts.routeHash || !opts.onMessages) return;
+  const result = (await opts.rpc("__seam_i18n_query", {
+    route: opts.routeHash,
+    locale,
+  })) as { hash?: string; messages: Record<string, string> };
+  opts.onMessages(locale, result.messages, result.hash);
 }
 
 /** Return a new object with keys sorted alphabetically */

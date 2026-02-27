@@ -27,11 +27,22 @@ export interface HydrateOptions extends SeamRouterOptions {
   strict?: boolean;
 }
 
+/** Parsed i18n metadata from initial __SEAM_DATA__._i18n */
+export interface SeamI18nMeta {
+  locale: string;
+  messages: Record<string, string>;
+  hash?: string;
+  /** Content hash router table (present when cache is enabled) */
+  router?: Record<string, Record<string, string>>;
+}
+
 /** Shared context passed to TanStack Router loaders via router.context */
 export interface SeamRouterContext {
   seamRpc: (procedure: string, input?: unknown) => Promise<unknown>;
   _seamInitial: SeamInitialData | null;
-  _seamI18n?: unknown;
+  _seamI18n?: SeamI18nMeta | null;
+  /** All leaf route patterns (seam format: /user/:id) for SPA route matching */
+  _seamLeafPaths?: string[];
 }
 
 export interface SeamInitialData {

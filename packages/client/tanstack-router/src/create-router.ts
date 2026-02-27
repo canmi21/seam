@@ -15,7 +15,7 @@ import { convertPath } from "./convert-routes.js";
 import { createLoaderFromDefs } from "./create-loader.js";
 import { matchSeamRoute } from "./route-matcher.js";
 import { SeamDataBridge } from "./seam-data-bridge.js";
-import type { SeamRouteDef, SeamRouterOptions, SeamRouterContext } from "./types.js";
+import type { SeamRouteDef, SeamRouterOptions, SeamRouterContext, SeamI18nMeta } from "./types.js";
 
 /** Extract all leaf paths from a potentially nested route tree */
 function collectLeafPaths(defs: RouteDef[]): string[] {
@@ -78,7 +78,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
   let initialLayouts: Record<string, Record<string, unknown>> = {};
   let initialPath: string | null = null;
   let initialParams: Record<string, string> = {};
-  let initialI18n: unknown = null;
+  let initialI18n: SeamI18nMeta | null = null;
 
   if (typeof document !== "undefined") {
     try {
@@ -89,7 +89,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
       }
       // Page data is everything except _layouts and _i18n
       const { _layouts: _, _i18n: rawI18n, ...pageData } = raw;
-      initialI18n = rawI18n ?? null;
+      initialI18n = (rawI18n as SeamI18nMeta) ?? null;
       // Unwrap: single "page" loader gets flattened
       initialData = (pageData.page ?? pageData) as Record<string, unknown>;
       const matched = matchSeamRoute(collectLeafPaths(routes), window.location.pathname);
@@ -111,6 +111,8 @@ export function createSeamRouter(opts: SeamRouterOptions) {
   const childRoutes = buildRoutes(routes, rootRoute, pages);
   const routeTree = rootRoute.addChildren(childRoutes);
 
+  const leafPaths = collectLeafPaths(routes);
+
   const context: SeamRouterContext = {
     seamRpc,
     _seamInitial: initialData
@@ -124,6 +126,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
         }
       : null,
     _seamI18n: initialI18n,
+    _seamLeafPaths: leafPaths,
   };
 
   const router = createTanStackRouter({

@@ -19,7 +19,7 @@ const page: PageDef = {
 };
 
 // Route hashes for the two page patterns
-const ROOT_HASH = "050c5d1e";
+const ROOT_HASH = "2a0c975e";
 const USER_HASH = "2a3b4c5d";
 
 const i18nConfig: I18nConfig = {

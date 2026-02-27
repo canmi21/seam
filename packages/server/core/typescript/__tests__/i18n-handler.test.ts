@@ -6,7 +6,7 @@ import type { PageDef, LayoutDef, I18nConfig } from "../src/page/index.js";
 import { makeProcedures, mockProcedure, extractSeamData } from "./page-handler-helpers.js";
 
 // Route hash for "/" — used to key messages in the new hash-based lookup
-const ROOT_HASH = "050c5d1e";
+const ROOT_HASH = "2a0c975e";
 
 const i18nConfig: I18nConfig = {
   locales: ["en", "zh"],
