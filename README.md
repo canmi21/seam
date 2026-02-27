@@ -126,6 +126,7 @@ Minimal standalone examples showing SDK usage for each language and runtime.
 | [server-go-gin](examples/standalone/server-go-gin/)   | Go backend with Gin framework                       |
 | [client-vanilla](examples/standalone/client-vanilla/) | Vanilla JS client (RPC + SSE)                       |
 | [client-react](examples/standalone/client-react/)     | React client with hooks and routing                 |
+| [i18n-demo](examples/i18n-demo/)                     | i18n showcase: URL-prefix and hidden locale modes   |
 
 ## Development
 
