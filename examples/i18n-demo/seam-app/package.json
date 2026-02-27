@@ -1,0 +1,28 @@
+{
+  "name": "i18n-demo-seam",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "seam dev",
+    "build": "seam build"
+  },
+  "dependencies": {
+    "@canmi/seam-client": "workspace:*",
+    "@canmi/seam-i18n": "workspace:*",
+    "@canmi/seam-react": "workspace:*",
+    "@canmi/seam-server": "workspace:*",
+    "@canmi/seam-tanstack-router": "workspace:*",
+    "@tanstack/react-router": "^1.162.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@canmi/seam-cli": "workspace:*",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^7.0.0"
+  }
+}

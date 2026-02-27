@@ -1,0 +1,8 @@
+{
+  "about.description": "SeamJS 国际化功能演示",
+  "about.title": "关于",
+  "home.description": "两种语言解析模式：URL 前缀和隐藏模式（Cookie / 查询参数）",
+  "home.title": "i18n 演示",
+  "nav.about": "关于",
+  "nav.home": "首页"
+}

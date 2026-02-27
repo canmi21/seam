@@ -1,0 +1,8 @@
+{
+  "about.description": "SeamJS internationalization showcase",
+  "about.title": "About",
+  "home.description": "Two locale resolution modes: URL prefix and hidden (cookie/query)",
+  "home.title": "i18n Demo",
+  "nav.about": "About",
+  "nav.home": "Home"
+}

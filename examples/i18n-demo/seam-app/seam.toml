@@ -1,0 +1,19 @@
+[project]
+name = "i18n-demo"
+
+[backend]
+lang = "typescript"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+bundler_command = "bunx vite build"
+bundler_manifest = "dist/.vite/manifest.json"
+router_file = "src/server/router.ts"
+routes = "./src/client/routes.ts"
+out_dir = ".seam/output"
+
+[i18n]
+locales = ["en", "zh"]
+default = "en"

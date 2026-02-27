@@ -11,6 +11,7 @@ members = [
   "packages/cli/core",
   "examples/standalone/server-rust",
   "examples/github-dashboard/backends/rust-axum",
+  "examples/i18n-demo/backend",
 ]
 
 [workspace.lints.clippy]

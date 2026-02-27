@@ -20,6 +20,13 @@ export interface SeamRouterOptions {
   defaultStaleTime?: number;
   basePath?: string;
   dataId?: string;
+  /**
+   * Strip locale query parameter from URL after hydration (hidden mode UX).
+   * - false (default): disabled
+   * - true: strips `?lang=...`
+   * - string: strips `?<custom>=...`
+   */
+  cleanLocaleQuery?: string | boolean;
 }
 
 export interface HydrateOptions extends SeamRouterOptions {
@@ -43,6 +50,8 @@ export interface SeamRouterContext {
   _seamI18n?: SeamI18nMeta | null;
   /** All leaf route patterns (seam format: /user/:id) for SPA route matching */
   _seamLeafPaths?: string[];
+  /** Locale query param to strip after hydration (false = disabled) */
+  _cleanLocaleQuery?: string | false;
 }
 
 export interface SeamInitialData {

@@ -71,7 +71,7 @@ function buildRoutes(
 }
 
 export function createSeamRouter(opts: SeamRouterOptions) {
-  const { routes, pages, defaultStaleTime = 30_000, dataId } = opts;
+  const { routes, pages, defaultStaleTime = 30_000, dataId, cleanLocaleQuery } = opts;
 
   // Parse initial data from __SEAM_DATA__ (browser only)
   let initialData: Record<string, unknown> | null = null;
@@ -127,6 +127,12 @@ export function createSeamRouter(opts: SeamRouterOptions) {
       : null,
     _seamI18n: initialI18n,
     _seamLeafPaths: leafPaths,
+    _cleanLocaleQuery:
+      cleanLocaleQuery === true
+        ? "lang"
+        : cleanLocaleQuery === false || cleanLocaleQuery === undefined
+          ? false
+          : cleanLocaleQuery,
   };
 
   const router = createTanStackRouter({

@@ -707,6 +707,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "i18n-demo-axum"
+version = "0.4.1"
+dependencies = [
+ "axum",
+ "seam-server",
+ "seam-server-axum",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower",
+ "tower-http",
+]
+
+[[package]]
 name = "icu_collections"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

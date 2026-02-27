@@ -75,6 +75,20 @@ export async function switchLocale(locale: string, opts?: SwitchLocaleOptions): 
   opts.onMessages(locale, result.messages, result.hash);
 }
 
+/**
+ * Remove the locale query parameter from the URL bar after hydration.
+ * Only deletes the specified param; preserves all other query params.
+ * Uses replaceState to avoid creating a navigation history entry.
+ */
+export function cleanLocaleQuery(param = "lang"): void {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has(param)) return;
+  url.searchParams.delete(param);
+  const newUrl = url.pathname + (url.search || "") + url.hash;
+  window.history.replaceState(window.history.state, "", newUrl);
+}
+
 /** Return a new object with keys sorted alphabetically */
 export function sortMessages(messages: Record<string, string>): Record<string, string> {
   const sorted: Record<string, string> = {};

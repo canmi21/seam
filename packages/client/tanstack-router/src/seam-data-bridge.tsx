@@ -3,7 +3,7 @@
 import { useMatches, useRouter } from "@tanstack/react-router";
 import { SeamDataProvider, SeamNavigateProvider } from "@canmi/seam-react";
 import { I18nProvider, SwitchLocaleProvider } from "@canmi/seam-i18n/react";
-import { createI18n } from "@canmi/seam-i18n";
+import { createI18n, cleanLocaleQuery } from "@canmi/seam-i18n";
 import { routeHash } from "@canmi/seam-i18n/hash";
 import { createI18nCache } from "@canmi/seam-i18n/cache";
 import type { I18nCache } from "@canmi/seam-i18n/cache";
@@ -57,6 +57,12 @@ export function SeamDataBridge({ children }: { children: ReactNode }) {
   const ctx = router.options.context as SeamRouterContext;
   const i18nMeta = ctx._seamI18n;
   const leafPaths = ctx._seamLeafPaths;
+
+  // Strip locale query param from URL on initial hydration (hidden mode UX)
+  const cleanParam = ctx._cleanLocaleQuery;
+  useEffect(() => {
+    if (cleanParam) cleanLocaleQuery(cleanParam);
+  }, [cleanParam]);
 
   // Initialize cache from router table (once)
   const cacheRef = useRef<I18nCache | null>(null);
