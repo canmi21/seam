@@ -1,7 +1,9 @@
 ---
-name: bug: something wrong
+name: Bug Report
 about: Something is broken or behaving unexpectedly
+title: "bug: something wrong"
 labels: bug
+assignees: ""
 ---
 
 **Which package?**
