@@ -48,24 +48,45 @@ test.describe("i18n hidden mode", () => {
     expect(url.searchParams.get("foo")).toBe("bar");
   });
 
-  test("locale switcher writes cookie and switches content", async ({ page }) => {
+  test("locale switcher writes cookie and switches content via SPA", async ({ page }) => {
     await page.goto("/", { waitUntil: "networkidle" });
     await waitForHydration(page);
 
     // Should be English initially
     await expect(page.locator("h1")).toContainText("i18n Demo");
 
-    // Click locale switcher to switch to Chinese
+    // Click locale switcher to switch to Chinese (SPA mode, no reload)
     await page.click("button:has-text('ZH')");
 
-    // Page reloads with cookie, should now be Chinese
-    await page.waitForLoadState("networkidle");
-    await waitForHydration(page);
-
-    await expect(page.locator("h1")).toContainText("i18n 演示");
+    // Wait for content to update via SPA
+    await expect(page.locator("h1")).toContainText("i18n 演示", { timeout: 5_000 });
 
     // URL should not have locale prefix (hidden mode)
     expect(page.url()).not.toMatch(/\/zh/);
+  });
+
+  test("SPA locale switch updates content without reload", async ({ page }) => {
+    await page.goto("/", { waitUntil: "networkidle" });
+    await waitForHydration(page);
+
+    await expect(page.locator("h1")).toContainText("i18n Demo");
+
+    // Plant SPA marker
+    await page.evaluate(() => {
+      (window as unknown as Record<string, unknown>).__SPA_MARKER = true;
+    });
+
+    // Click locale switcher (SPA mode in hidden, no reload)
+    await page.click("button:has-text('ZH')");
+
+    // Wait for content to update (SPA, no reload)
+    await expect(page.locator("h1")).toContainText("i18n 演示", { timeout: 5_000 });
+
+    // Verify SPA marker survived (no full reload)
+    const markerSurvived = await page.evaluate(
+      () => (window as unknown as Record<string, unknown>).__SPA_MARKER === true,
+    );
+    expect(markerSurvived, "SPA marker lost — full reload occurred").toBe(true);
   });
 
   test("cookie persists locale across SPA navigation", async ({ page }) => {
@@ -73,15 +94,9 @@ test.describe("i18n hidden mode", () => {
     await page.goto("/?lang=zh", { waitUntil: "networkidle" });
     await waitForHydration(page);
 
-    // Switch locale to set cookie (to Chinese)
-    // Already Chinese from query, click EN to toggle, then ZH to confirm cookie write
-    // Actually, let's use switchLocale directly — just navigate with cookie
+    // Switch locale to English via SPA (no reload)
     await page.click("button:has-text('EN')");
-    await page.waitForLoadState("networkidle");
-    await waitForHydration(page);
-
-    // Now English via cookie
-    await expect(page.locator("h1")).toContainText("i18n Demo");
+    await expect(page.locator("h1")).toContainText("i18n Demo", { timeout: 5_000 });
 
     // Navigate to about via SPA
     await page.evaluate(() => {
