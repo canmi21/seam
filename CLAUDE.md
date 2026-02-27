@@ -66,12 +66,13 @@
 
 ## Long-running Tasks
 
-- Use tmux sessions for long-running tasks (builds, tests, server processes)
-- Do not block the main terminal
+- Use `Bash` with `run_in_background: true` for long-running tasks (builds, full test suites)
+- Do not block the main terminal; continue other work while waiting
 - Full verification (`bun run verify`) procedure:
-  1. Start in tmux: `tmux new-session -d -s verify 'bun run verify'`
-  2. Poll output every 15s via `tmux capture-pane -t verify -p | tail -20` — do NOT use `tee` or log files
-  3. Continue polling until the process exits (check with `tmux has-session -t verify 2>/dev/null`)
+  1. Start in background: `Bash(command: "bun run verify", run_in_background: true)` — note the returned `task_id`
+  2. Poll every 15s: `TaskOutput(task_id, block: false, timeout: 15000)` — compare output with previous poll to detect stalls (no new output for 30s+ = likely stuck)
+  3. On completion the system auto-notifies; read final output and report the last 20 lines to the user
+- For persistent server processes (dev servers), use tmux: `tmux new-session -d -s <name> '<command>'`
 
 ## Refactoring
 
