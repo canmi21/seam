@@ -126,8 +126,8 @@ async function main() {
       stats: { hits: 0, misses: 0 },
     };
 
-    const layouts = processLayoutsWithCache(layoutMap, ctx);
-    const renderedRoutes = processRoutesWithCache(flat, ctx);
+    const layouts = await processLayoutsWithCache(layoutMap, ctx);
+    const renderedRoutes = await processRoutesWithCache(flat, ctx);
 
     const output = {
       layouts,

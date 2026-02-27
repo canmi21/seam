@@ -18,11 +18,11 @@
   },
   "dependencies": {
     "@canmi/seam-client": "workspace:*",
-    "@canmi/seam-i18n": "workspace:*",
     "esbuild": "^0.25.0"
   },
   "devDependencies": {
     "@canmi/seam-engine": "workspace:*",
+    "@canmi/seam-i18n": "workspace:*",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "jsdom": "^28.1.0",
