@@ -51,9 +51,13 @@ jobs:
 
       - name: Go integration tests
         run: bash scripts/ci/test-integration.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Playwright
         run: bunx playwright install --with-deps chromium
 
       - name: Playwright E2E
         run: bash scripts/ci/test-e2e.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
