@@ -77,7 +77,7 @@ while IFS= read -r cargo; do
 done < <(find "$ROOT/packages" "$ROOT/examples" -name "Cargo.toml" | sort)
 
 # 4. Regenerate lockfile to reflect version changes
-echo "Regenerating pnpm-lock.yaml..."
-cd "$ROOT" && pnpm install
+echo "Regenerating bun.lock..."
+cd "$ROOT" && bun install
 
 echo "Done: all versions synced to $VERSION"

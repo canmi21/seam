@@ -12,8 +12,8 @@ Exports `serveBun()` which starts a Bun HTTP server with seam routing, optional 
 
 ## Development
 
-- Build: `pnpm --filter '@canmi/seam-adapter-bun' build`
-- Test: `pnpm --filter '@canmi/seam-adapter-bun' test`
+- Build: `bun run --filter '@canmi/seam-adapter-bun' build`
+- Test: `bun run --filter '@canmi/seam-adapter-bun' test`
 
 ## Notes
 

@@ -17,8 +17,8 @@ Framework-agnostic client for calling seam procedures and subscribing to server 
 
 ## Development
 
-- Build: `pnpm --filter '@canmi/seam-client' build`
-- Test: `pnpm --filter '@canmi/seam-client' test`
+- Build: `bun run --filter '@canmi/seam-client' build`
+- Test: `bun run --filter '@canmi/seam-client' test`
 
 ## Notes
 

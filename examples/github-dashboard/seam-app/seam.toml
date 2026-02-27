@@ -12,7 +12,7 @@ data_id = "__data"
 
 [build]
 backend_build_command = "bun build src/server/index.ts --target=bun --outdir=.seam/output/server"
-bundler_command = "pnpm exec vite build"
+bundler_command = "bunx vite build"
 bundler_manifest = "dist/.vite/manifest.json"
 router_file = "src/server/router.ts"
 routes = "./src/client/routes.ts"

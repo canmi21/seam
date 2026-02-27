@@ -24,7 +24,7 @@ printf '\n==> Type check (tsc --noEmit)\n'
 
 for pkg in "${packages[@]}"; do
   printf '  %s ... ' "$pkg"
-  if (cd "$ROOT" && pnpm exec tsc --noEmit -p "$pkg/tsconfig.json") 2>&1; then
+  if (cd "$ROOT" && bunx tsc --noEmit -p "$pkg/tsconfig.json") 2>&1; then
     printf 'ok\n'
   else
     printf 'FAIL\n'

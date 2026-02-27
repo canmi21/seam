@@ -27,5 +27,5 @@ The recommended config scopes all rules to `**/*-skeleton.tsx` files as `"error"
 
 ## Development
 
-- Build: `pnpm --filter '@canmi/eslint-plugin-seam' build`
-- Test: `pnpm --filter '@canmi/eslint-plugin-seam' test`
+- Build: `bun run --filter '@canmi/eslint-plugin-seam' build`
+- Test: `bun run --filter '@canmi/eslint-plugin-seam' test`

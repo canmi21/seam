@@ -17,8 +17,8 @@
 
 ## Version Control
 
-- Before every `git commit`, run `pnpm fmt && pnpm lint` and fix any errors first; for TS-only changes also run `pnpm test:ts`, for Rust changes run `pnpm test:rs`
-- For full verification (fmt + lint + build + all tests): `pnpm verify`
+- Before every `git commit`, run `bun fmt && bun lint` and fix any errors first; for TS-only changes also run `bun run test:ts`, for Rust changes run `bun run test:rs`
+- For full verification (fmt + lint + build + all tests): `bun run verify`
 - Run `git commit` after each plan mode phase completes, do not push
 - Commit messages: concise English describing the change
 - Never add AI co-authorship (e.g., "Co-Authored-By: Claude")
@@ -68,8 +68,8 @@
 
 - Use `Bash` with `run_in_background: true` for long-running tasks (builds, full test suites)
 - Do not block the main terminal; continue other work while waiting
-- Full verification (`pnpm verify`) procedure:
-  1. Start in background: `Bash(command: "pnpm verify", run_in_background: true)` — note the returned `task_id`
+- Full verification (`bun run verify`) procedure:
+  1. Start in background: `Bash(command: "bun run verify", run_in_background: true)` — note the returned `task_id`
   2. Poll every 15s: `TaskOutput(task_id, block: false, timeout: 15000)` — compare output with previous poll to detect stalls (no new output for 30s+ = likely stuck)
   3. On completion the system auto-notifies; read final output and report the last 20 lines to the user
 - For persistent server processes (dev servers), use tmux: `tmux new-session -d -s <name> '<command>'`
@@ -79,7 +79,7 @@
 - Rust file split: convert `foo.rs` to `foo/mod.rs` + sub-modules; inner functions become `pub(super)`, only entry-point stays `pub`
 - Verify `cargo test --workspace && cargo clippy --workspace` after every Rust structural change
 - TS dedup: add shared functions to `@canmi/seam-server`, update adapters to import; node adapter keeps its own `sendResponse` (Node streams differ from Web Response)
-- After TS changes: `pnpm --filter '<pkg>' build && pnpm --filter '<pkg>' test`
+- After TS changes: `bun run --filter '<pkg>' build && bun run --filter '<pkg>' test`
 
 ## Agent Team Strategy
 
@@ -105,16 +105,16 @@
 
 ## Running Tests
 
-| Command                 | Scope                                            |
-| ----------------------- | ------------------------------------------------ |
-| `pnpm test:rs`          | Rust unit tests (`cargo test --workspace`)       |
-| `pnpm test:ts`          | TS unit tests (vitest across 11 packages)        |
-| `pnpm test:unit`        | All unit tests (Rust + TS)                       |
-| `pnpm test:integration` | Go integration tests (standalone + fullstack)    |
-| `pnpm test:e2e`         | Playwright E2E tests                             |
-| `pnpm test`             | All layers (unit + integration + e2e), fail-fast |
-| `pnpm typecheck`        | TypeScript type checking across all TS packages  |
-| `pnpm verify`           | Full pipeline: fmt + lint + build + all tests    |
+| Command                    | Scope                                            |
+| -------------------------- | ------------------------------------------------ |
+| `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)       |
+| `bun run test:ts`          | TS unit tests (vitest across 11 packages)        |
+| `bun run test:unit`        | All unit tests (Rust + TS)                       |
+| `bun run test:integration` | Go integration tests (standalone + fullstack)    |
+| `bun run test:e2e`         | Playwright E2E tests                             |
+| `bun run test`             | All layers (unit + integration + e2e), fail-fast |
+| `bun run typecheck`        | TypeScript type checking across all TS packages  |
+| `bun run verify`           | Full pipeline: fmt + lint + build + all tests    |
 
 - Integration and E2E tests require fullstack build output: `cd examples/github-dashboard/seam-app && seam build`
 - `scripts/smoke-fullstack.sh` runs the full build-and-test pipeline for integration + E2E

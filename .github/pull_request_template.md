@@ -12,6 +12,6 @@
 
 **Checklist**
 
-- [ ] `pnpm fmt && pnpm lint` passes
+- [ ] `bun fmt && bun lint` passes
 - [ ] Tests added or updated (if applicable)
 - [ ] No unrelated changes included

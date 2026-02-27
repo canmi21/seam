@@ -59,7 +59,7 @@ if [ -z "$VERSION" ]; then
 fi
 info "Version: $VERSION"
 
-for tool in cargo pnpm curl; do
+for tool in cargo bun curl; do
   if ! command -v "$tool" &>/dev/null; then
     fail "Required tool not found: $tool"
     exit 1
@@ -72,8 +72,8 @@ fi
 
 # --- 2. Verify ---
 if ! $SKIP_VERIFY; then
-  info "Running verification (pnpm verify)..."
-  if ! (cd "$ROOT" && pnpm verify); then
+  info "Running verification (bun run verify)..."
+  if ! (cd "$ROOT" && bun run verify); then
     fail "Verification failed. Fix issues or use --skip-verify to bypass."
     exit 1
   fi
@@ -175,7 +175,7 @@ fi
 if ! $RUST_ONLY; then
   info "Publishing NPM packages..."
 
-  # Check npm auth (pnpm publish uses npm registry credentials)
+  # Check npm auth (bun publish uses npm registry credentials)
   if ! $DRY_RUN; then
     if ! npm whoami &>/dev/null; then
       fail "Not authenticated with npm. Run 'npm login' first."
@@ -185,8 +185,8 @@ if ! $RUST_ONLY; then
   fi
 
   # Build TS packages
-  info "Building TypeScript packages (pnpm build:ts)..."
-  if ! (cd "$ROOT" && pnpm build:ts); then
+  info "Building TypeScript packages (bun run build:ts)..."
+  if ! (cd "$ROOT" && bun run build:ts); then
     fail "TypeScript build failed"
     exit 1
   fi
@@ -250,7 +250,7 @@ if ! $RUST_ONLY; then
 
       info "Publishing $name@$VERSION..."
       if $DRY_RUN; then
-        if (cd "$pkg_dir" && pnpm publish --access public --dry-run 2>&1); then
+        if (cd "$pkg_dir" && bun publish --access public --dry-run 2>&1); then
           ok "$name (dry-run)"
           PUBLISHED=$((PUBLISHED + 1))
         else
@@ -259,7 +259,7 @@ if ! $RUST_ONLY; then
           FAILED_NAMES+=("$name")
         fi
       else
-        if (cd "$pkg_dir" && pnpm publish --access public); then
+        if (cd "$pkg_dir" && bun publish --access public); then
           ok "$name"
           PUBLISHED=$((PUBLISHED + 1))
         else

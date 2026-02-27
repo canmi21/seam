@@ -15,12 +15,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - run: pnpm install
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
 
       - uses: actions/setup-go@v5
         with:
@@ -36,7 +32,7 @@ jobs:
         run: bash scripts/ci/build-cli.sh
 
       - name: Build WASM
-        run: cargo install wasm-pack && pnpm build:wasm
+        run: cargo install wasm-pack && bun run build:wasm
 
       - name: Build TS
         run: bash scripts/ci/build-ts.sh
@@ -59,7 +55,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Playwright
-        run: pnpm exec playwright install --with-deps chromium
+        run: bunx playwright install --with-deps chromium
 
       - name: Playwright E2E
         run: bash scripts/ci/test-e2e.sh
