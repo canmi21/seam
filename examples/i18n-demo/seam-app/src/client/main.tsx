@@ -6,4 +6,5 @@ import routes from "./routes.js";
 seamHydrate({
   routes,
   root: document.getElementById("__seam")!,
+  cleanLocaleQuery: true,
 });

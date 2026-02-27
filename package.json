@@ -24,6 +24,7 @@
     "examples/github-dashboard/frontend",
     "examples/github-dashboard/seam-app",
     "examples/github-dashboard/next-app",
+    "examples/i18n-demo/seam-app",
     "tests/e2e/fixture",
     "tests/e2e"
   ],

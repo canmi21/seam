@@ -108,7 +108,6 @@ describe("handlePageRequest -- i18n data injection", () => {
     const data = extractSeamData(result.html);
     expect(data._i18n).toBeUndefined();
   });
-
 });
 
 describe("handlePageRequest -- i18n html lang attribute", () => {

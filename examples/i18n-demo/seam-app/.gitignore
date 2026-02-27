@@ -1,0 +1,5 @@
+.seam/output/
+.seam/dev-output/
+.seam/cache/
+src/generated/
+dist/

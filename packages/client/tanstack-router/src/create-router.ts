@@ -80,6 +80,9 @@ export function createSeamRouter(opts: SeamRouterOptions) {
   let initialParams: Record<string, string> = {};
   let initialI18n: SeamI18nMeta | null = null;
 
+  // Detect locale prefix from URL (e.g. /zh/about -> locale "zh", bare "/about")
+  let localeBasePath = "";
+
   if (typeof document !== "undefined") {
     try {
       const raw = parseSeamData(dataId);
@@ -92,7 +95,22 @@ export function createSeamRouter(opts: SeamRouterOptions) {
       initialI18n = (rawI18n as SeamI18nMeta) ?? null;
       // Unwrap: single "page" loader gets flattened
       initialData = (pageData.page ?? pageData) as Record<string, unknown>;
-      const matched = matchSeamRoute(collectLeafPaths(routes), window.location.pathname);
+
+      // Detect locale prefix: if URL starts with /{locale}/ and i18n data is present
+      if (initialI18n) {
+        const prefix = `/${initialI18n.locale}`;
+        const pathname = window.location.pathname;
+        if (pathname === prefix || pathname.startsWith(prefix + "/")) {
+          localeBasePath = prefix;
+        }
+      }
+
+      // Strip locale prefix before matching routes
+      let matchPathname = window.location.pathname;
+      if (localeBasePath) {
+        matchPathname = matchPathname.slice(localeBasePath.length) || "/";
+      }
+      const matched = matchSeamRoute(collectLeafPaths(routes), matchPathname);
       if (matched) {
         initialPath = matched.path;
         initialParams = matched.params;
@@ -139,6 +157,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
     routeTree,
     defaultStaleTime,
     context,
+    basepath: localeBasePath || undefined,
     InnerWrap: SeamDataBridge,
   });
 

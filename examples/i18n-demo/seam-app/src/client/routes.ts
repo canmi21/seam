@@ -19,10 +19,14 @@ export default defineSeamRoutes([
       {
         path: "/",
         component: HomeSkeleton,
+        loaders: {},
+        mock: {},
       },
       {
         path: "/about",
         component: AboutSkeleton,
+        loaders: {},
+        mock: {},
       },
     ],
   },
