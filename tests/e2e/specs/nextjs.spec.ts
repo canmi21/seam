@@ -58,7 +58,7 @@ test.describe("Next.js SSR", () => {
     await page.goto("/dashboard/octocat", { waitUntil: "networkidle" });
 
     // Profile
-    await expect(page.locator("text=The Octocat")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "The Octocat" })).toBeVisible();
     await expect(page.locator("text=@octocat")).toBeVisible();
 
     // Stats
@@ -86,7 +86,7 @@ test.describe("Next.js SSR", () => {
     await page.click('button[type="submit"]');
     await page.waitForURL("**/dashboard/octocat", { timeout: 15_000 });
 
-    await expect(page.locator("text=The Octocat")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "The Octocat" })).toBeVisible();
     await expect(page.locator("h2")).toContainText("Top Repositories");
 
     expect(errors, "console errors during navigation").toEqual([]);
