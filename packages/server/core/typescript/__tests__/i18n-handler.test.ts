@@ -109,6 +109,9 @@ describe("handlePageRequest -- i18n data injection", () => {
     expect(data._i18n).toBeUndefined();
   });
 
+});
+
+describe("handlePageRequest -- i18n html lang attribute", () => {
   it("sets <html lang> attribute when locale provided", async () => {
     const page: PageDef = {
       template: "<html><body><p>hi</p></body></html>",
