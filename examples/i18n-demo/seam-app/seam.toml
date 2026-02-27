@@ -18,3 +18,4 @@ out_dir = ".seam/output"
 [i18n]
 locales = ["en", "zh"]
 default = "en"
+cache = true

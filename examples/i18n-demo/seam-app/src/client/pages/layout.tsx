@@ -32,7 +32,7 @@ export function Layout({ children }: { children: ReactNode }) {
       const newPath = nextLocale === "en" ? bare : `/${nextLocale}${bare}`;
       window.location.href = newPath;
     } else {
-      void switchLocale(nextLocale, { writeCookie: true });
+      void switchLocale(nextLocale, { writeCookie: true, reload: false });
     }
   };
 
