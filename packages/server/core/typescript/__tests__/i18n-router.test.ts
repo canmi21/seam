@@ -18,12 +18,26 @@ const page: PageDef = {
   layoutChain: [],
 };
 
+// Route hashes for the two page patterns
+const ROOT_HASH = "050c5d1e";
+const USER_HASH = "2a3b4c5d";
+
 const i18nConfig: I18nConfig = {
   locales: ["en", "zh"],
   default: "en",
+  mode: "memory",
+  cache: false,
+  routeHashes: { "/": ROOT_HASH, "/user/:id": USER_HASH },
+  contentHashes: {},
   messages: {
-    en: { greeting: "Hello" },
-    zh: { greeting: "Hi zh" },
+    en: {
+      [ROOT_HASH]: { greeting: "Hello" },
+      [USER_HASH]: { greeting: "Hello" },
+    },
+    zh: {
+      [ROOT_HASH]: { greeting: "Hi zh" },
+      [USER_HASH]: { greeting: "Hi zh" },
+    },
   },
 };
 

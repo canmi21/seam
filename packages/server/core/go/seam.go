@@ -126,9 +126,14 @@ type PageDef struct {
 
 // I18nConfig holds runtime i18n state loaded from build output.
 type I18nConfig struct {
-	Locales  []string
-	Default  string
-	Messages map[string]json.RawMessage // locale -> messages JSON
+	Locales       []string
+	Default       string
+	Mode          string                                // "memory" or "paged"
+	Cache         bool                                  // whether to inject content hash router
+	RouteHashes   map[string]string                     // route pattern -> route hash (8 hex)
+	ContentHashes map[string]map[string]string           // route hash -> { locale -> content hash (4 hex) }
+	Messages      map[string]map[string]json.RawMessage // memory: locale -> routeHash -> msgs
+	DistDir       string                                // paged: base directory for on-demand reads
 }
 
 // HandlerOptions configures timeout behavior for the generated handler.

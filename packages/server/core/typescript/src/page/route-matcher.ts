@@ -31,17 +31,17 @@ function matchRoute(segments: RouteSegment[], pathParts: string[]): Record<strin
 }
 
 export class RouteMatcher<T> {
-  private routes: { compiled: CompiledRoute; value: T }[] = [];
+  private routes: { pattern: string; compiled: CompiledRoute; value: T }[] = [];
 
   add(pattern: string, value: T): void {
-    this.routes.push({ compiled: compileRoute(pattern), value });
+    this.routes.push({ pattern, compiled: compileRoute(pattern), value });
   }
 
-  match(path: string): { value: T; params: Record<string, string> } | null {
+  match(path: string): { value: T; params: Record<string, string>; pattern: string } | null {
     const parts = path.split("/").filter(Boolean);
     for (const route of this.routes) {
       const params = matchRoute(route.compiled.segments, parts);
-      if (params) return { value: route.value, params };
+      if (params) return { value: route.value, params, pattern: route.pattern };
     }
     return null;
   }

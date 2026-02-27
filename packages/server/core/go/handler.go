@@ -9,8 +9,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-
-	engine "github.com/canmi21/seam/packages/server/engine/go"
 )
 
 type appState struct {
@@ -66,28 +64,30 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pa
 
 	// Register built-in __seam_i18n_query procedure when i18n is configured
 	if i18nConfig != nil {
-		// Pre-build all-messages JSON for engine i18n_query calls
-		allMessagesJSON, _ := json.Marshal(i18nConfig.Messages)
-		defaultLocale := i18nConfig.Default
+		i18nCfg := i18nConfig
 		i18nQueryProc := ProcedureDef{
 			Name:         "__seam_i18n_query",
 			InputSchema:  map[string]any{},
 			OutputSchema: map[string]any{},
 			Handler: func(ctx context.Context, input json.RawMessage) (any, error) {
 				var req struct {
-					Keys   []string `json:"keys"`
-					Locale string   `json:"locale"`
+					Route  string `json:"route"`
+					Locale string `json:"locale"`
 				}
 				if err := json.Unmarshal(input, &req); err != nil {
 					return nil, ValidationError("Invalid input")
 				}
-				keysJSON, _ := json.Marshal(req.Keys)
-				resultJSON, err := engine.I18nQuery(string(keysJSON), req.Locale, defaultLocale, string(allMessagesJSON))
-				if err != nil {
-					return nil, InternalError(err.Error())
+				messages := lookupI18nMessages(i18nCfg, req.Route, req.Locale)
+				result := map[string]json.RawMessage{
+					"messages": messages,
 				}
-				var result any
-				json.Unmarshal([]byte(resultJSON), &result)
+				// Include content hash when available
+				if localeHashes, ok := i18nCfg.ContentHashes[req.Route]; ok {
+					if hash, ok := localeHashes[req.Locale]; ok {
+						hashJSON, _ := json.Marshal(hash)
+						result["hash"] = json.RawMessage(hashJSON)
+					}
+				}
 				return result, nil
 			},
 		}

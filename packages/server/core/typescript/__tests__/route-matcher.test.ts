@@ -9,7 +9,7 @@ describe("RouteMatcher", () => {
     m.add("/about", "about-page");
 
     const result = m.match("/about");
-    expect(result).toEqual({ value: "about-page", params: {} });
+    expect(result).toEqual({ value: "about-page", params: {}, pattern: "/about" });
   });
 
   it("returns null for no match", () => {
@@ -24,7 +24,7 @@ describe("RouteMatcher", () => {
     m.add("/user/:id", "user-page");
 
     const result = m.match("/user/42");
-    expect(result).toEqual({ value: "user-page", params: { id: "42" } });
+    expect(result).toEqual({ value: "user-page", params: { id: "42" }, pattern: "/user/:id" });
   });
 
   it("extracts multiple params", () => {
@@ -35,6 +35,7 @@ describe("RouteMatcher", () => {
     expect(result).toEqual({
       value: "repo-page",
       params: { orgId: "acme", repoId: "seam" },
+      pattern: "/org/:orgId/repo/:repoId",
     });
   });
 
@@ -67,6 +68,6 @@ describe("RouteMatcher", () => {
     m.add("/", "home");
 
     const result = m.match("/");
-    expect(result).toEqual({ value: "home", params: {} });
+    expect(result).toEqual({ value: "home", params: {}, pattern: "/" });
   });
 });

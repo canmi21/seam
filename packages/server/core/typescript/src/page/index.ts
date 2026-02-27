@@ -28,7 +28,14 @@ export interface PageDef {
 export interface I18nConfig {
   locales: string[];
   default: string;
-  messages: Record<string, Record<string, string>>;
+  mode: "memory" | "paged";
+  cache: boolean;
+  routeHashes: Record<string, string>;
+  contentHashes: Record<string, Record<string, string>>;
+  /** Memory mode: locale → routeHash → messages */
+  messages: Record<string, Record<string, Record<string, string>>>;
+  /** Paged mode: base directory for on-demand reads */
+  distDir?: string;
 }
 
 export function definePage(config: PageDef): PageDef {

@@ -25,6 +25,12 @@ pub struct I18nOpts {
   pub locale: String,
   pub default_locale: String,
   pub messages: serde_json::Value,
+  /// Content hash (4 hex) for cache validation
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub hash: Option<String>,
+  /// Full route→locale→hash table for client cache layer
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub router: Option<serde_json::Value>,
 }
 
 /// Flatten keyed loader results for slot resolution: spread nested object
@@ -112,6 +118,12 @@ fn inject_i18n_data(
   let mut i18n_data = serde_json::Map::new();
   i18n_data.insert("locale".into(), serde_json::Value::String(opts.locale.clone()));
   i18n_data.insert("messages".into(), opts.messages.clone());
+  if let Some(ref h) = opts.hash {
+    i18n_data.insert("hash".into(), serde_json::Value::String(h.clone()));
+  }
+  if let Some(ref r) = opts.router {
+    i18n_data.insert("router".into(), r.clone());
+  }
 
   script_data.insert("_i18n".into(), serde_json::Value::Object(i18n_data));
 }
@@ -270,12 +282,14 @@ mod tests {
       locale: "zh".into(),
       default_locale: "en".into(),
       messages: json!({"hello": "你好"}),
+      hash: None,
+      router: None,
     };
     let result = build_seam_data(&data, &config, Some(&i18n));
     assert_eq!(result["_i18n"]["locale"], "zh");
     assert_eq!(result["_i18n"]["messages"]["hello"], "你好");
-    assert!(result["_i18n"].get("fallbackMessages").is_none());
-    assert!(result["_i18n"].get("versions").is_none());
+    assert!(result["_i18n"].get("hash").is_none());
+    assert!(result["_i18n"].get("router").is_none());
   }
 
   #[test]

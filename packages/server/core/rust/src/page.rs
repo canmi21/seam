@@ -40,6 +40,14 @@ pub struct PageDef {
 pub struct I18nConfig {
   pub locales: Vec<String>,
   pub default: String,
-  /// Locale -> messages JSON value (read from locales/{locale}.json)
-  pub messages: HashMap<String, serde_json::Value>,
+  pub mode: String,
+  pub cache: bool,
+  /// Route pattern -> route hash (8 hex)
+  pub route_hashes: HashMap<String, String>,
+  /// Route hash -> { locale -> content hash (4 hex) }
+  pub content_hashes: HashMap<String, HashMap<String, String>>,
+  /// Memory mode: locale -> routeHash -> messages
+  pub messages: HashMap<String, HashMap<String, serde_json::Value>>,
+  /// Paged mode: base directory for on-demand reads
+  pub dist_dir: Option<std::path::PathBuf>,
 }

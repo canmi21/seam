@@ -468,17 +468,18 @@ describe("loadI18nMessages", () => {
 
   beforeAll(() => {
     i18nDir = mkdtempSync(join(tmpdir(), "seam-i18n-msgs-"));
-    mkdirSync(join(i18nDir, "locales"), { recursive: true });
+    mkdirSync(join(i18nDir, "i18n"), { recursive: true });
     mkdirSync(join(i18nDir, "templates/en"), { recursive: true });
 
     writeFileSync(join(i18nDir, "templates/en/index.html"), "<p>ok</p>");
+    // Memory mode: i18n/{locale}.json with route-hash-keyed messages
     writeFileSync(
-      join(i18nDir, "locales/en.json"),
-      JSON.stringify({ greeting: "Hello", cta: "View" }),
+      join(i18nDir, "i18n/en.json"),
+      JSON.stringify({ a1b2c3d4: { greeting: "Hello", cta: "View" } }),
     );
     writeFileSync(
-      join(i18nDir, "locales/zh.json"),
-      JSON.stringify({ greeting: "Hi zh", cta: "View zh" }),
+      join(i18nDir, "i18n/zh.json"),
+      JSON.stringify({ a1b2c3d4: { greeting: "Hi zh", cta: "View zh" } }),
     );
     writeFileSync(
       join(i18nDir, "route-manifest.json"),
@@ -486,7 +487,12 @@ describe("loadI18nMessages", () => {
         routes: {
           "/": { template: "templates/en/index.html", loaders: {} },
         },
-        i18n: { locales: ["en", "zh"], default: "en" },
+        i18n: {
+          locales: ["en", "zh"],
+          default: "en",
+          route_hashes: { "/": "a1b2c3d4" },
+          content_hashes: { a1b2c3d4: { en: "1234", zh: "5678" } },
+        },
       }),
     );
   });
@@ -500,8 +506,9 @@ describe("loadI18nMessages", () => {
     expect(config).not.toBeNull();
     expect(config!.locales).toEqual(["en", "zh"]);
     expect(config!.default).toBe("en");
-    expect(config!.messages["en"]).toEqual({ greeting: "Hello", cta: "View" });
-    expect(config!.messages["zh"]).toEqual({ greeting: "Hi zh", cta: "View zh" });
+    expect(config!.mode).toBe("memory");
+    expect(config!.messages["en"]["a1b2c3d4"]).toEqual({ greeting: "Hello", cta: "View" });
+    expect(config!.messages["zh"]["a1b2c3d4"]).toEqual({ greeting: "Hi zh", cta: "View zh" });
   });
 
   it("returns null when no i18n config in manifest", () => {
@@ -516,8 +523,11 @@ describe("loadI18nMessages", () => {
 
   it("returns empty messages for missing locale file", () => {
     const sparseDir = mkdtempSync(join(tmpdir(), "seam-i18n-sparse-"));
-    mkdirSync(join(sparseDir, "locales"));
-    writeFileSync(join(sparseDir, "locales/en.json"), JSON.stringify({ hello: "Hello" }));
+    mkdirSync(join(sparseDir, "i18n"));
+    writeFileSync(
+      join(sparseDir, "i18n/en.json"),
+      JSON.stringify({ a1b2c3d4: { hello: "Hello" } }),
+    );
     writeFileSync(
       join(sparseDir, "route-manifest.json"),
       JSON.stringify({
@@ -528,7 +538,7 @@ describe("loadI18nMessages", () => {
     try {
       const config = loadI18nMessages(sparseDir);
       expect(config).not.toBeNull();
-      expect(config!.messages["en"]).toEqual({ hello: "Hello" });
+      expect(config!.messages["en"]["a1b2c3d4"]).toEqual({ hello: "Hello" });
       expect(config!.messages["fr"]).toEqual({});
     } finally {
       rmSync(sparseDir, { recursive: true, force: true });

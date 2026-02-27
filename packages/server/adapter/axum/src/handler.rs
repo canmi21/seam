@@ -61,7 +61,7 @@ pub(crate) fn build_router(
 
   let has_url_prefix = strategies.iter().any(|s| s.kind() == "url_prefix");
 
-  // Register built-in __seam_i18n_query procedure when i18n is configured
+  // Register built-in __seam_i18n_query procedure (route-hash-based lookup)
   if let Some(ref i18n) = i18n_config {
     let i18n_clone = i18n.clone();
     handlers.insert(
@@ -73,25 +73,19 @@ pub(crate) fn build_router(
         handler: Arc::new(move |input: serde_json::Value| {
           let i18n = i18n_clone.clone();
           Box::pin(async move {
-            let keys = input.get("keys").and_then(|v| v.as_array()).cloned().unwrap_or_default();
-            let locale = input.get("locale").and_then(|v| v.as_str()).unwrap_or(&i18n.default);
-            let empty = serde_json::Value::Object(Default::default());
-            let target_msgs = i18n.messages.get(locale).unwrap_or(&empty);
-            let default_msgs = i18n.messages.get(&i18n.default).unwrap_or(&empty);
+            let route_hash = input.get("route").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let locale =
+              input.get("locale").and_then(|v| v.as_str()).unwrap_or(&i18n.default).to_string();
 
-            let mut messages = serde_json::Map::new();
-            for k in keys {
-              if let Some(key) = k.as_str() {
-                let val = target_msgs
-                  .get(key)
-                  .or_else(|| default_msgs.get(key))
-                  .and_then(|v| v.as_str())
-                  .unwrap_or(key)
-                  .to_string();
-                messages.insert(key.to_string(), serde_json::Value::String(val));
-              }
-            }
-            Ok(serde_json::json!({ "messages": messages }))
+            let messages = lookup_i18n_messages(&i18n, &route_hash, &locale);
+            let hash = i18n
+              .content_hashes
+              .get(&route_hash)
+              .and_then(|m| m.get(&locale))
+              .cloned()
+              .unwrap_or_default();
+
+            Ok(serde_json::json!({ "hash": hash, "messages": messages }))
           })
         }),
       }),
@@ -307,28 +301,32 @@ async fn handle_subscribe(
   }
 }
 
-/// Merge default locale messages with target locale messages. Target wins on conflict.
-fn merge_i18n_messages(base: &serde_json::Value, target: &serde_json::Value) -> serde_json::Value {
-  let mut merged = base.as_object().cloned().unwrap_or_default();
-  if let Some(target_obj) = target.as_object() {
-    for (k, v) in target_obj {
-      merged.insert(k.clone(), v.clone());
+/// Look up pre-resolved messages by route hash + locale. Zero merge, zero filter.
+fn lookup_i18n_messages(
+  i18n: &seam_server::I18nConfig,
+  route_hash: &str,
+  locale: &str,
+) -> serde_json::Value {
+  // Paged mode: read from disk
+  if i18n.mode == "paged" {
+    if let Some(ref dist_dir) = i18n.dist_dir {
+      let path = dist_dir.join("i18n").join(route_hash).join(format!("{locale}.json"));
+      if let Ok(content) = std::fs::read_to_string(&path) {
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
+          return parsed;
+        }
+      }
     }
+    return serde_json::Value::Object(Default::default());
   }
-  serde_json::Value::Object(merged)
-}
 
-/// Filter i18n messages to only include keys in the allow list. Empty list means include all.
-fn filter_i18n_messages(messages: &serde_json::Value, keys: &[String]) -> serde_json::Value {
-  if keys.is_empty() {
-    return messages.clone();
-  }
-  let Some(obj) = messages.as_object() else {
-    return messages.clone();
-  };
-  let filtered: serde_json::Map<String, serde_json::Value> =
-    keys.iter().filter_map(|k| obj.get(k).map(|v| (k.clone(), v.clone()))).collect();
-  serde_json::Value::Object(filtered)
+  // Memory mode: direct lookup
+  i18n
+    .messages
+    .get(locale)
+    .and_then(|route_msgs| route_msgs.get(route_hash))
+    .cloned()
+    .unwrap_or(serde_json::Value::Object(Default::default()))
 }
 
 #[allow(clippy::too_many_lines)]
@@ -459,25 +457,25 @@ async fn handle_page(
     script_data = data;
   }
 
-  // Inject _i18n data for client hydration (server-side merge: default + target)
+  // Inject _i18n data for client hydration (hash-based lookup — zero merge, zero filter)
   if let (Some(ref loc), Some(ref i18n)) = (&locale, &state.i18n_config) {
-    let target =
-      i18n.messages.get(loc).cloned().unwrap_or(serde_json::Value::Object(Default::default()));
-    let merged = if loc != &i18n.default {
-      let default_msgs = i18n
-        .messages
-        .get(&i18n.default)
-        .cloned()
-        .unwrap_or(serde_json::Value::Object(Default::default()));
-      merge_i18n_messages(&default_msgs, &target)
-    } else {
-      target
-    };
-    let messages = filter_i18n_messages(&merged, &page.i18n_keys);
+    let route_hash = i18n.route_hashes.get(&page.route).cloned().unwrap_or_default();
+    let messages = lookup_i18n_messages(i18n, &route_hash, loc);
 
     let mut i18n_data = serde_json::Map::new();
     i18n_data.insert("locale".into(), serde_json::Value::String(loc.clone()));
     i18n_data.insert("messages".into(), messages);
+
+    // Inject content hash and router table when cache is enabled
+    if i18n.cache && !route_hash.is_empty() {
+      if let Some(hash) = i18n.content_hashes.get(&route_hash).and_then(|m| m.get(loc)) {
+        i18n_data.insert("hash".into(), serde_json::Value::String(hash.clone()));
+      }
+      if let Ok(router) = serde_json::to_value(&i18n.content_hashes) {
+        i18n_data.insert("router".into(), router);
+      }
+    }
+
     script_data.insert("_i18n".into(), serde_json::Value::Object(i18n_data));
   }
 

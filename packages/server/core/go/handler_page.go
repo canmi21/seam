@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -139,17 +141,27 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 	}
 	configJSON, _ := json.Marshal(config)
 
-	// Build i18n opts for engine (server-side merge: default + target)
+	// Build i18n opts for engine (hash-based lookup: zero merge, zero filter)
 	i18nOptsJSON := ""
 	if s.i18nConfig != nil && locale != "" {
-		merged := s.i18nConfig.Messages[locale]
-		if locale != s.i18nConfig.Default {
-			merged = mergeMessages(s.i18nConfig.Messages[s.i18nConfig.Default], s.i18nConfig.Messages[locale])
-		}
+		routeHash := s.i18nConfig.RouteHashes[page.Route]
+		messages := lookupI18nMessages(s.i18nConfig, routeHash, locale)
 		i18nOpts := map[string]any{
 			"locale":         locale,
 			"default_locale": s.i18nConfig.Default,
-			"messages":       filterI18nMessages(merged, page.I18nKeys),
+			"messages":       messages,
+		}
+		// Add content hash when available
+		if routeHash != "" {
+			if localeHashes, ok := s.i18nConfig.ContentHashes[routeHash]; ok {
+				if hash, ok := localeHashes[locale]; ok {
+					i18nOpts["hash"] = hash
+				}
+			}
+		}
+		// Inject router table when cache is enabled
+		if s.i18nConfig.Cache {
+			i18nOpts["router"] = s.i18nConfig.ContentHashes
 		}
 		i18nBytes, _ := json.Marshal(i18nOpts)
 		i18nOptsJSON = string(i18nBytes)
@@ -166,42 +178,24 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 	w.Write([]byte(html))
 }
 
-// mergeMessages merges default locale messages with target locale messages.
-// Target wins on conflict. Returns the merged JSON.
-func mergeMessages(base, target json.RawMessage) json.RawMessage {
-	var baseMap map[string]json.RawMessage
-	if err := json.Unmarshal(base, &baseMap); err != nil {
-		return target
+// lookupI18nMessages retrieves pre-resolved messages for a route+locale.
+// Memory mode: direct map lookup. Paged mode: read from disk.
+func lookupI18nMessages(cfg *I18nConfig, routeHash, locale string) json.RawMessage {
+	if cfg.Mode == "paged" && cfg.DistDir != "" {
+		path := filepath.Join(cfg.DistDir, "i18n", routeHash, locale+".json")
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return json.RawMessage("{}")
+		}
+		return json.RawMessage(data)
 	}
-	var targetMap map[string]json.RawMessage
-	if err := json.Unmarshal(target, &targetMap); err != nil {
-		return base
-	}
-	for k, v := range targetMap {
-		baseMap[k] = v
-	}
-	result, _ := json.Marshal(baseMap)
-	return json.RawMessage(result)
-}
-
-// filterI18nMessages filters a locale's messages JSON to only include the specified keys.
-// Empty keys list means include all messages (no filtering).
-func filterI18nMessages(messages json.RawMessage, keys []string) json.RawMessage {
-	if len(keys) == 0 {
-		return messages
-	}
-	var allMessages map[string]json.RawMessage
-	if err := json.Unmarshal(messages, &allMessages); err != nil {
-		return messages
-	}
-	filtered := make(map[string]json.RawMessage, len(keys))
-	for _, k := range keys {
-		if v, ok := allMessages[k]; ok {
-			filtered[k] = v
+	// Memory mode
+	if localeMessages, ok := cfg.Messages[locale]; ok {
+		if msgs, ok := localeMessages[routeHash]; ok {
+			return msgs
 		}
 	}
-	result, _ := json.Marshal(filtered)
-	return json.RawMessage(result)
+	return json.RawMessage("{}")
 }
 
 // --- helpers ---

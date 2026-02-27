@@ -5,12 +5,19 @@ import { handlePageRequest } from "../src/page/handler.js";
 import type { PageDef, LayoutDef, I18nConfig } from "../src/page/index.js";
 import { makeProcedures, mockProcedure, extractSeamData } from "./page-handler-helpers.js";
 
+// Route hash for "/" — used to key messages in the new hash-based lookup
+const ROOT_HASH = "050c5d1e";
+
 const i18nConfig: I18nConfig = {
   locales: ["en", "zh"],
   default: "en",
+  mode: "memory",
+  cache: false,
+  routeHashes: { "/": ROOT_HASH },
+  contentHashes: {},
   messages: {
-    en: { greeting: "Hello", cta: "View" },
-    zh: { greeting: "Hi zh", cta: "View zh" },
+    en: { [ROOT_HASH]: { greeting: "Hello", cta: "View" } },
+    zh: { [ROOT_HASH]: { greeting: "Hi zh", cta: "View zh" } },
   },
 };
 
@@ -25,6 +32,7 @@ describe("handlePageRequest -- i18n data injection", () => {
     const result = await handlePageRequest(page, {}, procs, {
       locale: "zh",
       config: i18nConfig,
+      routePattern: "/",
     });
 
     const data = extractSeamData(result.html);
@@ -46,6 +54,7 @@ describe("handlePageRequest -- i18n data injection", () => {
     const result = await handlePageRequest(page, {}, procs, {
       locale: "en",
       config: i18nConfig,
+      routePattern: "/",
     });
 
     const data = extractSeamData(result.html);
@@ -55,13 +64,18 @@ describe("handlePageRequest -- i18n data injection", () => {
     expect(i18n).not.toHaveProperty("fallbackMessages");
   });
 
-  it("merges missing keys from default locale into target", async () => {
-    const partialConfig: I18nConfig = {
+  it("returns pre-resolved messages (build-time fallback already applied)", async () => {
+    // Build-time resolution means every locale has every key pre-resolved
+    const resolvedConfig: I18nConfig = {
       locales: ["en", "zh"],
       default: "en",
+      mode: "memory",
+      cache: false,
+      routeHashes: { "/": ROOT_HASH },
+      contentHashes: {},
       messages: {
-        en: { greeting: "Hello", cta: "View", extra: "Extra" },
-        zh: { greeting: "Hi zh" },
+        en: { [ROOT_HASH]: { greeting: "Hello", cta: "View", extra: "Extra" } },
+        zh: { [ROOT_HASH]: { greeting: "Hi zh", cta: "View", extra: "Extra" } },
       },
     };
     const page: PageDef = {
@@ -72,12 +86,13 @@ describe("handlePageRequest -- i18n data injection", () => {
     const procs = makeProcedures(["getData", mockProcedure(() => ({ v: 1 }))]);
     const result = await handlePageRequest(page, {}, procs, {
       locale: "zh",
-      config: partialConfig,
+      config: resolvedConfig,
+      routePattern: "/",
     });
 
     const data = extractSeamData(result.html);
     const i18n = data._i18n as Record<string, unknown>;
-    // zh overrides greeting; cta and extra come from en defaults
+    // All keys present because build-time fallback resolved them
     expect(i18n.messages).toEqual({ greeting: "Hi zh", cta: "View", extra: "Extra" });
   });
 
@@ -104,6 +119,7 @@ describe("handlePageRequest -- i18n data injection", () => {
     const result = await handlePageRequest(page, {}, procs, {
       locale: "zh",
       config: i18nConfig,
+      routePattern: "/",
     });
 
     expect(result.html).toContain('<html lang="zh"');
@@ -138,6 +154,7 @@ describe("handlePageRequest -- i18n template selection", () => {
     const result = await handlePageRequest(page, {}, procs, {
       locale: "zh",
       config: i18nConfig,
+      routePattern: "/",
     });
 
     expect(result.html).toContain("<p>Chinese</p>");
@@ -157,6 +174,7 @@ describe("handlePageRequest -- i18n template selection", () => {
     const result = await handlePageRequest(page, {}, procs, {
       locale: "fr",
       config: { ...i18nConfig, locales: ["en", "fr"] },
+      routePattern: "/",
     });
 
     expect(result.html).toContain("<p>Default</p>");
@@ -185,6 +203,7 @@ describe("handlePageRequest -- i18n template selection", () => {
     const result = await handlePageRequest(page, {}, procs, {
       locale: "zh",
       config: i18nConfig,
+      routePattern: "/",
     });
 
     expect(result.html).toContain("<nav>ZH Nav</nav>");

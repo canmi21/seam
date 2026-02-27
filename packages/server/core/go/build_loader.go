@@ -21,8 +21,12 @@ type routeManifest struct {
 }
 
 type i18nManifest struct {
-	Locales []string `json:"locales"`
-	Default string   `json:"default"`
+	Locales       []string                       `json:"locales"`
+	Default       string                         `json:"default"`
+	Mode          string                         `json:"mode"`
+	Cache         bool                           `json:"cache"`
+	RouteHashes   map[string]string              `json:"route_hashes"`
+	ContentHashes map[string]map[string]string   `json:"content_hashes"`
 }
 
 type layoutEntry struct {
@@ -335,21 +339,45 @@ func LoadI18nConfig(dir string) *I18nConfig {
 		return nil
 	}
 
-	messages := make(map[string]json.RawMessage)
-	localesDir := filepath.Join(dir, "locales")
-	for _, locale := range manifest.I18n.Locales {
-		localePath := filepath.Join(localesDir, locale+".json")
-		data, err := os.ReadFile(localePath)
-		if err != nil {
-			messages[locale] = json.RawMessage("{}")
-		} else {
-			messages[locale] = json.RawMessage(data)
+	i18n := manifest.I18n
+	mode := i18n.Mode
+	if mode == "" {
+		mode = "memory"
+	}
+
+	// Memory mode: preload route-keyed messages per locale from i18n/{locale}.json
+	// Paged mode: store distDir for on-demand reads
+	messages := make(map[string]map[string]json.RawMessage)
+	distDir := ""
+
+	if mode == "memory" {
+		i18nDir := filepath.Join(dir, "i18n")
+		for _, locale := range i18n.Locales {
+			localePath := filepath.Join(i18nDir, locale+".json")
+			data, err := os.ReadFile(localePath)
+			if err != nil {
+				messages[locale] = make(map[string]json.RawMessage)
+				continue
+			}
+			var routeMessages map[string]json.RawMessage
+			if err := json.Unmarshal(data, &routeMessages); err != nil {
+				messages[locale] = make(map[string]json.RawMessage)
+				continue
+			}
+			messages[locale] = routeMessages
 		}
+	} else {
+		distDir = dir
 	}
 
 	return &I18nConfig{
-		Locales:  manifest.I18n.Locales,
-		Default:  manifest.I18n.Default,
-		Messages: messages,
+		Locales:       i18n.Locales,
+		Default:       i18n.Default,
+		Mode:          mode,
+		Cache:         i18n.Cache,
+		RouteHashes:   i18n.RouteHashes,
+		ContentHashes: i18n.ContentHashes,
+		Messages:      messages,
+		DistDir:       distDir,
 	}
 }

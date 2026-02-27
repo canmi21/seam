@@ -9,7 +9,14 @@ interface RouteManifest {
   layouts?: Record<string, LayoutManifestEntry>;
   routes: Record<string, RouteManifestEntry>;
   data_id?: string;
-  i18n?: { locales: string[]; default: string };
+  i18n?: {
+    locales: string[];
+    default: string;
+    mode?: string;
+    cache?: boolean;
+    route_hashes?: Record<string, string>;
+    content_hashes?: Record<string, Record<string, string>>;
+  };
 }
 
 interface LayoutManifestEntry {
@@ -193,28 +200,45 @@ export function loadRpcHashMap(distDir: string): RpcHashMap | undefined {
   }
 }
 
-/** Load i18n messages from build output locales/ directory */
+/** Load i18n config and messages from build output */
 export function loadI18nMessages(distDir: string): I18nConfig | null {
   const manifestPath = join(distDir, "route-manifest.json");
   try {
     const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as RouteManifest;
     if (!manifest.i18n) return null;
 
-    const messages: Record<string, Record<string, string>> = {};
-    const localesDir = join(distDir, "locales");
-    for (const locale of manifest.i18n.locales) {
-      const localePath = join(localesDir, `${locale}.json`);
-      if (existsSync(localePath)) {
-        messages[locale] = JSON.parse(readFileSync(localePath, "utf-8")) as Record<string, string>;
-      } else {
-        messages[locale] = {};
+    const mode = (manifest.i18n.mode ?? "memory") as "memory" | "paged";
+    const cache = manifest.i18n.cache ?? false;
+    const routeHashes = manifest.i18n.route_hashes ?? {};
+    const contentHashes = manifest.i18n.content_hashes ?? {};
+
+    // Memory mode: preload all route messages per locale
+    // Paged mode: store distDir for on-demand reads
+    const messages: Record<string, Record<string, Record<string, string>>> = {};
+    if (mode === "memory") {
+      const i18nDir = join(distDir, "i18n");
+      for (const locale of manifest.i18n.locales) {
+        const localePath = join(i18nDir, `${locale}.json`);
+        if (existsSync(localePath)) {
+          messages[locale] = JSON.parse(readFileSync(localePath, "utf-8")) as Record<
+            string,
+            Record<string, string>
+          >;
+        } else {
+          messages[locale] = {};
+        }
       }
     }
 
     return {
       locales: manifest.i18n.locales,
       default: manifest.i18n.default,
+      mode,
+      cache,
+      routeHashes,
+      contentHashes,
       messages,
+      distDir: mode === "paged" ? distDir : undefined,
     };
   } catch {
     return null;

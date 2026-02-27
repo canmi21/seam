@@ -1,5 +1,7 @@
 /* packages/server/core/typescript/src/page/handler.ts */
 
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import { renderPage, escapeHtml } from "@canmi/seam-engine";
 import { SeamError } from "../errors.js";
 import type { InternalProcedure } from "../procedure.js";
@@ -21,6 +23,8 @@ export interface HandlePageResult {
 export interface I18nOpts {
   locale: string;
   config: I18nConfig;
+  /** Route pattern for hash-based message lookup */
+  routePattern: string;
 }
 
 /** Execute loaders, returning keyed results */
@@ -55,17 +59,24 @@ function selectTemplate(
   return defaultTemplate;
 }
 
-/** Filter messages to only include keys in the allow list. Empty/undefined list means include all. */
-function filterByKeys(
-  messages: Record<string, string>,
-  keys: string[] | undefined,
+/** Look up pre-resolved messages for a route + locale. Zero merge, zero filter. */
+function lookupMessages(
+  config: I18nConfig,
+  routePattern: string,
+  locale: string,
 ): Record<string, string> {
-  if (!keys || keys.length === 0) return messages;
-  const filtered: Record<string, string> = {};
-  for (const k of keys) {
-    if (k in messages) filtered[k] = messages[k];
+  const routeHash = config.routeHashes[routePattern];
+  if (!routeHash) return {};
+
+  if (config.mode === "paged" && config.distDir) {
+    const filePath = join(config.distDir, "i18n", routeHash, `${locale}.json`);
+    if (existsSync(filePath)) {
+      return JSON.parse(readFileSync(filePath, "utf-8")) as Record<string, string>;
+    }
+    return {};
   }
-  return filtered;
+
+  return config.messages[locale]?.[routeHash] ?? {};
 }
 
 export async function handlePageRequest(
@@ -112,20 +123,22 @@ export async function handlePageRequest(
       head_meta: page.headMeta,
     };
 
-    // Build I18nOpts for engine (server-side merge: default + target)
+    // Build I18nOpts for engine (hash-based lookup — zero merge, zero filter)
     let i18nOptsJson: string | undefined;
     if (i18nOpts) {
-      const { config: i18nConfig } = i18nOpts;
-      const targetMsgs = i18nConfig.messages[i18nOpts.locale] ?? {};
-      const merged =
-        i18nOpts.locale !== i18nConfig.default
-          ? { ...(i18nConfig.messages[i18nConfig.default] ?? {}), ...targetMsgs }
-          : targetMsgs;
+      const { config: i18nConfig, routePattern } = i18nOpts;
+      const messages = lookupMessages(i18nConfig, routePattern, i18nOpts.locale);
+      const routeHash = i18nConfig.routeHashes[routePattern];
       const i18nData: Record<string, unknown> = {
         locale: i18nOpts.locale,
         default_locale: i18nConfig.default,
-        messages: filterByKeys(merged, page.i18nKeys),
+        messages,
       };
+      // Inject content hash and router table when cache is enabled
+      if (i18nConfig.cache && routeHash) {
+        i18nData.hash = i18nConfig.contentHashes[routeHash]?.[i18nOpts.locale];
+        i18nData.router = i18nConfig.contentHashes;
+      }
       i18nOptsJson = JSON.stringify(i18nData);
     }
 

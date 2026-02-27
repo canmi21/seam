@@ -1,5 +1,7 @@
 /* packages/server/core/typescript/src/router/index.ts */
 
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { SchemaNode } from "../types/schema.js";
 import type { ProcedureManifest } from "../manifest/index.js";
 import type { HandleResult, InternalProcedure } from "./handler.js";
@@ -70,22 +72,34 @@ function buildStrategies(opts?: RouterOptions): {
   };
 }
 
-/** Register built-in __seam_i18n_query procedure */
+/** Register built-in __seam_i18n_query procedure (route-hash-based lookup) */
 function registerI18nQuery(procedureMap: Map<string, InternalProcedure>, config: I18nConfig): void {
   procedureMap.set("__seam_i18n_query", {
     inputSchema: {},
     outputSchema: {},
     handler: ({ input }) => {
-      const { keys, locale } = input as { keys: string[]; locale: string };
-      const targetMsgs = config.messages[locale] ?? {};
-      const defaultMsgs = config.messages[config.default] ?? {};
-      const messages: Record<string, string> = {};
-      for (const k of keys) {
-        messages[k] = targetMsgs[k] ?? defaultMsgs[k] ?? k;
-      }
-      return { messages };
+      const { route, locale } = input as { route: string; locale: string };
+      const messages = lookupI18nMessages(config, route, locale);
+      const hash = config.contentHashes[route]?.[locale] ?? "";
+      return { hash, messages };
     },
   });
+}
+
+/** Look up messages by route hash + locale for RPC query */
+function lookupI18nMessages(
+  config: I18nConfig,
+  routeHash: string,
+  locale: string,
+): Record<string, string> {
+  if (config.mode === "paged" && config.distDir) {
+    const filePath = join(config.distDir, "i18n", routeHash, `${locale}.json`);
+    if (existsSync(filePath)) {
+      return JSON.parse(readFileSync(filePath, "utf-8")) as Record<string, string>;
+    }
+    return {};
+  }
+  return config.messages[locale]?.[routeHash] ?? {};
 }
 
 export function createRouter<T extends DefinitionMap>(
@@ -170,7 +184,10 @@ export function createRouter<T extends DefinitionMap>(
       const match = pageMatcher.match(routePath);
       if (!match) return null;
 
-      const i18nOpts = locale && i18nConfig ? { locale, config: i18nConfig } : undefined;
+      const i18nOpts =
+        locale && i18nConfig
+          ? { locale, config: i18nConfig, routePattern: match.pattern }
+          : undefined;
       return handlePageRequest(match.value, match.params, procedureMap, i18nOpts);
     },
   };

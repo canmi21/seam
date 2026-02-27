@@ -244,18 +244,35 @@ pub fn load_i18n_config(dir: &str) -> Option<crate::page::I18nConfig> {
   let manifest: RouteManifest = serde_json::from_str(&content).ok()?;
   let i18n = manifest.i18n?;
 
+  let mode = i18n.mode.unwrap_or_else(|| "memory".to_string());
+
+  // Memory mode: preload route-keyed messages per locale from i18n/{locale}.json
+  // Paged mode: store dist_dir for on-demand reads
   let mut messages = HashMap::new();
-  let locales_dir = base.join("locales");
-  for locale in &i18n.locales {
-    let locale_path = locales_dir.join(format!("{locale}.json"));
-    let parsed = std::fs::read_to_string(&locale_path)
-      .ok()
-      .and_then(|c| serde_json::from_str(&c).ok())
-      .unwrap_or(serde_json::Value::Object(Default::default()));
-    messages.insert(locale.clone(), parsed);
+  if mode == "memory" {
+    let i18n_dir = base.join("i18n");
+    for locale in &i18n.locales {
+      let locale_path = i18n_dir.join(format!("{locale}.json"));
+      let parsed: HashMap<String, serde_json::Value> = std::fs::read_to_string(&locale_path)
+        .ok()
+        .and_then(|c| serde_json::from_str(&c).ok())
+        .unwrap_or_default();
+      messages.insert(locale.clone(), parsed);
+    }
   }
 
-  Some(crate::page::I18nConfig { locales: i18n.locales, default: i18n.default, messages })
+  let dist_dir = if mode == "paged" { Some(base.to_path_buf()) } else { None };
+
+  Some(crate::page::I18nConfig {
+    locales: i18n.locales,
+    default: i18n.default,
+    mode,
+    cache: i18n.cache,
+    route_hashes: i18n.route_hashes,
+    content_hashes: i18n.content_hashes,
+    messages,
+    dist_dir,
+  })
 }
 
 /// Load the RPC hash map from build output (returns None when not present).
