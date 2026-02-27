@@ -59,8 +59,8 @@ src/
 
 ## Commands
 
-- Build: `bun run --filter '@canmi/seam-server' build`
-- Test: `bun run --filter '@canmi/seam-server' test`
+- Build: `pnpm --filter '@canmi/seam-server' build`
+- Test: `pnpm --filter '@canmi/seam-server' test`
 
 ## Gotchas
 

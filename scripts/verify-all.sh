@@ -7,7 +7,7 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$DIR/ci/_lib.sh"
 
 require_cmd cargo "https://rustup.rs"
-require_cmd bun   "https://bun.sh"
+require_cmd pnpm  "https://pnpm.io"
 require_cmd go    "https://go.dev/dl"
 
 bash "$DIR/ci/fmt-check.sh"

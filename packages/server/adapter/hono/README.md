@@ -12,8 +12,8 @@ Exports a single `seam()` function that returns a Hono `MiddlewareHandler`. Wrap
 
 ## Development
 
-- Build: `bun run --filter '@canmi/seam-adapter-hono' build`
-- Test: `bun run --filter '@canmi/seam-adapter-hono' test`
+- Build: `pnpm --filter '@canmi/seam-adapter-hono' build`
+- Test: `pnpm --filter '@canmi/seam-adapter-hono' test`
 
 ## Notes
 

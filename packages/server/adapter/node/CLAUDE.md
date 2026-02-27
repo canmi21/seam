@@ -25,7 +25,7 @@ Node.js HTTP adapter for `@canmi/seam-server` — wraps the core router into a `
 ## Testing
 
 ```sh
-bun run --filter '@canmi/seam-adapter-node' test
+pnpm --filter '@canmi/seam-adapter-node' test
 ```
 
 - Tests start a real `node:http` server on port 0 and use `fetch` to exercise RPC, manifest, and error paths

@@ -27,7 +27,7 @@ See root CLAUDE.md for general project rules.
 ## Testing
 
 ```sh
-bun run --filter '@canmi/seam-adapter-bun' test
+pnpm --filter '@canmi/seam-adapter-bun' test
 ```
 
 - Uses `bun:test` (not vitest) because tests depend on `Bun.serve()`

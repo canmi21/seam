@@ -1,8 +1,7 @@
 /* packages/client/tanstack-router/src/seam-outlet.tsx */
 
-import { useContext } from "react";
 import type { ComponentType, ReactNode } from "react";
-import { Match, matchContext, useLoaderData, useRouterState } from "@tanstack/react-router";
+import { Match, useLoaderData, useMatch, useRouterState } from "@tanstack/react-router";
 import { SeamDataProvider } from "@canmi/seam-react";
 
 /**
@@ -13,11 +12,11 @@ import { SeamDataProvider } from "@canmi/seam-react";
  * those markers, so hydration fails with a mismatch.
  */
 export function SeamOutlet() {
-  const matchId = useContext(matchContext);
+  const match = useMatch({ strict: false });
   const childMatchId = useRouterState({
     select: (s) => {
       const matches = s.matches;
-      const idx = matches.findIndex((d) => d.id === matchId);
+      const idx = matches.findIndex((d) => d.id === match.id);
       return matches[idx + 1]?.id;
     },
   });

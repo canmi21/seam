@@ -12,8 +12,8 @@ Exports `serveNode()` which creates a Node.js HTTP server with seam routing and 
 
 ## Development
 
-- Build: `bun run --filter '@canmi/seam-adapter-node' build`
-- Test: `bun run --filter '@canmi/seam-adapter-node' test`
+- Build: `pnpm --filter '@canmi/seam-adapter-node' build`
+- Test: `pnpm --filter '@canmi/seam-adapter-node' test`
 
 ## Notes
 

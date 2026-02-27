@@ -9,4 +9,4 @@ if [[ -f "$ROOT/.env" ]]; then
 fi
 
 printf '\n==> Playwright E2E tests\n'
-(cd "$ROOT/tests/e2e" && bunx playwright test)
+(cd "$ROOT/tests/e2e" && pnpm exec playwright test)

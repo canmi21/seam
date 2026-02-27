@@ -1,0 +1,34 @@
+packages:
+  - packages/server/core/typescript
+  - packages/server/injector/js
+  - packages/server/injector/native
+  - packages/server/engine/js
+  - packages/server/adapter/bun
+  - packages/server/adapter/node
+  - packages/server/adapter/hono
+  - packages/client/vanilla
+  - packages/client/react
+  - packages/client/tanstack-router
+  - packages/eslint
+  - packages/i18n
+  - packages/cli/pkg
+  - packages/cli/wrapper/darwin-arm64
+  - packages/cli/wrapper/darwin-x64
+  - packages/cli/wrapper/linux-arm64
+  - packages/cli/wrapper/linux-x64
+  - examples/standalone/server-bun
+  - examples/standalone/server-node
+  - examples/standalone/client-vanilla
+  - examples/standalone/client-react
+  - examples/github-dashboard/shared
+  - examples/github-dashboard/backends/ts-hono
+  - examples/github-dashboard/frontend
+  - examples/github-dashboard/seam-app
+  - examples/github-dashboard/next-app
+  - examples/i18n-demo/seam-app
+  - tests/e2e/fixture
+  - tests/e2e
+onlyBuiltDependencies:
+  - dprint
+  - esbuild
+  - sharp

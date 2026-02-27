@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 printf '\n==> Lint (oxlint + eslint + clippy)\n'
-(cd "$ROOT" && bun lint)
+(cd "$ROOT" && pnpm lint)
 
 printf '\n==> Check unlisted dependencies (knip)\n'
-(cd "$ROOT" && bunx knip --include unlisted)
+(cd "$ROOT" && pnpm exec knip --include unlisted)

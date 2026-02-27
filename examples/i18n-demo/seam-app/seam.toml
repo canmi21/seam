@@ -9,7 +9,7 @@ entry = "src/client/main.tsx"
 
 [build]
 backend_build_command = "true"
-bundler_command = "bunx vite build"
+bundler_command = "pnpm exec vite build"
 bundler_manifest = "dist/.vite/manifest.json"
 router_file = "src/server/router.ts"
 routes = "./src/client/routes.ts"

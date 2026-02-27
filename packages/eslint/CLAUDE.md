@@ -22,7 +22,7 @@ ESLint plugin enforcing build-time safety for skeleton components rendered via `
 ## Testing
 
 ```sh
-bun run --filter '@canmi/eslint-plugin-seam' test
+pnpm --filter '@canmi/eslint-plugin-seam' test
 ```
 
 - Tests in `__tests__/` use vitest + ESLint `RuleTester`
@@ -34,7 +34,7 @@ bun run --filter '@canmi/eslint-plugin-seam' test
 
 1. Add AST visitors in the rule's `create()` method
 2. Add `invalid` test cases with expected `errors: [{ messageId: "..." }]`
-3. Run `bun run --filter '@canmi/eslint-plugin-seam' test` to verify
-4. Build with `bun run --filter '@canmi/eslint-plugin-seam' build`
+3. Run `pnpm --filter '@canmi/eslint-plugin-seam' test` to verify
+4. Build with `pnpm --filter '@canmi/eslint-plugin-seam' build`
 
 See root CLAUDE.md for project-wide conventions.
