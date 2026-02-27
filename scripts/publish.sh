@@ -126,7 +126,6 @@ if ! $NPM_ONLY; then
     "seam-engine"
     "seam-server"
     "seam-server-axum"
-    "seam-injector-wasm"
     "seam-engine-wasm"
     "seam-cli"
   )
@@ -193,16 +192,6 @@ if ! $RUST_ONLY; then
   fi
   ok "TypeScript build complete"
 
-  # Check WASM binaries for @canmi/seam-injector
-  INJECTOR_PKG="$ROOT/packages/server/injector/js/pkg"
-  if [ ! -d "$INJECTOR_PKG" ] || [ -z "$(ls -A "$INJECTOR_PKG" 2>/dev/null)" ]; then
-    warn "@canmi/seam-injector: pkg/ missing or empty (WASM binaries required)"
-    warn "Run 'bun run build:wasm' to generate them"
-    INJECTOR_SKIP=true
-  else
-    INJECTOR_SKIP=false
-  fi
-
   # Check WASM binaries for @canmi/seam-engine
   ENGINE_PKG="$ROOT/packages/server/engine/js/pkg"
   if [ ! -d "$ENGINE_PKG" ] || [ -z "$(ls -A "$ENGINE_PKG" 2>/dev/null)" ]; then
@@ -218,11 +207,9 @@ if ! $RUST_ONLY; then
   # Layer 2: depends on layer 1
   # Layer 3: depends on layer 2
   NPM_LAYER_1=(
-    "packages/server/injector/native:@canmi/seam-injector-native"
     "packages/client/vanilla:@canmi/seam-client"
     "packages/eslint:@canmi/eslint-plugin-seam"
     "packages/i18n:@canmi/seam-i18n"
-    "packages/server/injector/js:@canmi/seam-injector"
     "packages/server/engine/js:@canmi/seam-engine"
   )
   NPM_LAYER_2=(
@@ -248,12 +235,6 @@ if ! $RUST_ONLY; then
       local pkg_dir="$ROOT/$dir"
 
       # Skip WASM-dependent packages if binaries missing
-      if [ "$name" = "@canmi/seam-injector" ] && $INJECTOR_SKIP; then
-        warn "$name (WASM pkg/ missing)"
-        FAILED=$((FAILED + 1))
-        FAILED_NAMES+=("$name")
-        continue
-      fi
       if [ "$name" = "@canmi/seam-engine" ] && $ENGINE_SKIP; then
         warn "$name (WASM pkg/ missing)"
         FAILED=$((FAILED + 1))

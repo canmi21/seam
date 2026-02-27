@@ -16,9 +16,28 @@ fi
 
 echo "Syncing version $VERSION..."
 
+# Deprecated packages: version frozen, skip updates
+SKIP_DIRS=(
+  "packages/server/injector/native"
+  "packages/server/injector/js"
+  "packages/server/injector/wasm/pkg"
+)
+
+skip_pkg() {
+  local p="$1"
+  for d in "${SKIP_DIRS[@]}"; do
+    if [[ "$p" == *"$d"* ]]; then return 0; fi
+  done
+  return 1
+}
+
 # 1. Update "version" field in all package.json under packages/
 count=0
 while IFS= read -r pkg; do
+  if skip_pkg "$pkg"; then
+    echo "  ${pkg#$ROOT/} (skipped, deprecated)"
+    continue
+  fi
   sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$pkg"
   count=$((count + 1))
   echo "  ${pkg#$ROOT/}"
