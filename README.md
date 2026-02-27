@@ -20,6 +20,8 @@ SeamJS rejects this coupling. The server never imports or executes UI code. Inst
 
 This is **compile-time rendering (CTR)**. The server is a data source with a template engine, not a JavaScript runtime. A Rust backend works the same as a TypeScript one. A Go backend works the same as both. The UI framework is irrelevant to the server.
 
+**SSR is still an option.** The [GitHub Dashboard](examples/github-dashboard/) ships the same UI as both CTR and [Next.js SSR](examples/github-dashboard/next-app/) to show where CTR can replace SSR without a JS runtime. When it can't, CTR and SSR are designed to coexist — see [Rendering Modes](#rendering-modes).
+
 ## Three-Axis Decoupling
 
 SeamJS has three independent dimensions. Changing one never affects the others.
@@ -52,12 +54,17 @@ If you're a Rust, Go, C++, or C# developer who wants a modern web UI without lea
 
 ## Rendering Modes
 
-| Mode | Description                                                 | Status      |
-| ---- | ----------------------------------------------------------- | ----------- |
-| CTR  | Compile-time rendering — skeleton at build, data at request | Implemented |
-| SSG  | Static site generation — pre-render pages with known data   | Planned     |
-| SSR  | Selective server-side rendering — CTR + SSR hybrid          | Planned     |
-| ISR  | Incremental static regeneration — rebuild pages on demand   | Planned     |
+**CTR — Compile-Time Rendering** (Implemented)
+Nearly zero-cost SSR. Skeletons are extracted at build time; at request time the server fills typed slots via string replacement — no JS runtime, no component tree re-rendering. This covers the vast majority of traditional SSR use cases with near-zero overhead.
+
+**SSR — Server-Side Rendering** (Planned)
+Not traditional SSR. Works alongside CTR for content that must be rendered at request time — Markdown, rich text, dynamic HTML fragments. The server renders using any tool it wants (a Rust markdown parser, Go `html/template`, or even React `renderToString`) and injects the result through a [raw HTML slot](docs/slot-protocol.md) (`<!--seam:path:html-->`). This is a CTR + SSR hybrid, not standalone SSR. Traditional SSR also works: use a TypeScript backend, import React or any UI library that provides `renderToString` / `renderToReadableStream`, and pipe the HTML into a raw slot — same mechanism, your choice of rendering strategy.
+
+**ISR — Incremental Cache** (Planned)
+Not incremental rendering — an incremental cache layer. Without server-side injection, a CTR page is naturally static and needs no regeneration. When CTR and SSR run together and produce rendering overhead, the assembled page only needs to be computed once — ISR here means caching the filled result.
+
+**SSG — Static Site Generation** (Not Planned)
+Pure static pages can be built by any UI framework natively. SeamJS provides cross-dimension abstraction for dynamic server-client interaction — SSG has no server dimension to decouple, so it falls outside SeamJS's scope.
 
 ## Current Status
 

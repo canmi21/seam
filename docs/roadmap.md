@@ -4,10 +4,10 @@ Everything listed here is planned and will be implemented. This is currently a s
 
 ## Rendering Modes
 
-- [x] CTR — compile-time rendering (skeleton extraction + request-time injection)
-- [ ] SSG — static site generation (pre-render pages with known data at build time)
-- [ ] SSR — selective server-side rendering (CTR + SSR hybrid for dynamic pages)
-- [ ] ISR — incremental static regeneration (rebuild individual pages on demand)
+- [x] CTR — compile-time rendering (nearly zero-cost SSR: skeleton at build, data injection at request)
+- [ ] SSR — CTR + SSR hybrid (raw HTML slots for Markdown, rich text, server-rendered fragments)
+- [ ] ISR — incremental cache layer (cache assembled CTR + SSR pages, not incremental rendering)
+- ~~SSG~~ — not planned (pure static pages need no cross-dimension abstraction)
 
 ## UI Frameworks
 
