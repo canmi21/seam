@@ -110,6 +110,13 @@ pub(crate) struct RouteManifest {
 pub(super) struct I18nManifest {
   pub(super) locales: Vec<String>,
   pub(super) default: String,
+  pub(super) mode: String,
+  #[serde(skip_serializing_if = "std::ops::Not::not")]
+  pub(super) cache: bool,
+  #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+  pub(super) route_hashes: BTreeMap<String, String>,
+  #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+  pub(super) content_hashes: BTreeMap<String, BTreeMap<String, String>>,
 }
 
 #[derive(Serialize)]

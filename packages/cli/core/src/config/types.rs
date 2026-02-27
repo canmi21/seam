@@ -35,6 +35,23 @@ pub struct CleanSection {
   pub commands: Vec<String>,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum I18nMode {
+  #[default]
+  Memory,
+  Paged,
+}
+
+impl I18nMode {
+  pub fn as_str(self) -> &'static str {
+    match self {
+      Self::Memory => "memory",
+      Self::Paged => "paged",
+    }
+  }
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct I18nSection {
   pub locales: Vec<String>,
@@ -42,6 +59,10 @@ pub struct I18nSection {
   pub default: String,
   #[serde(default = "default_messages_dir")]
   pub messages_dir: String,
+  #[serde(default)]
+  pub mode: I18nMode,
+  #[serde(default)]
+  pub cache: bool,
 }
 
 impl I18nSection {

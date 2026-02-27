@@ -10,6 +10,7 @@ use crate::config::I18nSection;
 use crate::ui::{self, DIM, RESET};
 
 /// Read i18n message files from disk, keyed by locale.
+/// Sorts keys alphabetically and writes back to keep source files deterministic.
 pub(crate) fn read_i18n_messages(
   base_dir: &Path,
   i18n: &I18nSection,
@@ -21,27 +22,78 @@ pub(crate) fn read_i18n_messages(
       .with_context(|| format!("i18n: failed to read {}", path.display()))?;
     let parsed: serde_json::Value = serde_json::from_str(&content)
       .with_context(|| format!("i18n: invalid JSON in {}", path.display()))?;
-    messages.insert(locale.clone(), parsed);
+
+    // Sort keys and write back for deterministic source files
+    let sorted = sort_json_keys(&parsed);
+    let sorted_json = serde_json::to_string_pretty(&sorted)
+      .with_context(|| format!("i18n: failed to serialize {locale}"))?;
+    let sorted_json = format!("{sorted_json}\n");
+    // Only write if content differs to avoid unnecessary file churn
+    if sorted_json != content {
+      std::fs::write(&path, &sorted_json)
+        .with_context(|| format!("i18n: failed to write {}", path.display()))?;
+    }
+
+    messages.insert(locale.clone(), sorted);
   }
   Ok(messages)
 }
 
-/// Export i18n messages as separate JSON files in {out_dir}/locales/{locale}.json.
-/// The server reads these at startup to inject _i18n into page data at request time.
-pub(crate) fn export_i18n_messages(
+/// Sort JSON object keys alphabetically (shallow — message files are flat).
+fn sort_json_keys(value: &serde_json::Value) -> serde_json::Value {
+  match value {
+    serde_json::Value::Object(obj) => {
+      let sorted: serde_json::Map<String, serde_json::Value> =
+        obj.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+      serde_json::Value::Object(sorted)
+    }
+    other => other.clone(),
+  }
+}
+
+/// Build-time i18n data for all routes in a locale.
+/// Maps route_hash -> { key: value, ... }
+pub(crate) type LocaleRouteMessages = BTreeMap<String, BTreeMap<String, String>>;
+
+/// Export i18n messages in memory mode: one file per locale containing all routes.
+/// Output: `i18n/{locale}.json` → `{ routeHash: { key: value, ... }, ... }`
+pub(crate) fn export_i18n_memory(
   out_dir: &Path,
-  messages: &BTreeMap<String, serde_json::Value>,
+  per_locale: &BTreeMap<String, LocaleRouteMessages>,
 ) -> Result<()> {
-  let locales_dir = out_dir.join("locales");
-  std::fs::create_dir_all(&locales_dir)
-    .with_context(|| format!("failed to create {}", locales_dir.display()))?;
-  for (locale, data) in messages {
-    let path = locales_dir.join(format!("{locale}.json"));
-    let json = serde_json::to_string_pretty(data)
+  let i18n_dir = out_dir.join("i18n");
+  std::fs::create_dir_all(&i18n_dir)
+    .with_context(|| format!("failed to create {}", i18n_dir.display()))?;
+  for (locale, route_msgs) in per_locale {
+    let path = i18n_dir.join(format!("{locale}.json"));
+    let json = serde_json::to_string(route_msgs)
       .with_context(|| format!("i18n: failed to serialize {locale}"))?;
     let json = seam_server::ascii_escape_json(&json);
-    std::fs::write(&path, json)
+    std::fs::write(&path, &json)
       .with_context(|| format!("i18n: failed to write {}", path.display()))?;
+  }
+  Ok(())
+}
+
+/// Export i18n messages in paged mode: one file per (route, locale).
+/// Output: `i18n/{routeHash}/{locale}.json` → `{ key: value, ... }`
+pub(crate) fn export_i18n_paged(
+  out_dir: &Path,
+  per_locale: &BTreeMap<String, LocaleRouteMessages>,
+) -> Result<()> {
+  let i18n_dir = out_dir.join("i18n");
+  for (locale, route_msgs) in per_locale {
+    for (route_hash, msgs) in route_msgs {
+      let dir = i18n_dir.join(route_hash);
+      std::fs::create_dir_all(&dir)
+        .with_context(|| format!("failed to create {}", dir.display()))?;
+      let path = dir.join(format!("{locale}.json"));
+      let json = serde_json::to_string(msgs)
+        .with_context(|| format!("i18n: failed to serialize {locale}/{route_hash}"))?;
+      let json = seam_server::ascii_escape_json(&json);
+      std::fs::write(&path, &json)
+        .with_context(|| format!("i18n: failed to write {}", path.display()))?;
+    }
   }
   Ok(())
 }

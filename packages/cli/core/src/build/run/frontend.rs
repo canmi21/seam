@@ -7,8 +7,7 @@ use anyhow::{Context, Result};
 
 use super::super::config::BuildConfig;
 use super::super::route::{
-  export_i18n_messages, print_asset_files, process_routes, read_i18n_messages,
-  run_skeleton_renderer,
+  export_i18n, print_asset_files, process_routes, read_i18n_messages, run_skeleton_renderer,
 };
 use super::super::types::read_bundle_manifest;
 use super::helpers::{print_cache_stats, run_bundler};
@@ -61,7 +60,7 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
     Some(cfg) => Some(read_i18n_messages(base_dir, cfg)?),
     None => None,
   };
-  let route_manifest = process_routes(
+  let mut route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
     &templates_dir,
@@ -72,8 +71,8 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
     &build_config.data_id,
     build_config.i18n.as_ref(),
   )?;
-  if let Some(ref msgs) = i18n_messages {
-    export_i18n_messages(&out_dir, msgs)?;
+  if let (Some(ref msgs), Some(ref cfg)) = (&i18n_messages, &build_config.i18n) {
+    export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;
   }
   ui::blank();
 
