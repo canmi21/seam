@@ -21,10 +21,6 @@ obfuscate = true
 hash_length = 16
 type_hint = false
 
-[i18n]
-locales = ["en", "zh"]
-default = "en"
-
 [dev]
 port = 3000
 vite_port = 5173
