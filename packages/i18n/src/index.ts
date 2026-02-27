@@ -14,18 +14,15 @@ function interpolate(template: string, params: Record<string, string | number>):
 }
 
 /**
- * Create an i18n instance with locale-specific messages and optional fallback.
- * Lookup chain: messages[key] -> fallbackMessages[key] -> key itself.
+ * Create an i18n instance with locale-specific messages.
+ * Lookup: messages[key] -> key itself.
+ * Server pre-merges default locale messages, so no client-side fallback needed.
  */
-export function createI18n(
-  locale: string,
-  messages: Record<string, string>,
-  fallbackMessages?: Record<string, string>,
-): I18nInstance {
+export function createI18n(locale: string, messages: Record<string, string>): I18nInstance {
   return {
     locale,
     t(key: string, params?: Record<string, string | number>): string {
-      const raw = messages[key] ?? fallbackMessages?.[key] ?? key;
+      const raw = messages[key] ?? key;
       return params ? interpolate(raw, params) : raw;
     },
   };

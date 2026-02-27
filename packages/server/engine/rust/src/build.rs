@@ -28,8 +28,6 @@ struct I18nManifest {
   locales: Vec<String>,
   #[serde(default)]
   default: String,
-  #[serde(default)]
-  versions: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -149,7 +147,6 @@ pub fn parse_i18n_config(manifest_json: &str) -> Option<serde_json::Value> {
   Some(serde_json::json!({
     "locales": i18n.locales,
     "default": i18n.default,
-    "versions": i18n.versions,
   }))
 }
 
@@ -245,7 +242,7 @@ mod tests {
     let manifest = json!({
       "layouts": {},
       "routes": {},
-      "i18n": {"locales": ["en", "zh"], "default": "en", "versions": {"en": "abc"}}
+      "i18n": {"locales": ["en", "zh"], "default": "en"}
     })
     .to_string();
     let config = parse_i18n_config(&manifest).unwrap();

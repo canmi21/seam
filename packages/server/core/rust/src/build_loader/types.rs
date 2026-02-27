@@ -22,8 +22,6 @@ pub(super) struct I18nManifest {
   pub(super) locales: Vec<String>,
   #[serde(default)]
   pub(super) default: String,
-  #[serde(default)]
-  pub(super) versions: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]

@@ -80,14 +80,10 @@ pub(crate) fn process_routes(
   root_id: &str,
   data_id: &str,
   i18n: Option<&I18nSection>,
-  i18n_versions: Option<&BTreeMap<String, String>>,
 ) -> Result<RouteManifest> {
   let manifest_data_id = if data_id == "__SEAM_DATA__" { None } else { Some(data_id.to_string()) };
-  let i18n_manifest = i18n.map(|cfg| I18nManifest {
-    locales: cfg.locales.clone(),
-    default: cfg.default.clone(),
-    versions: i18n_versions.cloned(),
-  });
+  let i18n_manifest =
+    i18n.map(|cfg| I18nManifest { locales: cfg.locales.clone(), default: cfg.default.clone() });
   let mut manifest = RouteManifest {
     layouts: BTreeMap::new(),
     routes: BTreeMap::new(),

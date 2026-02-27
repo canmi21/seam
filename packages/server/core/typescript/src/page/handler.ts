@@ -112,23 +112,20 @@ export async function handlePageRequest(
       head_meta: page.headMeta,
     };
 
-    // Build I18nOpts for engine
+    // Build I18nOpts for engine (server-side merge: default + target)
     let i18nOptsJson: string | undefined;
     if (i18nOpts) {
       const { config: i18nConfig } = i18nOpts;
-      const allMessages = i18nConfig.messages[i18nOpts.locale] ?? {};
+      const targetMsgs = i18nConfig.messages[i18nOpts.locale] ?? {};
+      const merged =
+        i18nOpts.locale !== i18nConfig.default
+          ? { ...(i18nConfig.messages[i18nConfig.default] ?? {}), ...targetMsgs }
+          : targetMsgs;
       const i18nData: Record<string, unknown> = {
         locale: i18nOpts.locale,
         default_locale: i18nConfig.default,
-        messages: filterByKeys(allMessages, page.i18nKeys),
+        messages: filterByKeys(merged, page.i18nKeys),
       };
-      if (i18nOpts.locale !== i18nConfig.default) {
-        const allFallback = i18nConfig.messages[i18nConfig.default] ?? {};
-        i18nData.fallback_messages = filterByKeys(allFallback, page.i18nKeys);
-      }
-      if (i18nConfig.versions) {
-        i18nData.versions = i18nConfig.versions;
-      }
       i18nOptsJson = JSON.stringify(i18nData);
     }
 

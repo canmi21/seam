@@ -12,14 +12,13 @@ import type { SeamRouterContext } from "./types.js";
 interface I18nRaw {
   locale: string;
   messages: Record<string, string>;
-  fallbackMessages?: Record<string, string>;
 }
 
 // Build I18nInstance from raw data stored in router context or DOM fallback.
 function readI18nContext(raw: unknown): I18nInstance | null {
   const data = raw as I18nRaw | null | undefined;
   if (data?.locale) {
-    return createI18n(data.locale, data.messages ?? {}, data.fallbackMessages);
+    return createI18n(data.locale, data.messages ?? {});
   }
 
   // Fallback: <script id="__seam_i18n"> embedded by build pipeline (deprecated path)

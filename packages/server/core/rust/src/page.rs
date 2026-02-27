@@ -42,6 +42,4 @@ pub struct I18nConfig {
   pub default: String,
   /// Locale -> messages JSON value (read from locales/{locale}.json)
   pub messages: HashMap<String, serde_json::Value>,
-  /// Per-locale content hash for cache invalidation
-  pub versions: HashMap<String, String>,
 }

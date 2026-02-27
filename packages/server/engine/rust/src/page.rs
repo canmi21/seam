@@ -25,10 +25,6 @@ pub struct I18nOpts {
   pub locale: String,
   pub default_locale: String,
   pub messages: serde_json::Value,
-  #[serde(default)]
-  pub fallback_messages: Option<serde_json::Value>,
-  #[serde(default)]
-  pub versions: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 /// Flatten keyed loader results for slot resolution: spread nested object
@@ -117,14 +113,6 @@ fn inject_i18n_data(
   i18n_data.insert("locale".into(), serde_json::Value::String(opts.locale.clone()));
   i18n_data.insert("messages".into(), opts.messages.clone());
 
-  if let Some(ref fallback) = opts.fallback_messages {
-    i18n_data.insert("fallbackMessages".into(), fallback.clone());
-  }
-
-  if let Some(ref versions) = opts.versions {
-    i18n_data.insert("versions".into(), serde_json::Value::Object(versions.clone()));
-  }
-
   script_data.insert("_i18n".into(), serde_json::Value::Object(i18n_data));
 }
 
@@ -177,7 +165,7 @@ pub fn inject_head_meta(html: &str, meta_html: &str) -> String {
 }
 
 /// Process an i18n query: look up requested keys from locale messages,
-/// falling back to key itself when missing.
+/// with per-key fallback to default locale, then key itself.
 pub fn i18n_query(
   keys: &[String],
   locale: &str,
@@ -185,12 +173,17 @@ pub fn i18n_query(
   all_messages: &serde_json::Value,
 ) -> serde_json::Value {
   let empty = serde_json::Value::Object(Default::default());
-  let msgs =
-    all_messages.get(locale).or_else(|| all_messages.get(default_locale)).unwrap_or(&empty);
+  let target_msgs = all_messages.get(locale).unwrap_or(&empty);
+  let default_msgs = all_messages.get(default_locale).unwrap_or(&empty);
 
   let mut messages = serde_json::Map::new();
   for key in keys {
-    let val = msgs.get(key).and_then(|v| v.as_str()).unwrap_or(key).to_string();
+    let val = target_msgs
+      .get(key)
+      .or_else(|| default_msgs.get(key))
+      .and_then(|v| v.as_str())
+      .unwrap_or(key)
+      .to_string();
     messages.insert(key.clone(), serde_json::Value::String(val));
   }
   serde_json::json!({ "messages": messages })
@@ -277,13 +270,12 @@ mod tests {
       locale: "zh".into(),
       default_locale: "en".into(),
       messages: json!({"hello": "你好"}),
-      fallback_messages: Some(json!({"hello": "Hello"})),
-      versions: None,
     };
     let result = build_seam_data(&data, &config, Some(&i18n));
     assert_eq!(result["_i18n"]["locale"], "zh");
     assert_eq!(result["_i18n"]["messages"]["hello"], "你好");
-    assert_eq!(result["_i18n"]["fallbackMessages"]["hello"], "Hello");
+    assert!(result["_i18n"].get("fallbackMessages").is_none());
+    assert!(result["_i18n"].get("versions").is_none());
   }
 
   #[test]
@@ -336,8 +328,8 @@ mod tests {
     let msgs = json!({"en": {"hello": "Hello", "bye": "Bye"}, "zh": {"hello": "你好"}});
     let result = i18n_query(&["hello".into(), "bye".into()], "zh", "en", &msgs);
     assert_eq!(result["messages"]["hello"], "你好");
-    // "bye" not in zh, falls back to key itself
-    assert_eq!(result["messages"]["bye"], "bye");
+    // "bye" not in zh, falls back to default locale (en)
+    assert_eq!(result["messages"]["bye"], "Bye");
   }
 
   #[test]

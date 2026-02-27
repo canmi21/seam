@@ -21,9 +21,8 @@ type routeManifest struct {
 }
 
 type i18nManifest struct {
-	Locales  []string          `json:"locales"`
-	Default  string            `json:"default"`
-	Versions map[string]string `json:"versions"`
+	Locales []string `json:"locales"`
+	Default string   `json:"default"`
 }
 
 type layoutEntry struct {
@@ -352,6 +351,5 @@ func LoadI18nConfig(dir string) *I18nConfig {
 		Locales:  manifest.I18n.Locales,
 		Default:  manifest.I18n.Default,
 		Messages: messages,
-		Versions: manifest.I18n.Versions,
 	}
 }

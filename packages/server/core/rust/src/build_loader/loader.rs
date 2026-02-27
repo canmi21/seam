@@ -255,12 +255,7 @@ pub fn load_i18n_config(dir: &str) -> Option<crate::page::I18nConfig> {
     messages.insert(locale.clone(), parsed);
   }
 
-  Some(crate::page::I18nConfig {
-    locales: i18n.locales,
-    default: i18n.default,
-    messages,
-    versions: i18n.versions,
-  })
+  Some(crate::page::I18nConfig { locales: i18n.locales, default: i18n.default, messages })
 }
 
 /// Load the RPC hash map from build output (returns None when not present).

@@ -75,14 +75,19 @@ pub(crate) fn build_router(
           Box::pin(async move {
             let keys = input.get("keys").and_then(|v| v.as_array()).cloned().unwrap_or_default();
             let locale = input.get("locale").and_then(|v| v.as_str()).unwrap_or(&i18n.default);
-            let msgs = i18n.messages.get(locale).or_else(|| i18n.messages.get(&i18n.default));
             let empty = serde_json::Value::Object(Default::default());
-            let msgs = msgs.unwrap_or(&empty);
+            let target_msgs = i18n.messages.get(locale).unwrap_or(&empty);
+            let default_msgs = i18n.messages.get(&i18n.default).unwrap_or(&empty);
 
             let mut messages = serde_json::Map::new();
             for k in keys {
               if let Some(key) = k.as_str() {
-                let val = msgs.get(key).and_then(|v| v.as_str()).unwrap_or(key).to_string();
+                let val = target_msgs
+                  .get(key)
+                  .or_else(|| default_msgs.get(key))
+                  .and_then(|v| v.as_str())
+                  .unwrap_or(key)
+                  .to_string();
                 messages.insert(key.to_string(), serde_json::Value::String(val));
               }
             }
@@ -302,6 +307,17 @@ async fn handle_subscribe(
   }
 }
 
+/// Merge default locale messages with target locale messages. Target wins on conflict.
+fn merge_i18n_messages(base: &serde_json::Value, target: &serde_json::Value) -> serde_json::Value {
+  let mut merged = base.as_object().cloned().unwrap_or_default();
+  if let Some(target_obj) = target.as_object() {
+    for (k, v) in target_obj {
+      merged.insert(k.clone(), v.clone());
+    }
+  }
+  serde_json::Value::Object(merged)
+}
+
 /// Filter i18n messages to only include keys in the allow list. Empty list means include all.
 fn filter_i18n_messages(messages: &serde_json::Value, keys: &[String]) -> serde_json::Value {
   if keys.is_empty() {
@@ -443,32 +459,25 @@ async fn handle_page(
     script_data = data;
   }
 
-  // Inject _i18n data for client hydration
+  // Inject _i18n data for client hydration (server-side merge: default + target)
   if let (Some(ref loc), Some(ref i18n)) = (&locale, &state.i18n_config) {
-    let all_messages =
+    let target =
       i18n.messages.get(loc).cloned().unwrap_or(serde_json::Value::Object(Default::default()));
-    let messages = filter_i18n_messages(&all_messages, &page.i18n_keys);
-
-    let mut i18n_data = serde_json::Map::new();
-    i18n_data.insert("locale".into(), serde_json::Value::String(loc.clone()));
-    i18n_data.insert("messages".into(), messages);
-    if loc != &i18n.default {
-      let all_fallback = i18n
+    let merged = if loc != &i18n.default {
+      let default_msgs = i18n
         .messages
         .get(&i18n.default)
         .cloned()
         .unwrap_or(serde_json::Value::Object(Default::default()));
-      i18n_data
-        .insert("fallbackMessages".into(), filter_i18n_messages(&all_fallback, &page.i18n_keys));
-    }
-    if !i18n.versions.is_empty() {
-      let versions: serde_json::Map<String, serde_json::Value> = i18n
-        .versions
-        .iter()
-        .map(|(k, v)| (k.clone(), serde_json::Value::String(v.clone())))
-        .collect();
-      i18n_data.insert("versions".into(), serde_json::Value::Object(versions));
-    }
+      merge_i18n_messages(&default_msgs, &target)
+    } else {
+      target
+    };
+    let messages = filter_i18n_messages(&merged, &page.i18n_keys);
+
+    let mut i18n_data = serde_json::Map::new();
+    i18n_data.insert("locale".into(), serde_json::Value::String(loc.clone()));
+    i18n_data.insert("messages".into(), messages);
     script_data.insert("_i18n".into(), serde_json::Value::Object(i18n_data));
   }
 

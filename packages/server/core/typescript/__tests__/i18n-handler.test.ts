@@ -15,7 +15,7 @@ const i18nConfig: I18nConfig = {
 };
 
 describe("handlePageRequest -- i18n data injection", () => {
-  it("injects _i18n into seamData when i18nOpts provided", async () => {
+  it("injects _i18n with server-merged messages for non-default locale", async () => {
     const page: PageDef = {
       template: "<body><h1><!--seam:page.title--></h1></body>",
       loaders: { page: () => ({ procedure: "getData", input: {} }) },
@@ -31,11 +31,12 @@ describe("handlePageRequest -- i18n data injection", () => {
     expect(data._i18n).toBeDefined();
     const i18n = data._i18n as Record<string, unknown>;
     expect(i18n.locale).toBe("zh");
+    // Server pre-merges: en defaults + zh overrides
     expect(i18n.messages).toEqual({ greeting: "Hi zh", cta: "View zh" });
-    expect(i18n.fallbackMessages).toEqual({ greeting: "Hello", cta: "View" });
+    expect(i18n).not.toHaveProperty("fallbackMessages");
   });
 
-  it("does not include fallbackMessages for default locale", async () => {
+  it("injects correct messages for default locale", async () => {
     const page: PageDef = {
       template: "<body><p>hi</p></body>",
       loaders: { page: () => ({ procedure: "getData", input: {} }) },
@@ -50,7 +51,34 @@ describe("handlePageRequest -- i18n data injection", () => {
     const data = extractSeamData(result.html);
     const i18n = data._i18n as Record<string, unknown>;
     expect(i18n.locale).toBe("en");
-    expect(i18n.fallbackMessages).toBeUndefined();
+    expect(i18n.messages).toEqual({ greeting: "Hello", cta: "View" });
+    expect(i18n).not.toHaveProperty("fallbackMessages");
+  });
+
+  it("merges missing keys from default locale into target", async () => {
+    const partialConfig: I18nConfig = {
+      locales: ["en", "zh"],
+      default: "en",
+      messages: {
+        en: { greeting: "Hello", cta: "View", extra: "Extra" },
+        zh: { greeting: "Hi zh" },
+      },
+    };
+    const page: PageDef = {
+      template: "<body><p>hi</p></body>",
+      loaders: { page: () => ({ procedure: "getData", input: {} }) },
+      layoutChain: [],
+    };
+    const procs = makeProcedures(["getData", mockProcedure(() => ({ v: 1 }))]);
+    const result = await handlePageRequest(page, {}, procs, {
+      locale: "zh",
+      config: partialConfig,
+    });
+
+    const data = extractSeamData(result.html);
+    const i18n = data._i18n as Record<string, unknown>;
+    // zh overrides greeting; cta and extra come from en defaults
+    expect(i18n.messages).toEqual({ greeting: "Hi zh", cta: "View", extra: "Extra" });
   });
 
   it("does not inject _i18n when i18nOpts absent (backward compat)", async () => {

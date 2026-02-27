@@ -29,7 +29,6 @@ export interface I18nConfig {
   locales: string[];
   default: string;
   messages: Record<string, Record<string, string>>;
-  versions?: Record<string, string>;
 }
 
 export function definePage(config: PageDef): PageDef {

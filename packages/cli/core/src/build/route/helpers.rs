@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use sha2::{Digest, Sha256};
 
 use super::super::types::AssetFiles;
 use crate::config::I18nSection;
@@ -55,22 +54,6 @@ pub(super) fn path_to_filename(path: &str) -> String {
   }
   let slug = trimmed.replace('/', "-").replace(':', "");
   format!("{slug}.html")
-}
-
-/// Compute a per-locale content hash (first 8 bytes of SHA-256, hex-encoded).
-pub(crate) fn compute_i18n_versions(
-  messages: &BTreeMap<String, serde_json::Value>,
-) -> BTreeMap<String, String> {
-  let mut versions = BTreeMap::new();
-  for (locale, value) in messages {
-    // Re-parse as BTreeMap to normalize key order
-    let normalized: BTreeMap<String, serde_json::Value> =
-      serde_json::from_value(value.clone()).unwrap_or_default();
-    let json = serde_json::to_string(&normalized).unwrap_or_default();
-    let hash = Sha256::digest(json.as_bytes());
-    versions.insert(locale.clone(), hex::encode(&hash[..8]));
-  }
-  versions
 }
 
 /// Print each asset file with its size from disk

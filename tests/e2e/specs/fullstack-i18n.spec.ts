@@ -78,8 +78,8 @@ test.describe("fullstack i18n locale routing", () => {
     expect(state.lang).toBe("zh");
     expect(state.i18n.locale).toBe("zh");
     expect(state.i18n.messages["dashboard.title"]).toBe("GitHub 仪表盘");
-    expect(state.i18n.fallbackMessages).toBeTruthy();
-    expect(state.i18n.fallbackMessages["dashboard.title"]).toBe("GitHub Dashboard");
+    // Server pre-merges default locale messages; no separate fallbackMessages
+    expect(state.i18n.fallbackMessages).toBeUndefined();
     // All backends now inject _i18n at runtime; build-time fallback removed
     expect(state.hasOldI18nScript).toBe(false);
     expect(collectErrors(), "hydration errors on /zh/").toEqual([]);

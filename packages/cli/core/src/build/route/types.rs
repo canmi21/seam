@@ -110,8 +110,6 @@ pub(crate) struct RouteManifest {
 pub(super) struct I18nManifest {
   pub(super) locales: Vec<String>,
   pub(super) default: String,
-  #[serde(skip_serializing_if = "Option::is_none")]
-  pub(super) versions: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Serialize)]

@@ -7,8 +7,8 @@ use anyhow::{Context, Result};
 
 use super::super::config::BuildConfig;
 use super::super::route::{
-  compute_i18n_versions, export_i18n_messages, print_asset_files, process_routes,
-  read_i18n_messages, run_skeleton_renderer,
+  export_i18n_messages, print_asset_files, process_routes, read_i18n_messages,
+  run_skeleton_renderer,
 };
 use super::super::types::read_bundle_manifest;
 use super::helpers::{print_cache_stats, run_bundler};
@@ -61,7 +61,6 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
     Some(cfg) => Some(read_i18n_messages(base_dir, cfg)?),
     None => None,
   };
-  let i18n_versions = i18n_messages.as_ref().map(compute_i18n_versions);
   let route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -72,7 +71,6 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
     &build_config.root_id,
     &build_config.data_id,
     build_config.i18n.as_ref(),
-    i18n_versions.as_ref(),
   )?;
   if let Some(ref msgs) = i18n_messages {
     export_i18n_messages(&out_dir, msgs)?;

@@ -18,7 +18,7 @@ See root CLAUDE.md for general project rules.
 
 - `PageConfig { layout_chain, data_id, head_meta }` — page assembly configuration
 - `LayoutChainEntry { id, loader_keys }` — per-layout data grouping (fixes the `_layouts` bug)
-- `I18nOpts { locale, default_locale, messages, fallback_messages?, versions? }` — i18n injection
+- `I18nOpts { locale, default_locale, messages }` — i18n injection (server pre-merges default locale)
 - `PageDefOutput` — build output parsing result
 
 ## render_page Pipeline

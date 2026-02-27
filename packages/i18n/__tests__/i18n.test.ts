@@ -15,21 +15,6 @@ describe("createI18n", () => {
     expect(i18n.t("missing.key")).toBe("missing.key");
   });
 
-  it("t() falls back to fallbackMessages when key missing in primary", () => {
-    const i18n = createI18n("zh", { greeting: "Hi" }, { farewell: "Goodbye" });
-    expect(i18n.t("farewell")).toBe("Goodbye");
-  });
-
-  it("primary messages take precedence over fallback", () => {
-    const i18n = createI18n("zh", { greeting: "Hi" }, { greeting: "Hello" });
-    expect(i18n.t("greeting")).toBe("Hi");
-  });
-
-  it("t() returns key when missing from both primary and fallback", () => {
-    const i18n = createI18n("zh", {}, { greeting: "Hello" });
-    expect(i18n.t("unknown")).toBe("unknown");
-  });
-
   it("t() interpolates single param", () => {
     const i18n = createI18n("en", { hello: "Hello {name}" });
     expect(i18n.t("hello", { name: "Alice" })).toBe("Hello Alice");
@@ -43,11 +28,6 @@ describe("createI18n", () => {
   it("t() preserves unmatched placeholders", () => {
     const i18n = createI18n("en", { msg: "Hello {name}, {title}" });
     expect(i18n.t("msg", { name: "Alice" })).toBe("Hello Alice, {title}");
-  });
-
-  it("t() interpolates fallback message", () => {
-    const i18n = createI18n("zh", {}, { hello: "Hello {name}" });
-    expect(i18n.t("hello", { name: "Bob" })).toBe("Hello Bob");
   });
 
   it("t() without params returns raw message (no interpolation overhead)", () => {

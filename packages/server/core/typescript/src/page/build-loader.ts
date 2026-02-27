@@ -9,7 +9,7 @@ interface RouteManifest {
   layouts?: Record<string, LayoutManifestEntry>;
   routes: Record<string, RouteManifestEntry>;
   data_id?: string;
-  i18n?: { locales: string[]; default: string; versions?: Record<string, string> };
+  i18n?: { locales: string[]; default: string };
 }
 
 interface LayoutManifestEntry {
@@ -215,7 +215,6 @@ export function loadI18nMessages(distDir: string): I18nConfig | null {
       locales: manifest.i18n.locales,
       default: manifest.i18n.default,
       messages,
-      versions: manifest.i18n.versions,
     };
   } catch {
     return null;

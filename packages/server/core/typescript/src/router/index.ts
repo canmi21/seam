@@ -77,10 +77,11 @@ function registerI18nQuery(procedureMap: Map<string, InternalProcedure>, config:
     outputSchema: {},
     handler: ({ input }) => {
       const { keys, locale } = input as { keys: string[]; locale: string };
-      const msgs = config.messages[locale] ?? config.messages[config.default] ?? {};
+      const targetMsgs = config.messages[locale] ?? {};
+      const defaultMsgs = config.messages[config.default] ?? {};
       const messages: Record<string, string> = {};
       for (const k of keys) {
-        messages[k] = msgs[k] ?? k;
+        messages[k] = targetMsgs[k] ?? defaultMsgs[k] ?? k;
       }
       return { messages };
     },

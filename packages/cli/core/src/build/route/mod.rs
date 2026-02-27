@@ -12,9 +12,7 @@ mod types;
 mod tests;
 
 // Re-export all public items for use by other modules
-pub(crate) use helpers::{
-  compute_i18n_versions, export_i18n_messages, print_asset_files, read_i18n_messages,
-};
+pub(crate) use helpers::{export_i18n_messages, print_asset_files, read_i18n_messages};
 pub(crate) use manifest::{
   extract_manifest, extract_manifest_command, generate_types, package_static_assets,
   print_procedure_breakdown, run_typecheck, validate_procedure_references,

@@ -129,7 +129,6 @@ type I18nConfig struct {
 	Locales  []string
 	Default  string
 	Messages map[string]json.RawMessage // locale -> messages JSON
-	Versions map[string]string          // per-locale content hash for cache invalidation
 }
 
 // HandlerOptions configures timeout behavior for the generated handler.

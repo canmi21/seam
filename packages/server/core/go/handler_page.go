@@ -139,19 +139,17 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 	}
 	configJSON, _ := json.Marshal(config)
 
-	// Build i18n opts for engine
+	// Build i18n opts for engine (server-side merge: default + target)
 	i18nOptsJSON := ""
 	if s.i18nConfig != nil && locale != "" {
+		merged := s.i18nConfig.Messages[locale]
+		if locale != s.i18nConfig.Default {
+			merged = mergeMessages(s.i18nConfig.Messages[s.i18nConfig.Default], s.i18nConfig.Messages[locale])
+		}
 		i18nOpts := map[string]any{
 			"locale":         locale,
 			"default_locale": s.i18nConfig.Default,
-			"messages":       filterI18nMessages(s.i18nConfig.Messages[locale], page.I18nKeys),
-		}
-		if locale != s.i18nConfig.Default {
-			i18nOpts["fallback_messages"] = filterI18nMessages(s.i18nConfig.Messages[s.i18nConfig.Default], page.I18nKeys)
-		}
-		if len(s.i18nConfig.Versions) > 0 {
-			i18nOpts["versions"] = s.i18nConfig.Versions
+			"messages":       filterI18nMessages(merged, page.I18nKeys),
 		}
 		i18nBytes, _ := json.Marshal(i18nOpts)
 		i18nOptsJSON = string(i18nBytes)
@@ -166,6 +164,24 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(html))
+}
+
+// mergeMessages merges default locale messages with target locale messages.
+// Target wins on conflict. Returns the merged JSON.
+func mergeMessages(base, target json.RawMessage) json.RawMessage {
+	var baseMap map[string]json.RawMessage
+	if err := json.Unmarshal(base, &baseMap); err != nil {
+		return target
+	}
+	var targetMap map[string]json.RawMessage
+	if err := json.Unmarshal(target, &targetMap); err != nil {
+		return base
+	}
+	for k, v := range targetMap {
+		baseMap[k] = v
+	}
+	result, _ := json.Marshal(baseMap)
+	return json.RawMessage(result)
 }
 
 // filterI18nMessages filters a locale's messages JSON to only include the specified keys.
