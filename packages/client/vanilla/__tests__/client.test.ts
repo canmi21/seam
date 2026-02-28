@@ -161,6 +161,38 @@ describe("call(): errors", () => {
   });
 });
 
+describe("query()", () => {
+  it("calls procedure via query method", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ ok: true, data: { message: "Hello" } }));
+
+    const client = createClient({ baseUrl: "http://localhost:3000" });
+    const result = await client.query("greet", { name: "Alice" });
+
+    expect(result).toEqual({ message: "Hello" });
+    expect(fetch).toHaveBeenCalledWith("http://localhost:3000/_seam/procedure/greet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Alice" }),
+    });
+  });
+});
+
+describe("command()", () => {
+  it("calls procedure via command method", async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ ok: true, data: { success: true } }));
+
+    const client = createClient({ baseUrl: "http://localhost:3000" });
+    const result = await client.command("deleteUser", { userId: "123" });
+
+    expect(result).toEqual({ success: true });
+    expect(fetch).toHaveBeenCalledWith("http://localhost:3000/_seam/procedure/deleteUser", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: "123" }),
+    });
+  });
+});
+
 describe("callBatch(): batchEndpoint", () => {
   it("uses custom batch endpoint when configured", async () => {
     vi.mocked(fetch).mockResolvedValue(

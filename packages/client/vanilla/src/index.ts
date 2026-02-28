@@ -6,3 +6,5 @@ export { seamRpc, configureRpcMap } from "./rpc.js";
 
 export type { ClientOptions, SeamClient, Unsubscribe } from "./client.js";
 export type { ErrorCode } from "./errors.js";
+
+export type ProcedureKind = "query" | "command" | "subscription";

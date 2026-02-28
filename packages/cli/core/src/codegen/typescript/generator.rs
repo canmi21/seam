@@ -18,7 +18,7 @@ pub fn generate_typescript(
 
   out.push_str("import { createClient } from \"@canmi/seam-client\";\n");
   out.push_str(
-    "import type { SeamClient, SeamClientError, Unsubscribe } from \"@canmi/seam-client\";\n\n",
+    "import type { SeamClient, SeamClientError, ProcedureKind, Unsubscribe } from \"@canmi/seam-client\";\n\n",
   );
 
   out.push_str(&format!("export const DATA_ID = \"{}\";\n\n", data_id));
@@ -41,6 +41,13 @@ pub fn generate_typescript(
     out.push_str(&output_decl);
     out.push('\n');
 
+    if let Some(ref error_schema) = schema.error {
+      let error_name = format!("{pascal}Error");
+      let error_decl = render_top_level(&error_name, error_schema)?;
+      out.push_str(&error_decl);
+      out.push('\n');
+    }
+
     let wire_name =
       rpc_hashes.and_then(|m| m.procedures.get(name)).map(|h| h.as_str()).unwrap_or(name.as_str());
 
@@ -52,9 +59,13 @@ pub fn generate_typescript(
         "    {name}: (input, onData, onError) => client.subscribe(\"{wire_name}\", input, onData as (data: unknown) => void, onError),"
       ));
     } else {
+      let method = match schema.proc_type {
+        ProcedureType::Command => "command",
+        _ => "query",
+      };
       iface_lines.push(format!("  {name}(input: {input_name}): Promise<{output_name}>;"));
       factory_lines.push(format!(
-        "    {name}: (input) => client.call(\"{wire_name}\", input) as Promise<{output_name}>,"
+        "    {name}: (input) => client.{method}(\"{wire_name}\", input) as Promise<{output_name}>,"
       ));
     }
   }
@@ -63,6 +74,30 @@ pub fn generate_typescript(
   for line in &iface_lines {
     out.push_str(line);
     out.push('\n');
+  }
+  out.push_str("}\n\n");
+
+  // SeamProcedureMeta type map
+  out.push_str("export interface SeamProcedureMeta {\n");
+  for (name, schema) in &manifest.procedures {
+    let pascal = capitalize(name);
+    let kind = match schema.proc_type {
+      ProcedureType::Query => "query",
+      ProcedureType::Command => "command",
+      ProcedureType::Subscription => "subscription",
+    };
+    let input_name = format!("{pascal}Input");
+    let output_name = format!("{pascal}Output");
+    if schema.error.is_some() {
+      let error_name = format!("{pascal}Error");
+      out.push_str(&format!(
+        "  {name}: {{ kind: \"{kind}\"; input: {input_name}; output: {output_name}; error: {error_name} }};\n"
+      ));
+    } else {
+      out.push_str(&format!(
+        "  {name}: {{ kind: \"{kind}\"; input: {input_name}; output: {output_name} }};\n"
+      ));
+    }
   }
   out.push_str("}\n\n");
 
