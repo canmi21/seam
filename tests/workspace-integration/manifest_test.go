@@ -29,12 +29,12 @@ func TestManifest(t *testing.T) {
 
 			t.Run("version", func(t *testing.T) {
 				_, body := getJSON(t, url)
-				version, ok := body["version"].(string)
+				version, ok := body["version"].(float64)
 				if !ok {
-					t.Fatalf("version not a string: %v", body["version"])
+					t.Fatalf("version not a number: %v", body["version"])
 				}
-				if version != "0.1.0" {
-					t.Errorf("version = %q, want %q", version, "0.1.0")
+				if version != 1 {
+					t.Errorf("version = %v, want %v", version, 1)
 				}
 			})
 

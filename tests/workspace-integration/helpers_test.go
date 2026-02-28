@@ -101,6 +101,34 @@ func fetchRaw(t *testing.T, url string) []byte {
 	return raw
 }
 
+// extractData unwraps the { ok, data } envelope and returns the data object.
+func extractData(t *testing.T, body map[string]any) map[string]any {
+	t.Helper()
+	if ok, _ := body["ok"].(bool); !ok {
+		t.Fatalf("expected ok=true, got: %v", body)
+	}
+	data, exists := body["data"].(map[string]any)
+	if !exists {
+		t.Fatalf("expected data object in envelope, got: %v", body["data"])
+	}
+	return data
+}
+
+// extractDataRaw unwraps the { ok, data } envelope from raw bytes
+// and returns the re-serialized data portion.
+func extractDataRaw(t *testing.T, raw []byte) []byte {
+	t.Helper()
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		t.Fatalf("unmarshal envelope: %v\nbody: %s", err, raw)
+	}
+	data, exists := envelope["data"]
+	if !exists {
+		t.Fatalf("no data field in envelope: %s", raw)
+	}
+	return data
+}
+
 func assertErrorResponse(t *testing.T, body map[string]any, expectedCode string) {
 	t.Helper()
 	errObj, ok := body["error"].(map[string]any)

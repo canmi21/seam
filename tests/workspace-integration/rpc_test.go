@@ -11,15 +11,16 @@ func TestRPCStaticProcedures(t *testing.T) {
 	for _, b := range backends {
 		b := b
 		t.Run(b.Name, func(t *testing.T) {
-			rpcURL := b.BaseURL + "/_seam/rpc/"
+			rpcURL := b.BaseURL + "/_seam/procedure/"
 
 			t.Run("getSession", func(t *testing.T) {
 				status, body := postJSON(t, rpcURL+"getSession", map[string]any{})
 				if status != 200 {
 					t.Fatalf("status = %d, want 200", status)
 				}
-				username, _ := body["username"].(string)
-				theme, _ := body["theme"].(string)
+				data := extractData(t, body)
+				username, _ := data["username"].(string)
+				theme, _ := data["theme"].(string)
 				if username != "visitor" {
 					t.Errorf("username = %q, want %q", username, "visitor")
 				}
@@ -33,7 +34,8 @@ func TestRPCStaticProcedures(t *testing.T) {
 				if status != 200 {
 					t.Fatalf("status = %d, want 200", status)
 				}
-				tagline, _ := body["tagline"].(string)
+				data := extractData(t, body)
+				tagline, _ := data["tagline"].(string)
 				if tagline != "Compile-Time Rendering for React" {
 					t.Errorf("tagline = %q, want %q", tagline, "Compile-Time Rendering for React")
 				}
@@ -46,26 +48,27 @@ func TestRPCGitHubProcedures(t *testing.T) {
 	for _, b := range backends {
 		b := b
 		t.Run(b.Name, func(t *testing.T) {
-			rpcURL := b.BaseURL + "/_seam/rpc/"
+			rpcURL := b.BaseURL + "/_seam/procedure/"
 
 			t.Run("getUser", func(t *testing.T) {
 				status, body := postJSON(t, rpcURL+"getUser", map[string]any{"username": "octocat"})
 				if status != 200 {
 					t.Fatalf("status = %d, want 200", status)
 				}
+				data := extractData(t, body)
 				// Validate required fields exist with correct types
-				login, ok := body["login"].(string)
+				login, ok := data["login"].(string)
 				if !ok || login != "octocat" {
-					t.Errorf("login = %v, want %q", body["login"], "octocat")
+					t.Errorf("login = %v, want %q", data["login"], "octocat")
 				}
-				if _, ok := body["avatar_url"].(string); !ok {
-					t.Errorf("avatar_url missing or not string: %v", body["avatar_url"])
+				if _, ok := data["avatar_url"].(string); !ok {
+					t.Errorf("avatar_url missing or not string: %v", data["avatar_url"])
 				}
-				if _, ok := body["public_repos"].(float64); !ok {
-					t.Errorf("public_repos missing or not number: %v", body["public_repos"])
+				if _, ok := data["public_repos"].(float64); !ok {
+					t.Errorf("public_repos missing or not number: %v", data["public_repos"])
 				}
-				if _, ok := body["followers"].(float64); !ok {
-					t.Errorf("followers missing or not number: %v", body["followers"])
+				if _, ok := data["followers"].(float64); !ok {
+					t.Errorf("followers missing or not number: %v", data["followers"])
 				}
 			})
 
@@ -74,9 +77,10 @@ func TestRPCGitHubProcedures(t *testing.T) {
 				if status != 200 {
 					t.Fatalf("status = %d, want 200, body: %s", status, raw)
 				}
-				// Parse as array
+				// Unwrap data from envelope, then parse as array
+				dataRaw := extractDataRaw(t, raw)
 				var repos []map[string]any
-				if err := parseJSONArray(t, raw, &repos); err != nil {
+				if err := parseJSONArray(t, dataRaw, &repos); err != nil {
 					t.Fatalf("parse repos: %v", err)
 				}
 				if len(repos) == 0 {
@@ -102,7 +106,7 @@ func TestRPCErrors(t *testing.T) {
 	for _, b := range backends {
 		b := b
 		t.Run(b.Name, func(t *testing.T) {
-			rpcURL := b.BaseURL + "/_seam/rpc/"
+			rpcURL := b.BaseURL + "/_seam/procedure/"
 
 			t.Run("unknown procedure", func(t *testing.T) {
 				status, body := postJSON(t, rpcURL+"nonexistent", map[string]any{})
