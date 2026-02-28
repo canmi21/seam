@@ -1,5 +1,6 @@
 /* packages/server/core/rust-macros/src/lib.rs */
 
+mod seam_command;
 mod seam_procedure;
 mod seam_subscription;
 mod seam_type;
@@ -20,6 +21,16 @@ pub fn seam_procedure(attr: TokenStream, item: TokenStream) -> TokenStream {
   let attr = proc_macro2::TokenStream::from(attr);
   let item = syn::parse_macro_input!(item as syn::ItemFn);
   match seam_procedure::expand(attr, item) {
+    Ok(tokens) => tokens.into(),
+    Err(e) => e.to_compile_error().into(),
+  }
+}
+
+#[proc_macro_attribute]
+pub fn seam_command(attr: TokenStream, item: TokenStream) -> TokenStream {
+  let attr = proc_macro2::TokenStream::from(attr);
+  let item = syn::parse_macro_input!(item as syn::ItemFn);
+  match seam_command::expand(attr, item) {
     Ok(tokens) => tokens.into(),
     Err(e) => e.to_compile_error().into(),
   }

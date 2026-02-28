@@ -23,10 +23,18 @@ pub type SubscriptionHandlerFn = Arc<
     + Sync,
 >;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcedureType {
+  Query,
+  Command,
+}
+
 pub struct ProcedureDef {
   pub name: String,
+  pub proc_type: ProcedureType,
   pub input_schema: serde_json::Value,
   pub output_schema: serde_json::Value,
+  pub error_schema: Option<serde_json::Value>,
   pub handler: HandlerFn,
 }
 
@@ -34,5 +42,6 @@ pub struct SubscriptionDef {
   pub name: String,
   pub input_schema: serde_json::Value,
   pub output_schema: serde_json::Value,
+  pub error_schema: Option<serde_json::Value>,
   pub handler: SubscriptionHandlerFn,
 }

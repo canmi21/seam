@@ -12,7 +12,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use futures_core::Stream;
 use seam_server::page::PageDef;
-use seam_server::procedure::{ProcedureDef, SubscriptionDef};
+use seam_server::procedure::{ProcedureDef, ProcedureType, SubscriptionDef};
 use seam_server::resolve::ResolveStrategy;
 use seam_server::{RpcHashMap, SeamError};
 use tokio::task::JoinSet;
@@ -68,8 +68,10 @@ pub(crate) fn build_router(
       "__seam_i18n_query".to_string(),
       Arc::new(ProcedureDef {
         name: "__seam_i18n_query".to_string(),
+        proc_type: ProcedureType::Query,
         input_schema: serde_json::json!({}),
         output_schema: serde_json::json!({}),
+        error_schema: None,
         handler: Arc::new(move |input: serde_json::Value| {
           let i18n = i18n_clone.clone();
           Box::pin(async move {

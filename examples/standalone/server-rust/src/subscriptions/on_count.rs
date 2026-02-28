@@ -18,6 +18,7 @@ pub fn on_count_subscription() -> SubscriptionDef {
     name: "onCount".to_string(),
     input_schema: CountInput::jtd_schema(),
     output_schema: CountOutput::jtd_schema(),
+    error_schema: None,
     handler: std::sync::Arc::new(|value: serde_json::Value| {
       Box::pin(async move {
         let input: CountInput =

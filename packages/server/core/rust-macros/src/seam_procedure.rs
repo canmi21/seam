@@ -5,34 +5,58 @@ use quote::quote;
 use syn::parse::{Parse, ParseStream};
 use syn::{FnArg, ItemFn, LitStr, Pat, ReturnType, Token, Type};
 
-struct ProcedureAttr {
-  name: Option<String>,
+pub(crate) struct ProcedureAttr {
+  pub name: Option<String>,
+  pub error: Option<syn::Path>,
 }
 
 impl Parse for ProcedureAttr {
   fn parse(input: ParseStream) -> syn::Result<Self> {
-    if input.is_empty() {
-      return Ok(ProcedureAttr { name: None });
+    let mut name = None;
+    let mut error = None;
+
+    while !input.is_empty() {
+      let ident: syn::Ident = input.parse()?;
+      if ident == "name" {
+        input.parse::<Token![=]>()?;
+        let lit: LitStr = input.parse()?;
+        name = Some(lit.value());
+      } else if ident == "error" {
+        input.parse::<Token![=]>()?;
+        error = Some(input.parse::<syn::Path>()?);
+      } else {
+        return Err(syn::Error::new_spanned(ident, "expected `name` or `error`"));
+      }
+      // consume optional trailing comma
+      let _ = input.parse::<Token![,]>();
     }
-    let ident: syn::Ident = input.parse()?;
-    if ident != "name" {
-      return Err(syn::Error::new_spanned(ident, "expected `name`"));
-    }
-    input.parse::<Token![=]>()?;
-    let lit: LitStr = input.parse()?;
-    Ok(ProcedureAttr { name: Some(lit.value()) })
+
+    Ok(ProcedureAttr { name, error })
   }
 }
 
 pub fn expand(attr: TokenStream, item: ItemFn) -> syn::Result<TokenStream> {
   let parsed_attr: ProcedureAttr = syn::parse2(attr)?;
+  expand_with_type(parsed_attr, item, quote! { seam_server::ProcedureType::Query })
+}
 
+/// Shared codegen for both `seam_procedure` (Query) and `seam_command` (Command).
+pub(crate) fn expand_with_type(
+  attr: ProcedureAttr,
+  item: ItemFn,
+  proc_type_token: TokenStream,
+) -> syn::Result<TokenStream> {
   let fn_name = &item.sig.ident;
   let factory_name = syn::Ident::new(&format!("{}_procedure", fn_name), fn_name.span());
 
   let input_type = extract_input_type(&item)?;
   let output_type = extract_output_type(&item)?;
-  let name_str = parsed_attr.name.unwrap_or_else(|| fn_name.to_string());
+  let name_str = attr.name.unwrap_or_else(|| fn_name.to_string());
+
+  let error_schema_expr = match attr.error {
+    Some(path) => quote! { Some(<#path as seam_server::SeamType>::jtd_schema()) },
+    None => quote! { None },
+  };
 
   let handler_body = quote! {
     std::sync::Arc::new(|value: serde_json::Value| {
@@ -46,22 +70,23 @@ pub fn expand(attr: TokenStream, item: ItemFn) -> syn::Result<TokenStream> {
     })
   };
 
-  // Emit original fn + a factory fn that returns ProcedureDef
   Ok(quote! {
     #item
 
     pub fn #factory_name() -> seam_server::ProcedureDef {
       seam_server::ProcedureDef {
         name: #name_str.to_string(),
+        proc_type: #proc_type_token,
         input_schema: <#input_type as seam_server::SeamType>::jtd_schema(),
         output_schema: <#output_type as seam_server::SeamType>::jtd_schema(),
+        error_schema: #error_schema_expr,
         handler: #handler_body,
       }
     }
   })
 }
 
-fn extract_input_type(item: &ItemFn) -> syn::Result<Type> {
+pub(crate) fn extract_input_type(item: &ItemFn) -> syn::Result<Type> {
   let arg = item.sig.inputs.first().ok_or_else(|| {
     syn::Error::new_spanned(&item.sig, "procedure must have exactly one input parameter")
   })?;
@@ -79,7 +104,7 @@ fn extract_input_type(item: &ItemFn) -> syn::Result<Type> {
   }
 }
 
-fn extract_output_type(item: &ItemFn) -> syn::Result<Type> {
+pub(crate) fn extract_output_type(item: &ItemFn) -> syn::Result<Type> {
   match &item.sig.output {
     ReturnType::Type(_, ty) => {
       // Expect Result<OutputType, SeamError> — extract the first generic arg

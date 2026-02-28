@@ -9,6 +9,7 @@ export interface ProcedureEntry {
   type: ProcedureType;
   input: Schema;
   output: Schema;
+  error?: Schema;
 }
 
 export interface ProcedureManifest {
@@ -17,16 +18,25 @@ export interface ProcedureManifest {
 }
 
 export function buildManifest(
-  definitions: Record<string, { input: SchemaNode; output: SchemaNode; type?: string }>,
+  definitions: Record<
+    string,
+    { input: SchemaNode; output: SchemaNode; type?: string; error?: SchemaNode }
+  >,
 ): ProcedureManifest {
   const mapped: ProcedureManifest["procedures"] = {};
 
   for (const [name, def] of Object.entries(definitions)) {
-    mapped[name] = {
-      type: def.type === "subscription" ? "subscription" : "query",
+    const type: ProcedureType =
+      def.type === "subscription" ? "subscription" : def.type === "command" ? "command" : "query";
+    const entry: ProcedureEntry = {
+      type,
       input: def.input._schema,
       output: def.output._schema,
     };
+    if (def.error) {
+      entry.error = def.error._schema;
+    }
+    mapped[name] = entry;
   }
 
   return { version: 1, procedures: mapped };

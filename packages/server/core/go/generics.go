@@ -25,6 +25,23 @@ func Query[In, Out any](name string, fn func(context.Context, In) (Out, error)) 
 	}
 }
 
+// Command creates a ProcedureDef with type "command" from a typed handler function.
+func Command[In, Out any](name string, fn func(context.Context, In) (Out, error)) ProcedureDef {
+	return ProcedureDef{
+		Name:         name,
+		Type:         "command",
+		InputSchema:  SchemaOf[In](),
+		OutputSchema: SchemaOf[Out](),
+		Handler: func(ctx context.Context, raw json.RawMessage) (any, error) {
+			var input In
+			if err := json.Unmarshal(raw, &input); err != nil {
+				return nil, ValidationError("Invalid input: " + err.Error())
+			}
+			return fn(ctx, input)
+		},
+	}
+}
+
 // Subscribe creates a SubscriptionDef from a typed handler function.
 // The handler returns a channel of Out values; the framework wraps each
 // value into a SubscriptionEvent.

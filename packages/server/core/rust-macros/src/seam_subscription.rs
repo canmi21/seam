@@ -42,6 +42,7 @@ pub fn expand(attr: TokenStream, item: ItemFn) -> syn::Result<TokenStream> {
         name: #name_str.to_string(),
         input_schema: <#input_type as seam_server::SeamType>::jtd_schema(),
         output_schema: <#output_type as seam_server::SeamType>::jtd_schema(),
+        error_schema: None,
         handler: std::sync::Arc::new(|value: serde_json::Value| {
           Box::pin(async move {
             let input: #input_type = serde_json::from_value(value)

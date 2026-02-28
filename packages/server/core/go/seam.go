@@ -75,8 +75,10 @@ type HandlerFunc func(ctx context.Context, input json.RawMessage) (any, error)
 // ProcedureDef defines a single RPC procedure.
 type ProcedureDef struct {
 	Name         string
+	Type         string // "query" (default) or "command"
 	InputSchema  any
 	OutputSchema any
+	ErrorSchema  any // optional: JTD schema for typed errors
 	Handler      HandlerFunc
 }
 
@@ -94,6 +96,7 @@ type SubscriptionDef struct {
 	Name         string
 	InputSchema  any
 	OutputSchema any
+	ErrorSchema  any // optional: JTD schema for typed errors
 	Handler      SubscriptionHandlerFunc
 }
 

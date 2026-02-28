@@ -19,6 +19,15 @@ import type { ResolveStrategy } from "../resolve.js";
 export interface ProcedureDef<TIn = unknown, TOut = unknown> {
   input: SchemaNode<TIn>;
   output: SchemaNode<TOut>;
+  error?: SchemaNode;
+  handler: (params: { input: TIn }) => TOut | Promise<TOut>;
+}
+
+export interface CommandDef<TIn = unknown, TOut = unknown> {
+  type: "command";
+  input: SchemaNode<TIn>;
+  output: SchemaNode<TOut>;
+  error?: SchemaNode;
   handler: (params: { input: TIn }) => TOut | Promise<TOut>;
 }
 
@@ -26,13 +35,20 @@ export interface SubscriptionDef<TIn = unknown, TOut = unknown> {
   type: "subscription";
   input: SchemaNode<TIn>;
   output: SchemaNode<TOut>;
+  error?: SchemaNode;
   handler: (params: { input: TIn }) => AsyncIterable<TOut>;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type DefinitionMap = Record<string, ProcedureDef<any, any> | SubscriptionDef<any, any>>;
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export type DefinitionMap = Record<
+  string,
+  ProcedureDef<any, any> | CommandDef<any, any> | SubscriptionDef<any, any>
+>;
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
-function isSubscriptionDef(def: ProcedureDef | SubscriptionDef): def is SubscriptionDef {
+function isSubscriptionDef(
+  def: ProcedureDef | CommandDef | SubscriptionDef,
+): def is SubscriptionDef {
   return "type" in def && def.type === "subscription";
 }
 
@@ -117,6 +133,7 @@ export function createRouter<T extends DefinitionMap>(
         handler: def.handler as InternalSubscription["handler"],
       });
     } else {
+      // Both ProcedureDef (query) and CommandDef share the same handler path
       procedureMap.set(name, {
         inputSchema: def.input._schema,
         outputSchema: def.output._schema,

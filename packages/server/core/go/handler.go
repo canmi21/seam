@@ -149,15 +149,21 @@ type procedureEntry struct {
 	Type   string `json:"type"`
 	Input  any    `json:"input"`
 	Output any    `json:"output"`
+	Error  any    `json:"error,omitempty"`
 }
 
 func buildManifest(procedures []ProcedureDef, subscriptions []SubscriptionDef) manifestSchema {
 	procs := make(map[string]procedureEntry)
 	for _, p := range procedures {
+		procType := p.Type
+		if procType == "" {
+			procType = "query"
+		}
 		procs[p.Name] = procedureEntry{
-			Type:   "query",
+			Type:   procType,
 			Input:  p.InputSchema,
 			Output: p.OutputSchema,
+			Error:  p.ErrorSchema,
 		}
 	}
 	for _, s := range subscriptions {
@@ -165,6 +171,7 @@ func buildManifest(procedures []ProcedureDef, subscriptions []SubscriptionDef) m
 			Type:   "subscription",
 			Input:  s.InputSchema,
 			Output: s.OutputSchema,
+			Error:  s.ErrorSchema,
 		}
 	}
 	return manifestSchema{Version: 1, Procedures: procs}
