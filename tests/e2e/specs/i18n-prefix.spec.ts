@@ -103,7 +103,7 @@ test.describe("i18n prefix mode — cache and SPA", () => {
 
     const rpcCalls: string[] = [];
     page.on("request", (req) => {
-      if (req.method() === "POST" && req.url().includes("/_seam/rpc/")) {
+      if (req.method() === "POST" && req.url().includes("/_seam/procedure/")) {
         const body = req.postData() || "";
         if (body.includes("__seam_i18n_query")) rpcCalls.push(body);
       }
@@ -133,7 +133,7 @@ test.describe("i18n prefix mode — cache and SPA", () => {
     // Start listening for RPC AFTER cache is populated
     const rpcCalls: string[] = [];
     page.on("request", (req) => {
-      if (req.method() === "POST" && req.url().includes("/_seam/rpc/")) {
+      if (req.method() === "POST" && req.url().includes("/_seam/procedure/")) {
         const body = req.postData() || "";
         if (body.includes("__seam_i18n_query")) rpcCalls.push(body);
       }

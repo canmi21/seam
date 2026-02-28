@@ -19,14 +19,14 @@ export function AsyncSkeleton() {
 
   // eslint-disable-next-line seam/no-effect-in-skeleton -- client-only fetch
   useEffect(() => {
-    fetch("/_seam/rpc/getAsyncItems", {
+    fetch("/_seam/procedure/getAsyncItems", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
     })
       .then((res) => res.json())
-      .then((json: { items?: AsyncItem[] }) => {
-        setItems(json.items ?? []);
+      .then((json: { ok: boolean; data: { items?: AsyncItem[] } }) => {
+        setItems(json.data?.items ?? []);
         setState("loaded");
       })
       .catch(() => {

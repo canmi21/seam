@@ -23,22 +23,23 @@ export function FormSkeleton() {
       return;
     }
     try {
-      const res = await fetch("/_seam/rpc/submitContact", {
+      const res = await fetch("/_seam/procedure/submitContact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email }),
       });
       const json = (await res.json()) as {
-        message?: string;
+        ok: boolean;
+        data?: { message?: string };
         error?: { code: string; message: string };
       };
-      if (!res.ok || json.error) {
+      if (!json.ok || json.error) {
         setState("error");
         setMessage(json.error?.message ?? "Request failed");
         return;
       }
       setState("success");
-      setMessage(json.message ?? "Submitted");
+      setMessage(json.data?.message ?? "Submitted");
     } catch {
       setState("error");
       setMessage("Network error");

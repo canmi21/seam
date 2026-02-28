@@ -31,7 +31,7 @@ func TestRPCTimeout(t *testing.T) {
 		HandlerOptions{RPCTimeout: 10 * time.Millisecond},
 	)
 
-	req := httptest.NewRequest("POST", "/_seam/rpc/slow", strings.NewReader("{}"))
+	req := httptest.NewRequest("POST", "/_seam/procedure/slow", strings.NewReader("{}"))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -53,7 +53,7 @@ func TestRPCZeroTimeout(t *testing.T) {
 		HandlerOptions{RPCTimeout: 0},
 	)
 
-	req := httptest.NewRequest("POST", "/_seam/rpc/slow", strings.NewReader("{}"))
+	req := httptest.NewRequest("POST", "/_seam/procedure/slow", strings.NewReader("{}"))
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -110,7 +110,7 @@ func TestSSEIdleTimeout(t *testing.T) {
 		HandlerOptions{SSEIdleTimeout: 50 * time.Millisecond},
 	)
 
-	req := httptest.NewRequest("GET", "/_seam/subscribe/idle-test", nil)
+	req := httptest.NewRequest("GET", "/_seam/procedure/idle-test", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
@@ -139,7 +139,7 @@ func TestSSEZeroIdleTimeout(t *testing.T) {
 		HandlerOptions{SSEIdleTimeout: 0},
 	)
 
-	req := httptest.NewRequest("GET", "/_seam/subscribe/no-idle", nil)
+	req := httptest.NewRequest("GET", "/_seam/procedure/no-idle", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 

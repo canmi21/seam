@@ -192,9 +192,22 @@ func assertErrorResponse(t *testing.T, body map[string]any, expectedCode string)
 // rpcEndpoint returns the full URL for an RPC call, using hash map when obfuscation is active.
 func rpcEndpoint(procedure string) string {
 	if hash, ok := rpcHashMap.Procedures[procedure]; ok {
-		return baseURL + "/_seam/rpc/" + hash
+		return baseURL + "/_seam/procedure/" + hash
 	}
-	return baseURL + "/_seam/rpc/" + procedure
+	return baseURL + "/_seam/procedure/" + procedure
+}
+
+// extractData unwraps the { ok, data } envelope from a successful RPC response.
+func extractData(t *testing.T, body map[string]any) map[string]any {
+	t.Helper()
+	if ok, _ := body["ok"].(bool); !ok {
+		t.Fatalf("expected ok=true, got: %v", body)
+	}
+	data, exists := body["data"].(map[string]any)
+	if !exists {
+		t.Fatalf("expected data object in envelope, got: %v", body["data"])
+	}
+	return data
 }
 
 // -- Manifest tests --
@@ -218,9 +231,12 @@ func TestManifestEndpoint(t *testing.T) {
 		t.Fatalf("status = %d, want 200", status)
 	}
 
-	version, ok := body["version"].(string)
-	if !ok || version == "" {
-		t.Errorf("missing or empty version field")
+	version, ok := body["version"].(float64)
+	if !ok {
+		t.Fatalf("version not a number: %v", body["version"])
+	}
+	if version != 1 {
+		t.Errorf("version = %v, want 1", version)
 	}
 
 	procs, ok := body["procedures"].(map[string]any)
@@ -246,16 +262,17 @@ func TestRPCQuery(t *testing.T) {
 		t.Fatalf("status = %d, want 200", status)
 	}
 
-	if _, ok := body["login"]; !ok {
+	data := extractData(t, body)
+	if _, ok := data["login"]; !ok {
 		t.Error("response missing 'login' field")
 	}
-	if _, ok := body["avatar_url"]; !ok {
+	if _, ok := data["avatar_url"]; !ok {
 		t.Error("response missing 'avatar_url' field")
 	}
 }
 
 func TestRPCNotFound(t *testing.T) {
-	status, body := postJSON(t, baseURL+"/_seam/rpc/deadbeefcafe", map[string]any{})
+	status, body := postJSON(t, baseURL+"/_seam/procedure/deadbeefcafe", map[string]any{})
 	if status != 404 {
 		t.Fatalf("status = %d, want 404", status)
 	}
