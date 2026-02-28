@@ -204,6 +204,27 @@ func (r *Router) ResolveStrategies(strategies ...ResolveStrategy) *Router {
 	return r
 }
 
+// Manifest returns the JSON-serialized manifest for build-time extraction
+// (e.g. printing to stdout with --manifest). Channels are expanded to
+// Level 0 primitives, matching the runtime manifest exactly.
+func (r *Router) Manifest() ([]byte, error) {
+	var channelMetas map[string]channelMeta
+	// Collect procedure/subscription copies so we don't mutate Router state
+	procs := append([]ProcedureDef{}, r.procedures...)
+	subs := append([]SubscriptionDef{}, r.subscriptions...)
+	for _, ch := range r.channels {
+		p, s, meta := ch.expand()
+		procs = append(procs, p...)
+		subs = append(subs, s...)
+		if channelMetas == nil {
+			channelMetas = make(map[string]channelMeta)
+		}
+		channelMetas[ch.Name] = meta
+	}
+	m := buildManifest(procs, subs, channelMetas)
+	return json.Marshal(m)
+}
+
 // Handler returns an http.Handler that serves all /_seam/* routes.
 // When called with no arguments, default timeouts (30s) are used.
 func (r *Router) Handler(opts ...HandlerOptions) http.Handler {
