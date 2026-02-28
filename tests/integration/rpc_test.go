@@ -11,30 +11,34 @@ func TestRPCSuccess(t *testing.T) {
 	for _, b := range backends {
 		b := b
 		t.Run(b.Name, func(t *testing.T) {
-			rpcURL := b.BaseURL + "/_seam/rpc/"
+			procURL := b.BaseURL + "/_seam/procedure/"
 
 			t.Run("greet", func(t *testing.T) {
-				status, body := postJSON(t, rpcURL+"greet", map[string]any{"name": "Alice"})
+				status, body := postJSON(t, procURL+"greet", map[string]any{"name": "Alice"})
 				if status != 200 {
 					t.Fatalf("status = %d, want 200", status)
 				}
-				msg, _ := body["message"].(string)
+				data := assertOK(t, body)
+				dataMap := data.(map[string]any)
+				msg, _ := dataMap["message"].(string)
 				if msg != "Hello, Alice!" {
 					t.Errorf("message = %q, want %q", msg, "Hello, Alice!")
 				}
 			})
 
 			t.Run("getUser", func(t *testing.T) {
-				status, body := postJSON(t, rpcURL+"getUser", map[string]any{"id": 1})
+				status, body := postJSON(t, procURL+"getUser", map[string]any{"id": 1})
 				if status != 200 {
 					t.Fatalf("status = %d, want 200", status)
 				}
-				id, _ := body["id"].(float64)
-				name, _ := body["name"].(string)
-				email, _ := body["email"].(string)
-				avatar, _ := body["avatar"].(string)
+				data := assertOK(t, body)
+				dataMap := data.(map[string]any)
+				id, _ := dataMap["id"].(float64)
+				name, _ := dataMap["name"].(string)
+				email, _ := dataMap["email"].(string)
+				avatar, _ := dataMap["avatar"].(string)
 				if int(id) != 1 {
-					t.Errorf("id = %v, want 1", body["id"])
+					t.Errorf("id = %v, want 1", dataMap["id"])
 				}
 				if name != "Alice" {
 					t.Errorf("name = %q, want %q", name, "Alice")
@@ -48,18 +52,22 @@ func TestRPCSuccess(t *testing.T) {
 			})
 
 			t.Run("listUsers", func(t *testing.T) {
-				_, raw := postJSONRaw(t, rpcURL+"listUsers", map[string]any{})
-				// Response is an array, parse directly
-				var users []map[string]any
-				if err := parseJSONArray(t, raw, &users); err != nil {
-					t.Fatalf("parse array: %v", err)
+				status, body := postJSON(t, procURL+"listUsers", map[string]any{})
+				if status != 200 {
+					t.Fatalf("status = %d, want 200", status)
+				}
+				data := assertOK(t, body)
+				users, ok := data.([]any)
+				if !ok {
+					t.Fatalf("expected data to be array, got: %T", data)
 				}
 				if len(users) != 3 {
 					t.Fatalf("user count = %d, want 3", len(users))
 				}
 				names := []string{"Alice", "Bob", "Charlie"}
 				for i, name := range names {
-					got, _ := users[i]["name"].(string)
+					u := users[i].(map[string]any)
+					got, _ := u["name"].(string)
 					if got != name {
 						t.Errorf("users[%d].name = %q, want %q", i, got, name)
 					}
@@ -67,7 +75,7 @@ func TestRPCSuccess(t *testing.T) {
 			})
 
 			t.Run("content type", func(t *testing.T) {
-				resp := postJSONResp(t, rpcURL+"greet", map[string]any{"name": "Test"})
+				resp := postJSONResp(t, procURL+"greet", map[string]any{"name": "Test"})
 				defer resp.Body.Close()
 				assertContentType(t, resp, "application/json")
 			})
@@ -79,10 +87,10 @@ func TestRPCErrors(t *testing.T) {
 	for _, b := range backends {
 		b := b
 		t.Run(b.Name, func(t *testing.T) {
-			rpcURL := b.BaseURL + "/_seam/rpc/"
+			procURL := b.BaseURL + "/_seam/procedure/"
 
 			t.Run("unknown procedure", func(t *testing.T) {
-				status, body := postJSON(t, rpcURL+"nonexistent", map[string]any{})
+				status, body := postJSON(t, procURL+"nonexistent", map[string]any{})
 				if status != 404 {
 					t.Errorf("status = %d, want 404", status)
 				}
@@ -90,7 +98,7 @@ func TestRPCErrors(t *testing.T) {
 			})
 
 			t.Run("invalid JSON", func(t *testing.T) {
-				status, body := postRaw(t, rpcURL+"greet", "application/json", "not json{")
+				status, body := postRaw(t, procURL+"greet", "application/json", "not json{")
 				if status != 400 {
 					t.Errorf("status = %d, want 400", status)
 				}
@@ -98,7 +106,7 @@ func TestRPCErrors(t *testing.T) {
 			})
 
 			t.Run("wrong type", func(t *testing.T) {
-				status, body := postJSON(t, rpcURL+"greet", map[string]any{"name": 42})
+				status, body := postJSON(t, procURL+"greet", map[string]any{"name": 42})
 				if status != 400 {
 					t.Errorf("status = %d, want 400", status)
 				}
@@ -106,24 +114,44 @@ func TestRPCErrors(t *testing.T) {
 			})
 
 			t.Run("handler not found", func(t *testing.T) {
-				status, body := postJSON(t, rpcURL+"getUser", map[string]any{"id": 999})
+				status, body := postJSON(t, procURL+"getUser", map[string]any{"id": 999})
 				if status != 404 {
 					t.Errorf("status = %d, want 404", status)
 				}
 				assertErrorResponse(t, body, "NOT_FOUND")
 			})
 
-			t.Run("wrong HTTP method", func(t *testing.T) {
-				resp, err := http.Get(rpcURL + "greet")
-				if err != nil {
-					t.Fatalf("GET %s: %v", rpcURL+"greet", err)
-				}
-				resp.Body.Close()
-				// TS returns 404 (catch-all), Rust/Axum returns 405 (method not allowed)
-				if resp.StatusCode != 404 && resp.StatusCode != 405 {
-					t.Errorf("status = %d, want 404 or 405", resp.StatusCode)
-				}
+			// No "wrong HTTP method" test: new protocol uses GET for subscriptions
+			// on the same /_seam/procedure/ path. GET on a non-subscription procedure
+			// is covered by subscribe_test.go "unknown subscription returns error event".
+		})
+	}
+}
+
+func TestCommandProcedure(t *testing.T) {
+	for _, b := range backends {
+		b := b
+		t.Run(b.Name, func(t *testing.T) {
+			procURL := b.BaseURL + "/_seam/procedure/updateEmail"
+			status, body := postJSON(t, procURL, map[string]any{
+				"userId":   1,
+				"newEmail": "new@example.com",
 			})
+			// Skip backends that don't have updateEmail (non-Bun)
+			if status == 404 {
+				t.Skip("updateEmail not available on this backend")
+			}
+			if status != 200 {
+				t.Fatalf("status = %d, want 200", status)
+			}
+			data := assertOK(t, body)
+			dataMap, ok := data.(map[string]any)
+			if !ok {
+				t.Fatalf("expected data to be object, got: %T", data)
+			}
+			if dataMap["success"] != true {
+				t.Errorf("data.success = %v, want true", dataMap["success"])
+			}
 		})
 	}
 }

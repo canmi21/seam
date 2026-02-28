@@ -6,13 +6,25 @@ import (
 	"testing"
 )
 
+// batchResults extracts the results array from a batch response.
+// Handles both envelope format {ok:true, data:{results:[...]}}
+// and flat format {results:[...]}.
+func batchResults(t *testing.T, body map[string]any) []any {
+	t.Helper()
+	if body["ok"] == true {
+		data := body["data"].(map[string]any)
+		return data["results"].([]any)
+	}
+	return body["results"].([]any)
+}
+
 func TestBatchRPC(t *testing.T) {
 	for _, b := range backends {
 		b := b
 		t.Run(b.Name, func(t *testing.T) {
-			batchURL := b.BaseURL + "/_seam/rpc/_batch"
+			batchURL := b.BaseURL + "/_seam/procedure/_batch"
 
-			// Skip backends that don't support batch yet (Rust, Go)
+			// Skip backends that don't support batch yet (Go)
 			status, _ := postJSON(t, batchURL, map[string]any{
 				"calls": []map[string]any{},
 			})
@@ -30,10 +42,7 @@ func TestBatchRPC(t *testing.T) {
 				if status != 200 {
 					t.Fatalf("status = %d, want 200", status)
 				}
-				results, ok := body["results"].([]any)
-				if !ok {
-					t.Fatalf("expected results array, got: %v", body)
-				}
+				results := batchResults(t, body)
 				if len(results) != 2 {
 					t.Fatalf("results count = %d, want 2", len(results))
 				}
@@ -61,7 +70,7 @@ func TestBatchRPC(t *testing.T) {
 				if status != 200 {
 					t.Fatalf("status = %d, want 200", status)
 				}
-				results := body["results"].([]any)
+				results := batchResults(t, body)
 				if len(results) != 2 {
 					t.Fatalf("results count = %d, want 2", len(results))
 				}
@@ -79,6 +88,10 @@ func TestBatchRPC(t *testing.T) {
 				code, _ := errObj["code"].(string)
 				if code != "NOT_FOUND" {
 					t.Errorf("results[1].error.code = %q, want NOT_FOUND", code)
+				}
+				if _, ok := errObj["transient"].(bool); !ok {
+					t.Errorf("results[1].error.transient missing or not bool: %v (%T)",
+						errObj["transient"], errObj["transient"])
 				}
 			})
 
@@ -105,7 +118,7 @@ func TestBatchRPC(t *testing.T) {
 				if status != 200 {
 					t.Fatalf("status = %d, want 200", status)
 				}
-				results := body["results"].([]any)
+				results := batchResults(t, body)
 				if len(results) != 0 {
 					t.Errorf("results count = %d, want 0", len(results))
 				}

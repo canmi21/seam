@@ -101,16 +101,42 @@ func fetchRaw(t *testing.T, url string) []byte {
 	return raw
 }
 
-func assertErrorResponse(t *testing.T, body map[string]any, expectedCode string) {
+// assertOK asserts the response envelope has ok=true and returns the data field.
+func assertOK(t *testing.T, body map[string]any) any {
 	t.Helper()
+	if body["ok"] != true {
+		t.Fatalf("expected ok=true, got: %v", body)
+	}
+	return body["data"]
+}
+
+// assertFail asserts the response envelope has ok=false with a well-formed error object.
+// Returns the error object for further assertions.
+func assertFail(t *testing.T, body map[string]any) map[string]any {
+	t.Helper()
+	if body["ok"] != false {
+		t.Fatalf("expected ok=false, got: %v", body)
+	}
 	errObj, ok := body["error"].(map[string]any)
 	if !ok {
-		t.Fatalf("expected error envelope, got: %v", body)
+		t.Fatalf("expected error object, got: %v", body["error"])
 	}
-	code, ok := errObj["code"].(string)
-	if !ok {
+	if _, ok := errObj["code"].(string); !ok {
 		t.Fatalf("expected error.code string, got: %v", errObj["code"])
 	}
+	if _, ok := errObj["message"].(string); !ok {
+		t.Fatalf("expected error.message string, got: %v", errObj["message"])
+	}
+	if _, ok := errObj["transient"].(bool); !ok {
+		t.Fatalf("expected error.transient bool, got: %v (%T)", errObj["transient"], errObj["transient"])
+	}
+	return errObj
+}
+
+func assertErrorResponse(t *testing.T, body map[string]any, expectedCode string) {
+	t.Helper()
+	errObj := assertFail(t, body)
+	code := errObj["code"].(string)
 	if code != expectedCode {
 		t.Errorf("error.code = %q, want %q", code, expectedCode)
 	}

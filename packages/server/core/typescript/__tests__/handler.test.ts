@@ -9,30 +9,27 @@ function makeProcedures(...entries: [string, InternalProcedure][]) {
   return new Map(entries);
 }
 
+function greetProc(handler: InternalProcedure["handler"]) {
+  return makeProcedures([
+    "greet",
+    { inputSchema: greetInputSchema._schema, outputSchema: greetOutputSchema._schema, handler },
+  ]);
+}
+
 describe("handleRequest: success", () => {
   it("returns 200 for valid sync handler", async () => {
-    const procs = makeProcedures([
-      "greet",
-      {
-        inputSchema: greetInputSchema._schema,
-        outputSchema: greetOutputSchema._schema,
-        handler: ({ input }) => ({ message: `Hi, ${(input as { name: string }).name}!` }),
-      },
-    ]);
+    const procs = greetProc(({ input }) => ({
+      message: `Hi, ${(input as { name: string }).name}!`,
+    }));
     const result = await handleRequest(procs, "greet", { name: "Alice" });
     expect(result.status).toBe(200);
     expect(result.body).toEqual({ ok: true, data: { message: "Hi, Alice!" } });
   });
 
   it("returns 200 for valid async handler", async () => {
-    const procs = makeProcedures([
-      "greet",
-      {
-        inputSchema: greetInputSchema._schema,
-        outputSchema: greetOutputSchema._schema,
-        handler: async ({ input }) => ({ message: `Hi, ${(input as { name: string }).name}!` }),
-      },
-    ]);
+    const procs = greetProc(async ({ input }) => ({
+      message: `Hi, ${(input as { name: string }).name}!`,
+    }));
     const result = await handleRequest(procs, "greet", { name: "Bob" });
     expect(result.status).toBe(200);
     expect(result.body).toEqual({ ok: true, data: { message: "Hi, Bob!" } });
@@ -51,14 +48,7 @@ describe("handleRequest: errors", () => {
   });
 
   it("returns 400 for invalid input", async () => {
-    const procs = makeProcedures([
-      "greet",
-      {
-        inputSchema: greetInputSchema._schema,
-        outputSchema: greetOutputSchema._schema,
-        handler: () => ({ message: "unreachable" }),
-      },
-    ]);
+    const procs = greetProc(() => ({ message: "unreachable" }));
     const result = await handleRequest(procs, "greet", { name: 123 });
     expect(result.status).toBe(400);
     const { error } = result.body as {
@@ -70,16 +60,9 @@ describe("handleRequest: errors", () => {
   });
 
   it("returns 500 when handler throws generic error", async () => {
-    const procs = makeProcedures([
-      "greet",
-      {
-        inputSchema: greetInputSchema._schema,
-        outputSchema: greetOutputSchema._schema,
-        handler: () => {
-          throw new Error("db connection lost");
-        },
-      },
-    ]);
+    const procs = greetProc(() => {
+      throw new Error("db connection lost");
+    });
     const result = await handleRequest(procs, "greet", { name: "Alice" });
     expect(result.status).toBe(500);
     expect(result.body).toEqual({
@@ -90,16 +73,9 @@ describe("handleRequest: errors", () => {
 
   it("preserves SeamError code when handler throws SeamError", async () => {
     const { SeamError } = await import("../src/errors.js");
-    const procs = makeProcedures([
-      "greet",
-      {
-        inputSchema: greetInputSchema._schema,
-        outputSchema: greetOutputSchema._schema,
-        handler: () => {
-          throw new SeamError("VALIDATION_ERROR", "custom validation");
-        },
-      },
-    ]);
+    const procs = greetProc(() => {
+      throw new SeamError("VALIDATION_ERROR", "custom validation");
+    });
     const result = await handleRequest(procs, "greet", { name: "Alice" });
     expect(result.status).toBe(400);
     expect(result.body).toEqual({
@@ -110,16 +86,9 @@ describe("handleRequest: errors", () => {
 
   it("propagates custom error code with correct status", async () => {
     const { SeamError } = await import("../src/errors.js");
-    const procs = makeProcedures([
-      "greet",
-      {
-        inputSchema: greetInputSchema._schema,
-        outputSchema: greetOutputSchema._schema,
-        handler: () => {
-          throw new SeamError("RATE_LIMITED", "too fast", 429);
-        },
-      },
-    ]);
+    const procs = greetProc(() => {
+      throw new SeamError("RATE_LIMITED", "too fast", 429);
+    });
     const result = await handleRequest(procs, "greet", { name: "Alice" });
     expect(result.status).toBe(429);
     expect(result.body).toEqual({
@@ -129,16 +98,9 @@ describe("handleRequest: errors", () => {
   });
 
   it("returns 500 for non-Error throws", async () => {
-    const procs = makeProcedures([
-      "greet",
-      {
-        inputSchema: greetInputSchema._schema,
-        outputSchema: greetOutputSchema._schema,
-        handler: () => {
-          throw "string error";
-        },
-      },
-    ]);
+    const procs = greetProc(() => {
+      throw "string error";
+    });
     const result = await handleRequest(procs, "greet", { name: "Alice" });
     expect(result.status).toBe(500);
     expect(result.body).toEqual({
@@ -150,14 +112,7 @@ describe("handleRequest: errors", () => {
 
 describe("handleRequest: output validation", () => {
   it("returns 500 when handler output is missing required fields", async () => {
-    const procs = makeProcedures([
-      "greet",
-      {
-        inputSchema: greetInputSchema._schema,
-        outputSchema: greetOutputSchema._schema,
-        handler: () => ({}),
-      },
-    ]);
+    const procs = greetProc(() => ({}));
     const result = await handleRequest(procs, "greet", { name: "Alice" }, true);
     expect(result.status).toBe(500);
     expect(result.body).toEqual(
@@ -169,28 +124,14 @@ describe("handleRequest: output validation", () => {
   });
 
   it("passes when output matches schema exactly", async () => {
-    const procs = makeProcedures([
-      "greet",
-      {
-        inputSchema: greetInputSchema._schema,
-        outputSchema: greetOutputSchema._schema,
-        handler: () => ({ message: "Hi!" }),
-      },
-    ]);
+    const procs = greetProc(() => ({ message: "Hi!" }));
     const result = await handleRequest(procs, "greet", { name: "Alice" }, true);
     expect(result.status).toBe(200);
     expect(result.body).toEqual({ ok: true, data: { message: "Hi!" } });
   });
 
   it("skips output validation when disabled", async () => {
-    const procs = makeProcedures([
-      "greet",
-      {
-        inputSchema: greetInputSchema._schema,
-        outputSchema: greetOutputSchema._schema,
-        handler: () => ({}),
-      },
-    ]);
+    const procs = greetProc(() => ({}));
     const result = await handleRequest(procs, "greet", { name: "Alice" }, false);
     expect(result.status).toBe(200);
     expect(result.body).toEqual({ ok: true, data: {} });

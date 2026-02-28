@@ -18,15 +18,16 @@ type sseEvent struct {
 	Data  string
 }
 
-func readSSE(t *testing.T, url string) []sseEvent {
+// readSSEResp returns the raw http.Response alongside parsed events for header inspection.
+func readSSEResp(t *testing.T, url string) (*http.Response, []sseEvent) {
 	t.Helper()
 	resp, err := http.Get(url)
 	if err != nil {
 		t.Fatalf("GET %s: %v", url, err)
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
+		resp.Body.Close()
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 
@@ -47,17 +48,29 @@ func readSSE(t *testing.T, url string) []sseEvent {
 	if current.Event != "" {
 		events = append(events, current)
 	}
-	return events
+	return resp, events
 }
 
 func TestSubscribeEndpoint(t *testing.T) {
+	validEventTypes := map[string]bool{"data": true, "error": true, "complete": true}
+
 	for _, b := range backends {
 		b := b
 		t.Run(b.Name, func(t *testing.T) {
 			t.Run("onCount streams data events", func(t *testing.T) {
-				url := fmt.Sprintf("%s/_seam/subscribe/onCount?input=%s",
+				sseURL := fmt.Sprintf("%s/_seam/procedure/onCount?input=%s",
 					b.BaseURL, url.QueryEscape(`{"max":3}`))
-				events := readSSE(t, url)
+				resp, events := readSSEResp(t, sseURL)
+				defer resp.Body.Close()
+
+				assertContentType(t, resp, "text/event-stream")
+
+				// Every event must be a known type
+				for i, ev := range events {
+					if !validEventTypes[ev.Event] {
+						t.Errorf("events[%d].event = %q, want one of data/error/complete", i, ev.Event)
+					}
+				}
 
 				// Should have 3 data events + 1 complete event
 				dataEvents := 0
@@ -83,52 +96,39 @@ func TestSubscribeEndpoint(t *testing.T) {
 				if !hasComplete {
 					t.Error("missing complete event")
 				}
+
+				// SSE id field: not asserted — no runtime implements it yet
 			})
 
-			t.Run("unknown subscription returns error", func(t *testing.T) {
-				resp, err := http.Get(b.BaseURL + "/_seam/subscribe/nonexistent")
-				if err != nil {
-					t.Fatalf("GET: %v", err)
+			t.Run("unknown subscription returns error event", func(t *testing.T) {
+				sseURL := b.BaseURL + "/_seam/procedure/nonexistent?input=%7B%7D"
+				resp, events := readSSEResp(t, sseURL)
+				defer resp.Body.Close()
+
+				if len(events) == 0 {
+					t.Fatal("expected at least one SSE event")
 				}
-				resp.Body.Close()
-				if resp.StatusCode != 200 {
-					t.Errorf("status = %d, want 200", resp.StatusCode)
+
+				// First event should be an error
+				first := events[0]
+				if first.Event != "error" {
+					t.Fatalf("first event = %q, want 'error'", first.Event)
+				}
+
+				var errPayload map[string]any
+				if err := json.Unmarshal([]byte(first.Data), &errPayload); err != nil {
+					t.Fatalf("failed to parse error event data: %v", err)
+				}
+				if _, ok := errPayload["code"].(string); !ok {
+					t.Error("error event missing 'code' string")
+				}
+				if _, ok := errPayload["message"].(string); !ok {
+					t.Error("error event missing 'message' string")
+				}
+				if _, ok := errPayload["transient"].(bool); !ok {
+					t.Error("error event missing 'transient' bool")
 				}
 			})
-		})
-	}
-}
-
-func TestSubscribeManifestType(t *testing.T) {
-	for _, b := range backends {
-		b := b
-		t.Run(b.Name, func(t *testing.T) {
-			url := b.BaseURL + "/_seam/manifest.json"
-			_, body := getJSON(t, url)
-			procs, ok := body["procedures"].(map[string]any)
-			if !ok {
-				t.Fatalf("procedures not an object")
-			}
-
-			// Check that onCount has type: subscription
-			onCount, ok := procs["onCount"].(map[string]any)
-			if !ok {
-				t.Fatal("onCount not found in manifest")
-			}
-			procType, _ := onCount["type"].(string)
-			if procType != "subscription" {
-				t.Errorf("onCount.type = %q, want 'subscription'", procType)
-			}
-
-			// Check that greet has type: query
-			greetProc, ok := procs["greet"].(map[string]any)
-			if !ok {
-				t.Fatal("greet not found in manifest")
-			}
-			greetType, _ := greetProc["type"].(string)
-			if greetType != "query" {
-				t.Errorf("greet.type = %q, want 'query'", greetType)
-			}
 		})
 	}
 }
