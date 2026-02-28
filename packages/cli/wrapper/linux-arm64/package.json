@@ -1,6 +1,6 @@
 {
   "name": "@canmi/seam-cli-linux-arm64",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "files": [
     "bin"
   ],

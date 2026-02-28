@@ -2,6 +2,7 @@
 
 import type { Schema } from "jtd";
 import type { SchemaNode } from "../types/schema.js";
+import type { ChannelMeta } from "../channel.js";
 
 export type ProcedureType = "query" | "command" | "subscription";
 
@@ -15,6 +16,7 @@ export interface ProcedureEntry {
 export interface ProcedureManifest {
   version: number;
   procedures: Record<string, ProcedureEntry>;
+  channels?: Record<string, ChannelMeta>;
 }
 
 export function buildManifest(
@@ -22,6 +24,7 @@ export function buildManifest(
     string,
     { input: SchemaNode; output: SchemaNode; type?: string; error?: SchemaNode }
   >,
+  channels?: Record<string, ChannelMeta>,
 ): ProcedureManifest {
   const mapped: ProcedureManifest["procedures"] = {};
 
@@ -39,5 +42,9 @@ export function buildManifest(
     mapped[name] = entry;
   }
 
-  return { version: 1, procedures: mapped };
+  const manifest: ProcedureManifest = { version: 1, procedures: mapped };
+  if (channels && Object.keys(channels).length > 0) {
+    manifest.channels = channels;
+  }
+  return manifest;
 }

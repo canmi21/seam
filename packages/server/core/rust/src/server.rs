@@ -1,6 +1,9 @@
 /* packages/server/core/rust/src/server.rs */
 
+use std::collections::BTreeMap;
+
 use crate::build_loader::RpcHashMap;
+use crate::channel::{ChannelDef, ChannelMeta};
 use crate::page::{I18nConfig, PageDef};
 use crate::procedure::{ProcedureDef, SubscriptionDef};
 use crate::resolve::ResolveStrategy;
@@ -14,6 +17,7 @@ pub struct SeamParts {
   pub rpc_hash_map: Option<RpcHashMap>,
   pub i18n_config: Option<I18nConfig>,
   pub strategies: Vec<Box<dyn ResolveStrategy>>,
+  pub channel_metas: BTreeMap<String, ChannelMeta>,
 }
 
 impl SeamParts {
@@ -25,6 +29,7 @@ impl SeamParts {
 pub struct SeamServer {
   procedures: Vec<ProcedureDef>,
   subscriptions: Vec<SubscriptionDef>,
+  channels: Vec<ChannelDef>,
   pages: Vec<PageDef>,
   rpc_hash_map: Option<RpcHashMap>,
   i18n_config: Option<I18nConfig>,
@@ -36,6 +41,7 @@ impl SeamServer {
     Self {
       procedures: Vec::new(),
       subscriptions: Vec::new(),
+      channels: Vec::new(),
       pages: Vec::new(),
       rpc_hash_map: None,
       i18n_config: None,
@@ -50,6 +56,11 @@ impl SeamServer {
 
   pub fn subscription(mut self, sub: SubscriptionDef) -> Self {
     self.subscriptions.push(sub);
+    self
+  }
+
+  pub fn channel(mut self, channel: ChannelDef) -> Self {
+    self.channels.push(channel);
     self
   }
 
@@ -74,14 +85,28 @@ impl SeamServer {
   }
 
   /// Consume the builder, returning framework-agnostic parts for an adapter.
+  /// Channels are expanded into their Level 0 primitives (commands + subscriptions).
   pub fn into_parts(self) -> SeamParts {
+    let mut procedures = self.procedures;
+    let mut subscriptions = self.subscriptions;
+    let mut channel_metas = BTreeMap::new();
+
+    for channel in self.channels {
+      let name = channel.name.clone();
+      let (procs, subs, meta) = channel.expand();
+      procedures.extend(procs);
+      subscriptions.extend(subs);
+      channel_metas.insert(name, meta);
+    }
+
     SeamParts {
-      procedures: self.procedures,
-      subscriptions: self.subscriptions,
+      procedures,
+      subscriptions,
       pages: self.pages,
       rpc_hash_map: self.rpc_hash_map,
       i18n_config: self.i18n_config,
       strategies: self.strategies,
+      channel_metas,
     }
   }
 }

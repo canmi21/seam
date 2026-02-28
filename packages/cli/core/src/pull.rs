@@ -53,7 +53,20 @@ pub async fn pull_manifest(base_url: &str, out: &Path) -> Result<()> {
   let breakdown =
     if parts.is_empty() { String::new() } else { format!(" \u{2014} {}", parts.join(", ")) };
 
-  ui::ok(&format!("{total} procedures{breakdown}"));
+  let channel_count = manifest.channels.len();
+  let channel_suffix = if channel_count > 0 {
+    let names: Vec<&str> = manifest.channels.keys().map(|s| s.as_str()).collect();
+    format!(
+      " + {} {} ({})",
+      channel_count,
+      if channel_count == 1 { "channel" } else { "channels" },
+      names.join(", ")
+    )
+  } else {
+    String::new()
+  };
+
+  ui::ok(&format!("{total} procedures{breakdown}{channel_suffix}"));
 
   let json = serde_json::to_string_pretty(&manifest)?;
   std::fs::write(out, json).with_context(|| format!("failed to write {}", out.display()))?;

@@ -2,6 +2,7 @@
 
 export { t } from "./types/index.js";
 export { createRouter } from "./router/index.js";
+export { createChannel } from "./channel.js";
 export { SeamError } from "./errors.js";
 export { definePage } from "./page/index.js";
 export {
@@ -57,5 +58,6 @@ export type { HandlePageResult, PageTiming, I18nOpts } from "./page/handler.js";
 export type { PageDef, LayoutDef, LoaderFn, I18nConfig } from "./page/index.js";
 export type { ErrorCode } from "./errors.js";
 export type { CallbackSink } from "./subscription.js";
+export type { ChannelDef, ChannelResult, ChannelMeta, IncomingDef } from "./channel.js";
 export type { DevProxyOptions, StaticHandlerOptions } from "./proxy.js";
 export type { ReloadWatcher } from "./dev/index.js";

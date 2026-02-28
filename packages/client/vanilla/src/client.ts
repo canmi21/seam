@@ -1,6 +1,8 @@
 /* packages/client/vanilla/src/client.ts */
 
 import { SeamClientError } from "./errors.js";
+import { createChannelHandle } from "./channel-handle.js";
+import type { ChannelHandle } from "./channel-handle.js";
 
 export interface ClientOptions {
   baseUrl: string;
@@ -26,6 +28,7 @@ export interface SeamClient {
     onError?: (err: SeamClientError) => void,
   ): Unsubscribe;
   fetchManifest(): Promise<unknown>;
+  channel(name: string, input: unknown): ChannelHandle;
 }
 
 async function request(url: string, init?: RequestInit): Promise<unknown> {
@@ -137,6 +140,10 @@ export function createClient(opts: ClientOptions): SeamClient {
       return () => {
         es.close();
       };
+    },
+
+    channel(name, input) {
+      return createChannelHandle(this, name, input);
     },
 
     async fetchManifest() {

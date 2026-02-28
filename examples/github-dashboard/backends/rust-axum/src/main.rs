@@ -8,6 +8,8 @@ use std::path::PathBuf;
 use axum::extract::Request;
 use axum::response::IntoResponse;
 use axum::routing::get_service;
+use std::collections::BTreeMap;
+
 use seam_server::manifest::build_manifest;
 use seam_server::SeamServer;
 use seam_server_axum::IntoAxumRouter;
@@ -28,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       get_user_procedure(),
       get_user_repos_procedure(),
     ];
-    let manifest = build_manifest(&procs, &[]);
+    let manifest = build_manifest(&procs, &[], BTreeMap::new());
     println!("{}", serde_json::to_string(&manifest)?);
     return Ok(());
   }

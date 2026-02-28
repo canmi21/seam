@@ -23,9 +23,12 @@ pub trait IntoAxumRouter {
 impl IntoAxumRouter for SeamServer {
   fn into_axum_router(self) -> axum::Router {
     let parts = self.into_parts();
-    let manifest_json =
-      serde_json::to_value(build_manifest(&parts.procedures, &parts.subscriptions))
-        .expect("manifest serialization");
+    let manifest_json = serde_json::to_value(build_manifest(
+      &parts.procedures,
+      &parts.subscriptions,
+      parts.channel_metas,
+    ))
+    .expect("manifest serialization");
     let handlers = parts.procedures.into_iter().map(|p| (p.name.clone(), Arc::new(p))).collect();
     let subscriptions =
       parts.subscriptions.into_iter().map(|s| (s.name.clone(), Arc::new(s))).collect();

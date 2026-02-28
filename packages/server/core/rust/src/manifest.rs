@@ -4,12 +4,15 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
+use crate::channel::ChannelMeta;
 use crate::procedure::{ProcedureDef, ProcedureType, SubscriptionDef};
 
 #[derive(Serialize)]
 pub struct Manifest {
   pub version: u32,
   pub procedures: BTreeMap<String, ProcedureSchema>,
+  #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+  pub channels: BTreeMap<String, ChannelMeta>,
 }
 
 #[derive(Serialize)]
@@ -22,7 +25,11 @@ pub struct ProcedureSchema {
   pub error: Option<serde_json::Value>,
 }
 
-pub fn build_manifest(procedures: &[ProcedureDef], subscriptions: &[SubscriptionDef]) -> Manifest {
+pub fn build_manifest(
+  procedures: &[ProcedureDef],
+  subscriptions: &[SubscriptionDef],
+  channels: BTreeMap<String, ChannelMeta>,
+) -> Manifest {
   let mut map = BTreeMap::new();
   for proc in procedures {
     let type_str = match proc.proc_type {
@@ -50,7 +57,7 @@ pub fn build_manifest(procedures: &[ProcedureDef], subscriptions: &[Subscription
       },
     );
   }
-  Manifest { version: 1, procedures: map }
+  Manifest { version: 1, procedures: map, channels }
 }
 
 #[cfg(test)]
@@ -97,7 +104,7 @@ mod tests {
       error_schema: None,
       handler: dummy_handler(),
     }];
-    let manifest = build_manifest(&procs, &[]);
+    let manifest = build_manifest(&procs, &[], BTreeMap::new());
     let schema = manifest.procedures.get("createUser").unwrap();
     assert_eq!(schema.proc_type, "command");
   }
@@ -113,7 +120,7 @@ mod tests {
       error_schema: Some(error.clone()),
       handler: dummy_handler(),
     }];
-    let manifest = build_manifest(&procs, &[]);
+    let manifest = build_manifest(&procs, &[], BTreeMap::new());
     let json = serde_json::to_value(&manifest).unwrap();
     assert_eq!(json["procedures"]["risky"]["error"], error);
   }
@@ -128,7 +135,7 @@ mod tests {
       error_schema: None,
       handler: dummy_handler(),
     }];
-    let manifest = build_manifest(&procs, &[]);
+    let manifest = build_manifest(&procs, &[], BTreeMap::new());
     let json = serde_json::to_value(&manifest).unwrap();
     assert!(json["procedures"]["safe"].get("error").is_none());
   }
@@ -143,7 +150,7 @@ mod tests {
       error_schema: Some(error.clone()),
       handler: dummy_sub_handler(),
     }];
-    let manifest = build_manifest(&[], &subs);
+    let manifest = build_manifest(&[], &subs, BTreeMap::new());
     let json = serde_json::to_value(&manifest).unwrap();
     assert_eq!(json["procedures"]["onEvent"]["type"], "subscription");
     assert_eq!(json["procedures"]["onEvent"]["error"], error);

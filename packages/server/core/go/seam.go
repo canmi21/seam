@@ -153,15 +153,16 @@ var defaultHandlerOptions = HandlerOptions{
 	SSEIdleTimeout: 30 * time.Second,
 }
 
-// Router collects procedure, subscription, and page definitions and
+// Router collects procedure, subscription, channel, and page definitions and
 // produces an http.Handler serving the /_seam/* protocol.
 type Router struct {
 	procedures    []ProcedureDef
 	subscriptions []SubscriptionDef
+	channels      []ChannelDef
 	pages         []PageDef
 	rpcHashMap    *RpcHashMap
 	i18nConfig    *I18nConfig
-	strategies []ResolveStrategy
+	strategies    []ResolveStrategy
 }
 
 func NewRouter() *Router {
@@ -175,6 +176,11 @@ func (r *Router) Procedure(def ProcedureDef) *Router {
 
 func (r *Router) Subscription(def SubscriptionDef) *Router {
 	r.subscriptions = append(r.subscriptions, def)
+	return r
+}
+
+func (r *Router) Channel(def ChannelDef) *Router {
+	r.channels = append(r.channels, def)
 	return r
 }
 
@@ -205,5 +211,5 @@ func (r *Router) Handler(opts ...HandlerOptions) http.Handler {
 	if len(opts) > 0 {
 		o = opts[0]
 	}
-	return buildHandler(r.procedures, r.subscriptions, r.pages, r.rpcHashMap, r.i18nConfig, r.strategies, o)
+	return buildHandler(r.procedures, r.subscriptions, r.channels, r.pages, r.rpcHashMap, r.i18nConfig, r.strategies, o)
 }

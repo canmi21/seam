@@ -6,6 +6,8 @@ use std::path::PathBuf;
 use axum::extract::Request;
 use axum::response::IntoResponse;
 use axum::routing::get_service;
+use std::collections::BTreeMap;
+
 use seam_server::manifest::build_manifest;
 use seam_server::{from_accept_language, from_cookie, from_url_prefix, from_url_query, SeamServer};
 use seam_server::{seam_procedure, SeamError, SeamType};
@@ -34,7 +36,7 @@ pub async fn get_content(_input: ContentInput) -> Result<ContentOutput, SeamErro
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
   if env::args().any(|a| a == "--manifest") {
     let procs = vec![get_content_procedure()];
-    let manifest = build_manifest(&procs, &[]);
+    let manifest = build_manifest(&procs, &[], BTreeMap::new());
     println!("{}", serde_json::to_string(&manifest)?);
     return Ok(());
   }

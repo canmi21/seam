@@ -23,7 +23,7 @@ type appState struct {
 	strategies []ResolveStrategy
 }
 
-func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, strategies []ResolveStrategy, opts HandlerOptions) http.Handler {
+func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, channels []ChannelDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, strategies []ResolveStrategy, opts HandlerOptions) http.Handler {
 	state := &appState{
 		handlers:   make(map[string]*ProcedureDef),
 		subs:       make(map[string]*SubscriptionDef),
@@ -51,8 +51,20 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pa
 		state.hashToName["__seam_i18n_query"] = "__seam_i18n_query"
 	}
 
+	// Expand channels into Level 0 primitives
+	var channelMetas map[string]channelMeta
+	for _, ch := range channels {
+		procs, subs, meta := ch.expand()
+		procedures = append(procedures, procs...)
+		subscriptions = append(subscriptions, subs...)
+		if channelMetas == nil {
+			channelMetas = make(map[string]channelMeta)
+		}
+		channelMetas[ch.Name] = meta
+	}
+
 	// Build manifest
-	manifest := buildManifest(procedures, subscriptions)
+	manifest := buildManifest(procedures, subscriptions, channelMetas)
 	state.manifestJSON, _ = json.Marshal(manifest)
 
 	for i := range procedures {
@@ -143,6 +155,7 @@ func seamRouteToGoPattern(route string) string {
 type manifestSchema struct {
 	Version    int                       `json:"version"`
 	Procedures map[string]procedureEntry `json:"procedures"`
+	Channels   map[string]channelMeta    `json:"channels,omitempty"`
 }
 
 type procedureEntry struct {
@@ -152,7 +165,7 @@ type procedureEntry struct {
 	Error  any    `json:"error,omitempty"`
 }
 
-func buildManifest(procedures []ProcedureDef, subscriptions []SubscriptionDef) manifestSchema {
+func buildManifest(procedures []ProcedureDef, subscriptions []SubscriptionDef, channels map[string]channelMeta) manifestSchema {
 	procs := make(map[string]procedureEntry)
 	for _, p := range procedures {
 		procType := p.Type
@@ -174,7 +187,11 @@ func buildManifest(procedures []ProcedureDef, subscriptions []SubscriptionDef) m
 			Error:  s.ErrorSchema,
 		}
 	}
-	return manifestSchema{Version: 1, Procedures: procs}
+	m := manifestSchema{Version: 1, Procedures: procs}
+	if len(channels) > 0 {
+		m.Channels = channels
+	}
+	return m
 }
 
 // --- manifest handler ---

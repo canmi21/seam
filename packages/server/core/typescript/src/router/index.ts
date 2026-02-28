@@ -8,6 +8,7 @@ import type { HandleResult, InternalProcedure } from "./handler.js";
 import type { InternalSubscription } from "../procedure.js";
 import type { HandlePageResult } from "../page/handler.js";
 import type { PageDef, I18nConfig } from "../page/index.js";
+import type { ChannelResult, ChannelMeta } from "../channel.js";
 import { buildManifest } from "../manifest/index.js";
 import { handleRequest, handleSubscription, handleBatchRequest } from "./handler.js";
 import type { BatchCall, BatchResultItem } from "./handler.js";
@@ -57,6 +58,7 @@ export interface RouterOptions {
   i18n?: I18nConfig | null;
   validateOutput?: boolean;
   resolve?: ResolveStrategy[];
+  channels?: ChannelResult[];
 }
 
 export interface PageRequestHeaders {
@@ -158,11 +160,26 @@ export function createRouter<T extends DefinitionMap>(
   const { strategies, hasUrlPrefix } = buildStrategies(opts);
   if (i18nConfig) registerI18nQuery(procedureMap, i18nConfig);
 
+  // Collect channel metadata for manifest
+  const channelsMeta: Record<string, ChannelMeta> | undefined =
+    opts?.channels && opts.channels.length > 0
+      ? Object.fromEntries(
+          opts.channels.map((ch) => {
+            // Derive name from the first procedure key prefix
+            const firstKey = Object.keys(ch.procedures)[0] ?? "";
+            const name = firstKey.includes(".")
+              ? firstKey.slice(0, firstKey.indexOf("."))
+              : firstKey;
+            return [name, ch.channelMeta];
+          }),
+        )
+      : undefined;
+
   return {
     procedures,
     hasPages: !!pages && Object.keys(pages).length > 0,
     manifest() {
-      return buildManifest(procedures);
+      return buildManifest(procedures, channelsMeta);
     },
     handle(procedureName, body) {
       return handleRequest(procedureMap, procedureName, body, shouldValidateOutput);

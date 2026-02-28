@@ -80,7 +80,7 @@ fn make_manifest(names: &[&str]) -> crate::manifest::Manifest {
       },
     );
   }
-  crate::manifest::Manifest { version: 1, procedures }
+  crate::manifest::Manifest { version: 1, procedures, channels: BTreeMap::new() }
 }
 
 fn make_skeleton(

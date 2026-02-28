@@ -142,6 +142,7 @@ fn full_manifest_render() {
       );
       m
     },
+    channels: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
@@ -178,6 +179,7 @@ fn subscription_codegen() {
       );
       m
     },
+    channels: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
@@ -241,6 +243,7 @@ fn full_manifest_render_with_hashes() {
       );
       m
     },
+    channels: BTreeMap::new(),
   };
   let hash_map = RpcHashMap {
     salt: "test_salt".to_string(),
@@ -282,6 +285,7 @@ fn codegen_without_hashes_unchanged() {
       );
       m
     },
+    channels: BTreeMap::new(),
   };
   let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
   assert!(code.contains("client.query(\"greet\""));
@@ -312,6 +316,7 @@ fn subscription_codegen_with_hashes() {
       );
       m
     },
+    channels: BTreeMap::new(),
   };
   let hash_map = RpcHashMap {
     salt: "test_salt".to_string(),
@@ -342,14 +347,22 @@ fn top_level_properties_uses_interface() {
 
 #[test]
 fn data_id_export_default() {
-  let manifest = crate::manifest::Manifest { version: 1, procedures: BTreeMap::new() };
+  let manifest = crate::manifest::Manifest {
+    version: 1,
+    procedures: BTreeMap::new(),
+    channels: BTreeMap::new(),
+  };
   let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
   assert!(code.contains("export const DATA_ID = \"__SEAM_DATA__\";"));
 }
 
 #[test]
 fn data_id_export_custom() {
-  let manifest = crate::manifest::Manifest { version: 1, procedures: BTreeMap::new() };
+  let manifest = crate::manifest::Manifest {
+    version: 1,
+    procedures: BTreeMap::new(),
+    channels: BTreeMap::new(),
+  };
   let code = generate_typescript(&manifest, None, "__sd").unwrap();
   assert!(code.contains("export const DATA_ID = \"__sd\";"));
 }
@@ -375,6 +388,7 @@ fn command_codegen() {
       );
       m
     },
+    channels: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
@@ -407,6 +421,7 @@ fn error_schema_codegen() {
       );
       m
     },
+    channels: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
@@ -438,6 +453,7 @@ fn error_schema_absent_no_error_type() {
       );
       m
     },
+    channels: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
@@ -468,6 +484,7 @@ fn command_with_hashes() {
       );
       m
     },
+    channels: BTreeMap::new(),
   };
   let hash_map = RpcHashMap {
     salt: "test_salt".to_string(),
@@ -545,6 +562,7 @@ fn dot_namespace_codegen() {
       );
       m
     },
+    channels: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();

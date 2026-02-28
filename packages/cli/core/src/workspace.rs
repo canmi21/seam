@@ -325,7 +325,7 @@ mod tests {
         },
       );
     }
-    Manifest { version: 1, procedures }
+    Manifest { version: 1, procedures, channels: BTreeMap::new() }
   }
 
   #[test]
