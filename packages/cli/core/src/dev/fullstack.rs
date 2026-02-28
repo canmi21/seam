@@ -57,6 +57,7 @@ async fn handle_rebuild(
   build_config: &BuildConfig,
   base_dir: &Path,
   out_dir: &Path,
+  is_vite: bool,
 ) {
   let started = Instant::now();
   println!("  {CYAN}[seam]{RESET} rebuilding...");
@@ -72,7 +73,11 @@ async fn handle_rebuild(
   match result {
     Ok(Ok(())) => {
       println!("  {GREEN}[seam]{RESET} rebuild complete ({:.1}s)", started.elapsed().as_secs_f64());
-      write_reload_trigger(out_dir);
+      // Skip reload trigger when Vite handles HMR — the trigger would
+      // cause seamReloadPlugin to send a redundant full-reload.
+      if !is_vite {
+        write_reload_trigger(out_dir);
+      }
     }
     Ok(Err(e)) => println!("  {RED}[seam]{RESET} rebuild error: {e}"),
     Err(e) => println!("  {RED}[seam]{RESET} rebuild panicked: {e}"),
@@ -232,7 +237,7 @@ pub(super) async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> R
         // Debounce: wait 300ms, drain pending events
         tokio::time::sleep(Duration::from_millis(300)).await;
         while watcher_rx.try_recv().is_ok() {}
-        handle_rebuild(config, &build_config, base_dir, &out_dir).await;
+        handle_rebuild(config, &build_config, base_dir, &out_dir, vite_port.is_some()).await;
       }
     }
   }

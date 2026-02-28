@@ -52,6 +52,9 @@ export default defineConfig({
   appType: "custom",
   server: {
     origin: "http://localhost:5173",
+    watch: {
+      ignored: ["**/.seam/**"],
+    },
   },
   build: {
     manifest: true,
