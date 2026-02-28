@@ -306,18 +306,26 @@ mod tests {
   use std::collections::BTreeMap;
 
   fn make_manifest(procs: &[(&str, &str)]) -> Manifest {
+    use crate::manifest::ProcedureType;
     let mut procedures = BTreeMap::new();
     for (name, ptype) in procs {
+      let proc_type = match *ptype {
+        "query" => ProcedureType::Query,
+        "command" => ProcedureType::Command,
+        "subscription" => ProcedureType::Subscription,
+        _ => ProcedureType::Query,
+      };
       procedures.insert(
         name.to_string(),
         ProcedureSchema {
-          proc_type: ptype.to_string(),
+          proc_type,
           input: serde_json::json!({"properties": {"id": {"type": "uint32"}}}),
           output: serde_json::json!({"properties": {"name": {"type": "string"}}}),
+          error: None,
         },
       );
     }
-    Manifest { version: "0.1.0".to_string(), procedures }
+    Manifest { version: 1, procedures }
   }
 
   #[test]

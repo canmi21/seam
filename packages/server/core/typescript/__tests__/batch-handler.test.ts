@@ -50,7 +50,7 @@ describe("handleBatchRequest", () => {
     expect(results[0]).toEqual({ ok: true, data: { message: "Hello, Alice!" } });
     expect(results[1]).toEqual({
       ok: false,
-      error: { code: "NOT_FOUND", message: "Procedure 'unknown' not found" },
+      error: { code: "NOT_FOUND", message: "Procedure 'unknown' not found", transient: false },
     });
   });
 
@@ -72,56 +72,61 @@ describe("handleBatchRequest", () => {
 
 /* --- HTTP-level batch tests --- */
 
-describe("POST /_seam/rpc/_batch", () => {
+describe("POST /_seam/procedure/_batch", () => {
   it("returns 200 with per-call results on success", async () => {
-    const res = await req("POST", "/_seam/rpc/_batch", {
+    const res = await req("POST", "/_seam/procedure/_batch", {
       calls: [
         { procedure: "greet", input: { name: "Alice" } },
         { procedure: "greet", input: { name: "Bob" } },
       ],
     });
     expect(res.status).toBe(200);
-    const body = res.body as { results: BatchResultItem[] };
-    expect(body.results).toHaveLength(2);
-    expect(body.results[0]).toEqual({ ok: true, data: { message: "Hello, Alice!" } });
-    expect(body.results[1]).toEqual({ ok: true, data: { message: "Hello, Bob!" } });
+    const envelope = res.body as { ok: true; data: { results: BatchResultItem[] } };
+    expect(envelope.ok).toBe(true);
+    expect(envelope.data.results).toHaveLength(2);
+    expect(envelope.data.results[0]).toEqual({ ok: true, data: { message: "Hello, Alice!" } });
+    expect(envelope.data.results[1]).toEqual({ ok: true, data: { message: "Hello, Bob!" } });
   });
 
   it("returns 400 for invalid JSON body", async () => {
     const res = await handler({
       method: "POST",
-      url: "http://localhost/_seam/rpc/_batch",
+      url: "http://localhost/_seam/procedure/_batch",
       body: () => Promise.reject(new Error("parse error")),
     });
     expect(res.status).toBe(400);
-    expect((res.body as { error: { code: string } }).error.code).toBe("VALIDATION_ERROR");
+    expect((res.body as { ok: false; error: { code: string } }).error.code).toBe(
+      "VALIDATION_ERROR",
+    );
   });
 
   it("returns 400 when body is missing 'calls' array", async () => {
-    const res = await req("POST", "/_seam/rpc/_batch", { notCalls: [] });
+    const res = await req("POST", "/_seam/procedure/_batch", { notCalls: [] });
     expect(res.status).toBe(400);
-    const body = res.body as { error: { code: string; message: string } };
+    const body = res.body as { ok: false; error: { code: string; message: string } };
     expect(body.error.code).toBe("VALIDATION_ERROR");
     expect(body.error.message).toContain("calls");
   });
 
   it("returns 400 when body is null", async () => {
-    const res = await req("POST", "/_seam/rpc/_batch", null);
+    const res = await req("POST", "/_seam/procedure/_batch", null);
     expect(res.status).toBe(400);
-    expect((res.body as { error: { code: string } }).error.code).toBe("VALIDATION_ERROR");
+    expect((res.body as { ok: false; error: { code: string } }).error.code).toBe(
+      "VALIDATION_ERROR",
+    );
   });
 
   it("handles mixed success and failure per-call", async () => {
-    const res = await req("POST", "/_seam/rpc/_batch", {
+    const res = await req("POST", "/_seam/procedure/_batch", {
       calls: [
         { procedure: "greet", input: { name: "Alice" } },
         { procedure: "nonexistent", input: {} },
       ],
     });
     expect(res.status).toBe(200);
-    const body = res.body as { results: BatchResultItem[] };
-    expect(body.results[0]).toEqual({ ok: true, data: { message: "Hello, Alice!" } });
-    expect((body.results[1] as { ok: false; error: { code: string } }).error.code).toBe(
+    const envelope = res.body as { ok: true; data: { results: BatchResultItem[] } };
+    expect(envelope.data.results[0]).toEqual({ ok: true, data: { message: "Hello, Alice!" } });
+    expect((envelope.data.results[1] as { ok: false; error: { code: string } }).error.code).toBe(
       "NOT_FOUND",
     );
   });

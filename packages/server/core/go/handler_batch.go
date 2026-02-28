@@ -29,8 +29,9 @@ type batchResult struct {
 }
 
 type batchError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Transient bool   `json:"transient"`
 }
 
 func (s *appState) handleBatch(w http.ResponseWriter, r *http.Request) {
@@ -170,8 +171,8 @@ complete:
 
 func writeSSEEvent(w http.ResponseWriter, ev SubscriptionEvent) {
 	if ev.Err != nil {
-		fmt.Fprintf(w, "event: error\ndata: %s\n\n", mustJSON(map[string]string{
-			"code": ev.Err.Code, "message": ev.Err.Message,
+		fmt.Fprintf(w, "event: error\ndata: %s\n\n", mustJSON(map[string]any{
+			"code": ev.Err.Code, "message": ev.Err.Message, "transient": false,
 		}))
 	} else {
 		fmt.Fprintf(w, "event: data\ndata: %s\n\n", mustJSON(ev.Value))
@@ -181,8 +182,8 @@ func writeSSEEvent(w http.ResponseWriter, ev SubscriptionEvent) {
 func writeSSEError(w http.ResponseWriter, e *Error) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
-	fmt.Fprintf(w, "event: error\ndata: %s\n\n", mustJSON(map[string]string{
-		"code": e.Code, "message": e.Message,
+	fmt.Fprintf(w, "event: error\ndata: %s\n\n", mustJSON(map[string]any{
+		"code": e.Code, "message": e.Message, "transient": false,
 	}))
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()

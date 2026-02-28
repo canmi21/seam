@@ -3,7 +3,7 @@
 import type { Schema } from "jtd";
 import type { SchemaNode } from "../types/schema.js";
 
-export type ProcedureType = "query" | "subscription";
+export type ProcedureType = "query" | "command" | "subscription";
 
 export interface ProcedureEntry {
   type: ProcedureType;
@@ -12,7 +12,7 @@ export interface ProcedureEntry {
 }
 
 export interface ProcedureManifest {
-  version: string;
+  version: number;
   procedures: Record<string, ProcedureEntry>;
 }
 
@@ -29,5 +29,5 @@ export function buildManifest(
     };
   }
 
-  return { version: "0.1.0", procedures: mapped };
+  return { version: 1, procedures: mapped };
 }

@@ -53,7 +53,7 @@ describe("subscribe()", () => {
     client.subscribe("counter", { room: "A" }, vi.fn());
 
     expect(EventSource).toHaveBeenCalledWith(
-      "http://localhost:3000/_seam/subscribe/counter?input=%7B%22room%22%3A%22A%22%7D",
+      "http://localhost:3000/_seam/procedure/counter?input=%7B%22room%22%3A%22A%22%7D",
     );
   });
 

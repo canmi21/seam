@@ -26,7 +26,7 @@ describe("createRouter", () => {
 
   it("generates manifest with correct structure", () => {
     const manifest = router.manifest();
-    expect(manifest.version).toBe("0.1.0");
+    expect(manifest.version).toBe(1);
     expect(Object.keys(manifest.procedures)).toEqual(["greet", "add"]);
   });
 
@@ -43,6 +43,6 @@ describe("createRouter", () => {
   it("handle delegates to handleRequest", async () => {
     const result = await router.handle("greet", { name: "World" });
     expect(result.status).toBe(200);
-    expect(result.body).toEqual({ message: "Hello, World!" });
+    expect(result.body).toEqual({ ok: true, data: { message: "Hello, World!" } });
   });
 });

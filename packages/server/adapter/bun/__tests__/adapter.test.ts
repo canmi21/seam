@@ -22,47 +22,50 @@ describe("adapter-bun", () => {
     expect(body.procedures.greet).toBeDefined();
   });
 
-  it("POST /_seam/rpc/greet with valid input returns 200", async () => {
-    const res = await fetch(`${base}/_seam/rpc/greet`, {
+  it("POST /_seam/procedure/greet with valid input returns 200", async () => {
+    const res = await fetch(`${base}/_seam/procedure/greet`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "Alice" }),
     });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ message: "Hello, Alice!" });
+    expect(body).toEqual({ ok: true, data: { message: "Hello, Alice!" } });
   });
 
-  it("POST /_seam/rpc/greet with invalid input returns 400", async () => {
-    const res = await fetch(`${base}/_seam/rpc/greet`, {
+  it("POST /_seam/procedure/greet with invalid input returns 400", async () => {
+    const res = await fetch(`${base}/_seam/procedure/greet`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: 123 }),
     });
     expect(res.status).toBe(400);
     const body = await res.json();
+    expect(body.ok).toBe(false);
     expect(body.error.code).toBe("VALIDATION_ERROR");
   });
 
-  it("POST /_seam/rpc/unknown returns 404", async () => {
-    const res = await fetch(`${base}/_seam/rpc/unknown`, {
+  it("POST /_seam/procedure/unknown returns 404", async () => {
+    const res = await fetch(`${base}/_seam/procedure/unknown`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(404);
     const body = await res.json();
+    expect(body.ok).toBe(false);
     expect(body.error.code).toBe("NOT_FOUND");
   });
 
   it("POST non-JSON body returns 400", async () => {
-    const res = await fetch(`${base}/_seam/rpc/greet`, {
+    const res = await fetch(`${base}/_seam/procedure/greet`, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
       body: "not json",
     });
     expect(res.status).toBe(400);
     const body = await res.json();
+    expect(body.ok).toBe(false);
     expect(body.error.code).toBe("VALIDATION_ERROR");
   });
 
@@ -70,17 +73,19 @@ describe("adapter-bun", () => {
     const res = await fetch(`${base}/unknown`);
     expect(res.status).toBe(404);
     const body = await res.json();
+    expect(body.ok).toBe(false);
     expect(body.error.code).toBe("NOT_FOUND");
   });
 
   it("empty procedure name returns 404", async () => {
-    const res = await fetch(`${base}/_seam/rpc/`, {
+    const res = await fetch(`${base}/_seam/procedure/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
     });
     expect(res.status).toBe(404);
     const body = await res.json();
+    expect(body.ok).toBe(false);
     expect(body.error.code).toBe("NOT_FOUND");
   });
 });

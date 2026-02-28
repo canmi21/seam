@@ -92,7 +92,7 @@ describe("useSeamSubscription: connection", () => {
       );
     });
 
-    expect(EventSource).toHaveBeenCalledWith(expect.stringContaining("/_seam/subscribe/counter?"));
+    expect(EventSource).toHaveBeenCalledWith(expect.stringContaining("/_seam/procedure/counter?"));
     // Verify trailing slash normalization and input encoding
     const url = (EventSource as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(url.startsWith("http://localhost:3000/_seam/")).toBe(true);

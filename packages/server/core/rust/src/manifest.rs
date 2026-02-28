@@ -8,7 +8,7 @@ use crate::procedure::{ProcedureDef, SubscriptionDef};
 
 #[derive(Serialize)]
 pub struct Manifest {
-  pub version: String,
+  pub version: u32,
   pub procedures: BTreeMap<String, ProcedureSchema>,
 }
 
@@ -42,5 +42,5 @@ pub fn build_manifest(procedures: &[ProcedureDef], subscriptions: &[Subscription
       },
     );
   }
-  Manifest { version: "0.1.0".to_string(), procedures: map }
+  Manifest { version: 1, procedures: map }
 }

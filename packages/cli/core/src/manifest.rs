@@ -5,20 +5,36 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ProcedureType {
+  Query,
+  Command,
+  Subscription,
+}
+
+impl std::fmt::Display for ProcedureType {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Self::Query => write!(f, "query"),
+      Self::Command => write!(f, "command"),
+      Self::Subscription => write!(f, "subscription"),
+    }
+  }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Manifest {
-  pub version: String,
+  pub version: u32,
   pub procedures: BTreeMap<String, ProcedureSchema>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProcedureSchema {
-  #[serde(rename = "type", default = "default_proc_type")]
-  pub proc_type: String,
+  #[serde(rename = "type")]
+  pub proc_type: ProcedureType,
   pub input: Value,
   pub output: Value,
-}
-
-fn default_proc_type() -> String {
-  "query".to_string()
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub error: Option<Value>,
 }

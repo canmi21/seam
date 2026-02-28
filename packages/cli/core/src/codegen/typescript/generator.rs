@@ -3,7 +3,7 @@
 use anyhow::Result;
 
 use crate::build::rpc_hash::RpcHashMap;
-use crate::manifest::Manifest;
+use crate::manifest::{Manifest, ProcedureType};
 
 use super::render::{capitalize, render_top_level};
 
@@ -28,7 +28,7 @@ pub fn generate_typescript(
 
   for (name, schema) in &manifest.procedures {
     let pascal = capitalize(name);
-    let is_subscription = schema.proc_type == "subscription";
+    let is_subscription = schema.proc_type == ProcedureType::Subscription;
 
     let input_name = format!("{pascal}Input");
     let output_name = format!("{pascal}Output");

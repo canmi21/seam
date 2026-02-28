@@ -22,10 +22,10 @@ describe("createHttpHandler", () => {
     expect((res.body as { procedures: Record<string, unknown> }).procedures.greet).toBeDefined();
   });
 
-  it("POST /_seam/rpc/greet delegates to router.handle()", async () => {
-    const res = await req("POST", "/_seam/rpc/greet", { name: "Alice" });
+  it("POST /_seam/procedure/greet delegates to router.handle()", async () => {
+    const res = await req("POST", "/_seam/procedure/greet", { name: "Alice" });
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: "Hello, Alice!" });
+    expect(res.body).toEqual({ ok: true, data: { message: "Hello, Alice!" } });
   });
 
   it("GET /_seam/page/user/1 delegates to router.handlePage()", async () => {
@@ -38,23 +38,25 @@ describe("createHttpHandler", () => {
     const res = await req("GET", "/unknown");
     expect(res.status).toBe(404);
     expect(res.headers["Content-Type"]).toBe("application/json");
-    expect((res.body as { error: { code: string } }).error.code).toBe("NOT_FOUND");
+    expect((res.body as { ok: false; error: { code: string } }).error.code).toBe("NOT_FOUND");
   });
 
-  it("POST /_seam/rpc/ with empty name returns 404", async () => {
-    const res = await req("POST", "/_seam/rpc/", {});
+  it("POST /_seam/procedure/ with empty name returns 404", async () => {
+    const res = await req("POST", "/_seam/procedure/", {});
     expect(res.status).toBe(404);
-    expect((res.body as { error: { code: string } }).error.code).toBe("NOT_FOUND");
+    expect((res.body as { ok: false; error: { code: string } }).error.code).toBe("NOT_FOUND");
   });
 
   it("invalid JSON body returns 400 VALIDATION_ERROR", async () => {
     const res = await handler({
       method: "POST",
-      url: "http://localhost/_seam/rpc/greet",
+      url: "http://localhost/_seam/procedure/greet",
       body: () => Promise.reject(new Error("parse error")),
     });
     expect(res.status).toBe(400);
-    expect((res.body as { error: { code: string } }).error.code).toBe("VALIDATION_ERROR");
+    expect((res.body as { ok: false; error: { code: string } }).error.code).toBe(
+      "VALIDATION_ERROR",
+    );
   });
 
   it("page endpoint with hasPages=false returns 404", async () => {
@@ -82,28 +84,31 @@ describe("createHttpHandler with rpcHashMap", () => {
   }
 
   it("resolves hashed RPC endpoint to original procedure", async () => {
-    const res = await obfReq("POST", "/_seam/rpc/a1b2c3d4", { name: "Alice" });
+    const res = await obfReq("POST", "/_seam/procedure/a1b2c3d4", { name: "Alice" });
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: "Hello, Alice!" });
+    expect(res.body).toEqual({ ok: true, data: { message: "Hello, Alice!" } });
   });
 
   it("returns 404 for unknown hash in obfuscated mode", async () => {
-    const res = await obfReq("POST", "/_seam/rpc/deadbeef", { name: "Alice" });
+    const res = await obfReq("POST", "/_seam/procedure/deadbeef", { name: "Alice" });
     expect(res.status).toBe(404);
   });
 
   it("resolves hashed batch endpoint", async () => {
-    const res = await obfReq("POST", "/_seam/rpc/e5f6a7b8", {
+    const res = await obfReq("POST", "/_seam/procedure/e5f6a7b8", {
       calls: [{ procedure: "a1b2c3d4", input: { name: "Bob" } }],
     });
     expect(res.status).toBe(200);
-    const body = res.body as { results: Array<{ ok: boolean; data: unknown }> };
-    expect(body.results[0].ok).toBe(true);
-    expect(body.results[0].data).toEqual({ message: "Hello, Bob!" });
+    const envelope = res.body as {
+      ok: true;
+      data: { results: Array<{ ok: boolean; data: unknown }> };
+    };
+    expect(envelope.data.results[0].ok).toBe(true);
+    expect(envelope.data.results[0].data).toEqual({ message: "Hello, Bob!" });
   });
 
   it("still accepts original _batch endpoint in obfuscated mode", async () => {
-    const res = await obfReq("POST", "/_seam/rpc/_batch", {
+    const res = await obfReq("POST", "/_seam/procedure/_batch", {
       calls: [{ procedure: "a1b2c3d4", input: { name: "Eve" } }],
     });
     expect(res.status).toBe(200);

@@ -21,13 +21,13 @@ afterEach(() => {
 
 describe("call(): success", () => {
   it("returns parsed body on success", async () => {
-    vi.mocked(fetch).mockResolvedValue(jsonResponse({ message: "Hello" }));
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ ok: true, data: { message: "Hello" } }));
 
     const client = createClient({ baseUrl: "http://localhost:3000" });
     const result = await client.call("greet", { name: "Alice" });
 
     expect(result).toEqual({ message: "Hello" });
-    expect(fetch).toHaveBeenCalledWith("http://localhost:3000/_seam/rpc/greet", {
+    expect(fetch).toHaveBeenCalledWith("http://localhost:3000/_seam/procedure/greet", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "Alice" }),
@@ -35,12 +35,15 @@ describe("call(): success", () => {
   });
 
   it("normalizes trailing slash in baseUrl", async () => {
-    vi.mocked(fetch).mockResolvedValue(jsonResponse({ ok: true }));
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ ok: true, data: null }));
 
     const client = createClient({ baseUrl: "http://localhost:3000/" });
     await client.call("greet", {});
 
-    expect(fetch).toHaveBeenCalledWith("http://localhost:3000/_seam/rpc/greet", expect.any(Object));
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:3000/_seam/procedure/greet",
+      expect.any(Object),
+    );
   });
 });
 
@@ -48,7 +51,13 @@ describe("call(): errors", () => {
   it("throws VALIDATION_ERROR on 400", async () => {
     vi.mocked(fetch).mockImplementation(() =>
       Promise.resolve(
-        jsonResponse({ error: { code: "VALIDATION_ERROR", message: "bad input" } }, 400),
+        jsonResponse(
+          {
+            ok: false,
+            error: { code: "VALIDATION_ERROR", message: "bad input", transient: false },
+          },
+          400,
+        ),
       ),
     );
 
@@ -66,7 +75,10 @@ describe("call(): errors", () => {
 
   it("throws NOT_FOUND on 404", async () => {
     vi.mocked(fetch).mockResolvedValue(
-      jsonResponse({ error: { code: "NOT_FOUND", message: "not found" } }, 404),
+      jsonResponse(
+        { ok: false, error: { code: "NOT_FOUND", message: "not found", transient: false } },
+        404,
+      ),
     );
 
     const client = createClient({ baseUrl: "http://localhost:3000" });
@@ -82,7 +94,10 @@ describe("call(): errors", () => {
 
   it("throws INTERNAL_ERROR on 500", async () => {
     vi.mocked(fetch).mockResolvedValue(
-      jsonResponse({ error: { code: "INTERNAL_ERROR", message: "server error" } }, 500),
+      jsonResponse(
+        { ok: false, error: { code: "INTERNAL_ERROR", message: "server error", transient: false } },
+        500,
+      ),
     );
 
     const client = createClient({ baseUrl: "http://localhost:3000" });
@@ -113,7 +128,10 @@ describe("call(): errors", () => {
 
   it("preserves unknown error code from server", async () => {
     vi.mocked(fetch).mockResolvedValue(
-      jsonResponse({ error: { code: "RATE_LIMITED", message: "too fast" } }, 429),
+      jsonResponse(
+        { ok: false, error: { code: "RATE_LIMITED", message: "too fast", transient: false } },
+        429,
+      ),
     );
 
     const client = createClient({ baseUrl: "http://localhost:3000" });
@@ -129,7 +147,7 @@ describe("call(): errors", () => {
   });
 
   it("falls back to INTERNAL_ERROR for non-standard error body", async () => {
-    vi.mocked(fetch).mockResolvedValue(jsonResponse({ unexpected: "shape" }, 500));
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({ ok: false, unexpected: "shape" }, 500));
 
     const client = createClient({ baseUrl: "http://localhost:3000" });
 
@@ -145,25 +163,29 @@ describe("call(): errors", () => {
 
 describe("callBatch(): batchEndpoint", () => {
   it("uses custom batch endpoint when configured", async () => {
-    vi.mocked(fetch).mockResolvedValue(jsonResponse({ results: [{ ok: true, data: "ok" }] }));
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ ok: true, data: { results: [{ ok: true, data: "ok" }] } }),
+    );
 
     const client = createClient({ baseUrl: "http://localhost:3000", batchEndpoint: "c9d0e1f2" });
     await client.callBatch([{ procedure: "a1b2c3d4", input: {} }]);
 
     expect(fetch).toHaveBeenCalledWith(
-      "http://localhost:3000/_seam/rpc/c9d0e1f2",
+      "http://localhost:3000/_seam/procedure/c9d0e1f2",
       expect.any(Object),
     );
   });
 
   it("defaults to _batch when batchEndpoint is omitted", async () => {
-    vi.mocked(fetch).mockResolvedValue(jsonResponse({ results: [{ ok: true, data: "ok" }] }));
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse({ ok: true, data: { results: [{ ok: true, data: "ok" }] } }),
+    );
 
     const client = createClient({ baseUrl: "http://localhost:3000" });
     await client.callBatch([{ procedure: "greet", input: {} }]);
 
     expect(fetch).toHaveBeenCalledWith(
-      "http://localhost:3000/_seam/rpc/_batch",
+      "http://localhost:3000/_seam/procedure/_batch",
       expect.any(Object),
     );
   });
@@ -182,9 +204,7 @@ describe("fetchManifest()", () => {
   });
 
   it("throws SeamClientError on error response", async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      jsonResponse({ error: { code: "INTERNAL_ERROR", message: "fail" } }, 500),
-    );
+    vi.mocked(fetch).mockResolvedValue(jsonResponse({}, 500));
 
     const client = createClient({ baseUrl: "http://localhost:3000" });
     await expect(client.fetchManifest()).rejects.toThrow(SeamClientError);

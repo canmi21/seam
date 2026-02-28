@@ -43,7 +43,7 @@ export async function handleRequest(
       }
     }
 
-    return { status: 200, body: result };
+    return { status: 200, body: { ok: true, data: result } };
   } catch (error) {
     if (error instanceof SeamError) {
       return { status: error.status, body: error.toJSON() };
@@ -63,7 +63,7 @@ export interface BatchCall {
 
 export type BatchResultItem =
   | { ok: true; data: unknown }
-  | { ok: false; error: { code: string; message: string } };
+  | { ok: false; error: { code: string; message: string; transient: boolean } };
 
 export async function handleBatchRequest(
   procedures: Map<string, InternalProcedure>,
@@ -74,9 +74,13 @@ export async function handleBatchRequest(
     calls.map(async (call) => {
       const result = await handleRequest(procedures, call.procedure, call.input, validateOutput);
       if (result.status === 200) {
-        return { ok: true as const, data: result.body };
+        const envelope = result.body as { ok: true; data: unknown };
+        return { ok: true as const, data: envelope.data };
       }
-      const envelope = result.body as { error: { code: string; message: string } };
+      const envelope = result.body as {
+        ok: false;
+        error: { code: string; message: string; transient: boolean };
+      };
       return { ok: false as const, error: envelope.error };
     }),
   );

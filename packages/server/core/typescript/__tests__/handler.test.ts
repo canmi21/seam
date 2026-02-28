@@ -21,7 +21,7 @@ describe("handleRequest: success", () => {
     ]);
     const result = await handleRequest(procs, "greet", { name: "Alice" });
     expect(result.status).toBe(200);
-    expect(result.body).toEqual({ message: "Hi, Alice!" });
+    expect(result.body).toEqual({ ok: true, data: { message: "Hi, Alice!" } });
   });
 
   it("returns 200 for valid async handler", async () => {
@@ -35,7 +35,7 @@ describe("handleRequest: success", () => {
     ]);
     const result = await handleRequest(procs, "greet", { name: "Bob" });
     expect(result.status).toBe(200);
-    expect(result.body).toEqual({ message: "Hi, Bob!" });
+    expect(result.body).toEqual({ ok: true, data: { message: "Hi, Bob!" } });
   });
 });
 
@@ -45,7 +45,8 @@ describe("handleRequest: errors", () => {
     const result = await handleRequest(procs, "missing", {});
     expect(result.status).toBe(404);
     expect(result.body).toEqual({
-      error: { code: "NOT_FOUND", message: "Procedure 'missing' not found" },
+      ok: false,
+      error: { code: "NOT_FOUND", message: "Procedure 'missing' not found", transient: false },
     });
   });
 
@@ -60,7 +61,10 @@ describe("handleRequest: errors", () => {
     ]);
     const result = await handleRequest(procs, "greet", { name: 123 });
     expect(result.status).toBe(400);
-    const { error } = result.body as { error: { code: string; message: string } };
+    const { error } = result.body as {
+      ok: false;
+      error: { code: string; message: string; transient: boolean };
+    };
     expect(error.code).toBe("VALIDATION_ERROR");
     expect(error.message).toContain("Input validation failed:");
   });
@@ -79,7 +83,8 @@ describe("handleRequest: errors", () => {
     const result = await handleRequest(procs, "greet", { name: "Alice" });
     expect(result.status).toBe(500);
     expect(result.body).toEqual({
-      error: { code: "INTERNAL_ERROR", message: "db connection lost" },
+      ok: false,
+      error: { code: "INTERNAL_ERROR", message: "db connection lost", transient: false },
     });
   });
 
@@ -98,7 +103,8 @@ describe("handleRequest: errors", () => {
     const result = await handleRequest(procs, "greet", { name: "Alice" });
     expect(result.status).toBe(400);
     expect(result.body).toEqual({
-      error: { code: "VALIDATION_ERROR", message: "custom validation" },
+      ok: false,
+      error: { code: "VALIDATION_ERROR", message: "custom validation", transient: false },
     });
   });
 
@@ -117,7 +123,8 @@ describe("handleRequest: errors", () => {
     const result = await handleRequest(procs, "greet", { name: "Alice" });
     expect(result.status).toBe(429);
     expect(result.body).toEqual({
-      error: { code: "RATE_LIMITED", message: "too fast" },
+      ok: false,
+      error: { code: "RATE_LIMITED", message: "too fast", transient: false },
     });
   });
 
@@ -135,7 +142,8 @@ describe("handleRequest: errors", () => {
     const result = await handleRequest(procs, "greet", { name: "Alice" });
     expect(result.status).toBe(500);
     expect(result.body).toEqual({
-      error: { code: "INTERNAL_ERROR", message: "Unknown error" },
+      ok: false,
+      error: { code: "INTERNAL_ERROR", message: "Unknown error", transient: false },
     });
   });
 });
@@ -171,7 +179,7 @@ describe("handleRequest: output validation", () => {
     ]);
     const result = await handleRequest(procs, "greet", { name: "Alice" }, true);
     expect(result.status).toBe(200);
-    expect(result.body).toEqual({ message: "Hi!" });
+    expect(result.body).toEqual({ ok: true, data: { message: "Hi!" } });
   });
 
   it("skips output validation when disabled", async () => {
@@ -185,6 +193,6 @@ describe("handleRequest: output validation", () => {
     ]);
     const result = await handleRequest(procs, "greet", { name: "Alice" }, false);
     expect(result.status).toBe(200);
-    expect(result.body).toEqual({});
+    expect(result.body).toEqual({ ok: true, data: {} });
   });
 });

@@ -21,7 +21,7 @@ describe("SSE formatting", () => {
 
   it("sseErrorEvent formats correctly", () => {
     expect(sseErrorEvent("NOT_FOUND", "not found")).toBe(
-      'event: error\ndata: {"code":"NOT_FOUND","message":"not found"}\n\n',
+      'event: error\ndata: {"code":"NOT_FOUND","message":"not found","transient":false}\n\n',
     );
   });
 
@@ -90,7 +90,7 @@ describe("subscription output validation", () => {
     const handler = createHttpHandler(validatedRouter);
     const res = await handler({
       method: "GET",
-      url: "http://localhost/_seam/subscribe/badSub",
+      url: "http://localhost/_seam/procedure/badSub",
       body: () => Promise.reject(new Error("no body")),
     });
     expect("stream" in res).toBe(true);
@@ -124,7 +124,7 @@ describe("SSE HTTP endpoint", () => {
   }
 
   it("returns SSE stream for subscription", async () => {
-    const res = await sseReq("/_seam/subscribe/onCount?input=%7B%22max%22%3A2%7D");
+    const res = await sseReq("/_seam/procedure/onCount?input=%7B%22max%22%3A2%7D");
     expect(res.status).toBe(200);
     expect(res.headers["Content-Type"]).toBe("text/event-stream");
     expect("stream" in res).toBe(true);
@@ -136,7 +136,7 @@ describe("SSE HTTP endpoint", () => {
   });
 
   it("returns 404 for unknown subscription", async () => {
-    const res = await sseReq("/_seam/subscribe/unknown");
+    const res = await sseReq("/_seam/procedure/unknown");
     expect("stream" in res).toBe(true);
 
     const chunks = await collectStrings((res as HttpStreamResponse).stream);
@@ -145,20 +145,20 @@ describe("SSE HTTP endpoint", () => {
   });
 
   it("returns 404 for empty subscription name", async () => {
-    const res = await sseReq("/_seam/subscribe/");
+    const res = await sseReq("/_seam/procedure/");
     expect(res.status).toBe(404);
     expect("body" in res).toBe(true);
   });
 
   it("returns 400 for invalid input query", async () => {
-    const res = await sseReq("/_seam/subscribe/onCount?input=not-json");
+    const res = await sseReq("/_seam/procedure/onCount?input=not-json");
     expect(res.status).toBe(400);
     expect("body" in res).toBe(true);
   });
 
   it("defaults input to {} when no query param", async () => {
     // onCount expects { max: int32 }, so this should fail validation as an SSE error
-    const res = await sseReq("/_seam/subscribe/onCount");
+    const res = await sseReq("/_seam/procedure/onCount");
     expect("stream" in res).toBe(true);
 
     const chunks = await collectStrings((res as HttpStreamResponse).stream);

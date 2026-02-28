@@ -6,6 +6,7 @@ use serde_json::json;
 
 use super::render::{render_top_level, render_type};
 use super::*;
+use crate::manifest::ProcedureType;
 
 #[test]
 fn primitive_string() {
@@ -123,19 +124,20 @@ fn nested_properties() {
 #[test]
 fn full_manifest_render() {
   let manifest = crate::manifest::Manifest {
-    version: "0.1.0".to_string(),
+    version: 1,
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
         "greet".to_string(),
         crate::manifest::ProcedureSchema {
-          proc_type: "query".to_string(),
+          proc_type: ProcedureType::Query,
           input: json!({
               "properties": { "name": { "type": "string" } }
           }),
           output: json!({
               "properties": { "message": { "type": "string" } }
           }),
+          error: None,
         },
       );
       m
@@ -154,19 +156,20 @@ fn full_manifest_render() {
 #[test]
 fn subscription_codegen() {
   let manifest = crate::manifest::Manifest {
-    version: "0.2.1".to_string(),
+    version: 1,
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
         "onCount".to_string(),
         crate::manifest::ProcedureSchema {
-          proc_type: "subscription".to_string(),
+          proc_type: ProcedureType::Subscription,
           input: json!({
               "properties": { "max": { "type": "int32" } }
           }),
           output: json!({
               "properties": { "n": { "type": "int32" } }
           }),
+          error: None,
         },
       );
       m
@@ -216,19 +219,20 @@ fn full_manifest_render_with_hashes() {
   use crate::build::rpc_hash::RpcHashMap;
 
   let manifest = crate::manifest::Manifest {
-    version: "0.1.0".to_string(),
+    version: 1,
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
         "greet".to_string(),
         crate::manifest::ProcedureSchema {
-          proc_type: "query".to_string(),
+          proc_type: ProcedureType::Query,
           input: json!({
               "properties": { "name": { "type": "string" } }
           }),
           output: json!({
               "properties": { "message": { "type": "string" } }
           }),
+          error: None,
         },
       );
       m
@@ -256,19 +260,20 @@ fn full_manifest_render_with_hashes() {
 #[test]
 fn codegen_without_hashes_unchanged() {
   let manifest = crate::manifest::Manifest {
-    version: "0.1.0".to_string(),
+    version: 1,
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
         "greet".to_string(),
         crate::manifest::ProcedureSchema {
-          proc_type: "query".to_string(),
+          proc_type: ProcedureType::Query,
           input: json!({
               "properties": { "name": { "type": "string" } }
           }),
           output: json!({
               "properties": { "message": { "type": "string" } }
           }),
+          error: None,
         },
       );
       m
@@ -285,19 +290,20 @@ fn subscription_codegen_with_hashes() {
   use crate::build::rpc_hash::RpcHashMap;
 
   let manifest = crate::manifest::Manifest {
-    version: "0.2.1".to_string(),
+    version: 1,
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
         "onCount".to_string(),
         crate::manifest::ProcedureSchema {
-          proc_type: "subscription".to_string(),
+          proc_type: ProcedureType::Subscription,
           input: json!({
               "properties": { "max": { "type": "int32" } }
           }),
           output: json!({
               "properties": { "n": { "type": "int32" } }
           }),
+          error: None,
         },
       );
       m
@@ -332,16 +338,14 @@ fn top_level_properties_uses_interface() {
 
 #[test]
 fn data_id_export_default() {
-  let manifest =
-    crate::manifest::Manifest { version: "0.1.0".to_string(), procedures: BTreeMap::new() };
+  let manifest = crate::manifest::Manifest { version: 1, procedures: BTreeMap::new() };
   let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
   assert!(code.contains("export const DATA_ID = \"__SEAM_DATA__\";"));
 }
 
 #[test]
 fn data_id_export_custom() {
-  let manifest =
-    crate::manifest::Manifest { version: "0.1.0".to_string(), procedures: BTreeMap::new() };
+  let manifest = crate::manifest::Manifest { version: 1, procedures: BTreeMap::new() };
   let code = generate_typescript(&manifest, None, "__sd").unwrap();
   assert!(code.contains("export const DATA_ID = \"__sd\";"));
 }

@@ -4,7 +4,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
-use crate::manifest::Manifest;
+use crate::manifest::{Manifest, ProcedureType};
 use crate::ui;
 
 pub async fn pull_manifest(base_url: &str, out: &Path) -> Result<()> {
@@ -26,14 +26,13 @@ pub async fn pull_manifest(base_url: &str, out: &Path) -> Result<()> {
 
   // Group by procedure type
   let mut queries = 0u32;
-  let mut mutations = 0u32;
+  let mut commands = 0u32;
   let mut subscriptions = 0u32;
   for proc in manifest.procedures.values() {
-    match proc.proc_type.as_str() {
-      "query" => queries += 1,
-      "mutation" => mutations += 1,
-      "subscription" => subscriptions += 1,
-      _ => queries += 1,
+    match proc.proc_type {
+      ProcedureType::Query => queries += 1,
+      ProcedureType::Command => commands += 1,
+      ProcedureType::Subscription => subscriptions += 1,
     }
   }
 
@@ -41,8 +40,8 @@ pub async fn pull_manifest(base_url: &str, out: &Path) -> Result<()> {
   if queries > 0 {
     parts.push(format!("{queries} {}", if queries == 1 { "query" } else { "queries" }));
   }
-  if mutations > 0 {
-    parts.push(format!("{mutations} {}", if mutations == 1 { "mutation" } else { "mutations" }));
+  if commands > 0 {
+    parts.push(format!("{commands} {}", if commands == 1 { "command" } else { "commands" }));
   }
   if subscriptions > 0 {
     parts.push(format!(

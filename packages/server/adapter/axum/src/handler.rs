@@ -95,8 +95,7 @@ pub(crate) fn build_router(
   let mut page_map = HashMap::new();
   let mut router = Router::new()
     .route("/_seam/manifest.json", get(handle_manifest))
-    .route("/_seam/rpc/{name}", post(handle_rpc))
-    .route("/_seam/subscribe/{name}", get(handle_subscribe));
+    .route("/_seam/procedure/{name}", post(handle_rpc).get(handle_subscribe));
 
   // Pages are served under /_seam/page/* prefix only.
   // Root-path page serving (e.g. "/" or "/dashboard/:id") is the application's
@@ -167,7 +166,7 @@ async fn handle_rpc(
     serde_json::from_slice(&body).map_err(|e| SeamError::validation(e.to_string()))?;
 
   let result = (proc.handler)(input).await?;
-  Ok(axum::Json(result).into_response())
+  Ok(axum::Json(serde_json::json!({"ok": true, "data": result})).into_response())
 }
 
 #[derive(serde::Deserialize)]
@@ -193,6 +192,7 @@ enum BatchResultItem {
 struct BatchError {
   code: String,
   message: String,
+  transient: bool,
 }
 
 async fn handle_batch(
@@ -218,7 +218,11 @@ async fn handle_batch(
           Ok(data) => BatchResultItem::Ok { ok: true, data },
           Err(e) => BatchResultItem::Err {
             ok: false,
-            error: BatchError { code: e.code().to_string(), message: e.message().to_string() },
+            error: BatchError {
+              code: e.code().to_string(),
+              message: e.message().to_string(),
+              transient: false,
+            },
           },
         },
         None => BatchResultItem::Err {
@@ -226,6 +230,7 @@ async fn handle_batch(
           error: BatchError {
             code: "NOT_FOUND".to_string(),
             message: format!("Procedure '{proc_name}' not found"),
+            transient: false,
           },
         },
       };
@@ -286,7 +291,8 @@ async fn handle_subscribe(
             Ok(Event::default().event("data").data(data))
           }
           Err(e) => {
-            let payload = serde_json::json!({ "code": e.code(), "message": e.message() });
+            let payload =
+              serde_json::json!({ "code": e.code(), "message": e.message(), "transient": false });
             Ok(Event::default().event("error").data(payload.to_string()))
           }
         })
@@ -294,7 +300,8 @@ async fn handle_subscribe(
       Sse::new(Box::pin(event_stream))
     }
     Err(err) => {
-      let payload = serde_json::json!({ "code": err.code(), "message": err.message() });
+      let payload =
+        serde_json::json!({ "code": err.code(), "message": err.message(), "transient": false });
       let error_event = Event::default().event("error").data(payload.to_string());
       Sse::new(Box::pin(tokio_stream::once(Ok(error_event))))
     }

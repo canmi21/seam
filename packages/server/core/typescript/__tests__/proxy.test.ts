@@ -115,11 +115,11 @@ describe("createHttpHandler with fallback", () => {
 
     const res = await handler({
       method: "POST",
-      url: "http://localhost/_seam/rpc/greet",
+      url: "http://localhost/_seam/procedure/greet",
       body: () => Promise.resolve({ name: "test" }),
     });
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ message: "Hello, test!" });
+    expect(res.body).toEqual({ ok: true, data: { message: "Hello, test!" } });
   });
 
   it("delegates non-seam routes to fallback", async () => {

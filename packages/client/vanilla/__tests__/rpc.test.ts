@@ -19,10 +19,11 @@ afterEach(() => {
 });
 
 describe("seamRpc()", () => {
-  it("batches calls through /_seam/rpc/_batch", async () => {
+  it("batches calls through /_seam/procedure/_batch", async () => {
     vi.mocked(fetch).mockResolvedValue(
       jsonResponse({
-        results: [{ ok: true, data: { name: "octocat" } }],
+        ok: true,
+        data: { results: [{ ok: true, data: { name: "octocat" } }] },
       }),
     );
     const { seamRpc } = await import("../src/rpc.js");
@@ -30,7 +31,7 @@ describe("seamRpc()", () => {
     const result = await seamRpc("getUser", { username: "octocat" });
 
     expect(result).toEqual({ name: "octocat" });
-    expect(fetch).toHaveBeenCalledWith("/_seam/rpc/_batch", {
+    expect(fetch).toHaveBeenCalledWith("/_seam/procedure/_batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -42,14 +43,15 @@ describe("seamRpc()", () => {
   it("defaults input to empty object when omitted", async () => {
     vi.mocked(fetch).mockResolvedValue(
       jsonResponse({
-        results: [{ ok: true, data: { ok: true } }],
+        ok: true,
+        data: { results: [{ ok: true, data: { ok: true } }] },
       }),
     );
     const { seamRpc } = await import("../src/rpc.js");
 
     await seamRpc("getHomeData");
 
-    expect(fetch).toHaveBeenCalledWith("/_seam/rpc/_batch", {
+    expect(fetch).toHaveBeenCalledWith("/_seam/procedure/_batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -61,10 +63,13 @@ describe("seamRpc()", () => {
   it("batches same-tick calls into one request", async () => {
     vi.mocked(fetch).mockResolvedValue(
       jsonResponse({
-        results: [
-          { ok: true, data: "a" },
-          { ok: true, data: "b" },
-        ],
+        ok: true,
+        data: {
+          results: [
+            { ok: true, data: "a" },
+            { ok: true, data: "b" },
+          ],
+        },
       }),
     );
     const { seamRpc } = await import("../src/rpc.js");
@@ -81,7 +86,8 @@ describe("seamRpc() with configureRpcMap", () => {
   it("uses hash map for wire names when configureRpcMap is called", async () => {
     vi.mocked(fetch).mockResolvedValue(
       jsonResponse({
-        results: [{ ok: true, data: { name: "octocat" } }],
+        ok: true,
+        data: { results: [{ ok: true, data: { name: "octocat" } }] },
       }),
     );
     const { seamRpc, configureRpcMap } = await import("../src/rpc.js");
@@ -92,7 +98,7 @@ describe("seamRpc() with configureRpcMap", () => {
 
     await seamRpc("getUser", { username: "octocat" });
 
-    expect(fetch).toHaveBeenCalledWith("/_seam/rpc/c9d0e1f2", {
+    expect(fetch).toHaveBeenCalledWith("/_seam/procedure/c9d0e1f2", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -104,7 +110,8 @@ describe("seamRpc() with configureRpcMap", () => {
   it("falls back to original name for unmapped procedures", async () => {
     vi.mocked(fetch).mockResolvedValue(
       jsonResponse({
-        results: [{ ok: true, data: "ok" }],
+        ok: true,
+        data: { results: [{ ok: true, data: "ok" }] },
       }),
     );
     const { seamRpc, configureRpcMap } = await import("../src/rpc.js");
@@ -112,7 +119,7 @@ describe("seamRpc() with configureRpcMap", () => {
 
     await seamRpc("unknownProc", {});
 
-    expect(fetch).toHaveBeenCalledWith("/_seam/rpc/_batch", {
+    expect(fetch).toHaveBeenCalledWith("/_seam/procedure/_batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -123,7 +130,10 @@ describe("seamRpc() with configureRpcMap", () => {
 
   it("propagates SeamClientError on batch failure", async () => {
     vi.mocked(fetch).mockResolvedValue(
-      jsonResponse({ error: { code: "NOT_FOUND", message: "not found" } }, 404),
+      jsonResponse(
+        { ok: false, error: { code: "NOT_FOUND", message: "not found", transient: false } },
+        404,
+      ),
     );
     const { seamRpc } = await import("../src/rpc.js");
 

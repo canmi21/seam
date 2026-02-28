@@ -40,10 +40,9 @@ export interface HttpHandlerOptions {
   rpcHashMap?: RpcHashMap;
 }
 
-const RPC_PREFIX = "/_seam/rpc/";
+const PROCEDURE_PREFIX = "/_seam/procedure/";
 const PAGE_PREFIX = "/_seam/page/";
 const STATIC_PREFIX = "/_seam/static/";
-const SUBSCRIBE_PREFIX = "/_seam/subscribe/";
 const MANIFEST_PATH = "/_seam/manifest.json";
 
 const JSON_HEADER = { "Content-Type": "application/json" };
@@ -92,8 +91,8 @@ export function sseDataEvent(data: unknown): string {
 }
 
 /** Format an SSE error event */
-export function sseErrorEvent(code: string, message: string): string {
-  return `event: error\ndata: ${JSON.stringify({ code, message })}\n\n`;
+export function sseErrorEvent(code: string, message: string, transient = false): string {
+  return `event: error\ndata: ${JSON.stringify({ code, message, transient })}\n\n`;
 }
 
 /** Format an SSE complete event */
@@ -143,7 +142,7 @@ async function handleBatchHttp<T extends DefinitionMap>(
     }),
   );
   const result = await router.handleBatch(calls);
-  return jsonResponse(200, result);
+  return jsonResponse(200, { ok: true, data: result });
 }
 
 export function createHttpHandler<T extends DefinitionMap>(
@@ -169,57 +168,54 @@ export function createHttpHandler<T extends DefinitionMap>(
       return jsonResponse(200, router.manifest());
     }
 
-    if (req.method === "POST" && pathname.startsWith(RPC_PREFIX)) {
-      let name = pathname.slice(RPC_PREFIX.length);
+    if (pathname.startsWith(PROCEDURE_PREFIX)) {
+      let name = pathname.slice(PROCEDURE_PREFIX.length);
       if (!name) {
         return errorResponse(404, "NOT_FOUND", "Empty procedure name");
       }
 
-      // Batch: match both original "_batch" and hashed batch endpoint
-      if (name === "_batch" || (batchHash && name === batchHash)) {
-        return handleBatchHttp(req, router, hashToName);
+      if (req.method === "POST") {
+        // Batch: match both original "_batch" and hashed batch endpoint
+        if (name === "_batch" || (batchHash && name === batchHash)) {
+          return handleBatchHttp(req, router, hashToName);
+        }
+
+        // Resolve hash -> original name when obfuscation is active
+        if (hashToName) {
+          const resolved = hashToName.get(name);
+          if (!resolved) return errorResponse(404, "NOT_FOUND", "Not found");
+          name = resolved;
+        }
+
+        let body: unknown;
+        try {
+          body = await req.body();
+        } catch {
+          return errorResponse(400, "VALIDATION_ERROR", "Invalid JSON body");
+        }
+
+        const result = await router.handle(name, body);
+        return jsonResponse(result.status, result.body);
       }
 
-      // Resolve hash -> original name when obfuscation is active
-      if (hashToName) {
-        const resolved = hashToName.get(name);
-        if (!resolved) return errorResponse(404, "NOT_FOUND", "Not found");
-        name = resolved;
+      if (req.method === "GET") {
+        // Resolve hash -> original name for subscriptions
+        if (hashToName) {
+          const resolved = hashToName.get(name);
+          if (!resolved) return errorResponse(404, "NOT_FOUND", "Not found");
+          name = resolved;
+        }
+
+        const rawInput = url.searchParams.get("input");
+        let input: unknown;
+        try {
+          input = rawInput ? JSON.parse(rawInput) : {};
+        } catch {
+          return errorResponse(400, "VALIDATION_ERROR", "Invalid input query parameter");
+        }
+
+        return { status: 200, headers: SSE_HEADER, stream: sseStream(router, name, input) };
       }
-
-      let body: unknown;
-      try {
-        body = await req.body();
-      } catch {
-        return errorResponse(400, "VALIDATION_ERROR", "Invalid JSON body");
-      }
-
-      const result = await router.handle(name, body);
-      return jsonResponse(result.status, result.body);
-    }
-
-    if (req.method === "GET" && pathname.startsWith(SUBSCRIBE_PREFIX)) {
-      let name = pathname.slice(SUBSCRIBE_PREFIX.length);
-      if (!name) {
-        return errorResponse(404, "NOT_FOUND", "Empty subscription name");
-      }
-
-      // Resolve hash -> original name for subscriptions
-      if (hashToName) {
-        const resolved = hashToName.get(name);
-        if (!resolved) return errorResponse(404, "NOT_FOUND", "Not found");
-        name = resolved;
-      }
-
-      const rawInput = url.searchParams.get("input");
-      let input: unknown;
-      try {
-        input = rawInput ? JSON.parse(rawInput) : {};
-      } catch {
-        return errorResponse(400, "VALIDATION_ERROR", "Invalid input query parameter");
-      }
-
-      return { status: 200, headers: SSE_HEADER, stream: sseStream(router, name, input) };
     }
 
     // Pages are served under /_seam/page/* prefix only.

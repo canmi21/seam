@@ -31,9 +31,11 @@ export class SeamError extends Error {
 
   toJSON() {
     return {
+      ok: false,
       error: {
         code: this.code,
         message: this.message,
+        transient: false,
       },
     };
   }

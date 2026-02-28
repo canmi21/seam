@@ -32,7 +32,7 @@ export function useSeamSubscription<T>(
 
     const cleanBase = baseUrl.replace(/\/+$/, "");
     const params = new URLSearchParams({ input: inputKey });
-    const url = `${cleanBase}/_seam/subscribe/${procedure}?${params.toString()}`;
+    const url = `${cleanBase}/_seam/procedure/${procedure}?${params.toString()}`;
     const es = new EventSource(url);
 
     es.addEventListener("data", (e) => {

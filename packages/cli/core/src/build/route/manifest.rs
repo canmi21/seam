@@ -8,7 +8,7 @@ use anyhow::{bail, Context, Result};
 use super::types::SkeletonOutput;
 use crate::codegen;
 use crate::config::SeamConfig;
-use crate::manifest::Manifest;
+use crate::manifest::{Manifest, ProcedureType};
 use crate::shell::{run_command, which_exists};
 use crate::ui::{self, DIM, GREEN, RESET};
 
@@ -98,22 +98,21 @@ pub(crate) fn validate_procedure_references(
 pub(crate) fn print_procedure_breakdown(manifest: &Manifest) {
   let total = manifest.procedures.len();
   let mut queries = 0u32;
-  let mut mutations = 0u32;
+  let mut commands = 0u32;
   let mut subscriptions = 0u32;
   for proc in manifest.procedures.values() {
-    match proc.proc_type.as_str() {
-      "query" => queries += 1,
-      "mutation" => mutations += 1,
-      "subscription" => subscriptions += 1,
-      _ => queries += 1,
+    match proc.proc_type {
+      ProcedureType::Query => queries += 1,
+      ProcedureType::Command => commands += 1,
+      ProcedureType::Subscription => subscriptions += 1,
     }
   }
   let mut parts = Vec::new();
   if queries > 0 {
     parts.push(format!("{queries} {}", if queries == 1 { "query" } else { "queries" }));
   }
-  if mutations > 0 {
-    parts.push(format!("{mutations} {}", if mutations == 1 { "mutation" } else { "mutations" }));
+  if commands > 0 {
+    parts.push(format!("{commands} {}", if commands == 1 { "command" } else { "commands" }));
   }
   if subscriptions > 0 {
     parts.push(format!(

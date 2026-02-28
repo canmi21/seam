@@ -13,7 +13,8 @@ export interface SeamClient {
   call(procedureName: string, input: unknown): Promise<unknown>;
   callBatch(calls: Array<{ procedure: string; input: unknown }>): Promise<{
     results: Array<
-      { ok: true; data: unknown } | { ok: false; error: { code: string; message: string } }
+      | { ok: true; data: unknown }
+      | { ok: false; error: { code: string; message: string; transient: boolean } }
     >;
   }>;
   subscribe(
@@ -25,13 +26,6 @@ export interface SeamClient {
   fetchManifest(): Promise<unknown>;
 }
 
-interface ErrorPayload {
-  error?: {
-    code?: unknown;
-    message?: unknown;
-  };
-}
-
 async function request(url: string, init?: RequestInit): Promise<unknown> {
   let res: Response;
   try {
@@ -40,21 +34,27 @@ async function request(url: string, init?: RequestInit): Promise<unknown> {
     throw new SeamClientError("INTERNAL_ERROR", "Network request failed", 0);
   }
 
-  if (!res.ok) {
-    let parsed: unknown;
-    try {
-      parsed = await res.json();
-    } catch {
-      throw new SeamClientError("INTERNAL_ERROR", `HTTP ${res.status}`, res.status);
-    }
-
-    const err = (parsed as ErrorPayload)?.error;
-    const code = typeof err?.code === "string" ? err.code : "INTERNAL_ERROR";
-    const message = typeof err?.message === "string" ? err.message : `HTTP ${res.status}`;
-    throw new SeamClientError(code, message, res.status);
+  let parsed: unknown;
+  try {
+    parsed = await res.json();
+  } catch {
+    throw new SeamClientError("INTERNAL_ERROR", `HTTP ${res.status}`, res.status);
   }
 
-  return res.json();
+  const envelope = parsed as {
+    ok?: boolean;
+    data?: unknown;
+    error?: { code?: string; message?: string; transient?: boolean };
+  };
+
+  if (envelope.ok === true) {
+    return envelope.data;
+  }
+
+  const err = envelope.error;
+  const code = typeof err?.code === "string" ? err.code : "INTERNAL_ERROR";
+  const message = typeof err?.message === "string" ? err.message : `HTTP ${res.status}`;
+  throw new SeamClientError(code, message, res.status);
 }
 
 export function createClient(opts: ClientOptions): SeamClient {
@@ -63,7 +63,7 @@ export function createClient(opts: ClientOptions): SeamClient {
 
   return {
     call(procedureName, input) {
-      return request(`${baseUrl}/_seam/rpc/${procedureName}`, {
+      return request(`${baseUrl}/_seam/procedure/${procedureName}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -71,20 +71,21 @@ export function createClient(opts: ClientOptions): SeamClient {
     },
 
     callBatch(calls) {
-      return request(`${baseUrl}/_seam/rpc/${batchPath}`, {
+      return request(`${baseUrl}/_seam/procedure/${batchPath}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ calls }),
       }) as Promise<{
         results: Array<
-          { ok: true; data: unknown } | { ok: false; error: { code: string; message: string } }
+          | { ok: true; data: unknown }
+          | { ok: false; error: { code: string; message: string; transient: boolean } }
         >;
       }>;
     },
 
     subscribe(name, input, onData, onError) {
       const params = new URLSearchParams({ input: JSON.stringify(input) });
-      const url = `${baseUrl}/_seam/subscribe/${name}?${params.toString()}`;
+      const url = `${baseUrl}/_seam/procedure/${name}?${params.toString()}`;
       const es = new EventSource(url);
 
       es.addEventListener("data", (e) => {
@@ -120,8 +121,17 @@ export function createClient(opts: ClientOptions): SeamClient {
       };
     },
 
-    fetchManifest() {
-      return request(`${baseUrl}/_seam/manifest.json`);
+    async fetchManifest() {
+      let res: Response;
+      try {
+        res = await fetch(`${baseUrl}/_seam/manifest.json`);
+      } catch {
+        throw new SeamClientError("INTERNAL_ERROR", "Network request failed", 0);
+      }
+      if (!res.ok) {
+        throw new SeamClientError("INTERNAL_ERROR", `HTTP ${res.status}`, res.status);
+      }
+      return (await res.json()) as unknown;
     },
   };
 }

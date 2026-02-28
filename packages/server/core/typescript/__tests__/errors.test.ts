@@ -19,7 +19,8 @@ describe("SeamError", () => {
   it("toJSON returns spec-compliant envelope", () => {
     const err = new SeamError("INTERNAL_ERROR", "boom");
     expect(err.toJSON()).toEqual({
-      error: { code: "INTERNAL_ERROR", message: "boom" },
+      ok: false,
+      error: { code: "INTERNAL_ERROR", message: "boom", transient: false },
     });
   });
 
@@ -50,7 +51,10 @@ describe("SeamError", () => {
   it("toJSON does not include status in wire format", () => {
     const err = new SeamError("NOT_FOUND", "gone", 410);
     const json = err.toJSON();
-    expect(json).toEqual({ error: { code: "NOT_FOUND", message: "gone" } });
+    expect(json).toEqual({
+      ok: false,
+      error: { code: "NOT_FOUND", message: "gone", transient: false },
+    });
     expect("status" in json.error).toBe(false);
   });
 });

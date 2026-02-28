@@ -96,8 +96,8 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, pa
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /_seam/manifest.json", state.handleManifest)
-	mux.HandleFunc("POST /_seam/rpc/{name}", state.handleRPC)
-	mux.HandleFunc("GET /_seam/subscribe/{name}", state.handleSubscribe)
+	mux.HandleFunc("POST /_seam/procedure/{name}", state.handleRPC)
+	mux.HandleFunc("GET /_seam/procedure/{name}", state.handleSubscribe)
 
 	// Pages are served under /_seam/page/* prefix only.
 	// Root-path serving (e.g. "/" or "/dashboard/:id") is the application's
@@ -141,7 +141,7 @@ func seamRouteToGoPattern(route string) string {
 // --- manifest ---
 
 type manifestSchema struct {
-	Version    string                    `json:"version"`
+	Version    int                       `json:"version"`
 	Procedures map[string]procedureEntry `json:"procedures"`
 }
 
@@ -167,7 +167,7 @@ func buildManifest(procedures []ProcedureDef, subscriptions []SubscriptionDef) m
 			Output: s.OutputSchema,
 		}
 	}
-	return manifestSchema{Version: "0.1.0", Procedures: procs}
+	return manifestSchema{Version: 1, Procedures: procs}
 }
 
 // --- manifest handler ---
@@ -238,7 +238,7 @@ func (s *appState) handleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": result})
 }
 
 // --- helpers ---
@@ -247,9 +247,11 @@ func writeError(w http.ResponseWriter, status int, e *Error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]any{
-		"error": map[string]string{
-			"code":    e.Code,
-			"message": e.Message,
+		"ok": false,
+		"error": map[string]any{
+			"code":      e.Code,
+			"message":   e.Message,
+			"transient": false,
 		},
 	})
 }

@@ -67,19 +67,20 @@ fn did_you_mean_no_match() {
 // -- Procedure validation tests --
 
 fn make_manifest(names: &[&str]) -> crate::manifest::Manifest {
-  use crate::manifest::ProcedureSchema;
+  use crate::manifest::{ProcedureSchema, ProcedureType};
   let mut procedures = BTreeMap::new();
   for name in names {
     procedures.insert(
       name.to_string(),
       ProcedureSchema {
-        proc_type: "query".to_string(),
+        proc_type: ProcedureType::Query,
         input: serde_json::Value::Null,
         output: serde_json::Value::Null,
+        error: None,
       },
     );
   }
-  crate::manifest::Manifest { version: "1".to_string(), procedures }
+  crate::manifest::Manifest { version: 1, procedures }
 }
 
 fn make_skeleton(
@@ -224,7 +225,7 @@ fn extract_manifest_command_success() {
   std::fs::create_dir_all(&dir).unwrap();
   let out = dir.join("output");
 
-  let manifest_json = r#"{"version":"0.1.0","procedures":{"getUser":{"type":"query","input":{"properties":{"username":{"type":"string"}}},"output":{"properties":{"login":{"type":"string"}}}}}}"#;
+  let manifest_json = r#"{"version":1,"procedures":{"getUser":{"type":"query","input":{"properties":{"username":{"type":"string"}}},"output":{"properties":{"login":{"type":"string"}}}}}}"#;
   let command = format!("echo '{manifest_json}'");
 
   let manifest = extract_manifest_command(&dir, &command, &out).unwrap();
