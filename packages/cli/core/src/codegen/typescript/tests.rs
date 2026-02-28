@@ -516,6 +516,83 @@ fn to_pascal_case_multi_dot() {
 }
 
 #[test]
+fn channel_procedure_meta_uses_channel_types() {
+  use crate::manifest::{ChannelSchema, IncomingSchema};
+
+  let manifest = crate::manifest::Manifest {
+    version: 1,
+    procedures: {
+      let mut m = BTreeMap::new();
+      m.insert(
+        "chat.sendMessage".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Command,
+          input: json!({ "properties": { "roomId": { "type": "string" }, "text": { "type": "string" } } }),
+          output: json!({ "properties": { "id": { "type": "string" } } }),
+          error: None,
+        },
+      );
+      m.insert(
+        "chat.events".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Subscription,
+          input: json!({ "properties": { "roomId": { "type": "string" } } }),
+          output: json!({
+            "discriminator": "type",
+            "mapping": {
+              "newMessage": { "properties": { "payload": { "properties": { "text": { "type": "string" } } } } }
+            }
+          }),
+          error: None,
+        },
+      );
+      m
+    },
+    channels: {
+      let mut m = BTreeMap::new();
+      m.insert(
+        "chat".to_string(),
+        ChannelSchema {
+          input: json!({ "properties": { "roomId": { "type": "string" } } }),
+          incoming: {
+            let mut im = BTreeMap::new();
+            im.insert(
+              "sendMessage".to_string(),
+              IncomingSchema {
+                input: json!({ "properties": { "text": { "type": "string" } } }),
+                output: json!({ "properties": { "id": { "type": "string" } } }),
+                error: None,
+              },
+            );
+            im
+          },
+          outgoing: {
+            let mut om = BTreeMap::new();
+            om.insert(
+              "newMessage".to_string(),
+              json!({ "properties": { "text": { "type": "string" } } }),
+            );
+            om
+          },
+        },
+      );
+      m
+    },
+  };
+
+  let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
+
+  // chat.events should reference ChatChannelInput / ChatEvent (channel types)
+  assert!(code.contains(
+    "\"chat.events\": { kind: \"subscription\"; input: ChatChannelInput; output: ChatEvent };"
+  ));
+  // chat.sendMessage should use standard naming (not channel-special-cased)
+  assert!(code.contains(
+    "\"chat.sendMessage\": { kind: \"command\"; input: ChatSendMessageInput; output: ChatSendMessageOutput };"
+  ));
+}
+
+#[test]
 fn dot_namespace_codegen() {
   let manifest = crate::manifest::Manifest {
     version: 1,

@@ -129,6 +129,11 @@ fn generate_channel_outgoing(
 
 /// Generate SeamProcedureMeta type map (includes all procedures, even channel-owned).
 fn generate_procedure_meta(manifest: &Manifest) -> String {
+  // Build lookup for channel event procedures ({ch}.events) whose types
+  // are named differently: input = {Ch}ChannelInput, output = {Ch}Event.
+  let channel_event_names: BTreeSet<String> =
+    manifest.channels.keys().map(|ch| format!("{ch}.events")).collect();
+
   let mut out = String::from("export interface SeamProcedureMeta {\n");
   for (name, schema) in &manifest.procedures {
     let pascal = to_pascal_case(name);
@@ -138,8 +143,14 @@ fn generate_procedure_meta(manifest: &Manifest) -> String {
       ProcedureType::Command => "command",
       ProcedureType::Subscription => "subscription",
     };
-    let input_name = format!("{pascal}Input");
-    let output_name = format!("{pascal}Output");
+    let (input_name, output_name) = if channel_event_names.contains(name) {
+      // Channel event subscription: types follow channel naming convention
+      let ch_name = name.strip_suffix(".events").unwrap();
+      let ch_pascal = to_pascal_case(ch_name);
+      (format!("{ch_pascal}ChannelInput"), format!("{ch_pascal}Event"))
+    } else {
+      (format!("{pascal}Input"), format!("{pascal}Output"))
+    };
     if schema.error.is_some() {
       let error_name = format!("{pascal}Error");
       out.push_str(&format!(

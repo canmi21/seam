@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@canmi/seam-client": "workspace:*"
+    "@canmi/seam-client": "workspace:*",
+    "eventsource": "^4.1.0"
   }
 }
