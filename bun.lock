@@ -159,7 +159,11 @@
       "version": "1.0.0",
       "dependencies": {
         "@canmi/seam-adapter-bun": "workspace:*",
+        "@canmi/seam-client": "workspace:*",
         "@canmi/seam-server": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/node": "^22",
       },
     },
     "examples/standalone/server-node": {

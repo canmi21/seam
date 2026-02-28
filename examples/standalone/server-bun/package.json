@@ -5,6 +5,10 @@
   "type": "module",
   "dependencies": {
     "@canmi/seam-adapter-bun": "workspace:*",
+    "@canmi/seam-client": "workspace:*",
     "@canmi/seam-server": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22"
   }
 }

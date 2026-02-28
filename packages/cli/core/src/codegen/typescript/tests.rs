@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use serde_json::json;
 
-use super::render::{render_top_level, render_type};
+use super::render::{render_top_level, render_type, to_pascal_case};
 use super::*;
 use crate::manifest::ProcedureType;
 
@@ -481,4 +481,109 @@ fn command_with_hashes() {
   let code = generate_typescript(&manifest, Some(&hash_map), "__SEAM_DATA__").unwrap();
   assert!(code.contains("client.command(\"dead1234\""));
   assert!(code.contains("deleteUser(input: DeleteUserInput): Promise<DeleteUserOutput>;"));
+}
+
+#[test]
+fn to_pascal_case_simple() {
+  assert_eq!(to_pascal_case("greet"), "Greet");
+}
+
+#[test]
+fn to_pascal_case_dotted() {
+  assert_eq!(to_pascal_case("user.getProfile"), "UserGetProfile");
+}
+
+#[test]
+fn to_pascal_case_multi_dot() {
+  assert_eq!(to_pascal_case("a.b.c"), "ABC");
+}
+
+#[test]
+fn dot_namespace_codegen() {
+  let manifest = crate::manifest::Manifest {
+    version: 1,
+    procedures: {
+      let mut m = BTreeMap::new();
+      m.insert(
+        "user.getProfile".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Query,
+          input: json!({
+              "properties": { "userId": { "type": "string" } }
+          }),
+          output: json!({
+              "properties": { "name": { "type": "string" } }
+          }),
+          error: None,
+        },
+      );
+      m.insert(
+        "user.updateEmail".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Command,
+          input: json!({
+              "properties": { "email": { "type": "string" } }
+          }),
+          output: json!({
+              "properties": { "success": { "type": "boolean" } }
+          }),
+          error: None,
+        },
+      );
+      m.insert(
+        "counter.onCount".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Subscription,
+          input: json!({
+              "properties": { "max": { "type": "int32" } }
+          }),
+          output: json!({
+              "properties": { "n": { "type": "int32" } }
+          }),
+          error: None,
+        },
+      );
+      m
+    },
+  };
+
+  let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
+
+  // PascalCase type names (dots flattened)
+  assert!(code.contains("export interface UserGetProfileInput {"));
+  assert!(code.contains("export interface UserGetProfileOutput {"));
+  assert!(code.contains("export interface UserUpdateEmailInput {"));
+  assert!(code.contains("export interface UserUpdateEmailOutput {"));
+  assert!(code.contains("export interface CounterOnCountInput {"));
+  assert!(code.contains("export interface CounterOnCountOutput {"));
+
+  // Quoted property names in SeamProcedures interface
+  assert!(code
+    .contains("\"user.getProfile\"(input: UserGetProfileInput): Promise<UserGetProfileOutput>;"));
+  assert!(code.contains(
+    "\"user.updateEmail\"(input: UserUpdateEmailInput): Promise<UserUpdateEmailOutput>;"
+  ));
+  assert!(code.contains("\"counter.onCount\"(input: CounterOnCountInput"));
+
+  // Quoted keys in factory object
+  assert!(code.contains("\"user.getProfile\": (input) => client.query(\"user.getProfile\", input)"));
+  assert!(
+    code.contains("\"user.updateEmail\": (input) => client.command(\"user.updateEmail\", input)")
+  );
+  assert!(code.contains(
+    "\"counter.onCount\": (input, onData, onError) => client.subscribe(\"counter.onCount\""
+  ));
+
+  // Quoted keys in SeamProcedureMeta
+  assert!(code.contains(
+    "\"user.getProfile\": { kind: \"query\"; input: UserGetProfileInput; output: UserGetProfileOutput };"
+  ));
+  assert!(code.contains(
+    "\"user.updateEmail\": { kind: \"command\"; input: UserUpdateEmailInput; output: UserUpdateEmailOutput };"
+  ));
+
+  // Wire name strings are the original dotted names (not PascalCase)
+  assert!(code.contains("client.query(\"user.getProfile\""));
+  assert!(code.contains("client.command(\"user.updateEmail\""));
+  assert!(code.contains("client.subscribe(\"counter.onCount\""));
 }

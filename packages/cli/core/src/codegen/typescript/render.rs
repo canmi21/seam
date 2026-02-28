@@ -171,7 +171,14 @@ fn jtd_type_to_ts(t: &str) -> &str {
   }
 }
 
-pub(super) fn capitalize(s: &str) -> String {
+/// Convert a procedure name to PascalCase for TS identifier prefix.
+/// Splits on dots, capitalizes each segment.
+/// "getUser" -> "GetUser", "user.getProfile" -> "UserGetProfile"
+pub(super) fn to_pascal_case(s: &str) -> String {
+  s.split('.').map(capitalize_segment).collect()
+}
+
+fn capitalize_segment(s: &str) -> String {
   let mut chars = s.chars();
   match chars.next() {
     Some(c) => c.to_uppercase().to_string() + chars.as_str(),

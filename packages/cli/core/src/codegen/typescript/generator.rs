@@ -5,7 +5,16 @@ use anyhow::Result;
 use crate::build::rpc_hash::RpcHashMap;
 use crate::manifest::{Manifest, ProcedureType};
 
-use super::render::{capitalize, render_top_level};
+use super::render::{render_top_level, to_pascal_case};
+
+/// Wrap name in quotes if it contains characters that make it an invalid JS identifier.
+fn quote_key(name: &str) -> String {
+  if name.contains('.') {
+    format!("\"{name}\"")
+  } else {
+    name.to_string()
+  }
+}
 
 /// Generate a typed TypeScript client from a manifest.
 pub fn generate_typescript(
@@ -27,7 +36,8 @@ pub fn generate_typescript(
   let mut factory_lines: Vec<String> = Vec::new();
 
   for (name, schema) in &manifest.procedures {
-    let pascal = capitalize(name);
+    let pascal = to_pascal_case(name);
+    let key = quote_key(name);
     let is_subscription = schema.proc_type == ProcedureType::Subscription;
 
     let input_name = format!("{pascal}Input");
@@ -53,19 +63,19 @@ pub fn generate_typescript(
 
     if is_subscription {
       iface_lines.push(format!(
-        "  {name}(input: {input_name}, onData: (data: {output_name}) => void, onError?: (err: SeamClientError) => void): Unsubscribe;"
+        "  {key}(input: {input_name}, onData: (data: {output_name}) => void, onError?: (err: SeamClientError) => void): Unsubscribe;"
       ));
       factory_lines.push(format!(
-        "    {name}: (input, onData, onError) => client.subscribe(\"{wire_name}\", input, onData as (data: unknown) => void, onError),"
+        "    {key}: (input, onData, onError) => client.subscribe(\"{wire_name}\", input, onData as (data: unknown) => void, onError),"
       ));
     } else {
       let method = match schema.proc_type {
         ProcedureType::Command => "command",
         _ => "query",
       };
-      iface_lines.push(format!("  {name}(input: {input_name}): Promise<{output_name}>;"));
+      iface_lines.push(format!("  {key}(input: {input_name}): Promise<{output_name}>;"));
       factory_lines.push(format!(
-        "    {name}: (input) => client.{method}(\"{wire_name}\", input) as Promise<{output_name}>,"
+        "    {key}: (input) => client.{method}(\"{wire_name}\", input) as Promise<{output_name}>,"
       ));
     }
   }
@@ -80,7 +90,8 @@ pub fn generate_typescript(
   // SeamProcedureMeta type map
   out.push_str("export interface SeamProcedureMeta {\n");
   for (name, schema) in &manifest.procedures {
-    let pascal = capitalize(name);
+    let pascal = to_pascal_case(name);
+    let key = quote_key(name);
     let kind = match schema.proc_type {
       ProcedureType::Query => "query",
       ProcedureType::Command => "command",
@@ -91,11 +102,11 @@ pub fn generate_typescript(
     if schema.error.is_some() {
       let error_name = format!("{pascal}Error");
       out.push_str(&format!(
-        "  {name}: {{ kind: \"{kind}\"; input: {input_name}; output: {output_name}; error: {error_name} }};\n"
+        "  {key}: {{ kind: \"{kind}\"; input: {input_name}; output: {output_name}; error: {error_name} }};\n"
       ));
     } else {
       out.push_str(&format!(
-        "  {name}: {{ kind: \"{kind}\"; input: {input_name}; output: {output_name} }};\n"
+        "  {key}: {{ kind: \"{kind}\"; input: {input_name}; output: {output_name} }};\n"
       ));
     }
   }
