@@ -249,7 +249,7 @@ async fn handle_batch(
   indexed.sort_by_key(|(i, _)| *i);
   let results: Vec<BatchResultItem> = indexed.into_iter().map(|(_, item)| item).collect();
 
-  Ok(axum::Json(serde_json::json!({ "results": results })).into_response())
+  Ok(axum::Json(serde_json::json!({ "ok": true, "data": { "results": results } })).into_response())
 }
 
 #[derive(serde::Deserialize)]

@@ -95,7 +95,7 @@ func (s *appState) handleBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"results": results})
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "data": map[string]any{"results": results}})
 }
 
 // --- subscribe handler ---
