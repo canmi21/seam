@@ -36,7 +36,20 @@ async function waitForPort(port: number, timeout = 30_000): Promise<void> {
 
 let devProc: ChildProcess;
 
+async function assertPortFree(port: number): Promise<void> {
+  if ((await tryConnect(port, "::1")) || (await tryConnect(port, "127.0.0.1"))) {
+    throw new Error(
+      `Port ${port} is already in use by another process. ` +
+        `Kill it first: lsof -ti :${port} | xargs kill`,
+    );
+  }
+}
+
 test.beforeAll(async () => {
+  // Fail fast if ports are occupied — otherwise seam dev silently picks
+  // a different port and the test connects to the stale process.
+  await Promise.all([assertPortFree(3000), assertPortFree(5173)]);
+
   // Force dev build by removing production route-manifest.json.
   // Without this, seam dev skips initial build and serves stale production templates.
   const manifest = path.join(appDir, ".seam/dev-output/route-manifest.json");
