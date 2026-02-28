@@ -2,14 +2,16 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createServer, request as httpRequest } from "node:http";
-import { createHttpHandler, serialize, drainStream } from "@canmi/seam-server";
+import { createHttpHandler, serialize, drainStream, startChannelWs } from "@canmi/seam-server";
 import type {
   DefinitionMap,
   Router,
   HttpHandler,
   HttpResponse,
   RpcHashMap,
+  ChannelWsOptions,
 } from "@canmi/seam-server";
+import { WebSocketServer } from "ws";
 
 export interface ServeNodeOptions {
   port?: number;
@@ -18,7 +20,11 @@ export interface ServeNodeOptions {
   rpcHashMap?: RpcHashMap;
   /** WebSocket proxy target for HMR (e.g. "ws://localhost:5173") */
   wsProxy?: string;
+  wsOptions?: ChannelWsOptions;
 }
+
+const PROCEDURE_PREFIX = "/_seam/procedure/";
+const EVENTS_SUFFIX = ".events";
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -64,12 +70,55 @@ export function serveNode<T extends DefinitionMap>(router: Router<T>, opts?: Ser
     })();
   });
 
-  if (opts?.wsProxy) {
-    const wsTarget = new URL(opts.wsProxy);
-    server.on("upgrade", (req, socket, head) => {
-      // Keep seam-internal WS paths on this server
+  // Single WebSocketServer instance for channel connections (noServer mode)
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on("upgrade", (req, socket, head) => {
+    const url = new URL(req.url || "/", "http://localhost");
+    const { pathname } = url;
+
+    // Handle channel WebSocket upgrade
+    if (pathname.startsWith(PROCEDURE_PREFIX) && pathname.endsWith(EVENTS_SUFFIX)) {
+      const channelName = pathname.slice(PROCEDURE_PREFIX.length, -EVENTS_SUFFIX.length);
+      const rawInput = url.searchParams.get("input");
+      let channelInput: unknown;
+      try {
+        channelInput = rawInput ? JSON.parse(rawInput) : {};
+      } catch {
+        socket.destroy();
+        return;
+      }
+
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        const session = startChannelWs(
+          router,
+          channelName,
+          channelInput,
+          {
+            send: (data) => ws.send(data),
+          },
+          opts?.wsOptions,
+        );
+
+        ws.on("message", (raw) => {
+          const text =
+            typeof raw === "string"
+              ? raw
+              : Buffer.isBuffer(raw)
+                ? raw.toString("utf-8")
+                : Buffer.from(raw as ArrayBuffer).toString("utf-8");
+          session.onMessage(text);
+        });
+        ws.on("close", () => session.close());
+      });
+      return;
+    }
+
+    // Forward non-seam WS upgrade to dev server proxy
+    if (opts?.wsProxy) {
       if (req.url?.startsWith("/_seam/")) return;
 
+      const wsTarget = new URL(opts.wsProxy);
       const proxyReq = httpRequest({
         hostname: wsTarget.hostname,
         port: wsTarget.port,
@@ -87,8 +136,8 @@ export function serveNode<T extends DefinitionMap>(router: Router<T>, opts?: Ser
       });
       proxyReq.on("error", () => socket.destroy());
       proxyReq.end(head);
-    });
-  }
+    }
+  });
 
   server.listen(opts?.port ?? 3000);
   return server;

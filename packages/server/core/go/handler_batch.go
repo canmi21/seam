@@ -101,6 +101,11 @@ func (s *appState) handleBatch(w http.ResponseWriter, r *http.Request) {
 // --- subscribe handler ---
 
 func (s *appState) handleSubscribe(w http.ResponseWriter, r *http.Request) {
+	if isWebSocketUpgrade(r) {
+		s.handleChannelWs(w, r)
+		return
+	}
+
 	name := r.PathValue("name")
 
 	sub, ok := s.subs[name]

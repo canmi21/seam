@@ -2,6 +2,7 @@
 
 import { SeamClientError } from "./errors.js";
 import { createChannelHandle } from "./channel-handle.js";
+import { createWsChannelHandle } from "./ws-channel-handle.js";
 import type { ChannelHandle } from "./channel-handle.js";
 
 export interface ClientOptions {
@@ -10,6 +11,12 @@ export interface ClientOptions {
 }
 
 export type Unsubscribe = () => void;
+
+export type ChannelTransport = "http" | "ws";
+
+export interface ChannelOptions {
+  transport?: ChannelTransport;
+}
 
 export interface SeamClient {
   call(procedureName: string, input: unknown): Promise<unknown>;
@@ -28,7 +35,7 @@ export interface SeamClient {
     onError?: (err: SeamClientError) => void,
   ): Unsubscribe;
   fetchManifest(): Promise<unknown>;
-  channel(name: string, input: unknown): ChannelHandle;
+  channel(name: string, input: unknown, opts?: ChannelOptions): ChannelHandle;
 }
 
 async function request(url: string, init?: RequestInit): Promise<unknown> {
@@ -142,7 +149,10 @@ export function createClient(opts: ClientOptions): SeamClient {
       };
     },
 
-    channel(name, input) {
+    channel(name, input, channelOpts) {
+      if (channelOpts?.transport === "ws") {
+        return createWsChannelHandle(baseUrl, name, input);
+      }
       return createChannelHandle(this, name, input);
     },
 

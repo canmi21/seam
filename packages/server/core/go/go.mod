@@ -2,7 +2,10 @@ module github.com/canmi21/seam/packages/server/core/go
 
 go 1.24.0
 
-require github.com/canmi21/seam/packages/server/engine/go v0.0.0
+require (
+	github.com/canmi21/seam/packages/server/engine/go v0.0.0
+	github.com/gorilla/websocket v1.5.3
+)
 
 require (
 	github.com/tetratelabs/wazero v1.11.0 // indirect

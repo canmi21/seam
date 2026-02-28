@@ -177,7 +177,7 @@
     },
     "packages/cli/pkg": {
       "name": "@canmi/seam-cli",
-      "version": "0.4.7",
+      "version": "0.4.8",
       "bin": {
         "seam": "./dist/index.js",
       },
@@ -192,15 +192,15 @@
         "vitest": "^3.0.0",
       },
       "optionalDependencies": {
-        "@canmi/seam-cli-darwin-arm64": "0.4.7",
-        "@canmi/seam-cli-darwin-x64": "0.4.7",
-        "@canmi/seam-cli-linux-arm64": "0.4.7",
-        "@canmi/seam-cli-linux-x64": "0.4.7",
+        "@canmi/seam-cli-darwin-arm64": "0.4.8",
+        "@canmi/seam-cli-darwin-x64": "0.4.8",
+        "@canmi/seam-cli-linux-arm64": "0.4.8",
+        "@canmi/seam-cli-linux-x64": "0.4.8",
       },
     },
     "packages/client/react": {
       "name": "@canmi/seam-react",
-      "version": "0.4.7",
+      "version": "0.4.8",
       "dependencies": {
         "@canmi/seam-client": "workspace:*",
         "esbuild": "^0.25.0",
@@ -224,7 +224,7 @@
     },
     "packages/client/tanstack-router": {
       "name": "@canmi/seam-tanstack-router",
-      "version": "0.4.7",
+      "version": "0.4.8",
       "dependencies": {
         "@canmi/seam-client": "workspace:*",
         "@canmi/seam-i18n": "workspace:*",
@@ -247,7 +247,7 @@
     },
     "packages/client/vanilla": {
       "name": "@canmi/seam-client",
-      "version": "0.4.7",
+      "version": "0.4.8",
       "devDependencies": {
         "tsdown": "^0.20.0",
         "typescript": "^5.7.0",
@@ -256,7 +256,7 @@
     },
     "packages/eslint": {
       "name": "@canmi/eslint-plugin-seam",
-      "version": "0.4.7",
+      "version": "0.4.8",
       "devDependencies": {
         "eslint": "^10.0.0",
         "tsdown": "^0.20.0",
@@ -269,7 +269,7 @@
     },
     "packages/i18n": {
       "name": "@canmi/seam-i18n",
-      "version": "0.4.7",
+      "version": "0.4.8",
       "devDependencies": {
         "@types/react": "^19.0.0",
         "react": "^19.0.0",
@@ -286,7 +286,7 @@
     },
     "packages/server/adapter/bun": {
       "name": "@canmi/seam-adapter-bun",
-      "version": "0.4.7",
+      "version": "0.4.8",
       "devDependencies": {
         "@canmi/seam-server": "workspace:*",
         "@types/bun": "^1.2.0",
@@ -300,7 +300,7 @@
     },
     "packages/server/adapter/hono": {
       "name": "@canmi/seam-adapter-hono",
-      "version": "0.4.7",
+      "version": "0.4.8",
       "devDependencies": {
         "@canmi/seam-server": "workspace:*",
         "hono": "^4.0.0",
@@ -315,10 +315,14 @@
     },
     "packages/server/adapter/node": {
       "name": "@canmi/seam-adapter-node",
-      "version": "0.4.7",
+      "version": "0.4.8",
+      "dependencies": {
+        "ws": "^8.18.0",
+      },
       "devDependencies": {
         "@canmi/seam-server": "workspace:*",
         "@types/node": "^22.0.0",
+        "@types/ws": "^8.5.0",
         "tsdown": "^0.20.0",
         "typescript": "^5.7.0",
         "vitest": "^3.0.0",
@@ -329,7 +333,7 @@
     },
     "packages/server/core/typescript": {
       "name": "@canmi/seam-server",
-      "version": "0.4.7",
+      "version": "0.4.8",
       "dependencies": {
         "@canmi/seam-engine": "workspace:*",
         "jtd": "^0.1.1",
@@ -343,7 +347,7 @@
     },
     "packages/server/engine/js": {
       "name": "@canmi/seam-engine",
-      "version": "0.4.7",
+      "version": "0.4.8",
       "devDependencies": {
         "@types/node": "^22.0.0",
         "tsdown": "^0.20.0",
@@ -955,6 +959,8 @@
 
     "@types/react-dom": ["@types/react-dom@19.2.3", "", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ=="],
 
+    "@types/ws": ["@types/ws@8.18.1", "", { "dependencies": { "@types/node": "*" } }, "sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg=="],
+
     "@typescript-eslint/eslint-plugin": ["@typescript-eslint/eslint-plugin@8.56.1", "", { "dependencies": { "@eslint-community/regexpp": "^4.12.2", "@typescript-eslint/scope-manager": "8.56.1", "@typescript-eslint/type-utils": "8.56.1", "@typescript-eslint/utils": "8.56.1", "@typescript-eslint/visitor-keys": "8.56.1", "ignore": "^7.0.5", "natural-compare": "^1.4.0", "ts-api-utils": "^2.4.0" }, "peerDependencies": { "@typescript-eslint/parser": "^8.56.1", "eslint": "^8.57.0 || ^9.0.0 || ^10.0.0", "typescript": ">=4.8.4 <6.0.0" } }, "sha512-Jz9ZztpB37dNC+HU2HI28Bs9QXpzCz+y/twHOwhyrIRdbuVDxSytJNDl6z/aAKlaRIwC7y8wJdkBv7FxYGgi0A=="],
 
     "@typescript-eslint/parser": ["@typescript-eslint/parser@8.56.1", "", { "dependencies": { "@typescript-eslint/scope-manager": "8.56.1", "@typescript-eslint/types": "8.56.1", "@typescript-eslint/typescript-estree": "8.56.1", "@typescript-eslint/visitor-keys": "8.56.1", "debug": "^4.4.3" }, "peerDependencies": { "eslint": "^8.57.0 || ^9.0.0 || ^10.0.0", "typescript": ">=4.8.4 <6.0.0" } }, "sha512-klQbnPAAiGYFyI02+znpBRLyjL4/BrBd0nyWkdC0s/6xFLkXYQ8OoRrSkqacS1ddVxf/LDyODIKbQ5TgKAf/Fg=="],
@@ -1447,6 +1453,8 @@
 
     "word-wrap": ["word-wrap@1.2.5", "", {}, "sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA=="],
 
+    "ws": ["ws@8.19.0", "", { "peerDependencies": { "bufferutil": "^4.0.1", "utf-8-validate": ">=5.0.2" }, "optionalPeers": ["bufferutil", "utf-8-validate"] }, "sha512-blAT2mjOEIi0ZzruJfIhb3nps74PRWTCz1IjglWEEpQl5XS/UNama6u2/rjFkDDouqr4L67ry+1aGIALViWjDg=="],
+
     "xml-name-validator": ["xml-name-validator@5.0.0", "", {}, "sha512-EvGK8EJ3DhaHfbRlETOWAS5pO9MZITeauHKJyb8wyajUfQUenkIg2MvLDTZ4T/TgIcm3HU0TFBgWWboAZ30UHg=="],
 
     "xmlchars": ["xmlchars@2.2.0", "", {}, "sha512-JZnDKK8B0RCDw84FNdDAIpZK+JuJw+s7Lz8nksI7SIuU3UXJJslUthsi+uWBUYOwPFwW7W7PRLRfUKpxjtjFCw=="],
@@ -1515,6 +1523,8 @@
 
     "@types/babel__traverse/@babel/types": ["@babel/types@7.29.0", "", { "dependencies": { "@babel/helper-string-parser": "^7.27.1", "@babel/helper-validator-identifier": "^7.28.5" } }, "sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A=="],
 
+    "@types/ws/@types/node": ["@types/node@25.2.3", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-m0jEgYlYz+mDJZ2+F4v8D1AyQb+QzsNqRuI7xg1VQX/KlKS0qT9r1Mo16yo5F/MtifXFgaofIFsdFMox2SxIbQ=="],
+
     "@typescript-eslint/eslint-plugin/ignore": ["ignore@7.0.5", "", {}, "sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg=="],
 
     "@vitejs/plugin-react/@rolldown/pluginutils": ["@rolldown/pluginutils@1.0.0-rc.3", "", {}, "sha512-eybk3TjzzzV97Dlj5c+XrBFW57eTNhzod66y9HrBlzJ6NsCrWCp/2kaPS3K9wJmurBC0Tdw4yPjXKZqlznim3Q=="],
@@ -1582,6 +1592,8 @@
     "@types/babel__traverse/@babel/types/@babel/helper-string-parser": ["@babel/helper-string-parser@7.27.1", "", {}, "sha512-qMlSxKbpRlAridDExk92nSobyDdpPijUq2DW6oDnUqd0iOGxmQjyqhMIihI9+zv4LPyZdRje2cavWPbCbWm3eA=="],
 
     "@types/babel__traverse/@babel/types/@babel/helper-validator-identifier": ["@babel/helper-validator-identifier@7.28.5", "", {}, "sha512-qSs4ifwzKJSV39ucNjsvc6WVHs6b7S03sOh2OcHF9UHfVPqWWALUsNUVzhSBiItjRZoLHx7nIarVjqKVusUZ1Q=="],
+
+    "@types/ws/@types/node/undici-types": ["undici-types@7.16.0", "", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
 
     "bun-types/@types/node/undici-types": ["undici-types@7.16.0", "", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
 

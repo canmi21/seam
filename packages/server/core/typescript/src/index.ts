@@ -21,6 +21,7 @@ export {
   loadI18nMessages,
 } from "./page/build-loader.js";
 export { fromCallback } from "./subscription.js";
+export { startChannelWs } from "./ws.js";
 export { createDevProxy, createStaticHandler } from "./proxy.js";
 export { watchReloadTrigger } from "./dev/index.js";
 export {
@@ -59,5 +60,6 @@ export type { PageDef, LayoutDef, LoaderFn, I18nConfig } from "./page/index.js";
 export type { ErrorCode } from "./errors.js";
 export type { CallbackSink } from "./subscription.js";
 export type { ChannelDef, ChannelResult, ChannelMeta, IncomingDef } from "./channel.js";
+export type { WsSink, ChannelWsSession, ChannelWsOptions } from "./ws.js";
 export type { DevProxyOptions, StaticHandlerOptions } from "./proxy.js";
 export type { ReloadWatcher } from "./dev/index.js";
