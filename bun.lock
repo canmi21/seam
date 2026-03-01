@@ -226,10 +226,10 @@
       "version": "0.4.10",
       "dependencies": {
         "@canmi/seam-client": "workspace:*",
-        "@canmi/seam-i18n": "workspace:*",
         "@canmi/seam-react": "workspace:*",
       },
       "devDependencies": {
+        "@canmi/seam-i18n": "workspace:*",
         "@tanstack/react-router": "^1.163.3",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
@@ -239,10 +239,14 @@
         "vitest": "^4.0.18",
       },
       "peerDependencies": {
+        "@canmi/seam-i18n": "workspace:*",
         "@tanstack/react-router": "^1.0.0",
         "react": "^18.0.0 || ^19.0.0",
         "react-dom": "^18.0.0 || ^19.0.0",
       },
+      "optionalPeers": [
+        "@canmi/seam-i18n",
+      ],
     },
     "src/client/vanilla": {
       "name": "@canmi/seam-client",

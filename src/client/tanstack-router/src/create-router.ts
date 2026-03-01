@@ -14,7 +14,7 @@ import { SeamOutlet, createLayoutWrapper, createPageWrapper } from "./seam-outle
 import { convertPath } from "./convert-routes.js";
 import { createLoaderFromDefs } from "./create-loader.js";
 import { matchSeamRoute } from "./route-matcher.js";
-import { SeamDataBridge } from "./seam-data-bridge.js";
+import { SeamCoreBridge } from "./seam-core-bridge.js";
 import type { SeamRouteDef, SeamRouterOptions, SeamRouterContext, SeamI18nMeta } from "./types.js";
 
 /** Extract all leaf paths from a potentially nested route tree */
@@ -158,7 +158,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
     defaultStaleTime,
     context,
     basepath: localeBasePath || undefined,
-    InnerWrap: SeamDataBridge,
+    InnerWrap: opts.i18nBridge ?? SeamCoreBridge,
   });
 
   // Bypass Suspense in <Matches> — CTR HTML has no Suspense markers
