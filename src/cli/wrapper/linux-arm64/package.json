@@ -1,6 +1,7 @@
 {
   "name": "@canmi/seam-cli-linux-arm64",
   "version": "0.4.10",
+  "license": "MIT",
   "files": [
     "bin"
   ],

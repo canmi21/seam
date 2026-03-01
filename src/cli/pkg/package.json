@@ -1,6 +1,7 @@
 {
   "name": "@canmi/seam-cli",
   "version": "0.4.10",
+  "license": "MIT",
   "bin": {
     "seam": "./dist/index.js"
   },

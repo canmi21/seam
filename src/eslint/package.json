@@ -1,6 +1,7 @@
 {
   "name": "@canmi/eslint-plugin-seam",
   "version": "0.4.10",
+  "license": "MIT",
   "description": "ESLint rules for SeamJS skeleton components",
   "files": [
     "dist"

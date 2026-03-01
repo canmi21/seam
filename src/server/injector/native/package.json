@@ -1,6 +1,7 @@
 {
   "name": "@canmi/seam-injector-native",
   "version": "0.4.3",
+  "license": "MIT",
   "files": [
     "dist"
   ],

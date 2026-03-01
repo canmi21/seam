@@ -1,6 +1,7 @@
 {
   "name": "@canmi/seam-react",
   "version": "0.4.10",
+  "license": "MIT",
   "files": [
     "dist",
     "scripts"
