@@ -137,7 +137,7 @@ fn default_root_id() -> String {
 }
 
 fn default_data_id() -> String {
-  "__SEAM_DATA__".to_string()
+  "__data".to_string()
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

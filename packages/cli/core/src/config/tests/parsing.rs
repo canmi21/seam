@@ -264,7 +264,7 @@ fn parse_data_id_default() {
 name = "my-app"
 "#;
   let config: SeamConfig = toml::from_str(toml_str).unwrap();
-  assert_eq!(config.frontend.data_id, "__SEAM_DATA__");
+  assert_eq!(config.frontend.data_id, "__data");
 }
 
 #[test]

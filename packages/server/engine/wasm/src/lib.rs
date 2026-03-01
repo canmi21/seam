@@ -61,9 +61,9 @@ pub fn i18n_query(
 // --- Re-exported injector functions (engine WASM is a superset) ---
 
 #[wasm_bindgen]
-pub fn inject(template: &str, data_json: &str) -> String {
+pub fn inject(template: &str, data_json: &str, data_id: &str) -> String {
   let data: Value = serde_json::from_str(data_json).unwrap_or(Value::Null);
-  seam_injector::inject(template, &data)
+  seam_injector::inject(template, &data, data_id)
 }
 
 #[wasm_bindgen]

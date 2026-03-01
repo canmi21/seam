@@ -2,7 +2,7 @@
 
 // Semantic HTML parser for CTR equivalence checking.
 // Produces a CtrNode tree with BTreeMap attrs (auto-sorted keys).
-// Filters comments, __SEAM_DATA__ scripts, and resource hint links
+// Filters comments, data scripts, and resource hint links
 // during parse so downstream stages see only semantic content.
 
 use std::collections::BTreeMap;
@@ -20,16 +20,21 @@ const VOID_ELEMENTS: &[&str] = &[
 
 /// Parse HTML into a semantic CtrNode tree.
 /// Comments are filtered, adjacent text nodes merged, and
-/// script/__SEAM_DATA__ + resource hint links are skipped.
-pub(super) fn parse_ctr_tree(html: &str) -> Vec<CtrNode> {
+/// data script + resource hint links are skipped.
+pub(super) fn parse_ctr_tree(html: &str, data_id: &str) -> Vec<CtrNode> {
   let bytes = html.as_bytes();
   let mut pos = 0;
-  let mut nodes = parse_nodes(bytes, &mut pos, None);
+  let mut nodes = parse_nodes(bytes, &mut pos, None, data_id);
   merge_adjacent_text(&mut nodes);
   nodes
 }
 
-fn parse_nodes(bytes: &[u8], pos: &mut usize, parent_tag: Option<&str>) -> Vec<CtrNode> {
+fn parse_nodes(
+  bytes: &[u8],
+  pos: &mut usize,
+  parent_tag: Option<&str>,
+  data_id: &str,
+) -> Vec<CtrNode> {
   let mut nodes = Vec::new();
   while *pos < bytes.len() {
     if bytes[*pos] == b'<' {
@@ -59,7 +64,7 @@ fn parse_nodes(bytes: &[u8], pos: &mut usize, parent_tag: Option<&str>) -> Vec<C
       }
 
       // Element
-      if let Some(node) = parse_element(bytes, pos) {
+      if let Some(node) = parse_element(bytes, pos, data_id) {
         nodes.push(node);
       }
     } else {
@@ -90,7 +95,7 @@ fn skip_comment(bytes: &[u8], pos: &mut usize) {
 }
 
 /// Parse an element, returning None if it should be filtered (script/resource hint).
-fn parse_element(bytes: &[u8], pos: &mut usize) -> Option<CtrNode> {
+fn parse_element(bytes: &[u8], pos: &mut usize, data_id: &str) -> Option<CtrNode> {
   // Skip '<'
   *pos += 1;
   let tag_start = *pos;
@@ -146,15 +151,15 @@ fn parse_element(bytes: &[u8], pos: &mut usize) -> Option<CtrNode> {
 
   // Parse children for non-void, non-self-closed elements
   let children = if !self_closed && !is_void {
-    let mut kids = parse_nodes(bytes, pos, Some(&tag));
+    let mut kids = parse_nodes(bytes, pos, Some(&tag), data_id);
     merge_adjacent_text(&mut kids);
     kids
   } else {
     Vec::new()
   };
 
-  // Filter: __SEAM_DATA__ script
-  if tag == "script" && attrs.get("id").is_some_and(|v| v == "__SEAM_DATA__") {
+  // Filter: data script
+  if tag == "script" && attrs.get("id").is_some_and(|v| v == data_id) {
     return None;
   }
 
@@ -266,9 +271,13 @@ fn merge_adjacent_text(nodes: &mut Vec<CtrNode>) {
 mod tests {
   use super::*;
 
+  fn tree(html: &str) -> Vec<CtrNode> {
+    parse_ctr_tree(html, "__data")
+  }
+
   #[test]
   fn parse_simple_element() {
-    let nodes = parse_ctr_tree(r#"<div class="red">hello</div>"#);
+    let nodes = tree(r#"<div class="red">hello</div>"#);
     assert_eq!(nodes.len(), 1);
     match &nodes[0] {
       CtrNode::Element { tag, attrs, children } => {
@@ -283,7 +292,7 @@ mod tests {
 
   #[test]
   fn parse_multiple_attrs_sorted() {
-    let nodes = parse_ctr_tree(r#"<img src="x.png" alt="photo" class="thumb"/>"#);
+    let nodes = tree(r#"<img src="x.png" alt="photo" class="thumb"/>"#);
     match &nodes[0] {
       CtrNode::Element { attrs, .. } => {
         let keys: Vec<&String> = attrs.keys().collect();
@@ -295,7 +304,7 @@ mod tests {
 
   #[test]
   fn parse_filters_comments() {
-    let nodes = parse_ctr_tree("<!--$--><div>ok</div><!--/$-->");
+    let nodes = tree("<!--$--><div>ok</div><!--/$-->");
     assert_eq!(nodes.len(), 1);
     match &nodes[0] {
       CtrNode::Element { tag, .. } => assert_eq!(tag, "div"),
@@ -305,9 +314,7 @@ mod tests {
 
   #[test]
   fn parse_filters_data_script() {
-    let nodes = parse_ctr_tree(
-      r#"<p>hello</p><script id="__SEAM_DATA__" type="application/json">{"x":1}</script>"#,
-    );
+    let nodes = tree(r#"<p>hello</p><script id="__data" type="application/json">{"x":1}</script>"#);
     assert_eq!(nodes.len(), 1);
     match &nodes[0] {
       CtrNode::Element { tag, .. } => assert_eq!(tag, "p"),
@@ -317,7 +324,7 @@ mod tests {
 
   #[test]
   fn parse_filters_resource_hints() {
-    let nodes = parse_ctr_tree(
+    let nodes = tree(
       r#"<link rel="preload" as="image" href="x.png"><link rel="canonical" href="/page"><div>ok</div>"#,
     );
     // preload filtered, canonical preserved
@@ -334,7 +341,7 @@ mod tests {
   #[test]
   fn parse_merges_adjacent_text() {
     // Comment between text nodes gets filtered, texts merge
-    let nodes = parse_ctr_tree("<p>by <!-- -->Alice</p>");
+    let nodes = tree("<p>by <!-- -->Alice</p>");
     match &nodes[0] {
       CtrNode::Element { children, .. } => {
         assert_eq!(children.len(), 1);
@@ -346,7 +353,7 @@ mod tests {
 
   #[test]
   fn parse_void_elements() {
-    let nodes = parse_ctr_tree(r#"<br><img src="x"><input type="text"/>"#);
+    let nodes = tree(r#"<br><img src="x"><input type="text"/>"#);
     assert_eq!(nodes.len(), 3);
     for node in &nodes {
       match node {
@@ -358,7 +365,7 @@ mod tests {
 
   #[test]
   fn parse_bare_boolean_attr() {
-    let nodes = parse_ctr_tree("<input disabled/>");
+    let nodes = tree("<input disabled/>");
     match &nodes[0] {
       CtrNode::Element { attrs, .. } => {
         assert_eq!(attrs.get("disabled").unwrap(), "");
@@ -369,7 +376,7 @@ mod tests {
 
   #[test]
   fn parse_quoted_attr_with_angle_bracket() {
-    let nodes = parse_ctr_tree(r#"<div data-x="a>b">ok</div>"#);
+    let nodes = tree(r#"<div data-x="a>b">ok</div>"#);
     match &nodes[0] {
       CtrNode::Element { attrs, children, .. } => {
         assert_eq!(attrs.get("data-x").unwrap(), "a>b");

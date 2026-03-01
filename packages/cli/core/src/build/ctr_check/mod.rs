@@ -22,11 +22,12 @@ pub(super) fn verify_ctr_equivalence(
   react_html: &str,
   template: &str,
   mock_data: &Value,
+  data_id: &str,
 ) -> Result<()> {
-  let injected_raw = seam_injector::inject(template, mock_data);
+  let injected_raw = seam_injector::inject(template, mock_data, data_id);
 
-  let mut react_tree = parse::parse_ctr_tree(react_html);
-  let mut inject_tree = parse::parse_ctr_tree(&injected_raw);
+  let mut react_tree = parse::parse_ctr_tree(react_html, data_id);
+  let mut inject_tree = parse::parse_ctr_tree(&injected_raw, data_id);
 
   normalize::normalize_tree(&mut react_tree);
   normalize::normalize_tree(&mut inject_tree);
@@ -50,7 +51,7 @@ mod tests {
     let data = json!({"name": "Alice"});
     let react_html = "<p>Alice</p>";
 
-    let result = verify_ctr_equivalence("/test", react_html, template, &data);
+    let result = verify_ctr_equivalence("/test", react_html, template, &data, "__data");
     assert!(result.is_ok(), "expected Ok, got: {result:?}");
   }
 
@@ -60,7 +61,7 @@ mod tests {
     let data = json!({});
     let react_html = r#"<span style="background-color:#f1e05a"></span>"#;
 
-    let result = verify_ctr_equivalence("/dashboard", react_html, template, &data);
+    let result = verify_ctr_equivalence("/dashboard", react_html, template, &data, "__data");
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(err.contains("CTR equivalence check failed"), "error: {err}");
@@ -75,7 +76,7 @@ mod tests {
     let data = json!({"msg": "hello"});
     let react_html = "<p>world</p>";
 
-    let result = verify_ctr_equivalence("/page", react_html, template, &data);
+    let result = verify_ctr_equivalence("/page", react_html, template, &data, "__data");
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(err.contains("CTR equivalence check failed"));
@@ -89,7 +90,7 @@ mod tests {
     let data = json!({});
     let react_html = "<div>static content</div>";
 
-    let result = verify_ctr_equivalence("/static", react_html, template, &data);
+    let result = verify_ctr_equivalence("/static", react_html, template, &data, "__data");
     assert!(result.is_ok());
   }
 
@@ -104,14 +105,15 @@ mod tests {
     let data = json!({"url": "https://example.com/img.png", "name": "Alice"});
     let react_html = "<div>Alice</div>";
 
-    let result = verify_ctr_equivalence("/test", react_html, template, &data);
+    let result = verify_ctr_equivalence("/test", react_html, template, &data, "__data");
     assert!(result.is_ok(), "resource hints should be stripped: {result:?}");
   }
 
   #[test]
   fn user_authored_links_preserved() {
     // <link rel="canonical"> is NOT a resource hint, must appear in parse output
-    let nodes = parse::parse_ctr_tree(r#"<link rel="canonical" href="/page"><div>content</div>"#);
+    let nodes =
+      parse::parse_ctr_tree(r#"<link rel="canonical" href="/page"><div>content</div>"#, "__data");
     assert_eq!(nodes.len(), 2);
     match &nodes[0] {
       parse::CtrNode::Element { tag, attrs, .. } => {
@@ -134,7 +136,7 @@ mod tests {
     let react_html = r#"<span style="background-color:#f1e05a">test</span>"#;
     let data = json!({"color": "#f1e05a"});
 
-    let result = verify_ctr_equivalence("/test", react_html, &template, &data);
+    let result = verify_ctr_equivalence("/test", react_html, &template, &data, "__data");
     assert!(result.is_ok(), "style binding round-trip failed: {result:?}");
   }
 
@@ -146,7 +148,7 @@ mod tests {
     let react_html = r#"<span style="background-color:#f1e05a;display:inline-block"></span>"#;
     let data = json!({"color": "#f1e05a"});
 
-    let result = verify_ctr_equivalence("/test", react_html, template, &data);
+    let result = verify_ctr_equivalence("/test", react_html, template, &data, "__data");
     assert!(result.is_ok(), "style order mismatch should pass: {result:?}");
   }
 
@@ -162,7 +164,7 @@ mod tests {
     let react_html = r#"<span style="background-color:#f1e05a;display:inline-block">test</span>"#;
     let data = json!({"color": "#f1e05a"});
 
-    let result = verify_ctr_equivalence("/test", react_html, &template, &data);
+    let result = verify_ctr_equivalence("/test", react_html, &template, &data, "__data");
     assert!(result.is_ok(), "dynamic-before-static order should pass: {result:?}");
   }
 
@@ -180,7 +182,7 @@ mod tests {
     let react_html = r#"<span style="display:inline-block;background-color:#f1e05a">test</span>"#;
     let data = json!({"color": "#f1e05a"});
 
-    let result = verify_ctr_equivalence("/test", react_html, &template, &data);
+    let result = verify_ctr_equivalence("/test", react_html, &template, &data, "__data");
     assert!(result.is_ok(), "mixed style binding failed: {result:?}");
   }
 
@@ -194,7 +196,7 @@ mod tests {
     // React output with different attr order
     let react_html = r#"<div class="red" id="x">Alice</div>"#;
 
-    let result = verify_ctr_equivalence("/test", react_html, template, &data);
+    let result = verify_ctr_equivalence("/test", react_html, template, &data, "__data");
     assert!(result.is_ok(), "attr order mismatch should pass: {result:?}");
   }
 
@@ -205,7 +207,7 @@ mod tests {
     let data = json!({"a": "wrong_a", "b": "wrong_b"});
     let react_html = r#"<div><p>right_a</p><span>right_b</span></div>"#;
 
-    let result = verify_ctr_equivalence("/multi", react_html, template, &data);
+    let result = verify_ctr_equivalence("/multi", react_html, template, &data, "__data");
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     assert!(err.contains("1."), "should have numbered diff: {err}");

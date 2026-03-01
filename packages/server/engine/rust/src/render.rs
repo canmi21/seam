@@ -6,7 +6,7 @@ use crate::page::{
   I18nOpts, PageConfig,
 };
 
-/// Render a page: inject data into template, assemble `__SEAM_DATA__` script,
+/// Render a page: inject data into template, assemble data script,
 /// apply head metadata and locale attributes.
 ///
 /// This is the single entry point that replaces ~60 lines of duplicated logic
@@ -49,7 +49,7 @@ pub fn render_page(
     html = inject_html_lang(&html, &opts.locale);
   }
 
-  // Step 5: Build __SEAM_DATA__ JSON and inject script
+  // Step 5: Build data JSON and inject script
   let seam_data = build_seam_data(&loader_data, &config, i18n_opts.as_ref());
   let json = serde_json::to_string(&seam_data).unwrap_or_default();
   let escaped = ascii_escape_json(&json);
@@ -69,11 +69,11 @@ mod tests {
   fn render_basic_page() {
     let template = simple_template();
     let data = json!({"title": "Hello"}).to_string();
-    let config = json!({"layout_chain": [], "data_id": "__SEAM_DATA__"}).to_string();
+    let config = json!({"layout_chain": [], "data_id": "__data"}).to_string();
 
     let result = render_page(&template, &data, &config, None);
     assert!(result.contains("<p>Hello</p>"));
-    assert!(result.contains(r#"<script id="__SEAM_DATA__""#));
+    assert!(result.contains(r#"<script id="__data""#));
     assert!(result.contains(r#""title":"Hello""#));
   }
 
@@ -83,7 +83,7 @@ mod tests {
     let data = json!({"title": "Page", "nav": "NavData"}).to_string();
     let config = json!({
       "layout_chain": [{"id": "root", "loader_keys": ["nav"]}],
-      "data_id": "__SEAM_DATA__"
+      "data_id": "__data"
     })
     .to_string();
 
@@ -99,7 +99,7 @@ mod tests {
   fn render_with_i18n() {
     let template = simple_template();
     let data = json!({"title": "Hello"}).to_string();
-    let config = json!({"layout_chain": [], "data_id": "__SEAM_DATA__"}).to_string();
+    let config = json!({"layout_chain": [], "data_id": "__data"}).to_string();
     let i18n = json!({
       "locale": "zh",
       "default_locale": "en",
@@ -118,7 +118,7 @@ mod tests {
     let data = json!({"title": "Hello"}).to_string();
     let config = json!({
       "layout_chain": [],
-      "data_id": "__SEAM_DATA__",
+      "data_id": "__data",
       "head_meta": r#"<title><!--seam:title--></title>"#
     })
     .to_string();

@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 pub fn inject(template: &str, data_json: &str) -> String {
   let data: Value = serde_json::from_str(data_json).unwrap_or(Value::Null);
-  seam_injector::inject(template, &data)
+  seam_injector::inject(template, &data, "__data")
 }
 
 #[wasm_bindgen]

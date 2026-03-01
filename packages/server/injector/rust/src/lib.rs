@@ -15,12 +15,11 @@ use token::tokenize;
 use serde_json::Value;
 use std::borrow::Cow;
 
-/// Inject data into template and append __SEAM_DATA__ script before </body>.
-pub fn inject(template: &str, data: &Value) -> String {
+/// Inject data into template and append data script before </body>.
+pub fn inject(template: &str, data: &Value, data_id: &str) -> String {
   let mut result = inject_no_script(template, data);
 
-  // __SEAM_DATA__ script
-  let script = format!(r#"<script id="__SEAM_DATA__" type="application/json">{}</script>"#, data);
+  let script = format!(r#"<script id="{data_id}" type="application/json">{}</script>"#, data);
   if let Some(pos) = result.rfind("</body>") {
     result.insert_str(pos, &script);
   } else {
@@ -30,7 +29,7 @@ pub fn inject(template: &str, data: &Value) -> String {
   result
 }
 
-/// Inject data into template without appending the __SEAM_DATA__ script.
+/// Inject data into template without appending the data script.
 pub fn inject_no_script(template: &str, data: &Value) -> String {
   inject_no_script_with_diagnostics(template, data).0
 }

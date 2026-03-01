@@ -219,7 +219,7 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
     }
     i18n_keys.extend(entry.i18n_keys.iter().cloned());
 
-    let data_id = manifest.data_id.clone().unwrap_or_else(|| "__SEAM_DATA__".to_string());
+    let data_id = manifest.data_id.clone().unwrap_or_else(|| "__data".to_string());
     pages.push(PageDef {
       route: axum_route,
       template,

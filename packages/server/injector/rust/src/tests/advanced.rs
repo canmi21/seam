@@ -240,7 +240,7 @@ fn float_full_document() {
     "</div></body></html>",
   );
   let data = json!({"t": "Home", "d": "Welcome page", "body": "Hello world"});
-  let html = inject(tmpl, &data);
+  let html = inject(tmpl, &data, "__data");
 
   // <head> section has injected values
   let head = html.split("</head>").next().unwrap();
@@ -251,8 +251,8 @@ fn float_full_document() {
   // Content injected correctly
   assert!(html.contains("<p>Hello world</p>"));
 
-  // __SEAM_DATA__ script lands before </body>
-  assert!(html.contains(r#"<script id="__SEAM_DATA__" type="application/json">"#));
+  // Data script lands before </body>
+  assert!(html.contains(r#"<script id="__data" type="application/json">"#));
   let body_end = html.rfind("</body>").unwrap();
   let script_end = html.rfind("</script>").unwrap();
   assert!(script_end < body_end);

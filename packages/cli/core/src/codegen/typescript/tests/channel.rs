@@ -72,7 +72,7 @@ fn channel_procedure_meta_uses_channel_types() {
     },
   };
 
-  let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
 
   // chat.events should reference ChatChannelInput / ChatEvent (channel types)
   assert!(code.contains(
@@ -149,7 +149,7 @@ fn transport_hint_codegen() {
     },
   };
 
-  let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
 
   // Transport hint is emitted
   assert!(code.contains("export const seamTransportHint = {"));
@@ -217,7 +217,7 @@ fn dot_namespace_codegen() {
     channels: BTreeMap::new(),
   };
 
-  let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
 
   // PascalCase type names (dots flattened)
   assert!(code.contains("export interface UserGetProfileInput {"));

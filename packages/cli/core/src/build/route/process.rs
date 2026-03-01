@@ -85,7 +85,7 @@ pub(crate) fn process_routes(
   data_id: &str,
   i18n: Option<&I18nSection>,
 ) -> Result<RouteManifest> {
-  let manifest_data_id = if data_id == "__SEAM_DATA__" { None } else { Some(data_id.to_string()) };
+  let manifest_data_id = if data_id == "__data" { None } else { Some(data_id.to_string()) };
   let i18n_manifest = i18n.map(|cfg| I18nManifest {
     locales: cfg.locales.clone(),
     default: cfg.default.clone(),
@@ -164,7 +164,13 @@ pub(crate) fn process_routes(
         let processed: Vec<_> = data.variants.iter().map(|v| sentinel_to_slots(&v.html)).collect();
         let template = extract_template(&data.axes, &processed);
 
-        ctr_check::verify_ctr_equivalence(&route.path, &data.mock_html, &template, &route.mock)?;
+        ctr_check::verify_ctr_equivalence(
+          &route.path,
+          &data.mock_html,
+          &template,
+          &route.mock,
+          data_id,
+        )?;
 
         if let Some(schema) = &route.page_schema {
           for w in slot_warning::check_slot_types(&template, schema) {
@@ -242,7 +248,7 @@ pub(crate) fn process_routes(
       let processed: Vec<_> = variants.iter().map(|v| sentinel_to_slots(&v.html)).collect();
       let template = extract_template(axes, &processed);
 
-      ctr_check::verify_ctr_equivalence(&route.path, mock_html, &template, &route.mock)?;
+      ctr_check::verify_ctr_equivalence(&route.path, mock_html, &template, &route.mock, data_id)?;
 
       if let Some(schema) = &route.page_schema {
         for w in slot_warning::check_slot_types(&template, schema) {

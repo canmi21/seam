@@ -51,7 +51,7 @@ pub fn flatten_for_slots(keyed: &serde_json::Value) -> serde_json::Value {
   serde_json::Value::Object(merged)
 }
 
-/// Build the `__SEAM_DATA__` JSON object with correct per-layout `_layouts` grouping.
+/// Build the data script JSON object with correct per-layout `_layouts` grouping.
 ///
 /// Unlike the old single-layout-id approach, this groups data under each layout
 /// in the chain independently, matching the TS reference implementation.
@@ -227,8 +227,7 @@ mod tests {
   #[test]
   fn build_seam_data_no_layout() {
     let data = json!({"title": "Hello", "count": 42});
-    let config =
-      PageConfig { layout_chain: vec![], data_id: "__SEAM_DATA__".into(), head_meta: None };
+    let config = PageConfig { layout_chain: vec![], data_id: "__data".into(), head_meta: None };
     let result = build_seam_data(&data, &config, None);
     assert_eq!(result["title"], "Hello");
     assert_eq!(result["count"], 42);
@@ -243,7 +242,7 @@ mod tests {
         id: "root".into(),
         loader_keys: vec!["layoutKey".into()],
       }],
-      data_id: "__SEAM_DATA__".into(),
+      data_id: "__data".into(),
       head_meta: None,
     };
     let result = build_seam_data(&data, &config, None);
@@ -261,7 +260,7 @@ mod tests {
         LayoutChainEntry { id: "outer".into(), loader_keys: vec!["nav".into()] },
         LayoutChainEntry { id: "inner".into(), loader_keys: vec!["sidebar".into()] },
       ],
-      data_id: "__SEAM_DATA__".into(),
+      data_id: "__data".into(),
       head_meta: None,
     };
     let result = build_seam_data(&data, &config, None);
@@ -276,8 +275,7 @@ mod tests {
   #[test]
   fn build_seam_data_with_i18n() {
     let data = json!({"title": "Hello"});
-    let config =
-      PageConfig { layout_chain: vec![], data_id: "__SEAM_DATA__".into(), head_meta: None };
+    let config = PageConfig { layout_chain: vec![], data_id: "__data".into(), head_meta: None };
     let i18n = I18nOpts {
       locale: "zh".into(),
       default_locale: "en".into(),
@@ -309,18 +307,17 @@ mod tests {
   #[test]
   fn inject_data_script_before_body() {
     let html = "<html><body><p>Content</p></body></html>";
-    let result = inject_data_script(html, "__SEAM_DATA__", r#"{"a":1}"#);
-    assert!(result
-      .contains(r#"<script id="__SEAM_DATA__" type="application/json">{"a":1}</script></body>"#));
+    let result = inject_data_script(html, "__data", r#"{"a":1}"#);
+    assert!(
+      result.contains(r#"<script id="__data" type="application/json">{"a":1}</script></body>"#)
+    );
   }
 
   #[test]
   fn inject_data_script_no_body() {
     let html = "<html><p>Content</p></html>";
-    let result = inject_data_script(html, "__SEAM_DATA__", r#"{"a":1}"#);
-    assert!(
-      result.ends_with(r#"<script id="__SEAM_DATA__" type="application/json">{"a":1}</script>"#)
-    );
+    let result = inject_data_script(html, "__data", r#"{"a":1}"#);
+    assert!(result.ends_with(r#"<script id="__data" type="application/json">{"a":1}</script>"#));
   }
 
   #[test]

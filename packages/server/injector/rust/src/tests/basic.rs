@@ -308,14 +308,12 @@ fn match_with_nested_slots() {
 
 #[test]
 fn data_script_before_body() {
-  let html = inject("<body><p>hi</p></body>", &json!({"x": 1}));
-  assert!(
-    html.contains(r#"<script id="__SEAM_DATA__" type="application/json">{"x":1}</script></body>"#)
-  );
+  let html = inject("<body><p>hi</p></body>", &json!({"x": 1}), "__data");
+  assert!(html.contains(r#"<script id="__data" type="application/json">{"x":1}</script></body>"#));
 }
 
 #[test]
 fn data_script_appended_when_no_body() {
-  let html = inject("<p>hi</p>", &json!({"x": 1}));
-  assert!(html.ends_with(r#"<script id="__SEAM_DATA__" type="application/json">{"x":1}</script>"#));
+  let html = inject("<p>hi</p>", &json!({"x": 1}), "__data");
+  assert!(html.ends_with(r#"<script id="__data" type="application/json">{"x":1}</script>"#));
 }

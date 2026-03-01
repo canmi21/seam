@@ -31,7 +31,7 @@ fn full_manifest_render() {
     channels: BTreeMap::new(),
   };
 
-  let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
   assert!(code.contains("export interface GreetInput {"));
   assert!(code.contains("  name: string;"));
   assert!(code.contains("export interface GreetOutput {"));
@@ -68,7 +68,7 @@ fn subscription_codegen() {
     channels: BTreeMap::new(),
   };
 
-  let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
   assert!(code.contains("export interface OnCountInput {"));
   assert!(code.contains("export interface OnCountOutput {"));
   assert!(code.contains(
@@ -111,7 +111,7 @@ fn full_manifest_render_with_hashes() {
       m
     },
   };
-  let code = generate_typescript(&manifest, Some(&hash_map), "__SEAM_DATA__").unwrap();
+  let code = generate_typescript(&manifest, Some(&hash_map), "__data").unwrap();
   assert!(!code.contains("configureRpcMap"));
   assert!(!code.contains("RPC_HASH_MAP"));
   assert!(code.contains("\"a1b2c3d4\""));
@@ -144,7 +144,7 @@ fn codegen_without_hashes_unchanged() {
     },
     channels: BTreeMap::new(),
   };
-  let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
   assert!(code.contains("client.query(\"greet\""));
   assert!(!code.contains("configureRpcMap"));
   assert!(!code.contains("batchEndpoint"));
@@ -184,7 +184,7 @@ fn subscription_codegen_with_hashes() {
       m
     },
   };
-  let code = generate_typescript(&manifest, Some(&hash_map), "__SEAM_DATA__").unwrap();
+  let code = generate_typescript(&manifest, Some(&hash_map), "__data").unwrap();
   assert!(code.contains("client.subscribe(\"cafe1234\""));
   // Interface still uses original name
   assert!(code.contains("onCount(input: OnCountInput"));
@@ -197,8 +197,8 @@ fn data_id_export_default() {
     procedures: BTreeMap::new(),
     channels: BTreeMap::new(),
   };
-  let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
-  assert!(code.contains("export const DATA_ID = \"__SEAM_DATA__\";"));
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
+  assert!(code.contains("export const DATA_ID = \"__data\";"));
 }
 
 #[test]
@@ -236,7 +236,7 @@ fn command_codegen() {
     channels: BTreeMap::new(),
   };
 
-  let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
   assert!(code.contains("client.command(\"deleteUser\""));
   assert!(code.contains(
     "deleteUser: { kind: \"command\"; input: DeleteUserInput; output: DeleteUserOutput };"
@@ -269,7 +269,7 @@ fn error_schema_codegen() {
     channels: BTreeMap::new(),
   };
 
-  let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
   assert!(code.contains("export interface DeleteUserError {"));
   assert!(code.contains("  reason: string;"));
   assert!(code.contains(
@@ -301,7 +301,7 @@ fn error_schema_absent_no_error_type() {
     channels: BTreeMap::new(),
   };
 
-  let code = generate_typescript(&manifest, None, "__SEAM_DATA__").unwrap();
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
   assert!(!code.contains("GreetError"));
   assert!(!code.contains("error:"));
 }
@@ -340,7 +340,7 @@ fn command_with_hashes() {
       m
     },
   };
-  let code = generate_typescript(&manifest, Some(&hash_map), "__SEAM_DATA__").unwrap();
+  let code = generate_typescript(&manifest, Some(&hash_map), "__data").unwrap();
   assert!(code.contains("client.command(\"dead1234\""));
   assert!(code.contains("deleteUser(input: DeleteUserInput): Promise<DeleteUserOutput>;"));
 }

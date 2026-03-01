@@ -74,7 +74,7 @@ pub fn parse_build_output(manifest_json: &str) -> Result<Vec<PageDefOutput>, Str
   let manifest: RouteManifest =
     serde_json::from_str(manifest_json).map_err(|e| format!("parse manifest: {e}"))?;
 
-  let data_id = manifest.data_id.unwrap_or_else(|| "__SEAM_DATA__".to_string());
+  let data_id = manifest.data_id.unwrap_or_else(|| "__data".to_string());
 
   let mut pages = Vec::new();
   for (route_path, entry) in &manifest.routes {
@@ -203,7 +203,7 @@ mod tests {
           "loaders": {}
         }
       },
-      "data_id": "__SEAM_DATA__"
+      "data_id": "__data"
     })
     .to_string()
   }
