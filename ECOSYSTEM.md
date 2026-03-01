@@ -15,7 +15,7 @@ Frameworks and libraries that implement CTR skeleton extraction for their compon
 
 ## Backend Implementations
 
-Languages and runtimes that implement the [seam protocol](docs/logic-layer.md#the-seam-protocol).
+Languages and runtimes that implement the [seam protocol](docs/architecture/logic-layer.md#the-seam-protocol).
 
 | Project                                                | Language                 | Description                           |
 | ------------------------------------------------------ | ------------------------ | ------------------------------------- |

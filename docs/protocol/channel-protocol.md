@@ -270,4 +270,4 @@ This is transparent to application code — developers call the same generated A
 
 - [Procedure Manifest](./procedure-manifest.md) -- manifest format and HTTP endpoints
 - [Subscription Protocol](./subscription-protocol.md) -- SSE streaming specification
-- [Transport Layer](./transport-layer.md) -- transport architecture overview
+- [Transport Layer](../architecture/transport-layer.md) -- transport architecture overview

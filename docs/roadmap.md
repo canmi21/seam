@@ -1,6 +1,6 @@
 # Roadmap
 
-Everything listed here is planned and will be implemented. This is currently a solo project, so progress is steady but not fast. If something here overlaps with your expertise, PRs are very welcome — the decoupled architecture means you only need to implement against the [seam protocol](logic-layer.md#the-seam-protocol), not understand the rest of the system. It just works.
+Everything listed here is planned and will be implemented. This is currently a solo project, so progress is steady but not fast. If something here overlaps with your expertise, PRs are very welcome — the decoupled architecture means you only need to implement against the [seam protocol](architecture/logic-layer.md#the-seam-protocol), not understand the rest of the system. It just works.
 
 ## Rendering Modes
 

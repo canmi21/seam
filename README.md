@@ -26,15 +26,15 @@ This is **compile-time rendering (CTR)**. The server is a data source with a tem
 
 SeamJS has three independent dimensions. Changing one never affects the others.
 
-### [UI Layer](docs/ui-layer.md)
+### [UI Layer](docs/architecture/ui-layer.md)
 
 Any framework that can `renderToString` can produce a SeamJS skeleton. The framework runs only in the browser — the server never touches it. React is implemented today; Vue, Svelte, Solid, and HTMX are planned.
 
-### [Logic Layer](docs/logic-layer.md)
+### [Logic Layer](docs/architecture/logic-layer.md)
 
 The server is defined by a protocol (`/_seam/*` endpoints), not a runtime. Any language that can serve HTTP and do string replacement is a valid backend. Rust, TypeScript, and Go are implemented today — with symmetric feature sets across all three.
 
-### [Transport Layer](docs/transport-layer.md)
+### [Transport Layer](docs/architecture/transport-layer.md)
 
 Procedure handlers are pure `(input) -> output` functions. The transport (HTTP, SSE, WebSocket, IPC) is a separate adapter layer. Today: HTTP RPC, batch RPC, and SSE. Planned: WebSocket, Tauri IPC, Electron IPC.
 
@@ -58,7 +58,7 @@ If you're a Rust, Go, C++, or C# developer who wants a modern web UI without lea
 Nearly zero-cost SSR. Skeletons are extracted at build time; at request time the server fills typed slots via string replacement — no JS runtime, no component tree re-rendering. This covers the vast majority of traditional SSR use cases with near-zero overhead.
 
 **SSR — Server-Side Rendering** (Planned)
-Not traditional SSR. Works alongside CTR for content that must be rendered at request time — Markdown, rich text, dynamic HTML fragments. The server renders using any tool it wants (a Rust markdown parser, Go `html/template`, or even React `renderToString`) and injects the result through a [raw HTML slot](docs/slot-protocol.md) (`<!--seam:path:html-->`). This is a CTR + SSR hybrid, not standalone SSR. Traditional SSR also works: use a TypeScript backend, import React or any UI library that provides `renderToString` / `renderToReadableStream`, and pipe the HTML into a raw slot — same mechanism, your choice of rendering strategy.
+Not traditional SSR. Works alongside CTR for content that must be rendered at request time — Markdown, rich text, dynamic HTML fragments. The server renders using any tool it wants (a Rust markdown parser, Go `html/template`, or even React `renderToString`) and injects the result through a [raw HTML slot](docs/protocol/slot-protocol.md) (`<!--seam:path:html-->`). This is a CTR + SSR hybrid, not standalone SSR. Traditional SSR also works: use a TypeScript backend, import React or any UI library that provides `renderToString` / `renderToReadableStream`, and pipe the HTML into a raw slot — same mechanism, your choice of rendering strategy.
 
 **ISR — Incremental Cache** (Planned)
 Not incremental rendering — an incremental cache layer. Without server-side injection, a CTR page is naturally static and needs no regeneration. When CTR and SSR run together and produce rendering overhead, the assembled page only needs to be computed once — ISR here means caching the filled result.
@@ -78,17 +78,17 @@ See [Roadmap](docs/roadmap.md) for the full list.
 
 **By dimension**
 
-- [UI Layer](docs/ui-layer.md) — frontend packages and framework support
-- [Logic Layer](docs/logic-layer.md) — backend packages, CLI, and the seam protocol
-- [Transport Layer](docs/transport-layer.md) — wire protocols and adapter architecture
+- [UI Layer](docs/architecture/ui-layer.md) — frontend packages and framework support
+- [Logic Layer](docs/architecture/logic-layer.md) — backend packages, CLI, and the seam protocol
+- [Transport Layer](docs/architecture/transport-layer.md) — wire protocols and adapter architecture
 
 **Protocol specs**
 
-- [Slot Protocol](docs/slot-protocol.md) — server-side HTML injection syntax
-- [Sentinel Protocol](docs/sentinel-protocol.md) — build-time placeholder format
-- [Procedure Manifest](docs/procedure-manifest.md) — `/_seam/manifest.json` schema
-- [Subscription Protocol](docs/subscription-protocol.md) — SSE streaming specification
-- [Skeleton Constraints](docs/skeleton-constraints.md) — rules for build-safe components
+- [Slot Protocol](docs/protocol/slot-protocol.md) — server-side HTML injection syntax
+- [Sentinel Protocol](docs/protocol/sentinel-protocol.md) — build-time placeholder format
+- [Procedure Manifest](docs/protocol/procedure-manifest.md) — `/_seam/manifest.json` schema
+- [Subscription Protocol](docs/protocol/subscription-protocol.md) — SSE streaming specification
+- [Skeleton Constraints](docs/protocol/skeleton-constraints.md) — rules for build-safe components
 
 **Demos and examples**
 

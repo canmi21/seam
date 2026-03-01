@@ -62,122 +62,9 @@ Invalid: `get-user`, `_internal`, `123go`, `get user`
 
 Channel-expanded procedures use dot notation: `chat.send`, `chat.events`. The dot is reserved for channel expansion and must not appear in user-defined procedure names.
 
-## JTD Schema Forms (RFC 8927)
+## JTD Schema Forms
 
-All schemas conform to [RFC 8927 -- JSON Type Definition](https://www.rfc-editor.org/rfc/rfc8927).
-The eight schema forms are:
-
-### Empty
-
-Accepts any JSON value.
-
-```json
-{}
-```
-
-### Ref
-
-References a shared definition (not used in v1 manifests).
-
-```json
-{ "ref": "Address" }
-```
-
-### Type
-
-A primitive type value.
-
-```json
-{ "type": "string" }
-```
-
-Supported `type` values:
-
-| JTD type    | JSON representation | Notes           |
-| ----------- | ------------------- | --------------- |
-| `boolean`   | `true` / `false`    |                 |
-| `string`    | JSON string         |                 |
-| `timestamp` | JSON string         | RFC 3339 format |
-| `float32`   | JSON number         | 32-bit float    |
-| `float64`   | JSON number         | 64-bit float    |
-| `int8`      | JSON number         | -128 to 127     |
-| `uint8`     | JSON number         | 0 to 255        |
-| `int16`     | JSON number         | -32768 to 32767 |
-| `uint16`    | JSON number         | 0 to 65535      |
-| `int32`     | JSON number         | -2^31 to 2^31-1 |
-| `uint32`    | JSON number         | 0 to 2^32-1     |
-
-### Enum
-
-One of a fixed set of string values.
-
-```json
-{ "enum": ["PENDING", "ACTIVE", "DISABLED"] }
-```
-
-### Elements
-
-A JSON array where every element matches the given schema.
-
-```json
-{ "elements": { "type": "string" } }
-```
-
-### Properties
-
-A JSON object with typed fields. Fields in `properties` are required;
-fields in `optionalProperties` may be omitted.
-
-```json
-{
-  "properties": {
-    "name": { "type": "string" },
-    "age": { "type": "int32" }
-  },
-  "optionalProperties": {
-    "email": { "type": "string" }
-  }
-}
-```
-
-### Values
-
-A JSON object where all values match the given schema (string-keyed map).
-
-```json
-{ "values": { "type": "float64" } }
-```
-
-### Discriminator
-
-A tagged union. The `tag` field determines which `mapping` entry applies.
-
-```json
-{
-  "discriminator": "type",
-  "mapping": {
-    "email": {
-      "properties": {
-        "address": { "type": "string" }
-      }
-    },
-    "sms": {
-      "properties": {
-        "phone": { "type": "string" }
-      }
-    }
-  }
-}
-```
-
-### Nullable Modifier
-
-Any schema form (except empty) can be wrapped with `"nullable": true` to
-additionally accept `null`.
-
-```json
-{ "type": "string", "nullable": true }
-```
+All schemas conform to RFC 8927. See [JTD Schema Reference](./jtd-schema.md) for the full specification of all eight schema forms.
 
 ## HTTP Endpoints
 
@@ -289,33 +176,7 @@ This is a deployment optimization, not a security boundary — the manifest endp
 
 ## Error Response Format
 
-All error responses use a consistent envelope:
-
-```json
-{
-  "ok": false,
-  "error": {
-    "code": "<ERROR_CODE>",
-    "message": "<human-readable description>",
-    "transient": false
-  }
-}
-```
-
-The `transient` field indicates whether the error is temporary and the client may retry the request. Defaults to `false`. Examples of transient errors: rate limiting, timeouts, temporary unavailability.
-
-### Error Codes
-
-| Code               | HTTP Status | Meaning                               |
-| ------------------ | ----------- | ------------------------------------- |
-| `VALIDATION_ERROR` | 400         | Request body failed input validation. |
-| `UNAUTHORIZED`     | 401         | Missing or invalid authentication.    |
-| `FORBIDDEN`        | 403         | Insufficient permissions.             |
-| `NOT_FOUND`        | 404         | Procedure name not found in manifest. |
-| `RATE_LIMITED`     | 429         | Too many requests.                    |
-| `INTERNAL_ERROR`   | 500         | Unhandled error in procedure handler. |
-
-Servers may use any string as an error code. Custom codes default to HTTP 500 unless an explicit status is provided.
+See [Error Codes](./error-codes.md) for the error envelope format and standard error codes.
 
 ## Complete Example
 

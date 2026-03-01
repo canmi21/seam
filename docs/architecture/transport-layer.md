@@ -30,5 +30,5 @@ The adapter handles serialization, error encoding, connection management, and pr
 
 Swapping HTTP for Tauri IPC means replacing the adapter, not the handlers. A Rust backend running inside a Tauri app uses the same procedure definitions as one running behind Axum — only the transport changes.
 
-- [Subscription Protocol](subscription-protocol.md) — SSE streaming specification
-- [Channel Protocol](channel-protocol.md) — channel abstraction and WebSocket wire format
+- [Subscription Protocol](../protocol/subscription-protocol.md) — SSE streaming specification
+- [Channel Protocol](../protocol/channel-protocol.md) — channel abstraction and WebSocket wire format

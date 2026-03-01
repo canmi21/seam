@@ -49,18 +49,7 @@ data: {"code":"VALIDATION_ERROR","message":"Input validation failed","transient"
 
 The `transient` field indicates whether the error is temporary and the client may retry. Defaults to `false`.
 
-Error codes reuse the same set as procedure errors:
-
-| Code               | Meaning                                 |
-| ------------------ | --------------------------------------- |
-| `VALIDATION_ERROR` | Input failed schema validation          |
-| `UNAUTHORIZED`     | Missing or invalid authentication       |
-| `FORBIDDEN`        | Insufficient permissions                |
-| `NOT_FOUND`        | Subscription name not found             |
-| `RATE_LIMITED`     | Too many requests                       |
-| `INTERNAL_ERROR`   | Unhandled error in subscription handler |
-
-Servers may use any string as an error code. Custom codes default to HTTP 500 unless an explicit status is provided.
+Error codes reuse the same set as procedure errors. See [Error Codes](./error-codes.md) for the full list.
 
 After an `error` event the server closes the stream.
 

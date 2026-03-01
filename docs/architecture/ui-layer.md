@@ -47,6 +47,6 @@ At build time, SeamJS renders each page component to static HTML using `renderTo
 
 The client runtime reads injected data from `__SEAM_DATA__`, hydrates the skeleton, and replaces slot markers with live components. The server never imports React, Vue, or any UI library — it only performs string replacement on the skeleton.
 
-- [Sentinel Protocol](sentinel-protocol.md) — build-time placeholder format
-- [Slot Protocol](slot-protocol.md) — server-side HTML injection syntax
-- [Skeleton Constraints](skeleton-constraints.md) — rules for build-safe components
+- [Sentinel Protocol](../protocol/sentinel-protocol.md) — build-time placeholder format
+- [Slot Protocol](../protocol/slot-protocol.md) — server-side HTML injection syntax
+- [Skeleton Constraints](../protocol/skeleton-constraints.md) — rules for build-safe components

@@ -23,6 +23,8 @@ cargo build --workspace  # All Rust crates
 
 | Command                    | Scope                                            |
 | -------------------------- | ------------------------------------------------ |
+| `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)       |
+| `bun run test:ts`          | TS unit tests (vitest across all TS packages)    |
 | `bun run test:unit`        | All unit tests (Rust + TypeScript)               |
 | `bun run test:integration` | Go integration tests                             |
 | `bun run test:e2e`         | Playwright E2E tests                             |

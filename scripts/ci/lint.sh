@@ -8,3 +8,6 @@ printf '\n==> Lint (oxlint + eslint + clippy)\n'
 
 printf '\n==> Check unlisted dependencies (knip)\n'
 (cd "$ROOT" && bunx knip --include unlisted)
+
+printf '\n==> Check markdown links\n'
+bash "$ROOT/scripts/ci/check-links.sh"

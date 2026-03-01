@@ -30,6 +30,7 @@
   ],
   "type": "module",
   "scripts": {
+    "lint:links": "bash scripts/ci/check-links.sh",
     "lint:deps": "knip --include dependencies,unlisted,unresolved",
     "lint": "oxlint && NODE_OPTIONS='--import tsx/esm' eslint . && cargo clippy --workspace --all-features --all-targets -- -D warnings",
     "lint:oxlint": "oxlint",
