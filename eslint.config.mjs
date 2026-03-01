@@ -1,12 +1,8 @@
 /* eslint.config.mjs */
 
-/* eslint.config.mjs */
-
-/* eslint.config.mjs -- type-checked rules only; oxlint handles the rest */
-
 import tseslint from "typescript-eslint";
 import oxlint from "eslint-plugin-oxlint";
-import seamPlugin from "./packages/eslint/src/index.ts";
+import seamPlugin from "./src/eslint/src/index.ts";
 
 export default tseslint.config(
   {
@@ -16,7 +12,7 @@ export default tseslint.config(
       "**/target/**",
       "**/.seam/**",
       "**/pkg/**",
-      "packages/cli/**",
+      "src/cli/**",
     ],
   },
   {
@@ -69,7 +65,7 @@ export default tseslint.config(
       "**/vitest.config.*",
       "**/scripts/**",
       "eslint.config.mjs",
-      "packages/server/adapter/bun/**",
+      "src/server/adapter/bun/**",
       "examples/**",
     ],
     ...tseslint.configs.disableTypeChecked,

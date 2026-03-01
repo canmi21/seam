@@ -7,9 +7,9 @@ synchronous, and deterministic**.
 Two enforcement layers work together:
 
 - **Runtime sandbox** (`installRenderTraps()` + `validateOutput()` in
-  `packages/client/react/scripts/build-skeletons.mjs`) &mdash; traps
+  `src/client/react/scripts/build-skeletons.mjs`) &mdash; traps
   dangerous APIs during `renderToString`, aborts the build on violation.
-- **Static analysis** (`@canmi/eslint-plugin-seam` in `packages/eslint/`, 4 rules scoped to
+- **Static analysis** (`@canmi/eslint-plugin-seam` in `src/eslint/`, 4 rules scoped to
   `**/*-skeleton.tsx`) &mdash; catches violations before build time.
 
 ---

@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"strconv"
 
-	seam "github.com/canmi21/seam/packages/server/core/go"
+	seam "github.com/canmi21/seam/src/server/core/go"
 )
 
 func loadTemplate() string {

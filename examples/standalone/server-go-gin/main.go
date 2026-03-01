@@ -8,7 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	seam "github.com/canmi21/seam/packages/server/core/go"
+	seam "github.com/canmi21/seam/src/server/core/go"
 
 	"github.com/canmi21/seam/examples/standalone/server-go/pages"
 	"github.com/canmi21/seam/examples/standalone/server-go/procedures"

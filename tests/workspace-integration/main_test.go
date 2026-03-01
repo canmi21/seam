@@ -103,7 +103,7 @@ func TestMain(m *testing.M) {
 
 	// Build TS packages needed by ts-hono backend
 	for _, pkg := range []string{"server/core/typescript", "server/adapter/hono"} {
-		runBuild(root, "build "+pkg, "bun", "run", "--cwd", filepath.Join("packages", pkg), "build")
+		runBuild(root, "build "+pkg, "bun", "run", "--cwd", filepath.Join("src", pkg), "build")
 	}
 
 	// Build Rust backend

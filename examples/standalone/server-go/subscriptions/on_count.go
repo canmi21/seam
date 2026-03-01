@@ -5,7 +5,7 @@ package subscriptions
 import (
 	"context"
 
-	seam "github.com/canmi21/seam/packages/server/core/go"
+	seam "github.com/canmi21/seam/src/server/core/go"
 )
 
 type CountInput struct {

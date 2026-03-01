@@ -3,13 +3,16 @@
   "exclude": ["optionalPeerDependencies"],
   "ignoreExportsUsedInFile": true,
   "workspaces": {
-    "packages/client/react": {
+    "src/client/react": {
       "entry": ["scripts/**/*.mjs"]
     },
-    "packages/cli/pkg": {
+    "src/cli/pkg": {
       "entry": ["scripts/**/*.mjs"]
     },
-    "packages/server/injector/js": {
+    "src/server/injector/js": {
+      "ignore": ["pkg/**"]
+    },
+    "src/server/engine/js": {
       "ignore": ["pkg/**"]
     }
   }

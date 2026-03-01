@@ -11,7 +11,7 @@ import (
 	"net/url"
 	"os"
 
-	seam "github.com/canmi21/seam/packages/server/core/go"
+	seam "github.com/canmi21/seam/src/server/core/go"
 )
 
 func ghGet(apiURL string) (*http.Response, error) {

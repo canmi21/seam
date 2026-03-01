@@ -25,7 +25,7 @@ Rules:
 - Arrays, nulls, and primitives become leaf sentinels
 - The dotted path reflects the full nesting depth
 
-Implemented in: `packages/client/react/src/sentinel.ts`
+Implemented in: `src/client/react/src/sentinel.ts`
 
 ## Build Pipeline
 
@@ -54,8 +54,8 @@ React component + sentinel data
 
 Implemented in:
 
-- Rust: `packages/cli/core/src/build/skeleton.rs` (`sentinel_to_slots`)
-- JS (test only): `packages/client/react/__tests__/round-trip.test.ts` (`sentinelToSlots`)
+- Rust: `src/cli/core/src/build/skeleton.rs` (`sentinel_to_slots`)
+- JS (test only): `src/client/react/__tests__/round-trip.test.ts` (`sentinelToSlots`)
 
 ### Conditional Detection
 

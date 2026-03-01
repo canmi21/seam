@@ -20,8 +20,8 @@ examples/github-dashboard/backends/go-gin/server
 examples/github-dashboard/backends/go-gin/server-go
 
 # WASM build artifacts (regenerate via build-wasm.sh)
-packages/server/*/js/pkg/
-packages/server/*/go/*.wasm
+src/server/*/js/pkg/
+src/server/*/go/*.wasm
 
 # Next.js
 .next/

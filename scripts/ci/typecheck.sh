@@ -5,17 +5,17 @@ set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
 packages=(
-  packages/server/injector/js
-  packages/server/injector/native
-  packages/server/core/typescript
-  packages/server/adapter/hono
-  packages/server/adapter/bun
-  packages/server/adapter/node
-  packages/client/vanilla
-  packages/client/react
-  packages/client/tanstack-router
-  packages/eslint
-  packages/i18n
+  src/server/injector/js
+  src/server/injector/native
+  src/server/core/typescript
+  src/server/adapter/hono
+  src/server/adapter/bun
+  src/server/adapter/node
+  src/client/vanilla
+  src/client/react
+  src/client/tanstack-router
+  src/eslint
+  src/i18n
 )
 
 failed=()

@@ -379,7 +379,7 @@ checksum = "d7a1e2f27636f116493b8b860f5546edb47c8d8f8ea73e1d2a20be88e28d1fea"
 
 [[package]]
 name = "demo-server-rust"
-version = "0.4.10"
+version = "0.0.0"
 dependencies = [
  "async-stream",
  "seam-server",
@@ -596,7 +596,7 @@ dependencies = [
 
 [[package]]
 name = "github-dashboard-axum"
-version = "0.4.10"
+version = "0.0.0"
 dependencies = [
  "axum",
  "reqwest",
@@ -772,7 +772,7 @@ dependencies = [
 
 [[package]]
 name = "i18n-demo-axum"
-version = "0.4.10"
+version = "0.0.0"
 dependencies = [
  "axum",
  "seam-server",

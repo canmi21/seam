@@ -1,16 +1,16 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/server/injector/js" },
-    { "path": "packages/server/injector/native" },
-    { "path": "packages/server/core/typescript" },
-    { "path": "packages/server/adapter/hono" },
-    { "path": "packages/server/adapter/bun" },
-    { "path": "packages/server/adapter/node" },
-    { "path": "packages/client/vanilla" },
-    { "path": "packages/client/react" },
-    { "path": "packages/client/tanstack-router" },
-    { "path": "packages/eslint" },
-    { "path": "packages/i18n" }
+    { "path": "src/server/injector/js" },
+    { "path": "src/server/injector/native" },
+    { "path": "src/server/core/typescript" },
+    { "path": "src/server/adapter/hono" },
+    { "path": "src/server/adapter/bun" },
+    { "path": "src/server/adapter/node" },
+    { "path": "src/client/vanilla" },
+    { "path": "src/client/react" },
+    { "path": "src/client/tanstack-router" },
+    { "path": "src/eslint" },
+    { "path": "src/i18n" }
   ]
 }

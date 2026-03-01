@@ -4,34 +4,34 @@ SeamJS defines a protocol (`/_seam/*` endpoints), not a runtime. Any language th
 
 ## Implemented
 
-The engine source of truth is the Rust crate [`seam-engine`](../../packages/server/engine/rust/). TypeScript and Go consume it via WASM ([`seam-engine-wasm`](../../packages/server/engine/wasm/)).
+The engine source of truth is the Rust crate [`seam-engine`](../../src/server/engine/rust/). TypeScript and Go consume it via WASM ([`seam-engine-wasm`](../../src/server/engine/wasm/)).
 
-|          | Rust                                                      | TypeScript                                                                                                                                                      | Go                                              |
-| -------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| Core     | [`seam-server`](../../packages/server/core/rust/)         | [`@canmi/seam-server`](../../packages/server/core/typescript/)                                                                                                  | [Go module](../../packages/server/core/go/)     |
-| Macros   | [`seam-macros`](../../packages/server/core/rust-macros/)  | —                                                                                                                                                               | —                                               |
-| Adapter  | [`seam-server-axum`](../../packages/server/adapter/axum/) | [`@canmi/seam-adapter-node`](../../packages/server/adapter/node/) / [`bun`](../../packages/server/adapter/bun/) / [`hono`](../../packages/server/adapter/hono/) | —                                               |
-| Engine   | [`seam-engine`](../../packages/server/engine/rust/)       | [`@canmi/seam-engine`](../../packages/server/engine/js/)                                                                                                        | [`engine/go`](../../packages/server/engine/go/) |
-| Injector | [`seam-injector`](../../packages/server/injector/rust/)   | —                                                                                                                                                               | —                                               |
+|          | Rust                                                 | TypeScript                                                                                                                                       | Go                                         |
+| -------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| Core     | [`seam-server`](../../src/server/core/rust/)         | [`@canmi/seam-server`](../../src/server/core/typescript/)                                                                                        | [Go module](../../src/server/core/go/)     |
+| Macros   | [`seam-macros`](../../src/server/core/rust-macros/)  | —                                                                                                                                                | —                                          |
+| Adapter  | [`seam-server-axum`](../../src/server/adapter/axum/) | [`@canmi/seam-adapter-node`](../../src/server/adapter/node/) / [`bun`](../../src/server/adapter/bun/) / [`hono`](../../src/server/adapter/hono/) | —                                          |
+| Engine   | [`seam-engine`](../../src/server/engine/rust/)       | [`@canmi/seam-engine`](../../src/server/engine/js/)                                                                                              | [`engine/go`](../../src/server/engine/go/) |
+| Injector | [`seam-injector`](../../src/server/injector/rust/)   | —                                                                                                                                                | —                                          |
 
 <details>
 <summary>Deprecated packages</summary>
 
-| Package                                                   | Crate / npm                   | Replacement          |
-| --------------------------------------------------------- | ----------------------------- | -------------------- |
-| [injector/wasm](../../packages/server/injector/wasm/)     | `seam-injector-wasm`          | `seam-engine-wasm`   |
-| [injector/js](../../packages/server/injector/js/)         | `@canmi/seam-injector`        | `@canmi/seam-engine` |
-| [injector/go](../../packages/server/injector/go/)         | Go module                     | `engine/go`          |
-| [injector/native](../../packages/server/injector/native/) | `@canmi/seam-injector-native` | `@canmi/seam-engine` |
+| Package                                              | Crate / npm                   | Replacement          |
+| ---------------------------------------------------- | ----------------------------- | -------------------- |
+| [injector/wasm](../../src/server/injector/wasm/)     | `seam-injector-wasm`          | `seam-engine-wasm`   |
+| [injector/js](../../src/server/injector/js/)         | `@canmi/seam-injector`        | `@canmi/seam-engine` |
+| [injector/go](../../src/server/injector/go/)         | Go module                     | `engine/go`          |
+| [injector/native](../../src/server/injector/native/) | `@canmi/seam-injector-native` | `@canmi/seam-engine` |
 
 </details>
 
 ## CLI
 
-| Package                              | Crate / npm       | Description                                                      |
-| ------------------------------------ | ----------------- | ---------------------------------------------------------------- |
-| [cli/core](../../packages/cli/core/) | `seam-cli`        | Build skeletons, generate typed clients, orchestrate dev servers |
-| [cli/pkg](../../packages/cli/pkg/)   | `@canmi/seam-cli` | npm distribution wrapper for the CLI binary                      |
+| Package                         | Crate / npm       | Description                                                      |
+| ------------------------------- | ----------------- | ---------------------------------------------------------------- |
+| [cli/core](../../src/cli/core/) | `seam-cli`        | Build skeletons, generate typed clients, orchestrate dev servers |
+| [cli/pkg](../../src/cli/pkg/)   | `@canmi/seam-cli` | npm distribution wrapper for the CLI binary                      |
 
 ## Planned
 

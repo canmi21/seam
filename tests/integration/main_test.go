@@ -116,7 +116,7 @@ func TestMain(m *testing.M) {
 
 	// Build TS packages for Node example
 	for _, pkg := range []string{"server/injector", "server/core/typescript", "server/adapter/bun", "server/adapter/node"} {
-		runBuild(root, "build "+pkg, "bun", "run", "--cwd", filepath.Join("packages", pkg), "build")
+		runBuild(root, "build "+pkg, "bun", "run", "--cwd", filepath.Join("src", pkg), "build")
 	}
 
 	// Start backend processes on OS-assigned ports

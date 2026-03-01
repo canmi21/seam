@@ -175,7 +175,7 @@
         "@canmi/seam-server": "workspace:*",
       },
     },
-    "packages/cli/pkg": {
+    "src/cli/pkg": {
       "name": "@canmi/seam-cli",
       "version": "0.4.10",
       "bin": {
@@ -198,7 +198,7 @@
         "@canmi/seam-cli-linux-x64": "0.4.10",
       },
     },
-    "packages/client/react": {
+    "src/client/react": {
       "name": "@canmi/seam-react",
       "version": "0.4.10",
       "dependencies": {
@@ -222,7 +222,7 @@
         "react-dom": "^18.0.0 || ^19.0.0",
       },
     },
-    "packages/client/tanstack-router": {
+    "src/client/tanstack-router": {
       "name": "@canmi/seam-tanstack-router",
       "version": "0.4.10",
       "dependencies": {
@@ -245,7 +245,7 @@
         "react-dom": "^18.0.0 || ^19.0.0",
       },
     },
-    "packages/client/vanilla": {
+    "src/client/vanilla": {
       "name": "@canmi/seam-client",
       "version": "0.4.10",
       "devDependencies": {
@@ -254,7 +254,7 @@
         "vitest": "^3.0.0",
       },
     },
-    "packages/eslint": {
+    "src/eslint": {
       "name": "@canmi/eslint-plugin-seam",
       "version": "0.4.10",
       "devDependencies": {
@@ -267,7 +267,7 @@
         "eslint": ">=9",
       },
     },
-    "packages/i18n": {
+    "src/i18n": {
       "name": "@canmi/seam-i18n",
       "version": "0.4.10",
       "devDependencies": {
@@ -284,7 +284,7 @@
         "react",
       ],
     },
-    "packages/server/adapter/bun": {
+    "src/server/adapter/bun": {
       "name": "@canmi/seam-adapter-bun",
       "version": "0.4.10",
       "devDependencies": {
@@ -298,7 +298,7 @@
         "@canmi/seam-server": "workspace:*",
       },
     },
-    "packages/server/adapter/hono": {
+    "src/server/adapter/hono": {
       "name": "@canmi/seam-adapter-hono",
       "version": "0.4.10",
       "devDependencies": {
@@ -313,7 +313,7 @@
         "hono": "^4.0.0",
       },
     },
-    "packages/server/adapter/node": {
+    "src/server/adapter/node": {
       "name": "@canmi/seam-adapter-node",
       "version": "0.4.10",
       "dependencies": {
@@ -331,7 +331,7 @@
         "@canmi/seam-server": "workspace:*",
       },
     },
-    "packages/server/core/typescript": {
+    "src/server/core/typescript": {
       "name": "@canmi/seam-server",
       "version": "0.4.10",
       "dependencies": {
@@ -345,7 +345,7 @@
         "vitest": "^3.0.0",
       },
     },
-    "packages/server/engine/js": {
+    "src/server/engine/js": {
       "name": "@canmi/seam-engine",
       "version": "0.4.10",
       "devDependencies": {
@@ -355,7 +355,7 @@
         "vitest": "^3.0.0",
       },
     },
-    "packages/server/injector/js": {
+    "src/server/injector/js": {
       "name": "@canmi/seam-injector",
       "version": "0.4.3",
       "devDependencies": {
@@ -366,7 +366,7 @@
         "vitest": "^3.0.0",
       },
     },
-    "packages/server/injector/native": {
+    "src/server/injector/native": {
       "name": "@canmi/seam-injector-native",
       "version": "0.4.3",
       "devDependencies": {
@@ -451,31 +451,31 @@
 
     "@bramus/specificity": ["@bramus/specificity@2.4.2", "", { "dependencies": { "css-tree": "^3.0.0" }, "bin": { "specificity": "bin/cli.js" } }, "sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw=="],
 
-    "@canmi/eslint-plugin-seam": ["@canmi/eslint-plugin-seam@workspace:packages/eslint"],
+    "@canmi/eslint-plugin-seam": ["@canmi/eslint-plugin-seam@workspace:src/eslint"],
 
-    "@canmi/seam-adapter-bun": ["@canmi/seam-adapter-bun@workspace:packages/server/adapter/bun"],
+    "@canmi/seam-adapter-bun": ["@canmi/seam-adapter-bun@workspace:src/server/adapter/bun"],
 
-    "@canmi/seam-adapter-hono": ["@canmi/seam-adapter-hono@workspace:packages/server/adapter/hono"],
+    "@canmi/seam-adapter-hono": ["@canmi/seam-adapter-hono@workspace:src/server/adapter/hono"],
 
-    "@canmi/seam-adapter-node": ["@canmi/seam-adapter-node@workspace:packages/server/adapter/node"],
+    "@canmi/seam-adapter-node": ["@canmi/seam-adapter-node@workspace:src/server/adapter/node"],
 
-    "@canmi/seam-cli": ["@canmi/seam-cli@workspace:packages/cli/pkg"],
+    "@canmi/seam-cli": ["@canmi/seam-cli@workspace:src/cli/pkg"],
 
-    "@canmi/seam-client": ["@canmi/seam-client@workspace:packages/client/vanilla"],
+    "@canmi/seam-client": ["@canmi/seam-client@workspace:src/client/vanilla"],
 
-    "@canmi/seam-engine": ["@canmi/seam-engine@workspace:packages/server/engine/js"],
+    "@canmi/seam-engine": ["@canmi/seam-engine@workspace:src/server/engine/js"],
 
-    "@canmi/seam-i18n": ["@canmi/seam-i18n@workspace:packages/i18n"],
+    "@canmi/seam-i18n": ["@canmi/seam-i18n@workspace:src/i18n"],
 
-    "@canmi/seam-injector": ["@canmi/seam-injector@workspace:packages/server/injector/js"],
+    "@canmi/seam-injector": ["@canmi/seam-injector@workspace:src/server/injector/js"],
 
-    "@canmi/seam-injector-native": ["@canmi/seam-injector-native@workspace:packages/server/injector/native"],
+    "@canmi/seam-injector-native": ["@canmi/seam-injector-native@workspace:src/server/injector/native"],
 
-    "@canmi/seam-react": ["@canmi/seam-react@workspace:packages/client/react"],
+    "@canmi/seam-react": ["@canmi/seam-react@workspace:src/client/react"],
 
-    "@canmi/seam-server": ["@canmi/seam-server@workspace:packages/server/core/typescript"],
+    "@canmi/seam-server": ["@canmi/seam-server@workspace:src/server/core/typescript"],
 
-    "@canmi/seam-tanstack-router": ["@canmi/seam-tanstack-router@workspace:packages/client/tanstack-router"],
+    "@canmi/seam-tanstack-router": ["@canmi/seam-tanstack-router@workspace:src/client/tanstack-router"],
 
     "@csstools/color-helpers": ["@csstools/color-helpers@6.0.1", "", {}, "sha512-NmXRccUJMk2AWA5A7e5a//3bCIMyOu2hAtdRYrhPPHjDxINuCwX1w6rnIZ4xjLcp0ayv6h8Pc3X0eJUGiAAXHQ=="],
 

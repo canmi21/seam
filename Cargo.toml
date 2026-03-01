@@ -1,14 +1,14 @@
 [workspace]
 resolver = "2"
 members = [
-  "packages/server/core/rust",
-  "packages/server/core/rust-macros",
-  "packages/server/adapter/axum",
-  "packages/server/injector/rust",
-  "packages/server/injector/wasm",
-  "packages/server/engine/rust",
-  "packages/server/engine/wasm",
-  "packages/cli/core",
+  "src/server/core/rust",
+  "src/server/core/rust-macros",
+  "src/server/adapter/axum",
+  "src/server/injector/rust",
+  "src/server/injector/wasm",
+  "src/server/engine/rust",
+  "src/server/engine/wasm",
+  "src/cli/core",
   "examples/standalone/server-rust",
   "examples/github-dashboard/backends/rust-axum",
   "examples/i18n-demo/backend",

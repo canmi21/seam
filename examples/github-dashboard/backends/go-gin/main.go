@@ -11,7 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	seam "github.com/canmi21/seam/packages/server/core/go"
+	seam "github.com/canmi21/seam/src/server/core/go"
 )
 
 func main() {

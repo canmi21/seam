@@ -18,9 +18,9 @@ echo "Syncing version $VERSION..."
 
 # Deprecated packages: version frozen, skip updates
 SKIP_DIRS=(
-  "packages/server/injector/native"
-  "packages/server/injector/js"
-  "packages/server/injector/wasm/pkg"
+  "src/server/injector/native"
+  "src/server/injector/js"
+  "src/server/injector/wasm/pkg"
 )
 
 skip_pkg() {
@@ -31,7 +31,7 @@ skip_pkg() {
   return 1
 }
 
-# 1. Update "version" field in all package.json under packages/
+# 1. Update "version" field in all package.json under src/
 count=0
 while IFS= read -r pkg; do
   if skip_pkg "$pkg"; then
@@ -41,7 +41,7 @@ while IFS= read -r pkg; do
   sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$pkg"
   count=$((count + 1))
   echo "  ${pkg#$ROOT/}"
-done < <(find "$ROOT/packages" -name "package.json" -not -path "*/node_modules/*" | sort)
+done < <(find "$ROOT/src" -name "package.json" -not -path "*/node_modules/*" | sort)
 echo "Updated $count package.json files"
 
 # 2. Update internal @canmi/* version references in optionalDependencies
@@ -51,7 +51,7 @@ while IFS= read -r pkg; do
     sed -i '' "s/\"@canmi\/seam-cli-\([^\"]*\)\": \"[^\"]*\"/\"@canmi\/seam-cli-\1\": \"$VERSION\"/g" "$pkg"
     echo "  ${pkg#$ROOT/} (optionalDependencies)"
   fi
-done < <(find "$ROOT/packages" -name "package.json" -not -path "*/node_modules/*" | sort)
+done < <(find "$ROOT/src" -name "package.json" -not -path "*/node_modules/*" | sort)
 
 # 3. Update version in Cargo.toml internal path dependencies
 #    Handles both formats:
@@ -74,10 +74,24 @@ while IFS= read -r cargo; do
   if $changed; then
     echo "  ${cargo#$ROOT/}"
   fi
-done < <(find "$ROOT/packages" "$ROOT/examples" -name "Cargo.toml" | sort)
+done < <(find "$ROOT/src" "$ROOT/examples" -name "Cargo.toml" | sort)
 
 # 4. Regenerate lockfile to reflect version changes
 echo "Regenerating bun.lock..."
 cd "$ROOT" && bun install
+
+# 5. Format and lint
+echo "Running format and lint..."
+cd "$ROOT" && bun fmt && bun lint
+
+# 6. Create version tag as baseline for selective publishing
+TAG="v$VERSION"
+if git rev-parse "$TAG" >/dev/null 2>&1; then
+  echo "Tag $TAG already exists, updating..."
+  git tag -f "$TAG"
+else
+  git tag "$TAG"
+fi
+echo "Tagged $TAG (local baseline for publish.sh)"
 
 echo "Done: all versions synced to $VERSION"

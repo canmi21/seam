@@ -3,7 +3,7 @@
 # Shared WASM build script for all seam WASM crates.
 #
 # Usage: bash scripts/build-wasm.sh <package-dir> <short-name>
-#   package-dir  Root of the package (e.g. packages/server/injector)
+#   package-dir  Root of the package (e.g. src/server/injector)
 #   short-name   Output file prefix (e.g. injector, engine)
 #
 # Expects the package to have:
