@@ -129,7 +129,7 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
     },
     {
-      command: "bunx next dev --port 3463",
+      command: "bunx next dev --webpack --port 3463",
       cwd: path.join(workspaceExampleDir, "next-app"),
       port: 3463,
       env: { ...ghToken },
