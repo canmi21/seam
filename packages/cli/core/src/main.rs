@@ -75,6 +75,23 @@ enum Command {
   },
 }
 
+/// Warn if `.seam/` is not covered by any gitignore rule
+fn warn_seam_not_gitignored(base_dir: &std::path::Path) {
+  use std::process::Command;
+  let output =
+    Command::new("git").args(["check-ignore", "-q", ".seam"]).current_dir(base_dir).output();
+  match output {
+    // exit 1 = not ignored by any gitignore rule
+    Ok(o) if o.status.code() == Some(1) => {
+      ui::warn(
+        ".seam/ is not in .gitignore -- consider adding it to avoid tracking build artifacts",
+      );
+    }
+    // exit 0 = ignored (good); other = not a git repo or git missing (skip)
+    _ => {}
+  }
+}
+
 /// Try to load seam.toml from cwd upward; returns None if not found
 fn try_load_config() -> Option<SeamConfig> {
   let cwd = std::env::current_dir().ok()?;
@@ -144,6 +161,7 @@ async fn main() -> Result<()> {
     Command::Build { config, member } => {
       let (config_path, seam_config) = resolve_config(config)?;
       let base_dir = config_path.parent().unwrap_or_else(|| std::path::Path::new("."));
+      warn_seam_not_gitignored(base_dir);
       if seam_config.is_workspace() {
         workspace::run_workspace_build(&seam_config, base_dir, member.as_deref())?;
       } else if member.is_some() {
@@ -155,6 +173,7 @@ async fn main() -> Result<()> {
     Command::Dev { config, member } => {
       let (config_path, seam_config) = resolve_config(config)?;
       let base_dir = config_path.parent().unwrap_or_else(|| std::path::Path::new("."));
+      warn_seam_not_gitignored(base_dir);
       if seam_config.is_workspace() {
         let member_name = member.as_deref().with_context(|| {
           let available: Vec<_> = seam_config

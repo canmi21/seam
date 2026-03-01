@@ -51,6 +51,10 @@ pub fn format_size(bytes: u64) -> String {
   }
 }
 
+pub fn warn(msg: &str) {
+  println!("  {YELLOW}warning{RESET}: {msg}");
+}
+
 pub fn blank() {
   println!();
 }
