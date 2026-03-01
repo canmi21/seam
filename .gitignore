@@ -19,6 +19,9 @@ examples/github-dashboard/backends/go-gin/go-gin
 examples/github-dashboard/backends/go-gin/server
 examples/github-dashboard/backends/go-gin/server-go
 
+# CLI platform binaries (regenerate via build-cli.sh)
+src/cli/wrapper/*/bin/
+
 # WASM build artifacts (regenerate via build-wasm.sh)
 src/server/*/js/pkg/
 src/server/*/go/*.wasm
