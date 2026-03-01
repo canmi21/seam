@@ -155,6 +155,11 @@ async fn main() -> Result<()> {
       std::fs::write(&file, &code)
         .with_context(|| format!("failed to write {}", file.display()))?;
 
+      let meta_code = codegen::generate_typescript_meta(data_id);
+      let meta_file = out.join("meta.ts");
+      std::fs::write(&meta_file, &meta_code)
+        .with_context(|| format!("failed to write {}", meta_file.display()))?;
+
       ui::ok(&format!("generated {proc_count} procedures"));
       ui::ok(&format!("{}  {line_count} lines", file.display()));
     }

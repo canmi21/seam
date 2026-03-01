@@ -24,6 +24,16 @@ function isHydrationPageError(error: Error): boolean {
 }
 
 test.describe("hydration", () => {
+  test("data script uses custom data_id from config", async ({ page }) => {
+    await page.goto("/", { waitUntil: "networkidle" });
+    const scriptId = await page.evaluate(() => {
+      const scripts = document.querySelectorAll('script[type="application/json"]');
+      for (const s of scripts) if (s.id) return s.id;
+      return null;
+    });
+    expect(scriptId).toBe("__e2e");
+  });
+
   for (const route of ROUTES) {
     test(`no hydration errors on ${route}`, async ({ page }) => {
       const consoleErrors: ConsoleMessage[] = [];

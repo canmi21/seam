@@ -198,7 +198,7 @@ fn data_id_export_default() {
     channels: BTreeMap::new(),
   };
   let code = generate_typescript(&manifest, None, "__data").unwrap();
-  assert!(code.contains("export const DATA_ID = \"__data\";"));
+  assert!(code.contains("export { DATA_ID } from \"./meta.js\";"));
 }
 
 #[test]
@@ -209,7 +209,21 @@ fn data_id_export_custom() {
     channels: BTreeMap::new(),
   };
   let code = generate_typescript(&manifest, None, "__sd").unwrap();
+  assert!(code.contains("export { DATA_ID } from \"./meta.js\";"));
+}
+
+#[test]
+fn meta_ts_default() {
+  let code = generate_typescript_meta("__data");
+  assert!(code.contains("export const DATA_ID = \"__data\";"));
+  assert!(!code.contains("import"));
+}
+
+#[test]
+fn meta_ts_custom() {
+  let code = generate_typescript_meta("__sd");
   assert!(code.contains("export const DATA_ID = \"__sd\";"));
+  assert!(!code.contains("import"));
 }
 
 #[test]

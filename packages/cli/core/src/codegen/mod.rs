@@ -2,4 +2,4 @@
 
 mod typescript;
 
-pub use typescript::generate_typescript;
+pub use typescript::{generate_typescript, generate_typescript_meta};

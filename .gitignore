@@ -2,6 +2,7 @@ node_modules/
 target/
 dist/
 .turbo/
+.seam/
 .plans/
 *.swp
 .claude
@@ -13,13 +14,10 @@ generated/
 tests/e2e/test-results/
 tests/e2e/playwright-report/
 
-# E2E fixture build output
-tests/e2e/fixture/.seam/
 examples/standalone/server-go/server-go
 examples/github-dashboard/backends/go-gin/go-gin
 examples/github-dashboard/backends/go-gin/server
 examples/github-dashboard/backends/go-gin/server-go
-examples/github-dashboard/.seam/
 
 # WASM build artifacts (regenerate via build-wasm.sh)
 packages/server/*/js/pkg/

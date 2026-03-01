@@ -224,6 +224,11 @@ pub(crate) fn generate_types(
   let file = out_path.join("client.ts");
   std::fs::write(&file, &code).with_context(|| format!("failed to write {}", file.display()))?;
 
+  let meta_code = codegen::generate_typescript_meta(&config.frontend.data_id);
+  let meta_file = out_path.join("meta.ts");
+  std::fs::write(&meta_file, &meta_code)
+    .with_context(|| format!("failed to write {}", meta_file.display()))?;
+
   ui::detail_ok(&format!(
     "{proc_count} procedures \u{2192} {} ({line_count} lines)",
     file.display()

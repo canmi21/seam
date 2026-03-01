@@ -379,7 +379,7 @@ checksum = "d7a1e2f27636f116493b8b860f5546edb47c8d8f8ea73e1d2a20be88e28d1fea"
 
 [[package]]
 name = "demo-server-rust"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "async-stream",
  "seam-server",
@@ -596,7 +596,7 @@ dependencies = [
 
 [[package]]
 name = "github-dashboard-axum"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "axum",
  "reqwest",
@@ -772,7 +772,7 @@ dependencies = [
 
 [[package]]
 name = "i18n-demo-axum"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "axum",
  "seam-server",
@@ -1547,7 +1547,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "seam-cli"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "anyhow",
  "axum",
@@ -1569,7 +1569,7 @@ dependencies = [
 
 [[package]]
 name = "seam-engine"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "seam-injector",
  "serde",
@@ -1578,7 +1578,7 @@ dependencies = [
 
 [[package]]
 name = "seam-engine-wasm"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "seam-engine",
  "seam-injector",
@@ -1588,14 +1588,14 @@ dependencies = [
 
 [[package]]
 name = "seam-injector"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "seam-injector-wasm"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "seam-injector",
  "serde_json",
@@ -1604,7 +1604,7 @@ dependencies = [
 
 [[package]]
 name = "seam-macros"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1613,7 +1613,7 @@ dependencies = [
 
 [[package]]
 name = "seam-server"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "futures-core",
  "regex",
@@ -1625,7 +1625,7 @@ dependencies = [
 
 [[package]]
 name = "seam-server-axum"
-version = "0.4.9"
+version = "0.4.10"
 dependencies = [
  "axum",
  "futures-core",
