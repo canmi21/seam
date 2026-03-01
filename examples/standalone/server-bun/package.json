@@ -9,6 +9,6 @@
     "@canmi/seam-server": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^22"
+    "@types/node": "^25"
   }
 }

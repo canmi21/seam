@@ -21,9 +21,9 @@
     "jtd": "^0.1.1"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "tsdown": "^0.20.0",
-    "typescript": "^5.7.0",
-    "vitest": "^3.0.0"
+    "@types/node": "^25.3.3",
+    "tsdown": "^0.20.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   }
 }
