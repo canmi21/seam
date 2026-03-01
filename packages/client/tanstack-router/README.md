@@ -8,7 +8,7 @@ TanStack Router integration for SeamJS client-side hydration and routing. See [U
 - `src/create-router.ts` — `createSeamRouter` with server data bridging
 - `src/define-routes.ts` — `defineSeamRoutes` route configuration
 - `src/link-interceptor.ts` — `setupLinkInterception` for SPA navigation
-- `src/seam-data-bridge.tsx` — React bridge for server-injected `__SEAM_DATA__`
+- `src/seam-data-bridge.tsx` — React bridge for server-injected `__data`
 - `src/seam-outlet.tsx` — Seam-aware route outlet component
 - `src/route-matcher.ts` — URL-to-route pattern matching
 - `src/create-loader.ts` — Loader factory for route data fetching

@@ -61,7 +61,7 @@ test.describe("fullstack layout", () => {
   test("layout session data injected in page data", async ({ page }) => {
     await page.goto("/", { waitUntil: "networkidle" });
 
-    // Extract __SEAM_DATA__ from the inline script
+    // Extract data script JSON
     const seamData = await page.evaluate(() => {
       const scripts = document.querySelectorAll("script");
       for (const s of scripts) {

@@ -9,8 +9,8 @@ workspace = true
 [dependencies]
 axum = "0.8"
 reqwest = { version = "0.13", features = ["json"] }
-seam-server = { version = "0.4.8", path = "../../../../packages/server/core/rust" }
-seam-server-axum = { version = "0.4.8", path = "../../../../packages/server/adapter/axum" }
+seam-server = { version = "0.4.9", path = "../../../../packages/server/core/rust" }
+seam-server-axum = { version = "0.4.9", path = "../../../../packages/server/adapter/axum" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }

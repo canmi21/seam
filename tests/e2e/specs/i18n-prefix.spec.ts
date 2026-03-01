@@ -65,7 +65,7 @@ test.describe("i18n prefix mode — cache and SPA", () => {
     await waitForHydration(page);
 
     const keys = await page.evaluate(() => {
-      const el = document.getElementById("__SEAM_DATA__");
+      const el = document.getElementById("__data");
       if (!el) return [];
       const data = JSON.parse(el.textContent || "{}");
       return Object.keys(data._i18n?.messages ?? {});
@@ -84,7 +84,7 @@ test.describe("i18n prefix mode — cache and SPA", () => {
     await waitForHydration(page);
 
     const i18n = await page.evaluate(() => {
-      const el = document.getElementById("__SEAM_DATA__");
+      const el = document.getElementById("__data");
       if (!el) return null;
       const data = JSON.parse(el.textContent || "{}");
       return data._i18n;

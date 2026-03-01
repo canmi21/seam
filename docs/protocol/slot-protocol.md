@@ -120,12 +120,12 @@ Text slots (`<!--seam:path-->`) apply HTML entity escaping:
 
 Raw HTML slots (`<!--seam:path:html-->`) perform no escaping.
 
-## `__SEAM_DATA__` Script Tag
+## `__data` Script Tag
 
 The injector automatically appends a JSON data script before `</body>` (or at the end of the document if no `</body>` tag exists):
 
 ```html
-<script id="__SEAM_DATA__" type="application/json">
+<script id="__data" type="application/json">
   { "user": { "name": "Alice" } }
 </script>
 ```

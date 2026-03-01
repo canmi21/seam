@@ -11,6 +11,6 @@ description = "Pure-logic server engine for the SeamJS framework: page assembly,
 workspace = true
 
 [dependencies]
-seam-injector = { version = "0.4.8", path = "../../injector/rust" }
+seam-injector = { version = "0.4.9", path = "../../injector/rust" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -10,7 +10,7 @@ const seamToml = fs.readFileSync(
   "utf-8",
 );
 const dataIdMatch = seamToml.match(/^data_id\s*=\s*"(.+)"/m);
-const dataId = dataIdMatch?.[1] ?? "__SEAM_DATA__";
+const dataId = dataIdMatch?.[1] ?? "__data";
 
 test.describe("fullstack CTR first-screen", () => {
   test("home page HTML contains server-rendered content", async ({ page }) => {

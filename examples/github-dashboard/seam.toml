@@ -3,7 +3,6 @@ name = "github-dashboard"
 
 [frontend]
 entry = "frontend/src/client/main.tsx"
-data_id = "__data"
 
 [build]
 routes = "frontend/src/client/routes.ts"

@@ -17,9 +17,9 @@ workspace = true
 axum = { version = "0.8", features = ["ws"] }
 futures-core = "0.3"
 futures-util = "0.3"
-seam-engine = { version = "0.4.8", path = "../../engine/rust" }
-seam-injector = { version = "0.4.8", path = "../../injector/rust" }
-seam-server = { version = "0.4.8", path = "../../core/rust" }
+seam-engine = { version = "0.4.9", path = "../../engine/rust" }
+seam-injector = { version = "0.4.9", path = "../../injector/rust" }
+seam-server = { version = "0.4.9", path = "../../core/rust" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }

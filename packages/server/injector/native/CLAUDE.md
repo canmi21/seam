@@ -7,7 +7,7 @@ HTML template injector that replaces `<!--seam:...-->` markers with data-driven 
 - Pipeline: `tokenize` (string -> tokens) -> `parse` (tokens -> AST) -> `render` (AST + data -> HTML) -> `injectAttributes` (phase B)
 - Template directives use HTML comment markers: `<!--seam:path-->`, `<!--seam:path:html-->`, `<!--seam:path:attr:name-->`
 - Control flow: `if`/`else`/`endif`, `each`/`endeach`, `match`/`when`/`endmatch`
-- After rendering, a `<script id="__SEAM_DATA__">` block is injected before `</body>` (unless `skipDataScript` option is set)
+- After rendering, a `<script id="__data">` block is injected before `</body>` (unless `skipDataScript` option is set)
 
 ## Key Files
 

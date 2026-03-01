@@ -25,7 +25,7 @@ pub struct PageDef {
   /// Per-locale pre-resolved templates (layout chain already applied). Keyed by locale.
   pub locale_templates: Option<HashMap<String, String>>,
   pub loaders: Vec<LoaderDef>,
-  /// Script ID for the injected data JSON. Defaults to "__SEAM_DATA__".
+  /// Script ID for the injected data JSON. Defaults to "__data".
   pub data_id: String,
   /// Layout chain from outer to inner. Each entry records which loader keys belong to that layout.
   pub layout_chain: Vec<LayoutChainEntry>,

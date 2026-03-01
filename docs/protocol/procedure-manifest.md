@@ -160,7 +160,7 @@ Serves a fully rendered HTML page. The server matches the route to a page defini
 
 - Status: `200`
 - Content-Type: `text/html`
-- Body: HTML document with injected data and `__SEAM_DATA__` script tag
+- Body: HTML document with injected data and `__data` script tag
 
 **Response** (not found):
 

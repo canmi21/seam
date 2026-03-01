@@ -26,7 +26,7 @@ cd tests/integration && go test -v -count=1
 | `main_test.go`      | TestMain setup/teardown, backend definitions     |
 | `manifest_test.go`  | Manifest structure and procedure listing         |
 | `rpc_test.go`       | RPC happy path, not-found, validation errors     |
-| `page_test.go`      | Page HTML rendering, **SEAM_DATA** injection     |
+| `page_test.go`      | Page HTML rendering, `__data` injection          |
 | `subscribe_test.go` | SSE connection, Content-Type, data events        |
 | `parity_test.go`    | Cross-backend response comparison                |
 | `helpers_test.go`   | Shared HTTP helpers (getJSON, postJSON, getHTML) |

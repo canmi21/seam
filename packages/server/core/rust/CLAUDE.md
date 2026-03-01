@@ -24,7 +24,7 @@ See root CLAUDE.md for general project rules.
 1. **Tokenize** (`token.rs`) -- split HTML into `Text` / `Marker` tokens at `<!--seam:...-->` boundaries
 2. **Parse** (`parser.rs`) -- build AST nodes: `Slot`, `Attr`, `If`/`Else`, `Each`, `Match`/`When`
 3. **Render** (`render.rs`) -- walk AST against JSON data, collect deferred attribute injections
-4. Post-render: splice `AttrEntry` markers into next sibling element, append `__SEAM_DATA__` script
+4. Post-render: splice `AttrEntry` markers into next sibling element, append `__data` script
 
 - Helpers in `helpers.rs`: `resolve` (dot-path lookup), `is_truthy`, `stringify`, `escape_html`
 - All sub-module functions are `pub(super)`; only `inject()` in `mod.rs` is public

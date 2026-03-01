@@ -21,7 +21,7 @@ const BUILD_DIR = isDev ? process.env.SEAM_OUTPUT_DIR! : resolve(import.meta.dir
 const pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR);
 const i18nConfig = loadI18nMessages(BUILD_DIR);
 const rpcHashMap = loadRpcHashMap(BUILD_DIR);
-const dataId = Object.values(pages)[0]?.dataId ?? "__SEAM_DATA__";
+const dataId = Object.values(pages)[0]?.dataId ?? "__data";
 const router = buildRouter({ pages, i18n: i18nConfig });
 
 const app = new Hono();

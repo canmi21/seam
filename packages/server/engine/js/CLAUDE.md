@@ -21,7 +21,7 @@ See root CLAUDE.md for general project rules.
 | `parseRpcHashMap`  | WASM engine   | Build reverse lookup from RPC hash map           |
 | `asciiEscapeJson`  | WASM engine   | Escape non-ASCII in JSON strings                 |
 | `i18nQuery`        | WASM engine   | Look up i18n translation keys                    |
-| `inject`           | WASM injector | Template injection with `__SEAM_DATA__` script   |
+| `inject`           | WASM injector | Template injection with `__data` script          |
 | `injectNoScript`   | WASM injector | Template injection without data script           |
 | `escapeHtml`       | Pure JS       | HTML entity escaping                             |
 
