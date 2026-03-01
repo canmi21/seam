@@ -232,10 +232,10 @@ describe("handlePageRequest -- headMeta", () => {
 });
 
 // ---------------------------------------------------------------------------
-// __SEAM_DATA__ placement
+// __data placement
 // ---------------------------------------------------------------------------
 describe("handlePageRequest -- data script placement", () => {
-  it("injects __SEAM_DATA__ before </body> in layout", async () => {
+  it("injects __data before </body> in layout", async () => {
     const layout: LayoutDef = {
       id: "root",
       template: "<html><body><!--seam:outlet--></body></html>",
@@ -250,20 +250,20 @@ describe("handlePageRequest -- data script placement", () => {
     const result = await handlePageRequest(page, {}, procs);
 
     // Script should appear before </body>
-    const scriptIdx = result.html.indexOf("__SEAM_DATA__");
+    const scriptIdx = result.html.indexOf("__data");
     const bodyCloseIdx = result.html.indexOf("</body>");
     expect(scriptIdx).toBeGreaterThan(-1);
     expect(scriptIdx).toBeLessThan(bodyCloseIdx);
   });
 
-  it("appends __SEAM_DATA__ when no </body> exists", async () => {
+  it("appends __data when no </body> exists", async () => {
     const page = simplePage("<p>no body tag</p>", {
       page: () => ({ procedure: "getData", input: {} }),
     });
     const procs = makeProcedures(["getData", mockProcedure(() => ({ v: 1 }))]);
     const result = await handlePageRequest(page, {}, procs);
 
-    expect(result.html).toContain("__SEAM_DATA__");
+    expect(result.html).toContain("__data");
     // Script should be at the end
     expect(result.html).toMatch(/<\/script>$/);
   });
@@ -284,12 +284,12 @@ describe("handlePageRequest -- custom dataId", () => {
     const result = await handlePageRequest(page, {}, procs);
 
     expect(result.html).toContain('id="__sd"');
-    expect(result.html).not.toContain('id="__SEAM_DATA__"');
+    expect(result.html).not.toContain('id="__data"');
     const data = extractSeamData(result.html, "__sd");
     expect(data.page).toEqual({ v: 1 });
   });
 
-  it("defaults to __SEAM_DATA__ when dataId is undefined", async () => {
+  it("defaults to __data when dataId is undefined", async () => {
     const page: PageDef = {
       template: "<body><p>hi</p></body>",
       loaders: { page: () => ({ procedure: "getData", input: {} }) },
@@ -298,6 +298,6 @@ describe("handlePageRequest -- custom dataId", () => {
     const procs = makeProcedures(["getData", mockProcedure(() => ({ v: 1 }))]);
     const result = await handlePageRequest(page, {}, procs);
 
-    expect(result.html).toContain('id="__SEAM_DATA__"');
+    expect(result.html).toContain('id="__data"');
   });
 });

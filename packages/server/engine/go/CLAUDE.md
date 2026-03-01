@@ -11,16 +11,16 @@ See root CLAUDE.md for general project rules.
 
 ## Public API
 
-| Function           | Description                                      |
-| ------------------ | ------------------------------------------------ |
-| `RenderPage`       | Page assembly: inject slots + data script + meta |
-| `ParseBuildOutput` | Parse route-manifest.json into page definitions  |
-| `ParseI18nConfig`  | Extract i18n configuration from manifest         |
-| `ParseRpcHashMap`  | Build reverse lookup from RPC hash map           |
-| `AsciiEscapeJSON`  | Escape non-ASCII in JSON strings                 |
-| `I18nQuery`        | Look up i18n translation keys                    |
-| `Inject`           | Template injection with `__SEAM_DATA__` script   |
-| `InjectNoScript`   | Template injection without data script           |
+| Function           | Description                                           |
+| ------------------ | ----------------------------------------------------- |
+| `RenderPage`       | Page assembly: inject slots + data script + meta      |
+| `ParseBuildOutput` | Parse route-manifest.json into page definitions       |
+| `ParseI18nConfig`  | Extract i18n configuration from manifest              |
+| `ParseRpcHashMap`  | Build reverse lookup from RPC hash map                |
+| `AsciiEscapeJSON`  | Escape non-ASCII in JSON strings                      |
+| `I18nQuery`        | Look up i18n translation keys                         |
+| `Inject`           | Template injection with data script (configurable ID) |
+| `InjectNoScript`   | Template injection without data script                |
 
 ## Key Details
 

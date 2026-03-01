@@ -386,19 +386,17 @@ describe("null-byte safety", () => {
   });
 });
 
-describe("__SEAM_DATA__ script", () => {
+describe("__data script", () => {
   it("inserts before </body>", () => {
     const html = inject("<body><p>hi</p></body>", { x: 1 });
     expect(html).toBe(
-      '<body><p>hi</p><script id="__SEAM_DATA__" type="application/json">{"x":1}</script></body>',
+      '<body><p>hi</p><script id="__data" type="application/json">{"x":1}</script></body>',
     );
   });
 
   it("appends at end when no </body>", () => {
     const html = inject("<p>hi</p>", { x: 1 });
-    expect(html).toBe(
-      '<p>hi</p><script id="__SEAM_DATA__" type="application/json">{"x":1}</script>',
-    );
+    expect(html).toBe('<p>hi</p><script id="__data" type="application/json">{"x":1}</script>');
   });
 
   it("is omitted when skipDataScript is true", () => {

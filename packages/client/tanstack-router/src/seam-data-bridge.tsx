@@ -43,7 +43,7 @@ let globalCache: I18nCache | null = null;
 /**
  * InnerWrap component that bridges TanStack Router's loaderData to SeamDataProvider
  * and provides SPA navigation via SeamNavigateProvider.
- * Manages i18n state: initial load from __SEAM_DATA__, SPA updates via RPC + cache.
+ * Manages i18n state: initial load from __data, SPA updates via RPC + cache.
  */
 export function SeamDataBridge({ children }: { children: ReactNode }) {
   const matches = useMatches();

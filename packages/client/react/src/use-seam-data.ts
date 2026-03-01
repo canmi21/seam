@@ -13,7 +13,7 @@ export function useSeamData<T extends object = Record<string, unknown>>(): T {
   return value as T;
 }
 
-export function parseSeamData(dataId = "__SEAM_DATA__"): Record<string, unknown> {
+export function parseSeamData(dataId = "__data"): Record<string, unknown> {
   const el = document.getElementById(dataId);
   if (!el?.textContent) throw new Error(`${dataId} not found`);
   return JSON.parse(el.textContent) as Record<string, unknown>;

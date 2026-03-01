@@ -15,8 +15,8 @@ export function simplePage(template: string, loaders: PageDef["loaders"]): PageD
   return { template, loaders, layoutChain: [] };
 }
 
-/** Extract __SEAM_DATA__ JSON from rendered HTML */
-export function extractSeamData(html: string, dataId = "__SEAM_DATA__"): Record<string, unknown> {
+/** Extract __data JSON from rendered HTML */
+export function extractSeamData(html: string, dataId = "__data"): Record<string, unknown> {
   const re = new RegExp(`<script id="${dataId}" type="application/json">(.*?)</script>`);
   const match = html.match(re);
   if (!match) throw new Error(`${dataId} script not found`);

@@ -165,7 +165,7 @@ describe("combined", () => {
     expect(html).toContain('class="container"');
     expect(html).toContain("<h1>Alice &amp; Bob</h1>");
     expect(html).toContain("<div><em>friends</em></div>");
-    expect(html).toContain('id="__SEAM_DATA__"');
+    expect(html).toContain('id="__data"');
   });
 });
 

@@ -27,17 +27,17 @@ func getHTML(t *testing.T, url string) (int, string) {
 	return resp.StatusCode, string(raw)
 }
 
-var seamDataRe = regexp.MustCompile(`<script id="__SEAM_DATA__" type="application/json">(.+?)</script>`)
+var seamDataRe = regexp.MustCompile(`<script id="__data" type="application/json">(.+?)</script>`)
 
 func extractSeamData(t *testing.T, html string) map[string]any {
 	t.Helper()
 	matches := seamDataRe.FindStringSubmatch(html)
 	if len(matches) < 2 {
-		t.Fatalf("__SEAM_DATA__ not found in HTML")
+		t.Fatalf("__data not found in HTML")
 	}
 	var data map[string]any
 	if err := json.Unmarshal([]byte(matches[1]), &data); err != nil {
-		t.Fatalf("unmarshal __SEAM_DATA__: %v", err)
+		t.Fatalf("unmarshal __data: %v", err)
 	}
 	return data
 }
@@ -76,7 +76,7 @@ func TestPageEndpoint(t *testing.T) {
 				data := extractSeamData(t, html)
 				user, ok := data["user"].(map[string]any)
 				if !ok {
-					t.Fatalf("__SEAM_DATA__.user not an object: %v", data)
+					t.Fatalf("__data.user not an object: %v", data)
 				}
 				if name, _ := user["name"].(string); name != "Alice" {
 					t.Errorf("user.name = %q, want 'Alice'", name)
@@ -91,7 +91,7 @@ func TestPageEndpoint(t *testing.T) {
 					t.Errorf("user.id = %v, want 1", id)
 				}
 				if _, hasLayouts := data["_layouts"]; hasLayouts {
-					t.Error("standalone page should not have _layouts in __SEAM_DATA__")
+					t.Error("standalone page should not have _layouts in __data")
 				}
 			})
 
@@ -125,7 +125,7 @@ func TestPageEndpoint(t *testing.T) {
 				data := extractSeamData(t, html)
 				user, ok := data["user"].(map[string]any)
 				if !ok {
-					t.Fatalf("__SEAM_DATA__.user not an object: %v", data)
+					t.Fatalf("__data.user not an object: %v", data)
 				}
 				if name, _ := user["name"].(string); name != "Bob" {
 					t.Errorf("user.name = %q, want 'Bob'", name)
@@ -150,10 +150,10 @@ func TestPageEndpoint(t *testing.T) {
 				_, html := getHTML(t, b.BaseURL+"/_seam/page/user/1")
 				stripped := stripSeamData(html)
 				if !strings.Contains(stripped, "Alice") {
-					t.Error("'Alice' not visible outside __SEAM_DATA__ script")
+					t.Error("'Alice' not visible outside __data script")
 				}
 				if !strings.Contains(stripped, "alice@example.com") {
-					t.Error("email not visible outside __SEAM_DATA__ script")
+					t.Error("email not visible outside __data script")
 				}
 			})
 

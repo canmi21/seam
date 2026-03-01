@@ -18,6 +18,7 @@ import {
 
 export interface InjectOptions {
   skipDataScript?: boolean;
+  dataId?: string;
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -81,7 +82,7 @@ export function inject(
   if (options?.skipDataScript) {
     return wasmInjectNoScript(template, json);
   }
-  return wasmInject(template, json);
+  return wasmInject(template, json, options?.dataId ?? "__data");
 }
 
 export function injectNoScript(template: string, dataJson: string): string {

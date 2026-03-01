@@ -124,12 +124,14 @@ func callWasm(funcName, template, dataJSON string) (string, error) {
 	return output, nil
 }
 
-// Inject renders the template with data and appends __SEAM_DATA__ script.
+// Inject renders the template with data and appends a data script tag.
+// Deprecated: uses injector.wasm which hard-codes "__SEAM_DATA__" as data ID.
+// Prefer engine.Inject which accepts a configurable data ID.
 func Inject(template, dataJSON string) (string, error) {
 	return callWasm("inject", template, dataJSON)
 }
 
-// InjectNoScript renders the template with data without __SEAM_DATA__ script.
+// InjectNoScript renders the template with data without data script tag.
 func InjectNoScript(template, dataJSON string) (string, error) {
 	return callWasm("inject_no_script", template, dataJSON)
 }

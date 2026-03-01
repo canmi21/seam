@@ -19,7 +19,7 @@ import (
 )
 
 var baseURL string
-var dataID = "__SEAM_DATA__"
+var dataID = "__data"
 
 var rpcHashMap struct {
 	Procedures map[string]string `json:"procedures"`
@@ -45,7 +45,7 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// Read data_id from seam.toml (default: __SEAM_DATA__)
+	// Read data_id from seam.toml (default: __data)
 	if tomlBytes, err := os.ReadFile(filepath.Join(exampleDir, "seam.toml")); err == nil {
 		re := regexp.MustCompile(`(?m)^data_id\s*=\s*"(.+)"`)
 		if m := re.FindSubmatch(tomlBytes); len(m) > 1 {

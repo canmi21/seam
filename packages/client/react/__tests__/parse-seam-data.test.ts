@@ -14,27 +14,27 @@ afterEach(() => {
 });
 
 describe("parseSeamData", () => {
-  it("parses valid __SEAM_DATA__ script tag", () => {
+  it("parses valid __data script tag", () => {
     const data = { user: { id: 1 }, items: [1, 2, 3] };
     stubDocument({ textContent: JSON.stringify(data) });
 
     expect(parseSeamData()).toEqual(data);
-    expect(document.getElementById).toHaveBeenCalledWith("__SEAM_DATA__");
+    expect(document.getElementById).toHaveBeenCalledWith("__data");
   });
 
   it("throws when element is missing", () => {
     stubDocument(null);
-    expect(() => parseSeamData()).toThrow("__SEAM_DATA__ not found");
+    expect(() => parseSeamData()).toThrow("__data not found");
   });
 
   it("throws when textContent is empty", () => {
     stubDocument({ textContent: "" });
-    expect(() => parseSeamData()).toThrow("__SEAM_DATA__ not found");
+    expect(() => parseSeamData()).toThrow("__data not found");
   });
 
   it("throws when textContent is null", () => {
     stubDocument({ textContent: null });
-    expect(() => parseSeamData()).toThrow("__SEAM_DATA__ not found");
+    expect(() => parseSeamData()).toThrow("__data not found");
   });
 
   it("throws on malformed JSON", () => {

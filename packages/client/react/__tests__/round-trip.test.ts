@@ -58,7 +58,7 @@ describe("round-trip: render -> slots -> inject", () => {
     expect(finalHtml).toContain("Alice");
     expect(finalHtml).toContain("alice@example.com");
     expect(finalHtml).toContain('src="pic.png"');
-    expect(finalHtml).toContain("__SEAM_DATA__");
+    expect(finalHtml).toContain("__data");
   });
 
   it("handles nullable fields via conditional wrapping", () => {
@@ -135,6 +135,6 @@ describe("round-trip: render -> slots -> inject", () => {
     const finalHtml = inject(template, realData);
     expect(finalHtml).toContain("hello");
     expect(finalHtml).toContain("world");
-    expect(finalHtml).toContain("__SEAM_DATA__");
+    expect(finalHtml).toContain("__data");
   });
 });

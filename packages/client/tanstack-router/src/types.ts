@@ -34,7 +34,7 @@ export interface HydrateOptions extends SeamRouterOptions {
   strict?: boolean;
 }
 
-/** Parsed i18n metadata from initial __SEAM_DATA__._i18n */
+/** Parsed i18n metadata from initial __data._i18n */
 export interface SeamI18nMeta {
   locale: string;
   messages: Record<string, string>;

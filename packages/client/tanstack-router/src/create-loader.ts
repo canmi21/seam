@@ -20,7 +20,7 @@ export function buildInput(
 
 /**
  * Create a TanStack Router loader function from declarative loader definitions.
- * On first load, returns data from __SEAM_DATA__ synchronously.
+ * On first load, returns data from __data synchronously.
  * On SPA navigation, calls RPC endpoints in parallel.
  *
  * When layoutId is set, first-load uses _seamInitial.layouts[layoutId]
@@ -34,7 +34,7 @@ export function createLoaderFromDefs(
   return async (ctx: { params: Record<string, string>; context: SeamRouterContext }) => {
     const initial = ctx.context._seamInitial;
 
-    // First-load short-circuit: use __SEAM_DATA__ if available
+    // First-load short-circuit: use __data if available
     if (initial && layoutId) {
       // Layout loader: consume layout data once
       if (!initial.consumedLayouts.has(layoutId) && initial.layouts[layoutId]) {

@@ -74,7 +74,7 @@ const fixtures = [
     data: { role: "admin" },
   },
   {
-    name: "__SEAM_DATA__ injection",
+    name: "__data injection",
     template: "<body><p>hi</p></body>",
     data: { x: 1 },
   },
@@ -89,7 +89,7 @@ describe("WASM parity with native TS", () => {
     });
   }
 
-  it("__SEAM_DATA__ script parity", () => {
+  it("__data script parity", () => {
     const template = "<body><p>hi</p></body>";
     const data = { x: 1 };
     const wasmResult = inject(template, data);

@@ -119,7 +119,7 @@ export async function handlePageRequest(
         id: l.id,
         loader_keys: Object.keys(l.loaders),
       })),
-      data_id: page.dataId ?? "__SEAM_DATA__",
+      data_id: page.dataId ?? "__data",
       head_meta: page.headMeta,
     };
 

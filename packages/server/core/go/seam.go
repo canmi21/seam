@@ -120,7 +120,7 @@ type PageDef struct {
 	Template        string
 	LocaleTemplates map[string]string // locale -> pre-resolved template HTML (layout chain applied)
 	Loaders         []LoaderDef
-	DataID          string             // script ID for the injected data JSON (default "__SEAM_DATA__")
+	DataID          string             // script ID for the injected data JSON (default "__data")
 	LayoutChain     []LayoutChainEntry // layout chain from outer to inner with per-layout loader keys
 	PageLoaderKeys  []string           // data keys from page-level loaders (not layout)
 	I18nKeys        []string           // merged i18n keys from route + layout chain; empty means include all

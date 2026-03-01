@@ -7,6 +7,7 @@ import type { AttrEntry, StyleAttrEntry } from "./renderer.js";
 
 export interface InjectOptions {
   skipDataScript?: boolean;
+  dataId?: string;
 }
 
 // -- Attribute injection (phase B) --
@@ -112,9 +113,10 @@ export function inject(
     result = injectAttributes(result, attrs);
   }
 
-  // __SEAM_DATA__ script
+  // data script
   if (!options?.skipDataScript) {
-    const script = `<script id="__SEAM_DATA__" type="application/json">${JSON.stringify(data)}</script>`;
+    const id = options?.dataId ?? "__data";
+    const script = `<script id="${id}" type="application/json">${JSON.stringify(data)}</script>`;
     const bodyClose = result.lastIndexOf("</body>");
     if (bodyClose !== -1) {
       result = result.slice(0, bodyClose) + script + result.slice(bodyClose);

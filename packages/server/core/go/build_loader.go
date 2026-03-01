@@ -291,7 +291,7 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 
 		dataID := manifest.DataID
 		if dataID == "" {
-			dataID = "__SEAM_DATA__"
+			dataID = "__data"
 		}
 		// Merge i18n_keys from layout chain + route
 		var i18nKeys []string

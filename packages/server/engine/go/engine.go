@@ -144,12 +144,12 @@ func I18nQuery(keysJSON, locale, defaultLocale, messagesJSON string) (string, er
 	return callWasm("i18n_query", keysJSON, locale, defaultLocale, messagesJSON)
 }
 
-// Inject renders template with data and appends __SEAM_DATA__ script.
-func Inject(template, dataJSON string) (string, error) {
-	return callWasm("inject", template, dataJSON)
+// Inject renders template with data and appends a data script tag using dataID.
+func Inject(template, dataJSON, dataID string) (string, error) {
+	return callWasm("inject", template, dataJSON, dataID)
 }
 
-// InjectNoScript renders template with data without __SEAM_DATA__ script.
+// InjectNoScript renders template with data without data script tag.
 func InjectNoScript(template, dataJSON string) (string, error) {
 	return callWasm("inject_no_script", template, dataJSON)
 }

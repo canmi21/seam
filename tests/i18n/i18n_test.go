@@ -21,7 +21,7 @@ import (
 var prefixBaseURL string
 var hiddenBaseURL string
 
-var seamDataRe = regexp.MustCompile(`<script id="__SEAM_DATA__" type="application/json">(.+?)</script>`)
+var seamDataRe = regexp.MustCompile(`<script id="__data" type="application/json">(.+?)</script>`)
 var langAttrRe = regexp.MustCompile(`<html[^>]*\slang="([^"]+)"`)
 
 func projectRoot() string {
@@ -199,11 +199,11 @@ func extractSeamData(t *testing.T, html string) map[string]any {
 	t.Helper()
 	m := seamDataRe.FindStringSubmatch(html)
 	if len(m) < 2 {
-		t.Fatal("__SEAM_DATA__ script not found")
+		t.Fatal("__data script not found")
 	}
 	var data map[string]any
 	if err := json.Unmarshal([]byte(m[1]), &data); err != nil {
-		t.Fatalf("unmarshal __SEAM_DATA__: %v", err)
+		t.Fatalf("unmarshal __data: %v", err)
 	}
 	return data
 }
@@ -213,7 +213,7 @@ func extractI18nLocale(t *testing.T, html string) string {
 	data := extractSeamData(t, html)
 	i18n, ok := data["_i18n"].(map[string]any)
 	if !ok {
-		t.Fatal("_i18n not found or not an object in __SEAM_DATA__")
+		t.Fatal("_i18n not found or not an object in __data")
 	}
 	locale, ok := i18n["locale"].(string)
 	if !ok {

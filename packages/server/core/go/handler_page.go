@@ -130,7 +130,7 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 	}
 	dataID := page.DataID
 	if dataID == "" {
-		dataID = "__SEAM_DATA__"
+		dataID = "__data"
 	}
 	config := map[string]any{
 		"layout_chain": layoutChain,

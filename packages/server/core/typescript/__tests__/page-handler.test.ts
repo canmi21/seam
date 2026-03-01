@@ -28,7 +28,7 @@ describe("handlePageRequest", () => {
     const result = await handlePageRequest(page, {}, procs);
     expect(result.status).toBe(200);
     expect(result.html).toContain("Alice");
-    expect(result.html).toContain("__SEAM_DATA__");
+    expect(result.html).toContain("__data");
   });
 
   it("returns 500 when procedure not found", async () => {
@@ -162,7 +162,7 @@ describe("handlePageRequest -- single layout", () => {
     expect(result.html).toContain("<footer>f</footer>");
   });
 
-  it("stores layout data under _layouts in __SEAM_DATA__", async () => {
+  it("stores layout data under _layouts in __data", async () => {
     const page: PageDef = {
       template: "<p>page</p>",
       loaders: { page: () => ({ procedure: "getHome", input: {} }) },

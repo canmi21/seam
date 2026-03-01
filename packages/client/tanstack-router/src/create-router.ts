@@ -73,7 +73,7 @@ function buildRoutes(
 export function createSeamRouter(opts: SeamRouterOptions) {
   const { routes, pages, defaultStaleTime = 30_000, dataId, cleanLocaleQuery } = opts;
 
-  // Parse initial data from __SEAM_DATA__ (browser only)
+  // Parse initial data from __data (browser only)
   let initialData: Record<string, unknown> | null = null;
   let initialLayouts: Record<string, Record<string, unknown>> = {};
   let initialPath: string | null = null;
@@ -116,7 +116,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
         initialParams = matched.params;
       }
     } catch {
-      // No __SEAM_DATA__ — not a CTR page
+      // No __data — not a CTR page
     }
   }
 
