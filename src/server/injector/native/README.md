@@ -1,10 +1,10 @@
 # @canmi/seam-injector-native
 
+HTML template injector that replaces `<!--seam:...-->` comment markers with data-driven content.
+
 > **Deprecated.** The maintained injector is the Rust implementation at
 > `src/server/injector/rust/`. TS and Go backends consume it via the
 > WASM package `@canmi/seam-injector` (`src/server/injector/js/`).
-
-HTML template injector that replaces `<!--seam:...-->` comment markers with data-driven content.
 
 ## Pipeline
 

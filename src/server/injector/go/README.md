@@ -1,9 +1,9 @@
 # seam-injector-go
 
+Go wrapper around the Rust injector WASM binary using wazero. Provides HTML template injection for the Go server core.
+
 > **Deprecated.** Use `src/server/engine/go` instead, which is a superset
 > that includes injector functions plus page assembly, i18n, and build parsing.
-
-Go wrapper around the Rust injector WASM binary using wazero. Provides HTML template injection for the Go server core.
 
 ## Structure
 

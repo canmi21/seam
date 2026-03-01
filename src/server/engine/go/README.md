@@ -1,4 +1,4 @@
-# Go Engine
+# seam-engine-go
 
 Wazero-based WASM bridge for the Rust engine. All functions delegate to the embedded [engine/wasm](../wasm/) binary compiled from [engine/rust](../rust/).
 
