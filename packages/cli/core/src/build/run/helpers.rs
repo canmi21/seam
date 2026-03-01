@@ -20,9 +20,14 @@ pub enum RebuildMode {
 }
 
 /// Dispatch bundler based on mode
-pub(super) fn run_bundler(base_dir: &Path, mode: &BundlerMode, env: &[(&str, &str)]) -> Result<()> {
+pub(super) fn run_bundler(
+  base_dir: &Path,
+  mode: &BundlerMode,
+  dist_dir: &str,
+  env: &[(&str, &str)],
+) -> Result<()> {
   match mode {
-    BundlerMode::BuiltIn { entry } => run_builtin_bundler(base_dir, entry, "dist", env),
+    BundlerMode::BuiltIn { entry } => run_builtin_bundler(base_dir, entry, dist_dir, env),
     BundlerMode::Custom { command } => run_command(base_dir, command, "bundler", env),
   }
 }

@@ -238,8 +238,8 @@ pub(crate) fn run_typecheck(base_dir: &Path, command: &str) -> Result<()> {
   Ok(())
 }
 
-/// Copy frontend assets from dist/ to {out_dir}/public/
-/// `dist_dir` is the directory containing bundler output (e.g. "dist" or "frontend/dist").
+/// Copy frontend assets from the bundler output directory to {out_dir}/public/
+/// `dist_dir` is the directory containing bundler output (e.g. ".seam/dist" or "frontend/.seam/dist").
 pub(crate) fn package_static_assets(
   base_dir: &Path,
   assets: &super::super::types::AssetFiles,

@@ -57,6 +57,7 @@ export default defineConfig({
     },
   },
   build: {
+    outDir: process.env.SEAM_DIST_DIR ?? ".seam/dist",
     manifest: true,
     sourcemap: process.env.SEAM_SOURCEMAP === "1",
     rollupOptions: {

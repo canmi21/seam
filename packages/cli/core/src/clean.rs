@@ -28,6 +28,7 @@ fn run_project_clean(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   ui::arrow("cleaning project");
 
   delete_out_dir(config, base_dir)?;
+  delete_dist_dir(base_dir)?;
   delete_generate_dir(config, base_dir)?;
   run_clean_commands(&config.clean.commands, base_dir)?;
 
@@ -47,6 +48,7 @@ fn run_workspace_clean(
   } else {
     ui::arrow("cleaning workspace");
     delete_out_dir(config, base_dir)?;
+    delete_dist_dir(base_dir)?;
     delete_generate_dir(config, base_dir)?;
     run_clean_commands(&config.clean.commands, base_dir)?;
 
@@ -94,6 +96,12 @@ fn clean_single_member(config: &SeamConfig, base_dir: &Path, name: &str) -> Resu
 fn delete_out_dir(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   let out_dir = config.build.out_dir.as_deref().unwrap_or(".seam/output");
   let path = base_dir.join(out_dir);
+  delete_dir_if_exists(&path)
+}
+
+/// Delete the bundler intermediate output directory.
+fn delete_dist_dir(base_dir: &Path) -> Result<()> {
+  let path = base_dir.join(".seam/dist");
   delete_dir_if_exists(&path)
 }
 

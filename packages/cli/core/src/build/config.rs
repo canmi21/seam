@@ -45,7 +45,7 @@ impl BuildConfig {
       .out_dir
       .clone()
       .or_else(|| config.frontend.out_dir.clone())
-      .unwrap_or_else(|| "dist".to_string());
+      .unwrap_or_else(|| ".seam/output".to_string());
 
     // Bundler mode: explicit command takes priority, then built-in via frontend.entry
     let (bundler_mode, bundler_manifest) = if let Some(cmd) =
@@ -57,7 +57,7 @@ impl BuildConfig {
       };
       (BundlerMode::Custom { command: cmd }, manifest)
     } else if let Some(entry) = config.frontend.entry.clone() {
-      (BundlerMode::BuiltIn { entry }, "dist/.seam/manifest.json".to_string())
+      (BundlerMode::BuiltIn { entry }, ".seam/dist/.seam/manifest.json".to_string())
     } else {
       bail!(
         "set frontend.entry for the built-in bundler, or build.bundler_command for a custom bundler"
@@ -113,7 +113,7 @@ impl BuildConfig {
       .parent()
       .and_then(|p| p.parent())
       .and_then(|p| p.to_str())
-      .unwrap_or("dist")
+      .unwrap_or(".seam/dist")
   }
 
   pub fn from_seam_config_dev(config: &SeamConfig) -> Result<Self> {
@@ -185,7 +185,7 @@ router_file = "src/server/router.ts"
     assert!(
       matches!(build.bundler_mode, BundlerMode::BuiltIn { entry } if entry == "src/client/main.tsx")
     );
-    assert_eq!(build.bundler_manifest, "dist/.seam/manifest.json");
+    assert_eq!(build.bundler_manifest, ".seam/dist/.seam/manifest.json");
     assert!(build.is_fullstack);
   }
 

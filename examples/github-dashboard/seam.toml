@@ -8,7 +8,7 @@ data_id = "__data"
 [build]
 routes = "frontend/src/client/routes.ts"
 bundler_command = "cd frontend && bunx vite build"
-bundler_manifest = "frontend/dist/.vite/manifest.json"
+bundler_manifest = "frontend/.seam/dist/.vite/manifest.json"
 out_dir = ".seam/output"
 obfuscate = true
 hash_length = 16

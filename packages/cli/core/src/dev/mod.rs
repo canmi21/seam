@@ -66,9 +66,11 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   // Wait for Ctrl+C, child exit, or dev server error
   if use_embedded {
     let dev_port = config.frontend.dev_port.unwrap_or(5173);
-    let manifest_path = base_dir.join("dist/.seam/manifest.json");
+    let (manifest_path, static_dir) = match &build_config {
+      Ok(bc) => (base_dir.join(&bc.bundler_manifest), base_dir.join(bc.dist_dir())),
+      Err(_) => (base_dir.join(".seam/dist/.seam/manifest.json"), base_dir.join(".seam/dist")),
+    };
     let assets = read_bundle_manifest(&manifest_path)?;
-    let static_dir = base_dir.join("dist");
 
     if children.is_empty() {
       // No backend -- just run dev server

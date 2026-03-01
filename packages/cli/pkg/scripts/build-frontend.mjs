@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
 
-const [entry, outDir = "dist"] = process.argv.slice(2);
+const [entry, outDir = ".seam/dist"] = process.argv.slice(2);
 if (!entry) {
   console.error("usage: build-frontend.mjs <entry> <outdir>");
   process.exit(1);

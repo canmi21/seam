@@ -47,9 +47,10 @@ pub(super) fn print_dev_banner(
 pub(super) fn build_frontend(config: &SeamConfig, base_dir: &Path) -> Result<()> {
   crate::ui::step(1, 1, "Building frontend");
   let build_config = BuildConfig::from_seam_config(config)?;
+  let dist_dir = build_config.dist_dir();
   match &build_config.bundler_mode {
     BundlerMode::BuiltIn { entry } => {
-      crate::shell::run_builtin_bundler(base_dir, entry, "dist", &[])?;
+      crate::shell::run_builtin_bundler(base_dir, entry, dist_dir, &[])?;
     }
     BundlerMode::Custom { command } => {
       crate::shell::run_command(base_dir, command, "bundler", &[])?;

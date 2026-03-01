@@ -3,7 +3,7 @@ name = "client-react-example"
 
 [build]
 routes = "./src/routes.ts"
-out_dir = "dist"
+out_dir = ".seam/output"
 bundler_command = "npx vite build"
-bundler_manifest = "dist/.vite/manifest.json"
+bundler_manifest = ".seam/dist/.vite/manifest.json"
 renderer = "react"

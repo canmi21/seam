@@ -33,6 +33,7 @@ export default defineConfig({
   plugins: [react(), seamRpcPlugin()],
   appType: "custom",
   build: {
+    outDir: process.env.SEAM_DIST_DIR ?? ".seam/dist",
     manifest: true,
     rollupOptions: {
       input: "src/client/main.tsx",

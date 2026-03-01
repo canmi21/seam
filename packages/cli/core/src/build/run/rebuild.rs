@@ -46,17 +46,19 @@ pub fn run_incremental_rebuild(
   let rpc_map_path = out_dir.join("rpc-hash-map.json");
   let rpc_map_path_str =
     if rpc_map_path.exists() { rpc_map_path.to_string_lossy().to_string() } else { String::new() };
+  let dist_dir_str = build_config.dist_dir().to_string();
   let bundler_env: Vec<(&str, &str)> = vec![
     ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
     ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
     ("SEAM_TYPE_HINT", if build_config.type_hint { "1" } else { "0" }),
     ("SEAM_HASH_LENGTH", &hash_length_str),
     ("SEAM_RPC_MAP_PATH", &rpc_map_path_str),
+    ("SEAM_DIST_DIR", &dist_dir_str),
   ];
   let assets = if is_vite {
     AssetFiles { css: vec![], js: vec![] }
   } else {
-    run_bundler(base_dir, &build_config.bundler_mode, &bundler_env)?;
+    run_bundler(base_dir, &build_config.bundler_mode, &dist_dir_str, &bundler_env)?;
     let manifest_path = base_dir.join(&build_config.bundler_manifest);
     read_bundle_manifest(&manifest_path)?
   };

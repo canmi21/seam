@@ -183,16 +183,18 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
   } else {
     String::new()
   };
+  let dist_dir_str = first.build_config.dist_dir().to_string();
   let bundler_env: Vec<(&str, &str)> = vec![
     ("SEAM_OBFUSCATE", if first.build_config.obfuscate { "1" } else { "0" }),
     ("SEAM_SOURCEMAP", if first.build_config.sourcemap { "1" } else { "0" }),
     ("SEAM_TYPE_HINT", if first.build_config.type_hint { "1" } else { "0" }),
     ("SEAM_HASH_LENGTH", &hash_length_str),
     ("SEAM_RPC_MAP_PATH", &rpc_map_path_str),
+    ("SEAM_DIST_DIR", &dist_dir_str),
   ];
   match &first.build_config.bundler_mode {
     crate::build::config::BundlerMode::BuiltIn { entry } => {
-      crate::shell::run_builtin_bundler(base_dir, entry, "dist", &bundler_env)?;
+      crate::shell::run_builtin_bundler(base_dir, entry, &dist_dir_str, &bundler_env)?;
     }
     crate::build::config::BundlerMode::Custom { command } => {
       run_command(base_dir, command, "bundler", &bundler_env)?;

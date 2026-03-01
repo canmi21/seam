@@ -23,7 +23,13 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
 
   // [1/4] Bundle frontend
   ui::step(1, 4, "Bundling frontend");
-  run_bundler(base_dir, &build_config.bundler_mode, &[])?;
+  let dist_dir_str = build_config.dist_dir().to_string();
+  run_bundler(
+    base_dir,
+    &build_config.bundler_mode,
+    &dist_dir_str,
+    &[("SEAM_DIST_DIR", &dist_dir_str)],
+  )?;
 
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
   let assets = read_bundle_manifest(&manifest_path)?;
