@@ -20,7 +20,8 @@
 - Before every `git commit`, run `bun fmt && bun lint` and fix any errors first; for TS-only changes also run `bun run test:ts`, for Rust changes run `bun run test:rs`
 - For full verification (fmt + lint + build + all tests): `bun run verify`
 - Run `git commit` after each plan mode phase completes, do not push
-- Commit messages: concise English describing the change
+- Commit messages: conventional commit format (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`, `deps:`, `revert:`, `perf:`), optionally scoped (e.g. `feat(cli):`)
+- Commit messages must not mention version bumps (e.g. "bump 0.4.9") — version bumps are handled by `bump-version.sh` and staged into the last logical commit silently
 - Never add AI co-authorship (e.g., "Co-Authored-By: Claude")
 
 ## Versioning
