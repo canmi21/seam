@@ -65,44 +65,41 @@ pub fn sentinel_to_slots(html: &str) -> String {
     let mut comments = Vec::new();
 
     // Process style sentinels first
-    if has_style_sentinels {
-      if let Some(style_cap) = style_re.captures(&working_attrs) {
-        let style_value = style_cap[1].to_string();
-        let mut static_pairs = Vec::new();
+    if has_style_sentinels && let Some(style_cap) = style_re.captures(&working_attrs) {
+      let style_value = style_cap[1].to_string();
+      let mut static_pairs = Vec::new();
 
-        for pair in style_value.split(';') {
-          let pair = pair.trim();
-          if pair.is_empty() {
-            continue;
-          }
-          if pair.contains("%%SEAM:") {
-            // Extract css_property (before first ':') and path (from sentinel)
-            if let Some(colon_pos) = pair.find(':') {
-              let css_property = &pair[..colon_pos];
-              let value_part = &pair[colon_pos + 1..];
-              // Extract path from %%SEAM:path%%
-              if let (Some(start), Some(_end)) = (value_part.find("%%SEAM:"), value_part.find("%%"))
-              {
-                let after_prefix = &value_part[start + 7..];
-                if let Some(end2) = after_prefix.find("%%") {
-                  let path = &after_prefix[..end2];
-                  comments.push(format!("<!--seam:{path}:style:{css_property}-->"));
-                }
+      for pair in style_value.split(';') {
+        let pair = pair.trim();
+        if pair.is_empty() {
+          continue;
+        }
+        if pair.contains("%%SEAM:") {
+          // Extract css_property (before first ':') and path (from sentinel)
+          if let Some(colon_pos) = pair.find(':') {
+            let css_property = &pair[..colon_pos];
+            let value_part = &pair[colon_pos + 1..];
+            // Extract path from %%SEAM:path%%
+            if let (Some(start), Some(_end)) = (value_part.find("%%SEAM:"), value_part.find("%%")) {
+              let after_prefix = &value_part[start + 7..];
+              if let Some(end2) = after_prefix.find("%%") {
+                let path = &after_prefix[..end2];
+                comments.push(format!("<!--seam:{path}:style:{css_property}-->"));
               }
             }
-          } else {
-            static_pairs.push(pair.to_string());
           }
-        }
-
-        // Replace style attribute in working attrs
-        let full_style_match = style_cap.get(0).unwrap().as_str();
-        if static_pairs.is_empty() {
-          working_attrs = working_attrs.replace(full_style_match, "");
         } else {
-          let new_style = format!(r#"style="{}""#, static_pairs.join(";"));
-          working_attrs = working_attrs.replace(full_style_match, &new_style);
+          static_pairs.push(pair.to_string());
         }
+      }
+
+      // Replace style attribute in working attrs
+      let full_style_match = style_cap.get(0).unwrap().as_str();
+      if static_pairs.is_empty() {
+        working_attrs = working_attrs.replace(full_style_match, "");
+      } else {
+        let new_style = format!(r#"style="{}""#, static_pairs.join(";"));
+        working_attrs = working_attrs.replace(full_style_match, &new_style);
       }
     }
 

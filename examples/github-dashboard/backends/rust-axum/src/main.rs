@@ -10,8 +10,8 @@ use axum::response::IntoResponse;
 use axum::routing::get_service;
 use std::collections::BTreeMap;
 
-use seam_server::manifest::build_manifest;
 use seam_server::SeamServer;
+use seam_server::manifest::build_manifest;
 use seam_server_axum::IntoAxumRouter;
 use tower::ServiceExt;
 use tower_http::services::ServeDir;

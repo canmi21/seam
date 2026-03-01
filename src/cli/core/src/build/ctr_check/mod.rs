@@ -12,7 +12,7 @@ mod normalize;
 mod parse;
 mod report;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use serde_json::Value;
 
 /// Verify that template injection with mock data produces semantically

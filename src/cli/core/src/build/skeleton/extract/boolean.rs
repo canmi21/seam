@@ -1,9 +1,9 @@
 /* src/cli/core/src/build/skeleton/extract/boolean.rs */
 
-use super::dom::{parse_html, DomNode};
-use super::tree_diff::{diff_children, DiffOp};
+use super::dom::{DomNode, parse_html};
+use super::tree_diff::{DiffOp, diff_children};
 use super::variant::find_pair_for_axis;
-use super::{content_indices, Axis};
+use super::{Axis, content_indices};
 
 /// Insert boolean/nullable directives into a node list.
 /// `tree` corresponds to `a_nodes` structurally (ignoring previously-inserted
@@ -86,18 +86,18 @@ pub(super) fn insert_boolean_directives(
       DiffOp::OnlyLeft(ai) => {
         copy_leading_directives(&tree, &mut tree_pos, &content_map, tree_content_idx, &mut result);
         // Check if next op is OnlyRight — forms an if/else replacement pair
-        if op_idx + 1 < ops.len() {
-          if let DiffOp::OnlyRight(bi) = &ops[op_idx + 1] {
-            result.push(DomNode::Comment(format!("seam:if:{path}")));
-            result.push(a_nodes[*ai].clone());
-            result.push(DomNode::Comment("seam:else".into()));
-            result.push(b_nodes[*bi].clone());
-            result.push(DomNode::Comment(format!("seam:endif:{path}")));
-            tree_pos += 1;
-            tree_content_idx += 1;
-            op_idx += 2;
-            continue;
-          }
+        if op_idx + 1 < ops.len()
+          && let DiffOp::OnlyRight(bi) = &ops[op_idx + 1]
+        {
+          result.push(DomNode::Comment(format!("seam:if:{path}")));
+          result.push(a_nodes[*ai].clone());
+          result.push(DomNode::Comment("seam:else".into()));
+          result.push(b_nodes[*bi].clone());
+          result.push(DomNode::Comment(format!("seam:endif:{path}")));
+          tree_pos += 1;
+          tree_content_idx += 1;
+          op_idx += 2;
+          continue;
         }
         // If-only: content present when true, absent when false
         result.push(DomNode::Comment(format!("seam:if:{path}")));

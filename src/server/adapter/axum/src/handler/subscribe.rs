@@ -12,8 +12,8 @@ use futures_core::Stream;
 use seam_server::SeamError;
 use tokio_stream::StreamExt;
 
-use super::channel::handle_channel_ws;
 use super::AppState;
+use super::channel::handle_channel_ws;
 
 #[derive(serde::Deserialize)]
 pub(super) struct SubscribeQuery {

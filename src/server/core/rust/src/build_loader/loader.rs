@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use crate::page::{LoaderDef, PageDef};
 
-use super::types::{pick_template, LoaderConfig, ParamConfig, RouteManifest, RpcHashMap};
+use super::types::{LoaderConfig, ParamConfig, RouteManifest, RpcHashMap, pick_template};
 
 /// Build a LoaderInputFn closure from the loader config's param mappings.
 /// For params with `from: "route"`, extracts the value from route params.
@@ -163,11 +163,7 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
           };
           lt.insert(locale.clone(), resolved);
         }
-        if lt.is_empty() {
-          None
-        } else {
-          Some(lt)
-        }
+        if lt.is_empty() { None } else { Some(lt) }
       } else {
         None
       }
@@ -287,11 +283,7 @@ pub(super) fn convert_route_path(path: &str) -> String {
   path
     .split('/')
     .map(|seg| {
-      if let Some(param) = seg.strip_prefix(':') {
-        format!("{{{param}}}")
-      } else {
-        seg.to_string()
-      }
+      if let Some(param) = seg.strip_prefix(':') { format!("{{{param}}}") } else { seg.to_string() }
     })
     .collect::<Vec<_>>()
     .join("/")

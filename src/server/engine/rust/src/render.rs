@@ -2,8 +2,8 @@
 
 use crate::escape::ascii_escape_json;
 use crate::page::{
-  build_seam_data, flatten_for_slots, inject_data_script, inject_head_meta, inject_html_lang,
-  I18nOpts, PageConfig,
+  I18nOpts, PageConfig, build_seam_data, flatten_for_slots, inject_data_script, inject_head_meta,
+  inject_html_lang,
 };
 
 /// Render a page: inject data into template, assemble data script,

@@ -28,11 +28,7 @@ impl ResolveStrategy for FromUrlPrefix {
   fn resolve(&self, data: &ResolveData) -> Option<String> {
     let loc = data.path_locale?;
     let locale_set: HashSet<&str> = data.locales.iter().map(|s| s.as_str()).collect();
-    if locale_set.contains(loc) {
-      Some(loc.to_string())
-    } else {
-      None
-    }
+    if locale_set.contains(loc) { Some(loc.to_string()) } else { None }
   }
 }
 
@@ -56,12 +52,12 @@ impl ResolveStrategy for FromCookie {
     let locale_set: HashSet<&str> = data.locales.iter().map(|s| s.as_str()).collect();
     for pair in header.split(';') {
       let pair = pair.trim();
-      if let Some((k, v)) = pair.split_once('=') {
-        if k.trim() == self.name {
-          let v = v.trim();
-          if locale_set.contains(v) {
-            return Some(v.to_string());
-          }
+      if let Some((k, v)) = pair.split_once('=')
+        && k.trim() == self.name
+      {
+        let v = v.trim();
+        if locale_set.contains(v) {
+          return Some(v.to_string());
         }
       }
     }
@@ -101,10 +97,10 @@ impl ResolveStrategy for FromAcceptLanguage {
       let mut q = 1.0_f64;
       for s in segments {
         let s = s.trim();
-        if let Some(val) = s.strip_prefix("q=") {
-          if let Ok(v) = val.parse::<f64>() {
-            q = v;
-          }
+        if let Some(val) = s.strip_prefix("q=")
+          && let Ok(v) = val.parse::<f64>()
+        {
+          q = v;
         }
       }
       entries.push((lang, q));
@@ -148,10 +144,11 @@ impl ResolveStrategy for FromUrlQuery {
     let query_str = data.url.split_once('?').map(|(_, q)| q)?;
     let locale_set: HashSet<&str> = data.locales.iter().map(|s| s.as_str()).collect();
     for pair in query_str.split('&') {
-      if let Some((k, v)) = pair.split_once('=') {
-        if k == self.param && locale_set.contains(v) {
-          return Some(v.to_string());
-        }
+      if let Some((k, v)) = pair.split_once('=')
+        && k == self.param
+        && locale_set.contains(v)
+      {
+        return Some(v.to_string());
       }
     }
     None

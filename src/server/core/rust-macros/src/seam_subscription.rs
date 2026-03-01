@@ -98,14 +98,12 @@ fn extract_output_type(item: &ItemFn) -> syn::Result<Type> {
 }
 
 fn extract_first_generic_arg(ty: &Type) -> Option<Type> {
-  if let Type::Path(tp) = ty {
-    if let Some(seg) = tp.path.segments.last() {
-      if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-        if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-          return Some(inner.clone());
-        }
-      }
-    }
+  if let Type::Path(tp) = ty
+    && let Some(seg) = tp.path.segments.last()
+    && let syn::PathArguments::AngleBracketed(args) = &seg.arguments
+    && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+  {
+    return Some(inner.clone());
   }
   None
 }

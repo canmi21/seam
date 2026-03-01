@@ -1,6 +1,6 @@
 /* examples/github-dashboard/backends/rust-axum/src/procedures.rs */
 
-use seam_server::{seam_procedure, SeamError, SeamType};
+use seam_server::{SeamError, SeamType, seam_procedure};
 use serde::{Deserialize, Serialize};
 
 fn gh_client() -> reqwest::Client {
@@ -12,11 +12,7 @@ fn gh_request(client: &reqwest::Client, url: &str) -> reqwest::RequestBuilder {
     .get(url)
     .header("Accept", "application/vnd.github.v3+json")
     .header("User-Agent", "seam-github-dashboard");
-  if let Ok(token) = std::env::var("GITHUB_TOKEN") {
-    req.bearer_auth(token)
-  } else {
-    req
-  }
+  if let Ok(token) = std::env::var("GITHUB_TOKEN") { req.bearer_auth(token) } else { req }
 }
 
 // -- getSession --

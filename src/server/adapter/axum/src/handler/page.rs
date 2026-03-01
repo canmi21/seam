@@ -5,12 +5,12 @@ use std::sync::Arc;
 
 use axum::extract::{MatchedPath, Path, State};
 use axum::response::Html;
+use seam_server::SeamError;
 use seam_server::page::PageDef;
 use seam_server::procedure::ProcedureDef;
-use seam_server::SeamError;
 use tokio::task::JoinSet;
 
-use super::{lookup_i18n_messages, AppState};
+use super::{AppState, lookup_i18n_messages};
 use crate::error::AxumError;
 
 /// Resolve locale from request using the configured strategy chain.
@@ -26,10 +26,10 @@ fn resolve_locale(
   };
 
   let extracted = params.remove("_seam_locale");
-  if let Some(ref loc) = extracted {
-    if !locale_set.contains(loc) {
-      return Err(SeamError::not_found("Unknown locale"));
-    }
+  if let Some(ref loc) = extracted
+    && !locale_set.contains(loc)
+  {
+    return Err(SeamError::not_found("Unknown locale"));
   }
 
   let i18n = state.i18n_config.as_ref().unwrap();
@@ -191,7 +191,7 @@ pub(super) async fn handle_page(
 
   let mut script_data = build_script_data(&data, page);
 
-  if let (Some(ref loc), Some(ref i18n)) = (&locale, &state.i18n_config) {
+  if let (Some(loc), Some(i18n)) = (&locale, &state.i18n_config) {
     inject_i18n_data(&mut script_data, loc, i18n, &page.route);
   }
 

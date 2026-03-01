@@ -5,12 +5,12 @@ use std::collections::HashSet;
 use super::boolean::insert_boolean_directives;
 use super::combo::AxisGroup;
 use super::container::{hoist_list_container, unwrap_container_tree};
-use super::dom::{parse_html, serialize, DomNode};
-use super::tree_diff::{diff_children, DiffOp};
+use super::dom::{DomNode, parse_html, serialize};
+use super::tree_diff::{DiffOp, diff_children};
 use super::variant::{find_pair_for_axis, find_scoped_variant_indices};
 use super::{
-  content_indices, extract_template_inner, navigate_to_children, nth_content_index,
-  rename_slot_markers, Axis,
+  Axis, content_indices, extract_template_inner, navigate_to_children, nth_content_index,
+  rename_slot_markers,
 };
 
 /// Process a single array axis (without nested children):
@@ -158,18 +158,15 @@ fn insert_array_modified(
 ) -> Vec<DomNode> {
   let ops = diff_children(pop_nodes, empty_nodes);
   for op in ops {
-    if let DiffOp::Modified(ai, bi) = op {
-      if let (
-        DomNode::Element { children: ref pc, .. },
-        DomNode::Element { children: ref ec, .. },
-      ) = (&pop_nodes[ai], &empty_nodes[bi])
+    if let DiffOp::Modified(ai, bi) = op
+      && let (DomNode::Element { children: pc, .. }, DomNode::Element { children: ec, .. }) =
+        (&pop_nodes[ai], &empty_nodes[bi])
+    {
+      // Find corresponding tree node (skip directive comments)
+      if let Some(ti) = nth_content_index(&tree, ai)
+        && let DomNode::Element { children: tc, .. } = &mut tree[ti]
       {
-        // Find corresponding tree node (skip directive comments)
-        if let Some(ti) = nth_content_index(&tree, ai) {
-          if let DomNode::Element { children: ref mut tc, .. } = &mut tree[ti] {
-            *tc = insert_array_directives(std::mem::take(tc), pc, ec, path);
-          }
-        }
+        *tc = insert_array_directives(std::mem::take(tc), pc, ec, path);
       }
     }
   }
@@ -241,17 +238,13 @@ fn find_body_in_trees(pop: &[DomNode], empty: &[DomNode]) -> Option<BodyLocation
 
   // Recurse into Modified elements to find body deeper
   for op in &ops {
-    if let DiffOp::Modified(ai, bi) = op {
-      if let (
-        DomNode::Element { children: ref pc, .. },
-        DomNode::Element { children: ref ec, .. },
-      ) = (&pop[*ai], &empty[*bi])
-      {
-        if let Some(mut loc) = find_body_in_trees(pc, ec) {
-          loc.path.insert(0, *ai);
-          return Some(loc);
-        }
-      }
+    if let DiffOp::Modified(ai, bi) = op
+      && let (DomNode::Element { children: pc, .. }, DomNode::Element { children: ec, .. }) =
+        (&pop[*ai], &empty[*bi])
+      && let Some(mut loc) = find_body_in_trees(pc, ec)
+    {
+      loc.path.insert(0, *ai);
+      return Some(loc);
     }
   }
 
@@ -280,10 +273,10 @@ fn replace_body_at_path(
     *result = new;
   } else {
     // Navigate to the content node at index path[0] (skip directive comments)
-    if let Some(ci) = nth_content_index(result, path[0]) {
-      if let DomNode::Element { children, .. } = &mut result[ci] {
-        replace_body_at_path(children, &path[1..], body_indices, replacement);
-      }
+    if let Some(ci) = nth_content_index(result, path[0])
+      && let DomNode::Element { children, .. } = &mut result[ci]
+    {
+      replace_body_at_path(children, &path[1..], body_indices, replacement);
     }
   }
 }

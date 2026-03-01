@@ -1,8 +1,8 @@
 /* src/cli/core/src/build/skeleton/extract/enum_axis.rs */
 
-use super::dom::{self, parse_html, serialize, DomNode};
+use super::dom::{self, DomNode, parse_html, serialize};
 use super::variant::{find_enum_all_variants_for_axis, find_enum_group_for_axis};
-use super::{extract_template_inner, navigate_to_children, Axis};
+use super::{Axis, extract_template_inner, navigate_to_children};
 
 struct EnumRegion {
   parent_path: Vec<usize>,
@@ -59,16 +59,16 @@ fn find_enum_region(base: &[DomNode], others: &[Vec<DomNode>]) -> Option<EnumReg
             }
           })
           .collect();
-        if child_others.len() == others.len() {
-          if let Some(region) = find_enum_region(bc, &child_others) {
-            let mut path = vec![i];
-            path.extend(region.parent_path);
-            return Some(EnumRegion {
-              parent_path: path,
-              prefix: region.prefix,
-              suffix: region.suffix,
-            });
-          }
+        if child_others.len() == others.len()
+          && let Some(region) = find_enum_region(bc, &child_others)
+        {
+          let mut path = vec![i];
+          path.extend(region.parent_path);
+          return Some(EnumRegion {
+            parent_path: path,
+            prefix: region.prefix,
+            suffix: region.suffix,
+          });
         }
       }
     }

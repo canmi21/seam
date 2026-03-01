@@ -7,7 +7,7 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
-use crate::config::{resolve_member_config, SeamConfig};
+use crate::config::{SeamConfig, resolve_member_config};
 use crate::shell::run_command;
 use crate::ui;
 
@@ -184,11 +184,11 @@ name = "my-app"
 
     // Create out_dir and generate dir
     let out = tmp.join(".seam/output");
-    let gen = tmp.join("src/generated");
+    let gen_dir = tmp.join("src/generated");
     std::fs::create_dir_all(&out).unwrap();
-    std::fs::create_dir_all(&gen).unwrap();
+    std::fs::create_dir_all(&gen_dir).unwrap();
     std::fs::write(out.join("data.json"), "{}").unwrap();
-    std::fs::write(gen.join("client.ts"), "//").unwrap();
+    std::fs::write(gen_dir.join("client.ts"), "//").unwrap();
 
     let config: SeamConfig = toml::from_str(
       r#"
@@ -203,7 +203,7 @@ out_dir = "src/generated"
 
     run_project_clean(&config, &tmp).unwrap();
     assert!(!out.exists());
-    assert!(!gen.exists());
+    assert!(!gen_dir.exists());
 
     let _ = std::fs::remove_dir_all(&tmp);
   }

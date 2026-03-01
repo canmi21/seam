@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 use std::process::Command;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 use super::super::ctr_check;
 use super::super::skeleton::{
@@ -14,7 +14,7 @@ use super::super::slot_warning;
 use super::super::types::{AssetFiles, ViteDevInfo};
 use super::fnv;
 use super::helpers::{
-  export_i18n_memory, export_i18n_paged, path_to_filename, LocaleRouteMessages,
+  LocaleRouteMessages, export_i18n_memory, export_i18n_paged, path_to_filename,
 };
 use super::i18n_resolve;
 use super::types::{

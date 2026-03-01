@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 use crate::build::config::BuildConfig;
 use crate::build::route::{
@@ -15,7 +15,7 @@ use crate::build::route::{
   run_typecheck, validate_procedure_references,
 };
 use crate::build::types::read_bundle_manifest;
-use crate::config::{resolve_member_config, validate_workspace, SeamConfig};
+use crate::config::{SeamConfig, resolve_member_config, validate_workspace};
 use crate::manifest::Manifest;
 use crate::shell::{resolve_node_module, run_command};
 use crate::ui::{self, DIM, GREEN, RESET, YELLOW};
@@ -44,10 +44,10 @@ pub fn resolve_members(
       .unwrap_or(member_path)
       .to_string();
 
-    if let Some(f) = filter {
-      if name != f {
-        continue;
-      }
+    if let Some(f) = filter
+      && name != f
+    {
+      continue;
     }
 
     let merged = resolve_member_config(root, &dir)?;
@@ -56,15 +56,15 @@ pub fn resolve_members(
     members.push(ResolvedMember { name, member_dir: dir, merged_config: merged, build_config });
   }
 
-  if let Some(f) = filter {
-    if members.is_empty() {
-      let available: Vec<_> = root
-        .member_paths()
-        .iter()
-        .filter_map(|p| Path::new(p).file_name().and_then(|n| n.to_str()))
-        .collect();
-      bail!("unknown member \"{f}\"\navailable members: {}", available.join(", "));
-    }
+  if let Some(f) = filter
+    && members.is_empty()
+  {
+    let available: Vec<_> = root
+      .member_paths()
+      .iter()
+      .filter_map(|p| Path::new(p).file_name().and_then(|n| n.to_str()))
+      .collect();
+    bail!("unknown member \"{f}\"\navailable members: {}", available.join(", "));
   }
 
   Ok(members)
@@ -98,13 +98,13 @@ fn validate_manifest_compatibility(
   // represent nullable/optional fields differently in JTD (properties vs optionalProperties).
   // The reference member's schema is authoritative for client codegen.
   for (name, ref_proc) in &reference.procedures {
-    if let Some(cand_proc) = candidate.procedures.get(name) {
-      if ref_proc.proc_type != cand_proc.proc_type {
-        errors.push(format!(
-          "procedure \"{name}\" type mismatch: {ref_name}=\"{}\" vs {cand_name}=\"{}\"",
-          ref_proc.proc_type, cand_proc.proc_type
-        ));
-      }
+    if let Some(cand_proc) = candidate.procedures.get(name)
+      && ref_proc.proc_type != cand_proc.proc_type
+    {
+      errors.push(format!(
+        "procedure \"{name}\" type mismatch: {ref_name}=\"{}\" vs {cand_name}=\"{}\"",
+        ref_proc.proc_type, cand_proc.proc_type
+      ));
     }
   }
 

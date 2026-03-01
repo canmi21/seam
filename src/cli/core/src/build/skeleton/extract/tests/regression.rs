@@ -15,7 +15,7 @@ fn extract_home_skeleton_regression() {
     make_axis("posts.$.priority", "enum", vec![json!("high"), json!("medium"), json!("low")]),
   ];
 
-  fn gen(logged_in: bool, posts_pop: bool, published: bool, priority: &str) -> String {
+  fn make(logged_in: bool, posts_pop: bool, published: bool, priority: &str) -> String {
     let status = if logged_in {
       r#"<p class="text-green">Signed in</p>"#
     } else {
@@ -47,7 +47,7 @@ fn extract_home_skeleton_regression() {
     for &posts_pop in &[true, false] {
       for &published in &[true, false] {
         for priority in &["high", "medium", "low"] {
-          variants.push(gen(logged_in, posts_pop, published, priority));
+          variants.push(make(logged_in, posts_pop, published, priority));
         }
       }
     }

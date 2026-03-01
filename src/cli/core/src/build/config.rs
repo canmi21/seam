@@ -1,6 +1,6 @@
 /* src/cli/core/src/build/config.rs */
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use crate::config::{I18nSection, SeamConfig};
 

@@ -180,7 +180,7 @@ fn extract_mixed_toplevel_and_nested() {
     make_axis("posts.$.caption", "nullable", vec![json!("present"), json!(null)]),
   ];
 
-  fn gen(is_admin: bool, posts_pop: bool, has_image: bool, has_caption: bool) -> String {
+  fn make(is_admin: bool, posts_pop: bool, has_image: bool, has_caption: bool) -> String {
     let admin = if is_admin { "<b>Admin</b>" } else { "" };
     let img = if has_image { "<img/>" } else { "" };
     let cap = if has_caption { "<em>Cap</em>" } else { "" };
@@ -189,22 +189,22 @@ fn extract_mixed_toplevel_and_nested() {
   }
 
   let variants = vec![
-    gen(true, true, true, true),
-    gen(true, true, true, false),
-    gen(true, true, false, true),
-    gen(true, true, false, false),
-    gen(true, false, true, true),
-    gen(true, false, true, false),
-    gen(true, false, false, true),
-    gen(true, false, false, false),
-    gen(false, true, true, true),
-    gen(false, true, true, false),
-    gen(false, true, false, true),
-    gen(false, true, false, false),
-    gen(false, false, true, true),
-    gen(false, false, true, false),
-    gen(false, false, false, true),
-    gen(false, false, false, false),
+    make(true, true, true, true),
+    make(true, true, true, false),
+    make(true, true, false, true),
+    make(true, true, false, false),
+    make(true, false, true, true),
+    make(true, false, true, false),
+    make(true, false, false, true),
+    make(true, false, false, false),
+    make(false, true, true, true),
+    make(false, true, true, false),
+    make(false, true, false, true),
+    make(false, true, false, false),
+    make(false, false, true, true),
+    make(false, false, true, false),
+    make(false, false, false, true),
+    make(false, false, false, false),
   ];
 
   let result = extract_template(&axes, &variants);

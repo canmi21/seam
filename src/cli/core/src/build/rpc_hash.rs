@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -57,11 +57,11 @@ pub fn generate_rpc_hash_map(
 
     for &name in names {
       let hash = hash_name(name, &effective_salt, hash_length, prefix);
-      if let Some(existing) = seen.get(&hash) {
-        if existing != name {
-          collision = true;
-          break;
-        }
+      if let Some(existing) = seen.get(&hash)
+        && existing != name
+      {
+        collision = true;
+        break;
       }
       seen.insert(hash.clone(), name.to_string());
       procedures.insert(name.to_string(), hash);

@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 pub(super) fn find_available_port(preferred: u16) -> Result<u16> {
   if std::net::TcpListener::bind(("0.0.0.0", preferred)).is_ok() {

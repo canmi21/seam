@@ -25,7 +25,7 @@ too_many_lines = "warn"
 
 [workspace.package]
 version = "0.4.10"
-edition = "2021"
+edition = "2024"
 license = "MIT"
 authors = ["Canmi(Canmi21) <t@canmi.icu>"]
 repository = "https://github.com/canmi21/seam"

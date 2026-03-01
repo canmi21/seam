@@ -9,11 +9,11 @@ use anyhow::Result;
 use axum::body::Body;
 
 use crate::build::types::AssetFiles;
+use axum::Router;
 use axum::extract::State;
 use axum::http::{Request, StatusCode};
 use axum::response::{Html, Response};
 use axum::routing::get;
-use axum::Router;
 use tower_http::services::ServeDir;
 
 #[derive(Clone)]

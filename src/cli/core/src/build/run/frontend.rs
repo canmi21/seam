@@ -77,7 +77,7 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
     &build_config.data_id,
     build_config.i18n.as_ref(),
   )?;
-  if let (Some(ref msgs), Some(ref cfg)) = (&i18n_messages, &build_config.i18n) {
+  if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
     export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;
   }
   ui::blank();

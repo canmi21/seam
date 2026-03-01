@@ -15,7 +15,7 @@ use super::Axis;
 use array::{process_array, process_array_with_children};
 use boolean::process_boolean;
 use combo::classify_axes;
-use dom::{parse_html, serialize, DomNode};
+use dom::{DomNode, parse_html, serialize};
 use enum_axis::process_enum;
 
 // -- Shared helpers (used by boolean, enum_axis, array sub-modules via super::) --

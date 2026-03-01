@@ -7,7 +7,7 @@ mod ui;
 
 use std::path::Path;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use tokio::signal;
 
 use crate::build::config::BuildConfig;
@@ -17,7 +17,7 @@ use crate::dev_server;
 use crate::ui::{DIM, RED, RESET};
 
 use fullstack::run_dev_fullstack;
-use process::{label_color, pipe_output, spawn_child, wait_any, ChildProcess};
+use process::{ChildProcess, label_color, pipe_output, spawn_child, wait_any};
 use ui::{build_frontend, print_dev_banner};
 
 pub use fullstack::run_dev_workspace;

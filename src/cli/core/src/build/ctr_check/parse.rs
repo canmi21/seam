@@ -255,10 +255,10 @@ fn merge_adjacent_text(nodes: &mut Vec<CtrNode>) {
   while i + 1 < nodes.len() {
     if let (CtrNode::Text(_), CtrNode::Text(_)) = (&nodes[i], &nodes[i + 1]) {
       let next = nodes.remove(i + 1);
-      if let CtrNode::Text(ref mut a) = nodes[i] {
-        if let CtrNode::Text(b) = next {
-          a.push_str(&b);
-        }
+      if let CtrNode::Text(ref mut a) = nodes[i]
+        && let CtrNode::Text(b) = next
+      {
+        a.push_str(&b);
       }
       // Don't increment i — check if the merged node can merge with the next
     } else {

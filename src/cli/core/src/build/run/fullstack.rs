@@ -12,7 +12,7 @@ use super::super::route::{
   package_static_assets, print_asset_files, print_procedure_breakdown, process_routes,
   read_i18n_messages, run_skeleton_renderer, run_typecheck, validate_procedure_references,
 };
-use super::super::types::{read_bundle_manifest, AssetFiles};
+use super::super::types::{AssetFiles, read_bundle_manifest};
 use super::helpers::{
   dispatch_extract_manifest, maybe_generate_rpc_hashes, print_cache_stats, run_bundler,
   vite_info_from_config,
@@ -141,7 +141,7 @@ pub(super) fn run_fullstack_build(
     &build_config.data_id,
     build_config.i18n.as_ref(),
   )?;
-  if let (Some(ref msgs), Some(ref cfg)) = (&i18n_messages, &build_config.i18n) {
+  if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
     export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;
   }
 
@@ -276,7 +276,7 @@ pub fn run_dev_build(
     &build_config.data_id,
     build_config.i18n.as_ref(),
   )?;
-  if let (Some(ref msgs), Some(ref cfg)) = (&i18n_messages, &build_config.i18n) {
+  if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
     export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;
   }
 

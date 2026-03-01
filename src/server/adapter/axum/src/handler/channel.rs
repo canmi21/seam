@@ -3,10 +3,10 @@
 use std::sync::Arc;
 
 use axum::extract::ws::{Message, WebSocket};
-use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
+use futures_util::stream::SplitSink;
 use seam_server::SeamError;
-use tokio::time::{interval, Duration};
+use tokio::time::{Duration, interval};
 use tokio_stream::StreamExt;
 
 use super::AppState;

@@ -9,8 +9,8 @@ use axum::routing::get_service;
 use std::collections::BTreeMap;
 
 use seam_server::manifest::build_manifest;
-use seam_server::{from_accept_language, from_cookie, from_url_prefix, from_url_query, SeamServer};
-use seam_server::{seam_procedure, SeamError, SeamType};
+use seam_server::{SeamError, SeamType, seam_procedure};
+use seam_server::{SeamServer, from_accept_language, from_cookie, from_url_prefix, from_url_query};
 use seam_server_axum::IntoAxumRouter;
 use serde::{Deserialize, Serialize};
 use tower::ServiceExt;

@@ -132,11 +132,7 @@ pub(crate) fn format_style_value(css_property: &str, value: &Value) -> Option<St
           Some("0".to_string())
         } else if CSS_UNITLESS_PROPERTIES.contains(&css_property) {
           // Avoid trailing .0 for whole numbers
-          if f.fract() == 0.0 {
-            Some(format!("{}", f as i64))
-          } else {
-            Some(f.to_string())
-          }
+          if f.fract() == 0.0 { Some(format!("{}", f as i64)) } else { Some(f.to_string()) }
         } else if f.fract() == 0.0 {
           Some(format!("{}px", f as i64))
         } else {

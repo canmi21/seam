@@ -136,25 +136,22 @@ fn expand_struct(fields: &Fields) -> syn::Result<TokenStream> {
 }
 
 fn is_option_type(ty: &Type) -> bool {
-  if let Type::Path(tp) = ty {
-    if let Some(seg) = tp.path.segments.last() {
-      return seg.ident == "Option";
-    }
+  if let Type::Path(tp) = ty
+    && let Some(seg) = tp.path.segments.last()
+  {
+    return seg.ident == "Option";
   }
   false
 }
 
 fn extract_option_inner(ty: &Type) -> Option<&Type> {
-  if let Type::Path(tp) = ty {
-    if let Some(seg) = tp.path.segments.last() {
-      if seg.ident == "Option" {
-        if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-          if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-            return Some(inner);
-          }
-        }
-      }
-    }
+  if let Type::Path(tp) = ty
+    && let Some(seg) = tp.path.segments.last()
+    && seg.ident == "Option"
+    && let syn::PathArguments::AngleBracketed(args) = &seg.arguments
+    && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+  {
+    return Some(inner);
   }
   None
 }

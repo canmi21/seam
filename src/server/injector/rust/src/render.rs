@@ -72,16 +72,16 @@ pub(crate) fn render(nodes: &[AstNode], data: &Value, ctx: &mut RenderContext) -
       }
 
       AstNode::StyleProp { path, css_property } => {
-        if let Some(value) = resolve(path, data) {
-          if let Some(formatted) = format_style_value(css_property, value) {
-            let marker = format!("\x00SEAM_STYLE_{}\x00", ctx.style_attrs.len());
-            ctx.style_attrs.push(StyleAttrEntry {
-              marker: marker.clone(),
-              css_property: css_property.clone(),
-              value: formatted,
-            });
-            out.push_str(&marker);
-          }
+        if let Some(value) = resolve(path, data)
+          && let Some(formatted) = format_style_value(css_property, value)
+        {
+          let marker = format!("\x00SEAM_STYLE_{}\x00", ctx.style_attrs.len());
+          ctx.style_attrs.push(StyleAttrEntry {
+            marker: marker.clone(),
+            css_property: css_property.clone(),
+            value: formatted,
+          });
+          out.push_str(&marker);
         }
       }
 

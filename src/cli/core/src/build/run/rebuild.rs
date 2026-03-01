@@ -10,10 +10,10 @@ use super::super::route::{
   export_i18n, package_static_assets, process_routes, read_i18n_messages, run_skeleton_renderer,
   validate_procedure_references,
 };
-use super::super::types::{read_bundle_manifest, AssetFiles};
+use super::super::types::{AssetFiles, read_bundle_manifest};
 use super::helpers::{
-  dispatch_extract_manifest, maybe_generate_rpc_hashes, print_cache_stats, run_bundler,
-  vite_info_from_config, RebuildMode,
+  RebuildMode, dispatch_extract_manifest, maybe_generate_rpc_hashes, print_cache_stats,
+  run_bundler, vite_info_from_config,
 };
 use crate::config::SeamConfig;
 use crate::shell::resolve_node_module;
@@ -103,7 +103,7 @@ pub fn run_incremental_rebuild(
     &build_config.data_id,
     build_config.i18n.as_ref(),
   )?;
-  if let (Some(ref msgs), Some(ref cfg)) = (&i18n_messages, &build_config.i18n) {
+  if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
     export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;
   }
 

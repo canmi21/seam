@@ -13,7 +13,7 @@ fn extract_enum_inside_array() {
     make_axis("items.$.status", "enum", vec![json!("active"), json!("paused"), json!("archived")]),
   ];
 
-  fn gen(populated: bool, status: &str) -> String {
+  fn make(populated: bool, status: &str) -> String {
     if !populated {
       return "<ul></ul>".to_string();
     }
@@ -28,7 +28,7 @@ fn extract_enum_inside_array() {
   let mut variants = Vec::new();
   for &pop in &[true, false] {
     for status in &["active", "paused", "archived"] {
-      variants.push(gen(pop, status));
+      variants.push(make(pop, status));
     }
   }
 
@@ -53,7 +53,7 @@ fn extract_enum_inside_array_with_fallback() {
     make_axis("items.$.status", "enum", vec![json!("active"), json!("paused"), json!("archived")]),
   ];
 
-  fn gen(populated: bool, status: &str) -> String {
+  fn make(populated: bool, status: &str) -> String {
     if !populated {
       return "<p>No items</p>".to_string();
     }
@@ -68,7 +68,7 @@ fn extract_enum_inside_array_with_fallback() {
   let mut variants = Vec::new();
   for &pop in &[true, false] {
     for status in &["active", "paused", "archived"] {
-      variants.push(gen(pop, status));
+      variants.push(make(pop, status));
     }
   }
 
@@ -100,7 +100,7 @@ fn extract_triple_nesting_array_array_boolean() {
     make_axis("categories.$.posts.$.pinned", "boolean", vec![json!(true), json!(false)]),
   ];
 
-  fn gen(cat_pop: bool, posts_pop: bool, pinned: bool) -> String {
+  fn make(cat_pop: bool, posts_pop: bool, pinned: bool) -> String {
     if !cat_pop {
       return "<div><p>No categories</p></div>".to_string();
     }
@@ -117,7 +117,7 @@ fn extract_triple_nesting_array_array_boolean() {
   for &cat in &[true, false] {
     for &posts in &[true, false] {
       for &pinned in &[true, false] {
-        variants.push(gen(cat, posts, pinned));
+        variants.push(make(cat, posts, pinned));
       }
     }
   }
@@ -177,7 +177,7 @@ fn extract_triple_nesting_array_array_enum() {
     ),
   ];
 
-  fn gen(sec_pop: bool, items_pop: bool, kind: &str) -> String {
+  fn make(sec_pop: bool, items_pop: bool, kind: &str) -> String {
     if !sec_pop {
       return "<div><p>No sections</p></div>".to_string();
     }
@@ -198,7 +198,7 @@ fn extract_triple_nesting_array_array_enum() {
   for &sec in &[true, false] {
     for &items in &[true, false] {
       for kind in &["text", "image", "video"] {
-        variants.push(gen(sec, items, kind));
+        variants.push(make(sec, items, kind));
       }
     }
   }

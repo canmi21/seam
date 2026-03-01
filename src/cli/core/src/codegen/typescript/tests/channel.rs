@@ -228,15 +228,19 @@ fn dot_namespace_codegen() {
   assert!(code.contains("export interface CounterOnCountOutput {"));
 
   // Quoted property names in SeamProcedures interface
-  assert!(code
-    .contains("\"user.getProfile\"(input: UserGetProfileInput): Promise<UserGetProfileOutput>;"));
+  assert!(
+    code
+      .contains("\"user.getProfile\"(input: UserGetProfileInput): Promise<UserGetProfileOutput>;")
+  );
   assert!(code.contains(
     "\"user.updateEmail\"(input: UserUpdateEmailInput): Promise<UserUpdateEmailOutput>;"
   ));
   assert!(code.contains("\"counter.onCount\"(input: CounterOnCountInput"));
 
   // Quoted keys in factory object
-  assert!(code.contains("\"user.getProfile\": (input) => client.query(\"user.getProfile\", input)"));
+  assert!(
+    code.contains("\"user.getProfile\": (input) => client.query(\"user.getProfile\", input)")
+  );
   assert!(
     code.contains("\"user.updateEmail\": (input) => client.command(\"user.updateEmail\", input)")
   );

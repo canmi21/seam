@@ -11,17 +11,17 @@ pub mod resolve;
 pub mod server;
 
 // Re-exports for ergonomic use
-pub use build_loader::{load_build_output, load_i18n_config, load_rpc_hash_map, RpcHashMap};
+pub use build_loader::{RpcHashMap, load_build_output, load_i18n_config, load_rpc_hash_map};
 pub use channel::{ChannelDef, ChannelMeta, IncomingDef, IncomingMeta};
 pub use errors::SeamError;
 pub use escape::ascii_escape_json;
 pub use page::I18nConfig;
 pub use procedure::{BoxFuture, BoxStream, ProcedureDef, ProcedureType, SubscriptionDef};
 pub use resolve::{
-  default_strategies, from_accept_language, from_cookie, from_url_prefix, from_url_query,
-  resolve_chain, ResolveData, ResolveStrategy,
+  ResolveData, ResolveStrategy, default_strategies, from_accept_language, from_cookie,
+  from_url_prefix, from_url_query, resolve_chain,
 };
-pub use seam_macros::{seam_command, seam_procedure, seam_subscription, SeamType};
+pub use seam_macros::{SeamType, seam_command, seam_procedure, seam_subscription};
 pub use server::{SeamParts, SeamServer};
 
 /// Trait for types that can describe themselves as a JTD schema.
@@ -33,7 +33,7 @@ pub trait SeamType {
 // -- Primitive SeamType impls --
 
 macro_rules! impl_seam_type_primitive {
-  ($rust_ty:ty, $jtd:expr) => {
+  ($rust_ty:ty, $jtd:expr_2021) => {
     impl SeamType for $rust_ty {
       fn jtd_schema() -> serde_json::Value {
         serde_json::json!({ "type": $jtd })

@@ -65,11 +65,7 @@ pub(super) fn render_type(schema: &Value) -> Result<String> {
   let nullable = schema.get("nullable").and_then(|v| v.as_bool()).unwrap_or(false);
   let inner = render_type_inner(schema)?;
 
-  if nullable {
-    Ok(format!("{inner} | null"))
-  } else {
-    Ok(inner)
-  }
+  if nullable { Ok(format!("{inner} | null")) } else { Ok(inner) }
 }
 
 fn render_type_inner(schema: &Value) -> Result<String> {
@@ -109,18 +105,18 @@ fn render_type_inner(schema: &Value) -> Result<String> {
   }
 
   // Discriminator form
-  if let Some(tag) = obj.get("discriminator").and_then(|v| v.as_str()) {
-    if let Some(mapping) = obj.get("mapping").and_then(|v| v.as_object()) {
-      let sorted: BTreeMap<_, _> = mapping.iter().collect();
-      let parts: Vec<String> = sorted
-        .iter()
-        .map(|(key, variant)| {
-          let variant_ts = render_type(variant)?;
-          Ok(format!("({{ {tag}: \"{key}\" }} & {variant_ts})"))
-        })
-        .collect::<Result<Vec<_>>>()?;
-      return Ok(parts.join(" | "));
-    }
+  if let Some(tag) = obj.get("discriminator").and_then(|v| v.as_str())
+    && let Some(mapping) = obj.get("mapping").and_then(|v| v.as_object())
+  {
+    let sorted: BTreeMap<_, _> = mapping.iter().collect();
+    let parts: Vec<String> = sorted
+      .iter()
+      .map(|(key, variant)| {
+        let variant_ts = render_type(variant)?;
+        Ok(format!("({{ {tag}: \"{key}\" }} & {variant_ts})"))
+      })
+      .collect::<Result<Vec<_>>>()?;
+    return Ok(parts.join(" | "));
   }
 
   // Properties form

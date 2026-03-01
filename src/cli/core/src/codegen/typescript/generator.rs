@@ -11,11 +11,7 @@ use super::render::{render_top_level, to_pascal_case};
 
 /// Wrap name in quotes if it contains characters that make it an invalid JS identifier.
 fn quote_key(name: &str) -> String {
-  if name.contains('.') {
-    format!("\"{name}\"")
-  } else {
-    name.to_string()
-  }
+  if name.contains('.') { format!("\"{name}\"") } else { name.to_string() }
 }
 
 /// Build set of procedure names owned by channels (excluded from SeamProcedures).

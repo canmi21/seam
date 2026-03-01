@@ -17,7 +17,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 
-use config::{find_seam_config, load_seam_config, SeamConfig};
+use config::{SeamConfig, find_seam_config, load_seam_config};
 
 #[derive(Parser)]
 #[command(name = "seam", about = "SeamJS CLI")]

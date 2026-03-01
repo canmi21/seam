@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::ItemFn;
 
-use crate::seam_procedure::{expand_with_type, ProcedureAttr};
+use crate::seam_procedure::{ProcedureAttr, expand_with_type};
 
 pub fn expand(attr: TokenStream, item: ItemFn) -> syn::Result<TokenStream> {
   let parsed_attr: ProcedureAttr = syn::parse2(attr)?;

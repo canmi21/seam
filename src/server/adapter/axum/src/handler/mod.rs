@@ -8,12 +8,12 @@ mod subscribe;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use axum::routing::{get, post};
 use axum::Router;
+use axum::routing::{get, post};
+use seam_server::RpcHashMap;
 use seam_server::page::PageDef;
 use seam_server::procedure::{ProcedureDef, ProcedureType, SubscriptionDef};
 use seam_server::resolve::ResolveStrategy;
-use seam_server::RpcHashMap;
 
 pub(crate) struct AppState {
   pub manifest_json: serde_json::Value,
@@ -138,10 +138,10 @@ pub(super) fn lookup_i18n_messages(
   if i18n.mode == "paged" {
     if let Some(ref dist_dir) = i18n.dist_dir {
       let path = dist_dir.join("i18n").join(route_hash).join(format!("{locale}.json"));
-      if let Ok(content) = std::fs::read_to_string(&path) {
-        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content) {
-          return parsed;
-        }
+      if let Ok(content) = std::fs::read_to_string(&path)
+        && let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&content)
+      {
+        return parsed;
       }
     }
     return serde_json::Value::Object(Default::default());

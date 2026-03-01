@@ -81,10 +81,10 @@ fn get_non_empty(messages: &BTreeMap<String, Value>, locale: &str, key: &str) ->
   let data = messages.get(locale)?;
   let val = data.get(key)?;
   // Treat empty strings as missing
-  if let Some(s) = val.as_str() {
-    if s.is_empty() {
-      return None;
-    }
+  if let Some(s) = val.as_str()
+    && s.is_empty()
+  {
+    return None;
   }
   Some(val.clone())
 }

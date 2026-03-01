@@ -1,6 +1,6 @@
 /* examples/standalone/server-rust/src/procedures/greet.rs */
 
-use seam_server::{seam_procedure, SeamError, SeamType};
+use seam_server::{SeamError, SeamType, seam_procedure};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, SeamType)]

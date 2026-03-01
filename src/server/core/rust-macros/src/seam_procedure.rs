@@ -108,14 +108,12 @@ pub(crate) fn extract_output_type(item: &ItemFn) -> syn::Result<Type> {
   match &item.sig.output {
     ReturnType::Type(_, ty) => {
       // Expect Result<OutputType, SeamError> — extract the first generic arg
-      if let Type::Path(tp) = ty.as_ref() {
-        if let Some(seg) = tp.path.segments.last() {
-          if let syn::PathArguments::AngleBracketed(args) = &seg.arguments {
-            if let Some(syn::GenericArgument::Type(inner)) = args.args.first() {
-              return Ok(inner.clone());
-            }
-          }
-        }
+      if let Type::Path(tp) = ty.as_ref()
+        && let Some(seg) = tp.path.segments.last()
+        && let syn::PathArguments::AngleBracketed(args) = &seg.arguments
+        && let Some(syn::GenericArgument::Type(inner)) = args.args.first()
+      {
+        return Ok(inner.clone());
       }
       // Fallback: use the whole return type
       Ok((**ty).clone())

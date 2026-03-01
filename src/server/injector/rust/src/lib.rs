@@ -9,7 +9,7 @@ mod token;
 pub use parser::{DiagnosticKind, ParseDiagnostic};
 
 use parser::parse_with_diagnostics;
-use render::{inject_attributes, inject_style_attributes, render, RenderContext};
+use render::{RenderContext, inject_attributes, inject_style_attributes, render};
 use token::tokenize;
 
 use serde_json::Value;

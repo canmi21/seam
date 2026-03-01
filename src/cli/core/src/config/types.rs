@@ -1,6 +1,6 @@
 /* src/cli/core/src/config/types.rs */
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]

@@ -1,6 +1,6 @@
 /* src/cli/core/src/build/skeleton/extract/tree_diff.rs */
 
-use super::dom::{fingerprint, DomNode};
+use super::dom::{DomNode, fingerprint};
 
 #[derive(Debug, PartialEq)]
 pub(super) enum DiffOp {
@@ -64,14 +64,14 @@ pub(super) fn diff_children(a: &[DomNode], b: &[DomNode]) -> Vec<DiffOp> {
         if used_b[kb] {
           continue;
         }
-        if let DomNode::Element { tag: ref tag_b, .. } = b[bj] {
-          if tag_a == tag_b {
-            used_b[kb] = true;
-            matched_a[ai] = true;
-            matched_b[bj] = true;
-            modified_pairs.push((ai, bj));
-            break;
-          }
+        if let DomNode::Element { tag: ref tag_b, .. } = b[bj]
+          && tag_a == tag_b
+        {
+          used_b[kb] = true;
+          matched_a[ai] = true;
+          matched_b[bj] = true;
+          modified_pairs.push((ai, bj));
+          break;
         }
       }
     }

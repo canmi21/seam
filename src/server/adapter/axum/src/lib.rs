@@ -5,8 +5,8 @@ mod handler;
 
 use std::sync::Arc;
 
-use seam_server::manifest::build_manifest;
 use seam_server::SeamServer;
+use seam_server::manifest::build_manifest;
 
 /// Re-export seam-server core for convenience
 pub use seam_server;

@@ -49,18 +49,18 @@ pub fn read_bundle_manifest(path: &Path) -> Result<AssetFiles> {
     .with_context(|| format!("failed to read bundle manifest at {}", path.display()))?;
 
   // Try Vite format: { "src/...": { file, css, isEntry } }
-  if let Ok(vite) = serde_json::from_str::<HashMap<String, ViteManifestEntry>>(&content) {
-    if vite.values().any(|e| e.is_entry) {
-      let mut js = vec![];
-      let mut css = vec![];
-      for entry in vite.values() {
-        if entry.is_entry {
-          js.push(entry.file.clone());
-          css.extend(entry.css.iter().cloned());
-        }
+  if let Ok(vite) = serde_json::from_str::<HashMap<String, ViteManifestEntry>>(&content)
+    && vite.values().any(|e| e.is_entry)
+  {
+    let mut js = vec![];
+    let mut css = vec![];
+    for entry in vite.values() {
+      if entry.is_entry {
+        js.push(entry.file.clone());
+        css.extend(entry.css.iter().cloned());
       }
-      return Ok(AssetFiles { js, css });
     }
+    return Ok(AssetFiles { js, css });
   }
 
   // Fallback: Seam format { js: [], css: [] }

@@ -71,10 +71,10 @@ pub(super) fn pick_template(
   }
   if let Some(map) = multi {
     // Prefer the default locale from manifest
-    if let Some(loc) = default_locale {
-      if let Some(t) = map.get(loc) {
-        return Some(t.clone());
-      }
+    if let Some(loc) = default_locale
+      && let Some(t) = map.get(loc)
+    {
+      return Some(t.clone());
     }
     return map.values().next().cloned();
   }

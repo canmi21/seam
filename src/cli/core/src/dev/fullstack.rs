@@ -8,13 +8,13 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use tokio::signal;
 
 use crate::build::config::BuildConfig;
-use crate::build::run::{run_incremental_rebuild, RebuildMode};
+use crate::build::run::{RebuildMode, run_incremental_rebuild};
 use crate::config::SeamConfig;
 use crate::ui::{CYAN, DIM, GREEN, RED, RESET};
 
 use super::network::find_available_port;
 use super::network::wait_for_port;
-use super::process::{label_color, pipe_output, spawn_binary, spawn_child, wait_any, ChildProcess};
+use super::process::{ChildProcess, label_color, pipe_output, spawn_binary, spawn_child, wait_any};
 use super::ui::print_fullstack_banner;
 
 fn setup_watcher() -> Result<(RecommendedWatcher, tokio::sync::mpsc::Receiver<()>)> {

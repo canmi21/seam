@@ -207,11 +207,11 @@ fn build_element_path(
   let mut selector = tag.to_string();
 
   // Add first class token for readability
-  if let Some(class) = attrs.get("class") {
-    if let Some(first_class) = class.split_whitespace().next() {
-      selector.push('.');
-      selector.push_str(first_class);
-    }
+  if let Some(class) = attrs.get("class")
+    && let Some(first_class) = class.split_whitespace().next()
+  {
+    selector.push('.');
+    selector.push_str(first_class);
   }
 
   // Add :nth-child(N) when there are multiple siblings with same tag
@@ -219,27 +219,15 @@ fn build_element_path(
     selector.push_str(&format!(":nth-child({})", index + 1));
   }
 
-  if parent_path.is_empty() {
-    selector
-  } else {
-    format!("{} > {}", parent_path, selector)
-  }
+  if parent_path.is_empty() { selector } else { format!("{} > {}", parent_path, selector) }
 }
 
 fn format_text_path(parent_path: &str) -> String {
-  if parent_path.is_empty() {
-    "[text]".to_string()
-  } else {
-    format!("{} > [text]", parent_path)
-  }
+  if parent_path.is_empty() { "[text]".to_string() } else { format!("{} > [text]", parent_path) }
 }
 
 fn truncate(s: &str, max: usize) -> String {
-  if s.len() <= max {
-    s.to_string()
-  } else {
-    format!("{}...", &s[..s.floor_char_boundary(max)])
-  }
+  if s.len() <= max { s.to_string() } else { format!("{}...", &s[..s.floor_char_boundary(max)]) }
 }
 
 #[cfg(test)]
