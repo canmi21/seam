@@ -24,7 +24,7 @@ panic = "abort"
 too_many_lines = "warn"
 
 [workspace.package]
-version = "0.4.10"
+version = "0.4.11"
 edition = "2024"
 license = "MIT"
 authors = ["Canmi(Canmi21) <t@canmi.icu>"]

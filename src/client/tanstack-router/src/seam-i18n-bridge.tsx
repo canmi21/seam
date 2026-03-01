@@ -1,4 +1,4 @@
-/* src/client/tanstack-router/src/seam-data-bridge.tsx */
+/* src/client/tanstack-router/src/seam-i18n-bridge.tsx */
 
 import { useMatches, useRouter } from "@tanstack/react-router";
 import { SeamDataProvider, SeamNavigateProvider } from "@canmi/seam-react";
@@ -45,7 +45,7 @@ let globalCache: I18nCache | null = null;
  * and provides SPA navigation via SeamNavigateProvider.
  * Manages i18n state: initial load from __data, SPA updates via RPC + cache.
  */
-export function SeamDataBridge({ children }: { children: ReactNode }) {
+export function SeamI18nBridge({ children }: { children: ReactNode }) {
   const matches = useMatches();
   const seamData = mergeLoaderData(matches);
 

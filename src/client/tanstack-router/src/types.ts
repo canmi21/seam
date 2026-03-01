@@ -1,6 +1,6 @@
 /* src/client/tanstack-router/src/types.ts */
 
-import type { ComponentType } from "react";
+import type { ComponentType, ReactElement, ReactNode } from "react";
 import type { RouteDef } from "@canmi/seam-react";
 
 export interface SeamRouteDef extends RouteDef {
@@ -20,6 +20,8 @@ export interface SeamRouterOptions {
   defaultStaleTime?: number;
   basePath?: string;
   dataId?: string;
+  /** Optional i18n bridge component. When provided, enables i18n support. */
+  i18nBridge?: (props: { children: ReactNode }) => ReactElement;
   /**
    * Strip locale query parameter from URL after hydration (hidden mode UX).
    * - false (default): disabled
