@@ -356,7 +356,7 @@
     },
     "src/server/injector/js": {
       "name": "@canmi/seam-injector",
-      "version": "0.4.3",
+      "version": "0.4.10",
       "devDependencies": {
         "@canmi/seam-injector-native": "workspace:*",
         "@types/node": "^22.0.0",
@@ -367,7 +367,7 @@
     },
     "src/server/injector/native": {
       "name": "@canmi/seam-injector-native",
-      "version": "0.4.3",
+      "version": "0.4.10",
       "devDependencies": {
         "tsdown": "^0.20.3",
         "typescript": "^5.9.3",

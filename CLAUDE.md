@@ -101,21 +101,21 @@
 
 - Pure stateless functions: test correct path + error path (boundary values, empty input, missing keys)
 - Composition/orchestration functions: integration-level tests only, do not re-test inner functions
-- Go integration tests: separate test directory per backend type (`tests/integration/` for standalone, `tests/fullstack/` for fullstack, `tests/workspace-integration/` for workspace backends)
+- Go integration tests: separate test directory per backend type (`tests/integration/` for standalone, `tests/fullstack/` for fullstack, `tests/i18n/` for i18n, `tests/workspace-integration/` for workspace backends)
 - SSE endpoint tests need a mechanism to trigger data flow (e.g. post a message) since long-lived streams may not flush headers until first chunk
 
 ## Running Tests
 
-| Command                    | Scope                                            |
-| -------------------------- | ------------------------------------------------ |
-| `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)       |
-| `bun run test:ts`          | TS unit tests (vitest across 11 packages)        |
-| `bun run test:unit`        | All unit tests (Rust + TS)                       |
-| `bun run test:integration` | Go integration tests (standalone + fullstack)    |
-| `bun run test:e2e`         | Playwright E2E tests                             |
-| `bun run test`             | All layers (unit + integration + e2e), fail-fast |
-| `bun run typecheck`        | TypeScript type checking across all TS packages  |
-| `bun run verify`           | Full pipeline: fmt + lint + build + all tests    |
+| Command                    | Scope                                                            |
+| -------------------------- | ---------------------------------------------------------------- |
+| `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)                       |
+| `bun run test:ts`          | TS unit tests (vitest across 11 packages)                        |
+| `bun run test:unit`        | All unit tests (Rust + TS)                                       |
+| `bun run test:integration` | Go integration tests (standalone + fullstack + i18n + workspace) |
+| `bun run test:e2e`         | Playwright E2E tests                                             |
+| `bun run test`             | All layers (unit + integration + e2e), fail-fast                 |
+| `bun run typecheck`        | TypeScript type checking across all TS packages                  |
+| `bun run verify`           | Full pipeline: fmt + lint + build + all tests                    |
 
 - Integration and E2E tests require fullstack build output: `cd examples/github-dashboard/seam-app && seam build`
 - `scripts/smoke-fullstack.sh` runs the full build-and-test pipeline for integration + E2E

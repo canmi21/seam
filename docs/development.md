@@ -21,13 +21,13 @@ cargo build --workspace  # All Rust crates
 
 ## Test
 
-| Command                    | Scope                                            |
-| -------------------------- | ------------------------------------------------ |
-| `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)       |
-| `bun run test:ts`          | TS unit tests (vitest across all TS packages)    |
-| `bun run test:unit`        | All unit tests (Rust + TypeScript)               |
-| `bun run test:integration` | Go integration tests                             |
-| `bun run test:e2e`         | Playwright E2E tests                             |
-| `bun run test`             | All layers (unit + integration + e2e)            |
-| `bun run typecheck`        | TypeScript type checking across all packages     |
-| `bun run verify`           | Full pipeline: format + lint + build + all tests |
+| Command                    | Scope                                                            |
+| -------------------------- | ---------------------------------------------------------------- |
+| `bun run test:rs`          | Rust unit tests (`cargo test --workspace`)                       |
+| `bun run test:ts`          | TS unit tests (vitest across all TS packages)                    |
+| `bun run test:unit`        | All unit tests (Rust + TypeScript)                               |
+| `bun run test:integration` | Go integration tests (standalone + fullstack + i18n + workspace) |
+| `bun run test:e2e`         | Playwright E2E tests                                             |
+| `bun run test`             | All layers (unit + integration + e2e)                            |
+| `bun run typecheck`        | TypeScript type checking across all packages                     |
+| `bun run verify`           | Full pipeline: format + lint + build + all tests                 |
