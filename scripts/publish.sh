@@ -71,7 +71,7 @@ if [ -z "$VERSION" ]; then
 fi
 info "Version: $VERSION"
 
-for tool in cargo bun curl; do
+for tool in cargo bun curl jq; do
   if ! command -v "$tool" &>/dev/null; then
     fail "Required tool not found: $tool"
     exit 1
@@ -151,6 +151,64 @@ crate_dir() {
     seam-codegen)     echo "src/cli/codegen" ;;
     seam-cli)         echo "src/cli/core" ;;
   esac
+}
+
+# --- Skipped crate tracking (parallel arrays: name -> registry latest version) ---
+SKIPPED_CRATE_NAMES=()
+SKIPPED_CRATE_VERS=()
+
+# --- Helper: query latest version of a crate on crates.io ---
+crate_latest_version() {
+  local name="$1"
+  curl -s "https://crates.io/api/v1/crates/$name" | jq -r '.crate.max_version'
+}
+
+# --- Helper: look up registry version for a skipped crate ---
+skipped_ver_for() {
+  local name="$1" i
+  for i in "${!SKIPPED_CRATE_NAMES[@]}"; do
+    if [ "${SKIPPED_CRATE_NAMES[$i]}" = "$name" ]; then
+      echo "${SKIPPED_CRATE_VERS[$i]}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# --- Helper: patch Cargo.toml to use registry versions for skipped deps ---
+# For each internal dependency that was skipped, replace its version with
+# the latest version available on crates.io so cargo publish can resolve it.
+patch_skipped_deps() {
+  local crate_dir="$1"
+  local cargo_toml="$ROOT/$crate_dir/Cargo.toml"
+  local needs_patch=false
+
+  for dep in "${SKIPPED_CRATE_NAMES[@]}"; do
+    if grep -q "^$dep = " "$cargo_toml"; then
+      needs_patch=true
+      break
+    fi
+  done
+
+  if ! $needs_patch; then return; fi
+
+  cp "$cargo_toml" "$cargo_toml.pub-bak"
+  for dep in "${SKIPPED_CRATE_NAMES[@]}"; do
+    if grep -q "^$dep = " "$cargo_toml"; then
+      local reg_ver
+      reg_ver=$(skipped_ver_for "$dep")
+      sed -i '' "s/$dep = { version = \"$VERSION\"/$dep = { version = \"$reg_ver\"/" "$cargo_toml"
+      info "  patched $dep dependency: $VERSION -> $reg_ver"
+    fi
+  done
+}
+
+restore_cargo_toml() {
+  local crate_dir="$1"
+  local cargo_toml="$ROOT/$crate_dir/Cargo.toml"
+  if [ -f "$cargo_toml.pub-bak" ]; then
+    mv "$cargo_toml.pub-bak" "$cargo_toml"
+  fi
 }
 
 # --- Helper: check if crate version exists on crates.io ---
@@ -238,29 +296,37 @@ if ! $NPM_ONLY && ! $GO_ONLY; then
     fi
 
     if ! $FORCE_ALL && ! has_real_changes "$(crate_dir "$crate")"; then
-      info "$crate: no changes, skipping"
+      reg_ver=$(crate_latest_version "$crate")
+      SKIPPED_CRATE_NAMES+=("$crate")
+      SKIPPED_CRATE_VERS+=("$reg_ver")
+      info "$crate: no changes, skipping (registry: $reg_ver)"
       SKIPPED=$((SKIPPED + 1))
       continue
     fi
 
+    dir=$(crate_dir "$crate")
+    patch_skipped_deps "$dir"
+
     info "Publishing $crate@$VERSION..."
     if $DRY_RUN; then
-      if (cd "$ROOT" && cargo publish -p "$crate" --dry-run 2>&1); then
+      if (cd "$ROOT" && cargo publish -p "$crate" --allow-dirty --dry-run 2>&1); then
         ok "$crate (dry-run)"
         PUBLISHED=$((PUBLISHED + 1))
       else
         fail "$crate (dry-run failed)"
         FAILED=$((FAILED + 1))
         FAILED_NAMES+=("$crate")
+        restore_cargo_toml "$dir"
         fail "Aborting remaining Rust crates (downstream would fail)"
         break
       fi
     else
-      if (cd "$ROOT" && cargo publish -p "$crate"); then
+      if (cd "$ROOT" && cargo publish -p "$crate" --allow-dirty); then
         ok "$crate"
         PUBLISHED=$((PUBLISHED + 1))
         if [ "$crate" != "seam-cli" ]; then
           if ! wait_for_crate "$crate" "$VERSION"; then
+            restore_cargo_toml "$dir"
             fail "Aborting: downstream crates need $crate indexed"
             break
           fi
@@ -269,10 +335,12 @@ if ! $NPM_ONLY && ! $GO_ONLY; then
         fail "$crate"
         FAILED=$((FAILED + 1))
         FAILED_NAMES+=("$crate")
+        restore_cargo_toml "$dir"
         fail "Aborting remaining Rust crates (downstream would fail)"
         break
       fi
     fi
+    restore_cargo_toml "$dir"
   done
 fi
 
