@@ -8,6 +8,7 @@ import type { ChannelHandle } from "./channel-handle.js";
 export interface ClientOptions {
   baseUrl: string;
   batchEndpoint?: string;
+  channelTransports?: Record<string, ChannelTransport>;
 }
 
 export type Unsubscribe = () => void;
@@ -69,9 +70,61 @@ async function request(url: string, init?: RequestInit): Promise<unknown> {
   throw new SeamClientError(code, message, res.status);
 }
 
+function createAutoChannelHandle(
+  baseUrl: string,
+  client: SeamClient,
+  name: string,
+  input: unknown,
+): ChannelHandle {
+  if (typeof WebSocket === "undefined") {
+    return createChannelHandle(client, name, input);
+  }
+
+  const trackedListeners: Array<[string, (data: unknown) => void]> = [];
+  let delegate: ChannelHandle;
+  let fallen = false;
+
+  function fallbackToHttp(): void {
+    if (fallen) return;
+    fallen = true;
+    delegate.close();
+    delegate = createChannelHandle(client, name, input);
+    for (const [e, cb] of trackedListeners) delegate.on(e, cb);
+  }
+
+  delegate = createWsChannelHandle(baseUrl, name, input, fallbackToHttp);
+
+  return new Proxy<ChannelHandle>(
+    {
+      on(event: string, callback: (data: unknown) => void): void {
+        trackedListeners.push([event, callback]);
+        delegate.on(event, callback);
+      },
+      close(): void {
+        delegate.close();
+      },
+    },
+    {
+      get(target, prop) {
+        if (prop === "on" || prop === "close") return target[prop];
+        if (typeof prop === "string") {
+          return (msgInput: unknown) => {
+            const method = (delegate as Record<string, unknown>)[prop];
+            if (typeof method === "function")
+              return (method as (input: unknown) => Promise<unknown>)(msgInput);
+            return Promise.reject(new Error(`Unknown method: ${prop}`));
+          };
+        }
+        return undefined;
+      },
+    },
+  );
+}
+
 export function createClient(opts: ClientOptions): SeamClient {
   const baseUrl = opts.baseUrl.replace(/\/+$/, "");
   const batchPath = opts.batchEndpoint ?? "_batch";
+  const channelTransports = opts.channelTransports;
 
   return {
     call(procedureName, input) {
@@ -150,8 +203,9 @@ export function createClient(opts: ClientOptions): SeamClient {
     },
 
     channel(name, input, channelOpts) {
-      if (channelOpts?.transport === "ws") {
-        return createWsChannelHandle(baseUrl, name, input);
+      const transport = channelOpts?.transport ?? channelTransports?.[name] ?? "http";
+      if (transport === "ws") {
+        return createAutoChannelHandle(baseUrl, this, name, input);
       }
       return createChannelHandle(this, name, input);
     },

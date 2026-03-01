@@ -66,11 +66,13 @@ export function createWsChannelHandle(
   baseUrl: string,
   channelName: string,
   channelInput: unknown,
+  onConnectionError?: () => void,
 ): ChannelHandle {
   const listeners = new Map<string, Set<(data: unknown) => void>>();
   const pending = new Map<string, PendingRequest>();
   let ws: WebSocket | null = null;
   let closed = false;
+  let hasReceived = false;
 
   function connect(): void {
     if (ws || closed) return;
@@ -80,6 +82,7 @@ export function createWsChannelHandle(
     ws = new WebSocket(`${wsUrl}/_seam/procedure/${channelName}.events?${params.toString()}`);
 
     ws.onmessage = (evt) => {
+      hasReceived = true;
       let msg: Record<string, unknown>;
       try {
         msg = JSON.parse(evt.data as string) as Record<string, unknown>;
@@ -91,6 +94,10 @@ export function createWsChannelHandle(
 
     ws.onclose = () => {
       ws = null;
+      if (!hasReceived && onConnectionError && !closed) {
+        onConnectionError();
+        return;
+      }
       for (const [, entry] of pending) {
         entry.reject(new SeamClientError("INTERNAL_ERROR", "WebSocket closed", 0));
       }

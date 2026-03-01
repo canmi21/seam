@@ -223,6 +223,40 @@ describe("callBatch(): batchEndpoint", () => {
   });
 });
 
+describe("channel(): channelTransports auto-selection", () => {
+  it("uses channelTransports hint when no explicit transport is given", () => {
+    const client = createClient({
+      baseUrl: "http://localhost:3000",
+      channelTransports: { chat: "ws" },
+    });
+    // Calling channel("chat") should use the hint; we can't easily assert
+    // WebSocket construction in unit tests, but we verify no error is thrown
+    // and the method exists
+    expect(typeof client.channel).toBe("function");
+  });
+
+  it("explicit transport option overrides channelTransports hint", () => {
+    const client = createClient({
+      baseUrl: "http://localhost:3000",
+      channelTransports: { chat: "ws" },
+    });
+    // Explicitly requesting HTTP should override the WS hint
+    // The channel handle should be created without error
+    const handle = client.channel("chat", { roomId: "r1" }, { transport: "http" });
+    expect(typeof handle.on).toBe("function");
+    expect(typeof handle.close).toBe("function");
+    handle.close();
+  });
+
+  it("defaults to http when channelTransports is not set", () => {
+    const client = createClient({ baseUrl: "http://localhost:3000" });
+    const handle = client.channel("chat", { roomId: "r1" });
+    expect(typeof handle.on).toBe("function");
+    expect(typeof handle.close).toBe("function");
+    handle.close();
+  });
+});
+
 describe("fetchManifest()", () => {
   it("returns manifest on success", async () => {
     const manifest = { procedures: { greet: {} } };

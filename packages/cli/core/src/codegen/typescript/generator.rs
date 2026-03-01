@@ -166,6 +166,47 @@ fn generate_procedure_meta(manifest: &Manifest) -> String {
   out
 }
 
+/// Generate transport hint for channels (WS metadata for auto-selection).
+fn generate_transport_hint(manifest: &Manifest, rpc_hashes: Option<&RpcHashMap>) -> String {
+  if manifest.channels.is_empty() {
+    return String::new();
+  }
+
+  let mut out = String::from("export const seamTransportHint = {\n  channels: {\n");
+
+  for (ch_name, ch) in &manifest.channels {
+    out.push_str(&format!("    {}: {{\n", quote_key(ch_name)));
+    out.push_str("      transport: \"ws\" as const,\n");
+
+    let incoming: Vec<String> = ch
+      .incoming
+      .keys()
+      .map(|msg_name| {
+        let full_name = format!("{ch_name}.{msg_name}");
+        let wire = rpc_hashes
+          .and_then(|m| m.procedures.get(&full_name))
+          .map(|h| h.as_str())
+          .unwrap_or(full_name.as_str());
+        format!("\"{wire}\"")
+      })
+      .collect();
+    out.push_str(&format!("      incoming: [{}],\n", incoming.join(", ")));
+
+    let events_name = format!("{ch_name}.events");
+    let events_wire = rpc_hashes
+      .and_then(|m| m.procedures.get(&events_name))
+      .map(|h| h.as_str())
+      .unwrap_or(events_name.as_str());
+    out.push_str(&format!("      outgoing: \"{events_wire}\",\n"));
+
+    out.push_str("    },\n");
+  }
+
+  out.push_str("  },\n} as const;\n\n");
+  out.push_str("export type SeamTransportHint = typeof seamTransportHint;\n\n");
+  out
+}
+
 /// Generate a typed TypeScript client from a manifest.
 pub fn generate_typescript(
   manifest: &Manifest,
@@ -248,9 +289,10 @@ pub fn generate_typescript(
 
   out.push_str(&generate_procedure_meta(manifest));
 
-  // Channel types
+  // Channel types + transport hint
   if has_channels {
     out.push_str(&generate_channel_types(manifest)?);
+    out.push_str(&generate_transport_hint(manifest, rpc_hashes));
   }
 
   // createSeamClient factory
@@ -260,22 +302,28 @@ pub fn generate_typescript(
     "SeamProcedures"
   };
 
+  out.push_str(&format!("export function createSeamClient(baseUrl: string): {return_type} {{\n"));
+
+  // Build createClient options
+  let mut opts_parts = vec![String::from("baseUrl")];
   if let Some(map) = rpc_hashes {
-    out.push_str(&format!("export function createSeamClient(baseUrl: string): {return_type} {{\n"));
-    out.push_str(&format!(
-      "  const client: SeamClient = createClient({{ baseUrl, batchEndpoint: \"{}\" }});\n",
-      map.batch
-    ));
-  } else {
-    out.push_str(&format!("export function createSeamClient(baseUrl: string): {return_type} {{\n"));
-    out.push_str("  const client: SeamClient = createClient({ baseUrl });\n");
+    opts_parts.push(format!("batchEndpoint: \"{}\"", map.batch));
   }
+  if has_channels {
+    let entries: Vec<String> =
+      manifest.channels.keys().map(|name| format!("{}: \"ws\"", quote_key(name))).collect();
+    opts_parts.push(format!("channelTransports: {{ {} }}", entries.join(", ")));
+  }
+  out.push_str(&format!(
+    "  const client: SeamClient = createClient({{ {} }});\n",
+    opts_parts.join(", ")
+  ));
 
   if has_channels {
     // Build channel factory function
     out.push_str("  function channel<K extends keyof SeamChannels>(name: K, input: SeamChannels[K][\"input\"]): SeamChannels[K][\"handle\"] {\n");
 
-    let channel_factory = generate_channel_factory(manifest, rpc_hashes)?;
+    let channel_factory = generate_channel_factory(manifest)?;
     out.push_str(&channel_factory);
 
     out.push_str("    throw new Error(`Unknown channel: ${name as string}`);\n");
@@ -297,64 +345,14 @@ pub fn generate_typescript(
 }
 
 /// Generate the channel factory body (if-branches for each channel).
-fn generate_channel_factory(
-  manifest: &Manifest,
-  rpc_hashes: Option<&RpcHashMap>,
-) -> Result<String> {
+fn generate_channel_factory(manifest: &Manifest) -> Result<String> {
   let mut out = String::new();
 
-  for (ch_name, ch) in &manifest.channels {
-    let ch_pascal = to_pascal_case(ch_name);
-    let input_type = format!("{ch_pascal}ChannelInput");
-
+  for ch_name in manifest.channels.keys() {
     out.push_str(&format!("    if (name === \"{ch_name}\") {{\n"));
-    out.push_str("      const listeners = new Map<string, Set<(data: unknown) => void>>();\n");
-    out.push_str(&format!("      const channelInput = input as {input_type};\n"));
-    out.push_str("      let unsub: (() => void) | null = null;\n");
-    out.push_str("      function ensureSubscription() {\n");
-    out.push_str("        if (unsub) return;\n");
-
-    let events_wire = format!("{ch_name}.events");
-    let events_wire_name = rpc_hashes
-      .and_then(|m| m.procedures.get(&events_wire))
-      .map(|h| h.as_str())
-      .unwrap_or(events_wire.as_str());
-
-    out.push_str(&format!(
-      "        unsub = client.subscribe(\"{events_wire_name}\", channelInput, (raw: unknown) => {{\n"
-    ));
-    out.push_str("          const event = raw as { type: string; payload: unknown };\n");
-    out.push_str("          const cbs = listeners.get(event.type);\n");
-    out.push_str("          if (cbs) for (const cb of cbs) cb(event.payload);\n");
-    out.push_str("        });\n");
-    out.push_str("      }\n");
-    out.push_str("      return {\n");
-
-    // Incoming message methods
-    for msg_name in ch.incoming.keys() {
-      let msg_pascal = to_pascal_case(msg_name);
-      let msg_output_type = format!("{ch_pascal}{msg_pascal}Output");
-      let wire_name = format!("{ch_name}.{msg_name}");
-      let wire = rpc_hashes
-        .and_then(|m| m.procedures.get(&wire_name))
-        .map(|h| h.as_str())
-        .unwrap_or(wire_name.as_str());
-
-      out.push_str(&format!(
-        "        {msg_name}: (msgInput: unknown) => client.command(\"{wire}\", {{ ...channelInput, ...msgInput as object }}) as Promise<{msg_output_type}>,\n"
-      ));
-    }
-
-    out.push_str("        on: (event: string, callback: (data: unknown) => void) => {\n");
-    out.push_str("          let cbs = listeners.get(event);\n");
-    out.push_str("          if (!cbs) { cbs = new Set(); listeners.set(event, cbs); }\n");
-    out.push_str("          cbs.add(callback);\n");
-    out.push_str("          ensureSubscription();\n");
-    out.push_str("        },\n");
     out.push_str(
-      "        close: () => { if (unsub) { unsub(); unsub = null; } listeners.clear(); },\n",
+      "      return client.channel(name, input) as unknown as SeamChannels[typeof name][\"handle\"];\n",
     );
-    out.push_str("      } as unknown as SeamChannels[typeof name][\"handle\"];\n");
     out.push_str("    }\n");
   }
 
