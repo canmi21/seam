@@ -1,6 +1,6 @@
 {
   "name": "@canmi/seam-engine",
-  "version": "0.4.12",
+  "version": "0.4.13",
   "license": "MIT",
   "files": [
     "dist",
@@ -9,7 +9,7 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },

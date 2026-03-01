@@ -1,0 +1,5 @@
+error: procedure must have a return type
+ --> tests/fail/procedure_no_return.rs:6:1
+  |
+6 | async fn bad(input: String) {}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^

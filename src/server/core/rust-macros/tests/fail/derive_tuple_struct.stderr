@@ -1,0 +1,5 @@
+error: SeamType requires named fields
+ --> tests/fail/derive_tuple_struct.rs:6:13
+  |
+6 | struct Point(f64, f64);
+  |             ^^^^^^^^^^

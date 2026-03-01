@@ -1,0 +1,5 @@
+error: SeamType enum derive only supports unit variants (no fields)
+ --> tests/fail/derive_enum_data.rs:7:3
+  |
+7 |   Circle(f64),
+  |   ^^^^^^^^^^^

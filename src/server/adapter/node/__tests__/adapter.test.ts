@@ -77,6 +77,13 @@ describe("adapter-node", () => {
     expect(body.error.code).toBe("VALIDATION_ERROR");
   });
 
+  it("POST /_seam/procedure/updateName (command) returns 200", async () => {
+    const res = await postJson("/_seam/procedure/updateName", { name: "test" });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body).toEqual({ ok: true, data: { success: true } });
+  });
+
   it("unknown route returns 404", async () => {
     const res = await fetch(`${base}/unknown`);
     expect(res.status).toBe(404);

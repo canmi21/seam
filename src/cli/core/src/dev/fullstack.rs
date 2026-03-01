@@ -31,17 +31,6 @@ fn setup_watcher() -> Result<(RecommendedWatcher, tokio::sync::mpsc::Receiver<()
   Ok((watcher, rx))
 }
 
-#[allow(dead_code)]
-fn classify_change(path: &Path, base_dir: &Path) -> Option<RebuildMode> {
-  let rel = path.strip_prefix(base_dir).ok()?;
-  let parts: Vec<_> = rel.components().collect();
-  if parts.len() >= 2 && parts[0].as_os_str() == "src" && parts[1].as_os_str() == "server" {
-    Some(RebuildMode::Full)
-  } else {
-    Some(RebuildMode::FrontendOnly)
-  }
-}
-
 fn write_reload_trigger(out_dir: &Path) {
   let trigger = out_dir.join(".reload-trigger");
   let ts = std::time::SystemTime::now()

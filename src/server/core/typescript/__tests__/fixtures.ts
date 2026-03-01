@@ -9,6 +9,12 @@ export const greetRouter = createRouter({
     output: t.object({ message: t.string() }),
     handler: ({ input }) => ({ message: `Hello, ${input.name}!` }),
   },
+  updateName: {
+    type: "command",
+    input: t.object({ name: t.string() }),
+    output: t.object({ success: t.boolean() }),
+    handler: () => ({ success: true }),
+  },
 });
 
 export const greetInput = { name: "Alice" };

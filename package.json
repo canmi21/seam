@@ -59,7 +59,9 @@
     "test:all": "bun run test:unit && bun run test:integration && bun run test:e2e",
     "test": "bun run test:all",
     "typecheck": "bash scripts/ci/typecheck.sh",
-    "verify": "bash scripts/verify-all.sh"
+    "verify": "bash scripts/verify-all.sh",
+    "publish": "bash scripts/publish.sh",
+    "push": "bash scripts/push.sh"
   },
   "devDependencies": {
     "dprint": "^0.52.0",
