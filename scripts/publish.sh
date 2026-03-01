@@ -130,6 +130,12 @@ wasm_chain_changed() {
   has_real_changes "src/server/injector/rust"
 }
 
+# --- Helper: CLI chain detection ---
+cli_chain_changed() {
+  has_real_changes "src/cli/core" ||
+  has_real_changes "src/cli/pkg"
+}
+
 # --- Helper: crate name to directory ---
 crate_dir() {
   case "$1" in
@@ -283,6 +289,16 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
   fi
   ok "TypeScript build complete"
 
+  # Build CLI binaries for all platforms (only when CLI source changed)
+  if $FORCE_ALL || cli_chain_changed; then
+    info "Building CLI binaries (bash scripts/build-cli.sh)..."
+    if ! bash "$ROOT/scripts/build-cli.sh"; then
+      fail "CLI binary build failed"
+      exit 1
+    fi
+    ok "CLI binaries built"
+  fi
+
   ENGINE_PKG="$ROOT/src/server/engine/js/pkg"
   if [ ! -d "$ENGINE_PKG" ] || [ -z "$(ls -A "$ENGINE_PKG" 2>/dev/null)" ]; then
     warn "@canmi/seam-engine: pkg/ missing or empty (WASM binaries required)"
@@ -292,6 +308,12 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
     ENGINE_SKIP=false
   fi
 
+  NPM_LAYER_0=(
+    "src/cli/wrapper/darwin-arm64:@canmi/seam-cli-darwin-arm64"
+    "src/cli/wrapper/darwin-x64:@canmi/seam-cli-darwin-x64"
+    "src/cli/wrapper/linux-arm64:@canmi/seam-cli-linux-arm64"
+    "src/cli/wrapper/linux-x64:@canmi/seam-cli-linux-x64"
+  )
   NPM_LAYER_1=(
     "src/client/vanilla:@canmi/seam-client"
     "src/eslint:@canmi/eslint-plugin-seam"
@@ -307,6 +329,9 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
     "src/server/adapter/bun:@canmi/seam-adapter-bun"
     "src/server/adapter/node:@canmi/seam-adapter-node"
     "src/client/tanstack-router:@canmi/seam-tanstack-router"
+  )
+  NPM_LAYER_4=(
+    "src/cli/pkg:@canmi/seam-cli"
   )
 
   publish_npm_layer() {
@@ -337,6 +362,8 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
       if ! $FORCE_ALL; then
         local should_publish=false
         if [ "$name" = "@canmi/seam-engine" ] && wasm_chain_changed; then
+          should_publish=true
+        elif [[ "$name" == @canmi/seam-cli* ]] && cli_chain_changed; then
           should_publish=true
         elif has_real_changes "$dir"; then
           should_publish=true
@@ -373,9 +400,11 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
     done
   }
 
+  publish_npm_layer "Layer 0 (CLI wrappers)" "${NPM_LAYER_0[@]}"
   publish_npm_layer "Layer 1 (leaf)" "${NPM_LAYER_1[@]}"
   publish_npm_layer "Layer 2 (core)" "${NPM_LAYER_2[@]}"
   publish_npm_layer "Layer 3 (adapters)" "${NPM_LAYER_3[@]}"
+  publish_npm_layer "Layer 4 (CLI)" "${NPM_LAYER_4[@]}"
 fi
 
 # --- 5. Publish Go modules (git tags) ---
