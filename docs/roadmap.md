@@ -31,9 +31,15 @@ Everything listed here is planned and will be implemented. This is currently a s
 - [x] HTTP RPC (request/response)
 - [x] SSE (streaming subscriptions)
 - [x] Batch RPC (bundled calls)
-- [ ] WebSocket (bidirectional streaming)
+- [x] WebSocket (bidirectional streaming for channels)
 - [ ] Tauri IPC (desktop)
 - [ ] Electron IPC (desktop)
+
+## Abstractions
+
+- [x] Channel abstraction (Level 1 -> Level 0 expansion)
+- [x] Codegen transport hint (automatic WebSocket selection)
+- [x] Query/Command distinction (3 procedure types)
 
 ## Architecture
 

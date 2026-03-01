@@ -9,7 +9,7 @@ accepts input parameters and yields a sequence of typed values.
 ## Endpoint
 
 ```
-GET /_seam/subscribe/{subscriptionName}?input={json}
+GET /_seam/procedure/{subscriptionName}?input={json}
 ```
 
 | Parameter          | Location | Description                                               |
@@ -44,10 +44,12 @@ An error occurred during the subscription.
 
 ```
 event: error
-data: {"code":"VALIDATION_ERROR","message":"Input validation failed"}
+data: {"code":"VALIDATION_ERROR","message":"Input validation failed","transient":false}
 ```
 
-Error codes reuse the same set as RPC errors:
+The `transient` field indicates whether the error is temporary and the client may retry. Defaults to `false`.
+
+Error codes reuse the same set as procedure errors:
 
 | Code               | Meaning                                 |
 | ------------------ | --------------------------------------- |
@@ -80,7 +82,7 @@ They are distinguished by the `type` field:
 
 ```json
 {
-  "version": "0.1.0",
+  "version": 1,
   "procedures": {
     "greet": {
       "type": "query",
@@ -97,6 +99,12 @@ They are distinguished by the `type` field:
 ```
 
 The `type` field defaults to `"query"` when absent (backward compatible).
+
+## WebSocket Alternative
+
+Channel subscriptions (`{channel}.events`) can also be consumed over WebSocket, which enables bidirectional communication -- the client can invoke channel commands over the same connection. See [Channel Protocol](./channel-protocol.md) for the WebSocket wire format.
+
+When a WebSocket `Upgrade` header is present on a channel subscription request, the server upgrades the connection instead of starting an SSE stream.
 
 ## Client Disconnect
 

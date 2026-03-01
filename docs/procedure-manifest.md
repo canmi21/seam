@@ -17,31 +17,41 @@ Consumers of the manifest include:
 
 ```json
 {
-  "version": "0.1.0",
+  "version": 1,
   "procedures": {
     "<procedureName>": {
-      "type": "query" | "subscription",
+      "type": "query" | "command" | "subscription",
       "input": <JTD schema>,
-      "output": <JTD schema>
+      "output": <JTD schema>,
+      "error": <JTD schema>          // optional
     }
+  },
+  "channels": {                       // optional
+    "<channelName>": <ChannelMeta>
   }
 }
 ```
 
-| Field        | Type                              | Description                          |
-| ------------ | --------------------------------- | ------------------------------------ |
-| `version`    | `string`                          | Manifest format version (semver).    |
-| `procedures` | `Record<string, ProcedureSchema>` | Map of procedure name to its schema. |
+| Field        | Type                              | Description                                                                            |
+| ------------ | --------------------------------- | -------------------------------------------------------------------------------------- |
+| `version`    | `number`                          | Manifest format version. Currently `1`.                                                |
+| `procedures` | `Record<string, ProcedureSchema>` | Map of procedure name to its schema.                                                   |
+| `channels`   | `Record<string, ChannelMeta>`     | Optional. Channel metadata for codegen. See [Channel Protocol](./channel-protocol.md). |
 
 Each `ProcedureSchema` has:
 
-| Field    | Type                        | Description                                                              |
-| -------- | --------------------------- | ------------------------------------------------------------------------ |
-| `type`   | `"query" \| "subscription"` | Procedure type. Defaults to `"query"` if absent.                         |
-| `input`  | `JTDSchema`                 | JTD schema for the request body. Empty `{}` means no input.              |
-| `output` | `JTDSchema`                 | JTD schema for the response body. Empty `{}` means no structured output. |
+| Field    | Type                                     | Description                                                              |
+| -------- | ---------------------------------------- | ------------------------------------------------------------------------ |
+| `type`   | `"query" \| "command" \| "subscription"` | Procedure type. Defaults to `"query"` if absent.                         |
+| `input`  | `JTDSchema`                              | JTD schema for the request body. Empty `{}` means no input.              |
+| `output` | `JTDSchema`                              | JTD schema for the response body. Empty `{}` means no structured output. |
+| `error`  | `JTDSchema`                              | Optional. JTD schema for typed error payloads.                           |
 
-See [Subscription Protocol](./subscription-protocol.md) for SSE subscription details.
+Procedure types:
+
+- **`query`** -- read-only operation. Safe to retry and cache.
+- **`command`** -- operation with side effects. Not safe to retry blindly.
+- **`subscription`** -- streaming operation via SSE or WebSocket. See [Subscription Protocol](./subscription-protocol.md).
 
 ## Procedure Naming
 
@@ -49,6 +59,8 @@ Procedure names must match `[a-zA-Z][a-zA-Z0-9]*`. CamelCase is recommended.
 
 Valid: `greet`, `getUser`, `listUsers`, `createOrderV2`
 Invalid: `get-user`, `_internal`, `123go`, `get user`
+
+Channel-expanded procedures use dot notation: `chat.send`, `chat.events`. The dot is reserved for channel expansion and must not appear in user-defined procedure names.
 
 ## JTD Schema Forms (RFC 8927)
 
@@ -65,7 +77,7 @@ Accepts any JSON value.
 
 ### Ref
 
-References a shared definition (not used in v0.1.0 manifests).
+References a shared definition (not used in v1 manifests).
 
 ```json
 { "ref": "Address" }
@@ -175,9 +187,9 @@ Returns the full procedure manifest as `application/json`.
 
 **Response**: the manifest JSON document.
 
-### POST /\_seam/rpc/{procedureName}
+### POST /\_seam/procedure/{procedureName}
 
-Executes a procedure.
+Executes a query or command procedure.
 
 **Request**:
 
@@ -188,45 +200,70 @@ Executes a procedure.
 
 - Status: `200`
 - Content-Type: `application/json`
-- Body: JSON matching the procedure's `output` schema.
+- Body: `{ "ok": true, "data": <output> }`
 
-### POST /\_seam/rpc/\_batch
+### POST /\_seam/procedure/\_batch
 
 Executes multiple procedures in a single HTTP request.
 
 **Request**:
 
 - Content-Type: `application/json`
-- Body: JSON array of call objects:
+- Body: JSON object with a `calls` array:
 
 ```json
-[
-  { "procedure": "greet", "input": { "name": "Alice" } },
-  { "procedure": "getUser", "input": { "id": 1 } }
-]
+{
+  "calls": [
+    { "procedure": "greet", "input": { "name": "Alice" } },
+    { "procedure": "getUser", "input": { "id": 1 } }
+  ]
+}
 ```
 
 **Response** (success):
 
 - Status: `200`
 - Content-Type: `application/json`
-- Body: JSON array of results in the same order:
+- Body: `{ "ok": true, "data": { "results": [...] } }`
+
+Each item in `results` is either a success or an error:
 
 ```json
-[
-  { "result": { "message": "Hello, Alice!" } },
-  { "result": { "id": 1, "name": "Alice", "email": "alice@example.com" } }
-]
+{
+  "ok": true,
+  "data": {
+    "results": [
+      { "ok": true, "data": { "message": "Hello, Alice!" } },
+      { "ok": true, "data": { "id": 1, "name": "Alice", "email": "alice@example.com" } }
+    ]
+  }
+}
 ```
 
-Individual failures return error objects in the array without failing the entire batch:
+Individual failures return error objects without failing the entire batch:
 
 ```json
-[
-  { "result": { "message": "Hello, Alice!" } },
-  { "error": { "code": "NOT_FOUND", "message": "Procedure 'noSuch' not found" } }
-]
+{
+  "ok": true,
+  "data": {
+    "results": [
+      { "ok": true, "data": { "message": "Hello, Alice!" } },
+      {
+        "ok": false,
+        "error": {
+          "code": "NOT_FOUND",
+          "message": "Procedure 'noSuch' not found",
+          "transient": false
+        }
+      }
+    ]
+  }
+}
 ```
+
+### GET /\_seam/procedure/{subscriptionName}
+
+SSE endpoint for subscriptions. See [Subscription Protocol](./subscription-protocol.md).
 
 ### GET /\_seam/page/{route}
 
@@ -244,7 +281,7 @@ Serves a fully rendered HTML page. The server matches the route to a page defini
 
 ## RPC Hash Obfuscation
 
-Servers may optionally map procedure names to SHA2 hashes for production deployments. When enabled, clients call `POST /_seam/rpc/{hash}` instead of `POST /_seam/rpc/{name}`.
+Servers may optionally map procedure names to SHA2 hashes for production deployments. When enabled, clients call `POST /_seam/procedure/{hash}` instead of `POST /_seam/procedure/{name}`.
 
 The server maintains a reverse lookup map (`hash -> name`) provided via the `rpcHashMap` option. The CLI generates this map during `seam build` when obfuscation is enabled in `seam.toml`.
 
@@ -256,12 +293,16 @@ All error responses use a consistent envelope:
 
 ```json
 {
+  "ok": false,
   "error": {
     "code": "<ERROR_CODE>",
-    "message": "<human-readable description>"
+    "message": "<human-readable description>",
+    "transient": false
   }
 }
 ```
+
+The `transient` field indicates whether the error is temporary and the client may retry the request. Defaults to `false`. Examples of transient errors: rate limiting, timeouts, temporary unavailability.
 
 ### Error Codes
 
@@ -282,7 +323,7 @@ Servers may use any string as an error code. Custom codes default to HTTP 500 un
 
 ```json
 {
-  "version": "0.1.0",
+  "version": 1,
   "procedures": {
     "greet": {
       "input": {
@@ -296,10 +337,12 @@ Servers may use any string as an error code. Custom codes default to HTTP 500 un
         }
       }
     },
-    "getUser": {
+    "createUser": {
+      "type": "command",
       "input": {
         "properties": {
-          "id": { "type": "uint32" }
+          "name": { "type": "string" },
+          "email": { "type": "string" }
         }
       },
       "output": {
@@ -307,9 +350,6 @@ Servers may use any string as an error code. Custom codes default to HTTP 500 un
           "id": { "type": "uint32" },
           "name": { "type": "string" },
           "email": { "type": "string" }
-        },
-        "optionalProperties": {
-          "avatar": { "type": "string", "nullable": true }
         }
       }
     },
@@ -333,7 +373,7 @@ Servers may use any string as an error code. Custom codes default to HTTP 500 un
 **greet**
 
 ```
-POST /_seam/rpc/greet
+POST /_seam/procedure/greet
 Content-Type: application/json
 
 { "name": "Alice" }
@@ -343,13 +383,13 @@ Content-Type: application/json
 200 OK
 Content-Type: application/json
 
-{ "message": "Hello, Alice!" }
+{ "ok": true, "data": { "message": "Hello, Alice!" } }
 ```
 
-**getUser (not found)**
+**createUser (not found)**
 
 ```
-POST /_seam/rpc/noSuchProcedure
+POST /_seam/procedure/noSuchProcedure
 Content-Type: application/json
 
 {}
@@ -359,13 +399,13 @@ Content-Type: application/json
 404 Not Found
 Content-Type: application/json
 
-{ "error": { "code": "NOT_FOUND", "message": "Procedure 'noSuchProcedure' not found" } }
+{ "ok": false, "error": { "code": "NOT_FOUND", "message": "Procedure 'noSuchProcedure' not found", "transient": false } }
 ```
 
 **greet (validation error)**
 
 ```
-POST /_seam/rpc/greet
+POST /_seam/procedure/greet
 Content-Type: application/json
 
 { "name": 42 }
@@ -375,5 +415,5 @@ Content-Type: application/json
 400 Bad Request
 Content-Type: application/json
 
-{ "error": { "code": "VALIDATION_ERROR", "message": "Input validation failed" } }
+{ "ok": false, "error": { "code": "VALIDATION_ERROR", "message": "Input validation failed", "transient": false } }
 ```
