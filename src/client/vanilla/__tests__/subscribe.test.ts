@@ -32,9 +32,10 @@ class MockEventSource {
 let lastEs: MockEventSource;
 
 beforeEach(() => {
+  // vitest 4 requires `function` keyword (not arrow) for constructor mocks
   vi.stubGlobal(
     "EventSource",
-    vi.fn().mockImplementation((url: string) => {
+    vi.fn(function (url: string) {
       lastEs = new MockEventSource(url);
       return lastEs;
     }),
