@@ -21,12 +21,12 @@ type routeManifest struct {
 }
 
 type i18nManifest struct {
-	Locales       []string                       `json:"locales"`
-	Default       string                         `json:"default"`
-	Mode          string                         `json:"mode"`
-	Cache         bool                           `json:"cache"`
-	RouteHashes   map[string]string              `json:"route_hashes"`
-	ContentHashes map[string]map[string]string   `json:"content_hashes"`
+	Locales       []string                     `json:"locales"`
+	Default       string                       `json:"default"`
+	Mode          string                       `json:"mode"`
+	Cache         bool                         `json:"cache"`
+	RouteHashes   map[string]string            `json:"route_hashes"`
+	ContentHashes map[string]map[string]string `json:"content_hashes"`
 }
 
 type layoutEntry struct {

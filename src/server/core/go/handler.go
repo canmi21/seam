@@ -12,15 +12,15 @@ import (
 )
 
 type appState struct {
-	manifestJSON  []byte
-	handlers      map[string]*ProcedureDef
-	subs          map[string]*SubscriptionDef
-	opts          HandlerOptions
-	hashToName    map[string]string // reverse lookup: hash -> original name (nil if no hash map)
-	batchHash     string            // batch endpoint hash (empty if no hash map)
-	i18nConfig    *I18nConfig
-	localeSet     map[string]bool   // O(1) lookup for valid locales
-	strategies []ResolveStrategy
+	manifestJSON []byte
+	handlers     map[string]*ProcedureDef
+	subs         map[string]*SubscriptionDef
+	opts         HandlerOptions
+	hashToName   map[string]string // reverse lookup: hash -> original name (nil if no hash map)
+	batchHash    string            // batch endpoint hash (empty if no hash map)
+	i18nConfig   *I18nConfig
+	localeSet    map[string]bool // O(1) lookup for valid locales
+	strategies   []ResolveStrategy
 }
 
 func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, channels []ChannelDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, strategies []ResolveStrategy, opts HandlerOptions) http.Handler {

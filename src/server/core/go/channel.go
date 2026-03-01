@@ -23,9 +23,9 @@ type ChannelDef struct {
 
 // channelMeta is the IR hint stored in the manifest.
 type channelMeta struct {
-	Input    any                      `json:"input"`
-	Incoming map[string]incomingMeta  `json:"incoming"`
-	Outgoing map[string]any           `json:"outgoing"`
+	Input    any                     `json:"input"`
+	Incoming map[string]incomingMeta `json:"incoming"`
+	Outgoing map[string]any          `json:"outgoing"`
 }
 
 type incomingMeta struct {

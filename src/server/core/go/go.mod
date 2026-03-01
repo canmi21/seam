@@ -9,7 +9,7 @@ require (
 
 require (
 	github.com/tetratelabs/wazero v1.11.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/sys v0.41.0 // indirect
 )
 
 replace github.com/canmi21/seam/src/server/engine/go => ../../engine/go
