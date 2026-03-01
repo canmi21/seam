@@ -5,7 +5,6 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   __wbg_set_wasm,
-  __wbindgen_init_externref_table,
   inject as wasmInject,
   inject_no_script as wasmInjectNoScript,
 } from "../pkg/injector.js";
@@ -19,14 +18,8 @@ const wasmPath = resolve(__dirname, "../pkg/injector.wasm");
 const wasmBytes = readFileSync(wasmPath);
 
 const wasmModule = new WebAssembly.Module(wasmBytes);
-const wasmInstance = new WebAssembly.Instance(wasmModule, {
-  "./seam_injector_wasm_bg.js": {
-    __wbindgen_init_externref_table,
-  },
-});
+const wasmInstance = new WebAssembly.Instance(wasmModule);
 __wbg_set_wasm(wasmInstance.exports);
-const start = wasmInstance.exports.__wbindgen_start as () => void;
-start();
 
 export function inject(
   template: string,

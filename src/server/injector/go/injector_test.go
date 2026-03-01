@@ -105,8 +105,8 @@ func TestInjectWithDataScript(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(result, `<script id="__SEAM_DATA__"`) {
-		t.Errorf("missing __SEAM_DATA__ script in %q", result)
+	if !strings.Contains(result, `<script id="__data"`) {
+		t.Errorf("missing __data script in %q", result)
 	}
 }
 

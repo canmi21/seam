@@ -55,7 +55,6 @@ cp "pkg/${CRATE_NAME}.d.ts" "$JS_PKG/bridge.d.ts"
 
 # <name>.d.ts: types for glue code (entry types + __wbg helpers)
 cp "pkg/${CRATE_NAME}.d.ts" "$JS_PKG/$NAME.d.ts"
-echo 'export function __wbindgen_init_externref_table(): void;' >> "$JS_PKG/$NAME.d.ts"
 echo 'export function __wbg_set_wasm(val: WebAssembly.Exports): void;' >> "$JS_PKG/$NAME.d.ts"
 
 # Go package: copy WASM binary

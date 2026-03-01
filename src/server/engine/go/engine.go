@@ -5,6 +5,7 @@ package engine
 import (
 	"context"
 	_ "embed"
+	"encoding/binary"
 	"fmt"
 	"sync"
 
@@ -23,20 +24,7 @@ var (
 
 func initialize() {
 	ctx := context.Background()
-	// Use interpreter engine: the compiler (wazevo) panics on externref tables
-	// exported by wasm-bindgen. The interpreter handles them correctly.
 	rt = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter())
-
-	// Provide the __wbindgen_init_externref_table import as no-op.
-	_, err := rt.NewHostModuleBuilder("./seam_engine_wasm_bg.js").
-		NewFunctionBuilder().WithFunc(func() {}).
-		Export("__wbindgen_init_externref_table").
-		Instantiate(ctx)
-	if err != nil {
-		initErr = fmt.Errorf("host module: %w", err)
-		return
-	}
-
 	compiled, initErr = rt.CompileModule(ctx, wasmBytes)
 }
 
@@ -60,23 +48,30 @@ func callWasm(funcName string, args ...string) (string, error) {
 	}
 	defer mod.Close(ctx)
 
-	// Run wasm-bindgen initialization
-	start := mod.ExportedFunction("__wbindgen_start")
-	if start != nil {
-		if _, err := start.Call(ctx); err != nil {
-			return "", fmt.Errorf("wasm start: %w", err)
-		}
-	}
-
-	malloc := mod.ExportedFunction("__wbindgen_malloc")
-	free := mod.ExportedFunction("__wbindgen_free")
+	malloc := mod.ExportedFunction("__wbindgen_export")
+	free := mod.ExportedFunction("__wbindgen_export3")
+	stackPointer := mod.ExportedFunction("__wbindgen_add_to_stack_pointer")
 	fn := mod.ExportedFunction(funcName)
 	if fn == nil {
 		return "", fmt.Errorf("function %s not exported", funcName)
 	}
+	if malloc == nil {
+		return "", fmt.Errorf("__wbindgen_export (malloc) not exported")
+	}
+	if stackPointer == nil {
+		return "", fmt.Errorf("__wbindgen_add_to_stack_pointer not exported")
+	}
+
+	// Allocate stack space for return values (ptr + len = 8 bytes, padded to 16)
+	spRes, err := stackPointer.Call(ctx, uint64(^uint32(15)))
+	if err != nil {
+		return "", fmt.Errorf("stack pointer alloc: %w", err)
+	}
+	retptr := uint32(spRes[0])
 
 	// Write all string arguments to WASM memory
-	params := make([]uint64, 0, len(args)*2)
+	params := make([]uint64, 0, 1+len(args)*2)
+	params = append(params, uint64(retptr))
 	for _, arg := range args {
 		argBytes := []byte(arg)
 		res, err := malloc.Call(ctx, uint64(len(argBytes)), 1)
@@ -90,14 +85,22 @@ func callWasm(funcName string, args ...string) (string, error) {
 		params = append(params, uint64(ptr), uint64(len(argBytes)))
 	}
 
-	// Call function
-	result, err := fn.Call(ctx, params...)
+	// Call function (results written to retptr, not returned)
+	_, err = fn.Call(ctx, params...)
 	if err != nil {
 		return "", fmt.Errorf("call %s: %w", funcName, err)
 	}
 
-	resultPtr := uint32(result[0])
-	resultLen := uint32(result[1])
+	// Read return values from stack memory
+	retBytes, ok := mod.Memory().Read(retptr, 8)
+	if !ok {
+		return "", fmt.Errorf("read return values from stack")
+	}
+	resultPtr := binary.LittleEndian.Uint32(retBytes[0:4])
+	resultLen := binary.LittleEndian.Uint32(retBytes[4:8])
+
+	// Restore stack pointer
+	_, _ = stackPointer.Call(ctx, 16)
 
 	// Read result string from WASM memory
 	resultBytes, ok := mod.Memory().Read(resultPtr, resultLen)

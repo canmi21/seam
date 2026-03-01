@@ -5,7 +5,6 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   __wbg_set_wasm,
-  __wbindgen_init_externref_table,
   render_page as wasmRenderPage,
   parse_build_output as wasmParseBuildOutput,
   parse_i18n_config as wasmParseI18nConfig,
@@ -26,14 +25,8 @@ const wasmPath = resolve(__dirname, "../pkg/engine.wasm");
 const wasmBytes = readFileSync(wasmPath);
 
 const wasmModule = new WebAssembly.Module(wasmBytes);
-const wasmInstance = new WebAssembly.Instance(wasmModule, {
-  "./seam_engine_wasm_bg.js": {
-    __wbindgen_init_externref_table,
-  },
-});
+const wasmInstance = new WebAssembly.Instance(wasmModule);
 __wbg_set_wasm(wasmInstance.exports);
-const start = wasmInstance.exports.__wbindgen_start as () => void;
-start();
 
 // --- Engine functions ---
 

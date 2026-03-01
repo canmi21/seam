@@ -5,6 +5,7 @@ package injector
 import (
 	"context"
 	_ "embed"
+	"encoding/binary"
 	"fmt"
 	"sync"
 
@@ -23,21 +24,7 @@ var (
 
 func initialize() {
 	ctx := context.Background()
-	// Use interpreter engine: the compiler (wazevo) panics on externref tables
-	// exported by wasm-bindgen. The interpreter handles them correctly.
 	rt = wazero.NewRuntimeWithConfig(ctx, wazero.NewRuntimeConfigInterpreter())
-
-	// Provide the __wbindgen_init_externref_table import as no-op.
-	// Our inject functions only use string args/returns, no externrefs.
-	_, err := rt.NewHostModuleBuilder("./seam_injector_wasm_bg.js").
-		NewFunctionBuilder().WithFunc(func() {}).
-		Export("__wbindgen_init_externref_table").
-		Instantiate(ctx)
-	if err != nil {
-		initErr = fmt.Errorf("host module: %w", err)
-		return
-	}
-
 	compiled, initErr = rt.CompileModule(ctx, wasmBytes)
 }
 
@@ -60,20 +47,26 @@ func callWasm(funcName, template, dataJSON string) (string, error) {
 	}
 	defer mod.Close(ctx)
 
-	// Run wasm-bindgen initialization
-	start := mod.ExportedFunction("__wbindgen_start")
-	if start != nil {
-		if _, err := start.Call(ctx); err != nil {
-			return "", fmt.Errorf("wasm start: %w", err)
-		}
-	}
-
-	malloc := mod.ExportedFunction("__wbindgen_malloc")
-	free := mod.ExportedFunction("__wbindgen_free")
+	malloc := mod.ExportedFunction("__wbindgen_export")
+	free := mod.ExportedFunction("__wbindgen_export3")
+	stackPointer := mod.ExportedFunction("__wbindgen_add_to_stack_pointer")
 	fn := mod.ExportedFunction(funcName)
 	if fn == nil {
 		return "", fmt.Errorf("function %s not exported", funcName)
 	}
+	if malloc == nil {
+		return "", fmt.Errorf("__wbindgen_export (malloc) not exported")
+	}
+	if stackPointer == nil {
+		return "", fmt.Errorf("__wbindgen_add_to_stack_pointer not exported")
+	}
+
+	// Allocate stack space for return values (ptr + len = 8 bytes, padded to 16)
+	spRes, err := stackPointer.Call(ctx, uint64(^uint32(15)))
+	if err != nil {
+		return "", fmt.Errorf("stack pointer alloc: %w", err)
+	}
+	retptr := uint32(spRes[0])
 
 	// Write template string to WASM memory
 	templateBytes := []byte(template)
@@ -97,8 +90,9 @@ func callWasm(funcName, template, dataJSON string) (string, error) {
 		return "", fmt.Errorf("write data to memory")
 	}
 
-	// Call inject(templatePtr, templateLen, dataPtr, dataLen) -> (resultPtr, resultLen)
-	result, err := fn.Call(ctx,
+	// Call function with retptr as first arg (results written to retptr, not returned)
+	_, err = fn.Call(ctx,
+		uint64(retptr),
 		uint64(templatePtr), uint64(len(templateBytes)),
 		uint64(dataPtr), uint64(len(dataBytes)),
 	)
@@ -106,8 +100,16 @@ func callWasm(funcName, template, dataJSON string) (string, error) {
 		return "", fmt.Errorf("call %s: %w", funcName, err)
 	}
 
-	resultPtr := uint32(result[0])
-	resultLen := uint32(result[1])
+	// Read return values from stack memory
+	retBytes, ok := mod.Memory().Read(retptr, 8)
+	if !ok {
+		return "", fmt.Errorf("read return values from stack")
+	}
+	resultPtr := binary.LittleEndian.Uint32(retBytes[0:4])
+	resultLen := binary.LittleEndian.Uint32(retBytes[4:8])
+
+	// Restore stack pointer
+	_, _ = stackPointer.Call(ctx, 16)
 
 	// Read result string from WASM memory
 	resultBytes, ok := mod.Memory().Read(resultPtr, resultLen)

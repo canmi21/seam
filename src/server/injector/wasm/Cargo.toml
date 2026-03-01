@@ -17,3 +17,6 @@ workspace = true
 seam-injector = { version = "0.4.10", path = "../rust" }
 serde_json = "1"
 wasm-bindgen = "0.2"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--all-features"]
