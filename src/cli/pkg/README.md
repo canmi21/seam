@@ -21,5 +21,5 @@ npx @canmi/seam-cli <command>
 
 ## Notes
 
-- The actual CLI logic lives in `src/cli/core` (Rust)
+- The CLI logic is split across three Rust crates: `seam-skeleton`, `seam-codegen`, and `seam-cli` (in `src/cli/`)
 - This package only contains the binary resolver and platform binaries

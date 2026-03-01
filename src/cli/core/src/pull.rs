@@ -4,8 +4,8 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 
-use crate::manifest::{Manifest, ProcedureType};
 use crate::ui;
+use seam_codegen::{Manifest, ProcedureType};
 
 pub async fn pull_manifest(base_url: &str, out: &Path) -> Result<()> {
   let url = format!("{}/_seam/manifest.json", base_url.trim_end_matches('/'));

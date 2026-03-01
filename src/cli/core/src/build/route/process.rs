@@ -6,11 +6,6 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 
-use super::super::ctr_check;
-use super::super::skeleton::{
-  extract_head_metadata, extract_template, sentinel_to_slots, wrap_document,
-};
-use super::super::slot_warning;
 use super::super::types::{AssetFiles, ViteDevInfo};
 use super::fnv;
 use super::helpers::{
@@ -24,6 +19,9 @@ use super::types::{
 use crate::config::{I18nMode, I18nSection};
 use crate::shell::which_exists;
 use crate::ui::{self, DIM, RESET, YELLOW};
+use seam_skeleton::ctr_check;
+use seam_skeleton::slot_warning;
+use seam_skeleton::{extract_head_metadata, extract_template, sentinel_to_slots, wrap_document};
 
 pub(crate) fn run_skeleton_renderer(
   script_path: &Path,

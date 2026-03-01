@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use super::super::skeleton::Axis;
+use seam_skeleton::Axis;
 
 // -- Node script output types --
 

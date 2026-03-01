@@ -159,7 +159,7 @@ pub(super) async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> R
 
   // Generate stable salt once per dev session
   if build_config.obfuscate {
-    build_config.rpc_salt = Some(crate::build::rpc_hash::generate_random_salt());
+    build_config.rpc_salt = Some(seam_codegen::generate_random_salt());
   }
 
   // Skip build if route-manifest.json already exists

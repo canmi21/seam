@@ -35,9 +35,9 @@ pub(super) fn run_bundler(
 /// Generate RPC hash map when obfuscation is enabled, write to out_dir
 pub(super) fn maybe_generate_rpc_hashes(
   build_config: &BuildConfig,
-  manifest: &crate::manifest::Manifest,
+  manifest: &seam_codegen::Manifest,
   out_dir: &Path,
-) -> Result<Option<super::super::rpc_hash::RpcHashMap>> {
+) -> Result<Option<seam_codegen::RpcHashMap>> {
   if !build_config.obfuscate {
     return Ok(None);
   }
@@ -46,8 +46,8 @@ pub(super) fn maybe_generate_rpc_hashes(
     .rpc_salt
     .as_deref()
     .map(|s| s.to_string())
-    .unwrap_or_else(super::super::rpc_hash::generate_random_salt);
-  let map = super::super::rpc_hash::generate_rpc_hash_map(
+    .unwrap_or_else(seam_codegen::generate_random_salt);
+  let map = seam_codegen::generate_rpc_hash_map(
     &names,
     &salt,
     build_config.hash_length,
@@ -64,7 +64,7 @@ pub(super) fn dispatch_extract_manifest(
   build_config: &BuildConfig,
   base_dir: &Path,
   out_dir: &Path,
-) -> Result<crate::manifest::Manifest> {
+) -> Result<seam_codegen::Manifest> {
   use super::super::route::{extract_manifest, extract_manifest_command};
   use anyhow::Context;
   if let Some(cmd) = &build_config.manifest_command {
@@ -81,9 +81,9 @@ pub(super) fn dispatch_extract_manifest(
 /// Public wrapper for workspace module access
 pub fn maybe_generate_rpc_hashes_pub(
   build_config: &BuildConfig,
-  manifest: &crate::manifest::Manifest,
+  manifest: &seam_codegen::Manifest,
   out_dir: &std::path::Path,
-) -> Result<Option<super::super::rpc_hash::RpcHashMap>> {
+) -> Result<Option<seam_codegen::RpcHashMap>> {
   maybe_generate_rpc_hashes(build_config, manifest, out_dir)
 }
 

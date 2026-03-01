@@ -2,11 +2,9 @@
 
 mod build;
 mod clean;
-mod codegen;
 mod config;
 mod dev;
 mod dev_server;
-mod manifest;
 mod pull;
 mod shell;
 mod ui;
@@ -141,12 +139,12 @@ async fn main() -> Result<()> {
 
       let content = std::fs::read_to_string(&manifest)
         .with_context(|| format!("failed to read {}", manifest.display()))?;
-      let parsed: crate::manifest::Manifest =
+      let parsed: seam_codegen::Manifest =
         serde_json::from_str(&content).context("failed to parse manifest")?;
 
       let proc_count = parsed.procedures.len();
       let data_id = cfg.as_ref().map_or("__data", |c| &c.frontend.data_id);
-      let code = codegen::generate_typescript(&parsed, None, data_id)?;
+      let code = seam_codegen::generate_typescript(&parsed, None, data_id)?;
       let line_count = code.lines().count();
 
       std::fs::create_dir_all(&out)
@@ -155,7 +153,7 @@ async fn main() -> Result<()> {
       std::fs::write(&file, &code)
         .with_context(|| format!("failed to write {}", file.display()))?;
 
-      let meta_code = codegen::generate_typescript_meta(data_id);
+      let meta_code = seam_codegen::generate_typescript_meta(data_id);
       let meta_file = out.join("meta.ts");
       std::fs::write(&meta_file, &meta_code)
         .with_context(|| format!("failed to write {}", meta_file.display()))?;

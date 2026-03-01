@@ -6,11 +6,10 @@ use std::process::Command;
 use anyhow::{Context, Result, bail};
 
 use super::types::SkeletonOutput;
-use crate::codegen;
 use crate::config::SeamConfig;
-use crate::manifest::{Manifest, ProcedureType};
 use crate::shell::{run_command, which_exists};
 use crate::ui::{self, DIM, GREEN, RESET};
+use seam_codegen::{Manifest, ProcedureType};
 
 // -- Procedure reference validation --
 
@@ -210,11 +209,11 @@ pub(crate) fn extract_manifest(
 pub(crate) fn generate_types(
   manifest: &Manifest,
   config: &SeamConfig,
-  rpc_hashes: Option<&super::super::rpc_hash::RpcHashMap>,
+  rpc_hashes: Option<&seam_codegen::RpcHashMap>,
 ) -> Result<()> {
   let out_dir_str = config.generate.out_dir.as_deref().unwrap_or("src/generated");
 
-  let code = codegen::generate_typescript(manifest, rpc_hashes, &config.frontend.data_id)?;
+  let code = seam_codegen::generate_typescript(manifest, rpc_hashes, &config.frontend.data_id)?;
   let line_count = code.lines().count();
   let proc_count = manifest.procedures.len();
 
@@ -224,7 +223,7 @@ pub(crate) fn generate_types(
   let file = out_path.join("client.ts");
   std::fs::write(&file, &code).with_context(|| format!("failed to write {}", file.display()))?;
 
-  let meta_code = codegen::generate_typescript_meta(&config.frontend.data_id);
+  let meta_code = seam_codegen::generate_typescript_meta(&config.frontend.data_id);
   let meta_file = out_path.join("meta.ts");
   std::fs::write(&meta_file, &meta_code)
     .with_context(|| format!("failed to write {}", meta_file.display()))?;

@@ -132,6 +132,8 @@ wasm_chain_changed() {
 
 # --- Helper: CLI chain detection ---
 cli_chain_changed() {
+  has_real_changes "src/cli/skeleton" ||
+  has_real_changes "src/cli/codegen" ||
   has_real_changes "src/cli/core" ||
   has_real_changes "src/cli/pkg"
 }
@@ -145,6 +147,8 @@ crate_dir() {
     seam-server)      echo "src/server/core/rust" ;;
     seam-server-axum) echo "src/server/adapter/axum" ;;
     seam-engine-wasm) echo "src/server/engine/wasm" ;;
+    seam-skeleton)    echo "src/cli/skeleton" ;;
+    seam-codegen)     echo "src/cli/codegen" ;;
     seam-cli)         echo "src/cli/core" ;;
   esac
 }
@@ -221,6 +225,8 @@ if ! $NPM_ONLY && ! $GO_ONLY; then
     "seam-server"
     "seam-server-axum"
     "seam-engine-wasm"
+    "seam-skeleton"
+    "seam-codegen"
     "seam-cli"
   )
 

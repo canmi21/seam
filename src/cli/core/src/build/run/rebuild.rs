@@ -81,7 +81,7 @@ pub fn run_incremental_rebuild(
 
   let manifest_str = std::fs::read_to_string(&manifest_json_path)
     .with_context(|| format!("failed to read {}", manifest_json_path.display()))?;
-  let manifest: crate::manifest::Manifest = serde_json::from_str(&manifest_str)
+  let manifest: seam_codegen::Manifest = serde_json::from_str(&manifest_str)
     .with_context(|| format!("failed to parse {}", manifest_json_path.display()))?;
   validate_procedure_references(&manifest, &skeleton_output)?;
 

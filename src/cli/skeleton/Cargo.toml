@@ -1,0 +1,18 @@
+[package]
+name = "seam-skeleton"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "HTML skeleton extraction pipeline for SeamJS CLI"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = "1"
+regex = "1"
+seam-injector = { version = "0.4.12", path = "../../server/injector/rust" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

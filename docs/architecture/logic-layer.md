@@ -28,10 +28,12 @@ The engine source of truth is the Rust crate [`seam-engine`](../../src/server/en
 
 ## CLI
 
-| Package                         | Crate / npm       | Description                                                      |
-| ------------------------------- | ----------------- | ---------------------------------------------------------------- |
-| [cli/core](../../src/cli/core/) | `seam-cli`        | Build skeletons, generate typed clients, orchestrate dev servers |
-| [cli/pkg](../../src/cli/pkg/)   | `@canmi/seam-cli` | npm distribution wrapper for the CLI binary                      |
+| Package                                 | Crate / npm       | Description                                                 |
+| --------------------------------------- | ----------------- | ----------------------------------------------------------- |
+| [cli/skeleton](../../src/cli/skeleton/) | `seam-skeleton`   | HTML skeleton extraction pipeline (slot, extract, document) |
+| [cli/codegen](../../src/cli/codegen/)   | `seam-codegen`    | TypeScript codegen, manifest types, RPC hash map            |
+| [cli/core](../../src/cli/core/)         | `seam-cli`        | Build orchestration, dev servers, CLI entry point           |
+| [cli/pkg](../../src/cli/pkg/)           | `@canmi/seam-cli` | npm distribution wrapper for the CLI binary                 |
 
 ## Planned
 

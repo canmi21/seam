@@ -8,6 +8,8 @@ members = [
   "src/server/injector/wasm",
   "src/server/engine/rust",
   "src/server/engine/wasm",
+  "src/cli/skeleton",
+  "src/cli/codegen",
   "src/cli/core",
   "examples/standalone/server-rust",
   "examples/github-dashboard/backends/rust-axum",
@@ -24,7 +26,7 @@ panic = "abort"
 too_many_lines = "warn"
 
 [workspace.package]
-version = "0.4.11"
+version = "0.4.12"
 edition = "2024"
 license = "MIT"
 authors = ["Canmi(Canmi21) <t@canmi.icu>"]

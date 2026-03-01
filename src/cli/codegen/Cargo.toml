@@ -1,0 +1,19 @@
+[package]
+name = "seam-codegen"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "TypeScript codegen and manifest types for SeamJS CLI"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = "1"
+hex = "0.4"
+rand = "0.10"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"

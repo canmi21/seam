@@ -16,9 +16,9 @@ use crate::build::route::{
 };
 use crate::build::types::read_bundle_manifest;
 use crate::config::{SeamConfig, resolve_member_config, validate_workspace};
-use crate::manifest::Manifest;
 use crate::shell::{resolve_node_module, run_command};
 use crate::ui::{self, DIM, GREEN, RESET, YELLOW};
+use seam_codegen::Manifest;
 
 #[derive(Debug)]
 pub struct ResolvedMember {
@@ -304,11 +304,11 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::manifest::ProcedureSchema;
+  use seam_codegen::ProcedureSchema;
   use std::collections::BTreeMap;
 
   fn make_manifest(procs: &[(&str, &str)]) -> Manifest {
-    use crate::manifest::ProcedureType;
+    use seam_codegen::ProcedureType;
     let mut procedures = BTreeMap::new();
     for (name, ptype) in procs {
       let proc_type = match *ptype {

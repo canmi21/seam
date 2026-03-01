@@ -2,12 +2,12 @@
 
 use std::collections::BTreeMap;
 
-use super::super::skeleton::extract_head_metadata;
 use super::helpers::path_to_filename;
 use super::manifest::{
   did_you_mean, extract_manifest_command, levenshtein, validate_procedure_references,
 };
 use super::types::{RouteManifestEntry, SkeletonLayout, SkeletonOutput, SkeletonRoute};
+use seam_skeleton::extract_head_metadata;
 
 #[test]
 fn path_to_filename_root() {
@@ -66,8 +66,8 @@ fn did_you_mean_no_match() {
 
 // -- Procedure validation tests --
 
-fn make_manifest(names: &[&str]) -> crate::manifest::Manifest {
-  use crate::manifest::{ProcedureSchema, ProcedureType};
+fn make_manifest(names: &[&str]) -> seam_codegen::Manifest {
+  use seam_codegen::{ProcedureSchema, ProcedureType};
   let mut procedures = BTreeMap::new();
   for name in names {
     procedures.insert(
@@ -80,7 +80,7 @@ fn make_manifest(names: &[&str]) -> crate::manifest::Manifest {
       },
     );
   }
-  crate::manifest::Manifest { version: 1, procedures, channels: BTreeMap::new() }
+  seam_codegen::Manifest { version: 1, procedures, channels: BTreeMap::new() }
 }
 
 fn make_skeleton(
