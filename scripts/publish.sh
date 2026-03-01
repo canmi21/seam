@@ -176,6 +176,22 @@ npm_pkg_exists() {
   [ "$status" = "200" ]
 }
 
+# --- Helper: resolve workspace:* to real version in package.json ---
+# Replaces "workspace:*" and "workspace:^" with the current VERSION.
+# Saves a backup as package.json.bak for restoration after publish.
+resolve_workspace_versions() {
+  local pkg_json="$1/package.json"
+  cp "$pkg_json" "$pkg_json.bak"
+  sed -i '' "s/\"workspace:\*\"/\"$VERSION\"/g; s/\"workspace:\\^\"/\"^$VERSION\"/g" "$pkg_json"
+}
+
+restore_package_json() {
+  local pkg_json="$1/package.json"
+  if [ -f "$pkg_json.bak" ]; then
+    mv "$pkg_json.bak" "$pkg_json"
+  fi
+}
+
 # --- 2. Verify ---
 if ! $SKIP_VERIFY; then
   info "Running verification (bun run verify)..."
@@ -333,8 +349,9 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
       fi
 
       info "Publishing $name@$VERSION..."
+      resolve_workspace_versions "$pkg_dir"
       if $DRY_RUN; then
-        if (cd "$pkg_dir" && bun publish --access public --dry-run 2>&1); then
+        if (cd "$pkg_dir" && npm publish --access public --dry-run 2>&1); then
           ok "$name (dry-run)"
           PUBLISHED=$((PUBLISHED + 1))
         else
@@ -343,7 +360,7 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
           FAILED_NAMES+=("$name")
         fi
       else
-        if (cd "$pkg_dir" && bun publish --access public); then
+        if (cd "$pkg_dir" && npm publish --access public); then
           ok "$name"
           PUBLISHED=$((PUBLISHED + 1))
         else
@@ -352,6 +369,7 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
           FAILED_NAMES+=("$name")
         fi
       fi
+      restore_package_json "$pkg_dir"
     done
   }
 
