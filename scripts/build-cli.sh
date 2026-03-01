@@ -91,6 +91,16 @@ build_target() {
   cp "$src" "$dest"
   chmod +x "$dest"
 
+  # UPX compress Linux (musl) binaries
+  case "$triple" in
+    *-linux-musl)
+      local before
+      before=$(du -h "$dest" | cut -f1 | xargs)
+      info "Compressing with UPX ($before)..."
+      upx --best --lzma "$dest" >/dev/null 2>&1
+      ;;
+  esac
+
   local size
   size=$(du -h "$dest" | cut -f1 | xargs)
   ok "$triple -> $wrapper_dir/bin/seam ($size)"
