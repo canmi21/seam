@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 
 use super::super::types::AssetFiles;
 use crate::config::I18nSection;
-use crate::ui::{self, DIM, RESET};
+use crate::ui::{self, DIM, RESET, col};
 
 /// Read i18n message files from disk, keyed by locale.
 /// Sorts keys alphabetically and writes back to keep source files deterministic.
@@ -115,6 +115,11 @@ pub(crate) fn print_asset_files(base_dir: &Path, dist_dir: &str, assets: &AssetF
   for file in all_files {
     let full_path = base_dir.join(dist_dir).join(file);
     let size = std::fs::metadata(&full_path).map(|m| m.len()).unwrap_or(0);
-    ui::detail_ok(&format!("{dist_dir}/{file}  {DIM}({}){RESET}", ui::format_size(size)));
+    ui::detail_ok(&format!(
+      "{dist_dir}/{file}  {}({}){}",
+      col(DIM),
+      ui::format_size(size),
+      col(RESET)
+    ));
   }
 }

@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use serde_json::Value;
 
-use crate::ui::{self, RESET, YELLOW};
+use crate::ui::{self, RESET, YELLOW, col};
 
 /// Resolve fallback chain so every locale has every key.
 ///
@@ -39,7 +39,9 @@ pub(crate) fn resolve_fallback(
         }
         None => {
           ui::detail(&format!(
-            "{YELLOW}warning{RESET}: i18n key \"{key}\" has no value in any locale, using key as fallback"
+            "{}warning{}: i18n key \"{key}\" has no value in any locale, using key as fallback",
+            col(YELLOW),
+            col(RESET)
           ));
           locale_msgs.insert(key.clone(), Value::String(key.clone()));
         }

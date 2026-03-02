@@ -12,17 +12,29 @@ use super::super::route::{
 use super::super::types::{read_bundle_manifest, read_bundle_manifest_extended};
 use super::helpers::{print_cache_stats, run_bundler};
 use crate::shell::resolve_node_module;
-use crate::ui;
+use crate::ui::{self, BRIGHT_CYAN, BRIGHT_GREEN, RESET, StepTracker, col};
 
-// -- Frontend-only build (4 steps) --
+// -- Step registry --
+
+fn frontend_steps(build_config: &BuildConfig) -> Vec<&'static str> {
+  let mut steps = vec!["Bundling frontend", "Rendering skeletons", "Processing routes"];
+  if build_config.i18n.is_some() {
+    steps.push("Exporting i18n");
+  }
+  steps
+}
+
+// -- Frontend-only build --
 
 pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()> {
   let started = Instant::now();
 
   ui::banner("build", None);
 
-  // [1/4] Bundle frontend
-  let t = ui::step(1, 4, "Bundling frontend");
+  let mut tracker = StepTracker::new(frontend_steps(build_config));
+
+  // -- Bundling frontend --
+  let t = tracker.begin();
   let dist_dir_str = build_config.dist_dir().to_string();
   let routes_path_str = base_dir.join(&build_config.routes).to_string_lossy().to_string();
   run_bundler(
@@ -35,11 +47,10 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
   let assets = read_bundle_manifest(&manifest_path)?;
   print_asset_files(base_dir, build_config.dist_dir(), &assets);
-  ui::step_done(t);
-  ui::blank();
+  tracker.end(t);
 
-  // [2/4] Extract routes
-  let t = ui::step(2, 4, "Extracting routes");
+  // -- Rendering skeletons --
+  let t = tracker.begin();
   let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
     .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&build_config.routes);
@@ -56,11 +67,10 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
   }
   print_cache_stats(&skeleton_output.cache);
   ui::detail_ok(&format!("{} routes found", skeleton_output.routes.len()));
-  ui::step_done(t);
-  ui::blank();
+  tracker.end(t);
 
-  // [3/4] Generate skeletons
-  let t = ui::step(3, 4, "Generating skeletons");
+  // -- Processing routes --
+  let t = tracker.begin();
   let out_dir = base_dir.join(&build_config.out_dir);
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
@@ -69,9 +79,8 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
     Some(cfg) => Some(read_i18n_messages(base_dir, cfg)?),
     None => None,
   };
+
   // When sourceFileMap is available, parse extended manifest for per-page splitting.
-  // Built-in bundler writes Vite-format manifest as sibling "vite-manifest.json";
-  // custom Vite users already have Vite-format at bundler_manifest path.
   let bundle_manifest = if skeleton_output.source_file_map.is_some() {
     let vite_path = manifest_path.with_file_name("vite-manifest.json");
     read_bundle_manifest_extended(&vite_path)
@@ -81,7 +90,6 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
     None
   };
 
-  // When splitting is active, template gets only main entry assets
   let template_assets = match &bundle_manifest {
     Some(bm) => &bm.template,
     None => &assets,
@@ -100,31 +108,41 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
     bundle_manifest.as_ref(),
     skeleton_output.source_file_map.as_ref(),
   )?;
-  if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
-    export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;
-  }
-  ui::step_done(t);
-  ui::blank();
 
-  // [4/4] Write route manifest
-  let t = ui::step(4, 4, "Writing route manifest");
-  let manifest_out = out_dir.join("route-manifest.json");
-  let manifest_json = serde_json::to_string_pretty(&route_manifest)?;
-  std::fs::write(&manifest_out, &manifest_json)
-    .with_context(|| format!("failed to write {}", manifest_out.display()))?;
-  ui::detail_ok("route-manifest.json");
-  ui::step_done(t);
-  ui::blank();
+  if build_config.i18n.is_none() {
+    write_route_manifest(&out_dir, &route_manifest)?;
+  }
+  tracker.end(t);
+
+  // -- Exporting i18n (conditional) --
+  if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
+    let t = tracker.begin();
+    export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;
+    write_route_manifest(&out_dir, &route_manifest)?;
+    tracker.end(t);
+  }
 
   // Summary
   let elapsed = started.elapsed().as_secs_f64();
   let template_count = skeleton_output.routes.len();
   let asset_count = assets.js.len() + assets.css.len();
-  ui::ok(&format!("build complete in {elapsed:.1}s"));
+  let (bg, bc, r) = (col(BRIGHT_GREEN), col(BRIGHT_CYAN), col(RESET));
+  ui::ok(&format!("build complete in {bc}{elapsed:.1}s{r}"));
   ui::detail(&format!(
-    "{template_count} templates \u{00b7} {asset_count} assets \u{00b7} {} \u{00b7} route-manifest.json",
+    "{bg}{template_count}{r} templates \u{00b7} {bg}{asset_count}{r} assets \u{00b7} {}",
     build_config.renderer,
   ));
 
+  Ok(())
+}
+
+fn write_route_manifest(
+  out_dir: &Path,
+  route_manifest: &super::super::route::RouteManifest,
+) -> Result<()> {
+  let path = out_dir.join("route-manifest.json");
+  let json = serde_json::to_string_pretty(route_manifest)?;
+  std::fs::write(&path, &json).with_context(|| format!("failed to write {}", path.display()))?;
+  ui::detail_ok("route-manifest.json");
   Ok(())
 }

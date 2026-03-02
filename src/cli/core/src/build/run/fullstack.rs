@@ -20,9 +20,50 @@ use super::helpers::{
 use super::rebuild::copy_wasm_binary;
 use crate::config::SeamConfig;
 use crate::shell::{resolve_node_module, run_command};
-use crate::ui;
+use crate::ui::{self, BRIGHT_CYAN, BRIGHT_GREEN, RESET, StepTracker, col};
 
-// -- Fullstack build (7 phases) --
+// -- Step registry --
+
+fn fullstack_steps(build_config: &BuildConfig) -> Vec<&'static str> {
+  let mut steps = vec!["Compiling backend", "Extracting procedure manifest"];
+  if build_config.obfuscate {
+    steps.push("Generating RPC hash map");
+  }
+  steps.push("Generating client types");
+  steps.push("Bundling frontend");
+  if build_config.typecheck_command.is_some() {
+    steps.push("Type checking");
+  }
+  steps.push("Rendering skeletons");
+  steps.push("Processing routes");
+  if build_config.i18n.is_some() {
+    steps.push("Exporting i18n");
+  }
+  steps.push("Packaging output");
+  steps
+}
+
+fn dev_steps(build_config: &BuildConfig, is_vite: bool) -> Vec<&'static str> {
+  let mut steps = vec!["Extracting procedure manifest"];
+  if build_config.obfuscate {
+    steps.push("Generating RPC hash map");
+  }
+  steps.push("Generating client types");
+  if !is_vite {
+    steps.push("Bundling frontend");
+  }
+  steps.push("Rendering skeletons");
+  steps.push("Processing routes");
+  if build_config.i18n.is_some() {
+    steps.push("Exporting i18n");
+  }
+  if !is_vite {
+    steps.push("Packaging output");
+  }
+  steps
+}
+
+// -- Fullstack build --
 
 #[allow(clippy::too_many_lines)]
 pub(super) fn run_fullstack_build(
@@ -32,51 +73,46 @@ pub(super) fn run_fullstack_build(
 ) -> Result<()> {
   let started = Instant::now();
   let out_dir = base_dir.join(&build_config.out_dir);
-
-  // Determine total steps (typecheck is optional)
-  let has_typecheck = build_config.typecheck_command.is_some();
-  let total: u32 = if has_typecheck { 7 } else { 6 };
-  let mut step_num: u32 = 0;
+  let manifest_path = base_dir.join(&build_config.bundler_manifest);
 
   ui::banner("build", Some(&config.project.name));
 
-  // [1] Compile backend
-  step_num += 1;
-  let t = ui::step(step_num, total, "Compiling backend");
+  let mut tracker = StepTracker::new(fullstack_steps(build_config));
+
+  // -- Compiling backend --
+  let t = tracker.begin();
   run_command(
     base_dir,
     build_config.backend_build_command.as_deref().unwrap(),
     "backend build",
     &[],
   )?;
-
-  // Copy WASM binaries next to bundled server output so runtime readFileSync resolves correctly.
-  // Bundled code does: resolve(__dirname, "../pkg/<wasm_file>.wasm")
-  // which, from {out_dir}/server/index.js, resolves to {out_dir}/pkg/.
   copy_wasm_binary(base_dir, &out_dir)?;
-  ui::step_done(t);
-  ui::blank();
+  tracker.end(t);
 
-  // [2] Extract procedure manifest
-  step_num += 1;
-  let t = ui::step(step_num, total, "Extracting procedure manifest");
+  // -- Extracting procedure manifest --
+  let t = tracker.begin();
   let manifest = dispatch_extract_manifest(build_config, base_dir, &out_dir)?;
   print_procedure_breakdown(&manifest);
-  ui::step_done(t);
-  ui::blank();
+  tracker.end(t);
 
-  let rpc_hashes = maybe_generate_rpc_hashes(build_config, &manifest, &out_dir)?;
+  // -- Generating RPC hash map (conditional) --
+  let rpc_hashes = if build_config.obfuscate {
+    let t = tracker.begin();
+    let h = maybe_generate_rpc_hashes(build_config, &manifest, &out_dir)?;
+    tracker.end(t);
+    h
+  } else {
+    None
+  };
 
-  // [3] Generate client types
-  step_num += 1;
-  let t = ui::step(step_num, total, "Generating client types");
+  // -- Generating client types --
+  let t = tracker.begin();
   generate_types(&manifest, config, rpc_hashes.as_ref())?;
-  ui::step_done(t);
-  ui::blank();
+  tracker.end(t);
 
-  // [4] Bundle frontend
-  step_num += 1;
-  let t = ui::step(step_num, total, "Bundling frontend");
+  // -- Bundling frontend --
+  let t = tracker.begin();
   let hash_length_str = build_config.hash_length.to_string();
   let rpc_map_path_str = if rpc_hashes.is_some() {
     out_dir.join("rpc-hash-map.json").to_string_lossy().to_string()
@@ -95,24 +131,19 @@ pub(super) fn run_fullstack_build(
     ("SEAM_ROUTES_FILE", &routes_path_str),
   ];
   run_bundler(base_dir, &build_config.bundler_mode, &dist_dir_str, &bundler_env)?;
-  let manifest_path = base_dir.join(&build_config.bundler_manifest);
   let assets = read_bundle_manifest(&manifest_path)?;
   print_asset_files(base_dir, build_config.dist_dir(), &assets);
-  ui::step_done(t);
-  ui::blank();
+  tracker.end(t);
 
-  // [5] Type check (optional)
+  // -- Type checking (conditional) --
   if let Some(cmd) = &build_config.typecheck_command {
-    step_num += 1;
-    let t = ui::step(step_num, total, "Type checking");
+    let t = tracker.begin();
     run_typecheck(base_dir, cmd)?;
-    ui::step_done(t);
-    ui::blank();
+    tracker.end(t);
   }
 
-  // [6] Generate skeletons
-  step_num += 1;
-  let t = ui::step(step_num, total, "Generating skeletons");
+  // -- Rendering skeletons --
+  let t = tracker.begin();
   let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
     .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&build_config.routes);
@@ -129,7 +160,10 @@ pub(super) fn run_fullstack_build(
   }
   print_cache_stats(&skeleton_output.cache);
   validate_procedure_references(&manifest, &skeleton_output)?;
+  tracker.end(t);
 
+  // -- Processing routes --
+  let t = tracker.begin();
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
@@ -139,8 +173,6 @@ pub(super) fn run_fullstack_build(
   };
 
   // When sourceFileMap is available, parse extended manifest for per-page splitting.
-  // Built-in bundler writes Vite-format manifest as sibling "vite-manifest.json";
-  // custom Vite users already have Vite-format at bundler_manifest path.
   let bundle_manifest = if skeleton_output.source_file_map.is_some() {
     let vite_path = manifest_path.with_file_name("vite-manifest.json");
     read_bundle_manifest_extended(&vite_path)
@@ -170,41 +202,42 @@ pub(super) fn run_fullstack_build(
     bundle_manifest.as_ref(),
     skeleton_output.source_file_map.as_ref(),
   )?;
+
+  // Write route-manifest.json now if no i18n step follows, otherwise defer
+  if build_config.i18n.is_none() {
+    write_route_manifest(&out_dir, &route_manifest)?;
+  }
+  tracker.end(t);
+
+  // -- Exporting i18n (conditional) --
   if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
+    let t = tracker.begin();
     export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;
+    write_route_manifest(&out_dir, &route_manifest)?;
+    tracker.end(t);
   }
 
-  // Write route-manifest.json
-  let route_manifest_path = out_dir.join("route-manifest.json");
-  let route_manifest_json = serde_json::to_string_pretty(&route_manifest)?;
-  std::fs::write(&route_manifest_path, &route_manifest_json)
-    .with_context(|| format!("failed to write {}", route_manifest_path.display()))?;
-  ui::detail_ok("route-manifest.json");
-  ui::step_done(t);
-  ui::blank();
-
-  // [7] Package output
-  step_num += 1;
-  let t = ui::step(step_num, total, "Packaging output");
+  // -- Packaging output --
+  let t = tracker.begin();
   package_static_assets(base_dir, package_assets, &out_dir, build_config.dist_dir())?;
-  ui::step_done(t);
-  ui::blank();
+  tracker.end(t);
 
   // Summary
   let elapsed = started.elapsed().as_secs_f64();
   let proc_count = manifest.procedures.len();
   let template_count = skeleton_output.routes.len();
   let asset_count = package_assets.js.len() + package_assets.css.len();
-  ui::ok(&format!("build complete in {elapsed:.1}s"));
+  let (bg, bc, r) = (col(BRIGHT_GREEN), col(BRIGHT_CYAN), col(RESET));
+  ui::ok(&format!("build complete in {bc}{elapsed:.1}s{r}"));
   ui::detail(&format!(
-    "{proc_count} procedures \u{00b7} {template_count} templates \u{00b7} {asset_count} assets \u{00b7} {}",
+    "{bg}{proc_count}{r} procedures \u{00b7} {bg}{template_count}{r} templates \u{00b7} {bg}{asset_count}{r} assets \u{00b7} {}",
     build_config.renderer,
   ));
 
   Ok(())
 }
 
-// -- Dev build (5 phases, skips backend compile + typecheck) --
+// -- Dev build --
 
 #[allow(clippy::too_many_lines)]
 pub fn run_dev_build(
@@ -217,32 +250,33 @@ pub fn run_dev_build(
   let vite = vite_info_from_config(config);
   let is_vite = vite.is_some();
 
-  // Vite mode: 3 steps (manifest + codegen + skeletons), no bundler/packaging
-  // Normal mode: 5 steps (manifest + codegen + bundle + skeletons + package)
-  let total: u32 = if is_vite { 3 } else { 5 };
-  let mut step_num: u32 = 0;
-
   ui::banner("dev build", Some(&config.project.name));
 
-  // [1] Extract procedure manifest
-  step_num += 1;
-  let t = ui::step(step_num, total, "Extracting procedure manifest");
+  let mut tracker = StepTracker::new(dev_steps(build_config, is_vite));
+
+  // -- Extracting procedure manifest --
+  let t = tracker.begin();
   let manifest = dispatch_extract_manifest(build_config, base_dir, &out_dir)?;
   print_procedure_breakdown(&manifest);
   copy_wasm_binary(base_dir, &out_dir)?;
-  ui::step_done(t);
-  ui::blank();
+  tracker.end(t);
 
-  let rpc_hashes = maybe_generate_rpc_hashes(build_config, &manifest, &out_dir)?;
+  // -- Generating RPC hash map (conditional) --
+  let rpc_hashes = if build_config.obfuscate {
+    let t = tracker.begin();
+    let h = maybe_generate_rpc_hashes(build_config, &manifest, &out_dir)?;
+    tracker.end(t);
+    h
+  } else {
+    None
+  };
 
-  // [2] Generate client types
-  step_num += 1;
-  let t = ui::step(step_num, total, "Generating client types");
+  // -- Generating client types --
+  let t = tracker.begin();
   generate_types(&manifest, config, rpc_hashes.as_ref())?;
-  ui::step_done(t);
-  ui::blank();
+  tracker.end(t);
 
-  // [3] Bundle frontend (skipped in Vite mode — Vite serves assets directly)
+  // -- Bundling frontend (skipped in Vite mode) --
   let hash_length_str = build_config.hash_length.to_string();
   let rpc_map_path_str = if rpc_hashes.is_some() {
     out_dir.join("rpc-hash-map.json").to_string_lossy().to_string()
@@ -261,20 +295,17 @@ pub fn run_dev_build(
   let assets = if is_vite {
     AssetFiles { css: vec![], js: vec![] }
   } else {
-    step_num += 1;
-    let t = ui::step(step_num, total, "Bundling frontend");
+    let t = tracker.begin();
     run_bundler(base_dir, &build_config.bundler_mode, &dist_dir_str, &bundler_env)?;
     let manifest_path = base_dir.join(&build_config.bundler_manifest);
     let a = read_bundle_manifest(&manifest_path)?;
     print_asset_files(base_dir, build_config.dist_dir(), &a);
-    ui::step_done(t);
-    ui::blank();
+    tracker.end(t);
     a
   };
 
-  // [N] Generate skeletons
-  step_num += 1;
-  let t = ui::step(step_num, total, "Generating skeletons");
+  // -- Rendering skeletons --
+  let t = tracker.begin();
   let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
     .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&build_config.routes);
@@ -291,7 +322,10 @@ pub fn run_dev_build(
   }
   print_cache_stats(&skeleton_output.cache);
   validate_procedure_references(&manifest, &skeleton_output)?;
+  tracker.end(t);
 
+  // -- Processing routes --
+  let t = tracker.begin();
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
     .with_context(|| format!("failed to create {}", templates_dir.display()))?;
@@ -313,25 +347,25 @@ pub fn run_dev_build(
     None,
     None,
   )?;
+
+  if build_config.i18n.is_none() {
+    write_route_manifest(&out_dir, &route_manifest)?;
+  }
+  tracker.end(t);
+
+  // -- Exporting i18n (conditional) --
   if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
+    let t = tracker.begin();
     export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;
+    write_route_manifest(&out_dir, &route_manifest)?;
+    tracker.end(t);
   }
 
-  let route_manifest_path = out_dir.join("route-manifest.json");
-  let route_manifest_json = serde_json::to_string_pretty(&route_manifest)?;
-  std::fs::write(&route_manifest_path, &route_manifest_json)
-    .with_context(|| format!("failed to write {}", route_manifest_path.display()))?;
-  ui::detail_ok("route-manifest.json");
-  ui::step_done(t);
-  ui::blank();
-
-  // [N] Package output (skipped in Vite mode)
+  // -- Packaging output (skipped in Vite mode) --
   if !is_vite {
-    step_num += 1;
-    let t = ui::step(step_num, total, "Packaging output");
+    let t = tracker.begin();
     package_static_assets(base_dir, &assets, &out_dir, build_config.dist_dir())?;
-    ui::step_done(t);
-    ui::blank();
+    tracker.end(t);
   }
 
   // Summary
@@ -339,18 +373,32 @@ pub fn run_dev_build(
   let proc_count = manifest.procedures.len();
   let template_count = skeleton_output.routes.len();
   let asset_count = assets.js.len() + assets.css.len();
-  ui::ok(&format!("dev build complete in {elapsed:.1}s"));
+  let (bg, bc, r) = (col(BRIGHT_GREEN), col(BRIGHT_CYAN), col(RESET));
+  ui::ok(&format!("dev build complete in {bc}{elapsed:.1}s{r}"));
   if is_vite {
     ui::detail(&format!(
-      "{proc_count} procedures \u{00b7} {template_count} templates \u{00b7} vite mode \u{00b7} {}",
+      "{bg}{proc_count}{r} procedures \u{00b7} {bg}{template_count}{r} templates \u{00b7} vite mode \u{00b7} {}",
       build_config.renderer,
     ));
   } else {
     ui::detail(&format!(
-      "{proc_count} procedures \u{00b7} {template_count} templates \u{00b7} {asset_count} assets \u{00b7} {}",
+      "{bg}{proc_count}{r} procedures \u{00b7} {bg}{template_count}{r} templates \u{00b7} {bg}{asset_count}{r} assets \u{00b7} {}",
       build_config.renderer,
     ));
   }
 
+  Ok(())
+}
+
+// -- Helpers --
+
+fn write_route_manifest(
+  out_dir: &Path,
+  route_manifest: &super::super::route::RouteManifest,
+) -> Result<()> {
+  let path = out_dir.join("route-manifest.json");
+  let json = serde_json::to_string_pretty(route_manifest)?;
+  std::fs::write(&path, &json).with_context(|| format!("failed to write {}", path.display()))?;
+  ui::detail_ok("route-manifest.json");
   Ok(())
 }

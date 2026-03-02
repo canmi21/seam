@@ -17,7 +17,7 @@ use crate::build::route::{
 use crate::build::types::read_bundle_manifest;
 use crate::config::{SeamConfig, resolve_member_config, validate_workspace};
 use crate::shell::{resolve_node_module, run_command};
-use crate::ui::{self, DIM, GREEN, RESET};
+use crate::ui::{self, DIM, GREEN, RESET, col};
 use seam_codegen::Manifest;
 
 #[derive(Debug)]
@@ -154,13 +154,13 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
   println!();
 
   // [1.1] Compile backend
-  ui::detail(&format!("{DIM}[{}/backend]{RESET} compiling...", first.name));
+  ui::detail(&format!("{}[{}/backend]{} compiling...", col(DIM), first.name, col(RESET)));
   if let Some(cmd) = &first.build_config.backend_build_command {
     run_command(&first.member_dir, cmd, "backend build", &[])?;
   }
 
   // [1.2] Extract manifest
-  ui::detail(&format!("{DIM}[{}/manifest]{RESET} extracting...", first.name));
+  ui::detail(&format!("{}[{}/manifest]{} extracting...", col(DIM), first.name, col(RESET)));
   let reference_manifest =
     extract_member_manifest(&first.build_config, &first.member_dir, &shared_out_dir)?;
   print_procedure_breakdown(&reference_manifest);
@@ -172,11 +172,11 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
   )?;
 
   // [1.3] Generate client types (shared)
-  ui::detail(&format!("{DIM}[shared]{RESET} generating client types"));
+  ui::detail(&format!("{}[shared]{} generating client types", col(DIM), col(RESET)));
   generate_types(&reference_manifest, &first.merged_config, rpc_hashes.as_ref())?;
 
   // [1.4] Bundle frontend (shared)
-  ui::detail(&format!("{DIM}[shared]{RESET} bundling frontend"));
+  ui::detail(&format!("{}[shared]{} bundling frontend", col(DIM), col(RESET)));
   let hash_length_str = first.build_config.hash_length.to_string();
   let rpc_map_path_str = if rpc_hashes.is_some() {
     shared_out_dir.join("rpc-hash-map.json").to_string_lossy().to_string()
@@ -206,12 +206,12 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
 
   // [1.5] Type check (optional)
   if let Some(cmd) = &first.build_config.typecheck_command {
-    ui::detail(&format!("{DIM}[shared]{RESET} type checking"));
+    ui::detail(&format!("{}[shared]{} type checking", col(DIM), col(RESET)));
     run_typecheck(base_dir, cmd)?;
   }
 
   // [1.6] Generate skeletons (shared)
-  ui::detail(&format!("{DIM}[shared]{RESET} generating skeletons"));
+  ui::detail(&format!("{}[shared]{} generating skeletons", col(DIM), col(RESET)));
   let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
     .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&first.build_config.routes);
@@ -257,7 +257,7 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
   std::fs::create_dir_all(&first_member_out)?;
   package_static_assets(base_dir, &assets, &shared_out_dir, first.build_config.dist_dir())?;
   crate::build::run::copy_wasm_binary_pub(base_dir, &shared_out_dir)?;
-  ui::detail_ok(&format!("{GREEN}{}{RESET} build complete", first.name));
+  ui::detail_ok(&format!("{}{}{} build complete", col(GREEN), first.name, col(RESET)));
   println!();
 
   // -- Phase 2: Subsequent members (compile + validate + package) --
@@ -266,7 +266,7 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
     println!();
 
     for member in &members[1..] {
-      ui::detail(&format!("{DIM}[{}]{RESET} compiling backend...", member.name));
+      ui::detail(&format!("{}[{}]{} compiling backend...", col(DIM), member.name, col(RESET)));
 
       if let Some(cmd) = &member.build_config.backend_build_command {
         run_command(&member.member_dir, cmd, "backend build", &[])?;
@@ -285,7 +285,12 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
         &member.name,
       )?;
 
-      ui::detail_ok(&format!("{GREEN}{}{RESET} manifest compatible, build complete", member.name));
+      ui::detail_ok(&format!(
+        "{}{}{} manifest compatible, build complete",
+        col(GREEN),
+        member.name,
+        col(RESET)
+      ));
     }
     println!();
   }

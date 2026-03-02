@@ -10,7 +10,7 @@ use tokio::signal;
 use crate::build::config::BuildConfig;
 use crate::build::run::{RebuildMode, run_incremental_rebuild};
 use crate::config::SeamConfig;
-use crate::ui::{self, CYAN, DIM, GREEN, RED, RESET};
+use crate::ui::{self, CYAN, DIM, GREEN, RED, RESET, col};
 
 use super::network::find_available_port;
 use super::network::wait_for_port;
@@ -158,8 +158,8 @@ pub(super) async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> R
   // Skip build if route-manifest.json already exists
   let route_manifest_path = out_dir.join("route-manifest.json");
   if route_manifest_path.exists() {
-    println!("  {DIM}route-manifest.json found, skipping initial build{RESET}");
-    println!("  {DIM}(delete {} to force rebuild){RESET}", out_dir.display());
+    println!("  {}route-manifest.json found, skipping initial build{}", col(DIM), col(RESET));
+    println!("  {}(delete {} to force rebuild){}", col(DIM), out_dir.display(), col(RESET));
     println!();
   } else {
     crate::build::run::run_dev_build(config, &build_config, base_dir)?;

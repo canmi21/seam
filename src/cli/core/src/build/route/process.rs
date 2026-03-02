@@ -18,7 +18,7 @@ use super::types::{
 };
 use crate::config::{I18nMode, I18nSection};
 use crate::shell::which_exists;
-use crate::ui::{self, DIM, RESET};
+use crate::ui::{self, DIM, RESET, col};
 use seam_skeleton::ctr_check;
 use seam_skeleton::slot_warning;
 use seam_skeleton::{extract_head_metadata, extract_template, sentinel_to_slots, wrap_document};
@@ -219,10 +219,12 @@ pub(crate) fn process_routes(
 
       let size = locale_variants.values().next().map(|d| d.mock_html.len() as u64).unwrap_or(0);
       ui::detail_ok(&format!(
-        "{}  \u{2192} {} locales  {DIM}(~{}){RESET}",
+        "{}  \u{2192} {} locales  {}(~{}){}",
         route.path,
         locale_variants.len(),
-        ui::format_size(size)
+        col(DIM),
+        ui::format_size(size),
+        col(RESET)
       ));
 
       // Update the entry with templates map
@@ -280,9 +282,11 @@ pub(crate) fn process_routes(
       let size = document.len() as u64;
       let template_rel = format!("templates/{filename}");
       ui::detail_ok(&format!(
-        "{}  \u{2192} {template_rel}  {DIM}({}){RESET}",
+        "{}  \u{2192} {template_rel}  {}({}){}",
         route.path,
-        ui::format_size(size)
+        col(DIM),
+        ui::format_size(size),
+        col(RESET)
       ));
 
       let assets = compute_route_assets(&route.path, source_file_map, bundle_manifest);

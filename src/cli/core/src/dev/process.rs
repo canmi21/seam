@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use crate::ui::{CYAN, DIM, LABEL_WIDTH, MAGENTA, RESET};
+use crate::ui::{CYAN, DIM, LABEL_WIDTH, MAGENTA, RESET, col};
 
 pub(super) struct ChildProcess {
   pub label: &'static str,
@@ -72,25 +72,26 @@ pub(super) async fn pipe_output(proc: &mut ChildProcess) {
   let stderr = proc.child.stderr.take();
 
   let width = LABEL_WIDTH;
+  let c = col(color);
+  let d = col(DIM);
+  let r = col(RESET);
 
   if let Some(stdout) = stdout {
     let reader = BufReader::new(stdout);
-    let c = color;
     tokio::spawn(async move {
       let mut lines = reader.lines();
       while let Ok(Some(line)) = lines.next_line().await {
-        println!("  {c}{DIM}{label:>width$}{RESET} {line}");
+        println!("  {c}{d}{label:>width$}{r} {line}");
       }
     });
   }
 
   if let Some(stderr) = stderr {
     let reader = BufReader::new(stderr);
-    let c = color;
     tokio::spawn(async move {
       let mut lines = reader.lines();
       while let Ok(Some(line)) = lines.next_line().await {
-        eprintln!("  {c}{DIM}{label:>width$}{RESET} {line}");
+        eprintln!("  {c}{d}{label:>width$}{r} {line}");
       }
     });
   }

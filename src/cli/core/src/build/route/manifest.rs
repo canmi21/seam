@@ -8,7 +8,7 @@ use anyhow::{Context, Result, bail};
 use super::types::SkeletonOutput;
 use crate::config::SeamConfig;
 use crate::shell::{run_command, which_exists};
-use crate::ui::{self, DIM, GREEN, RESET};
+use crate::ui::{self, DIM, GREEN, RESET, col};
 use seam_codegen::{Manifest, ProcedureType};
 
 // -- Procedure reference validation --
@@ -242,7 +242,7 @@ pub(crate) fn generate_types(
 /// Run type checking (optional step)
 pub(crate) fn run_typecheck(base_dir: &Path, command: &str) -> Result<()> {
   run_command(base_dir, command, "type checker", &[])?;
-  ui::detail_ok(&format!("{GREEN}passed{RESET}"));
+  ui::detail_ok(&format!("{}passed{}", col(GREEN), col(RESET)));
   Ok(())
 }
 
@@ -272,7 +272,7 @@ pub(crate) fn package_static_assets(
       .with_context(|| format!("failed to copy {} -> {}", src.display(), dst.display()))?;
 
     let size = std::fs::metadata(&dst).map(|m| m.len()).unwrap_or(0);
-    ui::detail_ok(&format!("public/{file}  {DIM}({}){RESET}", ui::format_size(size)));
+    ui::detail_ok(&format!("public/{file}  {}({}){}", col(DIM), ui::format_size(size), col(RESET)));
   }
 
   Ok(())

@@ -6,7 +6,7 @@ use anyhow::Result;
 
 use crate::build::config::{BuildConfig, BundlerMode};
 use crate::config::SeamConfig;
-use crate::ui::{self, BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, YELLOW};
+use crate::ui::{self, BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, UNDERLINE, YELLOW, col};
 
 pub(super) fn print_dev_banner(
   config: &SeamConfig,
@@ -18,29 +18,50 @@ pub(super) fn print_dev_banner(
 
   if let Some(cmd) = backend_cmd {
     let lang = &config.backend.lang;
-    ui::label(CYAN, "backend", &format!("{DIM}[{lang}]{RESET} {DIM}{cmd}{RESET}"));
+    ui::label(
+      CYAN,
+      "backend",
+      &format!("{}[{lang}]{} {}{cmd}{}", col(DIM), col(RESET), col(DIM), col(RESET)),
+    );
   }
 
   if let Some(cmd) = frontend_cmd {
-    let port_suffix =
-      config.frontend.dev_port.map_or(String::new(), |p| format!(" {DIM}:{p}{RESET}"));
-    ui::label(MAGENTA, "frontend", &format!("{DIM}{cmd}{RESET}{port_suffix}"));
+    let port_suffix = config
+      .frontend
+      .dev_port
+      .map_or(String::new(), |p| format!(" {}:{p}{}", col(DIM), col(RESET)));
+    ui::label(MAGENTA, "frontend", &format!("{}{cmd}{}{port_suffix}", col(DIM), col(RESET)));
   } else if use_embedded {
     let dev_port = config.frontend.dev_port.unwrap_or(5173);
-    ui::label(MAGENTA, "frontend", &format!("{DIM}embedded dev server :{dev_port}{RESET}"));
+    ui::label(
+      MAGENTA,
+      "frontend",
+      &format!("{}embedded dev server :{dev_port}{}", col(DIM), col(RESET)),
+    );
   }
 
   if backend_cmd.is_some() {
     let fp = config.frontend.dev_port.unwrap_or(5173);
     if frontend_cmd.is_some() || use_embedded {
-      ui::label(YELLOW, "proxy", &format!("{DIM}:{} \u{2192} :{fp}{RESET}", config.backend.port));
+      ui::label(
+        YELLOW,
+        "proxy",
+        &format!("{}:{} \u{2192} :{fp}{}", col(DIM), config.backend.port, col(RESET)),
+      );
     }
   }
 
   let primary_port =
     if use_embedded { config.frontend.dev_port.unwrap_or(5173) } else { config.backend.port };
   println!();
-  println!("  {GREEN}\u{2192}{RESET} {BOLD}http://localhost:{primary_port}{RESET}");
+  println!(
+    "  {}\u{2192}{} {}{}http://localhost:{primary_port}{}",
+    col(GREEN),
+    col(RESET),
+    col(BOLD),
+    col(UNDERLINE),
+    col(RESET)
+  );
   println!();
 }
 
@@ -72,18 +93,36 @@ pub(super) fn print_fullstack_banner(
 
   ui::banner("dev", Some(&config.project.name));
   if let Some(vp) = vite_port {
-    ui::label(MAGENTA, "vite", &format!("{DIM}http://localhost:{vp}{RESET}"));
+    ui::label(MAGENTA, "vite", &format!("{}http://localhost:{vp}{}", col(DIM), col(RESET)));
   }
-  ui::label(CYAN, "backend", &format!("{DIM}[{lang}]{RESET} {DIM}{backend_cmd}{RESET}"));
+  ui::label(
+    CYAN,
+    "backend",
+    &format!("{}[{lang}]{} {}{backend_cmd}{}", col(DIM), col(RESET), col(DIM), col(RESET)),
+  );
   ui::label(GREEN, "mode", "fullstack CTR");
   if !watched_dirs.is_empty() {
-    ui::label(GREEN, "watching", &format!("{DIM}{}{RESET}", watched_dirs.join(", ")));
+    ui::label(GREEN, "watching", &format!("{}{}{}", col(DIM), watched_dirs.join(", "), col(RESET)));
   }
   println!();
   if port == 80 {
-    println!("  {GREEN}\u{2192}{RESET} {BOLD}http://localhost{RESET}");
+    println!(
+      "  {}\u{2192}{} {}{}http://localhost{}",
+      col(GREEN),
+      col(RESET),
+      col(BOLD),
+      col(UNDERLINE),
+      col(RESET)
+    );
   } else {
-    println!("  {GREEN}\u{2192}{RESET} {BOLD}http://localhost:{port}{RESET}");
+    println!(
+      "  {}\u{2192}{} {}{}http://localhost:{port}{}",
+      col(GREEN),
+      col(RESET),
+      col(BOLD),
+      col(UNDERLINE),
+      col(RESET)
+    );
   }
   println!();
 }

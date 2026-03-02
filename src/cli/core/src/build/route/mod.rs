@@ -20,4 +20,4 @@ pub(crate) use manifest::{
   print_procedure_breakdown, run_typecheck, validate_procedure_references,
 };
 pub(crate) use process::{export_i18n, process_routes, run_skeleton_renderer};
-pub(crate) use types::CacheStats;
+pub(crate) use types::{CacheStats, RouteManifest};

@@ -20,6 +20,11 @@ use config::{SeamConfig, find_seam_config, load_seam_config};
 #[derive(Parser)]
 #[command(name = "seam", about = "SeamJS CLI", version)]
 struct Cli {
+  /// Disable rich output (no colors, no cursor movement).
+  /// Auto-detected when NO_COLOR, CI, TERM=dumb, or non-TTY.
+  #[arg(long, global = true)]
+  plain: bool,
+
   #[command(subcommand)]
   command: Command,
 }
@@ -120,6 +125,7 @@ async fn main() {
 
 async fn run() -> Result<()> {
   let cli = Cli::parse();
+  ui::init_output_mode(cli.plain);
 
   match cli.command {
     Command::Pull { url, out } => {

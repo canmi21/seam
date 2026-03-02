@@ -1,6 +1,6 @@
 /* src/cli/core/src/build/run/mod.rs */
 
-// Build orchestrator: dispatches frontend-only (4 steps) or fullstack (7 steps) builds.
+// Build orchestrator: dispatches frontend-only (3-4 steps) or fullstack (7-10 steps) builds.
 
 mod frontend;
 mod fullstack;
