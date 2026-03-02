@@ -260,6 +260,49 @@ restore_package_json() {
   fi
 }
 
+# --- Skipped npm package tracking (parallel arrays: name -> registry latest version) ---
+SKIPPED_NPM_NAMES=()
+SKIPPED_NPM_VERS=()
+
+# --- Helper: query latest version of an npm package ---
+npm_latest_version() {
+  local name="$1"
+  curl -s "https://registry.npmjs.org/$name/latest" | jq -r '.version'
+}
+
+# --- Helper: look up registry version for a skipped npm package ---
+skipped_npm_ver_for() {
+  local name="$1" i
+  for i in "${!SKIPPED_NPM_NAMES[@]}"; do
+    if [ "${SKIPPED_NPM_NAMES[$i]}" = "$name" ]; then
+      echo "${SKIPPED_NPM_VERS[$i]}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# --- Helper: patch package.json to use registry versions for skipped deps ---
+# After resolve_workspace_versions replaces workspace:* with $VERSION,
+# this replaces skipped dependency versions with their latest registry version.
+patch_skipped_npm_deps() {
+  local pkg_dir="$1"
+  local pkg_json="$pkg_dir/package.json"
+
+  [ ${#SKIPPED_NPM_NAMES[@]} -eq 0 ] && return
+
+  for dep in "${SKIPPED_NPM_NAMES[@]}"; do
+    if grep -q "\"$dep\"" "$pkg_json"; then
+      local reg_ver
+      reg_ver=$(skipped_npm_ver_for "$dep")
+      # Replace exact version (from workspace:*) and caret version (from workspace:^)
+      sed -i '' "s/\"$dep\": \"$VERSION\"/\"$dep\": \"$reg_ver\"/g" "$pkg_json"
+      sed -i '' "s/\"$dep\": \"\\^$VERSION\"/\"$dep\": \"^$reg_ver\"/g" "$pkg_json"
+      info "  patched $dep dependency: $VERSION -> $reg_ver"
+    fi
+  done
+}
+
 # --- 2. Verify ---
 if ! $SKIP_VERIFY; then
   info "Running verification (bun run verify)..."
@@ -444,7 +487,11 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
           should_publish=true
         fi
         if ! $should_publish; then
-          info "$name: no changes, skipping"
+          local reg_ver
+          reg_ver=$(npm_latest_version "$name")
+          SKIPPED_NPM_NAMES+=("$name")
+          SKIPPED_NPM_VERS+=("$reg_ver")
+          info "$name: no changes, skipping (registry: $reg_ver)"
           SKIPPED=$((SKIPPED + 1))
           continue
         fi
@@ -452,6 +499,7 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
 
       info "Publishing $name@$VERSION..."
       resolve_workspace_versions "$pkg_dir"
+      patch_skipped_npm_deps "$pkg_dir"
       if $DRY_RUN; then
         if (cd "$pkg_dir" && npm publish --access public --dry-run 2>&1); then
           ok "$name (dry-run)"
