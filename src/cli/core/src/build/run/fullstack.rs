@@ -111,7 +111,7 @@ pub(super) fn run_fullstack_build(
   let t = tracker.begin();
   let manifest = dispatch_extract_manifest(build_config, base_dir, &out_dir)?;
   print_procedure_breakdown(&manifest);
-  tracker.end(t);
+  tracker.end_with(t, &format!("{} procedures", manifest.procedures.len()));
 
   // -- Generating RPC hash map (conditional) --
   let rpc_hashes = if build_config.obfuscate {
@@ -150,7 +150,7 @@ pub(super) fn run_fullstack_build(
   run_bundler(base_dir, &build_config.bundler_mode, &dist_dir_str, &bundler_env)?;
   let assets = read_bundle_manifest(&manifest_path)?;
   print_asset_files(base_dir, build_config.dist_dir(), &assets);
-  tracker.end(t);
+  tracker.end_with(t, &format!("{} files", assets.js.len() + assets.css.len()));
 
   // -- Type checking (conditional) --
   if let Some(cmd) = &build_config.typecheck_command {
@@ -177,7 +177,7 @@ pub(super) fn run_fullstack_build(
   }
   print_cache_stats(&skeleton_output.cache);
   validate_procedure_references(&manifest, &skeleton_output)?;
-  tracker.end(t);
+  tracker.end_with(t, &format!("{} routes", skeleton_output.routes.len()));
 
   // -- Processing routes --
   let t = tracker.begin();
@@ -224,7 +224,13 @@ pub(super) fn run_fullstack_build(
   if build_config.i18n.is_none() {
     write_route_manifest(&out_dir, &route_manifest)?;
   }
-  tracker.end(t);
+  let route_count = skeleton_output.routes.len();
+  let layout_count = skeleton_output.layouts.len();
+  if layout_count > 0 {
+    tracker.end_with(t, &format!("{route_count} routes, {layout_count} layouts"));
+  } else {
+    tracker.end_with(t, &format!("{route_count} routes"));
+  }
 
   // -- Exporting i18n (conditional) --
   if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
@@ -237,9 +243,10 @@ pub(super) fn run_fullstack_build(
   // -- Packaging output --
   let t = tracker.begin();
   package_static_assets(base_dir, package_assets, &out_dir, build_config.dist_dir())?;
-  tracker.end(t);
+  tracker.end_with(t, &format!("{} files", package_assets.js.len() + package_assets.css.len()));
 
   // Summary
+  ui::blank();
   let elapsed = started.elapsed().as_secs_f64();
   let proc_count = manifest.procedures.len();
   let template_count = skeleton_output.routes.len();
@@ -284,7 +291,7 @@ pub fn run_dev_build(
   let manifest = dispatch_extract_manifest(build_config, base_dir, &out_dir)?;
   print_procedure_breakdown(&manifest);
   copy_wasm_binary(base_dir, &out_dir)?;
-  tracker.end(t);
+  tracker.end_with(t, &format!("{} procedures", manifest.procedures.len()));
 
   // -- Generating RPC hash map (conditional) --
   let rpc_hashes = if build_config.obfuscate {
@@ -325,7 +332,7 @@ pub fn run_dev_build(
     let manifest_path = base_dir.join(&build_config.bundler_manifest);
     let a = read_bundle_manifest(&manifest_path)?;
     print_asset_files(base_dir, build_config.dist_dir(), &a);
-    tracker.end(t);
+    tracker.end_with(t, &format!("{} files", a.js.len() + a.css.len()));
     a
   };
 
@@ -347,7 +354,7 @@ pub fn run_dev_build(
   }
   print_cache_stats(&skeleton_output.cache);
   validate_procedure_references(&manifest, &skeleton_output)?;
-  tracker.end(t);
+  tracker.end_with(t, &format!("{} routes", skeleton_output.routes.len()));
 
   // -- Processing routes --
   let t = tracker.begin();
@@ -376,7 +383,13 @@ pub fn run_dev_build(
   if build_config.i18n.is_none() {
     write_route_manifest(&out_dir, &route_manifest)?;
   }
-  tracker.end(t);
+  let route_count = skeleton_output.routes.len();
+  let layout_count = skeleton_output.layouts.len();
+  if layout_count > 0 {
+    tracker.end_with(t, &format!("{route_count} routes, {layout_count} layouts"));
+  } else {
+    tracker.end_with(t, &format!("{route_count} routes"));
+  }
 
   // -- Exporting i18n (conditional) --
   if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
@@ -390,10 +403,11 @@ pub fn run_dev_build(
   if !is_vite {
     let t = tracker.begin();
     package_static_assets(base_dir, &assets, &out_dir, build_config.dist_dir())?;
-    tracker.end(t);
+    tracker.end_with(t, &format!("{} files", assets.js.len() + assets.css.len()));
   }
 
   // Summary
+  ui::blank();
   let elapsed = started.elapsed().as_secs_f64();
   let proc_count = manifest.procedures.len();
   let template_count = skeleton_output.routes.len();

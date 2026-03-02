@@ -203,10 +203,21 @@ impl StepTracker {
     Instant::now()
   }
 
-  /// Complete the current step.
-  /// Rich: overwrite step header with checkmark + timing, keep detail lines.
-  /// Plain: print "done (Xs)" + blank line (original behaviour).
+  /// Complete the current step (no summary suffix).
   pub fn end(&mut self, started: Instant) {
+    self.finish_step(started, None);
+  }
+
+  /// Complete the current step with a summary suffix (e.g. "5 procedures").
+  /// Rich: appended as `· summary` after the timing.
+  pub fn end_with(&mut self, started: Instant, summary: &str) {
+    self.finish_step(started, Some(summary));
+  }
+
+  /// Shared finish logic.
+  /// Rich: erase detail lines, rewrite step header with optional summary.
+  /// Plain: unchanged — detail lines stay, "done (Xs)" + blank line.
+  fn finish_step(&mut self, started: Instant, summary: Option<&str>) {
     let elapsed = started.elapsed().as_secs_f64();
     let n = self.current;
     let total = self.steps.len();
@@ -216,11 +227,16 @@ impl StepTracker {
       OutputMode::Rich => {
         let detail_count = reset_detail_lines();
         let up = detail_count + 1;
-        // Cursor up to step header, clear line
-        print!("\x1b[{up}A\x1b[2K");
+        // Cursor up to step header, erase to end of display
+        print!("\x1b[{up}A\r\x1b[J");
+
+        let suffix = match summary {
+          Some(s) => format!(" {}\u{00b7} {s}{}", col(DIM), col(RESET)),
+          None => String::new(),
+        };
         if elapsed >= 0.1 {
           println!(
-            "  {}{}[{n}/{total}]{} {}\u{2713}{} {label} {}({elapsed:.1}s){}",
+            "  {}{}[{n}/{total}]{} {}\u{2713}{} {label} {}({elapsed:.1}s){}{}",
             col(BLUE),
             col(BOLD),
             col(RESET),
@@ -228,22 +244,19 @@ impl StepTracker {
             col(RESET),
             col(BRIGHT_CYAN),
             col(RESET),
+            suffix,
           );
         } else {
           println!(
-            "  {}{}[{n}/{total}]{} {}\u{2713}{} {label}",
+            "  {}{}[{n}/{total}]{} {}\u{2713}{} {label}{}",
             col(BLUE),
             col(BOLD),
             col(RESET),
             col(GREEN),
             col(RESET),
+            suffix,
           );
         }
-        // Cursor back down past detail lines, add blank line between steps
-        if detail_count > 0 {
-          print!("\x1b[{detail_count}B");
-        }
-        println!();
         std::io::stdout().flush().ok();
       }
       OutputMode::Plain => {

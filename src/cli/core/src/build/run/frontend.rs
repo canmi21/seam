@@ -31,6 +31,7 @@ fn frontend_steps(build_config: &BuildConfig) -> Vec<&'static str> {
 
 // -- Frontend-only build --
 
+#[allow(clippy::too_many_lines)]
 pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) -> Result<()> {
   let started = Instant::now();
 
@@ -60,7 +61,7 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
   let assets = read_bundle_manifest(&manifest_path)?;
   print_asset_files(base_dir, build_config.dist_dir(), &assets);
-  tracker.end(t);
+  tracker.end_with(t, &format!("{} files", assets.js.len() + assets.css.len()));
 
   // -- Rendering skeletons --
   let t = tracker.begin();
@@ -80,7 +81,7 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
   }
   print_cache_stats(&skeleton_output.cache);
   ui::detail_ok(&format!("{} routes found", skeleton_output.routes.len()));
-  tracker.end(t);
+  tracker.end_with(t, &format!("{} routes", skeleton_output.routes.len()));
 
   // -- Processing routes --
   let t = tracker.begin();
@@ -125,7 +126,13 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
   if build_config.i18n.is_none() {
     write_route_manifest(&out_dir, &route_manifest)?;
   }
-  tracker.end(t);
+  let route_count = skeleton_output.routes.len();
+  let layout_count = skeleton_output.layouts.len();
+  if layout_count > 0 {
+    tracker.end_with(t, &format!("{route_count} routes, {layout_count} layouts"));
+  } else {
+    tracker.end_with(t, &format!("{route_count} routes"));
+  }
 
   // -- Exporting i18n (conditional) --
   if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
@@ -136,6 +143,7 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
   }
 
   // Summary
+  ui::blank();
   let elapsed = started.elapsed().as_secs_f64();
   let template_count = skeleton_output.routes.len();
   let asset_count = assets.js.len() + assets.css.len();
