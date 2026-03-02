@@ -15,14 +15,14 @@ TanStack Router integration for SeamJS client-side hydration and routing. See [U
 
 ## Key Exports
 
-| Export                  | Purpose                                              |
-| ----------------------- | ---------------------------------------------------- |
-| `seamHydrate`           | Client entry: hydrate server-rendered page           |
-| `createSeamRouter`      | Create TanStack Router with Seam wiring              |
-| `defineSeamRoutes`      | Declare route definitions                            |
-| `setupLinkInterception` | Intercept `<a>` clicks for SPA nav                   |
-| `isLazyLoader`          | Check if a component is a lazy loader (page-split)   |
-| `collectLeafPaths`      | Extract leaf paths from a nested route tree           |
+| Export                  | Purpose                                            |
+| ----------------------- | -------------------------------------------------- |
+| `seamHydrate`           | Client entry: hydrate server-rendered page         |
+| `createSeamRouter`      | Create TanStack Router with Seam wiring            |
+| `defineSeamRoutes`      | Declare route definitions                          |
+| `setupLinkInterception` | Intercept `<a>` clicks for SPA nav                 |
+| `isLazyLoader`          | Check if a component is a lazy loader (page-split) |
+| `collectLeafPaths`      | Extract leaf paths from a nested route tree        |
 
 ## Per-Page Splitting
 

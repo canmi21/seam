@@ -6,13 +6,13 @@ See root CLAUDE.md for general project rules.
 
 ## Architecture
 
-| Module      | Responsibility                                                               |
-| ----------- | ---------------------------------------------------------------------------- |
-| `escape.rs` | `ascii_escape_json` — escape non-ASCII in JSON string values                 |
+| Module      | Responsibility                                                                                      |
+| ----------- | --------------------------------------------------------------------------------------------------- |
+| `escape.rs` | `ascii_escape_json` — escape non-ASCII in JSON string values                                        |
 | `page.rs`   | Page data assembly: `flatten_for_slots`, `build_seam_data`, `inject_*`, asset slot generation, i18n |
-| `render.rs` | `render_page` — top-level page pipeline (inject + data script + meta + lang) |
-| `build.rs`  | `parse_build_output`, `parse_i18n_config`, `parse_rpc_hash_map`              |
-| `lib.rs`    | Public API barrel re-exporting all modules                                   |
+| `render.rs` | `render_page` — top-level page pipeline (inject + data script + meta + lang)                        |
+| `build.rs`  | `parse_build_output`, `parse_i18n_config`, `parse_rpc_hash_map`                                     |
+| `lib.rs`    | Public API barrel re-exporting all modules                                                          |
 
 ## Key Types
 

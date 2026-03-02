@@ -21,14 +21,14 @@ The CLI is split into three crates:
 
 ## Commands
 
-| Command          | Description                                                        |
-| ---------------- | ------------------------------------------------------------------ |
-| `seam pull`      | Fetch procedure manifest from a running server                     |
-| `seam generate`  | Generate typed client from a manifest file                         |
+| Command          | Description                                                             |
+| ---------------- | ----------------------------------------------------------------------- |
+| `seam pull`      | Fetch procedure manifest from a running server                          |
+| `seam generate`  | Generate typed client from a manifest file                              |
 | `seam build`     | Extract HTML skeletons, run full build pipeline with per-page splitting |
-| `seam dev`       | Start backend and frontend dev servers                             |
-| `seam clean`     | Remove build artifacts (`.seam/` directory)                        |
-| `seam --version` | Print CLI version                                                  |
+| `seam dev`       | Start backend and frontend dev servers                                  |
+| `seam clean`     | Remove build artifacts (`.seam/` directory)                             |
+| `seam --version` | Print CLI version                                                       |
 
 ## Development
 

@@ -11,14 +11,14 @@ Pure Rust engine for page assembly, i18n resolution, build output parsing, and J
 
 ## Key Exports
 
-| Function             | Purpose                                         |
-| -------------------- | ----------------------------------------------- |
+| Function             | Purpose                                                    |
+| -------------------- | ---------------------------------------------------------- |
 | `render_page`        | Full page pipeline: asset slots + data slots + meta + lang |
-| `parse_build_output` | Parse route-manifest.json into page definitions |
-| `parse_i18n_config`  | Extract i18n configuration from manifest        |
-| `parse_rpc_hash_map` | Build reverse lookup from RPC hash map          |
-| `ascii_escape_json`  | Escape non-ASCII in JSON string values          |
-| `i18n_query`         | Look up translation keys from locale messages   |
+| `parse_build_output` | Parse route-manifest.json into page definitions            |
+| `parse_i18n_config`  | Extract i18n configuration from manifest                   |
+| `parse_rpc_hash_map` | Build reverse lookup from RPC hash map                     |
+| `ascii_escape_json`  | Escape non-ASCII in JSON string values                     |
+| `i18n_query`         | Look up translation keys from locale messages              |
 
 ## Development
 
