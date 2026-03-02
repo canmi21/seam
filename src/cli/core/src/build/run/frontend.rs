@@ -12,7 +12,7 @@ use super::super::route::{
 use super::super::types::{read_bundle_manifest, read_bundle_manifest_extended};
 use super::helpers::{print_cache_stats, run_bundler};
 use crate::shell::resolve_node_module;
-use crate::ui::{self, BRIGHT_CYAN, BRIGHT_GREEN, RESET, StepTracker, col};
+use crate::ui::{self, BRIGHT_CYAN, BRIGHT_GREEN, DIM, RESET, StepTracker, col};
 
 // -- Step registry --
 
@@ -143,6 +143,6 @@ fn write_route_manifest(
   let path = out_dir.join("route-manifest.json");
   let json = serde_json::to_string_pretty(route_manifest)?;
   std::fs::write(&path, &json).with_context(|| format!("failed to write {}", path.display()))?;
-  ui::detail_ok("route-manifest.json");
+  ui::detail_ok(&format!("{}route-manifest.json{}", col(DIM), col(RESET)));
   Ok(())
 }

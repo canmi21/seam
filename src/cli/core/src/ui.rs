@@ -111,7 +111,7 @@ pub fn detail_warn(msg: &str) {
     if i == 0 {
       println!("        {}warning{}: {line}", col(YELLOW), col(RESET));
     } else {
-      println!("          {}", line.trim_start());
+      println!("                 {}", line.trim_start());
     }
     inc_detail_lines();
   }
@@ -239,10 +239,11 @@ impl StepTracker {
             col(RESET),
           );
         }
-        // Cursor back down past detail lines
+        // Cursor back down past detail lines, add blank line between steps
         if detail_count > 0 {
           print!("\x1b[{detail_count}B");
         }
+        println!();
         std::io::stdout().flush().ok();
       }
       OutputMode::Plain => {
@@ -297,7 +298,14 @@ impl Spinner {
       SpinnerInner::Animated(pb) => pb.finish_and_clear(),
       SpinnerInner::Static => {}
     }
-    println!("        {}\u{2713}{} {} ({elapsed:.1}s)", col(GREEN), col(RESET), self.msg);
+    println!(
+      "        {}\u{2713}{} {}{} ({elapsed:.1}s){}",
+      col(GREEN),
+      col(RESET),
+      col(DIM),
+      self.msg,
+      col(RESET)
+    );
     inc_detail_lines();
   }
 
@@ -307,7 +315,13 @@ impl Spinner {
       SpinnerInner::Animated(pb) => pb.finish_and_clear(),
       SpinnerInner::Static => {}
     }
-    println!("        {}\u{2713}{} {msg} ({elapsed:.1}s)", col(GREEN), col(RESET));
+    println!(
+      "        {}\u{2713}{} {}{msg} ({elapsed:.1}s){}",
+      col(GREEN),
+      col(RESET),
+      col(DIM),
+      col(RESET)
+    );
     inc_detail_lines();
   }
 }

@@ -56,7 +56,7 @@ pub(super) fn maybe_generate_rpc_hashes(
   )?;
   let path = out_dir.join("rpc-hash-map.json");
   std::fs::write(&path, serde_json::to_string_pretty(&map)?)?;
-  ui::detail_ok("rpc-hash-map.json");
+  ui::detail_ok(&format!("{}rpc-hash-map.json{}", ui::col(ui::DIM), ui::col(ui::RESET)));
   Ok(Some(map))
 }
 
@@ -102,6 +102,12 @@ pub(super) fn vite_info_from_config(config: &SeamConfig) -> Option<ViteDevInfo> 
 
 pub(super) fn print_cache_stats(cache: &Option<CacheStats>) {
   if let Some(stats) = cache {
-    ui::detail_ok(&format!("skeleton cache: {} hit, {} miss", stats.hits, stats.misses));
+    ui::detail_ok(&format!(
+      "{}skeleton cache: {} hit, {} miss{}",
+      ui::col(ui::DIM),
+      stats.hits,
+      stats.misses,
+      ui::col(ui::RESET)
+    ));
   }
 }

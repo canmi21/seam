@@ -157,7 +157,7 @@ pub(crate) fn extract_manifest_command(
   let json = serde_json::to_string_pretty(&manifest)?;
   std::fs::write(&manifest_path, &json)
     .with_context(|| format!("failed to write {}", manifest_path.display()))?;
-  ui::detail_ok("seam-manifest.json");
+  ui::detail_ok(&format!("{}seam-manifest.json{}", col(DIM), col(RESET)));
 
   Ok(manifest)
 }
@@ -204,7 +204,7 @@ pub(crate) fn extract_manifest(
   let json = serde_json::to_string_pretty(&manifest)?;
   std::fs::write(&manifest_path, &json)
     .with_context(|| format!("failed to write {}", manifest_path.display()))?;
-  ui::detail_ok("seam-manifest.json");
+  ui::detail_ok(&format!("{}seam-manifest.json{}", col(DIM), col(RESET)));
 
   Ok(manifest)
 }
