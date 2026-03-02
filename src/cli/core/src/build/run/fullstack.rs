@@ -20,7 +20,7 @@ use super::helpers::{
 use super::rebuild::copy_wasm_binary;
 use crate::config::SeamConfig;
 use crate::shell::{resolve_node_module, run_command};
-use crate::ui::{self, RESET, YELLOW};
+use crate::ui;
 
 // -- Fullstack build (7 phases) --
 
@@ -42,7 +42,7 @@ pub(super) fn run_fullstack_build(
 
   // [1] Compile backend
   step_num += 1;
-  ui::step(step_num, total, "Compiling backend");
+  let t = ui::step(step_num, total, "Compiling backend");
   run_command(
     base_dir,
     build_config.backend_build_command.as_deref().unwrap(),
@@ -54,26 +54,29 @@ pub(super) fn run_fullstack_build(
   // Bundled code does: resolve(__dirname, "../pkg/<wasm_file>.wasm")
   // which, from {out_dir}/server/index.js, resolves to {out_dir}/pkg/.
   copy_wasm_binary(base_dir, &out_dir)?;
+  ui::step_done(t);
   ui::blank();
 
   // [2] Extract procedure manifest
   step_num += 1;
-  ui::step(step_num, total, "Extracting procedure manifest");
+  let t = ui::step(step_num, total, "Extracting procedure manifest");
   let manifest = dispatch_extract_manifest(build_config, base_dir, &out_dir)?;
   print_procedure_breakdown(&manifest);
+  ui::step_done(t);
   ui::blank();
 
   let rpc_hashes = maybe_generate_rpc_hashes(build_config, &manifest, &out_dir)?;
 
   // [3] Generate client types
   step_num += 1;
-  ui::step(step_num, total, "Generating client types");
+  let t = ui::step(step_num, total, "Generating client types");
   generate_types(&manifest, config, rpc_hashes.as_ref())?;
+  ui::step_done(t);
   ui::blank();
 
   // [4] Bundle frontend
   step_num += 1;
-  ui::step(step_num, total, "Bundling frontend");
+  let t = ui::step(step_num, total, "Bundling frontend");
   let hash_length_str = build_config.hash_length.to_string();
   let rpc_map_path_str = if rpc_hashes.is_some() {
     out_dir.join("rpc-hash-map.json").to_string_lossy().to_string()
@@ -95,19 +98,21 @@ pub(super) fn run_fullstack_build(
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
   let assets = read_bundle_manifest(&manifest_path)?;
   print_asset_files(base_dir, build_config.dist_dir(), &assets);
+  ui::step_done(t);
   ui::blank();
 
   // [5] Type check (optional)
   if let Some(cmd) = &build_config.typecheck_command {
     step_num += 1;
-    ui::step(step_num, total, "Type checking");
+    let t = ui::step(step_num, total, "Type checking");
     run_typecheck(base_dir, cmd)?;
+    ui::step_done(t);
     ui::blank();
   }
 
   // [6] Generate skeletons
   step_num += 1;
-  ui::step(step_num, total, "Generating skeletons");
+  let t = ui::step(step_num, total, "Generating skeletons");
   let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
     .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&build_config.routes);
@@ -120,7 +125,7 @@ pub(super) fn run_fullstack_build(
     build_config.i18n.as_ref(),
   )?;
   for w in &skeleton_output.warnings {
-    ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
+    ui::detail_warn(w);
   }
   print_cache_stats(&skeleton_output.cache);
   validate_procedure_references(&manifest, &skeleton_output)?;
@@ -175,12 +180,14 @@ pub(super) fn run_fullstack_build(
   std::fs::write(&route_manifest_path, &route_manifest_json)
     .with_context(|| format!("failed to write {}", route_manifest_path.display()))?;
   ui::detail_ok("route-manifest.json");
+  ui::step_done(t);
   ui::blank();
 
   // [7] Package output
   step_num += 1;
-  ui::step(step_num, total, "Packaging output");
+  let t = ui::step(step_num, total, "Packaging output");
   package_static_assets(base_dir, package_assets, &out_dir, build_config.dist_dir())?;
+  ui::step_done(t);
   ui::blank();
 
   // Summary
@@ -219,18 +226,20 @@ pub fn run_dev_build(
 
   // [1] Extract procedure manifest
   step_num += 1;
-  ui::step(step_num, total, "Extracting procedure manifest");
+  let t = ui::step(step_num, total, "Extracting procedure manifest");
   let manifest = dispatch_extract_manifest(build_config, base_dir, &out_dir)?;
   print_procedure_breakdown(&manifest);
   copy_wasm_binary(base_dir, &out_dir)?;
+  ui::step_done(t);
   ui::blank();
 
   let rpc_hashes = maybe_generate_rpc_hashes(build_config, &manifest, &out_dir)?;
 
   // [2] Generate client types
   step_num += 1;
-  ui::step(step_num, total, "Generating client types");
+  let t = ui::step(step_num, total, "Generating client types");
   generate_types(&manifest, config, rpc_hashes.as_ref())?;
+  ui::step_done(t);
   ui::blank();
 
   // [3] Bundle frontend (skipped in Vite mode — Vite serves assets directly)
@@ -253,18 +262,19 @@ pub fn run_dev_build(
     AssetFiles { css: vec![], js: vec![] }
   } else {
     step_num += 1;
-    ui::step(step_num, total, "Bundling frontend");
+    let t = ui::step(step_num, total, "Bundling frontend");
     run_bundler(base_dir, &build_config.bundler_mode, &dist_dir_str, &bundler_env)?;
     let manifest_path = base_dir.join(&build_config.bundler_manifest);
     let a = read_bundle_manifest(&manifest_path)?;
     print_asset_files(base_dir, build_config.dist_dir(), &a);
+    ui::step_done(t);
     ui::blank();
     a
   };
 
   // [N] Generate skeletons
   step_num += 1;
-  ui::step(step_num, total, "Generating skeletons");
+  let t = ui::step(step_num, total, "Generating skeletons");
   let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
     .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&build_config.routes);
@@ -277,7 +287,7 @@ pub fn run_dev_build(
     build_config.i18n.as_ref(),
   )?;
   for w in &skeleton_output.warnings {
-    ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
+    ui::detail_warn(w);
   }
   print_cache_stats(&skeleton_output.cache);
   validate_procedure_references(&manifest, &skeleton_output)?;
@@ -312,13 +322,15 @@ pub fn run_dev_build(
   std::fs::write(&route_manifest_path, &route_manifest_json)
     .with_context(|| format!("failed to write {}", route_manifest_path.display()))?;
   ui::detail_ok("route-manifest.json");
+  ui::step_done(t);
   ui::blank();
 
   // [N] Package output (skipped in Vite mode)
   if !is_vite {
     step_num += 1;
-    ui::step(step_num, total, "Packaging output");
+    let t = ui::step(step_num, total, "Packaging output");
     package_static_assets(base_dir, &assets, &out_dir, build_config.dist_dir())?;
+    ui::step_done(t);
     ui::blank();
   }
 

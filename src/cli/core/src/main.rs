@@ -111,7 +111,14 @@ fn resolve_config(explicit: Option<PathBuf>) -> Result<(PathBuf, SeamConfig)> {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
+  if let Err(e) = run().await {
+    ui::error(&format!("{e:#}"));
+    std::process::exit(1);
+  }
+}
+
+async fn run() -> Result<()> {
   let cli = Cli::parse();
 
   match cli.command {
@@ -135,6 +142,7 @@ async fn main() -> Result<()> {
           .unwrap_or_else(|| PathBuf::from("src/generated"))
       });
 
+      ui::banner("generate", None);
       ui::arrow(&format!("reading {}", manifest.display()));
 
       let content = std::fs::read_to_string(&manifest)

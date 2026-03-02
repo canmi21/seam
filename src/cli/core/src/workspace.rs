@@ -17,7 +17,7 @@ use crate::build::route::{
 use crate::build::types::read_bundle_manifest;
 use crate::config::{SeamConfig, resolve_member_config, validate_workspace};
 use crate::shell::{resolve_node_module, run_command};
-use crate::ui::{self, DIM, GREEN, RESET, YELLOW};
+use crate::ui::{self, DIM, GREEN, RESET};
 use seam_codegen::Manifest;
 
 #[derive(Debug)]
@@ -224,7 +224,7 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
     first.build_config.i18n.as_ref(),
   )?;
   for w in &skeleton_output.warnings {
-    ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
+    ui::detail_warn(w);
   }
   validate_procedure_references(&reference_manifest, &skeleton_output)?;
 

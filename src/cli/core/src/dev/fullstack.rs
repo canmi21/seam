@@ -10,7 +10,7 @@ use tokio::signal;
 use crate::build::config::BuildConfig;
 use crate::build::run::{RebuildMode, run_incremental_rebuild};
 use crate::config::SeamConfig;
-use crate::ui::{CYAN, DIM, GREEN, RED, RESET};
+use crate::ui::{self, CYAN, DIM, GREEN, RED, RESET};
 
 use super::network::find_available_port;
 use super::network::wait_for_port;
@@ -49,7 +49,7 @@ async fn handle_rebuild(
   is_vite: bool,
 ) {
   let started = Instant::now();
-  println!("  {CYAN}[seam]{RESET} rebuilding...");
+  ui::label(CYAN, "seam", "rebuilding...");
 
   let cfg = config.clone();
   let bc = build_config.clone();
@@ -61,15 +61,19 @@ async fn handle_rebuild(
 
   match result {
     Ok(Ok(())) => {
-      println!("  {GREEN}[seam]{RESET} rebuild complete ({:.1}s)", started.elapsed().as_secs_f64());
+      ui::label(
+        GREEN,
+        "seam",
+        &format!("rebuild complete ({:.1}s)", started.elapsed().as_secs_f64()),
+      );
       // Skip reload trigger when Vite handles HMR — the trigger would
       // cause seamReloadPlugin to send a redundant full-reload.
       if !is_vite {
         write_reload_trigger(out_dir);
       }
     }
-    Ok(Err(e)) => println!("  {RED}[seam]{RESET} rebuild error: {e}"),
-    Err(e) => println!("  {RED}[seam]{RESET} rebuild panicked: {e}"),
+    Ok(Err(e)) => ui::label(RED, "seam", &format!("rebuild error: {e}")),
+    Err(e) => ui::label(RED, "seam", &format!("rebuild panicked: {e}")),
   }
 }
 
@@ -92,9 +96,9 @@ async fn spawn_fullstack_children(
     pipe_output(&mut proc).await;
     children.push(proc);
 
-    println!("  {DIM}waiting for vite on :{vp}...{RESET}");
+    ui::label(DIM, "vite", &format!("waiting on :{vp}..."));
     wait_for_port(vp, Duration::from_secs(10)).await?;
-    println!("  {GREEN}vite ready{RESET}");
+    ui::label(GREEN, "vite", "ready");
   }
 
   let backend_cmd_str = config
@@ -209,17 +213,13 @@ pub(super) async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> R
     tokio::select! {
       _ = signal::ctrl_c() => {
         println!();
-        println!("  {DIM}shutting down...{RESET}");
+        ui::shutting_down();
         break;
       }
       result = wait_any(&mut children) => {
         let (label, status) = result;
         let color = label_color(label);
-        match status {
-          Ok(s) if s.success() => println!("  {color}{label}{RESET} exited"),
-          Ok(s) => println!("  {RED}{label} exited with {s}{RESET}"),
-          Err(e) => println!("  {RED}{label} error: {e}{RESET}"),
-        }
+        ui::process_exited(label, color, status);
         break;
       }
       Some(()) = watcher_rx.recv() => {

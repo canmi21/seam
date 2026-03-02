@@ -25,7 +25,7 @@ pub fn run_clean(config: &SeamConfig, base_dir: &Path, member_filter: Option<&st
 
 /// Clean a single (non-workspace) project.
 fn run_project_clean(config: &SeamConfig, base_dir: &Path) -> Result<()> {
-  ui::arrow("cleaning project");
+  ui::banner("clean", Some(&config.project.name));
 
   delete_out_dir(config, base_dir)?;
   delete_dist_dir(base_dir)?;
@@ -43,10 +43,10 @@ fn run_workspace_clean(
   member_filter: Option<&str>,
 ) -> Result<()> {
   if let Some(name) = member_filter {
-    ui::arrow(&format!("cleaning member: {name}"));
+    ui::banner("clean", Some(name));
     clean_single_member(config, base_dir, name)?;
   } else {
-    ui::arrow("cleaning workspace");
+    ui::banner("clean", Some(&config.project.name));
     delete_out_dir(config, base_dir)?;
     delete_dist_dir(base_dir)?;
     delete_generate_dir(config, base_dir)?;

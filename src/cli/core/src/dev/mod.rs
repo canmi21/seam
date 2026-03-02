@@ -14,7 +14,7 @@ use crate::build::config::BuildConfig;
 use crate::build::types::read_bundle_manifest;
 use crate::config::SeamConfig;
 use crate::dev_server;
-use crate::ui::{DIM, RED, RESET};
+use crate::ui as root_ui;
 
 use fullstack::run_dev_fullstack;
 use process::{ChildProcess, label_color, pipe_output, spawn_child, wait_any};
@@ -77,11 +77,11 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
       tokio::select! {
         _ = signal::ctrl_c() => {
           println!();
-          println!("  {DIM}shutting down...{RESET}");
+          root_ui::shutting_down();
         }
         result = dev_server::start_dev_server(static_dir, dev_port, config.backend.port, assets) => {
           if let Err(e) = result {
-            println!("  {RED}dev server error: {e}{RESET}");
+            root_ui::error(&format!("dev server: {e}"));
           }
         }
       }
@@ -89,20 +89,16 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
       tokio::select! {
         _ = signal::ctrl_c() => {
           println!();
-          println!("  {DIM}shutting down...{RESET}");
+          root_ui::shutting_down();
         }
         result = wait_any(&mut children) => {
           let (label, status) = result;
           let color = label_color(label);
-          match status {
-            Ok(s) if s.success() => println!("  {color}{label}{RESET} exited"),
-            Ok(s) => println!("  {RED}{label} exited with {s}{RESET}"),
-            Err(e) => println!("  {RED}{label} error: {e}{RESET}"),
-          }
+          root_ui::process_exited(label, color, status);
         }
         result = dev_server::start_dev_server(static_dir, dev_port, config.backend.port, assets) => {
           if let Err(e) = result {
-            println!("  {RED}dev server error: {e}{RESET}");
+            root_ui::error(&format!("dev server: {e}"));
           }
         }
       }
@@ -112,16 +108,12 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
     tokio::select! {
       _ = signal::ctrl_c() => {
         println!();
-        println!("  {DIM}shutting down...{RESET}");
+        root_ui::shutting_down();
       }
       result = wait_any(&mut children) => {
         let (label, status) = result;
         let color = label_color(label);
-        match status {
-          Ok(s) if s.success() => println!("  {color}{label}{RESET} exited"),
-          Ok(s) => println!("  {RED}{label} exited with {s}{RESET}"),
-          Err(e) => println!("  {RED}{label} error: {e}{RESET}"),
-        }
+        root_ui::process_exited(label, color, status);
       }
     }
   }

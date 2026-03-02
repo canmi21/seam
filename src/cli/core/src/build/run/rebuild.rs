@@ -17,7 +17,7 @@ use super::helpers::{
 };
 use crate::config::SeamConfig;
 use crate::shell::resolve_node_module;
-use crate::ui::{self, RESET, YELLOW};
+use crate::ui;
 
 /// Incremental rebuild for dev mode — skips banner/summary to keep output compact.
 /// In Vite mode, skips bundler + manifest read + asset packaging (Vite serves assets directly).
@@ -75,7 +75,7 @@ pub fn run_incremental_rebuild(
     build_config.i18n.as_ref(),
   )?;
   for w in &skeleton_output.warnings {
-    ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
+    ui::detail_warn(w);
   }
   print_cache_stats(&skeleton_output.cache);
 

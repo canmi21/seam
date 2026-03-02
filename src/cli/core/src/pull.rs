@@ -8,6 +8,8 @@ use crate::ui;
 use seam_codegen::{Manifest, ProcedureType};
 
 pub async fn pull_manifest(base_url: &str, out: &Path) -> Result<()> {
+  ui::banner("pull", None);
+
   let url = format!("{}/_seam/manifest.json", base_url.trim_end_matches('/'));
 
   ui::arrow(&url);

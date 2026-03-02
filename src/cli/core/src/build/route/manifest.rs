@@ -90,7 +90,7 @@ pub(crate) fn validate_procedure_references(
     return Ok(());
   }
 
-  bail!("[seam] error: unknown procedure reference\n\n{}", errors.join("\n\n"));
+  bail!("unknown procedure reference\n\n{}", errors.join("\n\n"));
 }
 
 /// Print procedure breakdown (reused from pull.rs logic)
@@ -131,7 +131,7 @@ pub(crate) fn extract_manifest_command(
   command: &str,
   out_dir: &Path,
 ) -> Result<Manifest> {
-  ui::detail(&format!("{DIM}{command}{RESET}"));
+  let spinner = ui::spinner(command);
 
   let output = Command::new("sh")
     .args(["-c", command])
@@ -140,9 +140,11 @@ pub(crate) fn extract_manifest_command(
     .with_context(|| format!("failed to run manifest command: {command}"))?;
 
   if !output.status.success() {
+    spinner.finish_with("failed");
     let stderr = String::from_utf8_lossy(&output.stderr);
     bail!("manifest command failed:\n{stderr}");
   }
+  spinner.finish();
 
   let stdout = String::from_utf8(output.stdout).context("invalid UTF-8 from manifest command")?;
   let manifest: Manifest =
@@ -176,7 +178,7 @@ pub(crate) fn extract_manifest(
      }})"
   );
 
-  ui::detail(&format!("{DIM}{runtime} -e \"import('{router_file}')...\"{RESET}"));
+  let spinner = ui::spinner(&format!("{runtime} -e \"import('{router_file}')...\""));
 
   let output = Command::new(runtime)
     .args(["-e", &script])
@@ -185,9 +187,11 @@ pub(crate) fn extract_manifest(
     .with_context(|| format!("failed to run {runtime} for manifest extraction"))?;
 
   if !output.status.success() {
+    spinner.finish_with("failed");
     let stderr = String::from_utf8_lossy(&output.stderr);
     bail!("manifest extraction failed:\n{stderr}");
   }
+  spinner.finish();
 
   let stdout = String::from_utf8(output.stdout).context("invalid UTF-8 from manifest output")?;
   let manifest: Manifest =

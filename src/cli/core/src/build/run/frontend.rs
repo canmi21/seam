@@ -12,7 +12,7 @@ use super::super::route::{
 use super::super::types::{read_bundle_manifest, read_bundle_manifest_extended};
 use super::helpers::{print_cache_stats, run_bundler};
 use crate::shell::resolve_node_module;
-use crate::ui::{self, RESET, YELLOW};
+use crate::ui;
 
 // -- Frontend-only build (4 steps) --
 
@@ -22,7 +22,7 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
   ui::banner("build", None);
 
   // [1/4] Bundle frontend
-  ui::step(1, 4, "Bundling frontend");
+  let t = ui::step(1, 4, "Bundling frontend");
   let dist_dir_str = build_config.dist_dir().to_string();
   let routes_path_str = base_dir.join(&build_config.routes).to_string_lossy().to_string();
   run_bundler(
@@ -35,10 +35,11 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
   let assets = read_bundle_manifest(&manifest_path)?;
   print_asset_files(base_dir, build_config.dist_dir(), &assets);
+  ui::step_done(t);
   ui::blank();
 
   // [2/4] Extract routes
-  ui::step(2, 4, "Extracting routes");
+  let t = ui::step(2, 4, "Extracting routes");
   let script_path = resolve_node_module(base_dir, "@canmi/seam-react/scripts/build-skeletons.mjs")
     .ok_or_else(|| anyhow::anyhow!("build-skeletons.mjs not found -- install @canmi/seam-react"))?;
   let routes_path = base_dir.join(&build_config.routes);
@@ -51,14 +52,15 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
     build_config.i18n.as_ref(),
   )?;
   for w in &skeleton_output.warnings {
-    ui::detail(&format!("{YELLOW}warning{RESET}: {w}"));
+    ui::detail_warn(w);
   }
   print_cache_stats(&skeleton_output.cache);
   ui::detail_ok(&format!("{} routes found", skeleton_output.routes.len()));
+  ui::step_done(t);
   ui::blank();
 
   // [3/4] Generate skeletons
-  ui::step(3, 4, "Generating skeletons");
+  let t = ui::step(3, 4, "Generating skeletons");
   let out_dir = base_dir.join(&build_config.out_dir);
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
@@ -101,15 +103,17 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
   if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
     export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;
   }
+  ui::step_done(t);
   ui::blank();
 
   // [4/4] Write route manifest
-  ui::step(4, 4, "Writing route manifest");
+  let t = ui::step(4, 4, "Writing route manifest");
   let manifest_out = out_dir.join("route-manifest.json");
   let manifest_json = serde_json::to_string_pretty(&route_manifest)?;
   std::fs::write(&manifest_out, &manifest_json)
     .with_context(|| format!("failed to write {}", manifest_out.display()))?;
   ui::detail_ok("route-manifest.json");
+  ui::step_done(t);
   ui::blank();
 
   // Summary

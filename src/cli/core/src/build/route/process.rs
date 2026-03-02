@@ -18,7 +18,7 @@ use super::types::{
 };
 use crate::config::{I18nMode, I18nSection};
 use crate::shell::which_exists;
-use crate::ui::{self, DIM, RESET, YELLOW};
+use crate::ui::{self, DIM, RESET};
 use seam_skeleton::ctr_check;
 use seam_skeleton::slot_warning;
 use seam_skeleton::{extract_head_metadata, extract_template, sentinel_to_slots, wrap_document};
@@ -174,7 +174,7 @@ pub(crate) fn process_routes(
 
         if let Some(schema) = &route.page_schema {
           for w in slot_warning::check_slot_types(&template, schema) {
-            ui::detail(&format!("{YELLOW}warning{RESET}: {} [{locale}] {w}", route.path));
+            ui::detail_warn(&format!("{} [{locale}] {w}", route.path));
           }
         }
 
@@ -256,7 +256,7 @@ pub(crate) fn process_routes(
 
       if let Some(schema) = &route.page_schema {
         for w in slot_warning::check_slot_types(&template, schema) {
-          ui::detail(&format!("{YELLOW}warning{RESET}: {} {w}", route.path));
+          ui::detail_warn(&format!("{} {w}", route.path));
         }
       }
 

@@ -7,7 +7,7 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 
-use crate::ui::{self, DIM, RESET};
+use crate::ui;
 
 /// Run a shell command, bail on failure (shows both stdout and stderr on error).
 pub(crate) fn run_command(
@@ -16,7 +16,7 @@ pub(crate) fn run_command(
   label: &str,
   env: &[(&str, &str)],
 ) -> Result<()> {
-  ui::detail(&format!("{DIM}{command}{RESET}"));
+  let spinner = ui::spinner(command);
   let mut cmd = Command::new("sh");
   cmd.args(["-c", command]);
   cmd.current_dir(base_dir);
@@ -25,6 +25,7 @@ pub(crate) fn run_command(
   }
   let output = cmd.output().with_context(|| format!("failed to run {label}"))?;
   if !output.status.success() {
+    spinner.finish_with("failed");
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     let mut msg = format!("{label} exited with status {}", output.status);
@@ -38,6 +39,7 @@ pub(crate) fn run_command(
     }
     bail!("{msg}");
   }
+  spinner.finish();
   Ok(())
 }
 
@@ -50,7 +52,7 @@ pub(crate) fn run_builtin_bundler(
 ) -> Result<()> {
   let runtime = if which_exists("bun") { "bun" } else { "node" };
   let script = find_cli_script(base_dir, "build-frontend.mjs")?;
-  ui::detail(&format!("{DIM}{runtime} build-frontend.mjs {entry} {out_dir}{RESET}"));
+  let spinner = ui::spinner(&format!("{runtime} build-frontend.mjs {entry} {out_dir}"));
   let mut cmd = Command::new(runtime);
   cmd.args([script.to_str().unwrap(), entry, out_dir]);
   cmd.current_dir(base_dir);
@@ -59,6 +61,7 @@ pub(crate) fn run_builtin_bundler(
   }
   let output = cmd.output().context("failed to run built-in bundler")?;
   if !output.status.success() {
+    spinner.finish_with("failed");
     let stderr = String::from_utf8_lossy(&output.stderr);
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut msg = format!("built-in bundler exited with status {}", output.status);
@@ -72,6 +75,7 @@ pub(crate) fn run_builtin_bundler(
     }
     bail!("{msg}");
   }
+  spinner.finish();
   Ok(())
 }
 

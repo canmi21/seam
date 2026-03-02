@@ -6,7 +6,7 @@ use anyhow::Result;
 
 use crate::build::config::{BuildConfig, BundlerMode};
 use crate::config::SeamConfig;
-use crate::ui::{BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, YELLOW};
+use crate::ui::{self, BOLD, CYAN, DIM, GREEN, MAGENTA, RESET, YELLOW};
 
 pub(super) fn print_dev_banner(
   config: &SeamConfig,
@@ -14,26 +14,26 @@ pub(super) fn print_dev_banner(
   frontend_cmd: Option<&str>,
   use_embedded: bool,
 ) {
-  crate::ui::banner("dev", Some(&config.project.name));
+  ui::banner("dev", Some(&config.project.name));
 
   if let Some(cmd) = backend_cmd {
     let lang = &config.backend.lang;
-    println!("  {CYAN}backend{RESET}   {DIM}[{lang}]{RESET} {DIM}{cmd}{RESET}");
+    ui::label(CYAN, "backend", &format!("{DIM}[{lang}]{RESET} {DIM}{cmd}{RESET}"));
   }
 
   if let Some(cmd) = frontend_cmd {
     let port_suffix =
       config.frontend.dev_port.map_or(String::new(), |p| format!(" {DIM}:{p}{RESET}"));
-    println!("  {MAGENTA}frontend{RESET}  {DIM}{cmd}{RESET}{port_suffix}");
+    ui::label(MAGENTA, "frontend", &format!("{DIM}{cmd}{RESET}{port_suffix}"));
   } else if use_embedded {
     let dev_port = config.frontend.dev_port.unwrap_or(5173);
-    println!("  {MAGENTA}frontend{RESET}  {DIM}embedded dev server :{dev_port}{RESET}");
+    ui::label(MAGENTA, "frontend", &format!("{DIM}embedded dev server :{dev_port}{RESET}"));
   }
 
   if backend_cmd.is_some() {
     let fp = config.frontend.dev_port.unwrap_or(5173);
     if frontend_cmd.is_some() || use_embedded {
-      println!("  {YELLOW}proxy{RESET}     {DIM}:{} \u{2192} :{fp}{RESET}", config.backend.port);
+      ui::label(YELLOW, "proxy", &format!("{DIM}:{} \u{2192} :{fp}{RESET}", config.backend.port));
     }
   }
 
@@ -45,7 +45,7 @@ pub(super) fn print_dev_banner(
 }
 
 pub(super) fn build_frontend(config: &SeamConfig, base_dir: &Path) -> Result<()> {
-  crate::ui::step(1, 1, "Building frontend");
+  ui::step(1, 1, "Building frontend");
   let build_config = BuildConfig::from_seam_config(config)?;
   let dist_dir = build_config.dist_dir();
   match &build_config.bundler_mode {
@@ -56,7 +56,7 @@ pub(super) fn build_frontend(config: &SeamConfig, base_dir: &Path) -> Result<()>
       crate::shell::run_command(base_dir, command, "bundler", &[])?;
     }
   }
-  crate::ui::blank();
+  ui::blank();
   Ok(())
 }
 
@@ -70,14 +70,14 @@ pub(super) fn print_fullstack_banner(
     config.backend.dev_command.as_deref().unwrap_or("bun --watch src/server/index.ts");
   let lang = &config.backend.lang;
 
-  crate::ui::banner("dev", Some(&config.project.name));
+  ui::banner("dev", Some(&config.project.name));
   if let Some(vp) = vite_port {
-    println!("  {MAGENTA}vite{RESET}      {DIM}http://localhost:{vp}{RESET}");
+    ui::label(MAGENTA, "vite", &format!("{DIM}http://localhost:{vp}{RESET}"));
   }
-  println!("  {CYAN}backend{RESET}   {DIM}[{lang}]{RESET} {DIM}{backend_cmd}{RESET}");
-  println!("  {GREEN}mode{RESET}      fullstack CTR");
+  ui::label(CYAN, "backend", &format!("{DIM}[{lang}]{RESET} {DIM}{backend_cmd}{RESET}"));
+  ui::label(GREEN, "mode", "fullstack CTR");
   if !watched_dirs.is_empty() {
-    println!("  {GREEN}watching{RESET}  {DIM}{}{RESET}", watched_dirs.join(", "));
+    ui::label(GREEN, "watching", &format!("{DIM}{}{RESET}", watched_dirs.join(", ")));
   }
   println!();
   if port == 80 {
