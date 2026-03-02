@@ -2,7 +2,10 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join } from "node:path";
+
+const require = createRequire(import.meta.url);
 
 const PLATFORM_PACKAGES: Record<string, string> = {
   "darwin-arm64": "@canmi/seam-cli-darwin-arm64",
