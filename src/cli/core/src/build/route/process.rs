@@ -6,15 +6,15 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 
-use super::super::types::{AssetFiles, ViteDevInfo};
+use super::super::types::{AssetFiles, BundleManifest, ViteDevInfo};
 use super::fnv;
 use super::helpers::{
   LocaleRouteMessages, export_i18n_memory, export_i18n_paged, path_to_filename,
 };
 use super::i18n_resolve;
 use super::types::{
-  I18nManifest, LayoutManifestEntry, RouteManifest, RouteManifestEntry, SkeletonLayout,
-  SkeletonOutput, SkeletonRoute,
+  I18nManifest, LayoutManifestEntry, RouteAssets, RouteManifest, RouteManifestEntry,
+  SkeletonLayout, SkeletonOutput, SkeletonRoute,
 };
 use crate::config::{I18nMode, I18nSection};
 use crate::shell::which_exists;
@@ -82,6 +82,8 @@ pub(crate) fn process_routes(
   root_id: &str,
   data_id: &str,
   i18n: Option<&I18nSection>,
+  bundle_manifest: Option<&BundleManifest>,
+  source_file_map: Option<&BTreeMap<String, String>>,
 ) -> Result<RouteManifest> {
   let manifest_data_id = if data_id == "__data" { None } else { Some(data_id.to_string()) };
   let i18n_manifest = i18n.map(|cfg| I18nManifest {
@@ -202,6 +204,7 @@ pub(crate) fn process_routes(
 
         // Store head_meta from the default locale only
         if i18n.is_some_and(|cfg| locale == &cfg.default) {
+          let assets = compute_route_assets(&route.path, source_file_map, bundle_manifest);
           manifest.routes.entry(route.path.clone()).or_insert_with(|| RouteManifestEntry {
             template: None,
             templates: None,
@@ -209,6 +212,7 @@ pub(crate) fn process_routes(
             loaders: route.loaders.clone(),
             head_meta,
             i18n_keys: route.i18n_keys.clone(),
+            assets,
           });
         }
       }
@@ -225,6 +229,7 @@ pub(crate) fn process_routes(
       if let Some(entry) = manifest.routes.get_mut(&route.path) {
         entry.templates = Some(templates);
       } else {
+        let assets = compute_route_assets(&route.path, source_file_map, bundle_manifest);
         manifest.routes.insert(
           route.path.clone(),
           RouteManifestEntry {
@@ -234,6 +239,7 @@ pub(crate) fn process_routes(
             loaders: route.loaders.clone(),
             head_meta: None,
             i18n_keys: route.i18n_keys.clone(),
+            assets,
           },
         );
       }
@@ -279,6 +285,7 @@ pub(crate) fn process_routes(
         ui::format_size(size)
       ));
 
+      let assets = compute_route_assets(&route.path, source_file_map, bundle_manifest);
       manifest.routes.insert(
         route.path.clone(),
         RouteManifestEntry {
@@ -288,11 +295,60 @@ pub(crate) fn process_routes(
           loaders: route.loaders.clone(),
           head_meta,
           i18n_keys: route.i18n_keys.clone(),
+          assets,
         },
       );
     }
   }
   Ok(manifest)
+}
+
+/// Compute per-route asset references from the source file map and bundle manifest.
+fn compute_route_assets(
+  route_path: &str,
+  source_file_map: Option<&BTreeMap<String, String>>,
+  bundle_manifest: Option<&BundleManifest>,
+) -> Option<RouteAssets> {
+  let sfm = source_file_map?;
+  let bm = bundle_manifest?;
+  let source_key = sfm.get(route_path)?;
+  let entry = bm.entries.get(source_key)?;
+
+  // Collect all assets from other entries for prefetch
+  let mut my_assets: std::collections::HashSet<&str> = std::collections::HashSet::new();
+  for s in &entry.scripts {
+    my_assets.insert(s);
+  }
+  for s in &entry.styles {
+    my_assets.insert(s);
+  }
+  for s in &entry.preload {
+    my_assets.insert(s);
+  }
+
+  let mut prefetch = Vec::new();
+  for (key, other_entry) in &bm.entries {
+    if key == source_key {
+      continue;
+    }
+    for s in &other_entry.scripts {
+      if !my_assets.contains(s.as_str()) && !prefetch.contains(s) {
+        prefetch.push(s.clone());
+      }
+    }
+    for s in &other_entry.styles {
+      if !my_assets.contains(s.as_str()) && !prefetch.contains(s) {
+        prefetch.push(s.clone());
+      }
+    }
+  }
+
+  Some(RouteAssets {
+    styles: entry.styles.clone(),
+    scripts: entry.scripts.clone(),
+    preload: entry.preload.clone(),
+    prefetch,
+  })
 }
 
 /// Resolve, hash, and export i18n messages based on the route manifest.

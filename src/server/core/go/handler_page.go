@@ -139,6 +139,9 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 	if page.HeadMeta != "" {
 		config["head_meta"] = page.HeadMeta
 	}
+	if page.Assets != nil {
+		config["page_assets"] = page.Assets
+	}
 	configJSON, _ := json.Marshal(config)
 
 	// Build i18n opts for engine (hash-based lookup: zero merge, zero filter)

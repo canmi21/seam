@@ -35,6 +35,8 @@ pub(crate) struct SkeletonOutput {
   #[serde(default)]
   pub(crate) layouts: Vec<SkeletonLayout>,
   pub(crate) routes: Vec<SkeletonRoute>,
+  #[serde(rename = "sourceFileMap", default)]
+  pub(crate) source_file_map: Option<BTreeMap<String, String>>,
   #[serde(default)]
   pub(crate) warnings: Vec<String>,
   #[serde(rename = "cacheStats", default)]
@@ -119,6 +121,19 @@ pub(super) struct I18nManifest {
   pub(super) content_hashes: BTreeMap<String, BTreeMap<String, String>>,
 }
 
+/// Per-route asset references for page-level resource splitting.
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct RouteAssets {
+  /// Page-specific CSS files
+  pub(crate) styles: Vec<String>,
+  /// Page-specific JS entry file
+  pub(crate) scripts: Vec<String>,
+  /// Shared chunks to modulepreload
+  pub(crate) preload: Vec<String>,
+  /// Other pages' unique assets to idle-prefetch
+  pub(crate) prefetch: Vec<String>,
+}
+
 #[derive(Serialize)]
 pub(super) struct RouteManifestEntry {
   #[serde(skip_serializing_if = "Option::is_none")]
@@ -132,4 +147,6 @@ pub(super) struct RouteManifestEntry {
   pub(super) head_meta: Option<String>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub(super) i18n_keys: Option<Vec<String>>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub(super) assets: Option<RouteAssets>,
 }

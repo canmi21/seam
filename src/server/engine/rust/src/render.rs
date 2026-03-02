@@ -3,7 +3,7 @@
 use crate::escape::ascii_escape_json;
 use crate::page::{
   I18nOpts, PageConfig, build_seam_data, flatten_for_slots, inject_data_script, inject_head_meta,
-  inject_html_lang,
+  inject_html_lang, replace_asset_slots, strip_asset_slots,
 };
 
 /// Render a page: inject data into template, assemble data script,
@@ -31,25 +31,34 @@ pub fn render_page(
   };
   let i18n_opts: Option<I18nOpts> = i18n_opts_json.and_then(|s| serde_json::from_str(s).ok());
 
-  // Step 1: Flatten loader data for slot resolution
+  // Step 1: Replace asset slot markers before injector sees them.
+  // When page_assets is present, replace with actual tags.
+  // When absent, strip markers (empty replacement) to prevent injector
+  // from treating them as data slots.
+  let working = match config.page_assets {
+    Some(ref assets) => replace_asset_slots(template, assets),
+    None => strip_asset_slots(template),
+  };
+
+  // Step 2: Flatten loader data for slot resolution
   let flat_data = flatten_for_slots(&loader_data);
 
-  // Step 2: Inject slots into template (no data script)
-  let mut html = seam_injector::inject_no_script(template, &flat_data);
+  // Step 3: Inject slots into template (no data script)
+  let mut html = seam_injector::inject_no_script(&working, &flat_data);
 
-  // Step 3: Inject page-level head metadata
+  // Step 4: Inject page-level head metadata
   if let Some(ref meta) = config.head_meta {
     // Inject the head_meta with slot data resolved
     let injected_meta = seam_injector::inject_no_script(meta, &flat_data);
     html = inject_head_meta(&html, &injected_meta);
   }
 
-  // Step 4: Set <html lang="..."> when locale is known
+  // Step 5: Set <html lang="..."> when locale is known
   if let Some(ref opts) = i18n_opts {
     html = inject_html_lang(&html, &opts.locale);
   }
 
-  // Step 5: Build data JSON and inject script
+  // Step 6: Build data JSON and inject script
   let seam_data = build_seam_data(&loader_data, &config, i18n_opts.as_ref());
   let json = serde_json::to_string(&seam_data).unwrap_or_default();
   let escaped = ascii_escape_json(&json);
@@ -133,5 +142,69 @@ mod tests {
     let template = "plain html";
     let result = render_page(template, "{}", "invalid json", None);
     assert_eq!(result, "plain html");
+  }
+
+  #[test]
+  fn render_with_page_assets() {
+    let template = concat!(
+      r#"<html><head><meta charset="utf-8">"#,
+      r#"<link rel="stylesheet" href="/_seam/static/main.css">"#,
+      "<!--seam:page-styles--><!--seam:prefetch-->",
+      "</head><body>",
+      r#"<div id="__seam"><p><!--seam:title--></p></div>"#,
+      r#"<script type="module" src="/_seam/static/main.js"></script>"#,
+      "<!--seam:page-scripts-->",
+      "</body></html>"
+    );
+    let data = json!({"title": "Hello"}).to_string();
+    let config = json!({
+      "layout_chain": [],
+      "data_id": "__data",
+      "page_assets": {
+        "styles": ["page-home.css"],
+        "scripts": ["page-home.js"],
+        "preload": ["shared.js"],
+        "prefetch": ["page-other.js"]
+      }
+    })
+    .to_string();
+
+    let result = render_page(template, &data, &config, None);
+
+    // Asset slots replaced
+    assert!(result.contains(r#"href="/_seam/static/page-home.css""#));
+    assert!(result.contains(r#"src="/_seam/static/page-home.js""#));
+    assert!(result.contains(r#"modulepreload"#));
+    assert!(result.contains(r#"prefetch"#));
+    // Slot markers gone
+    assert!(!result.contains("<!--seam:page-styles-->"));
+    assert!(!result.contains("<!--seam:page-scripts-->"));
+    assert!(!result.contains("<!--seam:prefetch-->"));
+    // Data injection still works
+    assert!(result.contains("<p>Hello</p>"));
+    assert!(result.contains(r#"<script id="__data""#));
+  }
+
+  #[test]
+  fn render_without_page_assets_strips_slots() {
+    let template = concat!(
+      r#"<html><head><meta charset="utf-8">"#,
+      "<!--seam:page-styles--><!--seam:prefetch-->",
+      "</head><body>",
+      r#"<div id="__seam"><p><!--seam:title--></p></div>"#,
+      "<!--seam:page-scripts-->",
+      "</body></html>"
+    );
+    let data = json!({"title": "Hello"}).to_string();
+    let config = json!({"layout_chain": [], "data_id": "__data"}).to_string();
+
+    let result = render_page(template, &data, &config, None);
+
+    // Slot markers stripped before injector (prevents misinterpretation)
+    assert!(!result.contains("<!--seam:page-styles-->"));
+    assert!(!result.contains("<!--seam:page-scripts-->"));
+    assert!(!result.contains("<!--seam:prefetch-->"));
+    // Data injection still works
+    assert!(result.contains("<p>Hello</p>"));
   }
 }

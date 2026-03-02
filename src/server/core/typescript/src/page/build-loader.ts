@@ -2,7 +2,14 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { PageDef, LayoutDef, LoaderFn, LoaderResult, I18nConfig } from "./index.js";
+import type {
+  PageDef,
+  PageAssets,
+  LayoutDef,
+  LoaderFn,
+  LoaderResult,
+  I18nConfig,
+} from "./index.js";
 import type { RpcHashMap } from "../http.js";
 
 interface RouteManifest {
@@ -34,6 +41,7 @@ interface RouteManifestEntry {
   loaders: Record<string, LoaderConfig>;
   head_meta?: string;
   i18n_keys?: string[];
+  assets?: PageAssets;
 }
 
 interface LoaderConfig {
@@ -285,6 +293,7 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
       headMeta: entry.head_meta,
       dataId: manifest.data_id,
       i18nKeys,
+      pageAssets: entry.assets,
     };
   }
   return pages;
@@ -321,6 +330,7 @@ export function loadBuildOutputDev(distDir: string): Record<string, PageDef> {
       layoutChain,
       dataId: manifest.data_id,
       i18nKeys,
+      pageAssets: entry.assets,
     };
     Object.defineProperty(page, "template", {
       get: () => readFileSync(templatePath, "utf-8"),

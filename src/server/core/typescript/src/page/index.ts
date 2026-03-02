@@ -15,6 +15,13 @@ export interface LayoutDef {
   i18nKeys?: string[];
 }
 
+export interface PageAssets {
+  styles: string[];
+  scripts: string[];
+  preload: string[];
+  prefetch: string[];
+}
+
 export interface PageDef {
   template: string;
   localeTemplates?: Record<string, string>;
@@ -23,6 +30,7 @@ export interface PageDef {
   headMeta?: string;
   dataId?: string;
   i18nKeys?: string[];
+  pageAssets?: PageAssets;
 }
 
 export interface I18nConfig {

@@ -9,7 +9,7 @@ use super::super::config::BuildConfig;
 use super::super::route::{
   export_i18n, print_asset_files, process_routes, read_i18n_messages, run_skeleton_renderer,
 };
-use super::super::types::read_bundle_manifest;
+use super::super::types::{read_bundle_manifest, read_bundle_manifest_extended};
 use super::helpers::{print_cache_stats, run_bundler};
 use crate::shell::resolve_node_module;
 use crate::ui::{self, RESET, YELLOW};
@@ -24,11 +24,12 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
   // [1/4] Bundle frontend
   ui::step(1, 4, "Bundling frontend");
   let dist_dir_str = build_config.dist_dir().to_string();
+  let routes_path_str = base_dir.join(&build_config.routes).to_string_lossy().to_string();
   run_bundler(
     base_dir,
     &build_config.bundler_mode,
     &dist_dir_str,
-    &[("SEAM_DIST_DIR", &dist_dir_str)],
+    &[("SEAM_DIST_DIR", &dist_dir_str), ("SEAM_ROUTES_FILE", &routes_path_str)],
   )?;
 
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
@@ -66,6 +67,18 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
     Some(cfg) => Some(read_i18n_messages(base_dir, cfg)?),
     None => None,
   };
+  // When sourceFileMap is available, parse extended manifest for per-page splitting.
+  // Built-in bundler writes Vite-format manifest as sibling "vite-manifest.json";
+  // custom Vite users already have Vite-format at bundler_manifest path.
+  let bundle_manifest = if skeleton_output.source_file_map.is_some() {
+    let vite_path = manifest_path.with_file_name("vite-manifest.json");
+    read_bundle_manifest_extended(&vite_path)
+      .or_else(|_| read_bundle_manifest_extended(&manifest_path))
+      .ok()
+  } else {
+    None
+  };
+
   let mut route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -76,6 +89,8 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
     &build_config.root_id,
     &build_config.data_id,
     build_config.i18n.as_ref(),
+    bundle_manifest.as_ref(),
+    skeleton_output.source_file_map.as_ref(),
   )?;
   if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
     export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;

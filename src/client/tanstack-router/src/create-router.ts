@@ -6,9 +6,9 @@ import {
   createRoute,
 } from "@tanstack/react-router";
 import type { AnyRoute } from "@tanstack/react-router";
-import type { ComponentType } from "react";
+import { createElement, type ComponentType } from "react";
 import { seamRpc } from "@canmi/seam-client";
-import type { RouteDef } from "@canmi/seam-react";
+import type { LazyComponentLoader, RouteDef } from "@canmi/seam-react";
 import { parseSeamData } from "@canmi/seam-react";
 import { SeamOutlet, createLayoutWrapper, createPageWrapper } from "./seam-outlet.js";
 import { convertPath } from "./convert-routes.js";
@@ -16,6 +16,14 @@ import { createLoaderFromDefs } from "./create-loader.js";
 import { matchSeamRoute } from "./route-matcher.js";
 import { SeamCoreBridge } from "./seam-core-bridge.js";
 import type { SeamRouteDef, SeamRouterOptions, SeamRouterContext, SeamI18nMeta } from "./types.js";
+
+/** Check if a component is a lazy loader (tagged by the bundler's page-split transform) */
+function isLazyLoader(c: unknown): c is LazyComponentLoader {
+  return typeof c === "function" && (c as Record<string, unknown>).__seamLazy === true;
+}
+
+/** Cache of resolved lazy components, keyed by route path */
+const lazyComponentCache = new Map<string, ComponentType>();
 
 /** Extract all leaf paths from a potentially nested route tree */
 function collectLeafPaths(defs: RouteDef[]): string[] {
@@ -54,7 +62,40 @@ function buildRoutes(
     }
 
     // Leaf node — page route, wrapped with SeamDataProvider for scoped useSeamData()
-    const pageComponent = pages?.[def.path] ?? (def.component as ComponentType);
+    const explicitPage = pages?.[def.path];
+
+    if (!explicitPage && isLazyLoader(def.component)) {
+      // Lazy component: resolve in loader (runs before render), cache for reuse
+      const lazyLoader = def.component;
+      const routePath = def.path;
+      const dataLoader = def.clientLoader
+        ? ({ params, context }: { params: Record<string, string>; context: unknown }) => {
+            const ctx = context as SeamRouterContext;
+            return def.clientLoader!({ params, seamRpc: ctx.seamRpc });
+          }
+        : createLoaderFromDefs(def.loaders ?? {}, def.path);
+
+      return createRoute({
+        getParentRoute: () => parent,
+        path: convertPath(def.path),
+        component: createPageWrapper(function LazyPage() {
+          const Resolved = lazyComponentCache.get(routePath);
+          if (!Resolved) return null;
+          return createElement(Resolved);
+        }),
+        loader: async (ctx: { params: Record<string, string>; context: unknown }) => {
+          // Resolve lazy component (cached after first load)
+          if (!lazyComponentCache.has(routePath)) {
+            const mod = await lazyLoader();
+            lazyComponentCache.set(routePath, (mod.default ?? mod) as ComponentType);
+          }
+          return dataLoader(ctx);
+        },
+        staleTime: def.staleTime,
+      });
+    }
+
+    const pageComponent = explicitPage ?? (def.component as ComponentType);
     return createRoute({
       getParentRoute: () => parent,
       path: convertPath(def.path),

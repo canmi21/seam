@@ -12,7 +12,7 @@ use super::super::route::{
   package_static_assets, print_asset_files, print_procedure_breakdown, process_routes,
   read_i18n_messages, run_skeleton_renderer, run_typecheck, validate_procedure_references,
 };
-use super::super::types::{AssetFiles, read_bundle_manifest};
+use super::super::types::{AssetFiles, read_bundle_manifest, read_bundle_manifest_extended};
 use super::helpers::{
   dispatch_extract_manifest, maybe_generate_rpc_hashes, print_cache_stats, run_bundler,
   vite_info_from_config,
@@ -81,6 +81,7 @@ pub(super) fn run_fullstack_build(
     String::new()
   };
   let dist_dir_str = build_config.dist_dir().to_string();
+  let routes_path_str = base_dir.join(&build_config.routes).to_string_lossy().to_string();
   let bundler_env: Vec<(&str, &str)> = vec![
     ("SEAM_OBFUSCATE", if build_config.obfuscate { "1" } else { "0" }),
     ("SEAM_SOURCEMAP", if build_config.sourcemap { "1" } else { "0" }),
@@ -88,6 +89,7 @@ pub(super) fn run_fullstack_build(
     ("SEAM_HASH_LENGTH", &hash_length_str),
     ("SEAM_RPC_MAP_PATH", &rpc_map_path_str),
     ("SEAM_DIST_DIR", &dist_dir_str),
+    ("SEAM_ROUTES_FILE", &routes_path_str),
   ];
   run_bundler(base_dir, &build_config.bundler_mode, &dist_dir_str, &bundler_env)?;
   let manifest_path = base_dir.join(&build_config.bundler_manifest);
@@ -130,6 +132,19 @@ pub(super) fn run_fullstack_build(
     Some(cfg) => Some(read_i18n_messages(base_dir, cfg)?),
     None => None,
   };
+
+  // When sourceFileMap is available, parse extended manifest for per-page splitting.
+  // Built-in bundler writes Vite-format manifest as sibling "vite-manifest.json";
+  // custom Vite users already have Vite-format at bundler_manifest path.
+  let bundle_manifest = if skeleton_output.source_file_map.is_some() {
+    let vite_path = manifest_path.with_file_name("vite-manifest.json");
+    read_bundle_manifest_extended(&vite_path)
+      .or_else(|_| read_bundle_manifest_extended(&manifest_path))
+      .ok()
+  } else {
+    None
+  };
+
   let mut route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -140,6 +155,8 @@ pub(super) fn run_fullstack_build(
     &build_config.root_id,
     &build_config.data_id,
     build_config.i18n.as_ref(),
+    bundle_manifest.as_ref(),
+    skeleton_output.source_file_map.as_ref(),
   )?;
   if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
     export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;
@@ -265,6 +282,7 @@ pub fn run_dev_build(
     Some(cfg) => Some(read_i18n_messages(base_dir, cfg)?),
     None => None,
   };
+  // Dev mode: no per-page splitting (no extended manifest)
   let mut route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -275,6 +293,8 @@ pub fn run_dev_build(
     &build_config.root_id,
     &build_config.data_id,
     build_config.i18n.as_ref(),
+    None,
+    None,
   )?;
   if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
     export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;

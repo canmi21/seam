@@ -1,8 +1,8 @@
 /* src/client/react/scripts/build-skeletons.mjs */
 
 import { build } from "esbuild";
-import { readFileSync, mkdirSync, unlinkSync } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { readFileSync, mkdirSync, unlinkSync, existsSync } from "node:fs";
+import { join, dirname, resolve, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { SeamBuildError } from "./skeleton/render.mjs";
@@ -35,6 +35,16 @@ function loadI18nConfig(i18nArg) {
     console.error(`warning: could not parse i18n config: ${e.message}`);
     return null;
   }
+}
+
+/** Resolve a source file path, probing for .tsx/.ts/.jsx/.js extensions */
+function resolveSourcePath(p) {
+  if (existsSync(p)) return p;
+  const base = p.replace(/\.[jt]sx?$/, "");
+  for (const ext of [".tsx", ".ts", ".jsx", ".js"]) {
+    if (existsSync(base + ext)) return base + ext;
+  }
+  return p;
 }
 
 async function main() {
@@ -126,12 +136,26 @@ async function main() {
       stats: { hits: 0, misses: 0 },
     };
 
+    // Build sourceFileMap: route path -> component source file (relative to cwd)
+    const sourceFileMap = {};
+    for (const route of flat) {
+      if (route.component?.name) {
+        const specifier = importMap.get(route.component.name);
+        if (specifier) {
+          const abs = resolve(routesDir, specifier);
+          const resolved = resolveSourcePath(abs);
+          sourceFileMap[route.path] = relative(process.cwd(), resolved);
+        }
+      }
+    }
+
     const layouts = await processLayoutsWithCache(layoutMap, ctx);
     const renderedRoutes = await processRoutesWithCache(flat, ctx);
 
     const output = {
       layouts,
       routes: renderedRoutes,
+      sourceFileMap,
       warnings: buildWarnings,
       cacheStats: ctx.stats,
     };

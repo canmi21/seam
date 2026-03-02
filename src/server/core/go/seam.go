@@ -114,6 +114,14 @@ type LayoutChainEntry struct {
 	LoaderKeys []string
 }
 
+// PageAssets holds per-page asset references resolved at build time.
+type PageAssets struct {
+	Styles   []string `json:"styles"`
+	Scripts  []string `json:"scripts"`
+	Preload  []string `json:"preload"`
+	Prefetch []string `json:"prefetch"`
+}
+
 // PageDef defines a server-rendered page with loaders that fetch data before injection.
 type PageDef struct {
 	Route           string
@@ -125,6 +133,7 @@ type PageDef struct {
 	PageLoaderKeys  []string           // data keys from page-level loaders (not layout)
 	I18nKeys        []string           // merged i18n keys from route + layout chain; empty means include all
 	HeadMeta        string             // head metadata HTML (injected at render time by engine)
+	Assets          *PageAssets        // per-page CSS/JS/preload/prefetch (nil when splitting is off)
 }
 
 // I18nConfig holds runtime i18n state loaded from build output.

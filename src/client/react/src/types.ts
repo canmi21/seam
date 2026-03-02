@@ -12,9 +12,15 @@ export interface LoaderDef {
   params?: Record<string, ParamMapping>;
 }
 
+/** Lazy component loader returned by dynamic import (per-page splitting) */
+export type LazyComponentLoader = () => Promise<{
+  default: ComponentType<Record<string, unknown>>;
+  [key: string]: unknown;
+}>;
+
 export interface RouteDef {
   path: string;
-  component?: ComponentType<Record<string, unknown>>;
+  component?: ComponentType<Record<string, unknown>> | LazyComponentLoader;
   layout?: ComponentType<{ children: ReactNode }>;
   children?: RouteDef[];
   loaders?: Record<string, LoaderDef>;

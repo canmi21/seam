@@ -103,6 +103,7 @@ fn make_skeleton(
         i18n_keys: None,
       })
       .collect(),
+    source_file_map: None,
     layouts: layouts
       .into_iter()
       .map(|(id, loaders)| SkeletonLayout {
@@ -198,6 +199,7 @@ fn head_meta_serialization_skips_none() {
     loaders: serde_json::Value::Null,
     head_meta: None,
     i18n_keys: None,
+    assets: None,
   };
   let json = serde_json::to_string(&entry).unwrap();
   assert!(!json.contains("head_meta"), "None head_meta should be skipped in JSON");
@@ -212,6 +214,7 @@ fn head_meta_serialization_includes_some() {
     loaders: serde_json::Value::Null,
     head_meta: Some("<title><!--seam:t--></title>".to_string()),
     i18n_keys: None,
+    assets: None,
   };
   let json = serde_json::to_string(&entry).unwrap();
   assert!(json.contains("head_meta"), "Some head_meta should be present in JSON");
