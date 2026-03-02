@@ -4,29 +4,49 @@ interface CompiledRoute {
   segments: RouteSegment[];
 }
 
-type RouteSegment = { kind: "static"; value: string } | { kind: "param"; name: string };
+type RouteSegment =
+  | { kind: "static"; value: string }
+  | { kind: "param"; name: string }
+  | { kind: "catch-all"; name: string; optional: boolean };
 
 function compileRoute(pattern: string): CompiledRoute {
   const segments: RouteSegment[] = pattern
     .split("/")
     .filter(Boolean)
-    .map((seg) =>
-      seg.startsWith(":") ? { kind: "param", name: seg.slice(1) } : { kind: "static", value: seg },
-    );
+    .map((seg) => {
+      if (seg.startsWith("*")) {
+        const optional = seg.endsWith("?");
+        const name = optional ? seg.slice(1, -1) : seg.slice(1);
+        return { kind: "catch-all" as const, name, optional };
+      }
+      if (seg.startsWith(":")) {
+        return { kind: "param" as const, name: seg.slice(1) };
+      }
+      return { kind: "static" as const, value: seg };
+    });
   return { segments };
 }
 
 function matchRoute(segments: RouteSegment[], pathParts: string[]): Record<string, string> | null {
-  if (segments.length !== pathParts.length) return null;
   const params: Record<string, string> = {};
   for (let i = 0; i < segments.length; i++) {
     const seg = segments[i];
+    if (seg.kind === "catch-all") {
+      // Catch-all must be the last segment
+      const rest = pathParts.slice(i);
+      if (rest.length === 0 && !seg.optional) return null;
+      params[seg.name] = rest.join("/");
+      return params;
+    }
+    if (i >= pathParts.length) return null;
     if (seg.kind === "static") {
       if (seg.value !== pathParts[i]) return null;
     } else {
       params[seg.name] = pathParts[i];
     }
   }
+  // All segments consumed — path must also be fully consumed
+  if (segments.length !== pathParts.length) return null;
   return params;
 }
 

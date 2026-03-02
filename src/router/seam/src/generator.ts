@@ -167,6 +167,7 @@ function renderRouteNode(
     const fields: string[] = [];
     fields.push(`${indent}  path: "/"`);
     fields.push(`${indent}  layout: ${layoutName}`);
+    fields.push(`${indent}  _layoutId: "_layout_g_${node.segment.name}"`);
 
     if (node.layoutDataFile) {
       const exports = detectNamedExports(node.layoutDataFile);
@@ -196,7 +197,11 @@ function renderRouteNode(
   const fields: string[] = [];
   fields.push(`${indent}  path: "${routePath || "/"}"`);
 
-  if (node.pageFile) {
+  // When a node has page + layout + children, separate the page into a
+  // child route so the skeleton system sees a clean layout boundary.
+  const splitPage = !!node.pageFile && !!node.layoutFile && node.children.length > 0;
+
+  if (node.pageFile && !splitPage) {
     fields.push(`${indent}  component: ${toImportName("Page", identity)}`);
   }
 
@@ -204,7 +209,7 @@ function renderRouteNode(
     fields.push(`${indent}  layout: ${toImportName("Layout", identity)}`);
   }
 
-  if (node.dataFile) {
+  if (node.dataFile && !splitPage) {
     const exports = detectNamedExports(node.dataFile);
     for (const exp of exports) {
       fields.push(`${indent}  ${exp}: ${toImportName("Page", identity)}_${exp}`);
@@ -224,7 +229,22 @@ function renderRouteNode(
     .filter(Boolean)
     .join(",\n");
 
-  if (childrenStr) {
+  if (splitPage) {
+    // Emit separated page component as first child
+    const ci = indent + "  ";
+    const pageFields: string[] = [];
+    pageFields.push(`${ci}  path: "/"`);
+    pageFields.push(`${ci}  component: ${toImportName("Page", identity)}`);
+    if (node.dataFile) {
+      const exports = detectNamedExports(node.dataFile);
+      for (const exp of exports) {
+        pageFields.push(`${ci}  ${exp}: ${toImportName("Page", identity)}_${exp}`);
+      }
+    }
+    const pageEntry = `${ci}{\n${pageFields.join(",\n")}\n${ci}}`;
+    const allChildren = childrenStr ? `${pageEntry},\n${childrenStr}` : pageEntry;
+    fields.push(`${indent}  children: [\n${allChildren}\n${indent}  ]`);
+  } else if (childrenStr) {
     fields.push(`${indent}  children: [\n${childrenStr}\n${indent}  ]`);
   }
 

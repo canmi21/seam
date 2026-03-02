@@ -191,7 +191,7 @@ function pageSplitPlugin({ absRoutesFile, pageComponents }) {
         // Match: import Name from "specifier"
         const defaultRe = new RegExp(`import\\s+${name}\\s+from\\s*['"]${escaped}['"]\\s*;?`);
 
-        const lazyDecl = `const ${name} = Object.assign(() => import("${specifier}").then(m => m.${name} || m.default), { __seamLazy: true })`;
+        const lazyDecl = `const ${name} = Object.assign(() => import("${specifier}").then(m => m.${name} || m.default), { __seamLazy: true });\n`;
 
         if (singleNamedRe.test(result)) {
           result = result.replace(singleNamedRe, lazyDecl);

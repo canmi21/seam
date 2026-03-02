@@ -103,13 +103,19 @@ pub(crate) fn process_routes(
 
   // Process layouts
   for layout in layouts {
+    let is_root = layout.parent.is_none();
     if let Some(ref locale_html) = layout.locale_html {
       // i18n ON: write per-locale templates
       let mut templates = BTreeMap::new();
       for (locale, html) in locale_html {
         let html = html.replace("<seam-outlet></seam-outlet>", "<!--seam:outlet-->");
         let html = sentinel_to_slots(&html);
-        let document = wrap_document(&html, &assets.css, &assets.js, dev_mode, vite, root_id);
+        // Only root layouts get full document wrapping; child layouts stay as fragments
+        let document = if is_root {
+          wrap_document(&html, &assets.css, &assets.js, dev_mode, vite, root_id)
+        } else {
+          html
+        };
         let locale_dir = templates_dir.join(locale);
         std::fs::create_dir_all(&locale_dir)
           .with_context(|| format!("failed to create {}", locale_dir.display()))?;
@@ -141,7 +147,12 @@ pub(crate) fn process_routes(
       // i18n OFF: single template (original behavior)
       let html = html.replace("<seam-outlet></seam-outlet>", "<!--seam:outlet-->");
       let html = sentinel_to_slots(&html);
-      let document = wrap_document(&html, &assets.css, &assets.js, dev_mode, vite, root_id);
+      // Only root layouts get full document wrapping; child layouts stay as fragments
+      let document = if is_root {
+        wrap_document(&html, &assets.css, &assets.js, dev_mode, vite, root_id)
+      } else {
+        html
+      };
       let filename = format!("{}.html", layout.id);
       let filepath = templates_dir.join(&filename);
       std::fs::write(&filepath, &document)

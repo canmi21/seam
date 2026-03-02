@@ -1,0 +1,15 @@
+[project]
+name = "fs-router-demo"
+
+[backend]
+lang = "typescript"
+dev_command = "bun --watch src/server/index.ts"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+backend_build_command = "bun build src/server/index.ts --target=bun --outdir=.seam/output/server"
+router_file = "src/server/router.ts"
+pages_dir = "src/pages"
+out_dir = ".seam/output"

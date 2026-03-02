@@ -19,18 +19,21 @@ function toLayoutId(path) {
     : `_layout_${path.replace(/^\/|\/$/g, "").replace(/\//g, "-")}`;
 }
 
-/** Extract layout components and metadata from route tree */
+/** Extract layout components and metadata from route tree.
+ *  When a node has both layout AND component, the loaders/mock belong to the
+ *  page (component), not the layout — emit the layout with empty loaders. */
 function extractLayouts(routes) {
   const seen = new Map();
   (function walk(defs, parentId) {
     for (const def of defs) {
       if (def.layout && def.children) {
-        const id = toLayoutId(def.path);
+        const id = def._layoutId || toLayoutId(def.path);
         if (!seen.has(id)) {
+          const isPageRoute = !!def.component;
           seen.set(id, {
             component: def.layout,
-            loaders: def.loaders || {},
-            mock: def.mock || null,
+            loaders: isPageRoute ? {} : def.loaders || {},
+            mock: isPageRoute ? null : def.mock || null,
             parentId: parentId || null,
           });
         }
@@ -90,15 +93,40 @@ function renderLayout(LayoutComponent, id, entry, manifest, i18nValue, ctx) {
   return html;
 }
 
-/** Flatten routes, annotating each leaf with its parent layout id */
-function flattenRoutes(routes, currentLayout) {
+/** Join parent path prefix with a child path segment.
+ *  Handles root ("/"), absolute child paths, and relative segments. */
+function joinPaths(parent, child) {
+  if (child === "/") return parent || "/";
+  if (!parent || parent === "/") return child;
+  return parent + child;
+}
+
+/** Flatten routes, annotating each leaf with its parent layout id.
+ *  Accumulates parent path segments so nested children get full paths
+ *  (e.g. /blog + /:slug -> /blog/:slug). When a node has both layout
+ *  and component, the component is emitted as a leaf route. */
+function flattenRoutes(routes, currentLayout, parentPath) {
   const leaves = [];
   for (const route of routes) {
+    const fullPath = parentPath !== null ? joinPaths(parentPath, route.path) : route.path;
+
     if (route.layout && route.children) {
-      leaves.push(...flattenRoutes(route.children, toLayoutId(route.path)));
+      const layoutId = route._layoutId || toLayoutId(route.path);
+      // Layout boundary with both component and layout: emit the page as a leaf
+      if (route.component) {
+        const leaf = { ...route, path: fullPath };
+        delete leaf.children;
+        delete leaf.layout;
+        leaf._layoutId = layoutId;
+        leaves.push(leaf);
+      }
+      leaves.push(...flattenRoutes(route.children, layoutId, fullPath));
     } else if (route.children) {
-      leaves.push(...flattenRoutes(route.children, currentLayout));
+      // Container without layout: flatten children with accumulated path
+      leaves.push(...flattenRoutes(route.children, currentLayout, fullPath));
     } else {
+      // Leaf route: assign full accumulated path
+      route.path = fullPath;
       if (currentLayout) route._layoutId = currentLayout;
       leaves.push(route);
     }

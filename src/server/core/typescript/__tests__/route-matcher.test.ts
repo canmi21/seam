@@ -70,4 +70,64 @@ describe("RouteMatcher", () => {
     const result = m.match("/");
     expect(result).toEqual({ value: "home", params: {}, pattern: "/" });
   });
+
+  it("matches catch-all with one segment", () => {
+    const m = new RouteMatcher<string>();
+    m.add("/docs/*path", "docs-page");
+
+    const result = m.match("/docs/guide");
+    expect(result).toEqual({
+      value: "docs-page",
+      params: { path: "guide" },
+      pattern: "/docs/*path",
+    });
+  });
+
+  it("matches catch-all with multiple segments", () => {
+    const m = new RouteMatcher<string>();
+    m.add("/docs/*path", "docs-page");
+
+    const result = m.match("/docs/guide/setup/advanced");
+    expect(result).toEqual({
+      value: "docs-page",
+      params: { path: "guide/setup/advanced" },
+      pattern: "/docs/*path",
+    });
+  });
+
+  it("catch-all requires at least one segment", () => {
+    const m = new RouteMatcher<string>();
+    m.add("/docs/*path", "docs-page");
+
+    expect(m.match("/docs")).toBeNull();
+  });
+
+  it("optional catch-all matches zero segments", () => {
+    const m = new RouteMatcher<string>();
+    m.add("/docs/*path?", "docs-page");
+
+    const result = m.match("/docs");
+    expect(result).toEqual({ value: "docs-page", params: { path: "" }, pattern: "/docs/*path?" });
+  });
+
+  it("optional catch-all matches multiple segments", () => {
+    const m = new RouteMatcher<string>();
+    m.add("/docs/*path?", "docs-page");
+
+    const result = m.match("/docs/getting-started/install");
+    expect(result).toEqual({
+      value: "docs-page",
+      params: { path: "getting-started/install" },
+      pattern: "/docs/*path?",
+    });
+  });
+
+  it("static routes take priority over catch-all", () => {
+    const m = new RouteMatcher<string>();
+    m.add("/about", "about-page");
+    m.add("/*path", "catch-all");
+
+    expect(m.match("/about")?.value).toBe("about-page");
+    expect(m.match("/other")?.value).toBe("catch-all");
+  });
 });
