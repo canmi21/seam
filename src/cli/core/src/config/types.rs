@@ -159,6 +159,7 @@ pub struct BuildSection {
   pub type_hint: Option<bool>,
   #[serde(default)]
   pub hash_length: Option<u32>,
+  pub pages_dir: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]

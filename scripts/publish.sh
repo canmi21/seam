@@ -439,6 +439,7 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
     "src/eslint:@canmi/eslint-plugin-seam"
     "src/i18n:@canmi/seam-i18n"
     "src/server/engine/js:@canmi/seam-engine"
+    "src/router/seam:@canmi/seam-router"
   )
   NPM_LAYER_2=(
     "src/server/core/typescript:@canmi/seam-server"
@@ -448,7 +449,7 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
     "src/server/adapter/hono:@canmi/seam-adapter-hono"
     "src/server/adapter/bun:@canmi/seam-adapter-bun"
     "src/server/adapter/node:@canmi/seam-adapter-node"
-    "src/client/tanstack-router:@canmi/seam-tanstack-router"
+    "src/router/tanstack:@canmi/seam-tanstack-router"
   )
   NPM_LAYER_4=(
     "src/cli/pkg:@canmi/seam-cli"

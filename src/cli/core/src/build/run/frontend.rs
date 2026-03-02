@@ -10,6 +10,7 @@ use super::super::route::{
   export_i18n, print_asset_files, process_routes, read_i18n_messages, run_skeleton_renderer,
 };
 use super::super::types::{read_bundle_manifest, read_bundle_manifest_extended};
+use super::helpers;
 use super::helpers::{print_cache_stats, run_bundler};
 use crate::shell::resolve_node_module;
 use crate::ui::{self, BRIGHT_CYAN, BRIGHT_GREEN, DIM, RESET, StepTracker, col};
@@ -17,7 +18,11 @@ use crate::ui::{self, BRIGHT_CYAN, BRIGHT_GREEN, DIM, RESET, StepTracker, col};
 // -- Step registry --
 
 fn frontend_steps(build_config: &BuildConfig) -> Vec<&'static str> {
-  let mut steps = vec!["Bundling frontend", "Rendering skeletons", "Processing routes"];
+  let mut steps = Vec::new();
+  if build_config.pages_dir.is_some() {
+    steps.push("Generating routes");
+  }
+  steps.extend(["Bundling frontend", "Rendering skeletons", "Processing routes"]);
   if build_config.i18n.is_some() {
     steps.push("Exporting i18n");
   }
@@ -32,6 +37,14 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
   ui::banner("build", None);
 
   let mut tracker = StepTracker::new(frontend_steps(build_config));
+
+  // -- Generating routes (conditional) --
+  if let Some(pages_dir) = &build_config.pages_dir {
+    let t = tracker.begin();
+    let output = base_dir.join(".seam/generated/routes.ts");
+    helpers::run_fs_router(base_dir, pages_dir, &output)?;
+    tracker.end(t);
+  }
 
   // -- Bundling frontend --
   let t = tracker.begin();

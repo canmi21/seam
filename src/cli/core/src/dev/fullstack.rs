@@ -177,6 +177,14 @@ pub(super) async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> R
     }
   }
 
+  if let Some(pages_dir) = &build_config.pages_dir {
+    let path = base_dir.join(pages_dir);
+    if path.exists() {
+      _watcher.watch(&path, RecursiveMode::Recursive)?;
+      watched_dirs.push(format!("{pages_dir}/"));
+    }
+  }
+
   let port = find_available_port(config.dev.port)?;
   let vite_port = config.dev.vite_port;
 

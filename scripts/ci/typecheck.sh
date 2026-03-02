@@ -13,7 +13,8 @@ packages=(
   src/server/adapter/node
   src/client/vanilla
   src/client/react
-  src/client/tanstack-router
+  src/router/tanstack
+  src/router/seam
   src/cli/pkg
   src/cli/vite
   src/eslint

@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
 
 use super::super::config::{BuildConfig, BundlerMode};
 use super::super::route::CacheStats;
@@ -110,4 +110,38 @@ pub(super) fn print_cache_stats(cache: &Option<CacheStats>) {
       ui::col(ui::RESET)
     ));
   }
+}
+
+/// Shell out to @canmi/seam-router to generate routes from pages directory
+pub(super) fn run_fs_router(base_dir: &Path, pages_dir: &str, output_path: &Path) -> Result<()> {
+  let script = crate::shell::resolve_node_module(base_dir, "@canmi/seam-router/dist/cli.js")
+    .ok_or_else(|| anyhow::anyhow!("@canmi/seam-router not found -- install it"))?;
+
+  let runtime = if which_exists("bun") { "bun" } else { "node" };
+
+  let pages_abs = base_dir.join(pages_dir);
+  let output_abs =
+    if output_path.is_absolute() { output_path.to_path_buf() } else { base_dir.join(output_path) };
+
+  let status = std::process::Command::new(runtime)
+    .arg(script.to_string_lossy().as_ref())
+    .arg(pages_abs.to_string_lossy().as_ref())
+    .arg(output_abs.to_string_lossy().as_ref())
+    .current_dir(base_dir)
+    .status()
+    .with_context(|| format!("failed to run {runtime} for fs router generation"))?;
+
+  if !status.success() {
+    bail!("fs router generation failed (exit code: {})", status.code().unwrap_or(-1));
+  }
+  Ok(())
+}
+
+fn which_exists(name: &str) -> bool {
+  std::process::Command::new("which")
+    .arg(name)
+    .stdout(std::process::Stdio::null())
+    .stderr(std::process::Stdio::null())
+    .status()
+    .is_ok_and(|s| s.success())
 }

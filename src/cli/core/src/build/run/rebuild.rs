@@ -11,6 +11,7 @@ use super::super::route::{
   validate_procedure_references,
 };
 use super::super::types::{AssetFiles, read_bundle_manifest};
+use super::helpers;
 use super::helpers::{
   RebuildMode, dispatch_extract_manifest, maybe_generate_rpc_hashes, print_cache_stats,
   run_bundler, vite_info_from_config,
@@ -30,6 +31,12 @@ pub fn run_incremental_rebuild(
   let out_dir = base_dir.join(&build_config.out_dir);
   let vite = vite_info_from_config(config);
   let is_vite = vite.is_some();
+
+  // Regenerate routes from pages dir when configured
+  if let Some(pages_dir) = &build_config.pages_dir {
+    let output = base_dir.join(".seam/generated/routes.ts");
+    helpers::run_fs_router(base_dir, pages_dir, &output)?;
+  }
 
   // Full mode reruns manifest extraction + codegen before frontend steps
   if matches!(mode, RebuildMode::Full) {

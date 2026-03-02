@@ -9,7 +9,8 @@
     { "path": "src/server/adapter/node" },
     { "path": "src/client/vanilla" },
     { "path": "src/client/react" },
-    { "path": "src/client/tanstack-router" },
+    { "path": "src/router/tanstack" },
+    { "path": "src/router/seam" },
     { "path": "src/eslint" },
     { "path": "src/i18n" },
     { "path": "src/cli/vite" }

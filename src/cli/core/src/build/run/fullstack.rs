@@ -13,6 +13,7 @@ use super::super::route::{
   read_i18n_messages, run_skeleton_renderer, run_typecheck, validate_procedure_references,
 };
 use super::super::types::{AssetFiles, read_bundle_manifest, read_bundle_manifest_extended};
+use super::helpers;
 use super::helpers::{
   dispatch_extract_manifest, maybe_generate_rpc_hashes, print_cache_stats, run_bundler,
   vite_info_from_config,
@@ -25,7 +26,11 @@ use crate::ui::{self, BRIGHT_CYAN, BRIGHT_GREEN, DIM, RESET, StepTracker, col};
 // -- Step registry --
 
 fn fullstack_steps(build_config: &BuildConfig) -> Vec<&'static str> {
-  let mut steps = vec!["Compiling backend", "Extracting procedure manifest"];
+  let mut steps = Vec::new();
+  if build_config.pages_dir.is_some() {
+    steps.push("Generating routes");
+  }
+  steps.extend(["Compiling backend", "Extracting procedure manifest"]);
   if build_config.obfuscate {
     steps.push("Generating RPC hash map");
   }
@@ -44,7 +49,11 @@ fn fullstack_steps(build_config: &BuildConfig) -> Vec<&'static str> {
 }
 
 fn dev_steps(build_config: &BuildConfig, is_vite: bool) -> Vec<&'static str> {
-  let mut steps = vec!["Extracting procedure manifest"];
+  let mut steps = Vec::new();
+  if build_config.pages_dir.is_some() {
+    steps.push("Generating routes");
+  }
+  steps.push("Extracting procedure manifest");
   if build_config.obfuscate {
     steps.push("Generating RPC hash map");
   }
@@ -78,6 +87,14 @@ pub(super) fn run_fullstack_build(
   ui::banner("build", Some(&config.project.name));
 
   let mut tracker = StepTracker::new(fullstack_steps(build_config));
+
+  // -- Generating routes (conditional) --
+  if let Some(pages_dir) = &build_config.pages_dir {
+    let t = tracker.begin();
+    let output = base_dir.join(".seam/generated/routes.ts");
+    helpers::run_fs_router(base_dir, pages_dir, &output)?;
+    tracker.end(t);
+  }
 
   // -- Compiling backend --
   let t = tracker.begin();
@@ -253,6 +270,14 @@ pub fn run_dev_build(
   ui::banner("dev build", Some(&config.project.name));
 
   let mut tracker = StepTracker::new(dev_steps(build_config, is_vite));
+
+  // -- Generating routes (conditional) --
+  if let Some(pages_dir) = &build_config.pages_dir {
+    let t = tracker.begin();
+    let output = base_dir.join(".seam/generated/routes.ts");
+    helpers::run_fs_router(base_dir, pages_dir, &output)?;
+    tracker.end(t);
+  }
 
   // -- Extracting procedure manifest --
   let t = tracker.begin();

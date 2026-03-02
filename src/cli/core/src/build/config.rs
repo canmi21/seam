@@ -29,6 +29,7 @@ pub struct BuildConfig {
   pub rpc_salt: Option<String>,
   pub root_id: String,
   pub data_id: String,
+  pub pages_dir: Option<String>,
   pub i18n: Option<I18nSection>,
 }
 
@@ -36,9 +37,12 @@ impl BuildConfig {
   pub fn from_seam_config(config: &SeamConfig) -> Result<Self> {
     let build = &config.build;
 
-    let routes = match &build.routes {
-      Some(r) => r.clone(),
-      None => bail!("build.routes is required in seam.toml"),
+    let pages_dir = build.pages_dir.clone();
+    let routes = match (&build.routes, &pages_dir) {
+      (Some(_), Some(_)) => bail!("build.routes and build.pages_dir are mutually exclusive"),
+      (Some(r), None) => r.clone(),
+      (None, Some(_)) => ".seam/generated/routes.ts".to_string(),
+      (None, None) => bail!("either build.routes or build.pages_dir is required in seam.toml"),
     };
 
     let out_dir = build
@@ -103,6 +107,7 @@ impl BuildConfig {
       rpc_salt: None,
       root_id,
       data_id,
+      pages_dir,
       i18n,
     })
   }
@@ -474,6 +479,70 @@ hash_length = 65
     let result = BuildConfig::from_seam_config(&config);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("hash_length"));
+  }
+
+  #[test]
+  fn pages_dir_without_routes() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+pages_dir = "src/pages"
+out_dir = ".seam/output"
+backend_build_command = "bun build"
+router_file = "src/server/router.ts"
+"#,
+    );
+    let bc = BuildConfig::from_seam_config(&config).unwrap();
+    assert_eq!(bc.routes, ".seam/generated/routes.ts");
+    assert_eq!(bc.pages_dir.as_deref(), Some("src/pages"));
+  }
+
+  #[test]
+  fn pages_dir_with_routes_errors() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+routes = "./src/routes.ts"
+pages_dir = "src/pages"
+out_dir = ".seam/output"
+"#,
+    );
+    let result = BuildConfig::from_seam_config(&config);
+    assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("mutually exclusive"));
+  }
+
+  #[test]
+  fn no_routes_no_pages_dir_errors() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+out_dir = ".seam/output"
+"#,
+    );
+    let result = BuildConfig::from_seam_config(&config);
+    assert!(result.is_err());
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("build.routes") || msg.contains("build.pages_dir"));
   }
 
   #[test]
