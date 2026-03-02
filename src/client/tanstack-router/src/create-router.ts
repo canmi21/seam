@@ -19,7 +19,7 @@ import type { SeamRouteDef, SeamRouterOptions, SeamRouterContext, SeamI18nMeta }
 
 /** Check if a component is a lazy loader (tagged by the bundler's page-split transform) */
 function isLazyLoader(c: unknown): c is LazyComponentLoader {
-  return typeof c === "function" && (c as Record<string, unknown>).__seamLazy === true;
+  return typeof c === "function" && (c as unknown as Record<string, unknown>).__seamLazy === true;
 }
 
 /** Cache of resolved lazy components, keyed by route path */
@@ -69,10 +69,8 @@ function buildRoutes(
       const lazyLoader = def.component;
       const routePath = def.path;
       const dataLoader = def.clientLoader
-        ? ({ params, context }: { params: Record<string, string>; context: unknown }) => {
-            const ctx = context as SeamRouterContext;
-            return def.clientLoader!({ params, seamRpc: ctx.seamRpc });
-          }
+        ? (ctx: { params: Record<string, string>; context: SeamRouterContext }) =>
+            def.clientLoader!({ params: ctx.params, seamRpc: ctx.context.seamRpc })
         : createLoaderFromDefs(def.loaders ?? {}, def.path);
 
       return createRoute({
@@ -83,7 +81,7 @@ function buildRoutes(
           if (!Resolved) return null;
           return createElement(Resolved);
         }),
-        loader: async (ctx: { params: Record<string, string>; context: unknown }) => {
+        loader: async (ctx: { params: Record<string, string>; context: SeamRouterContext }) => {
           // Resolve lazy component (cached after first load)
           if (!lazyComponentCache.has(routePath)) {
             const mod = await lazyLoader();
