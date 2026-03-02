@@ -145,11 +145,18 @@ pub(super) fn run_fullstack_build(
     None
   };
 
+  // When splitting is active: template gets only main entry assets,
+  // packaging gets all assets (including shared chunks and page entries).
+  let (template_assets, package_assets) = match &bundle_manifest {
+    Some(bm) => (&bm.template, &bm.global),
+    None => (&assets, &assets),
+  };
+
   let mut route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
     &templates_dir,
-    &assets,
+    template_assets,
     false,
     None,
     &build_config.root_id,
@@ -173,14 +180,14 @@ pub(super) fn run_fullstack_build(
   // [7] Package output
   step_num += 1;
   ui::step(step_num, total, "Packaging output");
-  package_static_assets(base_dir, &assets, &out_dir, build_config.dist_dir())?;
+  package_static_assets(base_dir, package_assets, &out_dir, build_config.dist_dir())?;
   ui::blank();
 
   // Summary
   let elapsed = started.elapsed().as_secs_f64();
   let proc_count = manifest.procedures.len();
   let template_count = skeleton_output.routes.len();
-  let asset_count = assets.js.len() + assets.css.len();
+  let asset_count = package_assets.js.len() + package_assets.css.len();
   ui::ok(&format!("build complete in {elapsed:.1}s"));
   ui::detail(&format!(
     "{proc_count} procedures \u{00b7} {template_count} templates \u{00b7} {asset_count} assets \u{00b7} {}",

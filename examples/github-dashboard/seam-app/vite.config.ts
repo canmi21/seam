@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { watchReloadTrigger } from "@canmi/seam-server";
+import { seamPageSplit } from "@canmi/seam-vite";
 
 const obfuscate = process.env.SEAM_OBFUSCATE === "1";
 const typeHint = process.env.SEAM_TYPE_HINT !== "0";
@@ -48,7 +49,7 @@ function seamReloadPlugin(outDir = ".seam/dev-output"): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), seamRpcPlugin(), seamReloadPlugin()],
+  plugins: [react(), seamPageSplit(), seamRpcPlugin(), seamReloadPlugin()],
   appType: "custom",
   server: {
     origin: "http://localhost:5173",

@@ -88,6 +88,7 @@
       },
       "devDependencies": {
         "@canmi/seam-cli": "workspace:*",
+        "@canmi/seam-vite": "workspace:*",
         "@tailwindcss/postcss": "^4.2.1",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
@@ -195,6 +196,20 @@
         "@canmi/seam-cli-darwin-x64": "0.4.14",
         "@canmi/seam-cli-linux-arm64": "0.4.14",
         "@canmi/seam-cli-linux-x64": "0.4.14",
+      },
+    },
+    "src/cli/vite": {
+      "name": "@canmi/seam-vite",
+      "version": "0.4.14",
+      "devDependencies": {
+        "@types/node": "^25.3.3",
+        "tsdown": "^0.20.3",
+        "typescript": "^5.9.3",
+        "vite": "^7.0.3",
+        "vitest": "^4.0.18",
+      },
+      "peerDependencies": {
+        "vite": ">=5",
       },
     },
     "src/client/react": {
@@ -479,6 +494,8 @@
     "@canmi/seam-server": ["@canmi/seam-server@workspace:src/server/core/typescript"],
 
     "@canmi/seam-tanstack-router": ["@canmi/seam-tanstack-router@workspace:src/client/tanstack-router"],
+
+    "@canmi/seam-vite": ["@canmi/seam-vite@workspace:src/cli/vite"],
 
     "@csstools/color-helpers": ["@csstools/color-helpers@6.0.1", "", {}, "sha512-NmXRccUJMk2AWA5A7e5a//3bCIMyOu2hAtdRYrhPPHjDxINuCwX1w6rnIZ4xjLcp0ayv6h8Pc3X0eJUGiAAXHQ=="],
 

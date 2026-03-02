@@ -14,6 +14,7 @@ packages=(
   src/client/vanilla
   src/client/react
   src/client/tanstack-router
+  src/cli/vite
   src/eslint
   src/i18n
 )

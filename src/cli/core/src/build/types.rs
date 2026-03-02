@@ -57,11 +57,12 @@ pub struct EntryAssets {
 /// Extended bundle manifest with per-entry asset tracking.
 #[derive(Debug, Clone)]
 pub struct BundleManifest {
-  /// Backward-compatible global union of all assets
-  #[allow(dead_code)] // available for fallback when per-entry lookup misses
+  /// Union of all JS and CSS across every entry (for packaging/copying)
   pub global: AssetFiles,
   /// Per-entry assets keyed by Vite source path
   pub entries: BTreeMap<String, EntryAssets>,
+  /// Main entry assets only — non-dynamic entries (for template generation)
+  pub template: AssetFiles,
 }
 
 pub use seam_skeleton::ViteDevInfo;
@@ -103,6 +104,9 @@ pub fn read_bundle_manifest_extended(path: &Path) -> Result<BundleManifest> {
   let mut entries = BTreeMap::new();
   let mut all_js = HashSet::new();
   let mut all_css = HashSet::new();
+  // Template assets: only main (non-dynamic) entries
+  let mut tmpl_js = Vec::new();
+  let mut tmpl_css = HashSet::new();
 
   for (key, entry) in &vite {
     if !entry.is_entry && !entry.is_dynamic_entry {
@@ -125,7 +129,7 @@ pub fn read_bundle_manifest_extended(path: &Path) -> Result<BundleManifest> {
 
     let scripts = vec![entry.file.clone()];
 
-    // Track globally
+    // Track globally (all assets for packaging)
     all_js.insert(entry.file.clone());
     for p in &preload {
       all_js.insert(p.clone());
@@ -134,12 +138,19 @@ pub fn read_bundle_manifest_extended(path: &Path) -> Result<BundleManifest> {
       all_css.insert(s.clone());
     }
 
+    // Template: only non-dynamic entries go into the global template
+    if entry.is_entry && !entry.is_dynamic_entry {
+      tmpl_js.push(entry.file.clone());
+      tmpl_css.extend(entry.css.iter().cloned());
+    }
+
     entries.insert(key.clone(), EntryAssets { scripts, styles, preload });
   }
 
   let global = AssetFiles { js: sorted_vec(all_js), css: sorted_vec(all_css) };
+  let template = AssetFiles { js: tmpl_js, css: sorted_vec(tmpl_css) };
 
-  Ok(BundleManifest { global, entries })
+  Ok(BundleManifest { global, entries, template })
 }
 
 /// Recursively walk the `imports` chain to collect transitive CSS and shared chunks.
@@ -201,6 +212,10 @@ mod tests {
     assert_eq!(entry.scripts, vec!["assets/main-abc.js"]);
     assert_eq!(entry.styles, vec!["assets/main-abc.css"]);
     assert!(entry.preload.is_empty());
+
+    // Template: non-dynamic entry only
+    assert_eq!(result.template.js, vec!["assets/main-abc.js"]);
+    assert_eq!(result.template.css, vec!["assets/main-abc.css"]);
   }
 
   #[test]
@@ -246,6 +261,10 @@ mod tests {
     assert!(result.global.js.contains(&"assets/main-abc.js".to_string()));
     assert!(result.global.js.contains(&"assets/home-def.js".to_string()));
     assert!(result.global.js.contains(&"assets/shared-xyz.js".to_string()));
+
+    // Template: only main entry (non-dynamic), excludes home page entry
+    assert_eq!(result.template.js, vec!["assets/main-abc.js"]);
+    assert_eq!(result.template.css, vec!["assets/main-abc.css"]);
   }
 
   #[test]
@@ -265,5 +284,9 @@ mod tests {
     assert_eq!(entry.scripts, vec!["assets/main.js"]);
     assert!(entry.styles.is_empty());
     assert!(entry.preload.is_empty());
+
+    // Template matches single entry
+    assert_eq!(result.template.js, vec!["assets/main.js"]);
+    assert!(result.template.css.is_empty());
   }
 }

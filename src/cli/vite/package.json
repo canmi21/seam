@@ -1,0 +1,30 @@
+{
+  "name": "@canmi/seam-vite",
+  "version": "0.4.14",
+  "license": "MIT",
+  "description": "Vite plugin for SeamJS per-page code splitting",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.3",
+    "tsdown": "^0.20.3",
+    "typescript": "^5.9.3",
+    "vite": "^7.0.3",
+    "vitest": "^4.0.18"
+  },
+  "peerDependencies": {
+    "vite": ">=5"
+  }
+}

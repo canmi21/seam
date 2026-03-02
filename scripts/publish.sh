@@ -390,6 +390,7 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
   )
   NPM_LAYER_1=(
     "src/client/vanilla:@canmi/seam-client"
+    "src/cli/vite:@canmi/seam-vite"
     "src/eslint:@canmi/eslint-plugin-seam"
     "src/i18n:@canmi/seam-i18n"
     "src/server/engine/js:@canmi/seam-engine"

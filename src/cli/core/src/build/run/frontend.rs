@@ -79,11 +79,17 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
     None
   };
 
+  // When splitting is active, template gets only main entry assets
+  let template_assets = match &bundle_manifest {
+    Some(bm) => &bm.template,
+    None => &assets,
+  };
+
   let mut route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
     &templates_dir,
-    &assets,
+    template_assets,
     false,
     None,
     &build_config.root_id,

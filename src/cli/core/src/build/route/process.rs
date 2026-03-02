@@ -314,16 +314,23 @@ fn compute_route_assets(
   let source_key = sfm.get(route_path)?;
   let entry = bm.entries.get(source_key)?;
 
-  // Collect all assets from other entries for prefetch
-  let mut my_assets: std::collections::HashSet<&str> = std::collections::HashSet::new();
+  // Exclude current route's own assets + globally-loaded template assets from prefetch
+  let mut exclude: std::collections::HashSet<&str> = std::collections::HashSet::new();
   for s in &entry.scripts {
-    my_assets.insert(s);
+    exclude.insert(s);
   }
   for s in &entry.styles {
-    my_assets.insert(s);
+    exclude.insert(s);
   }
   for s in &entry.preload {
-    my_assets.insert(s);
+    exclude.insert(s);
+  }
+  // Template assets are already in every layout HTML via wrap_document
+  for s in &bm.template.js {
+    exclude.insert(s);
+  }
+  for s in &bm.template.css {
+    exclude.insert(s);
   }
 
   let mut prefetch = Vec::new();
@@ -332,12 +339,12 @@ fn compute_route_assets(
       continue;
     }
     for s in &other_entry.scripts {
-      if !my_assets.contains(s.as_str()) && !prefetch.contains(s) {
+      if !exclude.contains(s.as_str()) && !prefetch.contains(s) {
         prefetch.push(s.clone());
       }
     }
     for s in &other_entry.styles {
-      if !my_assets.contains(s.as_str()) && !prefetch.contains(s) {
+      if !exclude.contains(s.as_str()) && !prefetch.contains(s) {
         prefetch.push(s.clone());
       }
     }
