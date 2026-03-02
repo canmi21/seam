@@ -114,7 +114,7 @@ export async function handlePageRequest(
     }
 
     // Build PageConfig for engine
-    const config = {
+    const config: Record<string, unknown> = {
       layout_chain: layoutChain.map((l) => ({
         id: l.id,
         loader_keys: Object.keys(l.loaders),
@@ -122,6 +122,9 @@ export async function handlePageRequest(
       data_id: page.dataId ?? "__data",
       head_meta: page.headMeta,
     };
+    if (page.pageAssets) {
+      config.page_assets = page.pageAssets;
+    }
 
     // Build I18nOpts for engine (hash-based lookup — zero merge, zero filter)
     let i18nOptsJson: string | undefined;

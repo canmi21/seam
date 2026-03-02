@@ -149,6 +149,9 @@ pub fn wrap_document(
     for f in css_files {
       doc.push_str(&format!(r#"<link rel="stylesheet" href="/_seam/static/{f}">"#));
     }
+    // Per-page asset slots (replaced at runtime by engine when page_assets is present)
+    doc.push_str("<!--seam:page-styles-->");
+    doc.push_str("<!--seam:prefetch-->");
   }
   let (head_meta, body_skeleton) = extract_head_metadata(skeleton);
   if !head_meta.is_empty() {
@@ -161,6 +164,7 @@ pub fn wrap_document(
     for f in js_files {
       doc.push_str(&format!(r#"<script type="module" src="/_seam/static/{f}"></script>"#));
     }
+    doc.push_str("<!--seam:page-scripts-->");
   }
   if dev_mode && vite.is_none() {
     doc.push_str(LIVE_RELOAD_SCRIPT);
@@ -188,9 +192,11 @@ mod tests {
       concat!(
         "<!DOCTYPE html><html><head><meta charset=\"utf-8\">",
         "<link rel=\"stylesheet\" href=\"/_seam/static/style-abc.css\">",
+        "<!--seam:page-styles--><!--seam:prefetch-->",
         "</head><body>",
         "<div id=\"__seam\"><p>Hello</p></div>",
         "<script type=\"module\" src=\"/_seam/static/main-xyz.js\"></script>",
+        "<!--seam:page-scripts-->",
         "</body></html>"
       )
     );
@@ -203,8 +209,10 @@ mod tests {
       result,
       concat!(
         "<!DOCTYPE html><html><head><meta charset=\"utf-8\">",
+        "<!--seam:page-styles--><!--seam:prefetch-->",
         "</head><body>",
         "<div id=\"__seam\"><p>Hi</p></div>",
+        "<!--seam:page-scripts-->",
         "</body></html>"
       )
     );
@@ -250,8 +258,10 @@ mod tests {
     assert!(result.contains("/_seam/dev/ws"));
     let script_pos = result.find("WebSocket").unwrap();
     let module_pos = result.find("app.js").unwrap();
+    let page_scripts_pos = result.find("<!--seam:page-scripts-->").unwrap();
     let body_end = result.find("</body>").unwrap();
-    assert!(script_pos > module_pos);
+    assert!(module_pos < page_scripts_pos);
+    assert!(script_pos > page_scripts_pos);
     assert!(script_pos < body_end);
   }
 
@@ -305,6 +315,33 @@ mod tests {
   fn no_metadata_passes_through() {
     let result = wrap_document("<div><p>Hello</p></div>", &[], &[], false, None, "__seam");
     assert!(result.contains("<div id=\"__seam\"><div><p>Hello</p></div></div>"));
+  }
+
+  #[test]
+  fn slot_markers_present_in_production() {
+    let result =
+      wrap_document("<p>test</p>", &["a.css".into()], &["a.js".into()], false, None, "__seam");
+    assert!(result.contains("<!--seam:page-styles-->"));
+    assert!(result.contains("<!--seam:prefetch-->"));
+    assert!(result.contains("<!--seam:page-scripts-->"));
+    // Verify ordering: page-styles before </head>, page-scripts before </body>
+    let head_end = result.find("</head>").unwrap();
+    let page_styles = result.find("<!--seam:page-styles-->").unwrap();
+    let page_scripts = result.find("<!--seam:page-scripts-->").unwrap();
+    assert!(page_styles < head_end);
+    assert!(page_scripts > head_end);
+  }
+
+  #[test]
+  fn slot_markers_absent_in_vite_mode() {
+    let vite = ViteDevInfo {
+      origin: "http://localhost:5173".to_string(),
+      entry: "src/main.tsx".to_string(),
+    };
+    let result = wrap_document("<p>test</p>", &[], &[], false, Some(&vite), "__seam");
+    assert!(!result.contains("<!--seam:page-styles-->"));
+    assert!(!result.contains("<!--seam:prefetch-->"));
+    assert!(!result.contains("<!--seam:page-scripts-->"));
   }
 
   #[test]

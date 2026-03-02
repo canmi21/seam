@@ -44,6 +44,7 @@ type routeEntry struct {
 	Loaders   json.RawMessage   `json:"loaders"`
 	HeadMeta  string            `json:"head_meta"`
 	I18nKeys  []string          `json:"i18n_keys"`
+	Assets    *PageAssets       `json:"assets"`
 }
 
 // pickTemplate returns the template path: prefer singular "template",
@@ -318,6 +319,7 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 			PageLoaderKeys:  pageLoaderKeys,
 			I18nKeys:        i18nKeys,
 			HeadMeta:        entry.HeadMeta,
+			Assets:          entry.Assets,
 		})
 	}
 

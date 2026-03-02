@@ -92,6 +92,7 @@ pub fn run_incremental_rebuild(
     Some(cfg) => Some(read_i18n_messages(base_dir, cfg)?),
     None => None,
   };
+  // Rebuild path: no per-page splitting (dev mode)
   let mut route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
@@ -102,6 +103,8 @@ pub fn run_incremental_rebuild(
     &build_config.root_id,
     &build_config.data_id,
     build_config.i18n.as_ref(),
+    None,
+    None,
   )?;
   if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
     export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;

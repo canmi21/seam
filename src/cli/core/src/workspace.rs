@@ -241,6 +241,8 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
     &first.build_config.root_id,
     &first.build_config.data_id,
     first.build_config.i18n.as_ref(),
+    None,
+    None,
   )?;
 
   // Write route-manifest.json
