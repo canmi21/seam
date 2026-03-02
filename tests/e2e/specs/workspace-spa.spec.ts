@@ -19,7 +19,8 @@ test.describe("workspace SPA navigation", () => {
     await page.click('button[type="submit"]');
     await page.waitForURL("**/dashboard/octocat", { timeout: 15_000 });
 
-    await expect(page.locator("h2")).toContainText("Top Repositories");
+    // Lazy-loaded page component (per-page splitting) may need extra time to render
+    await expect(page.locator("h2")).toContainText("Top Repositories", { timeout: 10_000 });
 
     const markerSurvived = await page.evaluate(
       () => (window as unknown as Record<string, unknown>).__SPA_MARKER === true,
@@ -40,7 +41,7 @@ test.describe("workspace SPA navigation", () => {
     await page.click('a[href="/"]');
     await page.waitForURL("**/");
 
-    await expect(page.locator("h1")).toContainText("GitHub Dashboard");
+    await expect(page.locator("h1")).toContainText("GitHub Dashboard", { timeout: 10_000 });
 
     const markerSurvived = await page.evaluate(
       () => (window as unknown as Record<string, unknown>).__SPA_MARKER === true,
