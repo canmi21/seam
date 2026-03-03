@@ -1,4 +1,5 @@
 /* src/cli/core/src/main.rs */
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 mod build;
 mod clean;

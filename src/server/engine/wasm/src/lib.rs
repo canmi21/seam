@@ -1,4 +1,5 @@
 /* src/server/engine/wasm/src/lib.rs */
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 use serde_json::Value;
 use wasm_bindgen::prelude::*;
@@ -20,7 +21,7 @@ pub fn render_page(
 pub fn parse_build_output(manifest_json: &str) -> String {
   match seam_engine::parse_build_output(manifest_json) {
     Ok(pages) => serde_json::to_string(&pages).unwrap_or_else(|_| "[]".to_string()),
-    Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+    Err(e) => format!(r#"{{"error":"{e}"}}"#),
   }
 }
 
@@ -36,7 +37,7 @@ pub fn parse_i18n_config(manifest_json: &str) -> String {
 pub fn parse_rpc_hash_map(hash_map_json: &str) -> String {
   match seam_engine::parse_rpc_hash_map(hash_map_json) {
     Ok(result) => serde_json::to_string(&result).unwrap_or_else(|_| "null".to_string()),
-    Err(e) => format!(r#"{{"error":"{}"}}"#, e),
+    Err(e) => format!(r#"{{"error":"{e}"}}"#),
   }
 }
 

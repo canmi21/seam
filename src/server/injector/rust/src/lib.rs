@@ -1,4 +1,5 @@
 /* src/server/injector/rust/src/lib.rs */
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 mod ast;
 mod helpers;
@@ -19,7 +20,7 @@ use std::borrow::Cow;
 pub fn inject(template: &str, data: &Value, data_id: &str) -> String {
   let mut result = inject_no_script(template, data);
 
-  let script = format!(r#"<script id="{data_id}" type="application/json">{}</script>"#, data);
+  let script = format!(r#"<script id="{data_id}" type="application/json">{data}</script>"#);
   if let Some(pos) = result.rfind("</body>") {
     result.insert_str(pos, &script);
   } else {

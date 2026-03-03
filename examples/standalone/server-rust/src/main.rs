@@ -1,4 +1,5 @@
 /* examples/standalone/server-rust/src/main.rs */
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 mod pages;
 mod procedures;

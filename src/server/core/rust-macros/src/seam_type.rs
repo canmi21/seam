@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Type};
 
-pub fn expand(input: DeriveInput) -> syn::Result<TokenStream> {
+pub fn expand(input: &DeriveInput) -> syn::Result<TokenStream> {
   let name = &input.ident;
   let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
@@ -65,18 +65,15 @@ fn has_seam_optional(field: &syn::Field) -> bool {
 }
 
 fn expand_struct(fields: &Fields) -> syn::Result<TokenStream> {
-  let named = match fields {
-    Fields::Named(f) => f,
-    _ => {
-      return Err(syn::Error::new_spanned(fields, "SeamType requires named fields"));
-    }
+  let Fields::Named(named) = fields else {
+    return Err(syn::Error::new_spanned(fields, "SeamType requires named fields"));
   };
 
   let mut required_inserts = Vec::new();
   let mut optional_inserts = Vec::new();
 
   for field in &named.named {
-    let field_name = field.ident.as_ref().unwrap();
+    let field_name = field.ident.as_ref().expect("named field has identifier");
     let key = field_name.to_string();
     let ty = &field.ty;
     let is_optional = has_seam_optional(field);

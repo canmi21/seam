@@ -1,4 +1,5 @@
 /* examples/github-dashboard/backends/rust-axum/src/main.rs */
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 mod procedures;
 

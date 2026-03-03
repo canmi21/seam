@@ -70,7 +70,7 @@ impl BuildConfig {
 
     let renderer = build.renderer.clone().unwrap_or_else(|| "react".to_string());
     if renderer != "react" {
-      bail!("unsupported renderer '{}' (only 'react' is currently supported)", renderer);
+      bail!("unsupported renderer '{renderer}' (only 'react' is currently supported)");
     }
     let backend_build_command = build.backend_build_command.clone();
     let router_file = build.router_file.clone();

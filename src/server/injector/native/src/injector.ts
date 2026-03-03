@@ -17,7 +17,7 @@ function injectAttributes(html: string, attrs: AttrEntry[]): string {
   // Process in reverse so each insertion at tagNameEnd builds the correct
   // left-to-right order (later attrs get pushed right by earlier ones)
   for (let i = attrs.length - 1; i >= 0; i--) {
-    const { marker, attrName, value } = attrs[i];
+    const { marker, attrName, value } = attrs[i]!;
     const pos = result.indexOf(marker);
     if (pos === -1) continue;
     result = result.slice(0, pos) + result.slice(pos + marker.length);

@@ -45,7 +45,11 @@ async fn proxy_handler(
   State(state): State<DevState>,
   req: Request<Body>,
 ) -> Result<Response, StatusCode> {
-  let path_and_query = req.uri().path_and_query().map(|pq| pq.as_str()).unwrap_or(req.uri().path());
+  let path_and_query = req
+    .uri()
+    .path_and_query()
+    .map(axum::http::uri::PathAndQuery::as_str)
+    .unwrap_or(req.uri().path());
   let url = format!("{}{}", state.backend_origin, path_and_query);
 
   let method = reqwest::Method::from_bytes(req.method().as_str().as_bytes())

@@ -1,4 +1,5 @@
 /* src/server/core/rust-macros/src/lib.rs */
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 mod seam_command;
 mod seam_procedure;
@@ -10,7 +11,7 @@ use proc_macro::TokenStream;
 #[proc_macro_derive(SeamType, attributes(seam))]
 pub fn derive_seam_type(input: TokenStream) -> TokenStream {
   let input = syn::parse_macro_input!(input as syn::DeriveInput);
-  match seam_type::expand(input) {
+  match seam_type::expand(&input) {
     Ok(tokens) => tokens.into(),
     Err(e) => e.to_compile_error().into(),
   }

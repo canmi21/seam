@@ -1,4 +1,5 @@
 /* src/server/adapter/axum/src/lib.rs */
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 mod error;
 mod handler;

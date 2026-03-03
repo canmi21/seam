@@ -42,11 +42,11 @@ pub(super) fn maybe_generate_rpc_hashes(
   if !build_config.obfuscate {
     return Ok(None);
   }
-  let names: Vec<&str> = manifest.procedures.keys().map(|s| s.as_str()).collect();
+  let names: Vec<&str> = manifest.procedures.keys().map(std::string::String::as_str).collect();
   let salt = build_config
     .rpc_salt
     .as_deref()
-    .map(|s| s.to_string())
+    .map(std::string::ToString::to_string)
     .unwrap_or_else(seam_codegen::generate_random_salt);
   let map = seam_codegen::generate_rpc_hash_map(
     &names,

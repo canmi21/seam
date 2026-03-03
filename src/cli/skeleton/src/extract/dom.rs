@@ -22,7 +22,7 @@ fn parse_nodes(bytes: &[u8], pos: &mut usize, parent_tag: Option<&str>) -> Vec<D
       if *pos + 1 < bytes.len() && bytes[*pos + 1] == b'/' {
         if let Some(parent) = parent_tag {
           // Verify this is actually closing our parent
-          let expected = format!("</{}>", parent);
+          let expected = format!("</{parent}>");
           if bytes[*pos..].starts_with(expected.as_bytes()) {
             *pos += expected.len();
             return nodes;

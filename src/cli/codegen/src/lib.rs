@@ -1,4 +1,5 @@
 /* src/cli/codegen/src/lib.rs */
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 mod typescript;
 

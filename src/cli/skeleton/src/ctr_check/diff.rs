@@ -91,7 +91,7 @@ fn diff_children(
         *total += 1;
         if diffs.len() < MAX_DIFFS {
           diffs.push(CtrDiff::TypeMismatch {
-            path: format!("{} > [child {}]", parent_path, i),
+            path: format!("{parent_path} > [child {i}]"),
             expected_kind: "Element",
             actual_kind: "Text",
           });
@@ -101,7 +101,7 @@ fn diff_children(
         *total += 1;
         if diffs.len() < MAX_DIFFS {
           diffs.push(CtrDiff::TypeMismatch {
-            path: format!("{} > [child {}]", parent_path, i),
+            path: format!("{parent_path} > [child {i}]"),
             expected_kind: "Text",
             actual_kind: "Element",
           });
@@ -219,11 +219,11 @@ fn build_element_path(
     selector.push_str(&format!(":nth-child({})", index + 1));
   }
 
-  if parent_path.is_empty() { selector } else { format!("{} > {}", parent_path, selector) }
+  if parent_path.is_empty() { selector } else { format!("{parent_path} > {selector}") }
 }
 
 fn format_text_path(parent_path: &str) -> String {
-  if parent_path.is_empty() { "[text]".to_string() } else { format!("{} > [text]", parent_path) }
+  if parent_path.is_empty() { "[text]".to_string() } else { format!("{parent_path} > [text]") }
 }
 
 fn truncate(s: &str, max: usize) -> String {
@@ -339,7 +339,7 @@ mod tests {
   fn diff_caps_at_five() {
     // Create trees with 8 text mismatches
     let make = |prefix: &str| -> Vec<CtrNode> {
-      (0..8).map(|i| elem("p", vec![], vec![text(&format!("{}{}", prefix, i))])).collect()
+      (0..8).map(|i| elem("p", vec![], vec![text(&format!("{prefix}{i}"))])).collect()
     };
     let a = make("a");
     let b = make("b");

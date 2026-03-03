@@ -22,8 +22,7 @@ pub(super) fn normalize_tree(nodes: &mut [CtrNode]) {
 /// Sort CSS properties alphabetically within style attribute.
 fn normalize_style(attrs: &mut BTreeMap<String, String>) {
   if let Some(style) = attrs.get_mut("style") {
-    let mut props: Vec<&str> =
-      style.split(';').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
+    let mut props: Vec<&str> = style.split(';').map(str::trim).filter(|s| !s.is_empty()).collect();
     props.sort_unstable();
     *style = props.join(";");
   }

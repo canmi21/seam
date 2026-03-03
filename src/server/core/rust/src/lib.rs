@@ -1,4 +1,5 @@
 /* src/server/core/rust/src/lib.rs */
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 pub mod build_loader;
 pub mod channel;

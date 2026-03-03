@@ -47,7 +47,7 @@ export function parse(tokens: Token[]): AstNode[] {
   function parseUntil(stop: ((directive: string) => boolean) | null): AstNode[] {
     const nodes: AstNode[] = [];
     while (pos < tokens.length) {
-      const token = tokens[pos];
+      const token = tokens[pos]!;
       if (token.kind === "text") {
         nodes.push({ type: "text", value: token.value });
         pos++;
@@ -67,7 +67,7 @@ export function parse(tokens: Token[]): AstNode[] {
         const branches = new Map<string, AstNode[]>();
         // Expect one or more when:VALUE blocks until endmatch
         while (pos < tokens.length) {
-          const cur = tokens[pos];
+          const cur = tokens[pos]!;
           if (cur.kind === "marker" && cur.value === "endmatch") {
             pos++;
             break;
@@ -88,7 +88,11 @@ export function parse(tokens: Token[]): AstNode[] {
         pos++;
         const thenNodes = parseUntil((d) => d === "else" || d === `endif:${path}`);
         let elseNodes: AstNode[] = [];
-        if (pos < tokens.length && tokens[pos].kind === "marker" && tokens[pos].value === "else") {
+        if (
+          pos < tokens.length &&
+          tokens[pos]!.kind === "marker" &&
+          tokens[pos]!.value === "else"
+        ) {
           pos++;
           elseNodes = parseUntil((d) => d === `endif:${path}`);
         }

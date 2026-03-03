@@ -57,7 +57,7 @@ pub async fn pull_manifest(base_url: &str, out: &Path) -> Result<()> {
 
   let channel_count = manifest.channels.len();
   let channel_suffix = if channel_count > 0 {
-    let names: Vec<&str> = manifest.channels.keys().map(|s| s.as_str()).collect();
+    let names: Vec<&str> = manifest.channels.keys().map(std::string::String::as_str).collect();
     format!(
       " + {} {} ({})",
       channel_count,

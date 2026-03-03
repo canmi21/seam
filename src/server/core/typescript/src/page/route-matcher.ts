@@ -30,7 +30,7 @@ function compileRoute(pattern: string): CompiledRoute {
 function matchRoute(segments: RouteSegment[], pathParts: string[]): Record<string, string> | null {
   const params: Record<string, string> = {};
   for (let i = 0; i < segments.length; i++) {
-    const seg = segments[i];
+    const seg = segments[i]!;
     if (seg.kind === "catch-all") {
       // Catch-all must be the last segment
       const rest = pathParts.slice(i);
@@ -42,7 +42,7 @@ function matchRoute(segments: RouteSegment[], pathParts: string[]): Record<strin
     if (seg.kind === "static") {
       if (seg.value !== pathParts[i]) return null;
     } else {
-      params[seg.name] = pathParts[i];
+      params[seg.name] = pathParts[i]!;
     }
   }
   // All segments consumed — path must also be fully consumed

@@ -1,4 +1,5 @@
 /* src/server/injector/wasm/src/lib.rs */
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 use serde_json::Value;
 use wasm_bindgen::prelude::*;

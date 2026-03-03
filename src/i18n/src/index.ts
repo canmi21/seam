@@ -93,7 +93,7 @@ export function cleanLocaleQuery(param = "lang"): void {
 export function sortMessages(messages: Record<string, string>): Record<string, string> {
   const sorted: Record<string, string> = {};
   for (const key of Object.keys(messages).sort()) {
-    sorted[key] = messages[key];
+    sorted[key] = messages[key]!;
   }
   return sorted;
 }

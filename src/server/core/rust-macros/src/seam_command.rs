@@ -8,5 +8,5 @@ use crate::seam_procedure::{ProcedureAttr, expand_with_type};
 
 pub fn expand(attr: TokenStream, item: ItemFn) -> syn::Result<TokenStream> {
   let parsed_attr: ProcedureAttr = syn::parse2(attr)?;
-  expand_with_type(parsed_attr, item, quote! { seam_server::ProcedureType::Command })
+  expand_with_type(parsed_attr, &item, &quote! { seam_server::ProcedureType::Command })
 }

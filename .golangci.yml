@@ -1,0 +1,28 @@
+version: "2"
+
+run:
+  timeout: 3m
+
+linters:
+  default: standard
+  enable:
+    - gocritic
+    - revive
+    - misspell
+    - unconvert
+    - unparam
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+
+issues:
+  exclude-dirs:
+    - vendor
+    - pkg

@@ -84,7 +84,7 @@ export function SeamI18nBridge({ children }: { children: ReactNode }) {
   } | null>(i18nMeta ? { locale: i18nMeta.locale, messages: i18nMeta.messages } : null);
 
   // Track the current route hash for SPA message loading
-  const rawPathname = matches.length > 0 ? matches[matches.length - 1].pathname : "/";
+  const rawPathname = matches.length > 0 ? matches[matches.length - 1]!.pathname : "/";
   const currentPathname = useMemo(
     () => stripBasepath(router.basepath, rawPathname),
     [router.basepath, rawPathname],

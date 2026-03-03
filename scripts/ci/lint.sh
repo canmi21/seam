@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
-printf '\n==> Lint (oxlint + eslint + clippy)\n'
+printf '\n==> Lint (oxlint + eslint + clippy + golangci-lint)\n'
 (cd "$ROOT" && bun lint)
 
 printf '\n==> Check unlisted dependencies (knip)\n'

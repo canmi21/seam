@@ -111,7 +111,7 @@ pub(super) fn path_to_filename(path: &str) -> String {
 /// Print each asset file with its size from disk
 pub(crate) fn print_asset_files(base_dir: &Path, dist_dir: &str, assets: &AssetFiles) {
   let all_files: Vec<&str> =
-    assets.js.iter().chain(assets.css.iter()).map(|s| s.as_str()).collect();
+    assets.js.iter().chain(assets.css.iter()).map(std::string::String::as_str).collect();
   for file in all_files {
     let full_path = base_dir.join(dist_dir).join(file);
     let size = std::fs::metadata(&full_path).map(|m| m.len()).unwrap_or(0);

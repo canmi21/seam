@@ -19,7 +19,7 @@ fn find_enum_region(base: &[DomNode], others: &[Vec<DomNode>]) -> Option<EnumReg
 
   // Find common prefix and suffix across all variants
   let min_len =
-    std::iter::once(base.len()).chain(others.iter().map(|o| o.len())).min().unwrap_or(0);
+    std::iter::once(base.len()).chain(others.iter().map(std::vec::Vec::len)).min().unwrap_or(0);
 
   let mut common_prefix = 0;
   'prefix: for i in 0..min_len {

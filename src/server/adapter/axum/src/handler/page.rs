@@ -33,7 +33,7 @@ fn resolve_locale(
   }
 
   let i18n = state.i18n_config.as_ref().unwrap();
-  let url_str = uri.path_and_query().map(|pq| pq.as_str()).unwrap_or("");
+  let url_str = uri.path_and_query().map(axum::http::uri::PathAndQuery::as_str).unwrap_or("");
   let data = seam_server::ResolveData {
     url: url_str,
     path_locale: extracted.as_deref(),
@@ -167,7 +167,7 @@ pub(super) async fn handle_page(
       .locale_templates
       .as_ref()
       .and_then(|lt| lt.get(loc))
-      .map(|s| s.as_str())
+      .map(std::string::String::as_str)
       .unwrap_or(&page.template)
   } else {
     &page.template

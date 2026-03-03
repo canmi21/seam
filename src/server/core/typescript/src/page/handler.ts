@@ -108,7 +108,7 @@ export async function handlePageRequest(
     const pageTemplate = selectTemplate(page.template, page.localeTemplates, locale);
     let composedTemplate = pageTemplate;
     for (let i = layoutChain.length - 1; i >= 0; i--) {
-      const layout = layoutChain[i];
+      const layout = layoutChain[i]!;
       const layoutTemplate = selectTemplate(layout.template, layout.localeTemplates, locale);
       composedTemplate = layoutTemplate.replace("<!--seam:outlet-->", composedTemplate);
     }

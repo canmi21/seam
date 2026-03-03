@@ -1,4 +1,5 @@
 /* src/server/engine/rust/src/lib.rs */
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 pub mod build;
 pub mod escape;

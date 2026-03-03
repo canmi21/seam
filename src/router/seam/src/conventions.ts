@@ -14,19 +14,19 @@ export function parseSegment(dirName: string): SegmentKind {
   let m: RegExpMatchArray | null;
 
   if ((m = dirName.match(OPTIONAL_CATCH_ALL))) {
-    return { type: "optional-catch-all", name: m[1] };
+    return { type: "optional-catch-all", name: m[1]! };
   }
   if ((m = dirName.match(CATCH_ALL))) {
-    return { type: "catch-all", name: m[1] };
+    return { type: "catch-all", name: m[1]! };
   }
   if ((m = dirName.match(OPTIONAL_PARAM))) {
-    return { type: "optional-param", name: m[1] };
+    return { type: "optional-param", name: m[1]! };
   }
   if ((m = dirName.match(PARAM))) {
-    return { type: "param", name: m[1] };
+    return { type: "param", name: m[1]! };
   }
   if ((m = dirName.match(GROUP))) {
-    return { type: "group", name: m[1] };
+    return { type: "group", name: m[1]! };
   }
 
   // Static — reject unbalanced brackets

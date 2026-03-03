@@ -47,6 +47,6 @@ pub async fn get_user(input: GetUserInput) -> Result<GetUserOutput, SeamError> {
     id: user.id,
     name: user.name.to_string(),
     email: user.email.to_string(),
-    avatar: user.avatar.map(|s| s.to_string()),
+    avatar: user.avatar.map(std::string::ToString::to_string),
   })
 }

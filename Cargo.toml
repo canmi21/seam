@@ -24,6 +24,23 @@ panic = "abort"
 
 [workspace.lints.clippy]
 too_many_lines = "warn"
+# pedantic (individually selected)
+cloned_instead_of_copied = "warn"
+explicit_iter_loop = "warn"
+implicit_clone = "warn"
+inefficient_to_string = "warn"
+manual_let_else = "warn"
+needless_pass_by_value = "warn"
+redundant_closure_for_method_calls = "warn"
+uninlined_format_args = "warn"
+unnecessary_wraps = "warn"
+unused_self = "warn"
+# restriction / nursery
+dbg_macro = "deny"
+print_stdout = "warn"
+print_stderr = "warn"
+todo = "warn"
+unwrap_used = "warn"
 
 [workspace.package]
 version = "0.4.18"

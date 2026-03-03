@@ -31,11 +31,11 @@ export function createBatchQueue(batchFetch: BatchFetchFn) {
     batchFetch(calls).then(
       ({ results }) => {
         for (let i = 0; i < batch.length; i++) {
-          const item = results[i];
+          const item = results[i]!;
           if (item.ok) {
-            batch[i].resolve(item.data);
+            batch[i]!.resolve(item.data);
           } else {
-            batch[i].reject(new SeamClientError(item.error.code, item.error.message, 0));
+            batch[i]!.reject(new SeamClientError(item.error.code, item.error.message, 0));
           }
         }
       },

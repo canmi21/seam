@@ -35,7 +35,8 @@
   "scripts": {
     "lint:links": "bash scripts/ci/check-links.sh",
     "lint:deps": "knip --include dependencies,unlisted,unresolved",
-    "lint": "oxlint && NODE_OPTIONS='--import tsx/esm' eslint . && cargo clippy --workspace --all-features --all-targets -- -D warnings",
+    "lint:go": "bash scripts/lint-go.sh",
+    "lint": "oxlint && NODE_OPTIONS='--import tsx/esm' eslint . && cargo clippy --workspace --all-features --all-targets -- -D warnings && bash scripts/lint-go.sh",
     "lint:oxlint": "oxlint",
     "lint:eslint": "NODE_OPTIONS='--import tsx/esm' eslint .",
     "lint:clippy": "cargo clippy --workspace --all-features --all-targets -- -D warnings",

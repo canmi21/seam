@@ -41,7 +41,7 @@ fn parse_nodes(
       // Closing tag
       if *pos + 1 < bytes.len() && bytes[*pos + 1] == b'/' {
         if let Some(parent) = parent_tag {
-          let expected = format!("</{}>", parent);
+          let expected = format!("</{parent}>");
           if bytes[*pos..].starts_with(expected.as_bytes()) {
             *pos += expected.len();
             return nodes;

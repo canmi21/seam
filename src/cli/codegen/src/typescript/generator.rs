@@ -141,7 +141,7 @@ fn generate_procedure_meta(manifest: &Manifest) -> String {
     };
     let (input_name, output_name) = if channel_event_names.contains(name) {
       // Channel event subscription: types follow channel naming convention
-      let ch_name = name.strip_suffix(".events").unwrap();
+      let ch_name = name.strip_suffix(".events").expect("channel event name has .events suffix");
       let ch_pascal = to_pascal_case(ch_name);
       (format!("{ch_pascal}ChannelInput"), format!("{ch_pascal}Event"))
     } else {
@@ -181,7 +181,7 @@ fn generate_transport_hint(manifest: &Manifest, rpc_hashes: Option<&RpcHashMap>)
         let full_name = format!("{ch_name}.{msg_name}");
         let wire = rpc_hashes
           .and_then(|m| m.procedures.get(&full_name))
-          .map(|h| h.as_str())
+          .map(String::as_str)
           .unwrap_or(full_name.as_str());
         format!("\"{wire}\"")
       })
@@ -191,7 +191,7 @@ fn generate_transport_hint(manifest: &Manifest, rpc_hashes: Option<&RpcHashMap>)
     let events_name = format!("{ch_name}.events");
     let events_wire = rpc_hashes
       .and_then(|m| m.procedures.get(&events_name))
-      .map(|h| h.as_str())
+      .map(String::as_str)
       .unwrap_or(events_name.as_str());
     out.push_str(&format!("      outgoing: \"{events_wire}\",\n"));
 
@@ -260,7 +260,7 @@ pub fn generate_typescript(
     }
 
     let wire_name =
-      rpc_hashes.and_then(|m| m.procedures.get(name)).map(|h| h.as_str()).unwrap_or(name.as_str());
+      rpc_hashes.and_then(|m| m.procedures.get(name)).map(String::as_str).unwrap_or(name.as_str());
 
     if is_subscription {
       iface_lines.push(format!(
@@ -324,7 +324,7 @@ pub fn generate_typescript(
     // Build channel factory function
     out.push_str("  function channel<K extends keyof SeamChannels>(name: K, input: SeamChannels[K][\"input\"]): SeamChannels[K][\"handle\"] {\n");
 
-    let channel_factory = generate_channel_factory(manifest)?;
+    let channel_factory = generate_channel_factory(manifest);
     out.push_str(&channel_factory);
 
     out.push_str("    throw new Error(`Unknown channel: ${name as string}`);\n");
@@ -346,7 +346,7 @@ pub fn generate_typescript(
 }
 
 /// Generate the channel factory body (if-branches for each channel).
-fn generate_channel_factory(manifest: &Manifest) -> Result<String> {
+fn generate_channel_factory(manifest: &Manifest) -> String {
   let mut out = String::new();
 
   for ch_name in manifest.channels.keys() {
@@ -357,5 +357,5 @@ fn generate_channel_factory(manifest: &Manifest) -> Result<String> {
     out.push_str("    }\n");
   }
 
-  Ok(out)
+  out
 }

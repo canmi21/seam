@@ -67,7 +67,7 @@ pub(crate) fn validate_procedure_references(
     refs.extend(collect_loader_procedures(&layout.loaders, &format!("Layout \"{}\"", layout.id)));
   }
 
-  let available: Vec<&str> = manifest.procedures.keys().map(|s| s.as_str()).collect();
+  let available: Vec<&str> = manifest.procedures.keys().map(std::string::String::as_str).collect();
   let mut errors = Vec::new();
 
   for (source, loader_name, proc_name) in &refs {
@@ -257,7 +257,7 @@ pub(crate) fn package_static_assets(
   let public_dir = out_dir.join("public");
 
   let all_files: Vec<&str> =
-    assets.js.iter().chain(assets.css.iter()).map(|s| s.as_str()).collect();
+    assets.js.iter().chain(assets.css.iter()).map(std::string::String::as_str).collect();
 
   for file in all_files {
     let src = base_dir.join(dist_dir).join(file);

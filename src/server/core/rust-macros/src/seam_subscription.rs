@@ -28,7 +28,7 @@ pub fn expand(attr: TokenStream, item: ItemFn) -> syn::Result<TokenStream> {
   let parsed_attr: SubscriptionAttr = syn::parse2(attr)?;
 
   let fn_name = &item.sig.ident;
-  let factory_name = syn::Ident::new(&format!("{}_subscription", fn_name), fn_name.span());
+  let factory_name = syn::Ident::new(&format!("{fn_name}_subscription"), fn_name.span());
 
   let input_type = extract_input_type(&item)?;
   let output_type = extract_output_type(&item)?;

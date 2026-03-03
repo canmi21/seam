@@ -11,9 +11,9 @@ use serde_json::Value;
 pub(super) fn render_top_level(name: &str, schema: &Value) -> Result<String> {
   if is_properties_form(schema) {
     let has_props =
-      schema.get("properties").and_then(|v| v.as_object()).is_some_and(|o| !o.is_empty());
+      schema.get("properties").and_then(Value::as_object).is_some_and(|o| !o.is_empty());
     let has_opt =
-      schema.get("optionalProperties").and_then(|v| v.as_object()).is_some_and(|o| !o.is_empty());
+      schema.get("optionalProperties").and_then(Value::as_object).is_some_and(|o| !o.is_empty());
     if !has_props && !has_opt {
       return Ok(format!("export type {name} = Record<string, never>;\n"));
     }
@@ -26,12 +26,12 @@ pub(super) fn render_top_level(name: &str, schema: &Value) -> Result<String> {
 
 /// Render a JTD properties-form schema as a TypeScript interface.
 fn render_interface(name: &str, schema: &Value) -> Result<String> {
-  let nullable = schema.get("nullable").and_then(|v| v.as_bool()).unwrap_or(false);
+  let nullable = schema.get("nullable").and_then(Value::as_bool).unwrap_or(false);
   let mut out = String::new();
 
   out.push_str(&format!("export interface {name} {{\n"));
 
-  if let Some(props) = schema.get("properties").and_then(|v| v.as_object()) {
+  if let Some(props) = schema.get("properties").and_then(Value::as_object) {
     let sorted: BTreeMap<_, _> = props.iter().collect();
     for (key, val) in sorted {
       let ts = render_type(val)?;
@@ -39,7 +39,7 @@ fn render_interface(name: &str, schema: &Value) -> Result<String> {
     }
   }
 
-  if let Some(opt_props) = schema.get("optionalProperties").and_then(|v| v.as_object()) {
+  if let Some(opt_props) = schema.get("optionalProperties").and_then(Value::as_object) {
     let sorted: BTreeMap<_, _> = opt_props.iter().collect();
     for (key, val) in sorted {
       let ts = render_type(val)?;
@@ -62,16 +62,15 @@ fn render_interface(name: &str, schema: &Value) -> Result<String> {
 
 /// Recursively render a JTD schema as a TypeScript type expression.
 pub(super) fn render_type(schema: &Value) -> Result<String> {
-  let nullable = schema.get("nullable").and_then(|v| v.as_bool()).unwrap_or(false);
+  let nullable = schema.get("nullable").and_then(Value::as_bool).unwrap_or(false);
   let inner = render_type_inner(schema)?;
 
   if nullable { Ok(format!("{inner} | null")) } else { Ok(inner) }
 }
 
 fn render_type_inner(schema: &Value) -> Result<String> {
-  let obj = match schema.as_object() {
-    Some(o) => o,
-    None => anyhow::bail!("schema must be a JSON object"),
+  let Some(obj) = schema.as_object() else {
+    anyhow::bail!("schema must be a JSON object");
   };
 
   // Empty form (only nullable key or truly empty)
@@ -106,7 +105,7 @@ fn render_type_inner(schema: &Value) -> Result<String> {
 
   // Discriminator form
   if let Some(tag) = obj.get("discriminator").and_then(|v| v.as_str())
-    && let Some(mapping) = obj.get("mapping").and_then(|v| v.as_object())
+    && let Some(mapping) = obj.get("mapping").and_then(Value::as_object)
   {
     let sorted: BTreeMap<_, _> = mapping.iter().collect();
     let parts: Vec<String> = sorted
@@ -135,7 +134,7 @@ fn render_type_inner(schema: &Value) -> Result<String> {
 fn render_inline_object(schema: &Value) -> Result<String> {
   let mut fields = Vec::new();
 
-  if let Some(props) = schema.get("properties").and_then(|v| v.as_object()) {
+  if let Some(props) = schema.get("properties").and_then(Value::as_object) {
     let sorted: BTreeMap<_, _> = props.iter().collect();
     for (key, val) in sorted {
       let ts = render_type(val)?;
@@ -143,7 +142,7 @@ fn render_inline_object(schema: &Value) -> Result<String> {
     }
   }
 
-  if let Some(opt_props) = schema.get("optionalProperties").and_then(|v| v.as_object()) {
+  if let Some(opt_props) = schema.get("optionalProperties").and_then(Value::as_object) {
     let sorted: BTreeMap<_, _> = opt_props.iter().collect();
     for (key, val) in sorted {
       let ts = render_type(val)?;

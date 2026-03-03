@@ -1,4 +1,5 @@
 /* src/cli/skeleton/src/lib.rs */
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 
 mod document;
 mod extract;

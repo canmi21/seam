@@ -194,8 +194,8 @@ fn wrap_array_body(body: &[DomNode], path: &str) -> Vec<DomNode> {
     inner_with_directives.extend(inner);
     inner_with_directives.push(DomNode::Comment("seam:endeach".into()));
     return vec![DomNode::Element {
-      tag: tag.to_string(),
-      attrs: attrs.to_string(),
+      tag: tag.clone(),
+      attrs: attrs.clone(),
       children: inner_with_directives,
       self_closing: false,
     }];

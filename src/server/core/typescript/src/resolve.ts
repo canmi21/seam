@@ -36,7 +36,9 @@ export function fromCookie(name = "seam-locale"): ResolveStrategy {
     resolve(data) {
       if (!data.cookie) return null;
       for (const pair of data.cookie.split(";")) {
-        const [k, v] = pair.trim().split("=");
+        const parts = pair.trim().split("=");
+        const k = parts[0];
+        const v = parts[1];
         if (k === name && v && data.locales.includes(v)) return v;
       }
       return null;
@@ -53,11 +55,12 @@ export function fromAcceptLanguage(): ResolveStrategy {
       const entries: { lang: string; q: number }[] = [];
       for (const part of data.acceptLanguage.split(",")) {
         const trimmed = part.trim();
-        const [lang, ...rest] = trimmed.split(";");
+        const parts = trimmed.split(";");
+        const lang = parts[0]!;
         let q = 1;
-        for (const r of rest) {
-          const match = r.trim().match(/^q=(\d+(?:\.\d+)?)$/);
-          if (match) q = parseFloat(match[1]);
+        for (let j = 1; j < parts.length; j++) {
+          const match = parts[j]!.trim().match(/^q=(\d+(?:\.\d+)?)$/);
+          if (match) q = parseFloat(match[1]!);
         }
         entries.push({ lang: lang.trim(), q });
       }
@@ -66,7 +69,7 @@ export function fromAcceptLanguage(): ResolveStrategy {
       for (const { lang } of entries) {
         if (localeSet.has(lang)) return lang;
         // Prefix match: zh-CN -> zh
-        const prefix = lang.split("-")[0];
+        const prefix = lang.split("-")[0]!;
         if (prefix !== lang && localeSet.has(prefix)) return prefix;
       }
       return null;

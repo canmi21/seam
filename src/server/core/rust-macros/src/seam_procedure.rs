@@ -37,20 +37,20 @@ impl Parse for ProcedureAttr {
 
 pub fn expand(attr: TokenStream, item: ItemFn) -> syn::Result<TokenStream> {
   let parsed_attr: ProcedureAttr = syn::parse2(attr)?;
-  expand_with_type(parsed_attr, item, quote! { seam_server::ProcedureType::Query })
+  expand_with_type(parsed_attr, &item, &quote! { seam_server::ProcedureType::Query })
 }
 
 /// Shared codegen for both `seam_procedure` (Query) and `seam_command` (Command).
 pub(crate) fn expand_with_type(
   attr: ProcedureAttr,
-  item: ItemFn,
-  proc_type_token: TokenStream,
+  item: &ItemFn,
+  proc_type_token: &TokenStream,
 ) -> syn::Result<TokenStream> {
   let fn_name = &item.sig.ident;
-  let factory_name = syn::Ident::new(&format!("{}_procedure", fn_name), fn_name.span());
+  let factory_name = syn::Ident::new(&format!("{fn_name}_procedure"), fn_name.span());
 
-  let input_type = extract_input_type(&item)?;
-  let output_type = extract_output_type(&item)?;
+  let input_type = extract_input_type(item)?;
+  let output_type = extract_output_type(item)?;
   let name_str = attr.name.unwrap_or_else(|| fn_name.to_string());
 
   let error_schema_expr = match attr.error {

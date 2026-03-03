@@ -197,8 +197,8 @@ export function createRouter<T extends DefinitionMap>(
       if (hasUrlPrefix && i18nConfig) {
         const segments = path.split("/").filter(Boolean);
         const localeSet = new Set(i18nConfig.locales);
-        if (segments.length > 0 && localeSet.has(segments[0])) {
-          pathLocale = segments[0];
+        if (segments.length > 0 && localeSet.has(segments[0]!)) {
+          pathLocale = segments[0]!;
           routePath = "/" + segments.slice(1).join("/") || "/";
         }
       }
