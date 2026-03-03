@@ -35,6 +35,13 @@ The engine source of truth is the Rust crate [`seam-engine`](../../src/server/en
 | [cli/core](../../src/cli/core/)         | `seam-cli`        | Build orchestration, dev servers, CLI entry point           |
 | [cli/pkg](../../src/cli/pkg/)           | `@canmi/seam-cli` | npm distribution wrapper for the CLI binary                 |
 
+## Router
+
+| Package                                       | npm                           | Description                                       |
+| --------------------------------------------- | ----------------------------- | ------------------------------------------------- |
+| [router/tanstack](../../src/router/tanstack/) | `@canmi/seam-tanstack-router` | TanStack Router integration for SeamJS            |
+| [router/seam](../../src/router/seam/)         | `@canmi/seam-router`          | Filesystem router (convention-based `src/pages/`) |
+
 ## Planned
 
 - Python server core

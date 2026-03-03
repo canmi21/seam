@@ -41,8 +41,13 @@ Everything listed here is planned and will be implemented. This is currently a s
 - [x] Codegen transport hint (automatic WebSocket selection)
 - [x] Query/Command distinction (3 procedure types)
 
+## Router
+
+- [x] TanStack Router integration
+- [x] Filesystem router (convention-based `src/pages/`)
+- [ ] Shell Router — page-level micro-frontend navigation, per-page UI framework switching
+
 ## Architecture
 
-- [ ] Shell Router — page-level micro-frontend navigation, per-page UI framework switching
 - [ ] Desktop adapter — Tauri/Electron integration layer
 - [ ] Serverless mode — no-filesystem deployment for edge/cloud functions

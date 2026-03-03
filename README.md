@@ -68,7 +68,7 @@ Pure static pages can be built by any UI framework natively. SeamJS provides cro
 
 ## Current Status
 
-**Implemented**: React frontend (client, bindings, router, i18n, linter). Three backend runtimes (Rust, TypeScript, Go) with symmetric feature sets. HTTP RPC, batch RPC, SSE streaming, WebSocket channels. Full CLI (build, generate, dev, pull, clean). Locale resolution with URL prefix, cookie, accept-language, and query strategies.
+**Implemented**: React frontend (client, bindings, router, filesystem router, i18n, linter). Three backend runtimes (Rust, TypeScript, Go) with symmetric feature sets. HTTP RPC, batch RPC, SSE streaming, WebSocket channels. Full CLI (build, generate, dev, pull, clean). Locale resolution with URL prefix, cookie, accept-language, and query strategies.
 
 **Next**: additional UI frameworks (Vue, Svelte), desktop adapters (Tauri/Electron).
 
@@ -94,6 +94,7 @@ See [Roadmap](docs/roadmap.md) for the full list.
 
 - [GitHub Dashboard](examples/github-dashboard/) — CTR with three backend runtimes (Rust, TypeScript, Go)
 - [i18n Demo](examples/i18n-demo/) — URL-prefix and hidden locale modes
+- [FS Router Demo](examples/fs-router-demo/) — filesystem router with all route types
 - [Standalone examples](examples/standalone/) — minimal SDK usage for each language
 
 **Community**

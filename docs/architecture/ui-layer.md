@@ -19,8 +19,12 @@ SeamJS extracts HTML skeletons from UI components at build time via `renderToStr
 </tr>
 <tr>
   <td>Router</td>
-  <td><a href="../src/client/tanstack-router/"><code>@canmi/seam-tanstack-router</code></a></td>
+  <td><a href="../../src/router/tanstack/"><code>@canmi/seam-tanstack-router</code></a></td>
   <td>—</td><td>—</td>
+</tr>
+<tr>
+  <td>FS Router</td>
+  <td colspan="3"><a href="../../src/router/seam/"><code>@canmi/seam-router</code></a></td>
 </tr>
 <tr>
   <td>i18n</td>
