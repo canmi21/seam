@@ -11,6 +11,8 @@ fi
 printf '\n==> Go integration tests\n'
 (cd "$ROOT/tests/integration" && go test -v -count=1)
 (cd "$ROOT/tests/fullstack" && go test -v -count=1)
+(cd "$ROOT/tests/i18n" && go test -v -count=1)
+(cd "$ROOT/tests/fs-router" && go test -v -count=1 ./...)
 
 printf '\n==> Workspace integration tests\n'
 (cd "$ROOT/tests/workspace-integration" && go test -v -count=1 -timeout 120s)

@@ -25,7 +25,7 @@ jobs:
       - uses: golangci/golangci-lint-action@v9
         with:
           install-mode: binary
-          version: v2.1
+          version: v2.10
           args: --help
 
       - name: Install chore-cli
@@ -57,6 +57,9 @@ jobs:
 
       - name: Build fixtures
         run: bash scripts/ci/build-fixtures.sh
+
+      - name: Go unit tests
+        run: bash scripts/ci/test-go.sh
 
       - name: Go integration tests
         run: bash scripts/ci/test-integration.sh
