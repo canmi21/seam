@@ -7,7 +7,7 @@ import type { ChannelMeta } from "../channel.js";
 export type ProcedureType = "query" | "command" | "subscription";
 
 export interface ProcedureEntry {
-  type: ProcedureType;
+  kind: ProcedureType;
   input: Schema;
   output: Schema;
   error?: Schema;
@@ -15,8 +15,10 @@ export interface ProcedureEntry {
 
 export interface ProcedureManifest {
   version: number;
+  context: Record<string, never>;
   procedures: Record<string, ProcedureEntry>;
   channels?: Record<string, ChannelMeta>;
+  transportDefaults: Record<string, never>;
 }
 
 export function buildManifest(
@@ -30,10 +32,10 @@ export function buildManifest(
 
   for (const [name, def] of Object.entries(definitions)) {
     const k = def.kind ?? def.type;
-    const type: ProcedureType =
+    const kind: ProcedureType =
       k === "subscription" ? "subscription" : k === "command" ? "command" : "query";
     const entry: ProcedureEntry = {
-      type,
+      kind,
       input: def.input._schema,
       output: def.output._schema,
     };
@@ -43,7 +45,12 @@ export function buildManifest(
     mapped[name] = entry;
   }
 
-  const manifest: ProcedureManifest = { version: 1, procedures: mapped };
+  const manifest: ProcedureManifest = {
+    version: 2,
+    context: {},
+    procedures: mapped,
+    transportDefaults: {},
+  };
   if (channels && Object.keys(channels).length > 0) {
     manifest.channels = channels;
   }

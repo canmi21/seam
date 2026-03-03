@@ -26,7 +26,7 @@ describe("createRouter", () => {
 
   it("generates manifest with correct structure", () => {
     const manifest = router.manifest();
-    expect(manifest.version).toBe(1);
+    expect(manifest.version).toBe(2);
     expect(Object.keys(manifest.procedures)).toEqual(["greet", "add"]);
   });
 
@@ -46,10 +46,10 @@ describe("createRouter", () => {
     expect(result.body).toEqual({ ok: true, data: { message: "Hello, World!" } });
   });
 
-  it("existing definitions default to query type", () => {
+  it("existing definitions default to query kind", () => {
     const manifest = router.manifest();
-    expect(manifest.procedures.greet.type).toBe("query");
-    expect(manifest.procedures.add.type).toBe("query");
+    expect(manifest.procedures.greet.kind).toBe("query");
+    expect(manifest.procedures.add.kind).toBe("query");
   });
 });
 
@@ -68,14 +68,14 @@ describe("command definitions", () => {
     },
   });
 
-  it("command definition produces manifest type 'command'", () => {
+  it("command definition produces manifest kind 'command'", () => {
     const manifest = router.manifest();
-    expect(manifest.procedures.createUser.type).toBe("command");
+    expect(manifest.procedures.createUser.kind).toBe("command");
   });
 
-  it("query definition still produces type 'query'", () => {
+  it("query definition still produces kind 'query'", () => {
     const manifest = router.manifest();
-    expect(manifest.procedures.getUser.type).toBe("query");
+    expect(manifest.procedures.getUser.kind).toBe("query");
   });
 
   it("command handler executes correctly", async () => {

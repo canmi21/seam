@@ -102,11 +102,11 @@ describe("subscription output validation", () => {
 
 // -- Manifest type field --
 
-describe("manifest type field", () => {
-  it("includes type for all procedures", () => {
+describe("manifest kind field", () => {
+  it("includes kind for all procedures", () => {
     const manifest = router.manifest();
-    expect(manifest.procedures.greet.type).toBe("query");
-    expect(manifest.procedures.onCount.type).toBe("subscription");
+    expect(manifest.procedures.greet.kind).toBe("query");
+    expect(manifest.procedures.onCount.kind).toBe("subscription");
   });
 });
 
