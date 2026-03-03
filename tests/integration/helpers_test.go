@@ -101,6 +101,18 @@ func fetchRaw(t *testing.T, url string) []byte {
 	return raw
 }
 
+// procKind reads the procedure kind from a manifest entry, accepting both
+// v2 "kind" field and v1 "type" field for backward compatibility.
+func procKind(proc map[string]any) (string, bool) {
+	if k, ok := proc["kind"].(string); ok {
+		return k, true
+	}
+	if t, ok := proc["type"].(string); ok {
+		return t, true
+	}
+	return "", false
+}
+
 // assertOK asserts the response envelope has ok=true and returns the data field.
 func assertOK(t *testing.T, body map[string]any) any {
 	t.Helper()

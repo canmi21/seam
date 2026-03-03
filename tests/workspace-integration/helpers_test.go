@@ -87,6 +87,18 @@ func getJSON(t *testing.T, url string) (code int, body map[string]any) { //nolin
 	return resp.StatusCode, m
 }
 
+// procKind reads the procedure kind from a manifest entry, accepting both
+// v2 "kind" field and v1 "type" field for backward compatibility.
+func procKind(proc map[string]any) (string, bool) {
+	if k, ok := proc["kind"].(string); ok {
+		return k, true
+	}
+	if t, ok := proc["type"].(string); ok {
+		return t, true
+	}
+	return "", false
+}
+
 // extractData unwraps the { ok, data } envelope and returns the data object.
 func extractData(t *testing.T, body map[string]any) map[string]any {
 	t.Helper()

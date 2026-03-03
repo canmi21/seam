@@ -28,7 +28,7 @@ func TestManifestParity(t *testing.T) {
 		var result []procEntry
 		for name, v := range procs {
 			proc := v.(map[string]any)
-			pt, _ := proc["type"].(string)
+			pt, _ := procKind(proc)
 			result = append(result, procEntry{name, pt})
 		}
 		return result

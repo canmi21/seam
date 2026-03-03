@@ -17,7 +17,7 @@ pub struct Manifest {
 
 #[derive(Serialize)]
 pub struct ProcedureSchema {
-  #[serde(rename = "type")]
+  #[serde(rename = "kind")]
   pub proc_type: String,
   pub input: serde_json::Value,
   pub output: serde_json::Value,
@@ -57,7 +57,7 @@ pub fn build_manifest(
       },
     );
   }
-  Manifest { version: 1, procedures: map, channels }
+  Manifest { version: 2, procedures: map, channels }
 }
 
 #[cfg(test)]
@@ -152,7 +152,7 @@ mod tests {
     }];
     let manifest = build_manifest(&[], &subs, BTreeMap::new());
     let json = serde_json::to_value(&manifest).unwrap();
-    assert_eq!(json["procedures"]["onEvent"]["type"], "subscription");
+    assert_eq!(json["procedures"]["onEvent"]["kind"], "subscription");
     assert_eq!(json["procedures"]["onEvent"]["error"], error);
   }
 }

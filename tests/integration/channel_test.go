@@ -219,9 +219,9 @@ func TestChannelManifest(t *testing.T) {
 						t.Errorf("procedure %q not found", name)
 						return
 					}
-					got, _ := proc["type"].(string)
+					got, _ := procKind(proc)
 					if got != expected {
-						t.Errorf("%s.type = %q, want %q", name, got, expected)
+						t.Errorf("%s.kind = %q, want %q", name, got, expected)
 					}
 				}
 				assertType("chat.sendMessage", "command")

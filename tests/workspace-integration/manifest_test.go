@@ -33,8 +33,8 @@ func TestManifest(t *testing.T) {
 				if !ok {
 					t.Fatalf("version not a number: %v", body["version"])
 				}
-				if version != 1 {
-					t.Errorf("version = %v, want %v", version, 1)
+				if version != 2 {
+					t.Errorf("version = %v, want %v", version, 2)
 				}
 			})
 
@@ -63,8 +63,8 @@ func TestManifest(t *testing.T) {
 						t.Errorf("procedure %q not an object", name)
 						continue
 					}
-					if _, ok := proc["type"].(string); !ok {
-						t.Errorf("procedure %q: missing type field", name)
+					if _, ok := procKind(proc); !ok {
+						t.Errorf("procedure %q: missing kind field", name)
 					}
 					if _, ok := proc["input"].(map[string]any); !ok {
 						t.Errorf("procedure %q: input not an object", name)

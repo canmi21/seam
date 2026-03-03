@@ -31,8 +31,8 @@ func TestManifest(t *testing.T) {
 				if !ok {
 					t.Fatalf("version not a number: %v (%T)", body["version"], body["version"])
 				}
-				if version != 1 {
-					t.Errorf("version = %v, want 1", version)
+				if version != 2 {
+					t.Errorf("version = %v, want 2", version)
 				}
 			})
 
@@ -85,29 +85,29 @@ func TestManifestProcedureTypes(t *testing.T) {
 
 			validTypes := map[string]bool{"query": true, "command": true, "subscription": true}
 
-			// Every procedure must have a valid type
+			// Every procedure must have a valid kind
 			for name, v := range procs {
 				proc := v.(map[string]any)
-				pType, ok := proc["type"].(string)
+				pKind, ok := procKind(proc)
 				if !ok {
-					t.Errorf("procedure %q: type not a string: %v", name, proc["type"])
+					t.Errorf("procedure %q: kind not a string", name)
 					continue
 				}
-				if !validTypes[pType] {
-					t.Errorf("procedure %q: type = %q, want one of query/command/subscription", name, pType)
+				if !validTypes[pKind] {
+					t.Errorf("procedure %q: kind = %q, want one of query/command/subscription", name, pKind)
 				}
 			}
 
-			// Assert specific known types
+			// Assert specific known kinds
 			assertProcType := func(name, expected string) {
 				proc, ok := procs[name].(map[string]any)
 				if !ok {
 					t.Errorf("procedure %q not found", name)
 					return
 				}
-				got, _ := proc["type"].(string)
+				got, _ := procKind(proc)
 				if got != expected {
-					t.Errorf("%s.type = %q, want %q", name, got, expected)
+					t.Errorf("%s.kind = %q, want %q", name, got, expected)
 				}
 			}
 
