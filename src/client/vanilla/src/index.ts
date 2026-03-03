@@ -9,6 +9,7 @@ export { createWsChannelHandle } from "./ws-channel-handle.js";
 export type {
   ClientOptions,
   SeamClient,
+  StreamHandle,
   Unsubscribe,
   ChannelTransport,
   ChannelOptions,
@@ -16,4 +17,4 @@ export type {
 export type { ErrorCode } from "./errors.js";
 export type { ChannelHandle } from "./channel-handle.js";
 
-export type ProcedureKind = "query" | "command" | "subscription";
+export type ProcedureKind = "query" | "command" | "subscription" | "stream";

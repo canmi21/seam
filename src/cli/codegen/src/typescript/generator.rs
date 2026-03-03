@@ -212,6 +212,7 @@ pub fn generate_typescript_meta(data_id: &str) -> String {
 }
 
 /// Generate a typed TypeScript client from a manifest.
+#[allow(clippy::too_many_lines)]
 pub fn generate_typescript(
   manifest: &Manifest,
   rpc_hashes: Option<&RpcHashMap>,
@@ -223,7 +224,8 @@ pub fn generate_typescript(
   let has_channels = !manifest.channels.is_empty();
 
   // Detect stream procedures early for imports
-  let has_stream_procedures = manifest.procedures.values().any(|s| s.proc_type == ProcedureType::Stream);
+  let has_stream_procedures =
+    manifest.procedures.values().any(|s| s.proc_type == ProcedureType::Stream);
 
   out.push_str("import { createClient } from \"@canmi/seam-client\";\n");
   if has_stream_procedures {
@@ -278,9 +280,7 @@ pub fn generate_typescript(
       rpc_hashes.and_then(|m| m.procedures.get(name)).map(String::as_str).unwrap_or(name.as_str());
 
     if is_stream {
-      iface_lines.push(format!(
-        "  {key}(input: {input_name}): StreamHandle<{output_name}>;"
-      ));
+      iface_lines.push(format!("  {key}(input: {input_name}): StreamHandle<{output_name}>;"));
       factory_lines.push(format!(
         "    {key}: (input) => client.stream(\"{wire_name}\", input) as StreamHandle<{output_name}>,"
       ));

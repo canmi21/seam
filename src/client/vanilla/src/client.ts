@@ -1,6 +1,7 @@
 /* src/client/vanilla/src/client.ts */
 
 import { SeamClientError } from "./errors.js";
+import { parseSseStream } from "./sse-parser.js";
 import { createChannelHandle } from "./channel-handle.js";
 import { createWsChannelHandle } from "./ws-channel-handle.js";
 import type { ChannelHandle } from "./channel-handle.js";
@@ -12,6 +13,11 @@ export interface ClientOptions {
 }
 
 export type Unsubscribe = () => void;
+
+export interface StreamHandle<T = unknown> {
+  subscribe(onChunk: (chunk: T) => void, onError?: (err: SeamClientError) => void): Unsubscribe;
+  cancel(): void;
+}
 
 export type ChannelTransport = "http" | "ws";
 
@@ -35,6 +41,7 @@ export interface SeamClient {
     onData: (data: unknown) => void,
     onError?: (err: SeamClientError) => void,
   ): Unsubscribe;
+  stream(name: string, input: unknown): StreamHandle;
   fetchManifest(): Promise<unknown>;
   channel(name: string, input: unknown, opts?: ChannelOptions): ChannelHandle;
 }
@@ -199,6 +206,44 @@ export function createClient(opts: ClientOptions): SeamClient {
 
       return () => {
         es.close();
+      };
+    },
+
+    stream(name, input) {
+      const controller = new AbortController();
+      return {
+        subscribe(onChunk: (chunk: unknown) => void, onError?: (err: SeamClientError) => void) {
+          const url = `${baseUrl}/_seam/procedure/${name}`;
+          fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(input),
+            signal: controller.signal,
+          })
+            .then((res) => {
+              if (!res.ok || !res.body) {
+                onError?.(new SeamClientError("INTERNAL_ERROR", `HTTP ${res.status}`, res.status));
+                return;
+              }
+              return parseSseStream(res.body.getReader(), {
+                onData: onChunk,
+                onError(err) {
+                  onError?.(new SeamClientError(err.code, err.message, 0));
+                },
+                onComplete() {
+                  // stream finished normally
+                },
+              });
+            })
+            .catch((err: Error) => {
+              if (err.name === "AbortError") return;
+              onError?.(new SeamClientError("INTERNAL_ERROR", err.message ?? "Stream failed", 0));
+            });
+          return () => controller.abort();
+        },
+        cancel() {
+          controller.abort();
+        },
       };
     },
 
