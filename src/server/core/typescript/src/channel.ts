@@ -114,7 +114,7 @@ export function createChannel<
     const mergedInputSchema = mergeObjectSchemas(channelInputSchema, msgDef.input._schema);
 
     const command: CommandDef<any, any> = {
-      type: "command",
+      kind: "command",
       input: { _schema: mergedInputSchema } as SchemaNode<any>,
       output: msgDef.output,
       handler: msgDef.handler as CommandDef<any, any>["handler"],
@@ -128,7 +128,7 @@ export function createChannel<
   // Expand subscribe to a subscription with tagged union output
   const unionSchema = buildOutgoingUnionSchema(def.outgoing);
   const subscription: SubscriptionDef<any, any> = {
-    type: "subscription",
+    kind: "subscription",
     input: def.input as SchemaNode<any>,
     output: { _schema: unionSchema } as SchemaNode<any>,
     handler: def.subscribe as SubscriptionDef<any, any>["handler"],

@@ -22,15 +22,16 @@ export interface ProcedureManifest {
 export function buildManifest(
   definitions: Record<
     string,
-    { input: SchemaNode; output: SchemaNode; type?: string; error?: SchemaNode }
+    { input: SchemaNode; output: SchemaNode; kind?: string; type?: string; error?: SchemaNode }
   >,
   channels?: Record<string, ChannelMeta>,
 ): ProcedureManifest {
   const mapped: ProcedureManifest["procedures"] = {};
 
   for (const [name, def] of Object.entries(definitions)) {
+    const k = def.kind ?? def.type;
     const type: ProcedureType =
-      def.type === "subscription" ? "subscription" : def.type === "command" ? "command" : "query";
+      k === "subscription" ? "subscription" : k === "command" ? "command" : "query";
     const entry: ProcedureEntry = {
       type,
       input: def.input._schema,

@@ -48,6 +48,7 @@ export type {
   CommandDef,
   SubscriptionDef,
   DefinitionMap,
+  ProcedureKind,
   Router,
   RouterOptions,
   PageRequestHeaders,

@@ -17,7 +17,12 @@ import { RouteMatcher } from "../page/route-matcher.js";
 import { defaultStrategies, resolveChain } from "../resolve.js";
 import type { ResolveStrategy } from "../resolve.js";
 
+export type ProcedureKind = "query" | "command" | "subscription";
+
 export interface ProcedureDef<TIn = unknown, TOut = unknown> {
+  kind?: "query";
+  /** @deprecated Use `kind` instead */
+  type?: "query";
   input: SchemaNode<TIn>;
   output: SchemaNode<TOut>;
   error?: SchemaNode;
@@ -25,7 +30,9 @@ export interface ProcedureDef<TIn = unknown, TOut = unknown> {
 }
 
 export interface CommandDef<TIn = unknown, TOut = unknown> {
-  type: "command";
+  kind?: "command";
+  /** @deprecated Use `kind` instead */
+  type?: "command";
   input: SchemaNode<TIn>;
   output: SchemaNode<TOut>;
   error?: SchemaNode;
@@ -33,7 +40,9 @@ export interface CommandDef<TIn = unknown, TOut = unknown> {
 }
 
 export interface SubscriptionDef<TIn = unknown, TOut = unknown> {
-  type: "subscription";
+  kind?: "subscription";
+  /** @deprecated Use `kind` instead */
+  type?: "subscription";
   input: SchemaNode<TIn>;
   output: SchemaNode<TOut>;
   error?: SchemaNode;
@@ -47,10 +56,25 @@ export type DefinitionMap = Record<
 >;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+function resolveKind(
+  name: string,
+  def: ProcedureDef | CommandDef | SubscriptionDef,
+): ProcedureKind {
+  if ("kind" in def && def.kind) return def.kind;
+  if ("type" in def && def.type) {
+    console.warn(
+      `[seam] "${name}": "type" field in procedure definition is deprecated, use "kind" instead`,
+    );
+    return def.type;
+  }
+  return "query";
+}
+
 function isSubscriptionDef(
+  name: string,
   def: ProcedureDef | CommandDef | SubscriptionDef,
 ): def is SubscriptionDef {
-  return "type" in def && def.type === "subscription";
+  return resolveKind(name, def) === "subscription";
 }
 
 export interface RouterOptions {
@@ -128,7 +152,7 @@ export function createRouter<T extends DefinitionMap>(
   const subscriptionMap = new Map<string, InternalSubscription>();
 
   for (const [name, def] of Object.entries(procedures)) {
-    if (isSubscriptionDef(def)) {
+    if (isSubscriptionDef(name, def)) {
       subscriptionMap.set(name, {
         inputSchema: def.input._schema,
         outputSchema: def.output._schema,
