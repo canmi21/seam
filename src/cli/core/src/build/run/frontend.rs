@@ -95,6 +95,7 @@ pub(super) fn run_frontend_build(build_config: &BuildConfig, base_dir: &Path) ->
       render: &render,
       bundle: &bundle_ctx,
       build_config,
+      ref_graph: None,
     },
     &mut tracker,
   )?;

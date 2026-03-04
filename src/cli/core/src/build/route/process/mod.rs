@@ -253,6 +253,7 @@ fn process_i18n_route(
         head_meta,
         i18n_keys: route.i18n_keys.clone(),
         assets: route_assets,
+        procedures: None,
       });
     }
   }
@@ -282,6 +283,7 @@ fn process_i18n_route(
         head_meta: None,
         i18n_keys: route.i18n_keys.clone(),
         assets: route_assets,
+        procedures: None,
       },
     );
   }
@@ -346,6 +348,7 @@ fn process_single_route(
       head_meta,
       i18n_keys: route.i18n_keys.clone(),
       assets: route_assets,
+      procedures: None,
     },
   );
   Ok(())

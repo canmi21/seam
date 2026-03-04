@@ -149,4 +149,6 @@ pub(super) struct RouteManifestEntry {
   pub(super) i18n_keys: Option<Vec<String>>,
   #[serde(skip_serializing_if = "Option::is_none")]
   pub(super) assets: Option<RouteAssets>,
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub(super) procedures: Option<Vec<String>>,
 }

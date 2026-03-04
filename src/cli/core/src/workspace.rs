@@ -10,9 +10,10 @@ use anyhow::{Context, Result, bail};
 
 use crate::build::config::BuildConfig;
 use crate::build::route::{
-  BundleContext, RenderContext, extract_manifest, extract_manifest_command, generate_types,
-  package_static_assets, print_asset_files, print_procedure_breakdown, process_routes,
-  run_typecheck, validate_handoff_consistency, validate_procedure_references,
+  BundleContext, RenderContext, build_reference_graph, extract_manifest, extract_manifest_command,
+  generate_types, inject_route_procedures, package_static_assets, print_asset_files,
+  print_procedure_breakdown, process_routes, run_typecheck, validate_handoff_consistency,
+  validate_invalidates, validate_procedure_references,
 };
 use crate::build::run::steps;
 use crate::config::{SeamConfig, resolve_member_config, validate_workspace};
@@ -193,8 +194,10 @@ fn build_reference_member(
     base_dir,
     &shared_out_dir.join("seam-manifest.json"),
   )?;
-  validate_procedure_references(&manifest, &skeleton_output)?;
-  validate_handoff_consistency(&skeleton_output);
+  let ref_graph = build_reference_graph(&manifest, &skeleton_output);
+  validate_procedure_references(&ref_graph)?;
+  validate_invalidates(&manifest)?;
+  validate_handoff_consistency(&ref_graph);
 
   let templates_dir = shared_out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
@@ -206,7 +209,7 @@ fn build_reference_member(
     vite: None,
   };
   let bundle_ctx = BundleContext { manifest: None, source_file_map: None };
-  let route_manifest = process_routes(
+  let mut route_manifest = process_routes(
     &skeleton_output.layouts,
     &skeleton_output.routes,
     &templates_dir,
@@ -215,6 +218,7 @@ fn build_reference_member(
     first.build_config.i18n.as_ref(),
     &bundle_ctx,
   )?;
+  inject_route_procedures(&mut route_manifest, &ref_graph);
 
   let route_manifest_path = shared_out_dir.join("route-manifest.json");
   let route_manifest_json = serde_json::to_string_pretty(&route_manifest)?;
