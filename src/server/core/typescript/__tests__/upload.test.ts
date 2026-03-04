@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { createRouter, t, createHttpHandler } from "../src/index.js";
-import type { UploadDef, SeamFileHandle, HttpBodyResponse } from "../src/index.js";
+import type { UploadDef, SeamFileHandle, HttpBodyResponse, CommandDef } from "../src/index.js";
 
 function mockFile(content: string): SeamFileHandle {
   const encoder = new TextEncoder();
@@ -150,5 +150,93 @@ describe("upload HTTP handler", () => {
     expect(res.status).toBe(200);
     const body = (res as HttpBodyResponse).body as { ok: true; data: { message: string } };
     expect(body.data.message).toBe("Hello, Alice!");
+  });
+});
+
+describe("manifest invalidates", () => {
+  it("normalizes shorthand to full form", () => {
+    const r = createRouter({
+      getPost: {
+        input: t.object({ postId: t.string() }),
+        output: t.object({ title: t.string() }),
+        handler: ({ input }) => ({ title: `Post ${input.postId}` }),
+      },
+      updatePost: {
+        kind: "command",
+        input: t.object({ postId: t.string(), title: t.string() }),
+        output: t.object({ ok: t.boolean() }),
+        invalidates: ["getPost"],
+        handler: () => ({ ok: true }),
+      } satisfies CommandDef<{ postId: string; title: string }, { ok: boolean }>,
+    });
+    const manifest = r.manifest();
+    expect(manifest.procedures.updatePost.invalidates).toEqual([{ query: "getPost" }]);
+  });
+
+  it("normalizes full form with mapping value shorthand", () => {
+    const r = createRouter({
+      getPost: {
+        input: t.object({ postId: t.string() }),
+        output: t.object({ title: t.string() }),
+        handler: ({ input }) => ({ title: `Post ${input.postId}` }),
+      },
+      updatePost: {
+        kind: "command",
+        input: t.object({ postId: t.string(), title: t.string() }),
+        output: t.object({ ok: t.boolean() }),
+        invalidates: [{ query: "getPost", mapping: { postId: "postId" } }],
+        handler: () => ({ ok: true }),
+      } satisfies CommandDef<{ postId: string; title: string }, { ok: boolean }>,
+    });
+    const manifest = r.manifest();
+    expect(manifest.procedures.updatePost.invalidates).toEqual([
+      { query: "getPost", mapping: { postId: { from: "postId" } } },
+    ]);
+  });
+
+  it("preserves each flag in mapping", () => {
+    const r = createRouter({
+      getUser: {
+        input: t.object({ userId: t.string() }),
+        output: t.object({ name: t.string() }),
+        handler: () => ({ name: "test" }),
+      },
+      bulkUpdate: {
+        kind: "command",
+        input: t.object({ userIds: t.array(t.string()) }),
+        output: t.object({ ok: t.boolean() }),
+        invalidates: [{ query: "getUser", mapping: { userId: { from: "userIds", each: true } } }],
+        handler: () => ({ ok: true }),
+      } satisfies CommandDef<{ userIds: string[] }, { ok: boolean }>,
+    });
+    const manifest = r.manifest();
+    expect(manifest.procedures.bulkUpdate.invalidates).toEqual([
+      { query: "getUser", mapping: { userId: { from: "userIds", each: true } } },
+    ]);
+  });
+
+  it("omits invalidates for command without declaration", () => {
+    const r = createRouter({
+      deleteUser: {
+        kind: "command",
+        input: t.object({ userId: t.string() }),
+        output: t.object({ ok: t.boolean() }),
+        handler: () => ({ ok: true }),
+      } satisfies CommandDef<{ userId: string }, { ok: boolean }>,
+    });
+    const manifest = r.manifest();
+    expect(manifest.procedures.deleteUser.invalidates).toBeUndefined();
+  });
+
+  it("does not output invalidates for query definitions", () => {
+    const r = createRouter({
+      getPost: {
+        input: t.object({ postId: t.string() }),
+        output: t.object({ title: t.string() }),
+        handler: ({ input }) => ({ title: `Post ${input.postId}` }),
+      },
+    });
+    const manifest = r.manifest();
+    expect(manifest.procedures.getPost.invalidates).toBeUndefined();
   });
 });

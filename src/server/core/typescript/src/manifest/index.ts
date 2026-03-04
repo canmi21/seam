@@ -6,12 +6,23 @@ import type { ChannelMeta } from "../channel.js";
 
 export type ProcedureType = "query" | "command" | "subscription" | "stream" | "upload";
 
+export interface NormalizedMappingValue {
+  from: string;
+  each?: boolean;
+}
+
+export interface NormalizedInvalidateTarget {
+  query: string;
+  mapping?: Record<string, NormalizedMappingValue>;
+}
+
 export interface ProcedureEntry {
   kind: ProcedureType;
   input: Schema;
   output?: Schema;
   chunkOutput?: Schema;
   error?: Schema;
+  invalidates?: NormalizedInvalidateTarget[];
 }
 
 export interface ProcedureManifest {
@@ -22,10 +33,38 @@ export interface ProcedureManifest {
   transportDefaults: Record<string, never>;
 }
 
+type InvalidateInput = Array<
+  | string
+  | {
+      query: string;
+      mapping?: Record<string, string | { from: string; each?: boolean }>;
+    }
+>;
+
+function normalizeInvalidates(targets: InvalidateInput): NormalizedInvalidateTarget[] {
+  return targets.map((t) => {
+    if (typeof t === "string") return { query: t };
+    const normalized: NormalizedInvalidateTarget = { query: t.query };
+    if (t.mapping) {
+      normalized.mapping = Object.fromEntries(
+        Object.entries(t.mapping).map(([k, v]) => [k, typeof v === "string" ? { from: v } : v]),
+      );
+    }
+    return normalized;
+  });
+}
+
 export function buildManifest(
   definitions: Record<
     string,
-    { input: SchemaNode; output: SchemaNode; kind?: string; type?: string; error?: SchemaNode }
+    {
+      input: SchemaNode;
+      output: SchemaNode;
+      kind?: string;
+      type?: string;
+      error?: SchemaNode;
+      invalidates?: InvalidateInput;
+    }
   >,
   channels?: Record<string, ChannelMeta>,
 ): ProcedureManifest {
@@ -51,6 +90,9 @@ export function buildManifest(
     }
     if (def.error) {
       entry.error = def.error._schema;
+    }
+    if (kind === "command" && def.invalidates && def.invalidates.length > 0) {
+      entry.invalidates = normalizeInvalidates(def.invalidates);
     }
     mapped[name] = entry;
   }

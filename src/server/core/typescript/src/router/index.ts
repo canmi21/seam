@@ -26,6 +26,15 @@ import { categorizeProcedures } from "./categorize.js";
 
 export type ProcedureKind = "query" | "command" | "subscription" | "stream" | "upload";
 
+export type MappingValue = string | { from: string; each?: boolean };
+
+export type InvalidateTarget =
+  | string
+  | {
+      query: string;
+      mapping?: Record<string, MappingValue>;
+    };
+
 export interface ProcedureDef<TIn = unknown, TOut = unknown> {
   kind?: "query";
   /** @deprecated Use `kind` instead */
@@ -43,6 +52,7 @@ export interface CommandDef<TIn = unknown, TOut = unknown> {
   input: SchemaNode<TIn>;
   output: SchemaNode<TOut>;
   error?: SchemaNode;
+  invalidates?: InvalidateTarget[];
   handler: (params: { input: TIn }) => TOut | Promise<TOut>;
 }
 

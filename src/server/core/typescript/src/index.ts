@@ -55,10 +55,18 @@ export type {
   Router,
   RouterOptions,
   PageRequestHeaders,
+  InvalidateTarget,
+  MappingValue,
 } from "./router/index.js";
 export type { SeamFileHandle } from "./procedure.js";
 export type { ResolveStrategy, ResolveData } from "./resolve.js";
-export type { ProcedureManifest, ProcedureEntry, ProcedureType } from "./manifest/index.js";
+export type {
+  ProcedureManifest,
+  ProcedureEntry,
+  ProcedureType,
+  NormalizedInvalidateTarget,
+  NormalizedMappingValue,
+} from "./manifest/index.js";
 export type { HandleResult, BatchCall, BatchResultItem } from "./router/handler.js";
 export type { HandlePageResult, PageTiming, I18nOpts } from "./page/handler.js";
 export type { PageDef, LayoutDef, LoaderFn, I18nConfig } from "./page/index.js";
