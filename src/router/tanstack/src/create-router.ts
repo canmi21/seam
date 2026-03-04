@@ -8,7 +8,7 @@ import {
 import type { AnyRoute } from "@tanstack/react-router";
 import { createElement, type ComponentType } from "react";
 import { seamRpc } from "@canmi/seam-client";
-import type { LazyComponentLoader, RouteDef } from "@canmi/seam-react";
+import type { LazyComponentLoader, LoaderDef, RouteDef } from "@canmi/seam-react";
 import { parseSeamData } from "@canmi/seam-react";
 import { SeamOutlet, createLayoutWrapper, createPageWrapper } from "./seam-outlet.js";
 import { convertPath } from "./convert-routes.js";
@@ -42,6 +42,13 @@ export function collectLeafPaths(defs: RouteDef[], parentPath = ""): string[] {
   return paths;
 }
 
+/** Extract loader keys marked as handoff: "client" */
+function extractHandoffKeys(loaders: Record<string, LoaderDef>): string[] {
+  return Object.entries(loaders)
+    .filter(([, def]) => def.handoff === "client")
+    .map(([key]) => key);
+}
+
 /** Recursively build TanStack Router route tree from SeamJS route definitions */
 function buildRoutes(
   defs: SeamRouteDef[],
@@ -60,10 +67,11 @@ function buildRoutes(
       const layoutId = def._layoutId ?? `_layout_${segment}`;
       const loaders = def.loaders ?? {};
       const hasLoaders = Object.keys(loaders).length > 0;
+      const handoffKeys = extractHandoffKeys(loaders);
       const layoutRoute = createRoute({
         getParentRoute: () => parent,
         id: layoutId,
-        component: createLayoutWrapper(def.layout, hasLoaders),
+        component: createLayoutWrapper(def.layout, hasLoaders, handoffKeys),
         loader: hasLoaders ? createLoaderFromDefs(loaders, def.path, layoutId) : undefined,
         staleTime: def.staleTime,
       });
@@ -96,6 +104,7 @@ function buildRoutes(
       const lazyLoader = def.component;
       const routePath = fullPath;
       const clientLoader = def.clientLoader;
+      const pageHandoffKeys = extractHandoffKeys(def.loaders ?? {});
       const dataLoader = clientLoader
         ? (ctx: { params: Record<string, string>; context: SeamRouterContext }) =>
             clientLoader({ params: ctx.params, seamRpc: ctx.context.seamRpc })
@@ -108,7 +117,7 @@ function buildRoutes(
           const Resolved = lazyComponentCache.get(routePath);
           if (!Resolved) return null;
           return createElement(Resolved);
-        }),
+        }, pageHandoffKeys),
         loader: async (ctx: { params: Record<string, string>; context: SeamRouterContext }) => {
           // Resolve lazy component (cached after first load)
           if (!lazyComponentCache.has(routePath)) {
@@ -122,11 +131,12 @@ function buildRoutes(
     }
 
     const pageComponent = explicitPage ?? (def.component as ComponentType);
+    const pageHandoffKeys = extractHandoffKeys(def.loaders ?? {});
     const cl = def.clientLoader;
     return createRoute({
       getParentRoute: () => parent,
       path: convertPath(def.path),
-      component: createPageWrapper(pageComponent),
+      component: createPageWrapper(pageComponent, pageHandoffKeys),
       loader: cl
         ? ({ params, context }: { params: Record<string, string>; context: unknown }) => {
             const ctx = context as SeamRouterContext;

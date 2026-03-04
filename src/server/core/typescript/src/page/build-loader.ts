@@ -47,6 +47,7 @@ interface RouteManifestEntry {
 interface LoaderConfig {
   procedure: string;
   params?: Record<string, ParamConfig>;
+  handoff?: "client";
 }
 
 interface ParamConfig {

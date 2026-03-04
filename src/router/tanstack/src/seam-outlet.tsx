@@ -2,7 +2,7 @@
 
 import type { ComponentType, ReactNode } from "react";
 import { Match, useLoaderData, useMatch, useRouterState } from "@tanstack/react-router";
-import { SeamDataProvider } from "@canmi/seam-react";
+import { SeamDataProvider, SeamHandoffProvider } from "@canmi/seam-react";
 
 /**
  * Drop-in replacement for TanStack Router's Outlet that skips the
@@ -33,16 +33,19 @@ export function SeamOutlet() {
 export function createLayoutWrapper(
   Layout: ComponentType<{ children: ReactNode }>,
   hasLoaders?: boolean,
+  handoffKeys: string[] = [],
 ) {
   if (hasLoaders) {
     return function LayoutWrapperWithData() {
       const data: unknown = useLoaderData({ strict: false });
       return (
-        <SeamDataProvider value={data}>
-          <Layout>
-            <SeamOutlet />
-          </Layout>
-        </SeamDataProvider>
+        <SeamHandoffProvider value={handoffKeys}>
+          <SeamDataProvider value={data}>
+            <Layout>
+              <SeamOutlet />
+            </Layout>
+          </SeamDataProvider>
+        </SeamHandoffProvider>
       );
     };
   }
@@ -57,13 +60,15 @@ export function createLayoutWrapper(
 }
 
 /** Wrap a page component with SeamDataProvider so useSeamData() returns page-scoped data */
-export function createPageWrapper(Page: ComponentType) {
+export function createPageWrapper(Page: ComponentType, handoffKeys: string[] = []) {
   return function PageWrapper() {
     const data: unknown = useLoaderData({ strict: false });
     return (
-      <SeamDataProvider value={data}>
-        <Page />
-      </SeamDataProvider>
+      <SeamHandoffProvider value={handoffKeys}>
+        <SeamDataProvider value={data}>
+          <Page />
+        </SeamDataProvider>
+      </SeamHandoffProvider>
     );
   };
 }

@@ -164,6 +164,67 @@ pub(crate) fn validate_invalidates(manifest: &Manifest) -> Result<()> {
   }
 }
 
+/// Collect (loader_key, procedure_name, is_handoff) tuples from a loaders JSON object.
+fn collect_loader_handoff_info(loaders: &serde_json::Value) -> Vec<(String, String, bool)> {
+  let Some(obj) = loaders.as_object() else { return vec![] };
+  let mut result = Vec::new();
+  for (loader_name, loader_def) in obj {
+    if let Some(proc_name) = loader_def.get("procedure").and_then(|v| v.as_str()) {
+      let is_handoff = loader_def.get("handoff").and_then(|v| v.as_str()) == Some("client");
+      result.push((loader_name.clone(), proc_name.to_string(), is_handoff));
+    }
+  }
+  result
+}
+
+/// Warn when the same procedure appears in both handoff and non-handoff loaders
+/// within the same page (including its layout chain).
+pub(crate) fn validate_handoff_consistency(skeleton_output: &SkeletonOutput) {
+  for route in &skeleton_output.routes {
+    // Collect loader info from the route itself
+    let mut all_loaders = collect_loader_handoff_info(&route.loaders);
+
+    // Walk the layout chain for this route
+    if let Some(layout_id) = &route.layout {
+      let mut current_id = Some(layout_id.as_str());
+      while let Some(id) = current_id {
+        if let Some(layout) = skeleton_output.layouts.iter().find(|l| l.id == id) {
+          all_loaders.extend(collect_loader_handoff_info(&layout.loaders));
+          current_id = layout.parent.as_deref();
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Group by procedure name, check for handoff/non-handoff mix
+    let mut handoff_keys: Vec<&str> = Vec::new();
+    let mut non_handoff_keys: Vec<&str> = Vec::new();
+
+    for (key, proc_name, is_handoff) in &all_loaders {
+      // Only check procedures that appear in both modes
+      let has_other_mode = all_loaders.iter().any(|(_, p, h)| p == proc_name && *h != *is_handoff);
+      if has_other_mode {
+        if *is_handoff {
+          handoff_keys.push(key);
+        } else {
+          non_handoff_keys.push(key);
+        }
+      }
+    }
+
+    if !handoff_keys.is_empty() && !non_handoff_keys.is_empty() {
+      ui::warn(&format!(
+        "Route \"{}\" has loaders {} (handoff) and {} sharing the same procedure. \
+         These share the same data source but have different update mechanisms after hydration.",
+        route.path,
+        handoff_keys.iter().map(|k| format!("\"{k}\"")).collect::<Vec<_>>().join(", "),
+        non_handoff_keys.iter().map(|k| format!("\"{k}\"")).collect::<Vec<_>>().join(", "),
+      ));
+    }
+  }
+}
+
 /// Print procedure breakdown (reused from pull.rs logic)
 pub(crate) fn print_procedure_breakdown(manifest: &Manifest) {
   let total = manifest.procedures.len();

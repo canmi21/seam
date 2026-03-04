@@ -10,6 +10,7 @@ export interface ParamMapping {
 export interface LoaderDef {
   procedure: string;
   params?: Record<string, ParamMapping>;
+  handoff?: "client";
 }
 
 /** Lazy component loader returned by dynamic import (per-page splitting) */

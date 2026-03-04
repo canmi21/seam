@@ -9,7 +9,8 @@ use super::super::config::BuildConfig;
 use super::super::route::generate_types;
 use super::super::route::{
   BundleContext, RenderContext, package_static_assets, print_asset_files,
-  print_procedure_breakdown, run_typecheck, validate_invalidates, validate_procedure_references,
+  print_procedure_breakdown, run_typecheck, validate_handoff_consistency, validate_invalidates,
+  validate_procedure_references,
 };
 use super::super::types::{AssetFiles, read_bundle_manifest_extended};
 use super::helpers;
@@ -152,6 +153,7 @@ pub(super) fn run_fullstack_build(
     steps::render_skeletons(build_config, base_dir, &out_dir.join("seam-manifest.json"))?;
   validate_procedure_references(&manifest, &skeleton_output)?;
   validate_invalidates(&manifest)?;
+  validate_handoff_consistency(&skeleton_output);
   tracker.end_with(t, &format!("{} routes", skeleton_output.routes.len()));
 
   // -- Processing routes + Exporting i18n --
@@ -270,6 +272,7 @@ pub fn run_dev_build(
     steps::render_skeletons(build_config, base_dir, &out_dir.join("seam-manifest.json"))?;
   validate_procedure_references(&manifest, &skeleton_output)?;
   validate_invalidates(&manifest)?;
+  validate_handoff_consistency(&skeleton_output);
   tracker.end_with(t, &format!("{} routes", skeleton_output.routes.len()));
 
   // -- Processing routes + Exporting i18n --

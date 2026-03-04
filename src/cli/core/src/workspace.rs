@@ -12,7 +12,7 @@ use crate::build::config::BuildConfig;
 use crate::build::route::{
   BundleContext, RenderContext, extract_manifest, extract_manifest_command, generate_types,
   package_static_assets, print_asset_files, print_procedure_breakdown, process_routes,
-  run_typecheck, validate_procedure_references,
+  run_typecheck, validate_handoff_consistency, validate_procedure_references,
 };
 use crate::build::run::steps;
 use crate::config::{SeamConfig, resolve_member_config, validate_workspace};
@@ -194,6 +194,7 @@ fn build_reference_member(
     &shared_out_dir.join("seam-manifest.json"),
   )?;
   validate_procedure_references(&manifest, &skeleton_output)?;
+  validate_handoff_consistency(&skeleton_output);
 
   let templates_dir = shared_out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)

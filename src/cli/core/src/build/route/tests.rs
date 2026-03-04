@@ -292,7 +292,7 @@ fn validate_missing_procedure_in_layout() {
 
 // -- validate_invalidates tests --
 
-use super::manifest::validate_invalidates;
+use super::manifest::{validate_handoff_consistency, validate_invalidates};
 
 fn make_manifest_with_procedures(
   entries: Vec<(&str, seam_codegen::ProcedureType, Option<Vec<seam_codegen::InvalidateTarget>>)>,
@@ -392,4 +392,55 @@ fn extract_jtd_fields_basic() {
   assert!(fields.contains("age"));
   assert!(fields.contains("email"));
   assert_eq!(fields.len(), 3);
+}
+
+// -- validate_handoff_consistency tests --
+
+#[test]
+fn handoff_no_conflict() {
+  // Same procedure in handoff-only loaders -> no warning (function runs without panic)
+  let skeleton = make_skeleton(
+    vec![(
+      "/dashboard",
+      serde_json::json!({
+        "theme": { "procedure": "getTheme", "handoff": "client" },
+        "prefs": { "procedure": "getTheme", "handoff": "client" },
+      }),
+    )],
+    vec![],
+  );
+  validate_handoff_consistency(&skeleton);
+}
+
+#[test]
+fn handoff_conflict_warns() {
+  // Same procedure in handoff + non-handoff -> warning (should not panic)
+  let skeleton = make_skeleton(
+    vec![(
+      "/dashboard",
+      serde_json::json!({
+        "theme": { "procedure": "getUserPrefs", "handoff": "client" },
+        "userData": { "procedure": "getUserPrefs" },
+      }),
+    )],
+    vec![],
+  );
+  // This emits a warning via ui::warn but does not error
+  validate_handoff_consistency(&skeleton);
+}
+
+#[test]
+fn handoff_different_procedures() {
+  // Different procedures -> no warning
+  let skeleton = make_skeleton(
+    vec![(
+      "/dashboard",
+      serde_json::json!({
+        "theme": { "procedure": "getTheme", "handoff": "client" },
+        "data": { "procedure": "getDashboard" },
+      }),
+    )],
+    vec![],
+  );
+  validate_handoff_consistency(&skeleton);
 }
