@@ -1,6 +1,6 @@
 {
   "name": "@canmi/seam-cli",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "license": "MIT",
   "bin": {
     "seam": "bin/seam"
@@ -22,9 +22,9 @@
     "vitest": "^4.0.18"
   },
   "optionalDependencies": {
-    "@canmi/seam-cli-darwin-arm64": "0.5.5",
-    "@canmi/seam-cli-darwin-x64": "0.5.5",
-    "@canmi/seam-cli-linux-arm64": "0.5.5",
-    "@canmi/seam-cli-linux-x64": "0.5.5"
+    "@canmi/seam-cli-darwin-arm64": "0.5.6",
+    "@canmi/seam-cli-darwin-x64": "0.5.6",
+    "@canmi/seam-cli-linux-arm64": "0.5.6",
+    "@canmi/seam-cli-linux-x64": "0.5.6"
   }
 }

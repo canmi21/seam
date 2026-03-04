@@ -7,9 +7,9 @@ use anyhow::{Context, Result};
 use super::super::config::BuildConfig;
 use super::super::route::generate_types;
 use super::super::route::{
-  BundleContext, RenderContext, export_i18n, package_static_assets, process_routes,
-  read_i18n_messages, validate_handoff_consistency, validate_invalidates,
-  validate_procedure_references,
+  BundleContext, RenderContext, build_reference_graph, export_i18n, inject_route_procedures,
+  package_static_assets, process_routes, read_i18n_messages, validate_handoff_consistency,
+  validate_invalidates, validate_procedure_references,
 };
 use super::super::types::AssetFiles;
 use super::helpers;
@@ -66,9 +66,10 @@ pub fn run_incremental_rebuild(
     .with_context(|| format!("failed to read {}", manifest_json_path.display()))?;
   let manifest: seam_codegen::Manifest = serde_json::from_str(&manifest_str)
     .with_context(|| format!("failed to parse {}", manifest_json_path.display()))?;
-  validate_procedure_references(&manifest, &skeleton_output)?;
+  let ref_graph = build_reference_graph(&manifest, &skeleton_output);
+  validate_procedure_references(&ref_graph)?;
   validate_invalidates(&manifest)?;
-  validate_handoff_consistency(&skeleton_output);
+  validate_handoff_consistency(&ref_graph);
 
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
@@ -94,6 +95,8 @@ pub fn run_incremental_rebuild(
     build_config.i18n.as_ref(),
     &bundle_ctx,
   )?;
+  inject_route_procedures(&mut route_manifest, &ref_graph);
+
   if let (Some(msgs), Some(cfg)) = (&i18n_messages, &build_config.i18n) {
     export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;
   }

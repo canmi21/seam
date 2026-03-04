@@ -1,6 +1,6 @@
 {
   "name": "@canmi/seam-cli-darwin-arm64",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "license": "MIT",
   "files": [
     "bin"

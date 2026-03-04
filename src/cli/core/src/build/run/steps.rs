@@ -9,8 +9,8 @@ use anyhow::{Context, Result};
 
 use super::super::config::BuildConfig;
 use super::super::route::{
-  BundleContext, RenderContext, RouteManifest, SkeletonOutput, export_i18n, process_routes,
-  read_i18n_messages, run_skeleton_renderer,
+  BundleContext, ProcedureRefGraph, RenderContext, RouteManifest, SkeletonOutput, export_i18n,
+  inject_route_procedures, process_routes, read_i18n_messages, run_skeleton_renderer,
 };
 use super::super::types::{AssetFiles, read_bundle_manifest};
 use super::helpers::{print_cache_stats, run_bundler};
@@ -87,6 +87,7 @@ pub(crate) struct RouteStepInput<'a> {
   pub render: &'a RenderContext<'a>,
   pub bundle: &'a BundleContext<'a>,
   pub build_config: &'a BuildConfig,
+  pub ref_graph: Option<&'a ProcedureRefGraph>,
 }
 
 /// Execute the "process routes" and "export i18n" build steps, writing
@@ -109,6 +110,10 @@ pub(crate) fn execute_route_steps(
     input.build_config.i18n.as_ref(),
     input.bundle,
   )?;
+
+  if let Some(graph) = input.ref_graph {
+    inject_route_procedures(&mut route_manifest, graph);
+  }
 
   if input.build_config.i18n.is_none() {
     write_route_manifest(input.out_dir, &route_manifest)?;

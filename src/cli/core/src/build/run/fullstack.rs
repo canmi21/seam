@@ -8,7 +8,7 @@ use anyhow::Result;
 use super::super::config::BuildConfig;
 use super::super::route::generate_types;
 use super::super::route::{
-  BundleContext, RenderContext, package_static_assets, print_asset_files,
+  BundleContext, RenderContext, build_reference_graph, package_static_assets, print_asset_files,
   print_procedure_breakdown, run_typecheck, validate_handoff_consistency, validate_invalidates,
   validate_procedure_references,
 };
@@ -72,6 +72,7 @@ fn dev_steps(build_config: &BuildConfig, is_vite: bool) -> Vec<&'static str> {
 
 // -- Fullstack build --
 
+#[allow(clippy::too_many_lines)]
 pub(super) fn run_fullstack_build(
   config: &SeamConfig,
   build_config: &BuildConfig,
@@ -151,9 +152,10 @@ pub(super) fn run_fullstack_build(
   let t = tracker.begin();
   let skeleton_output =
     steps::render_skeletons(build_config, base_dir, &out_dir.join("seam-manifest.json"))?;
-  validate_procedure_references(&manifest, &skeleton_output)?;
+  let ref_graph = build_reference_graph(&manifest, &skeleton_output);
+  validate_procedure_references(&ref_graph)?;
   validate_invalidates(&manifest)?;
-  validate_handoff_consistency(&skeleton_output);
+  validate_handoff_consistency(&ref_graph);
   tracker.end_with(t, &format!("{} routes", skeleton_output.routes.len()));
 
   // -- Processing routes + Exporting i18n --
@@ -182,6 +184,7 @@ pub(super) fn run_fullstack_build(
       render: &render,
       bundle: &bundle_ctx,
       build_config,
+      ref_graph: Some(&ref_graph),
     },
     &mut tracker,
   )?;
@@ -270,9 +273,10 @@ pub fn run_dev_build(
   let t = tracker.begin();
   let skeleton_output =
     steps::render_skeletons(build_config, base_dir, &out_dir.join("seam-manifest.json"))?;
-  validate_procedure_references(&manifest, &skeleton_output)?;
+  let ref_graph = build_reference_graph(&manifest, &skeleton_output);
+  validate_procedure_references(&ref_graph)?;
   validate_invalidates(&manifest)?;
-  validate_handoff_consistency(&skeleton_output);
+  validate_handoff_consistency(&ref_graph);
   tracker.end_with(t, &format!("{} routes", skeleton_output.routes.len()));
 
   // -- Processing routes + Exporting i18n --
@@ -292,6 +296,7 @@ pub fn run_dev_build(
       render: &render,
       bundle: &bundle_ctx,
       build_config,
+      ref_graph: Some(&ref_graph),
     },
     &mut tracker,
   )?;
