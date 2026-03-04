@@ -32,11 +32,12 @@ async function executeLoaders(
   loaders: Record<string, LoaderFn>,
   params: Record<string, string>,
   procedures: Map<string, InternalProcedure>,
+  searchParams?: URLSearchParams,
 ): Promise<Record<string, unknown>> {
   const entries = Object.entries(loaders);
   const results = await Promise.all(
     entries.map(async ([key, loader]) => {
-      const { procedure, input } = loader(params);
+      const { procedure, input } = loader(params, searchParams);
       const proc = procedures.get(procedure);
       if (!proc) throw new SeamError("INTERNAL_ERROR", `Procedure '${procedure}' not found`);
       // Skip JTD validation -- loader input is trusted server-side code
@@ -84,6 +85,7 @@ export async function handlePageRequest(
   params: Record<string, string>,
   procedures: Map<string, InternalProcedure>,
   i18nOpts?: I18nOpts,
+  searchParams?: URLSearchParams,
 ): Promise<HandlePageResult> {
   try {
     const t0 = performance.now();
@@ -92,8 +94,10 @@ export async function handlePageRequest(
 
     // Execute all loaders (layout chain + page) in parallel
     const loaderResults = await Promise.all([
-      ...layoutChain.map((layout) => executeLoaders(layout.loaders, params, procedures)),
-      executeLoaders(page.loaders, params, procedures),
+      ...layoutChain.map((layout) =>
+        executeLoaders(layout.loaders, params, procedures, searchParams),
+      ),
+      executeLoaders(page.loaders, params, procedures, searchParams),
     ]);
 
     const t1 = performance.now();

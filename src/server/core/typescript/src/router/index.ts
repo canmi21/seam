@@ -329,11 +329,21 @@ export function createRouter<T extends DefinitionMap>(
       const match = pageMatcher.match(routePath);
       if (!match) return null;
 
+      let searchParams: URLSearchParams | undefined;
+      if (headers?.url) {
+        try {
+          const url = new URL(headers.url, "http://localhost");
+          if (url.search) searchParams = url.searchParams;
+        } catch {
+          // Malformed URL — ignore
+        }
+      }
+
       const i18nOpts =
         locale && i18nConfig
           ? { locale, config: i18nConfig, routePattern: match.pattern }
           : undefined;
-      return handlePageRequest(match.value, match.params, procedureMap, i18nOpts);
+      return handlePageRequest(match.value, match.params, procedureMap, i18nOpts, searchParams);
     },
   };
 }

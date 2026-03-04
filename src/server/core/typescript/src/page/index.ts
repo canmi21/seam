@@ -5,7 +5,10 @@ export interface LoaderResult {
   input: unknown;
 }
 
-export type LoaderFn = (params: Record<string, string>) => LoaderResult;
+export type LoaderFn = (
+  params: Record<string, string>,
+  searchParams?: URLSearchParams,
+) => LoaderResult;
 
 export interface LayoutDef {
   id: string;

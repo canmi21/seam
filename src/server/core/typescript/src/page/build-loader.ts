@@ -50,17 +50,19 @@ interface LoaderConfig {
 }
 
 interface ParamConfig {
-  from: "route";
+  from: "route" | "query";
   type?: "string" | "int";
 }
 
 function buildLoaderFn(config: LoaderConfig): LoaderFn {
-  return (params: Record<string, string>): LoaderResult => {
+  return (params, searchParams): LoaderResult => {
     const input: Record<string, unknown> = {};
     if (config.params) {
       for (const [key, mapping] of Object.entries(config.params)) {
-        const raw = params[key];
-        input[key] = mapping.type === "int" ? Number(raw) : raw;
+        const raw = mapping.from === "query" ? (searchParams?.get(key) ?? undefined) : params[key];
+        if (raw !== undefined) {
+          input[key] = mapping.type === "int" ? Number(raw) : raw;
+        }
       }
     }
     return { procedure: config.procedure, input };
