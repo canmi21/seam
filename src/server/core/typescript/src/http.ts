@@ -184,6 +184,12 @@ async function handleBatchHttp<T extends DefinitionMap>(
   return jsonResponse(200, { ok: true, data: result });
 }
 
+/** Resolve hash -> original name when obfuscation is active. Returns null on miss. */
+function resolveHashName(hashToName: Map<string, string> | null, name: string): string | null {
+  if (!hashToName) return name;
+  return hashToName.get(name) ?? null;
+}
+
 export function createHttpHandler<T extends DefinitionMap>(
   router: Router<T>,
   opts?: HttpHandlerOptions,
@@ -208,23 +214,18 @@ export function createHttpHandler<T extends DefinitionMap>(
     }
 
     if (pathname.startsWith(PROCEDURE_PREFIX)) {
-      let name = pathname.slice(PROCEDURE_PREFIX.length);
-      if (!name) {
+      const rawName = pathname.slice(PROCEDURE_PREFIX.length);
+      if (!rawName) {
         return errorResponse(404, "NOT_FOUND", "Empty procedure name");
       }
 
       if (req.method === "POST") {
-        // Batch: match both original "_batch" and hashed batch endpoint
-        if (name === "_batch" || (batchHash && name === batchHash)) {
+        if (rawName === "_batch" || (batchHash && rawName === batchHash)) {
           return handleBatchHttp(req, router, hashToName);
         }
 
-        // Resolve hash -> original name when obfuscation is active
-        if (hashToName) {
-          const resolved = hashToName.get(name);
-          if (!resolved) return errorResponse(404, "NOT_FOUND", "Not found");
-          name = resolved;
-        }
+        const name = resolveHashName(hashToName, rawName);
+        if (!name) return errorResponse(404, "NOT_FOUND", "Not found");
 
         let body: unknown;
         try {
@@ -233,7 +234,6 @@ export function createHttpHandler<T extends DefinitionMap>(
           return errorResponse(400, "VALIDATION_ERROR", "Invalid JSON body");
         }
 
-        // Stream procedures return SSE over POST
         if (router.getKind(name) === "stream") {
           const controller = new AbortController();
           return {
@@ -249,12 +249,8 @@ export function createHttpHandler<T extends DefinitionMap>(
       }
 
       if (req.method === "GET") {
-        // Resolve hash -> original name for subscriptions
-        if (hashToName) {
-          const resolved = hashToName.get(name);
-          if (!resolved) return errorResponse(404, "NOT_FOUND", "Not found");
-          name = resolved;
-        }
+        const name = resolveHashName(hashToName, rawName);
+        if (!name) return errorResponse(404, "NOT_FOUND", "Not found");
 
         const rawInput = url.searchParams.get("input");
         let input: unknown;

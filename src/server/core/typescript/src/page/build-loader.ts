@@ -102,12 +102,17 @@ function loadLocaleTemplates(
   return result;
 }
 
+/** Callback that returns template + localeTemplates for a layout entry */
+type TemplateGetter = (
+  id: string,
+  entry: LayoutManifestEntry,
+) => { template: string; localeTemplates?: Record<string, string> };
+
 /** Resolve parent chain for a layout, returning outer-to-inner order */
 function resolveLayoutChain(
   layoutId: string,
   layoutEntries: Record<string, LayoutManifestEntry>,
-  templates: Record<string, string>,
-  localeTemplatesMap: Record<string, Record<string, string>>,
+  getTemplates: TemplateGetter,
 ): LayoutDef[] {
   const chain: LayoutDef[] = [];
   let currentId: string | undefined = layoutId;
@@ -115,50 +120,17 @@ function resolveLayoutChain(
   while (currentId) {
     const entry: LayoutManifestEntry | undefined = layoutEntries[currentId];
     if (!entry) break;
+    const { template, localeTemplates } = getTemplates(currentId, entry);
     chain.push({
       id: currentId,
-      template: templates[currentId] ?? "",
-      localeTemplates: localeTemplatesMap[currentId],
+      template,
+      localeTemplates,
       loaders: buildLoaderFns(entry.loaders ?? {}),
     });
     currentId = entry.parent;
   }
 
   // Reverse: we walked inner->outer, but want outer->inner
-  chain.reverse();
-  return chain;
-}
-
-/** Resolve layout chain with lazy template getters (re-read from disk on each access) */
-function resolveLayoutChainDev(
-  layoutId: string,
-  layoutEntries: Record<string, LayoutManifestEntry>,
-  distDir: string,
-  defaultLocale: string | undefined,
-): LayoutDef[] {
-  const chain: LayoutDef[] = [];
-  let currentId: string | undefined = layoutId;
-
-  while (currentId) {
-    const entry: LayoutManifestEntry | undefined = layoutEntries[currentId];
-    if (!entry) break;
-    const layoutTemplatePath = join(distDir, resolveTemplatePath(entry, defaultLocale));
-    const def: LayoutDef = {
-      id: currentId,
-      template: "", // placeholder, overridden by getter
-      localeTemplates: entry.templates
-        ? makeLocaleTemplateGetters(entry.templates, distDir)
-        : undefined,
-      loaders: buildLoaderFns(entry.loaders ?? {}),
-    };
-    Object.defineProperty(def, "template", {
-      get: () => readFileSync(layoutTemplatePath, "utf-8"),
-      enumerable: true,
-    });
-    chain.push(def);
-    currentId = entry.parent;
-  }
-
   chain.reverse();
   return chain;
 }
@@ -279,7 +251,10 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
 
     const loaders = buildLoaderFns(entry.loaders);
     const layoutChain = entry.layout
-      ? resolveLayoutChain(entry.layout, layoutEntries, layoutTemplates, layoutLocaleTemplates)
+      ? resolveLayoutChain(entry.layout, layoutEntries, (id) => ({
+          template: layoutTemplates[id] ?? "",
+          localeTemplates: layoutLocaleTemplates[id],
+        }))
       : [];
 
     // Merge i18n_keys from layout chain + route
@@ -313,7 +288,20 @@ export function loadBuildOutputDev(distDir: string): Record<string, PageDef> {
     const templatePath = join(distDir, resolveTemplatePath(entry, defaultLocale));
     const loaders = buildLoaderFns(entry.loaders);
     const layoutChain = entry.layout
-      ? resolveLayoutChainDev(entry.layout, layoutEntries, distDir, defaultLocale)
+      ? resolveLayoutChain(entry.layout, layoutEntries, (id, layoutEntry) => {
+          const tmplPath = join(distDir, resolveTemplatePath(layoutEntry, defaultLocale));
+          const def = {
+            template: "",
+            localeTemplates: layoutEntry.templates
+              ? makeLocaleTemplateGetters(layoutEntry.templates, distDir)
+              : undefined,
+          };
+          Object.defineProperty(def, "template", {
+            get: () => readFileSync(tmplPath, "utf-8"),
+            enumerable: true,
+          });
+          return def;
+        })
       : [];
 
     const localeTemplates = entry.templates

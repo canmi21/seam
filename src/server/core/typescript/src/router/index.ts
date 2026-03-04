@@ -5,7 +5,6 @@ import { join } from "node:path";
 import type { SchemaNode } from "../types/schema.js";
 import type { ProcedureManifest } from "../manifest/index.js";
 import type { HandleResult, InternalProcedure } from "./handler.js";
-import type { InternalSubscription, InternalStream } from "../procedure.js";
 import type { HandlePageResult } from "../page/handler.js";
 import type { PageDef, I18nConfig } from "../page/index.js";
 import type { ChannelResult, ChannelMeta } from "../channel.js";
@@ -16,6 +15,7 @@ import { handlePageRequest } from "../page/handler.js";
 import { RouteMatcher } from "../page/route-matcher.js";
 import { defaultStrategies, resolveChain } from "../resolve.js";
 import type { ResolveStrategy } from "../resolve.js";
+import { categorizeProcedures } from "./categorize.js";
 
 export type ProcedureKind = "query" | "command" | "subscription" | "stream";
 
@@ -63,34 +63,6 @@ export type DefinitionMap = Record<
   ProcedureDef<any, any> | CommandDef<any, any> | SubscriptionDef<any, any> | StreamDef<any, any>
 >;
 /* eslint-enable @typescript-eslint/no-explicit-any */
-
-function resolveKind(
-  name: string,
-  def: ProcedureDef | CommandDef | SubscriptionDef | StreamDef,
-): ProcedureKind {
-  if ("kind" in def && def.kind) return def.kind;
-  if ("type" in def && def.type) {
-    console.warn(
-      `[seam] "${name}": "type" field in procedure definition is deprecated, use "kind" instead`,
-    );
-    return def.type;
-  }
-  return "query";
-}
-
-function isSubscriptionDef(
-  name: string,
-  def: ProcedureDef | CommandDef | SubscriptionDef | StreamDef,
-): def is SubscriptionDef {
-  return resolveKind(name, def) === "subscription";
-}
-
-function isStreamDef(
-  name: string,
-  def: ProcedureDef | CommandDef | SubscriptionDef | StreamDef,
-): def is StreamDef {
-  return resolveKind(name, def) === "stream";
-}
 
 export interface RouterOptions {
   pages?: Record<string, PageDef>;
@@ -165,36 +137,7 @@ export function createRouter<T extends DefinitionMap>(
   procedures: T,
   opts?: RouterOptions,
 ): Router<T> {
-  const procedureMap = new Map<string, InternalProcedure>();
-  const subscriptionMap = new Map<string, InternalSubscription>();
-  const streamMap = new Map<string, InternalStream>();
-  const kindMap = new Map<string, ProcedureKind>();
-
-  for (const [name, def] of Object.entries(procedures)) {
-    const kind = resolveKind(name, def);
-    kindMap.set(name, kind);
-
-    if (isStreamDef(name, def)) {
-      streamMap.set(name, {
-        inputSchema: def.input._schema,
-        chunkOutputSchema: def.output._schema,
-        handler: def.handler as InternalStream["handler"],
-      });
-    } else if (isSubscriptionDef(name, def)) {
-      subscriptionMap.set(name, {
-        inputSchema: def.input._schema,
-        outputSchema: def.output._schema,
-        handler: def.handler as InternalSubscription["handler"],
-      });
-    } else {
-      // Both ProcedureDef (query) and CommandDef share the same handler path
-      procedureMap.set(name, {
-        inputSchema: def.input._schema,
-        outputSchema: def.output._schema,
-        handler: def.handler as InternalProcedure["handler"],
-      });
-    }
-  }
+  const { procedureMap, subscriptionMap, streamMap, kindMap } = categorizeProcedures(procedures);
 
   const shouldValidateOutput =
     opts?.validateOutput ??
