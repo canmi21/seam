@@ -151,16 +151,20 @@ fn generate_procedure_meta(manifest: &Manifest) -> String {
     } else {
       (format!("{pascal}Input"), format!("{pascal}Output"))
     };
+    let mut extra_fields = String::new();
     if schema.error.is_some() {
       let error_name = format!("{pascal}Error");
-      out.push_str(&format!(
-        "  {key}: {{ kind: \"{kind}\"; input: {input_name}; output: {output_name}; error: {error_name} }};\n"
-      ));
-    } else {
-      out.push_str(&format!(
-        "  {key}: {{ kind: \"{kind}\"; input: {input_name}; output: {output_name} }};\n"
-      ));
+      extra_fields.push_str(&format!("; error: {error_name}"));
     }
+    if let Some(targets) = &schema.invalidates
+      && !targets.is_empty()
+    {
+      let names: Vec<String> = targets.iter().map(|t| format!("\"{}\"", t.query)).collect();
+      extra_fields.push_str(&format!("; invalidates: readonly [{}]", names.join(", ")));
+    }
+    out.push_str(&format!(
+      "  {key}: {{ kind: \"{kind}\"; input: {input_name}; output: {output_name}{extra_fields} }};\n"
+    ));
   }
   out.push_str("}\n\n");
   out

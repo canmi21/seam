@@ -78,6 +78,7 @@ fn make_manifest(names: &[&str]) -> seam_codegen::Manifest {
         output: Some(serde_json::Value::Null),
         chunk_output: None,
         error: None,
+        invalidates: None,
       },
     );
   }
@@ -281,4 +282,102 @@ fn validate_missing_procedure_in_layout() {
   let msg = err.to_string();
   assert!(msg.contains("Layout \"_layout_root\""), "should mention layout id");
   assert!(msg.contains("Did you mean: getSession?"));
+}
+
+// -- validate_invalidates tests --
+
+use super::manifest::validate_invalidates;
+
+fn make_manifest_with_procedures(
+  entries: Vec<(&str, seam_codegen::ProcedureType, Option<Vec<seam_codegen::InvalidateTarget>>)>,
+) -> seam_codegen::Manifest {
+  use seam_codegen::ProcedureSchema;
+  let mut procedures = BTreeMap::new();
+  for (name, proc_type, invalidates) in entries {
+    procedures.insert(
+      name.to_string(),
+      ProcedureSchema {
+        proc_type,
+        input: serde_json::json!({"properties": {"id": {"type": "string"}}}),
+        output: Some(serde_json::Value::Null),
+        chunk_output: None,
+        error: None,
+        invalidates,
+      },
+    );
+  }
+  seam_codegen::Manifest { version: 2, procedures, channels: BTreeMap::new() }
+}
+
+#[test]
+fn validate_invalidates_valid() {
+  use seam_codegen::{InvalidateTarget, ProcedureType};
+  let manifest = make_manifest_with_procedures(vec![
+    ("getPost", ProcedureType::Query, None),
+    (
+      "updatePost",
+      ProcedureType::Command,
+      Some(vec![InvalidateTarget { query: "getPost".to_string(), mapping: None }]),
+    ),
+  ]);
+  assert!(validate_invalidates(&manifest).is_ok());
+}
+
+#[test]
+fn validate_invalidates_unknown_procedure() {
+  use seam_codegen::{InvalidateTarget, ProcedureType};
+  let manifest = make_manifest_with_procedures(vec![(
+    "updatePost",
+    ProcedureType::Command,
+    Some(vec![InvalidateTarget { query: "nonExistent".to_string(), mapping: None }]),
+  )]);
+  let err = validate_invalidates(&manifest).unwrap_err();
+  let msg = err.to_string();
+  assert!(msg.contains("\"updatePost\""), "should mention command name");
+  assert!(msg.contains("\"nonExistent\""), "should mention missing procedure");
+}
+
+#[test]
+fn validate_invalidates_wrong_kind() {
+  use seam_codegen::{InvalidateTarget, ProcedureType};
+  let manifest = make_manifest_with_procedures(vec![
+    ("otherCommand", ProcedureType::Command, None),
+    (
+      "updatePost",
+      ProcedureType::Command,
+      Some(vec![InvalidateTarget { query: "otherCommand".to_string(), mapping: None }]),
+    ),
+  ]);
+  let err = validate_invalidates(&manifest).unwrap_err();
+  let msg = err.to_string();
+  assert!(msg.contains("command (expected query)"), "should mention wrong kind");
+}
+
+#[test]
+fn validate_invalidates_did_you_mean() {
+  use seam_codegen::{InvalidateTarget, ProcedureType};
+  let manifest = make_manifest_with_procedures(vec![
+    ("getPost", ProcedureType::Query, None),
+    (
+      "updatePost",
+      ProcedureType::Command,
+      Some(vec![InvalidateTarget { query: "getPots".to_string(), mapping: None }]),
+    ),
+  ]);
+  let err = validate_invalidates(&manifest).unwrap_err();
+  assert!(err.to_string().contains("Did you mean: getPost?"));
+}
+
+#[test]
+fn extract_jtd_fields_basic() {
+  use super::manifest::extract_jtd_fields;
+  let schema = serde_json::json!({
+    "properties": { "name": { "type": "string" }, "age": { "type": "int32" } },
+    "optionalProperties": { "email": { "type": "string" } }
+  });
+  let fields = extract_jtd_fields(&schema);
+  assert!(fields.contains("name"));
+  assert!(fields.contains("age"));
+  assert!(fields.contains("email"));
+  assert_eq!(fields.len(), 3);
 }

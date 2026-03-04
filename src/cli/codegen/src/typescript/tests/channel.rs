@@ -23,6 +23,7 @@ fn channel_procedure_meta_uses_channel_types() {
           output: Some(json!({ "properties": { "id": { "type": "string" } } })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m.insert(
@@ -38,6 +39,7 @@ fn channel_procedure_meta_uses_channel_types() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m
@@ -102,6 +104,7 @@ fn transport_hint_codegen() {
           output: Some(json!({ "properties": { "id": { "type": "string" } } })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m.insert(
@@ -117,6 +120,7 @@ fn transport_hint_codegen() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m
@@ -189,6 +193,7 @@ fn dot_namespace_codegen() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m.insert(
@@ -203,6 +208,7 @@ fn dot_namespace_codegen() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m.insert(
@@ -217,6 +223,7 @@ fn dot_namespace_codegen() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m

@@ -334,6 +334,7 @@ mod tests {
           output: Some(serde_json::json!({"properties": {"name": {"type": "string"}}})),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
     }

@@ -46,6 +46,22 @@ pub struct ProcedureSchema {
   pub chunk_output: Option<Value>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub error: Option<Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub invalidates: Option<Vec<InvalidateTarget>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InvalidateTarget {
+  pub query: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub mapping: Option<BTreeMap<String, MappingValue>>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MappingValue {
+  pub from: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub each: Option<bool>,
 }
 
 impl ProcedureSchema {
@@ -116,6 +132,7 @@ mod tests {
       output: None,
       chunk_output: Some(json!({"properties": {"n": {"type": "int32"}}})),
       error: None,
+      invalidates: None,
     };
     assert!(schema.effective_output().is_some());
     assert_eq!(schema.effective_output(), schema.chunk_output.as_ref());
@@ -129,6 +146,7 @@ mod tests {
       output: Some(json!({"properties": {"msg": {"type": "string"}}})),
       chunk_output: None,
       error: None,
+      invalidates: None,
     };
     assert!(schema.effective_output().is_some());
     assert_eq!(schema.effective_output(), schema.output.as_ref());
@@ -161,6 +179,7 @@ mod tests {
           output: Some(Value::Object(Default::default())),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       )]),
       channels: BTreeMap::new(),
@@ -168,6 +187,70 @@ mod tests {
     let json = serde_json::to_string(&m).unwrap();
     assert!(json.contains(r#""kind":"command""#));
     assert!(!json.contains(r#""type""#));
+  }
+
+  #[test]
+  fn deserialize_invalidates() {
+    let json = r#"{
+      "version": 2,
+      "context": {},
+      "procedures": {
+        "getPost": { "kind": "query", "input": {}, "output": {} },
+        "updatePost": {
+          "kind": "command",
+          "input": {},
+          "output": {},
+          "invalidates": [
+            { "query": "getPost" },
+            { "query": "listPosts", "mapping": { "authorId": { "from": "userId" } } }
+          ]
+        }
+      },
+      "transportDefaults": {}
+    }"#;
+    let m: Manifest = serde_json::from_str(json).unwrap();
+    let inv = m.procedures["updatePost"].invalidates.as_ref().unwrap();
+    assert_eq!(inv.len(), 2);
+    assert_eq!(inv[0].query, "getPost");
+    assert!(inv[0].mapping.is_none());
+    assert_eq!(inv[1].query, "listPosts");
+    let mapping = inv[1].mapping.as_ref().unwrap();
+    assert_eq!(mapping["authorId"].from, "userId");
+    assert!(mapping["authorId"].each.is_none());
+  }
+
+  #[test]
+  fn deserialize_invalidates_with_each() {
+    let json = r#"{
+      "version": 2,
+      "procedures": {
+        "bulkUpdate": {
+          "kind": "command",
+          "input": {},
+          "output": {},
+          "invalidates": [
+            { "query": "getUser", "mapping": { "userId": { "from": "userIds", "each": true } } }
+          ]
+        }
+      }
+    }"#;
+    let m: Manifest = serde_json::from_str(json).unwrap();
+    let inv = m.procedures["bulkUpdate"].invalidates.as_ref().unwrap();
+    let mapping = inv[0].mapping.as_ref().unwrap();
+    assert_eq!(mapping["userId"].from, "userIds");
+    assert_eq!(mapping["userId"].each, Some(true));
+  }
+
+  #[test]
+  fn deserialize_command_without_invalidates() {
+    let json = r#"{
+      "version": 2,
+      "procedures": {
+        "deleteUser": { "kind": "command", "input": {}, "output": {} }
+      }
+    }"#;
+    let m: Manifest = serde_json::from_str(json).unwrap();
+    assert!(m.procedures["deleteUser"].invalidates.is_none());
   }
 }
 

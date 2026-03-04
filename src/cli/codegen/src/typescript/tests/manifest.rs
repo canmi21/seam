@@ -25,6 +25,7 @@ fn full_manifest_render() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m
@@ -63,6 +64,7 @@ fn subscription_codegen() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m
@@ -99,6 +101,7 @@ fn full_manifest_render_with_hashes() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m
@@ -142,6 +145,7 @@ fn codegen_without_hashes_unchanged() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m
@@ -174,6 +178,7 @@ fn subscription_codegen_with_hashes() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m
@@ -249,6 +254,7 @@ fn command_codegen() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m
@@ -283,6 +289,7 @@ fn error_schema_codegen() {
           error: Some(json!({
               "properties": { "reason": { "type": "string" } }
           })),
+          invalidates: None,
         },
       );
       m
@@ -316,6 +323,7 @@ fn error_schema_absent_no_error_type() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m
@@ -348,6 +356,7 @@ fn command_with_hashes() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m
@@ -386,6 +395,7 @@ fn stream_codegen() {
               "properties": { "n": { "type": "int32" } }
           })),
           error: None,
+          invalidates: None,
         },
       );
       m
@@ -425,6 +435,7 @@ fn stream_codegen_with_hashes() {
               "properties": { "n": { "type": "int32" } }
           })),
           error: None,
+          invalidates: None,
         },
       );
       m
@@ -464,6 +475,7 @@ fn upload_codegen() {
           })),
           chunk_output: None,
           error: None,
+          invalidates: None,
         },
       );
       m
@@ -480,5 +492,131 @@ fn upload_codegen() {
   assert!(code.contains("client.upload(\"uploadVideo\""));
   assert!(code.contains(
     "uploadVideo: { kind: \"upload\"; input: UploadVideoInput; output: UploadVideoOutput };"
+  ));
+}
+
+#[test]
+fn invalidates_codegen() {
+  use crate::manifest::InvalidateTarget;
+
+  let manifest = crate::manifest::Manifest {
+    version: 2,
+    procedures: {
+      let mut m = BTreeMap::new();
+      m.insert(
+        "getPost".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Query,
+          input: json!({ "properties": { "postId": { "type": "string" } } }),
+          output: Some(json!({ "properties": { "title": { "type": "string" } } })),
+          chunk_output: None,
+          error: None,
+          invalidates: None,
+        },
+      );
+      m.insert(
+        "listPosts".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Query,
+          input: json!({}),
+          output: Some(json!({})),
+          chunk_output: None,
+          error: None,
+          invalidates: None,
+        },
+      );
+      m.insert(
+        "updatePost".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Command,
+          input: json!({ "properties": { "postId": { "type": "string" }, "title": { "type": "string" } } }),
+          output: Some(json!({ "properties": { "ok": { "type": "boolean" } } })),
+          chunk_output: None,
+          error: None,
+          invalidates: Some(vec![
+            InvalidateTarget { query: "getPost".to_string(), mapping: None },
+            InvalidateTarget { query: "listPosts".to_string(), mapping: None },
+          ]),
+        },
+      );
+      m
+    },
+    channels: BTreeMap::new(),
+  };
+
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
+  assert!(code.contains(
+    "updatePost: { kind: \"command\"; input: UpdatePostInput; output: UpdatePostOutput; invalidates: readonly [\"getPost\", \"listPosts\"] };"
+  ));
+}
+
+#[test]
+fn command_without_invalidates_no_field() {
+  let manifest = crate::manifest::Manifest {
+    version: 2,
+    procedures: {
+      let mut m = BTreeMap::new();
+      m.insert(
+        "deleteUser".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Command,
+          input: json!({ "properties": { "userId": { "type": "string" } } }),
+          output: Some(json!({ "properties": { "ok": { "type": "boolean" } } })),
+          chunk_output: None,
+          error: None,
+          invalidates: None,
+        },
+      );
+      m
+    },
+    channels: BTreeMap::new(),
+  };
+
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
+  assert!(code.contains(
+    "deleteUser: { kind: \"command\"; input: DeleteUserInput; output: DeleteUserOutput };"
+  ));
+  assert!(!code.contains("invalidates"));
+}
+
+#[test]
+fn invalidates_with_error_codegen() {
+  use crate::manifest::InvalidateTarget;
+
+  let manifest = crate::manifest::Manifest {
+    version: 2,
+    procedures: {
+      let mut m = BTreeMap::new();
+      m.insert(
+        "getPost".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Query,
+          input: json!({}),
+          output: Some(json!({})),
+          chunk_output: None,
+          error: None,
+          invalidates: None,
+        },
+      );
+      m.insert(
+        "updatePost".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Command,
+          input: json!({ "properties": { "postId": { "type": "string" } } }),
+          output: Some(json!({ "properties": { "ok": { "type": "boolean" } } })),
+          chunk_output: None,
+          error: Some(json!({ "properties": { "reason": { "type": "string" } } })),
+          invalidates: Some(vec![InvalidateTarget { query: "getPost".to_string(), mapping: None }]),
+        },
+      );
+      m
+    },
+    channels: BTreeMap::new(),
+  };
+
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
+  // Both error and invalidates should appear
+  assert!(code.contains(
+    "updatePost: { kind: \"command\"; input: UpdatePostInput; output: UpdatePostOutput; error: UpdatePostError; invalidates: readonly [\"getPost\"] };"
   ));
 }

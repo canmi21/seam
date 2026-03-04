@@ -93,6 +93,77 @@ pub(crate) fn validate_procedure_references(
   bail!("unknown procedure reference\n\n{}", errors.join("\n\n"));
 }
 
+/// Extract top-level field names from a JTD schema Value.
+pub(super) fn extract_jtd_fields(schema: &serde_json::Value) -> std::collections::BTreeSet<&str> {
+  let mut fields = std::collections::BTreeSet::new();
+  if let Some(props) = schema.get("properties").and_then(serde_json::Value::as_object) {
+    fields.extend(props.keys().map(String::as_str));
+  }
+  if let Some(opt_props) = schema.get("optionalProperties").and_then(serde_json::Value::as_object) {
+    fields.extend(opt_props.keys().map(String::as_str));
+  }
+  fields
+}
+
+/// Validate invalidates declarations in commands.
+/// Errors: referenced procedure missing, referenced procedure not a query.
+/// Warnings: mapping key not in target query input, mapping.from not in command input.
+pub(crate) fn validate_invalidates(manifest: &Manifest) -> Result<()> {
+  let available: Vec<&str> = manifest.procedures.keys().map(String::as_str).collect();
+  let mut errors = Vec::new();
+
+  for (cmd_name, cmd) in &manifest.procedures {
+    let Some(targets) = &cmd.invalidates else { continue };
+    for target in targets {
+      // Check referenced procedure exists
+      let Some(target_proc) = manifest.procedures.get(&target.query) else {
+        let mut msg = format!(
+          "  Command \"{cmd_name}\" invalidates \"{}\", but no procedure with that name exists.",
+          target.query
+        );
+        if let Some(suggestion) = did_you_mean(&target.query, &available) {
+          msg.push_str(&format!("\n\n  Did you mean: {suggestion}?"));
+        }
+        errors.push(msg);
+        continue;
+      };
+      // Check it's a query
+      if target_proc.proc_type != ProcedureType::Query {
+        errors.push(format!(
+          "  Command \"{cmd_name}\" invalidates \"{}\", but it is a {} (expected query).",
+          target.query, target_proc.proc_type
+        ));
+        continue;
+      }
+      // Warn on mapping field mismatches (non-blocking)
+      if let Some(mapping) = &target.mapping {
+        let target_fields = extract_jtd_fields(&target_proc.input);
+        let cmd_fields = extract_jtd_fields(&cmd.input);
+        for (key, val) in mapping {
+          if !target_fields.is_empty() && !target_fields.contains(key.as_str()) {
+            ui::warn(&format!(
+              "Command \"{cmd_name}\": invalidates mapping key \"{key}\" not found in \"{}\".input",
+              target.query
+            ));
+          }
+          if !cmd_fields.is_empty() && !cmd_fields.contains(val.from.as_str()) {
+            ui::warn(&format!(
+              "Command \"{cmd_name}\": invalidates mapping from \"{}\".input field \"{}\" not found",
+              cmd_name, val.from
+            ));
+          }
+        }
+      }
+    }
+  }
+
+  if errors.is_empty() {
+    Ok(())
+  } else {
+    bail!("invalid invalidates declaration\n\n{}", errors.join("\n\n"));
+  }
+}
+
 /// Print procedure breakdown (reused from pull.rs logic)
 pub(crate) fn print_procedure_breakdown(manifest: &Manifest) {
   let total = manifest.procedures.len();

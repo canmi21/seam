@@ -8,7 +8,7 @@ use super::super::config::BuildConfig;
 use super::super::route::generate_types;
 use super::super::route::{
   BundleContext, RenderContext, export_i18n, package_static_assets, process_routes,
-  read_i18n_messages, validate_procedure_references,
+  read_i18n_messages, validate_invalidates, validate_procedure_references,
 };
 use super::super::types::AssetFiles;
 use super::helpers;
@@ -66,6 +66,7 @@ pub fn run_incremental_rebuild(
   let manifest: seam_codegen::Manifest = serde_json::from_str(&manifest_str)
     .with_context(|| format!("failed to parse {}", manifest_json_path.display()))?;
   validate_procedure_references(&manifest, &skeleton_output)?;
+  validate_invalidates(&manifest)?;
 
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)
