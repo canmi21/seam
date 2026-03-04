@@ -162,6 +162,12 @@ fn generate_procedure_meta(manifest: &Manifest) -> String {
       let names: Vec<String> = targets.iter().map(|t| format!("\"{}\"", t.query)).collect();
       extra_fields.push_str(&format!("; invalidates: readonly [{}]", names.join(", ")));
     }
+    if let Some(ctx_keys) = &schema.context
+      && !ctx_keys.is_empty()
+    {
+      let keys_str: Vec<String> = ctx_keys.iter().map(|k| format!("\"{k}\"")).collect();
+      extra_fields.push_str(&format!("; context: readonly [{}]", keys_str.join(", ")));
+    }
     out.push_str(&format!(
       "  {key}: {{ kind: \"{kind}\"; input: {input_name}; output: {output_name}{extra_fields} }};\n"
     ));

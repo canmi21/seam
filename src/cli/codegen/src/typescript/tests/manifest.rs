@@ -11,6 +11,7 @@ use crate::manifest::ProcedureType;
 fn full_manifest_render() {
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -26,6 +27,7 @@ fn full_manifest_render() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -50,6 +52,7 @@ fn full_manifest_render() {
 fn subscription_codegen() {
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -65,6 +68,7 @@ fn subscription_codegen() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -87,6 +91,7 @@ fn full_manifest_render_with_hashes() {
 
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -102,6 +107,7 @@ fn full_manifest_render_with_hashes() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -131,6 +137,7 @@ fn full_manifest_render_with_hashes() {
 fn codegen_without_hashes_unchanged() {
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -146,6 +153,7 @@ fn codegen_without_hashes_unchanged() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -164,6 +172,7 @@ fn subscription_codegen_with_hashes() {
 
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -179,6 +188,7 @@ fn subscription_codegen_with_hashes() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -204,6 +214,7 @@ fn subscription_codegen_with_hashes() {
 fn data_id_export_default() {
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: BTreeMap::new(),
     channels: BTreeMap::new(),
   };
@@ -215,6 +226,7 @@ fn data_id_export_default() {
 fn data_id_export_custom() {
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: BTreeMap::new(),
     channels: BTreeMap::new(),
   };
@@ -240,6 +252,7 @@ fn meta_ts_custom() {
 fn command_codegen() {
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -255,6 +268,7 @@ fn command_codegen() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -273,6 +287,7 @@ fn command_codegen() {
 fn error_schema_codegen() {
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -290,6 +305,7 @@ fn error_schema_codegen() {
               "properties": { "reason": { "type": "string" } }
           })),
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -309,6 +325,7 @@ fn error_schema_codegen() {
 fn error_schema_absent_no_error_type() {
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -324,6 +341,7 @@ fn error_schema_absent_no_error_type() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -342,6 +360,7 @@ fn command_with_hashes() {
 
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -357,6 +376,7 @@ fn command_with_hashes() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -381,6 +401,7 @@ fn command_with_hashes() {
 fn stream_codegen() {
   let manifest = crate::manifest::Manifest {
     version: 2,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -396,6 +417,7 @@ fn stream_codegen() {
           })),
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -421,6 +443,7 @@ fn stream_codegen_with_hashes() {
 
   let manifest = crate::manifest::Manifest {
     version: 2,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -436,6 +459,7 @@ fn stream_codegen_with_hashes() {
           })),
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -461,6 +485,7 @@ fn stream_codegen_with_hashes() {
 fn upload_codegen() {
   let manifest = crate::manifest::Manifest {
     version: 2,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -476,6 +501,7 @@ fn upload_codegen() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -501,6 +527,7 @@ fn invalidates_codegen() {
 
   let manifest = crate::manifest::Manifest {
     version: 2,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -512,6 +539,7 @@ fn invalidates_codegen() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m.insert(
@@ -523,6 +551,7 @@ fn invalidates_codegen() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m.insert(
@@ -537,6 +566,7 @@ fn invalidates_codegen() {
             InvalidateTarget { query: "getPost".to_string(), mapping: None },
             InvalidateTarget { query: "listPosts".to_string(), mapping: None },
           ]),
+          context: None,
         },
       );
       m
@@ -554,6 +584,7 @@ fn invalidates_codegen() {
 fn command_without_invalidates_no_field() {
   let manifest = crate::manifest::Manifest {
     version: 2,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -565,6 +596,7 @@ fn command_without_invalidates_no_field() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -585,6 +617,7 @@ fn invalidates_with_error_codegen() {
 
   let manifest = crate::manifest::Manifest {
     version: 2,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -596,6 +629,7 @@ fn invalidates_with_error_codegen() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m.insert(
@@ -607,6 +641,7 @@ fn invalidates_with_error_codegen() {
           chunk_output: None,
           error: Some(json!({ "properties": { "reason": { "type": "string" } } })),
           invalidates: Some(vec![InvalidateTarget { query: "getPost".to_string(), mapping: None }]),
+          context: None,
         },
       );
       m

@@ -335,10 +335,11 @@ mod tests {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
     }
-    Manifest { version: 1, procedures, channels: BTreeMap::new() }
+    Manifest { version: 1, context: BTreeMap::new(), procedures, channels: BTreeMap::new() }
   }
 
   #[test]

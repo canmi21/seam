@@ -28,11 +28,36 @@ impl std::fmt::Display for ProcedureType {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct ContextSchema {
+  pub extract: String,
+  pub schema: Value,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Manifest {
   pub version: u32,
+  #[serde(default)]
+  pub context: BTreeMap<String, ContextSchema>,
   pub procedures: BTreeMap<String, ProcedureSchema>,
   #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
   pub channels: BTreeMap<String, ChannelSchema>,
+}
+
+impl Manifest {
+  pub fn validate_context_refs(&self) -> Result<(), Vec<String>> {
+    let mut errors = vec![];
+    for (proc_name, schema) in &self.procedures {
+      if let Some(ctx_keys) = &schema.context {
+        for key in ctx_keys {
+          if !self.context.contains_key(key) {
+            errors
+              .push(format!("Procedure '{proc_name}' references undefined context '{key}'"));
+          }
+        }
+      }
+    }
+    if errors.is_empty() { Ok(()) } else { Err(errors) }
+  }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -48,6 +73,8 @@ pub struct ProcedureSchema {
   pub error: Option<Value>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub invalidates: Option<Vec<InvalidateTarget>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub context: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -133,6 +160,7 @@ mod tests {
       chunk_output: Some(json!({"properties": {"n": {"type": "int32"}}})),
       error: None,
       invalidates: None,
+      context: None,
     };
     assert!(schema.effective_output().is_some());
     assert_eq!(schema.effective_output(), schema.chunk_output.as_ref());
@@ -147,6 +175,7 @@ mod tests {
       chunk_output: None,
       error: None,
       invalidates: None,
+      context: None,
     };
     assert!(schema.effective_output().is_some());
     assert_eq!(schema.effective_output(), schema.output.as_ref());
@@ -171,6 +200,7 @@ mod tests {
   fn serialize_outputs_kind() {
     let m = Manifest {
       version: 2,
+      context: BTreeMap::new(),
       procedures: BTreeMap::from([(
         "test".to_string(),
         ProcedureSchema {
@@ -180,6 +210,7 @@ mod tests {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       )]),
       channels: BTreeMap::new(),
@@ -239,6 +270,88 @@ mod tests {
     let mapping = inv[0].mapping.as_ref().unwrap();
     assert_eq!(mapping["userId"].from, "userIds");
     assert_eq!(mapping["userId"].each, Some(true));
+  }
+
+  #[test]
+  fn deserialize_manifest_with_context() {
+    let json = r#"{
+      "version": 2,
+      "context": {
+        "auth": { "extract": "extractAuth", "schema": { "properties": { "userId": { "type": "string" } } } }
+      },
+      "procedures": {
+        "getPost": { "kind": "query", "input": {}, "output": {}, "context": ["auth"] }
+      }
+    }"#;
+    let m: Manifest = serde_json::from_str(json).unwrap();
+    assert!(m.context.contains_key("auth"));
+    assert_eq!(m.context["auth"].extract, "extractAuth");
+    let ctx = m.procedures["getPost"].context.as_ref().unwrap();
+    assert_eq!(ctx, &vec!["auth".to_string()]);
+  }
+
+  #[test]
+  fn validate_context_refs_pass() {
+    let m = Manifest {
+      version: 2,
+      context: BTreeMap::from([(
+        "auth".to_string(),
+        ContextSchema { extract: "extractAuth".to_string(), schema: json!({}) },
+      )]),
+      procedures: BTreeMap::from([(
+        "getPost".to_string(),
+        ProcedureSchema {
+          proc_type: ProcedureType::Query,
+          input: json!({}),
+          output: Some(json!({})),
+          chunk_output: None,
+          error: None,
+          invalidates: None,
+          context: Some(vec!["auth".to_string()]),
+        },
+      )]),
+      channels: BTreeMap::new(),
+    };
+    assert!(m.validate_context_refs().is_ok());
+  }
+
+  #[test]
+  fn validate_context_refs_fail() {
+    let m = Manifest {
+      version: 2,
+      context: BTreeMap::new(),
+      procedures: BTreeMap::from([(
+        "getPost".to_string(),
+        ProcedureSchema {
+          proc_type: ProcedureType::Query,
+          input: json!({}),
+          output: Some(json!({})),
+          chunk_output: None,
+          error: None,
+          invalidates: None,
+          context: Some(vec!["auth".to_string()]),
+        },
+      )]),
+      channels: BTreeMap::new(),
+    };
+    let err = m.validate_context_refs().unwrap_err();
+    assert_eq!(err.len(), 1);
+    assert!(err[0].contains("getPost"));
+    assert!(err[0].contains("auth"));
+  }
+
+  #[test]
+  fn context_field_in_procedure_schema() {
+    let schema = ProcedureSchema {
+      proc_type: ProcedureType::Query,
+      input: json!({}),
+      output: Some(json!({})),
+      chunk_output: None,
+      error: None,
+      invalidates: None,
+      context: Some(vec!["auth".to_string()]),
+    };
+    assert_eq!(schema.context.as_ref().unwrap(), &vec!["auth".to_string()]);
   }
 
   #[test]

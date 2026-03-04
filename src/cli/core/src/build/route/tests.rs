@@ -79,10 +79,16 @@ fn make_manifest(names: &[&str]) -> seam_codegen::Manifest {
         chunk_output: None,
         error: None,
         invalidates: None,
+        context: None,
       },
     );
   }
-  seam_codegen::Manifest { version: 1, procedures, channels: BTreeMap::new() }
+  seam_codegen::Manifest {
+    version: 1,
+    context: BTreeMap::new(),
+    procedures,
+    channels: BTreeMap::new(),
+  }
 }
 
 fn make_skeleton(
@@ -303,10 +309,16 @@ fn make_manifest_with_procedures(
         chunk_output: None,
         error: None,
         invalidates,
+        context: None,
       },
     );
   }
-  seam_codegen::Manifest { version: 2, procedures, channels: BTreeMap::new() }
+  seam_codegen::Manifest {
+    version: 2,
+    context: BTreeMap::new(),
+    procedures,
+    channels: BTreeMap::new(),
+  }
 }
 
 #[test]
