@@ -18,4 +18,4 @@ export type {
 export type { ErrorCode } from "./errors.js";
 export type { ChannelHandle } from "./channel-handle.js";
 
-export type ProcedureKind = "query" | "command" | "subscription" | "stream";
+export type ProcedureKind = "query" | "command" | "subscription" | "stream" | "upload";

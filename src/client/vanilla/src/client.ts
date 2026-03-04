@@ -42,6 +42,7 @@ export interface SeamClient {
     onError?: (err: SeamClientError) => void,
   ): Unsubscribe;
   stream(name: string, input: unknown): StreamHandle;
+  upload(procedureName: string, input: unknown, file: File | Blob): Promise<unknown>;
   fetchManifest(): Promise<unknown>;
   channel(name: string, input: unknown, opts?: ChannelOptions): ChannelHandle;
 }
@@ -247,6 +248,16 @@ export function createClient(opts: ClientOptions): SeamClient {
 
     stream(name, input) {
       return createStreamHandle(baseUrl, name, input);
+    },
+
+    upload(procedureName, input, file) {
+      const fd = new FormData();
+      fd.append("metadata", JSON.stringify(input));
+      fd.append("file", file);
+      return request(`${baseUrl}/_seam/procedure/${procedureName}`, {
+        method: "POST",
+        body: fd,
+      });
     },
 
     channel(name, input, channelOpts) {
