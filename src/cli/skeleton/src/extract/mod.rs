@@ -4,6 +4,7 @@ mod array;
 mod boolean;
 mod combo;
 mod container;
+mod directives;
 mod dom;
 mod enum_axis;
 mod tree_diff;

@@ -1,5 +1,6 @@
 /* src/cli/skeleton/src/extract/enum_axis.rs */
 
+use super::directives::{comment_endmatch, comment_match, comment_when};
 use super::dom::{self, DomNode, parse_html, serialize};
 use super::variant::{find_enum_all_variants_for_axis, find_enum_group_for_axis};
 use super::{Axis, extract_template_inner, navigate_to_children};
@@ -159,12 +160,12 @@ fn apply_enum_directives(
     let body_end = result.len() - region.suffix;
     let mut new = Vec::new();
     new.extend_from_slice(&result[..region.prefix]);
-    new.push(DomNode::Comment(format!("seam:match:{path}")));
+    new.push(comment_match(path));
     for (value, body) in branches {
-      new.push(DomNode::Comment(format!("seam:when:{value}")));
+      new.push(comment_when(value));
       new.extend(body.iter().cloned());
     }
-    new.push(DomNode::Comment("seam:endmatch".into()));
+    new.push(comment_endmatch());
     new.extend_from_slice(&result[body_end..]);
     new
   } else {

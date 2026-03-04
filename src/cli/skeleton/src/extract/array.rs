@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use super::boolean::insert_boolean_directives;
 use super::combo::AxisGroup;
 use super::container::{hoist_list_container, unwrap_container_tree};
+use super::directives::{comment_each, comment_else, comment_endeach, comment_endif, comment_if};
 use super::dom::{DomNode, parse_html, serialize};
 use super::tree_diff::{DiffOp, diff_children};
 use super::variant::{find_pair_for_axis, find_scoped_variant_indices};
@@ -89,11 +90,11 @@ fn insert_array_directives(
       })
       .collect();
 
-    let mut nodes = vec![DomNode::Comment(format!("seam:if:{path}"))];
+    let mut nodes = vec![comment_if(path)];
     nodes.extend(each_nodes);
-    nodes.push(DomNode::Comment("seam:else".into()));
+    nodes.push(comment_else());
     nodes.extend(fallback);
-    nodes.push(DomNode::Comment(format!("seam:endif:{path}")));
+    nodes.push(comment_endif(path));
     nodes
   } else {
     each_nodes
@@ -176,9 +177,9 @@ fn insert_array_modified(
 fn wrap_array_body(body: &[DomNode], path: &str) -> Vec<DomNode> {
   // Simple case: single list container
   if let Some((tag, attrs, inner)) = unwrap_container_tree(body) {
-    let mut inner_with_directives = vec![DomNode::Comment(format!("seam:each:{path}"))];
+    let mut inner_with_directives = vec![comment_each(path)];
     inner_with_directives.extend(inner.iter().cloned());
-    inner_with_directives.push(DomNode::Comment("seam:endeach".into()));
+    inner_with_directives.push(comment_endeach());
     return vec![DomNode::Element {
       tag: tag.to_string(),
       attrs: attrs.to_string(),
@@ -189,9 +190,9 @@ fn wrap_array_body(body: &[DomNode], path: &str) -> Vec<DomNode> {
 
   // Hoist case: directive comments wrap identical list containers
   if let Some((tag, attrs, inner)) = hoist_list_container(body) {
-    let mut inner_with_directives = vec![DomNode::Comment(format!("seam:each:{path}"))];
+    let mut inner_with_directives = vec![comment_each(path)];
     inner_with_directives.extend(inner);
-    inner_with_directives.push(DomNode::Comment("seam:endeach".into()));
+    inner_with_directives.push(comment_endeach());
     return vec![DomNode::Element {
       tag: tag.clone(),
       attrs: attrs.clone(),
@@ -201,9 +202,9 @@ fn wrap_array_body(body: &[DomNode], path: &str) -> Vec<DomNode> {
   }
 
   // No container unwrap
-  let mut nodes = vec![DomNode::Comment(format!("seam:each:{path}"))];
+  let mut nodes = vec![comment_each(path)];
   nodes.extend(body.iter().cloned());
-  nodes.push(DomNode::Comment("seam:endeach".into()));
+  nodes.push(comment_endeach());
   nodes
 }
 
@@ -368,11 +369,11 @@ pub(super) fn process_array_with_children(
       .map(|&i| empty_children[i].clone())
       .collect();
 
-    let mut nodes = vec![DomNode::Comment(format!("seam:if:{}", array_axis.path))];
+    let mut nodes = vec![comment_if(&array_axis.path)];
     nodes.extend(each_nodes);
-    nodes.push(DomNode::Comment("seam:else".into()));
+    nodes.push(comment_else());
     nodes.extend(fallback);
-    nodes.push(DomNode::Comment(format!("seam:endif:{}", array_axis.path)));
+    nodes.push(comment_endif(&array_axis.path));
     nodes
   } else {
     each_nodes

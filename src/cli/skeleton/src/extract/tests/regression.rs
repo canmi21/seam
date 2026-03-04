@@ -113,42 +113,63 @@ fn extract_home_skeleton_regression() {
   assert!(!result.contains("posts.$."), "leaked nested path in:\n{result}");
 }
 
-#[allow(clippy::too_many_arguments)]
-fn gen_all_child_types(
+struct HtmlVariant {
   is_admin: bool,
   is_logged_in: bool,
   subtitle: bool,
-  role: &str,
+  role: &'static str,
   pop: bool,
   published: bool,
-  priority: &str,
+  priority: &'static str,
   author: bool,
   tags: bool,
-) -> String {
-  let admin = if is_admin { "<span>Admin</span>" } else { "" };
-  let status = if is_logged_in { "Signed in" } else { "Please sign in" };
-  let sub = if subtitle { "<p><!--seam:subtitle--></p>" } else { "" };
-  let role_html = match role {
-    "admin" => "<span>Full access</span>",
-    "member" => "<span>Member access</span>",
-    _ => "<span>Read-only</span>",
-  };
-  let posts_html = if pop {
-    let pub_html = if published { "<span>Published</span>" } else { "<span>Draft</span>" };
-    let border = match priority {
-      "high" => "border-red",
-      "medium" => "border-amber",
-      _ => "border-gray",
+}
+
+impl Default for HtmlVariant {
+  fn default() -> Self {
+    Self {
+      is_admin: false,
+      is_logged_in: false,
+      subtitle: false,
+      role: "guest",
+      pop: false,
+      published: false,
+      priority: "low",
+      author: false,
+      tags: false,
+    }
+  }
+}
+
+impl HtmlVariant {
+  fn build(&self) -> String {
+    let admin = if self.is_admin { "<span>Admin</span>" } else { "" };
+    let status = if self.is_logged_in { "Signed in" } else { "Please sign in" };
+    let sub = if self.subtitle { "<p><!--seam:subtitle--></p>" } else { "" };
+    let role_html = match self.role {
+      "admin" => "<span>Full access</span>",
+      "member" => "<span>Member access</span>",
+      _ => "<span>Read-only</span>",
     };
-    let author_html = if author { "<span>by <!--seam:posts.$.author--></span>" } else { "" };
-    let tags_html = if tags { "<span><!--seam:posts.$.tags.$.name--></span>" } else { "" };
-    format!(
-      r#"<ul class="list"><li class="{border}"><!--seam:posts.$.title-->{pub_html}{author_html}<div>{tags_html}</div></li></ul>"#
-    )
-  } else {
-    "<p>No posts</p>".to_string()
-  };
-  format!("<div>{admin}<p>{status}</p>{sub}{role_html}{posts_html}</div>")
+    let posts_html = if self.pop {
+      let pub_html = if self.published { "<span>Published</span>" } else { "<span>Draft</span>" };
+      let border = match self.priority {
+        "high" => "border-red",
+        "medium" => "border-amber",
+        _ => "border-gray",
+      };
+      let author_html =
+        if self.author { "<span>by <!--seam:posts.$.author--></span>" } else { "" };
+      let tags_html =
+        if self.tags { "<span><!--seam:posts.$.tags.$.name--></span>" } else { "" };
+      format!(
+        r#"<ul class="list"><li class="{border}"><!--seam:posts.$.title-->{pub_html}{author_html}<div>{tags_html}</div></li></ul>"#
+      )
+    } else {
+      "<p>No posts</p>".to_string()
+    };
+    format!("<div>{admin}<p>{status}</p>{sub}{role_html}{posts_html}</div>")
+  }
 }
 
 #[test]
@@ -176,17 +197,20 @@ fn extract_array_with_all_child_types() {
               for priority in &["high", "medium", "low"] {
                 for &author in &[true, false] {
                   for &tags in &[true, false] {
-                    variants.push(gen_all_child_types(
-                      is_admin,
-                      is_logged_in,
-                      subtitle,
-                      role,
-                      pop,
-                      published,
-                      priority,
-                      author,
-                      tags,
-                    ));
+                    variants.push(
+                      HtmlVariant {
+                        is_admin,
+                        is_logged_in,
+                        subtitle,
+                        role,
+                        pop,
+                        published,
+                        priority,
+                        author,
+                        tags,
+                      }
+                      .build(),
+                    );
                   }
                 }
               }
