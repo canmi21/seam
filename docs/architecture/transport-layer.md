@@ -4,12 +4,14 @@ Procedure handlers in SeamJS are pure functions: `(input) -> output`. They know 
 
 ## Implemented
 
-| Channel   | Type             | Status | Packages                                   |
-| --------- | ---------------- | ------ | ------------------------------------------ |
-| HTTP RPC  | Request/Response | Done   | All server adapters                        |
-| SSE       | Streaming        | Done   | All server adapters                        |
-| Batch RPC | Request/Response | Done   | All server adapters + `@canmi/seam-client` |
-| WebSocket | Bidirectional    | Done   | Bun adapter, Go core                       |
+| Channel    | Type              | Status | Packages                                   |
+| ---------- | ----------------- | ------ | ------------------------------------------ |
+| HTTP RPC   | Request/Response  | Done   | All server adapters                        |
+| SSE        | Streaming         | Done   | All server adapters                        |
+| Batch RPC  | Request/Response  | Done   | All server adapters + `@canmi/seam-client` |
+| WebSocket  | Bidirectional     | Done   | All server adapters                        |
+| Stream SSE | Request+Streaming | Done   | All server adapters                        |
+| Upload     | Multipart         | Done   | All TS adapters                            |
 
 ## Planned
 
@@ -25,6 +27,8 @@ A procedure handler returns a result (or yields values for subscriptions). The t
 - **SSE**: handler yields values over time; each value becomes an SSE `data:` frame
 - **Batch RPC**: multiple procedure calls are bundled into a single HTTP request; results are returned as `{ ok, data: { results: [...] } }`
 - **WebSocket**: channel subscriptions are upgraded to a persistent connection; the server pushes `{ event, payload }` frames and accepts `{ id, procedure, input }` uplink commands
+- **Stream SSE**: client sends input via POST, server responds with an SSE stream where each chunk carries an incrementing `id`
+- **Upload**: client sends `multipart/form-data` with a JSON `input` field and a file attachment; the handler receives a `SeamFileHandle` for streaming reads
 
 The adapter handles serialization, error encoding, connection management, and protocol-specific details (CORS, content types, keep-alive, heartbeat). The handler never touches any of this — it is a pure data transformation.
 

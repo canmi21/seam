@@ -50,7 +50,7 @@ The engine source of truth is the Rust crate [`seam-engine`](../../src/server/en
 
 ## How It Works
 
-Backend developers define **procedures**: typed functions that accept structured input and return structured output. There are three procedure types: **queries** (read-only), **commands** (side effects), and **subscriptions** (streaming). Each procedure declares a JTD schema for its input and output types. At build time, the CLI reads the server's `/_seam/manifest.json` endpoint (which lists all procedures and their schemas) and generates a fully typed client SDK. At request time, the client calls procedures over HTTP or WebSocket; the server executes the handler and returns results in a standard `{ ok, data/error }` envelope.
+Backend developers define **procedures**: typed functions that accept structured input and return structured output. There are five procedure kinds: **queries** (read-only), **commands** (side effects), **subscriptions** (server-push streaming), **streams** (client-initiated streaming), and **uploads** (file upload). Each procedure declares a JTD schema for its input and output types. At build time, the CLI reads the server's `/_seam/manifest.json` endpoint (which lists all procedures and their schemas) and generates a fully typed client SDK. At request time, the client calls procedures over HTTP or WebSocket; the server executes the handler and returns results in a standard `{ ok, data/error }` envelope.
 
 **Channels** group related commands and subscriptions into a single definition with shared input. See [Channel Protocol](../protocol/channel-protocol.md) for the channel abstraction and WebSocket wire format.
 
@@ -60,13 +60,13 @@ Backend developers define **procedures**: typed functions that accept structured
 
 A valid SeamJS backend implements these endpoints:
 
-| Endpoint                         | Method | Purpose                                       |
-| -------------------------------- | ------ | --------------------------------------------- |
-| `/_seam/manifest.json`           | GET    | Procedure schemas, page routes, i18n config   |
-| `/_seam/procedure/{name}`        | POST   | Single procedure call (query or command)      |
-| `/_seam/procedure/_batch`        | POST   | Batch multiple procedure calls in one request |
-| `/_seam/procedure/{name}`        | GET    | SSE streaming for subscriptions               |
-| `/_seam/procedure/{name}.events` | GET+WS | WebSocket upgrade for channel subscriptions   |
-| `/_seam/page/*`                  | GET    | Skeleton-injected HTML page serving           |
+| Endpoint                         | Method | Purpose                                                   |
+| -------------------------------- | ------ | --------------------------------------------------------- |
+| `/_seam/manifest.json`           | GET    | Procedure schemas, page routes, i18n config               |
+| `/_seam/procedure/{name}`        | POST   | Single procedure call (query, command, stream, or upload) |
+| `/_seam/procedure/_batch`        | POST   | Batch multiple procedure calls in one request             |
+| `/_seam/procedure/{name}`        | GET    | SSE streaming for subscriptions                           |
+| `/_seam/procedure/{name}.events` | GET+WS | WebSocket upgrade for channel subscriptions               |
+| `/_seam/page/*`                  | GET    | Skeleton-injected HTML page serving                       |
 
 Any language that serves these endpoints is a valid SeamJS backend. The protocol is the contract, not the runtime.
