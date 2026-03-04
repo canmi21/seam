@@ -139,6 +139,7 @@ fn generate_procedure_meta(manifest: &Manifest) -> String {
       ProcedureType::Command => "command",
       ProcedureType::Subscription => "subscription",
       ProcedureType::Stream => "stream",
+      ProcedureType::Upload => "upload",
     };
     let (input_name, output_name) = if channel_event_names.contains(name) {
       // Channel event subscription: types follow channel naming convention
@@ -300,6 +301,12 @@ fn procedure_client_lines(
       ),
       format!(
         "    {key}: (input, onData, onError) => client.subscribe(\"{wire}\", input, onData as (data: unknown) => void, onError),"
+      ),
+    ),
+    ProcedureType::Upload => (
+      format!("  {key}(input: {input}, file: File | Blob): Promise<{output}>;"),
+      format!(
+        "    {key}: (input, file) => client.upload(\"{wire}\", input, file) as Promise<{output}>,"
       ),
     ),
     _ => {

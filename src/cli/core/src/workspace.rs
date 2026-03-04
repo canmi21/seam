@@ -323,6 +323,7 @@ mod tests {
         "command" => ProcedureType::Command,
         "subscription" => ProcedureType::Subscription,
         "stream" => ProcedureType::Stream,
+        "upload" => ProcedureType::Upload,
         _ => ProcedureType::Query,
       };
       procedures.insert(

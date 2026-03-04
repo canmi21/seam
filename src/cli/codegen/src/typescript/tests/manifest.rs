@@ -445,3 +445,40 @@ fn stream_codegen_with_hashes() {
   // Interface still uses original name
   assert!(code.contains("countStream(input: CountStreamInput"));
 }
+
+#[test]
+fn upload_codegen() {
+  let manifest = crate::manifest::Manifest {
+    version: 2,
+    procedures: {
+      let mut m = BTreeMap::new();
+      m.insert(
+        "uploadVideo".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Upload,
+          input: json!({
+              "properties": { "title": { "type": "string" } }
+          }),
+          output: Some(json!({
+              "properties": { "videoId": { "type": "string" } }
+          })),
+          chunk_output: None,
+          error: None,
+        },
+      );
+      m
+    },
+    channels: BTreeMap::new(),
+  };
+
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
+  assert!(code.contains("export interface UploadVideoInput {"));
+  assert!(code.contains("export interface UploadVideoOutput {"));
+  assert!(code.contains(
+    "uploadVideo(input: UploadVideoInput, file: File | Blob): Promise<UploadVideoOutput>;"
+  ));
+  assert!(code.contains("client.upload(\"uploadVideo\""));
+  assert!(code.contains(
+    "uploadVideo: { kind: \"upload\"; input: UploadVideoInput; output: UploadVideoOutput };"
+  ));
+}

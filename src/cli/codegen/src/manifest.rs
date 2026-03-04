@@ -12,6 +12,7 @@ pub enum ProcedureType {
   Command,
   Subscription,
   Stream,
+  Upload,
 }
 
 impl std::fmt::Display for ProcedureType {
@@ -21,6 +22,7 @@ impl std::fmt::Display for ProcedureType {
       Self::Command => write!(f, "command"),
       Self::Subscription => write!(f, "subscription"),
       Self::Stream => write!(f, "stream"),
+      Self::Upload => write!(f, "upload"),
     }
   }
 }
@@ -130,6 +132,21 @@ mod tests {
     };
     assert!(schema.effective_output().is_some());
     assert_eq!(schema.effective_output(), schema.output.as_ref());
+  }
+
+  #[test]
+  fn deserialize_upload_manifest() {
+    let json = r#"{
+      "version": 2,
+      "context": {},
+      "procedures": {
+        "uploadVideo": { "kind": "upload", "input": {}, "output": {} }
+      },
+      "transportDefaults": {}
+    }"#;
+    let m: Manifest = serde_json::from_str(json).unwrap();
+    assert_eq!(m.procedures["uploadVideo"].proc_type, ProcedureType::Upload);
+    assert!(m.procedures["uploadVideo"].output.is_some());
   }
 
   #[test]
