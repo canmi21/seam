@@ -183,6 +183,52 @@ function lookupI18nMessages(
   return config.messages[locale]?.[routeHash] ?? {};
 }
 
+/** Collect channel metadata from channel results for manifest */
+function collectChannelMeta(
+  channels: ChannelResult[] | undefined,
+): Record<string, ChannelMeta> | undefined {
+  if (!channels || channels.length === 0) return undefined;
+  return Object.fromEntries(
+    channels.map((ch) => {
+      const firstKey = Object.keys(ch.procedures)[0] ?? "";
+      const name = firstKey.includes(".") ? firstKey.slice(0, firstKey.indexOf(".")) : firstKey;
+      return [name, ch.channelMeta];
+    }),
+  );
+}
+
+/** Resolve context for a procedure, returning undefined if no context needed */
+function resolveCtxFor(
+  map: Map<string, { contextKeys: string[] }>,
+  name: string,
+  rawCtx: RawContextMap | undefined,
+  extractKeys: string[],
+  ctxConfig: ContextConfig,
+): Record<string, unknown> | undefined {
+  if (!rawCtx || extractKeys.length === 0) return undefined;
+  const proc = map.get(name);
+  if (!proc || proc.contextKeys.length === 0) return undefined;
+  return resolveContext(ctxConfig, rawCtx, proc.contextKeys);
+}
+
+/** Catch context resolution errors and return them as HandleResult */
+function resolveCtxSafe(
+  map: Map<string, { contextKeys: string[] }>,
+  name: string,
+  rawCtx: RawContextMap | undefined,
+  extractKeys: string[],
+  ctxConfig: ContextConfig,
+): { ctx?: Record<string, unknown>; error?: HandleResult } {
+  try {
+    return { ctx: resolveCtxFor(map, name, rawCtx, extractKeys, ctxConfig) };
+  } catch (err) {
+    if (err instanceof SeamError) {
+      return { error: { status: err.status, body: err.toJSON() } };
+    }
+    throw err;
+  }
+}
+
 export function createRouter<T extends DefinitionMap>(
   procedures: T,
   opts?: RouterOptions,
@@ -209,34 +255,8 @@ export function createRouter<T extends DefinitionMap>(
   const { strategies, hasUrlPrefix } = buildStrategies(opts);
   if (i18nConfig) registerI18nQuery(procedureMap, i18nConfig);
 
-  // Collect channel metadata for manifest
-  const channelsMeta: Record<string, ChannelMeta> | undefined =
-    opts?.channels && opts.channels.length > 0
-      ? Object.fromEntries(
-          opts.channels.map((ch) => {
-            // Derive name from the first procedure key prefix
-            const firstKey = Object.keys(ch.procedures)[0] ?? "";
-            const name = firstKey.includes(".")
-              ? firstKey.slice(0, firstKey.indexOf("."))
-              : firstKey;
-            return [name, ch.channelMeta];
-          }),
-        )
-      : undefined;
-
+  const channelsMeta = collectChannelMeta(opts?.channels);
   const extractKeys = contextExtractKeys(ctxConfig);
-
-  /** Resolve context for a procedure by name, looking up its contextKeys */
-  function resolveCtx(
-    map: Map<string, { contextKeys: string[] }>,
-    name: string,
-    rawCtx?: RawContextMap,
-  ): Record<string, unknown> | undefined {
-    if (!rawCtx || extractKeys.length === 0) return undefined;
-    const proc = map.get(name);
-    if (!proc || proc.contextKeys.length === 0) return undefined;
-    return resolveContext(ctxConfig, rawCtx, proc.contextKeys);
-  }
 
   return {
     procedures,
@@ -248,41 +268,33 @@ export function createRouter<T extends DefinitionMap>(
       return buildManifest(procedures, channelsMeta, ctxConfig);
     },
     async handle(procedureName, body, rawCtx) {
-      let ctx: Record<string, unknown> | undefined;
-      try {
-        ctx = resolveCtx(procedureMap, procedureName, rawCtx);
-      } catch (err) {
-        if (err instanceof SeamError) {
-          return { status: err.status, body: err.toJSON() };
-        }
-        throw err;
-      }
+      const { ctx, error } = resolveCtxSafe(
+        procedureMap,
+        procedureName,
+        rawCtx,
+        extractKeys,
+        ctxConfig,
+      );
+      if (error) return error;
       return handleRequest(procedureMap, procedureName, body, shouldValidateOutput, ctx);
     },
     handleBatch(calls, rawCtx) {
       const ctxResolver = rawCtx
-        ? (name: string) => resolveCtx(procedureMap, name, rawCtx) ?? {}
+        ? (name: string) => resolveCtxFor(procedureMap, name, rawCtx, extractKeys, ctxConfig) ?? {}
         : undefined;
       return handleBatchRequest(procedureMap, calls, shouldValidateOutput, ctxResolver);
     },
     handleSubscription(name, input, rawCtx) {
-      const ctx = resolveCtx(subscriptionMap, name, rawCtx);
+      const ctx = resolveCtxFor(subscriptionMap, name, rawCtx, extractKeys, ctxConfig);
       return handleSubscription(subscriptionMap, name, input, shouldValidateOutput, ctx);
     },
     handleStream(name, input, rawCtx) {
-      const ctx = resolveCtx(streamMap, name, rawCtx);
+      const ctx = resolveCtxFor(streamMap, name, rawCtx, extractKeys, ctxConfig);
       return handleStream(streamMap, name, input, shouldValidateOutput, ctx);
     },
     async handleUpload(name, body, file, rawCtx) {
-      let ctx: Record<string, unknown> | undefined;
-      try {
-        ctx = resolveCtx(uploadMap, name, rawCtx);
-      } catch (err) {
-        if (err instanceof SeamError) {
-          return { status: err.status, body: err.toJSON() };
-        }
-        throw err;
-      }
+      const { ctx, error } = resolveCtxSafe(uploadMap, name, rawCtx, extractKeys, ctxConfig);
+      if (error) return error;
       return handleUploadRequest(uploadMap, name, body, file, shouldValidateOutput, ctx);
     },
     getKind(name) {

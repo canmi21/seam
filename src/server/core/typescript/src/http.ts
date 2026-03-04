@@ -218,7 +218,7 @@ export function createHttpHandler<T extends DefinitionMap>(
     // Build raw context map from request headers when context fields are defined
     const rawCtx: RawContextMap | undefined =
       ctxExtractKeys.length > 0 && req.header
-        ? Object.fromEntries(ctxExtractKeys.map((k) => [k, req.header!(k)]))
+        ? Object.fromEntries(ctxExtractKeys.map((k) => [k, req.header?.(k) ?? null]))
         : undefined;
 
     if (req.method === "GET" && pathname === MANIFEST_PATH) {

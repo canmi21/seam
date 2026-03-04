@@ -3,7 +3,6 @@
 import { describe, expect, it } from "vitest";
 import { createRouter } from "../src/router/index.js";
 import { t } from "../src/types/index.js";
-import { SeamError } from "../src/errors.js";
 
 describe("router with context", () => {
   const router = createRouter(

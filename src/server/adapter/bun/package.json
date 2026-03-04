@@ -1,6 +1,6 @@
 {
   "name": "@canmi/seam-adapter-bun",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "license": "MIT",
   "files": [
     "dist"

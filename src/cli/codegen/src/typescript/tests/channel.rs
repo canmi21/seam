@@ -13,6 +13,7 @@ fn channel_procedure_meta_uses_channel_types() {
 
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -24,6 +25,7 @@ fn channel_procedure_meta_uses_channel_types() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m.insert(
@@ -40,6 +42,7 @@ fn channel_procedure_meta_uses_channel_types() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -94,6 +97,7 @@ fn transport_hint_codegen() {
 
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -105,6 +109,7 @@ fn transport_hint_codegen() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m.insert(
@@ -121,6 +126,7 @@ fn transport_hint_codegen() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
@@ -179,6 +185,7 @@ fn transport_hint_codegen() {
 fn dot_namespace_codegen() {
   let manifest = crate::manifest::Manifest {
     version: 1,
+    context: BTreeMap::new(),
     procedures: {
       let mut m = BTreeMap::new();
       m.insert(
@@ -194,6 +201,7 @@ fn dot_namespace_codegen() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m.insert(
@@ -209,6 +217,7 @@ fn dot_namespace_codegen() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m.insert(
@@ -224,6 +233,7 @@ fn dot_namespace_codegen() {
           chunk_output: None,
           error: None,
           invalidates: None,
+          context: None,
         },
       );
       m
