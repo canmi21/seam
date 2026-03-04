@@ -158,10 +158,8 @@ impl HtmlVariant {
         "medium" => "border-amber",
         _ => "border-gray",
       };
-      let author_html =
-        if self.author { "<span>by <!--seam:posts.$.author--></span>" } else { "" };
-      let tags_html =
-        if self.tags { "<span><!--seam:posts.$.tags.$.name--></span>" } else { "" };
+      let author_html = if self.author { "<span>by <!--seam:posts.$.author--></span>" } else { "" };
+      let tags_html = if self.tags { "<span><!--seam:posts.$.tags.$.name--></span>" } else { "" };
       format!(
         r#"<ul class="list"><li class="{border}"><!--seam:posts.$.title-->{pub_html}{author_html}<div>{tags_html}</div></li></ul>"#
       )

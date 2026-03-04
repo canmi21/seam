@@ -118,12 +118,8 @@ fn parse_match_block(
       if let Some(value) = d.strip_prefix("when:") {
         let value = value.to_string();
         *pos += 1;
-        let body = parse_until(
-          tokens,
-          pos,
-          &|d| d.starts_with("when:") || d == "endmatch",
-          diagnostics,
-        );
+        let body =
+          parse_until(tokens, pos, &|d| d.starts_with("when:") || d == "endmatch", diagnostics);
         branches.push((value, body));
       } else {
         // Skip unexpected tokens between match and first when
