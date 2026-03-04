@@ -38,6 +38,13 @@ export type InvalidateTarget =
       mapping?: Record<string, MappingValue>;
     };
 
+export type TransportPreference = "http" | "sse" | "ws" | "ipc";
+
+export interface TransportConfig {
+  prefer: TransportPreference;
+  fallback?: TransportPreference[];
+}
+
 export interface ProcedureDef<TIn = unknown, TOut = unknown> {
   kind?: "query";
   /** @deprecated Use `kind` instead */
@@ -46,6 +53,7 @@ export interface ProcedureDef<TIn = unknown, TOut = unknown> {
   output: SchemaNode<TOut>;
   error?: SchemaNode;
   context?: string[];
+  transport?: TransportConfig;
   handler: (params: { input: TIn; ctx: Record<string, unknown> }) => TOut | Promise<TOut>;
 }
 
@@ -58,6 +66,7 @@ export interface CommandDef<TIn = unknown, TOut = unknown> {
   error?: SchemaNode;
   context?: string[];
   invalidates?: InvalidateTarget[];
+  transport?: TransportConfig;
   handler: (params: { input: TIn; ctx: Record<string, unknown> }) => TOut | Promise<TOut>;
 }
 
@@ -69,6 +78,7 @@ export interface SubscriptionDef<TIn = unknown, TOut = unknown> {
   output: SchemaNode<TOut>;
   error?: SchemaNode;
   context?: string[];
+  transport?: TransportConfig;
   handler: (params: { input: TIn; ctx: Record<string, unknown> }) => AsyncIterable<TOut>;
 }
 
@@ -78,6 +88,7 @@ export interface StreamDef<TIn = unknown, TChunk = unknown> {
   output: SchemaNode<TChunk>;
   error?: SchemaNode;
   context?: string[];
+  transport?: TransportConfig;
   handler: (params: { input: TIn; ctx: Record<string, unknown> }) => AsyncGenerator<TChunk>;
 }
 
@@ -87,6 +98,7 @@ export interface UploadDef<TIn = unknown, TOut = unknown> {
   output: SchemaNode<TOut>;
   error?: SchemaNode;
   context?: string[];
+  transport?: TransportConfig;
   handler: (params: {
     input: TIn;
     file: SeamFileHandle;
@@ -112,6 +124,7 @@ export interface RouterOptions {
   resolve?: ResolveStrategy[];
   channels?: ChannelResult[];
   context?: ContextConfig;
+  transportDefaults?: Partial<Record<ProcedureKind, TransportConfig>>;
 }
 
 export interface PageRequestHeaders {
@@ -318,7 +331,7 @@ export function createRouter<T extends DefinitionMap>(
       return extractKeys;
     },
     manifest() {
-      return buildManifest(procedures, channelsMeta, ctxConfig);
+      return buildManifest(procedures, channelsMeta, ctxConfig, opts?.transportDefaults);
     },
     async handle(procedureName, body, rawCtx) {
       const { ctx, error } = resolveCtxSafe(

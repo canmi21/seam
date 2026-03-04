@@ -2,7 +2,12 @@
 
 import type { Schema } from "jtd";
 import type { SchemaNode, Infer, JTDSchema } from "./types/schema.js";
-import type { CommandDef, SubscriptionDef, DefinitionMap } from "./router/index.js";
+import type {
+  CommandDef,
+  SubscriptionDef,
+  DefinitionMap,
+  TransportConfig,
+} from "./router/index.js";
 
 // -- Public types --
 
@@ -26,6 +31,7 @@ export interface ChannelDef<
   incoming: TIncoming;
   outgoing: TOutgoing;
   subscribe: (params: { input: TChannelIn }) => AsyncIterable<ChannelEvent<TOutgoing>>;
+  transport?: TransportConfig;
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -38,6 +44,7 @@ export interface ChannelMeta {
   input: Schema;
   incoming: Record<string, { input: Schema; output: Schema; error?: Schema }>;
   outgoing: Record<string, Schema>;
+  transport?: { prefer: string; fallback?: string[] };
 }
 
 export interface ChannelResult {
@@ -158,6 +165,9 @@ export function createChannel<
     incoming: incomingMeta,
     outgoing: outgoingMeta,
   };
+  if (def.transport) {
+    channelMeta.transport = def.transport;
+  }
 
   return { procedures, channelMeta };
 }

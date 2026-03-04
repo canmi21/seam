@@ -2,7 +2,7 @@
 
 use anyhow::{Result, bail};
 
-use crate::config::{I18nSection, SeamConfig};
+use crate::config::{I18nSection, SeamConfig, TransportSection};
 
 #[derive(Debug, Clone)]
 pub enum BundlerMode {
@@ -31,6 +31,8 @@ pub struct BuildConfig {
   pub data_id: String,
   pub pages_dir: Option<String>,
   pub i18n: Option<I18nSection>,
+  #[allow(dead_code)] // used in build-time transport resolution (Step 4)
+  pub transport: Option<TransportSection>,
 }
 
 impl BuildConfig {
@@ -88,6 +90,7 @@ impl BuildConfig {
     let root_id = config.frontend.root_id.clone();
     let data_id = config.frontend.data_id.clone();
     let i18n = config.i18n.clone();
+    let transport = config.transport.clone();
 
     Ok(Self {
       bundler_mode,
@@ -109,6 +112,7 @@ impl BuildConfig {
       data_id,
       pages_dir,
       i18n,
+      transport,
     })
   }
 
@@ -410,6 +414,65 @@ out_dir = ".seam/output"
     assert!(result.is_err());
     let msg = result.unwrap_err().to_string();
     assert!(msg.contains("build.routes") || msg.contains("build.pages_dir"));
+  }
+
+  #[test]
+  fn parse_transport_section() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+routes = "./src/routes.ts"
+
+[transport]
+subscription = { prefer = "ws" }
+stream = { prefer = "sse", fallback = ["http"] }
+"#,
+    );
+    let t = config.transport.as_ref().unwrap();
+    assert!(t.query.is_none());
+    let sub = t.subscription.as_ref().unwrap();
+    assert_eq!(sub.prefer, crate::config::TransportPreference::Ws);
+    let stream = t.stream.as_ref().unwrap();
+    assert_eq!(stream.prefer, crate::config::TransportPreference::Sse);
+    assert_eq!(stream.fallback.as_ref().unwrap().len(), 1);
+  }
+
+  #[test]
+  fn absent_transport_is_none() {
+    let config = parse_fullstack("", "");
+    assert!(config.transport.is_none());
+  }
+
+  #[test]
+  fn partial_transport_override() {
+    let config = parse_config(
+      r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/main.tsx"
+
+[build]
+routes = "./src/routes.ts"
+
+[transport]
+channel = { prefer = "ws", fallback = ["http"] }
+"#,
+    );
+    let t = config.transport.as_ref().unwrap();
+    assert!(t.query.is_none());
+    assert!(t.command.is_none());
+    assert!(t.stream.is_none());
+    assert!(t.subscription.is_none());
+    assert!(t.upload.is_none());
+    assert!(t.channel.is_some());
   }
 
   #[test]

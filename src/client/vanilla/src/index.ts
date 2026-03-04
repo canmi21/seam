@@ -14,6 +14,8 @@ export type {
   Unsubscribe,
   ChannelTransport,
   ChannelOptions,
+  TransportHint,
+  TransportOptions,
 } from "./client.js";
 export type { ErrorCode } from "./errors.js";
 export type { ChannelHandle } from "./channel-handle.js";

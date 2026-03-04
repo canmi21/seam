@@ -351,6 +351,73 @@ pub(crate) fn extract_manifest(
   Ok(manifest)
 }
 
+/// Convert a config TransportPreference to codegen TransportPreference.
+fn to_codegen_preference(
+  p: &crate::config::TransportPreference,
+) -> seam_codegen::TransportPreference {
+  match p {
+    crate::config::TransportPreference::Http => seam_codegen::TransportPreference::Http,
+    crate::config::TransportPreference::Sse => seam_codegen::TransportPreference::Sse,
+    crate::config::TransportPreference::Ws => seam_codegen::TransportPreference::Ws,
+    crate::config::TransportPreference::Ipc => seam_codegen::TransportPreference::Ipc,
+  }
+}
+
+/// Convert a config TransportConfig to codegen TransportConfig.
+fn to_codegen_transport(tc: &crate::config::TransportConfig) -> seam_codegen::TransportConfig {
+  seam_codegen::TransportConfig {
+    prefer: to_codegen_preference(&tc.prefer),
+    fallback: tc.fallback.as_ref().map(|v| v.iter().map(to_codegen_preference).collect::<Vec<_>>()),
+  }
+}
+
+/// Merge seam.toml [transport] section into manifest transport_defaults.
+/// seam.toml values override server-declared defaults.
+fn merge_transport_defaults(
+  defaults: &mut std::collections::BTreeMap<String, seam_codegen::TransportConfig>,
+  section: &crate::config::TransportSection,
+) {
+  let pairs: &[(&str, &Option<crate::config::TransportConfig>)] = &[
+    ("query", &section.query),
+    ("command", &section.command),
+    ("stream", &section.stream),
+    ("subscription", &section.subscription),
+    ("upload", &section.upload),
+    ("channel", &section.channel),
+  ];
+  for (kind, opt) in pairs {
+    if let Some(tc) = opt {
+      defaults.insert((*kind).to_string(), to_codegen_transport(tc));
+    }
+  }
+}
+
+/// Fill built-in defaults for any procedure kind not yet declared.
+fn fill_builtin_transport_defaults(
+  defaults: &mut std::collections::BTreeMap<String, seam_codegen::TransportConfig>,
+) {
+  use seam_codegen::TransportPreference::{Http, Sse, Ws};
+
+  let builtins: &[(
+    &str,
+    seam_codegen::TransportPreference,
+    Option<Vec<seam_codegen::TransportPreference>>,
+  )] = &[
+    ("query", Http, None),
+    ("command", Http, None),
+    ("stream", Sse, Some(vec![Http])),
+    ("subscription", Sse, Some(vec![Http])),
+    ("upload", Http, None),
+    ("channel", Ws, Some(vec![Http])),
+  ];
+  for (kind, prefer, fallback) in builtins {
+    defaults.entry((*kind).to_string()).or_insert_with(|| seam_codegen::TransportConfig {
+      prefer: *prefer,
+      fallback: fallback.clone(),
+    });
+  }
+}
+
 /// Generate TypeScript client types from the manifest
 pub(crate) fn generate_types(
   manifest: &Manifest,
@@ -359,7 +426,14 @@ pub(crate) fn generate_types(
 ) -> Result<()> {
   let out_dir_str = config.generate.out_dir.as_deref().unwrap_or("src/generated");
 
-  let code = seam_codegen::generate_typescript(manifest, rpc_hashes, &config.frontend.data_id)?;
+  // Merge transport: seam.toml overrides server defaults, then fill built-in defaults
+  let mut manifest = manifest.clone();
+  if let Some(ref section) = config.transport {
+    merge_transport_defaults(&mut manifest.transport_defaults, section);
+  }
+  fill_builtin_transport_defaults(&mut manifest.transport_defaults);
+
+  let code = seam_codegen::generate_typescript(&manifest, rpc_hashes, &config.frontend.data_id)?;
   let line_count = code.lines().count();
   let proc_count = manifest.procedures.len();
 

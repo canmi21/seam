@@ -10,6 +10,7 @@ export interface ClientOptions {
   baseUrl: string;
   batchEndpoint?: string;
   channelTransports?: Record<string, ChannelTransport>;
+  transport?: TransportOptions;
 }
 
 export type Unsubscribe = () => void;
@@ -19,10 +20,21 @@ export interface StreamHandle<T = unknown> {
   cancel(): void;
 }
 
-export type ChannelTransport = "http" | "ws";
+export type ChannelTransport = "http" | "sse" | "ws" | "ipc";
 
 export interface ChannelOptions {
   transport?: ChannelTransport;
+}
+
+export interface TransportHint {
+  prefer: ChannelTransport;
+  fallback?: ChannelTransport[];
+}
+
+export interface TransportOptions {
+  channels?: Record<string, ChannelTransport>;
+  procedures?: Record<string, TransportHint>;
+  defaults?: Record<string, TransportHint>;
 }
 
 export interface SeamClient {
@@ -261,7 +273,12 @@ export function createClient(opts: ClientOptions): SeamClient {
     },
 
     channel(name, input, channelOpts) {
-      const transport = channelOpts?.transport ?? channelTransports?.[name] ?? "http";
+      const transport =
+        channelOpts?.transport ??
+        opts.transport?.channels?.[name] ??
+        channelTransports?.[name] ??
+        opts.transport?.defaults?.channel?.prefer ??
+        "http";
       if (transport === "ws") {
         return createAutoChannelHandle(baseUrl, this, name, input);
       }

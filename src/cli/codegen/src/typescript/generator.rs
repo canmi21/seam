@@ -4,7 +4,9 @@ use std::collections::BTreeSet;
 
 use anyhow::Result;
 
-use crate::manifest::{Manifest, ProcedureSchema, ProcedureType};
+use crate::manifest::{
+  Manifest, ProcedureSchema, ProcedureType, TransportConfig, TransportPreference,
+};
 use crate::rpc_hash::RpcHashMap;
 
 use super::render::{render_top_level, to_pascal_case};
@@ -176,43 +178,127 @@ fn generate_procedure_meta(manifest: &Manifest) -> String {
   out
 }
 
-/// Generate transport hint for channels (WS metadata for auto-selection).
+/// Format a fallback array as TypeScript: `["http"] as const`.
+fn format_fallback(fallback: &Option<Vec<TransportPreference>>) -> String {
+  match fallback {
+    Some(v) if !v.is_empty() => {
+      let items: Vec<String> = v.iter().map(|p| format!("\"{p}\"")).collect();
+      format!("[{}] as const", items.join(", "))
+    }
+    _ => "[] as const".to_string(),
+  }
+}
+
+/// Resolve effective channel transport: channel-level > transportDefaults["channel"] > Ws.
+fn resolve_channel_transport(
+  ch: &crate::manifest::ChannelSchema,
+  defaults: &std::collections::BTreeMap<String, TransportConfig>,
+) -> &'static str {
+  if let Some(ref t) = ch.transport {
+    return match t.prefer {
+      TransportPreference::Http => "http",
+      TransportPreference::Sse => "sse",
+      TransportPreference::Ws => "ws",
+      TransportPreference::Ipc => "ipc",
+    };
+  }
+  if let Some(t) = defaults.get("channel") {
+    return match t.prefer {
+      TransportPreference::Http => "http",
+      TransportPreference::Sse => "sse",
+      TransportPreference::Ws => "ws",
+      TransportPreference::Ipc => "ipc",
+    };
+  }
+  "ws"
+}
+
+/// Resolve effective channel fallback: channel-level > transportDefaults["channel"] > ["http"].
+fn resolve_channel_fallback(
+  ch: &crate::manifest::ChannelSchema,
+  defaults: &std::collections::BTreeMap<String, TransportConfig>,
+) -> Option<Vec<TransportPreference>> {
+  if let Some(ref t) = ch.transport {
+    return t.fallback.clone();
+  }
+  if let Some(t) = defaults.get("channel") {
+    return t.fallback.clone();
+  }
+  Some(vec![TransportPreference::Http])
+}
+
+/// Generate transport hint with defaults, procedure overrides, and channel metadata.
 fn generate_transport_hint(manifest: &Manifest, rpc_hashes: Option<&RpcHashMap>) -> String {
-  if manifest.channels.is_empty() {
-    return String::new();
+  let mut out = String::from("export const seamTransportHint = {\n");
+
+  // defaults section: always emitted from manifest.transport_defaults
+  out.push_str("  defaults: {\n");
+  for (kind, tc) in &manifest.transport_defaults {
+    out.push_str(&format!(
+      "    {kind}: {{ prefer: \"{prefer}\" as const, fallback: {fallback} }},\n",
+      prefer = tc.prefer,
+      fallback = format_fallback(&tc.fallback),
+    ));
+  }
+  out.push_str("  },\n");
+
+  // procedures section: only those with explicit transport override
+  let proc_overrides: Vec<(&String, &TransportConfig)> = manifest
+    .procedures
+    .iter()
+    .filter_map(|(name, schema)| schema.transport.as_ref().map(|t| (name, t)))
+    .collect();
+  if !proc_overrides.is_empty() {
+    out.push_str("  procedures: {\n");
+    for (name, tc) in &proc_overrides {
+      out.push_str(&format!(
+        "    {}: {{ prefer: \"{prefer}\" as const, fallback: {fallback} }},\n",
+        quote_key(name),
+        prefer = tc.prefer,
+        fallback = format_fallback(&tc.fallback),
+      ));
+    }
+    out.push_str("  },\n");
   }
 
-  let mut out = String::from("export const seamTransportHint = {\n  channels: {\n");
+  // channels section
+  if !manifest.channels.is_empty() {
+    out.push_str("  channels: {\n");
+    for (ch_name, ch) in &manifest.channels {
+      let transport = resolve_channel_transport(ch, &manifest.transport_defaults);
+      let fallback = resolve_channel_fallback(ch, &manifest.transport_defaults);
 
-  for (ch_name, ch) in &manifest.channels {
-    out.push_str(&format!("    {}: {{\n", quote_key(ch_name)));
-    out.push_str("      transport: \"ws\" as const,\n");
+      out.push_str(&format!("    {}: {{\n", quote_key(ch_name)));
+      out.push_str(&format!("      transport: \"{transport}\" as const,\n"));
+      out.push_str(&format!("      fallback: {},\n", format_fallback(&fallback)));
 
-    let incoming: Vec<String> = ch
-      .incoming
-      .keys()
-      .map(|msg_name| {
-        let full_name = format!("{ch_name}.{msg_name}");
-        let wire = rpc_hashes
-          .and_then(|m| m.procedures.get(&full_name))
-          .map(String::as_str)
-          .unwrap_or(full_name.as_str());
-        format!("\"{wire}\"")
-      })
-      .collect();
-    out.push_str(&format!("      incoming: [{}],\n", incoming.join(", ")));
+      let incoming: Vec<String> = ch
+        .incoming
+        .keys()
+        .map(|msg_name| {
+          let full_name = format!("{ch_name}.{msg_name}");
+          let wire = rpc_hashes
+            .and_then(|m| m.procedures.get(&full_name))
+            .map(String::as_str)
+            .unwrap_or(full_name.as_str());
+          format!("\"{wire}\"")
+        })
+        .collect();
+      out.push_str(&format!("      incoming: [{}],\n", incoming.join(", ")));
 
-    let events_name = format!("{ch_name}.events");
-    let events_wire = rpc_hashes
-      .and_then(|m| m.procedures.get(&events_name))
-      .map(String::as_str)
-      .unwrap_or(events_name.as_str());
-    out.push_str(&format!("      outgoing: \"{events_wire}\",\n"));
+      let events_name = format!("{ch_name}.events");
+      let events_wire = rpc_hashes
+        .and_then(|m| m.procedures.get(&events_name))
+        .map(String::as_str)
+        .unwrap_or(events_name.as_str());
+      out.push_str(&format!("      outgoing: \"{events_wire}\",\n"));
 
-    out.push_str("    },\n");
+      out.push_str("    },\n");
+    }
+    out.push_str("  },\n");
   }
 
-  out.push_str("  },\n} as const;\n\n");
+  out.push_str("} as const;\n\n");
   out.push_str("export type SeamTransportHint = typeof seamTransportHint;\n\n");
   out
 }
@@ -350,8 +436,14 @@ fn generate_client_factory(
     opts_parts.push(format!("batchEndpoint: \"{}\"", map.batch));
   }
   if has_channels {
-    let entries: Vec<String> =
-      manifest.channels.keys().map(|name| format!("{}: \"ws\"", quote_key(name))).collect();
+    let entries: Vec<String> = manifest
+      .channels
+      .iter()
+      .map(|(name, ch)| {
+        let transport = resolve_channel_transport(ch, &manifest.transport_defaults);
+        format!("{}: \"{}\"", quote_key(name), transport)
+      })
+      .collect();
     opts_parts.push(format!("channelTransports: {{ {} }}", entries.join(", ")));
   }
   out.push_str(&format!(
@@ -410,8 +502,10 @@ pub fn generate_typescript(
 
   if has_channels {
     out.push_str(&generate_channel_types(manifest)?);
-    out.push_str(&generate_transport_hint(manifest, rpc_hashes));
   }
+
+  // Always emit transport hint (contains defaults section)
+  out.push_str(&generate_transport_hint(manifest, rpc_hashes));
 
   out.push_str(&generate_client_factory(manifest, rpc_hashes, &factory_lines, has_channels));
 

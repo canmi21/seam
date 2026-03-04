@@ -80,6 +80,7 @@ fn make_manifest(names: &[&str]) -> seam_codegen::Manifest {
         error: None,
         invalidates: None,
         context: None,
+        transport: None,
       },
     );
   }
@@ -88,6 +89,7 @@ fn make_manifest(names: &[&str]) -> seam_codegen::Manifest {
     context: BTreeMap::new(),
     procedures,
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   }
 }
 
@@ -310,6 +312,7 @@ fn make_manifest_with_procedures(
         error: None,
         invalidates,
         context: None,
+        transport: None,
       },
     );
   }
@@ -318,6 +321,7 @@ fn make_manifest_with_procedures(
     context: BTreeMap::new(),
     procedures,
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   }
 }
 

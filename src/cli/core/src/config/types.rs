@@ -1,7 +1,39 @@
 /* src/cli/core/src/config/types.rs */
 
 use anyhow::{Result, bail};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TransportPreference {
+  Http,
+  Sse,
+  Ws,
+  Ipc,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TransportConfig {
+  pub prefer: TransportPreference,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub fallback: Option<Vec<TransportPreference>>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct TransportSection {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub query: Option<TransportConfig>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub command: Option<TransportConfig>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub stream: Option<TransportConfig>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub subscription: Option<TransportConfig>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub upload: Option<TransportConfig>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub channel: Option<TransportConfig>,
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SeamConfig {
@@ -22,6 +54,8 @@ pub struct SeamConfig {
   pub workspace: Option<WorkspaceSection>,
   #[serde(default)]
   pub clean: CleanSection,
+  #[serde(default)]
+  pub transport: Option<TransportSection>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

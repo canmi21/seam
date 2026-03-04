@@ -30,6 +30,7 @@ export interface ProcedureEntry {
   error?: Schema;
   invalidates?: NormalizedInvalidateTarget[];
   context?: string[];
+  transport?: { prefer: string; fallback?: string[] };
 }
 
 export interface ProcedureManifest {
@@ -37,7 +38,7 @@ export interface ProcedureManifest {
   context: Record<string, ContextManifestEntry>;
   procedures: Record<string, ProcedureEntry>;
   channels?: Record<string, ChannelMeta>;
-  transportDefaults: Record<string, never>;
+  transportDefaults: Record<string, { prefer: string; fallback?: string[] }>;
 }
 
 type InvalidateInput = Array<
@@ -76,6 +77,7 @@ export function buildManifest(
   >,
   channels?: Record<string, ChannelMeta>,
   contextConfig?: ContextConfig,
+  transportDefaults?: Record<string, { prefer: string; fallback?: string[] }>,
 ): ProcedureManifest {
   const mapped: ProcedureManifest["procedures"] = {};
 
@@ -106,6 +108,10 @@ export function buildManifest(
     if (def.context && def.context.length > 0) {
       entry.context = def.context;
     }
+    const defAny = def as Record<string, unknown>;
+    if (defAny.transport) {
+      entry.transport = defAny.transport as { prefer: string; fallback?: string[] };
+    }
     mapped[name] = entry;
   }
 
@@ -120,7 +126,7 @@ export function buildManifest(
     version: 2,
     context,
     procedures: mapped,
-    transportDefaults: {},
+    transportDefaults: transportDefaults ?? {},
   };
   if (channels && Object.keys(channels).length > 0) {
     manifest.channels = channels;

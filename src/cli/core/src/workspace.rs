@@ -337,10 +337,17 @@ mod tests {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
     }
-    Manifest { version: 1, context: BTreeMap::new(), procedures, channels: BTreeMap::new() }
+    Manifest {
+      version: 1,
+      context: BTreeMap::new(),
+      procedures,
+      channels: BTreeMap::new(),
+      transport_defaults: BTreeMap::new(),
+    }
   }
 
   #[test]

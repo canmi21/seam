@@ -28,11 +28,13 @@ fn full_manifest_render() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__data").unwrap();
@@ -69,11 +71,13 @@ fn subscription_codegen() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__data").unwrap();
@@ -108,11 +112,13 @@ fn full_manifest_render_with_hashes() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
   let hash_map = RpcHashMap {
     salt: "test_salt".to_string(),
@@ -154,11 +160,13 @@ fn codegen_without_hashes_unchanged() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
   let code = generate_typescript(&manifest, None, "__data").unwrap();
   assert!(code.contains("client.query(\"greet\""));
@@ -189,11 +197,13 @@ fn subscription_codegen_with_hashes() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
   let hash_map = RpcHashMap {
     salt: "test_salt".to_string(),
@@ -217,6 +227,7 @@ fn data_id_export_default() {
     context: BTreeMap::new(),
     procedures: BTreeMap::new(),
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
   let code = generate_typescript(&manifest, None, "__data").unwrap();
   assert!(code.contains("export { DATA_ID } from \"./meta.js\";"));
@@ -229,6 +240,7 @@ fn data_id_export_custom() {
     context: BTreeMap::new(),
     procedures: BTreeMap::new(),
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
   let code = generate_typescript(&manifest, None, "__sd").unwrap();
   assert!(code.contains("export { DATA_ID } from \"./meta.js\";"));
@@ -269,11 +281,13 @@ fn command_codegen() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__data").unwrap();
@@ -306,11 +320,13 @@ fn error_schema_codegen() {
           })),
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__data").unwrap();
@@ -342,11 +358,13 @@ fn error_schema_absent_no_error_type() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__data").unwrap();
@@ -377,11 +395,13 @@ fn command_with_hashes() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
   let hash_map = RpcHashMap {
     salt: "test_salt".to_string(),
@@ -418,11 +438,13 @@ fn stream_codegen() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__data").unwrap();
@@ -460,11 +482,13 @@ fn stream_codegen_with_hashes() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
   let hash_map = RpcHashMap {
     salt: "test_salt".to_string(),
@@ -502,11 +526,13 @@ fn upload_codegen() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__data").unwrap();
@@ -540,6 +566,7 @@ fn invalidates_codegen() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m.insert(
@@ -552,6 +579,7 @@ fn invalidates_codegen() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m.insert(
@@ -567,11 +595,13 @@ fn invalidates_codegen() {
             InvalidateTarget { query: "listPosts".to_string(), mapping: None },
           ]),
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__data").unwrap();
@@ -597,11 +627,13 @@ fn command_without_invalidates_no_field() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__data").unwrap();
@@ -630,6 +662,7 @@ fn invalidates_with_error_codegen() {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       );
       m.insert(
@@ -642,11 +675,13 @@ fn invalidates_with_error_codegen() {
           error: Some(json!({ "properties": { "reason": { "type": "string" } } })),
           invalidates: Some(vec![InvalidateTarget { query: "getPost".to_string(), mapping: None }]),
           context: None,
+          transport: None,
         },
       );
       m
     },
     channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
   };
 
   let code = generate_typescript(&manifest, None, "__data").unwrap();

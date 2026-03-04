@@ -57,6 +57,8 @@ export type {
   PageRequestHeaders,
   InvalidateTarget,
   MappingValue,
+  TransportPreference,
+  TransportConfig,
 } from "./router/index.js";
 export type { SeamFileHandle } from "./procedure.js";
 export type { ResolveStrategy, ResolveData } from "./resolve.js";

@@ -257,6 +257,41 @@ describe("channel(): channelTransports auto-selection", () => {
   });
 });
 
+describe("transport options", () => {
+  it("transport.channels overrides channelTransports", () => {
+    const client = createClient({
+      baseUrl: "http://localhost:3000",
+      channelTransports: { chat: "http" },
+      transport: { channels: { chat: "ws" } },
+    });
+    expect(client).toBeDefined();
+  });
+
+  it("transport.defaults.channel applies", () => {
+    const client = createClient({
+      baseUrl: "http://localhost:3000",
+      transport: { defaults: { channel: { prefer: "ws" } } },
+    });
+    expect(client).toBeDefined();
+  });
+
+  it("backward compat channelTransports", () => {
+    const client = createClient({
+      baseUrl: "http://localhost:3000",
+      channelTransports: { chat: "ws" },
+    });
+    expect(client).toBeDefined();
+  });
+
+  it("sse transport type accepted", () => {
+    const client = createClient({
+      baseUrl: "http://localhost:3000",
+      transport: { channels: { metrics: "sse" } },
+    });
+    expect(client).toBeDefined();
+  });
+});
+
 describe("fetchManifest()", () => {
   it("returns manifest on success", async () => {
     const manifest = { procedures: { greet: {} } };

@@ -27,13 +27,40 @@ impl std::fmt::Display for ProcedureType {
   }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TransportPreference {
+  Http,
+  Sse,
+  Ws,
+  Ipc,
+}
+
+impl std::fmt::Display for TransportPreference {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    match self {
+      Self::Http => write!(f, "http"),
+      Self::Sse => write!(f, "sse"),
+      Self::Ws => write!(f, "ws"),
+      Self::Ipc => write!(f, "ipc"),
+    }
+  }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransportConfig {
+  pub prefer: TransportPreference,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub fallback: Option<Vec<TransportPreference>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContextSchema {
   pub extract: String,
   pub schema: Value,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Manifest {
   pub version: u32,
   #[serde(default)]
@@ -41,6 +68,8 @@ pub struct Manifest {
   pub procedures: BTreeMap<String, ProcedureSchema>,
   #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
   pub channels: BTreeMap<String, ChannelSchema>,
+  #[serde(default, rename = "transportDefaults")]
+  pub transport_defaults: BTreeMap<String, TransportConfig>,
 }
 
 impl Manifest {
@@ -59,7 +88,7 @@ impl Manifest {
   }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcedureSchema {
   #[serde(rename = "kind", alias = "type")]
   pub proc_type: ProcedureType,
@@ -74,16 +103,18 @@ pub struct ProcedureSchema {
   pub invalidates: Option<Vec<InvalidateTarget>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub context: Option<Vec<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub transport: Option<TransportConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InvalidateTarget {
   pub query: String,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub mapping: Option<BTreeMap<String, MappingValue>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MappingValue {
   pub from: String,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -160,6 +191,7 @@ mod tests {
       error: None,
       invalidates: None,
       context: None,
+      transport: None,
     };
     assert!(schema.effective_output().is_some());
     assert_eq!(schema.effective_output(), schema.chunk_output.as_ref());
@@ -175,6 +207,7 @@ mod tests {
       error: None,
       invalidates: None,
       context: None,
+      transport: None,
     };
     assert!(schema.effective_output().is_some());
     assert_eq!(schema.effective_output(), schema.output.as_ref());
@@ -210,9 +243,11 @@ mod tests {
           error: None,
           invalidates: None,
           context: None,
+          transport: None,
         },
       )]),
       channels: BTreeMap::new(),
+      transport_defaults: BTreeMap::new(),
     };
     let json = serde_json::to_string(&m).unwrap();
     assert!(json.contains(r#""kind":"command""#));
@@ -307,9 +342,11 @@ mod tests {
           error: None,
           invalidates: None,
           context: Some(vec!["auth".to_string()]),
+          transport: None,
         },
       )]),
       channels: BTreeMap::new(),
+      transport_defaults: BTreeMap::new(),
     };
     assert!(m.validate_context_refs().is_ok());
   }
@@ -329,9 +366,11 @@ mod tests {
           error: None,
           invalidates: None,
           context: Some(vec!["auth".to_string()]),
+          transport: None,
         },
       )]),
       channels: BTreeMap::new(),
+      transport_defaults: BTreeMap::new(),
     };
     let err = m.validate_context_refs().unwrap_err();
     assert_eq!(err.len(), 1);
@@ -349,6 +388,7 @@ mod tests {
       error: None,
       invalidates: None,
       context: Some(vec!["auth".to_string()]),
+      transport: None,
     };
     assert_eq!(schema.context.as_ref().unwrap(), &vec!["auth".to_string()]);
   }
@@ -364,16 +404,66 @@ mod tests {
     let m: Manifest = serde_json::from_str(json).unwrap();
     assert!(m.procedures["deleteUser"].invalidates.is_none());
   }
+
+  #[test]
+  fn deserialize_transport_defaults() {
+    let json = r#"{
+      "version": 2,
+      "context": {},
+      "procedures": {
+        "getUser": { "kind": "query", "input": {}, "output": {} }
+      },
+      "transportDefaults": {
+        "query": { "prefer": "http" },
+        "subscription": { "prefer": "ws", "fallback": ["sse", "http"] }
+      }
+    }"#;
+    let m: Manifest = serde_json::from_str(json).unwrap();
+    assert_eq!(m.transport_defaults.len(), 2);
+    assert_eq!(m.transport_defaults["query"].prefer, TransportPreference::Http);
+    let sub = &m.transport_defaults["subscription"];
+    assert_eq!(sub.prefer, TransportPreference::Ws);
+    assert_eq!(sub.fallback.as_ref().unwrap().len(), 2);
+  }
+
+  #[test]
+  fn deserialize_procedure_transport() {
+    let json = r#"{
+      "version": 2,
+      "procedures": {
+        "live": { "kind": "subscription", "input": {}, "output": {}, "transport": { "prefer": "ws", "fallback": ["http"] } }
+      }
+    }"#;
+    let m: Manifest = serde_json::from_str(json).unwrap();
+    let t = m.procedures["live"].transport.as_ref().unwrap();
+    assert_eq!(t.prefer, TransportPreference::Ws);
+    assert_eq!(t.fallback.as_ref().unwrap(), &vec![TransportPreference::Http]);
+  }
+
+  #[test]
+  fn backward_compat_empty_transport() {
+    let json = r#"{
+      "version": 2,
+      "procedures": {
+        "getUser": { "kind": "query", "input": {}, "output": {} }
+      },
+      "transportDefaults": {}
+    }"#;
+    let m: Manifest = serde_json::from_str(json).unwrap();
+    assert!(m.transport_defaults.is_empty());
+  }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChannelSchema {
   pub input: Value,
   pub incoming: BTreeMap<String, IncomingSchema>,
   pub outgoing: BTreeMap<String, Value>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub transport: Option<TransportConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IncomingSchema {
   pub input: Value,
   pub output: Value,
