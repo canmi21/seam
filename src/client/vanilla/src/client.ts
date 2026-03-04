@@ -133,30 +133,18 @@ export function createClient(opts: ClientOptions): SeamClient {
   const batchPath = opts.batchEndpoint ?? "_batch";
   const channelTransports = opts.channelTransports;
 
+  function callProcedure(procedureName: string, input: unknown): Promise<unknown> {
+    return request(`${baseUrl}/_seam/procedure/${procedureName}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  }
+
   return {
-    call(procedureName, input) {
-      return request(`${baseUrl}/_seam/procedure/${procedureName}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-    },
-
-    query(procedureName, input) {
-      return request(`${baseUrl}/_seam/procedure/${procedureName}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-    },
-
-    command(procedureName, input) {
-      return request(`${baseUrl}/_seam/procedure/${procedureName}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-    },
+    call: callProcedure,
+    query: callProcedure,
+    command: callProcedure,
 
     callBatch(calls) {
       return request(`${baseUrl}/_seam/procedure/${batchPath}`, {
