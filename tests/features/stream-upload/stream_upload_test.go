@@ -98,7 +98,7 @@ func rpcEndpoint(procedure string) string {
 	return baseURL + "/_seam/procedure/" + procedure
 }
 
-func getHTML(t *testing.T, url string) (int, string) {
+func getHTML(t *testing.T, url string) (status int, body string) {
 	t.Helper()
 	resp, err := http.Get(url)
 	if err != nil {
@@ -112,7 +112,7 @@ func getHTML(t *testing.T, url string) (int, string) {
 	return resp.StatusCode, string(raw)
 }
 
-func getJSON(t *testing.T, url string) (int, map[string]any) {
+func getJSON(t *testing.T, url string) (status int, data map[string]any) {
 	t.Helper()
 	resp, err := http.Get(url)
 	if err != nil {
@@ -130,7 +130,7 @@ func getJSON(t *testing.T, url string) (int, map[string]any) {
 	return resp.StatusCode, m
 }
 
-func postJSON(t *testing.T, url string, payload any) (int, map[string]any) {
+func postJSON(t *testing.T, url string, payload any) (status int, data map[string]any) {
 	t.Helper()
 	b, err := json.Marshal(payload)
 	if err != nil {
@@ -208,7 +208,7 @@ func postSSE(t *testing.T, url string, payload any) (*http.Response, []sseEvent)
 }
 
 // buildMultipart creates a multipart form with a metadata JSON field and a file field.
-func buildMultipart(metadata any, fileName string, content []byte) (*bytes.Buffer, string) {
+func buildMultipart(metadata any, fileName string, content []byte) (body *bytes.Buffer, contentType string) {
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 

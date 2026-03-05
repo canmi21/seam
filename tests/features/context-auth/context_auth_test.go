@@ -96,7 +96,7 @@ func rpcEndpoint(procedure string) string {
 	return baseURL + "/_seam/procedure/" + procedure
 }
 
-func getJSON(t *testing.T, url string) (int, map[string]any) {
+func getJSON(t *testing.T, url string) (status int, data map[string]any) {
 	t.Helper()
 	resp, err := http.Get(url)
 	if err != nil {
@@ -114,7 +114,7 @@ func getJSON(t *testing.T, url string) (int, map[string]any) {
 	return resp.StatusCode, m
 }
 
-func postJSON(t *testing.T, url string, payload any) (int, map[string]any) {
+func postJSON(t *testing.T, url string, payload any) (status int, data map[string]any) {
 	t.Helper()
 	b, err := json.Marshal(payload)
 	if err != nil {
@@ -137,7 +137,7 @@ func postJSON(t *testing.T, url string, payload any) (int, map[string]any) {
 }
 
 // postJSONWithAuth sends a POST with a custom Authorization header.
-func postJSONWithAuth(t *testing.T, url string, payload any, authHeader string) (int, map[string]any) {
+func postJSONWithAuth(t *testing.T, url string, payload any, authHeader string) (status int, data map[string]any) {
 	t.Helper()
 	b, err := json.Marshal(payload)
 	if err != nil {

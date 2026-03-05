@@ -40,7 +40,7 @@ describe('createSeamQueryOptions', () => {
 
   it('queryFn calls rpcFn with correct args', async () => {
     const opts = createSeamQueryOptions(mockRpc, 'getUser', { id: '1' })
-    await (opts.queryFn as Function)({} as never)
+    await (opts.queryFn as (...args: never[]) => unknown)({} as never)
     expect(mockRpc).toHaveBeenCalledWith('getUser', { id: '1' })
   })
 

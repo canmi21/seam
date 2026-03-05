@@ -98,7 +98,7 @@ func rpcEndpoint(procedure string) string {
 	return baseURL + "/_seam/procedure/" + procedure
 }
 
-func getHTML(t *testing.T, url string) (int, string) {
+func getHTML(t *testing.T, url string) (status int, body string) {
 	t.Helper()
 	resp, err := http.Get(url)
 	if err != nil {
@@ -112,7 +112,7 @@ func getHTML(t *testing.T, url string) (int, string) {
 	return resp.StatusCode, string(raw)
 }
 
-func postJSON(t *testing.T, url string, payload any) (int, map[string]any) {
+func postJSON(t *testing.T, url string, payload any) (status int, data map[string]any) {
 	t.Helper()
 	b, err := json.Marshal(payload)
 	if err != nil {

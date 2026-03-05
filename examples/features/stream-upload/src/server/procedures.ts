@@ -15,7 +15,9 @@ export const countStream: StreamDef<{ max: number }, { n: number }> = {
   output: t.object({ n: t.int32() }),
   async *handler({ input }) {
     for (let i = 0; i < input.max; i++) {
-      await new Promise((r) => setTimeout(r, 500))
+      await new Promise((r) => {
+        setTimeout(r, 500)
+      })
       yield { n: i }
     }
   },

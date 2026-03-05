@@ -96,7 +96,7 @@ func rpcEndpoint(procedure string) string {
 	return baseURL + "/_seam/procedure/" + procedure
 }
 
-func getHTML(t *testing.T, url string) (int, string) {
+func getHTML(t *testing.T, url string) (status int, body string) {
 	t.Helper()
 	resp, err := http.Get(url)
 	if err != nil {
@@ -110,7 +110,7 @@ func getHTML(t *testing.T, url string) (int, string) {
 	return resp.StatusCode, string(raw)
 }
 
-func getJSON(t *testing.T, url string) (int, map[string]any) {
+func getJSON(t *testing.T, url string) map[string]any {
 	t.Helper()
 	resp, err := http.Get(url)
 	if err != nil {
@@ -125,10 +125,10 @@ func getJSON(t *testing.T, url string) (int, map[string]any) {
 	if err := json.Unmarshal(raw, &m); err != nil {
 		t.Fatalf("unmarshal response: %v\nbody: %s", err, raw)
 	}
-	return resp.StatusCode, m
+	return m
 }
 
-func postJSON(t *testing.T, url string, payload any) (int, map[string]any) {
+func postJSON(t *testing.T, url string, payload any) (status int, data map[string]any) {
 	t.Helper()
 	b, err := json.Marshal(payload)
 	if err != nil {
@@ -165,7 +165,7 @@ func extractData(t *testing.T, body map[string]any) map[string]any {
 // -- Manifest tests --
 
 func TestManifestCommandKind(t *testing.T) {
-	_, body := getJSON(t, baseURL+"/_seam/manifest.json")
+	body := getJSON(t, baseURL+"/_seam/manifest.json")
 	procs := body["procedures"].(map[string]any)
 
 	addTodo := procs["addTodo"].(map[string]any)
@@ -179,7 +179,7 @@ func TestManifestCommandKind(t *testing.T) {
 }
 
 func TestManifestInvalidatesSimple(t *testing.T) {
-	_, body := getJSON(t, baseURL+"/_seam/manifest.json")
+	body := getJSON(t, baseURL+"/_seam/manifest.json")
 	procs := body["procedures"].(map[string]any)
 
 	addTodo := procs["addTodo"].(map[string]any)
@@ -205,7 +205,7 @@ func TestManifestInvalidatesSimple(t *testing.T) {
 }
 
 func TestManifestInvalidatesMapping(t *testing.T) {
-	_, body := getJSON(t, baseURL+"/_seam/manifest.json")
+	body := getJSON(t, baseURL+"/_seam/manifest.json")
 	procs := body["procedures"].(map[string]any)
 
 	toggleTodo := procs["toggleTodo"].(map[string]any)
@@ -242,7 +242,7 @@ func TestManifestInvalidatesMapping(t *testing.T) {
 }
 
 func TestManifestCache(t *testing.T) {
-	_, body := getJSON(t, baseURL+"/_seam/manifest.json")
+	body := getJSON(t, baseURL+"/_seam/manifest.json")
 	procs := body["procedures"].(map[string]any)
 
 	for _, name := range []string{"listTodos", "getTodo"} {
