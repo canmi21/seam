@@ -12,74 +12,74 @@
  *   });
  */
 export interface CallbackSink<T> {
-  emit: (value: T) => void;
-  end: () => void;
-  error: (err: Error) => void;
+  emit: (value: T) => void
+  end: () => void
+  error: (err: Error) => void
 }
 
-type QueueItem<T> = { type: "value"; value: T } | { type: "end" } | { type: "error"; error: Error };
+type QueueItem<T> = { type: 'value'; value: T } | { type: 'end' } | { type: 'error'; error: Error }
 
 export function fromCallback<T>(
   setup: (sink: CallbackSink<T>) => (() => void) | void,
 ): AsyncGenerator<T, void, undefined> {
-  const queue: QueueItem<T>[] = [];
-  let resolve: (() => void) | null = null;
-  let done = false;
+  const queue: QueueItem<T>[] = []
+  let resolve: (() => void) | null = null
+  let done = false
   function notify() {
     if (resolve) {
-      const r = resolve;
-      resolve = null;
-      r();
+      const r = resolve
+      resolve = null
+      r()
     }
   }
 
   const sink: CallbackSink<T> = {
     emit(value) {
-      if (done) return;
-      queue.push({ type: "value", value });
-      notify();
+      if (done) return
+      queue.push({ type: 'value', value })
+      notify()
     },
     end() {
-      if (done) return;
-      done = true;
-      queue.push({ type: "end" });
-      notify();
+      if (done) return
+      done = true
+      queue.push({ type: 'end' })
+      notify()
     },
     error(err) {
-      if (done) return;
-      done = true;
-      queue.push({ type: "error", error: err });
-      notify();
+      if (done) return
+      done = true
+      queue.push({ type: 'error', error: err })
+      notify()
     },
-  };
+  }
 
-  const cleanup = setup(sink);
+  const cleanup = setup(sink)
 
   async function* generate(): AsyncGenerator<T, void, undefined> {
     try {
       while (true) {
         if (queue.length === 0) {
           await new Promise<void>((r) => {
-            resolve = r;
-          });
+            resolve = r
+          })
         }
 
         while (queue.length > 0) {
-          const item = queue.shift() as QueueItem<T>;
-          if (item.type === "value") {
-            yield item.value;
-          } else if (item.type === "error") {
-            throw item.error;
+          const item = queue.shift() as QueueItem<T>
+          if (item.type === 'value') {
+            yield item.value
+          } else if (item.type === 'error') {
+            throw item.error
           } else {
-            return;
+            return
           }
         }
       }
     } finally {
-      done = true;
-      if (cleanup) cleanup();
+      done = true
+      if (cleanup) cleanup()
     }
   }
 
-  return generate();
+  return generate()
 }

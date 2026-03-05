@@ -1,55 +1,55 @@
 /* tests/e2e/fixture/src/client/pages/form-skeleton.tsx */
 
-import { type FormEvent, useState } from "react";
-import { useSeamData } from "@canmi/seam-react";
+import { type FormEvent, useState } from 'react'
+import { useSeamData } from '@canmi/seam-react'
 
 interface FormData extends Record<string, unknown> {
-  heading: string;
+  heading: string
 }
 
 export function FormSkeleton() {
-  const data = useSeamData<FormData>();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [state, setState] = useState<"idle" | "success" | "error">("idle");
-  const [message, setMessage] = useState("");
+  const data = useSeamData<FormData>()
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [state, setState] = useState<'idle' | 'success' | 'error'>('idle')
+  const [message, setMessage] = useState('')
 
   // eslint-disable-next-line seam/no-async-in-skeleton -- client-only handler
   async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+    e.preventDefault()
     if (!name.trim() || !email.trim()) {
-      setState("error");
-      setMessage("Name and email are required");
-      return;
+      setState('error')
+      setMessage('Name and email are required')
+      return
     }
     try {
-      const res = await fetch("/_seam/procedure/submitContact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const res = await fetch('/_seam/procedure/submitContact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email }),
-      });
+      })
       const json = (await res.json()) as {
-        ok: boolean;
-        data?: { message?: string };
-        error?: { code: string; message: string };
-      };
-      if (!json.ok || json.error) {
-        setState("error");
-        setMessage(json.error?.message ?? "Request failed");
-        return;
+        ok: boolean
+        data?: { message?: string }
+        error?: { code: string; message: string }
       }
-      setState("success");
-      setMessage(json.data?.message ?? "Submitted");
+      if (!json.ok || json.error) {
+        setState('error')
+        setMessage(json.error?.message ?? 'Request failed')
+        return
+      }
+      setState('success')
+      setMessage(json.data?.message ?? 'Submitted')
     } catch {
-      setState("error");
-      setMessage("Network error");
+      setState('error')
+      setMessage('Network error')
     }
   }
 
   return (
     <div>
       <h1>{data.heading}</h1>
-      {state === "idle" && (
+      {state === 'idle' && (
         <form data-testid="form" onSubmit={handleSubmit}>
           <div>
             <label htmlFor="name-input">Name</label>
@@ -76,11 +76,11 @@ export function FormSkeleton() {
           </button>
         </form>
       )}
-      {state === "success" && <p data-testid="success-msg">{message}</p>}
-      {state === "error" && <p data-testid="error-msg">{message}</p>}
+      {state === 'success' && <p data-testid="success-msg">{message}</p>}
+      {state === 'error' && <p data-testid="error-msg">{message}</p>}
       <a href="/" data-testid="link-home">
         Back to Home
       </a>
     </div>
-  );
+  )
 }

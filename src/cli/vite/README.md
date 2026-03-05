@@ -6,19 +6,19 @@ Vite plugin for SeamJS per-page code splitting. Automatically transforms single-
 
 ```ts
 // vite.config.ts
-import { seamPageSplit } from "@canmi/seam-vite";
+import { seamPageSplit } from '@canmi/seam-vite'
 
 export default defineConfig({
   plugins: [react(), seamPageSplit()],
-  appType: "custom",
+  appType: 'custom',
   build: {
-    outDir: process.env.SEAM_DIST_DIR ?? ".seam/dist",
+    outDir: process.env.SEAM_DIST_DIR ?? '.seam/dist',
     manifest: true,
     rollupOptions: {
-      input: "src/client/main.tsx",
+      input: 'src/client/main.tsx',
     },
   },
-});
+})
 ```
 
 ## What It Does

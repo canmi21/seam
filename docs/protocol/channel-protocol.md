@@ -13,7 +13,7 @@ A channel is defined with `createChannel(name, def)` across all runtimes:
 **TypeScript**:
 
 ```ts
-const chat = createChannel("chat", {
+const chat = createChannel('chat', {
   input: t.object({ roomId: t.string() }),
   incoming: {
     send: {
@@ -31,7 +31,7 @@ const chat = createChannel("chat", {
   subscribe: async function* ({ input }) {
     /* yield events */
   },
-});
+})
 ```
 
 **Go**:

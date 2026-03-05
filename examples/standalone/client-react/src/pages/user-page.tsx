@@ -1,18 +1,18 @@
 /* examples/standalone/client-react/src/pages/user-page.tsx */
 
-import { useSeamData } from "@canmi/seam-react";
+import { useSeamData } from '@canmi/seam-react'
 
 interface UserData {
   user: {
-    id: number;
-    name: string;
-    email: string;
-    avatar: string | null;
-  };
+    id: number
+    name: string
+    email: string
+    avatar: string | null
+  }
 }
 
 export function UserPage() {
-  const { user } = useSeamData<UserData>();
+  const { user } = useSeamData<UserData>()
 
   return (
     <div className="user-page">
@@ -21,5 +21,5 @@ export function UserPage() {
       <p>ID: {user.id}</p>
       {user.avatar && <img src={user.avatar} alt={`${user.name}'s avatar`} />}
     </div>
-  );
+  )
 }

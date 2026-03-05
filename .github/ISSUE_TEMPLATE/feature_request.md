@@ -1,9 +1,9 @@
 ---
 name: Feature Request
 about: Suggest a new feature or improvement
-title: "feat: some feature"
+title: 'feat: some feature'
 labels: enhancement
-assignees: ""
+assignees: ''
 ---
 
 **Which dimension?**

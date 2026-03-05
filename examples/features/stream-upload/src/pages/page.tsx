@@ -1,60 +1,60 @@
 /* examples/features/stream-upload/src/pages/page.tsx */
 
-import { useState, useRef } from "react";
-import { useSeamData, useSeamStream } from "@canmi/seam-react";
-import { createClient } from "@canmi/seam-client";
+import { useState, useRef } from 'react'
+import { useSeamData, useSeamStream } from '@canmi/seam-react'
+import { createClient } from '@canmi/seam-client'
 
 interface PageData extends Record<string, unknown> {
-  info: { title: string };
+  info: { title: string }
 }
 
 // Mounted only after "Start Stream" click, so useSeamStream auto-starts safely
 function StreamView() {
   const { chunks, status, cancel } = useSeamStream<{ n: number }>(
     window.location.origin,
-    "countStream",
+    'countStream',
     { max: 5 },
-  );
+  )
 
   return (
     <div>
       <p>
-        {chunks.map((c) => c.n).join(", ") || "waiting..."}
-        {status === "completed" && " — Done"}
+        {chunks.map((c) => c.n).join(', ') || 'waiting...'}
+        {status === 'completed' && ' — Done'}
       </p>
-      {status === "streaming" && (
+      {status === 'streaming' && (
         <button type="button" onClick={cancel}>
           Cancel
         </button>
       )}
     </div>
-  );
+  )
 }
 
 function UploadSection() {
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null)
   const [result, setResult] = useState<{
-    fileId: string;
-    filename: string;
-    size: number;
-  } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+    fileId: string
+    filename: string
+    size: number
+  } | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleUpload() {
-    const file = fileRef.current?.files?.[0];
-    if (!file) return;
-    setError(null);
-    setResult(null);
+    const file = fileRef.current?.files?.[0]
+    if (!file) return
+    setError(null)
+    setResult(null)
     try {
-      const client = createClient({ baseUrl: window.location.origin });
-      const data = (await client.upload("echoUpload", { filename: file.name }, file)) as {
-        fileId: string;
-        filename: string;
-        size: number;
-      };
-      setResult(data);
+      const client = createClient({ baseUrl: window.location.origin })
+      const data = (await client.upload('echoUpload', { filename: file.name }, file)) as {
+        fileId: string
+        filename: string
+        size: number
+      }
+      setResult(data)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed");
+      setError(e instanceof Error ? e.message : 'Upload failed')
     }
   }
 
@@ -74,14 +74,14 @@ function UploadSection() {
           <dd>{result.size} bytes</dd>
         </dl>
       )}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
     </div>
-  );
+  )
 }
 
 export default function HomePage() {
-  const data = useSeamData<PageData>();
-  const [streaming, setStreaming] = useState(false);
+  const data = useSeamData<PageData>()
+  const [streaming, setStreaming] = useState(false)
 
   return (
     <div>
@@ -99,5 +99,5 @@ export default function HomePage() {
       <h2>Upload</h2>
       <UploadSection />
     </div>
-  );
+  )
 }

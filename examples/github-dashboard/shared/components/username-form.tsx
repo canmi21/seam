@@ -1,16 +1,16 @@
 /* examples/github-dashboard/shared/components/username-form.tsx */
 
-import { useState } from "react";
+import { useState } from 'react'
 
 export function UsernameForm({ onSubmit }: { onSubmit: (username: string) => void }) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState('')
 
   return (
     <form
       onSubmit={(e) => {
-        e.preventDefault();
-        const trimmed = value.trim();
-        if (trimmed) onSubmit(trimmed);
+        e.preventDefault()
+        const trimmed = value.trim()
+        if (trimmed) onSubmit(trimmed)
       }}
       className="flex gap-3"
     >
@@ -28,5 +28,5 @@ export function UsernameForm({ onSubmit }: { onSubmit: (username: string) => voi
         View
       </button>
     </form>
-  );
+  )
 }

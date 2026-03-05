@@ -6,5 +6,5 @@ export default function DocsPage() {
       <h1>Documentation</h1>
       <p>Welcome to the docs.</p>
     </div>
-  );
+  )
 }

@@ -1,7 +1,7 @@
 /* examples/github-dashboard/next-app/app/page.tsx */
 
-import { DarkModeToggle } from "./dark-mode-wrapper.js";
-import { UsernameFormWrapper } from "./username-form-wrapper.js";
+import { DarkModeToggle } from './dark-mode-wrapper.js'
+import { UsernameFormWrapper } from './username-form-wrapper.js'
 
 export default function Home() {
   return (
@@ -15,5 +15,5 @@ export default function Home() {
         <UsernameFormWrapper />
       </div>
     </div>
-  );
+  )
 }

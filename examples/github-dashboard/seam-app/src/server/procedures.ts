@@ -1,13 +1,13 @@
 /* examples/github-dashboard/seam-app/src/server/procedures.ts */
 
-import { t } from "@canmi/seam-server";
-import type { ProcedureDef } from "@canmi/seam-server";
+import { t } from '@canmi/seam-server'
+import type { ProcedureDef } from '@canmi/seam-server'
 
 const ghHeaders = (): Record<string, string> => {
-  const h: Record<string, string> = { Accept: "application/vnd.github.v3+json" };
-  if (process.env.GITHUB_TOKEN) h.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-  return h;
-};
+  const h: Record<string, string> = { Accept: 'application/vnd.github.v3+json' }
+  if (process.env.GITHUB_TOKEN) h.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`
+  return h
+}
 
 export const getSession: ProcedureDef = {
   input: t.object({}),
@@ -16,10 +16,10 @@ export const getSession: ProcedureDef = {
     theme: t.string(),
   }),
   handler: () => ({
-    username: "visitor",
-    theme: "light",
+    username: 'visitor',
+    theme: 'light',
   }),
-};
+}
 
 export const getHomeData: ProcedureDef = {
   input: t.object({}),
@@ -27,9 +27,9 @@ export const getHomeData: ProcedureDef = {
     tagline: t.string(),
   }),
   handler: () => ({
-    tagline: "Compile-Time Rendering for React",
+    tagline: 'Compile-Time Rendering for React',
   }),
-};
+}
 
 export const getUser: ProcedureDef = {
   input: t.object({ username: t.string() }),
@@ -44,12 +44,12 @@ export const getUser: ProcedureDef = {
     following: t.uint32(),
   }),
   handler: async ({ input }) => {
-    const { username } = input as { username: string };
+    const { username } = input as { username: string }
     const res = await fetch(`https://api.github.com/users/${encodeURIComponent(username)}`, {
       headers: ghHeaders(),
-    });
-    if (!res.ok) throw new Error(`GitHub API ${res.status}: ${await res.text()}`);
-    const d = (await res.json()) as Record<string, unknown>;
+    })
+    if (!res.ok) throw new Error(`GitHub API ${res.status}: ${await res.text()}`)
+    const d = (await res.json()) as Record<string, unknown>
     return {
       login: d.login as string,
       name: (d.name as string | null) ?? null,
@@ -59,9 +59,9 @@ export const getUser: ProcedureDef = {
       public_repos: d.public_repos as number,
       followers: d.followers as number,
       following: d.following as number,
-    };
+    }
   },
-};
+}
 
 export const getUserRepos: ProcedureDef = {
   input: t.object({ username: t.string() }),
@@ -77,13 +77,13 @@ export const getUserRepos: ProcedureDef = {
     }),
   ),
   handler: async ({ input }) => {
-    const { username } = input as { username: string };
+    const { username } = input as { username: string }
     const res = await fetch(
       `https://api.github.com/users/${encodeURIComponent(username)}/repos?sort=stars&per_page=6`,
       { headers: ghHeaders() },
-    );
-    if (!res.ok) throw new Error(`GitHub API ${res.status}: ${await res.text()}`);
-    const repos = (await res.json()) as Record<string, unknown>[];
+    )
+    if (!res.ok) throw new Error(`GitHub API ${res.status}: ${await res.text()}`)
+    const repos = (await res.json()) as Record<string, unknown>[]
     return repos.map((r) => ({
       id: r.id as number,
       name: r.name as string,
@@ -92,6 +92,6 @@ export const getUserRepos: ProcedureDef = {
       stargazers_count: r.stargazers_count as number,
       forks_count: r.forks_count as number,
       html_url: r.html_url as string,
-    }));
+    }))
   },
-};
+}

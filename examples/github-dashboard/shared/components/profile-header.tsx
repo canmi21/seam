@@ -1,6 +1,6 @@
 /* examples/github-dashboard/shared/components/profile-header.tsx */
 
-import type { GitHubUser } from "../types.js";
+import type { GitHubUser } from '../types.js'
 
 export function ProfileHeader({ user }: { user: GitHubUser }) {
   return (
@@ -17,5 +17,5 @@ export function ProfileHeader({ user }: { user: GitHubUser }) {
         {user.location && <p className="mt-0.5 text-sm text-muted">{user.location}</p>}
       </div>
     </div>
-  );
+  )
 }

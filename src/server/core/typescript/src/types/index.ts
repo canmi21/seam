@@ -1,15 +1,7 @@
 /* src/server/core/typescript/src/types/index.ts */
 
-import * as primitives from "./primitives.js";
-import {
-  object,
-  optional,
-  array,
-  nullable,
-  enumType,
-  values,
-  discriminator,
-} from "./composites.js";
+import * as primitives from './primitives.js'
+import { object, optional, array, nullable, enumType, values, discriminator } from './composites.js'
 
 export const t = {
   ...primitives,
@@ -20,4 +12,4 @@ export const t = {
   enum: enumType,
   values,
   discriminator,
-} as const;
+} as const

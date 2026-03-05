@@ -1,72 +1,72 @@
 /* tests/e2e/fixture/src/client/routes.ts */
 
-import { defineRoutes } from "@canmi/seam-react";
-import { HomeSkeleton } from "./pages/home-skeleton.js";
-import { React19Skeleton } from "./pages/react19-skeleton.js";
-import { FormSkeleton } from "./pages/form-skeleton.js";
-import { ErrorSkeleton } from "./pages/error-skeleton.js";
-import { AsyncSkeleton } from "./pages/async-skeleton.js";
-import { HtmlSlotSkeleton } from "./pages/html-slot-skeleton.js";
+import { defineRoutes } from '@canmi/seam-react'
+import { HomeSkeleton } from './pages/home-skeleton.js'
+import { React19Skeleton } from './pages/react19-skeleton.js'
+import { FormSkeleton } from './pages/form-skeleton.js'
+import { ErrorSkeleton } from './pages/error-skeleton.js'
+import { AsyncSkeleton } from './pages/async-skeleton.js'
+import { HtmlSlotSkeleton } from './pages/html-slot-skeleton.js'
 
 export default defineRoutes([
   {
-    path: "/",
+    path: '/',
     component: HomeSkeleton,
     loaders: {
-      page: { procedure: "getHomeData" },
+      page: { procedure: 'getHomeData' },
     },
     mock: {
-      title: "E2E Fixture",
-      message: "Hydration test page.",
+      title: 'E2E Fixture',
+      message: 'Hydration test page.',
     },
   },
   {
-    path: "/react19",
+    path: '/react19',
     component: React19Skeleton,
     loaders: {
-      page: { procedure: "getReact19Data" },
+      page: { procedure: 'getReact19Data' },
     },
     mock: {
-      heading: "React 19 Features",
+      heading: 'React 19 Features',
       description:
-        "Demonstrating useId, Suspense, useState, useRef, useMemo, and metadata hoisting.",
+        'Demonstrating useId, Suspense, useState, useRef, useMemo, and metadata hoisting.',
     },
   },
   {
-    path: "/form",
+    path: '/form',
     component: FormSkeleton,
     loaders: {
-      page: { procedure: "getFormPageData" },
+      page: { procedure: 'getFormPageData' },
     },
     mock: {
-      heading: "Contact Form",
+      heading: 'Contact Form',
     },
   },
   {
-    path: "/error",
+    path: '/error',
     component: ErrorSkeleton,
     loaders: {
-      page: { procedure: "getErrorPageData" },
+      page: { procedure: 'getErrorPageData' },
     },
     mock: {
-      heading: "Error Boundary Test",
+      heading: 'Error Boundary Test',
     },
   },
   {
-    path: "/async",
+    path: '/async',
     component: AsyncSkeleton,
     loaders: {
-      page: { procedure: "getAsyncPageData" },
+      page: { procedure: 'getAsyncPageData' },
     },
     mock: {
-      heading: "Async Loading Test",
+      heading: 'Async Loading Test',
     },
   },
   {
-    path: "/test-html",
+    path: '/test-html',
     component: HtmlSlotSkeleton,
     loaders: {
-      page: { procedure: "getRenderedContent" },
+      page: { procedure: 'getRenderedContent' },
     },
   },
-]);
+])

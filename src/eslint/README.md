@@ -15,12 +15,12 @@ ESLint rules that enforce build-time safety constraints for SeamJS skeleton comp
 Add the recommended config to your ESLint flat config:
 
 ```js
-import seamPlugin from "@canmi/eslint-plugin-seam";
+import seamPlugin from '@canmi/eslint-plugin-seam'
 
 export default [
   ...seamPlugin.configs.recommended,
   // your other configs...
-];
+]
 ```
 
 The recommended config scopes all rules to `**/*-skeleton.tsx` files as `"error"`.

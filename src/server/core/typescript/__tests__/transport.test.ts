@@ -1,38 +1,38 @@
 /* src/server/core/typescript/__tests__/transport.test.ts */
 
-import { describe, test, expect } from "vitest";
-import { createRouter, t, createChannel } from "../src/index.js";
-import type { TransportConfig } from "../src/index.js";
+import { describe, test, expect } from 'vitest'
+import { createRouter, t, createChannel } from '../src/index.js'
+import type { TransportConfig } from '../src/index.js'
 
-describe("transport declaration", () => {
-  test("procedure transport appears in manifest", () => {
-    const transport: TransportConfig = { prefer: "ws" };
+describe('transport declaration', () => {
+  test('procedure transport appears in manifest', () => {
+    const transport: TransportConfig = { prefer: 'ws' }
     const router = createRouter({
       live: {
-        kind: "subscription",
+        kind: 'subscription',
         input: t.object({}),
         output: t.object({}),
         transport,
         handler: async function* () {},
       },
-    });
-    const manifest = router.manifest();
-    expect(manifest.procedures.live.transport).toEqual({ prefer: "ws" });
-  });
+    })
+    const manifest = router.manifest()
+    expect(manifest.procedures.live.transport).toEqual({ prefer: 'ws' })
+  })
 
-  test("no transport omits field", () => {
+  test('no transport omits field', () => {
     const router = createRouter({
       getUser: {
         input: t.object({}),
         output: t.object({}),
         handler: () => ({}),
       },
-    });
-    const manifest = router.manifest();
-    expect(manifest.procedures.getUser.transport).toBeUndefined();
-  });
+    })
+    const manifest = router.manifest()
+    expect(manifest.procedures.getUser.transport).toBeUndefined()
+  })
 
-  test("transportDefaults from RouterOptions", () => {
+  test('transportDefaults from RouterOptions', () => {
     const router = createRouter(
       {
         getUser: {
@@ -43,20 +43,20 @@ describe("transport declaration", () => {
       },
       {
         transportDefaults: {
-          query: { prefer: "http" },
-          subscription: { prefer: "ws", fallback: ["sse", "http"] },
+          query: { prefer: 'http' },
+          subscription: { prefer: 'ws', fallback: ['sse', 'http'] },
         },
       },
-    );
-    const manifest = router.manifest();
+    )
+    const manifest = router.manifest()
     expect(manifest.transportDefaults).toEqual({
-      query: { prefer: "http" },
-      subscription: { prefer: "ws", fallback: ["sse", "http"] },
-    });
-  });
+      query: { prefer: 'http' },
+      subscription: { prefer: 'ws', fallback: ['sse', 'http'] },
+    })
+  })
 
-  test("channel transport in channelMeta", () => {
-    const ch = createChannel("chat", {
+  test('channel transport in channelMeta', () => {
+    const ch = createChannel('chat', {
       input: t.object({}),
       incoming: {
         send: {
@@ -69,20 +69,20 @@ describe("transport declaration", () => {
         message: t.object({}),
       },
       subscribe: async function* () {},
-      transport: { prefer: "ws", fallback: ["http"] },
-    });
-    expect(ch.channelMeta.transport).toEqual({ prefer: "ws", fallback: ["http"] });
-  });
+      transport: { prefer: 'ws', fallback: ['http'] },
+    })
+    expect(ch.channelMeta.transport).toEqual({ prefer: 'ws', fallback: ['http'] })
+  })
 
-  test("default transportDefaults is empty", () => {
+  test('default transportDefaults is empty', () => {
     const router = createRouter({
       getUser: {
         input: t.object({}),
         output: t.object({}),
         handler: () => ({}),
       },
-    });
-    const manifest = router.manifest();
-    expect(manifest.transportDefaults).toEqual({});
-  });
-});
+    })
+    const manifest = router.manifest()
+    expect(manifest.transportDefaults).toEqual({})
+  })
+})

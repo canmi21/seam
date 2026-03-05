@@ -1,7 +1,7 @@
 /* examples/github-dashboard/shared/components/repo-grid.tsx */
 
-import type { GitHubRepo } from "../types.js";
-import { RepoCard } from "./repo-card.js";
+import type { GitHubRepo } from '../types.js'
+import { RepoCard } from './repo-card.js'
 
 export function RepoGrid({ repos }: { repos: GitHubRepo[] }) {
   return (
@@ -10,5 +10,5 @@ export function RepoGrid({ repos }: { repos: GitHubRepo[] }) {
         <RepoCard key={repo.id} repo={repo} />
       ))}
     </div>
-  );
+  )
 }

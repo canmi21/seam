@@ -1,21 +1,21 @@
 /* examples/github-dashboard/shared/components/dark-mode-toggle.tsx */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react'
 
 export function DarkModeToggle() {
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(false)
 
   // Hydration-safe: read initial state from DOM after mount
   useEffect(() => {
-    setDark(document.documentElement.classList.contains("dark"));
-  }, []);
+    setDark(document.documentElement.classList.contains('dark'))
+  }, [])
 
   const toggle = () => {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("theme", next ? "dark" : "light");
-  };
+    const next = !dark
+    setDark(next)
+    document.documentElement.classList.toggle('dark', next)
+    localStorage.setItem('theme', next ? 'dark' : 'light')
+  }
 
   return (
     <button
@@ -37,5 +37,5 @@ export function DarkModeToggle() {
         </svg>
       )}
     </button>
-  );
+  )
 }

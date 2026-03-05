@@ -1,21 +1,21 @@
 /* src/router/tanstack/src/create-loader.ts */
 
-import type { LoaderDef } from "@canmi/seam-react";
-import type { SeamRouterContext } from "./types.js";
+import type { LoaderDef } from '@canmi/seam-react'
+import type { SeamRouterContext } from './types.js'
 
 /** Build RPC input from loader definition and route params */
 export function buildInput(
   def: LoaderDef,
   params: Record<string, string>,
 ): Record<string, unknown> {
-  const input: Record<string, unknown> = {};
+  const input: Record<string, unknown> = {}
   if (def.params) {
     for (const [key, mapping] of Object.entries(def.params)) {
-      const raw = params[key];
-      input[key] = mapping.type === "int" ? Number(raw) : raw;
+      const raw = params[key]
+      input[key] = mapping.type === 'int' ? Number(raw) : raw
     }
   }
-  return input;
+  return input
 }
 
 /**
@@ -32,31 +32,31 @@ export function createLoaderFromDefs(
   layoutId?: string,
 ) {
   return async (ctx: { params: Record<string, string>; context: SeamRouterContext }) => {
-    const initial = ctx.context._seamInitial;
+    const initial = ctx.context._seamInitial
 
     // First-load short-circuit: use __data if available
     if (initial && layoutId) {
       // Layout loader: consume layout data once
       if (!initial.consumedLayouts.has(layoutId) && initial.layouts[layoutId]) {
-        initial.consumedLayouts.add(layoutId);
-        return initial.layouts[layoutId];
+        initial.consumedLayouts.add(layoutId)
+        return initial.layouts[layoutId]
       }
     } else if (initial && !initial.consumed && initial.path === seamPath) {
       // Page loader: consume page data once
-      initial.consumed = true;
-      return initial.data;
+      initial.consumed = true
+      return initial.data
     }
 
     // SPA navigation: call RPC for each loader in parallel
-    const entries = Object.entries(loaderDefs);
+    const entries = Object.entries(loaderDefs)
     const results = await Promise.all(
       entries.map(async ([key, def]) => {
-        const input = buildInput(def, ctx.params);
-        const result = await ctx.context.seamRpc(def.procedure, input);
-        return [key, result] as const;
+        const input = buildInput(def, ctx.params)
+        const result = await ctx.context.seamRpc(def.procedure, input)
+        return [key, result] as const
       }),
-    );
+    )
 
-    return Object.fromEntries(results);
-  };
+    return Object.fromEntries(results)
+  }
 }

@@ -1,9 +1,9 @@
 ---
 name: Bug Report
 about: Something is broken or behaving unexpectedly
-title: "bug: something wrong"
+title: 'bug: something wrong'
 labels: bug
-assignees: ""
+assignees: ''
 ---
 
 **Which package?**

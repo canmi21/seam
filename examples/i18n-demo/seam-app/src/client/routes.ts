@@ -1,33 +1,33 @@
 /* examples/i18n-demo/seam-app/src/client/routes.ts */
 
-import { defineSeamRoutes } from "@canmi/seam-tanstack-router/routes";
-import { Layout } from "./pages/layout.js";
-import { HomeSkeleton } from "./pages/home-skeleton.js";
-import { AboutSkeleton } from "./pages/about-skeleton.js";
+import { defineSeamRoutes } from '@canmi/seam-tanstack-router/routes'
+import { Layout } from './pages/layout.js'
+import { HomeSkeleton } from './pages/home-skeleton.js'
+import { AboutSkeleton } from './pages/about-skeleton.js'
 
 export default defineSeamRoutes([
   {
-    path: "/",
+    path: '/',
     layout: Layout,
     loaders: {
-      content: { procedure: "getContent" },
+      content: { procedure: 'getContent' },
     },
     mock: {
-      content: { mode: "prefix" },
+      content: { mode: 'prefix' },
     },
     children: [
       {
-        path: "/",
+        path: '/',
         component: HomeSkeleton,
         loaders: {},
         mock: {},
       },
       {
-        path: "/about",
+        path: '/about',
         component: AboutSkeleton,
         loaders: {},
         mock: {},
       },
     ],
   },
-]);
+])

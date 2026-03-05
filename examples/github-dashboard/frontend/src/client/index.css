@@ -1,7 +1,7 @@
 /* examples/github-dashboard/frontend/src/client/index.css */
 
-@import "tailwindcss";
-@import "@github-dashboard/shared/styles/theme.css";
+@import 'tailwindcss';
+@import '@github-dashboard/shared/styles/theme.css';
 @source "../../../../shared/components";
 
 @theme {

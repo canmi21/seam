@@ -6,5 +6,5 @@ export default function FeaturesPage() {
       <h1>Features</h1>
       <p>Explore what FS Router can do.</p>
     </div>
-  );
+  )
 }

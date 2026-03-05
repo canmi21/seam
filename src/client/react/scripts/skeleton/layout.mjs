@@ -1,7 +1,7 @@
 /* src/client/react/scripts/skeleton/layout.mjs */
 
-import { createElement } from "react";
-import { buildSentinelData } from "@canmi/seam-react";
+import { createElement } from 'react'
+import { buildSentinelData } from '@canmi/seam-react'
 import {
   generateMockFromSchema,
   flattenLoaderMock,
@@ -9,39 +9,39 @@ import {
   collectHtmlPaths,
   createAccessTracker,
   checkFieldAccess,
-} from "../mock-generator.mjs";
-import { guardedRender } from "./render.mjs";
-import { buildPageSchema } from "./schema.mjs";
+} from '../mock-generator.mjs'
+import { guardedRender } from './render.mjs'
+import { buildPageSchema } from './schema.mjs'
 
 function toLayoutId(path) {
-  return path === "/"
-    ? "_layout_root"
-    : `_layout_${path.replace(/^\/|\/$/g, "").replace(/\//g, "-")}`;
+  return path === '/'
+    ? '_layout_root'
+    : `_layout_${path.replace(/^\/|\/$/g, '').replace(/\//g, '-')}`
 }
 
 /** Extract layout components and metadata from route tree.
  *  When a node has both layout AND component, the loaders/mock belong to the
  *  page (component), not the layout — emit the layout with empty loaders. */
 function extractLayouts(routes) {
-  const seen = new Map();
-  (function walk(defs, parentId) {
+  const seen = new Map()
+  ;(function walk(defs, parentId) {
     for (const def of defs) {
       if (def.layout && def.children) {
-        const id = def._layoutId || toLayoutId(def.path);
+        const id = def._layoutId || toLayoutId(def.path)
         if (!seen.has(id)) {
-          const isPageRoute = !!def.component;
+          const isPageRoute = !!def.component
           seen.set(id, {
             component: def.layout,
             loaders: isPageRoute ? {} : def.loaders || {},
             mock: isPageRoute ? null : def.mock || null,
             parentId: parentId || null,
-          });
+          })
         }
-        walk(def.children, id);
+        walk(def.children, id)
       }
     }
-  })(routes, null);
-  return seen;
+  })(routes, null)
+  return seen
 }
 
 /**
@@ -51,14 +51,14 @@ function extractLayouts(routes) {
  */
 function resolveLayoutMock(entry, manifest) {
   if (Object.keys(entry.loaders).length > 0) {
-    const schema = buildPageSchema(entry, manifest);
+    const schema = buildPageSchema(entry, manifest)
     if (schema) {
-      const keyedMock = generateMockFromSchema(schema);
-      const autoMock = flattenLoaderMock(keyedMock);
-      return entry.mock ? deepMerge(autoMock, entry.mock) : autoMock;
+      const keyedMock = generateMockFromSchema(schema)
+      const autoMock = flattenLoaderMock(keyedMock)
+      return entry.mock ? deepMerge(autoMock, entry.mock) : autoMock
     }
   }
-  return entry.mock || {};
+  return entry.mock || {}
 }
 
 /**
@@ -66,39 +66,39 @@ function resolveLayoutMock(entry, manifest) {
  * @param {{ buildWarnings: string[], seenWarnings: Set<string> }} ctx - shared warning state
  */
 function renderLayout(LayoutComponent, id, entry, manifest, i18nValue, ctx) {
-  const mock = resolveLayoutMock(entry, manifest);
+  const mock = resolveLayoutMock(entry, manifest)
   const schema =
-    Object.keys(entry.loaders || {}).length > 0 ? buildPageSchema(entry, manifest) : null;
-  const htmlPaths = schema ? collectHtmlPaths(schema) : new Set();
-  const data = Object.keys(mock).length > 0 ? buildSentinelData(mock, "", htmlPaths) : {};
+    Object.keys(entry.loaders || {}).length > 0 ? buildPageSchema(entry, manifest) : null
+  const htmlPaths = schema ? collectHtmlPaths(schema) : new Set()
+  const data = Object.keys(mock).length > 0 ? buildSentinelData(mock, '', htmlPaths) : {}
 
   // Wrap data with Proxy to detect schema/component field mismatches
-  const accessed = new Set();
-  const trackedData = Object.keys(data).length > 0 ? createAccessTracker(data, accessed) : data;
+  const accessed = new Set()
+  const trackedData = Object.keys(data).length > 0 ? createAccessTracker(data, accessed) : data
 
   function LayoutWithOutlet() {
-    return createElement(LayoutComponent, null, createElement("seam-outlet", null));
+    return createElement(LayoutComponent, null, createElement('seam-outlet', null))
   }
-  const html = guardedRender(`layout:${id}`, LayoutWithOutlet, trackedData, i18nValue, ctx);
+  const html = guardedRender(`layout:${id}`, LayoutWithOutlet, trackedData, i18nValue, ctx)
 
-  const fieldWarnings = checkFieldAccess(accessed, schema, `layout:${id}`);
+  const fieldWarnings = checkFieldAccess(accessed, schema, `layout:${id}`)
   for (const w of fieldWarnings) {
-    const msg = w;
+    const msg = w
     if (!ctx.seenWarnings.has(msg)) {
-      ctx.seenWarnings.add(msg);
-      ctx.buildWarnings.push(msg);
+      ctx.seenWarnings.add(msg)
+      ctx.buildWarnings.push(msg)
     }
   }
 
-  return html;
+  return html
 }
 
 /** Join parent path prefix with a child path segment.
  *  Handles root ("/"), absolute child paths, and relative segments. */
 function joinPaths(parent, child) {
-  if (child === "/") return parent || "/";
-  if (!parent || parent === "/") return child;
-  return parent + child;
+  if (child === '/') return parent || '/'
+  if (!parent || parent === '/') return child
+  return parent + child
 }
 
 /** Flatten routes, annotating each leaf with its parent layout id.
@@ -106,32 +106,32 @@ function joinPaths(parent, child) {
  *  (e.g. /blog + /:slug -> /blog/:slug). When a node has both layout
  *  and component, the component is emitted as a leaf route. */
 function flattenRoutes(routes, currentLayout, parentPath) {
-  const leaves = [];
+  const leaves = []
   for (const route of routes) {
-    const fullPath = parentPath !== null ? joinPaths(parentPath, route.path) : route.path;
+    const fullPath = parentPath !== null ? joinPaths(parentPath, route.path) : route.path
 
     if (route.layout && route.children) {
-      const layoutId = route._layoutId || toLayoutId(route.path);
+      const layoutId = route._layoutId || toLayoutId(route.path)
       // Layout boundary with both component and layout: emit the page as a leaf
       if (route.component) {
-        const leaf = { ...route, path: fullPath };
-        delete leaf.children;
-        delete leaf.layout;
-        leaf._layoutId = layoutId;
-        leaves.push(leaf);
+        const leaf = { ...route, path: fullPath }
+        delete leaf.children
+        delete leaf.layout
+        leaf._layoutId = layoutId
+        leaves.push(leaf)
       }
-      leaves.push(...flattenRoutes(route.children, layoutId, fullPath));
+      leaves.push(...flattenRoutes(route.children, layoutId, fullPath))
     } else if (route.children) {
       // Container without layout: flatten children with accumulated path
-      leaves.push(...flattenRoutes(route.children, currentLayout, fullPath));
+      leaves.push(...flattenRoutes(route.children, currentLayout, fullPath))
     } else {
       // Leaf route: assign full accumulated path
-      route.path = fullPath;
-      if (currentLayout) route._layoutId = currentLayout;
-      leaves.push(route);
+      route.path = fullPath
+      if (currentLayout) route._layoutId = currentLayout
+      leaves.push(route)
     }
   }
-  return leaves;
+  return leaves
 }
 
-export { toLayoutId, extractLayouts, resolveLayoutMock, renderLayout, flattenRoutes };
+export { toLayoutId, extractLayouts, resolveLayoutMock, renderLayout, flattenRoutes }

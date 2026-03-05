@@ -6,7 +6,7 @@ function Stat({ label, value }: { label: string; value: number }) {
       <p className="text-2xl font-semibold text-primary">{value}</p>
       <p className="text-sm text-muted">{label}</p>
     </div>
-  );
+  )
 }
 
 export function StatsBar({
@@ -14,9 +14,9 @@ export function StatsBar({
   followers,
   following,
 }: {
-  publicRepos: number;
-  followers: number;
-  following: number;
+  publicRepos: number
+  followers: number
+  following: number
 }) {
   return (
     <div className="grid grid-cols-3 gap-4">
@@ -24,5 +24,5 @@ export function StatsBar({
       <Stat label="Followers" value={followers} />
       <Stat label="Following" value={following} />
     </div>
-  );
+  )
 }

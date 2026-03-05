@@ -1,52 +1,52 @@
 /* examples/github-dashboard/seam-app/src/client/routes.ts */
 
-import { defineSeamRoutes } from "@canmi/seam-tanstack-router/routes";
-import { AppLayout } from "@github-dashboard/shared/components/app-layout.js";
-import { HomeSkeleton } from "./pages/home-skeleton.js";
-import { DashboardSkeleton } from "./pages/dashboard-skeleton.js";
+import { defineSeamRoutes } from '@canmi/seam-tanstack-router/routes'
+import { AppLayout } from '@github-dashboard/shared/components/app-layout.js'
+import { HomeSkeleton } from './pages/home-skeleton.js'
+import { DashboardSkeleton } from './pages/dashboard-skeleton.js'
 
 export default defineSeamRoutes([
   {
-    path: "/",
+    path: '/',
     layout: AppLayout,
     staleTime: 300_000,
     loaders: {
-      session: { procedure: "getSession" },
+      session: { procedure: 'getSession' },
     },
     mock: {
-      session: { username: "visitor", theme: "light" },
+      session: { username: 'visitor', theme: 'light' },
     },
     children: [
       {
-        path: "/",
+        path: '/',
         component: HomeSkeleton,
         loaders: {
-          page: { procedure: "getHomeData" },
+          page: { procedure: 'getHomeData' },
         },
         mock: {
-          tagline: "Compile-Time Rendering for React",
+          tagline: 'Compile-Time Rendering for React',
         },
       },
       {
-        path: "/dashboard/:username",
+        path: '/dashboard/:username',
         component: DashboardSkeleton,
         loaders: {
           user: {
-            procedure: "getUser",
-            params: { username: { from: "route" } },
+            procedure: 'getUser',
+            params: { username: { from: 'route' } },
           },
           repos: {
-            procedure: "getUserRepos",
-            params: { username: { from: "route" } },
+            procedure: 'getUserRepos',
+            params: { username: { from: 'route' } },
           },
         },
         mock: {
           user: {
-            login: "octocat",
-            name: "The Octocat",
-            avatar_url: "https://github.com/octocat.png",
-            bio: "GitHub mascot",
-            location: "San Francisco",
+            login: 'octocat',
+            name: 'The Octocat',
+            avatar_url: 'https://github.com/octocat.png',
+            bio: 'GitHub mascot',
+            location: 'San Francisco',
             public_repos: 8,
             followers: 1000,
             following: 0,
@@ -54,32 +54,32 @@ export default defineSeamRoutes([
           repos: [
             {
               id: 1,
-              name: "hello-world",
-              description: "A test repository",
-              language: "JavaScript",
+              name: 'hello-world',
+              description: 'A test repository',
+              language: 'JavaScript',
               stargazers_count: 100,
               forks_count: 50,
-              html_url: "https://github.com/octocat/hello-world",
+              html_url: 'https://github.com/octocat/hello-world',
             },
             {
               id: 2,
-              name: "spoon-knife",
+              name: 'spoon-knife',
               description: null,
               language: null,
               stargazers_count: 42,
               forks_count: 12,
-              html_url: "https://github.com/octocat/Spoon-Knife",
+              html_url: 'https://github.com/octocat/Spoon-Knife',
             },
           ],
         },
         nullable: [
-          "user.name",
-          "user.bio",
-          "user.location",
-          "repos.$.description",
-          "repos.$.language",
+          'user.name',
+          'user.bio',
+          'user.location',
+          'repos.$.description',
+          'repos.$.language',
         ],
       },
     ],
   },
-]);
+])

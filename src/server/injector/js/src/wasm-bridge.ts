@@ -1,34 +1,34 @@
 /* src/server/injector/js/src/wasm-bridge.ts */
 
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   __wbg_set_wasm,
   inject as wasmInject,
   inject_no_script as wasmInjectNoScript,
-} from "../pkg/injector.js";
+} from '../pkg/injector.js'
 
 export interface InjectOptions {
-  skipDataScript?: boolean;
+  skipDataScript?: boolean
 }
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const wasmPath = resolve(__dirname, "../pkg/injector.wasm");
-const wasmBytes = readFileSync(wasmPath);
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const wasmPath = resolve(__dirname, '../pkg/injector.wasm')
+const wasmBytes = readFileSync(wasmPath)
 
-const wasmModule = new WebAssembly.Module(wasmBytes);
-const wasmInstance = new WebAssembly.Instance(wasmModule);
-__wbg_set_wasm(wasmInstance.exports);
+const wasmModule = new WebAssembly.Module(wasmBytes)
+const wasmInstance = new WebAssembly.Instance(wasmModule)
+__wbg_set_wasm(wasmInstance.exports)
 
 export function inject(
   template: string,
   data: Record<string, unknown>,
   options?: InjectOptions,
 ): string {
-  const json = JSON.stringify(data);
+  const json = JSON.stringify(data)
   if (options?.skipDataScript) {
-    return wasmInjectNoScript(template, json);
+    return wasmInjectNoScript(template, json)
   }
-  return wasmInject(template, json);
+  return wasmInject(template, json)
 }

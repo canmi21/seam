@@ -1,14 +1,14 @@
 /* tests/e2e/fixture/src/client/pages/html-slot-skeleton.tsx */
 
-import { useSeamData } from "@canmi/seam-react";
+import { useSeamData } from '@canmi/seam-react'
 
 interface HtmlSlotData extends Record<string, unknown> {
-  title: string;
-  bodyHtml: string;
+  title: string
+  bodyHtml: string
 }
 
 export function HtmlSlotSkeleton() {
-  const data = useSeamData<HtmlSlotData>();
+  const data = useSeamData<HtmlSlotData>()
 
   return (
     <div>
@@ -18,5 +18,5 @@ export function HtmlSlotSkeleton() {
         Back to Home
       </a>
     </div>
-  );
+  )
 }

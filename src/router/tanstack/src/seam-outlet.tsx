@@ -1,8 +1,8 @@
 /* src/router/tanstack/src/seam-outlet.tsx */
 
-import type { ComponentType, ReactNode } from "react";
-import { Match, useLoaderData, useMatch, useRouterState } from "@tanstack/react-router";
-import { SeamDataProvider, SeamHandoffProvider } from "@canmi/seam-react";
+import type { ComponentType, ReactNode } from 'react'
+import { Match, useLoaderData, useMatch, useRouterState } from '@tanstack/react-router'
+import { SeamDataProvider, SeamHandoffProvider } from '@canmi/seam-react'
 
 /**
  * Drop-in replacement for TanStack Router's Outlet that skips the
@@ -12,17 +12,17 @@ import { SeamDataProvider, SeamHandoffProvider } from "@canmi/seam-react";
  * those markers, so hydration fails with a mismatch.
  */
 export function SeamOutlet() {
-  const matchId = useMatch({ strict: false, select: (m) => m.id });
+  const matchId = useMatch({ strict: false, select: (m) => m.id })
   const childMatchId = useRouterState({
     select: (s) => {
-      const matches = s.matches;
-      const idx = matches.findIndex((d) => d.id === matchId);
-      return matches[idx + 1]?.id;
+      const matches = s.matches
+      const idx = matches.findIndex((d) => d.id === matchId)
+      return matches[idx + 1]?.id
     },
-  });
+  })
 
-  if (!childMatchId) return null;
-  return <Match matchId={childMatchId} />;
+  if (!childMatchId) return null
+  return <Match matchId={childMatchId} />
 }
 
 /**
@@ -37,7 +37,7 @@ export function createLayoutWrapper(
 ) {
   if (hasLoaders) {
     return function LayoutWrapperWithData() {
-      const data: unknown = useLoaderData({ strict: false });
+      const data: unknown = useLoaderData({ strict: false })
       return (
         <SeamHandoffProvider value={handoffKeys}>
           <SeamDataProvider value={data}>
@@ -46,8 +46,8 @@ export function createLayoutWrapper(
             </Layout>
           </SeamDataProvider>
         </SeamHandoffProvider>
-      );
-    };
+      )
+    }
   }
 
   return function LayoutWrapper() {
@@ -55,20 +55,20 @@ export function createLayoutWrapper(
       <Layout>
         <SeamOutlet />
       </Layout>
-    );
-  };
+    )
+  }
 }
 
 /** Wrap a page component with SeamDataProvider so useSeamData() returns page-scoped data */
 export function createPageWrapper(Page: ComponentType, handoffKeys: string[] = []) {
   return function PageWrapper() {
-    const data: unknown = useLoaderData({ strict: false });
+    const data: unknown = useLoaderData({ strict: false })
     return (
       <SeamHandoffProvider value={handoffKeys}>
         <SeamDataProvider value={data}>
           <Page />
         </SeamDataProvider>
       </SeamHandoffProvider>
-    );
-  };
+    )
+  }
 }

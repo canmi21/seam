@@ -15,7 +15,7 @@ Example: `%%SEAM:user.name%%` marks the location where `user.name` data appears.
 `buildSentinelData(mockData)` recursively replaces every leaf value with its sentinel string:
 
 ```js
-buildSentinelData({ user: { name: "Alice", age: 30 } });
+buildSentinelData({ user: { name: 'Alice', age: 30 } })
 // => { user: { name: "%%SEAM:user.name%%", age: "%%SEAM:user.age%%" } }
 ```
 
@@ -77,7 +77,7 @@ Arrays of objects are detected and converted to `each` iteration blocks.
 When `buildSentinelData` encounters an array of objects (length > 0, first element is a plain object), it produces a **1-element sentinel array** with `$.field` path prefixes:
 
 ```js
-buildSentinelData({ messages: [{ id: "1", text: "hello" }] });
+buildSentinelData({ messages: [{ id: '1', text: 'hello' }] })
 // => { messages: [{ id: "%%SEAM:messages.$.id%%", text: "%%SEAM:messages.$.text%%" }] }
 ```
 

@@ -1,96 +1,89 @@
 /* src/server/core/typescript/src/page/build-loader.ts */
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import type {
-  PageDef,
-  PageAssets,
-  LayoutDef,
-  LoaderFn,
-  LoaderResult,
-  I18nConfig,
-} from "./index.js";
-import type { RpcHashMap } from "../http.js";
+import { existsSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import type { PageDef, PageAssets, LayoutDef, LoaderFn, LoaderResult, I18nConfig } from './index.js'
+import type { RpcHashMap } from '../http.js'
 
 interface RouteManifest {
-  layouts?: Record<string, LayoutManifestEntry>;
-  routes: Record<string, RouteManifestEntry>;
-  data_id?: string;
+  layouts?: Record<string, LayoutManifestEntry>
+  routes: Record<string, RouteManifestEntry>
+  data_id?: string
   i18n?: {
-    locales: string[];
-    default: string;
-    mode?: string;
-    cache?: boolean;
-    route_hashes?: Record<string, string>;
-    content_hashes?: Record<string, Record<string, string>>;
-  };
+    locales: string[]
+    default: string
+    mode?: string
+    cache?: boolean
+    route_hashes?: Record<string, string>
+    content_hashes?: Record<string, Record<string, string>>
+  }
 }
 
 interface LayoutManifestEntry {
-  template?: string;
-  templates?: Record<string, string>;
-  loaders?: Record<string, LoaderConfig>;
-  parent?: string;
-  i18n_keys?: string[];
+  template?: string
+  templates?: Record<string, string>
+  loaders?: Record<string, LoaderConfig>
+  parent?: string
+  i18n_keys?: string[]
 }
 
 interface RouteManifestEntry {
-  template?: string;
-  templates?: Record<string, string>;
-  layout?: string;
-  loaders: Record<string, LoaderConfig>;
-  head_meta?: string;
-  i18n_keys?: string[];
-  assets?: PageAssets;
-  projections?: Record<string, string[]>;
+  template?: string
+  templates?: Record<string, string>
+  layout?: string
+  loaders: Record<string, LoaderConfig>
+  head_meta?: string
+  i18n_keys?: string[]
+  assets?: PageAssets
+  projections?: Record<string, string[]>
 }
 
 interface LoaderConfig {
-  procedure: string;
-  params?: Record<string, ParamConfig>;
-  handoff?: "client";
+  procedure: string
+  params?: Record<string, ParamConfig>
+  handoff?: 'client'
 }
 
 interface ParamConfig {
-  from: "route" | "query";
-  type?: "string" | "int";
+  from: 'route' | 'query'
+  type?: 'string' | 'int'
 }
 
 function buildLoaderFn(config: LoaderConfig): LoaderFn {
   return (params, searchParams): LoaderResult => {
-    const input: Record<string, unknown> = {};
+    const input: Record<string, unknown> = {}
     if (config.params) {
       for (const [key, mapping] of Object.entries(config.params)) {
-        const raw = mapping.from === "query" ? (searchParams?.get(key) ?? undefined) : params[key];
+        const raw = mapping.from === 'query' ? (searchParams?.get(key) ?? undefined) : params[key]
         if (raw !== undefined) {
-          input[key] = mapping.type === "int" ? Number(raw) : raw;
+          input[key] = mapping.type === 'int' ? Number(raw) : raw
         }
       }
     }
-    return { procedure: config.procedure, input };
-  };
+    return { procedure: config.procedure, input }
+  }
 }
 
 function buildLoaderFns(configs: Record<string, LoaderConfig>): Record<string, LoaderFn> {
-  const fns: Record<string, LoaderFn> = {};
+  const fns: Record<string, LoaderFn> = {}
   for (const [key, config] of Object.entries(configs)) {
-    fns[key] = buildLoaderFn(config);
+    fns[key] = buildLoaderFn(config)
   }
-  return fns;
+  return fns
 }
 
 function resolveTemplatePath(
   entry: { template?: string; templates?: Record<string, string> },
   defaultLocale: string | undefined,
 ): string {
-  if (entry.template) return entry.template;
+  if (entry.template) return entry.template
   if (entry.templates) {
-    const locale = defaultLocale ?? (Object.keys(entry.templates)[0] as string);
-    const path = entry.templates[locale];
-    if (!path) throw new Error(`No template for locale "${locale}"`);
-    return path;
+    const locale = defaultLocale ?? (Object.keys(entry.templates)[0] as string)
+    const path = entry.templates[locale]
+    if (!path) throw new Error(`No template for locale "${locale}"`)
+    return path
   }
-  throw new Error("Manifest entry has neither 'template' nor 'templates'");
+  throw new Error("Manifest entry has neither 'template' nor 'templates'")
 }
 
 /** Load all locale templates for a manifest entry, keyed by locale */
@@ -98,19 +91,19 @@ function loadLocaleTemplates(
   entry: { templates?: Record<string, string> },
   distDir: string,
 ): Record<string, string> | undefined {
-  if (!entry.templates) return undefined;
-  const result: Record<string, string> = {};
+  if (!entry.templates) return undefined
+  const result: Record<string, string> = {}
   for (const [locale, relPath] of Object.entries(entry.templates)) {
-    result[locale] = readFileSync(join(distDir, relPath), "utf-8");
+    result[locale] = readFileSync(join(distDir, relPath), 'utf-8')
   }
-  return result;
+  return result
 }
 
 /** Callback that returns template + localeTemplates for a layout entry */
 type TemplateGetter = (
   id: string,
   entry: LayoutManifestEntry,
-) => { template: string; localeTemplates?: Record<string, string> };
+) => { template: string; localeTemplates?: Record<string, string> }
 
 /** Resolve parent chain for a layout, returning outer-to-inner order */
 function resolveLayoutChain(
@@ -118,25 +111,25 @@ function resolveLayoutChain(
   layoutEntries: Record<string, LayoutManifestEntry>,
   getTemplates: TemplateGetter,
 ): LayoutDef[] {
-  const chain: LayoutDef[] = [];
-  let currentId: string | undefined = layoutId;
+  const chain: LayoutDef[] = []
+  let currentId: string | undefined = layoutId
 
   while (currentId) {
-    const entry: LayoutManifestEntry | undefined = layoutEntries[currentId];
-    if (!entry) break;
-    const { template, localeTemplates } = getTemplates(currentId, entry);
+    const entry: LayoutManifestEntry | undefined = layoutEntries[currentId]
+    if (!entry) break
+    const { template, localeTemplates } = getTemplates(currentId, entry)
     chain.push({
       id: currentId,
       template,
       localeTemplates,
       loaders: buildLoaderFns(entry.loaders ?? {}),
-    });
-    currentId = entry.parent;
+    })
+    currentId = entry.parent
   }
 
   // Reverse: we walked inner->outer, but want outer->inner
-  chain.reverse();
-  return chain;
+  chain.reverse()
+  return chain
 }
 
 /** Create a proxy object that lazily reads locale templates from disk */
@@ -144,15 +137,15 @@ function makeLocaleTemplateGetters(
   templates: Record<string, string>,
   distDir: string,
 ): Record<string, string> {
-  const obj: Record<string, string> = {};
+  const obj: Record<string, string> = {}
   for (const [locale, relPath] of Object.entries(templates)) {
-    const fullPath = join(distDir, relPath);
+    const fullPath = join(distDir, relPath)
     Object.defineProperty(obj, locale, {
-      get: () => readFileSync(fullPath, "utf-8"),
+      get: () => readFileSync(fullPath, 'utf-8'),
       enumerable: true,
-    });
+    })
   }
-  return obj;
+  return obj
 }
 
 /** Merge i18n_keys from route + layout chain into a single list */
@@ -160,56 +153,56 @@ function mergeI18nKeys(
   route: RouteManifestEntry,
   layoutEntries: Record<string, LayoutManifestEntry>,
 ): string[] | undefined {
-  const keys: string[] = [];
+  const keys: string[] = []
   if (route.layout) {
-    let currentId: string | undefined = route.layout;
+    let currentId: string | undefined = route.layout
     while (currentId) {
-      const entry: LayoutManifestEntry | undefined = layoutEntries[currentId];
-      if (!entry) break;
-      if (entry.i18n_keys) keys.push(...entry.i18n_keys);
-      currentId = entry.parent;
+      const entry: LayoutManifestEntry | undefined = layoutEntries[currentId]
+      if (!entry) break
+      if (entry.i18n_keys) keys.push(...entry.i18n_keys)
+      currentId = entry.parent
     }
   }
-  if (route.i18n_keys) keys.push(...route.i18n_keys);
-  return keys.length > 0 ? keys : undefined;
+  if (route.i18n_keys) keys.push(...route.i18n_keys)
+  return keys.length > 0 ? keys : undefined
 }
 
 /** Load the RPC hash map from build output (returns undefined when obfuscation is off) */
 export function loadRpcHashMap(distDir: string): RpcHashMap | undefined {
-  const hashMapPath = join(distDir, "rpc-hash-map.json");
+  const hashMapPath = join(distDir, 'rpc-hash-map.json')
   try {
-    return JSON.parse(readFileSync(hashMapPath, "utf-8")) as RpcHashMap;
+    return JSON.parse(readFileSync(hashMapPath, 'utf-8')) as RpcHashMap
   } catch {
-    return undefined;
+    return undefined
   }
 }
 
 /** Load i18n config and messages from build output */
 export function loadI18nMessages(distDir: string): I18nConfig | null {
-  const manifestPath = join(distDir, "route-manifest.json");
+  const manifestPath = join(distDir, 'route-manifest.json')
   try {
-    const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as RouteManifest;
-    if (!manifest.i18n) return null;
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8')) as RouteManifest
+    if (!manifest.i18n) return null
 
-    const mode = (manifest.i18n.mode ?? "memory") as "memory" | "paged";
-    const cache = manifest.i18n.cache ?? false;
-    const routeHashes = manifest.i18n.route_hashes ?? {};
-    const contentHashes = manifest.i18n.content_hashes ?? {};
+    const mode = (manifest.i18n.mode ?? 'memory') as 'memory' | 'paged'
+    const cache = manifest.i18n.cache ?? false
+    const routeHashes = manifest.i18n.route_hashes ?? {}
+    const contentHashes = manifest.i18n.content_hashes ?? {}
 
     // Memory mode: preload all route messages per locale
     // Paged mode: store distDir for on-demand reads
-    const messages: Record<string, Record<string, Record<string, string>>> = {};
-    if (mode === "memory") {
-      const i18nDir = join(distDir, "i18n");
+    const messages: Record<string, Record<string, Record<string, string>>> = {}
+    if (mode === 'memory') {
+      const i18nDir = join(distDir, 'i18n')
       for (const locale of manifest.i18n.locales) {
-        const localePath = join(i18nDir, `${locale}.json`);
+        const localePath = join(i18nDir, `${locale}.json`)
         if (existsSync(localePath)) {
-          messages[locale] = JSON.parse(readFileSync(localePath, "utf-8")) as Record<
+          messages[locale] = JSON.parse(readFileSync(localePath, 'utf-8')) as Record<
             string,
             Record<string, string>
-          >;
+          >
         } else {
-          messages[locale] = {};
+          messages[locale] = {}
         }
       }
     }
@@ -222,47 +215,47 @@ export function loadI18nMessages(distDir: string): I18nConfig | null {
       routeHashes,
       contentHashes,
       messages,
-      distDir: mode === "paged" ? distDir : undefined,
-    };
+      distDir: mode === 'paged' ? distDir : undefined,
+    }
   } catch {
-    return null;
+    return null
   }
 }
 
 export function loadBuildOutput(distDir: string): Record<string, PageDef> {
-  const manifestPath = join(distDir, "route-manifest.json");
-  const raw = readFileSync(manifestPath, "utf-8");
-  const manifest = JSON.parse(raw) as RouteManifest;
-  const defaultLocale = manifest.i18n?.default;
+  const manifestPath = join(distDir, 'route-manifest.json')
+  const raw = readFileSync(manifestPath, 'utf-8')
+  const manifest = JSON.parse(raw) as RouteManifest
+  const defaultLocale = manifest.i18n?.default
 
   // Load layout templates (default + all locales)
-  const layoutTemplates: Record<string, string> = {};
-  const layoutLocaleTemplates: Record<string, Record<string, string>> = {};
-  const layoutEntries = manifest.layouts ?? {};
+  const layoutTemplates: Record<string, string> = {}
+  const layoutLocaleTemplates: Record<string, Record<string, string>> = {}
+  const layoutEntries = manifest.layouts ?? {}
   for (const [id, entry] of Object.entries(layoutEntries)) {
     layoutTemplates[id] = readFileSync(
       join(distDir, resolveTemplatePath(entry, defaultLocale)),
-      "utf-8",
-    );
-    const lt = loadLocaleTemplates(entry, distDir);
-    if (lt) layoutLocaleTemplates[id] = lt;
+      'utf-8',
+    )
+    const lt = loadLocaleTemplates(entry, distDir)
+    if (lt) layoutLocaleTemplates[id] = lt
   }
 
-  const pages: Record<string, PageDef> = {};
+  const pages: Record<string, PageDef> = {}
   for (const [path, entry] of Object.entries(manifest.routes)) {
-    const templatePath = join(distDir, resolveTemplatePath(entry, defaultLocale));
-    const template = readFileSync(templatePath, "utf-8");
+    const templatePath = join(distDir, resolveTemplatePath(entry, defaultLocale))
+    const template = readFileSync(templatePath, 'utf-8')
 
-    const loaders = buildLoaderFns(entry.loaders);
+    const loaders = buildLoaderFns(entry.loaders)
     const layoutChain = entry.layout
       ? resolveLayoutChain(entry.layout, layoutEntries, (id) => ({
-          template: layoutTemplates[id] ?? "",
+          template: layoutTemplates[id] ?? '',
           localeTemplates: layoutLocaleTemplates[id],
         }))
-      : [];
+      : []
 
     // Merge i18n_keys from layout chain + route
-    const i18nKeys = mergeI18nKeys(entry, layoutEntries);
+    const i18nKeys = mergeI18nKeys(entry, layoutEntries)
 
     pages[path] = {
       template,
@@ -274,50 +267,50 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
       i18nKeys,
       pageAssets: entry.assets,
       projections: entry.projections,
-    };
+    }
   }
-  return pages;
+  return pages
 }
 
 /** Load build output with lazy template getters -- templates re-read from disk on each access */
 export function loadBuildOutputDev(distDir: string): Record<string, PageDef> {
-  const manifestPath = join(distDir, "route-manifest.json");
-  const raw = readFileSync(manifestPath, "utf-8");
-  const manifest = JSON.parse(raw) as RouteManifest;
-  const defaultLocale = manifest.i18n?.default;
+  const manifestPath = join(distDir, 'route-manifest.json')
+  const raw = readFileSync(manifestPath, 'utf-8')
+  const manifest = JSON.parse(raw) as RouteManifest
+  const defaultLocale = manifest.i18n?.default
 
-  const layoutEntries = manifest.layouts ?? {};
+  const layoutEntries = manifest.layouts ?? {}
 
-  const pages: Record<string, PageDef> = {};
+  const pages: Record<string, PageDef> = {}
   for (const [path, entry] of Object.entries(manifest.routes)) {
-    const templatePath = join(distDir, resolveTemplatePath(entry, defaultLocale));
-    const loaders = buildLoaderFns(entry.loaders);
+    const templatePath = join(distDir, resolveTemplatePath(entry, defaultLocale))
+    const loaders = buildLoaderFns(entry.loaders)
     const layoutChain = entry.layout
       ? resolveLayoutChain(entry.layout, layoutEntries, (id, layoutEntry) => {
-          const tmplPath = join(distDir, resolveTemplatePath(layoutEntry, defaultLocale));
+          const tmplPath = join(distDir, resolveTemplatePath(layoutEntry, defaultLocale))
           const def = {
-            template: "",
+            template: '',
             localeTemplates: layoutEntry.templates
               ? makeLocaleTemplateGetters(layoutEntry.templates, distDir)
               : undefined,
-          };
-          Object.defineProperty(def, "template", {
-            get: () => readFileSync(tmplPath, "utf-8"),
+          }
+          Object.defineProperty(def, 'template', {
+            get: () => readFileSync(tmplPath, 'utf-8'),
             enumerable: true,
-          });
-          return def;
+          })
+          return def
         })
-      : [];
+      : []
 
     const localeTemplates = entry.templates
       ? makeLocaleTemplateGetters(entry.templates, distDir)
-      : undefined;
+      : undefined
 
     // Merge i18n_keys from layout chain + route
-    const i18nKeys = mergeI18nKeys(entry, layoutEntries);
+    const i18nKeys = mergeI18nKeys(entry, layoutEntries)
 
     const page: PageDef = {
-      template: "", // placeholder, overridden by getter
+      template: '', // placeholder, overridden by getter
       localeTemplates,
       loaders,
       layoutChain,
@@ -325,12 +318,12 @@ export function loadBuildOutputDev(distDir: string): Record<string, PageDef> {
       i18nKeys,
       pageAssets: entry.assets,
       projections: entry.projections,
-    };
-    Object.defineProperty(page, "template", {
-      get: () => readFileSync(templatePath, "utf-8"),
+    }
+    Object.defineProperty(page, 'template', {
+      get: () => readFileSync(templatePath, 'utf-8'),
       enumerable: true,
-    });
-    pages[path] = page;
+    })
+    pages[path] = page
   }
-  return pages;
+  return pages
 }

@@ -1,6 +1,6 @@
 /* src/server/core/typescript/src/router/handler.ts */
 
-import { SeamError } from "../errors.js";
+import { SeamError } from '../errors.js'
 import type {
   HandleResult,
   InternalProcedure,
@@ -8,10 +8,10 @@ import type {
   InternalStream,
   InternalUpload,
   SeamFileHandle,
-} from "../procedure.js";
-import { validateInput, formatValidationErrors } from "../validation/index.js";
+} from '../procedure.js'
+import { validateInput, formatValidationErrors } from '../validation/index.js'
 
-export type { HandleResult, InternalProcedure } from "../procedure.js";
+export type { HandleResult, InternalProcedure } from '../procedure.js'
 
 export async function handleRequest(
   procedures: Map<string, InternalProcedure>,
@@ -20,58 +20,58 @@ export async function handleRequest(
   validateOutput?: boolean,
   ctx?: Record<string, unknown>,
 ): Promise<HandleResult> {
-  const procedure = procedures.get(procedureName);
+  const procedure = procedures.get(procedureName)
   if (!procedure) {
     return {
       status: 404,
-      body: new SeamError("NOT_FOUND", `Procedure '${procedureName}' not found`).toJSON(),
-    };
+      body: new SeamError('NOT_FOUND', `Procedure '${procedureName}' not found`).toJSON(),
+    }
   }
 
-  const validation = validateInput(procedure.inputSchema, rawBody);
+  const validation = validateInput(procedure.inputSchema, rawBody)
   if (!validation.valid) {
-    const details = formatValidationErrors(validation.errors);
+    const details = formatValidationErrors(validation.errors)
     return {
       status: 400,
-      body: new SeamError("VALIDATION_ERROR", `Input validation failed: ${details}`).toJSON(),
-    };
+      body: new SeamError('VALIDATION_ERROR', `Input validation failed: ${details}`).toJSON(),
+    }
   }
 
   try {
-    const result = await procedure.handler({ input: rawBody, ctx: ctx ?? {} });
+    const result = await procedure.handler({ input: rawBody, ctx: ctx ?? {} })
 
     if (validateOutput) {
-      const outValidation = validateInput(procedure.outputSchema, result);
+      const outValidation = validateInput(procedure.outputSchema, result)
       if (!outValidation.valid) {
-        const details = formatValidationErrors(outValidation.errors);
+        const details = formatValidationErrors(outValidation.errors)
         return {
           status: 500,
-          body: new SeamError("INTERNAL_ERROR", `Output validation failed: ${details}`).toJSON(),
-        };
+          body: new SeamError('INTERNAL_ERROR', `Output validation failed: ${details}`).toJSON(),
+        }
       }
     }
 
-    return { status: 200, body: { ok: true, data: result } };
+    return { status: 200, body: { ok: true, data: result } }
   } catch (error) {
     if (error instanceof SeamError) {
-      return { status: error.status, body: error.toJSON() };
+      return { status: error.status, body: error.toJSON() }
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = error instanceof Error ? error.message : 'Unknown error'
     return {
       status: 500,
-      body: new SeamError("INTERNAL_ERROR", message).toJSON(),
-    };
+      body: new SeamError('INTERNAL_ERROR', message).toJSON(),
+    }
   }
 }
 
 export interface BatchCall {
-  procedure: string;
-  input: unknown;
+  procedure: string
+  input: unknown
 }
 
 export type BatchResultItem =
   | { ok: true; data: unknown }
-  | { ok: false; error: { code: string; message: string; transient: boolean } };
+  | { ok: false; error: { code: string; message: string; transient: boolean } }
 
 export async function handleBatchRequest(
   procedures: Map<string, InternalProcedure>,
@@ -81,26 +81,26 @@ export async function handleBatchRequest(
 ): Promise<{ results: BatchResultItem[] }> {
   const results = await Promise.all(
     calls.map(async (call) => {
-      const ctx = ctxResolver ? ctxResolver(call.procedure) : undefined;
+      const ctx = ctxResolver ? ctxResolver(call.procedure) : undefined
       const result = await handleRequest(
         procedures,
         call.procedure,
         call.input,
         validateOutput,
         ctx,
-      );
+      )
       if (result.status === 200) {
-        const envelope = result.body as { ok: true; data: unknown };
-        return { ok: true as const, data: envelope.data };
+        const envelope = result.body as { ok: true; data: unknown }
+        return { ok: true as const, data: envelope.data }
       }
       const envelope = result.body as {
-        ok: false;
-        error: { code: string; message: string; transient: boolean };
-      };
-      return { ok: false as const, error: envelope.error };
+        ok: false
+        error: { code: string; message: string; transient: boolean }
+      }
+      return { ok: false as const, error: envelope.error }
     }),
-  );
-  return { results };
+  )
+  return { results }
 }
 
 export async function* handleSubscription(
@@ -110,26 +110,26 @@ export async function* handleSubscription(
   validateOutput?: boolean,
   ctx?: Record<string, unknown>,
 ): AsyncIterable<unknown> {
-  const sub = subscriptions.get(name);
+  const sub = subscriptions.get(name)
   if (!sub) {
-    throw new SeamError("NOT_FOUND", `Subscription '${name}' not found`);
+    throw new SeamError('NOT_FOUND', `Subscription '${name}' not found`)
   }
 
-  const validation = validateInput(sub.inputSchema, rawInput);
+  const validation = validateInput(sub.inputSchema, rawInput)
   if (!validation.valid) {
-    const details = formatValidationErrors(validation.errors);
-    throw new SeamError("VALIDATION_ERROR", `Input validation failed: ${details}`);
+    const details = formatValidationErrors(validation.errors)
+    throw new SeamError('VALIDATION_ERROR', `Input validation failed: ${details}`)
   }
 
   for await (const value of sub.handler({ input: rawInput, ctx: ctx ?? {} })) {
     if (validateOutput) {
-      const outValidation = validateInput(sub.outputSchema, value);
+      const outValidation = validateInput(sub.outputSchema, value)
       if (!outValidation.valid) {
-        const details = formatValidationErrors(outValidation.errors);
-        throw new SeamError("INTERNAL_ERROR", `Output validation failed: ${details}`);
+        const details = formatValidationErrors(outValidation.errors)
+        throw new SeamError('INTERNAL_ERROR', `Output validation failed: ${details}`)
       }
     }
-    yield value;
+    yield value
   }
 }
 
@@ -141,47 +141,47 @@ export async function handleUploadRequest(
   validateOutput?: boolean,
   ctx?: Record<string, unknown>,
 ): Promise<HandleResult> {
-  const upload = uploads.get(procedureName);
+  const upload = uploads.get(procedureName)
   if (!upload) {
     return {
       status: 404,
-      body: new SeamError("NOT_FOUND", `Procedure '${procedureName}' not found`).toJSON(),
-    };
+      body: new SeamError('NOT_FOUND', `Procedure '${procedureName}' not found`).toJSON(),
+    }
   }
 
-  const validation = validateInput(upload.inputSchema, rawBody);
+  const validation = validateInput(upload.inputSchema, rawBody)
   if (!validation.valid) {
-    const details = formatValidationErrors(validation.errors);
+    const details = formatValidationErrors(validation.errors)
     return {
       status: 400,
-      body: new SeamError("VALIDATION_ERROR", `Input validation failed: ${details}`).toJSON(),
-    };
+      body: new SeamError('VALIDATION_ERROR', `Input validation failed: ${details}`).toJSON(),
+    }
   }
 
   try {
-    const result = await upload.handler({ input: rawBody, file, ctx: ctx ?? {} });
+    const result = await upload.handler({ input: rawBody, file, ctx: ctx ?? {} })
 
     if (validateOutput) {
-      const outValidation = validateInput(upload.outputSchema, result);
+      const outValidation = validateInput(upload.outputSchema, result)
       if (!outValidation.valid) {
-        const details = formatValidationErrors(outValidation.errors);
+        const details = formatValidationErrors(outValidation.errors)
         return {
           status: 500,
-          body: new SeamError("INTERNAL_ERROR", `Output validation failed: ${details}`).toJSON(),
-        };
+          body: new SeamError('INTERNAL_ERROR', `Output validation failed: ${details}`).toJSON(),
+        }
       }
     }
 
-    return { status: 200, body: { ok: true, data: result } };
+    return { status: 200, body: { ok: true, data: result } }
   } catch (error) {
     if (error instanceof SeamError) {
-      return { status: error.status, body: error.toJSON() };
+      return { status: error.status, body: error.toJSON() }
     }
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = error instanceof Error ? error.message : 'Unknown error'
     return {
       status: 500,
-      body: new SeamError("INTERNAL_ERROR", message).toJSON(),
-    };
+      body: new SeamError('INTERNAL_ERROR', message).toJSON(),
+    }
   }
 }
 
@@ -192,25 +192,25 @@ export async function* handleStream(
   validateOutput?: boolean,
   ctx?: Record<string, unknown>,
 ): AsyncGenerator<unknown> {
-  const stream = streams.get(name);
+  const stream = streams.get(name)
   if (!stream) {
-    throw new SeamError("NOT_FOUND", `Stream '${name}' not found`);
+    throw new SeamError('NOT_FOUND', `Stream '${name}' not found`)
   }
 
-  const validation = validateInput(stream.inputSchema, rawInput);
+  const validation = validateInput(stream.inputSchema, rawInput)
   if (!validation.valid) {
-    const details = formatValidationErrors(validation.errors);
-    throw new SeamError("VALIDATION_ERROR", `Input validation failed: ${details}`);
+    const details = formatValidationErrors(validation.errors)
+    throw new SeamError('VALIDATION_ERROR', `Input validation failed: ${details}`)
   }
 
   for await (const value of stream.handler({ input: rawInput, ctx: ctx ?? {} })) {
     if (validateOutput) {
-      const outValidation = validateInput(stream.chunkOutputSchema, value);
+      const outValidation = validateInput(stream.chunkOutputSchema, value)
       if (!outValidation.valid) {
-        const details = formatValidationErrors(outValidation.errors);
-        throw new SeamError("INTERNAL_ERROR", `Output validation failed: ${details}`);
+        const details = formatValidationErrors(outValidation.errors)
+        throw new SeamError('INTERNAL_ERROR', `Output validation failed: ${details}`)
       }
     }
-    yield value;
+    yield value
   }
 }

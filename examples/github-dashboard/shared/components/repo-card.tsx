@@ -1,6 +1,6 @@
 /* examples/github-dashboard/shared/components/repo-card.tsx */
 
-import type { GitHubRepo } from "../types.js";
+import type { GitHubRepo } from '../types.js'
 
 export function RepoCard({ repo }: { repo: GitHubRepo }) {
   return (
@@ -35,5 +35,5 @@ export function RepoCard({ repo }: { repo: GitHubRepo }) {
         </span>
       </div>
     </a>
-  );
+  )
 }

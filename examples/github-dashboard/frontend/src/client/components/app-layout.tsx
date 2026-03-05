@@ -1,15 +1,15 @@
 /* examples/github-dashboard/frontend/src/client/components/app-layout.tsx */
 
-import type { ReactNode } from "react";
-import { useSeamData } from "@canmi/seam-react";
-import { DarkModeToggle } from "@github-dashboard/shared/components/dark-mode-toggle.js";
+import type { ReactNode } from 'react'
+import { useSeamData } from '@canmi/seam-react'
+import { DarkModeToggle } from '@github-dashboard/shared/components/dark-mode-toggle.js'
 
 interface SessionData {
-  session: { username: string; theme: string };
+  session: { username: string; theme: string }
 }
 
 export function AppLayout({ children }: { children: ReactNode }) {
-  const { session } = useSeamData<SessionData>();
+  const { session } = useSeamData<SessionData>()
 
   return (
     <div className="relative min-h-screen bg-surface">
@@ -19,5 +19,5 @@ export function AppLayout({ children }: { children: ReactNode }) {
       </div>
       {children}
     </div>
-  );
+  )
 }

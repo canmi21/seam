@@ -1,6 +1,6 @@
 /* examples/fs-router-demo/src/pages/layout.tsx */
 
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react'
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
@@ -15,5 +15,5 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </nav>
       <main>{children}</main>
     </div>
-  );
+  )
 }

@@ -1,18 +1,18 @@
 /* eslint.config.mjs */
 
-import tseslint from "typescript-eslint";
-import oxlint from "eslint-plugin-oxlint";
-import seamPlugin from "./src/eslint/src/index.ts";
+import tseslint from 'typescript-eslint'
+import oxlint from 'eslint-plugin-oxlint'
+import seamPlugin from './src/eslint/src/index.ts'
 
 export default tseslint.config(
   {
     ignores: [
-      "**/dist/**",
-      "**/node_modules/**",
-      "**/target/**",
-      "**/.seam/**",
-      "**/pkg/**",
-      "src/cli/**",
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/target/**',
+      '**/.seam/**',
+      '**/pkg/**',
+      'src/cli/**',
     ],
   },
   {
@@ -21,7 +21,7 @@ export default tseslint.config(
   // type-checked rules: skip examples entirely (no tsconfig project)
   ...tseslint.configs.recommendedTypeChecked.map((c) => ({
     ...c,
-    ignores: [...(c.ignores ?? []), "examples/**"],
+    ignores: [...(c.ignores ?? []), 'examples/**'],
   })),
   {
     languageOptions: {
@@ -30,17 +30,17 @@ export default tseslint.config(
         tsconfigRootDir: import.meta.dirname,
       },
     },
-    ignores: ["examples/**"],
+    ignores: ['examples/**'],
     rules: {
-      "@typescript-eslint/no-unused-vars": "off",
-      "@typescript-eslint/no-require-imports": "off",
-      "max-lines": ["warn", { max: 500, skipBlankLines: true, skipComments: true }],
-      "max-lines-per-function": ["warn", { max: 100, skipBlankLines: true, skipComments: true }],
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
+      'max-lines': ['warn', { max: 500, skipBlankLines: true, skipComments: true }],
+      'max-lines-per-function': ['warn', { max: 100, skipBlankLines: true, skipComments: true }],
     },
   },
   // skeleton files in examples need TS parser (type-checked configs skip examples/)
   {
-    files: ["examples/**/*-skeleton.tsx"],
+    files: ['examples/**/*-skeleton.tsx'],
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: { ecmaFeatures: { jsx: true } },
@@ -48,28 +48,28 @@ export default tseslint.config(
   },
   // skeleton-specific seam rules (covers examples/ and tests/)
   {
-    files: ["**/*-skeleton.tsx"],
+    files: ['**/*-skeleton.tsx'],
     rules: {
-      "seam/no-async-in-skeleton": "error",
-      "seam/no-effect-in-skeleton": "warn",
-      "seam/no-nondeterministic-in-skeleton": "error",
-      "seam/no-browser-apis-in-skeleton": "error",
+      'seam/no-async-in-skeleton': 'error',
+      'seam/no-effect-in-skeleton': 'warn',
+      'seam/no-nondeterministic-in-skeleton': 'error',
+      'seam/no-browser-apis-in-skeleton': 'error',
     },
   },
   // disable type-checked rules for files outside tsconfig
   {
     files: [
-      "**/__tests__/**",
-      "tests/**",
-      "**/tsdown.config.ts",
-      "**/vitest.config.*",
-      "**/scripts/**",
-      "eslint.config.mjs",
-      "src/server/adapter/bun/**",
-      "examples/**",
+      '**/__tests__/**',
+      'tests/**',
+      '**/tsdown.config.ts',
+      '**/vitest.config.*',
+      '**/scripts/**',
+      'eslint.config.mjs',
+      'src/server/adapter/bun/**',
+      'examples/**',
     ],
     ...tseslint.configs.disableTypeChecked,
   },
   // oxlint plugin must be last -- turns off rules oxlint already covers
-  ...oxlint.configs["flat/recommended"],
-);
+  ...oxlint.configs['flat/recommended'],
+)

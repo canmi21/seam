@@ -1,7 +1,7 @@
 /* examples/fs-router-demo/src/server/procedures.ts */
 
-import { t } from "@canmi/seam-server";
-import type { ProcedureDef } from "@canmi/seam-server";
+import { t } from '@canmi/seam-server'
+import type { ProcedureDef } from '@canmi/seam-server'
 
 export const getPageData: ProcedureDef = {
   input: t.object({}),
@@ -10,10 +10,10 @@ export const getPageData: ProcedureDef = {
     description: t.string(),
   }),
   handler: () => ({
-    title: "FS Router Demo",
-    description: "Filesystem-based routing for SeamJS",
+    title: 'FS Router Demo',
+    description: 'Filesystem-based routing for SeamJS',
   }),
-};
+}
 
 export const getBlogPost: ProcedureDef = {
   input: t.object({ slug: t.string() }),
@@ -23,14 +23,14 @@ export const getBlogPost: ProcedureDef = {
     author: t.string(),
   }),
   handler: ({ input }) => {
-    const { slug } = input as { slug: string };
+    const { slug } = input as { slug: string }
     return {
       title: `Post: ${slug}`,
       content: `Content for ${slug}`,
-      author: "Demo Author",
-    };
+      author: 'Demo Author',
+    }
   },
-};
+}
 
 export const getSession: ProcedureDef = {
   input: t.object({}),
@@ -38,6 +38,6 @@ export const getSession: ProcedureDef = {
     username: t.string(),
   }),
   handler: () => ({
-    username: "visitor",
+    username: 'visitor',
   }),
-};
+}

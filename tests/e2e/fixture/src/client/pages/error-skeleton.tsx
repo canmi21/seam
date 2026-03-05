@@ -1,48 +1,48 @@
 /* tests/e2e/fixture/src/client/pages/error-skeleton.tsx */
 
-import { Component, type ErrorInfo, type ReactNode, useState } from "react";
-import { useSeamData } from "@canmi/seam-react";
+import { Component, type ErrorInfo, type ReactNode, useState } from 'react'
+import { useSeamData } from '@canmi/seam-react'
 
 interface ErrorData extends Record<string, unknown> {
-  heading: string;
+  heading: string
 }
 
 interface ErrorBoundaryProps {
-  children: ReactNode;
+  children: ReactNode
 }
 
 interface ErrorBoundaryState {
-  hasError: boolean;
+  hasError: boolean
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = { hasError: false };
+    super(props)
+    this.state = { hasError: false }
   }
 
   static getDerivedStateFromError(): ErrorBoundaryState {
-    return { hasError: true };
+    return { hasError: true }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    void error;
-    void info;
+    void error
+    void info
   }
 
   render() {
     if (this.state.hasError) {
-      return <p data-testid="error-fallback">Something went wrong: a rendering error occurred.</p>;
+      return <p data-testid="error-fallback">Something went wrong: a rendering error occurred.</p>
     }
-    return this.props.children;
+    return this.props.children
   }
 }
 
 function BrokenComponent() {
-  const [shouldThrow, setShouldThrow] = useState(false);
+  const [shouldThrow, setShouldThrow] = useState(false)
 
   if (shouldThrow) {
-    throw new Error("Intentional test error");
+    throw new Error('Intentional test error')
   }
 
   return (
@@ -52,11 +52,11 @@ function BrokenComponent() {
         Trigger Error
       </button>
     </div>
-  );
+  )
 }
 
 export function ErrorSkeleton() {
-  const data = useSeamData<ErrorData>();
+  const data = useSeamData<ErrorData>()
 
   return (
     <div>
@@ -68,5 +68,5 @@ export function ErrorSkeleton() {
         Back to Home
       </a>
     </div>
-  );
+  )
 }

@@ -1,14 +1,14 @@
 /* tests/e2e/fixture/src/client/pages/home-skeleton.tsx */
 
-import { useSeamData } from "@canmi/seam-react";
+import { useSeamData } from '@canmi/seam-react'
 
 interface HomeData extends Record<string, unknown> {
-  title: string;
-  message: string;
+  title: string
+  message: string
 }
 
 export function HomeSkeleton() {
-  const data = useSeamData<HomeData>();
+  const data = useSeamData<HomeData>()
 
   return (
     <div>
@@ -44,5 +44,5 @@ export function HomeSkeleton() {
         </ul>
       </nav>
     </div>
-  );
+  )
 }

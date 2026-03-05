@@ -1,8 +1,8 @@
 /* src/server/engine/js/src/wasm-bridge.ts */
 
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   __wbg_set_wasm,
   render_page as wasmRenderPage,
@@ -13,20 +13,20 @@ import {
   i18n_query as wasmI18nQuery,
   inject as wasmInject,
   inject_no_script as wasmInjectNoScript,
-} from "../pkg/engine.js";
+} from '../pkg/engine.js'
 
 export interface InjectOptions {
-  skipDataScript?: boolean;
-  dataId?: string;
+  skipDataScript?: boolean
+  dataId?: string
 }
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const wasmPath = resolve(__dirname, "../pkg/engine.wasm");
-const wasmBytes = readFileSync(wasmPath);
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const wasmPath = resolve(__dirname, '../pkg/engine.wasm')
+const wasmBytes = readFileSync(wasmPath)
 
-const wasmModule = new WebAssembly.Module(wasmBytes);
-const wasmInstance = new WebAssembly.Instance(wasmModule);
-__wbg_set_wasm(wasmInstance.exports);
+const wasmModule = new WebAssembly.Module(wasmBytes)
+const wasmInstance = new WebAssembly.Instance(wasmModule)
+__wbg_set_wasm(wasmInstance.exports)
 
 // --- Engine functions ---
 
@@ -36,23 +36,23 @@ export function renderPage(
   configJson: string,
   i18nOptsJson?: string,
 ): string {
-  return wasmRenderPage(template, loaderDataJson, configJson, i18nOptsJson ?? "");
+  return wasmRenderPage(template, loaderDataJson, configJson, i18nOptsJson ?? '')
 }
 
 export function parseBuildOutput(manifestJson: string): string {
-  return wasmParseBuildOutput(manifestJson);
+  return wasmParseBuildOutput(manifestJson)
 }
 
 export function parseI18nConfig(manifestJson: string): string {
-  return wasmParseI18nConfig(manifestJson);
+  return wasmParseI18nConfig(manifestJson)
 }
 
 export function parseRpcHashMap(hashMapJson: string): string {
-  return wasmParseRpcHashMap(hashMapJson);
+  return wasmParseRpcHashMap(hashMapJson)
 }
 
 export function asciiEscapeJson(json: string): string {
-  return wasmAsciiEscapeJson(json);
+  return wasmAsciiEscapeJson(json)
 }
 
 export function i18nQuery(
@@ -61,7 +61,7 @@ export function i18nQuery(
   defaultLocale: string,
   messagesJson: string,
 ): string {
-  return wasmI18nQuery(keysJson, locale, defaultLocale, messagesJson);
+  return wasmI18nQuery(keysJson, locale, defaultLocale, messagesJson)
 }
 
 // --- Injector functions (re-exported for convenience) ---
@@ -71,13 +71,13 @@ export function inject(
   data: Record<string, unknown>,
   options?: InjectOptions,
 ): string {
-  const json = JSON.stringify(data);
+  const json = JSON.stringify(data)
   if (options?.skipDataScript) {
-    return wasmInjectNoScript(template, json);
+    return wasmInjectNoScript(template, json)
   }
-  return wasmInject(template, json, options?.dataId ?? "__data");
+  return wasmInject(template, json, options?.dataId ?? '__data')
 }
 
 export function injectNoScript(template: string, dataJson: string): string {
-  return wasmInjectNoScript(template, dataJson);
+  return wasmInjectNoScript(template, dataJson)
 }

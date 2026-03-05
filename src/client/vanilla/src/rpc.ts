@@ -1,48 +1,48 @@
 /* src/client/vanilla/src/rpc.ts */
 
-import { createClient } from "./client.js";
-import type { SeamClient } from "./client.js";
-import { createBatchQueue } from "./batch.js";
-import { getFromCache } from "./prefetch-cache.js";
+import { createClient } from './client.js'
+import type { SeamClient } from './client.js'
+import { createBatchQueue } from './batch.js'
+import { getFromCache } from './prefetch-cache.js'
 
-let rpcHashMap: Record<string, string> | null = null;
-let configuredBatchEndpoint: string | null = null;
+let rpcHashMap: Record<string, string> | null = null
+let configuredBatchEndpoint: string | null = null
 
-let browserClient: SeamClient | null = null;
+let browserClient: SeamClient | null = null
 
 function getBrowserClient(): SeamClient {
   if (!browserClient) {
     browserClient = createClient({
-      baseUrl: "",
+      baseUrl: '',
       batchEndpoint: configuredBatchEndpoint ?? undefined,
-    });
+    })
   }
-  return browserClient;
+  return browserClient
 }
 
-let batchEnqueue: ((proc: string, input: unknown) => Promise<unknown>) | null = null;
+let batchEnqueue: ((proc: string, input: unknown) => Promise<unknown>) | null = null
 
 function getBatchEnqueue() {
   if (!batchEnqueue) {
-    const client = getBrowserClient();
-    batchEnqueue = createBatchQueue((calls) => client.callBatch(calls));
+    const client = getBrowserClient()
+    batchEnqueue = createBatchQueue((calls) => client.callBatch(calls))
   }
-  return batchEnqueue;
+  return batchEnqueue
 }
 
 /** Configure the RPC hash map for obfuscated endpoints. */
 export function configureRpcMap(map: Record<string, string>): void {
-  rpcHashMap = { ...map };
-  configuredBatchEndpoint = map["_batch"] ?? null;
+  rpcHashMap = { ...map }
+  configuredBatchEndpoint = map['_batch'] ?? null
   // Reset singletons so next call picks up new config
-  browserClient = null;
-  batchEnqueue = null;
+  browserClient = null
+  batchEnqueue = null
 }
 
 export function seamRpc(procedure: string, input?: unknown): Promise<unknown> {
-  const cached = getFromCache(procedure, input ?? {});
-  if (cached !== undefined) return cached;
+  const cached = getFromCache(procedure, input ?? {})
+  if (cached !== undefined) return cached
 
-  const wireName = rpcHashMap?.[procedure] ?? procedure;
-  return getBatchEnqueue()(wireName, input ?? {});
+  const wireName = rpcHashMap?.[procedure] ?? procedure
+  return getBatchEnqueue()(wireName, input ?? {})
 }
