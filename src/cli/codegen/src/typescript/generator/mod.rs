@@ -7,9 +7,7 @@ use std::collections::BTreeSet;
 
 use anyhow::Result;
 
-use crate::manifest::{
-  CacheHint, InvalidateTarget, Manifest, ProcedureSchema, ProcedureType, TransportConfig,
-};
+use crate::manifest::{CacheHint, InvalidateTarget, Manifest, ProcedureSchema, ProcedureType};
 use crate::rpc_hash::RpcHashMap;
 
 use super::render::{render_top_level, to_pascal_case};
@@ -19,326 +17,326 @@ use transport::{generate_transport_hint, resolve_channel_transport};
 
 /// Wrap name in quotes if it contains characters that make it an invalid JS identifier.
 fn quote_key(name: &str) -> String {
-  if name.contains('.') { format!("\"{name}\"") } else { name.to_string() }
+	if name.contains('.') { format!("\"{name}\"") } else { name.to_string() }
 }
 
 /// Generate `seamProcedureConfig` runtime constant with kind, cache hints, and invalidates.
 fn generate_procedure_config(manifest: &Manifest) -> String {
-  let mut out = String::from("export const seamProcedureConfig = {\n");
-  for (name, schema) in &manifest.procedures {
-    let key = quote_key(name);
-    let kind = schema.proc_type.to_string();
+	let mut out = String::from("export const seamProcedureConfig = {\n");
+	for (name, schema) in &manifest.procedures {
+		let key = quote_key(name);
+		let kind = schema.proc_type.to_string();
 
-    let mut fields = vec![format!("kind: \"{kind}\"")];
+		let mut fields = vec![format!("kind: \"{kind}\"")];
 
-    // cache: only for queries with explicit cache hint
-    if let Some(ref cache) = schema.cache {
-      match cache {
-        CacheHint::Config { ttl } => fields.push(format!("cache: {{ ttl: {ttl} }}")),
-        CacheHint::Disabled(_) => fields.push("cache: false".into()),
-      }
-    }
+		// cache: only for queries with explicit cache hint
+		if let Some(ref cache) = schema.cache {
+			match cache {
+				CacheHint::Config { ttl } => fields.push(format!("cache: {{ ttl: {ttl} }}")),
+				CacheHint::Disabled(_) => fields.push("cache: false".into()),
+			}
+		}
 
-    // invalidates: only for commands with non-empty targets
-    if let Some(ref targets) = schema.invalidates
-      && !targets.is_empty()
-    {
-      fields.push(format!("invalidates: {}", format_invalidate_targets(targets)));
-    }
+		// invalidates: only for commands with non-empty targets
+		if let Some(ref targets) = schema.invalidates
+			&& !targets.is_empty()
+		{
+			fields.push(format!("invalidates: {}", format_invalidate_targets(targets)));
+		}
 
-    out.push_str(&format!("  {key}: {{ {} }},\n", fields.join(", ")));
-  }
-  out.push_str("} as const;\n\n");
-  out.push_str("export type SeamProcedureConfig = typeof seamProcedureConfig;\n\n");
-  out
+		out.push_str(&format!("  {key}: {{ {} }},\n", fields.join(", ")));
+	}
+	out.push_str("} as const;\n\n");
+	out.push_str("export type SeamProcedureConfig = typeof seamProcedureConfig;\n\n");
+	out
 }
 
 /// Serialize InvalidateTarget[] as a TypeScript array literal.
 fn format_invalidate_targets(targets: &[InvalidateTarget]) -> String {
-  let items: Vec<String> = targets
-    .iter()
-    .map(|t| {
-      let mut obj = format!("{{ query: \"{}\"", t.query);
-      if let Some(ref mapping) = t.mapping {
-        let entries: Vec<String> = mapping
-          .iter()
-          .map(|(k, v)| {
-            let mut mv = format!("{{ from: \"{}\"", v.from);
-            if v.each == Some(true) {
-              mv.push_str(", each: true");
-            }
-            mv.push_str(" }");
-            format!("{k}: {mv}")
-          })
-          .collect();
-        obj.push_str(&format!(", mapping: {{ {} }}", entries.join(", ")));
-      }
-      obj.push_str(" }");
-      obj
-    })
-    .collect();
-  format!("[{}]", items.join(", "))
+	let items: Vec<String> = targets
+		.iter()
+		.map(|t| {
+			let mut obj = format!("{{ query: \"{}\"", t.query);
+			if let Some(ref mapping) = t.mapping {
+				let entries: Vec<String> = mapping
+					.iter()
+					.map(|(k, v)| {
+						let mut mv = format!("{{ from: \"{}\"", v.from);
+						if v.each == Some(true) {
+							mv.push_str(", each: true");
+						}
+						mv.push_str(" }");
+						format!("{k}: {mv}")
+					})
+					.collect();
+				obj.push_str(&format!(", mapping: {{ {} }}", entries.join(", ")));
+			}
+			obj.push_str(" }");
+			obj
+		})
+		.collect();
+	format!("[{}]", items.join(", "))
 }
 
 /// Generate SeamProcedureMeta type map (includes all procedures, even channel-owned).
 fn generate_procedure_meta(manifest: &Manifest) -> String {
-  // Build lookup for channel event procedures ({ch}.events) whose types
-  // are named differently: input = {Ch}ChannelInput, output = {Ch}Event.
-  let channel_event_names: BTreeSet<String> =
-    manifest.channels.keys().map(|ch| format!("{ch}.events")).collect();
+	// Build lookup for channel event procedures ({ch}.events) whose types
+	// are named differently: input = {Ch}ChannelInput, output = {Ch}Event.
+	let channel_event_names: BTreeSet<String> =
+		manifest.channels.keys().map(|ch| format!("{ch}.events")).collect();
 
-  let mut out = String::from("export interface SeamProcedureMeta {\n");
-  for (name, schema) in &manifest.procedures {
-    let pascal = to_pascal_case(name);
-    let key = quote_key(name);
-    let kind = match schema.proc_type {
-      ProcedureType::Query => "query",
-      ProcedureType::Command => "command",
-      ProcedureType::Subscription => "subscription",
-      ProcedureType::Stream => "stream",
-      ProcedureType::Upload => "upload",
-    };
-    let (input_name, output_name) = if channel_event_names.contains(name) {
-      // Channel event subscription: types follow channel naming convention
-      let ch_name = name.strip_suffix(".events").expect("channel event name has .events suffix");
-      let ch_pascal = to_pascal_case(ch_name);
-      (format!("{ch_pascal}ChannelInput"), format!("{ch_pascal}Event"))
-    } else if schema.proc_type == ProcedureType::Stream {
-      (format!("{pascal}Input"), format!("{pascal}Chunk"))
-    } else {
-      (format!("{pascal}Input"), format!("{pascal}Output"))
-    };
-    let mut extra_fields = String::new();
-    if schema.error.is_some() {
-      let error_name = format!("{pascal}Error");
-      extra_fields.push_str(&format!("; error: {error_name}"));
-    }
-    if let Some(targets) = &schema.invalidates
-      && !targets.is_empty()
-    {
-      let names: Vec<String> = targets.iter().map(|t| format!("\"{}\"", t.query)).collect();
-      extra_fields.push_str(&format!("; invalidates: readonly [{}]", names.join(", ")));
-    }
-    if let Some(ctx_keys) = &schema.context
-      && !ctx_keys.is_empty()
-    {
-      let keys_str: Vec<String> = ctx_keys.iter().map(|k| format!("\"{k}\"")).collect();
-      extra_fields.push_str(&format!("; context: readonly [{}]", keys_str.join(", ")));
-    }
-    out.push_str(&format!(
-      "  {key}: {{ kind: \"{kind}\"; input: {input_name}; output: {output_name}{extra_fields} }};\n"
-    ));
-  }
-  out.push_str("}\n\n");
-  out
+	let mut out = String::from("export interface SeamProcedureMeta {\n");
+	for (name, schema) in &manifest.procedures {
+		let pascal = to_pascal_case(name);
+		let key = quote_key(name);
+		let kind = match schema.proc_type {
+			ProcedureType::Query => "query",
+			ProcedureType::Command => "command",
+			ProcedureType::Subscription => "subscription",
+			ProcedureType::Stream => "stream",
+			ProcedureType::Upload => "upload",
+		};
+		let (input_name, output_name) = if channel_event_names.contains(name) {
+			// Channel event subscription: types follow channel naming convention
+			let ch_name = name.strip_suffix(".events").expect("channel event name has .events suffix");
+			let ch_pascal = to_pascal_case(ch_name);
+			(format!("{ch_pascal}ChannelInput"), format!("{ch_pascal}Event"))
+		} else if schema.proc_type == ProcedureType::Stream {
+			(format!("{pascal}Input"), format!("{pascal}Chunk"))
+		} else {
+			(format!("{pascal}Input"), format!("{pascal}Output"))
+		};
+		let mut extra_fields = String::new();
+		if schema.error.is_some() {
+			let error_name = format!("{pascal}Error");
+			extra_fields.push_str(&format!("; error: {error_name}"));
+		}
+		if let Some(targets) = &schema.invalidates
+			&& !targets.is_empty()
+		{
+			let names: Vec<String> = targets.iter().map(|t| format!("\"{}\"", t.query)).collect();
+			extra_fields.push_str(&format!("; invalidates: readonly [{}]", names.join(", ")));
+		}
+		if let Some(ctx_keys) = &schema.context
+			&& !ctx_keys.is_empty()
+		{
+			let keys_str: Vec<String> = ctx_keys.iter().map(|k| format!("\"{k}\"")).collect();
+			extra_fields.push_str(&format!("; context: readonly [{}]", keys_str.join(", ")));
+		}
+		out.push_str(&format!(
+			"  {key}: {{ kind: \"{kind}\"; input: {input_name}; output: {output_name}{extra_fields} }};\n"
+		));
+	}
+	out.push_str("}\n\n");
+	out
 }
 
 /// Generate a dependency-free `meta.ts` exporting only DATA_ID.
 pub fn generate_typescript_meta(data_id: &str) -> String {
-  format!("// Auto-generated by seam. Do not edit.\nexport const DATA_ID = \"{data_id}\";\n")
+	format!("// Auto-generated by seam. Do not edit.\nexport const DATA_ID = \"{data_id}\";\n")
 }
 
 /// Resolve the wire name for a procedure (hashed name if available, original otherwise).
 fn resolve_wire_name<'a>(name: &'a str, rpc_hashes: Option<&'a RpcHashMap>) -> &'a str {
-  rpc_hashes.and_then(|m| m.procedures.get(name)).map(String::as_str).unwrap_or(name)
+	rpc_hashes.and_then(|m| m.procedures.get(name)).map(String::as_str).unwrap_or(name)
 }
 
 /// Emit import declarations based on procedure kinds present in the manifest.
 fn generate_imports(has_stream: bool) -> String {
-  let mut out = String::from("import { createClient } from \"@canmi/seam-client\";\n");
-  if has_stream {
-    out.push_str(
+	let mut out = String::from("import { createClient } from \"@canmi/seam-client\";\n");
+	if has_stream {
+		out.push_str(
       "import type { SeamClient, SeamClientError, ProcedureKind, Unsubscribe, StreamHandle } from \"@canmi/seam-client\";\n\n",
     );
-  } else {
-    out.push_str(
+	} else {
+		out.push_str(
       "import type { SeamClient, SeamClientError, ProcedureKind, Unsubscribe } from \"@canmi/seam-client\";\n\n",
     );
-  }
-  out
+	}
+	out
 }
 
 /// Emit type declarations for each non-channel procedure and collect interface/factory lines.
 fn generate_procedure_declarations(
-  manifest: &Manifest,
-  rpc_hashes: Option<&RpcHashMap>,
-  channel_owned: &BTreeSet<String>,
+	manifest: &Manifest,
+	rpc_hashes: Option<&RpcHashMap>,
+	channel_owned: &BTreeSet<String>,
 ) -> Result<(String, Vec<String>, Vec<String>)> {
-  let mut out = String::new();
-  let mut iface_lines: Vec<String> = Vec::new();
-  let mut factory_lines: Vec<String> = Vec::new();
+	let mut out = String::new();
+	let mut iface_lines: Vec<String> = Vec::new();
+	let mut factory_lines: Vec<String> = Vec::new();
 
-  for (name, schema) in &manifest.procedures {
-    if channel_owned.contains(name) {
-      continue;
-    }
+	for (name, schema) in &manifest.procedures {
+		if channel_owned.contains(name) {
+			continue;
+		}
 
-    let pascal = to_pascal_case(name);
-    let key = quote_key(name);
+		let pascal = to_pascal_case(name);
+		let key = quote_key(name);
 
-    let input_name = format!("{pascal}Input");
-    // Stream uses "Chunk" suffix to clarify it's the chunk type, not a single output
-    let output_name = if schema.proc_type == ProcedureType::Stream {
-      format!("{pascal}Chunk")
-    } else {
-      format!("{pascal}Output")
-    };
+		let input_name = format!("{pascal}Input");
+		// Stream uses "Chunk" suffix to clarify it's the chunk type, not a single output
+		let output_name = if schema.proc_type == ProcedureType::Stream {
+			format!("{pascal}Chunk")
+		} else {
+			format!("{pascal}Output")
+		};
 
-    out.push_str(&render_top_level(&input_name, &schema.input)?);
-    out.push('\n');
+		out.push_str(&render_top_level(&input_name, &schema.input)?);
+		out.push('\n');
 
-    if let Some(output_schema) = schema.effective_output() {
-      out.push_str(&render_top_level(&output_name, output_schema)?);
-      out.push('\n');
-    }
+		if let Some(output_schema) = schema.effective_output() {
+			out.push_str(&render_top_level(&output_name, output_schema)?);
+			out.push('\n');
+		}
 
-    if let Some(ref error_schema) = schema.error {
-      let error_name = format!("{pascal}Error");
-      out.push_str(&render_top_level(&error_name, error_schema)?);
-      out.push('\n');
-    }
+		if let Some(ref error_schema) = schema.error {
+			let error_name = format!("{pascal}Error");
+			out.push_str(&render_top_level(&error_name, error_schema)?);
+			out.push('\n');
+		}
 
-    let wire_name = resolve_wire_name(name, rpc_hashes);
-    let (iface, factory) =
-      procedure_client_lines(&key, &input_name, &output_name, wire_name, schema);
-    iface_lines.push(iface);
-    factory_lines.push(factory);
-  }
+		let wire_name = resolve_wire_name(name, rpc_hashes);
+		let (iface, factory) =
+			procedure_client_lines(&key, &input_name, &output_name, wire_name, schema);
+		iface_lines.push(iface);
+		factory_lines.push(factory);
+	}
 
-  Ok((out, iface_lines, factory_lines))
+	Ok((out, iface_lines, factory_lines))
 }
 
 /// Produce one interface line and one factory line for a procedure.
 fn procedure_client_lines(
-  key: &str,
-  input: &str,
-  output: &str,
-  wire: &str,
-  schema: &ProcedureSchema,
+	key: &str,
+	input: &str,
+	output: &str,
+	wire: &str,
+	schema: &ProcedureSchema,
 ) -> (String, String) {
-  match schema.proc_type {
-    ProcedureType::Stream => (
-      format!("  {key}(input: {input}): StreamHandle<{output}>;"),
-      format!("    {key}: (input) => client.stream(\"{wire}\", input) as StreamHandle<{output}>,"),
-    ),
-    ProcedureType::Subscription => (
-      format!(
-        "  {key}(input: {input}, onData: (data: {output}) => void, onError?: (err: SeamClientError) => void): Unsubscribe;"
-      ),
-      format!(
-        "    {key}: (input, onData, onError) => client.subscribe(\"{wire}\", input, onData as (data: unknown) => void, onError),"
-      ),
-    ),
-    ProcedureType::Upload => (
-      format!("  {key}(input: {input}, file: File | Blob): Promise<{output}>;"),
-      format!(
-        "    {key}: (input, file) => client.upload(\"{wire}\", input, file) as Promise<{output}>,"
-      ),
-    ),
-    _ => {
-      let method = if schema.proc_type == ProcedureType::Command { "command" } else { "query" };
-      (
-        format!("  {key}(input: {input}): Promise<{output}>;"),
-        format!("    {key}: (input) => client.{method}(\"{wire}\", input) as Promise<{output}>,"),
-      )
-    }
-  }
+	match schema.proc_type {
+		ProcedureType::Stream => (
+			format!("  {key}(input: {input}): StreamHandle<{output}>;"),
+			format!("    {key}: (input) => client.stream(\"{wire}\", input) as StreamHandle<{output}>,"),
+		),
+		ProcedureType::Subscription => (
+			format!(
+				"  {key}(input: {input}, onData: (data: {output}) => void, onError?: (err: SeamClientError) => void): Unsubscribe;"
+			),
+			format!(
+				"    {key}: (input, onData, onError) => client.subscribe(\"{wire}\", input, onData as (data: unknown) => void, onError),"
+			),
+		),
+		ProcedureType::Upload => (
+			format!("  {key}(input: {input}, file: File | Blob): Promise<{output}>;"),
+			format!(
+				"    {key}: (input, file) => client.upload(\"{wire}\", input, file) as Promise<{output}>,"
+			),
+		),
+		_ => {
+			let method = if schema.proc_type == ProcedureType::Command { "command" } else { "query" };
+			(
+				format!("  {key}(input: {input}): Promise<{output}>;"),
+				format!("    {key}: (input) => client.{method}(\"{wire}\", input) as Promise<{output}>,"),
+			)
+		}
+	}
 }
 
 /// Emit the `createSeamClient` factory function.
 fn generate_client_factory(
-  manifest: &Manifest,
-  rpc_hashes: Option<&RpcHashMap>,
-  factory_lines: &[String],
-  has_channels: bool,
+	manifest: &Manifest,
+	rpc_hashes: Option<&RpcHashMap>,
+	factory_lines: &[String],
+	has_channels: bool,
 ) -> String {
-  let return_type = if has_channels {
-    "SeamProcedures & {\n  channel<K extends keyof SeamChannels>(\n    name: K,\n    input: SeamChannels[K][\"input\"],\n  ): SeamChannels[K][\"handle\"];\n}"
-  } else {
-    "SeamProcedures"
-  };
+	let return_type = if has_channels {
+		"SeamProcedures & {\n  channel<K extends keyof SeamChannels>(\n    name: K,\n    input: SeamChannels[K][\"input\"],\n  ): SeamChannels[K][\"handle\"];\n}"
+	} else {
+		"SeamProcedures"
+	};
 
-  let mut out = format!("export function createSeamClient(baseUrl: string): {return_type} {{\n");
+	let mut out = format!("export function createSeamClient(baseUrl: string): {return_type} {{\n");
 
-  // Build createClient options
-  let mut opts_parts = vec![String::from("baseUrl")];
-  if let Some(map) = rpc_hashes {
-    opts_parts.push(format!("batchEndpoint: \"{}\"", map.batch));
-  }
-  if has_channels {
-    let entries: Vec<String> = manifest
-      .channels
-      .iter()
-      .map(|(name, ch)| {
-        let transport = resolve_channel_transport(ch, &manifest.transport_defaults);
-        format!("{}: \"{}\"", quote_key(name), transport)
-      })
-      .collect();
-    opts_parts.push(format!("channelTransports: {{ {} }}", entries.join(", ")));
-  }
-  out.push_str(&format!(
-    "  const client: SeamClient = createClient({{ {} }});\n",
-    opts_parts.join(", ")
-  ));
+	// Build createClient options
+	let mut opts_parts = vec![String::from("baseUrl")];
+	if let Some(map) = rpc_hashes {
+		opts_parts.push(format!("batchEndpoint: \"{}\"", map.batch));
+	}
+	if has_channels {
+		let entries: Vec<String> = manifest
+			.channels
+			.iter()
+			.map(|(name, ch)| {
+				let transport = resolve_channel_transport(ch, &manifest.transport_defaults);
+				format!("{}: \"{}\"", quote_key(name), transport)
+			})
+			.collect();
+		opts_parts.push(format!("channelTransports: {{ {} }}", entries.join(", ")));
+	}
+	out.push_str(&format!(
+		"  const client: SeamClient = createClient({{ {} }});\n",
+		opts_parts.join(", ")
+	));
 
-  if has_channels {
-    out.push_str("  function channel<K extends keyof SeamChannels>(name: K, input: SeamChannels[K][\"input\"]): SeamChannels[K][\"handle\"] {\n");
-    out.push_str(&generate_channel_factory(manifest));
-    out.push_str("    throw new Error(`Unknown channel: ${name as string}`);\n");
-    out.push_str("  }\n");
-  }
+	if has_channels {
+		out.push_str("  function channel<K extends keyof SeamChannels>(name: K, input: SeamChannels[K][\"input\"]): SeamChannels[K][\"handle\"] {\n");
+		out.push_str(&generate_channel_factory(manifest));
+		out.push_str("    throw new Error(`Unknown channel: ${name as string}`);\n");
+		out.push_str("  }\n");
+	}
 
-  out.push_str("  return {\n");
-  for line in factory_lines {
-    out.push_str(line);
-    out.push('\n');
-  }
-  if has_channels {
-    out.push_str("    channel,\n");
-  }
-  out.push_str("  };\n");
-  out.push_str("}\n");
+	out.push_str("  return {\n");
+	for line in factory_lines {
+		out.push_str(line);
+		out.push('\n');
+	}
+	if has_channels {
+		out.push_str("    channel,\n");
+	}
+	out.push_str("  };\n");
+	out.push_str("}\n");
 
-  out
+	out
 }
 
 /// Generate a typed TypeScript client from a manifest.
 pub fn generate_typescript(
-  manifest: &Manifest,
-  rpc_hashes: Option<&RpcHashMap>,
-  _data_id: &str,
+	manifest: &Manifest,
+	rpc_hashes: Option<&RpcHashMap>,
+	_data_id: &str,
 ) -> Result<String> {
-  let mut out = String::from("// Auto-generated by seam. Do not edit.\n");
+	let mut out = String::from("// Auto-generated by seam. Do not edit.\n");
 
-  let has_channels = !manifest.channels.is_empty();
-  let has_stream = manifest.procedures.values().any(|s| s.proc_type == ProcedureType::Stream);
+	let has_channels = !manifest.channels.is_empty();
+	let has_stream = manifest.procedures.values().any(|s| s.proc_type == ProcedureType::Stream);
 
-  out.push_str(&generate_imports(has_stream));
-  out.push_str("export { DATA_ID } from \"./meta.js\";\n\n");
+	out.push_str(&generate_imports(has_stream));
+	out.push_str("export { DATA_ID } from \"./meta.js\";\n\n");
 
-  let channel_owned = channel_owned_procedures(manifest);
-  let (type_decls, iface_lines, factory_lines) =
-    generate_procedure_declarations(manifest, rpc_hashes, &channel_owned)?;
-  out.push_str(&type_decls);
+	let channel_owned = channel_owned_procedures(manifest);
+	let (type_decls, iface_lines, factory_lines) =
+		generate_procedure_declarations(manifest, rpc_hashes, &channel_owned)?;
+	out.push_str(&type_decls);
 
-  out.push_str("export interface SeamProcedures {\n");
-  for line in &iface_lines {
-    out.push_str(line);
-    out.push('\n');
-  }
-  out.push_str("}\n\n");
+	out.push_str("export interface SeamProcedures {\n");
+	for line in &iface_lines {
+		out.push_str(line);
+		out.push('\n');
+	}
+	out.push_str("}\n\n");
 
-  out.push_str(&generate_procedure_meta(manifest));
-  out.push_str(&generate_procedure_config(manifest));
+	out.push_str(&generate_procedure_meta(manifest));
+	out.push_str(&generate_procedure_config(manifest));
 
-  if has_channels {
-    out.push_str(&generate_channel_types(manifest)?);
-  }
+	if has_channels {
+		out.push_str(&generate_channel_types(manifest)?);
+	}
 
-  // Always emit transport hint (contains defaults section)
-  out.push_str(&generate_transport_hint(manifest, rpc_hashes));
+	// Always emit transport hint (contains defaults section)
+	out.push_str(&generate_transport_hint(manifest, rpc_hashes));
 
-  out.push_str(&generate_client_factory(manifest, rpc_hashes, &factory_lines, has_channels));
+	out.push_str(&generate_client_factory(manifest, rpc_hashes, &factory_lines, has_channels));
 
-  Ok(out)
+	Ok(out)
 }

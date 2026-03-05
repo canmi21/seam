@@ -5,89 +5,60 @@ use std::collections::BTreeMap;
 use serde_json::json;
 
 use super::super::*;
-use crate::manifest::ProcedureType;
+use super::fixtures::{make_manifest_with, make_procedure};
+use crate::manifest::{ChannelSchema, IncomingSchema, ProcedureSchema, ProcedureType};
+
+fn make_chat_manifest() -> crate::manifest::Manifest {
+	crate::manifest::Manifest {
+		channels: BTreeMap::from([(
+			"chat".into(),
+			ChannelSchema {
+				input: json!({ "properties": { "roomId": { "type": "string" } } }),
+				incoming: BTreeMap::from([(
+					"sendMessage".into(),
+					IncomingSchema {
+						input: json!({ "properties": { "text": { "type": "string" } } }),
+						output: json!({ "properties": { "id": { "type": "string" } } }),
+						error: None,
+					},
+				)]),
+				outgoing: BTreeMap::from([(
+					"newMessage".into(),
+					json!({ "properties": { "text": { "type": "string" } } }),
+				)]),
+				transport: None,
+			},
+		)]),
+		procedures: BTreeMap::from([
+			(
+				"chat.sendMessage".into(),
+				ProcedureSchema {
+					input: json!({ "properties": { "roomId": { "type": "string" }, "text": { "type": "string" } } }),
+					output: Some(json!({ "properties": { "id": { "type": "string" } } })),
+					..make_procedure(ProcedureType::Command)
+				},
+			),
+			(
+				"chat.events".into(),
+				ProcedureSchema {
+					input: json!({ "properties": { "roomId": { "type": "string" } } }),
+					output: Some(json!({
+						"discriminator": "type",
+						"mapping": {
+							"newMessage": { "properties": { "payload": { "properties": { "text": { "type": "string" } } } } }
+						}
+					})),
+					..make_procedure(ProcedureType::Subscription)
+				},
+			),
+		]),
+		..make_manifest_with(BTreeMap::new())
+	}
+}
 
 #[test]
 fn channel_procedure_meta_uses_channel_types() {
-	use crate::manifest::{ChannelSchema, IncomingSchema};
-
-	let manifest = crate::manifest::Manifest {
-		version: 1,
-		context: BTreeMap::new(),
-		procedures: {
-			let mut m = BTreeMap::new();
-			m.insert(
-        "chat.sendMessage".to_string(),
-        crate::manifest::ProcedureSchema {
-          proc_type: ProcedureType::Command,
-          input: json!({ "properties": { "roomId": { "type": "string" }, "text": { "type": "string" } } }),
-          output: Some(json!({ "properties": { "id": { "type": "string" } } })),
-          chunk_output: None,
-          error: None,
-          invalidates: None,
-          context: None,
-          transport: None,
-          suppress: None,
-          cache: None,
-        },
-      );
-			m.insert(
-        "chat.events".to_string(),
-        crate::manifest::ProcedureSchema {
-          proc_type: ProcedureType::Subscription,
-          input: json!({ "properties": { "roomId": { "type": "string" } } }),
-          output: Some(json!({
-            "discriminator": "type",
-            "mapping": {
-              "newMessage": { "properties": { "payload": { "properties": { "text": { "type": "string" } } } } }
-            }
-          })),
-          chunk_output: None,
-          error: None,
-          invalidates: None,
-          context: None,
-          transport: None,
-          suppress: None,
-          cache: None,
-        },
-      );
-			m
-		},
-		channels: {
-			let mut m = BTreeMap::new();
-			m.insert(
-				"chat".to_string(),
-				ChannelSchema {
-					input: json!({ "properties": { "roomId": { "type": "string" } } }),
-					incoming: {
-						let mut im = BTreeMap::new();
-						im.insert(
-							"sendMessage".to_string(),
-							IncomingSchema {
-								input: json!({ "properties": { "text": { "type": "string" } } }),
-								output: json!({ "properties": { "id": { "type": "string" } } }),
-								error: None,
-							},
-						);
-						im
-					},
-					outgoing: {
-						let mut om = BTreeMap::new();
-						om.insert(
-							"newMessage".to_string(),
-							json!({ "properties": { "text": { "type": "string" } } }),
-						);
-						om
-					},
-					transport: None,
-				},
-			);
-			m
-		},
-		transport_defaults: BTreeMap::new(),
-	};
-
-	let code = generate_typescript(&manifest, None, "__data").unwrap();
+	let code = generate_typescript(&make_chat_manifest(), None, "__data").unwrap();
 
 	// chat.events should reference ChatChannelInput / ChatEvent (channel types)
 	assert!(code.contains(
@@ -101,85 +72,7 @@ fn channel_procedure_meta_uses_channel_types() {
 
 #[test]
 fn transport_hint_codegen() {
-	use crate::manifest::{ChannelSchema, IncomingSchema};
-
-	let manifest = crate::manifest::Manifest {
-		version: 1,
-		context: BTreeMap::new(),
-		procedures: {
-			let mut m = BTreeMap::new();
-			m.insert(
-        "chat.sendMessage".to_string(),
-        crate::manifest::ProcedureSchema {
-          proc_type: ProcedureType::Command,
-          input: json!({ "properties": { "roomId": { "type": "string" }, "text": { "type": "string" } } }),
-          output: Some(json!({ "properties": { "id": { "type": "string" } } })),
-          chunk_output: None,
-          error: None,
-          invalidates: None,
-          context: None,
-          transport: None,
-          suppress: None,
-          cache: None,
-        },
-      );
-			m.insert(
-        "chat.events".to_string(),
-        crate::manifest::ProcedureSchema {
-          proc_type: ProcedureType::Subscription,
-          input: json!({ "properties": { "roomId": { "type": "string" } } }),
-          output: Some(json!({
-            "discriminator": "type",
-            "mapping": {
-              "newMessage": { "properties": { "payload": { "properties": { "text": { "type": "string" } } } } }
-            }
-          })),
-          chunk_output: None,
-          error: None,
-          invalidates: None,
-          context: None,
-          transport: None,
-          suppress: None,
-          cache: None,
-        },
-      );
-			m
-		},
-		channels: {
-			let mut m = BTreeMap::new();
-			m.insert(
-				"chat".to_string(),
-				ChannelSchema {
-					input: json!({ "properties": { "roomId": { "type": "string" } } }),
-					incoming: {
-						let mut im = BTreeMap::new();
-						im.insert(
-							"sendMessage".to_string(),
-							IncomingSchema {
-								input: json!({ "properties": { "text": { "type": "string" } } }),
-								output: json!({ "properties": { "id": { "type": "string" } } }),
-								error: None,
-							},
-						);
-						im
-					},
-					outgoing: {
-						let mut om = BTreeMap::new();
-						om.insert(
-							"newMessage".to_string(),
-							json!({ "properties": { "text": { "type": "string" } } }),
-						);
-						om
-					},
-					transport: None,
-				},
-			);
-			m
-		},
-		transport_defaults: BTreeMap::new(),
-	};
-
-	let code = generate_typescript(&manifest, None, "__data").unwrap();
+	let code = generate_typescript(&make_chat_manifest(), None, "__data").unwrap();
 
 	// Transport hint is emitted
 	assert!(code.contains("export const seamTransportHint = {"));
@@ -199,73 +92,32 @@ fn transport_hint_codegen() {
 
 #[test]
 fn dot_namespace_codegen() {
-	let manifest = crate::manifest::Manifest {
-		version: 1,
-		context: BTreeMap::new(),
-		procedures: {
-			let mut m = BTreeMap::new();
-			m.insert(
-				"user.getProfile".to_string(),
-				crate::manifest::ProcedureSchema {
-					proc_type: ProcedureType::Query,
-					input: json!({
-							"properties": { "userId": { "type": "string" } }
-					}),
-					output: Some(json!({
-							"properties": { "name": { "type": "string" } }
-					})),
-					chunk_output: None,
-					error: None,
-					invalidates: None,
-					context: None,
-					transport: None,
-					suppress: None,
-					cache: None,
-				},
-			);
-			m.insert(
-				"user.updateEmail".to_string(),
-				crate::manifest::ProcedureSchema {
-					proc_type: ProcedureType::Command,
-					input: json!({
-							"properties": { "email": { "type": "string" } }
-					}),
-					output: Some(json!({
-							"properties": { "success": { "type": "boolean" } }
-					})),
-					chunk_output: None,
-					error: None,
-					invalidates: None,
-					context: None,
-					transport: None,
-					suppress: None,
-					cache: None,
-				},
-			);
-			m.insert(
-				"counter.onCount".to_string(),
-				crate::manifest::ProcedureSchema {
-					proc_type: ProcedureType::Subscription,
-					input: json!({
-							"properties": { "max": { "type": "int32" } }
-					}),
-					output: Some(json!({
-							"properties": { "n": { "type": "int32" } }
-					})),
-					chunk_output: None,
-					error: None,
-					invalidates: None,
-					context: None,
-					transport: None,
-					suppress: None,
-					cache: None,
-				},
-			);
-			m
-		},
-		channels: BTreeMap::new(),
-		transport_defaults: BTreeMap::new(),
-	};
+	let manifest = make_manifest_with(BTreeMap::from([
+		(
+			"user.getProfile".into(),
+			ProcedureSchema {
+				input: json!({ "properties": { "userId": { "type": "string" } } }),
+				output: Some(json!({ "properties": { "name": { "type": "string" } } })),
+				..make_procedure(ProcedureType::Query)
+			},
+		),
+		(
+			"user.updateEmail".into(),
+			ProcedureSchema {
+				input: json!({ "properties": { "email": { "type": "string" } } }),
+				output: Some(json!({ "properties": { "success": { "type": "boolean" } } })),
+				..make_procedure(ProcedureType::Command)
+			},
+		),
+		(
+			"counter.onCount".into(),
+			ProcedureSchema {
+				input: json!({ "properties": { "max": { "type": "int32" } } }),
+				output: Some(json!({ "properties": { "n": { "type": "int32" } } })),
+				..make_procedure(ProcedureType::Subscription)
+			},
+		),
+	]));
 
 	let code = generate_typescript(&manifest, None, "__data").unwrap();
 
@@ -314,28 +166,20 @@ fn dot_namespace_codegen() {
 
 #[test]
 fn hint_with_transport_defaults() {
-	use crate::manifest::TransportConfig;
-	use crate::manifest::TransportPreference;
-
-	let mut transport_defaults = BTreeMap::new();
-	transport_defaults.insert(
-		"query".to_string(),
-		TransportConfig { prefer: TransportPreference::Http, fallback: None },
-	);
-	transport_defaults.insert(
-		"channel".to_string(),
-		TransportConfig {
-			prefer: TransportPreference::Ws,
-			fallback: Some(vec![TransportPreference::Http]),
-		},
-	);
+	use crate::manifest::{TransportConfig, TransportPreference};
 
 	let manifest = crate::manifest::Manifest {
-		version: 2,
-		context: BTreeMap::new(),
-		procedures: BTreeMap::new(),
-		channels: BTreeMap::new(),
-		transport_defaults,
+		transport_defaults: BTreeMap::from([
+			("query".into(), TransportConfig { prefer: TransportPreference::Http, fallback: None }),
+			(
+				"channel".into(),
+				TransportConfig {
+					prefer: TransportPreference::Ws,
+					fallback: Some(vec![TransportPreference::Http]),
+				},
+			),
+		]),
+		..make_manifest_with(BTreeMap::new())
 	};
 
 	let code = generate_typescript(&manifest, None, "__data").unwrap();
@@ -347,37 +191,18 @@ fn hint_with_transport_defaults() {
 
 #[test]
 fn hint_with_procedure_override() {
-	use crate::manifest::TransportConfig;
-	use crate::manifest::TransportPreference;
+	use crate::manifest::{TransportConfig, TransportPreference};
 
-	let manifest = crate::manifest::Manifest {
-		version: 2,
-		context: BTreeMap::new(),
-		procedures: {
-			let mut m = BTreeMap::new();
-			m.insert(
-				"liveMetrics".to_string(),
-				crate::manifest::ProcedureSchema {
-					proc_type: ProcedureType::Subscription,
-					input: json!({}),
-					output: Some(json!({})),
-					chunk_output: None,
-					error: None,
-					invalidates: None,
-					context: None,
-					transport: Some(TransportConfig {
-						prefer: TransportPreference::Ws,
-						fallback: Some(vec![TransportPreference::Sse]),
-					}),
-					suppress: None,
-					cache: None,
-				},
-			);
-			m
+	let manifest = make_manifest_with(BTreeMap::from([(
+		"liveMetrics".into(),
+		ProcedureSchema {
+			transport: Some(TransportConfig {
+				prefer: TransportPreference::Ws,
+				fallback: Some(vec![TransportPreference::Sse]),
+			}),
+			..make_procedure(ProcedureType::Subscription)
 		},
-		channels: BTreeMap::new(),
-		transport_defaults: BTreeMap::new(),
-	};
+	)]));
 
 	let code = generate_typescript(&manifest, None, "__data").unwrap();
 	assert!(code.contains("procedures: {"));
@@ -386,79 +211,33 @@ fn hint_with_procedure_override() {
 
 #[test]
 fn hint_channel_resolved_from_defaults() {
-	use crate::manifest::{ChannelSchema, IncomingSchema, TransportConfig, TransportPreference};
-
-	let mut transport_defaults = BTreeMap::new();
-	transport_defaults.insert(
-		"channel".to_string(),
-		TransportConfig {
-			prefer: TransportPreference::Sse,
-			fallback: Some(vec![TransportPreference::Http]),
-		},
-	);
+	use crate::manifest::{TransportConfig, TransportPreference};
 
 	let manifest = crate::manifest::Manifest {
-		version: 2,
-		context: BTreeMap::new(),
-		procedures: {
-			let mut m = BTreeMap::new();
-			m.insert(
-				"room.send".to_string(),
-				crate::manifest::ProcedureSchema {
-					proc_type: ProcedureType::Command,
-					input: json!({}),
-					output: Some(json!({})),
-					chunk_output: None,
-					error: None,
-					invalidates: None,
-					context: None,
-					transport: None,
-					suppress: None,
-					cache: None,
-				},
-			);
-			m.insert(
-				"room.events".to_string(),
-				crate::manifest::ProcedureSchema {
-					proc_type: ProcedureType::Subscription,
-					input: json!({}),
-					output: Some(json!({})),
-					chunk_output: None,
-					error: None,
-					invalidates: None,
-					context: None,
-					transport: None,
-					suppress: None,
-					cache: None,
-				},
-			);
-			m
-		},
-		channels: {
-			let mut m = BTreeMap::new();
-			m.insert(
-				"room".to_string(),
-				ChannelSchema {
-					input: json!({}),
-					incoming: {
-						let mut im = BTreeMap::new();
-						im.insert(
-							"send".to_string(),
-							IncomingSchema { input: json!({}), output: json!({}), error: None },
-						);
-						im
-					},
-					outgoing: {
-						let mut om = BTreeMap::new();
-						om.insert("msg".to_string(), json!({}));
-						om
-					},
-					transport: None,
-				},
-			);
-			m
-		},
-		transport_defaults,
+		procedures: BTreeMap::from([
+			("room.send".into(), make_procedure(ProcedureType::Command)),
+			("room.events".into(), make_procedure(ProcedureType::Subscription)),
+		]),
+		channels: BTreeMap::from([(
+			"room".into(),
+			ChannelSchema {
+				input: json!({}),
+				incoming: BTreeMap::from([(
+					"send".into(),
+					IncomingSchema { input: json!({}), output: json!({}), error: None },
+				)]),
+				outgoing: BTreeMap::from([("msg".into(), json!({}))]),
+				transport: None,
+			},
+		)]),
+		transport_defaults: BTreeMap::from([(
+			"channel".into(),
+			TransportConfig {
+				prefer: TransportPreference::Sse,
+				fallback: Some(vec![TransportPreference::Http]),
+			},
+		)]),
+		..make_manifest_with(BTreeMap::new())
 	};
 
 	let code = generate_typescript(&manifest, None, "__data").unwrap();
@@ -469,36 +248,17 @@ fn hint_channel_resolved_from_defaults() {
 
 #[test]
 fn factory_backward_compat_no_transport() {
-	let manifest = crate::manifest::Manifest {
-		version: 2,
-		context: BTreeMap::new(),
-		procedures: {
-			let mut m = BTreeMap::new();
-			m.insert(
-				"greet".to_string(),
-				crate::manifest::ProcedureSchema {
-					proc_type: ProcedureType::Query,
-					input: json!({ "properties": { "name": { "type": "string" } } }),
-					output: Some(json!({ "properties": { "message": { "type": "string" } } })),
-					chunk_output: None,
-					error: None,
-					invalidates: None,
-					context: None,
-					transport: None,
-					suppress: None,
-					cache: None,
-				},
-			);
-			m
+	let manifest = make_manifest_with(BTreeMap::from([(
+		"greet".into(),
+		ProcedureSchema {
+			input: json!({ "properties": { "name": { "type": "string" } } }),
+			output: Some(json!({ "properties": { "message": { "type": "string" } } })),
+			..make_procedure(ProcedureType::Query)
 		},
-		channels: BTreeMap::new(),
-		transport_defaults: BTreeMap::new(),
-	};
+	)]));
 
 	let code = generate_typescript(&manifest, None, "__data").unwrap();
-	// Still generates valid code without transport info
 	assert!(code.contains("createSeamClient"));
 	assert!(code.contains("client.query(\"greet\""));
-	// No channelTransports when no channels
 	assert!(!code.contains("channelTransports"));
 }
