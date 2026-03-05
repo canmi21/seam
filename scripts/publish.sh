@@ -420,8 +420,8 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
     ok "npm authenticated as $(npm whoami)"
   fi
 
-  info "Building TypeScript packages (bun run build:ts)..."
-  if ! (cd "$ROOT" && bun run build:ts); then
+  info "Building TypeScript packages (just build-ts)..."
+  if ! (cd "$ROOT" && just build-ts); then
     fail "TypeScript build failed"
     exit 1
   fi
