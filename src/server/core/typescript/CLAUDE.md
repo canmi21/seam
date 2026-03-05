@@ -71,8 +71,8 @@ src/
 
 ## Commands
 
-- Build: `bun run --filter '@canmi/seam-server' build`
-- Test: `bun run --filter '@canmi/seam-server' test`
+- Build: `just build-ts`
+- Test: `just test-ts`
 
 ## Gotchas
 

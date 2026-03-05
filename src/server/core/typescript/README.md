@@ -29,8 +29,8 @@ Framework-agnostic server core that defines procedures, subscriptions, pages, an
 
 ## Development
 
-- Build: `bun run --filter '@canmi/seam-server' build`
-- Test: `bun run --filter '@canmi/seam-server' test`
+- Build: `just build-ts`
+- Test: `just test-ts`
 
 ## Notes
 

@@ -18,8 +18,8 @@ Playwright end-to-end tests covering standalone fixtures, fullstack GitHub Dashb
 
 ## Development
 
-- Run: `bun run test` (requires build output from targets above)
-- UI mode: `bun run test:ui`
+- Run: `just test-e2e` (requires build output from targets above)
+- UI mode: `cd tests/e2e && bunx playwright test --ui`
 
 ## Notes
 

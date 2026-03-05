@@ -18,8 +18,8 @@ HTML template injector that replaces `<!--seam:...-->` comment markers with data
 
 ## Development
 
-- Build: `bun run --filter '@canmi/seam-injector-native' build`
-- Test: `bun run --filter '@canmi/seam-injector-native' test`
+- Build: `just build-ts`
+- Test: `just test-ts`
 
 ## Notes
 

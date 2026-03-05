@@ -40,5 +40,5 @@ The result: Vite produces per-page chunks instead of one monolithic bundle. The 
 
 ## Development
 
-- Build: `bun run --filter '@canmi/seam-vite' build`
+- Build: `just build-ts`
 - Part of the [SeamJS CLI toolchain](../../../docs/architecture/logic-layer.md#cli)

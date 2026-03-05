@@ -34,8 +34,8 @@ When the Vite plugin (`@canmi/seam-vite`) transforms page imports into dynamic `
 
 ## Development
 
-- Build: `bun run --filter '@canmi/seam-tanstack-router' build`
-- Test: `bun run --filter '@canmi/seam-tanstack-router' test`
+- Build: `just build-ts`
+- Test: `just test-ts`
 
 ## Notes
 

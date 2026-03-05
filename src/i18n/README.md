@@ -22,8 +22,8 @@ Client-side i18n runtime for SeamJS: message lookup with interpolation, locale s
 
 ## Development
 
-- Build: `bun run --filter '@canmi/seam-i18n' build`
-- Test: `bun run --filter '@canmi/seam-i18n' test`
+- Build: `just build-ts`
+- Test: `just test-ts`
 
 ## Notes
 

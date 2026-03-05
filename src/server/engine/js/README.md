@@ -26,8 +26,8 @@ Node.js/Bun WASM bridge for the Rust engine. All functions delegate to the [engi
 ## Development
 
 - Build WASM: `bash src/server/engine/build-wasm.sh`
-- Build JS: `bun run --filter '@canmi/seam-engine' build`
-- Test: `bun run --filter '@canmi/seam-engine' test`
+- Build JS: `just build-ts`
+- Test: `just test-ts`
 
 ## Notes
 

@@ -80,7 +80,7 @@
 - Rust file split: convert `foo.rs` to `foo/mod.rs` + sub-modules; inner functions become `pub(super)`, only entry-point stays `pub`
 - Verify `cargo test --workspace && cargo clippy --workspace` after every Rust structural change
 - TS dedup: add shared functions to `@canmi/seam-server`, update adapters to import; node adapter keeps its own `sendResponse` (Node streams differ from Web Response)
-- After TS changes: `bun run --filter '<pkg>' build && bun run --filter '<pkg>' test`
+- After TS changes: `just build-ts && just test-ts`
 
 ## Agent Team Strategy
 

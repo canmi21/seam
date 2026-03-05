@@ -29,7 +29,7 @@ See root CLAUDE.md for general project rules.
 
 ```sh
 bash src/server/engine/build-wasm.sh  # rebuild WASM
-bun run --filter '@canmi/seam-engine' build  # rebuild JS
+just build-ts  # rebuild JS (includes engine)
 ```
 
 ## Gotchas

@@ -29,8 +29,8 @@ React bindings for SeamJS, providing hooks and components to consume server-inje
 
 ## Development
 
-- Build: `bun run --filter '@canmi/seam-react' build`
-- Test: `bun run --filter '@canmi/seam-react' test`
+- Build: `just build-ts`
+- Test: `just test-ts`
 
 ## Notes
 

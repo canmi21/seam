@@ -27,7 +27,7 @@ See root CLAUDE.md for general project rules.
 ## Testing
 
 ```sh
-bun run --filter '@canmi/seam-adapter-hono' test
+just test-ts
 ```
 
 - Uses vitest (`vitest run`)

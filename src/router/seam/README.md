@@ -42,5 +42,5 @@ The Rust CLI shells out to this binary when `build.pages_dir` is set in `seam.to
 
 ## Development
 
-- Build: `bun run --filter '@canmi/seam-router' build`
-- Test: `bun run --filter '@canmi/seam-router' test`
+- Build: `just build-ts`
+- Test: `just test-ts`
