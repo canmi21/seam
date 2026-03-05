@@ -153,6 +153,21 @@ crate_dir() {
   esac
 }
 
+# --- Helper: check if two versions are semver-compatible for cargo ^ ranges ---
+# For 0.x: same minor required (^0.4.x only matches 0.4.*).
+# For 1+:  same major required (^1.x matches 1.*).
+versions_compatible() {
+  local v1="$1" v2="$2"
+  local major1 minor1 major2 minor2
+  IFS='.' read -r major1 minor1 _ <<< "$v1"
+  IFS='.' read -r major2 minor2 _ <<< "$v2"
+  if [ "$major1" = "0" ] && [ "$major2" = "0" ]; then
+    [ "$minor1" = "$minor2" ]
+  else
+    [ "$major1" = "$major2" ]
+  fi
+}
+
 # --- Skipped crate tracking (parallel arrays: name -> registry latest version) ---
 SKIPPED_CRATE_NAMES=()
 SKIPPED_CRATE_VERS=()
@@ -342,11 +357,15 @@ if ! $NPM_ONLY && ! $GO_ONLY; then
 
     if ! $FORCE_ALL && ! has_real_changes "$(crate_dir "$crate")"; then
       reg_ver=$(crate_latest_version "$crate")
-      SKIPPED_CRATE_NAMES+=("$crate")
-      SKIPPED_CRATE_VERS+=("$reg_ver")
-      info "$crate: no changes, skipping (registry: $reg_ver)"
-      SKIPPED=$((SKIPPED + 1))
-      continue
+      if ! versions_compatible "$reg_ver" "$VERSION"; then
+        info "$crate: registry $reg_ver incompatible with $VERSION, must publish"
+      else
+        SKIPPED_CRATE_NAMES+=("$crate")
+        SKIPPED_CRATE_VERS+=("$reg_ver")
+        info "$crate: no changes, skipping (registry: $reg_ver)"
+        SKIPPED=$((SKIPPED + 1))
+        continue
+      fi
     fi
 
     dir=$(crate_dir "$crate")
@@ -494,11 +513,15 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
         if ! $should_publish; then
           local reg_ver
           reg_ver=$(npm_latest_version "$name")
-          SKIPPED_NPM_NAMES+=("$name")
-          SKIPPED_NPM_VERS+=("$reg_ver")
-          info "$name: no changes, skipping (registry: $reg_ver)"
-          SKIPPED=$((SKIPPED + 1))
-          continue
+          if ! versions_compatible "$reg_ver" "$VERSION"; then
+            info "$name: registry $reg_ver incompatible with $VERSION, must publish"
+          else
+            SKIPPED_NPM_NAMES+=("$name")
+            SKIPPED_NPM_VERS+=("$reg_ver")
+            info "$name: no changes, skipping (registry: $reg_ver)"
+            SKIPPED=$((SKIPPED + 1))
+            continue
+          fi
         fi
       fi
 
