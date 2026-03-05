@@ -15,6 +15,77 @@
         "typescript-eslint": "^8.56.1",
       },
     },
+    "examples/features/context-auth": {
+      "name": "context-auth-demo",
+      "version": "0.0.0",
+      "dependencies": {
+        "@canmi/seam-adapter-hono": "workspace:*",
+        "@canmi/seam-client": "workspace:*",
+        "@canmi/seam-react": "workspace:*",
+        "@canmi/seam-router": "workspace:*",
+        "@canmi/seam-server": "workspace:*",
+        "@canmi/seam-tanstack-router": "workspace:*",
+        "@tanstack/react-router": "^1.163.3",
+        "hono": "^4.12.3",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4",
+      },
+      "devDependencies": {
+        "@canmi/seam-cli": "workspace:*",
+        "@types/bun": "^1.2.12",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "typescript": "^5.9.3",
+      },
+    },
+    "examples/features/handoff-narrowing": {
+      "name": "handoff-narrowing-demo",
+      "version": "0.0.0",
+      "dependencies": {
+        "@canmi/seam-adapter-hono": "workspace:*",
+        "@canmi/seam-client": "workspace:*",
+        "@canmi/seam-react": "workspace:*",
+        "@canmi/seam-router": "workspace:*",
+        "@canmi/seam-server": "workspace:*",
+        "@canmi/seam-tanstack-router": "workspace:*",
+        "@tanstack/react-router": "^1.163.3",
+        "hono": "^4.12.3",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4",
+      },
+      "devDependencies": {
+        "@canmi/seam-cli": "workspace:*",
+        "@types/bun": "^1.2.12",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "typescript": "^5.9.3",
+      },
+    },
+    "examples/features/query-mutation": {
+      "name": "query-mutation-demo",
+      "version": "0.0.0",
+      "dependencies": {
+        "@canmi/seam-adapter-hono": "workspace:*",
+        "@canmi/seam-client": "workspace:*",
+        "@canmi/seam-query-react": "workspace:*",
+        "@canmi/seam-react": "workspace:*",
+        "@canmi/seam-router": "workspace:*",
+        "@canmi/seam-server": "workspace:*",
+        "@canmi/seam-tanstack-router": "workspace:*",
+        "@tanstack/react-query": "^5.80.0",
+        "@tanstack/react-router": "^1.163.3",
+        "hono": "^4.12.3",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4",
+      },
+      "devDependencies": {
+        "@canmi/seam-cli": "workspace:*",
+        "@types/bun": "^1.2.12",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "typescript": "^5.9.3",
+      },
+    },
     "examples/features/stream-upload": {
       "name": "stream-upload-demo",
       "version": "0.0.0",
@@ -1181,6 +1252,8 @@
 
     "client-only": ["client-only@0.0.1", "", {}, "sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA=="],
 
+    "context-auth-demo": ["context-auth-demo@workspace:examples/features/context-auth"],
+
     "convert-source-map": ["convert-source-map@2.0.0", "", {}, "sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg=="],
 
     "cookie-es": ["cookie-es@2.0.0", "", {}, "sha512-RAj4E421UYRgqokKUmotqAwuplYw15qtdXfY+hGzgCJ/MBjCVZcSoHK/kH9kocfjRjcDME7IiDWR/1WX1TM2Pg=="],
@@ -1308,6 +1381,8 @@
     "glob-parent": ["glob-parent@6.0.2", "", { "dependencies": { "is-glob": "^4.0.3" } }, "sha512-XxwI8EOhVQgWp6iDL+3b0r86f4d6AX6zSU55HfB4ydCEuXLXc5FcYeOu+nnGftS4TEju/11rt4KJPTMgbfmv4A=="],
 
     "graceful-fs": ["graceful-fs@4.2.11", "", {}, "sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ=="],
+
+    "handoff-narrowing-demo": ["handoff-narrowing-demo@workspace:examples/features/handoff-narrowing"],
 
     "hono": ["hono@4.12.3", "", {}, "sha512-SFsVSjp8sj5UumXOOFlkZOG6XS9SJDKw0TbwFeV+AJ8xlST8kxK5Z/5EYa111UY8732lK2S/xB653ceuaoGwpg=="],
 
@@ -1464,6 +1539,8 @@
     "punycode": ["punycode@2.3.1", "", {}, "sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg=="],
 
     "quansync": ["quansync@1.0.0", "", {}, "sha512-5xZacEEufv3HSTPQuchrvV6soaiACMFnq1H8wkVioctoH3TRha9Sz66lOxRwPK/qZj7HPiSveih9yAyh98gvqA=="],
+
+    "query-mutation-demo": ["query-mutation-demo@workspace:examples/features/query-mutation"],
 
     "queue-microtask": ["queue-microtask@1.2.3", "", {}, "sha512-NuaNSa6flKT5JaSYQzJok04JzTL1CA6aGhv5rfLW3PgqA+M2ChpZQnAC8h8i4ZFkBS8X5RqkDBHA7r4hej3K9A=="],
 
