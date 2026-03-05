@@ -48,6 +48,11 @@ func (s *appState) handleBatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	// Extract raw context once for all batch calls
+	var rawCtx map[string]any
+	if len(s.contextConfigs) > 0 {
+		rawCtx = extractRawContext(r, s.contextConfigs)
+	}
 	if s.opts.RPCTimeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, s.opts.RPCTimeout)
@@ -78,7 +83,14 @@ func (s *appState) handleBatch(w http.ResponseWriter, r *http.Request) {
 			input = json.RawMessage("{}")
 		}
 
-		result, err := proc.Handler(ctx, input)
+		// Inject per-procedure context
+		callCtx := ctx
+		if rawCtx != nil && len(proc.ContextKeys) > 0 {
+			filtered := resolveContextForProc(rawCtx, proc.ContextKeys)
+			callCtx = injectContext(callCtx, filtered)
+		}
+
+		result, err := proc.Handler(callCtx, input)
 		if err != nil {
 			if ctx.Err() == context.DeadlineExceeded {
 				results[i] = batchResult{Ok: false, Error: &batchError{Code: "INTERNAL_ERROR", Message: "RPC timed out"}}
@@ -122,7 +134,14 @@ func (s *appState) handleSubscribe(w http.ResponseWriter, r *http.Request) {
 		rawInput = json.RawMessage("{}")
 	}
 
-	ch, err := sub.Handler(r.Context(), rawInput)
+	subCtx := r.Context()
+	if len(s.contextConfigs) > 0 && len(sub.ContextKeys) > 0 {
+		rawCtxSub := extractRawContext(r, s.contextConfigs)
+		filtered := resolveContextForProc(rawCtxSub, sub.ContextKeys)
+		subCtx = injectContext(subCtx, filtered)
+	}
+
+	ch, err := sub.Handler(subCtx, rawInput)
 	if err != nil {
 		if seamErr, ok := err.(*Error); ok {
 			writeSSEError(w, seamErr)

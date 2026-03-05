@@ -6,7 +6,8 @@ See root CLAUDE.md for general project rules.
 
 ## Architecture
 
-- `seam.go` — public API: `Router`, `HandlerOptions`, `PageAssets`, type definitions, error constructors
+- `seam.go` — public API: `Router`, `HandlerOptions`, `PageAssets`, `ContextConfig`, `ProcedureOption`, type definitions, error constructors
+- `context.go` — context system: `ContextValue[T]` generic helper, `extractRawContext`, `resolveContextForProc`, `injectContext`
 - `handler.go` — core handler: `appState`, `buildHandler`, manifest, RPC handler (uses `engine.I18nQuery` for built-in i18n), error helpers
 - `handler_batch.go` — batch RPC handler, SSE subscribe handler, SSE helpers
 - `handler_page.go` — page handler: `makePageHandler`, `servePage`, loader orchestration (delegates to `engine.RenderPage` for slot injection, per-page assets, data script, head meta, and locale)
@@ -21,6 +22,7 @@ See root CLAUDE.md for general project rules.
 
 | Constructor           | Code             | HTTP Status |
 | --------------------- | ---------------- | ----------- |
+| `ContextError()`      | CONTEXT_ERROR    | 400         |
 | `ValidationError()`   | VALIDATION_ERROR | 400         |
 | `UnauthorizedError()` | UNAUTHORIZED     | 401         |
 | `ForbiddenError()`    | FORBIDDEN        | 403         |
@@ -53,7 +55,7 @@ Wraps `http.Server` with signal handling. Prints actual port (useful for `:0` in
 go test -v ./...
 ```
 
-Tests cover: RPC timeout (504), page loader timeout (504), SSE idle timeout (complete event), zero-timeout passthrough, graceful shutdown lifecycle.
+Tests cover: RPC timeout (504), page loader timeout (504), SSE idle timeout (complete event), zero-timeout passthrough, graceful shutdown lifecycle, context extraction/injection (header, missing, nil, struct), manifest v2 context fields.
 
 ## Conventions
 
@@ -64,6 +66,8 @@ Tests cover: RPC timeout (504), page loader timeout (504), SSE idle timeout (com
 - Page loaders run concurrently via `sync.WaitGroup` + result channel
 - Sorted keys for deterministic JSON output (mirrors `BTreeMap` in Rust)
 - `Query[In, Out]` and `Subscribe[In, Out]` provide type-safe generic wrappers over raw `HandlerFunc`
+- Context injection uses Go's idiomatic `context.WithValue`; handlers retrieve via generic `ContextValue` helper — handler signature unchanged
+- Per-procedure context: only keys declared in `ContextKeys` are injected; batch/page extract raw context once and resolve per-procedure
 
 ## Gotchas
 

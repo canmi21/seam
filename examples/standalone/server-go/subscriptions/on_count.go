@@ -16,7 +16,7 @@ type CountOutput struct {
 	N int32 `json:"n"`
 }
 
-func OnCount() seam.SubscriptionDef {
+func OnCount() *seam.SubscriptionDef {
 	return seam.Subscribe[CountInput, CountOutput]("onCount",
 		func(ctx context.Context, in CountInput) (<-chan CountOutput, error) {
 			ch := make(chan CountOutput)

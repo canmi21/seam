@@ -33,6 +33,8 @@ func defaultStatus(code string) int {
 		return http.StatusNotFound
 	case "RATE_LIMITED":
 		return http.StatusTooManyRequests
+	case "CONTEXT_ERROR":
+		return http.StatusBadRequest
 	case "INTERNAL_ERROR":
 		return http.StatusInternalServerError
 	default:
@@ -69,6 +71,10 @@ func RateLimitedError(msg string) *Error {
 	return &Error{Code: "RATE_LIMITED", Message: msg, Status: http.StatusTooManyRequests}
 }
 
+func ContextError(msg string) *Error {
+	return &Error{Code: "CONTEXT_ERROR", Message: msg, Status: http.StatusBadRequest}
+}
+
 // HandlerFunc processes a raw JSON input and returns a result or error.
 type HandlerFunc func(ctx context.Context, input json.RawMessage) (any, error)
 
@@ -78,8 +84,19 @@ type ProcedureDef struct {
 	Type         string // "query" (default) or "command"
 	InputSchema  any
 	OutputSchema any
-	ErrorSchema  any // optional: JTD schema for typed errors
+	ErrorSchema  any      // optional: JTD schema for typed errors
+	ContextKeys  []string // context keys this procedure requires
 	Handler      HandlerFunc
+}
+
+// ProcedureOption configures optional fields on a ProcedureDef.
+type ProcedureOption func(*ProcedureDef)
+
+// WithProcedureContext declares which context keys a procedure needs.
+func WithProcedureContext(keys ...string) ProcedureOption {
+	return func(p *ProcedureDef) {
+		p.ContextKeys = append(p.ContextKeys, keys...)
+	}
 }
 
 // SubscriptionEvent carries either a value or an error from a subscription stream.
@@ -96,7 +113,8 @@ type SubscriptionDef struct {
 	Name         string
 	InputSchema  any
 	OutputSchema any
-	ErrorSchema  any // optional: JTD schema for typed errors
+	ErrorSchema  any      // optional: JTD schema for typed errors
+	ContextKeys  []string // context keys this subscription requires
 	Handler      SubscriptionHandlerFunc
 }
 
@@ -165,17 +183,27 @@ var defaultHandlerOptions = HandlerOptions{
 // Router collects procedure, subscription, channel, and page definitions and
 // produces an http.Handler serving the /_seam/* protocol.
 type Router struct {
-	procedures    []ProcedureDef
-	subscriptions []SubscriptionDef
-	channels      []ChannelDef
-	pages         []PageDef
-	rpcHashMap    *RpcHashMap
-	i18nConfig    *I18nConfig
-	strategies    []ResolveStrategy
+	procedures     []ProcedureDef
+	subscriptions  []SubscriptionDef
+	channels       []ChannelDef
+	pages          []PageDef
+	rpcHashMap     *RpcHashMap
+	i18nConfig     *I18nConfig
+	strategies     []ResolveStrategy
+	contextConfigs map[string]ContextConfig
 }
 
 func NewRouter() *Router {
 	return &Router{}
+}
+
+// Context registers a context field definition for extraction from HTTP requests.
+func (r *Router) Context(key string, config ContextConfig) *Router {
+	if r.contextConfigs == nil {
+		r.contextConfigs = make(map[string]ContextConfig)
+	}
+	r.contextConfigs[key] = config
+	return r
 }
 
 func (r *Router) Procedure(def *ProcedureDef) *Router {
@@ -230,7 +258,7 @@ func (r *Router) Manifest() ([]byte, error) {
 		}
 		channelMetas[ch.Name] = meta
 	}
-	m := buildManifest(procs, subs, channelMetas)
+	m := buildManifest(procs, subs, channelMetas, r.contextConfigs)
 	return json.Marshal(m)
 }
 
@@ -241,5 +269,5 @@ func (r *Router) Handler(opts ...HandlerOptions) http.Handler {
 	if len(opts) > 0 {
 		o = opts[0]
 	}
-	return buildHandler(r.procedures, r.subscriptions, r.channels, r.pages, r.rpcHashMap, r.i18nConfig, r.strategies, o)
+	return buildHandler(r.procedures, r.subscriptions, r.channels, r.pages, r.rpcHashMap, r.i18nConfig, r.strategies, r.contextConfigs, o)
 }

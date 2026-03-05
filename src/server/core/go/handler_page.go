@@ -84,7 +84,14 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 				return
 			}
 
-			result, err := proc.Handler(ctx, inputJSON)
+			loaderCtx := ctx
+			if len(s.contextConfigs) > 0 && len(proc.ContextKeys) > 0 {
+				rawCtx := extractRawContext(r, s.contextConfigs)
+				filtered := resolveContextForProc(rawCtx, proc.ContextKeys)
+				loaderCtx = injectContext(loaderCtx, filtered)
+			}
+
+			result, err := proc.Handler(loaderCtx, inputJSON)
 			results <- loaderResult{key: ld.DataKey, value: result, err: err}
 		}(loader)
 	}

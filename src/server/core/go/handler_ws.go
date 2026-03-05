@@ -83,6 +83,13 @@ func (s *appState) handleChannelWs(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 
+	// Resolve context once at connection time
+	if len(s.contextConfigs) > 0 && len(sub.ContextKeys) > 0 {
+		rawCtx := extractRawContext(r, s.contextConfigs)
+		filtered := resolveContextForProc(rawCtx, sub.ContextKeys)
+		ctx = injectContext(ctx, filtered)
+	}
+
 	eventCh, err := sub.Handler(ctx, channelInput)
 	if err != nil {
 		if seamErr, ok := err.(*Error); ok {
@@ -250,9 +257,15 @@ func (s *appState) handleChannelWs(w http.ResponseWriter, r *http.Request) {
 
 			// Dispatch command (explicit cancel to avoid defer leak in loop)
 			rpcCtx := ctx
+			// Inject per-procedure context (reuse connection-time extraction)
+			if len(s.contextConfigs) > 0 && len(proc.ContextKeys) > 0 {
+				rawCtx := extractRawContext(r, s.contextConfigs)
+				filtered := resolveContextForProc(rawCtx, proc.ContextKeys)
+				rpcCtx = injectContext(rpcCtx, filtered)
+			}
 			var rpcCancel context.CancelFunc
 			if s.opts.RPCTimeout > 0 {
-				rpcCtx, rpcCancel = context.WithTimeout(ctx, s.opts.RPCTimeout)
+				rpcCtx, rpcCancel = context.WithTimeout(rpcCtx, s.opts.RPCTimeout)
 			}
 
 			result, err := proc.Handler(rpcCtx, mergedInput)

@@ -10,8 +10,8 @@ import (
 // Query creates a ProcedureDef from a typed handler function.
 // It generates JTD schemas from the In/Out type parameters and handles
 // JSON deserialization/serialization automatically.
-func Query[In, Out any](name string, fn func(context.Context, In) (Out, error)) *ProcedureDef {
-	return &ProcedureDef{
+func Query[In, Out any](name string, fn func(context.Context, In) (Out, error), opts ...ProcedureOption) *ProcedureDef {
+	def := &ProcedureDef{
 		Name:         name,
 		InputSchema:  SchemaOf[In](),
 		OutputSchema: SchemaOf[Out](),
@@ -23,11 +23,15 @@ func Query[In, Out any](name string, fn func(context.Context, In) (Out, error)) 
 			return fn(ctx, input)
 		},
 	}
+	for _, opt := range opts {
+		opt(def)
+	}
+	return def
 }
 
 // Command creates a ProcedureDef with type "command" from a typed handler function.
-func Command[In, Out any](name string, fn func(context.Context, In) (Out, error)) *ProcedureDef {
-	return &ProcedureDef{
+func Command[In, Out any](name string, fn func(context.Context, In) (Out, error), opts ...ProcedureOption) *ProcedureDef {
+	def := &ProcedureDef{
 		Name:         name,
 		Type:         "command",
 		InputSchema:  SchemaOf[In](),
@@ -40,6 +44,10 @@ func Command[In, Out any](name string, fn func(context.Context, In) (Out, error)
 			return fn(ctx, input)
 		},
 	}
+	for _, opt := range opts {
+		opt(def)
+	}
+	return def
 }
 
 // Subscribe creates a SubscriptionDef from a typed handler function.

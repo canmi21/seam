@@ -12,23 +12,25 @@ import (
 )
 
 type appState struct {
-	manifestJSON []byte
-	handlers     map[string]*ProcedureDef
-	subs         map[string]*SubscriptionDef
-	opts         HandlerOptions
-	hashToName   map[string]string // reverse lookup: hash -> original name (nil if no hash map)
-	batchHash    string            // batch endpoint hash (empty if no hash map)
-	i18nConfig   *I18nConfig
-	localeSet    map[string]bool // O(1) lookup for valid locales
-	strategies   []ResolveStrategy
+	manifestJSON   []byte
+	handlers       map[string]*ProcedureDef
+	subs           map[string]*SubscriptionDef
+	opts           HandlerOptions
+	hashToName     map[string]string // reverse lookup: hash -> original name (nil if no hash map)
+	batchHash      string            // batch endpoint hash (empty if no hash map)
+	i18nConfig     *I18nConfig
+	localeSet      map[string]bool // O(1) lookup for valid locales
+	strategies     []ResolveStrategy
+	contextConfigs map[string]ContextConfig
 }
 
-func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, channels []ChannelDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, strategies []ResolveStrategy, opts HandlerOptions) http.Handler {
+func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, channels []ChannelDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, strategies []ResolveStrategy, contextConfigs map[string]ContextConfig, opts HandlerOptions) http.Handler {
 	state := &appState{
-		handlers:   make(map[string]*ProcedureDef),
-		subs:       make(map[string]*SubscriptionDef),
-		opts:       opts,
-		i18nConfig: i18nConfig,
+		handlers:       make(map[string]*ProcedureDef),
+		subs:           make(map[string]*SubscriptionDef),
+		opts:           opts,
+		i18nConfig:     i18nConfig,
+		contextConfigs: contextConfigs,
 	}
 
 	if len(strategies) > 0 {
@@ -64,7 +66,7 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, ch
 	}
 
 	// Build manifest
-	manifest := buildManifest(procedures, subscriptions, channelMetas)
+	manifest := buildManifest(procedures, subscriptions, channelMetas, state.contextConfigs)
 	state.manifestJSON, _ = json.Marshal(manifest)
 
 	for i := range procedures {
@@ -153,43 +155,69 @@ func seamRouteToGoPattern(route string) string {
 // --- manifest ---
 
 type manifestSchema struct {
-	Version    int                       `json:"version"`
-	Procedures map[string]procedureEntry `json:"procedures"`
-	Channels   map[string]channelMeta    `json:"channels,omitempty"`
+	Version           int                             `json:"version"`
+	Context           map[string]contextManifestEntry `json:"context,omitempty"`
+	Procedures        map[string]procedureEntry       `json:"procedures"`
+	Channels          map[string]channelMeta          `json:"channels,omitempty"`
+	TransportDefaults map[string]any                  `json:"transportDefaults"`
+}
+
+type contextManifestEntry struct {
+	Extract string `json:"extract"`
 }
 
 type procedureEntry struct {
-	Kind   string `json:"kind"`
-	Input  any    `json:"input"`
-	Output any    `json:"output"`
-	Error  any    `json:"error,omitempty"`
+	Kind    string   `json:"kind"`
+	Input   any      `json:"input"`
+	Output  any      `json:"output"`
+	Error   any      `json:"error,omitempty"`
+	Context []string `json:"context,omitempty"`
 }
 
-func buildManifest(procedures []ProcedureDef, subscriptions []SubscriptionDef, channels map[string]channelMeta) manifestSchema {
+func buildManifest(procedures []ProcedureDef, subscriptions []SubscriptionDef, channels map[string]channelMeta, contextConfigs map[string]ContextConfig) manifestSchema {
 	procs := make(map[string]procedureEntry)
 	for _, p := range procedures {
 		procType := p.Type
 		if procType == "" {
 			procType = "query"
 		}
-		procs[p.Name] = procedureEntry{
+		entry := procedureEntry{
 			Kind:   procType,
 			Input:  p.InputSchema,
 			Output: p.OutputSchema,
 			Error:  p.ErrorSchema,
 		}
+		if len(p.ContextKeys) > 0 {
+			entry.Context = p.ContextKeys
+		}
+		procs[p.Name] = entry
 	}
 	for _, s := range subscriptions {
-		procs[s.Name] = procedureEntry{
+		entry := procedureEntry{
 			Kind:   "subscription",
 			Input:  s.InputSchema,
 			Output: s.OutputSchema,
 			Error:  s.ErrorSchema,
 		}
+		if len(s.ContextKeys) > 0 {
+			entry.Context = s.ContextKeys
+		}
+		procs[s.Name] = entry
 	}
-	m := manifestSchema{Version: 2, Procedures: procs}
+	m := manifestSchema{
+		Version:           2,
+		Procedures:        procs,
+		TransportDefaults: make(map[string]any),
+	}
 	if len(channels) > 0 {
 		m.Channels = channels
+	}
+	if len(contextConfigs) > 0 {
+		ctxManifest := make(map[string]contextManifestEntry)
+		for key, cfg := range contextConfigs {
+			ctxManifest[key] = contextManifestEntry{Extract: cfg.Extract}
+		}
+		m.Context = ctxManifest
 	}
 	return m
 }
@@ -240,6 +268,12 @@ func (s *appState) handleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	// Inject context from headers
+	if len(s.contextConfigs) > 0 && len(proc.ContextKeys) > 0 {
+		rawCtx := extractRawContext(r, s.contextConfigs)
+		filtered := resolveContextForProc(rawCtx, proc.ContextKeys)
+		ctx = injectContext(ctx, filtered)
+	}
 	if s.opts.RPCTimeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, s.opts.RPCTimeout)
