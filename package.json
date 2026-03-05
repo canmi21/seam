@@ -30,6 +30,7 @@
     "src/query/seam",
     "src/query/react",
     "examples/fs-router-demo",
+    "examples/features/stream-upload",
     "tests/e2e/fixture",
     "tests/e2e"
   ],

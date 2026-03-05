@@ -15,6 +15,29 @@
         "typescript-eslint": "^8.56.1",
       },
     },
+    "examples/features/stream-upload": {
+      "name": "stream-upload-demo",
+      "version": "0.0.0",
+      "dependencies": {
+        "@canmi/seam-adapter-hono": "workspace:*",
+        "@canmi/seam-client": "workspace:*",
+        "@canmi/seam-react": "workspace:*",
+        "@canmi/seam-router": "workspace:*",
+        "@canmi/seam-server": "workspace:*",
+        "@canmi/seam-tanstack-router": "workspace:*",
+        "@tanstack/react-router": "^1.163.3",
+        "hono": "^4.12.3",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4",
+      },
+      "devDependencies": {
+        "@canmi/seam-cli": "workspace:*",
+        "@types/bun": "^1.2.12",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "typescript": "^5.9.3",
+      },
+    },
     "examples/fs-router-demo": {
       "name": "fs-router-demo",
       "version": "0.0.0",
@@ -1495,6 +1518,8 @@
     "stackback": ["stackback@0.0.2", "", {}, "sha512-1XMJE5fQo1jGH6Y/7ebnwPOBEkIEnT4QF32d5R1+VXdXveM0IBMJt8zfaxX1P3QhVwrYe+576+jkANtSS2mBbw=="],
 
     "std-env": ["std-env@3.10.0", "", {}, "sha512-5GS12FdOZNliM5mAOxFRg7Ir0pWz8MdpYm6AY6VPkGpbA7ZzmbzNcBJQ0GPvvyWgcY7QAhCgf9Uy89I03faLkg=="],
+
+    "stream-upload-demo": ["stream-upload-demo@workspace:examples/features/stream-upload"],
 
     "strip-json-comments": ["strip-json-comments@5.0.3", "", {}, "sha512-1tB5mhVo7U+ETBKNf92xT4hrQa3pm0MZ0PQvuDnWgAAGHDsfp4lPSpiS6psrSiet87wyGPh9ft6wmhOMQ0hDiw=="],
 
