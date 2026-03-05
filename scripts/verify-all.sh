@@ -14,7 +14,7 @@ just fmt-check
 
 run_parallel "build-cli" "just build-cli-install" "build-wasm" "just build-wasm"
 just build-ts
-run_parallel "lint" "just lint-all" "typecheck" "just typecheck" "test-rs" "just test-rs" "test-ts" "just test-ts" "test-go" "just test-go"
+run_parallel "lint" "just lint-ts lint-go lint-deps lint-links" "typecheck" "just typecheck" "test-rs" "just test-rs" "test-ts" "just test-ts" "test-go" "just test-go"
 
 just build-fixtures
 

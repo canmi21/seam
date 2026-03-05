@@ -36,10 +36,10 @@ jobs:
       - name: Format check
         run: just fmt-check
 
-      - name: Lint
-        run: just lint-all
+      - name: Lint (oxlint + Go + deps + links)
+        run: just lint-check
 
-  build-test:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -63,6 +63,9 @@ jobs:
 
       - name: Build WASM + TS
         run: just build-wasm && just build-ts
+
+      - name: ESLint (requires build artifacts)
+        run: just lint-eslint
 
       - name: Typecheck
         run: just typecheck

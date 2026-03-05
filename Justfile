@@ -57,6 +57,10 @@ lint-ts:
     {{pm}} run lint:ox
     {{pm}} run lint:eslint
 
+# Lint TS — oxlint only (no build artifacts needed)
+lint-ox:
+    {{pm}} run lint:ox
+
 # Lint Rust (clippy)
 lint-clippy:
     cargo clippy --workspace --all-features --all-targets -- -D warnings
@@ -82,8 +86,12 @@ lint-deps:
 lint-links:
     bash scripts/ci/check-links.sh
 
-# Aggregate lint for CI (excludes clippy — run separately in build job)
-lint-all: lint-ts lint-go lint-deps lint-links
+# Aggregate lint for CI check job (no build artifacts needed; excludes eslint and clippy)
+lint-check: lint-ox lint-go lint-deps lint-links
+
+# Aggregate lint for CI build job (requires TS build artifacts)
+lint-eslint:
+    {{pm}} run lint:eslint
 
 # Auto-fix lint issues
 lint-fix:
