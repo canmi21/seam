@@ -726,3 +726,211 @@ fn invalidates_with_error_codegen() {
     "updatePost: { kind: \"command\"; input: UpdatePostInput; output: UpdatePostOutput; error: UpdatePostError; invalidates: readonly [\"getPost\"] };"
   ));
 }
+
+#[test]
+fn procedure_config_basic() {
+  let manifest = crate::manifest::Manifest {
+    version: 2,
+    context: BTreeMap::new(),
+    procedures: {
+      let mut m = BTreeMap::new();
+      m.insert(
+        "getUser".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Query,
+          input: json!({}),
+          output: Some(json!({})),
+          chunk_output: None,
+          error: None,
+          invalidates: None,
+          context: None,
+          transport: None,
+          suppress: None,
+          cache: None,
+        },
+      );
+      m.insert(
+        "deleteUser".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Command,
+          input: json!({}),
+          output: Some(json!({})),
+          chunk_output: None,
+          error: None,
+          invalidates: None,
+          context: None,
+          transport: None,
+          suppress: None,
+          cache: None,
+        },
+      );
+      m
+    },
+    channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
+  };
+
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
+  assert!(code.contains("export const seamProcedureConfig = {"));
+  assert!(code.contains("getUser: { kind: \"query\" },"));
+  assert!(code.contains("deleteUser: { kind: \"command\" },"));
+  assert!(code.contains("} as const;"));
+  assert!(code.contains("export type SeamProcedureConfig = typeof seamProcedureConfig;"));
+}
+
+#[test]
+fn procedure_config_cache_hint() {
+  use crate::manifest::CacheHint;
+
+  let manifest = crate::manifest::Manifest {
+    version: 2,
+    context: BTreeMap::new(),
+    procedures: {
+      let mut m = BTreeMap::new();
+      m.insert(
+        "getUser".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Query,
+          input: json!({}),
+          output: Some(json!({})),
+          chunk_output: None,
+          error: None,
+          invalidates: None,
+          context: None,
+          transport: None,
+          suppress: None,
+          cache: Some(CacheHint::Config { ttl: 30 }),
+        },
+      );
+      m.insert(
+        "listPosts".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Query,
+          input: json!({}),
+          output: Some(json!({})),
+          chunk_output: None,
+          error: None,
+          invalidates: None,
+          context: None,
+          transport: None,
+          suppress: None,
+          cache: Some(CacheHint::Disabled(false)),
+        },
+      );
+      m
+    },
+    channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
+  };
+
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
+  assert!(code.contains("getUser: { kind: \"query\", cache: { ttl: 30 } },"));
+  assert!(code.contains("listPosts: { kind: \"query\", cache: false },"));
+}
+
+#[test]
+fn procedure_config_invalidates_with_mapping() {
+  use crate::manifest::{InvalidateTarget, MappingValue};
+
+  let manifest = crate::manifest::Manifest {
+    version: 2,
+    context: BTreeMap::new(),
+    procedures: {
+      let mut m = BTreeMap::new();
+      m.insert(
+        "updatePost".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Command,
+          input: json!({}),
+          output: Some(json!({})),
+          chunk_output: None,
+          error: None,
+          invalidates: Some(vec![
+            InvalidateTarget { query: "getPost".to_string(), mapping: None },
+            InvalidateTarget {
+              query: "listPosts".to_string(),
+              mapping: Some(BTreeMap::from([(
+                "authorId".to_string(),
+                MappingValue { from: "userId".to_string(), each: None },
+              )])),
+            },
+          ]),
+          context: None,
+          transport: None,
+          suppress: None,
+          cache: None,
+        },
+      );
+      m
+    },
+    channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
+  };
+
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
+  assert!(code.contains("invalidates: [{ query: \"getPost\" }, { query: \"listPosts\", mapping: { authorId: { from: \"userId\" } } }]"));
+}
+
+#[test]
+fn procedure_config_no_extra_fields() {
+  let manifest = crate::manifest::Manifest {
+    version: 2,
+    context: BTreeMap::new(),
+    procedures: {
+      let mut m = BTreeMap::new();
+      m.insert(
+        "onUpdates".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Subscription,
+          input: json!({}),
+          output: Some(json!({})),
+          chunk_output: None,
+          error: None,
+          invalidates: None,
+          context: None,
+          transport: None,
+          suppress: None,
+          cache: None,
+        },
+      );
+      m.insert(
+        "countStream".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Stream,
+          input: json!({}),
+          output: None,
+          chunk_output: Some(json!({})),
+          error: None,
+          invalidates: None,
+          context: None,
+          transport: None,
+          suppress: None,
+          cache: None,
+        },
+      );
+      m.insert(
+        "uploadVideo".to_string(),
+        crate::manifest::ProcedureSchema {
+          proc_type: ProcedureType::Upload,
+          input: json!({}),
+          output: Some(json!({})),
+          chunk_output: None,
+          error: None,
+          invalidates: None,
+          context: None,
+          transport: None,
+          suppress: None,
+          cache: None,
+        },
+      );
+      m
+    },
+    channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
+  };
+
+  let code = generate_typescript(&manifest, None, "__data").unwrap();
+  assert!(code.contains("countStream: { kind: \"stream\" },"));
+  assert!(code.contains("onUpdates: { kind: \"subscription\" },"));
+  assert!(code.contains("uploadVideo: { kind: \"upload\" },"));
+}

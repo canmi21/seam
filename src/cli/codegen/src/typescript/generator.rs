@@ -5,7 +5,8 @@ use std::collections::BTreeSet;
 use anyhow::Result;
 
 use crate::manifest::{
-  Manifest, ProcedureSchema, ProcedureType, TransportConfig, TransportPreference,
+  CacheHint, InvalidateTarget, Manifest, ProcedureSchema, ProcedureType, TransportConfig,
+  TransportPreference,
 };
 use crate::rpc_hash::RpcHashMap;
 
@@ -26,6 +27,64 @@ fn channel_owned_procedures(manifest: &Manifest) -> BTreeSet<String> {
     owned.insert(format!("{ch_name}.events"));
   }
   owned
+}
+
+/// Generate `seamProcedureConfig` runtime constant with kind, cache hints, and invalidates.
+fn generate_procedure_config(manifest: &Manifest) -> String {
+  let mut out = String::from("export const seamProcedureConfig = {\n");
+  for (name, schema) in &manifest.procedures {
+    let key = quote_key(name);
+    let kind = schema.proc_type.to_string();
+
+    let mut fields = vec![format!("kind: \"{kind}\"")];
+
+    // cache: only for queries with explicit cache hint
+    if let Some(ref cache) = schema.cache {
+      match cache {
+        CacheHint::Config { ttl } => fields.push(format!("cache: {{ ttl: {ttl} }}")),
+        CacheHint::Disabled(_) => fields.push("cache: false".into()),
+      }
+    }
+
+    // invalidates: only for commands with non-empty targets
+    if let Some(ref targets) = schema.invalidates
+      && !targets.is_empty()
+    {
+      fields.push(format!("invalidates: {}", format_invalidate_targets(targets)));
+    }
+
+    out.push_str(&format!("  {key}: {{ {} }},\n", fields.join(", ")));
+  }
+  out.push_str("} as const;\n\n");
+  out.push_str("export type SeamProcedureConfig = typeof seamProcedureConfig;\n\n");
+  out
+}
+
+/// Serialize InvalidateTarget[] as a TypeScript array literal.
+fn format_invalidate_targets(targets: &[InvalidateTarget]) -> String {
+  let items: Vec<String> = targets
+    .iter()
+    .map(|t| {
+      let mut obj = format!("{{ query: \"{}\"", t.query);
+      if let Some(ref mapping) = t.mapping {
+        let entries: Vec<String> = mapping
+          .iter()
+          .map(|(k, v)| {
+            let mut mv = format!("{{ from: \"{}\"", v.from);
+            if v.each == Some(true) {
+              mv.push_str(", each: true");
+            }
+            mv.push_str(" }");
+            format!("{k}: {mv}")
+          })
+          .collect();
+        obj.push_str(&format!(", mapping: {{ {} }}", entries.join(", ")));
+      }
+      obj.push_str(" }");
+      obj
+    })
+    .collect();
+  format!("[{}]", items.join(", "))
 }
 
 /// Generate channel type declarations, SeamChannels, and channel factory helper.
@@ -499,6 +558,7 @@ pub fn generate_typescript(
   out.push_str("}\n\n");
 
   out.push_str(&generate_procedure_meta(manifest));
+  out.push_str(&generate_procedure_config(manifest));
 
   if has_channels {
     out.push_str(&generate_channel_types(manifest)?);
