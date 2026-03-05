@@ -4,17 +4,17 @@ import { createRouter, t } from '../src/index.js'
 
 /** Canonical greet router used across adapter and handler tests */
 export const greetRouter = createRouter({
-  greet: {
-    input: t.object({ name: t.string() }),
-    output: t.object({ message: t.string() }),
-    handler: ({ input }) => ({ message: `Hello, ${input.name}!` }),
-  },
-  updateName: {
-    type: 'command',
-    input: t.object({ name: t.string() }),
-    output: t.object({ success: t.boolean() }),
-    handler: () => ({ success: true }),
-  },
+	greet: {
+		input: t.object({ name: t.string() }),
+		output: t.object({ message: t.string() }),
+		handler: ({ input }) => ({ message: `Hello, ${input.name}!` }),
+	},
+	updateName: {
+		type: 'command',
+		input: t.object({ name: t.string() }),
+		output: t.object({ success: t.boolean() }),
+		handler: () => ({ success: true }),
+	},
 })
 
 export const greetInput = { name: 'Alice' }

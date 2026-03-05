@@ -4,12 +4,12 @@ All error responses in the SeamJS protocol use a consistent envelope:
 
 ```json
 {
-  "ok": false,
-  "error": {
-    "code": "<ERROR_CODE>",
-    "message": "<human-readable description>",
-    "transient": false
-  }
+	"ok": false,
+	"error": {
+		"code": "<ERROR_CODE>",
+		"message": "<human-readable description>",
+		"transient": false
+	}
 }
 ```
 

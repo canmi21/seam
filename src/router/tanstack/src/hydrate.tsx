@@ -8,19 +8,19 @@ import { setupLinkInterception } from './link-interceptor.js'
 import type { HydrateOptions } from './types.js'
 
 export async function seamHydrate(opts: HydrateOptions) {
-  const { root, strict = true, ...routerOpts } = opts
+	const { root, strict = true, ...routerOpts } = opts
 
-  const router = createSeamRouter(routerOpts)
+	const router = createSeamRouter(routerOpts)
 
-  setupLinkInterception(router)
+	setupLinkInterception(router)
 
-  // SSR hack prevents RouterProvider from calling router.load() automatically,
-  // so we must load before hydration to populate route matches.
-  await router.load()
+	// SSR hack prevents RouterProvider from calling router.load() automatically,
+	// so we must load before hydration to populate route matches.
+	await router.load()
 
-  const app = <RouterProvider router={router} />
+	const app = <RouterProvider router={router} />
 
-  hydrateRoot(root, strict ? <StrictMode>{app}</StrictMode> : app)
+	hydrateRoot(root, strict ? <StrictMode>{app}</StrictMode> : app)
 
-  return router
+	return router
 }

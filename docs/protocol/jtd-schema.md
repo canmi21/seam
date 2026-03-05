@@ -65,13 +65,13 @@ fields in `optionalProperties` may be omitted.
 
 ```json
 {
-  "properties": {
-    "name": { "type": "string" },
-    "age": { "type": "int32" }
-  },
-  "optionalProperties": {
-    "email": { "type": "string" }
-  }
+	"properties": {
+		"name": { "type": "string" },
+		"age": { "type": "int32" }
+	},
+	"optionalProperties": {
+		"email": { "type": "string" }
+	}
 }
 ```
 
@@ -89,19 +89,19 @@ A tagged union. The `tag` field determines which `mapping` entry applies.
 
 ```json
 {
-  "discriminator": "type",
-  "mapping": {
-    "email": {
-      "properties": {
-        "address": { "type": "string" }
-      }
-    },
-    "sms": {
-      "properties": {
-        "phone": { "type": "string" }
-      }
-    }
-  }
+	"discriminator": "type",
+	"mapping": {
+		"email": {
+			"properties": {
+				"address": { "type": "string" }
+			}
+		},
+		"sms": {
+			"properties": {
+				"phone": { "type": "string" }
+			}
+		}
+	}
 }
 ```
 

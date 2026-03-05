@@ -7,7 +7,7 @@ import { listTodos, getTodo, addTodo, toggleTodo } from './procedures.js'
 export const procedures = { listTodos, getTodo, addTodo, toggleTodo }
 
 export function buildRouter(opts?: RouterOptions) {
-  return createRouter(procedures, opts)
+	return createRouter(procedures, opts)
 }
 
 export const router = buildRouter()

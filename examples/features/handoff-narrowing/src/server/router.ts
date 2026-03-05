@@ -7,7 +7,7 @@ import { getUserProfile, getUserTheme } from './procedures.js'
 export const procedures = { getUserProfile, getUserTheme }
 
 export function buildRouter(opts?: RouterOptions) {
-  return createRouter(procedures, opts)
+	return createRouter(procedures, opts)
 }
 
 export const router = buildRouter()

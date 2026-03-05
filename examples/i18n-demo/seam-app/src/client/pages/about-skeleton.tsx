@@ -3,12 +3,12 @@
 import { useT } from '@canmi/seam-i18n/react'
 
 export function AboutSkeleton() {
-  const t = useT()
+	const t = useT()
 
-  return (
-    <div>
-      <h1>{t('about.title')}</h1>
-      <p>{t('about.description')}</p>
-    </div>
-  )
+	return (
+		<div>
+			<h1>{t('about.title')}</h1>
+			<p>{t('about.description')}</p>
+		</div>
+	)
 }

@@ -14,23 +14,23 @@ A channel is defined with `createChannel(name, def)` across all runtimes:
 
 ```ts
 const chat = createChannel('chat', {
-  input: t.object({ roomId: t.string() }),
-  incoming: {
-    send: {
-      input: t.object({ text: t.string() }),
-      output: t.object({ id: t.string() }),
-      handler: ({ input }) => {
-        /* ... */
-      },
-    },
-  },
-  outgoing: {
-    message: t.object({ sender: t.string(), text: t.string() }),
-    joined: t.object({ user: t.string() }),
-  },
-  subscribe: async function* ({ input }) {
-    /* yield events */
-  },
+	input: t.object({ roomId: t.string() }),
+	incoming: {
+		send: {
+			input: t.object({ text: t.string() }),
+			output: t.object({ id: t.string() }),
+			handler: ({ input }) => {
+				/* ... */
+			},
+		},
+	},
+	outgoing: {
+		message: t.object({ sender: t.string(), text: t.string() }),
+		joined: t.object({ user: t.string() }),
+	},
+	subscribe: async function* ({ input }) {
+		/* yield events */
+	},
 })
 ```
 
@@ -91,52 +91,52 @@ Given the `chat` channel above, the manifest procedures section includes:
 
 ```json
 {
-  "chat.send": {
-    "type": "command",
-    "input": {
-      "properties": {
-        "roomId": { "type": "string" },
-        "text": { "type": "string" }
-      }
-    },
-    "output": {
-      "properties": {
-        "id": { "type": "string" }
-      }
-    }
-  },
-  "chat.events": {
-    "type": "subscription",
-    "input": {
-      "properties": {
-        "roomId": { "type": "string" }
-      }
-    },
-    "output": {
-      "discriminator": "type",
-      "mapping": {
-        "message": {
-          "properties": {
-            "payload": {
-              "properties": {
-                "sender": { "type": "string" },
-                "text": { "type": "string" }
-              }
-            }
-          }
-        },
-        "joined": {
-          "properties": {
-            "payload": {
-              "properties": {
-                "user": { "type": "string" }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
+	"chat.send": {
+		"type": "command",
+		"input": {
+			"properties": {
+				"roomId": { "type": "string" },
+				"text": { "type": "string" }
+			}
+		},
+		"output": {
+			"properties": {
+				"id": { "type": "string" }
+			}
+		}
+	},
+	"chat.events": {
+		"type": "subscription",
+		"input": {
+			"properties": {
+				"roomId": { "type": "string" }
+			}
+		},
+		"output": {
+			"discriminator": "type",
+			"mapping": {
+				"message": {
+					"properties": {
+						"payload": {
+							"properties": {
+								"sender": { "type": "string" },
+								"text": { "type": "string" }
+							}
+						}
+					}
+				},
+				"joined": {
+					"properties": {
+						"payload": {
+							"properties": {
+								"user": { "type": "string" }
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 ```
 
@@ -146,27 +146,27 @@ The manifest includes an optional `channels` field with `ChannelMeta` for each c
 
 ```json
 {
-  "version": 1,
-  "procedures": {
-    /* expanded Level 0 procedures */
-  },
-  "channels": {
-    "chat": {
-      "input": { "properties": { "roomId": { "type": "string" } } },
-      "incoming": {
-        "send": {
-          "input": { "properties": { "text": { "type": "string" } } },
-          "output": { "properties": { "id": { "type": "string" } } }
-        }
-      },
-      "outgoing": {
-        "message": {
-          "properties": { "sender": { "type": "string" }, "text": { "type": "string" } }
-        },
-        "joined": { "properties": { "user": { "type": "string" } } }
-      }
-    }
-  }
+	"version": 1,
+	"procedures": {
+		/* expanded Level 0 procedures */
+	},
+	"channels": {
+		"chat": {
+			"input": { "properties": { "roomId": { "type": "string" } } },
+			"incoming": {
+				"send": {
+					"input": { "properties": { "text": { "type": "string" } } },
+					"output": { "properties": { "id": { "type": "string" } } }
+				}
+			},
+			"outgoing": {
+				"message": {
+					"properties": { "sender": { "type": "string" }, "text": { "type": "string" } }
+				},
+				"joined": { "properties": { "user": { "type": "string" } } }
+			}
+		}
+	}
 }
 ```
 
@@ -208,9 +208,9 @@ The `input` query parameter provides the channel-level input (URL-encoded JSON).
 
 ```json
 {
-  "id": "req-1",
-  "ok": false,
-  "error": { "code": "VALIDATION_ERROR", "message": "...", "transient": false }
+	"id": "req-1",
+	"ok": false,
+	"error": { "code": "VALIDATION_ERROR", "message": "...", "transient": false }
 }
 ```
 

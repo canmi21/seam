@@ -10,14 +10,14 @@ export { prefetchRoute } from './prefetch.js'
 export { clearPrefetchCache } from './prefetch-cache.js'
 
 export type {
-  ClientOptions,
-  SeamClient,
-  StreamHandle,
-  Unsubscribe,
-  ChannelTransport,
-  ChannelOptions,
-  TransportHint,
-  TransportOptions,
+	ClientOptions,
+	SeamClient,
+	StreamHandle,
+	Unsubscribe,
+	ChannelTransport,
+	ChannelOptions,
+	TransportHint,
+	TransportOptions,
 } from './client.js'
 export type { ErrorCode } from './errors.js'
 export type { ChannelHandle } from './channel-handle.js'

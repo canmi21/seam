@@ -7,7 +7,7 @@ import { getInfo, countStream, echoUpload } from './procedures.js'
 export const procedures = { getInfo, countStream, echoUpload }
 
 export function buildRouter(opts?: RouterOptions) {
-  return createRouter(procedures, opts)
+	return createRouter(procedures, opts)
 }
 
 export const router = buildRouter()

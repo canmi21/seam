@@ -7,7 +7,7 @@ import { getPageData, getBlogPost, getSession } from './procedures.js'
 export const procedures = { getPageData, getBlogPost, getSession }
 
 export function buildRouter(opts?: RouterOptions) {
-  return createRouter(procedures, opts)
+	return createRouter(procedures, opts)
 }
 
 export const router = buildRouter()

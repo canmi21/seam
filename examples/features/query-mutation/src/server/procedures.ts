@@ -4,73 +4,73 @@ import { t } from '@canmi/seam-server'
 import type { ProcedureDef, CommandDef } from '@canmi/seam-server'
 
 interface Todo {
-  id: string
-  title: string
-  done: boolean
+	id: string
+	title: string
+	done: boolean
 }
 
 // In-memory store
 const todos: Todo[] = [
-  { id: '1', title: 'Learn SeamJS', done: false },
-  { id: '2', title: 'Build a demo', done: true },
+	{ id: '1', title: 'Learn SeamJS', done: false },
+	{ id: '2', title: 'Build a demo', done: true },
 ]
 let nextId = 3
 
 export const listTodos: ProcedureDef<Record<string, never>, { todos: Todo[] }> = {
-  input: t.object({}),
-  output: t.object({
-    todos: t.array(
-      t.object({
-        id: t.string(),
-        title: t.string(),
-        done: t.boolean(),
-      }),
-    ),
-  }),
-  cache: { ttl: 30 },
-  handler: () => ({ todos: [...todos] }),
+	input: t.object({}),
+	output: t.object({
+		todos: t.array(
+			t.object({
+				id: t.string(),
+				title: t.string(),
+				done: t.boolean(),
+			}),
+		),
+	}),
+	cache: { ttl: 30 },
+	handler: () => ({ todos: [...todos] }),
 }
 
 export const getTodo: ProcedureDef<{ id: string }, Todo> = {
-  input: t.object({ id: t.string() }),
-  output: t.object({
-    id: t.string(),
-    title: t.string(),
-    done: t.boolean(),
-  }),
-  cache: { ttl: 30 },
-  handler: ({ input }) => {
-    const todo = todos.find((t) => t.id === input.id)
-    if (!todo) throw new Error(`Todo ${input.id} not found`)
-    return { ...todo }
-  },
+	input: t.object({ id: t.string() }),
+	output: t.object({
+		id: t.string(),
+		title: t.string(),
+		done: t.boolean(),
+	}),
+	cache: { ttl: 30 },
+	handler: ({ input }) => {
+		const todo = todos.find((t) => t.id === input.id)
+		if (!todo) throw new Error(`Todo ${input.id} not found`)
+		return { ...todo }
+	},
 }
 
 export const addTodo: CommandDef<{ title: string }, Todo> = {
-  kind: 'command',
-  input: t.object({ title: t.string() }),
-  output: t.object({
-    id: t.string(),
-    title: t.string(),
-    done: t.boolean(),
-  }),
-  invalidates: ['listTodos'],
-  handler: ({ input }) => {
-    const todo: Todo = { id: String(nextId++), title: input.title, done: false }
-    todos.push(todo)
-    return { ...todo }
-  },
+	kind: 'command',
+	input: t.object({ title: t.string() }),
+	output: t.object({
+		id: t.string(),
+		title: t.string(),
+		done: t.boolean(),
+	}),
+	invalidates: ['listTodos'],
+	handler: ({ input }) => {
+		const todo: Todo = { id: String(nextId++), title: input.title, done: false }
+		todos.push(todo)
+		return { ...todo }
+	},
 }
 
 export const toggleTodo: CommandDef<{ id: string }, { id: string; done: boolean }> = {
-  kind: 'command',
-  input: t.object({ id: t.string() }),
-  output: t.object({ id: t.string(), done: t.boolean() }),
-  invalidates: [{ query: 'getTodo', mapping: { id: { from: 'id' } } }, 'listTodos'],
-  handler: ({ input }) => {
-    const todo = todos.find((t) => t.id === input.id)
-    if (!todo) throw new Error(`Todo ${input.id} not found`)
-    todo.done = !todo.done
-    return { id: todo.id, done: todo.done }
-  },
+	kind: 'command',
+	input: t.object({ id: t.string() }),
+	output: t.object({ id: t.string(), done: t.boolean() }),
+	invalidates: [{ query: 'getTodo', mapping: { id: { from: 'id' } } }, 'listTodos'],
+	handler: ({ input }) => {
+		const todo = todos.find((t) => t.id === input.id)
+		if (!todo) throw new Error(`Todo ${input.id} not found`)
+		todo.done = !todo.done
+		return { id: todo.id, done: todo.done }
+	},
 }

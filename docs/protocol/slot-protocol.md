@@ -56,9 +56,9 @@ Nested example:
 <h2><!--seam:$.name--></h2>
 <!--seam:each:$.items-->
 <p>
-  <!--seam:$.label-->
-  (group:
-  <!--seam:$$.name-->)
+	<!--seam:$.label-->
+	(group:
+	<!--seam:$$.name-->)
 </p>
 <!--seam:endeach-->
 <!--seam:endeach-->
@@ -126,7 +126,7 @@ The injector automatically appends a JSON data script before `</body>` (or at th
 
 ```html
 <script id="__data" type="application/json">
-  { "user": { "name": "Alice" } }
+	{ "user": { "name": "Alice" } }
 </script>
 ```
 

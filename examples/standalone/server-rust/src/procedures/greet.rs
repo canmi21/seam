@@ -5,15 +5,15 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, SeamType)]
 pub struct GreetInput {
-  pub name: String,
+	pub name: String,
 }
 
 #[derive(Serialize, SeamType)]
 pub struct GreetOutput {
-  pub message: String,
+	pub message: String,
 }
 
 #[seam_procedure]
 pub async fn greet(input: GreetInput) -> Result<GreetOutput, SeamError> {
-  Ok(GreetOutput { message: format!("Hello, {}!", input.name) })
+	Ok(GreetOutput { message: format!("Hello, {}!", input.name) })
 }

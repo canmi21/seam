@@ -5,34 +5,34 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, SeamType)]
 pub struct CountInput {
-  pub max: i32,
+	pub max: i32,
 }
 
 #[derive(Serialize, SeamType)]
 pub struct CountOutput {
-  pub n: i32,
+	pub n: i32,
 }
 
 pub fn on_count_subscription() -> SubscriptionDef {
-  SubscriptionDef {
-    name: "onCount".to_string(),
-    input_schema: CountInput::jtd_schema(),
-    output_schema: CountOutput::jtd_schema(),
-    error_schema: None,
-    context_keys: vec![],
-    handler: std::sync::Arc::new(|value: serde_json::Value, _ctx: serde_json::Value| {
-      Box::pin(async move {
-        let input: CountInput =
-          serde_json::from_value(value).map_err(|e| SeamError::validation(e.to_string()))?;
+	SubscriptionDef {
+		name: "onCount".to_string(),
+		input_schema: CountInput::jtd_schema(),
+		output_schema: CountOutput::jtd_schema(),
+		error_schema: None,
+		context_keys: vec![],
+		handler: std::sync::Arc::new(|value: serde_json::Value, _ctx: serde_json::Value| {
+			Box::pin(async move {
+				let input: CountInput =
+					serde_json::from_value(value).map_err(|e| SeamError::validation(e.to_string()))?;
 
-        let stream = async_stream::stream! {
-          for i in 1..=input.max {
-            yield Ok(serde_json::to_value(CountOutput { n: i }).expect("CountOutput is serializable"));
-          }
-        };
+				let stream = async_stream::stream! {
+					for i in 1..=input.max {
+						yield Ok(serde_json::to_value(CountOutput { n: i }).expect("CountOutput is serializable"));
+					}
+				};
 
-        Ok(Box::pin(stream) as BoxStream<Result<serde_json::Value, SeamError>>)
-      })
-    }),
-  }
+				Ok(Box::pin(stream) as BoxStream<Result<serde_json::Value, SeamError>>)
+			})
+		}),
+	}
 }

@@ -11,38 +11,38 @@ let configuredBatchEndpoint: string | null = null
 let browserClient: SeamClient | null = null
 
 function getBrowserClient(): SeamClient {
-  if (!browserClient) {
-    browserClient = createClient({
-      baseUrl: '',
-      batchEndpoint: configuredBatchEndpoint ?? undefined,
-    })
-  }
-  return browserClient
+	if (!browserClient) {
+		browserClient = createClient({
+			baseUrl: '',
+			batchEndpoint: configuredBatchEndpoint ?? undefined,
+		})
+	}
+	return browserClient
 }
 
 let batchEnqueue: ((proc: string, input: unknown) => Promise<unknown>) | null = null
 
 function getBatchEnqueue() {
-  if (!batchEnqueue) {
-    const client = getBrowserClient()
-    batchEnqueue = createBatchQueue((calls) => client.callBatch(calls))
-  }
-  return batchEnqueue
+	if (!batchEnqueue) {
+		const client = getBrowserClient()
+		batchEnqueue = createBatchQueue((calls) => client.callBatch(calls))
+	}
+	return batchEnqueue
 }
 
 /** Configure the RPC hash map for obfuscated endpoints. */
 export function configureRpcMap(map: Record<string, string>): void {
-  rpcHashMap = { ...map }
-  configuredBatchEndpoint = map['_batch'] ?? null
-  // Reset singletons so next call picks up new config
-  browserClient = null
-  batchEnqueue = null
+	rpcHashMap = { ...map }
+	configuredBatchEndpoint = map['_batch'] ?? null
+	// Reset singletons so next call picks up new config
+	browserClient = null
+	batchEnqueue = null
 }
 
 export function seamRpc(procedure: string, input?: unknown): Promise<unknown> {
-  const cached = getFromCache(procedure, input ?? {})
-  if (cached !== undefined) return cached
+	const cached = getFromCache(procedure, input ?? {})
+	if (cached !== undefined) return cached
 
-  const wireName = rpcHashMap?.[procedure] ?? procedure
-  return getBatchEnqueue()(wireName, input ?? {})
+	const wireName = rpcHashMap?.[procedure] ?? procedure
+	return getBatchEnqueue()(wireName, input ?? {})
 }

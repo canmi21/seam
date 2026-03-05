@@ -3,10 +3,10 @@
 export const loaders = { todos: { procedure: 'listTodos' } }
 
 export const mock = {
-  todos: {
-    todos: [
-      { id: '1', title: 'Learn SeamJS', done: false },
-      { id: '2', title: 'Build a demo', done: true },
-    ],
-  },
+	todos: {
+		todos: [
+			{ id: '1', title: 'Learn SeamJS', done: false },
+			{ id: '2', title: 'Build a demo', done: true },
+		],
+	},
 }

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# seam:no-line-limit
 # Publish Rust crates, NPM packages, and Go modules for the SeamJS monorepo.
 # Selective publishing: only packages with real changes since the previous version tag.
 # Usage: bash scripts/publish.sh [--dry-run] [--skip-verify] [--skip-dirty] [--rust-only] [--npm-only] [--go-only] [--all]

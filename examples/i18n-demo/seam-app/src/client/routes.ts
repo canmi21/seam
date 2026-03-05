@@ -6,28 +6,28 @@ import { HomeSkeleton } from './pages/home-skeleton.js'
 import { AboutSkeleton } from './pages/about-skeleton.js'
 
 export default defineSeamRoutes([
-  {
-    path: '/',
-    layout: Layout,
-    loaders: {
-      content: { procedure: 'getContent' },
-    },
-    mock: {
-      content: { mode: 'prefix' },
-    },
-    children: [
-      {
-        path: '/',
-        component: HomeSkeleton,
-        loaders: {},
-        mock: {},
-      },
-      {
-        path: '/about',
-        component: AboutSkeleton,
-        loaders: {},
-        mock: {},
-      },
-    ],
-  },
+	{
+		path: '/',
+		layout: Layout,
+		loaders: {
+			content: { procedure: 'getContent' },
+		},
+		mock: {
+			content: { mode: 'prefix' },
+		},
+		children: [
+			{
+				path: '/',
+				component: HomeSkeleton,
+				loaders: {},
+				mock: {},
+			},
+			{
+				path: '/about',
+				component: AboutSkeleton,
+				loaders: {},
+				mock: {},
+			},
+		],
+	},
 ])

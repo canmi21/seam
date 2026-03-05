@@ -12,8 +12,8 @@ import { chat } from './channels/chat.js'
 import { userPage } from './pages/user.js'
 
 const router = createRouter(
-  { greet, getUser, listUsers, updateEmail, onCount, ...chat.procedures },
-  { pages: { '/user/:id': userPage }, channels: [chat] },
+	{ greet, getUser, listUsers, updateEmail, onCount, ...chat.procedures },
+	{ pages: { '/user/:id': userPage }, channels: [chat] },
 )
 const port = process.env.PORT !== undefined ? Number(process.env.PORT) : 3000
 // Dev mode: pass fallback to proxy non-seam requests to a frontend dev server

@@ -14,8 +14,8 @@ const router = createRouter({ greet, getUser, listUsers }, { pages })
 
 const port = Number(process.env.PORT) || 3000
 const server = serveBun(router, {
-  port,
-  staticDir: `${distDir}/assets`,
+	port,
+	staticDir: `${distDir}/assets`,
 })
 
 console.log(`Seam React backend running on http://localhost:${server.port}`)

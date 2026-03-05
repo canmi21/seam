@@ -68,12 +68,12 @@ Top-level `context` defines named extractors that pull values from the raw reque
 
 ```json
 {
-  "context": {
-    "auth": {
-      "extract": "extractAuth",
-      "schema": { "properties": { "userId": { "type": "string" } } }
-    }
-  }
+	"context": {
+		"auth": {
+			"extract": "extractAuth",
+			"schema": { "properties": { "userId": { "type": "string" } } }
+		}
+	}
 }
 ```
 
@@ -90,10 +90,10 @@ Commands may declare which queries to invalidate on success:
 
 ```json
 {
-  "invalidates": [
-    { "query": "getPost" },
-    { "query": "listPosts", "mapping": { "authorId": { "from": "userId" } } }
-  ]
+	"invalidates": [
+		{ "query": "getPost" },
+		{ "query": "listPosts", "mapping": { "authorId": { "from": "userId" } } }
+	]
 }
 ```
 
@@ -117,9 +117,9 @@ Transport preferences control how the client communicates with procedures. They 
 
 ```json
 {
-  "transportDefaults": {
-    "subscription": { "prefer": "ws", "fallback": ["sse"] }
-  }
+	"transportDefaults": {
+		"subscription": { "prefer": "ws", "fallback": ["sse"] }
+	}
 }
 ```
 
@@ -205,10 +205,10 @@ Executes multiple procedures in a single HTTP request.
 
 ```json
 {
-  "calls": [
-    { "procedure": "greet", "input": { "name": "Alice" } },
-    { "procedure": "getUser", "input": { "id": 1 } }
-  ]
+	"calls": [
+		{ "procedure": "greet", "input": { "name": "Alice" } },
+		{ "procedure": "getUser", "input": { "id": 1 } }
+	]
 }
 ```
 
@@ -222,13 +222,13 @@ Each item in `results` is either a success or an error:
 
 ```json
 {
-  "ok": true,
-  "data": {
-    "results": [
-      { "ok": true, "data": { "message": "Hello, Alice!" } },
-      { "ok": true, "data": { "id": 1, "name": "Alice", "email": "alice@example.com" } }
-    ]
-  }
+	"ok": true,
+	"data": {
+		"results": [
+			{ "ok": true, "data": { "message": "Hello, Alice!" } },
+			{ "ok": true, "data": { "id": 1, "name": "Alice", "email": "alice@example.com" } }
+		]
+	}
 }
 ```
 
@@ -236,20 +236,20 @@ Individual failures return error objects without failing the entire batch:
 
 ```json
 {
-  "ok": true,
-  "data": {
-    "results": [
-      { "ok": true, "data": { "message": "Hello, Alice!" } },
-      {
-        "ok": false,
-        "error": {
-          "code": "NOT_FOUND",
-          "message": "Procedure 'noSuch' not found",
-          "transient": false
-        }
-      }
-    ]
-  }
+	"ok": true,
+	"data": {
+		"results": [
+			{ "ok": true, "data": { "message": "Hello, Alice!" } },
+			{
+				"ok": false,
+				"error": {
+					"code": "NOT_FOUND",
+					"message": "Procedure 'noSuch' not found",
+					"transient": false
+				}
+			}
+		]
+	}
 }
 ```
 
@@ -289,93 +289,93 @@ See [Error Codes](./error-codes.md) for the error envelope format and standard e
 
 ```json
 {
-  "version": 2,
-  "context": {
-    "auth": {
-      "extract": "extractAuth",
-      "schema": {
-        "properties": {
-          "userId": { "type": "string" }
-        }
-      }
-    }
-  },
-  "procedures": {
-    "greet": {
-      "kind": "query",
-      "input": {
-        "properties": {
-          "name": { "type": "string" }
-        }
-      },
-      "output": {
-        "properties": {
-          "message": { "type": "string" }
-        }
-      }
-    },
-    "createUser": {
-      "kind": "command",
-      "input": {
-        "properties": {
-          "name": { "type": "string" },
-          "email": { "type": "string" }
-        }
-      },
-      "output": {
-        "properties": {
-          "id": { "type": "uint32" },
-          "name": { "type": "string" },
-          "email": { "type": "string" }
-        }
-      },
-      "invalidates": [{ "query": "listUsers" }],
-      "context": ["auth"]
-    },
-    "onCount": {
-      "kind": "subscription",
-      "input": {
-        "properties": {
-          "max": { "type": "int32" }
-        }
-      },
-      "output": {
-        "properties": {
-          "n": { "type": "int32" }
-        }
-      }
-    },
-    "generateReport": {
-      "kind": "stream",
-      "input": {
-        "properties": {
-          "topic": { "type": "string" }
-        }
-      },
-      "chunkOutput": {
-        "properties": {
-          "text": { "type": "string" }
-        }
-      }
-    },
-    "uploadAvatar": {
-      "kind": "upload",
-      "input": {
-        "properties": {
-          "userId": { "type": "string" }
-        }
-      },
-      "output": {
-        "properties": {
-          "url": { "type": "string" }
-        }
-      },
-      "context": ["auth"]
-    }
-  },
-  "transportDefaults": {
-    "subscription": { "prefer": "ws", "fallback": ["sse"] }
-  }
+	"version": 2,
+	"context": {
+		"auth": {
+			"extract": "extractAuth",
+			"schema": {
+				"properties": {
+					"userId": { "type": "string" }
+				}
+			}
+		}
+	},
+	"procedures": {
+		"greet": {
+			"kind": "query",
+			"input": {
+				"properties": {
+					"name": { "type": "string" }
+				}
+			},
+			"output": {
+				"properties": {
+					"message": { "type": "string" }
+				}
+			}
+		},
+		"createUser": {
+			"kind": "command",
+			"input": {
+				"properties": {
+					"name": { "type": "string" },
+					"email": { "type": "string" }
+				}
+			},
+			"output": {
+				"properties": {
+					"id": { "type": "uint32" },
+					"name": { "type": "string" },
+					"email": { "type": "string" }
+				}
+			},
+			"invalidates": [{ "query": "listUsers" }],
+			"context": ["auth"]
+		},
+		"onCount": {
+			"kind": "subscription",
+			"input": {
+				"properties": {
+					"max": { "type": "int32" }
+				}
+			},
+			"output": {
+				"properties": {
+					"n": { "type": "int32" }
+				}
+			}
+		},
+		"generateReport": {
+			"kind": "stream",
+			"input": {
+				"properties": {
+					"topic": { "type": "string" }
+				}
+			},
+			"chunkOutput": {
+				"properties": {
+					"text": { "type": "string" }
+				}
+			}
+		},
+		"uploadAvatar": {
+			"kind": "upload",
+			"input": {
+				"properties": {
+					"userId": { "type": "string" }
+				}
+			},
+			"output": {
+				"properties": {
+					"url": { "type": "string" }
+				}
+			},
+			"context": ["auth"]
+		}
+	},
+	"transportDefaults": {
+		"subscription": { "prefer": "ws", "fallback": ["sse"] }
+	}
 }
 ```
 

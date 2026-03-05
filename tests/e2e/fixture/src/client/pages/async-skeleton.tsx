@@ -4,53 +4,53 @@ import { useEffect, useState } from 'react'
 import { useSeamData } from '@canmi/seam-react'
 
 interface AsyncData extends Record<string, unknown> {
-  heading: string
+	heading: string
 }
 
 interface AsyncItem {
-  id: number
-  label: string
+	id: number
+	label: string
 }
 
 export function AsyncSkeleton() {
-  const data = useSeamData<AsyncData>()
-  const [state, setState] = useState<'loading' | 'loaded' | 'error'>('loading')
-  const [items, setItems] = useState<AsyncItem[]>([])
+	const data = useSeamData<AsyncData>()
+	const [state, setState] = useState<'loading' | 'loaded' | 'error'>('loading')
+	const [items, setItems] = useState<AsyncItem[]>([])
 
-  // eslint-disable-next-line seam/no-effect-in-skeleton -- client-only fetch
-  useEffect(() => {
-    fetch('/_seam/procedure/getAsyncItems', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    })
-      .then((res) => res.json())
-      .then((json: { ok: boolean; data: { items?: AsyncItem[] } }) => {
-        setItems(json.data?.items ?? [])
-        setState('loaded')
-      })
-      .catch(() => {
-        setState('error')
-      })
-  }, [])
+	// eslint-disable-next-line seam/no-effect-in-skeleton -- client-only fetch
+	useEffect(() => {
+		fetch('/_seam/procedure/getAsyncItems', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({}),
+		})
+			.then((res) => res.json())
+			.then((json: { ok: boolean; data: { items?: AsyncItem[] } }) => {
+				setItems(json.data?.items ?? [])
+				setState('loaded')
+			})
+			.catch(() => {
+				setState('error')
+			})
+	}, [])
 
-  return (
-    <div>
-      <h1>{data.heading}</h1>
-      {state === 'loading' && <p data-testid="loading">Loading items...</p>}
-      {state === 'loaded' && (
-        <ul data-testid="async-list">
-          {items.map((item) => (
-            <li key={item.id} data-testid="async-item">
-              {item.label}
-            </li>
-          ))}
-        </ul>
-      )}
-      {state === 'error' && <p data-testid="async-error">Failed to load items.</p>}
-      <a href="/" data-testid="link-home">
-        Back to Home
-      </a>
-    </div>
-  )
+	return (
+		<div>
+			<h1>{data.heading}</h1>
+			{state === 'loading' && <p data-testid="loading">Loading items...</p>}
+			{state === 'loaded' && (
+				<ul data-testid="async-list">
+					{items.map((item) => (
+						<li key={item.id} data-testid="async-item">
+							{item.label}
+						</li>
+					))}
+				</ul>
+			)}
+			{state === 'error' && <p data-testid="async-error">Failed to load items.</p>}
+			<a href="/" data-testid="link-home">
+				Back to Home
+			</a>
+		</div>
+	)
 }

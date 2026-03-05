@@ -7,15 +7,15 @@ import { getPublicInfo, getSecretData, updateProfile } from './procedures.js'
 export const procedures = { getPublicInfo, getSecretData, updateProfile }
 
 export function buildRouter(opts?: RouterOptions) {
-  return createRouter(procedures, {
-    ...opts,
-    context: {
-      auth: {
-        extract: 'header:authorization',
-        schema: t.object({ userId: t.string(), role: t.string() }),
-      },
-    },
-  })
+	return createRouter(procedures, {
+		...opts,
+		context: {
+			auth: {
+				extract: 'header:authorization',
+				schema: t.object({ userId: t.string(), role: t.string() }),
+			},
+		},
+	})
 }
 
 export const router = buildRouter()

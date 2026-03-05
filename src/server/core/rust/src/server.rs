@@ -12,117 +12,117 @@ use crate::resolve::ResolveStrategy;
 /// Framework-agnostic parts extracted from `SeamServer`.
 /// Adapter crates consume this to build framework-specific routers.
 pub struct SeamParts {
-  pub procedures: Vec<ProcedureDef>,
-  pub subscriptions: Vec<SubscriptionDef>,
-  pub pages: Vec<PageDef>,
-  pub rpc_hash_map: Option<RpcHashMap>,
-  pub i18n_config: Option<I18nConfig>,
-  pub strategies: Vec<Box<dyn ResolveStrategy>>,
-  pub channel_metas: BTreeMap<String, ChannelMeta>,
-  pub context_config: ContextConfig,
+	pub procedures: Vec<ProcedureDef>,
+	pub subscriptions: Vec<SubscriptionDef>,
+	pub pages: Vec<PageDef>,
+	pub rpc_hash_map: Option<RpcHashMap>,
+	pub i18n_config: Option<I18nConfig>,
+	pub strategies: Vec<Box<dyn ResolveStrategy>>,
+	pub channel_metas: BTreeMap<String, ChannelMeta>,
+	pub context_config: ContextConfig,
 }
 
 impl SeamParts {
-  pub fn has_url_prefix(&self) -> bool {
-    self.strategies.iter().any(|s| s.kind() == "url_prefix")
-  }
+	pub fn has_url_prefix(&self) -> bool {
+		self.strategies.iter().any(|s| s.kind() == "url_prefix")
+	}
 }
 
 pub struct SeamServer {
-  procedures: Vec<ProcedureDef>,
-  subscriptions: Vec<SubscriptionDef>,
-  channels: Vec<ChannelDef>,
-  pages: Vec<PageDef>,
-  rpc_hash_map: Option<RpcHashMap>,
-  i18n_config: Option<I18nConfig>,
-  strategies: Vec<Box<dyn ResolveStrategy>>,
-  context_config: ContextConfig,
+	procedures: Vec<ProcedureDef>,
+	subscriptions: Vec<SubscriptionDef>,
+	channels: Vec<ChannelDef>,
+	pages: Vec<PageDef>,
+	rpc_hash_map: Option<RpcHashMap>,
+	i18n_config: Option<I18nConfig>,
+	strategies: Vec<Box<dyn ResolveStrategy>>,
+	context_config: ContextConfig,
 }
 
 impl SeamServer {
-  pub fn new() -> Self {
-    Self {
-      procedures: Vec::new(),
-      subscriptions: Vec::new(),
-      channels: Vec::new(),
-      pages: Vec::new(),
-      rpc_hash_map: None,
-      i18n_config: None,
-      strategies: Vec::new(),
-      context_config: ContextConfig::new(),
-    }
-  }
+	pub fn new() -> Self {
+		Self {
+			procedures: Vec::new(),
+			subscriptions: Vec::new(),
+			channels: Vec::new(),
+			pages: Vec::new(),
+			rpc_hash_map: None,
+			i18n_config: None,
+			strategies: Vec::new(),
+			context_config: ContextConfig::new(),
+		}
+	}
 
-  pub fn procedure(mut self, proc: ProcedureDef) -> Self {
-    self.procedures.push(proc);
-    self
-  }
+	pub fn procedure(mut self, proc: ProcedureDef) -> Self {
+		self.procedures.push(proc);
+		self
+	}
 
-  pub fn subscription(mut self, sub: SubscriptionDef) -> Self {
-    self.subscriptions.push(sub);
-    self
-  }
+	pub fn subscription(mut self, sub: SubscriptionDef) -> Self {
+		self.subscriptions.push(sub);
+		self
+	}
 
-  pub fn channel(mut self, channel: ChannelDef) -> Self {
-    self.channels.push(channel);
-    self
-  }
+	pub fn channel(mut self, channel: ChannelDef) -> Self {
+		self.channels.push(channel);
+		self
+	}
 
-  pub fn page(mut self, page: PageDef) -> Self {
-    self.pages.push(page);
-    self
-  }
+	pub fn page(mut self, page: PageDef) -> Self {
+		self.pages.push(page);
+		self
+	}
 
-  pub fn rpc_hash_map(mut self, map: RpcHashMap) -> Self {
-    self.rpc_hash_map = Some(map);
-    self
-  }
+	pub fn rpc_hash_map(mut self, map: RpcHashMap) -> Self {
+		self.rpc_hash_map = Some(map);
+		self
+	}
 
-  pub fn i18n_config(mut self, config: I18nConfig) -> Self {
-    self.i18n_config = Some(config);
-    self
-  }
+	pub fn i18n_config(mut self, config: I18nConfig) -> Self {
+		self.i18n_config = Some(config);
+		self
+	}
 
-  pub fn resolve_strategies(mut self, strategies: Vec<Box<dyn ResolveStrategy>>) -> Self {
-    self.strategies = strategies;
-    self
-  }
+	pub fn resolve_strategies(mut self, strategies: Vec<Box<dyn ResolveStrategy>>) -> Self {
+		self.strategies = strategies;
+		self
+	}
 
-  pub fn context(mut self, key: &str, field: ContextFieldDef) -> Self {
-    self.context_config.insert(key.to_string(), field);
-    self
-  }
+	pub fn context(mut self, key: &str, field: ContextFieldDef) -> Self {
+		self.context_config.insert(key.to_string(), field);
+		self
+	}
 
-  /// Consume the builder, returning framework-agnostic parts for an adapter.
-  /// Channels are expanded into their Level 0 primitives (commands + subscriptions).
-  pub fn into_parts(self) -> SeamParts {
-    let mut procedures = self.procedures;
-    let mut subscriptions = self.subscriptions;
-    let mut channel_metas = BTreeMap::new();
+	/// Consume the builder, returning framework-agnostic parts for an adapter.
+	/// Channels are expanded into their Level 0 primitives (commands + subscriptions).
+	pub fn into_parts(self) -> SeamParts {
+		let mut procedures = self.procedures;
+		let mut subscriptions = self.subscriptions;
+		let mut channel_metas = BTreeMap::new();
 
-    for channel in self.channels {
-      let name = channel.name.clone();
-      let (procs, subs, meta) = channel.expand();
-      procedures.extend(procs);
-      subscriptions.extend(subs);
-      channel_metas.insert(name, meta);
-    }
+		for channel in self.channels {
+			let name = channel.name.clone();
+			let (procs, subs, meta) = channel.expand();
+			procedures.extend(procs);
+			subscriptions.extend(subs);
+			channel_metas.insert(name, meta);
+		}
 
-    SeamParts {
-      procedures,
-      subscriptions,
-      pages: self.pages,
-      rpc_hash_map: self.rpc_hash_map,
-      i18n_config: self.i18n_config,
-      strategies: self.strategies,
-      channel_metas,
-      context_config: self.context_config,
-    }
-  }
+		SeamParts {
+			procedures,
+			subscriptions,
+			pages: self.pages,
+			rpc_hash_map: self.rpc_hash_map,
+			i18n_config: self.i18n_config,
+			strategies: self.strategies,
+			channel_metas,
+			context_config: self.context_config,
+		}
+	}
 }
 
 impl Default for SeamServer {
-  fn default() -> Self {
-    Self::new()
-  }
+	fn default() -> Self {
+		Self::new()
+	}
 }

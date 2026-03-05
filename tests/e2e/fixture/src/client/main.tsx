@@ -13,28 +13,28 @@ import { AsyncSkeleton } from './pages/async-skeleton.js'
 import { HtmlSlotSkeleton } from './pages/html-slot-skeleton.js'
 
 const routeMap: Record<string, ComponentType> = {
-  '/': HomeSkeleton,
-  '/react19': React19Skeleton,
-  '/form': FormSkeleton,
-  '/error': ErrorSkeleton,
-  '/async': AsyncSkeleton,
-  '/test-html': HtmlSlotSkeleton,
+	'/': HomeSkeleton,
+	'/react19': React19Skeleton,
+	'/form': FormSkeleton,
+	'/error': ErrorSkeleton,
+	'/async': AsyncSkeleton,
+	'/test-html': HtmlSlotSkeleton,
 }
 
 const seamRoot = document.getElementById('__seam')
 
 if (seamRoot) {
-  const Component = routeMap[window.location.pathname]
-  if (Component) {
-    const raw = parseSeamData(DATA_ID)
-    const data = (raw as Record<string, unknown>).page ?? raw
-    hydrateRoot(
-      seamRoot,
-      <StrictMode>
-        <SeamDataProvider value={data}>
-          <Component />
-        </SeamDataProvider>
-      </StrictMode>,
-    )
-  }
+	const Component = routeMap[window.location.pathname]
+	if (Component) {
+		const raw = parseSeamData(DATA_ID)
+		const data = (raw as Record<string, unknown>).page ?? raw
+		hydrateRoot(
+			seamRoot,
+			<StrictMode>
+				<SeamDataProvider value={data}>
+					<Component />
+				</SeamDataProvider>
+			</StrictMode>,
+		)
+	}
 }

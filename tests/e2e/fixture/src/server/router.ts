@@ -3,29 +3,29 @@
 import { createRouter } from '@canmi/seam-server'
 import type { RouterOptions } from '@canmi/seam-server'
 import {
-  getHomeData,
-  getReact19Data,
-  getFormPageData,
-  submitContact,
-  getErrorPageData,
-  getAsyncPageData,
-  getAsyncItems,
-  getRenderedContent,
+	getHomeData,
+	getReact19Data,
+	getFormPageData,
+	submitContact,
+	getErrorPageData,
+	getAsyncPageData,
+	getAsyncItems,
+	getRenderedContent,
 } from './procedures.js'
 
 export const procedures = {
-  getHomeData,
-  getReact19Data,
-  getFormPageData,
-  submitContact,
-  getErrorPageData,
-  getAsyncPageData,
-  getAsyncItems,
-  getRenderedContent,
+	getHomeData,
+	getReact19Data,
+	getFormPageData,
+	submitContact,
+	getErrorPageData,
+	getAsyncPageData,
+	getAsyncItems,
+	getRenderedContent,
 }
 
 export function buildRouter(opts?: RouterOptions) {
-  return createRouter(procedures, opts)
+	return createRouter(procedures, opts)
 }
 
 // Default router without pages (used by manifest extraction)

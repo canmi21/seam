@@ -7,112 +7,112 @@ import { SeamQueryProvider, useSeamQuery, useSeamMutation } from '@canmi/seam-qu
 import { seamProcedureConfig } from '../generated/client.js'
 
 interface Todo {
-  id: string
-  title: string
-  done: boolean
+	id: string
+	title: string
+	done: boolean
 }
 
 interface PageData extends Record<string, unknown> {
-  todos: { todos: Todo[] }
+	todos: { todos: Todo[] }
 }
 
 function TodoList() {
-  const { data, isLoading } = useSeamQuery('listTodos', {})
-  const toggleMutation = useSeamMutation('toggleTodo')
-  const todosData = data as { todos: Todo[] } | undefined
+	const { data, isLoading } = useSeamQuery('listTodos', {})
+	const toggleMutation = useSeamMutation('toggleTodo')
+	const todosData = data as { todos: Todo[] } | undefined
 
-  if (isLoading) return <p>Loading...</p>
+	if (isLoading) return <p>Loading...</p>
 
-  return (
-    <ul>
-      {todosData?.todos.map((todo) => (
-        <li key={todo.id}>
-          <label>
-            <input
-              type="checkbox"
-              checked={todo.done}
-              onChange={() => toggleMutation.mutate({ id: todo.id })}
-            />
-            <span style={{ textDecoration: todo.done ? 'line-through' : 'none' }}>
-              {todo.title}
-            </span>
-          </label>
-        </li>
-      ))}
-    </ul>
-  )
+	return (
+		<ul>
+			{todosData?.todos.map((todo) => (
+				<li key={todo.id}>
+					<label>
+						<input
+							type="checkbox"
+							checked={todo.done}
+							onChange={() => toggleMutation.mutate({ id: todo.id })}
+						/>
+						<span style={{ textDecoration: todo.done ? 'line-through' : 'none' }}>
+							{todo.title}
+						</span>
+					</label>
+				</li>
+			))}
+		</ul>
+	)
 }
 
 function AddTodoForm() {
-  const [title, setTitle] = useState('')
-  const addMutation = useSeamMutation('addTodo')
+	const [title, setTitle] = useState('')
+	const addMutation = useSeamMutation('addTodo')
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!title.trim()) return
-    addMutation.mutate({ title: title.trim() })
-    setTitle('')
-  }
+	function handleSubmit(e: React.FormEvent) {
+		e.preventDefault()
+		if (!title.trim()) return
+		addMutation.mutate({ title: title.trim() })
+		setTitle('')
+	}
 
-  return (
-    <form onSubmit={handleSubmit}>
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="New todo..."
-      />
-      <button type="submit">Add</button>
-    </form>
-  )
+	return (
+		<form onSubmit={handleSubmit}>
+			<input
+				type="text"
+				value={title}
+				onChange={(e) => setTitle(e.target.value)}
+				placeholder="New todo..."
+			/>
+			<button type="submit">Add</button>
+		</form>
+	)
 }
 
 /* Static list rendered during skeleton (SSR), before QueryClient exists */
 function StaticTodoList({ todos }: { todos: Todo[] }) {
-  return (
-    <ul>
-      {todos.map((todo) => (
-        <li key={todo.id}>
-          <label>
-            <input type="checkbox" checked={todo.done} readOnly />
-            <span style={{ textDecoration: todo.done ? 'line-through' : 'none' }}>
-              {todo.title}
-            </span>
-          </label>
-        </li>
-      ))}
-    </ul>
-  )
+	return (
+		<ul>
+			{todos.map((todo) => (
+				<li key={todo.id}>
+					<label>
+						<input type="checkbox" checked={todo.done} readOnly />
+						<span style={{ textDecoration: todo.done ? 'line-through' : 'none' }}>
+							{todo.title}
+						</span>
+					</label>
+				</li>
+			))}
+		</ul>
+	)
 }
 
 export default function TodoPage() {
-  const data = useSeamData<PageData>()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+	const data = useSeamData<PageData>()
+	const [mounted, setMounted] = useState(false)
+	useEffect(() => setMounted(true), [])
 
-  /* SeamQueryProvider uses @tanstack/react-query which calls Date.now() on init.
+	/* SeamQueryProvider uses @tanstack/react-query which calls Date.now() on init.
      Skeleton rendering forbids browser APIs, so we defer to client only. */
-  if (!mounted) {
-    return (
-      <div>
-        <h1>Query & Mutation Demo</h1>
-        <StaticTodoList todos={data.todos.todos} />
-      </div>
-    )
-  }
+	if (!mounted) {
+		return (
+			<div>
+				<h1>Query & Mutation Demo</h1>
+				<StaticTodoList todos={data.todos.todos} />
+			</div>
+		)
+	}
 
-  return (
-    <div>
-      <h1>Query & Mutation Demo</h1>
-      <SeamQueryProvider
-        rpcFn={seamRpc}
-        config={seamProcedureConfig}
-        initialData={data}
-        loaderDefs={{ todos: { procedure: 'listTodos' } }}
-      >
-        <AddTodoForm />
-        <TodoList />
-      </SeamQueryProvider>
-    </div>
-  )
+	return (
+		<div>
+			<h1>Query & Mutation Demo</h1>
+			<SeamQueryProvider
+				rpcFn={seamRpc}
+				config={seamProcedureConfig}
+				initialData={data}
+				loaderDefs={{ todos: { procedure: 'listTodos' } }}
+			>
+				<AddTodoForm />
+				<TodoList />
+			</SeamQueryProvider>
+		</div>
+	)
 }

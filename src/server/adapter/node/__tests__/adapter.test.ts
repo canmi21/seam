@@ -10,93 +10,93 @@ let server: Server
 let base: string
 
 function postJson(path: string, body: unknown) {
-  return fetch(`${base}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
+	return fetch(`${base}${path}`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify(body),
+	})
 }
 
 beforeAll(async () => {
-  server = serveNode(router, { port: 0 })
-  await new Promise<void>((r) => {
-    if (server.listening) {
-      r()
-    } else {
-      server.once('listening', r)
-    }
-  })
-  const addr = server.address() as AddressInfo
-  base = `http://localhost:${addr.port}`
+	server = serveNode(router, { port: 0 })
+	await new Promise<void>((r) => {
+		if (server.listening) {
+			r()
+		} else {
+			server.once('listening', r)
+		}
+	})
+	const addr = server.address() as AddressInfo
+	base = `http://localhost:${addr.port}`
 })
 
 afterAll(() => {
-  server.close()
+	server.close()
 })
 
 describe('adapter-node', () => {
-  it('GET /_seam/manifest.json returns manifest', async () => {
-    const res = await fetch(`${base}/_seam/manifest.json`)
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.procedures.greet).toBeDefined()
-  })
+	it('GET /_seam/manifest.json returns manifest', async () => {
+		const res = await fetch(`${base}/_seam/manifest.json`)
+		expect(res.status).toBe(200)
+		const body = await res.json()
+		expect(body.procedures.greet).toBeDefined()
+	})
 
-  it('POST /_seam/procedure/greet with valid input returns 200', async () => {
-    const res = await postJson('/_seam/procedure/greet', { name: 'Alice' })
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body).toEqual({ ok: true, data: { message: 'Hello, Alice!' } })
-  })
+	it('POST /_seam/procedure/greet with valid input returns 200', async () => {
+		const res = await postJson('/_seam/procedure/greet', { name: 'Alice' })
+		expect(res.status).toBe(200)
+		const body = await res.json()
+		expect(body).toEqual({ ok: true, data: { message: 'Hello, Alice!' } })
+	})
 
-  it('POST /_seam/procedure/greet with invalid input returns 400', async () => {
-    const res = await postJson('/_seam/procedure/greet', { name: 123 })
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.ok).toBe(false)
-    expect(body.error.code).toBe('VALIDATION_ERROR')
-  })
+	it('POST /_seam/procedure/greet with invalid input returns 400', async () => {
+		const res = await postJson('/_seam/procedure/greet', { name: 123 })
+		expect(res.status).toBe(400)
+		const body = await res.json()
+		expect(body.ok).toBe(false)
+		expect(body.error.code).toBe('VALIDATION_ERROR')
+	})
 
-  it('POST /_seam/procedure/unknown returns 404', async () => {
-    const res = await postJson('/_seam/procedure/unknown', {})
-    expect(res.status).toBe(404)
-    const body = await res.json()
-    expect(body.ok).toBe(false)
-    expect(body.error.code).toBe('NOT_FOUND')
-  })
+	it('POST /_seam/procedure/unknown returns 404', async () => {
+		const res = await postJson('/_seam/procedure/unknown', {})
+		expect(res.status).toBe(404)
+		const body = await res.json()
+		expect(body.ok).toBe(false)
+		expect(body.error.code).toBe('NOT_FOUND')
+	})
 
-  it('POST non-JSON body returns 400', async () => {
-    const res = await fetch(`${base}/_seam/procedure/greet`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: 'not json',
-    })
-    expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.ok).toBe(false)
-    expect(body.error.code).toBe('VALIDATION_ERROR')
-  })
+	it('POST non-JSON body returns 400', async () => {
+		const res = await fetch(`${base}/_seam/procedure/greet`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'text/plain' },
+			body: 'not json',
+		})
+		expect(res.status).toBe(400)
+		const body = await res.json()
+		expect(body.ok).toBe(false)
+		expect(body.error.code).toBe('VALIDATION_ERROR')
+	})
 
-  it('POST /_seam/procedure/updateName (command) returns 200', async () => {
-    const res = await postJson('/_seam/procedure/updateName', { name: 'test' })
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body).toEqual({ ok: true, data: { success: true } })
-  })
+	it('POST /_seam/procedure/updateName (command) returns 200', async () => {
+		const res = await postJson('/_seam/procedure/updateName', { name: 'test' })
+		expect(res.status).toBe(200)
+		const body = await res.json()
+		expect(body).toEqual({ ok: true, data: { success: true } })
+	})
 
-  it('unknown route returns 404', async () => {
-    const res = await fetch(`${base}/unknown`)
-    expect(res.status).toBe(404)
-    const body = await res.json()
-    expect(body.ok).toBe(false)
-    expect(body.error.code).toBe('NOT_FOUND')
-  })
+	it('unknown route returns 404', async () => {
+		const res = await fetch(`${base}/unknown`)
+		expect(res.status).toBe(404)
+		const body = await res.json()
+		expect(body.ok).toBe(false)
+		expect(body.error.code).toBe('NOT_FOUND')
+	})
 
-  it('empty procedure name returns 404', async () => {
-    const res = await postJson('/_seam/procedure/', {})
-    expect(res.status).toBe(404)
-    const body = await res.json()
-    expect(body.ok).toBe(false)
-    expect(body.error.code).toBe('NOT_FOUND')
-  })
+	it('empty procedure name returns 404', async () => {
+		const res = await postJson('/_seam/procedure/', {})
+		expect(res.status).toBe(404)
+		const body = await res.json()
+		expect(body.ok).toBe(false)
+		expect(body.error.code).toBe('NOT_FOUND')
+	})
 })

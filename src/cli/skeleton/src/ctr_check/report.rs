@@ -7,21 +7,21 @@ use super::diff::CtrDiff;
 
 /// Format a CTR equivalence check failure report.
 pub(super) fn format_ctr_report(route_path: &str, diffs: &[CtrDiff], total_count: usize) -> String {
-  let mut out = String::new();
-  out.push_str("[seam] error: CTR equivalence check failed\n\n");
-  out.push_str(&format!("  Route: {route_path}\n"));
+	let mut out = String::new();
+	out.push_str("[seam] error: CTR equivalence check failed\n\n");
+	out.push_str(&format!("  Route: {route_path}\n"));
 
-  for (i, diff) in diffs.iter().enumerate() {
-    out.push('\n');
-    format_diff(&mut out, i + 1, diff);
-  }
+	for (i, diff) in diffs.iter().enumerate() {
+		out.push('\n');
+		format_diff(&mut out, i + 1, diff);
+	}
 
-  if total_count > diffs.len() {
-    out.push_str(&format!("\n  ... and {} more differences\n", total_count - diffs.len()));
-  }
+	if total_count > diffs.len() {
+		out.push_str(&format!("\n  ... and {} more differences\n", total_count - diffs.len()));
+	}
 
-  out.push_str(
-    "\n  The template output differs from what React produces with the same data.\
+	out.push_str(
+		"\n  The template output differs from what React produces with the same data.\
      \n  This means the component transforms data before rendering -- the sentinel\
      \n  placeholder was consumed by a runtime computation (e.g. map lookup,\
      \n  string formatting) and the result got hardcoded into the template.\
@@ -29,88 +29,88 @@ pub(super) fn format_ctr_report(route_path: &str, diffs: &[CtrDiff], total_count
      \n  CTR requires pure data flow: procedure -> data -> template -> HTML.\
      \n  Move the computation into your procedure handler and return the\
      \n  computed value as a dedicated field.",
-  );
+	);
 
-  out
+	out
 }
 
 fn format_diff(out: &mut String, index: usize, diff: &CtrDiff) {
-  match diff {
-    CtrDiff::TagMismatch { path, expected, actual } => {
-      out.push_str(&format!("  {index}. {path}\n"));
-      out.push_str("     Tag mismatch\n");
-      out.push_str(&format!("       react:    <{expected}>\n"));
-      out.push_str(&format!("       template: <{actual}>\n"));
-    }
-    CtrDiff::AttrMissing { path, attr, expected_value } => {
-      out.push_str(&format!("  {index}. {path}\n"));
-      out.push_str(&format!("     Missing attribute: {attr}\n"));
-      out.push_str(&format!("       react: \"{expected_value}\"\n"));
-    }
-    CtrDiff::AttrExtra { path, attr, actual_value } => {
-      out.push_str(&format!("  {index}. {path}\n"));
-      out.push_str(&format!("     Extra attribute: {attr}\n"));
-      out.push_str(&format!("       template: \"{actual_value}\"\n"));
-    }
-    CtrDiff::AttrValueMismatch { path, attr, expected, actual } => {
-      out.push_str(&format!("  {index}. {path}\n"));
-      out.push_str(&format!("     Attribute value mismatch: {attr}\n"));
-      out.push_str(&format!("       react:    {expected}\n"));
-      out.push_str(&format!("       template: {actual}\n"));
-    }
-    CtrDiff::TextMismatch { path, expected, actual } => {
-      out.push_str(&format!("  {index}. {path}\n"));
-      out.push_str("     Text content mismatch\n");
-      out.push_str(&format!("       react:    \"{expected}\"\n"));
-      out.push_str(&format!("       template: \"{actual}\"\n"));
-    }
-    CtrDiff::TypeMismatch { path, expected_kind, actual_kind } => {
-      out.push_str(&format!("  {index}. {path}\n"));
-      out.push_str(&format!(
-        "     Node type mismatch: expected {expected_kind}, got {actual_kind}\n"
-      ));
-    }
-    CtrDiff::NodeMissing { path, expected_tag } => {
-      out.push_str(&format!("  {}. {}\n", index, if path.is_empty() { "[root]" } else { path }));
-      out.push_str(&format!("     Missing node: <{expected_tag}>\n"));
-    }
-    CtrDiff::NodeExtra { path, actual_tag } => {
-      out.push_str(&format!("  {}. {}\n", index, if path.is_empty() { "[root]" } else { path }));
-      out.push_str(&format!("     Extra node: <{actual_tag}>\n"));
-    }
-  }
+	match diff {
+		CtrDiff::TagMismatch { path, expected, actual } => {
+			out.push_str(&format!("  {index}. {path}\n"));
+			out.push_str("     Tag mismatch\n");
+			out.push_str(&format!("       react:    <{expected}>\n"));
+			out.push_str(&format!("       template: <{actual}>\n"));
+		}
+		CtrDiff::AttrMissing { path, attr, expected_value } => {
+			out.push_str(&format!("  {index}. {path}\n"));
+			out.push_str(&format!("     Missing attribute: {attr}\n"));
+			out.push_str(&format!("       react: \"{expected_value}\"\n"));
+		}
+		CtrDiff::AttrExtra { path, attr, actual_value } => {
+			out.push_str(&format!("  {index}. {path}\n"));
+			out.push_str(&format!("     Extra attribute: {attr}\n"));
+			out.push_str(&format!("       template: \"{actual_value}\"\n"));
+		}
+		CtrDiff::AttrValueMismatch { path, attr, expected, actual } => {
+			out.push_str(&format!("  {index}. {path}\n"));
+			out.push_str(&format!("     Attribute value mismatch: {attr}\n"));
+			out.push_str(&format!("       react:    {expected}\n"));
+			out.push_str(&format!("       template: {actual}\n"));
+		}
+		CtrDiff::TextMismatch { path, expected, actual } => {
+			out.push_str(&format!("  {index}. {path}\n"));
+			out.push_str("     Text content mismatch\n");
+			out.push_str(&format!("       react:    \"{expected}\"\n"));
+			out.push_str(&format!("       template: \"{actual}\"\n"));
+		}
+		CtrDiff::TypeMismatch { path, expected_kind, actual_kind } => {
+			out.push_str(&format!("  {index}. {path}\n"));
+			out.push_str(&format!(
+				"     Node type mismatch: expected {expected_kind}, got {actual_kind}\n"
+			));
+		}
+		CtrDiff::NodeMissing { path, expected_tag } => {
+			out.push_str(&format!("  {}. {}\n", index, if path.is_empty() { "[root]" } else { path }));
+			out.push_str(&format!("     Missing node: <{expected_tag}>\n"));
+		}
+		CtrDiff::NodeExtra { path, actual_tag } => {
+			out.push_str(&format!("  {}. {}\n", index, if path.is_empty() { "[root]" } else { path }));
+			out.push_str(&format!("     Extra node: <{actual_tag}>\n"));
+		}
+	}
 }
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+	use super::*;
 
-  #[test]
-  fn report_single_diff() {
-    let diffs = vec![CtrDiff::AttrValueMismatch {
-      path: "div.grid > span".to_string(),
-      attr: "style".to_string(),
-      expected: "background-color:#f1e05a;display:inline-block".to_string(),
-      actual: "display:inline-block;background-color:#f1e05a".to_string(),
-    }];
-    let report = format_ctr_report("/dashboard", &diffs, 1);
-    assert!(report.contains("CTR equivalence check failed"));
-    assert!(report.contains("/dashboard"));
-    assert!(report.contains("div.grid > span"));
-    assert!(report.contains("style"));
-    assert!(!report.contains("more differences"));
-  }
+	#[test]
+	fn report_single_diff() {
+		let diffs = vec![CtrDiff::AttrValueMismatch {
+			path: "div.grid > span".to_string(),
+			attr: "style".to_string(),
+			expected: "background-color:#f1e05a;display:inline-block".to_string(),
+			actual: "display:inline-block;background-color:#f1e05a".to_string(),
+		}];
+		let report = format_ctr_report("/dashboard", &diffs, 1);
+		assert!(report.contains("CTR equivalence check failed"));
+		assert!(report.contains("/dashboard"));
+		assert!(report.contains("div.grid > span"));
+		assert!(report.contains("style"));
+		assert!(!report.contains("more differences"));
+	}
 
-  #[test]
-  fn report_truncation_message() {
-    let diffs: Vec<CtrDiff> = (0..5)
-      .map(|i| CtrDiff::TextMismatch {
-        path: format!("p:nth-child({})", i + 1),
-        expected: format!("a{i}"),
-        actual: format!("b{i}"),
-      })
-      .collect();
-    let report = format_ctr_report("/page", &diffs, 8);
-    assert!(report.contains("and 3 more differences"));
-  }
+	#[test]
+	fn report_truncation_message() {
+		let diffs: Vec<CtrDiff> = (0..5)
+			.map(|i| CtrDiff::TextMismatch {
+				path: format!("p:nth-child({})", i + 1),
+				expected: format!("a{i}"),
+				actual: format!("b{i}"),
+			})
+			.collect();
+		let report = format_ctr_report("/page", &diffs, 8);
+		assert!(report.contains("and 3 more differences"));
+	}
 }

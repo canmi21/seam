@@ -7,9 +7,9 @@ export { useSeamMutation } from './use-seam-mutation.js'
 
 // Re-export core types for convenience
 export type {
-  ProcedureConfigEntry,
-  ProcedureConfigMap,
-  SeamQueryConfig,
-  RpcFn,
-  LoaderDef,
+	ProcedureConfigEntry,
+	ProcedureConfigMap,
+	SeamQueryConfig,
+	RpcFn,
+	LoaderDef,
 } from '@canmi/seam-query'

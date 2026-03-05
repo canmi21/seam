@@ -1,20 +1,20 @@
 {
-  "files": [],
-  "references": [
-    { "path": "src/server/injector/js" },
-    { "path": "src/server/injector/native" },
-    { "path": "src/server/core/typescript" },
-    { "path": "src/server/adapter/hono" },
-    { "path": "src/server/adapter/bun" },
-    { "path": "src/server/adapter/node" },
-    { "path": "src/client/vanilla" },
-    { "path": "src/client/react" },
-    { "path": "src/router/tanstack" },
-    { "path": "src/router/seam" },
-    { "path": "src/eslint" },
-    { "path": "src/i18n" },
-    { "path": "src/cli/vite" },
-    { "path": "src/query/seam" },
-    { "path": "src/query/react" }
-  ]
+	"files": [],
+	"references": [
+		{ "path": "src/server/injector/js" },
+		{ "path": "src/server/injector/native" },
+		{ "path": "src/server/core/typescript" },
+		{ "path": "src/server/adapter/hono" },
+		{ "path": "src/server/adapter/bun" },
+		{ "path": "src/server/adapter/node" },
+		{ "path": "src/client/vanilla" },
+		{ "path": "src/client/react" },
+		{ "path": "src/router/tanstack" },
+		{ "path": "src/router/seam" },
+		{ "path": "src/eslint" },
+		{ "path": "src/i18n" },
+		{ "path": "src/cli/vite" },
+		{ "path": "src/query/seam" },
+		{ "path": "src/query/react" }
+	]
 }

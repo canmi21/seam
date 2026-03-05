@@ -9,24 +9,24 @@ import { SeamError } from './errors.js'
 import { MIME_TYPES } from './mime.js'
 
 export interface HttpRequest {
-  method: string
-  url: string
-  body: () => Promise<unknown>
-  header?: (name: string) => string | null
-  file?: () => Promise<SeamFileHandle | null>
+	method: string
+	url: string
+	body: () => Promise<unknown>
+	header?: (name: string) => string | null
+	file?: () => Promise<SeamFileHandle | null>
 }
 
 export interface HttpBodyResponse {
-  status: number
-  headers: Record<string, string>
-  body: unknown
+	status: number
+	headers: Record<string, string>
+	body: unknown
 }
 
 export interface HttpStreamResponse {
-  status: number
-  headers: Record<string, string>
-  stream: AsyncIterable<string>
-  onCancel?: () => void
+	status: number
+	headers: Record<string, string>
+	stream: AsyncIterable<string>
+	onCancel?: () => void
 }
 
 export type HttpResponse = HttpBodyResponse | HttpStreamResponse
@@ -34,14 +34,14 @@ export type HttpResponse = HttpBodyResponse | HttpStreamResponse
 export type HttpHandler = (req: HttpRequest) => Promise<HttpResponse>
 
 export interface RpcHashMap {
-  procedures: Record<string, string>
-  batch: string
+	procedures: Record<string, string>
+	batch: string
 }
 
 export interface HttpHandlerOptions {
-  staticDir?: string
-  fallback?: HttpHandler
-  rpcHashMap?: RpcHashMap
+	staticDir?: string
+	fallback?: HttpHandler
+	rpcHashMap?: RpcHashMap
 }
 
 const PROCEDURE_PREFIX = '/_seam/procedure/'
@@ -52,307 +52,305 @@ const MANIFEST_PATH = '/_seam/manifest.json'
 const JSON_HEADER = { 'Content-Type': 'application/json' }
 const HTML_HEADER = { 'Content-Type': 'text/html; charset=utf-8' }
 const SSE_HEADER = {
-  'Content-Type': 'text/event-stream',
-  'Cache-Control': 'no-cache',
-  Connection: 'keep-alive',
+	'Content-Type': 'text/event-stream',
+	'Cache-Control': 'no-cache',
+	Connection: 'keep-alive',
 }
 const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable'
 
 function jsonResponse(status: number, body: unknown): HttpBodyResponse {
-  return { status, headers: JSON_HEADER, body }
+	return { status, headers: JSON_HEADER, body }
 }
 
 function errorResponse(status: number, code: string, message: string): HttpBodyResponse {
-  return jsonResponse(status, new SeamError(code, message).toJSON())
+	return jsonResponse(status, new SeamError(code, message).toJSON())
 }
 
 async function handleStaticAsset(assetPath: string, staticDir: string): Promise<HttpBodyResponse> {
-  if (assetPath.includes('..')) {
-    return errorResponse(403, 'VALIDATION_ERROR', 'Forbidden')
-  }
+	if (assetPath.includes('..')) {
+		return errorResponse(403, 'VALIDATION_ERROR', 'Forbidden')
+	}
 
-  const filePath = join(staticDir, assetPath)
-  try {
-    const content = await readFile(filePath, 'utf-8')
-    const ext = extname(filePath)
-    const contentType = MIME_TYPES[ext] || 'application/octet-stream'
-    return {
-      status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'Cache-Control': IMMUTABLE_CACHE,
-      },
-      body: content,
-    }
-  } catch {
-    return errorResponse(404, 'NOT_FOUND', 'Asset not found')
-  }
+	const filePath = join(staticDir, assetPath)
+	try {
+		const content = await readFile(filePath, 'utf-8')
+		const ext = extname(filePath)
+		const contentType = MIME_TYPES[ext] || 'application/octet-stream'
+		return {
+			status: 200,
+			headers: {
+				'Content-Type': contentType,
+				'Cache-Control': IMMUTABLE_CACHE,
+			},
+			body: content,
+		}
+	} catch {
+		return errorResponse(404, 'NOT_FOUND', 'Asset not found')
+	}
 }
 
 /** Format a single SSE data event */
 export function sseDataEvent(data: unknown): string {
-  return `event: data\ndata: ${JSON.stringify(data)}\n\n`
+	return `event: data\ndata: ${JSON.stringify(data)}\n\n`
 }
 
 /** Format an SSE data event with a sequence id (for streams) */
 export function sseDataEventWithId(data: unknown, id: number): string {
-  return `event: data\nid: ${id}\ndata: ${JSON.stringify(data)}\n\n`
+	return `event: data\nid: ${id}\ndata: ${JSON.stringify(data)}\n\n`
 }
 
 /** Format an SSE error event */
 export function sseErrorEvent(code: string, message: string, transient = false): string {
-  return `event: error\ndata: ${JSON.stringify({ code, message, transient })}\n\n`
+	return `event: error\ndata: ${JSON.stringify({ code, message, transient })}\n\n`
 }
 
 /** Format an SSE complete event */
 export function sseCompleteEvent(): string {
-  return 'event: complete\ndata: {}\n\n'
+	return 'event: complete\ndata: {}\n\n'
 }
 
 async function* sseStream<T extends DefinitionMap>(
-  router: Router<T>,
-  name: string,
-  input: unknown,
-  rawCtx?: RawContextMap,
+	router: Router<T>,
+	name: string,
+	input: unknown,
+	rawCtx?: RawContextMap,
 ): AsyncIterable<string> {
-  try {
-    for await (const value of router.handleSubscription(name, input, rawCtx)) {
-      yield sseDataEvent(value)
-    }
-    yield sseCompleteEvent()
-  } catch (error) {
-    if (error instanceof SeamError) {
-      yield sseErrorEvent(error.code, error.message)
-    } else {
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      yield sseErrorEvent('INTERNAL_ERROR', message)
-    }
-  }
+	try {
+		for await (const value of router.handleSubscription(name, input, rawCtx)) {
+			yield sseDataEvent(value)
+		}
+		yield sseCompleteEvent()
+	} catch (error) {
+		if (error instanceof SeamError) {
+			yield sseErrorEvent(error.code, error.message)
+		} else {
+			const message = error instanceof Error ? error.message : 'Unknown error'
+			yield sseErrorEvent('INTERNAL_ERROR', message)
+		}
+	}
 }
 
 async function* sseStreamForStream<T extends DefinitionMap>(
-  router: Router<T>,
-  name: string,
-  input: unknown,
-  signal?: AbortSignal,
-  rawCtx?: RawContextMap,
+	router: Router<T>,
+	name: string,
+	input: unknown,
+	signal?: AbortSignal,
+	rawCtx?: RawContextMap,
 ): AsyncGenerator<string> {
-  const gen = router.handleStream(name, input, rawCtx)
-  // Wire abort signal to terminate the generator
-  if (signal) {
-    signal.addEventListener(
-      'abort',
-      () => {
-        void gen.return(undefined)
-      },
-      { once: true },
-    )
-  }
-  try {
-    let seq = 0
-    for await (const value of gen) {
-      yield sseDataEventWithId(value, seq++)
-    }
-    yield sseCompleteEvent()
-  } catch (error) {
-    if (error instanceof SeamError) {
-      yield sseErrorEvent(error.code, error.message)
-    } else {
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      yield sseErrorEvent('INTERNAL_ERROR', message)
-    }
-  }
+	const gen = router.handleStream(name, input, rawCtx)
+	// Wire abort signal to terminate the generator
+	if (signal) {
+		signal.addEventListener(
+			'abort',
+			() => {
+				void gen.return(undefined)
+			},
+			{ once: true },
+		)
+	}
+	try {
+		let seq = 0
+		for await (const value of gen) {
+			yield sseDataEventWithId(value, seq++)
+		}
+		yield sseCompleteEvent()
+	} catch (error) {
+		if (error instanceof SeamError) {
+			yield sseErrorEvent(error.code, error.message)
+		} else {
+			const message = error instanceof Error ? error.message : 'Unknown error'
+			yield sseErrorEvent('INTERNAL_ERROR', message)
+		}
+	}
 }
 
 async function handleBatchHttp<T extends DefinitionMap>(
-  req: HttpRequest,
-  router: Router<T>,
-  hashToName: Map<string, string> | null,
-  rawCtx?: RawContextMap,
+	req: HttpRequest,
+	router: Router<T>,
+	hashToName: Map<string, string> | null,
+	rawCtx?: RawContextMap,
 ): Promise<HttpBodyResponse> {
-  let body: unknown
-  try {
-    body = await req.body()
-  } catch {
-    return errorResponse(400, 'VALIDATION_ERROR', 'Invalid JSON body')
-  }
-  if (!body || typeof body !== 'object' || !Array.isArray((body as { calls?: unknown }).calls)) {
-    return errorResponse(400, 'VALIDATION_ERROR', "Batch request must have a 'calls' array")
-  }
-  const calls = (body as { calls: Array<{ procedure?: unknown; input?: unknown }> }).calls.map(
-    (c) => ({
-      procedure:
-        typeof c.procedure === 'string' ? (hashToName?.get(c.procedure) ?? c.procedure) : '',
-      input: c.input ?? {},
-    }),
-  )
-  const result = await router.handleBatch(calls, rawCtx)
-  return jsonResponse(200, { ok: true, data: result })
+	let body: unknown
+	try {
+		body = await req.body()
+	} catch {
+		return errorResponse(400, 'VALIDATION_ERROR', 'Invalid JSON body')
+	}
+	if (!body || typeof body !== 'object' || !Array.isArray((body as { calls?: unknown }).calls)) {
+		return errorResponse(400, 'VALIDATION_ERROR', "Batch request must have a 'calls' array")
+	}
+	const calls = (body as { calls: Array<{ procedure?: unknown; input?: unknown }> }).calls.map(
+		(c) => ({
+			procedure:
+				typeof c.procedure === 'string' ? (hashToName?.get(c.procedure) ?? c.procedure) : '',
+			input: c.input ?? {},
+		}),
+	)
+	const result = await router.handleBatch(calls, rawCtx)
+	return jsonResponse(200, { ok: true, data: result })
 }
 
-/** Resolve hash -> original name when obfuscation is active. Returns null on miss. */
-function resolveHashName(hashToName: Map<string, string> | null, name: string): string | null {
-  if (!hashToName) return name
-  return hashToName.get(name) ?? null
+/** Resolve hash -> original name when obfuscation is active. Accepts both hashed and raw names. */
+function resolveHashName(hashToName: Map<string, string> | null, name: string): string {
+	if (!hashToName) return name
+	return hashToName.get(name) ?? name
 }
 
 export function createHttpHandler<T extends DefinitionMap>(
-  router: Router<T>,
-  opts?: HttpHandlerOptions,
+	router: Router<T>,
+	opts?: HttpHandlerOptions,
 ): HttpHandler {
-  // Build reverse lookup (hash -> original name) when obfuscation is active
-  const hashToName: Map<string, string> | null = opts?.rpcHashMap
-    ? new Map(Object.entries(opts.rpcHashMap.procedures).map(([n, h]) => [h, n]))
-    : null
-  // Built-in procedures bypass hash obfuscation (identity mapping)
-  if (hashToName) {
-    hashToName.set('__seam_i18n_query', '__seam_i18n_query')
-  }
-  const batchHash = opts?.rpcHashMap?.batch ?? null
-  const ctxExtractKeys = router.contextExtractKeys()
+	// Build reverse lookup (hash -> original name) when obfuscation is active
+	const hashToName: Map<string, string> | null = opts?.rpcHashMap
+		? new Map(Object.entries(opts.rpcHashMap.procedures).map(([n, h]) => [h, n]))
+		: null
+	// Built-in procedures bypass hash obfuscation (identity mapping)
+	if (hashToName) {
+		hashToName.set('__seam_i18n_query', '__seam_i18n_query')
+	}
+	const batchHash = opts?.rpcHashMap?.batch ?? null
+	const ctxExtractKeys = router.contextExtractKeys()
 
-  return async (req) => {
-    const url = new URL(req.url, 'http://localhost')
-    const { pathname } = url
+	return async (req) => {
+		const url = new URL(req.url, 'http://localhost')
+		const { pathname } = url
 
-    // Build raw context map from request headers when context fields are defined
-    const rawCtx: RawContextMap | undefined =
-      ctxExtractKeys.length > 0 && req.header
-        ? Object.fromEntries(ctxExtractKeys.map((k) => [k, req.header?.(k) ?? null]))
-        : undefined
+		// Build raw context map from request headers when context fields are defined
+		const rawCtx: RawContextMap | undefined =
+			ctxExtractKeys.length > 0 && req.header
+				? Object.fromEntries(ctxExtractKeys.map((k) => [k, req.header?.(k) ?? null]))
+				: undefined
 
-    if (req.method === 'GET' && pathname === MANIFEST_PATH) {
-      if (opts?.rpcHashMap) return errorResponse(403, 'FORBIDDEN', 'Manifest disabled')
-      return jsonResponse(200, router.manifest())
-    }
+		if (req.method === 'GET' && pathname === MANIFEST_PATH) {
+			if (opts?.rpcHashMap) return errorResponse(403, 'FORBIDDEN', 'Manifest disabled')
+			return jsonResponse(200, router.manifest())
+		}
 
-    if (pathname.startsWith(PROCEDURE_PREFIX)) {
-      const rawName = pathname.slice(PROCEDURE_PREFIX.length)
-      if (!rawName) {
-        return errorResponse(404, 'NOT_FOUND', 'Empty procedure name')
-      }
+		if (pathname.startsWith(PROCEDURE_PREFIX)) {
+			const rawName = pathname.slice(PROCEDURE_PREFIX.length)
+			if (!rawName) {
+				return errorResponse(404, 'NOT_FOUND', 'Empty procedure name')
+			}
 
-      if (req.method === 'POST') {
-        if (rawName === '_batch' || (batchHash && rawName === batchHash)) {
-          return handleBatchHttp(req, router, hashToName, rawCtx)
-        }
+			if (req.method === 'POST') {
+				if (rawName === '_batch' || (batchHash && rawName === batchHash)) {
+					return handleBatchHttp(req, router, hashToName, rawCtx)
+				}
 
-        const name = resolveHashName(hashToName, rawName)
-        if (!name) return errorResponse(404, 'NOT_FOUND', 'Not found')
+				const name = resolveHashName(hashToName, rawName)
 
-        let body: unknown
-        try {
-          body = await req.body()
-        } catch {
-          return errorResponse(400, 'VALIDATION_ERROR', 'Invalid JSON body')
-        }
+				let body: unknown
+				try {
+					body = await req.body()
+				} catch {
+					return errorResponse(400, 'VALIDATION_ERROR', 'Invalid JSON body')
+				}
 
-        if (router.getKind(name) === 'stream') {
-          const controller = new AbortController()
-          return {
-            status: 200,
-            headers: SSE_HEADER,
-            stream: sseStreamForStream(router, name, body, controller.signal, rawCtx),
-            onCancel: () => controller.abort(),
-          }
-        }
+				if (router.getKind(name) === 'stream') {
+					const controller = new AbortController()
+					return {
+						status: 200,
+						headers: SSE_HEADER,
+						stream: sseStreamForStream(router, name, body, controller.signal, rawCtx),
+						onCancel: () => controller.abort(),
+					}
+				}
 
-        if (router.getKind(name) === 'upload') {
-          if (!req.file) {
-            return errorResponse(400, 'VALIDATION_ERROR', 'Upload requires multipart/form-data')
-          }
-          const file = await req.file()
-          if (!file) {
-            return errorResponse(400, 'VALIDATION_ERROR', 'Upload requires file in multipart body')
-          }
-          const result = await router.handleUpload(name, body, file, rawCtx)
-          return jsonResponse(result.status, result.body)
-        }
+				if (router.getKind(name) === 'upload') {
+					if (!req.file) {
+						return errorResponse(400, 'VALIDATION_ERROR', 'Upload requires multipart/form-data')
+					}
+					const file = await req.file()
+					if (!file) {
+						return errorResponse(400, 'VALIDATION_ERROR', 'Upload requires file in multipart body')
+					}
+					const result = await router.handleUpload(name, body, file, rawCtx)
+					return jsonResponse(result.status, result.body)
+				}
 
-        const result = await router.handle(name, body, rawCtx)
-        return jsonResponse(result.status, result.body)
-      }
+				const result = await router.handle(name, body, rawCtx)
+				return jsonResponse(result.status, result.body)
+			}
 
-      if (req.method === 'GET') {
-        const name = resolveHashName(hashToName, rawName)
-        if (!name) return errorResponse(404, 'NOT_FOUND', 'Not found')
+			if (req.method === 'GET') {
+				const name = resolveHashName(hashToName, rawName)
 
-        const rawInput = url.searchParams.get('input')
-        let input: unknown
-        try {
-          input = rawInput ? JSON.parse(rawInput) : {}
-        } catch {
-          return errorResponse(400, 'VALIDATION_ERROR', 'Invalid input query parameter')
-        }
+				const rawInput = url.searchParams.get('input')
+				let input: unknown
+				try {
+					input = rawInput ? JSON.parse(rawInput) : {}
+				} catch {
+					return errorResponse(400, 'VALIDATION_ERROR', 'Invalid input query parameter')
+				}
 
-        return { status: 200, headers: SSE_HEADER, stream: sseStream(router, name, input, rawCtx) }
-      }
-    }
+				return { status: 200, headers: SSE_HEADER, stream: sseStream(router, name, input, rawCtx) }
+			}
+		}
 
-    // Pages are served under /_seam/page/* prefix only.
-    // Root-path serving is the application's responsibility — see the
-    // github-dashboard ts-hono example for the fallback pattern.
-    if (req.method === 'GET' && pathname.startsWith(PAGE_PREFIX) && router.hasPages) {
-      const pagePath = '/' + pathname.slice(PAGE_PREFIX.length)
-      const headers = req.header
-        ? {
-            url: req.url,
-            cookie: req.header('cookie') ?? undefined,
-            acceptLanguage: req.header('accept-language') ?? undefined,
-          }
-        : undefined
-      const result = await router.handlePage(pagePath, headers)
-      if (result) {
-        return { status: result.status, headers: HTML_HEADER, body: result.html }
-      }
-    }
+		// Pages are served under /_seam/page/* prefix only.
+		// Root-path serving is the application's responsibility — see the
+		// github-dashboard ts-hono example for the fallback pattern.
+		if (req.method === 'GET' && pathname.startsWith(PAGE_PREFIX) && router.hasPages) {
+			const pagePath = '/' + pathname.slice(PAGE_PREFIX.length)
+			const headers = req.header
+				? {
+						url: req.url,
+						cookie: req.header('cookie') ?? undefined,
+						acceptLanguage: req.header('accept-language') ?? undefined,
+					}
+				: undefined
+			const result = await router.handlePage(pagePath, headers)
+			if (result) {
+				return { status: result.status, headers: HTML_HEADER, body: result.html }
+			}
+		}
 
-    if (req.method === 'GET' && pathname.startsWith(STATIC_PREFIX) && opts?.staticDir) {
-      const assetPath = pathname.slice(STATIC_PREFIX.length)
-      return handleStaticAsset(assetPath, opts.staticDir)
-    }
+		if (req.method === 'GET' && pathname.startsWith(STATIC_PREFIX) && opts?.staticDir) {
+			const assetPath = pathname.slice(STATIC_PREFIX.length)
+			return handleStaticAsset(assetPath, opts.staticDir)
+		}
 
-    if (opts?.fallback) return opts.fallback(req)
-    return errorResponse(404, 'NOT_FOUND', 'Not found')
-  }
+		if (opts?.fallback) return opts.fallback(req)
+		return errorResponse(404, 'NOT_FOUND', 'Not found')
+	}
 }
 
 export function serialize(body: unknown): string {
-  return typeof body === 'string' ? body : JSON.stringify(body)
+	return typeof body === 'string' ? body : JSON.stringify(body)
 }
 
 /** Consume an async stream chunk-by-chunk; return false from write to stop early. */
 export async function drainStream(
-  stream: AsyncIterable<string>,
-  write: (chunk: string) => boolean | void,
+	stream: AsyncIterable<string>,
+	write: (chunk: string) => boolean | void,
 ): Promise<void> {
-  try {
-    for await (const chunk of stream) {
-      if (write(chunk) === false) break
-    }
-  } catch {
-    // Client disconnected
-  }
+	try {
+		for await (const chunk of stream) {
+			if (write(chunk) === false) break
+		}
+	} catch {
+		// Client disconnected
+	}
 }
 
 /** Convert an HttpResponse to a Web API Response (for adapters using fetch-compatible runtimes) */
 export function toWebResponse(result: HttpResponse): Response {
-  if ('stream' in result) {
-    const stream = result.stream
-    const onCancel = result.onCancel
-    const encoder = new TextEncoder()
-    const readable = new ReadableStream({
-      async start(controller) {
-        await drainStream(stream, (chunk) => {
-          controller.enqueue(encoder.encode(chunk))
-        })
-        controller.close()
-      },
-      cancel() {
-        onCancel?.()
-      },
-    })
-    return new Response(readable, { status: result.status, headers: result.headers })
-  }
-  return new Response(serialize(result.body), { status: result.status, headers: result.headers })
+	if ('stream' in result) {
+		const stream = result.stream
+		const onCancel = result.onCancel
+		const encoder = new TextEncoder()
+		const readable = new ReadableStream({
+			async start(controller) {
+				await drainStream(stream, (chunk) => {
+					controller.enqueue(encoder.encode(chunk))
+				})
+				controller.close()
+			},
+			cancel() {
+				onCancel?.()
+			},
+		})
+		return new Response(readable, { status: result.status, headers: result.headers })
+	}
+	return new Response(serialize(result.body), { status: result.status, headers: result.headers })
 }

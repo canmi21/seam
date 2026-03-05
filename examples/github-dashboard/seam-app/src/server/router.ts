@@ -7,7 +7,7 @@ import { getSession, getHomeData, getUser, getUserRepos } from './procedures.js'
 export const procedures = { getSession, getHomeData, getUser, getUserRepos }
 
 export function buildRouter(opts?: RouterOptions) {
-  return createRouter(procedures, opts)
+	return createRouter(procedures, opts)
 }
 
 // Default router without pages (used by manifest extraction)

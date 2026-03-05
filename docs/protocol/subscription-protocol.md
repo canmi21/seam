@@ -71,21 +71,21 @@ They are distinguished by the `kind` field:
 
 ```json
 {
-  "version": 2,
-  "context": {},
-  "procedures": {
-    "greet": {
-      "kind": "query",
-      "input": { "properties": { "name": { "type": "string" } } },
-      "output": { "properties": { "message": { "type": "string" } } }
-    },
-    "onCount": {
-      "kind": "subscription",
-      "input": { "properties": { "max": { "type": "int32" } } },
-      "output": { "properties": { "n": { "type": "int32" } } }
-    }
-  },
-  "transportDefaults": {}
+	"version": 2,
+	"context": {},
+	"procedures": {
+		"greet": {
+			"kind": "query",
+			"input": { "properties": { "name": { "type": "string" } } },
+			"output": { "properties": { "message": { "type": "string" } } }
+		},
+		"onCount": {
+			"kind": "subscription",
+			"input": { "properties": { "max": { "type": "int32" } } },
+			"output": { "properties": { "n": { "type": "int32" } } }
+		}
+	},
+	"transportDefaults": {}
 }
 ```
 

@@ -8,5 +8,5 @@ mod tests;
 
 pub use loader::{find_seam_config, load_seam_config, resolve_member_config, validate_workspace};
 pub use types::{
-  I18nMode, I18nSection, SeamConfig, TransportConfig, TransportPreference, TransportSection,
+	I18nMode, I18nSection, SeamConfig, TransportConfig, TransportPreference, TransportSection,
 };

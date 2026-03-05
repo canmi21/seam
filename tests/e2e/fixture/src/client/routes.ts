@@ -9,64 +9,64 @@ import { AsyncSkeleton } from './pages/async-skeleton.js'
 import { HtmlSlotSkeleton } from './pages/html-slot-skeleton.js'
 
 export default defineRoutes([
-  {
-    path: '/',
-    component: HomeSkeleton,
-    loaders: {
-      page: { procedure: 'getHomeData' },
-    },
-    mock: {
-      title: 'E2E Fixture',
-      message: 'Hydration test page.',
-    },
-  },
-  {
-    path: '/react19',
-    component: React19Skeleton,
-    loaders: {
-      page: { procedure: 'getReact19Data' },
-    },
-    mock: {
-      heading: 'React 19 Features',
-      description:
-        'Demonstrating useId, Suspense, useState, useRef, useMemo, and metadata hoisting.',
-    },
-  },
-  {
-    path: '/form',
-    component: FormSkeleton,
-    loaders: {
-      page: { procedure: 'getFormPageData' },
-    },
-    mock: {
-      heading: 'Contact Form',
-    },
-  },
-  {
-    path: '/error',
-    component: ErrorSkeleton,
-    loaders: {
-      page: { procedure: 'getErrorPageData' },
-    },
-    mock: {
-      heading: 'Error Boundary Test',
-    },
-  },
-  {
-    path: '/async',
-    component: AsyncSkeleton,
-    loaders: {
-      page: { procedure: 'getAsyncPageData' },
-    },
-    mock: {
-      heading: 'Async Loading Test',
-    },
-  },
-  {
-    path: '/test-html',
-    component: HtmlSlotSkeleton,
-    loaders: {
-      page: { procedure: 'getRenderedContent' },
-    },
-  },
+	{
+		path: '/',
+		component: HomeSkeleton,
+		loaders: {
+			page: { procedure: 'getHomeData' },
+		},
+		mock: {
+			title: 'E2E Fixture',
+			message: 'Hydration test page.',
+		},
+	},
+	{
+		path: '/react19',
+		component: React19Skeleton,
+		loaders: {
+			page: { procedure: 'getReact19Data' },
+		},
+		mock: {
+			heading: 'React 19 Features',
+			description:
+				'Demonstrating useId, Suspense, useState, useRef, useMemo, and metadata hoisting.',
+		},
+	},
+	{
+		path: '/form',
+		component: FormSkeleton,
+		loaders: {
+			page: { procedure: 'getFormPageData' },
+		},
+		mock: {
+			heading: 'Contact Form',
+		},
+	},
+	{
+		path: '/error',
+		component: ErrorSkeleton,
+		loaders: {
+			page: { procedure: 'getErrorPageData' },
+		},
+		mock: {
+			heading: 'Error Boundary Test',
+		},
+	},
+	{
+		path: '/async',
+		component: AsyncSkeleton,
+		loaders: {
+			page: { procedure: 'getAsyncPageData' },
+		},
+		mock: {
+			heading: 'Async Loading Test',
+		},
+	},
+	{
+		path: '/test-html',
+		component: HtmlSlotSkeleton,
+		loaders: {
+			page: { procedure: 'getRenderedContent' },
+		},
+	},
 ])

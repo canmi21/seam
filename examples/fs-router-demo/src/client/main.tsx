@@ -8,7 +8,7 @@ const root = document.getElementById('__seam')
 if (!root) throw new Error('Missing #__seam element')
 
 seamHydrate({
-  routes,
-  root,
-  dataId: DATA_ID,
+	routes,
+	root,
+	dataId: DATA_ID,
 })

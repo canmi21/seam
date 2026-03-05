@@ -17,9 +17,9 @@ const app = new Hono()
 app.use('/*', seam(router, { staticDir: resolve(BUILD_DIR, 'public') }))
 
 app.get('*', async (c) => {
-  const result = await router.handlePage(new URL(c.req.url).pathname)
-  if (!result) return c.text('Not Found', 404)
-  return c.html(result.html, result.status as 200)
+	const result = await router.handlePage(new URL(c.req.url).pathname)
+	if (!result) return c.text('Not Found', 404)
+	return c.html(result.html, result.status as 200)
 })
 
 const port = Number(process.env.PORT) || 3456

@@ -5,5 +5,5 @@
  *  - `/*name` or `/*name?` (catch-all) → `/$`
  */
 export function convertPath(seamPath: string): string {
-  return seamPath.replace(/\/\*\w+\??$/, '/$').replace(/:(\w+)/g, '$$$1')
+	return seamPath.replace(/\/\*\w+\??$/, '/$').replace(/:(\w+)/g, '$$$1')
 }

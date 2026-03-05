@@ -18,8 +18,8 @@ Add the recommended config to your ESLint flat config:
 import seamPlugin from '@canmi/eslint-plugin-seam'
 
 export default [
-  ...seamPlugin.configs.recommended,
-  // your other configs...
+	...seamPlugin.configs.recommended,
+	// your other configs...
 ]
 ```
 

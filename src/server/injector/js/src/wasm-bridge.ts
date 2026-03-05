@@ -4,13 +4,13 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  __wbg_set_wasm,
-  inject as wasmInject,
-  inject_no_script as wasmInjectNoScript,
+	__wbg_set_wasm,
+	inject as wasmInject,
+	inject_no_script as wasmInjectNoScript,
 } from '../pkg/injector.js'
 
 export interface InjectOptions {
-  skipDataScript?: boolean
+	skipDataScript?: boolean
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -22,13 +22,13 @@ const wasmInstance = new WebAssembly.Instance(wasmModule)
 __wbg_set_wasm(wasmInstance.exports)
 
 export function inject(
-  template: string,
-  data: Record<string, unknown>,
-  options?: InjectOptions,
+	template: string,
+	data: Record<string, unknown>,
+	options?: InjectOptions,
 ): string {
-  const json = JSON.stringify(data)
-  if (options?.skipDataScript) {
-    return wasmInjectNoScript(template, json)
-  }
-  return wasmInject(template, json)
+	const json = JSON.stringify(data)
+	if (options?.skipDataScript) {
+		return wasmInjectNoScript(template, json)
+	}
+	return wasmInject(template, json)
 }

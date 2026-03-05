@@ -31,10 +31,10 @@ pub use fullstack::run_dev_build;
 // -- Entry point --
 
 pub fn run_build(config: &SeamConfig, base_dir: &Path) -> Result<()> {
-  let build_config = BuildConfig::from_seam_config(config)?;
-  if build_config.is_fullstack {
-    fullstack::run_fullstack_build(config, &build_config, base_dir)
-  } else {
-    frontend::run_frontend_build(&build_config, base_dir)
-  }
+	let build_config = BuildConfig::from_seam_config(config)?;
+	if build_config.is_fullstack {
+		fullstack::run_fullstack_build(config, &build_config, base_dir)
+	} else {
+		frontend::run_frontend_build(&build_config, base_dir)
+	}
 }

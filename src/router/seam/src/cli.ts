@@ -11,18 +11,18 @@ const pagesDir = process.argv[2]
 const outputPath = process.argv[3]
 
 if (!pagesDir || !outputPath) {
-  console.error('Usage: seam-router-generate <pagesDir> <outputPath>')
-  process.exit(1)
+	console.error('Usage: seam-router-generate <pagesDir> <outputPath>')
+	process.exit(1)
 }
 
 const tree = scanPages({ pagesDir })
 const errors = validateRouteTree(tree)
 
 if (errors.length > 0) {
-  for (const err of errors) {
-    console.error(`[${err.type}] ${err.message}`)
-  }
-  process.exit(1)
+	for (const err of errors) {
+		console.error(`[${err.type}] ${err.message}`)
+	}
+	process.exit(1)
 }
 
 const content = generateRoutesFile(tree, { outputPath })

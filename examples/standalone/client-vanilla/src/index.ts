@@ -26,12 +26,12 @@ console.log('updateEmail:', result)
 // --- Subscription ---
 console.log('onCount: subscribing (max=3)...')
 await new Promise<void>((resolve) => {
-  const unsub = api.onCount({ max: 3 }, (data) => {
-    console.log('  onCount event:', data)
-    if (data.n >= 3) {
-      unsub()
-      resolve()
-    }
-  })
+	const unsub = api.onCount({ max: 3 }, (data) => {
+		console.log('  onCount event:', data)
+		if (data.n >= 3) {
+			unsub()
+			resolve()
+		}
+	})
 })
 console.log('onCount: done')

@@ -7,10 +7,10 @@ import { UserPage } from './pages/user-page.js'
 // Hydration entry point -- Phase 3C will add proper routing
 const root = document.getElementById('__seam')
 if (root) {
-  hydrateRoot(
-    root,
-    <StrictMode>
-      <UserPage />
-    </StrictMode>,
-  )
+	hydrateRoot(
+		root,
+		<StrictMode>
+			<UserPage />
+		</StrictMode>,
+	)
 }

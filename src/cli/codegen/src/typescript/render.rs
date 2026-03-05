@@ -9,174 +9,174 @@ use serde_json::Value;
 /// Properties form -> `export interface`, other forms -> `export type`.
 /// Empty properties form -> `Record<string, never>` to avoid lint-unfriendly empty interfaces.
 pub(super) fn render_top_level(name: &str, schema: &Value) -> Result<String> {
-  if is_properties_form(schema) {
-    let has_props =
-      schema.get("properties").and_then(Value::as_object).is_some_and(|o| !o.is_empty());
-    let has_opt =
-      schema.get("optionalProperties").and_then(Value::as_object).is_some_and(|o| !o.is_empty());
-    if !has_props && !has_opt {
-      return Ok(format!("export type {name} = Record<string, never>;\n"));
-    }
-    render_interface(name, schema)
-  } else {
-    let ts = render_type(schema).with_context(|| format!("rendering type for {name}"))?;
-    Ok(format!("export type {name} = {ts};\n"))
-  }
+	if is_properties_form(schema) {
+		let has_props =
+			schema.get("properties").and_then(Value::as_object).is_some_and(|o| !o.is_empty());
+		let has_opt =
+			schema.get("optionalProperties").and_then(Value::as_object).is_some_and(|o| !o.is_empty());
+		if !has_props && !has_opt {
+			return Ok(format!("export type {name} = Record<string, never>;\n"));
+		}
+		render_interface(name, schema)
+	} else {
+		let ts = render_type(schema).with_context(|| format!("rendering type for {name}"))?;
+		Ok(format!("export type {name} = {ts};\n"))
+	}
 }
 
 /// Render a JTD properties-form schema as a TypeScript interface.
 fn render_interface(name: &str, schema: &Value) -> Result<String> {
-  let nullable = schema.get("nullable").and_then(Value::as_bool).unwrap_or(false);
-  let mut out = String::new();
+	let nullable = schema.get("nullable").and_then(Value::as_bool).unwrap_or(false);
+	let mut out = String::new();
 
-  out.push_str(&format!("export interface {name} {{\n"));
+	out.push_str(&format!("export interface {name} {{\n"));
 
-  if let Some(props) = schema.get("properties").and_then(Value::as_object) {
-    let sorted: BTreeMap<_, _> = props.iter().collect();
-    for (key, val) in sorted {
-      let ts = render_type(val)?;
-      out.push_str(&format!("  {key}: {ts};\n"));
-    }
-  }
+	if let Some(props) = schema.get("properties").and_then(Value::as_object) {
+		let sorted: BTreeMap<_, _> = props.iter().collect();
+		for (key, val) in sorted {
+			let ts = render_type(val)?;
+			out.push_str(&format!("  {key}: {ts};\n"));
+		}
+	}
 
-  if let Some(opt_props) = schema.get("optionalProperties").and_then(Value::as_object) {
-    let sorted: BTreeMap<_, _> = opt_props.iter().collect();
-    for (key, val) in sorted {
-      let ts = render_type(val)?;
-      out.push_str(&format!("  {key}?: {ts};\n"));
-    }
-  }
+	if let Some(opt_props) = schema.get("optionalProperties").and_then(Value::as_object) {
+		let sorted: BTreeMap<_, _> = opt_props.iter().collect();
+		for (key, val) in sorted {
+			let ts = render_type(val)?;
+			out.push_str(&format!("  {key}?: {ts};\n"));
+		}
+	}
 
-  out.push_str("}\n");
+	out.push_str("}\n");
 
-  if nullable {
-    // Wrap as type alias instead
-    return Ok(
-      format!("export type {name} = {name}Inner | null;\n\nexport interface {name}Inner {{\n")
-        + &out[format!("export interface {name} {{\n").len()..],
-    );
-  }
+	if nullable {
+		// Wrap as type alias instead
+		return Ok(
+			format!("export type {name} = {name}Inner | null;\n\nexport interface {name}Inner {{\n")
+				+ &out[format!("export interface {name} {{\n").len()..],
+		);
+	}
 
-  Ok(out)
+	Ok(out)
 }
 
 /// Recursively render a JTD schema as a TypeScript type expression.
 pub(super) fn render_type(schema: &Value) -> Result<String> {
-  let nullable = schema.get("nullable").and_then(Value::as_bool).unwrap_or(false);
-  let inner = render_type_inner(schema)?;
+	let nullable = schema.get("nullable").and_then(Value::as_bool).unwrap_or(false);
+	let inner = render_type_inner(schema)?;
 
-  if nullable { Ok(format!("{inner} | null")) } else { Ok(inner) }
+	if nullable { Ok(format!("{inner} | null")) } else { Ok(inner) }
 }
 
 fn render_type_inner(schema: &Value) -> Result<String> {
-  let Some(obj) = schema.as_object() else {
-    anyhow::bail!("schema must be a JSON object");
-  };
+	let Some(obj) = schema.as_object() else {
+		anyhow::bail!("schema must be a JSON object");
+	};
 
-  // Empty form (only nullable key or truly empty)
-  let meaningful_keys: Vec<_> = obj.keys().filter(|k| *k != "nullable").collect();
-  if meaningful_keys.is_empty() {
-    return Ok("unknown".to_string());
-  }
+	// Empty form (only nullable key or truly empty)
+	let meaningful_keys: Vec<_> = obj.keys().filter(|k| *k != "nullable").collect();
+	if meaningful_keys.is_empty() {
+		return Ok("unknown".to_string());
+	}
 
-  // Type form
-  if let Some(t) = obj.get("type").and_then(|v| v.as_str()) {
-    return Ok(jtd_type_to_ts(t).to_string());
-  }
+	// Type form
+	if let Some(t) = obj.get("type").and_then(|v| v.as_str()) {
+		return Ok(jtd_type_to_ts(t).to_string());
+	}
 
-  // Enum form
-  if let Some(variants) = obj.get("enum").and_then(|v| v.as_array()) {
-    let parts: Vec<String> =
-      variants.iter().filter_map(|v| v.as_str()).map(|s| format!("\"{s}\"")).collect();
-    return Ok(parts.join(" | "));
-  }
+	// Enum form
+	if let Some(variants) = obj.get("enum").and_then(|v| v.as_array()) {
+		let parts: Vec<String> =
+			variants.iter().filter_map(|v| v.as_str()).map(|s| format!("\"{s}\"")).collect();
+		return Ok(parts.join(" | "));
+	}
 
-  // Elements form
-  if let Some(elem) = obj.get("elements") {
-    let inner = render_type(elem)?;
-    return Ok(format!("Array<{inner}>"));
-  }
+	// Elements form
+	if let Some(elem) = obj.get("elements") {
+		let inner = render_type(elem)?;
+		return Ok(format!("Array<{inner}>"));
+	}
 
-  // Values form
-  if let Some(val) = obj.get("values") {
-    let inner = render_type(val)?;
-    return Ok(format!("Record<string, {inner}>"));
-  }
+	// Values form
+	if let Some(val) = obj.get("values") {
+		let inner = render_type(val)?;
+		return Ok(format!("Record<string, {inner}>"));
+	}
 
-  // Discriminator form
-  if let Some(tag) = obj.get("discriminator").and_then(|v| v.as_str())
-    && let Some(mapping) = obj.get("mapping").and_then(Value::as_object)
-  {
-    let sorted: BTreeMap<_, _> = mapping.iter().collect();
-    let parts: Vec<String> = sorted
-      .iter()
-      .map(|(key, variant)| {
-        let variant_ts = render_type(variant)?;
-        Ok(format!("({{ {tag}: \"{key}\" }} & {variant_ts})"))
-      })
-      .collect::<Result<Vec<_>>>()?;
-    return Ok(parts.join(" | "));
-  }
+	// Discriminator form
+	if let Some(tag) = obj.get("discriminator").and_then(|v| v.as_str())
+		&& let Some(mapping) = obj.get("mapping").and_then(Value::as_object)
+	{
+		let sorted: BTreeMap<_, _> = mapping.iter().collect();
+		let parts: Vec<String> = sorted
+			.iter()
+			.map(|(key, variant)| {
+				let variant_ts = render_type(variant)?;
+				Ok(format!("({{ {tag}: \"{key}\" }} & {variant_ts})"))
+			})
+			.collect::<Result<Vec<_>>>()?;
+		return Ok(parts.join(" | "));
+	}
 
-  // Properties form
-  if is_properties_form(schema) {
-    return render_inline_object(schema);
-  }
+	// Properties form
+	if is_properties_form(schema) {
+		return render_inline_object(schema);
+	}
 
-  // Ref form (not used in v0.1.0, but handle gracefully)
-  if let Some(r) = obj.get("ref").and_then(|v| v.as_str()) {
-    return Ok(r.to_string());
-  }
+	// Ref form (not used in v0.1.0, but handle gracefully)
+	if let Some(r) = obj.get("ref").and_then(|v| v.as_str()) {
+		return Ok(r.to_string());
+	}
 
-  anyhow::bail!("unrecognized JTD schema form: {schema}")
+	anyhow::bail!("unrecognized JTD schema form: {schema}")
 }
 
 fn render_inline_object(schema: &Value) -> Result<String> {
-  let mut fields = Vec::new();
+	let mut fields = Vec::new();
 
-  if let Some(props) = schema.get("properties").and_then(Value::as_object) {
-    let sorted: BTreeMap<_, _> = props.iter().collect();
-    for (key, val) in sorted {
-      let ts = render_type(val)?;
-      fields.push(format!("{key}: {ts}"));
-    }
-  }
+	if let Some(props) = schema.get("properties").and_then(Value::as_object) {
+		let sorted: BTreeMap<_, _> = props.iter().collect();
+		for (key, val) in sorted {
+			let ts = render_type(val)?;
+			fields.push(format!("{key}: {ts}"));
+		}
+	}
 
-  if let Some(opt_props) = schema.get("optionalProperties").and_then(Value::as_object) {
-    let sorted: BTreeMap<_, _> = opt_props.iter().collect();
-    for (key, val) in sorted {
-      let ts = render_type(val)?;
-      fields.push(format!("{key}?: {ts}"));
-    }
-  }
+	if let Some(opt_props) = schema.get("optionalProperties").and_then(Value::as_object) {
+		let sorted: BTreeMap<_, _> = opt_props.iter().collect();
+		for (key, val) in sorted {
+			let ts = render_type(val)?;
+			fields.push(format!("{key}?: {ts}"));
+		}
+	}
 
-  Ok(format!("{{ {} }}", fields.join("; ")))
+	Ok(format!("{{ {} }}", fields.join("; ")))
 }
 
 fn is_properties_form(schema: &Value) -> bool {
-  schema.get("properties").is_some() || schema.get("optionalProperties").is_some()
+	schema.get("properties").is_some() || schema.get("optionalProperties").is_some()
 }
 
 fn jtd_type_to_ts(t: &str) -> &str {
-  match t {
-    "string" | "timestamp" => "string",
-    "boolean" => "boolean",
-    "int8" | "int16" | "int32" | "uint8" | "uint16" | "uint32" | "float32" | "float64" => "number",
-    _ => "unknown",
-  }
+	match t {
+		"string" | "timestamp" => "string",
+		"boolean" => "boolean",
+		"int8" | "int16" | "int32" | "uint8" | "uint16" | "uint32" | "float32" | "float64" => "number",
+		_ => "unknown",
+	}
 }
 
 /// Convert a procedure name to PascalCase for TS identifier prefix.
 /// Splits on dots, capitalizes each segment.
 /// "getUser" -> "GetUser", "user.getProfile" -> "UserGetProfile"
 pub(super) fn to_pascal_case(s: &str) -> String {
-  s.split('.').map(capitalize_segment).collect()
+	s.split('.').map(capitalize_segment).collect()
 }
 
 fn capitalize_segment(s: &str) -> String {
-  let mut chars = s.chars();
-  match chars.next() {
-    Some(c) => c.to_uppercase().to_string() + chars.as_str(),
-    None => String::new(),
-  }
+	let mut chars = s.chars();
+	match chars.next() {
+		Some(c) => c.to_uppercase().to_string() + chars.as_str(),
+		None => String::new(),
+	}
 }

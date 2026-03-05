@@ -4,20 +4,20 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  __wbg_set_wasm,
-  render_page as wasmRenderPage,
-  parse_build_output as wasmParseBuildOutput,
-  parse_i18n_config as wasmParseI18nConfig,
-  parse_rpc_hash_map as wasmParseRpcHashMap,
-  ascii_escape_json as wasmAsciiEscapeJson,
-  i18n_query as wasmI18nQuery,
-  inject as wasmInject,
-  inject_no_script as wasmInjectNoScript,
+	__wbg_set_wasm,
+	render_page as wasmRenderPage,
+	parse_build_output as wasmParseBuildOutput,
+	parse_i18n_config as wasmParseI18nConfig,
+	parse_rpc_hash_map as wasmParseRpcHashMap,
+	ascii_escape_json as wasmAsciiEscapeJson,
+	i18n_query as wasmI18nQuery,
+	inject as wasmInject,
+	inject_no_script as wasmInjectNoScript,
 } from '../pkg/engine.js'
 
 export interface InjectOptions {
-  skipDataScript?: boolean
-  dataId?: string
+	skipDataScript?: boolean
+	dataId?: string
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -31,53 +31,53 @@ __wbg_set_wasm(wasmInstance.exports)
 // --- Engine functions ---
 
 export function renderPage(
-  template: string,
-  loaderDataJson: string,
-  configJson: string,
-  i18nOptsJson?: string,
+	template: string,
+	loaderDataJson: string,
+	configJson: string,
+	i18nOptsJson?: string,
 ): string {
-  return wasmRenderPage(template, loaderDataJson, configJson, i18nOptsJson ?? '')
+	return wasmRenderPage(template, loaderDataJson, configJson, i18nOptsJson ?? '')
 }
 
 export function parseBuildOutput(manifestJson: string): string {
-  return wasmParseBuildOutput(manifestJson)
+	return wasmParseBuildOutput(manifestJson)
 }
 
 export function parseI18nConfig(manifestJson: string): string {
-  return wasmParseI18nConfig(manifestJson)
+	return wasmParseI18nConfig(manifestJson)
 }
 
 export function parseRpcHashMap(hashMapJson: string): string {
-  return wasmParseRpcHashMap(hashMapJson)
+	return wasmParseRpcHashMap(hashMapJson)
 }
 
 export function asciiEscapeJson(json: string): string {
-  return wasmAsciiEscapeJson(json)
+	return wasmAsciiEscapeJson(json)
 }
 
 export function i18nQuery(
-  keysJson: string,
-  locale: string,
-  defaultLocale: string,
-  messagesJson: string,
+	keysJson: string,
+	locale: string,
+	defaultLocale: string,
+	messagesJson: string,
 ): string {
-  return wasmI18nQuery(keysJson, locale, defaultLocale, messagesJson)
+	return wasmI18nQuery(keysJson, locale, defaultLocale, messagesJson)
 }
 
 // --- Injector functions (re-exported for convenience) ---
 
 export function inject(
-  template: string,
-  data: Record<string, unknown>,
-  options?: InjectOptions,
+	template: string,
+	data: Record<string, unknown>,
+	options?: InjectOptions,
 ): string {
-  const json = JSON.stringify(data)
-  if (options?.skipDataScript) {
-    return wasmInjectNoScript(template, json)
-  }
-  return wasmInject(template, json, options?.dataId ?? '__data')
+	const json = JSON.stringify(data)
+	if (options?.skipDataScript) {
+		return wasmInjectNoScript(template, json)
+	}
+	return wasmInject(template, json, options?.dataId ?? '__data')
 }
 
 export function injectNoScript(template: string, dataJson: string): string {
-  return wasmInjectNoScript(template, dataJson)
+	return wasmInjectNoScript(template, dataJson)
 }

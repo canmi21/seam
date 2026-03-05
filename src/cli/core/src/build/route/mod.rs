@@ -18,15 +18,15 @@ mod tests;
 // Re-export all public items for use by other modules
 pub(crate) use helpers::{print_asset_files, read_i18n_messages};
 pub(crate) use manifest::{
-  extract_manifest, extract_manifest_command, generate_types, package_static_assets,
-  print_procedure_breakdown, run_typecheck, validate_invalidates,
+	extract_manifest, extract_manifest_command, generate_types, package_static_assets,
+	print_procedure_breakdown, run_typecheck, validate_invalidates,
 };
 pub(crate) use process::{
-  BundleContext, RenderContext, export_i18n, process_routes, run_skeleton_renderer,
+	BundleContext, RenderContext, export_i18n, process_routes, run_skeleton_renderer,
 };
 pub(crate) use projection::{inject_route_projections, report_narrowing_savings};
 pub(crate) use ref_graph::{
-  ProcedureRefGraph, build_reference_graph, generate_route_procedures_ts, inject_route_procedures,
-  validate_handoff_consistency, validate_procedure_references, warn_unused_queries,
+	ProcedureRefGraph, build_reference_graph, generate_route_procedures_ts, inject_route_procedures,
+	validate_handoff_consistency, validate_procedure_references, warn_unused_queries,
 };
 pub(crate) use types::{CacheStats, RouteManifest, SkeletonOutput};

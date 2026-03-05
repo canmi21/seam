@@ -9,23 +9,23 @@ export const I18nProvider = I18nContext.Provider
 
 /** Context for switchLocale wiring: RPC function + route hash + state updater */
 export interface SwitchLocaleContext {
-  rpc: (procedure: string, input: unknown) => Promise<unknown>
-  routeHash: string
-  onMessages: (locale: string, messages: Record<string, string>, hash?: string) => void
+	rpc: (procedure: string, input: unknown) => Promise<unknown>
+	routeHash: string
+	onMessages: (locale: string, messages: Record<string, string>, hash?: string) => void
 }
 
 const SwitchLocaleCtx = createContext<SwitchLocaleContext | null>(null)
 export const SwitchLocaleProvider = SwitchLocaleCtx.Provider
 
 export function useT(): (key: string, params?: Record<string, string | number>) => string {
-  const ctx = useContext(I18nContext)
-  if (!ctx) return (key) => key
-  return ctx.t
+	const ctx = useContext(I18nContext)
+	if (!ctx) return (key) => key
+	return ctx.t
 }
 
 export function useLocale(): string {
-  const ctx = useContext(I18nContext)
-  return ctx?.locale ?? 'en'
+	const ctx = useContext(I18nContext)
+	return ctx?.locale ?? 'en'
 }
 
 /**
@@ -34,18 +34,18 @@ export function useLocale(): string {
  * In reload mode (default), simply writes cookie and reloads.
  */
 export function useSwitchLocale(): (locale: string, opts?: SwitchLocaleOptions) => Promise<void> {
-  const switchCtx = useContext(SwitchLocaleCtx)
-  return useCallback(
-    (locale: string, opts?: SwitchLocaleOptions) => {
-      const merged: SwitchLocaleOptions = { ...opts }
-      // Wire SPA mode from context when available and reload not explicitly requested
-      if (switchCtx && merged.reload === false) {
-        merged.rpc ??= switchCtx.rpc
-        merged.routeHash ??= switchCtx.routeHash
-        merged.onMessages ??= switchCtx.onMessages
-      }
-      return switchLocale(locale, merged)
-    },
-    [switchCtx],
-  )
+	const switchCtx = useContext(SwitchLocaleCtx)
+	return useCallback(
+		(locale: string, opts?: SwitchLocaleOptions) => {
+			const merged: SwitchLocaleOptions = { ...opts }
+			// Wire SPA mode from context when available and reload not explicitly requested
+			if (switchCtx && merged.reload === false) {
+				merged.rpc ??= switchCtx.rpc
+				merged.routeHash ??= switchCtx.routeHash
+				merged.onMessages ??= switchCtx.onMessages
+			}
+			return switchLocale(locale, merged)
+		},
+		[switchCtx],
+	)
 }

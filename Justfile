@@ -50,7 +50,7 @@ fmt-check:
     test -z "$(gofmt -l .)"
 
 # Run all linters
-lint: lint-ts lint-clippy lint-go
+lint: lint-ts lint-clippy lint-go lint-length
 
 # Lint TS (oxlint + eslint)
 lint-ts:
@@ -77,6 +77,14 @@ lint-go:
       (cd "$dir" && golangci-lint run ./...) || status=1
     done < <(find . -name go.mod -not -path '*/vendor/*')
     exit $status
+
+# Warn about files exceeding 500 lines
+lint-length:
+    bash scripts/lint-length.sh
+
+# Audit all lint-suppression markers (manual, not in default lint)
+lint-suppressions:
+    bash scripts/lint-suppressions.sh
 
 # Check unlisted dependencies (knip)
 lint-deps:

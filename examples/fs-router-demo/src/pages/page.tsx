@@ -3,15 +3,15 @@
 import { useSeamData } from '@canmi/seam-react'
 
 interface HomeData extends Record<string, unknown> {
-  home: { title: string; description: string }
+	home: { title: string; description: string }
 }
 
 export default function HomePage() {
-  const data = useSeamData<HomeData>()
-  return (
-    <div>
-      <h1>{data.home.title}</h1>
-      <p>{data.home.description}</p>
-    </div>
-  )
+	const data = useSeamData<HomeData>()
+	return (
+		<div>
+			<h1>{data.home.title}</h1>
+			<p>{data.home.description}</p>
+		</div>
+	)
 }

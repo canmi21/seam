@@ -8,8 +8,8 @@ const root = document.getElementById('__seam')
 if (!root) throw new Error('Missing #__seam element')
 
 seamHydrate({
-  routes,
-  root,
-  i18nBridge: SeamI18nBridge,
-  cleanLocaleQuery: true,
+	routes,
+	root,
+	i18nBridge: SeamI18nBridge,
+	cleanLocaleQuery: true,
 })
