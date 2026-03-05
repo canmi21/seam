@@ -45,6 +45,8 @@ export interface TransportConfig {
   fallback?: TransportPreference[];
 }
 
+export type CacheConfig = false | { ttl: number };
+
 export interface ProcedureDef<TIn = unknown, TOut = unknown> {
   kind?: "query";
   /** @deprecated Use `kind` instead */
@@ -55,6 +57,7 @@ export interface ProcedureDef<TIn = unknown, TOut = unknown> {
   context?: string[];
   transport?: TransportConfig;
   suppress?: string[];
+  cache?: CacheConfig;
   handler: (params: { input: TIn; ctx: Record<string, unknown> }) => TOut | Promise<TOut>;
 }
 

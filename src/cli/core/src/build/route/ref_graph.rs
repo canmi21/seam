@@ -4,13 +4,14 @@
 // consumed by validation and route-manifest generation.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 
 use super::manifest::did_you_mean;
 use super::types::{RouteManifest, SkeletonOutput};
 use crate::ui;
-use seam_codegen::Manifest;
+use seam_codegen::{CacheHint, Manifest, ProcedureType};
 
 /// A direct reference from a loader to a procedure.
 #[allow(dead_code)]
@@ -26,6 +27,7 @@ pub(crate) struct LoaderRef {
   pub loader_key: String,
   pub procedure: String,
   pub handoff: bool,
+  pub params: Vec<String>,
 }
 
 pub(crate) struct ProcedureRefGraph {
@@ -45,10 +47,16 @@ fn collect_loader_refs(loaders: &serde_json::Value) -> Vec<LoaderRef> {
   for (loader_key, loader_def) in obj {
     if let Some(procedure) = loader_def.get("procedure").and_then(|v| v.as_str()) {
       let handoff = loader_def.get("handoff").and_then(|v| v.as_str()) == Some("client");
+      let params = loader_def
+        .get("params")
+        .and_then(|v| v.as_object())
+        .map(|obj| obj.keys().cloned().collect::<Vec<_>>())
+        .unwrap_or_default();
       result.push(LoaderRef {
         loader_key: loader_key.clone(),
         procedure: procedure.to_string(),
         handoff,
+        params,
       });
     }
   }
@@ -100,7 +108,12 @@ pub(crate) fn build_reference_graph(
     // Expand layout chain
     let mut all_refs: Vec<LoaderRef> = refs
       .into_iter()
-      .map(|r| LoaderRef { loader_key: r.loader_key, procedure: r.procedure, handoff: r.handoff })
+      .map(|r| LoaderRef {
+        loader_key: r.loader_key,
+        procedure: r.procedure,
+        handoff: r.handoff,
+        params: r.params,
+      })
       .collect();
 
     if let Some(layout_id) = &route.layout {
@@ -113,6 +126,7 @@ pub(crate) fn build_reference_graph(
                 loader_key: r.loader_key.clone(),
                 procedure: r.procedure.clone(),
                 handoff: r.handoff,
+                params: r.params.clone(),
               });
             }
           }
@@ -226,4 +240,61 @@ pub(crate) fn inject_route_procedures(
       }
     }
   }
+}
+
+/// Generate `.seam/generated/route-procedures.ts` with per-route procedure info.
+pub(crate) fn generate_route_procedures_ts(
+  graph: &ProcedureRefGraph,
+  manifest: &Manifest,
+  output_path: &Path,
+) -> Result<()> {
+  let mut lines = Vec::new();
+  lines.push("/* .seam/generated/route-procedures.ts */\n".to_string());
+  lines.push("export const seamRouteProcedures = {".to_string());
+
+  for (route_path, deps) in &graph.route_deps {
+    // Sorted unique procedure names
+    let mut all: Vec<String> = deps.iter().map(|r| r.procedure.clone()).collect();
+    all.sort();
+    all.dedup();
+
+    // Collect prefetchable: query procedures with cache config
+    let mut prefetchable: BTreeMap<&str, (u64, Vec<String>)> = BTreeMap::new();
+    for dep in deps {
+      if prefetchable.contains_key(dep.procedure.as_str()) {
+        continue;
+      }
+      if let Some(schema) = manifest.procedures.get(&dep.procedure)
+        && schema.proc_type == ProcedureType::Query
+        && let Some(CacheHint::Config { ttl }) = &schema.cache
+      {
+        let mut params = dep.params.clone();
+        params.sort();
+        prefetchable.insert(&dep.procedure, (*ttl, params));
+      }
+    }
+
+    let all_str = all.iter().map(|s| format!("\"{s}\"")).collect::<Vec<_>>().join(", ");
+    lines.push(format!("  \"{route_path}\": {{"));
+    lines.push(format!("    all: [{all_str}],"));
+    lines.push("    prefetchable: {".to_string());
+    for (proc_name, (ttl, params)) in &prefetchable {
+      let params_str = params.iter().map(|p| format!("\"{p}\"")).collect::<Vec<_>>().join(", ");
+      lines.push(format!("      \"{proc_name}\": {{ ttl: {ttl}, params: [{params_str}] }},",));
+    }
+    lines.push("    },".to_string());
+    lines.push("  },".to_string());
+  }
+
+  lines.push("} as const;\n".to_string());
+  lines.push("export type SeamRouteProcedures = typeof seamRouteProcedures;\n".to_string());
+
+  let content = lines.join("\n");
+  if let Some(parent) = output_path.parent() {
+    std::fs::create_dir_all(parent)
+      .with_context(|| format!("failed to create {}", parent.display()))?;
+  }
+  std::fs::write(output_path, content)
+    .with_context(|| format!("failed to write {}", output_path.display()))?;
+  Ok(())
 }

@@ -28,4 +28,42 @@ describe("buildManifest", () => {
     const manifest = router.manifest();
     expect(manifest.procedures.getUser.suppress).toBeUndefined();
   });
+
+  test("cache: { ttl: 30 } propagated to manifest", () => {
+    const router = createRouter({
+      getUser: {
+        input: t.object({}),
+        output: t.object({}),
+        cache: { ttl: 30 },
+        handler: () => ({}),
+      },
+    });
+    const manifest = router.manifest();
+    expect(manifest.procedures.getUser.cache).toEqual({ ttl: 30 });
+  });
+
+  test("cache: false propagated to manifest", () => {
+    const router = createRouter({
+      getUser: {
+        input: t.object({}),
+        output: t.object({}),
+        cache: false,
+        handler: () => ({}),
+      },
+    });
+    const manifest = router.manifest();
+    expect(manifest.procedures.getUser.cache).toBe(false);
+  });
+
+  test("no cache field when not declared", () => {
+    const router = createRouter({
+      getUser: {
+        input: t.object({}),
+        output: t.object({}),
+        handler: () => ({}),
+      },
+    });
+    const manifest = router.manifest();
+    expect(manifest.procedures.getUser.cache).toBeUndefined();
+  });
 });

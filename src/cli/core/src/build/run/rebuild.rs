@@ -7,9 +7,10 @@ use anyhow::{Context, Result};
 use super::super::config::BuildConfig;
 use super::super::route::generate_types;
 use super::super::route::{
-  BundleContext, RenderContext, build_reference_graph, export_i18n, inject_route_procedures,
-  package_static_assets, process_routes, read_i18n_messages, validate_handoff_consistency,
-  validate_invalidates, validate_procedure_references, warn_unused_queries,
+  BundleContext, RenderContext, build_reference_graph, export_i18n, generate_route_procedures_ts,
+  inject_route_procedures, package_static_assets, process_routes, read_i18n_messages,
+  validate_handoff_consistency, validate_invalidates, validate_procedure_references,
+  warn_unused_queries,
 };
 use super::super::types::AssetFiles;
 use super::helpers;
@@ -71,6 +72,9 @@ pub fn run_incremental_rebuild(
   validate_invalidates(&manifest)?;
   validate_handoff_consistency(&ref_graph);
   warn_unused_queries(&ref_graph, &manifest);
+
+  let rp_path = base_dir.join(".seam/generated/route-procedures.ts");
+  generate_route_procedures_ts(&ref_graph, &manifest, &rp_path)?;
 
   let templates_dir = out_dir.join("templates");
   std::fs::create_dir_all(&templates_dir)

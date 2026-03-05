@@ -8,9 +8,10 @@ use anyhow::Result;
 use super::super::config::BuildConfig;
 use super::super::route::generate_types;
 use super::super::route::{
-  BundleContext, RenderContext, build_reference_graph, package_static_assets, print_asset_files,
-  print_procedure_breakdown, run_typecheck, validate_handoff_consistency, validate_invalidates,
-  validate_procedure_references, warn_unused_queries,
+  BundleContext, RenderContext, build_reference_graph, generate_route_procedures_ts,
+  package_static_assets, print_asset_files, print_procedure_breakdown, run_typecheck,
+  validate_handoff_consistency, validate_invalidates, validate_procedure_references,
+  warn_unused_queries,
 };
 use super::super::types::{AssetFiles, read_bundle_manifest_extended};
 use super::helpers;
@@ -33,11 +34,12 @@ fn fullstack_steps(build_config: &BuildConfig) -> Vec<&'static str> {
     steps.push("Generating RPC hash map");
   }
   steps.push("Generating client types");
+  steps.push("Rendering skeletons");
+  steps.push("Generating route procedures");
   steps.push("Bundling frontend");
   if build_config.typecheck_command.is_some() {
     steps.push("Type checking");
   }
-  steps.push("Rendering skeletons");
   steps.push("Processing routes");
   if build_config.i18n.is_some() {
     steps.push("Exporting i18n");
@@ -56,10 +58,11 @@ fn dev_steps(build_config: &BuildConfig, is_vite: bool) -> Vec<&'static str> {
     steps.push("Generating RPC hash map");
   }
   steps.push("Generating client types");
+  steps.push("Rendering skeletons");
+  steps.push("Generating route procedures");
   if !is_vite {
     steps.push("Bundling frontend");
   }
-  steps.push("Rendering skeletons");
   steps.push("Processing routes");
   if build_config.i18n.is_some() {
     steps.push("Exporting i18n");
@@ -125,6 +128,23 @@ pub(super) fn run_fullstack_build(
   generate_types(&manifest, config, rpc_hashes.as_ref())?;
   tracker.end(t);
 
+  // -- Rendering skeletons (before bundling — independent of bundled output) --
+  let t = tracker.begin();
+  let skeleton_output =
+    steps::render_skeletons(build_config, base_dir, &out_dir.join("seam-manifest.json"))?;
+  let ref_graph = build_reference_graph(&manifest, &skeleton_output);
+  validate_procedure_references(&ref_graph)?;
+  validate_invalidates(&manifest)?;
+  validate_handoff_consistency(&ref_graph);
+  warn_unused_queries(&ref_graph, &manifest);
+  tracker.end_with(t, &format!("{} routes", skeleton_output.routes.len()));
+
+  // -- Generating route procedures --
+  let t = tracker.begin();
+  let rp_path = base_dir.join(".seam/generated/route-procedures.ts");
+  generate_route_procedures_ts(&ref_graph, &manifest, &rp_path)?;
+  tracker.end(t);
+
   // -- Bundling frontend --
   let t = tracker.begin();
   let rpc_map_path_str = if rpc_hashes.is_some() {
@@ -147,17 +167,6 @@ pub(super) fn run_fullstack_build(
     run_typecheck(base_dir, cmd)?;
     tracker.end(t);
   }
-
-  // -- Rendering skeletons --
-  let t = tracker.begin();
-  let skeleton_output =
-    steps::render_skeletons(build_config, base_dir, &out_dir.join("seam-manifest.json"))?;
-  let ref_graph = build_reference_graph(&manifest, &skeleton_output);
-  validate_procedure_references(&ref_graph)?;
-  validate_invalidates(&manifest)?;
-  validate_handoff_consistency(&ref_graph);
-  warn_unused_queries(&ref_graph, &manifest);
-  tracker.end_with(t, &format!("{} routes", skeleton_output.routes.len()));
 
   // -- Processing routes + Exporting i18n --
   let bundle_manifest =
@@ -253,6 +262,23 @@ pub fn run_dev_build(
   generate_types(&manifest, config, rpc_hashes.as_ref())?;
   tracker.end(t);
 
+  // -- Rendering skeletons (before bundling — independent of bundled output) --
+  let t = tracker.begin();
+  let skeleton_output =
+    steps::render_skeletons(build_config, base_dir, &out_dir.join("seam-manifest.json"))?;
+  let ref_graph = build_reference_graph(&manifest, &skeleton_output);
+  validate_procedure_references(&ref_graph)?;
+  validate_invalidates(&manifest)?;
+  validate_handoff_consistency(&ref_graph);
+  warn_unused_queries(&ref_graph, &manifest);
+  tracker.end_with(t, &format!("{} routes", skeleton_output.routes.len()));
+
+  // -- Generating route procedures --
+  let t = tracker.begin();
+  let rp_path = base_dir.join(".seam/generated/route-procedures.ts");
+  generate_route_procedures_ts(&ref_graph, &manifest, &rp_path)?;
+  tracker.end(t);
+
   // -- Bundling frontend (skipped in Vite mode) --
   let rpc_map_path_str = if rpc_hashes.is_some() {
     out_dir.join("rpc-hash-map.json").to_string_lossy().to_string()
@@ -269,17 +295,6 @@ pub fn run_dev_build(
     tracker.end_with(t, &format!("{} files", a.js.len() + a.css.len()));
     a
   };
-
-  // -- Rendering skeletons --
-  let t = tracker.begin();
-  let skeleton_output =
-    steps::render_skeletons(build_config, base_dir, &out_dir.join("seam-manifest.json"))?;
-  let ref_graph = build_reference_graph(&manifest, &skeleton_output);
-  validate_procedure_references(&ref_graph)?;
-  validate_invalidates(&manifest)?;
-  validate_handoff_consistency(&ref_graph);
-  warn_unused_queries(&ref_graph, &manifest);
-  tracker.end_with(t, &format!("{} routes", skeleton_output.routes.len()));
 
   // -- Processing routes + Exporting i18n --
   let render = RenderContext {

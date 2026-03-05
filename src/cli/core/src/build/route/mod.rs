@@ -24,7 +24,7 @@ pub(crate) use process::{
   BundleContext, RenderContext, export_i18n, process_routes, run_skeleton_renderer,
 };
 pub(crate) use ref_graph::{
-  ProcedureRefGraph, build_reference_graph, inject_route_procedures, validate_handoff_consistency,
-  validate_procedure_references, warn_unused_queries,
+  ProcedureRefGraph, build_reference_graph, generate_route_procedures_ts, inject_route_procedures,
+  validate_handoff_consistency, validate_procedure_references, warn_unused_queries,
 };
 pub(crate) use types::{CacheStats, RouteManifest, SkeletonOutput};

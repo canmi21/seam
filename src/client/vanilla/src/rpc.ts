@@ -3,6 +3,7 @@
 import { createClient } from "./client.js";
 import type { SeamClient } from "./client.js";
 import { createBatchQueue } from "./batch.js";
+import { getFromCache } from "./prefetch-cache.js";
 
 let rpcHashMap: Record<string, string> | null = null;
 let configuredBatchEndpoint: string | null = null;
@@ -39,6 +40,9 @@ export function configureRpcMap(map: Record<string, string>): void {
 }
 
 export function seamRpc(procedure: string, input?: unknown): Promise<unknown> {
+  const cached = getFromCache(procedure, input ?? {});
+  if (cached !== undefined) return cached;
+
   const wireName = rpcHashMap?.[procedure] ?? procedure;
   return getBatchEnqueue()(wireName, input ?? {});
 }

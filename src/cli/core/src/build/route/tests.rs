@@ -84,6 +84,7 @@ fn make_manifest(names: &[&str]) -> seam_codegen::Manifest {
         context: None,
         transport: None,
         suppress: None,
+        cache: None,
       },
     );
   }
@@ -336,6 +337,7 @@ fn make_manifest_with_procedures(
         context: None,
         transport: None,
         suppress: None,
+        cache: None,
       },
     );
   }
@@ -646,6 +648,7 @@ fn make_manifest_typed(
         context: None,
         transport: None,
         suppress,
+        cache: None,
       },
     );
   }
@@ -715,4 +718,172 @@ fn empty_manifest_no_warn() {
   let skeleton = make_skeleton(vec![("/", serde_json::json!({}))], vec![]);
   let graph = build_reference_graph(&manifest, &skeleton);
   warn_unused_queries(&graph, &manifest);
+}
+
+// -- generate_route_procedures_ts tests --
+
+use super::ref_graph::generate_route_procedures_ts;
+
+fn make_manifest_with_cache(
+  entries: Vec<(&str, seam_codegen::ProcedureType, Option<seam_codegen::CacheHint>)>,
+) -> seam_codegen::Manifest {
+  use seam_codegen::ProcedureSchema;
+  let mut procedures: BTreeMap<String, ProcedureSchema> = BTreeMap::new();
+  for (name, proc_type, cache) in entries {
+    procedures.insert(
+      name.to_string(),
+      ProcedureSchema {
+        proc_type,
+        input: serde_json::Value::Null,
+        output: Some(serde_json::Value::Null),
+        chunk_output: None,
+        error: None,
+        invalidates: None,
+        context: None,
+        transport: None,
+        suppress: None,
+        cache,
+      },
+    );
+  }
+  seam_codegen::Manifest {
+    version: 2,
+    context: BTreeMap::new(),
+    procedures,
+    channels: BTreeMap::new(),
+    transport_defaults: BTreeMap::new(),
+  }
+}
+
+#[test]
+fn route_procedures_ts_output_format() {
+  use seam_codegen::{CacheHint, ProcedureType};
+  let manifest = make_manifest_with_cache(vec![
+    ("getHomeData", ProcedureType::Query, Some(CacheHint::Config { ttl: 60 })),
+    ("getSession", ProcedureType::Query, None),
+  ]);
+  let skeleton = make_skeleton_ext(
+    vec![(
+      "/",
+      serde_json::json!({ "page": { "procedure": "getHomeData" }, "session": { "procedure": "getSession" } }),
+      None,
+    )],
+    vec![],
+  );
+  let graph = build_reference_graph(&manifest, &skeleton);
+
+  let dir = std::env::temp_dir().join("seam-test-rp-format");
+  let _ = std::fs::remove_dir_all(&dir);
+  std::fs::create_dir_all(&dir).unwrap();
+  let output = dir.join("route-procedures.ts");
+  generate_route_procedures_ts(&graph, &manifest, &output).unwrap();
+
+  let content = std::fs::read_to_string(&output).unwrap();
+  assert!(content.contains("export const seamRouteProcedures = {"));
+  assert!(content.contains("\"getHomeData\""));
+  assert!(content.contains("\"getSession\""));
+  assert!(content.contains("ttl: 60"));
+  assert!(content.contains("} as const;"));
+  assert!(content.contains("export type SeamRouteProcedures"));
+
+  let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn route_procedures_only_cached_queries_in_prefetchable() {
+  use seam_codegen::{CacheHint, ProcedureType};
+  let manifest = make_manifest_with_cache(vec![
+    ("getUser", ProcedureType::Query, Some(CacheHint::Config { ttl: 30 })),
+    ("createUser", ProcedureType::Command, None),
+    ("onUpdate", ProcedureType::Subscription, None),
+    ("listPosts", ProcedureType::Query, None), // no cache
+  ]);
+  let skeleton = make_skeleton(
+    vec![(
+      "/",
+      serde_json::json!({
+        "user": { "procedure": "getUser" },
+        "create": { "procedure": "createUser" },
+        "update": { "procedure": "onUpdate" },
+        "posts": { "procedure": "listPosts" },
+      }),
+    )],
+    vec![],
+  );
+  let graph = build_reference_graph(&manifest, &skeleton);
+
+  let dir = std::env::temp_dir().join("seam-test-rp-filter");
+  let _ = std::fs::remove_dir_all(&dir);
+  std::fs::create_dir_all(&dir).unwrap();
+  let output = dir.join("route-procedures.ts");
+  generate_route_procedures_ts(&graph, &manifest, &output).unwrap();
+
+  let content = std::fs::read_to_string(&output).unwrap();
+  // Only getUser in prefetchable (has cache config)
+  assert!(content.contains("\"getUser\": { ttl: 30"));
+  // createUser, onUpdate, listPosts not in prefetchable
+  let prefetchable_section = content.split("prefetchable:").nth(1).unwrap();
+  let section_end = prefetchable_section.find("},").unwrap();
+  let prefetchable_block = &prefetchable_section[..section_end];
+  assert!(!prefetchable_block.contains("createUser"));
+  assert!(!prefetchable_block.contains("onUpdate"));
+  assert!(!prefetchable_block.contains("listPosts"));
+
+  let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn route_procedures_params_extracted() {
+  use seam_codegen::{CacheHint, ProcedureType};
+  let manifest = make_manifest_with_cache(vec![(
+    "getUser",
+    ProcedureType::Query,
+    Some(CacheHint::Config { ttl: 30 }),
+  )]);
+  let skeleton = make_skeleton(
+    vec![(
+      "/user/:id",
+      serde_json::json!({
+        "user": { "procedure": "getUser", "params": { "id": { "from": "path" } } }
+      }),
+    )],
+    vec![],
+  );
+  let graph = build_reference_graph(&manifest, &skeleton);
+
+  let dir = std::env::temp_dir().join("seam-test-rp-params");
+  let _ = std::fs::remove_dir_all(&dir);
+  std::fs::create_dir_all(&dir).unwrap();
+  let output = dir.join("route-procedures.ts");
+  generate_route_procedures_ts(&graph, &manifest, &output).unwrap();
+
+  let content = std::fs::read_to_string(&output).unwrap();
+  assert!(content.contains("params: [\"id\"]"));
+
+  let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn route_procedures_empty_without_cache() {
+  use seam_codegen::ProcedureType;
+  let manifest = make_manifest_with_cache(vec![("getUser", ProcedureType::Query, None)]);
+  let skeleton =
+    make_skeleton(vec![("/", serde_json::json!({ "user": { "procedure": "getUser" } }))], vec![]);
+  let graph = build_reference_graph(&manifest, &skeleton);
+
+  let dir = std::env::temp_dir().join("seam-test-rp-empty");
+  let _ = std::fs::remove_dir_all(&dir);
+  std::fs::create_dir_all(&dir).unwrap();
+  let output = dir.join("route-procedures.ts");
+  generate_route_procedures_ts(&graph, &manifest, &output).unwrap();
+
+  let content = std::fs::read_to_string(&output).unwrap();
+  // prefetchable block should be empty (no entries)
+  assert!(content.contains("prefetchable: {"));
+  let prefetchable_section = content.split("prefetchable: {").nth(1).unwrap();
+  let section_end = prefetchable_section.find('}').unwrap();
+  let inner = prefetchable_section[..section_end].trim();
+  assert!(inner.is_empty(), "expected empty prefetchable, got: {inner}");
+
+  let _ = std::fs::remove_dir_all(&dir);
 }

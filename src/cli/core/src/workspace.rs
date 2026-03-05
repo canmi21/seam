@@ -344,6 +344,7 @@ mod tests {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
     }

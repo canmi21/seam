@@ -30,6 +30,7 @@ fn full_manifest_render() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -74,6 +75,7 @@ fn subscription_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -116,6 +118,7 @@ fn full_manifest_render_with_hashes() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -165,6 +168,7 @@ fn codegen_without_hashes_unchanged() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -203,6 +207,7 @@ fn subscription_codegen_with_hashes() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -288,6 +293,7 @@ fn command_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -328,6 +334,7 @@ fn error_schema_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -367,6 +374,7 @@ fn error_schema_absent_no_error_type() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -405,6 +413,7 @@ fn command_with_hashes() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -449,6 +458,7 @@ fn stream_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -494,6 +504,7 @@ fn stream_codegen_with_hashes() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -539,6 +550,7 @@ fn upload_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -580,6 +592,7 @@ fn invalidates_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m.insert(
@@ -594,6 +607,7 @@ fn invalidates_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m.insert(
@@ -611,6 +625,7 @@ fn invalidates_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -644,6 +659,7 @@ fn command_without_invalidates_no_field() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -680,6 +696,7 @@ fn invalidates_with_error_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m.insert(
@@ -694,6 +711,7 @@ fn invalidates_with_error_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m

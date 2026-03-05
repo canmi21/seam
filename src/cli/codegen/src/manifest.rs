@@ -88,6 +88,14 @@ impl Manifest {
   }
 }
 
+/// Cache hint for query procedures: `{ "ttl": 30 }` or `false`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum CacheHint {
+  Config { ttl: u64 },
+  Disabled(bool),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcedureSchema {
   #[serde(rename = "kind", alias = "type")]
@@ -107,6 +115,8 @@ pub struct ProcedureSchema {
   pub transport: Option<TransportConfig>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub suppress: Option<Vec<String>>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub cache: Option<CacheHint>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -195,6 +205,7 @@ mod tests {
       context: None,
       transport: None,
       suppress: None,
+      cache: None,
     };
     assert!(schema.effective_output().is_some());
     assert_eq!(schema.effective_output(), schema.chunk_output.as_ref());
@@ -212,6 +223,7 @@ mod tests {
       context: None,
       transport: None,
       suppress: None,
+      cache: None,
     };
     assert!(schema.effective_output().is_some());
     assert_eq!(schema.effective_output(), schema.output.as_ref());
@@ -249,6 +261,7 @@ mod tests {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       )]),
       channels: BTreeMap::new(),
@@ -349,6 +362,7 @@ mod tests {
           context: Some(vec!["auth".to_string()]),
           transport: None,
           suppress: None,
+          cache: None,
         },
       )]),
       channels: BTreeMap::new(),
@@ -374,6 +388,7 @@ mod tests {
           context: Some(vec!["auth".to_string()]),
           transport: None,
           suppress: None,
+          cache: None,
         },
       )]),
       channels: BTreeMap::new(),
@@ -397,6 +412,7 @@ mod tests {
       context: Some(vec!["auth".to_string()]),
       transport: None,
       suppress: None,
+      cache: None,
     };
     assert_eq!(schema.context.as_ref().unwrap(), &vec!["auth".to_string()]);
   }
@@ -473,6 +489,7 @@ mod tests {
       context: None,
       transport: None,
       suppress: Some(vec!["unused".into()]),
+      cache: None,
     };
     let json = serde_json::to_string(&schema).unwrap();
     assert!(json.contains(r#""suppress":["unused"]"#));
@@ -492,9 +509,53 @@ mod tests {
       context: None,
       transport: None,
       suppress: None,
+      cache: None,
     };
     let json = serde_json::to_string(&schema).unwrap();
     assert!(!json.contains("suppress"));
+  }
+
+  #[test]
+  fn cache_hint_config_roundtrip() {
+    let json = r#"{ "ttl": 30 }"#;
+    let hint: CacheHint = serde_json::from_str(json).unwrap();
+    assert_eq!(hint, CacheHint::Config { ttl: 30 });
+    let serialized = serde_json::to_string(&hint).unwrap();
+    assert!(serialized.contains("\"ttl\":30"));
+  }
+
+  #[test]
+  fn cache_hint_disabled_roundtrip() {
+    let hint: CacheHint = serde_json::from_str("false").unwrap();
+    assert_eq!(hint, CacheHint::Disabled(false));
+    let serialized = serde_json::to_string(&hint).unwrap();
+    assert_eq!(serialized, "false");
+  }
+
+  #[test]
+  fn cache_hint_omitted() {
+    let json = r#"{
+      "version": 2,
+      "procedures": {
+        "getUser": { "kind": "query", "input": {}, "output": {} }
+      }
+    }"#;
+    let m: Manifest = serde_json::from_str(json).unwrap();
+    assert!(m.procedures["getUser"].cache.is_none());
+  }
+
+  #[test]
+  fn cache_hint_in_manifest() {
+    let json = r#"{
+      "version": 2,
+      "procedures": {
+        "getUser": { "kind": "query", "input": {}, "output": {}, "cache": { "ttl": 60 } },
+        "listPosts": { "kind": "query", "input": {}, "output": {}, "cache": false }
+      }
+    }"#;
+    let m: Manifest = serde_json::from_str(json).unwrap();
+    assert_eq!(m.procedures["getUser"].cache, Some(CacheHint::Config { ttl: 60 }));
+    assert_eq!(m.procedures["listPosts"].cache, Some(CacheHint::Disabled(false)));
   }
 }
 

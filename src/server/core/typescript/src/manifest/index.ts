@@ -32,6 +32,7 @@ export interface ProcedureEntry {
   context?: string[];
   transport?: { prefer: string; fallback?: string[] };
   suppress?: string[];
+  cache?: false | { ttl: number };
 }
 
 export interface ProcedureManifest {
@@ -115,6 +116,9 @@ export function buildManifest(
     }
     if (defAny.suppress) {
       entry.suppress = defAny.suppress as string[];
+    }
+    if (defAny.cache !== undefined) {
+      entry.cache = defAny.cache as false | { ttl: number };
     }
     mapped[name] = entry;
   }

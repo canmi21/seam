@@ -6,6 +6,8 @@ export { parseSseStream } from "./sse-parser.js";
 export { seamRpc, configureRpcMap } from "./rpc.js";
 export { createChannelHandle } from "./channel-handle.js";
 export { createWsChannelHandle } from "./ws-channel-handle.js";
+export { prefetchRoute } from "./prefetch.js";
+export { clearPrefetchCache } from "./prefetch-cache.js";
 
 export type {
   ClientOptions,

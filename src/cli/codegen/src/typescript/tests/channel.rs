@@ -28,6 +28,7 @@ fn channel_procedure_meta_uses_channel_types() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m.insert(
@@ -47,6 +48,7 @@ fn channel_procedure_meta_uses_channel_types() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -118,6 +120,7 @@ fn transport_hint_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m.insert(
@@ -137,6 +140,7 @@ fn transport_hint_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -216,6 +220,7 @@ fn dot_namespace_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m.insert(
@@ -234,6 +239,7 @@ fn dot_namespace_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m.insert(
@@ -252,6 +258,7 @@ fn dot_namespace_codegen() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -363,6 +370,7 @@ fn hint_with_procedure_override() {
             fallback: Some(vec![TransportPreference::Sse]),
           }),
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -406,6 +414,7 @@ fn hint_channel_resolved_from_defaults() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m.insert(
@@ -420,6 +429,7 @@ fn hint_channel_resolved_from_defaults() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
@@ -476,6 +486,7 @@ fn factory_backward_compat_no_transport() {
           context: None,
           transport: None,
           suppress: None,
+          cache: None,
         },
       );
       m
