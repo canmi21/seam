@@ -10,14 +10,14 @@ require_cmd cargo "https://rustup.rs"
 require_cmd bun   "https://bun.sh"
 require_cmd go    "https://go.dev/dl"
 
-bash "$DIR/ci/fmt-check.sh"
+just fmt-check
 
-run_parallel "build-cli" "$DIR/ci/build-cli.sh" "build-wasm" "$DIR/ci/build-wasm.sh"
-bash "$DIR/ci/build-ts.sh"
-run_parallel "lint" "$DIR/ci/lint.sh" "typecheck" "$DIR/ci/typecheck.sh" "test-rs" "$DIR/ci/test-rs.sh" "test-ts" "$DIR/ci/test-ts.sh" "test-go" "$DIR/ci/test-go.sh"
+run_parallel "build-cli" "just build-cli-install" "build-wasm" "just build-wasm"
+just build-ts
+run_parallel "lint" "just lint-all" "typecheck" "just typecheck" "test-rs" "just test-rs" "test-ts" "just test-ts" "test-go" "just test-go"
 
-bash "$DIR/ci/build-fixtures.sh"
+just build-fixtures
 
-run_parallel "test-integration" "$DIR/ci/test-integration.sh" "test-e2e" "$DIR/ci/test-e2e.sh"
+run_parallel "test-integration" "just test-integration" "test-e2e" "just test-e2e"
 
 printf '\n==> All checks passed.\n'

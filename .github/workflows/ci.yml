@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  verify:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -28,41 +28,65 @@ jobs:
           version: v2.10
           args: --help
 
+      - uses: extractions/setup-just@v3
+
       - name: Install chore-cli
         run: cargo install chore-cli
 
-      - name: Format
-        run: bash scripts/ci/fmt.sh && git diff --exit-code
-
-      - name: Build CLI
-        run: bash scripts/ci/build-cli.sh
-
-      - name: Build WASM
-        run: cargo install wasm-pack && bun run build:wasm
-
-      - name: Build TS
-        run: bash scripts/ci/build-ts.sh
-
-      - name: Typecheck
-        run: bash scripts/ci/typecheck.sh
+      - name: Format check
+        run: just fmt-check
 
       - name: Lint
-        run: bash scripts/ci/lint.sh
+        run: just lint-all
+
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+
+      - uses: extractions/setup-just@v3
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
+      - name: Build WASM + TS
+        run: just build-wasm && just build-ts
+
+      - name: Typecheck
+        run: just typecheck
+
+      - name: Clippy
+        run: just lint-clippy
 
       - name: Rust unit tests
-        run: bash scripts/ci/test-rs.sh
+        run: just test-rs
 
       - name: TS unit tests
-        run: bash scripts/ci/test-ts.sh
-
-      - name: Build fixtures
-        run: bash scripts/ci/build-fixtures.sh
+        run: just test-ts
 
       - name: Go unit tests
-        run: bash scripts/ci/test-go.sh
+        run: just test-go
+
+      - name: Build CLI
+        run: just build-cli-install
+
+      - name: Build fixtures
+        run: just build-fixtures
 
       - name: Go integration tests
-        run: bash scripts/ci/test-integration.sh
+        run: just test-integration
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -70,6 +94,6 @@ jobs:
         run: bunx playwright install --with-deps chromium
 
       - name: Playwright E2E
-        run: bash scripts/ci/test-e2e.sh
+        run: just test-e2e
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

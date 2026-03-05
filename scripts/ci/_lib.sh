@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Shared helpers for CI runner scripts.
 # Usage: source "$(dirname "$0")/ci/_lib.sh"
 
@@ -22,7 +23,7 @@ run_parallel() {
 
   while [[ $# -ge 2 ]]; do
     labels+=("$1")
-    bash "$2" &
+    eval "$2" &
     pids+=($!)
     shift 2
   done

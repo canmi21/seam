@@ -10,9 +10,9 @@ require_cmd cargo "https://rustup.rs"
 require_cmd bun   "https://bun.sh"
 require_cmd go    "https://go.dev/dl"
 
-bash "$DIR/ci/build-cli.sh"
-bash "$DIR/ci/build-fixtures.sh"
+just build-cli-install
+just build-fixtures
 
-run_parallel "test-integration" "$DIR/ci/test-integration.sh" "test-e2e" "$DIR/ci/test-e2e.sh"
+run_parallel "test-integration" "just test-integration" "test-e2e" "just test-e2e"
 
 printf '\n==> All smoke tests passed.\n'
