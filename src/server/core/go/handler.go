@@ -215,7 +215,7 @@ func buildManifest(procedures []ProcedureDef, subscriptions []SubscriptionDef, c
 	if len(contextConfigs) > 0 {
 		ctxManifest := make(map[string]contextManifestEntry)
 		for key, cfg := range contextConfigs {
-			ctxManifest[key] = contextManifestEntry{Extract: cfg.Extract}
+			ctxManifest[key] = contextManifestEntry(cfg)
 		}
 		m.Context = ctxManifest
 	}

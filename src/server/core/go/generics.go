@@ -53,8 +53,8 @@ func Command[In, Out any](name string, fn func(context.Context, In) (Out, error)
 // Subscribe creates a SubscriptionDef from a typed handler function.
 // The handler returns a channel of Out values; the framework wraps each
 // value into a SubscriptionEvent.
-func Subscribe[In, Out any](name string, fn func(context.Context, In) (<-chan Out, error)) SubscriptionDef {
-	return SubscriptionDef{
+func Subscribe[In, Out any](name string, fn func(context.Context, In) (<-chan Out, error)) *SubscriptionDef {
+	return &SubscriptionDef{
 		Name:         name,
 		InputSchema:  SchemaOf[In](),
 		OutputSchema: SchemaOf[Out](),

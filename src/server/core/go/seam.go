@@ -211,8 +211,8 @@ func (r *Router) Procedure(def *ProcedureDef) *Router {
 	return r
 }
 
-func (r *Router) Subscription(def SubscriptionDef) *Router {
-	r.subscriptions = append(r.subscriptions, def)
+func (r *Router) Subscription(def *SubscriptionDef) *Router {
+	r.subscriptions = append(r.subscriptions, *def)
 	return r
 }
 
