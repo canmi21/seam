@@ -5,6 +5,12 @@
   "bin": {
     "seam": "bin/seam"
   },
+  "exports": {
+    "./config": {
+      "types": "./scripts/config.d.ts",
+      "default": "./scripts/config.mjs"
+    }
+  },
   "files": [
     "bin",
     "scripts"
