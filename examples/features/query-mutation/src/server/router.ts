@@ -2,9 +2,9 @@
 
 import { createRouter } from '@canmi/seam-server'
 import type { RouterOptions } from '@canmi/seam-server'
-import { listTodos, getTodo, addTodo, toggleTodo } from './procedures.js'
+import { listTodos, getTodo, getStats, addTodo, toggleTodo } from './procedures.js'
 
-export const procedures = { listTodos, getTodo, addTodo, toggleTodo }
+export const procedures = { listTodos, getTodo, getStats, addTodo, toggleTodo }
 
 export function buildRouter(opts?: RouterOptions) {
 	return createRouter(procedures, opts)

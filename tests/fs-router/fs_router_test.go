@@ -300,19 +300,10 @@ func TestRPCBlogPost(t *testing.T) {
 }
 
 func TestManifest(t *testing.T) {
-	status, body := getJSON(t, baseURL+"/_seam/manifest.json")
-	if status != 200 {
-		t.Fatalf("status = %d, want 200", status)
-	}
-	procs, ok := body["procedures"].(map[string]any)
-	if !ok {
-		t.Fatalf("procedures not an object: %T", body["procedures"])
-	}
-	expected := []string{"getPageData", "getBlogPost", "getSession"}
-	for _, name := range expected {
-		if _, exists := procs[name]; !exists {
-			t.Errorf("missing procedure %q in manifest", name)
-		}
+	// Manifest is disabled when rpcHashMap is active (hides procedure names)
+	status, _ := getJSON(t, baseURL+"/_seam/manifest.json")
+	if status != 403 {
+		t.Fatalf("status = %d, want 403 (manifest disabled with rpcHashMap)", status)
 	}
 }
 

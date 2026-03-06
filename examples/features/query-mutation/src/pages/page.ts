@@ -1,6 +1,9 @@
 /* examples/features/query-mutation/src/pages/page.ts */
 
-export const loaders = { todos: { procedure: 'listTodos' } }
+export const loaders = {
+	todos: { procedure: 'listTodos' },
+	stats: { procedure: 'getStats' },
+}
 
 export const mock = {
 	todos: {
@@ -9,4 +12,5 @@ export const mock = {
 			{ id: '2', title: 'Build a demo', done: true },
 		],
 	},
+	stats: { totalCount: 2 },
 }
