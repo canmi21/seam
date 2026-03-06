@@ -62,6 +62,12 @@ export const addTodo: CommandDef<{ title: string }, Todo> = {
 	},
 }
 
+export const getStats: ProcedureDef<Record<string, never>, { totalCount: number }> = {
+	input: t.object({}),
+	output: t.object({ totalCount: t.int32() }),
+	handler: () => ({ totalCount: todos.length }),
+}
+
 export const toggleTodo: CommandDef<{ id: string }, { id: string; done: boolean }> = {
 	kind: 'command',
 	input: t.object({ id: t.string() }),

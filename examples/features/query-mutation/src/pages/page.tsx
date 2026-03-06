@@ -14,6 +14,7 @@ interface Todo {
 
 interface PageData extends Record<string, unknown> {
 	todos: { todos: Todo[] }
+	stats: { totalCount: number }
 }
 
 function TodoList() {
@@ -96,7 +97,9 @@ export default function TodoPage() {
 		return (
 			<div>
 				<h1>Query & Mutation Demo</h1>
+				<p data-testid="stats">Total: {data.stats.totalCount}</p>
 				<StaticTodoList todos={data.todos.todos} />
+				<a href="/about">About</a>
 			</div>
 		)
 	}
@@ -104,6 +107,8 @@ export default function TodoPage() {
 	return (
 		<div>
 			<h1>Query & Mutation Demo</h1>
+			<p data-testid="stats">Total: {data.stats.totalCount}</p>
+			<a href="/about">About</a>
 			<SeamQueryProvider
 				rpcFn={seamRpc}
 				config={seamProcedureConfig}
