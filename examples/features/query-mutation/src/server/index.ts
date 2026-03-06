@@ -2,7 +2,7 @@
 
 import { resolve } from 'node:path'
 import { Hono } from 'hono'
-import { loadBuildOutput, loadBuildOutputDev } from '@canmi/seam-server'
+import { loadBuildOutput, loadBuildOutputDev, loadRpcHashMap } from '@canmi/seam-server'
 import { seam } from '@canmi/seam-adapter-hono'
 import { buildRouter } from './router.js'
 
@@ -11,10 +11,11 @@ const outputDir = process.env.SEAM_OUTPUT_DIR
 if (isDev && !outputDir) throw new Error('SEAM_OUTPUT_DIR is required in dev mode')
 const BUILD_DIR = isDev ? (outputDir as string) : resolve(import.meta.dir, '..')
 const pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR)
+const rpcHashMap = loadRpcHashMap(BUILD_DIR)
 const router = buildRouter({ pages })
 
 const app = new Hono()
-app.use('/*', seam(router, { staticDir: resolve(BUILD_DIR, 'public') }))
+app.use('/*', seam(router, { staticDir: resolve(BUILD_DIR, 'public'), rpcHashMap }))
 
 app.get('*', async (c) => {
 	const result = await router.handlePage(new URL(c.req.url).pathname)
