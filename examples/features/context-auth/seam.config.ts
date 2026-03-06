@@ -3,7 +3,6 @@
 import { defineConfig } from '@canmi/seam-cli/config'
 
 export default defineConfig({
-	project: { name: 'context-auth-demo' },
 	backend: {
 		lang: 'typescript',
 		devCommand: 'bun --watch src/server/index.ts',

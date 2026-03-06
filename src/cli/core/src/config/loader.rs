@@ -44,17 +44,45 @@ pub fn find_seam_config(start: &Path) -> Result<PathBuf> {
 /// Load and parse a config file, dispatching by extension.
 pub fn load_seam_config(path: &Path) -> Result<SeamConfig> {
 	let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-	match ext {
+	let mut config = match ext {
 		"toml" => {
 			ui::detail(&format!(
 				"{}using legacy seam.toml -- consider migrating to seam.config.ts{}",
 				ui::col(ui::DIM),
 				ui::col(ui::RESET)
 			));
-			load_toml_config(path)
+			load_toml_config(path)?
 		}
-		"ts" | "mjs" => load_ts_config(path),
+		"ts" | "mjs" => load_ts_config(path)?,
 		_ => bail!("unsupported config file extension: {}", path.display()),
+	};
+
+	let config_dir = path.parent().unwrap_or_else(|| Path::new("."));
+	resolve_project_name(&mut config, config_dir);
+
+	Ok(config)
+}
+
+/// Fill `project.name` from package.json or directory name when not explicitly set.
+fn resolve_project_name(config: &mut SeamConfig, config_dir: &Path) {
+	if config.project.name.is_some() {
+		return;
+	}
+
+	// Try package.json in same directory
+	let pkg_path = config_dir.join("package.json");
+	if let Ok(content) = std::fs::read_to_string(&pkg_path)
+		&& let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content)
+		&& let Some(name) = pkg.get("name").and_then(|v| v.as_str())
+		&& !name.is_empty()
+	{
+		config.project.name = Some(name.to_string());
+		return;
+	}
+
+	// Fall back to directory name
+	if let Some(dir_name) = config_dir.file_name().and_then(|n| n.to_str()) {
+		config.project.name = Some(dir_name.to_string());
 	}
 }
 

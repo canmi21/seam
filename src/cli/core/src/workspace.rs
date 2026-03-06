@@ -281,7 +281,7 @@ pub fn run_workspace_build(root: &SeamConfig, base_dir: &Path, filter: Option<&s
 	let member_count = members.len();
 	let total_label =
 		if member_count == 1 { "1 member".to_string() } else { format!("{member_count} members") };
-	ui::banner("workspace build", Some(&format!("{} — {total_label}", root.project.name)));
+	ui::banner("workspace build", Some(&format!("{} — {total_label}", root.project_name())));
 
 	let first = &members[0];
 	let shared_out_dir = base_dir.join(&first.build_config.out_dir);

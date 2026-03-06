@@ -3,7 +3,6 @@
 import { defineConfig } from '@canmi/seam-cli/config'
 
 export default defineConfig({
-	project: { name: 'stream-upload-demo' },
 	backend: {
 		lang: 'typescript',
 		devCommand: 'bun --watch src/server/index.ts',

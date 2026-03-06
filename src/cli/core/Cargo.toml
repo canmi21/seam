@@ -24,9 +24,9 @@ clap = { version = "4", features = ["derive"] }
 indicatif = "0.17"
 notify = "8"
 reqwest = { version = "0.13", features = ["json", "stream"] }
-seam-codegen = { version = "0.5.13", path = "../codegen" }
-seam-server = { version = "0.5.13", path = "../../server/core/rust" }
-seam-skeleton = { version = "0.5.13", path = "../skeleton" }
+seam-codegen = { version = "0.5.14", path = "../codegen" }
+seam-server = { version = "0.5.14", path = "../../server/core/rust" }
+seam-skeleton = { version = "0.5.14", path = "../skeleton" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }

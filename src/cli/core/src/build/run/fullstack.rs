@@ -85,7 +85,7 @@ pub(super) fn run_fullstack_build(
 	let out_dir = base_dir.join(&build_config.out_dir);
 	let manifest_path = base_dir.join(&build_config.bundler_manifest);
 
-	ui::banner("build", Some(&config.project.name));
+	ui::banner("build", Some(config.project_name()));
 
 	let mut tracker = StepTracker::new(fullstack_steps(build_config));
 
@@ -228,7 +228,7 @@ pub fn run_dev_build(
 	let vite = vite_info_from_config(config);
 	let is_vite = vite.is_some();
 
-	ui::banner("dev build", Some(&config.project.name));
+	ui::banner("dev build", Some(config.project_name()));
 
 	let mut tracker = StepTracker::new(dev_steps(build_config, is_vite));
 

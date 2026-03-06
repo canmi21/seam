@@ -3,7 +3,6 @@
 import { defineConfig } from '@canmi/seam-cli/config'
 
 export default defineConfig({
-	project: { name: 'github-dashboard' },
 	frontend: { entry: 'frontend/src/client/main.tsx' },
 	build: {
 		routes: 'frontend/src/client/routes.ts',

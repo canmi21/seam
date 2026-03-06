@@ -123,7 +123,7 @@ fn prepare_ts_config_deserializes_to_seam_config() {
 	let transformed = loader::prepare_ts_config(input);
 	let config: SeamConfig = serde_json::from_value(transformed).unwrap();
 
-	assert_eq!(config.project.name, "round-trip");
+	assert_eq!(config.project_name(), "round-trip");
 	assert_eq!(config.backend.dev_command.as_deref(), Some("bun run"));
 	assert_eq!(config.backend.port, 4000);
 	assert_eq!(config.frontend.entry.as_deref(), Some("main.tsx"));
@@ -218,7 +218,7 @@ fn toml_fallback_shows_legacy_message() {
 
 	// Should succeed loading (legacy message is printed to stdout, we just verify parsing works)
 	let config = load_seam_config(&tmp.join("seam.toml")).unwrap();
-	assert_eq!(config.project.name, "test");
+	assert_eq!(config.project_name(), "test");
 
 	let _ = std::fs::remove_dir_all(&tmp);
 }
@@ -242,7 +242,7 @@ fn load_ts_config_via_subprocess() {
 	.unwrap();
 
 	let config = load_seam_config(&tmp.join("seam.config.mjs")).unwrap();
-	assert_eq!(config.project.name, "from-mjs");
+	assert_eq!(config.project_name(), "from-mjs");
 	assert_eq!(config.backend.dev_command.as_deref(), Some("bun run dev"));
 	assert_eq!(config.backend.port, 4567);
 	assert_eq!(config.build.pages_dir.as_deref(), Some("src/pages"));

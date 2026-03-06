@@ -53,7 +53,7 @@ members = ["backends/ts-hono"]
 	let merged = resolve_member_config(&root, &tmp.join("backends/ts-hono")).unwrap();
 
 	// Project from root
-	assert_eq!(merged.project.name, "github-dashboard");
+	assert_eq!(merged.project_name(), "github-dashboard");
 	// Backend from member
 	assert_eq!(merged.backend.lang, "typescript");
 	assert_eq!(merged.backend.port, 4000);

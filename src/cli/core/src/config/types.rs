@@ -37,6 +37,7 @@ pub struct TransportSection {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SeamConfig {
+	#[serde(default)]
 	pub project: ProjectConfig,
 	#[serde(default)]
 	pub backend: BackendConfig,
@@ -124,9 +125,10 @@ fn default_messages_dir() -> String {
 	"locales".to_string()
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct ProjectConfig {
-	pub name: String,
+	#[serde(default)]
+	pub name: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -247,6 +249,10 @@ fn default_port() -> u16 {
 }
 
 impl SeamConfig {
+	pub fn project_name(&self) -> &str {
+		self.project.name.as_deref().unwrap_or("")
+	}
+
 	pub fn is_workspace(&self) -> bool {
 		self.workspace.as_ref().is_some_and(|w| !w.members.is_empty())
 	}

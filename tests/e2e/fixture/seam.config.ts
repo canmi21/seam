@@ -3,7 +3,6 @@
 import { defineConfig } from '@canmi/seam-cli/config'
 
 export default defineConfig({
-	project: { name: 'e2e-fixture' },
 	backend: { lang: 'typescript', devCommand: 'bun --watch src/server/index.ts', port: 3000 },
 	frontend: { entry: 'src/client/main.tsx', dataId: '__e2e' },
 	build: {

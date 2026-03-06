@@ -9,7 +9,7 @@ fn parse_minimal_config() {
 name = "my-app"
 "#;
 	let config: SeamConfig = toml::from_str(toml_str).unwrap();
-	assert_eq!(config.project.name, "my-app");
+	assert_eq!(config.project_name(), "my-app");
 	assert_eq!(config.backend.port, 3000);
 	assert_eq!(config.backend.lang, "typescript");
 	assert!(config.backend.dev_command.is_none());
@@ -44,7 +44,7 @@ renderer = "react"
 out_dir = "src/generated"
 "#;
 	let config: SeamConfig = toml::from_str(toml_str).unwrap();
-	assert_eq!(config.project.name, "full-app");
+	assert_eq!(config.project_name(), "full-app");
 	assert_eq!(config.backend.lang, "rust");
 	assert_eq!(config.backend.port, 8080);
 	assert_eq!(config.backend.dev_command.as_deref(), Some("cargo watch -x run"));
@@ -324,11 +324,59 @@ bundler_manifest = "frontend/dist/.vite/manifest.json"
 }
 
 #[test]
-fn missing_project_errors() {
+fn missing_project_defaults_to_none() {
 	let toml_str = r#"
 [backend]
 port = 3000
 "#;
-	let result = toml::from_str::<SeamConfig>(toml_str);
-	assert!(result.is_err());
+	let config: SeamConfig = toml::from_str(toml_str).unwrap();
+	assert!(config.project.name.is_none());
+	assert_eq!(config.backend.port, 3000);
+}
+
+#[test]
+fn project_name_from_package_json() {
+	let tmp = std::env::temp_dir().join("seam-test-pkg-name");
+	let _ = std::fs::remove_dir_all(&tmp);
+	std::fs::create_dir_all(&tmp).unwrap();
+
+	// Config without project.name
+	std::fs::write(tmp.join("seam.toml"), "[backend]\nport = 3000\n").unwrap();
+	// package.json with name
+	std::fs::write(tmp.join("package.json"), r#"{"name":"from-pkg"}"#).unwrap();
+
+	let config = loader::load_seam_config(&tmp.join("seam.toml")).unwrap();
+	assert_eq!(config.project_name(), "from-pkg");
+
+	let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn project_name_falls_back_to_dir_name() {
+	let tmp = std::env::temp_dir().join("seam-test-dir-fallback");
+	let _ = std::fs::remove_dir_all(&tmp);
+	std::fs::create_dir_all(&tmp).unwrap();
+
+	// Config without project.name, no package.json
+	std::fs::write(tmp.join("seam.toml"), "[backend]\nport = 3000\n").unwrap();
+
+	let config = loader::load_seam_config(&tmp.join("seam.toml")).unwrap();
+	assert_eq!(config.project_name(), "seam-test-dir-fallback");
+
+	let _ = std::fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn explicit_project_name_not_overridden() {
+	let tmp = std::env::temp_dir().join("seam-test-explicit-name");
+	let _ = std::fs::remove_dir_all(&tmp);
+	std::fs::create_dir_all(&tmp).unwrap();
+
+	std::fs::write(tmp.join("seam.toml"), "[project]\nname = \"explicit\"\n").unwrap();
+	std::fs::write(tmp.join("package.json"), r#"{"name":"from-pkg"}"#).unwrap();
+
+	let config = loader::load_seam_config(&tmp.join("seam.toml")).unwrap();
+	assert_eq!(config.project_name(), "explicit");
+
+	let _ = std::fs::remove_dir_all(&tmp);
 }

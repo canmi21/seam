@@ -83,7 +83,8 @@ export interface TransportSection {
 }
 
 export interface SeamConfig {
-	project: ProjectConfig
+	/** Omit to auto-read from package.json or use directory name */
+	project?: ProjectConfig
 	backend?: BackendConfig
 	frontend?: FrontendConfig
 	build?: BuildSection

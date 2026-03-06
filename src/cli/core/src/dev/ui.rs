@@ -14,7 +14,7 @@ pub(super) fn print_dev_banner(
 	frontend_cmd: Option<&str>,
 	use_embedded: bool,
 ) {
-	ui::banner("dev", Some(&config.project.name));
+	ui::banner("dev", Some(config.project_name()));
 
 	if let Some(cmd) = backend_cmd {
 		let lang = &config.backend.lang;
@@ -91,7 +91,7 @@ pub(super) fn print_fullstack_banner(
 		config.backend.dev_command.as_deref().unwrap_or("bun --watch src/server/index.ts");
 	let lang = &config.backend.lang;
 
-	ui::banner("dev", Some(&config.project.name));
+	ui::banner("dev", Some(config.project_name()));
 	if let Some(vp) = vite_port {
 		ui::label(MAGENTA, "vite", &format!("{}http://localhost:{vp}{}", col(DIM), col(RESET)));
 	}
