@@ -113,7 +113,7 @@ fn load_ts_config(path: &Path) -> Result<SeamConfig> {
 
 /// Transform camelCase keys to snake_case, preserving `vite` and `router`
 /// fields which contain user config with their own key conventions.
-fn prepare_ts_config(mut raw: serde_json::Value) -> serde_json::Value {
+pub(super) fn prepare_ts_config(mut raw: serde_json::Value) -> serde_json::Value {
 	// Extract passthrough fields before transformation
 	let vite = raw.get("vite").cloned();
 	let router = raw.get("router").cloned();
