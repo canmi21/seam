@@ -14,7 +14,7 @@ export type ClientLoaderFn = (ctx: {
 }) => Promise<unknown>
 
 export interface SeamRouterOptions {
-	routes: SeamRouteDef[]
+	routes?: SeamRouteDef[]
 	/** Runtime-only page components keyed by route path (e.g. "/dashboard/:username") */
 	pages?: Record<string, ComponentType>
 	defaultStaleTime?: number

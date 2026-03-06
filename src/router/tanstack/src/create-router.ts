@@ -151,6 +151,12 @@ function buildRoutes(
 export function createSeamRouter(opts: SeamRouterOptions) {
 	const { routes, pages, defaultStaleTime = 30_000, dataId, cleanLocaleQuery } = opts
 
+	if (!routes) {
+		throw new Error(
+			'routes is required — pass routes explicitly or use seamHydrate() for auto-import',
+		)
+	}
+
 	// Parse initial data from __data (browser only)
 	let initialData: Record<string, unknown> | null = null
 	let initialLayouts: Record<string, Record<string, unknown>> = {}

@@ -10,6 +10,11 @@ import type { HydrateOptions } from './types.js'
 export async function seamHydrate(opts: HydrateOptions) {
 	const { root, strict = true, ...routerOpts } = opts
 
+	if (!routerOpts.routes) {
+		const mod = await import('virtual:seam/routes')
+		routerOpts.routes = mod.default
+	}
+
 	const router = createSeamRouter(routerOpts)
 
 	setupLinkInterception(router)
@@ -23,4 +28,10 @@ export async function seamHydrate(opts: HydrateOptions) {
 	hydrateRoot(root, strict ? <StrictMode>{app}</StrictMode> : app)
 
 	return router
+}
+
+export async function createSeamApp(opts?: Partial<HydrateOptions>) {
+	const root = opts?.root ?? document.getElementById('__seam')
+	if (!root) throw new Error('Missing #__seam element')
+	return seamHydrate({ ...opts, root } as HydrateOptions)
 }

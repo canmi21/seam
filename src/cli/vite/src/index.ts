@@ -11,11 +11,7 @@ const VIRTUAL_MODULES: Record<string, string> = {
 	'virtual:seam/routes': '.seam/generated/routes.ts',
 }
 
-const SEAM_PACKAGES = [
-	'@canmi/seam-react',
-	'@canmi/seam-tanstack-router',
-	'@canmi/seam-client',
-]
+const SEAM_PACKAGES = ['@canmi/seam-react', '@canmi/seam-tanstack-router', '@canmi/seam-client']
 
 /**
  * Vite plugin that resolves `virtual:seam/*` imports to generated files

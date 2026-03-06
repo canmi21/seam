@@ -163,16 +163,12 @@ async fn run() -> Result<()> {
 				.with_context(|| format!("failed to create {}", seam_dir.display()))?;
 			std::fs::write(seam_dir.join("client.ts"), &code)
 				.with_context(|| "failed to write .seam/generated/client.ts")?;
-			std::fs::write(
-				seam_dir.join("seam.d.ts"),
-				seam_codegen::generate_type_declarations(),
-			)
-			.with_context(|| "failed to write .seam/generated/seam.d.ts")?;
+			std::fs::write(seam_dir.join("seam.d.ts"), seam_codegen::generate_type_declarations())
+				.with_context(|| "failed to write .seam/generated/seam.d.ts")?;
 
 			// Secondary: if --out or config outDir specified, also write there
-			let user_out = out.or_else(|| {
-				cfg.as_ref().and_then(|c| c.generate.out_dir.as_ref()).map(PathBuf::from)
-			});
+			let user_out =
+				out.or_else(|| cfg.as_ref().and_then(|c| c.generate.out_dir.as_ref()).map(PathBuf::from));
 			if let Some(ref out_dir) = user_out {
 				std::fs::create_dir_all(out_dir)
 					.with_context(|| format!("failed to create {}", out_dir.display()))?;

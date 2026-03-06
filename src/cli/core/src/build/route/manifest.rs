@@ -324,29 +324,22 @@ pub(crate) fn generate_types(
 	let primary_file = seam_dir.join("client.ts");
 	std::fs::write(&primary_file, &code)
 		.with_context(|| format!("failed to write {}", primary_file.display()))?;
-	std::fs::write(
-		seam_dir.join("seam.d.ts"),
-		seam_codegen::generate_type_declarations(),
-	)
-	.with_context(|| "failed to write .seam/generated/seam.d.ts")?;
+	std::fs::write(seam_dir.join("seam.d.ts"), seam_codegen::generate_type_declarations())
+		.with_context(|| "failed to write .seam/generated/seam.d.ts")?;
 
 	// Secondary: if user explicitly configured outDir, also write client.ts there
 	if let Some(ref user_dir) = config.generate.out_dir {
 		let out = base_dir.join(user_dir);
-		std::fs::create_dir_all(&out)
-			.with_context(|| format!("failed to create {}", out.display()))?;
+		std::fs::create_dir_all(&out).with_context(|| format!("failed to create {}", out.display()))?;
 		let file = out.join("client.ts");
-		std::fs::write(&file, &code)
-			.with_context(|| format!("failed to write {}", file.display()))?;
+		std::fs::write(&file, &code).with_context(|| format!("failed to write {}", file.display()))?;
 	}
 
 	let display_path = match config.generate.out_dir.as_deref() {
 		Some(dir) => format!("{dir}/client.ts"),
 		None => ".seam/generated/client.ts".to_string(),
 	};
-	ui::detail_ok(&format!(
-		"{proc_count} procedures \u{2192} {display_path} ({line_count} lines)",
-	));
+	ui::detail_ok(&format!("{proc_count} procedures \u{2192} {display_path} ({line_count} lines)",));
 	Ok(())
 }
 
