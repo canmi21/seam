@@ -44,7 +44,7 @@ impl BuildConfig {
 			(Some(_), Some(_)) => bail!("build.routes and build.pages_dir are mutually exclusive"),
 			(Some(r), None) => r.clone(),
 			(None, Some(_)) => ".seam/generated/routes.ts".to_string(),
-			(None, None) => bail!("either build.routes or build.pages_dir is required in seam.toml"),
+			(None, None) => bail!("either build.routes or build.pages_dir is required in config"),
 		};
 
 		let out_dir = build

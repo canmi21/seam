@@ -9,7 +9,7 @@ See root CLAUDE.md for general conventions.
 | Module            | Responsibility                                                                                                                                                     |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `main.rs`         | CLI entry point (clap); dispatches `pull`, `generate`, `build`, `dev`, `clean` subcommands; `--plain` + `--version` flags                                          |
-| `config/`         | Parses `seam.toml`; walks upward to find config (like Cargo.toml discovery)                                                                                        |
+| `config/`         | Parses config (`seam.config.ts` > `.mjs` > `.toml`); walks upward to find config (like Cargo.toml discovery)                                                       |
 | `pull.rs`         | Fetches `/_seam/manifest.json` from a running server via reqwest                                                                                                   |
 | `build/config.rs` | `BuildConfig` + `BundlerMode` enum derived from `SeamConfig`; detects fullstack vs frontend-only                                                                   |
 | `build/run/`      | Build orchestrator: dispatches frontend-only (3-4 steps) or fullstack (7-10 steps) builds; dynamic step registry via `StepTracker`                                 |
@@ -39,7 +39,7 @@ See root CLAUDE.md for general conventions.
 ## Conventions
 
 - Crate name is `seam-cli`, binary name is `seam` (do NOT use `cargo build -p seam`)
-- Build modes: `is_fullstack` is true when `backend_build_command` is set in `seam.toml`
+- Build modes: `is_fullstack` is true when `backend_build_command` is set in config
 - Fullstack build extracts manifest at build time by importing the router file via bun/node
 - Template output goes to `{out_dir}/templates/`, route manifest to `{out_dir}/route-manifest.json`
 - Static assets copied to `{out_dir}/public/` in fullstack mode

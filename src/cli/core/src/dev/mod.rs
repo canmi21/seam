@@ -37,7 +37,7 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
 
 	if backend_cmd.is_none() && frontend_cmd.is_none() && !has_entry {
 		bail!(
-			"no dev_command configured in seam.toml \
+			"no dev_command configured \
        (set backend.dev_command, frontend.dev_command, or frontend.entry)"
 		);
 	}

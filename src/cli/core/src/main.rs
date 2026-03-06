@@ -53,7 +53,7 @@ enum Command {
 	},
 	/// Build HTML skeletons from React components
 	Build {
-		/// Path to seam.toml (auto-detected if omitted)
+		/// Path to config file (auto-detected if omitted)
 		#[arg(short, long)]
 		config: Option<PathBuf>,
 		/// Build a specific workspace member (workspace mode only)
@@ -62,7 +62,7 @@ enum Command {
 	},
 	/// Start dev servers (backend + frontend)
 	Dev {
-		/// Path to seam.toml (auto-detected if omitted)
+		/// Path to config file (auto-detected if omitted)
 		#[arg(short, long)]
 		config: Option<PathBuf>,
 		/// Run dev mode for a specific workspace member
@@ -71,7 +71,7 @@ enum Command {
 	},
 	/// Remove build output, codegen artifacts, and run cleanup commands
 	Clean {
-		/// Path to seam.toml (auto-detected if omitted)
+		/// Path to config file (auto-detected if omitted)
 		#[arg(short, long)]
 		config: Option<PathBuf>,
 		/// Clean a specific workspace member only
@@ -97,7 +97,7 @@ fn warn_seam_not_gitignored(base_dir: &std::path::Path) {
 	}
 }
 
-/// Try to load seam.toml from cwd upward; returns None if not found
+/// Try to load config from cwd upward; returns None if not found
 fn try_load_config() -> Option<SeamConfig> {
 	let cwd = std::env::current_dir().ok()?;
 	let path = find_seam_config(&cwd).ok()?;
@@ -184,7 +184,9 @@ async fn run() -> Result<()> {
 			if seam_config.is_workspace() {
 				workspace::run_workspace_build(&seam_config, base_dir, member.as_deref())?;
 			} else if member.is_some() {
-				anyhow::bail!("--member flag requires a workspace project (add [workspace] to seam.toml)");
+				anyhow::bail!(
+					"--member flag requires a workspace project (add workspace section to config)"
+				);
 			} else {
 				build::run::run_build(&seam_config, base_dir)?;
 			}
@@ -207,7 +209,9 @@ async fn run() -> Result<()> {
 				})?;
 				dev::run_dev_workspace(&seam_config, base_dir, member_name).await?;
 			} else if member.is_some() {
-				anyhow::bail!("--member flag requires a workspace project (add [workspace] to seam.toml)");
+				anyhow::bail!(
+					"--member flag requires a workspace project (add workspace section to config)"
+				);
 			} else {
 				dev::run_dev(&seam_config, base_dir).await?;
 			}

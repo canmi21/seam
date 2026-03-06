@@ -17,7 +17,7 @@ pub fn run_clean(config: &SeamConfig, base_dir: &Path, member_filter: Option<&st
 		run_workspace_clean(config, base_dir, member_filter)
 	} else {
 		if member_filter.is_some() {
-			anyhow::bail!("--member flag requires a workspace project (add [workspace] to seam.toml)");
+			anyhow::bail!("--member flag requires a workspace project (add workspace section to config)");
 		}
 		run_project_clean(config, base_dir)
 	}

@@ -251,8 +251,8 @@ fn to_codegen_transport(tc: &crate::config::TransportConfig) -> seam_codegen::Tr
 	}
 }
 
-/// Merge seam.toml [transport] section into manifest transport_defaults.
-/// seam.toml values override server-declared defaults.
+/// Merge config [transport] section into manifest transport_defaults.
+/// Config values override server-declared defaults.
 fn merge_transport_defaults(
 	defaults: &mut std::collections::BTreeMap<String, seam_codegen::TransportConfig>,
 	section: &crate::config::TransportSection,
@@ -306,7 +306,7 @@ pub(crate) fn generate_types(
 ) -> Result<()> {
 	let out_dir_str = config.generate.out_dir.as_deref().unwrap_or("src/generated");
 
-	// Merge transport: seam.toml overrides server defaults, then fill built-in defaults
+	// Merge transport: config overrides server defaults, then fill built-in defaults
 	let mut manifest = manifest.clone();
 	if let Some(ref section) = config.transport {
 		merge_transport_defaults(&mut manifest.transport_defaults, section);

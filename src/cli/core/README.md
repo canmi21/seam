@@ -13,7 +13,7 @@ The CLI is split into three crates:
 ## Modules
 
 - `src/main.rs` — CLI entry point (clap), dispatches subcommands
-- `src/config/` — Parses `seam.toml`, walks up directory tree to find config
+- `src/config/` — Parses config files (`seam.config.ts` > `.mjs` > `.toml`), walks up directory tree to find config
 - `src/pull.rs` — Fetches `/_seam/manifest.json` from a running server
 - `src/build/` — Build pipeline orchestration (route processing, asset packaging)
 - `src/dev/` — Starts backend + frontend dev servers
@@ -39,5 +39,5 @@ The CLI is split into three crates:
 ## Notes
 
 - The crate name is `seam-cli`, but the binary name is `seam`
-- Config file lookup walks up the directory tree until it finds `seam.toml`
+- Config file lookup walks up the directory tree until it finds `seam.config.ts`, `seam.config.mjs`, or `seam.toml`
 - Skeleton logic lives in `seam-skeleton`, codegen in `seam-codegen`
