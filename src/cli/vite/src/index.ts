@@ -28,9 +28,8 @@ export function seamVirtual(): Plugin {
 			projectRoot = config.root
 		},
 		resolveId(id) {
-			if (id in VIRTUAL_MODULES) {
-				return resolve(projectRoot, VIRTUAL_MODULES[id]!)
-			}
+			const target = VIRTUAL_MODULES[id]
+			if (target) return resolve(projectRoot, target)
 		},
 	}
 }
