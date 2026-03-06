@@ -16,6 +16,33 @@ import { processLayoutsWithCache, processRoutesWithCache } from './skeleton/proc
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
+function seamVirtualPlugin() {
+	const cwd = process.cwd()
+	const mapping = {
+		'virtual:seam/client': '.seam/generated/client.ts',
+		'virtual:seam/routes': '.seam/generated/routes.ts',
+	}
+	return {
+		name: 'seam-virtual',
+		setup(build) {
+			build.onResolve({ filter: /^virtual:seam\// }, (args) => {
+				const target = mapping[args.path]
+				if (!target) return null
+				const resolved = resolve(cwd, target)
+				if (existsSync(resolved)) return { path: resolved }
+				return { path: args.path, namespace: 'seam-virtual' }
+			})
+			build.onLoad({ filter: /.*/, namespace: 'seam-virtual' }, (args) => {
+				if (args.path === 'virtual:seam/routes')
+					return { contents: 'export default []', loader: 'ts' }
+				if (args.path === 'virtual:seam/client')
+					return { contents: 'export const DATA_ID = "__data"', loader: 'ts' }
+				return null
+			})
+		},
+	}
+}
+
 function loadManifest(manifestFile) {
 	if (!manifestFile || manifestFile === 'none') return { manifest: null, manifestContent: '' }
 	try {
@@ -78,6 +105,7 @@ async function main() {
 		platform: 'node',
 		outfile,
 		external: ['react', 'react-dom', '@canmi/seam-react', '@canmi/seam-i18n'],
+		plugins: [seamVirtualPlugin()],
 	})
 
 	try {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useSeamData, parseSeamData } from '@canmi/seam-react'
-import { DATA_ID } from '../../generated/client.js'
+import { DATA_ID } from 'virtual:seam/client'
 import type { DashboardData } from '@github-dashboard/shared/types.js'
 import { ProfileHeader } from '@github-dashboard/shared/components/profile-header.js'
 import { StatsBar } from '@github-dashboard/shared/components/stats-bar.js'
