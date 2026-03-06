@@ -45,14 +45,6 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	// Read data_id from seam.toml (default: __data)
-	if tomlBytes, err := os.ReadFile(filepath.Join(exampleDir, "seam.toml")); err == nil {
-		re := regexp.MustCompile(`(?m)^data_id\s*=\s*"(.+)"`)
-		if m := re.FindSubmatch(tomlBytes); len(m) > 1 {
-			dataID = string(m[1])
-		}
-	}
-
 	// Load RPC hash map if present (obfuscation enabled)
 	if data, err := os.ReadFile(filepath.Join(buildDir, "rpc-hash-map.json")); err == nil {
 		if err := json.Unmarshal(data, &rpcHashMap); err != nil {

@@ -3,15 +3,7 @@
 
 import { test, expect } from '@playwright/test'
 import { setupHydrationErrorCollector, waitForHydration } from './helpers/hydration.js'
-import fs from 'node:fs'
-import path from 'node:path'
-
-const seamToml = fs.readFileSync(
-	path.resolve(__dirname, '../../../examples/github-dashboard/seam-app/seam.toml'),
-	'utf-8',
-)
-const dataIdMatch = seamToml.match(/^data_id\s*=\s*"(.+)"/m)
-const dataId = dataIdMatch?.[1] ?? '__data'
+const dataId = '__data'
 
 test.describe('fullstack CTR first-screen', () => {
 	test('home page HTML contains server-rendered content', async ({ page }) => {
