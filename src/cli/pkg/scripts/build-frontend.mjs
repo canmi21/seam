@@ -271,9 +271,33 @@ function buildViteManifest(chunks) {
 	return manifest
 }
 
+// -- Virtual module resolution (mirrors seamVirtual() from @canmi/seam-vite) --
+
+function seamVirtualPlugin() {
+	return {
+		name: 'seam-virtual',
+		resolveId(id) {
+			const mapping = {
+				'virtual:seam/client': '.seam/generated/client.ts',
+				'virtual:seam/routes': '.seam/generated/routes.ts',
+			}
+			const target = mapping[id]
+			if (!target) return null
+			const resolved = path.resolve(cwd, target)
+			if (fs.existsSync(resolved)) return resolved
+			return `\0${id}`
+		},
+		load(id) {
+			if (id === '\0virtual:seam/routes') return 'export default []'
+			if (id === '\0virtual:seam/client') return 'export const DATA_ID = "__data"'
+			return null
+		},
+	}
+}
+
 // -- Main --
 
-const plugins = []
+const plugins = [seamVirtualPlugin()]
 
 const rpcPlugin = rpcHashPlugin()
 if (rpcPlugin) plugins.push(rpcPlugin)

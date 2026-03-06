@@ -29,7 +29,14 @@ export function seamVirtual(): Plugin {
 		},
 		resolveId(id) {
 			const target = VIRTUAL_MODULES[id]
-			if (target) return resolve(projectRoot, target)
+			if (!target) return
+			const resolved = resolve(projectRoot, target)
+			if (existsSync(resolved)) return resolved
+			return `\0${id}`
+		},
+		load(id) {
+			if (id === '\0virtual:seam/routes') return 'export default []'
+			if (id === '\0virtual:seam/client') return 'export const DATA_ID = "__data"'
 		},
 	}
 }
