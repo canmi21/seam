@@ -92,7 +92,8 @@ pub fn arrow(msg: &str) {
 /// Print a step header (standalone, no StepTracker).
 /// Kept for workspace / dev contexts that don't use StepTracker.
 pub fn step(n: u32, total: u32, msg: &str) -> Instant {
-	println!("  {}{}[{n}/{total}]{} {msg}...", col(BLUE), col(BOLD), col(RESET));
+	let w = total.to_string().len();
+	println!("  {}{}[{n:0>w$}/{total}]{} {msg}...", col(BLUE), col(BOLD), col(RESET));
 	Instant::now()
 }
 
@@ -185,11 +186,13 @@ pub fn blank() {
 pub struct StepTracker {
 	steps: Vec<&'static str>,
 	current: usize,
+	width: usize,
 }
 
 impl StepTracker {
 	pub fn new(steps: Vec<&'static str>) -> Self {
-		Self { steps, current: 0 }
+		let width = steps.len().to_string().len();
+		Self { steps, current: 0, width }
 	}
 
 	/// Print step header and return the start instant.
@@ -199,7 +202,8 @@ impl StepTracker {
 		let label = self.steps[self.current];
 		self.current += 1;
 		reset_detail_lines();
-		println!("  {}{}[{n}/{total}]{} {label}...", col(BLUE), col(BOLD), col(RESET));
+		let w = self.width;
+		println!("  {}{}[{n:0>w$}/{total}]{} {label}...", col(BLUE), col(BOLD), col(RESET));
 		Instant::now()
 	}
 
@@ -222,6 +226,7 @@ impl StepTracker {
 		let n = self.current;
 		let total = self.steps.len();
 		let label = self.steps[n - 1];
+		let w = self.width;
 
 		match output_mode() {
 			OutputMode::Rich => {
@@ -236,7 +241,7 @@ impl StepTracker {
 				};
 				if elapsed >= 0.1 {
 					println!(
-						"  {}{}[{n}/{total}]{} {}\u{2713}{} {label} {}({elapsed:.1}s){}{}",
+						"  {}{}[{n:0>w$}/{total}]{} {}\u{2713}{} {label} {}({elapsed:.1}s){}{}",
 						col(BLUE),
 						col(BOLD),
 						col(RESET),
@@ -248,7 +253,7 @@ impl StepTracker {
 					);
 				} else {
 					println!(
-						"  {}{}[{n}/{total}]{} {}\u{2713}{} {label}{}",
+						"  {}{}[{n:0>w$}/{total}]{} {}\u{2713}{} {label}{}",
 						col(BLUE),
 						col(BOLD),
 						col(RESET),
