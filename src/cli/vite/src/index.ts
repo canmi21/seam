@@ -157,11 +157,11 @@ export interface SeamOptions {
  */
 export function seam(options?: SeamOptions): Plugin[] {
 	return [
+		seamConfigPlugin(),
 		seamVirtual(),
 		seamPageSplit(),
 		seamRpcPlugin(),
 		seamReloadPlugin(options?.devOutDir),
-		seamConfigPlugin(),
 	]
 }
 
