@@ -48,6 +48,7 @@ export type {
 export type { SchemaNode, OptionalSchemaNode, Infer } from './types/schema.js'
 export type {
 	ProcedureDef,
+	QueryDef,
 	CommandDef,
 	SubscriptionDef,
 	StreamDef,

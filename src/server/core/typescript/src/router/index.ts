@@ -48,6 +48,7 @@ export interface TransportConfig {
 
 export type CacheConfig = false | { ttl: number }
 
+/** @deprecated Use QueryDef instead */
 export interface ProcedureDef<TIn = unknown, TOut = unknown> {
 	kind?: 'query'
 	/** @deprecated Use `kind` instead */
@@ -61,6 +62,8 @@ export interface ProcedureDef<TIn = unknown, TOut = unknown> {
 	cache?: CacheConfig
 	handler: (params: { input: TIn; ctx: Record<string, unknown> }) => TOut | Promise<TOut>
 }
+
+export type QueryDef<TIn = unknown, TOut = unknown> = ProcedureDef<TIn, TOut>
 
 export interface CommandDef<TIn = unknown, TOut = unknown> {
 	kind?: 'command'
@@ -118,7 +121,7 @@ export interface UploadDef<TIn = unknown, TOut = unknown> {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type DefinitionMap = Record<
 	string,
-	| ProcedureDef<any, any>
+	| QueryDef<any, any>
 	| CommandDef<any, any>
 	| SubscriptionDef<any, any>
 	| StreamDef<any, any>

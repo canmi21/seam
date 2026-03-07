@@ -1,9 +1,9 @@
 /* examples/features/channel-subscription/src/server/procedures.ts */
 
 import { t } from '@canmi/seam-server'
-import type { ProcedureDef, SubscriptionDef } from '@canmi/seam-server'
+import type { QueryDef, SubscriptionDef } from '@canmi/seam-server'
 
-export const getInfo: ProcedureDef<Record<string, never>, { title: string }> = {
+export const getInfo: QueryDef<Record<string, never>, { title: string }> = {
 	input: t.object({}),
 	output: t.object({ title: t.string() }),
 	handler: () => ({ title: 'Channel & Subscription Demo' }),

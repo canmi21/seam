@@ -55,6 +55,14 @@ pub(crate) fn validate_invalidates(manifest: &Manifest) -> Result<()> {
 
 	for (cmd_name, cmd) in &manifest.procedures {
 		let Some(targets) = &cmd.invalidates else { continue };
+		if cmd.proc_type != ProcedureType::Command {
+			ui::warn(&format!(
+				"Procedure \"{cmd_name}\" is a {} but declares invalidates. \
+				 invalidates only takes effect on command procedures.",
+				cmd.proc_type
+			));
+			continue;
+		}
 		for target in targets {
 			// Check referenced procedure exists
 			let Some(target_proc) = manifest.procedures.get(&target.query) else {

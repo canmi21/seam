@@ -1,9 +1,9 @@
 /* examples/features/handoff-narrowing/src/server/procedures.ts */
 
 import { t } from '@canmi/seam-server'
-import type { ProcedureDef } from '@canmi/seam-server'
+import type { QueryDef } from '@canmi/seam-server'
 
-export const getUserProfile: ProcedureDef = {
+export const getUserProfile: QueryDef = {
 	input: t.object({}),
 	output: t.object({
 		name: t.string(),
@@ -26,7 +26,7 @@ export const getUserProfile: ProcedureDef = {
 	}),
 }
 
-export const getUserTheme: ProcedureDef = {
+export const getUserTheme: QueryDef = {
 	input: t.object({}),
 	output: t.object({ mode: t.string() }),
 	handler: () => ({ mode: 'light' }),

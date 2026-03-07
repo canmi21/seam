@@ -1,15 +1,15 @@
 /* examples/features/context-auth/src/server/procedures.ts */
 
 import { t } from '@canmi/seam-server'
-import type { ProcedureDef, CommandDef } from '@canmi/seam-server'
+import type { QueryDef, CommandDef } from '@canmi/seam-server'
 
-export const getPublicInfo: ProcedureDef<Record<string, never>, { message: string }> = {
+export const getPublicInfo: QueryDef<Record<string, never>, { message: string }> = {
 	input: t.object({}),
 	output: t.object({ message: t.string() }),
 	handler: () => ({ message: 'This is public' }),
 }
 
-export const getSecretData: ProcedureDef<Record<string, never>, { message: string }> = {
+export const getSecretData: QueryDef<Record<string, never>, { message: string }> = {
 	input: t.object({}),
 	output: t.object({ message: t.string() }),
 	context: ['auth'],

@@ -1,9 +1,9 @@
 /* examples/fs-router-demo/src/server/procedures.ts */
 
 import { t } from '@canmi/seam-server'
-import type { ProcedureDef } from '@canmi/seam-server'
+import type { QueryDef } from '@canmi/seam-server'
 
-export const getPageData: ProcedureDef = {
+export const getPageData: QueryDef = {
 	input: t.object({}),
 	output: t.object({
 		title: t.string(),
@@ -15,7 +15,7 @@ export const getPageData: ProcedureDef = {
 	}),
 }
 
-export const getBlogPost: ProcedureDef = {
+export const getBlogPost: QueryDef = {
 	input: t.object({ slug: t.string() }),
 	output: t.object({
 		title: t.string(),
@@ -32,7 +32,7 @@ export const getBlogPost: ProcedureDef = {
 	},
 }
 
-export const getSession: ProcedureDef = {
+export const getSession: QueryDef = {
 	input: t.object({}),
 	output: t.object({
 		username: t.string(),

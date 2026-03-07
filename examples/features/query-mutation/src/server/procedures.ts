@@ -1,7 +1,7 @@
 /* examples/features/query-mutation/src/server/procedures.ts */
 
 import { t } from '@canmi/seam-server'
-import type { ProcedureDef, CommandDef } from '@canmi/seam-server'
+import type { QueryDef, CommandDef } from '@canmi/seam-server'
 
 interface Todo {
 	id: string
@@ -16,7 +16,7 @@ const todos: Todo[] = [
 ]
 let nextId = 3
 
-export const listTodos: ProcedureDef<Record<string, never>, { todos: Todo[] }> = {
+export const listTodos: QueryDef<Record<string, never>, { todos: Todo[] }> = {
 	input: t.object({}),
 	output: t.object({
 		todos: t.array(
@@ -31,7 +31,7 @@ export const listTodos: ProcedureDef<Record<string, never>, { todos: Todo[] }> =
 	handler: () => ({ todos: [...todos] }),
 }
 
-export const getTodo: ProcedureDef<{ id: string }, Todo> = {
+export const getTodo: QueryDef<{ id: string }, Todo> = {
 	input: t.object({ id: t.string() }),
 	output: t.object({
 		id: t.string(),
@@ -62,7 +62,7 @@ export const addTodo: CommandDef<{ title: string }, Todo> = {
 	},
 }
 
-export const getStats: ProcedureDef<Record<string, never>, { totalCount: number }> = {
+export const getStats: QueryDef<Record<string, never>, { totalCount: number }> = {
 	input: t.object({}),
 	output: t.object({ totalCount: t.int32() }),
 	handler: () => ({ totalCount: todos.length }),

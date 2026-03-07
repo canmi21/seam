@@ -268,6 +268,18 @@ fn validate_invalidates_did_you_mean() {
 }
 
 #[test]
+fn validate_invalidates_warns_on_query() {
+	use seam_codegen::{InvalidateTarget, ProcedureType};
+	let manifest = make_manifest_with_procedures(vec![(
+		"getPost",
+		ProcedureType::Query,
+		Some(vec![InvalidateTarget { query: "getPost".to_string(), mapping: None }]),
+	)]);
+	// Non-command with invalidates should warn but not error
+	assert!(validate_invalidates(&manifest).is_ok());
+}
+
+#[test]
 fn extract_jtd_fields_basic() {
 	use super::super::manifest::extract_jtd_fields;
 	let schema = serde_json::json!({

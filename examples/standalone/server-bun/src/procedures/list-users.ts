@@ -1,7 +1,7 @@
 /* examples/standalone/server-bun/src/procedures/list-users.ts */
 
 import { t } from '@canmi/seam-server'
-import type { ProcedureDef } from '@canmi/seam-server'
+import type { QueryDef } from '@canmi/seam-server'
 
 interface UserSummary {
 	id: number
@@ -14,7 +14,7 @@ const USERS: UserSummary[] = [
 	{ id: 3, name: 'Charlie' },
 ]
 
-export const listUsers: ProcedureDef<Record<string, never>, UserSummary[]> = {
+export const listUsers: QueryDef<Record<string, never>, UserSummary[]> = {
 	input: t.object({}),
 	output: t.array(t.object({ id: t.uint32(), name: t.string() })),
 	handler: () => {

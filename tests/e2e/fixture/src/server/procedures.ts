@@ -1,9 +1,9 @@
 /* tests/e2e/fixture/src/server/procedures.ts */
 
 import { t } from '@canmi/seam-server'
-import type { ProcedureDef } from '@canmi/seam-server'
+import type { QueryDef } from '@canmi/seam-server'
 
-export const getHomeData: ProcedureDef = {
+export const getHomeData: QueryDef = {
 	input: t.object({}),
 	output: t.object({
 		title: t.string(),
@@ -15,7 +15,7 @@ export const getHomeData: ProcedureDef = {
 	}),
 }
 
-export const getReact19Data: ProcedureDef = {
+export const getReact19Data: QueryDef = {
 	input: t.object({}),
 	output: t.object({
 		heading: t.string(),
@@ -27,13 +27,13 @@ export const getReact19Data: ProcedureDef = {
 	}),
 }
 
-export const getFormPageData: ProcedureDef = {
+export const getFormPageData: QueryDef = {
 	input: t.object({}),
 	output: t.object({ heading: t.string() }),
 	handler: () => ({ heading: 'Contact Form' }),
 }
 
-export const submitContact: ProcedureDef = {
+export const submitContact: QueryDef = {
 	input: t.object({
 		name: t.string(),
 		email: t.string(),
@@ -45,19 +45,19 @@ export const submitContact: ProcedureDef = {
 	},
 }
 
-export const getErrorPageData: ProcedureDef = {
+export const getErrorPageData: QueryDef = {
 	input: t.object({}),
 	output: t.object({ heading: t.string() }),
 	handler: () => ({ heading: 'Error Boundary Test' }),
 }
 
-export const getAsyncPageData: ProcedureDef = {
+export const getAsyncPageData: QueryDef = {
 	input: t.object({}),
 	output: t.object({ heading: t.string() }),
 	handler: () => ({ heading: 'Async Loading Test' }),
 }
 
-export const getRenderedContent: ProcedureDef = {
+export const getRenderedContent: QueryDef = {
 	input: t.object({}),
 	output: t.object({
 		title: t.string(),
@@ -69,7 +69,7 @@ export const getRenderedContent: ProcedureDef = {
 	}),
 }
 
-export const getAsyncItems: ProcedureDef = {
+export const getAsyncItems: QueryDef = {
 	input: t.object({}),
 	output: t.object({
 		items: t.array(t.object({ id: t.int32(), label: t.string() })),

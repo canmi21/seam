@@ -1,7 +1,7 @@
 /* examples/standalone/server-bun/src/procedures/get-user.ts */
 
 import { t, SeamError } from '@canmi/seam-server'
-import type { ProcedureDef } from '@canmi/seam-server'
+import type { QueryDef } from '@canmi/seam-server'
 
 interface GetUserInput {
 	id: number
@@ -20,7 +20,7 @@ const USERS: GetUserOutput[] = [
 	{ id: 3, name: 'Charlie', email: 'charlie@example.com' },
 ]
 
-export const getUser: ProcedureDef<GetUserInput, GetUserOutput> = {
+export const getUser: QueryDef<GetUserInput, GetUserOutput> = {
 	input: t.object({ id: t.uint32() }),
 	output: t.object({
 		id: t.uint32(),

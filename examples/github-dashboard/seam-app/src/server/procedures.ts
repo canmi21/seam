@@ -1,7 +1,7 @@
 /* examples/github-dashboard/seam-app/src/server/procedures.ts */
 
 import { t } from '@canmi/seam-server'
-import type { ProcedureDef } from '@canmi/seam-server'
+import type { QueryDef } from '@canmi/seam-server'
 
 const ghHeaders = (): Record<string, string> => {
 	const h: Record<string, string> = { Accept: 'application/vnd.github.v3+json' }
@@ -9,7 +9,7 @@ const ghHeaders = (): Record<string, string> => {
 	return h
 }
 
-export const getSession: ProcedureDef = {
+export const getSession: QueryDef = {
 	input: t.object({}),
 	output: t.object({
 		username: t.string(),
@@ -21,7 +21,7 @@ export const getSession: ProcedureDef = {
 	}),
 }
 
-export const getHomeData: ProcedureDef = {
+export const getHomeData: QueryDef = {
 	input: t.object({}),
 	output: t.object({
 		tagline: t.string(),
@@ -31,7 +31,7 @@ export const getHomeData: ProcedureDef = {
 	}),
 }
 
-export const getUser: ProcedureDef = {
+export const getUser: QueryDef = {
 	input: t.object({ username: t.string() }),
 	output: t.object({
 		login: t.string(),
@@ -63,7 +63,7 @@ export const getUser: ProcedureDef = {
 	},
 }
 
-export const getUserRepos: ProcedureDef = {
+export const getUserRepos: QueryDef = {
 	input: t.object({ username: t.string() }),
 	output: t.array(
 		t.object({

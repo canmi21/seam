@@ -1,9 +1,9 @@
 /* examples/i18n-demo/seam-app/src/server/router.ts */
 
 import { createRouter, t } from '@canmi/seam-server'
-import type { ProcedureDef, RouterOptions } from '@canmi/seam-server'
+import type { QueryDef, RouterOptions } from '@canmi/seam-server'
 
-const getContent: ProcedureDef = {
+const getContent: QueryDef = {
 	input: t.object({}),
 	output: t.object({ mode: t.string() }),
 	handler: () => ({ mode: 'prefix' }),

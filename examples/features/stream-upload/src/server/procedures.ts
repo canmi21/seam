@@ -1,9 +1,9 @@
 /* examples/features/stream-upload/src/server/procedures.ts */
 
 import { t } from '@canmi/seam-server'
-import type { ProcedureDef, StreamDef, UploadDef } from '@canmi/seam-server'
+import type { QueryDef, StreamDef, UploadDef } from '@canmi/seam-server'
 
-export const getInfo: ProcedureDef<Record<string, never>, { title: string }> = {
+export const getInfo: QueryDef<Record<string, never>, { title: string }> = {
 	input: t.object({}),
 	output: t.object({ title: t.string() }),
 	handler: () => ({ title: 'Stream & Upload Demo' }),
