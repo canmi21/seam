@@ -34,6 +34,7 @@ The engine source of truth is the Rust crate [`seam-engine`](../../src/server/en
 | [cli/codegen](../../src/cli/codegen/)   | `seam-codegen`    | TypeScript codegen, manifest types, RPC hash map            |
 | [cli/core](../../src/cli/core/)         | `seam-cli`        | Build orchestration, dev servers, CLI entry point           |
 | [cli/pkg](../../src/cli/pkg/)           | `@canmi/seam-cli` | npm distribution wrapper for the CLI binary                 |
+| [cli/vite](../../src/cli/vite/) | `@canmi/seam-vite` | Vite plugin suite (virtual modules, page splitting, config, RPC obfuscation) |
 
 ## Router
 
@@ -41,6 +42,13 @@ The engine source of truth is the Rust crate [`seam-engine`](../../src/server/en
 | --------------------------------------------- | ----------------------------- | ------------------------------------------------- |
 | [router/tanstack](../../src/router/tanstack/) | `@canmi/seam-tanstack-router` | TanStack Router integration for SeamJS            |
 | [router/seam](../../src/router/seam/)         | `@canmi/seam-router`          | Filesystem router (convention-based `src/pages/`) |
+
+## Query
+
+| Package | npm | Description |
+| ------- | --- | ----------- |
+| [query/seam](../../src/query/seam/) | `@canmi/seam-query` | UI-agnostic TanStack Query integration core |
+| [query/react](../../src/query/react/) | `@canmi/seam-query-react` | React hooks for typed queries and mutations |
 
 ## Planned
 

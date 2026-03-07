@@ -13,6 +13,7 @@ See root CLAUDE.md for general project rules.
 - `handler_page.go` — page handler: `makePageHandler`, `servePage`, loader orchestration (delegates to `engine.RenderPage` for slot injection, per-page assets, data script, head meta, and locale)
 - `resolve.go` — `ResolveStrategy` interface, `ResolveData`, built-in strategies (`FromUrlPrefix`, `FromCookie`, `FromAcceptLanguage`, `FromUrlQuery`), `ResolveChain`, `DefaultStrategies`
 - `generics.go` — `Query[In, Out]` and `Subscribe[In, Out]` typed wrappers using generics
+- `build_loader.go` — `LoadBuild`, `LoadBuildOutput`, `LoadRpcHashMap`, `LoadI18nConfig`; `BuildOutput` struct; `RpcHashMap` with `ReverseLookup()`
 - `schema.go` — JTD schema reflection (`SchemaOf[T]()`)
 - `serve.go` — `ListenAndServe` with SIGINT/SIGTERM graceful shutdown
 
@@ -48,6 +49,16 @@ Zero value disables the corresponding timeout. Variadic signature preserves back
 ## ListenAndServe
 
 Wraps `http.Server` with signal handling. Prints actual port (useful for `:0` in tests). Returns `nil` on clean shutdown.
+
+## Build Loading
+
+`LoadBuild(dir)` loads all build artifacts in one call, returning `BuildOutput { Pages, RpcHashMap, I18nConfig }`.
+
+`Router.Build(b BuildOutput)` is a chained builder that registers pages and configures rpcHashMap + i18n from a single `BuildOutput` value.
+
+Individual loaders: `LoadBuildOutput(dir)`, `LoadRpcHashMap(dir)`, `LoadI18nConfig(dir)`.
+
+`RpcHashMap.ReverseLookup()` builds a hash-to-original-name map for request dispatching.
 
 ## Testing
 

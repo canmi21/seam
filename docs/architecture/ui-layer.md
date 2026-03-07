@@ -35,6 +35,11 @@ SeamJS extracts HTML skeletons from UI components at build time via `renderToStr
   <td><a href="../src/eslint/"><code>@canmi/eslint-plugin-seam</code></a></td>
   <td>—</td><td>—</td>
 </tr>
+<tr>
+  <td>Query</td>
+  <td><a href="../../src/query/react/"><code>@canmi/seam-query-react</code></a></td>
+  <td>---</td><td>---</td>
+</tr>
 </table>
 
 ## Planned

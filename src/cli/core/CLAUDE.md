@@ -15,7 +15,7 @@ See root CLAUDE.md for general conventions.
 | `build/run/`      | Build orchestrator: dispatches frontend-only (3-4 steps) or fullstack (7-10 steps) builds; dynamic step registry via `StepTracker`                                 |
 | `build/route/`    | Pipeline steps: skeleton rendering, route processing, manifest extraction, codegen, asset packaging                                                                |
 | `build/types.rs`  | Shared build types (`AssetFiles`, `BundleManifest`, `EntryAssets`, `SeamManifest`), manifest reader (`read_bundle_manifest_extended` for per-entry asset tracking) |
-| `shell.rs`        | Shell command helpers shared across build and dev (`run_command`, `run_builtin_bundler`)                                                                           |
+| `shell.rs`        | Shell command helpers shared across build and dev (`run_command`, `run_builtin_bundler` runs built-in Vite bundler)                                                |
 | `dev/`            | Spawns backend + frontend dev processes, pipes labeled output, handles Ctrl+C                                                                                      |
 | `dev_server.rs`   | Embedded axum dev server (static files + API proxy + SPA fallback)                                                                                                 |
 | `workspace.rs`    | Workspace mode: resolves members, delegates builds to each                                                                                                         |
@@ -32,7 +32,7 @@ See root CLAUDE.md for general conventions.
 
 - `src/main.rs` -- CLI definition and command dispatch
 - `src/config/` -- types (structs), loader (find/load), tests (parsing, workspace, i18n)
-- `src/build/run/` -- mod (run_build entry), helpers, frontend, fullstack, rebuild, tests
+- `src/build/run/` -- mod (run_build entry), helpers, frontend, fullstack, steps (StepTracker registry), rebuild (RebuildMode::Full vs FrontendOnly), tests
 - `src/build/route/` -- mod (re-exports), types, helpers, process, manifest, tests/ (mod + validation + ref_graph)
 - `src/dev/` -- mod (run_dev entry), process, network, ui, fullstack
 

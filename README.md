@@ -6,7 +6,7 @@ The missing joint between anything that renders and anything that computes. Seam
 
 > **Audience**: SeamJS is in early development and targets developers who are comfortable reading source code, building from source, and working with unfinished APIs. It is not yet ready for general end-user consumption.
 >
-> **Status**: core pipeline validated with React + Rust/TypeScript/Go backends. HTTP RPC, SSE, and i18n are ready. See [Roadmap](docs/roadmap.md) for what's next.
+> **Status**: core pipeline validated with React + Rust/TypeScript/Go backends. HTTP RPC, SSE, i18n, TanStack Query integration, and zero-config `createSeamApp()` entry are ready. See [Roadmap](docs/roadmap.md) for what's next.
 
 ## Why SeamJS
 
@@ -68,7 +68,7 @@ Pure static pages can be built by any UI framework natively. SeamJS provides cro
 
 ## Current Status
 
-**Implemented**: React frontend (client, bindings, router, filesystem router, i18n, linter). Three backend runtimes (Rust, TypeScript, Go) with symmetric feature sets. Five procedure kinds (query, command, subscription, stream, upload). HTTP RPC, batch RPC, SSE streaming, WebSocket channels, stream SSE, multipart upload. Declarative context extraction, command invalidation, per-procedure transport config. Full CLI (build, generate, dev, pull, clean). Locale resolution with URL prefix, cookie, accept-language, and query strategies.
+**Implemented**: React frontend (client, bindings, router, filesystem router, i18n, linter, query integration). Three backend runtimes (Rust, TypeScript, Go) with symmetric feature sets. Five procedure kinds (query, command, subscription, stream, upload). HTTP RPC, batch RPC, SSE streaming, WebSocket channels, stream SSE, multipart upload. Declarative context extraction, command invalidation, per-procedure transport config. Full CLI (build, generate, dev, pull, clean) with virtual module system and `loadBuild()` API. Locale resolution with URL prefix, cookie, accept-language, and query strategies.
 
 **Next**: additional UI frameworks (Vue, Svelte), desktop adapters (Tauri/Electron).
 

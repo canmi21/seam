@@ -54,6 +54,17 @@ Everything listed here is planned and will be implemented. This is currently a s
 - [x] Filesystem router (convention-based `src/pages/`)
 - [ ] Shell Router — page-level micro-frontend navigation, per-page UI framework switching
 
+## Developer Experience
+
+- [x] `createSeamApp()` zero-config client entry
+- [x] Virtual module system (`virtual:seam/client`, `routes`, `meta`, `hooks`)
+- [x] Typed hook codegen (auto-generated query/mutation hooks)
+- [x] `loadBuild()` combined build artifact loader (TS + Go)
+- [x] `__loaders` auto-hydration (server loader metadata to QueryClient)
+- [x] `seam()` composite Vite plugin
+- [x] TanStack Query integration (`@canmi/seam-query` + `@canmi/seam-query-react`)
+- [x] Config priority: `seam.config.ts` > `.mjs` > `.toml`
+
 ## Architecture
 
 - [ ] Desktop adapter — Tauri/Electron integration layer

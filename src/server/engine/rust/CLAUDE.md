@@ -49,3 +49,4 @@ cargo test -p seam-engine
 - JSON string in / JSON string out API for WASM compatibility
 - `serde_json::Value` used internally; callers pass stringified JSON
 - No filesystem I/O — all functions are pure
+- Engine does NOT handle `__loaders` metadata -- that is injected by the adapter's page handler before/alongside engine calls

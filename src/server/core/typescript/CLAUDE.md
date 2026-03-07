@@ -32,7 +32,7 @@ src/
     index.ts        -- PageDef, PageAssets, LoaderFn, definePage()
     handler.ts      -- handlePageRequest: runs loaders, passes page_assets to engine, injects data into template
     route-matcher.ts -- RouteMatcher: pattern matching with `:param`, `*name` (catch-all), `*name?` (optional catch-all)
-    build-loader.ts -- loadBuildOutput: reads route-manifest.json; ParamConfig (from: "path" | "query"), handoff: "client" support
+    build-loader.ts -- loadBuild, loadBuildOutput, loadBuildDev, loadRpcHashMap, loadI18nMessages; BuildOutput type; ParamConfig (from: "route" | "query"), handoff: "client" support
   manifest/
     index.ts        -- buildManifest: generates v2 procedure manifest with context, invalidates, chunkOutput, transport
   dev/
@@ -49,6 +49,7 @@ src/
 - **Stream**: `POST /_seam/procedure/{name}` -> `createHttpHandler` -> `router.handleStream` -> `handleStream` -> yield SSE events with incrementing `id`
 - **Upload**: `POST /_seam/procedure/{name}` (multipart) -> `createHttpHandler` -> `router.handleUpload` -> `resolveCtxSafe` -> `handleUploadRequest` -> call handler with SeamFileHandle -> JSON response
 - **Page**: `GET /_seam/page/{path}` -> `createHttpHandler` -> `router.handlePage` -> `RouteMatcher` -> `handlePageRequest` -> run loaders (with query params, handoff) -> inject into template
+- **Build Loading**: `loadBuild(distDir)` -> reads `route-manifest.json` + `rpc-hash-map.json` + i18n -> `BuildOutput { pages, rpcHashMap, i18n }`
 - **Manifest**: `GET /_seam/manifest.json` -> `router.manifest()` -> `buildManifest` (v2: context, transportDefaults, invalidates, chunkOutput)
 - **Context**: rawCtx (from adapter) -> `resolveCtxSafe` -> `resolveContext` -> extract only keys referenced by the procedure
 
@@ -61,6 +62,8 @@ src/
 - `toWebResponse` converts `HttpResponse` to Web API `Response` (used by Hono/Bun adapters); Node adapter uses its own `sendResponse` instead
 - `fromCallback` bridges callback-style event emitters to `AsyncGenerator` for subscription handlers
 - Stream vs subscription SSE: subscriptions emit bare `data:` events; streams emit `id:` + `data:` events with incrementing IDs
+- rpcHashMap propagation: router stores as public property; `createHttpHandler` falls back `opts.rpcHashMap ?? router.rpcHashMap`
+- loader_metadata injection: page handler builds `__loaders` metadata from loader configs (`{procedure, input}` per data key) for client-side QueryClient hydration
 
 ## Dependencies
 
