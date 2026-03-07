@@ -1,16 +1,14 @@
 /* examples/features/stream-upload/src/server/procedures.ts */
 
-import { t } from '@canmi/seam-server'
-import type { QueryDef, StreamDef, UploadDef } from '@canmi/seam-server'
+import { t, query, stream, upload } from '@canmi/seam-server'
 
-export const getInfo: QueryDef<Record<string, never>, { title: string }> = {
+export const getInfo = query({
 	input: t.object({}),
 	output: t.object({ title: t.string() }),
 	handler: () => ({ title: 'Stream & Upload Demo' }),
-}
+})
 
-export const countStream: StreamDef<{ max: number }, { n: number }> = {
-	kind: 'stream',
+export const countStream = stream({
 	input: t.object({ max: t.int32() }),
 	output: t.object({ n: t.int32() }),
 	async *handler({ input }) {
@@ -21,13 +19,9 @@ export const countStream: StreamDef<{ max: number }, { n: number }> = {
 			yield { n: i }
 		}
 	},
-}
+})
 
-export const echoUpload: UploadDef<
-	{ filename: string },
-	{ fileId: string; filename: string; size: number }
-> = {
-	kind: 'upload',
+export const echoUpload = upload({
 	input: t.object({ filename: t.string() }),
 	output: t.object({
 		fileId: t.string(),
@@ -48,4 +42,4 @@ export const echoUpload: UploadDef<
 			size,
 		}
 	},
-}
+})

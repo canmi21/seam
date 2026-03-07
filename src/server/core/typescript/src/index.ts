@@ -2,6 +2,7 @@
 
 export { t } from './types/index.js'
 export { createRouter } from './router/index.js'
+export { query, command, subscription, stream, upload } from './factory.js'
 export { createChannel } from './channel.js'
 export { SeamError } from './errors.js'
 export { definePage } from './page/index.js'

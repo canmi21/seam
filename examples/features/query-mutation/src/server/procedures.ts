@@ -1,7 +1,6 @@
 /* examples/features/query-mutation/src/server/procedures.ts */
 
-import { t } from '@canmi/seam-server'
-import type { QueryDef, CommandDef } from '@canmi/seam-server'
+import { t, query, command } from '@canmi/seam-server'
 
 interface Todo {
 	id: string
@@ -16,7 +15,7 @@ const todos: Todo[] = [
 ]
 let nextId = 3
 
-export const listTodos: QueryDef<Record<string, never>, { todos: Todo[] }> = {
+export const listTodos = query({
 	input: t.object({}),
 	output: t.object({
 		todos: t.array(
@@ -29,9 +28,9 @@ export const listTodos: QueryDef<Record<string, never>, { todos: Todo[] }> = {
 	}),
 	cache: { ttl: 30 },
 	handler: () => ({ todos: [...todos] }),
-}
+})
 
-export const getTodo: QueryDef<{ id: string }, Todo> = {
+export const getTodo = query({
 	input: t.object({ id: t.string() }),
 	output: t.object({
 		id: t.string(),
@@ -44,10 +43,9 @@ export const getTodo: QueryDef<{ id: string }, Todo> = {
 		if (!todo) throw new Error(`Todo ${input.id} not found`)
 		return { ...todo }
 	},
-}
+})
 
-export const addTodo: CommandDef<{ title: string }, Todo> = {
-	kind: 'command',
+export const addTodo = command({
 	input: t.object({ title: t.string() }),
 	output: t.object({
 		id: t.string(),
@@ -60,16 +58,15 @@ export const addTodo: CommandDef<{ title: string }, Todo> = {
 		todos.push(todo)
 		return { ...todo }
 	},
-}
+})
 
-export const getStats: QueryDef<Record<string, never>, { totalCount: number }> = {
+export const getStats = query({
 	input: t.object({}),
 	output: t.object({ totalCount: t.int32() }),
 	handler: () => ({ totalCount: todos.length }),
-}
+})
 
-export const toggleTodo: CommandDef<{ id: string }, { id: string; done: boolean }> = {
-	kind: 'command',
+export const toggleTodo = command({
 	input: t.object({ id: t.string() }),
 	output: t.object({ id: t.string(), done: t.boolean() }),
 	invalidates: [{ query: 'getTodo', mapping: { id: { from: 'id' } } }, 'listTodos'],
@@ -79,4 +76,4 @@ export const toggleTodo: CommandDef<{ id: string }, { id: string; done: boolean 
 		todo.done = !todo.done
 		return { id: todo.id, done: todo.done }
 	},
-}
+})
