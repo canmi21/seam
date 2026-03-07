@@ -1,7 +1,7 @@
 /* examples/features/channel-subscription/src/server/index.ts */
 
 import { resolve } from 'node:path'
-import { loadBuildOutput, loadBuildOutputDev } from '@canmi/seam-server'
+import { loadBuild, loadBuildDev } from '@canmi/seam-server'
 import { serveBun } from '@canmi/seam-adapter-bun'
 import { buildRouter } from './router.js'
 
@@ -9,8 +9,8 @@ const isDev = process.env.SEAM_DEV === '1'
 const outputDir = process.env.SEAM_OUTPUT_DIR
 if (isDev && !outputDir) throw new Error('SEAM_OUTPUT_DIR is required in dev mode')
 const BUILD_DIR = isDev ? (outputDir as string) : resolve(import.meta.dir, '..')
-const pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR)
-const router = buildRouter({ pages })
+const build = isDev ? loadBuildDev(BUILD_DIR) : loadBuild(BUILD_DIR)
+const router = buildRouter(build)
 
 const port = Number(process.env.PORT) || 3484
 serveBun(router, {

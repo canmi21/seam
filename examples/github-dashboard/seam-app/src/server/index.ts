@@ -3,13 +3,7 @@
 import { resolve } from 'node:path'
 import { Hono } from 'hono'
 import { createBunWebSocket } from 'hono/bun'
-import {
-	loadBuildOutput,
-	loadBuildOutputDev,
-	loadI18nMessages,
-	loadRpcHashMap,
-	watchReloadTrigger,
-} from '@canmi/seam-server'
+import { loadBuild, loadBuildDev, watchReloadTrigger } from '@canmi/seam-server'
 import { seam } from '@canmi/seam-adapter-hono'
 import { buildRouter } from './router.js'
 
@@ -20,11 +14,9 @@ const isVite = process.env.SEAM_VITE === '1'
 const outputDir = process.env.SEAM_OUTPUT_DIR
 if (isDev && !outputDir) throw new Error('SEAM_OUTPUT_DIR is required in dev mode')
 const BUILD_DIR = isDev ? (outputDir as string) : resolve(import.meta.dir, '..')
-const pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR)
-const i18nConfig = loadI18nMessages(BUILD_DIR)
-const rpcHashMap = loadRpcHashMap(BUILD_DIR)
-const dataId = Object.values(pages)[0]?.dataId ?? '__data'
-const router = buildRouter({ pages, i18n: i18nConfig })
+const build = isDev ? loadBuildDev(BUILD_DIR) : loadBuild(BUILD_DIR)
+const dataId = Object.values(build.pages)[0]?.dataId ?? '__data'
+const router = buildRouter(build)
 
 const app = new Hono()
 
@@ -57,7 +49,7 @@ if (isDev && !isVite) {
 }
 
 // Seam middleware: handles /_seam/* (RPC, manifest, static, pages)
-app.use('/*', seam(router, { staticDir: resolve(BUILD_DIR, 'public'), rpcHashMap }))
+app.use('/*', seam(router, { staticDir: resolve(BUILD_DIR, 'public') }))
 
 // Root-path page serving — inject timing into data script's _meta
 app.get('*', async (c) => {

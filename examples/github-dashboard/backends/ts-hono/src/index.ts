@@ -3,13 +3,8 @@
 import { resolve } from 'node:path'
 import { Hono } from 'hono'
 import { createBunWebSocket } from 'hono/bun'
-import {
-	loadBuildOutput,
-	loadBuildOutputDev,
-	loadRpcHashMap,
-	loadI18nMessages,
-	watchReloadTrigger,
-} from '@canmi/seam-server'
+import { loadBuild, loadBuildDev, watchReloadTrigger } from '@canmi/seam-server'
+import type { BuildOutput } from '@canmi/seam-server'
 import { seam } from '@canmi/seam-adapter-hono'
 import { buildRouter } from './router.js'
 
@@ -21,16 +16,14 @@ const BUILD_DIR =
 	process.env.SEAM_OUTPUT_DIR ?? (isDev ? '.seam/output' : resolve(import.meta.dir, '..'))
 
 // Gracefully handle missing build output (API-only mode without page serving)
-let pages: Record<string, unknown> = {}
+let build: BuildOutput = { pages: {}, rpcHashMap: undefined, i18n: null }
 try {
-	pages = isDev ? loadBuildOutputDev(BUILD_DIR) : loadBuildOutput(BUILD_DIR)
+	build = isDev ? loadBuildDev(BUILD_DIR) : loadBuild(BUILD_DIR)
 } catch {
 	// No build output available -- RPC still works, page serving disabled
 }
-const rpcHashMap = loadRpcHashMap(BUILD_DIR)
-const i18nConfig = loadI18nMessages(BUILD_DIR)
-const dataId = Object.values(pages)[0]?.dataId ?? '__data'
-const router = buildRouter({ pages, i18n: i18nConfig })
+const dataId = Object.values(build.pages)[0]?.dataId ?? '__data'
+const router = buildRouter(build)
 
 const app = new Hono()
 
@@ -63,7 +56,7 @@ if (isDev && !isVite) {
 }
 
 // Seam middleware: handles /_seam/* (RPC, manifest, static, pages)
-app.use('/*', seam(router, { staticDir: resolve(BUILD_DIR, 'public'), rpcHashMap }))
+app.use('/*', seam(router, { staticDir: resolve(BUILD_DIR, 'public') }))
 
 // Root-path page serving -- inject timing into data script's _meta
 app.get('*', async (c) => {

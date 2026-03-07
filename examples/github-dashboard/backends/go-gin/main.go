@@ -35,32 +35,24 @@ func main() {
 	r.Procedure(GetUser())
 	r.Procedure(GetUserRepos())
 
-	// Load pages from build output if available
+	// Load all build artifacts (pages, rpcHashMap, i18n) in one call
 	buildDir := os.Getenv("SEAM_OUTPUT_DIR")
 	if buildDir == "" {
 		buildDir = ".seam/output"
 	}
-	pages, err := seam.LoadBuildOutput(buildDir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "No build output at %s: %v (API-only mode)\n", buildDir, err)
+	build := seam.LoadBuild(buildDir)
+	if len(build.Pages) > 0 {
+		fmt.Fprintf(os.Stderr, "Loaded %d pages from %s\n", len(build.Pages), buildDir)
 	} else {
-		fmt.Fprintf(os.Stderr, "Loaded %d pages from %s\n", len(pages), buildDir)
-		for i := range pages {
-			r.Page(&pages[i])
-		}
+		fmt.Fprintf(os.Stderr, "No build output at %s (API-only mode)\n", buildDir)
 	}
-
-	// Load RPC hash map for production hashed procedure names
-	if hashMap := seam.LoadRpcHashMap(buildDir); hashMap != nil {
-		fmt.Fprintf(os.Stderr, "RPC hash map loaded (%d procedures)\n", len(hashMap.Procedures))
-		r.RpcHashMap(hashMap)
+	if build.RpcHashMap != nil {
+		fmt.Fprintf(os.Stderr, "RPC hash map loaded (%d procedures)\n", len(build.RpcHashMap.Procedures))
 	}
-
-	// Load i18n configuration for runtime locale routing
-	if i18nConfig := seam.LoadI18nConfig(buildDir); i18nConfig != nil {
-		fmt.Fprintf(os.Stderr, "i18n: %d locales, default=%s\n", len(i18nConfig.Locales), i18nConfig.Default)
-		r.I18nConfig(i18nConfig)
+	if build.I18nConfig != nil {
+		fmt.Fprintf(os.Stderr, "i18n: %d locales, default=%s\n", len(build.I18nConfig.Locales), build.I18nConfig.Default)
 	}
+	r.Build(build)
 
 	seamHandler := r.Handler()
 
