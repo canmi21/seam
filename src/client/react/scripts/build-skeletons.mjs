@@ -21,6 +21,7 @@ function seamVirtualPlugin() {
 	const mapping = {
 		'virtual:seam/client': '.seam/generated/client.ts',
 		'virtual:seam/routes': '.seam/generated/routes.ts',
+		'virtual:seam/meta': '.seam/generated/meta.ts',
 	}
 	return {
 		name: 'seam-virtual',
@@ -36,6 +37,8 @@ function seamVirtualPlugin() {
 				if (args.path === 'virtual:seam/routes')
 					return { contents: 'export default []', loader: 'ts' }
 				if (args.path === 'virtual:seam/client')
+					return { contents: 'export const DATA_ID = "__data"', loader: 'ts' }
+				if (args.path === 'virtual:seam/meta')
 					return { contents: 'export const DATA_ID = "__data"', loader: 'ts' }
 				return null
 			})

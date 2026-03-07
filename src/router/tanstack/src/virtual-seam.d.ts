@@ -8,3 +8,7 @@ declare module 'virtual:seam/routes' {
 	const routes: SeamRouteDef[]
 	export default routes
 }
+
+declare module 'virtual:seam/meta' {
+	export const DATA_ID: string
+}

@@ -5,17 +5,25 @@ import { hydrateRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
 import { createSeamRouter } from './create-router.js'
 import { setupLinkInterception } from './link-interceptor.js'
-import type { HydrateOptions } from './types.js'
+import type { HydrateOptions, SeamRouterOptions } from './types.js'
 
-export async function seamHydrate(opts: HydrateOptions) {
-	const { root, strict = true, ...routerOpts } = opts
+export async function seamHydrate(opts?: Partial<HydrateOptions>) {
+	const root = opts?.root ?? document.getElementById('__seam')
+	if (!root) throw new Error('Missing #__seam element')
+
+	const { strict = true, root: _, ...routerOpts } = { ...opts }
 
 	if (!routerOpts.routes) {
 		const mod = await import('virtual:seam/routes')
 		routerOpts.routes = mod.default
 	}
 
-	const router = createSeamRouter(routerOpts)
+	if (!routerOpts.dataId) {
+		const { DATA_ID } = await import('virtual:seam/meta')
+		routerOpts.dataId = DATA_ID
+	}
+
+	const router = createSeamRouter(routerOpts as SeamRouterOptions)
 
 	setupLinkInterception(router)
 
@@ -31,7 +39,5 @@ export async function seamHydrate(opts: HydrateOptions) {
 }
 
 export async function createSeamApp(opts?: Partial<HydrateOptions>) {
-	const root = opts?.root ?? document.getElementById('__seam')
-	if (!root) throw new Error('Missing #__seam element')
-	return seamHydrate({ ...opts, root } as HydrateOptions)
+	return seamHydrate(opts)
 }

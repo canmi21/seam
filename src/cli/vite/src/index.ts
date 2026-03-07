@@ -9,6 +9,7 @@ import type { Plugin } from 'vite'
 const VIRTUAL_MODULES: Record<string, string> = {
 	'virtual:seam/client': '.seam/generated/client.ts',
 	'virtual:seam/routes': '.seam/generated/routes.ts',
+	'virtual:seam/meta': '.seam/generated/meta.ts',
 }
 
 const SEAM_PACKAGES = ['@canmi/seam-react', '@canmi/seam-tanstack-router', '@canmi/seam-client']
@@ -37,6 +38,7 @@ export function seamVirtual(): Plugin {
 		load(id) {
 			if (id === '\0virtual:seam/routes') return 'export default []'
 			if (id === '\0virtual:seam/client') return 'export const DATA_ID = "__data"'
+			if (id === '\0virtual:seam/meta') return 'export const DATA_ID = "__data"'
 		},
 	}
 }
