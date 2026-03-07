@@ -74,15 +74,7 @@ function resolveSourcePath(p) {
 	return p
 }
 
-const EXTERNAL_PACKAGES = [
-	'react',
-	'react-dom',
-	'@canmi/seam-react',
-	'@canmi/seam-i18n',
-	'@canmi/seam-query-react',
-	'@tanstack/react-query',
-	'@canmi/seam-client',
-]
+const EXTERNAL_PACKAGES = ['react', 'react-dom', '@canmi/seam-react', '@canmi/seam-i18n']
 
 async function bundleRoutes(entryPoint, outfile) {
 	await build({
