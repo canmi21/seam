@@ -42,7 +42,7 @@ export function SeamQueryProvider({
 			try {
 				const el = document.getElementById(dataId ?? '__data')
 				if (el?.textContent) {
-					hydrateFromSeamData(client, JSON.parse(el.textContent))
+					hydrateFromSeamData(client, JSON.parse(el.textContent) as Record<string, unknown>)
 				}
 			} catch {
 				/* no __data — skip */

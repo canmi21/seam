@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSeamData } from '@canmi/seam-react'
 import { seamRpc } from '@canmi/seam-client'
-import { SeamQueryProvider, useSeamQuery, useSeamMutation } from '@canmi/seam-query-react'
+import { SeamQueryProvider, useSeamFetch, useSeamMutation } from '@canmi/seam-query-react'
 import { seamProcedureConfig } from 'virtual:seam/client'
 
 interface Todo {
@@ -18,15 +18,14 @@ interface PageData extends Record<string, unknown> {
 }
 
 function TodoList() {
-	const { data, isLoading } = useSeamQuery('listTodos', {})
+	const { data, pending } = useSeamFetch<{ todos: Todo[] }>('listTodos', {})
 	const toggleMutation = useSeamMutation('toggleTodo')
-	const todosData = data as { todos: Todo[] } | undefined
 
-	if (isLoading) return <p>Loading...</p>
+	if (pending) return <p>Loading...</p>
 
 	return (
 		<ul>
-			{todosData?.todos.map((todo) => (
+			{data?.todos.map((todo) => (
 				<li key={todo.id}>
 					<label>
 						<input
@@ -109,12 +108,7 @@ export default function TodoPage() {
 			<h1>Query & Mutation Demo</h1>
 			<p data-testid="stats">Total: {data.stats.totalCount}</p>
 			<a href="/about">About</a>
-			<SeamQueryProvider
-				rpcFn={seamRpc}
-				config={seamProcedureConfig}
-				initialData={data}
-				loaderDefs={{ todos: { procedure: 'listTodos' } }}
-			>
+			<SeamQueryProvider rpcFn={seamRpc} config={seamProcedureConfig}>
 				<AddTodoForm />
 				<TodoList />
 			</SeamQueryProvider>
