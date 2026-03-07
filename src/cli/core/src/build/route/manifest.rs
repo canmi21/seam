@@ -298,6 +298,16 @@ fn fill_builtin_transport_defaults(
 	}
 }
 
+/// Check if the project has `@canmi/seam-query-react` in dependencies or devDependencies.
+pub(crate) fn has_query_react_dep(base_dir: &Path) -> bool {
+	let pkg_path = base_dir.join("package.json");
+	let Ok(content) = std::fs::read_to_string(&pkg_path) else { return false };
+	let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) else { return false };
+	let dep_name = "@canmi/seam-query-react";
+	pkg.get("dependencies").and_then(|d| d.get(dep_name)).is_some()
+		|| pkg.get("devDependencies").and_then(|d| d.get(dep_name)).is_some()
+}
+
 /// Generate TypeScript client types from the manifest.
 /// Always writes to `.seam/generated/`; also writes to `config.generate.out_dir` when set.
 pub(crate) fn generate_types(
@@ -313,7 +323,13 @@ pub(crate) fn generate_types(
 	}
 	fill_builtin_transport_defaults(&mut manifest.transport_defaults);
 
-	let code = seam_codegen::generate_typescript(&manifest, rpc_hashes, &config.frontend.data_id)?;
+	let emit_query_hooks = has_query_react_dep(base_dir);
+	let code = seam_codegen::generate_typescript(
+		&manifest,
+		rpc_hashes,
+		&config.frontend.data_id,
+		emit_query_hooks,
+	)?;
 	let line_count = code.lines().count();
 	let proc_count = manifest.procedures.len();
 

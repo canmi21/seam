@@ -18,8 +18,8 @@ mod tests;
 // Re-export all public items for use by other modules
 pub(crate) use helpers::{print_asset_files, read_i18n_messages};
 pub(crate) use manifest::{
-	extract_manifest, extract_manifest_command, generate_types, package_static_assets,
-	print_procedure_breakdown, run_typecheck, validate_invalidates,
+	extract_manifest, extract_manifest_command, generate_types, has_query_react_dep,
+	package_static_assets, print_procedure_breakdown, run_typecheck, validate_invalidates,
 };
 pub(crate) use process::{
 	BundleContext, RenderContext, export_i18n, process_routes, run_skeleton_renderer,

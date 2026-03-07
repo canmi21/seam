@@ -58,7 +58,7 @@ fn make_chat_manifest() -> crate::manifest::Manifest {
 
 #[test]
 fn channel_procedure_meta_uses_channel_types() {
-	let code = generate_typescript(&make_chat_manifest(), None, "__data").unwrap();
+	let code = generate_typescript(&make_chat_manifest(), None, "__data", false).unwrap();
 
 	// chat.events should reference ChatChannelInput / ChatEvent (channel types)
 	assert!(code.contains(
@@ -72,7 +72,7 @@ fn channel_procedure_meta_uses_channel_types() {
 
 #[test]
 fn transport_hint_codegen() {
-	let code = generate_typescript(&make_chat_manifest(), None, "__data").unwrap();
+	let code = generate_typescript(&make_chat_manifest(), None, "__data", false).unwrap();
 
 	// Transport hint is emitted
 	assert!(code.contains("export const seamTransportHint = {"));
@@ -119,7 +119,7 @@ fn dot_namespace_codegen() {
 		),
 	]));
 
-	let code = generate_typescript(&manifest, None, "__data").unwrap();
+	let code = generate_typescript(&manifest, None, "__data", false).unwrap();
 
 	// PascalCase type names (dots flattened)
 	assert!(code.contains("export interface UserGetProfileInput {"));
@@ -182,7 +182,7 @@ fn hint_with_transport_defaults() {
 		..make_manifest_with(BTreeMap::new())
 	};
 
-	let code = generate_typescript(&manifest, None, "__data").unwrap();
+	let code = generate_typescript(&manifest, None, "__data", false).unwrap();
 	assert!(code.contains("export const seamTransportHint = {"));
 	assert!(code.contains("defaults: {"));
 	assert!(code.contains("query: { prefer: \"http\" as const"));
@@ -204,7 +204,7 @@ fn hint_with_procedure_override() {
 		},
 	)]));
 
-	let code = generate_typescript(&manifest, None, "__data").unwrap();
+	let code = generate_typescript(&manifest, None, "__data", false).unwrap();
 	assert!(code.contains("procedures: {"));
 	assert!(code.contains("liveMetrics: { prefer: \"ws\" as const"));
 }
@@ -240,7 +240,7 @@ fn hint_channel_resolved_from_defaults() {
 		..make_manifest_with(BTreeMap::new())
 	};
 
-	let code = generate_typescript(&manifest, None, "__data").unwrap();
+	let code = generate_typescript(&manifest, None, "__data", false).unwrap();
 	// Channel should use "sse" from transport_defaults, not hardcoded "ws"
 	assert!(code.contains("channelTransports: { room: \"sse\" }"));
 	assert!(code.contains("transport: \"sse\" as const"));
@@ -257,7 +257,7 @@ fn factory_backward_compat_no_transport() {
 		},
 	)]));
 
-	let code = generate_typescript(&manifest, None, "__data").unwrap();
+	let code = generate_typescript(&manifest, None, "__data", false).unwrap();
 	assert!(code.contains("createSeamClient"));
 	assert!(code.contains("client.query(\"greet\""));
 	assert!(!code.contains("channelTransports"));

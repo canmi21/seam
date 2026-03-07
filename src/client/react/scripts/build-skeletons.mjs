@@ -107,7 +107,13 @@ async function main() {
 		format: 'esm',
 		platform: 'node',
 		outfile,
-		external: ['react', 'react-dom', '@canmi/seam-react', '@canmi/seam-i18n'],
+		external: [
+			'react',
+			'react-dom',
+			'@canmi/seam-react',
+			'@canmi/seam-i18n',
+			'@canmi/seam-query-react',
+		],
 		plugins: [seamVirtualPlugin()],
 	})
 

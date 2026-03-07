@@ -154,7 +154,8 @@ async fn run() -> Result<()> {
 
 			let proc_count = parsed.procedures.len();
 			let data_id = cfg.as_ref().map_or("__data", |c| &c.frontend.data_id);
-			let code = seam_codegen::generate_typescript(&parsed, None, data_id)?;
+			let emit_query_hooks = build::route::has_query_react_dep(&cwd);
+			let code = seam_codegen::generate_typescript(&parsed, None, data_id, emit_query_hooks)?;
 			let line_count = code.lines().count();
 
 			// Primary: always write to .seam/generated/
