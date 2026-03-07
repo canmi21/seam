@@ -428,6 +428,27 @@ fn procedure_config_invalidates_with_mapping() {
 }
 
 #[test]
+fn query_hooks_codegen() {
+	let manifest = make_manifest_with(BTreeMap::from([(
+		"greet".into(),
+		ProcedureSchema {
+			input: json!({ "properties": { "name": { "type": "string" } } }),
+			output: Some(json!({ "properties": { "message": { "type": "string" } } })),
+			..make_procedure(ProcedureType::Query)
+		},
+	)]));
+
+	let code = generate_typescript(&manifest, None, "__data").unwrap();
+	assert!(code.contains(
+		"import { useSeamFetch as _useSeamFetch, useSeamQuery as _useSeamQuery, useSeamMutation as _useSeamMutation } from \"@canmi/seam-query-react\";"
+	));
+	assert!(code.contains("export const useSeamFetch = _useSeamFetch<SeamProcedureMeta>;"));
+	assert!(code.contains("export const useFetch = useSeamFetch;"));
+	assert!(code.contains("export const useSeamQuery = _useSeamQuery<SeamProcedureMeta>;"));
+	assert!(code.contains("export const useSeamMutation = _useSeamMutation<SeamProcedureMeta>;"));
+}
+
+#[test]
 fn procedure_config_no_extra_fields() {
 	let manifest = make_manifest_with(BTreeMap::from([
 		("onUpdates".into(), make_procedure(ProcedureType::Subscription)),

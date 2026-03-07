@@ -150,13 +150,14 @@ fn generate_imports(has_stream: bool) -> String {
 	let mut out = String::from("import { createClient } from \"@canmi/seam-client\";\n");
 	if has_stream {
 		out.push_str(
-      "import type { SeamClient, SeamClientError, ProcedureKind, Unsubscribe, StreamHandle } from \"@canmi/seam-client\";\n\n",
+      "import type { SeamClient, SeamClientError, ProcedureKind, Unsubscribe, StreamHandle } from \"@canmi/seam-client\";\n",
     );
 	} else {
 		out.push_str(
-      "import type { SeamClient, SeamClientError, ProcedureKind, Unsubscribe } from \"@canmi/seam-client\";\n\n",
+      "import type { SeamClient, SeamClientError, ProcedureKind, Unsubscribe } from \"@canmi/seam-client\";\n",
     );
 	}
+	out.push_str("import { useSeamFetch as _useSeamFetch, useSeamQuery as _useSeamQuery, useSeamMutation as _useSeamMutation } from \"@canmi/seam-query-react\";\n\n");
 	out
 }
 
@@ -341,6 +342,11 @@ pub fn generate_typescript(
 	out.push_str(&generate_transport_hint(manifest, rpc_hashes));
 
 	out.push_str(&generate_client_factory(manifest, rpc_hashes, &factory_lines, has_channels));
+
+	out.push_str("\nexport const useSeamFetch = _useSeamFetch<SeamProcedureMeta>;\n");
+	out.push_str("export const useFetch = useSeamFetch;\n");
+	out.push_str("export const useSeamQuery = _useSeamQuery<SeamProcedureMeta>;\n");
+	out.push_str("export const useSeamMutation = _useSeamMutation<SeamProcedureMeta>;\n");
 
 	Ok(out)
 }
