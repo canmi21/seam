@@ -13,7 +13,7 @@ interface AsyncItem {
 }
 
 export function AsyncSkeleton() {
-	const data = useSeamData<AsyncData>()
+	const data = useSeamData<AsyncData>('page')
 	const [state, setState] = useState<'loading' | 'loaded' | 'error'>('loading')
 	const [items, setItems] = useState<AsyncItem[]>([])
 

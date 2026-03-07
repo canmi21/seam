@@ -28,6 +28,19 @@ describe('useSeamData', () => {
 		)
 	})
 
+	it('returns keyed data when key is provided', () => {
+		const data = { page: { title: 'Hello' }, meta: { lang: 'en' } }
+		function KeyCapture() {
+			const page = useSeamData<{ title: string }>('page')
+			return createElement('pre', null, JSON.stringify(page))
+		}
+		const html = renderToString(
+			createElement(SeamDataProvider, { value: data }, createElement(KeyCapture)),
+		)
+		const decoded = html.replace(/<\/?pre>/g, '').replaceAll('&quot;', '"')
+		expect(JSON.parse(decoded)).toEqual({ title: 'Hello' })
+	})
+
 	it('throws when provider value is null', () => {
 		expect(() =>
 			renderToString(createElement(SeamDataProvider, { value: null }, createElement(DataCapture))),

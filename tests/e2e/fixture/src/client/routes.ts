@@ -16,8 +16,7 @@ export default defineRoutes([
 			page: { procedure: 'getHomeData' },
 		},
 		mock: {
-			title: 'E2E Fixture',
-			message: 'Hydration test page.',
+			page: { title: 'E2E Fixture', message: 'Hydration test page.' },
 		},
 	},
 	{
@@ -27,9 +26,11 @@ export default defineRoutes([
 			page: { procedure: 'getReact19Data' },
 		},
 		mock: {
-			heading: 'React 19 Features',
-			description:
-				'Demonstrating useId, Suspense, useState, useRef, useMemo, and metadata hoisting.',
+			page: {
+				heading: 'React 19 Features',
+				description:
+					'Demonstrating useId, Suspense, useState, useRef, useMemo, and metadata hoisting.',
+			},
 		},
 	},
 	{
@@ -39,7 +40,7 @@ export default defineRoutes([
 			page: { procedure: 'getFormPageData' },
 		},
 		mock: {
-			heading: 'Contact Form',
+			page: { heading: 'Contact Form' },
 		},
 	},
 	{
@@ -49,7 +50,7 @@ export default defineRoutes([
 			page: { procedure: 'getErrorPageData' },
 		},
 		mock: {
-			heading: 'Error Boundary Test',
+			page: { heading: 'Error Boundary Test' },
 		},
 	},
 	{
@@ -59,7 +60,7 @@ export default defineRoutes([
 			page: { procedure: 'getAsyncPageData' },
 		},
 		mock: {
-			heading: 'Async Loading Test',
+			page: { heading: 'Async Loading Test' },
 		},
 	},
 	{

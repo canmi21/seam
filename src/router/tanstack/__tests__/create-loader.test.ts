@@ -93,8 +93,7 @@ describe('createLoaderFromDefs()', () => {
 
 		const result = await loader({ params: {}, context })
 
-		// "page" key is unwrapped to match first-load behavior (createSeamRouter's pageData.page ?? pageData)
-		expect(result).toEqual({ tagline: 'Hello' })
+		expect(result).toEqual({ page: { tagline: 'Hello' } })
 		expect(mockRpc).toHaveBeenCalledWith('getHomeData', {})
 	})
 })

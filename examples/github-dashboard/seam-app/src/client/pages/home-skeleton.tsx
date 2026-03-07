@@ -8,7 +8,7 @@ interface HomeData extends Record<string, unknown> {
 }
 
 export function HomeSkeleton() {
-	const data = useSeamData<HomeData>()
+	const data = useSeamData<HomeData>('page')
 	const navigate = useSeamNavigate()
 
 	return (

@@ -23,7 +23,7 @@ function Counter() {
 }
 
 export function React19Skeleton() {
-	const data = useSeamData<React19Data>()
+	const data = useSeamData<React19Data>('page')
 	const nameId = useId()
 	const emailId = useId()
 	// useRef + useMemo exercised during SSR to verify they don't crash the pipeline

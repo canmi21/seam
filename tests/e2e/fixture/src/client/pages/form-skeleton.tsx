@@ -8,7 +8,7 @@ interface FormData extends Record<string, unknown> {
 }
 
 export function FormSkeleton() {
-	const data = useSeamData<FormData>()
+	const data = useSeamData<FormData>('page')
 	const [name, setName] = useState('')
 	const [email, setEmail] = useState('')
 	const [state, setState] = useState<'idle' | 'success' | 'error'>('idle')

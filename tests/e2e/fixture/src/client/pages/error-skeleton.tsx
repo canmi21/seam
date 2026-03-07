@@ -56,7 +56,7 @@ function BrokenComponent() {
 }
 
 export function ErrorSkeleton() {
-	const data = useSeamData<ErrorData>()
+	const data = useSeamData<ErrorData>('page')
 
 	return (
 		<div>

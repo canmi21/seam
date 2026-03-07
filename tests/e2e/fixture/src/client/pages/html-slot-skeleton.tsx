@@ -8,7 +8,7 @@ interface HtmlSlotData extends Record<string, unknown> {
 }
 
 export function HtmlSlotSkeleton() {
-	const data = useSeamData<HtmlSlotData>()
+	const data = useSeamData<HtmlSlotData>('page')
 
 	return (
 		<div>

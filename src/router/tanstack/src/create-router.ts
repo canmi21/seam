@@ -177,8 +177,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
 			// Page data is everything except _layouts and _i18n
 			const { _layouts: _, _i18n: rawI18n, __loaders: _lm, ...pageData } = raw
 			initialI18n = (rawI18n as SeamI18nMeta) ?? null
-			// Unwrap: single "page" loader gets flattened
-			initialData = (pageData.page ?? pageData) as Record<string, unknown>
+			initialData = pageData as Record<string, unknown>
 
 			// Detect locale prefix: if URL starts with /{locale}/ and i18n data is present
 			if (initialI18n) {

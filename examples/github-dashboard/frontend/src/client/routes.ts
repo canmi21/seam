@@ -24,7 +24,7 @@ export default defineSeamRoutes([
 					page: { procedure: 'getHomeData' },
 				},
 				mock: {
-					tagline: 'Compile-Time Rendering for React',
+					page: { tagline: 'Compile-Time Rendering for React' },
 				},
 			},
 			{
