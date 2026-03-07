@@ -2,7 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { hydrateFromSeamData } from '@canmi/seam-query'
-import type { LoaderDef, ProcedureConfigMap, RpcFn } from '@canmi/seam-query'
+import type { ProcedureConfigMap, RpcFn } from '@canmi/seam-query'
 import { createContext, useContext, useRef, useState, type ReactNode } from 'react'
 
 export interface SeamQueryContextValue {
@@ -22,8 +22,7 @@ export interface SeamQueryProviderProps {
 	rpcFn: RpcFn
 	config?: ProcedureConfigMap
 	queryClient?: QueryClient
-	initialData?: Record<string, unknown>
-	loaderDefs?: Record<string, LoaderDef>
+	dataId?: string
 	children: ReactNode
 }
 
@@ -31,16 +30,24 @@ export function SeamQueryProvider({
 	rpcFn,
 	config,
 	queryClient: externalClient,
-	initialData,
-	loaderDefs,
+	dataId,
 	children,
 }: SeamQueryProviderProps) {
 	const [defaultClient] = useState(() => new QueryClient())
 	const client = externalClient ?? defaultClient
 	const hydrated = useRef(false)
 
-	if (!hydrated.current && initialData && loaderDefs) {
-		hydrateFromSeamData(client, initialData, loaderDefs)
+	if (!hydrated.current) {
+		if (typeof document !== 'undefined') {
+			try {
+				const el = document.getElementById(dataId ?? '__data')
+				if (el?.textContent) {
+					hydrateFromSeamData(client, JSON.parse(el.textContent))
+				}
+			} catch {
+				/* no __data — skip */
+			}
+		}
 		hydrated.current = true
 	}
 

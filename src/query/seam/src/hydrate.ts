@@ -2,21 +2,18 @@
 
 import type { QueryClient } from '@tanstack/query-core'
 
-export interface LoaderDef {
-	procedure: string
-	params?: Record<string, unknown>
-}
-
-/** Hydrate QueryClient cache from server-rendered __data loader results. */
+/** Hydrate QueryClient cache from server-rendered __data with __loaders metadata. */
 export function hydrateFromSeamData(
 	queryClient: QueryClient,
 	seamData: Record<string, unknown>,
-	loaderDefs: Record<string, LoaderDef>,
 ): void {
-	for (const [key, def] of Object.entries(loaderDefs)) {
+	const loaders = seamData.__loaders as
+		| Record<string, { procedure: string; input: unknown }>
+		| undefined
+	if (!loaders) return
+	for (const [key, meta] of Object.entries(loaders)) {
 		const data = seamData[key]
 		if (data === undefined) continue
-		const input = def.params ?? {}
-		queryClient.setQueryData([def.procedure, input], data)
+		queryClient.setQueryData([meta.procedure, meta.input], data)
 	}
 }

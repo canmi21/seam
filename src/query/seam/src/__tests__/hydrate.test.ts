@@ -5,36 +5,38 @@ import { describe, expect, it } from 'vitest'
 import { hydrateFromSeamData } from '../hydrate.js'
 
 describe('hydrateFromSeamData', () => {
-	it('writes loader data into QueryClient cache', () => {
+	it('writes loader data into QueryClient cache using __loaders metadata', () => {
 		const qc = new QueryClient()
 		const seamData = {
 			userData: { name: 'Alice' },
 			postList: [{ id: 1 }],
+			__loaders: {
+				userData: { procedure: 'getUser', input: { id: '1' } },
+				postList: { procedure: 'listPosts', input: {} },
+			},
 		}
-		const loaderDefs = {
-			userData: { procedure: 'getUser', params: { id: '1' } },
-			postList: { procedure: 'listPosts' },
-		}
-		hydrateFromSeamData(qc, seamData, loaderDefs)
+		hydrateFromSeamData(qc, seamData)
 		expect(qc.getQueryData(['getUser', { id: '1' }])).toEqual({ name: 'Alice' })
 		expect(qc.getQueryData(['listPosts', {}])).toEqual([{ id: 1 }])
 	})
 
-	it('skips undefined data entries', () => {
+	it('skips entries where data is undefined', () => {
 		const qc = new QueryClient()
-		const seamData = { userData: { name: 'Bob' } }
-		const loaderDefs = {
-			userData: { procedure: 'getUser' },
-			missing: { procedure: 'getMissing' },
+		const seamData = {
+			userData: { name: 'Bob' },
+			__loaders: {
+				userData: { procedure: 'getUser', input: {} },
+				missing: { procedure: 'getMissing', input: {} },
+			},
 		}
-		hydrateFromSeamData(qc, seamData, loaderDefs)
+		hydrateFromSeamData(qc, seamData)
 		expect(qc.getQueryData(['getUser', {}])).toEqual({ name: 'Bob' })
 		expect(qc.getQueryData(['getMissing', {}])).toBeUndefined()
 	})
 
-	it('handles empty loaderDefs without error', () => {
+	it('does nothing when __loaders is absent', () => {
 		const qc = new QueryClient()
-		hydrateFromSeamData(qc, { foo: 'bar' }, {})
-		// no error thrown
+		hydrateFromSeamData(qc, { foo: 'bar' })
+		// no error thrown, no data set
 	})
 })

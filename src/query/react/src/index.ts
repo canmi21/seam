@@ -11,5 +11,4 @@ export type {
 	ProcedureConfigMap,
 	SeamQueryConfig,
 	RpcFn,
-	LoaderDef,
 } from '@canmi/seam-query'
