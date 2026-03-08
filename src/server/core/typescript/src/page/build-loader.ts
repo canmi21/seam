@@ -40,7 +40,7 @@ interface RouteManifestEntry {
 
 interface LoaderConfig {
 	procedure: string
-	params?: Record<string, ParamConfig>
+	params?: Record<string, string | ParamConfig>
 	handoff?: 'client'
 }
 
@@ -49,11 +49,16 @@ interface ParamConfig {
 	type?: 'string' | 'int'
 }
 
+function normalizeParamConfig(value: string | ParamConfig): ParamConfig {
+	return typeof value === 'string' ? { from: value as ParamConfig['from'] } : value
+}
+
 function buildLoaderFn(config: LoaderConfig): LoaderFn {
 	return (params, searchParams): LoaderResult => {
 		const input: Record<string, unknown> = {}
 		if (config.params) {
-			for (const [key, mapping] of Object.entries(config.params)) {
+			for (const [key, raw_mapping] of Object.entries(config.params)) {
+				const mapping = normalizeParamConfig(raw_mapping)
 				const raw = mapping.from === 'query' ? (searchParams?.get(key) ?? undefined) : params[key]
 				if (raw !== undefined) {
 					input[key] = mapping.type === 'int' ? Number(raw) : raw

@@ -33,11 +33,11 @@ export default defineSeamRoutes([
 				loaders: {
 					user: {
 						procedure: 'getUser',
-						params: { username: { from: 'route' } },
+						params: { username: 'route' },
 					},
 					repos: {
 						procedure: 'getUserRepos',
-						params: { username: { from: 'route' } },
+						params: { username: 'route' },
 					},
 				},
 				mock: {

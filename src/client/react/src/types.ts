@@ -9,7 +9,7 @@ export interface ParamMapping {
 
 export interface LoaderDef {
 	procedure: string
-	params?: Record<string, ParamMapping>
+	params?: Record<string, string | ParamMapping>
 	handoff?: 'client'
 }
 

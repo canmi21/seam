@@ -1,7 +1,7 @@
 /* examples/fs-router-demo/src/pages/blog/[slug]/page.ts */
 
 export const loaders = {
-	post: { procedure: 'getBlogPost', params: { slug: { from: 'route' } } },
+	post: { procedure: 'getBlogPost', params: { slug: 'route' } },
 }
 
 export const mock = {

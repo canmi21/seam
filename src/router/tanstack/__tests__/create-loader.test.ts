@@ -25,6 +25,22 @@ describe('buildInput()', () => {
 		const result = buildInput({ procedure: 'getHomeData' }, {})
 		expect(result).toEqual({})
 	})
+
+	it('expands string shorthand to { from: value }', () => {
+		const result = buildInput(
+			{ procedure: 'getPost', params: { slug: 'route' } },
+			{ slug: 'hello-world' },
+		)
+		expect(result).toEqual({ slug: 'hello-world' })
+	})
+
+	it('mixes string shorthand and object params', () => {
+		const result = buildInput(
+			{ procedure: 'getItem', params: { slug: 'route', id: { from: 'route', type: 'int' } } },
+			{ slug: 'foo', id: '7' },
+		)
+		expect(result).toEqual({ slug: 'foo', id: 7 })
+	})
 })
 
 describe('createLoaderFromDefs()', () => {
@@ -38,8 +54,8 @@ describe('createLoaderFromDefs()', () => {
 
 		const loader = createLoaderFromDefs(
 			{
-				user: { procedure: 'getUser', params: { username: { from: 'route' } } },
-				repos: { procedure: 'getUserRepos', params: { username: { from: 'route' } } },
+				user: { procedure: 'getUser', params: { username: 'route' } },
+				repos: { procedure: 'getUserRepos', params: { username: 'route' } },
 			},
 			'/dashboard/:username',
 		)

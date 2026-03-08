@@ -10,7 +10,8 @@ export function buildInput(
 ): Record<string, unknown> {
 	const input: Record<string, unknown> = {}
 	if (def.params) {
-		for (const [key, mapping] of Object.entries(def.params)) {
+		for (const [key, raw_mapping] of Object.entries(def.params)) {
+			const mapping = typeof raw_mapping === 'string' ? { from: raw_mapping } : raw_mapping
 			const raw = params[key]
 			input[key] = mapping.type === 'int' ? Number(raw) : raw
 		}

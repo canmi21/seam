@@ -42,7 +42,7 @@ beforeAll(() => {
 					loaders: {
 						info: {
 							procedure: 'getInfo',
-							params: { slug: { from: 'route' } },
+							params: { slug: 'route' },
 						},
 					},
 				},
@@ -76,6 +76,42 @@ describe('loadBuildOutput', () => {
 		const pages = loadBuildOutput(distDir)
 		const result = pages['/about'].loaders.info({ slug: 'hello' })
 		expect(result).toEqual({ procedure: 'getInfo', input: { slug: 'hello' } })
+	})
+
+	it('expands string shorthand params to { from: value }', () => {
+		const pages = loadBuildOutput(distDir)
+		const result = pages['/about'].loaders.info({ slug: 'hello' })
+		expect(result).toEqual({ procedure: 'getInfo', input: { slug: 'hello' } })
+	})
+
+	it('handles mixed string shorthand and object params', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'seam-mixed-params-'))
+		mkdirSync(join(dir, 'templates'))
+		writeFileSync(join(dir, 'templates/index.html'), '<p>body</p>')
+		writeFileSync(
+			join(dir, 'route-manifest.json'),
+			JSON.stringify({
+				routes: {
+					'/item/:slug': {
+						template: 'templates/index.html',
+						loaders: {
+							data: {
+								procedure: 'getItem',
+								params: { slug: 'route', page: { from: 'query', type: 'int' } },
+							},
+						},
+					},
+				},
+			}),
+		)
+		try {
+			const pages = loadBuildOutput(dir)
+			const sp = new URLSearchParams('page=3')
+			const result = pages['/item/:slug'].loaders.data({ slug: 'foo' }, sp)
+			expect(result).toEqual({ procedure: 'getItem', input: { slug: 'foo', page: 3 } })
+		} finally {
+			rmSync(dir, { recursive: true, force: true })
+		}
 	})
 
 	it('throws when route-manifest.json is missing', () => {
