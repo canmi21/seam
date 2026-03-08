@@ -9,7 +9,7 @@ See root CLAUDE.md for general project rules.
 ```
 src/
   index.ts          -- Public API barrel (all exports go through here)
-  http.ts           -- createHttpHandler, SSE helpers, serialize, toWebResponse
+  http.ts           -- createHttpHandler, SSE helpers, serialize, toWebResponse, withSseLifecycle, SseOptions
   proxy.ts          -- createDevProxy (forward to Vite), createStaticHandler
   procedure.ts      -- Internal types: InternalProcedure, InternalSubscription, InternalStream, InternalUpload, SeamFileHandle, HandleResult
   subscription.ts   -- fromCallback: bridge callback event sources to AsyncGenerator
@@ -30,6 +30,8 @@ src/
     index.ts        -- createRouter: wires all 5 procedure kinds, pages, channels; accepts resolveStrategies, context, transportDefaults options; exports ProcedureDef, CommandDef, SubscriptionDef, StreamDef, UploadDef, Router
     categorize.ts   -- categorizeProcedures: splits DefinitionMap into procedureMap, subscriptionMap, streamMap, uploadMap, kindMap based on `kind` field
     handler.ts      -- handleRequest (RPC), handleSubscription (SSE), handleStream (SSE with id), handleBatchRequest, handleUploadRequest; per-loader error boundaries (try-catch per loader, error marker instead of 500), input validation (shouldValidateInput)
+    helpers.ts      -- buildStrategies, registerI18nQuery, resolveCtxFor/resolveCtxSafe, matchAndHandlePage, collectChannelMeta, resolveValidationMode, lookupI18nMessages
+    state.ts        -- initRouterState (builds procedure/subscription/stream/upload maps + ctxConfig), buildRouterMethods (assembles router method handlers), buildRpcMethods
   page/
     index.ts        -- PageDef, PageAssets, LoaderFn, definePage()
     handler.ts      -- handlePageRequest: runs loaders, passes page_assets to engine, injects data into template
@@ -65,6 +67,7 @@ src/
 - `toWebResponse` converts `HttpResponse` to Web API `Response` (used by Hono/Bun adapters); Node adapter uses its own `sendResponse` instead
 - `fromCallback` bridges callback-style event emitters to `AsyncGenerator` for subscription handlers
 - Stream vs subscription SSE: subscriptions emit bare `data:` events; streams emit `id:` + `data:` events with incrementing IDs
+- SSE lifecycle: `withSseLifecycle` wraps subscription/stream SSE with heartbeat and idle timeout; `SseOptions` interface (`heartbeatInterval` default 21s, `sseIdleTimeout` default 30s, 0 disables)
 - rpcHashMap propagation: router stores as public property; `createHttpHandler` falls back `opts.rpcHashMap ?? router.rpcHashMap`
 - loader_metadata injection: page handler builds `__loaders` metadata from loader configs (`{procedure, input}` per data key) for client-side QueryClient hydration; `loader_metadata` includes optional `error?: true` flag for failed loaders
 - Per-loader error boundary: each loader runs in its own try-catch; failed loaders produce `LoaderError` marker in data, page renders partial data at 200 instead of failing entirely at 500

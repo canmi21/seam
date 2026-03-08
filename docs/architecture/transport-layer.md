@@ -11,7 +11,7 @@ Procedure handlers in SeamJS are pure functions: `(input) -> output`. They know 
 | Batch RPC  | Request/Response  | Done   | All server adapters + `@canmi/seam-client` |
 | WebSocket  | Bidirectional     | Done   | All server adapters                        |
 | Stream SSE | Request+Streaming | Done   | All server adapters                        |
-| Upload     | Multipart         | Done   | All TS adapters                            |
+| Upload     | Multipart         | Done   | All server adapters                        |
 
 ## Planned
 

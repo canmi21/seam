@@ -27,3 +27,30 @@ The `transient` field indicates whether the error is temporary and the client ma
 | `INTERNAL_ERROR`   | 500         | Unhandled error in procedure handler. |
 
 Servers may use any string as an error code. Custom codes default to HTTP 500 unless an explicit status is provided.
+
+## Structured Error Details
+
+Errors may include an optional `details` array for structured error information (e.g. validation errors):
+
+```json
+{
+	"ok": false,
+	"error": {
+		"code": "VALIDATION_ERROR",
+		"message": "Input validation failed",
+		"transient": false,
+		"details": [
+			{ "path": "/name", "expected": "string", "actual": "number" },
+			{ "path": "/email", "expected": "string" }
+		]
+	}
+}
+```
+
+The `details` field is only present when the server provides structured error information. Each entry is a `ValidationDetail`:
+
+| Field      | Type     | Description                                    |
+| ---------- | -------- | ---------------------------------------------- |
+| `path`     | `string` | JSON Pointer to the invalid field.             |
+| `expected` | `string` | Optional. Expected type or constraint.         |
+| `actual`   | `string` | Optional. Actual value type that was received. |

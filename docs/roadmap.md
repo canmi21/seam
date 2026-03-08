@@ -69,6 +69,13 @@ Everything listed here is planned and will be implemented. This is currently a s
 - [x] createSeamRouter (router-bound typed factories)
 - [x] useSeamFetch hook
 - [x] Loader input validation (opt-in JTD validation for page loaders)
+- [x] SSE heartbeat and idle timeout (transport reliability)
+- [x] WebSocket ping/pong half-open connection detection
+- [x] Client-side reconnection with exponential backoff
+- [x] Built-in JTD input validation (all procedure kinds + loaders)
+- [x] Procedure suppress and cache fields
+- [x] Cookie and query context extraction sources
+- [x] Built-in bundler consolidation (BundlerMode removed)
 
 ## Architecture
 

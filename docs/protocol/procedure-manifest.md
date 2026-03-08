@@ -53,6 +53,8 @@ Consumers of the manifest include:
 | `invalidates` | `InvalidateTarget[]`                                             | Optional. Queries to invalidate when this command succeeds. Only valid on commands.          |
 | `context`     | `string[]`                                                       | Optional. Context keys this procedure requires (must reference keys in top-level `context`). |
 | `transport`   | `TransportConfig`                                                | Optional. Per-procedure transport preference, overrides `transportDefaults`.                 |
+| `suppress`    | `string[]`                                                       | Optional. Client-side linter warning suppressions.                                           |
+| `cache`       | `false \| { ttl: number }`                                       | Optional. Client-side caching configuration.                                                 |
 
 ## Procedure Kinds
 
@@ -66,12 +68,25 @@ Consumers of the manifest include:
 
 Top-level `context` defines named extractors that pull values from the raw request context (headers, cookies, etc.). Procedures reference context keys via the `context` array field; at runtime the server resolves only the requested keys.
 
+The `extract` field supports two formats:
+
+- **Function name**: `"extractAuth"` -- references a named extractor function registered on the server.
+- **Structured source**: `"source:key"` -- extracts directly from a request source. Supported sources: `header`, `cookie`, `query`. Examples: `"header:authorization"`, `"cookie:session"`, `"query:token"`.
+
 ```json
 {
 	"context": {
 		"auth": {
 			"extract": "extractAuth",
 			"schema": { "properties": { "userId": { "type": "string" } } }
+		},
+		"token": {
+			"extract": "header:authorization",
+			"schema": { "type": "string" }
+		},
+		"session": {
+			"extract": "cookie:session",
+			"schema": { "type": "string" }
 		}
 	}
 }
@@ -79,10 +94,10 @@ Top-level `context` defines named extractors that pull values from the raw reque
 
 A `ContextSchema` has:
 
-| Field     | Type        | Description                                              |
-| --------- | ----------- | -------------------------------------------------------- |
-| `extract` | `string`    | Name of the extractor function registered on the server. |
-| `schema`  | `JTDSchema` | JTD schema for the extracted context value.              |
+| Field     | Type        | Description                                                                                             |
+| --------- | ----------- | ------------------------------------------------------------------------------------------------------- |
+| `extract` | `string`    | Extractor function name, or structured `"source:key"` format (`header:`, `cookie:`, `query:` prefixes). |
+| `schema`  | `JTDSchema` | JTD schema for the extracted context value.                                                             |
 
 ## Invalidation
 
