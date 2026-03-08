@@ -4,14 +4,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ReconnectController, defaultReconnectConfig } from '../reconnect.js'
 import type { ConnectionState } from '../reconnect.js'
 
-describe('ReconnectController', () => {
+function setupFakeTimers() {
 	beforeEach(() => {
 		vi.useFakeTimers()
 	})
-
 	afterEach(() => {
 		vi.useRealTimers()
 	})
+}
+
+describe('ReconnectController', () => {
+	setupFakeTimers()
 
 	it('starts in connecting state', () => {
 		const rc = new ReconnectController()
@@ -84,6 +87,10 @@ describe('ReconnectController', () => {
 		expect(connect).toHaveBeenCalledTimes(2)
 		rc.dispose()
 	})
+})
+
+describe('ReconnectController — recovery and cleanup', () => {
+	setupFakeTimers()
 
 	it('resets retry count on success', () => {
 		const connect = vi.fn()

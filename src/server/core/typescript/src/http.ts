@@ -116,6 +116,14 @@ export function sseCompleteEvent(): string {
 	return 'event: complete\ndata: {}\n\n'
 }
 
+function formatSseError(error: unknown): string {
+	if (error instanceof SeamError) {
+		return sseErrorEvent(error.code, error.message)
+	}
+	const message = error instanceof Error ? error.message : 'Unknown error'
+	return sseErrorEvent('INTERNAL_ERROR', message)
+}
+
 const DEFAULT_HEARTBEAT_MS = 21_000
 const DEFAULT_SSE_IDLE_MS = 30_000
 
@@ -211,12 +219,7 @@ async function* sseStream<T extends DefinitionMap>(
 		}
 		yield sseCompleteEvent()
 	} catch (error) {
-		if (error instanceof SeamError) {
-			yield sseErrorEvent(error.code, error.message)
-		} else {
-			const message = error instanceof Error ? error.message : 'Unknown error'
-			yield sseErrorEvent('INTERNAL_ERROR', message)
-		}
+		yield formatSseError(error)
 	}
 }
 
@@ -245,12 +248,7 @@ async function* sseStreamForStream<T extends DefinitionMap>(
 		}
 		yield sseCompleteEvent()
 	} catch (error) {
-		if (error instanceof SeamError) {
-			yield sseErrorEvent(error.code, error.message)
-		} else {
-			const message = error instanceof Error ? error.message : 'Unknown error'
-			yield sseErrorEvent('INTERNAL_ERROR', message)
-		}
+		yield formatSseError(error)
 	}
 }
 
@@ -284,6 +282,49 @@ async function handleBatchHttp<T extends DefinitionMap>(
 function resolveHashName(hashToName: Map<string, string> | null, name: string): string {
 	if (!hashToName) return name
 	return hashToName.get(name) ?? name
+}
+
+async function handleProcedurePost<T extends DefinitionMap>(
+	req: HttpRequest,
+	router: Router<T>,
+	name: string,
+	rawCtx?: RawContextMap,
+	sseOptions?: SseOptions,
+): Promise<HttpResponse> {
+	let body: unknown
+	try {
+		body = await req.body()
+	} catch {
+		return errorResponse(400, 'VALIDATION_ERROR', 'Invalid JSON body')
+	}
+
+	if (router.getKind(name) === 'stream') {
+		const controller = new AbortController()
+		return {
+			status: 200,
+			headers: SSE_HEADER,
+			stream: withSseLifecycle(
+				sseStreamForStream(router, name, body, controller.signal, rawCtx),
+				sseOptions,
+			),
+			onCancel: () => controller.abort(),
+		}
+	}
+
+	if (router.getKind(name) === 'upload') {
+		if (!req.file) {
+			return errorResponse(400, 'VALIDATION_ERROR', 'Upload requires multipart/form-data')
+		}
+		const file = await req.file()
+		if (!file) {
+			return errorResponse(400, 'VALIDATION_ERROR', 'Upload requires file in multipart body')
+		}
+		const result = await router.handleUpload(name, body, file, rawCtx)
+		return jsonResponse(result.status, result.body)
+	}
+
+	const result = await router.handle(name, body, rawCtx)
+	return jsonResponse(result.status, result.body)
 }
 
 export function createHttpHandler<T extends DefinitionMap>(
@@ -327,43 +368,8 @@ export function createHttpHandler<T extends DefinitionMap>(
 				if (rawName === '_batch' || (batchHash && rawName === batchHash)) {
 					return handleBatchHttp(req, router, hashToName, rawCtx)
 				}
-
 				const name = resolveHashName(hashToName, rawName)
-
-				let body: unknown
-				try {
-					body = await req.body()
-				} catch {
-					return errorResponse(400, 'VALIDATION_ERROR', 'Invalid JSON body')
-				}
-
-				if (router.getKind(name) === 'stream') {
-					const controller = new AbortController()
-					return {
-						status: 200,
-						headers: SSE_HEADER,
-						stream: withSseLifecycle(
-							sseStreamForStream(router, name, body, controller.signal, rawCtx),
-							opts?.sseOptions,
-						),
-						onCancel: () => controller.abort(),
-					}
-				}
-
-				if (router.getKind(name) === 'upload') {
-					if (!req.file) {
-						return errorResponse(400, 'VALIDATION_ERROR', 'Upload requires multipart/form-data')
-					}
-					const file = await req.file()
-					if (!file) {
-						return errorResponse(400, 'VALIDATION_ERROR', 'Upload requires file in multipart body')
-					}
-					const result = await router.handleUpload(name, body, file, rawCtx)
-					return jsonResponse(result.status, result.body)
-				}
-
-				const result = await router.handle(name, body, rawCtx)
-				return jsonResponse(result.status, result.body)
+				return handleProcedurePost(req, router, name, rawCtx, opts?.sseOptions)
 			}
 
 			if (req.method === 'GET') {

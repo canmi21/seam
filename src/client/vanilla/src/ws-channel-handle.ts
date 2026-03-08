@@ -60,6 +60,42 @@ function handleDownlink(
 	}
 }
 
+function rejectAllPending(pending: Map<string, PendingRequest>, message: string): void {
+	for (const [, entry] of pending) {
+		entry.reject(new SeamClientError('INTERNAL_ERROR', message, 0))
+	}
+	pending.clear()
+}
+
+function buildChannelProxy(
+	listeners: Map<string, Set<(data: unknown) => void>>,
+	connectFn: () => void,
+	closeFn: () => void,
+	sendFn: (input: unknown, prop: string) => Promise<unknown>,
+): ChannelHandle {
+	return new Proxy<ChannelHandle>(
+		{
+			on(event: string, callback: (data: unknown) => void): void {
+				let cbs = listeners.get(event)
+				if (!cbs) {
+					cbs = new Set()
+					listeners.set(event, cbs)
+				}
+				cbs.add(callback)
+				connectFn()
+			},
+			close: closeFn,
+		},
+		{
+			get(target, prop) {
+				if (prop === 'on' || prop === 'close') return target[prop]
+				if (typeof prop === 'string') return (input: unknown) => sendFn(input, prop)
+				return undefined
+			},
+		},
+	)
+}
+
 /**
  * Create a channel handle that communicates over a single WebSocket
  * instead of HTTP POST (commands) + SSE (subscriptions).
@@ -132,11 +168,7 @@ export function createWsChannelHandle(
 				return
 			}
 
-			// Reject all pending requests with transient error
-			for (const [, entry] of pending) {
-				entry.reject(new SeamClientError('INTERNAL_ERROR', 'WebSocket closed', 0))
-			}
-			pending.clear()
+			rejectAllPending(pending, 'WebSocket closed')
 
 			// Attempt reconnection
 			rc.onClose(connect)
@@ -168,41 +200,20 @@ export function createWsChannelHandle(
 		})
 	}
 
-	return new Proxy<ChannelHandle>(
-		{
-			on(event: string, callback: (data: unknown) => void): void {
-				let cbs = listeners.get(event)
-				if (!cbs) {
-					cbs = new Set()
-					listeners.set(event, cbs)
-				}
-				cbs.add(callback)
-				connect()
-			},
-			close(): void {
-				closed = true
-				rc.dispose()
-				if (staleTimer) {
-					clearTimeout(staleTimer)
-					staleTimer = null
-				}
-				if (ws) {
-					ws.close()
-					ws = null
-				}
-				for (const [, entry] of pending) {
-					entry.reject(new SeamClientError('INTERNAL_ERROR', 'Channel closed', 0))
-				}
-				pending.clear()
-				listeners.clear()
-			},
-		},
-		{
-			get(target, prop) {
-				if (prop === 'on' || prop === 'close') return target[prop]
-				if (typeof prop === 'string') return (msgInput: unknown) => sendUplink(msgInput, prop)
-				return undefined
-			},
-		},
-	)
+	function doClose(): void {
+		closed = true
+		rc.dispose()
+		if (staleTimer) {
+			clearTimeout(staleTimer)
+			staleTimer = null
+		}
+		if (ws) {
+			ws.close()
+			ws = null
+		}
+		rejectAllPending(pending, 'Channel closed')
+		listeners.clear()
+	}
+
+	return buildChannelProxy(listeners, connect, doClose, sendUplink)
 }
