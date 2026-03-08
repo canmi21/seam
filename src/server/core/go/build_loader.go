@@ -72,9 +72,25 @@ type loaderConfig struct {
 	Params    map[string]loaderParamConf `json:"params"`
 }
 
+// loaderParamConf supports both string shorthand "route" and full object {"from":"route","type":"int"}.
 type loaderParamConf struct {
 	From string `json:"from"`
 	Type string `json:"type"`
+}
+
+func (c *loaderParamConf) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		c.From = s
+		return nil
+	}
+	type raw loaderParamConf
+	var r raw
+	if err := json.Unmarshal(data, &r); err != nil {
+		return err
+	}
+	*c = loaderParamConf(r)
+	return nil
 }
 
 func parseLoaders(raw json.RawMessage) []LoaderDef {

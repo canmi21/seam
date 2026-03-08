@@ -3,6 +3,7 @@
 package seam
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 )
@@ -63,6 +64,53 @@ func TestRouterBuild(t *testing.T) {
 	}
 	if r.i18nConfig == nil || r.i18nConfig.Default != "en" {
 		t.Fatal("expected i18nConfig with default en")
+	}
+}
+
+func TestParseLoadersStringShorthand(t *testing.T) {
+	raw := []byte(`{
+		"user": {
+			"procedure": "getUser",
+			"params": { "username": "route" }
+		}
+	}`)
+	var msg json.RawMessage = raw
+	loaders := parseLoaders(msg)
+	if len(loaders) != 1 {
+		t.Fatalf("expected 1 loader, got %d", len(loaders))
+	}
+	if loaders[0].Procedure != "getUser" {
+		t.Fatalf("expected procedure getUser, got %s", loaders[0].Procedure)
+	}
+	input := loaders[0].InputFn(map[string]string{"username": "octocat"})
+	m, ok := input.(map[string]any)
+	if !ok {
+		t.Fatal("expected map[string]any from InputFn")
+	}
+	if m["username"] != "octocat" {
+		t.Fatalf("expected username octocat, got %v", m["username"])
+	}
+}
+
+func TestParseLoadersObjectParams(t *testing.T) {
+	raw := []byte(`{
+		"user": {
+			"procedure": "getUser",
+			"params": { "username": { "from": "route" } }
+		}
+	}`)
+	var msg json.RawMessage = raw
+	loaders := parseLoaders(msg)
+	if len(loaders) != 1 {
+		t.Fatalf("expected 1 loader, got %d", len(loaders))
+	}
+	input := loaders[0].InputFn(map[string]string{"username": "octocat"})
+	m, ok := input.(map[string]any)
+	if !ok {
+		t.Fatal("expected map[string]any from InputFn")
+	}
+	if m["username"] != "octocat" {
+		t.Fatalf("expected username octocat, got %v", m["username"])
 	}
 }
 

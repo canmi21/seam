@@ -89,15 +89,37 @@ pub(super) struct LoaderConfig {
 	pub(super) params: HashMap<String, ParamConfig>,
 }
 
-#[derive(Deserialize)]
+/// Supports both string shorthand `"route"` and full object `{ "from": "route", "type": "int" }`.
 pub(super) struct ParamConfig {
 	pub(super) from: String,
-	#[serde(rename = "type", default = "default_type")]
 	pub(super) param_type: String,
 }
 
 pub(super) fn default_type() -> String {
 	"string".to_string()
+}
+
+impl<'de> serde::Deserialize<'de> for ParamConfig {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		let value = serde_json::Value::deserialize(deserializer)?;
+		match value {
+			serde_json::Value::String(s) => Ok(ParamConfig { from: s, param_type: default_type() }),
+			serde_json::Value::Object(map) => {
+				let from = map
+					.get("from")
+					.and_then(|v| v.as_str())
+					.ok_or_else(|| serde::de::Error::missing_field("from"))?
+					.to_string();
+				let param_type =
+					map.get("type").and_then(|v| v.as_str()).map(String::from).unwrap_or_else(default_type);
+				Ok(ParamConfig { from, param_type })
+			}
+			_ => Err(serde::de::Error::custom("expected string or object")),
+		}
+	}
 }
 
 /// RPC hash map loaded from build output. Maps hashed names back to original procedure names.

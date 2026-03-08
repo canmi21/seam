@@ -51,6 +51,27 @@ fn parse_loaders_with_params() {
 }
 
 #[test]
+fn parse_loaders_string_shorthand_params() {
+	let loaders = serde_json::json!({
+		"user": {
+			"procedure": "getUser",
+			"params": {
+				"username": "route"
+			}
+		}
+	});
+	let result = parse_loaders(&loaders);
+	assert_eq!(result.len(), 1);
+	assert_eq!(result[0].data_key, "user");
+	assert_eq!(result[0].procedure, "getUser");
+
+	let mut route_params = HashMap::new();
+	route_params.insert("username".to_string(), "octocat".to_string());
+	let input = (result[0].input_fn)(&route_params);
+	assert_eq!(input["username"], "octocat");
+}
+
+#[test]
 fn build_input_fn_route_param() {
 	let mut params = HashMap::new();
 	params.insert(
