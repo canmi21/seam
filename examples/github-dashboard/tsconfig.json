@@ -6,7 +6,7 @@
     "skipLibCheck": true,
     "noEmit": true,
     "paths": {
-      "@canmi/seam-cli/config": ["../../src/cli/pkg/scripts/config.d.ts"]
+      "@canmi/seam": ["../../src/cli/seam/config.d.ts"]
     }
   },
   "include": ["seam.config.ts"]

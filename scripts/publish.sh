@@ -454,6 +454,7 @@ if ! $RUST_ONLY && ! $GO_ONLY; then
     "src/cli/wrapper/linux-x64:@canmi/seam-cli-linux-x64"
   )
   NPM_LAYER_1=(
+    "src/cli/seam:@canmi/seam"
     "src/client/vanilla:@canmi/seam-client"
     "src/cli/vite:@canmi/seam-vite"
     "src/eslint:@canmi/eslint-plugin-seam"

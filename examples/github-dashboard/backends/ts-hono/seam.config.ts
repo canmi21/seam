@@ -1,6 +1,6 @@
 /* examples/github-dashboard/backends/ts-hono/seam.config.ts */
 
-import { defineConfig } from '@canmi/seam-cli/config'
+import { defineConfig } from '@canmi/seam'
 
 export default defineConfig({
 	project: { name: 'ts-hono' },

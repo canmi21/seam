@@ -1,6 +1,6 @@
 /* examples/features/stream-upload/seam.config.ts */
 
-import { defineConfig } from '@canmi/seam-cli/config'
+import { defineConfig } from '@canmi/seam'
 
 export default defineConfig({
 	backend: {

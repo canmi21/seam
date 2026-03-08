@@ -1,6 +1,6 @@
 /* examples/standalone/server-rust/seam.config.ts */
 
-import { defineConfig } from '@canmi/seam-cli/config'
+import { defineConfig } from '@canmi/seam'
 
 export default defineConfig({
 	project: { name: 'server-rust-example' },

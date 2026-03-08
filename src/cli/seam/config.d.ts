@@ -1,4 +1,4 @@
-/* src/cli/pkg/scripts/config.d.ts */
+/* src/cli/seam/config.d.ts */
 
 import type { UserConfig as ViteUserConfig } from 'vite'
 

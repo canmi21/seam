@@ -1,6 +1,6 @@
 /* examples/fs-router-demo/seam.config.ts */
 
-import { defineConfig } from '@canmi/seam-cli/config'
+import { defineConfig } from '@canmi/seam'
 
 export default defineConfig({
 	backend: { lang: 'typescript', devCommand: 'bun --watch src/server/index.ts' },

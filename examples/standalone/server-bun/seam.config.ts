@@ -1,6 +1,6 @@
 /* examples/standalone/server-bun/seam.config.ts */
 
-import { defineConfig } from '@canmi/seam-cli/config'
+import { defineConfig } from '@canmi/seam'
 
 export default defineConfig({
 	project: { name: 'server-bun-example' },

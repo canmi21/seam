@@ -1,0 +1,16 @@
+{
+  "name": "@canmi/seam",
+  "version": "0.5.27",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./config.d.ts",
+      "import": "./config.mjs"
+    }
+  },
+  "files": ["config.mjs", "config.d.ts"],
+  "peerDependencies": {
+    "vite": "*"
+  }
+}

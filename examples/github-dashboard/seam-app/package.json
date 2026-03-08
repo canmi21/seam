@@ -20,6 +20,7 @@
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
+    "@canmi/seam": "workspace:*",
     "@canmi/seam-cli": "workspace:*",
     "@canmi/seam-vite": "workspace:*",
     "@tailwindcss/postcss": "^4.2.1",
