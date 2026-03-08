@@ -391,10 +391,12 @@ function initRouterState(procedures: DefinitionMap, opts?: RouterOptions) {
 	}
 }
 
-export function createRouter<T extends DefinitionMap>(
-	procedures: T,
+/** Build all Router method implementations from shared state */
+function buildRouterMethods(
+	state: ReturnType<typeof initRouterState>,
+	procedures: DefinitionMap,
 	opts?: RouterOptions,
-): Router<T> {
+): Omit<Router<DefinitionMap>, 'procedures' | 'rpcHashMap'> {
 	const {
 		ctxConfig,
 		procedureMap,
@@ -411,11 +413,9 @@ export function createRouter<T extends DefinitionMap>(
 		hasUrlPrefix,
 		channelsMeta,
 		extractKeys,
-	} = initRouterState(procedures, opts)
+	} = state
 
 	return {
-		procedures,
-		rpcHashMap: opts?.rpcHashMap,
 		hasPages: !!pages && Object.keys(pages).length > 0,
 		contextExtractKeys() {
 			return extractKeys
@@ -499,5 +499,17 @@ export function createRouter<T extends DefinitionMap>(
 				shouldValidateInput,
 			)
 		},
+	}
+}
+
+export function createRouter<T extends DefinitionMap>(
+	procedures: T,
+	opts?: RouterOptions,
+): Router<T> {
+	const state = initRouterState(procedures, opts)
+	return {
+		procedures,
+		rpcHashMap: opts?.rpcHashMap,
+		...buildRouterMethods(state, procedures, opts),
 	}
 }
