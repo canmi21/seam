@@ -205,4 +205,90 @@ mod tests {
 			assert_eq!(resp.status(), expected);
 		}
 	}
+
+	fn validation_router(mode: seam_server::ValidationMode) -> axum::Router {
+		let server = SeamServer::new().validation_mode(mode).procedure(ProcedureDef {
+			name: "greet".into(),
+			proc_type: ProcedureType::Query,
+			input_schema: serde_json::json!({"properties": {"name": {"type": "string"}}}),
+			output_schema: serde_json::json!({"properties": {"message": {"type": "string"}}}),
+			error_schema: None,
+			context_keys: vec![],
+			handler: Arc::new(|input, _ctx| {
+				Box::pin(async move {
+					let name = input.get("name").and_then(|v| v.as_str()).unwrap_or("World");
+					Ok(serde_json::json!({"message": format!("Hello, {}!", name)}))
+				})
+			}),
+		});
+		server.into_axum_router()
+	}
+
+	#[tokio::test]
+	async fn validation_rejects_invalid_input() {
+		let router = validation_router(seam_server::ValidationMode::Always);
+		let (status, json) =
+			send_request(router, "POST", "/_seam/procedure/greet", Some(r#"{"name": 42}"#)).await;
+		assert_eq!(status, StatusCode::BAD_REQUEST);
+		assert_eq!(json["ok"], false);
+		assert_eq!(json["error"]["code"], "VALIDATION_ERROR");
+		assert!(json["error"]["message"].as_str().unwrap().contains("Input validation failed"));
+		let details = json["error"]["details"].as_array().expect("details must be array");
+		assert!(!details.is_empty());
+		assert_eq!(details[0]["path"], "/name");
+		assert_eq!(details[0]["expected"], "string");
+	}
+
+	#[tokio::test]
+	async fn validation_accepts_valid_input() {
+		let router = validation_router(seam_server::ValidationMode::Always);
+		let (status, json) =
+			send_request(router, "POST", "/_seam/procedure/greet", Some(r#"{"name": "Seam"}"#)).await;
+		assert_eq!(status, StatusCode::OK);
+		assert_eq!(json["ok"], true);
+		assert_eq!(json["data"]["message"], "Hello, Seam!");
+	}
+
+	#[tokio::test]
+	async fn validation_batch_one_invalid() {
+		let router = validation_router(seam_server::ValidationMode::Always);
+		let body = r#"{"calls":[{"procedure":"greet","input":{"name":42}},{"procedure":"greet","input":{"name":"OK"}}]}"#;
+		let (status, json) = send_request(router, "POST", "/_seam/procedure/_batch", Some(body)).await;
+		assert_eq!(status, StatusCode::OK);
+		let results = json["data"]["results"].as_array().unwrap();
+		assert_eq!(results.len(), 2);
+		// First call should fail validation
+		assert_eq!(results[0]["ok"], false);
+		assert_eq!(results[0]["error"]["code"], "VALIDATION_ERROR");
+		assert!(results[0]["error"]["details"].as_array().is_some());
+		// Second call should succeed
+		assert_eq!(results[1]["ok"], true);
+	}
+
+	#[tokio::test]
+	async fn validation_never_skips() {
+		let router = validation_router(seam_server::ValidationMode::Never);
+		// Invalid input passes through when validation is disabled
+		let (status, json) =
+			send_request(router, "POST", "/_seam/procedure/greet", Some(r#"{"name": 42}"#)).await;
+		assert_eq!(status, StatusCode::OK);
+		assert_eq!(json["ok"], true);
+	}
+
+	#[tokio::test]
+	async fn validation_error_details_shape() {
+		let router = validation_router(seam_server::ValidationMode::Always);
+		let (_, json) =
+			send_request(router, "POST", "/_seam/procedure/greet", Some(r#"{"name": 42}"#)).await;
+		// Verify exact shape matches three-端 format
+		assert_eq!(json["ok"], false);
+		let error = &json["error"];
+		assert_eq!(error["code"], "VALIDATION_ERROR");
+		assert_eq!(error["transient"], false);
+		let details = error["details"].as_array().unwrap();
+		let detail = &details[0];
+		assert!(detail.get("path").is_some());
+		assert!(detail.get("expected").is_some());
+		assert!(detail.get("actual").is_some());
+	}
 }
