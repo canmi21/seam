@@ -13,8 +13,10 @@ src/
   proxy.ts          -- createDevProxy (forward to Vite), createStaticHandler
   procedure.ts      -- Internal types: InternalProcedure, InternalSubscription, InternalStream, InternalUpload, SeamFileHandle, HandleResult
   subscription.ts   -- fromCallback: bridge callback event sources to AsyncGenerator
-  context.ts        -- ContextConfig, RawContextMap, resolveContext, contextExtractKeys
+  context.ts        -- ContextConfig, RawContextMap, resolveContext, contextExtractKeys, extract namespace
   errors.ts         -- SeamError class with open error codes + status, DEFAULT_STATUS map
+  factory.ts        -- Procedure factory functions (query, command, subscription, stream, upload)
+  seam-router.ts    -- createSeamRouter: router-bound typed procedure factories
   mime.ts           -- MIME_TYPES lookup table
   ws.ts             -- WebSocket handler helpers
   channel.ts        -- Channel types and metadata
@@ -27,12 +29,13 @@ src/
   router/
     index.ts        -- createRouter: wires all 5 procedure kinds, pages, channels; accepts resolveStrategies, context, transportDefaults options; exports ProcedureDef, CommandDef, SubscriptionDef, StreamDef, UploadDef, Router
     categorize.ts   -- categorizeProcedures: splits DefinitionMap into procedureMap, subscriptionMap, streamMap, uploadMap, kindMap based on `kind` field
-    handler.ts      -- handleRequest (RPC), handleSubscription (SSE), handleStream (SSE with id), handleBatchRequest, handleUploadRequest
+    handler.ts      -- handleRequest (RPC), handleSubscription (SSE), handleStream (SSE with id), handleBatchRequest, handleUploadRequest; per-loader error boundaries (try-catch per loader, error marker instead of 500), input validation (shouldValidateInput)
   page/
     index.ts        -- PageDef, PageAssets, LoaderFn, definePage()
     handler.ts      -- handlePageRequest: runs loaders, passes page_assets to engine, injects data into template
     route-matcher.ts -- RouteMatcher: pattern matching with `:param`, `*name` (catch-all), `*name?` (optional catch-all)
-    build-loader.ts -- loadBuild, loadBuildOutput, loadBuildDev, loadRpcHashMap, loadI18nMessages; BuildOutput type; ParamConfig (from: "route" | "query"), handoff: "client" support
+    build-loader.ts -- loadBuild, loadBuildOutput, loadBuildDev, loadRpcHashMap, loadI18nMessages; BuildOutput type; ParamConfig (from: "route" | "query", string shorthand accepted), handoff: "client" support
+    loader-error.ts -- LoaderError interface + isLoaderError type guard
   manifest/
     index.ts        -- buildManifest: generates v2 procedure manifest with context, invalidates, chunkOutput, transport
   dev/
@@ -48,7 +51,7 @@ src/
 - **SSE**: `GET /_seam/procedure/{name}?input=` -> `createHttpHandler` -> `router.handleSubscription` -> `handleSubscription` -> yield SSE events
 - **Stream**: `POST /_seam/procedure/{name}` -> `createHttpHandler` -> `router.handleStream` -> `handleStream` -> yield SSE events with incrementing `id`
 - **Upload**: `POST /_seam/procedure/{name}` (multipart) -> `createHttpHandler` -> `router.handleUpload` -> `resolveCtxSafe` -> `handleUploadRequest` -> call handler with SeamFileHandle -> JSON response
-- **Page**: `GET /_seam/page/{path}` -> `createHttpHandler` -> `router.handlePage` -> `RouteMatcher` -> `handlePageRequest` -> run loaders (with query params, handoff) -> inject into template
+- **Page**: `GET /_seam/page/{path}` -> `createHttpHandler` -> `router.handlePage` -> `RouteMatcher` -> `handlePageRequest` -> run loaders (with query params, handoff) -> inject into template; each loader wrapped in independent try-catch; failed loaders return `LoaderError` marker, page still returns 200
 - **Build Loading**: `loadBuild(distDir)` -> reads `route-manifest.json` + `rpc-hash-map.json` + i18n -> `BuildOutput { pages, rpcHashMap, i18n }`
 - **Manifest**: `GET /_seam/manifest.json` -> `router.manifest()` -> `buildManifest` (v2: context, transportDefaults, invalidates, chunkOutput)
 - **Context**: rawCtx (from adapter) -> `resolveCtxSafe` -> `resolveContext` -> extract only keys referenced by the procedure
@@ -63,7 +66,10 @@ src/
 - `fromCallback` bridges callback-style event emitters to `AsyncGenerator` for subscription handlers
 - Stream vs subscription SSE: subscriptions emit bare `data:` events; streams emit `id:` + `data:` events with incrementing IDs
 - rpcHashMap propagation: router stores as public property; `createHttpHandler` falls back `opts.rpcHashMap ?? router.rpcHashMap`
-- loader_metadata injection: page handler builds `__loaders` metadata from loader configs (`{procedure, input}` per data key) for client-side QueryClient hydration
+- loader_metadata injection: page handler builds `__loaders` metadata from loader configs (`{procedure, input}` per data key) for client-side QueryClient hydration; `loader_metadata` includes optional `error?: true` flag for failed loaders
+- Per-loader error boundary: each loader runs in its own try-catch; failed loaders produce `LoaderError` marker in data, page renders partial data at 200 instead of failing entirely at 500
+- Loader input validation: gated by `shouldValidateInput` flag; when enabled, loader inputs are validated against JTD schema before execution
+- Exported validation types: `ValidationMode`, `ValidationConfig`, `ValidationDetail`
 
 ## Dependencies
 

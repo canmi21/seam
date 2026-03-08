@@ -47,6 +47,7 @@ Everything listed here is planned and will be implemented. This is currently a s
 - [x] Per-procedure transport configuration (prefer + fallback)
 - [x] Query params in page loaders (from: "query" mapping)
 - [x] Loader handoff (handoff: "client" for one-time server-fetched loaders)
+- [x] Per-loader error boundaries (partial page rendering on loader failure)
 
 ## Router
 
@@ -64,6 +65,10 @@ Everything listed here is planned and will be implemented. This is currently a s
 - [x] `seam()` composite Vite plugin
 - [x] TanStack Query integration (`@canmi/seam-query` + `@canmi/seam-query-react`)
 - [x] Config priority: `seam.config.ts` > `.mjs` > `.toml`
+- [x] Procedure factory functions (query(), command(), stream(), upload(), subscription())
+- [x] createSeamRouter (router-bound typed factories)
+- [x] useSeamFetch hook
+- [x] Loader input validation (opt-in JTD validation for page loaders)
 
 ## Architecture
 

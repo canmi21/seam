@@ -23,13 +23,14 @@ just build       # Both
 
 ## Test
 
-| Command                 | Scope                                                            |
-| ----------------------- | ---------------------------------------------------------------- |
-| `just test-rs`          | Rust unit tests (`cargo test --workspace`)                       |
-| `just test-ts`          | TS unit tests (vitest across all TS packages)                    |
-| `just test-unit`        | All unit tests (Rust + TypeScript)                               |
-| `just test-integration` | Go integration tests (standalone + fullstack + i18n + workspace) |
-| `just test-e2e`         | Playwright E2E tests                                             |
-| `just test`             | All layers (unit + integration + e2e)                            |
-| `just typecheck`        | TypeScript type checking across all packages                     |
-| `just verify`           | Full pipeline: format + lint + build + all tests                 |
+| Command                 | Scope                                                                                   |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| `just test-rs`          | Rust unit tests (`cargo test --workspace`)                                              |
+| `just test-ts`          | TS unit tests (vitest across all TS packages)                                           |
+| `just test-unit`        | All unit tests (Rust + TypeScript)                                                      |
+| `just test-integration` | Go integration tests (standalone + fullstack + i18n + fs-router + features + workspace) |
+| `just test-e2e`         | Playwright E2E tests                                                                    |
+| `just test`             | All layers (unit + integration + e2e)                                                   |
+| `just typecheck`        | TypeScript type checking across all packages                                            |
+| `just smoke`            | Build + integration + E2E smoke test                                                    |
+| `just verify`           | Full pipeline: format + lint + build + all tests                                        |

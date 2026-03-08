@@ -52,9 +52,9 @@ cargo test -p seam-skeleton
 cargo test -p seam-codegen
 ```
 
-- Skeleton pipeline tests (170) are in `seam-skeleton`
-- Codegen tests (82) are in `seam-codegen`
-- Build orchestration and config tests (140) remain in `seam-cli`
+- Skeleton pipeline tests (182) are in `seam-skeleton`
+- Codegen tests (85) are in `seam-codegen`
+- Build orchestration and config tests (158) remain in `seam-cli`
 
 ## Gotchas
 
