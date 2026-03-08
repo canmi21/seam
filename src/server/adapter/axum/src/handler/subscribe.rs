@@ -60,7 +60,9 @@ pub(super) async fn handle_subscribe(
 			};
 
 			return ws
-				.on_upgrade(move |socket| handle_channel_ws(state, sub_name, raw_input, headers, uri, socket))
+				.on_upgrade(move |socket| {
+					handle_channel_ws(state, sub_name, raw_input, headers, uri, socket)
+				})
 				.into_response();
 		}
 	}

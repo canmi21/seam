@@ -117,6 +117,159 @@ func TestRPCWithContextHeader(t *testing.T) {
 	}
 }
 
+func TestRPCWithContextCookie(t *testing.T) {
+	ctxConfigs := map[string]ContextConfig{
+		"session": {Extract: "cookie:session_id"},
+	}
+
+	proc := ProcedureDef{
+		Name:        "getSession",
+		ContextKeys: []string{"session"},
+		Handler: func(ctx context.Context, input json.RawMessage) (any, error) {
+			session, ok := ContextValue[string](ctx, "session")
+			if !ok {
+				return map[string]bool{"hasSession": false}, nil
+			}
+			return map[string]string{"session": session}, nil
+		},
+	}
+
+	handler := buildHandler(
+		[]ProcedureDef{proc},
+		nil, nil, nil, nil, nil, nil, nil, nil, ctxConfigs,
+		HandlerOptions{}, ValidationModeNever,
+	)
+
+	req := httptest.NewRequest("POST", "/_seam/procedure/getSession", strings.NewReader("{}"))
+	req.AddCookie(&http.Cookie{Name: "session_id", Value: "abc123"})
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	data := resp["data"].(map[string]any)
+	if data["session"] != "abc123" {
+		t.Fatalf("expected 'abc123', got %v", data["session"])
+	}
+}
+
+func TestRPCWithContextQuery(t *testing.T) {
+	ctxConfigs := map[string]ContextConfig{
+		"lang": {Extract: "query:lang"},
+	}
+
+	proc := ProcedureDef{
+		Name:        "getLang",
+		ContextKeys: []string{"lang"},
+		Handler: func(ctx context.Context, input json.RawMessage) (any, error) {
+			lang, ok := ContextValue[string](ctx, "lang")
+			if !ok {
+				return map[string]bool{"hasLang": false}, nil
+			}
+			return map[string]string{"lang": lang}, nil
+		},
+	}
+
+	handler := buildHandler(
+		[]ProcedureDef{proc},
+		nil, nil, nil, nil, nil, nil, nil, nil, ctxConfigs,
+		HandlerOptions{}, ValidationModeNever,
+	)
+
+	req := httptest.NewRequest("POST", "/_seam/procedure/getLang?lang=en", strings.NewReader("{}"))
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	data := resp["data"].(map[string]any)
+	if data["lang"] != "en" {
+		t.Fatalf("expected 'en', got %v", data["lang"])
+	}
+}
+
+func TestRPCMissingCookie(t *testing.T) {
+	ctxConfigs := map[string]ContextConfig{
+		"session": {Extract: "cookie:session_id"},
+	}
+
+	proc := ProcedureDef{
+		Name:        "getSession",
+		ContextKeys: []string{"session"},
+		Handler: func(ctx context.Context, input json.RawMessage) (any, error) {
+			_, ok := ContextValue[string](ctx, "session")
+			return map[string]bool{"hasSession": ok}, nil
+		},
+	}
+
+	handler := buildHandler(
+		[]ProcedureDef{proc},
+		nil, nil, nil, nil, nil, nil, nil, nil, ctxConfigs,
+		HandlerOptions{}, ValidationModeNever,
+	)
+
+	req := httptest.NewRequest("POST", "/_seam/procedure/getSession", strings.NewReader("{}"))
+	// No cookie
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	data := resp["data"].(map[string]any)
+	if data["hasSession"] != false {
+		t.Fatalf("expected hasSession=false, got %v", data["hasSession"])
+	}
+}
+
+func TestRPCMissingQuery(t *testing.T) {
+	ctxConfigs := map[string]ContextConfig{
+		"lang": {Extract: "query:lang"},
+	}
+
+	proc := ProcedureDef{
+		Name:        "getLang",
+		ContextKeys: []string{"lang"},
+		Handler: func(ctx context.Context, input json.RawMessage) (any, error) {
+			_, ok := ContextValue[string](ctx, "lang")
+			return map[string]bool{"hasLang": ok}, nil
+		},
+	}
+
+	handler := buildHandler(
+		[]ProcedureDef{proc},
+		nil, nil, nil, nil, nil, nil, nil, nil, ctxConfigs,
+		HandlerOptions{}, ValidationModeNever,
+	)
+
+	req := httptest.NewRequest("POST", "/_seam/procedure/getLang", strings.NewReader("{}"))
+	// No query param
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp map[string]any
+	_ = json.Unmarshal(w.Body.Bytes(), &resp)
+	data := resp["data"].(map[string]any)
+	if data["hasLang"] != false {
+		t.Fatalf("expected hasLang=false, got %v", data["hasLang"])
+	}
+}
+
 func TestRPCMissingContextPassesNil(t *testing.T) {
 	ctxConfigs := map[string]ContextConfig{
 		"token": {Extract: "header:authorization"},

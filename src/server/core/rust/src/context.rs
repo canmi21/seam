@@ -73,9 +73,7 @@ pub fn extract_raw_context(
 					cookie_cache.get_or_insert_with(|| parse_cookie_header(cookie_header.unwrap_or("")));
 				cookies.iter().find(|(k, _)| *k == extract_key).map(|(_, v)| (*v).to_string())
 			}
-			"query" => query_string.and_then(|qs| {
-				form_urlencoded_get(qs, extract_key)
-			}),
+			"query" => query_string.and_then(|qs| form_urlencoded_get(qs, extract_key)),
 			_ => None,
 		};
 		raw.insert(ctx_key.clone(), value);

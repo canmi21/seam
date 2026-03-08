@@ -59,25 +59,51 @@ func parseExtractRule(rule string) (source, key string, ok bool) {
 	return parts[0], parts[1], true
 }
 
-// extractRawContext extracts raw header values from the request based on context config.
+// extractRawContext extracts raw values from request headers, cookies, and query params.
 func extractRawContext(r *http.Request, configs map[string]ContextConfig) map[string]any {
 	raw := make(map[string]any)
 	for key, cfg := range configs {
-		source, headerName, ok := parseExtractRule(cfg.Extract)
-		if !ok || source != "header" {
+		source, extractKey, ok := parseExtractRule(cfg.Extract)
+		if !ok {
 			raw[key] = nil
 			continue
 		}
-		val := r.Header.Get(headerName)
-		if val == "" {
-			raw[key] = nil
-		} else {
-			// Try JSON parse for complex types, fallback to string
-			var parsed any
-			if err := json.Unmarshal([]byte(val), &parsed); err != nil {
-				parsed = val
+		switch source {
+		case "header":
+			val := r.Header.Get(extractKey)
+			if val == "" {
+				raw[key] = nil
+			} else {
+				var parsed any
+				if err := json.Unmarshal([]byte(val), &parsed); err != nil {
+					parsed = val
+				}
+				raw[key] = parsed
 			}
-			raw[key] = parsed
+		case "cookie":
+			cookie, err := r.Cookie(extractKey)
+			if err != nil {
+				raw[key] = nil
+			} else {
+				var parsed any
+				if err := json.Unmarshal([]byte(cookie.Value), &parsed); err != nil {
+					parsed = cookie.Value
+				}
+				raw[key] = parsed
+			}
+		case "query":
+			val := r.URL.Query().Get(extractKey)
+			if val == "" {
+				raw[key] = nil
+			} else {
+				var parsed any
+				if err := json.Unmarshal([]byte(val), &parsed); err != nil {
+					parsed = val
+				}
+				raw[key] = parsed
+			}
+		default:
+			raw[key] = nil
 		}
 	}
 	return raw
