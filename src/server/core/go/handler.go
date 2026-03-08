@@ -12,22 +12,27 @@ import (
 )
 
 type appState struct {
-	manifestJSON         []byte
-	handlers             map[string]*ProcedureDef
-	subs                 map[string]*SubscriptionDef
-	opts                 HandlerOptions
-	hashToName           map[string]string // reverse lookup: hash -> original name (nil if no hash map)
-	batchHash            string            // batch endpoint hash (empty if no hash map)
-	i18nConfig           *I18nConfig
-	localeSet            map[string]bool // O(1) lookup for valid locales
-	strategies           []ResolveStrategy
-	contextConfigs       map[string]ContextConfig
-	shouldValidate       bool
-	compiledInputSchemas map[string]*compiledSchema
-	compiledSubSchemas   map[string]*compiledSchema
+	manifestJSON          []byte
+	handlers              map[string]*ProcedureDef
+	subs                  map[string]*SubscriptionDef
+	opts                  HandlerOptions
+	hashToName            map[string]string // reverse lookup: hash -> original name (nil if no hash map)
+	batchHash             string            // batch endpoint hash (empty if no hash map)
+	i18nConfig            *I18nConfig
+	localeSet             map[string]bool // O(1) lookup for valid locales
+	strategies            []ResolveStrategy
+	contextConfigs        map[string]ContextConfig
+	streams               map[string]*StreamDef
+	uploads               map[string]*UploadDef
+	kindMap               map[string]string // name -> "query"|"command"|"stream"|"upload"
+	shouldValidate        bool
+	compiledInputSchemas  map[string]*compiledSchema
+	compiledSubSchemas    map[string]*compiledSchema
+	compiledStreamSchemas map[string]*compiledSchema
+	compiledUploadSchemas map[string]*compiledSchema
 }
 
-func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, channels []ChannelDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, strategies []ResolveStrategy, contextConfigs map[string]ContextConfig, opts HandlerOptions, validationMode ValidationMode) http.Handler {
+func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, streams []StreamDef, uploads []UploadDef, channels []ChannelDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, strategies []ResolveStrategy, contextConfigs map[string]ContextConfig, opts HandlerOptions, validationMode ValidationMode) http.Handler {
 	state := &appState{
 		handlers:       make(map[string]*ProcedureDef),
 		subs:           make(map[string]*SubscriptionDef),
@@ -69,7 +74,7 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, ch
 	}
 
 	// Build manifest
-	manifest := buildManifest(procedures, subscriptions, channelMetas, state.contextConfigs)
+	manifest := buildManifest(procedures, subscriptions, streams, uploads, channelMetas, state.contextConfigs)
 	state.manifestJSON, _ = json.Marshal(manifest)
 
 	for i := range procedures {
@@ -77,6 +82,31 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, ch
 	}
 	for i := range subscriptions {
 		state.subs[subscriptions[i].Name] = &subscriptions[i]
+	}
+
+	state.streams = make(map[string]*StreamDef)
+	for i := range streams {
+		state.streams[streams[i].Name] = &streams[i]
+	}
+	state.uploads = make(map[string]*UploadDef)
+	for i := range uploads {
+		state.uploads[uploads[i].Name] = &uploads[i]
+	}
+
+	// Build kind map for POST dispatcher
+	state.kindMap = make(map[string]string)
+	for name, p := range state.handlers {
+		if p.Type == "command" {
+			state.kindMap[name] = "command"
+		} else {
+			state.kindMap[name] = "query"
+		}
+	}
+	for name := range state.streams {
+		state.kindMap[name] = "stream"
+	}
+	for name := range state.uploads {
+		state.kindMap[name] = "upload"
 	}
 
 	// Register built-in __seam_i18n_query procedure when i18n is configured
@@ -123,6 +153,18 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, ch
 		for name, sub := range state.subs {
 			if cs, err := compileSchema(sub.InputSchema); err == nil {
 				state.compiledSubSchemas[name] = cs
+			}
+		}
+		state.compiledStreamSchemas = make(map[string]*compiledSchema)
+		for name, s := range state.streams {
+			if cs, err := compileSchema(s.InputSchema); err == nil {
+				state.compiledStreamSchemas[name] = cs
+			}
+		}
+		state.compiledUploadSchemas = make(map[string]*compiledSchema)
+		for name, u := range state.uploads {
+			if cs, err := compileSchema(u.InputSchema); err == nil {
+				state.compiledUploadSchemas[name] = cs
 			}
 		}
 	}
@@ -186,14 +228,15 @@ type contextManifestEntry struct {
 }
 
 type procedureEntry struct {
-	Kind    string   `json:"kind"`
-	Input   any      `json:"input"`
-	Output  any      `json:"output"`
-	Error   any      `json:"error,omitempty"`
-	Context []string `json:"context,omitempty"`
+	Kind        string   `json:"kind"`
+	Input       any      `json:"input"`
+	Output      any      `json:"output,omitempty"`
+	ChunkOutput any      `json:"chunkOutput,omitempty"`
+	Error       any      `json:"error,omitempty"`
+	Context     []string `json:"context,omitempty"`
 }
 
-func buildManifest(procedures []ProcedureDef, subscriptions []SubscriptionDef, channels map[string]channelMeta, contextConfigs map[string]ContextConfig) manifestSchema {
+func buildManifest(procedures []ProcedureDef, subscriptions []SubscriptionDef, streams []StreamDef, uploads []UploadDef, channels map[string]channelMeta, contextConfigs map[string]ContextConfig) manifestSchema {
 	procs := make(map[string]procedureEntry)
 	for _, p := range procedures {
 		procType := p.Type
@@ -222,6 +265,30 @@ func buildManifest(procedures []ProcedureDef, subscriptions []SubscriptionDef, c
 			entry.Context = s.ContextKeys
 		}
 		procs[s.Name] = entry
+	}
+	for _, st := range streams {
+		entry := procedureEntry{
+			Kind:        "stream",
+			Input:       st.InputSchema,
+			ChunkOutput: st.ChunkOutputSchema,
+			Error:       st.ErrorSchema,
+		}
+		if len(st.ContextKeys) > 0 {
+			entry.Context = st.ContextKeys
+		}
+		procs[st.Name] = entry
+	}
+	for _, u := range uploads {
+		entry := procedureEntry{
+			Kind:   "upload",
+			Input:  u.InputSchema,
+			Output: u.OutputSchema,
+			Error:  u.ErrorSchema,
+		}
+		if len(u.ContextKeys) > 0 {
+			entry.Context = u.ContextKeys
+		}
+		procs[u.Name] = entry
 	}
 	m := manifestSchema{
 		Version:           2,
@@ -267,6 +334,15 @@ func (s *appState) handleRPC(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		name = resolved
+	}
+
+	// Dispatch to stream/upload handlers based on kind
+	if kind := s.kindMap[name]; kind == "stream" {
+		s.handleStream(w, r, name)
+		return
+	} else if kind == "upload" {
+		s.handleUpload(w, r, name)
+		return
 	}
 
 	proc, ok := s.handlers[name]

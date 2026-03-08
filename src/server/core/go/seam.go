@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 )
@@ -123,6 +124,45 @@ type SubscriptionDef struct {
 	Handler      SubscriptionHandlerFunc
 }
 
+// StreamEvent carries either a chunk value or an error from a stream.
+type StreamEvent struct {
+	Value any
+	Err   *Error
+}
+
+// StreamHandlerFunc creates a channel-based chunk stream from raw JSON input.
+type StreamHandlerFunc func(ctx context.Context, input json.RawMessage) (<-chan StreamEvent, error)
+
+// StreamDef defines a streaming procedure (SSE with incrementing id).
+type StreamDef struct {
+	Name              string
+	InputSchema       any
+	ChunkOutputSchema any
+	ErrorSchema       any      // optional: JTD schema for typed errors
+	ContextKeys       []string // context keys this stream requires
+	Handler           StreamHandlerFunc
+}
+
+// SeamFileHandle holds an uploaded file's metadata and reader.
+type SeamFileHandle struct {
+	Reader   io.Reader
+	Filename string
+	Size     int64
+}
+
+// UploadHandlerFunc processes an uploaded file with JSON metadata.
+type UploadHandlerFunc func(ctx context.Context, input json.RawMessage, file *SeamFileHandle) (any, error)
+
+// UploadDef defines an upload procedure (multipart/form-data).
+type UploadDef struct {
+	Name         string
+	InputSchema  any
+	OutputSchema any
+	ErrorSchema  any      // optional: JTD schema for typed errors
+	ContextKeys  []string // context keys this upload requires
+	Handler      UploadHandlerFunc
+}
+
 // LoaderDef binds a data key to a procedure call with route-param-derived input.
 type LoaderDef struct {
 	DataKey   string
@@ -191,6 +231,8 @@ var defaultHandlerOptions = HandlerOptions{
 type Router struct {
 	procedures     []ProcedureDef
 	subscriptions  []SubscriptionDef
+	streams        []StreamDef
+	uploads        []UploadDef
 	channels       []ChannelDef
 	pages          []PageDef
 	rpcHashMap     *RpcHashMap
@@ -226,6 +268,16 @@ func (r *Router) Procedure(def *ProcedureDef) *Router {
 
 func (r *Router) Subscription(def *SubscriptionDef) *Router {
 	r.subscriptions = append(r.subscriptions, *def)
+	return r
+}
+
+func (r *Router) Stream(def *StreamDef) *Router {
+	r.streams = append(r.streams, *def)
+	return r
+}
+
+func (r *Router) Upload(def *UploadDef) *Router {
+	r.uploads = append(r.uploads, *def)
 	return r
 }
 
@@ -283,7 +335,7 @@ func (r *Router) Manifest() ([]byte, error) {
 		}
 		channelMetas[ch.Name] = meta
 	}
-	m := buildManifest(procs, subs, channelMetas, r.contextConfigs)
+	m := buildManifest(procs, subs, r.streams, r.uploads, channelMetas, r.contextConfigs)
 	return json.Marshal(m)
 }
 
@@ -294,5 +346,5 @@ func (r *Router) Handler(opts ...HandlerOptions) http.Handler {
 	if len(opts) > 0 {
 		o = opts[0]
 	}
-	return buildHandler(r.procedures, r.subscriptions, r.channels, r.pages, r.rpcHashMap, r.i18nConfig, r.strategies, r.contextConfigs, o, r.validationMode)
+	return buildHandler(r.procedures, r.subscriptions, r.streams, r.uploads, r.channels, r.pages, r.rpcHashMap, r.i18nConfig, r.strategies, r.contextConfigs, o, r.validationMode)
 }
