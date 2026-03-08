@@ -113,7 +113,9 @@ describe('useSeamSubscription: connection', () => {
 
 		// Let microtasks resolve
 		await act(async () => {
-			await new Promise((r) => setTimeout(r, 0))
+			await new Promise<void>((r) => {
+				setTimeout(r, 0)
+			})
 		})
 
 		expect(fetchSpy).toHaveBeenCalledTimes(1)
@@ -149,12 +151,16 @@ describe('useSeamSubscription: connection', () => {
 
 		// Allow fetch to resolve
 		await act(async () => {
-			await new Promise((r) => setTimeout(r, 0))
+			await new Promise<void>((r) => {
+				setTimeout(r, 0)
+			})
 		})
 
 		await act(async () => {
 			ctrl.push('event: data\ndata: {"count":42}\n\n')
-			await new Promise((r) => setTimeout(r, 0))
+			await new Promise<void>((r) => {
+				setTimeout(r, 0)
+			})
 		})
 
 		expect(readState()).toEqual({
@@ -181,7 +187,9 @@ describe('useSeamSubscription: errors', () => {
 		})
 
 		await act(async () => {
-			await new Promise((r) => setTimeout(r, 0))
+			await new Promise<void>((r) => {
+				setTimeout(r, 0)
+			})
 		})
 
 		const state = readState()
@@ -204,7 +212,9 @@ describe('useSeamSubscription: errors', () => {
 		})
 
 		await act(async () => {
-			await new Promise((r) => setTimeout(r, 0))
+			await new Promise<void>((r) => {
+				setTimeout(r, 0)
+			})
 		})
 
 		const state = readState()
@@ -222,7 +232,9 @@ describe('useSeamSubscription: errors', () => {
 		})
 
 		await act(async () => {
-			await new Promise((r) => setTimeout(r, 0))
+			await new Promise<void>((r) => {
+				setTimeout(r, 0)
+			})
 		})
 
 		const state = readState()
@@ -243,7 +255,9 @@ describe('useSeamSubscription: lifecycle', () => {
 		})
 
 		await act(async () => {
-			await new Promise((r) => setTimeout(r, 0))
+			await new Promise<void>((r) => {
+				setTimeout(r, 0)
+			})
 		})
 
 		expect(readState().status).toBe('closed')
@@ -285,7 +299,9 @@ describe('useSeamSubscription: lifecycle', () => {
 		})
 
 		await act(async () => {
-			await new Promise((r) => setTimeout(r, 0))
+			await new Promise<void>((r) => {
+				setTimeout(r, 0)
+			})
 		})
 
 		// Change input -> should create a new fetch
@@ -300,7 +316,9 @@ describe('useSeamSubscription: lifecycle', () => {
 		})
 
 		await act(async () => {
-			await new Promise((r) => setTimeout(r, 0))
+			await new Promise<void>((r) => {
+				setTimeout(r, 0)
+			})
 		})
 
 		// Should have fetched for both inputs

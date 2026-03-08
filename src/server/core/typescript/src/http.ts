@@ -179,7 +179,8 @@ async function* withSseLifecycle(
 					resolve = r
 				})
 			}
-			const item = queue.shift()!
+			const item = queue.shift()
+			if (!item) continue
 			if (item.type === 'data') {
 				yield item.value
 			} else if (item.type === 'heartbeat') {
