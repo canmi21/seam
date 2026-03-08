@@ -6,7 +6,7 @@ use axum::extract::ws::{Message, WebSocket};
 use futures_util::SinkExt;
 use futures_util::stream::SplitSink;
 use seam_server::SeamError;
-use tokio::time::{Duration, interval};
+use tokio::time::interval;
 use tokio_stream::StreamExt;
 
 use super::{AppState, resolve_ctx_for_proc};
@@ -247,14 +247,27 @@ pub(super) async fn handle_channel_ws(
 	};
 
 	let mut event_stream = std::pin::pin!(event_stream);
-	let mut heartbeat = interval(Duration::from_secs(30));
+	let mut heartbeat = interval(state.heartbeat_interval);
+	let pong_timeout = state.pong_timeout;
+	let mut pong_deadline: Option<tokio::time::Instant> = None;
 
 	loop {
+		// Build a future that either sleeps until the pong deadline or pends forever
+		let pong_check = async {
+			match pong_deadline {
+				Some(deadline) => tokio::time::sleep_until(deadline).await,
+				None => std::future::pending().await,
+			}
+		};
+
 		tokio::select! {
 			msg = StreamExt::next(&mut ws_receiver) => {
 				match msg {
 					Some(Ok(Message::Text(text))) => {
 						dispatch_ws_uplink(&state, channel_name, &channel_input, &ctx, &text, &mut ws_sender).await;
+					}
+					Some(Ok(Message::Pong(_))) => {
+						pong_deadline = None;
 					}
 					Some(Ok(Message::Close(_))) | None => break,
 					_ => continue,
@@ -282,10 +295,20 @@ pub(super) async fn handle_channel_ws(
 				}
 			}
 			_ = heartbeat.tick() => {
-				let msg = serde_json::json!({ "heartbeat": true });
-				if ws_sender.send(Message::Text(msg.to_string().into())).await.is_err() {
+				// Send JSON heartbeat for application-level keepalive
+				let hb = serde_json::json!({ "heartbeat": true });
+				if ws_sender.send(Message::Text(hb.to_string().into())).await.is_err() {
 					break;
 				}
+				// Send ping frame for half-open connection detection
+				if ws_sender.send(Message::Ping(vec![].into())).await.is_err() {
+					break;
+				}
+				pong_deadline = Some(tokio::time::Instant::now() + pong_timeout);
+			}
+			_ = pong_check => {
+				// Pong timeout: half-open connection detected
+				break;
 			}
 		}
 	}

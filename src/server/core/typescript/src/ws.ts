@@ -5,15 +5,19 @@ import { SeamError } from './errors.js'
 
 export interface WsSink {
 	send(data: string): void
+	ping?: () => void
+	close?: () => void
 }
 
 export interface ChannelWsSession {
 	onMessage(data: string): void
+	onPong(): void
 	close(): void
 }
 
 export interface ChannelWsOptions {
 	heartbeatInterval?: number
+	pongTimeout?: number
 }
 
 interface UplinkMessage {
@@ -22,10 +26,72 @@ interface UplinkMessage {
 	input?: unknown
 }
 
-const DEFAULT_HEARTBEAT_MS = 30_000
+const DEFAULT_HEARTBEAT_MS = 21_000
+const DEFAULT_PONG_TIMEOUT_MS = 5_000
 
 function sendError(ws: WsSink, id: string | null, code: string, message: string): void {
 	ws.send(JSON.stringify({ id, ok: false, error: { code, message, transient: false } }))
+}
+
+/** Validate uplink message fields and channel scope */
+function parseUplink(ws: WsSink, data: string, channelName: string): UplinkMessage | null {
+	let msg: UplinkMessage
+	try {
+		msg = JSON.parse(data) as UplinkMessage
+	} catch {
+		sendError(ws, null, 'VALIDATION_ERROR', 'Invalid JSON')
+		return null
+	}
+	if (!msg.id || typeof msg.id !== 'string') {
+		sendError(ws, null, 'VALIDATION_ERROR', "Missing 'id' field")
+		return null
+	}
+	if (!msg.procedure || typeof msg.procedure !== 'string') {
+		sendError(ws, msg.id, 'VALIDATION_ERROR', "Missing 'procedure' field")
+		return null
+	}
+	const prefix = channelName + '.'
+	if (!msg.procedure.startsWith(prefix) || msg.procedure === `${channelName}.events`) {
+		sendError(
+			ws,
+			msg.id,
+			'VALIDATION_ERROR',
+			`Procedure '${msg.procedure}' is not a command of channel '${channelName}'`,
+		)
+		return null
+	}
+	return msg
+}
+
+/** Dispatch validated uplink command through the router */
+function dispatchUplink<T extends DefinitionMap>(
+	router: Router<T>,
+	ws: WsSink,
+	msg: UplinkMessage,
+	channelInput: unknown,
+): void {
+	const mergedInput = {
+		...(channelInput as Record<string, unknown>),
+		...((msg.input ?? {}) as Record<string, unknown>),
+	}
+	void (async () => {
+		try {
+			const result = await router.handle(msg.procedure, mergedInput)
+			if (result.status === 200) {
+				const envelope = result.body as { ok: true; data: unknown }
+				ws.send(JSON.stringify({ id: msg.id, ok: true, data: envelope.data }))
+			} else {
+				const envelope = result.body as {
+					ok: false
+					error: { code: string; message: string; transient: boolean }
+				}
+				ws.send(JSON.stringify({ id: msg.id, ok: false, error: envelope.error }))
+			}
+		} catch (err) {
+			const message = err instanceof Error ? err.message : 'Unknown error'
+			sendError(ws, msg.id, 'INTERNAL_ERROR', message)
+		}
+	})()
 }
 
 /**
@@ -42,11 +108,26 @@ export function startChannelWs<T extends DefinitionMap>(
 	opts?: ChannelWsOptions,
 ): ChannelWsSession {
 	const heartbeatMs = opts?.heartbeatInterval ?? DEFAULT_HEARTBEAT_MS
+	const pongTimeoutMs = opts?.pongTimeout ?? DEFAULT_PONG_TIMEOUT_MS
 	let closed = false
+	let pongTimer: ReturnType<typeof setTimeout> | null = null
 
-	// Heartbeat timer
+	// Heartbeat timer — also sends ping frame when sink supports it
 	const heartbeatTimer = setInterval(() => {
-		if (!closed) ws.send(JSON.stringify({ heartbeat: true }))
+		if (closed) return
+		ws.send(JSON.stringify({ heartbeat: true }))
+		if (ws.ping) {
+			ws.ping()
+			if (pongTimer) clearTimeout(pongTimer)
+			pongTimer = setTimeout(() => {
+				if (!closed) {
+					closed = true
+					clearInterval(heartbeatTimer)
+					void iter.return?.(undefined)
+					ws.close?.()
+				}
+			}, pongTimeoutMs)
+		}
 	}, heartbeatMs)
 
 	// Start subscription and forward events as { event, payload }
@@ -58,7 +139,6 @@ export function startChannelWs<T extends DefinitionMap>(
 			for (;;) {
 				const result: IteratorResult<unknown> = await iter.next()
 				if (result.done || closed) break
-				// Channel subscription yields { type: string, payload: unknown }
 				const ev = result.value as { type: string; payload: unknown }
 				ws.send(JSON.stringify({ event: ev.type, payload: ev.payload }))
 			}
@@ -74,67 +154,22 @@ export function startChannelWs<T extends DefinitionMap>(
 	return {
 		onMessage(data: string) {
 			if (closed) return
+			const msg = parseUplink(ws, data, channelName)
+			if (msg) dispatchUplink(router, ws, msg, channelInput)
+		},
 
-			let msg: UplinkMessage
-			try {
-				msg = JSON.parse(data) as UplinkMessage
-			} catch {
-				sendError(ws, null, 'VALIDATION_ERROR', 'Invalid JSON')
-				return
+		onPong() {
+			if (pongTimer) {
+				clearTimeout(pongTimer)
+				pongTimer = null
 			}
-
-			if (!msg.id || typeof msg.id !== 'string') {
-				sendError(ws, null, 'VALIDATION_ERROR', "Missing 'id' field")
-				return
-			}
-
-			if (!msg.procedure || typeof msg.procedure !== 'string') {
-				sendError(ws, msg.id, 'VALIDATION_ERROR', "Missing 'procedure' field")
-				return
-			}
-
-			// Only allow commands belonging to this channel (not .events)
-			const prefix = channelName + '.'
-			if (!msg.procedure.startsWith(prefix) || msg.procedure === `${channelName}.events`) {
-				sendError(
-					ws,
-					msg.id,
-					'VALIDATION_ERROR',
-					`Procedure '${msg.procedure}' is not a command of channel '${channelName}'`,
-				)
-				return
-			}
-
-			// Merge channel input + uplink input before dispatching
-			const mergedInput = {
-				...(channelInput as Record<string, unknown>),
-				...((msg.input ?? {}) as Record<string, unknown>),
-			}
-
-			void (async () => {
-				try {
-					const result = await router.handle(msg.procedure, mergedInput)
-					if (result.status === 200) {
-						const envelope = result.body as { ok: true; data: unknown }
-						ws.send(JSON.stringify({ id: msg.id, ok: true, data: envelope.data }))
-					} else {
-						const envelope = result.body as {
-							ok: false
-							error: { code: string; message: string; transient: boolean }
-						}
-						ws.send(JSON.stringify({ id: msg.id, ok: false, error: envelope.error }))
-					}
-				} catch (err) {
-					const message = err instanceof Error ? err.message : 'Unknown error'
-					sendError(ws, msg.id, 'INTERNAL_ERROR', message)
-				}
-			})()
 		},
 
 		close() {
 			if (closed) return
 			closed = true
 			clearInterval(heartbeatTimer)
+			if (pongTimer) clearTimeout(pongTimer)
 			void iter.return?.(undefined)
 		},
 	}

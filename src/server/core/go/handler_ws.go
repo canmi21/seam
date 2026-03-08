@@ -128,13 +128,21 @@ func (s *appState) handleChannelWs(w http.ResponseWriter, r *http.Request) {
 		return conn.WriteJSON(v)
 	}
 
+	// Set read deadline and pong handler for half-open connection detection.
+	// Read deadline is reset on each pong; if no pong arrives within
+	// heartbeatInterval + pongTimeout, ReadMessage returns an error.
+	_ = conn.SetReadDeadline(time.Now().Add(s.opts.HeartbeatInterval + s.opts.PongTimeout))
+	conn.SetPongHandler(func(appData string) error {
+		return conn.SetReadDeadline(time.Now().Add(s.opts.HeartbeatInterval + s.opts.PongTimeout))
+	})
+
 	var wg sync.WaitGroup
 
-	// --- write loop: forward subscription events + heartbeat ---
+	// --- write loop: forward subscription events + heartbeat + ping ---
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(s.opts.HeartbeatInterval)
 		defer ticker.Stop()
 
 		for {
@@ -177,6 +185,14 @@ func (s *appState) handleChannelWs(w http.ResponseWriter, r *http.Request) {
 
 			case <-ticker.C:
 				if err := writeJSON(wsHeartbeat{Heartbeat: true}); err != nil {
+					return
+				}
+				// Send ping frame for half-open connection detection
+				writeMu.Lock()
+				deadline := time.Now().Add(s.opts.PongTimeout)
+				err := conn.WriteControl(websocket.PingMessage, nil, deadline)
+				writeMu.Unlock()
+				if err != nil {
 					return
 				}
 
