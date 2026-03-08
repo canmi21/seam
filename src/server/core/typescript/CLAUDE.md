@@ -13,7 +13,7 @@ src/
   proxy.ts          -- createDevProxy (forward to Vite), createStaticHandler
   procedure.ts      -- Internal types: InternalProcedure, InternalSubscription, InternalStream, InternalUpload, SeamFileHandle, HandleResult
   subscription.ts   -- fromCallback: bridge callback event sources to AsyncGenerator
-  context.ts        -- ContextConfig, RawContextMap, resolveContext, contextExtractKeys, extract namespace
+  context.ts        -- ContextConfig, RawContextMap, resolveContext, buildRawContext, contextHasExtracts, parseCookieHeader, extract namespace
   errors.ts         -- SeamError class with open error codes + status, DEFAULT_STATUS map
   factory.ts        -- Procedure factory functions (query, command, subscription, stream, upload)
   seam-router.ts    -- createSeamRouter: router-bound typed procedure factories
