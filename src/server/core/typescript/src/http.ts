@@ -39,10 +39,16 @@ export interface RpcHashMap {
 	batch: string
 }
 
+export interface SseOptions {
+	heartbeatInterval?: number // ms, default 21_000
+	sseIdleTimeout?: number // ms, default 30_000, 0 disables
+}
+
 export interface HttpHandlerOptions {
 	staticDir?: string
 	fallback?: HttpHandler
 	rpcHashMap?: RpcHashMap
+	sseOptions?: SseOptions
 }
 
 const PROCEDURE_PREFIX = '/_seam/procedure/'
@@ -108,6 +114,88 @@ export function sseErrorEvent(code: string, message: string, transient = false):
 /** Format an SSE complete event */
 export function sseCompleteEvent(): string {
 	return 'event: complete\ndata: {}\n\n'
+}
+
+const DEFAULT_HEARTBEAT_MS = 21_000
+const DEFAULT_SSE_IDLE_MS = 30_000
+
+async function* withSseLifecycle(
+	inner: AsyncIterable<string>,
+	opts?: SseOptions,
+): AsyncGenerator<string> {
+	const heartbeatMs = opts?.heartbeatInterval ?? DEFAULT_HEARTBEAT_MS
+	const idleMs = opts?.sseIdleTimeout ?? DEFAULT_SSE_IDLE_MS
+	const idleEnabled = idleMs > 0
+
+	// Queue-based approach: background drains inner generator
+	const queue: Array<
+		{ type: 'data'; value: string } | { type: 'done' } | { type: 'heartbeat' } | { type: 'idle' }
+	> = []
+	let resolve: (() => void) | null = null
+	const signal = () => {
+		if (resolve) {
+			resolve()
+			resolve = null
+		}
+	}
+
+	let idleTimer: ReturnType<typeof setTimeout> | null = null
+	const resetIdle = () => {
+		if (!idleEnabled) return
+		if (idleTimer) clearTimeout(idleTimer)
+		idleTimer = setTimeout(() => {
+			queue.push({ type: 'idle' })
+			signal()
+		}, idleMs)
+	}
+
+	const heartbeatTimer = setInterval(() => {
+		queue.push({ type: 'heartbeat' })
+		signal()
+	}, heartbeatMs)
+
+	// Start idle timer
+	resetIdle()
+
+	// Background: drain inner generator
+	void (async () => {
+		try {
+			for await (const chunk of inner) {
+				queue.push({ type: 'data', value: chunk })
+				resetIdle()
+				signal()
+			}
+		} catch {
+			// Inner generator error
+		}
+		queue.push({ type: 'done' })
+		signal()
+	})()
+
+	try {
+		for (;;) {
+			while (queue.length === 0) {
+				await new Promise<void>((r) => {
+					resolve = r
+				})
+			}
+			const item = queue.shift()!
+			if (item.type === 'data') {
+				yield item.value
+			} else if (item.type === 'heartbeat') {
+				yield ': heartbeat\n\n'
+			} else if (item.type === 'idle') {
+				yield sseCompleteEvent()
+				return
+			} else {
+				// done
+				return
+			}
+		}
+	} finally {
+		clearInterval(heartbeatTimer)
+		if (idleTimer) clearTimeout(idleTimer)
+	}
 }
 
 async function* sseStream<T extends DefinitionMap>(
@@ -253,7 +341,10 @@ export function createHttpHandler<T extends DefinitionMap>(
 					return {
 						status: 200,
 						headers: SSE_HEADER,
-						stream: sseStreamForStream(router, name, body, controller.signal, rawCtx),
+						stream: withSseLifecycle(
+							sseStreamForStream(router, name, body, controller.signal, rawCtx),
+							opts?.sseOptions,
+						),
 						onCancel: () => controller.abort(),
 					}
 				}
@@ -285,7 +376,11 @@ export function createHttpHandler<T extends DefinitionMap>(
 					return errorResponse(400, 'VALIDATION_ERROR', 'Invalid input query parameter')
 				}
 
-				return { status: 200, headers: SSE_HEADER, stream: sseStream(router, name, input, rawCtx) }
+				return {
+					status: 200,
+					headers: SSE_HEADER,
+					stream: withSseLifecycle(sseStream(router, name, input, rawCtx), opts?.sseOptions),
+				}
 			}
 		}
 

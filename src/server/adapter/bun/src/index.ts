@@ -8,6 +8,7 @@ import type {
 	RpcHashMap,
 	ChannelWsSession,
 	ChannelWsOptions,
+	SseOptions,
 } from '@canmi/seam-server'
 
 export interface ServeBunOptions {
@@ -16,6 +17,7 @@ export interface ServeBunOptions {
 	fallback?: HttpHandler
 	rpcHashMap?: RpcHashMap
 	wsOptions?: ChannelWsOptions
+	sseOptions?: SseOptions
 }
 
 const PROCEDURE_PREFIX = '/_seam/procedure/'
@@ -32,6 +34,7 @@ export function serveBun<T extends DefinitionMap>(router: Router<T>, opts?: Serv
 		staticDir: opts?.staticDir,
 		fallback: opts?.fallback,
 		rpcHashMap: opts?.rpcHashMap,
+		sseOptions: opts?.sseOptions,
 	})
 
 	return Bun.serve<WsData>({
@@ -91,6 +94,8 @@ export function serveBun<T extends DefinitionMap>(router: Router<T>, opts?: Serv
 					channelInput,
 					{
 						send: (data) => ws.send(data),
+						ping: () => ws.ping(),
+						close: () => ws.close(),
 					},
 					opts?.wsOptions,
 				)
@@ -98,6 +103,9 @@ export function serveBun<T extends DefinitionMap>(router: Router<T>, opts?: Serv
 			message(ws, message) {
 				const text = typeof message === 'string' ? message : new TextDecoder().decode(message)
 				ws.data.session?.onMessage(text)
+			},
+			pong(ws) {
+				ws.data.session?.onPong()
 			},
 			close(ws) {
 				ws.data.session?.close()

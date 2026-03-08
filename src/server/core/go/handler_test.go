@@ -107,7 +107,7 @@ func TestSSEIdleTimeout(t *testing.T) {
 		nil,
 		[]SubscriptionDef{{Name: "idle-test", Handler: subHandler}},
 		nil, nil, nil, nil, nil, nil, nil, nil,
-		HandlerOptions{SSEIdleTimeout: 50 * time.Millisecond}, ValidationModeNever,
+		HandlerOptions{SSEIdleTimeout: 50 * time.Millisecond, HeartbeatInterval: 200 * time.Millisecond}, ValidationModeNever,
 	)
 
 	req := httptest.NewRequest("GET", "/_seam/procedure/idle-test", http.NoBody)
@@ -410,7 +410,7 @@ func TestSSEZeroIdleTimeout(t *testing.T) {
 		nil,
 		[]SubscriptionDef{{Name: "no-idle", Handler: subHandler}},
 		nil, nil, nil, nil, nil, nil, nil, nil,
-		HandlerOptions{SSEIdleTimeout: 0}, ValidationModeNever,
+		HandlerOptions{SSEIdleTimeout: 0, HeartbeatInterval: 1 * time.Second}, ValidationModeNever,
 	)
 
 	req := httptest.NewRequest("GET", "/_seam/procedure/no-idle", http.NoBody)

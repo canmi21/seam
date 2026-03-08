@@ -234,15 +234,19 @@ type I18nConfig struct {
 // HandlerOptions configures timeout behavior for the generated handler.
 // Zero values disable the corresponding timeout.
 type HandlerOptions struct {
-	RPCTimeout     time.Duration // per-RPC call timeout (default 30s)
-	PageTimeout    time.Duration // aggregate page-loader timeout (default 30s)
-	SSEIdleTimeout time.Duration // idle timeout between SSE events (default 30s)
+	RPCTimeout        time.Duration // per-RPC call timeout (default 30s)
+	PageTimeout       time.Duration // aggregate page-loader timeout (default 30s)
+	SSEIdleTimeout    time.Duration // idle timeout between SSE events (default 30s)
+	HeartbeatInterval time.Duration // SSE/WS heartbeat interval (default 21s)
+	PongTimeout       time.Duration // pong deadline after ping (default 5s)
 }
 
 var defaultHandlerOptions = HandlerOptions{
-	RPCTimeout:     30 * time.Second,
-	PageTimeout:    30 * time.Second,
-	SSEIdleTimeout: 30 * time.Second,
+	RPCTimeout:        30 * time.Second,
+	PageTimeout:       30 * time.Second,
+	SSEIdleTimeout:    30 * time.Second,
+	HeartbeatInterval: 21 * time.Second,
+	PongTimeout:       5 * time.Second,
 }
 
 // Router collects procedure, subscription, channel, and page definitions and
@@ -364,6 +368,13 @@ func (r *Router) Handler(opts ...HandlerOptions) http.Handler {
 	o := defaultHandlerOptions
 	if len(opts) > 0 {
 		o = opts[0]
+		// HeartbeatInterval 0 means use default (unlike other timeouts where 0 disables)
+		if o.HeartbeatInterval == 0 {
+			o.HeartbeatInterval = defaultHandlerOptions.HeartbeatInterval
+		}
+		if o.PongTimeout == 0 {
+			o.PongTimeout = defaultHandlerOptions.PongTimeout
+		}
 	}
 	return buildHandler(r.procedures, r.subscriptions, r.streams, r.uploads, r.channels, r.pages, r.rpcHashMap, r.i18nConfig, r.strategies, r.contextConfigs, o, r.validationMode)
 }

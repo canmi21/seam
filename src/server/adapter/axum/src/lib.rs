@@ -50,6 +50,7 @@ impl IntoAxumRouter for SeamServer {
 			parts.strategies,
 			parts.context_config,
 			&parts.validation_mode,
+			&parts.transport_config,
 		)
 	}
 

@@ -10,6 +10,7 @@ import type {
 	HttpResponse,
 	RpcHashMap,
 	ChannelWsOptions,
+	SseOptions,
 } from '@canmi/seam-server'
 import { WebSocketServer } from 'ws'
 
@@ -21,6 +22,7 @@ export interface ServeNodeOptions {
 	/** WebSocket proxy target for HMR (e.g. "ws://localhost:5173") */
 	wsProxy?: string
 	wsOptions?: ChannelWsOptions
+	sseOptions?: SseOptions
 }
 
 const PROCEDURE_PREFIX = '/_seam/procedure/'
@@ -57,6 +59,7 @@ export function serveNode<T extends DefinitionMap>(router: Router<T>, opts?: Ser
 		staticDir: opts?.staticDir,
 		fallback: opts?.fallback,
 		rpcHashMap: opts?.rpcHashMap,
+		sseOptions: opts?.sseOptions,
 	})
 	const server = createServer((req, res) => {
 		const raw = readBody(req)
@@ -100,6 +103,8 @@ export function serveNode<T extends DefinitionMap>(router: Router<T>, opts?: Ser
 					channelInput,
 					{
 						send: (data) => ws.send(data),
+						ping: () => ws.ping(),
+						close: () => ws.close(),
 					},
 					opts?.wsOptions,
 				)
@@ -112,6 +117,9 @@ export function serveNode<T extends DefinitionMap>(router: Router<T>, opts?: Ser
 								? raw.toString('utf-8')
 								: Buffer.from(raw as ArrayBuffer).toString('utf-8')
 					session.onMessage(text)
+				})
+				ws.on('pong', () => {
+					session.onPong()
 				})
 				ws.on('close', () => session.close())
 			})

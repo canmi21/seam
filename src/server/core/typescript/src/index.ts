@@ -47,6 +47,7 @@ export type {
 	HttpBodyResponse,
 	HttpStreamResponse,
 	RpcHashMap,
+	SseOptions,
 } from './http.js'
 export type { SchemaNode, OptionalSchemaNode, Infer } from './types/schema.js'
 export type {

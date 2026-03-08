@@ -4,12 +4,14 @@ mod channel;
 mod page;
 mod projection;
 mod rpc;
+mod sse_lifecycle;
 mod stream;
 mod subscribe;
 mod upload;
 
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::Router;
 use axum::routing::{get, post};
@@ -40,6 +42,9 @@ pub(crate) struct AppState {
 	pub compiled_upload_input_schemas: HashMap<String, seam_server::CompiledSchema>,
 	/// Maps procedure name -> kind ("query"|"command"|"stream"|"upload")
 	pub kind_map: HashMap<String, &'static str>,
+	pub heartbeat_interval: Duration,
+	pub sse_idle_timeout: Duration,
+	pub pong_timeout: Duration,
 }
 
 /// Extract raw context values from HTTP request (headers, cookies, query).
@@ -84,6 +89,7 @@ pub(crate) fn build_router(
 	strategies: Vec<Box<dyn ResolveStrategy>>,
 	context_config: ContextConfig,
 	validation_mode: &seam_server::ValidationMode,
+	transport_config: &seam_server::TransportConfig,
 ) -> Router {
 	let (rpc_hash_map, batch_hash) = match hash_map {
 		Some(m) => {
@@ -234,6 +240,9 @@ pub(crate) fn build_router(
 		compiled_stream_input_schemas,
 		compiled_upload_input_schemas,
 		kind_map,
+		heartbeat_interval: transport_config.heartbeat_interval,
+		sse_idle_timeout: transport_config.sse_idle_timeout,
+		pong_timeout: transport_config.pong_timeout,
 	});
 
 	router.with_state(state)

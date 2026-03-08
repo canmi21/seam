@@ -1,6 +1,7 @@
 /* src/server/core/rust/src/server.rs */
 
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 use crate::build_loader::RpcHashMap;
 use crate::channel::{ChannelDef, ChannelMeta};
@@ -9,6 +10,23 @@ use crate::page::{I18nConfig, PageDef};
 use crate::procedure::{ProcedureDef, StreamDef, SubscriptionDef, UploadDef};
 use crate::resolve::ResolveStrategy;
 use crate::validation::ValidationMode;
+
+/// Transport reliability configuration shared across all backends.
+pub struct TransportConfig {
+	pub heartbeat_interval: Duration,
+	pub sse_idle_timeout: Duration,
+	pub pong_timeout: Duration,
+}
+
+impl Default for TransportConfig {
+	fn default() -> Self {
+		Self {
+			heartbeat_interval: Duration::from_secs(21),
+			sse_idle_timeout: Duration::from_secs(30),
+			pong_timeout: Duration::from_secs(5),
+		}
+	}
+}
 
 /// Framework-agnostic parts extracted from `SeamServer`.
 /// Adapter crates consume this to build framework-specific routers.
@@ -24,6 +42,7 @@ pub struct SeamParts {
 	pub channel_metas: BTreeMap<String, ChannelMeta>,
 	pub context_config: ContextConfig,
 	pub validation_mode: ValidationMode,
+	pub transport_config: TransportConfig,
 }
 
 impl SeamParts {
@@ -44,6 +63,7 @@ pub struct SeamServer {
 	strategies: Vec<Box<dyn ResolveStrategy>>,
 	context_config: ContextConfig,
 	validation_mode: ValidationMode,
+	transport_config: TransportConfig,
 }
 
 impl SeamServer {
@@ -60,6 +80,7 @@ impl SeamServer {
 			strategies: Vec::new(),
 			context_config: ContextConfig::new(),
 			validation_mode: ValidationMode::Dev,
+			transport_config: TransportConfig::default(),
 		}
 	}
 
@@ -118,6 +139,11 @@ impl SeamServer {
 		self
 	}
 
+	pub fn transport_config(mut self, config: TransportConfig) -> Self {
+		self.transport_config = config;
+		self
+	}
+
 	/// Consume the builder, returning framework-agnostic parts for an adapter.
 	/// Channels are expanded into their Level 0 primitives (commands + subscriptions).
 	pub fn into_parts(self) -> SeamParts {
@@ -145,6 +171,7 @@ impl SeamServer {
 			channel_metas,
 			context_config: self.context_config,
 			validation_mode: self.validation_mode,
+			transport_config: self.transport_config,
 		}
 	}
 }

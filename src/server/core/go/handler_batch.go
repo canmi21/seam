@@ -185,6 +185,14 @@ func (s *appState) handleSubscribe(w http.ResponseWriter, r *http.Request) {
 
 	flusher, canFlush := w.(http.Flusher)
 	idle := s.opts.SSEIdleTimeout
+	heartbeatTicker := time.NewTicker(s.opts.HeartbeatInterval)
+	defer heartbeatTicker.Stop()
+
+	var idleTimer *time.Timer
+	if idle > 0 {
+		idleTimer = time.NewTimer(idle)
+		defer idleTimer.Stop()
+	}
 
 	for {
 		if idle > 0 {
@@ -197,19 +205,40 @@ func (s *appState) handleSubscribe(w http.ResponseWriter, r *http.Request) {
 				if canFlush {
 					flusher.Flush()
 				}
-			case <-time.After(idle):
+				if !idleTimer.Stop() {
+					select {
+					case <-idleTimer.C:
+					default:
+					}
+				}
+				idleTimer.Reset(idle)
+			case <-heartbeatTicker.C:
+				_, _ = fmt.Fprintf(w, ": heartbeat\n\n")
+				if canFlush {
+					flusher.Flush()
+				}
+			case <-idleTimer.C:
 				goto complete
 			case <-r.Context().Done():
 				return
 			}
 		} else {
-			ev, ok := <-ch
-			if !ok {
-				goto complete
-			}
-			writeSSEEvent(w, ev)
-			if canFlush {
-				flusher.Flush()
+			select {
+			case ev, ok := <-ch:
+				if !ok {
+					goto complete
+				}
+				writeSSEEvent(w, ev)
+				if canFlush {
+					flusher.Flush()
+				}
+			case <-heartbeatTicker.C:
+				_, _ = fmt.Fprintf(w, ": heartbeat\n\n")
+				if canFlush {
+					flusher.Flush()
+				}
+			case <-r.Context().Done():
+				return
 			}
 		}
 	}

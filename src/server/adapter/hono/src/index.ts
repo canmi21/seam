@@ -9,6 +9,7 @@ import type {
 	RpcHashMap,
 	ChannelWsOptions,
 	ChannelWsSession,
+	SseOptions,
 } from '@canmi/seam-server'
 import type { MiddlewareHandler } from 'hono'
 
@@ -35,6 +36,7 @@ export interface SeamHonoOptions {
 	rpcHashMap?: RpcHashMap
 	upgradeWebSocket?: UpgradeWebSocket
 	wsOptions?: ChannelWsOptions
+	sseOptions?: SseOptions
 }
 
 const SEAM_PREFIX = '/_seam/'
@@ -53,6 +55,7 @@ export function seam<T extends DefinitionMap>(
 	if (opts?.staticDir) handlerOpts.staticDir = opts.staticDir
 	if (opts?.fallback) handlerOpts.fallback = opts.fallback
 	if (opts?.rpcHashMap) handlerOpts.rpcHashMap = opts.rpcHashMap
+	if (opts?.sseOptions) handlerOpts.sseOptions = opts.sseOptions
 
 	const handler = createHttpHandler(router, handlerOpts)
 

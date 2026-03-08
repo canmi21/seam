@@ -33,7 +33,7 @@ pub use resolve::{
 };
 pub use seam_macros::{SeamType, seam_command, seam_procedure, seam_subscription};
 pub use seam_macros::{seam_stream, seam_upload};
-pub use server::{SeamParts, SeamServer};
+pub use server::{SeamParts, SeamServer, TransportConfig};
 pub use validation::{
 	CompiledSchema, ValidationDetail, ValidationMode, compile_schema, should_validate,
 	validate_compiled, validate_input,

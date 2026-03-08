@@ -115,23 +115,26 @@ async fn handle_subscribe_sse(
 
 	match setup.await {
 		Ok(data_stream) => {
-			let event_stream = data_stream
-				.map(|item| match item {
-					Ok(value) => {
-						let data = serde_json::to_string(&value).unwrap_or_default();
-						Ok(Event::default().event("data").data(data))
+			let event_stream = data_stream.map(|item| match item {
+				Ok(value) => {
+					let data = serde_json::to_string(&value).unwrap_or_default();
+					Ok(Event::default().event("data").data(data))
+				}
+				Err(e) => {
+					let mut payload =
+						serde_json::json!({ "code": e.code(), "message": e.message(), "transient": false });
+					if let Some(details) = e.details() {
+						payload["details"] = serde_json::Value::Array(details.to_vec());
 					}
-					Err(e) => {
-						let mut payload =
-							serde_json::json!({ "code": e.code(), "message": e.message(), "transient": false });
-						if let Some(details) = e.details() {
-							payload["details"] = serde_json::Value::Array(details.to_vec());
-						}
-						Ok(Event::default().event("error").data(payload.to_string()))
-					}
-				})
-				.chain(tokio_stream::once(Ok(Event::default().event("complete").data("{}"))));
-			Sse::new(Box::pin(event_stream))
+					Ok(Event::default().event("error").data(payload.to_string()))
+				}
+			});
+			let stream = super::sse_lifecycle::with_sse_lifecycle(
+				Box::pin(event_stream),
+				state.heartbeat_interval,
+				state.sse_idle_timeout,
+			);
+			Sse::new(stream)
 		}
 		Err(err) => {
 			let mut payload =
