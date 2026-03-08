@@ -4,6 +4,7 @@ export interface SseCallbacks {
 	onData: (data: unknown) => void
 	onError: (error: { code: string; message: string }) => void
 	onComplete: () => void
+	onId?: (id: string) => void
 }
 
 /**
@@ -41,14 +42,20 @@ export async function parseSseStream(
 function processBlock(block: string, callbacks: SseCallbacks): void {
 	let eventType = 'message'
 	let data = ''
+	let id: string | undefined
 
 	for (const line of block.split('\n')) {
 		if (line.startsWith('event:')) {
 			eventType = line.slice(6).trim()
 		} else if (line.startsWith('data:')) {
 			data = line.slice(5).trim()
+		} else if (line.startsWith('id:')) {
+			id = line.slice(3).trim()
 		}
-		// id: lines are ignored client-side (server uses for ordering)
+	}
+
+	if (id !== undefined) {
+		callbacks.onId?.(id)
 	}
 
 	if (!data) return

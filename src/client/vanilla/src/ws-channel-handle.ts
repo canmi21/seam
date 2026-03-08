@@ -1,7 +1,9 @@
 /* src/client/vanilla/src/ws-channel-handle.ts */
 
 import { SeamClientError } from './errors.js'
+import { ReconnectController, defaultReconnectConfig } from './reconnect.js'
 import type { ChannelHandle } from './channel-handle.js'
+import type { ReconnectConfig } from './reconnect.js'
 
 interface PendingRequest {
 	resolve: (data: unknown) => void
@@ -67,22 +69,46 @@ export function createWsChannelHandle(
 	channelName: string,
 	channelInput: unknown,
 	onConnectionError?: () => void,
+	reconnectConfig?: Partial<ReconnectConfig>,
 ): ChannelHandle {
 	const listeners = new Map<string, Set<(data: unknown) => void>>()
 	const pending = new Map<string, PendingRequest>()
 	let ws: WebSocket | null = null
 	let closed = false
 	let hasReceived = false
+	const rc = new ReconnectController(reconnectConfig)
+	const staleMs = reconnectConfig?.staleTimeout ?? defaultReconnectConfig.staleTimeout
+	let staleTimer: ReturnType<typeof setTimeout> | null = null
+
+	function resetStaleTimer(): void {
+		if (staleTimer) clearTimeout(staleTimer)
+		if (staleMs > 0) {
+			staleTimer = setTimeout(() => {
+				// No message received within staleTimeout — assume connection is dead
+				if (ws) {
+					ws.close()
+					ws = null
+				}
+			}, staleMs)
+		}
+	}
 
 	function connect(): void {
-		if (ws || closed) return
+		if (closed) return
 
 		const wsUrl = baseUrl.replace(/^http/, 'ws')
 		const params = new URLSearchParams({ input: JSON.stringify(channelInput) })
 		ws = new WebSocket(`${wsUrl}/_seam/procedure/${channelName}.events?${params.toString()}`)
 
+		ws.onopen = () => {
+			hasReceived = false
+			resetStaleTimer()
+		}
+
 		ws.onmessage = (evt) => {
 			hasReceived = true
+			rc.onSuccess()
+			resetStaleTimer()
 			let msg: Record<string, unknown>
 			try {
 				msg = JSON.parse(evt.data as string) as Record<string, unknown>
@@ -94,14 +120,26 @@ export function createWsChannelHandle(
 
 		ws.onclose = () => {
 			ws = null
-			if (!hasReceived && onConnectionError && !closed) {
+			if (staleTimer) {
+				clearTimeout(staleTimer)
+				staleTimer = null
+			}
+
+			if (closed) return
+
+			if (!hasReceived && onConnectionError) {
 				onConnectionError()
 				return
 			}
+
+			// Reject all pending requests with transient error
 			for (const [, entry] of pending) {
 				entry.reject(new SeamClientError('INTERNAL_ERROR', 'WebSocket closed', 0))
 			}
 			pending.clear()
+
+			// Attempt reconnection
+			rc.onClose(connect)
 		}
 
 		ws.onerror = () => {
@@ -143,6 +181,11 @@ export function createWsChannelHandle(
 			},
 			close(): void {
 				closed = true
+				rc.dispose()
+				if (staleTimer) {
+					clearTimeout(staleTimer)
+					staleTimer = null
+				}
 				if (ws) {
 					ws.close()
 					ws = null

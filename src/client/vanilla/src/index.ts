@@ -8,6 +8,7 @@ export { createChannelHandle } from './channel-handle.js'
 export { createWsChannelHandle } from './ws-channel-handle.js'
 export { prefetchRoute } from './prefetch.js'
 export { clearPrefetchCache } from './prefetch-cache.js'
+export { ReconnectController, defaultReconnectConfig } from './reconnect.js'
 
 export type {
 	ClientOptions,
@@ -21,5 +22,7 @@ export type {
 } from './client.js'
 export type { ErrorCode } from './errors.js'
 export type { ChannelHandle } from './channel-handle.js'
+export type { ConnectionState, ReconnectConfig } from './reconnect.js'
+export type { SseCallbacks } from './sse-parser.js'
 
 export type ProcedureKind = 'query' | 'command' | 'subscription' | 'stream' | 'upload'
