@@ -75,6 +75,7 @@ export type {
 	NormalizedMappingValue,
 	ContextManifestEntry,
 } from './manifest/index.js'
+export { extract } from './context.js'
 export type { ContextFieldDef, ContextConfig, RawContextMap } from './context.js'
 export type { TypedContextFieldDef, SeamDefine } from './seam-router.js'
 export type { HandleResult, BatchCall, BatchResultItem } from './router/handler.js'

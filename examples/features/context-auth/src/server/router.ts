@@ -1,6 +1,6 @@
 /* examples/features/context-auth/src/server/router.ts */
 
-import { createRouter, t } from '@canmi/seam-server'
+import { createRouter, extract, t } from '@canmi/seam-server'
 import type { RouterOptions } from '@canmi/seam-server'
 import { getPublicInfo, getSecretData, updateProfile } from './procedures.js'
 
@@ -11,7 +11,7 @@ export function buildRouter(opts?: RouterOptions) {
 		...opts,
 		context: {
 			auth: {
-				extract: 'header:authorization',
+				extract: extract.header('authorization'),
 				schema: t.object({ userId: t.string(), role: t.string() }),
 			},
 		},

@@ -109,3 +109,10 @@ export function resolveContext(
 
 	return result
 }
+
+/** Syntax sugar for building extract rules; the underlying "source:key" format is unchanged. */
+export const extract = {
+	header: (name: string): string => `header:${name}`,
+	cookie: (name: string): string => `cookie:${name}`,
+	query: (name: string): string => `query:${name}`,
+}
