@@ -96,7 +96,7 @@ func TestRPCWithContextHeader(t *testing.T) {
 
 	handler := buildHandler(
 		[]ProcedureDef{proc},
-		nil, nil, nil, nil, nil, nil, ctxConfigs,
+		nil, nil, nil, nil, nil, nil, nil, nil, ctxConfigs,
 		HandlerOptions{}, ValidationModeNever,
 	)
 
@@ -133,7 +133,7 @@ func TestRPCMissingContextPassesNil(t *testing.T) {
 
 	handler := buildHandler(
 		[]ProcedureDef{proc},
-		nil, nil, nil, nil, nil, nil, ctxConfigs,
+		nil, nil, nil, nil, nil, nil, nil, nil, ctxConfigs,
 		HandlerOptions{}, ValidationModeNever,
 	)
 
@@ -167,7 +167,7 @@ func TestManifestIncludesContext(t *testing.T) {
 		},
 	}
 
-	m := buildManifest([]ProcedureDef{proc}, nil, nil, ctxConfigs)
+	m := buildManifest([]ProcedureDef{proc}, nil, nil, nil, nil, ctxConfigs)
 	b, _ := json.Marshal(m)
 	var result map[string]any
 	_ = json.Unmarshal(b, &result)

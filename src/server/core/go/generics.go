@@ -78,3 +78,48 @@ func Subscribe[In, Out any](name string, fn func(context.Context, In) (<-chan Ou
 		},
 	}
 }
+
+// StreamProc creates a StreamDef from a typed handler function.
+// The handler returns a channel of Chunk values; the framework wraps each
+// value into a StreamEvent.
+func StreamProc[In, Chunk any](name string, fn func(context.Context, In) (<-chan Chunk, error)) *StreamDef {
+	return &StreamDef{
+		Name:              name,
+		InputSchema:       SchemaOf[In](),
+		ChunkOutputSchema: SchemaOf[Chunk](),
+		Handler: func(ctx context.Context, raw json.RawMessage) (<-chan StreamEvent, error) {
+			var input In
+			if err := json.Unmarshal(raw, &input); err != nil {
+				return nil, ValidationError("Invalid input: " + err.Error())
+			}
+			dataCh, err := fn(ctx, input)
+			if err != nil {
+				return nil, err
+			}
+			eventCh := make(chan StreamEvent)
+			go func() {
+				defer close(eventCh)
+				for val := range dataCh {
+					eventCh <- StreamEvent{Value: val}
+				}
+			}()
+			return eventCh, nil
+		},
+	}
+}
+
+// UploadProc creates an UploadDef from a typed handler function.
+func UploadProc[In, Out any](name string, fn func(context.Context, In, *SeamFileHandle) (Out, error)) *UploadDef {
+	return &UploadDef{
+		Name:         name,
+		InputSchema:  SchemaOf[In](),
+		OutputSchema: SchemaOf[Out](),
+		Handler: func(ctx context.Context, raw json.RawMessage, file *SeamFileHandle) (any, error) {
+			var input In
+			if err := json.Unmarshal(raw, &input); err != nil {
+				return nil, ValidationError("Invalid input: " + err.Error())
+			}
+			return fn(ctx, input, file)
+		},
+	}
+}

@@ -27,7 +27,7 @@ func slowHandler(d time.Duration) HandlerFunc {
 func TestRPCTimeout(t *testing.T) {
 	handler := buildHandler(
 		[]ProcedureDef{{Name: "slow", Handler: slowHandler(100 * time.Millisecond)}},
-		nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		HandlerOptions{RPCTimeout: 10 * time.Millisecond}, ValidationModeNever,
 	)
 
@@ -49,7 +49,7 @@ func TestRPCTimeout(t *testing.T) {
 func TestRPCZeroTimeout(t *testing.T) {
 	handler := buildHandler(
 		[]ProcedureDef{{Name: "slow", Handler: slowHandler(50 * time.Millisecond)}},
-		nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		HandlerOptions{RPCTimeout: 0}, ValidationModeNever,
 	)
 
@@ -65,7 +65,7 @@ func TestRPCZeroTimeout(t *testing.T) {
 func TestPageTimeout(t *testing.T) {
 	handler := buildHandler(
 		[]ProcedureDef{{Name: "fetchData", Handler: slowHandler(100 * time.Millisecond)}},
-		nil, nil,
+		nil, nil, nil, nil,
 		[]PageDef{{
 			Route:    "/test",
 			Template: "<html>__SEAM_DATA__</html>",
@@ -106,7 +106,7 @@ func TestSSEIdleTimeout(t *testing.T) {
 	handler := buildHandler(
 		nil,
 		[]SubscriptionDef{{Name: "idle-test", Handler: subHandler}},
-		nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil,
 		HandlerOptions{SSEIdleTimeout: 50 * time.Millisecond}, ValidationModeNever,
 	)
 
@@ -138,7 +138,7 @@ func validationHandler() http.Handler {
 			InputSchema: map[string]any{"properties": map[string]any{"name": map[string]any{"type": "string"}}},
 			Handler:     echoHandler(),
 		}},
-		nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		HandlerOptions{RPCTimeout: 30 * time.Second}, ValidationModeAlways,
 	)
 }
@@ -196,7 +196,7 @@ func TestValidationBatchOneInvalid(t *testing.T) {
 			InputSchema: map[string]any{"properties": map[string]any{"name": map[string]any{"type": "string"}}},
 			Handler:     echoHandler(),
 		}},
-		nil, nil, nil, hashMap, nil, nil, nil,
+		nil, nil, nil, nil, nil, hashMap, nil, nil, nil,
 		HandlerOptions{RPCTimeout: 30 * time.Second}, ValidationModeAlways,
 	)
 	body := `{"calls":[{"procedure":"greet","input":{"name":42}},{"procedure":"greet","input":{"name":"OK"}}]}`
@@ -237,7 +237,7 @@ func TestValidationNeverSkips(t *testing.T) {
 			InputSchema: map[string]any{"properties": map[string]any{"name": map[string]any{"type": "string"}}},
 			Handler:     echoHandler(),
 		}},
-		nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil, nil,
 		HandlerOptions{RPCTimeout: 30 * time.Second}, ValidationModeNever,
 	)
 	// Invalid input passes through when validation is disabled
@@ -295,7 +295,7 @@ func TestSSEZeroIdleTimeout(t *testing.T) {
 	handler := buildHandler(
 		nil,
 		[]SubscriptionDef{{Name: "no-idle", Handler: subHandler}},
-		nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, nil,
 		HandlerOptions{SSEIdleTimeout: 0}, ValidationModeNever,
 	)
 

@@ -1,18 +1,20 @@
 # Go Server Core (`src/server/core/go`)
 
-Seam protocol server implementation in Go. Provides `Router` for defining RPC procedures, SSE subscriptions, and server-rendered pages, plus a `ListenAndServe` helper with graceful shutdown.
+Seam protocol server implementation in Go. Provides `Router` for defining RPC procedures, SSE subscriptions, streams, uploads, and server-rendered pages, plus a `ListenAndServe` helper with graceful shutdown.
 
 See root CLAUDE.md for general project rules.
 
 ## Architecture
 
-- `seam.go` — public API: `Router`, `HandlerOptions`, `PageAssets`, `ContextConfig`, `ProcedureOption`, type definitions, error constructors
+- `seam.go` — public API: `Router`, `HandlerOptions`, `PageAssets`, `ContextConfig`, `ProcedureOption`, `StreamDef`, `UploadDef`, `SeamFileHandle`, type definitions, error constructors
 - `context.go` — context system: `ContextValue[T]` generic helper, `extractRawContext`, `resolveContextForProc`, `injectContext`
 - `handler.go` — core handler: `appState`, `buildHandler`, manifest, RPC handler (uses `engine.I18nQuery` for built-in i18n), error helpers
 - `handler_batch.go` — batch RPC handler, SSE subscribe handler, SSE helpers
+- `handler_stream.go` — stream handler: SSE with incrementing `id` field, idle timeout, `writeStreamEvent`
+- `handler_upload.go` — upload handler: multipart/form-data parsing, `SeamFileHandle`, metadata JSON extraction
 - `handler_page.go` — page handler: `makePageHandler`, `servePage`, loader orchestration (delegates to `engine.RenderPage` for slot injection, per-page assets, data script, head meta, and locale)
 - `resolve.go` — `ResolveStrategy` interface, `ResolveData`, built-in strategies (`FromUrlPrefix`, `FromCookie`, `FromAcceptLanguage`, `FromUrlQuery`), `ResolveChain`, `DefaultStrategies`
-- `generics.go` — `Query[In, Out]` and `Subscribe[In, Out]` typed wrappers using generics
+- `generics.go` — `Query[In, Out]`, `Command[In, Out]`, `Subscribe[In, Out]`, `StreamProc[In, Chunk]`, `UploadProc[In, Out]` typed wrappers using generics
 - `build_loader.go` — `LoadBuild`, `LoadBuildOutput`, `LoadRpcHashMap`, `LoadI18nConfig`; `BuildOutput` struct; `RpcHashMap` with `ReverseLookup()`
 - `schema.go` — JTD schema reflection (`SchemaOf[T]()`)
 - `validation.go` — JTD input validator: `compileSchema`, `validateCompiled`, `ValidationMode`, `ValidationDetail`
@@ -80,7 +82,7 @@ Tests cover: RPC timeout (504), page loader timeout (504), SSE idle timeout (com
 - Zero-value `HandlerOptions` fields disable the corresponding timeout
 - Page loaders run concurrently via `sync.WaitGroup` + result channel
 - Sorted keys for deterministic JSON output (mirrors `BTreeMap` in Rust)
-- `Query[In, Out]` and `Subscribe[In, Out]` provide type-safe generic wrappers over raw `HandlerFunc`
+- `Query[In, Out]`, `Subscribe[In, Out]`, `StreamProc[In, Chunk]`, and `UploadProc[In, Out]` provide type-safe generic wrappers over raw handler funcs
 - Context injection uses Go's idiomatic `context.WithValue`; handlers retrieve via generic `ContextValue` helper — handler signature unchanged
 - Per-procedure context: only keys declared in `ContextKeys` are injected; batch/page extract raw context once and resolve per-procedure
 
