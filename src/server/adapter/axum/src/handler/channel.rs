@@ -53,6 +53,7 @@ fn merge_json_objects(base: &serde_json::Value, overlay: &serde_json::Value) -> 
 }
 
 /// Validate and dispatch a single uplink command over the WebSocket channel.
+#[allow(clippy::too_many_lines)]
 async fn dispatch_ws_uplink(
 	state: &AppState,
 	channel_name: &str,
@@ -118,6 +119,28 @@ async fn dispatch_ws_uplink(
 		proc_name.clone()
 	};
 
+	if state.should_validate
+		&& let Some(cs) = state.compiled_input_schemas.get(&resolved_proc)
+		&& let Err((msg, details)) = seam_server::validate_compiled(cs, &merged_input)
+	{
+		let detail_json: Vec<serde_json::Value> =
+			details.iter().map(seam_server::ValidationDetail::to_json).collect();
+		let resp = WsResponse {
+			id: uplink.id,
+			ok: false,
+			data: None,
+			error: Some(WsError {
+				code: "VALIDATION_ERROR".into(),
+				message: format!("Input validation failed for procedure '{resolved_proc}': {msg}"),
+				transient: false,
+				details: Some(detail_json),
+			}),
+		};
+		let _ =
+			ws_sender.send(Message::Text(serde_json::to_string(&resp).unwrap_or_default().into())).await;
+		return;
+	}
+
 	let resp = match state.handlers.get(&resolved_proc) {
 		Some(proc) => match (proc.handler)(merged_input, ctx.clone()).await {
 			Ok(data) => WsResponse { id: uplink.id, ok: true, data: Some(data), error: None },
@@ -150,6 +173,7 @@ async fn dispatch_ws_uplink(
 		ws_sender.send(Message::Text(serde_json::to_string(&resp).unwrap_or_default().into())).await;
 }
 
+#[allow(clippy::too_many_lines)]
 pub(super) async fn handle_channel_ws(
 	state: Arc<AppState>,
 	sub_name: String,
@@ -189,6 +213,25 @@ pub(super) async fn handle_channel_ws(
 			return;
 		}
 	};
+
+	if state.should_validate
+		&& let Some(cs) = state.compiled_sub_input_schemas.get(&sub_name)
+		&& let Err((msg, details)) = seam_server::validate_compiled(cs, &channel_input)
+	{
+		let detail_json: Vec<serde_json::Value> =
+			details.iter().map(seam_server::ValidationDetail::to_json).collect();
+		let err_msg = serde_json::json!({
+			"error": {
+				"code": "VALIDATION_ERROR",
+				"message": format!("Input validation failed for channel '{channel_name}': {msg}"),
+				"transient": false,
+				"details": detail_json,
+			}
+		});
+		let _ = ws_sender.send(Message::Text(err_msg.to_string().into())).await;
+		let _ = ws_sender.close().await;
+		return;
+	}
 
 	let event_stream = match (sub.handler)(channel_input.clone(), ctx.clone()).await {
 		Ok(stream) => stream,

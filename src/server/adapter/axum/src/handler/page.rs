@@ -69,6 +69,17 @@ async fn run_loaders(
 			.clone();
 		let ctx = super::resolve_ctx_for_proc(state, &proc.context_keys, headers)?;
 
+		if state.should_validate
+			&& let Some(cs) = state.compiled_input_schemas.get(&proc_name)
+			&& let Err((msg, details)) = seam_server::validate_compiled(cs, &input)
+		{
+			let detail_json = details.iter().map(seam_server::ValidationDetail::to_json).collect();
+			return Err(SeamError::validation_detailed(
+				format!("Input validation failed for procedure '{proc_name}': {msg}"),
+				detail_json,
+			));
+		}
+
 		join_set.spawn(async move {
 			let result = (proc.handler)(input.clone(), ctx).await?;
 			Ok::<(String, serde_json::Value, String, serde_json::Value), SeamError>((

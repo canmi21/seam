@@ -93,6 +93,17 @@ async fn handle_subscribe_sse(
 			None => serde_json::Value::Object(serde_json::Map::new()),
 		};
 
+		if state.should_validate
+			&& let Some(cs) = state.compiled_sub_input_schemas.get(&resolved)
+			&& let Err((msg, details)) = seam_server::validate_compiled(cs, &raw_input)
+		{
+			let detail_json = details.iter().map(seam_server::ValidationDetail::to_json).collect();
+			return Err(SeamError::validation_detailed(
+				format!("Input validation failed for subscription '{resolved}': {msg}"),
+				detail_json,
+			));
+		}
+
 		let ctx = resolve_ctx_for_proc(&state, &sub.context_keys, headers)?;
 		let data_stream = (sub.handler)(raw_input, ctx).await?;
 		Ok::<_, SeamError>(data_stream)

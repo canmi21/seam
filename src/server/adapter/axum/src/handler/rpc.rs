@@ -46,8 +46,19 @@ pub(super) async fn handle_rpc(
 	let input: serde_json::Value =
 		serde_json::from_slice(&body).map_err(|e| SeamError::validation(e.to_string()))?;
 
-	// TODO: JTD runtime input validation — validate `input` against `proc.input_schema`
-	// before calling handler. Requires a Rust JTD validation library (e.g. jtd crate).
+	if state.should_validate
+		&& let Some(cs) = state.compiled_input_schemas.get(&resolved)
+		&& let Err((msg, details)) = seam_server::validate_compiled(cs, &input)
+	{
+		let detail_json = details.iter().map(seam_server::ValidationDetail::to_json).collect();
+		return Err(
+			SeamError::validation_detailed(
+				format!("Input validation failed for procedure '{resolved}': {msg}"),
+				detail_json,
+			)
+			.into(),
+		);
+	}
 
 	let ctx = resolve_ctx_for_proc(&state, &proc.context_keys, &headers)?;
 	let result = (proc.handler)(input, ctx).await?;
@@ -107,6 +118,25 @@ async fn handle_batch(
 
 			let result = match state.handlers.get(&proc_name) {
 				Some(proc) => {
+					if state.should_validate
+						&& let Some(cs) = state.compiled_input_schemas.get(&proc_name)
+						&& let Err((msg, details)) = seam_server::validate_compiled(cs, &call.input)
+					{
+						let detail_json = details.iter().map(seam_server::ValidationDetail::to_json).collect();
+						return (
+							idx,
+							BatchResultItem::Err {
+								ok: false,
+								error: BatchError {
+									code: "VALIDATION_ERROR".to_string(),
+									message: format!("Input validation failed for procedure '{proc_name}': {msg}"),
+									transient: false,
+									details: Some(detail_json),
+								},
+							},
+						);
+					}
+
 					let ctx = match resolve_context(&state.context_config, &raw_ctx, &proc.context_keys) {
 						Ok(c) => c,
 						Err(e) => {

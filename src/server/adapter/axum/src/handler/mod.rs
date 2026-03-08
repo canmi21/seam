@@ -30,6 +30,9 @@ pub(crate) struct AppState {
 	pub strategies: Vec<Box<dyn ResolveStrategy>>,
 	pub context_config: ContextConfig,
 	pub context_extract_keys: Vec<String>,
+	pub should_validate: bool,
+	pub compiled_input_schemas: HashMap<String, seam_server::CompiledSchema>,
+	pub compiled_sub_input_schemas: HashMap<String, seam_server::CompiledSchema>,
 }
 
 /// Extract raw context values from HTTP headers.
@@ -68,6 +71,7 @@ pub(crate) fn build_router(
 	i18n_config: Option<seam_server::I18nConfig>,
 	strategies: Vec<Box<dyn ResolveStrategy>>,
 	context_config: ContextConfig,
+	validation_mode: &seam_server::ValidationMode,
 ) -> Router {
 	let (rpc_hash_map, batch_hash) = match hash_map {
 		Some(m) => {
@@ -125,6 +129,26 @@ pub(crate) fn build_router(
 		);
 	}
 
+	let should_validate = seam_server::should_validate(validation_mode);
+
+	let mut compiled_input_schemas = HashMap::new();
+	if should_validate {
+		for (name, proc) in &handlers {
+			if let Ok(cs) = seam_server::compile_schema(&proc.input_schema) {
+				compiled_input_schemas.insert(name.clone(), cs);
+			}
+		}
+	}
+
+	let mut compiled_sub_input_schemas = HashMap::new();
+	if should_validate {
+		for (name, sub) in &subscriptions {
+			if let Ok(cs) = seam_server::compile_schema(&sub.input_schema) {
+				compiled_sub_input_schemas.insert(name.clone(), cs);
+			}
+		}
+	}
+
 	let mut page_map = HashMap::new();
 	let mut router = Router::new()
 		.route("/_seam/manifest.json", get(rpc::handle_manifest))
@@ -157,6 +181,9 @@ pub(crate) fn build_router(
 		strategies,
 		context_config,
 		context_extract_keys: ctx_extract_keys,
+		should_validate,
+		compiled_input_schemas,
+		compiled_sub_input_schemas,
 	});
 
 	router.with_state(state)

@@ -8,6 +8,7 @@ use crate::context::{ContextConfig, ContextFieldDef};
 use crate::page::{I18nConfig, PageDef};
 use crate::procedure::{ProcedureDef, SubscriptionDef};
 use crate::resolve::ResolveStrategy;
+use crate::validation::ValidationMode;
 
 /// Framework-agnostic parts extracted from `SeamServer`.
 /// Adapter crates consume this to build framework-specific routers.
@@ -20,6 +21,7 @@ pub struct SeamParts {
 	pub strategies: Vec<Box<dyn ResolveStrategy>>,
 	pub channel_metas: BTreeMap<String, ChannelMeta>,
 	pub context_config: ContextConfig,
+	pub validation_mode: ValidationMode,
 }
 
 impl SeamParts {
@@ -37,6 +39,7 @@ pub struct SeamServer {
 	i18n_config: Option<I18nConfig>,
 	strategies: Vec<Box<dyn ResolveStrategy>>,
 	context_config: ContextConfig,
+	validation_mode: ValidationMode,
 }
 
 impl SeamServer {
@@ -50,6 +53,7 @@ impl SeamServer {
 			i18n_config: None,
 			strategies: Vec::new(),
 			context_config: ContextConfig::new(),
+			validation_mode: ValidationMode::Dev,
 		}
 	}
 
@@ -93,6 +97,11 @@ impl SeamServer {
 		self
 	}
 
+	pub fn validation_mode(mut self, mode: ValidationMode) -> Self {
+		self.validation_mode = mode;
+		self
+	}
+
 	/// Consume the builder, returning framework-agnostic parts for an adapter.
 	/// Channels are expanded into their Level 0 primitives (commands + subscriptions).
 	pub fn into_parts(self) -> SeamParts {
@@ -117,6 +126,7 @@ impl SeamServer {
 			strategies: self.strategies,
 			channel_metas,
 			context_config: self.context_config,
+			validation_mode: self.validation_mode,
 		}
 	}
 }
