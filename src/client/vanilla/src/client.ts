@@ -4,13 +4,16 @@ import { SeamClientError } from './errors.js'
 import { parseSseStream } from './sse-parser.js'
 import { createChannelHandle } from './channel-handle.js'
 import { createWsChannelHandle } from './ws-channel-handle.js'
+import { ReconnectController } from './reconnect.js'
 import type { ChannelHandle } from './channel-handle.js'
+import type { ReconnectConfig } from './reconnect.js'
 
 export interface ClientOptions {
 	baseUrl: string
 	batchEndpoint?: string
 	channelTransports?: Record<string, ChannelTransport>
 	transport?: TransportOptions
+	reconnect?: Partial<ReconnectConfig>
 }
 
 export type Unsubscribe = () => void
@@ -95,6 +98,7 @@ function createAutoChannelHandle(
 	client: SeamClient,
 	name: string,
 	input: unknown,
+	reconnectConfig?: Partial<ReconnectConfig>,
 ): ChannelHandle {
 	if (typeof WebSocket === 'undefined') {
 		return createChannelHandle(client, name, input)
@@ -103,8 +107,11 @@ function createAutoChannelHandle(
 	const trackedListeners: Array<[string, (data: unknown) => void]> = []
 	let delegate: ChannelHandle
 	let fallen = false
+	let wsFailureCount = 0
 
 	function fallbackToHttp(): void {
+		wsFailureCount++
+		if (wsFailureCount < 5) return
 		if (fallen) return
 		fallen = true
 		delegate.close()
@@ -112,7 +119,7 @@ function createAutoChannelHandle(
 		for (const [e, cb] of trackedListeners) delegate.on(e, cb)
 	}
 
-	delegate = createWsChannelHandle(baseUrl, name, input, fallbackToHttp)
+	delegate = createWsChannelHandle(baseUrl, name, input, fallbackToHttp, reconnectConfig)
 
 	return new Proxy<ChannelHandle>(
 		{
@@ -147,41 +154,67 @@ function subscribeToSse(
 	input: unknown,
 	onData: (data: unknown) => void,
 	onError?: (err: SeamClientError) => void,
+	reconnectConfig?: Partial<ReconnectConfig>,
 ): Unsubscribe {
-	const params = new URLSearchParams({ input: JSON.stringify(input) })
-	const url = `${baseUrl}/_seam/procedure/${name}?${params.toString()}`
-	const es = new EventSource(url)
+	const rc = new ReconnectController(reconnectConfig)
+	let abortController: AbortController | null = null
+	let lastEventId: string | undefined
+	let disposed = false
 
-	es.addEventListener('data', (e) => {
-		try {
-			onData(JSON.parse(e.data as string) as unknown)
-		} catch {
-			onError?.(new SeamClientError('INTERNAL_ERROR', 'Failed to parse SSE data', 0))
-		}
-	})
+	function connect(): void {
+		if (disposed) return
+		abortController = new AbortController()
+		const params = new URLSearchParams({ input: JSON.stringify(input) })
+		const url = `${baseUrl}/_seam/procedure/${name}?${params.toString()}`
+		const headers: Record<string, string> = {}
+		if (lastEventId) headers['Last-Event-ID'] = lastEventId
 
-	es.addEventListener('error', (e) => {
-		if (e instanceof MessageEvent) {
-			try {
-				const payload = JSON.parse(e.data as string) as { code?: string; message?: string }
-				const code = typeof payload.code === 'string' ? payload.code : 'INTERNAL_ERROR'
-				const message = typeof payload.message === 'string' ? payload.message : 'SSE error'
-				onError?.(new SeamClientError(code, message, 0))
-			} catch {
-				onError?.(new SeamClientError('INTERNAL_ERROR', 'SSE error', 0))
-			}
-		} else {
-			onError?.(new SeamClientError('INTERNAL_ERROR', 'SSE connection error', 0))
-		}
-		es.close()
-	})
+		fetch(url, { headers, signal: abortController.signal })
+			.then((res) => {
+				if (!res.ok || !res.body) {
+					onError?.(new SeamClientError('INTERNAL_ERROR', `HTTP ${res.status}`, res.status))
+					rc.onClose(connect)
+					return
+				}
+				rc.onSuccess()
+				return parseSseStream(res.body.getReader(), {
+					onData,
+					onError(err) {
+						onError?.(new SeamClientError(err.code, err.message, 0))
+					},
+					onComplete() {
+						// Normal completion, no reconnect
+						disposed = true
+						rc.dispose()
+					},
+					onId(id) {
+						lastEventId = id
+					},
+				})
+			})
+			.then(() => {
+				// Stream ended (connection closed without complete event)
+				if (!disposed) {
+					rc.onClose(connect)
+				}
+			})
+			.catch((err: Error) => {
+				if (err.name === 'AbortError') return
+				if (!disposed) {
+					onError?.(
+						new SeamClientError('INTERNAL_ERROR', err.message ?? 'SSE connection failed', 0),
+					)
+					rc.onClose(connect)
+				}
+			})
+	}
 
-	es.addEventListener('complete', () => {
-		es.close()
-	})
+	connect()
 
 	return () => {
-		es.close()
+		disposed = true
+		rc.dispose()
+		abortController?.abort()
 	}
 }
 
@@ -255,7 +288,7 @@ export function createClient(opts: ClientOptions): SeamClient {
 		},
 
 		subscribe(name, input, onData, onError) {
-			return subscribeToSse(baseUrl, name, input, onData, onError)
+			return subscribeToSse(baseUrl, name, input, onData, onError, opts.reconnect)
 		},
 
 		stream(name, input) {
@@ -280,7 +313,7 @@ export function createClient(opts: ClientOptions): SeamClient {
 				opts.transport?.defaults?.channel?.prefer ??
 				'http'
 			if (transport === 'ws') {
-				return createAutoChannelHandle(baseUrl, this, name, input)
+				return createAutoChannelHandle(baseUrl, this, name, input, opts.reconnect)
 			}
 			return createChannelHandle(this, name, input)
 		},

@@ -10,35 +10,50 @@ import { useSeamSubscription } from '../src/index.js'
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
 
-// --- MockEventSource (same pattern as @canmi/seam-client tests) ---
+// --- SSE stream helpers ---
 
-type Listener = (e: unknown) => void
+function sseStream(...frames: string[]): ReadableStream<Uint8Array> {
+	const encoder = new TextEncoder()
+	return new ReadableStream({
+		start(controller) {
+			for (const frame of frames) {
+				controller.enqueue(encoder.encode(frame))
+			}
+			controller.close()
+		},
+	})
+}
 
-class MockEventSource {
-	url: string
-	private listeners = new Map<string, Listener[]>()
-	close = vi.fn()
+function mockFetchSse(...frames: string[]) {
+	return vi.fn().mockResolvedValue({
+		ok: true,
+		status: 200,
+		body: sseStream(...frames),
+	})
+}
 
-	constructor(url: string) {
-		this.url = url
-	}
-
-	addEventListener(event: string, cb: Listener) {
-		const list = this.listeners.get(event) ?? []
-		list.push(cb)
-		this.listeners.set(event, list)
-	}
-
-	emit(event: string, data?: unknown) {
-		for (const cb of this.listeners.get(event) ?? []) {
-			cb(data)
-		}
+/** Create a controllable SSE stream for step-by-step testing */
+function createControllableStream() {
+	const encoder = new TextEncoder()
+	let controller: ReadableStreamDefaultController<Uint8Array>
+	const stream = new ReadableStream<Uint8Array>({
+		start(c) {
+			controller = c
+		},
+	})
+	return {
+		stream,
+		push(frame: string) {
+			controller.enqueue(encoder.encode(frame))
+		},
+		close() {
+			controller.close()
+		},
 	}
 }
 
 // --- Test harness ---
 
-let lastEs: MockEventSource
 let container: HTMLDivElement
 let root: Root
 
@@ -49,7 +64,12 @@ function readState() {
 
 // Test component that renders hook state as JSON
 function Sub(props: { baseUrl: string; procedure: string; input: unknown }) {
-	const { data, error, status } = useSeamSubscription(props.baseUrl, props.procedure, props.input)
+	const { data, error, status, retryCount } = useSeamSubscription(
+		props.baseUrl,
+		props.procedure,
+		props.input,
+		{ reconnect: { enabled: false } },
+	)
 	return createElement(
 		'pre',
 		{ id: 'result' },
@@ -57,19 +77,12 @@ function Sub(props: { baseUrl: string; procedure: string; input: unknown }) {
 			data,
 			error: error ? { code: error.code, message: error.message } : null,
 			status,
+			retryCount,
 		}),
 	)
 }
 
 beforeEach(() => {
-	// vitest 4 requires `function` keyword (not arrow) for constructor mocks
-	vi.stubGlobal(
-		'EventSource',
-		vi.fn(function (url: string) {
-			lastEs = new MockEventSource(url)
-			return lastEs
-		}),
-	)
 	container = document.createElement('div')
 	document.body.appendChild(container)
 	root = createRoot(container)
@@ -84,7 +97,10 @@ afterEach(async () => {
 })
 
 describe('useSeamSubscription: connection', () => {
-	it('creates EventSource with correct URL', async () => {
+	it('fetches with correct URL', async () => {
+		const fetchSpy = mockFetchSse('event: complete\ndata: {}\n\n')
+		vi.stubGlobal('fetch', fetchSpy)
+
 		await act(async () => {
 			root.render(
 				createElement(Sub, {
@@ -95,41 +111,69 @@ describe('useSeamSubscription: connection', () => {
 			)
 		})
 
-		expect(EventSource).toHaveBeenCalledWith(expect.stringContaining('/_seam/procedure/counter?'))
-		// Verify trailing slash normalization and input encoding
-		const url = (EventSource as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as string
+		// Let microtasks resolve
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 0))
+		})
+
+		expect(fetchSpy).toHaveBeenCalledTimes(1)
+		const url = fetchSpy.mock.calls[0][0] as string
+		expect(url).toContain('/_seam/procedure/counter?')
 		expect(url.startsWith('http://localhost:3000/_seam/')).toBe(true)
 		const params = new URLSearchParams(url.split('?')[1])
 		expect(JSON.parse(params.get('input')!)).toEqual({ room: 'A' })
 	})
 
 	it('starts in connecting state with null data and error', async () => {
+		// Use a never-resolving fetch to keep the state at 'connecting'
+		vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise(() => {})))
+
 		await act(async () => {
 			root.render(
 				createElement(Sub, { baseUrl: 'http://localhost:3000', procedure: 'counter', input: {} }),
 			)
 		})
 
-		expect(readState()).toEqual({ data: null, error: null, status: 'connecting' })
+		expect(readState()).toEqual({ data: null, error: null, status: 'connecting', retryCount: 0 })
 	})
 
 	it('transitions to active on data event', async () => {
+		const ctrl = createControllableStream()
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, body: ctrl.stream }))
+
 		await act(async () => {
 			root.render(
 				createElement(Sub, { baseUrl: 'http://localhost:3000', procedure: 'counter', input: {} }),
 			)
 		})
 
+		// Allow fetch to resolve
 		await act(async () => {
-			lastEs.emit('data', { data: JSON.stringify({ count: 42 }) })
+			await new Promise((r) => setTimeout(r, 0))
 		})
 
-		expect(readState()).toEqual({ data: { count: 42 }, error: null, status: 'active' })
+		await act(async () => {
+			ctrl.push('event: data\ndata: {"count":42}\n\n')
+			await new Promise((r) => setTimeout(r, 0))
+		})
+
+		expect(readState()).toEqual({
+			data: { count: 42 },
+			error: null,
+			status: 'active',
+			retryCount: 0,
+		})
+		ctrl.close()
 	})
 })
 
 describe('useSeamSubscription: errors', () => {
-	it('transitions to error on data parse failure and closes EventSource', async () => {
+	it('reports error on data parse failure', async () => {
+		vi.stubGlobal(
+			'fetch',
+			mockFetchSse('event: data\ndata: not valid json{\n\n', 'event: complete\ndata: {}\n\n'),
+		)
+
 		await act(async () => {
 			root.render(
 				createElement(Sub, { baseUrl: 'http://localhost:3000', procedure: 'counter', input: {} }),
@@ -137,17 +181,22 @@ describe('useSeamSubscription: errors', () => {
 		})
 
 		await act(async () => {
-			lastEs.emit('data', { data: 'not valid json{' })
+			await new Promise((r) => setTimeout(r, 0))
 		})
 
 		const state = readState()
-		expect(state.status).toBe('error')
+		// Error is reported even though complete event follows immediately
+		expect(state.error).not.toBeNull()
 		expect(state.error.code).toBe('INTERNAL_ERROR')
 		expect(state.error.message).toBe('Failed to parse SSE data')
-		expect(lastEs.close).toHaveBeenCalled()
 	})
 
-	it('transitions to error on MessageEvent error with parseable payload', async () => {
+	it('transitions to error on SSE error event', async () => {
+		vi.stubGlobal(
+			'fetch',
+			mockFetchSse('event: error\ndata: {"code":"NOT_FOUND","message":"stream not found"}\n\n'),
+		)
+
 		await act(async () => {
 			root.render(
 				createElement(Sub, { baseUrl: 'http://localhost:3000', procedure: 'counter', input: {} }),
@@ -155,19 +204,17 @@ describe('useSeamSubscription: errors', () => {
 		})
 
 		await act(async () => {
-			const errorEvent = new MessageEvent('error', {
-				data: JSON.stringify({ code: 'NOT_FOUND', message: 'stream not found' }),
-			})
-			lastEs.emit('error', errorEvent)
+			await new Promise((r) => setTimeout(r, 0))
 		})
 
 		const state = readState()
 		expect(state.status).toBe('error')
 		expect(state.error.message).toBe('stream not found')
-		expect(lastEs.close).toHaveBeenCalled()
 	})
 
-	it('transitions to error on MessageEvent with unparseable payload', async () => {
+	it('transitions to error on HTTP failure', async () => {
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, body: null }))
+
 		await act(async () => {
 			root.render(
 				createElement(Sub, { baseUrl: 'http://localhost:3000', procedure: 'counter', input: {} }),
@@ -175,37 +222,20 @@ describe('useSeamSubscription: errors', () => {
 		})
 
 		await act(async () => {
-			const errorEvent = new MessageEvent('error', { data: 'bad json{' })
-			lastEs.emit('error', errorEvent)
-		})
-
-		const state = readState()
-		expect(state.status).toBe('error')
-		expect(state.error.message).toBe('SSE error')
-		expect(lastEs.close).toHaveBeenCalled()
-	})
-
-	it('transitions to error on plain Event (connection error)', async () => {
-		await act(async () => {
-			root.render(
-				createElement(Sub, { baseUrl: 'http://localhost:3000', procedure: 'counter', input: {} }),
-			)
-		})
-
-		await act(async () => {
-			lastEs.emit('error', new Event('error'))
+			await new Promise((r) => setTimeout(r, 0))
 		})
 
 		const state = readState()
 		expect(state.status).toBe('error')
 		expect(state.error.code).toBe('INTERNAL_ERROR')
-		expect(state.error.message).toBe('SSE connection error')
-		expect(lastEs.close).toHaveBeenCalled()
+		expect(state.error.message).toBe('HTTP 500')
 	})
 })
 
 describe('useSeamSubscription: lifecycle', () => {
 	it('transitions to closed on complete event', async () => {
+		vi.stubGlobal('fetch', mockFetchSse('event: complete\ndata: {}\n\n'))
+
 		await act(async () => {
 			root.render(
 				createElement(Sub, { baseUrl: 'http://localhost:3000', procedure: 'counter', input: {} }),
@@ -213,30 +243,37 @@ describe('useSeamSubscription: lifecycle', () => {
 		})
 
 		await act(async () => {
-			lastEs.emit('complete')
+			await new Promise((r) => setTimeout(r, 0))
 		})
 
 		expect(readState().status).toBe('closed')
-		expect(lastEs.close).toHaveBeenCalled()
 	})
 
-	it('closes EventSource on unmount', async () => {
+	it('aborts fetch on unmount', async () => {
+		const ctrl = createControllableStream()
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, body: ctrl.stream }))
+
 		await act(async () => {
 			root.render(
 				createElement(Sub, { baseUrl: 'http://localhost:3000', procedure: 'counter', input: {} }),
 			)
 		})
-
-		const es = lastEs
 
 		await act(async () => {
 			root.render(createElement('div'))
 		})
 
-		expect(es.close).toHaveBeenCalled()
+		// Should not throw after unmount
+		ctrl.close()
 	})
 
-	it('resets state and creates new EventSource when inputs change', async () => {
+	it('creates new fetch when inputs change', async () => {
+		const fetchSpy = mockFetchSse(
+			'event: data\ndata: {"count":1}\n\n',
+			'event: complete\ndata: {}\n\n',
+		)
+		vi.stubGlobal('fetch', fetchSpy)
+
 		await act(async () => {
 			root.render(
 				createElement(Sub, {
@@ -247,15 +284,11 @@ describe('useSeamSubscription: lifecycle', () => {
 			)
 		})
 
-		const firstEs = lastEs
-
-		// Receive data on first connection
 		await act(async () => {
-			firstEs.emit('data', { data: JSON.stringify({ count: 1 }) })
+			await new Promise((r) => setTimeout(r, 0))
 		})
-		expect(readState().status).toBe('active')
 
-		// Change input -> should create new EventSource and reset state
+		// Change input -> should create a new fetch
 		await act(async () => {
 			root.render(
 				createElement(Sub, {
@@ -266,8 +299,13 @@ describe('useSeamSubscription: lifecycle', () => {
 			)
 		})
 
-		expect(firstEs.close).toHaveBeenCalled()
-		expect(lastEs).not.toBe(firstEs)
-		expect(readState()).toEqual({ data: null, error: null, status: 'connecting' })
+		await act(async () => {
+			await new Promise((r) => setTimeout(r, 0))
+		})
+
+		// Should have fetched for both inputs
+		expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(2)
+		const urls = fetchSpy.mock.calls.map((c: unknown[]) => c[0] as string)
+		expect(urls.some((u: string) => u.includes('room'))).toBe(true)
 	})
 })

@@ -4,132 +4,156 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createClient } from '../src/client.js'
 import { SeamClientError } from '../src/errors.js'
 
-type Listener = (e: unknown) => void
-
-class MockEventSource {
-	url: string
-	private listeners = new Map<string, Listener[]>()
-	close = vi.fn()
-
-	constructor(url: string) {
-		this.url = url
-	}
-
-	addEventListener(event: string, cb: Listener) {
-		const list = this.listeners.get(event) ?? []
-		list.push(cb)
-		this.listeners.set(event, list)
-	}
-
-	/** Simulate the browser dispatching an event */
-	emit(event: string, data?: unknown) {
-		for (const cb of this.listeners.get(event) ?? []) {
-			cb(data)
-		}
-	}
+/** Encode SSE text into a ReadableStream of Uint8Array chunks */
+function sseStream(...frames: string[]): ReadableStream<Uint8Array> {
+	const encoder = new TextEncoder()
+	return new ReadableStream({
+		start(controller) {
+			for (const frame of frames) {
+				controller.enqueue(encoder.encode(frame))
+			}
+			controller.close()
+		},
+	})
 }
 
-let lastEs: MockEventSource
+function mockFetchSse(...frames: string[]) {
+	return vi.fn().mockResolvedValue({
+		ok: true,
+		status: 200,
+		body: sseStream(...frames),
+	})
+}
 
 beforeEach(() => {
-	// vitest 4 requires `function` keyword (not arrow) for constructor mocks
-	vi.stubGlobal(
-		'EventSource',
-		vi.fn(function (url: string) {
-			lastEs = new MockEventSource(url)
-			return lastEs
-		}),
-	)
-	// stub fetch so createClient doesn't fail on other methods
-	vi.stubGlobal('fetch', vi.fn())
+	vi.useFakeTimers()
 })
 
 afterEach(() => {
+	vi.useRealTimers()
 	vi.restoreAllMocks()
 })
 
 describe('subscribe()', () => {
-	it('creates EventSource with correct URL and input params', () => {
-		const client = createClient({ baseUrl: 'http://localhost:3000' })
+	it('fetches correct URL with input params', async () => {
+		const fetchSpy = mockFetchSse('event: complete\ndata: {}\n\n')
+		vi.stubGlobal('fetch', fetchSpy)
+
+		const client = createClient({ baseUrl: 'http://localhost:3000', reconnect: { enabled: false } })
 		client.subscribe('counter', { room: 'A' }, vi.fn())
 
-		expect(EventSource).toHaveBeenCalledWith(
+		// Let the fetch promise resolve
+		await vi.advanceTimersByTimeAsync(0)
+
+		expect(fetchSpy).toHaveBeenCalledTimes(1)
+		const url = fetchSpy.mock.calls[0][0] as string
+		expect(url).toBe(
 			'http://localhost:3000/_seam/procedure/counter?input=%7B%22room%22%3A%22A%22%7D',
 		)
 	})
 
-	it('calls onData with parsed JSON on data event', () => {
-		const client = createClient({ baseUrl: 'http://localhost:3000' })
+	it('calls onData with parsed JSON on data event', async () => {
+		vi.stubGlobal(
+			'fetch',
+			mockFetchSse('event: data\ndata: {"count":42}\n\n', 'event: complete\ndata: {}\n\n'),
+		)
+
+		const client = createClient({ baseUrl: 'http://localhost:3000', reconnect: { enabled: false } })
 		const onData = vi.fn()
 		client.subscribe('counter', {}, onData)
 
-		lastEs.emit('data', { data: JSON.stringify({ count: 42 }) })
+		await vi.advanceTimersByTimeAsync(0)
 
 		expect(onData).toHaveBeenCalledWith({ count: 42 })
 	})
 
-	it('calls onError on MessageEvent error with parseable payload', () => {
-		const client = createClient({ baseUrl: 'http://localhost:3000' })
+	it('calls onError on SSE error event', async () => {
+		vi.stubGlobal(
+			'fetch',
+			mockFetchSse('event: error\ndata: {"code":"NOT_FOUND","message":"stream not found"}\n\n'),
+		)
+
+		const client = createClient({ baseUrl: 'http://localhost:3000', reconnect: { enabled: false } })
 		const onError = vi.fn()
 		client.subscribe('counter', {}, vi.fn(), onError)
 
-		// Simulate a MessageEvent-like error (has data property)
-		const errorEvent = new MessageEvent('error', {
-			data: JSON.stringify({ code: 'NOT_FOUND', message: 'stream not found' }),
-		})
-		lastEs.emit('error', errorEvent)
+		await vi.advanceTimersByTimeAsync(0)
 
 		expect(onError).toHaveBeenCalledTimes(1)
 		const err = onError.mock.calls[0][0] as SeamClientError
 		expect(err).toBeInstanceOf(SeamClientError)
 		expect(err.code).toBe('NOT_FOUND')
 		expect(err.message).toBe('stream not found')
-		expect(lastEs.close).toHaveBeenCalled()
 	})
 
-	it('calls onError with INTERNAL_ERROR on non-MessageEvent error', () => {
-		const client = createClient({ baseUrl: 'http://localhost:3000' })
+	it('calls onError with INTERNAL_ERROR on HTTP failure', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({
+				ok: false,
+				status: 500,
+				body: null,
+			}),
+		)
+
+		const client = createClient({ baseUrl: 'http://localhost:3000', reconnect: { enabled: false } })
 		const onError = vi.fn()
 		client.subscribe('counter', {}, vi.fn(), onError)
 
-		// Plain Event (not MessageEvent) — e.g. network disconnect
-		lastEs.emit('error', new Event('error'))
+		await vi.advanceTimersByTimeAsync(0)
 
 		expect(onError).toHaveBeenCalledTimes(1)
 		const err = onError.mock.calls[0][0] as SeamClientError
 		expect(err.code).toBe('INTERNAL_ERROR')
-		expect(err.message).toBe('SSE connection error')
-		expect(lastEs.close).toHaveBeenCalled()
+		expect(err.message).toBe('HTTP 500')
 	})
 
-	it('closes EventSource on complete event', () => {
-		const client = createClient({ baseUrl: 'http://localhost:3000' })
-		client.subscribe('counter', {}, vi.fn())
+	it('returned unsubscribe aborts the fetch', async () => {
+		vi.stubGlobal(
+			'fetch',
+			mockFetchSse('event: data\ndata: {"count":1}\n\n', 'event: complete\ndata: {}\n\n'),
+		)
 
-		lastEs.emit('complete')
-
-		expect(lastEs.close).toHaveBeenCalled()
-	})
-
-	it('returned unsubscribe closes EventSource', () => {
-		const client = createClient({ baseUrl: 'http://localhost:3000' })
+		const client = createClient({ baseUrl: 'http://localhost:3000', reconnect: { enabled: false } })
 		const unsub = client.subscribe('counter', {}, vi.fn())
 
 		unsub()
 
-		expect(lastEs.close).toHaveBeenCalled()
+		// Should not throw after unsubscribe
+		await vi.advanceTimersByTimeAsync(0)
 	})
 
-	it('calls onError with INTERNAL_ERROR when data parse fails', () => {
-		const client = createClient({ baseUrl: 'http://localhost:3000' })
+	it('calls onError with INTERNAL_ERROR when data parse fails', async () => {
+		vi.stubGlobal(
+			'fetch',
+			mockFetchSse('event: data\ndata: not valid json{\n\n', 'event: complete\ndata: {}\n\n'),
+		)
+
+		const client = createClient({ baseUrl: 'http://localhost:3000', reconnect: { enabled: false } })
 		const onError = vi.fn()
 		client.subscribe('counter', {}, vi.fn(), onError)
 
-		lastEs.emit('data', { data: 'not valid json{' })
+		await vi.advanceTimersByTimeAsync(0)
 
 		expect(onError).toHaveBeenCalledTimes(1)
 		const err = onError.mock.calls[0][0] as SeamClientError
 		expect(err.code).toBe('INTERNAL_ERROR')
 		expect(err.message).toBe('Failed to parse SSE data')
+	})
+
+	it('does not reconnect after complete event', async () => {
+		const fetchSpy = mockFetchSse('event: complete\ndata: {}\n\n')
+		vi.stubGlobal('fetch', fetchSpy)
+
+		const client = createClient({ baseUrl: 'http://localhost:3000' })
+		client.subscribe('counter', {}, vi.fn())
+
+		await vi.advanceTimersByTimeAsync(0)
+
+		// Advance past any potential reconnect delay
+		await vi.advanceTimersByTimeAsync(5000)
+
+		// fetch should only be called once (no reconnect)
+		expect(fetchSpy).toHaveBeenCalledTimes(1)
 	})
 })
