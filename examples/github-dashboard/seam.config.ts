@@ -1,6 +1,6 @@
 /* examples/github-dashboard/seam.config.ts */
 
-import { defineConfig } from '@canmi/seam-cli/config'
+import { defineConfig } from '@canmi/seam'
 
 export default defineConfig({
 	frontend: { entry: 'frontend/src/client/main.tsx' },

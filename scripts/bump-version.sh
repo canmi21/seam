@@ -47,8 +47,9 @@ echo "Updated $count package.json files"
 # 2. Update internal @canmi/seam-* exact version references (not workspace:*)
 echo "Updating internal dependency version references..."
 while IFS= read -r pkg; do
-  if grep -qE '"@canmi/seam-[^"]*": "[0-9]' "$pkg"; then
-    sed -i '' 's/"@canmi\/seam-\([^"]*\)": "[0-9][^"]*"/"@canmi\/seam-\1": "'"$VERSION"'"/g' "$pkg"
+  if grep -qE '"@canmi/seam(-[^"]*)?": "[0-9]' "$pkg"; then
+    sed -i '' 's/"@canmi\/seam\(-[^"]*\)": "[0-9][^"]*"/"@canmi\/seam\1": "'"$VERSION"'"/g' "$pkg"
+    sed -i '' 's/"@canmi\/seam": "[0-9][^"]*"/"@canmi\/seam": "'"$VERSION"'"/g' "$pkg"
     echo "  ${pkg#$ROOT/} (internal dependencies)"
   fi
 done < <(find "$ROOT/src" -name "package.json" -not -path "*/node_modules/*" | sort)

@@ -1,0 +1,13 @@
+{
+  "name": "@canmi/seam",
+  "version": "0.5.26",
+  "type": "module",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./config.d.ts",
+      "import": "./config.mjs"
+    }
+  },
+  "files": ["config.mjs", "config.d.ts"]
+}

@@ -30,6 +30,7 @@
         "react-dom": "^19.2.4",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
         "@types/bun": "^1.2.12",
         "@types/react": "^19.2.14",
@@ -53,6 +54,7 @@
         "react-dom": "^19.2.4",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
         "@types/bun": "^1.2.12",
         "@types/react": "^19.2.14",
@@ -76,6 +78,7 @@
         "react-dom": "^19.2.4",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
         "@types/bun": "^1.2.12",
         "@types/react": "^19.2.14",
@@ -101,6 +104,7 @@
         "react-dom": "^19.2.4",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
         "@types/bun": "^1.2.12",
         "@types/react": "^19.2.14",
@@ -124,6 +128,7 @@
         "react-dom": "^19.2.4",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
         "@types/bun": "^1.2.12",
         "@types/react": "^19.2.14",
@@ -147,6 +152,7 @@
         "react-dom": "^19.2.4",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
         "@types/bun": "^1.2.12",
         "@types/react": "^19.2.14",
@@ -163,6 +169,7 @@
         "hono": "^4.12.3",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
         "@types/bun": "latest",
         "typescript": "^5.9.3",
@@ -181,6 +188,7 @@
         "react-dom": "^19.2.4",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
         "@canmi/seam-server": "workspace:*",
         "@canmi/seam-vite": "workspace:*",
@@ -228,6 +236,7 @@
         "react-dom": "^19.2.4",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
         "@canmi/seam-vite": "workspace:*",
         "@tailwindcss/postcss": "^4.2.1",
@@ -264,6 +273,7 @@
         "react-dom": "^19.2.4",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
         "@canmi/seam-vite": "workspace:*",
         "@types/react": "^19.2.14",
@@ -282,6 +292,7 @@
         "react-dom": "^19.2.4",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
         "@canmi/seam-vite": "workspace:*",
         "@types/react": "^19.2.14",
@@ -308,6 +319,7 @@
         "@canmi/seam-server": "workspace:*",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
         "@types/node": "^25",
       },
@@ -320,6 +332,7 @@
         "@canmi/seam-server": "workspace:*",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
       },
     },
@@ -330,6 +343,7 @@
         "seam": "bin/seam",
       },
       "dependencies": {
+        "@canmi/seam": "0.5.26",
         "@canmi/seam-vite": "0.5.26",
         "@vitejs/plugin-react": "^5.1.4",
         "vite": "^7.0.3",
@@ -345,6 +359,10 @@
         "@canmi/seam-cli-linux-arm64": "0.5.26",
         "@canmi/seam-cli-linux-x64": "0.5.26",
       },
+    },
+    "src/cli/seam": {
+      "name": "@canmi/seam",
+      "version": "0.5.26",
     },
     "src/cli/vite": {
       "name": "@canmi/seam-vite",
@@ -613,6 +631,7 @@
         "react-dom": "^19.2.4",
       },
       "devDependencies": {
+        "@canmi/seam": "workspace:*",
         "@canmi/seam-cli": "workspace:*",
         "@types/react": "^19.2.14",
         "@types/react-dom": "^19.2.3",
@@ -675,6 +694,8 @@
     "@bramus/specificity": ["@bramus/specificity@2.4.2", "", { "dependencies": { "css-tree": "^3.0.0" }, "bin": { "specificity": "bin/cli.js" } }, "sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw=="],
 
     "@canmi/eslint-plugin-seam": ["@canmi/eslint-plugin-seam@workspace:src/eslint"],
+
+    "@canmi/seam": ["@canmi/seam@workspace:src/cli/seam"],
 
     "@canmi/seam-adapter-bun": ["@canmi/seam-adapter-bun@workspace:src/server/adapter/bun"],
 

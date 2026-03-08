@@ -5,12 +5,7 @@
   "bin": {
     "seam": "bin/seam"
   },
-  "exports": {
-    "./config": {
-      "types": "./scripts/config.d.ts",
-      "default": "./scripts/config.mjs"
-    }
-  },
+  "exports": {},
   "files": [
     "bin",
     "scripts"
@@ -19,6 +14,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@canmi/seam": "0.5.26",
     "@canmi/seam-vite": "0.5.26",
     "@vitejs/plugin-react": "^5.1.4",
     "vite": "^7.0.3"

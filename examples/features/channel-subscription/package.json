@@ -19,6 +19,7 @@
     "react-dom": "^19.2.4"
   },
   "devDependencies": {
+    "@canmi/seam": "workspace:*",
     "@canmi/seam-cli": "workspace:*",
     "@types/bun": "^1.2.12",
     "@types/react": "^19.2.14",

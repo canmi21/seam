@@ -16,6 +16,7 @@
     "src/eslint",
     "src/i18n",
     "src/cli/pkg",
+    "src/cli/seam",
     "src/cli/vite",
     "examples/standalone/server-bun",
     "examples/standalone/server-node",
