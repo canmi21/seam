@@ -97,7 +97,7 @@ func TestRPCWithContextHeader(t *testing.T) {
 	handler := buildHandler(
 		[]ProcedureDef{proc},
 		nil, nil, nil, nil, nil, nil, ctxConfigs,
-		HandlerOptions{},
+		HandlerOptions{}, ValidationModeNever,
 	)
 
 	req := httptest.NewRequest("POST", "/_seam/procedure/getSecret", strings.NewReader("{}"))
@@ -134,7 +134,7 @@ func TestRPCMissingContextPassesNil(t *testing.T) {
 	handler := buildHandler(
 		[]ProcedureDef{proc},
 		nil, nil, nil, nil, nil, nil, ctxConfigs,
-		HandlerOptions{},
+		HandlerOptions{}, ValidationModeNever,
 	)
 
 	req := httptest.NewRequest("POST", "/_seam/procedure/getSecret", strings.NewReader("{}"))

@@ -15,22 +15,26 @@ See root CLAUDE.md for general project rules.
 - `generics.go` — `Query[In, Out]` and `Subscribe[In, Out]` typed wrappers using generics
 - `build_loader.go` — `LoadBuild`, `LoadBuildOutput`, `LoadRpcHashMap`, `LoadI18nConfig`; `BuildOutput` struct; `RpcHashMap` with `ReverseLookup()`
 - `schema.go` — JTD schema reflection (`SchemaOf[T]()`)
+- `validation.go` — JTD input validator: `compileSchema`, `validateCompiled`, `ValidationMode`, `ValidationDetail`
 - `serve.go` — `ListenAndServe` with SIGINT/SIGTERM graceful shutdown
 
 ## Error Handling
 
 `seam.Error` struct carries `Code`, `Message`, and `Status`. Constructor functions:
 
-| Constructor           | Code             | HTTP Status |
-| --------------------- | ---------------- | ----------- |
-| `ContextError()`      | CONTEXT_ERROR    | 400         |
-| `ValidationError()`   | VALIDATION_ERROR | 400         |
-| `UnauthorizedError()` | UNAUTHORIZED     | 401         |
-| `ForbiddenError()`    | FORBIDDEN        | 403         |
-| `NotFoundError()`     | NOT_FOUND        | 404         |
-| `RateLimitedError()`  | RATE_LIMITED     | 429         |
-| `InternalError()`     | INTERNAL_ERROR   | 500         |
-| `NewError()`          | custom           | custom      |
+| Constructor                 | Code             | HTTP Status |
+| --------------------------- | ---------------- | ----------- |
+| `ContextError()`            | CONTEXT_ERROR    | 400         |
+| `ValidationError()`         | VALIDATION_ERROR | 400         |
+| `UnauthorizedError()`       | UNAUTHORIZED     | 401         |
+| `ForbiddenError()`          | FORBIDDEN        | 403         |
+| `NotFoundError()`           | NOT_FOUND        | 404         |
+| `RateLimitedError()`        | RATE_LIMITED     | 429         |
+| `InternalError()`           | INTERNAL_ERROR   | 500         |
+| `NewError()`                | custom           | custom      |
+| `ValidationErrorDetailed()` | VALIDATION_ERROR | 400         |
+
+`ValidationErrorDetailed` carries a `Details []any` slice with structured validation errors (path/expected/actual). The `Details` field is omitted from JSON when nil.
 
 Error dispatch in handlers: check `context.DeadlineExceeded` first, then type-assert `*Error`, then wrap unknown errors with `InternalError`.
 

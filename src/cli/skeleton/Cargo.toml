@@ -13,6 +13,6 @@ workspace = true
 [dependencies]
 anyhow = "1"
 regex = "1"
-seam-injector = { version = "0.5.21", path = "../../server/injector/rust" }
+seam-injector = { version = "0.5.22", path = "../../server/injector/rust" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
