@@ -35,6 +35,9 @@ pub(crate) fn build_bundler_env(build_config: &BuildConfig, rpc_map_path: &str) 
 	if let Some(ref entry) = build_config.entry {
 		env.push(("SEAM_ENTRY".into(), entry.clone()));
 	}
+	if let Some(ref path) = build_config.config_path {
+		env.push(("SEAM_CONFIG_PATH".into(), path.clone()));
+	}
 	if let Some(ref vite) = build_config.vite
 		&& let Ok(json) = serde_json::to_string(vite)
 	{

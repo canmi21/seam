@@ -60,6 +60,14 @@ pub fn load_seam_config(path: &Path) -> Result<SeamConfig> {
 	let config_dir = path.parent().unwrap_or_else(|| Path::new("."));
 	resolve_project_name(&mut config, config_dir);
 
+	// Store absolute config path for bundler scripts (SEAM_CONFIG_PATH)
+	let abs_path = if path.is_absolute() {
+		path.to_path_buf()
+	} else {
+		std::env::current_dir().unwrap_or_default().join(path)
+	};
+	config.config_file_path = Some(abs_path.to_string_lossy().to_string());
+
 	Ok(config)
 }
 

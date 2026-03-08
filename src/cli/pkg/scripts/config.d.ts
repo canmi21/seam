@@ -94,8 +94,8 @@ export interface SeamConfig {
 	workspace?: WorkspaceSection
 	clean?: CleanSection
 	transport?: TransportSection
-	/** Rolldown/Vite config override for the built-in bundler */
-	vite?: Record<string, unknown>
+	/** Vite config override for the built-in bundler (supports plugins) */
+	vite?: import('vite').UserConfig
 	/** Reserved for future router config */
 	router?: Record<string, unknown>
 }

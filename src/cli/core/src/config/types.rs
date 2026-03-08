@@ -62,6 +62,9 @@ pub struct SeamConfig {
 	#[serde(default)]
 	#[allow(dead_code)] // reserved for future router config
 	pub router: Option<serde_json::Value>,
+	/// Absolute path to the config file (set by loader, not deserialized)
+	#[serde(skip)]
+	pub config_file_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

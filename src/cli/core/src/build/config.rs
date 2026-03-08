@@ -33,6 +33,8 @@ pub struct BuildConfig {
 	pub pages_dir: Option<String>,
 	pub i18n: Option<I18nSection>,
 	pub vite: Option<serde_json::Value>,
+	/// Absolute path to seam.config.ts/mjs (for bundler scripts via SEAM_CONFIG_PATH)
+	pub config_path: Option<String>,
 }
 
 impl BuildConfig {
@@ -92,6 +94,7 @@ impl BuildConfig {
 		let data_id = config.frontend.data_id.clone();
 		let i18n = config.i18n.clone();
 		let vite = config.vite.clone();
+		let config_path = config.config_file_path.clone();
 
 		Ok(Self {
 			bundler_mode,
@@ -115,6 +118,7 @@ impl BuildConfig {
 			pages_dir,
 			i18n,
 			vite,
+			config_path,
 		})
 	}
 
