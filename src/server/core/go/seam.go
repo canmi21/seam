@@ -197,6 +197,7 @@ type Router struct {
 	i18nConfig     *I18nConfig
 	strategies     []ResolveStrategy
 	contextConfigs map[string]ContextConfig
+	validationMode ValidationMode
 }
 
 func NewRouter() *Router {
@@ -209,6 +210,12 @@ func (r *Router) Context(key string, config ContextConfig) *Router {
 		r.contextConfigs = make(map[string]ContextConfig)
 	}
 	r.contextConfigs[key] = config
+	return r
+}
+
+// Validation sets when input validation is applied.
+func (r *Router) Validation(mode ValidationMode) *Router {
+	r.validationMode = mode
 	return r
 }
 
