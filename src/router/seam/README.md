@@ -40,6 +40,20 @@ The Rust CLI shells out to this binary when `build.pages_dir` is set in `seam.to
 | `[[...slug]]` | `[[...slug]]/page.tsx` | Optional catch-all (0+ segments) |
 | `(group)`     | `(auth)/page.tsx`      | Route group (no URL segment)     |
 
+### Boundary Components
+
+Three special files define error/loading/not-found boundaries alongside `page.tsx` or `layout.tsx`:
+
+| File            | Example               | Generated property                       |
+| --------------- | --------------------- | ---------------------------------------- |
+| `error.tsx`     | `(auth)/error.tsx`    | Error boundary (`errorComponent`)        |
+| `loading.tsx`   | `(auth)/loading.tsx`  | Loading state (`pendingComponent`)       |
+| `not-found.tsx` | `users/not-found.tsx` | Not-found fallback (`notFoundComponent`) |
+
+- Place in any directory that contains `page.tsx` or `layout.tsx`
+- The nearest ancestor boundary applies to all child routes
+- A leaf-level file overrides its parent boundary
+
 ## Development
 
 - Build: `just build-ts`
