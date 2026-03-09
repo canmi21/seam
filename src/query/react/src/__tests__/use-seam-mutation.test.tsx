@@ -89,7 +89,7 @@ describe('useSeamMutation', () => {
 		})
 		act(() => result.current.mutate({ postId: '1' }))
 		await waitFor(() => expect(userOnError).toHaveBeenCalled())
-		const [err] = userOnError.mock.calls[0]
+		const err = userOnError.mock.calls[0]?.[0]
 		expect(err).toBeInstanceOf(Error)
 		expect(err.message).toBe('fail')
 	})
