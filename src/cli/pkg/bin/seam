@@ -1,30 +1,8 @@
 #!/usr/bin/env node
 /* src/cli/pkg/bin/seam */
 
-const { platform, arch } = process;
 const { spawnSync } = require("child_process");
-const { existsSync } = require("fs");
-const { join } = require("path");
-
-const PLATFORM_PACKAGES = {
-  "darwin-arm64": "@canmi/seam-cli-darwin-arm64",
-  "darwin-x64": "@canmi/seam-cli-darwin-x64",
-  "linux-x64": "@canmi/seam-cli-linux-x64",
-  "linux-arm64": "@canmi/seam-cli-linux-arm64",
-};
-
-function findBinary() {
-  const pkg = PLATFORM_PACKAGES[`${platform}-${arch}`];
-  if (!pkg) return null;
-  try {
-    const pkgDir = join(require.resolve(`${pkg}/package.json`), "..");
-    const bin = join(pkgDir, "bin", "seam");
-    if (existsSync(bin)) return bin;
-  } catch {
-    // Platform package not installed, fall through to PATH
-  }
-  return null;
-}
+const { findBinary } = require("../lib/find-binary.cjs");
 
 const binary = findBinary() || "seam";
 const result = spawnSync(binary, process.argv.slice(2), {
@@ -35,7 +13,7 @@ const result = spawnSync(binary, process.argv.slice(2), {
 if (result.error) {
   if (result.error.code === "ENOENT") {
     console.error(
-      `seam: binary not found for ${platform}-${arch}.\n` +
+      `seam: binary not found for ${process.platform}-${process.arch}.\n` +
         "Install via cargo: cargo install seam-cli",
     );
   } else {

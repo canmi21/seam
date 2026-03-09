@@ -203,6 +203,7 @@ test-ts:
     {{pm}} run --filter '@canmi/eslint-plugin-seam' test
     {{pm}} run --filter '@canmi/seam-i18n' test
     {{pm}} run --filter '@canmi/seam-vite' test
+    {{pm}} run --filter '@canmi/seam-cli' test
     {{pm}} run --filter '@canmi/seam-query' test
     {{pm}} run --filter '@canmi/seam-query-react' test
 
