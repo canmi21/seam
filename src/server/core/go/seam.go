@@ -81,6 +81,18 @@ func ValidationErrorDetailed(msg string, details []any) *Error {
 	return &Error{Code: "VALIDATION_ERROR", Message: msg, Status: http.StatusBadRequest, Details: details}
 }
 
+type lastEventIDKeyType struct{}
+
+var lastEventIDKey = lastEventIDKeyType{}
+
+// LastEventID returns the Last-Event-ID header value from the context, if any.
+func LastEventID(ctx context.Context) string {
+	if v, ok := ctx.Value(lastEventIDKey).(string); ok {
+		return v
+	}
+	return ""
+}
+
 // HandlerFunc processes a raw JSON input and returns a result or error.
 type HandlerFunc func(ctx context.Context, input json.RawMessage) (any, error)
 
@@ -306,6 +318,33 @@ func (r *Router) Upload(def *UploadDef) *Router {
 
 func (r *Router) Channel(def ChannelDef) *Router {
 	r.channels = append(r.channels, def)
+	return r
+}
+
+// Namespace registers procedures under a dot-separated prefix (e.g. "blog" -> "blog.getPost").
+func (r *Router) Namespace(prefix string, procs ...*ProcedureDef) *Router {
+	for _, p := range procs {
+		p.Name = prefix + "." + p.Name
+		r.procedures = append(r.procedures, *p)
+	}
+	return r
+}
+
+// NamespaceSubs registers subscriptions under a dot-separated prefix.
+func (r *Router) NamespaceSubs(prefix string, subs ...*SubscriptionDef) *Router {
+	for _, s := range subs {
+		s.Name = prefix + "." + s.Name
+		r.subscriptions = append(r.subscriptions, *s)
+	}
+	return r
+}
+
+// NamespaceStreams registers streams under a dot-separated prefix.
+func (r *Router) NamespaceStreams(prefix string, streams ...*StreamDef) *Router {
+	for _, s := range streams {
+		s.Name = prefix + "." + s.Name
+		r.streams = append(r.streams, *s)
+	}
 	return r
 }
 

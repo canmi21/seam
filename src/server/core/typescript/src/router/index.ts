@@ -80,7 +80,11 @@ export interface SubscriptionDef<TIn = unknown, TOut = unknown> {
 	context?: string[]
 	transport?: TransportConfig
 	suppress?: string[]
-	handler: (params: { input: TIn; ctx: Record<string, unknown> }) => AsyncIterable<TOut>
+	handler: (params: {
+		input: TIn
+		ctx: Record<string, unknown>
+		lastEventId?: string
+	}) => AsyncIterable<TOut>
 }
 
 export interface StreamDef<TIn = unknown, TChunk = unknown> {
@@ -118,7 +122,34 @@ export type DefinitionMap = Record<
 	| StreamDef<any, any>
 	| UploadDef<any, any>
 >
+
+type NestedDefinitionValue =
+	| QueryDef<any, any>
+	| CommandDef<any, any>
+	| SubscriptionDef<any, any>
+	| StreamDef<any, any>
+	| UploadDef<any, any>
+	| { [key: string]: NestedDefinitionValue }
+
+export type NestedDefinitionMap = Record<string, NestedDefinitionValue>
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+function isProcedureDef(value: unknown): value is DefinitionMap[string] {
+	return typeof value === 'object' && value !== null && 'input' in value && 'handler' in value
+}
+
+function flattenDefinitions(nested: NestedDefinitionMap, prefix = ''): DefinitionMap {
+	const flat: DefinitionMap = {}
+	for (const [key, value] of Object.entries(nested)) {
+		const fullKey = prefix ? `${prefix}.${key}` : key
+		if (isProcedureDef(value)) {
+			flat[fullKey] = value
+		} else {
+			Object.assign(flat, flattenDefinitions(value as NestedDefinitionMap, fullKey))
+		}
+	}
+	return flat
+}
 
 export interface RouterOptions {
 	pages?: Record<string, PageDef>
@@ -142,7 +173,12 @@ export interface Router<T extends DefinitionMap> {
 	manifest(): ProcedureManifest
 	handle(procedureName: string, body: unknown, rawCtx?: RawContextMap): Promise<HandleResult>
 	handleBatch(calls: BatchCall[], rawCtx?: RawContextMap): Promise<{ results: BatchResultItem[] }>
-	handleSubscription(name: string, input: unknown, rawCtx?: RawContextMap): AsyncIterable<unknown>
+	handleSubscription(
+		name: string,
+		input: unknown,
+		rawCtx?: RawContextMap,
+		lastEventId?: string,
+	): AsyncIterable<unknown>
 	handleStream(name: string, input: unknown, rawCtx?: RawContextMap): AsyncGenerator<unknown>
 	handleUpload(
 		name: string,
@@ -165,13 +201,14 @@ export interface Router<T extends DefinitionMap> {
 }
 
 export function createRouter<T extends DefinitionMap>(
-	procedures: T,
+	procedures: T | NestedDefinitionMap,
 	opts?: RouterOptions,
 ): Router<T> {
-	const state = initRouterState(procedures, opts)
+	const flat = flattenDefinitions(procedures as NestedDefinitionMap) as T
+	const state = initRouterState(flat, opts)
 	return {
-		procedures,
+		procedures: flat,
 		rpcHashMap: opts?.rpcHashMap,
-		...buildRouterMethods(state, procedures, opts),
+		...buildRouterMethods(state, flat, opts),
 	}
 }

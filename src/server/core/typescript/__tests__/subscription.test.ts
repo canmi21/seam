@@ -123,15 +123,15 @@ describe('SSE HTTP endpoint', () => {
 		})
 	}
 
-	it('returns SSE stream for subscription', async () => {
+	it('returns SSE stream for subscription with incrementing ids', async () => {
 		const res = await sseReq('/_seam/procedure/onCount?input=%7B%22max%22%3A2%7D')
 		expect(res.status).toBe(200)
 		expect(res.headers['Content-Type']).toBe('text/event-stream')
 		expect('stream' in res).toBe(true)
 
 		const chunks = await collectStrings((res as HttpStreamResponse).stream)
-		expect(chunks).toContain('event: data\ndata: {"n":1}\n\n')
-		expect(chunks).toContain('event: data\ndata: {"n":2}\n\n')
+		expect(chunks).toContain('event: data\nid: 0\ndata: {"n":1}\n\n')
+		expect(chunks).toContain('event: data\nid: 1\ndata: {"n":2}\n\n')
 		expect(chunks[chunks.length - 1]).toBe('event: complete\ndata: {}\n\n')
 	})
 

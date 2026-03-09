@@ -18,7 +18,11 @@ export interface InternalSubscription {
 	inputSchema: Schema
 	outputSchema: Schema
 	contextKeys: string[]
-	handler: (params: { input: unknown; ctx: Record<string, unknown> }) => AsyncIterable<unknown>
+	handler: (params: {
+		input: unknown
+		ctx: Record<string, unknown>
+		lastEventId?: string
+	}) => AsyncIterable<unknown>
 }
 
 export interface InternalStream {

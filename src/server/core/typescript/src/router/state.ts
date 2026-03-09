@@ -131,7 +131,7 @@ export function buildRouterMethods(
 			return buildManifest(procedures, state.channelsMeta, state.ctxConfig, opts?.transportDefaults)
 		},
 		...buildRpcMethods(state),
-		handleSubscription(name, input, rawCtx) {
+		handleSubscription(name, input, rawCtx, lastEventId) {
 			const ctx = resolveCtxFor(state.subscriptionMap, name, rawCtx, state.ctxConfig)
 			return handleSubscription(
 				state.subscriptionMap,
@@ -140,6 +140,7 @@ export function buildRouterMethods(
 				state.shouldValidateInput,
 				state.shouldValidateOutput,
 				ctx,
+				lastEventId,
 			)
 		},
 		handleStream(name, input, rawCtx) {

@@ -125,6 +125,7 @@ export async function* handleSubscription(
 	shouldValidateInput: boolean = true,
 	validateOutput?: boolean,
 	ctx?: Record<string, unknown>,
+	lastEventId?: string,
 ): AsyncIterable<unknown> {
 	const sub = subscriptions.get(name)
 	if (!sub) {
@@ -145,7 +146,7 @@ export async function* handleSubscription(
 		}
 	}
 
-	for await (const value of sub.handler({ input: rawInput, ctx: ctx ?? {} })) {
+	for await (const value of sub.handler({ input: rawInput, ctx: ctx ?? {}, lastEventId })) {
 		if (validateOutput) {
 			const outValidation = validateInput(sub.outputSchema, value)
 			if (!outValidation.valid) {

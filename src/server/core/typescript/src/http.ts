@@ -212,10 +212,12 @@ async function* sseStream<T extends DefinitionMap>(
 	name: string,
 	input: unknown,
 	rawCtx?: RawContextMap,
+	lastEventId?: string,
 ): AsyncIterable<string> {
 	try {
-		for await (const value of router.handleSubscription(name, input, rawCtx)) {
-			yield sseDataEvent(value)
+		let seq = 0
+		for await (const value of router.handleSubscription(name, input, rawCtx, lastEventId)) {
+			yield sseDataEventWithId(value, seq++)
 		}
 		yield sseCompleteEvent()
 	} catch (error) {
@@ -339,7 +341,7 @@ export function createHttpHandler<T extends DefinitionMap>(
 		: null
 	// Built-in procedures bypass hash obfuscation (identity mapping)
 	if (hashToName) {
-		hashToName.set('__seam_i18n_query', '__seam_i18n_query')
+		hashToName.set('seam.i18n.query', 'seam.i18n.query')
 	}
 	const batchHash = effectiveHashMap?.batch ?? null
 	const hasCtx = router.hasContext()
@@ -383,10 +385,14 @@ export function createHttpHandler<T extends DefinitionMap>(
 					return errorResponse(400, 'VALIDATION_ERROR', 'Invalid input query parameter')
 				}
 
+				const lastEventId = req.header?.('last-event-id') ?? undefined
 				return {
 					status: 200,
 					headers: SSE_HEADER,
-					stream: withSseLifecycle(sseStream(router, name, input, rawCtx), opts?.sseOptions),
+					stream: withSseLifecycle(
+						sseStream(router, name, input, rawCtx, lastEventId),
+						opts?.sseOptions,
+					),
 				}
 			}
 		}

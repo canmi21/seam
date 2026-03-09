@@ -15,6 +15,7 @@ import (
 // sseEvent represents a parsed SSE event
 type sseEvent struct {
 	Event string
+	ID    string
 	Data  string
 }
 
@@ -39,6 +40,8 @@ func readSSEResp(t *testing.T, targetURL string) (*http.Response, []sseEvent) {
 		switch {
 		case strings.HasPrefix(line, "event: "):
 			current.Event = strings.TrimPrefix(line, "event: ")
+		case strings.HasPrefix(line, "id: "):
+			current.ID = strings.TrimPrefix(line, "id: ")
 		case strings.HasPrefix(line, "data: "):
 			current.Data = strings.TrimPrefix(line, "data: ")
 		case line == "" && current.Event != "":
@@ -98,7 +101,17 @@ func TestSubscribeEndpoint(t *testing.T) {
 					t.Error("missing complete event")
 				}
 
-				// SSE id field: not asserted — no runtime implements it yet
+				// Verify incrementing id fields on data events
+				expectedID := 0
+				for _, ev := range events {
+					if ev.Event == "data" {
+						wantID := fmt.Sprintf("%d", expectedID)
+						if ev.ID != wantID {
+							t.Errorf("data event id = %q, want %q", ev.ID, wantID)
+						}
+						expectedID++
+					}
+				}
 			})
 
 			t.Run("unknown subscription returns error event", func(t *testing.T) {
