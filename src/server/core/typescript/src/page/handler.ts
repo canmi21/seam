@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { renderPage, escapeHtml } from '@canmi/seam-engine'
 import { SeamError } from '../errors.js'
 import type { InternalProcedure } from '../procedure.js'
-import type { PageDef, LayoutDef, LoaderFn, I18nConfig, HeadFn } from './index.js'
+import type { PageDef, LayoutDef, LoaderFn, I18nConfig } from './index.js'
 import { headConfigToHtml } from './head.js'
 import type { LoaderError } from './loader-error.js'
 import { applyProjection } from './projection.js'
@@ -122,6 +122,23 @@ function lookupMessages(
 	return config.messages[locale]?.[routeHash] ?? {}
 }
 
+/** Build JSON payload for engine i18n injection */
+function buildI18nPayload(opts: I18nOpts): string {
+	const { config: i18nConfig, routePattern, locale } = opts
+	const messages = lookupMessages(i18nConfig, routePattern, locale)
+	const routeHash = i18nConfig.routeHashes[routePattern]
+	const i18nData: Record<string, unknown> = {
+		locale,
+		default_locale: i18nConfig.default,
+		messages,
+	}
+	if (i18nConfig.cache && routeHash) {
+		i18nData.hash = i18nConfig.contentHashes[routeHash]?.[locale]
+		i18nData.router = i18nConfig.contentHashes
+	}
+	return JSON.stringify(i18nData)
+}
+
 export async function handlePageRequest(
 	page: PageDef,
 	params: Record<string, string>,
@@ -205,24 +222,7 @@ export async function handlePageRequest(
 			config.page_assets = page.pageAssets
 		}
 
-		// Build I18nOpts for engine (hash-based lookup — zero merge, zero filter)
-		let i18nOptsJson: string | undefined
-		if (i18nOpts) {
-			const { config: i18nConfig, routePattern } = i18nOpts
-			const messages = lookupMessages(i18nConfig, routePattern, i18nOpts.locale)
-			const routeHash = i18nConfig.routeHashes[routePattern]
-			const i18nData: Record<string, unknown> = {
-				locale: i18nOpts.locale,
-				default_locale: i18nConfig.default,
-				messages,
-			}
-			// Inject content hash and router table when cache is enabled
-			if (i18nConfig.cache && routeHash) {
-				i18nData.hash = i18nConfig.contentHashes[routeHash]?.[i18nOpts.locale]
-				i18nData.router = i18nConfig.contentHashes
-			}
-			i18nOptsJson = JSON.stringify(i18nData)
-		}
+		const i18nOptsJson = i18nOpts ? buildI18nPayload(i18nOpts) : undefined
 
 		// Single WASM call: inject slots, compose data script, apply locale/meta
 		const html = renderPage(
