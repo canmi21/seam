@@ -14,7 +14,7 @@ function ReconnectTestView() {
 		window.location.origin,
 		'onLongTick',
 		{},
-		{ reconnect: { initialDelay: 200, maxRetries: 5 } },
+		{ reconnect: { initialDelay: 200, maxRetries: 20, maxDelay: 2_000 } },
 	)
 
 	return (
