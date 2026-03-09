@@ -108,7 +108,7 @@
 
 - Pure stateless functions: test correct path + error path (boundary values, empty input, missing keys)
 - Composition/orchestration functions: integration-level tests only, do not re-test inner functions
-- Go integration tests: separate test directory per backend type (`tests/integration/` for standalone, `tests/fullstack/` for fullstack, `tests/i18n/` for i18n, `tests/workspace-integration/` for workspace backends)
+- Go integration tests: separate test directory per backend type (`tests/integration/` for standalone, `tests/fullstack/` for fullstack, `tests/i18n/` for i18n, `tests/fs-router/` for filesystem router, `tests/features/` for feature demos, `tests/markdown-demo/` for markdown demo, `tests/workspace-integration/` for workspace backends)
 - SSE endpoint tests need a mechanism to trigger data flow (e.g. post a message) since long-lived streams may not flush headers until first chunk
 
 ## Running Tests

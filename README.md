@@ -95,6 +95,7 @@ See [Roadmap](docs/roadmap.md) for the full list.
 - [GitHub Dashboard](examples/github-dashboard/) — CTR with three backend runtimes (Rust, TypeScript, Go)
 - [i18n Demo](examples/i18n-demo/) — URL-prefix and hidden locale modes
 - [FS Router Demo](examples/fs-router-demo/) — filesystem router with all route types
+- [Markdown Demo](examples/markdown-demo/) — HTML slot injection with server-side markdown rendering
 - [Feature examples](examples/features/) — focused demos for channels, context, streams, queries, and handoff
 - [Standalone examples](examples/standalone/) — minimal SDK usage for each language
 
