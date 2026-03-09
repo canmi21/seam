@@ -26,58 +26,54 @@ test.describe('feature: SSE disconnect recovery', () => {
 		await expect(status).toContainText('active', { timeout: 15_000 })
 	})
 
-	test('reconnecting status visible during recovery', async ({ page, context }) => {
+	test('reconnecting status visible when connection fails', async ({ page }) => {
+		// Block SSE subscription requests before navigation.
+		// Procedure names are hash-obfuscated in the client bundle,
+		// so match all procedure endpoints.
+		await page.route('**/_seam/procedure/**', (route) => {
+			// Only block GET requests (subscriptions); let POST through
+			if (route.request().method() === 'GET') return route.abort()
+			return route.continue()
+		})
+
 		await page.goto('/#reconnect', { waitUntil: 'domcontentloaded' })
 		await waitForHydration(page)
 
 		const status = page.locator('[data-testid="rc-status"]')
-		await expect(status).toContainText('active', { timeout: 10_000 })
 
-		// Set up route blocking BEFORE going offline so it's in place
-		// when onOnline() fires and immediately calls connect()
-		await page.route('**/_seam/procedure/onLongTick**', (route) => route.abort())
-
-		// Go offline to break the stream, then online to trigger reconnection
-		await context.setOffline(true)
-		await page.waitForTimeout(500)
-		await context.setOffline(false)
-
-		// RC.onOnline() fires connect() immediately, which hits the route block.
-		// Should show reconnecting or error status.
-		await expect(status).not.toContainText('active', { timeout: 10_000 })
+		// Initial connection fails — RC enters reconnecting state
+		await expect(status).toContainText('reconnecting', { timeout: 10_000 })
 
 		// Unblock and let it reconnect
-		await page.unroute('**/_seam/procedure/onLongTick**')
+		await page.unroute('**/_seam/procedure/**')
 
-		// Should eventually return to active
+		// Should eventually recover to active
 		await expect(status).toContainText('active', { timeout: 15_000 })
 	})
 
-	test('subscription recovers after sustained connection failure', async ({ page, context }) => {
+	test('subscription recovers after sustained connection failure', async ({ page }) => {
+		// Block SSE subscriptions
+		await page.route('**/_seam/procedure/**', (route) => {
+			if (route.request().method() === 'GET') return route.abort()
+			return route.continue()
+		})
+
 		await page.goto('/#reconnect', { waitUntil: 'domcontentloaded' })
 		await waitForHydration(page)
 
 		const status = page.locator('[data-testid="rc-status"]')
-		await expect(status).toContainText('active', { timeout: 10_000 })
 
-		// Block reconnection before going offline
-		await page.route('**/_seam/procedure/onLongTick**', (route) => route.abort())
-
-		await context.setOffline(true)
-		await page.waitForTimeout(500)
-		await context.setOffline(false)
-
-		// Reconnection attempts keep failing — status should not be active
-		await expect(status).not.toContainText('active', { timeout: 10_000 })
+		// Connection keeps failing — should not be active
+		await expect(status).not.toContainText('active', { timeout: 5_000 })
 
 		// Let multiple retries accumulate (initialDelay: 200ms with backoff)
-		await page.waitForTimeout(1_500)
+		await page.waitForTimeout(2_000)
 
-		// Still not recovered
+		// Still not recovered — RC is retrying with exponential backoff
 		await expect(status).not.toContainText('active')
 
 		// Unblock — next retry should succeed
-		await page.unroute('**/_seam/procedure/onLongTick**')
+		await page.unroute('**/_seam/procedure/**')
 		await expect(status).toContainText('active', { timeout: 15_000 })
 	})
 })

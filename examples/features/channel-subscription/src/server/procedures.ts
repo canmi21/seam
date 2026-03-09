@@ -24,7 +24,7 @@ export const onTick = subscription({
 })
 
 async function* longTickStream(): AsyncGenerator<{ tick: number; ts: number }> {
-	for (let i = 1; i <= 50; i++) {
+	for (let i = 1; i <= 300; i++) {
 		await new Promise((r) => {
 			setTimeout(r, 100)
 		})
