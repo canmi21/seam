@@ -119,6 +119,7 @@ build-ts-p1:
     {{pm}} run --filter '@canmi/seam-i18n' build
     {{pm}} run --filter '@canmi/seam-router' build
     {{pm}} run --filter '@canmi/seam-query' build
+    {{pm}} run --filter '@canmi/eslint-plugin-seam' build
 
 # Build TS phase 2 (depends on p1)
 build-ts-p2:
@@ -218,7 +219,7 @@ test-integration:
     (cd tests/i18n && go test -v -count=1)
     (cd tests/fs-router && go test -v -count=1 ./...)
     printf '\n==> Feature demo tests\n'
-    for demo in stream-upload context-auth query-mutation handoff-narrowing; do
+    for demo in stream-upload context-auth query-mutation handoff-narrowing channel-subscription; do
       (cd "tests/features/$demo" && go test -v -count=1)
     done
     (cd tests/workspace-integration && go test -v -count=1 -timeout 120s)
@@ -347,6 +348,9 @@ clean-seam:
 # Remove Go compiled binaries and test cache
 clean-go:
     rm -f examples/github-dashboard/backends/go-gin/server
+    rm -f examples/standalone/server-go/server-go
+    rm -f examples/standalone/server-go-chi/server-go-chi
+    rm -f examples/markdown-demo/server-go/server-go
     go clean -testcache
 
 # Remove test artifacts (Playwright results)
