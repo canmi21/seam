@@ -243,3 +243,48 @@ fn load_build_output_with_route_params() {
 
 	let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn load_build_output_prerender_page() {
+	let dir = std::env::temp_dir().join("seam-test-build-loader-prerender");
+	let _ = std::fs::remove_dir_all(&dir);
+	std::fs::create_dir_all(dir.join("templates")).unwrap();
+
+	// Create the static directory for prerendered pages
+	let static_dir = dir.join("..").join("static");
+	std::fs::create_dir_all(&static_dir).unwrap();
+
+	std::fs::write(dir.join("templates/about.html"), "<h1>About</h1>").unwrap();
+
+	let manifest = serde_json::json!({
+		"routes": {
+			"/about": {
+				"template": "templates/about.html",
+				"loaders": {},
+				"prerender": true
+			},
+			"/contact": {
+				"template": "templates/about.html",
+				"loaders": {}
+			}
+		}
+	});
+	std::fs::write(dir.join("route-manifest.json"), serde_json::to_string_pretty(&manifest).unwrap())
+		.unwrap();
+
+	let pages = load_build_output(dir.to_str().unwrap()).unwrap();
+	assert_eq!(pages.len(), 2);
+
+	// Find the prerender page
+	let about = pages.iter().find(|p| p.route == "/about").unwrap();
+	assert!(about.prerender);
+	assert!(about.static_dir.is_some());
+
+	// Non-prerender page
+	let contact = pages.iter().find(|p| p.route == "/contact").unwrap();
+	assert!(!contact.prerender);
+	assert!(contact.static_dir.is_none());
+
+	let _ = std::fs::remove_dir_all(&dir);
+	let _ = std::fs::remove_dir_all(&static_dir);
+}

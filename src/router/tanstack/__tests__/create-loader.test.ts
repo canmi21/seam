@@ -1,7 +1,7 @@
 /* src/router/tanstack/__tests__/create-loader.test.ts */
 
 import { describe, expect, it, vi } from 'vitest'
-import { buildInput, createLoaderFromDefs } from '../src/create-loader.js'
+import { buildInput, createLoaderFromDefs, createPrerenderLoader } from '../src/create-loader.js'
 import type { SeamRouterContext } from '../src/types.js'
 
 describe('buildInput()', () => {
@@ -164,5 +164,54 @@ describe('createLoaderFromDefs()', () => {
 		const result = await loader({ params: {}, context })
 		expect(result).toEqual({})
 		expect(mockRpc).not.toHaveBeenCalled()
+	})
+})
+
+describe('createPrerenderLoader()', () => {
+	it('returns initial data on first load', async () => {
+		const loader = createPrerenderLoader('/about')
+		const context: SeamRouterContext = {
+			seamRpc: vi.fn(),
+			_seamInitial: {
+				path: '/about',
+				params: {},
+				data: { team: ['Alice'] },
+				layouts: {},
+				consumed: false,
+				consumedLayouts: new Set(),
+			},
+		}
+		const result = await loader({ params: {}, context })
+		expect(result).toEqual({ team: ['Alice'] })
+		expect(context._seamInitial?.consumed).toBe(true)
+	})
+
+	it('fetches from /_seam/data/ on SPA navigation', async () => {
+		const mockData = { team: ['Bob'] }
+		globalThis.fetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: () => Promise.resolve(mockData),
+		})
+
+		const loader = createPrerenderLoader('/about')
+		const context: SeamRouterContext = {
+			seamRpc: vi.fn(),
+			_seamInitial: null,
+		}
+		const result = await loader({ params: {}, context })
+		expect(result).toEqual(mockData)
+		expect(globalThis.fetch).toHaveBeenCalledWith('/_seam/data/about')
+	})
+
+	it('returns empty object when fetch fails', async () => {
+		globalThis.fetch = vi.fn().mockResolvedValue({ ok: false })
+
+		const loader = createPrerenderLoader('/pricing')
+		const context: SeamRouterContext = {
+			seamRpc: vi.fn(),
+			_seamInitial: null,
+		}
+		const result = await loader({ params: {}, context })
+		expect(result).toEqual({})
 	})
 })
