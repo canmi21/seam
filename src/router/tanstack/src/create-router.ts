@@ -8,7 +8,13 @@ import {
 import type { AnyRoute } from '@tanstack/react-router'
 import { createElement, type ComponentType } from 'react'
 import { seamRpc } from '@canmi/seam-client'
-import type { LazyComponentLoader, LoaderDef, RouteDef } from '@canmi/seam-react'
+import type {
+	LazyComponentLoader,
+	LoaderDef,
+	RouteDef,
+	HeadConfig,
+	HeadFn,
+} from '@canmi/seam-react'
 import { parseSeamData } from '@canmi/seam-react'
 import { SeamOutlet, createLayoutWrapper, createPageWrapper } from './seam-outlet.js'
 import { convertPath } from './convert-routes.js'
@@ -40,6 +46,25 @@ export function collectLeafPaths(defs: RouteDef[], parentPath = ''): string[] {
 		}
 	}
 	return paths
+}
+
+/** Collect head definitions from a route tree, keyed by full path */
+export function collectHeadMap(
+	defs: RouteDef[],
+	parentPath = '',
+): Map<string, HeadConfig | HeadFn> {
+	const map = new Map<string, HeadConfig | HeadFn>()
+	for (const d of defs) {
+		const isGrouping = d.children && !d.layout && !d.component
+		const full = d.path === '/' ? parentPath || '/' : `${parentPath}${d.path}`
+		if (d.head) map.set(full, d.head)
+		if (d.children) {
+			for (const [k, v] of collectHeadMap(d.children, isGrouping ? full : parentPath)) {
+				map.set(k, v)
+			}
+		}
+	}
+	return map
 }
 
 /** Extract loader keys marked as handoff: "client" */
@@ -213,6 +238,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
 	const routeTree = rootRoute.addChildren(childRoutes)
 
 	const leafPaths = collectLeafPaths(routes)
+	const headMap = collectHeadMap(routes)
 
 	const context: SeamRouterContext = {
 		seamRpc,
@@ -228,6 +254,7 @@ export function createSeamRouter(opts: SeamRouterOptions) {
 			: null,
 		_seamI18n: initialI18n,
 		_seamLeafPaths: leafPaths,
+		_seamHeadMap: headMap.size > 0 ? headMap : undefined,
 		_cleanLocaleQuery:
 			cleanLocaleQuery === true
 				? 'lang'

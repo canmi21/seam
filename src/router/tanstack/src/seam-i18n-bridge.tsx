@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { SeamRouterContext } from './types.js'
 import { matchSeamRoute } from './route-matcher.js'
+import { updateHead, clearHead } from './head-manager.js'
 
 /** Strip router basepath prefix from a pathname */
 function stripBasepath(basepath: string | undefined, pathname: string): string {
@@ -133,6 +134,27 @@ export function SeamI18nBridge({ children }: { children: ReactNode }) {
 			setI18nState({ locale, messages })
 		})
 	}, [currentPathname, currentRouteHash, i18nState, ctx])
+
+	// Head metadata update on SPA navigation
+	const headPathnameRef = useRef(currentPathname)
+	useEffect(() => {
+		if (headPathnameRef.current === currentPathname) return
+		headPathnameRef.current = currentPathname
+
+		if (!ctx._seamHeadMap || !leafPaths) return
+		const matched = matchSeamRoute(leafPaths, currentPathname)
+		if (!matched) {
+			clearHead()
+			return
+		}
+		const headDef = ctx._seamHeadMap.get(matched.path)
+		if (!headDef) {
+			clearHead()
+			return
+		}
+		const config = typeof headDef === 'function' ? headDef(seamData) : headDef
+		updateHead(config)
+	}, [currentPathname, ctx._seamHeadMap, leafPaths, seamData])
 
 	const i18n = useMemo(
 		() => (i18nState ? createI18n(i18nState.locale, i18nState.messages) : null),

@@ -1,7 +1,7 @@
 /* src/router/tanstack/src/types.ts */
 
 import type { ComponentType, ReactElement, ReactNode } from 'react'
-import type { RouteDef } from '@canmi/seam-react'
+import type { RouteDef, HeadConfig, HeadFn } from '@canmi/seam-react'
 
 export interface SeamRouteDef extends RouteDef {
 	children?: SeamRouteDef[]
@@ -52,6 +52,8 @@ export interface SeamRouterContext {
 	_seamI18n?: SeamI18nMeta | null
 	/** All leaf route patterns (seam format: /user/:id) for SPA route matching */
 	_seamLeafPaths?: string[]
+	/** Head config/function map keyed by route path for SPA head updates */
+	_seamHeadMap?: Map<string, HeadConfig | HeadFn>
 	/** Locale query param to strip after hydration (false = disabled) */
 	_cleanLocaleQuery?: string | false
 }
