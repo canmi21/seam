@@ -1,6 +1,6 @@
 /* src/client/react/scripts/skeleton/schema.mjs */
 
-import { buildSentinelData } from '@canmi/seam-react'
+import { buildSentinelData, buildHeadSlotProxy, headConfigToSlotHtml } from '@canmi/seam-react'
 import {
 	collectStructuralAxes,
 	cartesianProduct,
@@ -105,6 +105,13 @@ function renderRoute(route, manifest, i18nValue, ctx) {
 		}
 	}
 
+	// Generate head_meta from head export via Proxy
+	let headMeta = undefined
+	if (route.head) {
+		const config = typeof route.head === 'function' ? route.head(buildHeadSlotProxy()) : route.head
+		headMeta = headConfigToSlotHtml(config)
+	}
+
 	return {
 		path: route.path,
 		loaders: route.loaders,
@@ -114,6 +121,7 @@ function renderRoute(route, manifest, i18nValue, ctx) {
 		mockHtml,
 		mock,
 		pageSchema,
+		headMeta,
 	}
 }
 

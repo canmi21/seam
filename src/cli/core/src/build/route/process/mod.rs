@@ -21,7 +21,7 @@ use crate::build::types::{AssetFiles, BundleManifest, ViteDevInfo};
 use crate::config::I18nSection;
 use crate::ui::{self, DIM, RESET, col};
 use assets::compute_route_assets;
-use seam_skeleton::{ctr_check, extract_head_metadata, extract_template, sentinel_to_slots};
+use seam_skeleton::{ctr_check, extract_template, sentinel_to_slots};
 use seam_skeleton::{slot_warning, wrap_document};
 
 /// Rendering parameters shared across layout and route processing.
@@ -174,32 +174,18 @@ fn process_layout_templates(
 // -- Route document rendering --
 
 /// Render a route template into a final document. For routes with layouts,
-/// extracts head metadata (prod) or returns as-is (dev). For standalone
-/// routes, wraps with full HTML document structure.
+/// returns the template as-is (head_meta now comes from skeleton output).
+/// For standalone routes, wraps with full HTML document structure.
 fn render_route_document(
 	template: &str,
 	has_layout: bool,
 	assets: &AssetFiles,
 	render: &RenderContext<'_>,
-) -> (String, Option<String>) {
+) -> String {
 	if has_layout {
-		if render.dev_mode {
-			(template.to_string(), None)
-		} else {
-			let (meta, body) = extract_head_metadata(template);
-			let hm = if meta.is_empty() { None } else { Some(meta.to_string()) };
-			(body.to_string(), hm)
-		}
+		template.to_string()
 	} else {
-		let doc = wrap_document(
-			template,
-			&assets.css,
-			&assets.js,
-			render.dev_mode,
-			render.vite,
-			render.root_id,
-		);
-		(doc, None)
+		wrap_document(template, &assets.css, &assets.js, render.dev_mode, render.vite, render.root_id)
 	}
 }
 
@@ -230,8 +216,7 @@ fn process_i18n_route(
 			}
 		}
 
-		let (document, head_meta) =
-			render_route_document(&template, route.layout.is_some(), ctx.assets, ctx.render);
+		let document = render_route_document(&template, route.layout.is_some(), ctx.assets, ctx.render);
 
 		let locale_dir = ctx.templates_dir.join(locale);
 		std::fs::create_dir_all(&locale_dir)
@@ -252,7 +237,7 @@ fn process_i18n_route(
 				templates: None,
 				layout: route.layout.clone(),
 				loaders: route.loaders.clone(),
-				head_meta,
+				head_meta: route.head_meta.clone(),
 				i18n_keys: route.i18n_keys.clone(),
 				assets: route_assets,
 				procedures: None,
@@ -322,8 +307,7 @@ fn process_single_route(
 		}
 	}
 
-	let (document, head_meta) =
-		render_route_document(&template, route.layout.is_some(), ctx.assets, ctx.render);
+	let document = render_route_document(&template, route.layout.is_some(), ctx.assets, ctx.render);
 
 	let filename = path_to_filename(&route.path);
 	let filepath = ctx.templates_dir.join(&filename);
@@ -349,7 +333,7 @@ fn process_single_route(
 			templates: None,
 			layout: route.layout.clone(),
 			loaders: route.loaders.clone(),
-			head_meta,
+			head_meta: route.head_meta.clone(),
 			i18n_keys: route.i18n_keys.clone(),
 			assets: route_assets,
 			procedures: None,

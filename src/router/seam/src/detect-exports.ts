@@ -2,7 +2,7 @@
 
 import * as fs from 'node:fs'
 
-const RECOGNIZED = new Set(['loaders', 'mock', 'nullable', 'staleTime', 'clientLoader'])
+const RECOGNIZED = new Set(['loaders', 'mock', 'nullable', 'staleTime', 'clientLoader', 'head'])
 
 const NAMED_EXPORT = /export\s+(?:const|let|function|async\s+function)\s+(\w+)/g
 const REEXPORT = /export\s*\{([^}]+)\}/g

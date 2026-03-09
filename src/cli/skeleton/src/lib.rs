@@ -5,7 +5,7 @@ mod document;
 mod extract;
 mod slot;
 
-pub use document::{extract_head_metadata, wrap_document};
+pub use document::wrap_document;
 pub use extract::extract_template;
 pub use slot::sentinel_to_slots;
 
@@ -87,8 +87,9 @@ mod tests {
 	}
 
 	#[test]
-	fn float_hoisted_metadata_pipeline() {
-		// Float metadata: title + meta + link alongside regular content
+	fn float_metadata_stays_in_body_with_wrap_document() {
+		// With structured head, metadata elements in skeleton stay in body
+		// (head_meta is now provided separately from skeleton renderer)
 		let html = r#"<title>%%SEAM:t%%</title><meta name="desc" content="%%SEAM:d%%"><link rel="canonical" href="%%SEAM:u%%"><div><p>%%SEAM:body%%</p></div>"#;
 
 		let slotted = sentinel_to_slots(html);
@@ -100,16 +101,11 @@ mod tests {
 			wrap_document(&slotted, &["style.css".into()], &["app.js".into()], false, None, "__seam");
 		assert!(doc.starts_with("<!DOCTYPE html>"));
 
-		// Markers extracted into <head>
-		let head = doc.split("</head>").next().unwrap();
-		assert!(head.contains("<!--seam:t-->"), "title slot in <head>");
-		assert!(head.contains("<!--seam:d:attr:content-->"), "meta slot in <head>");
-		assert!(head.contains("<!--seam:u:attr:href-->"), "link slot in <head>");
-		assert!(head.contains("style.css"));
-
+		// All skeleton content stays in body (no extraction to <head>)
 		let root = &doc[doc.find("__seam").unwrap()..];
-		assert!(!root.contains("<title>"), "title not in root");
-		assert!(root.contains("<!--seam:body-->"), "body content in root");
+		assert!(root.contains("<!--seam:t-->"), "title slot in body");
+		assert!(root.contains("<!--seam:d:attr:content-->"), "meta slot in body");
+		assert!(root.contains("<!--seam:body-->"), "body content in body");
 	}
 
 	#[test]
@@ -130,9 +126,9 @@ mod tests {
 		assert!(template.contains("<!--seam:body-->"));
 
 		let doc = wrap_document(&template, &[], &[], false, None, "__seam");
-		let head = doc.split("</head>").next().unwrap();
-		assert!(head.contains("<!--seam:t-->"), "title slot in <head>");
-		// Conditional meta also extracted since if/endif + meta are all metadata-like
-		assert!(head.contains("<!--seam:if:og-->"), "conditional in <head>");
+		// All content stays in body (head_meta provided separately)
+		let root = &doc[doc.find("__seam").unwrap()..];
+		assert!(root.contains("<!--seam:t-->"), "title slot in body");
+		assert!(root.contains("<!--seam:if:og-->"), "conditional in body");
 	}
 }

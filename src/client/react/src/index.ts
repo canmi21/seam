@@ -7,7 +7,17 @@ export { useSeamSubscription } from './use-seam-subscription.js'
 export { useSeamStream } from './use-seam-stream.js'
 export { useSeamNavigate, SeamNavigateProvider } from './use-seam-navigate.js'
 export { useSeamHandoff, SeamHandoffProvider } from './use-seam-handoff.js'
-export type { RouteDef, LoaderDef, ParamMapping, LazyComponentLoader } from './types.js'
+export { buildHeadSlotProxy, headConfigToSlotHtml } from './head.js'
+export type {
+	RouteDef,
+	LoaderDef,
+	ParamMapping,
+	LazyComponentLoader,
+	HeadConfig,
+	HeadMeta,
+	HeadLink,
+	HeadFn,
+} from './types.js'
 export type { LoaderError } from './use-seam-data.js'
 export type {
 	UseSeamSubscriptionResult,

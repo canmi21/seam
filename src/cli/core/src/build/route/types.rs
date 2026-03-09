@@ -62,6 +62,8 @@ pub(crate) struct SkeletonRoute {
 	pub(super) page_schema: Option<serde_json::Value>,
 	#[serde(default)]
 	pub(super) layout: Option<String>,
+	#[serde(rename = "headMeta", default)]
+	pub(super) head_meta: Option<String>,
 	#[serde(rename = "i18nKeys", default)]
 	pub(super) i18n_keys: Option<Vec<String>>,
 }

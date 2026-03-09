@@ -115,6 +115,7 @@ pub(super) fn make_skeleton_ext(
 				mock: serde_json::Value::Null,
 				page_schema: None,
 				layout: layout.map(String::from),
+				head_meta: None,
 				i18n_keys: None,
 			})
 			.collect(),

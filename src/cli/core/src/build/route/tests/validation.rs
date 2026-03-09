@@ -6,8 +6,6 @@ use super::super::manifest::{extract_manifest_command, validate_invalidates};
 use super::super::ref_graph::{build_reference_graph, validate_procedure_references};
 use super::super::types::RouteManifestEntry;
 use super::{make_manifest, make_skeleton};
-use seam_skeleton::extract_head_metadata;
-
 #[test]
 fn validate_all_procedures_exist() {
 	let manifest = make_manifest(&["getHomeData", "getSession"]);
@@ -46,38 +44,7 @@ fn validate_did_you_mean_suggestion() {
 	assert!(err.to_string().contains("Did you mean: getHomeData?"));
 }
 
-// -- head_meta extraction tests --
-
-#[test]
-fn head_meta_extracted_for_page_with_layout() {
-	let template = "<title><!--seam:t--></title><div>body</div>";
-	let (meta, body) = extract_head_metadata(template);
-	assert_eq!(meta, "<title><!--seam:t--></title>");
-	assert_eq!(body, "<div>body</div>");
-	let head_meta: Option<String> = if meta.is_empty() { None } else { Some(meta.to_string()) };
-	assert_eq!(head_meta, Some("<title><!--seam:t--></title>".to_string()));
-}
-
-#[test]
-fn head_meta_none_for_page_without_metadata() {
-	let template = "<div><p>just body</p></div>";
-	let (meta, body) = extract_head_metadata(template);
-	assert!(meta.is_empty(), "no metadata to extract");
-	assert_eq!(body, template, "body unchanged");
-	let head_meta: Option<String> = if meta.is_empty() { None } else { Some(meta.to_string()) };
-	assert!(head_meta.is_none());
-}
-
-#[test]
-fn head_meta_with_conditional_meta_tag() {
-	let template =
-		"<!--seam:if:og--><!--seam:d:attr:content--><meta name=\"og\"><!--seam:endif:og--><p>body</p>";
-	let (meta, body) = extract_head_metadata(template);
-	assert!(meta.contains("<!--seam:if:og-->"), "conditional directive extracted");
-	assert!(meta.contains("<meta name=\"og\">"), "meta element extracted");
-	assert!(meta.contains("<!--seam:endif:og-->"), "endif directive extracted");
-	assert_eq!(body, "<p>body</p>");
-}
+// -- head_meta serialization tests --
 
 #[test]
 fn head_meta_serialization_skips_none() {

@@ -186,14 +186,10 @@ export function wrapDocument(
 	js: string[],
 	rootId = '__seam',
 ): string {
-	const [headMeta, bodySkeleton] = extractHeadMetadata(skeleton)
 	let doc = '<!DOCTYPE html>\n<html>\n<head>\n    <meta charset="utf-8">\n'
-	// No extra formatting around headMeta — inject doesn't strip whitespace
-	// from empty conditional blocks, so extra indentation would cause mismatches.
-	if (headMeta) doc += headMeta
 	for (const f of css) doc += `    <link rel="stylesheet" href="/_seam/static/${f}">\n`
 	doc += `</head>\n<body>\n    <div id="${rootId}">`
-	doc += bodySkeleton
+	doc += skeleton
 	doc += '</div>\n'
 	for (const f of js) doc += `    <script type="module" src="/_seam/static/${f}"></script>\n`
 	doc += '</body>\n</html>'

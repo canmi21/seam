@@ -169,11 +169,14 @@ describe('react 19: markers and metadata', () => {
 		const slotHtml = sentinelToSlots(rawHtml)
 		expect(slotHtml).toContain('<!--seam:pageTitle-->')
 
-		// wrapDocument extracts metadata to <head>; body content stays inside __seam root div
+		// wrapDocument no longer extracts metadata (structured head handles it)
 		const template = wrapDocument(slotHtml, ['style.css'], [])
 		const headSection = template.split('</head>')[0]
 		expect(headSection).toContain('style.css')
-		expect(headSection).toContain('<!--seam:pageTitle-->')
+
+		// Metadata stays in body (head_meta is now provided separately via head export)
+		const bodySection = template.split('__seam')[1]
+		expect(bodySection).toContain('<!--seam:pageTitle-->')
 
 		// Inject real data
 		const finalHtml = inject(template, { pageTitle: 'My Page' })

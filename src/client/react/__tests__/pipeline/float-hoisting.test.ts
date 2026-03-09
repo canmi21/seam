@@ -176,7 +176,7 @@ describe('3.1b Float hoisted metadata (advanced)', () => {
 		})
 	})
 
-	it('118. <head> separation structural assertion', () => {
+	it('118. metadata stays in body (structured head handles extraction)', () => {
 		function App() {
 			const data = useSeamData<{ t: string; desc: string }>()
 			return createElement(
@@ -193,14 +193,13 @@ describe('3.1b Float hoisted metadata (advanced)', () => {
 		})
 
 		const headSection = template.split('</head>')[0]
-		expect(headSection).toContain('<!--seam:')
 		expect(headSection).toContain('<meta charset')
 
 		const rootMatch = template.match(/__seam">([\s\S]*?)<\/div>\n<\/body>/)
 		expect(rootMatch).not.toBeNull()
 		const rootContent = rootMatch![1]
-		// Metadata extracted to <head>, only body content remains in root
+		// Metadata no longer extracted — stays in body (head_meta via head export)
 		expect(rootContent).toContain('content')
-		expect(rootContent).not.toContain('<title>')
+		expect(rootContent).toContain('<!--seam:t-->')
 	})
 })
