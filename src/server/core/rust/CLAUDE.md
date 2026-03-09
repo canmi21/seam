@@ -8,7 +8,7 @@ See root CLAUDE.md for general project rules.
 
 | Module          | Responsibility                                                                                                                                                                  |
 | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `server.rs`     | `SeamServer` builder + `SeamParts` extraction for adapter crates                                                                                                                |
+| `server.rs`     | `SeamServer` builder + `SeamParts` extraction; `namespace()`, `namespace_subs()`, `namespace_streams()` methods for dot-path procedure grouping                                 |
 | `procedure.rs`  | `ProcedureDef` / `SubscriptionDef` type aliases (`HandlerFn`, `BoxFuture`, `BoxStream`)                                                                                         |
 | `context.rs`    | `ContextConfig`, `ContextFieldDef`, `RawContextMap`, context extraction and resolution from HTTP headers                                                                        |
 | `resolve.rs`    | `ResolveStrategy` trait, `ResolveData`, built-in strategies (`from_url_prefix`, `from_cookie`, `from_accept_language`, `from_url_query`), `resolve_chain`, `default_strategies` |
@@ -48,7 +48,8 @@ User code -> SeamServer::new().procedure(...).page(...)
 
 - `SeamType` trait -- derive with `#[derive(SeamType)]` (from `seam-macros`) for JTD schema generation
 - `HandlerFn` -- `Arc<dyn Fn(Value, Value) -> BoxFuture<Result<Value, SeamError>> + Send + Sync>` (input + context)
-- `SubscriptionHandlerFn` -- `Arc<dyn Fn(Value, Value) -> BoxFuture<Result<BoxStream<...>, SeamError>> + Send + Sync>` (input + context)
+- `SubscriptionHandlerFn` -- takes `SubscriptionParams { input, ctx, last_event_id }` (structured params, not raw `(Value, Value)`)
+- `StreamHandlerFn` -- separate type taking `StreamParams { input, ctx }` (no longer alias of SubscriptionHandlerFn)
 - `ContextConfig` -- `BTreeMap<String, ContextFieldDef>` mapping context keys to extract rules (e.g. `"header:authorization"`)
 - `ResolveStrategy` trait -- `fn resolve(&self, data: &ResolveData) -> Option<String>`; built-in: `from_url_prefix`, `from_cookie`, `from_accept_language`, `from_url_query`
 

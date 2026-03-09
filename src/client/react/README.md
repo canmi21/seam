@@ -19,22 +19,30 @@ React bindings for SeamJS, providing hooks and components to consume server-inje
 | `SeamHandoffProvider`  | Context provider for loader handoff data                                                                    |
 | `isLoaderError`        | Type guard for detecting failed loaders (`LoaderError`)                                                     |
 | `LazyComponentLoader`  | Type for dynamic `() => import(...)` page loaders (per-page splitting)                                      |
+| `buildHeadSlotProxy`   | Build a Proxy that generates slot markers for head metadata at skeleton render time                         |
+| `headConfigToSlotHtml` | Convert a `HeadConfig` (with slot markers) to HTML string for `<head>` injection                            |
 
 ## Types
 
-| Type                        | Purpose                                                                        |
-| --------------------------- | ------------------------------------------------------------------------------ |
-| `RouteDef`                  | Route definition with component, loaders, and params                           |
-| `LoaderDef`                 | Loader definition for a route                                                  |
-| `ParamMapping`              | Parameter mapping configuration                                                |
-| `LazyComponentLoader`       | Function returning `Promise<{ default: ComponentType }>`                       |
-| `LoaderError`               | Error marker for failed loaders                                                |
-| `UseSeamSubscriptionResult` | Return type of `useSeamSubscription` (`data`, `error`, `status`, `retryCount`) |
-| `SubscriptionStatus`        | `'connecting' \| 'connected' \| 'reconnecting' \| 'error' \| 'closed'`         |
-| `UseSeamStreamResult`       | Return type of `useSeamStream`                                                 |
-| `StreamStatus`              | Status for stream procedures                                                   |
+| Type                        | Purpose                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `RouteDef`                  | Route definition with component, loaders, and params                            |
+| `LoaderDef`                 | Loader definition for a route                                                   |
+| `ParamMapping`              | Parameter mapping configuration                                                 |
+| `LazyComponentLoader`       | Function returning `Promise<{ default: ComponentType }>`                        |
+| `LoaderError`               | Error marker for failed loaders                                                 |
+| `UseSeamSubscriptionResult` | Return type of `useSeamSubscription` (`data`, `error`, `status`, `retryCount`)  |
+| `SubscriptionStatus`        | `'connecting' \| 'connected' \| 'reconnecting' \| 'error' \| 'closed'`          |
+| `UseSeamStreamResult`       | Return type of `useSeamStream`                                                  |
+| `StreamStatus`              | Status for stream procedures                                                    |
+| `HeadConfig`                | Head metadata: `title?`, `meta?`, `link?`                                       |
+| `HeadFn`                    | `(data: Record<string, unknown>) => HeadConfig` — dynamic head from loader data |
+| `HeadMeta`                  | `{ name?: string; property?: string; content: string }`                         |
+| `HeadLink`                  | `{ rel: string; href: string; [key: string]: string }`                          |
 
 `RouteDef.component` accepts either a `ComponentType` or a `LazyComponentLoader` (a function returning `Promise<{ default: ComponentType }>`). The lazy variant is produced by `@canmi/seam-vite` when per-page splitting is active.
+
+`RouteDef` also supports `head?: HeadConfig | HeadFn` for per-page structured head metadata, `prerender?: boolean` for SSG opt-in, and `data?: Record<string, unknown>` for static page data.
 
 ## Structure
 
@@ -45,6 +53,8 @@ React bindings for SeamJS, providing hooks and components to consume server-inje
 - `src/use-seam-navigate.ts` — Navigation hook and provider
 - `src/use-seam-handoff.ts` — Loader handoff hook and provider
 - `src/define-routes.ts` — Route definition utilities
+- `src/head.ts` — `buildHeadSlotProxy`, `headConfigToSlotHtml` for head metadata
+- `src/types.ts` — `RouteDef`, `HeadConfig`, `HeadFn`, `HeadMeta`, `HeadLink`, and other shared types
 - `src/sentinel.ts` — Sentinel data builder for skeleton rendering
 - `scripts/` — Build-time scripts
 

@@ -4,8 +4,8 @@ Lightweight config package — exports `defineConfig` helper and `SeamConfig` ty
 
 ## Structure
 
-- `config.mjs` — `defineConfig` identity function (returns config as-is)
-- `config.d.ts` — `SeamConfig` and all section interfaces
+- `config.mjs` — `defineConfig` with runtime validation (routes/pagesDir exclusion, hashLength range 4-64, i18n.locales non-empty, renderer must be `'react'`, removed `bundlerCommand` detection)
+- `config.d.ts` — `SeamConfig` and all section interfaces; includes `SeamConfig.output` field (`'static' | 'server' | 'hybrid'`, default `'hybrid'`)
 
 ## Key Points
 

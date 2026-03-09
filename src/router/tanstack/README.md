@@ -17,6 +17,9 @@ TanStack Router integration for SeamJS client-side hydration and routing. See [U
 - `src/seam-core-bridge.tsx` — React bridge between seam data and TanStack Router context
 - `src/convert-routes.ts` — Convert `SeamRouteDef[]` to TanStack route tree
 - `src/i18n.ts` — i18n locale detection and URL rewriting
+- `src/bridge-helpers.ts` — `mergeLoaderData`, `applyHeadUpdate` helpers for loader/head bridging
+- `src/head-manager.ts` — `updateHead`, `clearHead` for SPA head tag management (`data-seam-head` markers)
+- `src/use-i18n-state.ts` — Extracted i18n state hook (refactored from `seam-i18n-bridge.tsx`)
 
 ## Key Exports
 

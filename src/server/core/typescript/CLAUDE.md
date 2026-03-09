@@ -27,7 +27,7 @@ src/
     index.ts        -- Assembles `t` namespace from primitives + composites
   resolve.ts        -- ResolveStrategy interface, built-in strategies (fromUrlPrefix, fromCookie, fromAcceptLanguage, fromUrlQuery), resolveChain, defaultStrategies
   router/
-    index.ts        -- createRouter: wires all 5 procedure kinds, pages, channels; accepts resolveStrategies, context, transportDefaults options; exports ProcedureDef, CommandDef, SubscriptionDef, StreamDef, UploadDef, Router
+    index.ts        -- createRouter: wires all 5 procedure kinds, pages, channels; accepts resolveStrategies, context, transportDefaults options; exports ProcedureDef, CommandDef, SubscriptionDef, StreamDef, UploadDef, Router, NestedDefinitionMap; `flattenDefinitions()` flattens nested definitions to dot-separated names; `handlePageData()` serves `__data.json` for SSG SPA navigation
     categorize.ts   -- categorizeProcedures: splits DefinitionMap into procedureMap, subscriptionMap, streamMap, uploadMap, kindMap based on `kind` field
     handler.ts      -- handleRequest (RPC), handleSubscription (SSE), handleStream (SSE with id), handleBatchRequest, handleUploadRequest; per-loader error boundaries (try-catch per loader, error marker instead of 500), input validation (shouldValidateInput)
     helpers.ts      -- buildStrategies, registerI18nQuery, resolveCtxFor/resolveCtxSafe, matchAndHandlePage, collectChannelMeta, resolveValidationMode, lookupI18nMessages
@@ -35,6 +35,7 @@ src/
   page/
     index.ts        -- PageDef, PageAssets, LoaderFn, definePage()
     handler.ts      -- handlePageRequest: runs loaders, passes page_assets to engine, injects data into template
+    head.ts         -- HeadFn type, headConfigToHtml() for runtime head rendering
     route-matcher.ts -- RouteMatcher: pattern matching with `:param`, `*name` (catch-all), `*name?` (optional catch-all)
     build-loader.ts -- loadBuild, loadBuildOutput, loadBuildDev, loadRpcHashMap, loadI18nMessages; BuildOutput type; ParamConfig (from: "route" | "query", string shorthand accepted), handoff: "client" support
     loader-error.ts -- LoaderError interface + isLoaderError type guard
@@ -54,6 +55,7 @@ src/
 - **Stream**: `POST /_seam/procedure/{name}` -> `createHttpHandler` -> `router.handleStream` -> `handleStream` -> yield SSE events with incrementing `id`
 - **Upload**: `POST /_seam/procedure/{name}` (multipart) -> `createHttpHandler` -> `router.handleUpload` -> `resolveCtxSafe` -> `handleUploadRequest` -> call handler with SeamFileHandle -> JSON response
 - **Page**: `GET /_seam/page/{path}` -> `createHttpHandler` -> `router.handlePage` -> `RouteMatcher` -> `handlePageRequest` -> run loaders (with query params, handoff) -> inject into template; each loader wrapped in independent try-catch; failed loaders return `LoaderError` marker, page still returns 200
+- **Page Data**: `GET /_seam/data/{path}` -> `createHttpHandler` -> `router.handlePageData` -> read `__data.json` from `staticDir` (SSG SPA navigation)
 - **Build Loading**: `loadBuild(distDir)` -> reads `route-manifest.json` + `rpc-hash-map.json` + i18n -> `BuildOutput { pages, rpcHashMap, i18n }`
 - **Manifest**: `GET /_seam/manifest.json` -> `router.manifest()` -> `buildManifest` (v2: context, transportDefaults, invalidates, chunkOutput)
 - **Context**: rawCtx (from adapter) -> `resolveCtxSafe` -> `resolveContext` -> extract only keys referenced by the procedure
@@ -66,7 +68,8 @@ src/
 - `HttpResponse` is a union: `HttpBodyResponse | HttpStreamResponse` -- adapters check for `"stream" in result`
 - `toWebResponse` converts `HttpResponse` to Web API `Response` (used by Hono/Bun adapters); Node adapter uses its own `sendResponse` instead
 - `fromCallback` bridges callback-style event emitters to `AsyncGenerator` for subscription handlers
-- Stream vs subscription SSE: subscriptions emit bare `data:` events; streams emit `id:` + `data:` events with incrementing IDs
+- Stream vs subscription SSE: subscriptions emit `id:` + `data:` events with incrementing IDs; streams likewise emit `id:` + `data:` events
+- Subscription handler signature: `handler({ input, ctx, lastEventId })` — `lastEventId` is `string | undefined`, propagated from `Last-Event-ID` header for resumption
 - SSE lifecycle: `withSseLifecycle` wraps subscription/stream SSE with heartbeat and idle timeout; `SseOptions` interface (`heartbeatInterval` default 21s, `sseIdleTimeout` default 30s, 0 disables)
 - rpcHashMap propagation: router stores as public property; `createHttpHandler` falls back `opts.rpcHashMap ?? router.rpcHashMap`
 - loader_metadata injection: page handler builds `__loaders` metadata from loader configs (`{procedure, input}` per data key) for client-side QueryClient hydration; `loader_metadata` includes optional `error?: true` flag for failed loaders

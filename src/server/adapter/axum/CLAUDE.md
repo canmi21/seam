@@ -6,11 +6,11 @@ See root CLAUDE.md for general project rules.
 
 ## Architecture
 
-| Module     | Responsibility                                                                                                                                                                                                     |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `lib.rs`   | `IntoAxumRouter` trait + impl for `SeamServer`, re-exports `seam_server`                                                                                                                                           |
-| `handler/` | Directory: mod.rs (AppState, build_router), rpc.rs, subscribe.rs, page.rs, channel.rs, projection.rs, stream.rs, upload.rs, sse_lifecycle.rs; page handler injects `__loaders` metadata, uses `inject_no_script()` |
-| `error.rs` | `AxumError` newtype, `impl IntoResponse`, `impl From<SeamError>`                                                                                                                                                   |
+| Module     | Responsibility                                                                                                                                                                                                                                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib.rs`   | `IntoAxumRouter` trait + impl for `SeamServer`, re-exports `seam_server`                                                                                                                                                                                                                                                                          |
+| `handler/` | Directory: mod.rs (AppState, build_router), rpc.rs, subscribe.rs, page.rs, channel.rs, projection.rs, stream.rs, upload.rs, sse_lifecycle.rs; page handler injects `__loaders` metadata, uses `inject_no_script()`; subscribe.rs passes `SubscriptionParams` with `last_event_id` from `Last-Event-ID` header; SSE events carry incrementing `id` |
+| `error.rs` | `AxumError` newtype, `impl IntoResponse`, `impl From<SeamError>`                                                                                                                                                                                                                                                                                  |
 
 ## Data Flow
 
