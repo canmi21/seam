@@ -7,6 +7,7 @@ export default defineRoutes([
 	{
 		path: '/user/:id',
 		component: UserPage,
+		head: (data) => ({ title: `${data.name} | Profile` }),
 		loaders: {
 			user: {
 				procedure: 'getUser',

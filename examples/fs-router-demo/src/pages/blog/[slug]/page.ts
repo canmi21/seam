@@ -7,3 +7,7 @@ export const loaders = {
 export const mock = {
 	post: { title: 'Hello World', content: 'This is a blog post.', author: 'Author' },
 }
+
+export const head = (data: Record<string, unknown>) => ({
+	title: `${data.title} | Blog`,
+})

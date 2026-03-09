@@ -18,6 +18,7 @@ export default defineRoutes([
 		mock: {
 			page: { title: 'E2E Fixture', message: 'Hydration test page.' },
 		},
+		head: (data) => ({ title: String(data.title) }),
 	},
 	{
 		path: '/react19',
@@ -32,6 +33,10 @@ export default defineRoutes([
 					'Demonstrating useId, Suspense, useState, useRef, useMemo, and metadata hoisting.',
 			},
 		},
+		head: (data) => ({
+			title: String(data.heading),
+			meta: [{ name: 'description', content: 'React 19 feature demonstration page' }],
+		}),
 	},
 	{
 		path: '/form',

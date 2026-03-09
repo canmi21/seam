@@ -34,9 +34,6 @@ export function React19Skeleton() {
 
 	return (
 		<div>
-			<title>{data.heading}</title>
-			<meta name="description" content="React 19 feature demonstration page" />
-
 			<h1>{data.heading}</h1>
 			<p>{data.description}</p>
 

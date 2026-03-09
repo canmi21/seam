@@ -26,10 +26,15 @@ export default defineSeamRoutes([
 				mock: {
 					page: { tagline: 'Compile-Time Rendering for React' },
 				},
+				head: { title: 'GitHub Dashboard' },
 			},
 			{
 				path: '/dashboard/:username',
 				component: DashboardSkeleton,
+				head: (data) => ({
+					title: `${data.name ?? data.login} | GitHub Dashboard`,
+					meta: [{ name: 'description', content: String(data.bio ?? '') }],
+				}),
 				loaders: {
 					user: {
 						procedure: 'getUser',
