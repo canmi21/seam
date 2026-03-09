@@ -89,6 +89,8 @@ export interface TransportSection {
 }
 
 export interface SeamConfig {
+	/** Output mode: 'static' (all SSG), 'server' (all CTR), 'hybrid' (per-page) */
+	output?: 'static' | 'server' | 'hybrid'
 	/** Omit to auto-read from package.json or use directory name */
 	project?: ProjectConfig
 	backend?: BackendConfig

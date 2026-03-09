@@ -66,6 +66,8 @@ pub(crate) struct SkeletonRoute {
 	pub(super) head_meta: Option<String>,
 	#[serde(rename = "i18nKeys", default)]
 	pub(super) i18n_keys: Option<Vec<String>>,
+	#[serde(default)]
+	pub(super) prerender: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -157,4 +159,6 @@ pub(super) struct RouteManifestEntry {
 	pub(super) procedures: Option<Vec<String>>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub(super) projections: Option<BTreeMap<String, Vec<String>>>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub(super) prerender: Option<bool>,
 }

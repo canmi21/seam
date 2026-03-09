@@ -210,6 +210,7 @@ function renderRouteNode(
 	if (node.dataFile && !splitPage) {
 		const exports = detectNamedExports(node.dataFile)
 		for (const exp of exports) {
+			// SSG exports use their own names directly on the route def
 			fields.push(`${indent}  ${exp}: ${toImportName('Page', identity)}_${exp}`)
 		}
 	}

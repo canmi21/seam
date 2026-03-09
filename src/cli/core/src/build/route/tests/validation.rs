@@ -58,6 +58,7 @@ fn head_meta_serialization_skips_none() {
 		assets: None,
 		procedures: None,
 		projections: None,
+		prerender: None,
 	};
 	let json = serde_json::to_string(&entry).unwrap();
 	assert!(!json.contains("head_meta"), "None head_meta should be skipped in JSON");
@@ -75,6 +76,7 @@ fn head_meta_serialization_includes_some() {
 		assets: None,
 		procedures: None,
 		projections: None,
+		prerender: None,
 	};
 	let json = serde_json::to_string(&entry).unwrap();
 	assert!(json.contains("head_meta"), "Some head_meta should be present in JSON");

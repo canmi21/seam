@@ -165,6 +165,7 @@ fn ref_graph_route_procedures_dedup() {
 				assets: None,
 				procedures: None,
 				projections: None,
+				prerender: None,
 			},
 		)]),
 		data_id: None,

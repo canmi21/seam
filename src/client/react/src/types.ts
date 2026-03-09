@@ -51,6 +51,10 @@ export interface RouteDef {
 	nullable?: string[]
 	staleTime?: number
 	head?: HeadConfig | HeadFn
+	/** Opt into SSG (build-time rendering) */
+	prerender?: boolean
+	/** Static page data for SSG pages */
+	data?: Record<string, unknown>
 	/** Internal: override layout ID for group layouts to avoid toLayoutId collision */
 	_layoutId?: string
 }

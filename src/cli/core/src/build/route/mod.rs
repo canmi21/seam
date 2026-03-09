@@ -22,7 +22,8 @@ pub(crate) use manifest::{
 	package_static_assets, print_procedure_breakdown, run_typecheck, validate_invalidates,
 };
 pub(crate) use process::{
-	BundleContext, RenderContext, export_i18n, process_routes, run_skeleton_renderer,
+	BundleContext, RenderContext, apply_output_mode, export_i18n, process_routes,
+	run_skeleton_renderer,
 };
 pub(crate) use projection::{inject_route_projections, report_narrowing_savings};
 pub(crate) use ref_graph::{

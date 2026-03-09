@@ -117,6 +117,7 @@ pub(super) fn make_skeleton_ext(
 				layout: layout.map(String::from),
 				head_meta: None,
 				i18n_keys: None,
+				prerender: None,
 			})
 			.collect(),
 		source_file_map: None,

@@ -3,6 +3,15 @@
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OutputMode {
+	Static,
+	Server,
+	#[default]
+	Hybrid,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TransportPreference {
@@ -37,6 +46,8 @@ pub struct TransportSection {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SeamConfig {
+	#[serde(default)]
+	pub output: OutputMode,
 	#[serde(default)]
 	pub project: ProjectConfig,
 	#[serde(default)]

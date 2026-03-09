@@ -9,9 +9,9 @@ use anyhow::{Context, Result};
 
 use super::super::config::BuildConfig;
 use super::super::route::{
-	BundleContext, ProcedureRefGraph, RenderContext, RouteManifest, SkeletonOutput, export_i18n,
-	inject_route_procedures, inject_route_projections, process_routes, read_i18n_messages,
-	report_narrowing_savings, run_skeleton_renderer,
+	BundleContext, ProcedureRefGraph, RenderContext, RouteManifest, SkeletonOutput,
+	apply_output_mode, export_i18n, inject_route_procedures, inject_route_projections,
+	process_routes, read_i18n_messages, report_narrowing_savings, run_skeleton_renderer,
 };
 use super::super::types::{AssetFiles, read_bundle_manifest};
 use super::helpers::print_cache_stats;
@@ -116,6 +116,9 @@ pub(crate) fn execute_route_steps(
 		input.build_config.i18n.as_ref(),
 		input.bundle,
 	)?;
+
+	// Apply output mode behavior matrix (static/server/hybrid → effective prerender)
+	apply_output_mode(&mut route_manifest, input.build_config.output);
 
 	if let Some(graph) = input.ref_graph {
 		inject_route_procedures(&mut route_manifest, graph);

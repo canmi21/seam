@@ -4,11 +4,12 @@ use std::path::Path;
 
 use anyhow::{Result, bail};
 
-use crate::config::{I18nSection, SeamConfig};
+use crate::config::{I18nSection, OutputMode, SeamConfig};
 use crate::ui;
 
 #[derive(Debug, Clone)]
 pub struct BuildConfig {
+	pub output: OutputMode,
 	pub entry: String,
 	pub routes: String,
 	pub out_dir: String,
@@ -81,6 +82,7 @@ impl BuildConfig {
 		let config_path = config.config_file_path.clone();
 
 		Ok(Self {
+			output: config.output,
 			entry,
 			routes,
 			out_dir,

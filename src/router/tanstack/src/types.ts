@@ -6,6 +6,7 @@ import type { RouteDef, HeadConfig, HeadFn } from '@canmi/seam-react'
 export interface SeamRouteDef extends RouteDef {
 	children?: SeamRouteDef[]
 	clientLoader?: ClientLoaderFn
+	staticPaths?: () => Promise<{ params: Record<string, string>; data: Record<string, unknown> }[]>
 }
 
 export type ClientLoaderFn = (ctx: {

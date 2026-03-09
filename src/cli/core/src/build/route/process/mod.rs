@@ -18,7 +18,7 @@ use super::types::{
 	SkeletonRoute,
 };
 use crate::build::types::{AssetFiles, BundleManifest, ViteDevInfo};
-use crate::config::I18nSection;
+use crate::config::{I18nSection, OutputMode};
 use crate::ui::{self, DIM, RESET, col};
 use assets::compute_route_assets;
 use seam_skeleton::{ctr_check, extract_template, sentinel_to_slots};
@@ -242,6 +242,7 @@ fn process_i18n_route(
 				assets: route_assets,
 				procedures: None,
 				projections: None,
+				prerender: route.prerender,
 			});
 		}
 	}
@@ -273,6 +274,7 @@ fn process_i18n_route(
 				assets: route_assets,
 				procedures: None,
 				projections: None,
+				prerender: route.prerender,
 			},
 		);
 	}
@@ -338,7 +340,41 @@ fn process_single_route(
 			assets: route_assets,
 			procedures: None,
 			projections: None,
+			prerender: route.prerender,
 		},
 	);
 	Ok(())
+}
+
+/// Apply output mode behavior matrix to route manifest entries.
+///
+/// | output  | no prerender | prerender=true | prerender=false |
+/// |---------|--------------|----------------|-----------------|
+/// | static  | SSG          | SSG            | warn, still SSG |
+/// | server  | CTR          | warn, still CTR| CTR             |
+/// | hybrid  | CTR          | SSG            | CTR             |
+pub(crate) fn apply_output_mode(manifest: &mut RouteManifest, output: OutputMode) {
+	for (path, entry) in &mut manifest.routes {
+		let explicit = entry.prerender;
+		let effective = match output {
+			OutputMode::Static => {
+				if explicit == Some(false) {
+					ui::detail_warn(&format!(
+						"{path}: prerender=false ignored in static mode (all pages are SSG)"
+					));
+				}
+				Some(true)
+			}
+			OutputMode::Server => {
+				if explicit == Some(true) {
+					ui::detail_warn(&format!(
+						"{path}: prerender=true ignored in server mode (all pages are CTR)"
+					));
+				}
+				None
+			}
+			OutputMode::Hybrid => explicit,
+		};
+		entry.prerender = effective;
+	}
 }

@@ -45,6 +45,11 @@ function buildPageSchema(route, manifest) {
  * then deep-merge any user-provided partial mock on top.
  */
 function resolveRouteMock(route, manifest) {
+	// Prerender routes use static data instead of loader-driven mock
+	if (route.prerender) {
+		return route.data || route.mock || {}
+	}
+
 	const pageSchema = buildPageSchema(route, manifest)
 
 	if (pageSchema) {
@@ -75,6 +80,15 @@ function resolveRouteMock(route, manifest) {
  * @param {{ buildWarnings: string[], seenWarnings: Set<string> }} ctx - shared warning state
  */
 function renderRoute(route, manifest, i18nValue, ctx) {
+	// Validate: prerender pages cannot use loaders
+	if (route.prerender && route.loaders && Object.keys(route.loaders).length > 0) {
+		throw new SeamBuildError(
+			`[seam] error: Route "${route.path}" has prerender=true and loaders\n\n` +
+				'  Prerender pages cannot use loaders.\n' +
+				'  Use `export const data = {...}` or `export const staticPaths` for build-time data.',
+		)
+	}
+
 	const mock = resolveRouteMock(route, manifest)
 	const pageSchema = buildPageSchema(route, manifest)
 	const htmlPaths = pageSchema ? collectHtmlPaths(pageSchema) : new Set()
@@ -122,6 +136,7 @@ function renderRoute(route, manifest, i18nValue, ctx) {
 		mock,
 		pageSchema,
 		headMeta,
+		prerender: route.prerender || undefined,
 	}
 }
 
