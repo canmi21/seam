@@ -15,9 +15,9 @@ workspace = true
 
 [dependencies]
 futures-core = "0.3"
-seam-macros = { version = "0.5.28", path = "../rust-macros" }
+seam-macros = { version = "0.5.29", path = "../rust-macros" }
 serde = { version = "1", features = ["derive"] }
-seam-engine = { version = "0.5.28", path = "../../engine/rust" }
+seam-engine = { version = "0.5.29", path = "../../engine/rust" }
 serde_json = "1"
 bytes = "1"
 regex = "1"

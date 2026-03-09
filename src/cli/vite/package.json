@@ -1,6 +1,6 @@
 {
   "name": "@canmi/seam-vite",
-  "version": "0.5.28",
+  "version": "0.5.29",
   "license": "MIT",
   "description": "Vite plugin for SeamJS per-page code splitting",
   "files": [
