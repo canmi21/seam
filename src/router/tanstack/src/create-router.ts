@@ -18,7 +18,7 @@ import type {
 import { parseSeamData } from '@canmi/seam-react'
 import { SeamOutlet, createLayoutWrapper, createPageWrapper } from './seam-outlet.js'
 import { convertPath } from './convert-routes.js'
-import { createLoaderFromDefs } from './create-loader.js'
+import { createLoaderFromDefs, createPrerenderLoader } from './create-loader.js'
 import { matchSeamRoute } from './route-matcher.js'
 import { SeamCoreBridge } from './seam-core-bridge.js'
 import type { SeamRouteDef, SeamRouterOptions, SeamRouterContext, SeamI18nMeta } from './types.js'
@@ -133,7 +133,9 @@ function buildRoutes(
 			const dataLoader = clientLoader
 				? (ctx: { params: Record<string, string>; context: SeamRouterContext }) =>
 						clientLoader({ params: ctx.params, seamRpc: ctx.context.seamRpc })
-				: createLoaderFromDefs(def.loaders ?? {}, fullPath)
+				: def.prerender
+					? createPrerenderLoader(fullPath)
+					: createLoaderFromDefs(def.loaders ?? {}, fullPath)
 
 			return createRoute({
 				getParentRoute: () => parent,
@@ -167,7 +169,9 @@ function buildRoutes(
 						const ctx = context as SeamRouterContext
 						return cl({ params, seamRpc: ctx.seamRpc })
 					}
-				: createLoaderFromDefs(def.loaders ?? {}, fullPath),
+				: def.prerender
+					? createPrerenderLoader(fullPath)
+					: createLoaderFromDefs(def.loaders ?? {}, fullPath),
 			staleTime: def.staleTime,
 		})
 	})
