@@ -56,7 +56,7 @@ app.get('*', async (c) => {
 	const result = await router.handlePage(new URL(c.req.url).pathname)
 	if (!result) return c.text('Not Found', 404)
 
-	const { dataFetch, inject: injectTime } = result.timing
+	const { dataFetch = 0, inject: injectTime = 0 } = result.timing ?? {}
 	const fmt = (ms: number) => (ms < 1 ? `${(ms * 1000).toFixed(0)}\u00b5s` : `${ms.toFixed(2)}ms`)
 	const timing = `\u00a0\u00b7 Data Fetch ${fmt(dataFetch)} \u00b7 Inject ${fmt(injectTime)}`
 

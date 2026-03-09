@@ -232,6 +232,7 @@ export async function handlePageRequest(
 		return {
 			status: 500,
 			html: `<!DOCTYPE html><html><body><h1>500 Internal Server Error</h1><p>${escapeHtml(message)}</p></body></html>`,
+			timing: { dataFetch: 0, inject: 0 },
 		}
 	}
 }
