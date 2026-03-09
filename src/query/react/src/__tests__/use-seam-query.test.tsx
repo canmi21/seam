@@ -69,7 +69,7 @@ describe('useSeamQuery', () => {
 		})
 		await waitFor(() => expect(result.current.isError).toBe(true))
 		expect(result.current.error).toBeInstanceOf(Error)
-		expect(result.current.error!.message).toBe('network failure')
+		expect(result.current.error?.message).toBe('network failure')
 	})
 
 	it('shares cache for same procedure + input', async () => {

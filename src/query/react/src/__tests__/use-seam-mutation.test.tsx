@@ -77,7 +77,7 @@ describe('useSeamMutation', () => {
 		act(() => result.current.mutate({ postId: '1' }))
 		await waitFor(() => expect(result.current.isError).toBe(true))
 		expect(result.current.error).toBeInstanceOf(Error)
-		expect(result.current.error!.message).toBe('server error')
+		expect(result.current.error?.message).toBe('server error')
 	})
 
 	it('calls user onError when rpcFn rejects', async () => {
