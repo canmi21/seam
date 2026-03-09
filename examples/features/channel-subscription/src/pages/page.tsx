@@ -113,8 +113,12 @@ export default function HomePage() {
 		<div>
 			<h1>{data.info.title}</h1>
 
-			<h2>Reconnect Test</h2>
-			{mounted && <ReconnectTestView />}
+			{mounted && window.location.hash === '#reconnect' && (
+				<>
+					<h2>Reconnect Test</h2>
+					<ReconnectTestView />
+				</>
+			)}
 
 			<h2>Subscription</h2>
 			{mounted && <SubscriptionView />}
