@@ -22,3 +22,18 @@ export const onTick = subscription({
 	output: t.object({ tick: t.int32() }),
 	handler: ({ input }) => tickStream(input.interval),
 })
+
+async function* longTickStream(): AsyncGenerator<{ tick: number; ts: number }> {
+	for (let i = 1; i <= 100; i++) {
+		await new Promise((r) => {
+			setTimeout(r, 300)
+		})
+		yield { tick: i, ts: Date.now() }
+	}
+}
+
+export const onLongTick = subscription({
+	input: t.object({}),
+	output: t.object({ tick: t.int32(), ts: t.int64() }),
+	handler: () => longTickStream(),
+})

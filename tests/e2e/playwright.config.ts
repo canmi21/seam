@@ -117,9 +117,19 @@ export default defineConfig({
 			testMatch: /feature-handoff-narrowing/,
 		},
 		{
+			name: 'feature-timeout-recovery',
+			use: { browserName: 'chromium', baseURL: 'http://localhost:3482' },
+			testMatch: /feature-timeout-recovery/,
+		},
+		{
 			name: 'feature-channel-subscription',
 			use: { browserName: 'chromium', baseURL: 'http://localhost:3484' },
 			testMatch: /feature-channel-subscription/,
+		},
+		{
+			name: 'feature-sse-reconnect',
+			use: { browserName: 'chromium', baseURL: 'http://localhost:3484' },
+			testMatch: /feature-sse-reconnect/,
 		},
 		{
 			name: 'fs-router',

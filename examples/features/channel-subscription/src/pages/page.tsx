@@ -9,6 +9,23 @@ interface PageData extends Record<string, unknown> {
 	info: { title: string }
 }
 
+function ReconnectTestView() {
+	const { data, status, retryCount } = useSeamSubscription<{ tick: number; ts: number }>(
+		window.location.origin,
+		'onLongTick',
+		{},
+		{ reconnect: { initialDelay: 200, maxRetries: 5 } },
+	)
+
+	return (
+		<div>
+			<p data-testid="rc-status">RC Status: {status}</p>
+			<p data-testid="rc-tick">RC Tick: {data?.tick ?? 0}</p>
+			<p data-testid="rc-retry">RC Retry: {retryCount}</p>
+		</div>
+	)
+}
+
 function SubscriptionView() {
 	const { data, status } = useSeamSubscription<{ tick: number }>(window.location.origin, 'onTick', {
 		interval: 500,
@@ -95,6 +112,9 @@ export default function HomePage() {
 	return (
 		<div>
 			<h1>{data.info.title}</h1>
+
+			<h2>Reconnect Test</h2>
+			{mounted && <ReconnectTestView />}
 
 			<h2>Subscription</h2>
 			{mounted && <SubscriptionView />}
