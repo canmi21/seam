@@ -34,6 +34,6 @@ async function* longTickStream(): AsyncGenerator<{ tick: number; ts: number }> {
 
 export const onLongTick = subscription({
 	input: t.object({}),
-	output: t.object({ tick: t.int32(), ts: t.int64() }),
+	output: t.object({ tick: t.int32(), ts: t.float64() }),
 	handler: () => longTickStream(),
 })
