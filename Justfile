@@ -222,6 +222,7 @@ test-integration:
       (cd "tests/features/$demo" && go test -v -count=1)
     done
     (cd tests/workspace-integration && go test -v -count=1 -timeout 120s)
+    (cd tests/markdown-demo && go test -v -count=1)
 
 # Playwright E2E tests
 test-e2e:
