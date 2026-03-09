@@ -10,7 +10,7 @@ export interface SwitchLocaleOptions {
 	reload?: boolean
 	/** Current route's hash (required for SPA mode to fetch messages) */
 	routeHash?: string
-	/** RPC function to call __seam_i18n_query (required for SPA mode) */
+	/** RPC function to call seam.i18n.query (required for SPA mode) */
 	rpc?: (procedure: string, input: unknown) => Promise<unknown>
 	/** Callback to update i18n state with fetched messages (required for SPA mode) */
 	onMessages?: (locale: string, messages: Record<string, string>, hash?: string) => void
@@ -68,7 +68,7 @@ export async function switchLocale(locale: string, opts?: SwitchLocaleOptions): 
 
 	// SPA mode: fetch messages via RPC
 	if (!opts?.rpc || !opts.routeHash || !opts.onMessages) return
-	const result = (await opts.rpc('__seam_i18n_query', {
+	const result = (await opts.rpc('seam.i18n.query', {
 		route: opts.routeHash,
 		locale,
 	})) as { hash?: string; messages: Record<string, string> }

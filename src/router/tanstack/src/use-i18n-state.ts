@@ -35,7 +35,7 @@ function fetchRouteMessages(
 			return
 		}
 	}
-	void rpc('__seam_i18n_query', { route: hash, locale }).then((result) => {
+	void rpc('seam.i18n.query', { route: hash, locale }).then((result) => {
 		const { hash: h, messages } = result as { hash?: string; messages: Record<string, string> }
 		if (cache && h) cache.set(locale, hash, h, messages)
 		onResult(locale, messages)

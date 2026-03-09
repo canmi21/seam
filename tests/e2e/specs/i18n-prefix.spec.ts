@@ -105,7 +105,7 @@ test.describe('i18n prefix mode — cache and SPA', () => {
 		page.on('request', (req) => {
 			if (req.method() === 'POST' && req.url().includes('/_seam/procedure/')) {
 				const body = req.postData() || ''
-				if (body.includes('__seam_i18n_query')) rpcCalls.push(body)
+				if (body.includes('seam.i18n.query')) rpcCalls.push(body)
 			}
 		})
 
@@ -135,7 +135,7 @@ test.describe('i18n prefix mode — cache and SPA', () => {
 		page.on('request', (req) => {
 			if (req.method() === 'POST' && req.url().includes('/_seam/procedure/')) {
 				const body = req.postData() || ''
-				if (body.includes('__seam_i18n_query')) rpcCalls.push(body)
+				if (body.includes('seam.i18n.query')) rpcCalls.push(body)
 			}
 		})
 

@@ -34,13 +34,13 @@ export function buildStrategies(opts?: RouterOptions): {
 	}
 }
 
-/** Register built-in __seam_i18n_query procedure (route-hash-based lookup) */
+/** Register built-in seam.i18n.query procedure (route-hash-based lookup) */
 export function registerI18nQuery(
 	procedureMap: Map<string, InternalProcedure>,
 	config: I18nConfig,
 ): void {
 	const localeSet = new Set(config.locales)
-	procedureMap.set('__seam_i18n_query', {
+	procedureMap.set('seam.i18n.query', {
 		inputSchema: {},
 		outputSchema: {},
 		contextKeys: [],
