@@ -55,6 +55,9 @@ export interface RouteDef {
 	prerender?: boolean
 	/** Static page data for SSG pages */
 	data?: Record<string, unknown>
+	errorComponent?: ComponentType<Record<string, unknown>>
+	pendingComponent?: ComponentType
+	notFoundComponent?: ComponentType
 	/** Internal: override layout ID for group layouts to avoid toLayoutId collision */
 	_layoutId?: string
 }

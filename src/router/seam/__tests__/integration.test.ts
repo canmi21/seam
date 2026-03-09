@@ -294,6 +294,30 @@ describe('correct path: full realistic layout', () => {
 	})
 })
 
+describe('correct path: boundary components', () => {
+	it('error/loading/not-found in nested structure', () => {
+		mkFile('page.tsx')
+		mkFile('error.tsx')
+		mkFile('(auth)/layout.tsx')
+		mkFile('(auth)/loading.tsx')
+		mkFile('(auth)/not-found.tsx')
+		mkFile('(auth)/login/page.tsx')
+		mkFile('(auth)/login/error.tsx')
+		mkFile('dashboard/[username]/page.tsx')
+		mkFile('dashboard/[username]/loading.tsx')
+		const output = runPipeline()
+		// Root error
+		expect(output).toContain('errorComponent: Error_index')
+		// Group boundaries on layout route
+		expect(output).toContain('pendingComponent: Loading_g_auth')
+		expect(output).toContain('notFoundComponent: NotFound_g_auth')
+		// Leaf-level override
+		expect(output).toContain('errorComponent: Error_g_auth_login')
+		// Dynamic route loading
+		expect(output).toContain('pendingComponent: Loading_dashboard__username')
+	})
+})
+
 // ─── Error Path Tests (Category 1: Validation Errors) ─────────────────────
 
 describe('error path: duplicate routes', () => {

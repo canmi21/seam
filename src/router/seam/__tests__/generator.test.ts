@@ -23,7 +23,7 @@ afterEach(() => {
 	fs.rmSync(tmpDir, { recursive: true, force: true })
 })
 
-describe('generateRoutesFile', () => {
+describe('generateRoutesFile: imports and structure', () => {
 	it('generates correct imports and defineSeamRoutes', () => {
 		mkFile('pages/page.tsx', 'export default function Home() {}')
 		mkFile('pages/about/page.tsx', 'export default function About() {}')
@@ -40,32 +40,6 @@ describe('generateRoutesFile', () => {
 		expect(output).toContain('path: "/about"')
 	})
 
-	it('wraps group with layout in layout wrapper', () => {
-		mkFile('pages/(auth)/layout.tsx', 'export default function AuthLayout() {}')
-		mkFile('pages/(auth)/login/page.tsx', 'export default function Login() {}')
-
-		const tree = scanPages({ pagesDir: path.join(tmpDir, 'pages') })
-		const output = generateRoutesFile(tree, {
-			outputPath: path.join(tmpDir, 'output', 'routes.ts'),
-		})
-
-		expect(output).toContain('layout: Layout_g_auth')
-		expect(output).toContain('path: "/login"')
-	})
-
-	it('merges group without layout into parent', () => {
-		mkFile('pages/(public)/pricing/page.tsx', 'export default function Pricing() {}')
-
-		const tree = scanPages({ pagesDir: path.join(tmpDir, 'pages') })
-		const output = generateRoutesFile(tree, {
-			outputPath: path.join(tmpDir, 'output', 'routes.ts'),
-		})
-
-		// No layout wrapper — pricing appears directly
-		expect(output).toContain('path: "/pricing"')
-		expect(output).not.toContain('Layout_index')
-	})
-
 	it('uses posix separators in import paths', () => {
 		mkFile('pages/page.tsx', 'export default function Home() {}')
 
@@ -74,7 +48,6 @@ describe('generateRoutesFile', () => {
 			outputPath: path.join(tmpDir, 'output', 'routes.ts'),
 		})
 
-		// No backslashes in import paths
 		const importLines = output.split('\n').filter((l) => l.startsWith('import '))
 		for (const line of importLines) {
 			expect(line).not.toContain('\\')
@@ -107,13 +80,73 @@ describe('generateRoutesFile', () => {
 			outputPath: path.join(tmpDir, 'output', 'routes.ts'),
 		})
 
-		// Root layout and group layout must have distinct import names
 		expect(output).toContain('import Layout_index from')
 		expect(output).toContain('import Layout_g_marketing from')
 		expect(output).toContain('layout: Layout_index')
 		expect(output).toContain('layout: Layout_g_marketing')
 	})
+})
 
+describe('generateRoutesFile: route groups', () => {
+	it('wraps group with layout in layout wrapper', () => {
+		mkFile('pages/(auth)/layout.tsx', 'export default function AuthLayout() {}')
+		mkFile('pages/(auth)/login/page.tsx', 'export default function Login() {}')
+
+		const tree = scanPages({ pagesDir: path.join(tmpDir, 'pages') })
+		const output = generateRoutesFile(tree, {
+			outputPath: path.join(tmpDir, 'output', 'routes.ts'),
+		})
+
+		expect(output).toContain('layout: Layout_g_auth')
+		expect(output).toContain('path: "/login"')
+	})
+
+	it('merges group without layout into parent', () => {
+		mkFile('pages/(public)/pricing/page.tsx', 'export default function Pricing() {}')
+
+		const tree = scanPages({ pagesDir: path.join(tmpDir, 'pages') })
+		const output = generateRoutesFile(tree, {
+			outputPath: path.join(tmpDir, 'output', 'routes.ts'),
+		})
+
+		expect(output).toContain('path: "/pricing"')
+		expect(output).not.toContain('Layout_index')
+	})
+})
+
+describe('generateRoutesFile: boundary components', () => {
+	it('generates imports and fields for error/loading/not-found', () => {
+		mkFile('pages/page.tsx', 'export default function Home() {}')
+		mkFile('pages/error.tsx', 'export default function Err() {}')
+		mkFile('pages/loading.tsx', 'export default function Loading() {}')
+		mkFile('pages/not-found.tsx', 'export default function NF() {}')
+		const tree = scanPages({ pagesDir: path.join(tmpDir, 'pages') })
+		const output = generateRoutesFile(tree, {
+			outputPath: path.join(tmpDir, 'output', 'routes.ts'),
+		})
+		expect(output).toContain('import Error_index from')
+		expect(output).toContain('import Loading_index from')
+		expect(output).toContain('import NotFound_index from')
+		expect(output).toContain('errorComponent: Error_index')
+		expect(output).toContain('pendingComponent: Loading_index')
+		expect(output).toContain('notFoundComponent: NotFound_index')
+	})
+
+	it('places boundary components on group layout route', () => {
+		mkFile('pages/(auth)/layout.tsx', 'export default function L() {}')
+		mkFile('pages/(auth)/error.tsx', 'export default function E() {}')
+		mkFile('pages/(auth)/login/page.tsx', 'export default function P() {}')
+		const tree = scanPages({ pagesDir: path.join(tmpDir, 'pages') })
+		const output = generateRoutesFile(tree, {
+			outputPath: path.join(tmpDir, 'output', 'routes.ts'),
+		})
+		expect(output).toContain('import Error_g_auth from')
+		expect(output).toContain('errorComponent: Error_g_auth')
+		expect(output).toContain('layout: Layout_g_auth')
+	})
+})
+
+describe('generateRoutesFile: sorting', () => {
 	it('sorts children: static before param before catch-all', () => {
 		mkFile('pages/about/page.tsx', 'export default function About() {}')
 		mkFile('pages/[id]/page.tsx', 'export default function Id() {}')

@@ -74,6 +74,17 @@ function extractHandoffKeys(loaders: Record<string, LoaderDef>): string[] {
 		.map(([key]) => key)
 }
 
+/** Extract boundary component fields for createRoute(), cast to satisfy TanStack generic constraints */
+function boundaryFields(def: SeamRouteDef) {
+	// TanStack Router's createRoute() uses complex generics for these fields;
+	// casting avoids no-unsafe-assignment when spreading into the options object.
+	const fields: Record<string, unknown> = {}
+	if (def.errorComponent) fields.errorComponent = def.errorComponent
+	if (def.pendingComponent) fields.pendingComponent = def.pendingComponent
+	if (def.notFoundComponent) fields.notFoundComponent = def.notFoundComponent
+	return fields
+}
+
 /** Recursively build TanStack Router route tree from SeamJS route definitions */
 function buildRoutes(
 	defs: SeamRouteDef[],
@@ -99,6 +110,7 @@ function buildRoutes(
 				component: createLayoutWrapper(def.layout, hasLoaders, handoffKeys),
 				loader: hasLoaders ? createLoaderFromDefs(loaders, def.path, layoutId) : undefined,
 				staleTime: def.staleTime,
+				...boundaryFields(def),
 			})
 			const children = buildRoutes(def.children, layoutRoute, pages, parentPath)
 			return layoutRoute.addChildren(children)
@@ -154,6 +166,7 @@ function buildRoutes(
 					return dataLoader(ctx)
 				},
 				staleTime: def.staleTime,
+				...boundaryFields(def),
 			})
 		}
 
@@ -173,6 +186,7 @@ function buildRoutes(
 					? createPrerenderLoader(fullPath)
 					: createLoaderFromDefs(def.loaders ?? {}, fullPath),
 			staleTime: def.staleTime,
+			...boundaryFields(def),
 		})
 	})
 }

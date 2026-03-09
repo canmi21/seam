@@ -132,9 +132,27 @@ function collectImports(
 			}
 		}
 
-		// error/loading/not-found: scanner detects these files, but SeamRouteDef
-		// does not yet support errorComponent/pendingComponent/notFoundComponent.
-		// Import generation is skipped until the runtime types are extended.
+		if (node.errorFile) {
+			componentImports.push({
+				name: toImportName('Error', identity),
+				source: toPosixRelative(outputDir, node.errorFile),
+				isDefault: true,
+			})
+		}
+		if (node.loadingFile) {
+			componentImports.push({
+				name: toImportName('Loading', identity),
+				source: toPosixRelative(outputDir, node.loadingFile),
+				isDefault: true,
+			})
+		}
+		if (node.notFoundFile) {
+			componentImports.push({
+				name: toImportName('NotFound', identity),
+				source: toPosixRelative(outputDir, node.notFoundFile),
+				isDefault: true,
+			})
+		}
 
 		collectImports(node.children, url, identity, outputDir, componentImports, dataImports)
 	}
@@ -142,6 +160,16 @@ function collectImports(
 
 function sortChildren(children: RouteNode[]): RouteNode[] {
 	return [...children].sort((a, b) => SEGMENT_ORDER[a.segment.type] - SEGMENT_ORDER[b.segment.type])
+}
+
+function renderBoundaryFields(node: RouteNode, identity: string, indent: string): string[] {
+	const fields: string[] = []
+	if (node.errorFile) fields.push(`${indent}  errorComponent: ${toImportName('Error', identity)}`)
+	if (node.loadingFile)
+		fields.push(`${indent}  pendingComponent: ${toImportName('Loading', identity)}`)
+	if (node.notFoundFile)
+		fields.push(`${indent}  notFoundComponent: ${toImportName('NotFound', identity)}`)
+	return fields
 }
 
 function renderRouteNode(
@@ -166,6 +194,7 @@ function renderRouteNode(
 		fields.push(`${indent}  path: "/"`)
 		fields.push(`${indent}  layout: ${layoutName}`)
 		fields.push(`${indent}  _layoutId: "_layout_g_${node.segment.name}"`)
+		fields.push(...renderBoundaryFields(node, identity, indent))
 
 		if (node.layoutDataFile) {
 			const exports = detectNamedExports(node.layoutDataFile)
@@ -221,6 +250,8 @@ function renderRouteNode(
 			fields.push(`${indent}  ${exp}: ${toImportName('Layout', identity)}_${exp}`)
 		}
 	}
+
+	fields.push(...renderBoundaryFields(node, identity, indent))
 
 	const sorted = sortChildren(node.children)
 	const childrenStr = sorted
