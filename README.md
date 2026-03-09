@@ -16,17 +16,14 @@ The server is a data source with a template engine, not a JavaScript runtime. A 
 
 ## What You Get
 
-**Frontend** — React: client bindings, TanStack Router, filesystem router, i18n, TanStack Query integration, ESLint plugin
-
-**Backend** — Rust (Axum) / TypeScript (Hono, Bun, Node) / Go (Gin, Chi, net/http) — symmetric feature sets, same protocol
-
-**Procedures** — query, command, subscription, stream, upload — with codegen, namespaces, context extraction, invalidation, JTD validation
-
-**Transport** — HTTP RPC, batch RPC, SSE, WebSocket channels, stream SSE, multipart upload
-
-**Rendering** — CTR (compile-time), SSR ([HTML slot injection](docs/protocol/slot-protocol.md)), SSG (static/server/hybrid output modes)
-
-**CLI** — `seam build`, `seam generate`, `seam dev`, `seam pull`, `seam clean` — with virtual modules, `loadBuild()`, structured head metadata, `defineConfig` validation
+| Layer      | Details                                                                                              |
+| ---------- | ---------------------------------------------------------------------------------------------------- |
+| Frontend   | React: client bindings, TanStack Router, filesystem router, i18n, TanStack Query, ESLint plugin      |
+| Backend    | Rust (Axum) / TypeScript (Hono, Bun, Node) / Go (Gin, Chi, net/http) — symmetric APIs, same protocol |
+| Procedures | query, command, subscription, stream, upload — codegen, namespaces, context, invalidation, JTD       |
+| Transport  | HTTP RPC, batch RPC, SSE, WebSocket channels, stream SSE, multipart upload                           |
+| Rendering  | CTR (compile-time), SSR ([HTML slot injection](docs/protocol/slot-protocol.md)), SSG (hybrid modes)  |
+| CLI        | `build`, `generate`, `dev`, `pull`, `clean` — virtual modules, `loadBuild()`, head metadata          |
 
 ## Getting Started
 
