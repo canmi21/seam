@@ -1,3 +1,5 @@
+> **DEPRECATED** — This package has been replaced by [`@canmi/seam-engine`](https://www.npmjs.com/package/@canmi/seam-engine). Please migrate to `@canmi/seam-engine`.
+
 # @canmi/seam-injector
 
 WASM bridge for the Rust HTML template injector, exposing `inject` and `injectNoScript` to Node.js/Bun.

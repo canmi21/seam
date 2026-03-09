@@ -1,3 +1,5 @@
+> **DEPRECATED** — This package is frozen at v0.4.10. The WASM-based [`@canmi/seam-engine`](https://www.npmjs.com/package/@canmi/seam-engine) is the recommended replacement.
+
 # @canmi/seam-injector-native
 
 HTML template injector that replaces `<!--seam:...-->` comment markers with data-driven content.
