@@ -68,7 +68,7 @@ Pure static pages can be built by any UI framework natively. SeamJS provides cro
 
 ## Current Status
 
-**Implemented**: React frontend (client, bindings, router, filesystem router, i18n, linter, query integration). Three backend runtimes (Rust, TypeScript, Go) with symmetric feature sets. Five procedure kinds (query, command, subscription, stream, upload). HTTP RPC, batch RPC, SSE streaming, WebSocket channels, stream SSE, multipart upload. Declarative context extraction, command invalidation, per-procedure transport config. Full CLI (build, generate, dev, pull, clean) with virtual module system and `loadBuild()` API. Locale resolution with URL prefix, cookie, accept-language, and query strategies.
+**Implemented**: React frontend (client, bindings, router, filesystem router, i18n, linter, query integration). Three backend runtimes (Rust, TypeScript, Go) with symmetric feature sets and framework adapters (Axum, Hono, Bun, Node, Gin, Chi). Five procedure kinds (query, command, subscription, stream, upload). HTTP RPC, batch RPC, SSE streaming, WebSocket channels, stream SSE, multipart upload. Declarative context extraction, command invalidation, per-procedure transport config. Full CLI (build, generate, dev, pull, clean) with virtual module system and `loadBuild()` API. Locale resolution with URL prefix, cookie, accept-language, and query strategies.
 
 **Next**: additional UI frameworks (Vue, Svelte), desktop adapters (Tauri/Electron).
 
@@ -95,6 +95,7 @@ See [Roadmap](docs/roadmap.md) for the full list.
 - [GitHub Dashboard](examples/github-dashboard/) — CTR with three backend runtimes (Rust, TypeScript, Go)
 - [i18n Demo](examples/i18n-demo/) — URL-prefix and hidden locale modes
 - [FS Router Demo](examples/fs-router-demo/) — filesystem router with all route types
+- [Feature examples](examples/features/) — focused demos for channels, context, streams, queries, and handoff
 - [Standalone examples](examples/standalone/) — minimal SDK usage for each language
 
 **Community**

@@ -71,7 +71,7 @@ When a channel named `chat` is registered, the framework expands it into Level 0
 Each incoming message `{msg}` becomes a **command** procedure `{channel}.{msg}`:
 
 - Name: `chat.send`
-- Type: `"command"`
+- Kind: `"command"`
 - Input schema: **merge** of channel input + message input (message keys override on conflict)
 - Output schema: message output
 - Error schema: message error (if defined)
@@ -81,7 +81,7 @@ Each incoming message `{msg}` becomes a **command** procedure `{channel}.{msg}`:
 The subscribe handler becomes a **subscription** `{channel}.events`:
 
 - Name: `chat.events`
-- Type: `"subscription"`
+- Kind: `"subscription"`
 - Input schema: channel input
 - Output schema: tagged union (discriminator `"type"`, mapping from event names to `{ payload: <schema> }`)
 
@@ -92,7 +92,7 @@ Given the `chat` channel above, the manifest procedures section includes:
 ```json
 {
 	"chat.send": {
-		"type": "command",
+		"kind": "command",
 		"input": {
 			"properties": {
 				"roomId": { "type": "string" },
@@ -106,7 +106,7 @@ Given the `chat` channel above, the manifest procedures section includes:
 		}
 	},
 	"chat.events": {
-		"type": "subscription",
+		"kind": "subscription",
 		"input": {
 			"properties": {
 				"roomId": { "type": "string" }
@@ -146,7 +146,7 @@ The manifest includes an optional `channels` field with `ChannelMeta` for each c
 
 ```json
 {
-	"version": 1,
+	"version": 2,
 	"procedures": {
 		/* expanded Level 0 procedures */
 	},

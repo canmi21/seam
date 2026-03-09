@@ -32,9 +32,6 @@ func main() {
 	g := gin.Default()
 	g.Any("/_seam/*path", gin.WrapH(r.Handler()))
 
-	// For production graceful shutdown, replace g.Run with
-	// http.Server + srv.Shutdown, or use seam.ListenAndServe.
-	addr := fmt.Sprintf(":%s", port)
 	fmt.Printf("Seam Go+Gin backend running on http://localhost:%s\n", port)
-	log.Fatal(g.Run(addr))
+	log.Fatal(seam.ListenAndServe(fmt.Sprintf(":%s", port), g.Handler()))
 }

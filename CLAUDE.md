@@ -110,16 +110,16 @@
 
 ## Running Tests
 
-| Command                 | Scope                                                            |
-| ----------------------- | ---------------------------------------------------------------- |
-| `just test-rs`          | Rust unit tests (`cargo test --workspace`)                       |
-| `just test-ts`          | TS unit tests (vitest across all packages)                       |
-| `just test-unit`        | All unit tests (Rust + TS)                                       |
-| `just test-integration` | Go integration tests (standalone + fullstack + i18n + workspace) |
-| `just test-e2e`         | Playwright E2E tests                                             |
-| `just test`             | All layers (unit + integration + e2e), fail-fast                 |
-| `just typecheck`        | TypeScript type checking across all TS packages                  |
-| `just verify`           | Full pipeline: fmt + lint + build + all tests                    |
+| Command                 | Scope                                                                                   |
+| ----------------------- | --------------------------------------------------------------------------------------- |
+| `just test-rs`          | Rust unit tests (`cargo test --workspace`)                                              |
+| `just test-ts`          | TS unit tests (vitest across all packages)                                              |
+| `just test-unit`        | All unit tests (Rust + TS)                                                              |
+| `just test-integration` | Go integration tests (standalone + fullstack + i18n + fs-router + features + workspace) |
+| `just test-e2e`         | Playwright E2E tests                                                                    |
+| `just test`             | All layers (unit + integration + e2e), fail-fast                                        |
+| `just typecheck`        | TypeScript type checking across all TS packages                                         |
+| `just verify`           | Full pipeline: fmt + lint + build + all tests                                           |
 
 - Integration and E2E tests require fullstack build output: `cd examples/github-dashboard/seam-app && seam build`
 - `just smoke` runs the full build-and-test pipeline for integration + E2E

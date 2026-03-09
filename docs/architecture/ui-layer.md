@@ -10,11 +10,11 @@ SeamJS extracts HTML skeletons from UI components at build time via `renderToStr
 </tr>
 <tr>
   <td>Core</td>
-  <td colspan="3"><a href="../src/client/vanilla/"><code>@canmi/seam-client</code></a></td>
+  <td colspan="3"><a href="../../src/client/vanilla/"><code>@canmi/seam-client</code></a></td>
 </tr>
 <tr>
   <td>Bindings</td>
-  <td><a href="../src/client/react/"><code>@canmi/seam-react</code></a></td>
+  <td><a href="../../src/client/react/"><code>@canmi/seam-react</code></a></td>
   <td>—</td><td>—</td>
 </tr>
 <tr>
@@ -28,17 +28,17 @@ SeamJS extracts HTML skeletons from UI components at build time via `renderToStr
 </tr>
 <tr>
   <td>i18n</td>
-  <td colspan="3"><a href="../src/i18n/"><code>@canmi/seam-i18n</code></a></td>
+  <td colspan="3"><a href="../../src/i18n/"><code>@canmi/seam-i18n</code></a></td>
 </tr>
 <tr>
   <td>Linter</td>
-  <td><a href="../src/eslint/"><code>@canmi/eslint-plugin-seam</code></a></td>
+  <td><a href="../../src/eslint/"><code>@canmi/eslint-plugin-seam</code></a></td>
   <td>—</td><td>—</td>
 </tr>
 <tr>
   <td>Query</td>
   <td><a href="../../src/query/react/"><code>@canmi/seam-query-react</code></a></td>
-  <td>---</td><td>---</td>
+  <td>—</td><td>—</td>
 </tr>
 </table>
 

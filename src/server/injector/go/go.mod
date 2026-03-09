@@ -1,6 +1,6 @@
 module github.com/canmi21/seam/src/server/injector/go
 
-go 1.24.0
+go 1.25.0
 
 require github.com/tetratelabs/wazero v1.11.0
 
