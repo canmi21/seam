@@ -1,18 +1,20 @@
 # SeamJS
 
-**Rendering is a protocol, not a runtime.**
-
-SeamJS decouples your UI framework, backend language, and transport channel into three independent dimensions — any combination works, and changing one never affects the others.
+**Seam** is a protocol that separates rendering from runtime. **SeamJS** is the framework that implements it — stitching together existing tools (Vite, TanStack Query, TanStack Router) where they already work, and building custom pipelines (skeleton extraction, injection engine, CLI) where they don't.
 
 ## How It Works
 
-Traditional SSR and RSC tie your backend to a JavaScript runtime. SeamJS takes a different approach:
+Traditional SSR calls `renderToString` on every request — your entire component tree is re-evaluated, a virtual DOM is built, and the result is serialized. Even in a pure TypeScript stack, this costs ~100-300ms per page.
 
-1. **Build time** — UI components are rendered to HTML skeletons with typed injection points
-2. **Request time** — the server fills those slots with data via string replacement, in any language
+SeamJS moves that work to build time:
+
+1. **Build time** — `renderToString` runs once. The output is diffed into an HTML skeleton with typed slot markers
+2. **Request time** — the server resolves data loaders, then the engine fills slots via AST-based injection (~1ms)
 3. **Client** — hydrates the known skeleton and takes over
 
-The server is a data source with a template engine, not a JavaScript runtime. A Rust backend works the same as a TypeScript one. A Go backend works the same as both.
+No component tree at request time. No virtual DOM. No `renderToString`. The rendering cost becomes negligible — only your data loaders matter.
+
+This is **compile-time rendering (CTR)**. It works with any backend language because the server never imports UI code — it only performs data injection on a pre-built template. Rust, TypeScript, and Go all share the same engine and the same protocol.
 
 ## What You Get
 
