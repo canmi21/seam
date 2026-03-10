@@ -142,12 +142,17 @@ build-ts: build-ts-p1 build-ts-p2 build-ts-p3
 build-rs:
     cargo build --workspace
 
-# Build CLI binary (release)
+# Build CLI binary (release); install locally unless running in CI
 build-cli:
+    #!/usr/bin/env bash
     cargo build -p seam-cli --release
+    if [[ -z "${CI:-}" ]]; then
+      cargo install --path src/cli/core
+    fi
 
-# Build CLI + install to cargo bin
-build-cli-install: build-cli
+# Build CLI + force install to cargo bin
+build-cli-install:
+    cargo build -p seam-cli --release
     cargo install --path src/cli/core
 
 # Build WASM packages (injector + engine)

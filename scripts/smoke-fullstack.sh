@@ -10,7 +10,7 @@ require_cmd cargo "https://rustup.rs"
 require_cmd bun   "https://bun.sh"
 require_cmd go    "https://go.dev/dl"
 
-just build-cli-install
+just build-cli
 just build-fixtures
 
 run_parallel "test-integration" "just test-integration" "test-e2e" "just test-e2e"

@@ -83,7 +83,7 @@ jobs:
         run: just test-go
 
       - name: Build CLI
-        run: just build-cli-install
+        run: just build-cli
 
       - name: Build fixtures
         run: just build-fixtures
