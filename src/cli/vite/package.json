@@ -19,14 +19,14 @@
   },
   "devDependencies": {
     "@canmi/seam-server": "workspace:*",
-    "@types/node": "^25.3.3",
-    "tsdown": "^0.20.3",
-    "typescript": "^5.9.3",
-    "vite": "^7.0.3",
-    "vitest": "^4.0.18"
+    "@types/node": "25",
+    "tsdown": "0.21",
+    "typescript": "5",
+    "vite": "7",
+    "vitest": "4"
   },
   "peerDependencies": {
-    "vite": ">=5",
+    "vite": "5",
     "@canmi/seam-server": ">=0.5.0"
   },
   "peerDependenciesMeta": {

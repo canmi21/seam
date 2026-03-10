@@ -11,6 +11,6 @@
   "devDependencies": {
     "@canmi/seam": "workspace:*",
     "@canmi/seam-cli": "workspace:*",
-    "@types/node": "^25"
+    "@types/node": "25"
   }
 }

@@ -18,13 +18,13 @@
   },
   "devDependencies": {
     "@canmi/seam-server": "workspace:*",
-    "hono": "^4.12.3",
-    "tsdown": "^0.20.3",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "hono": "4",
+    "tsdown": "0.21",
+    "typescript": "5",
+    "vitest": "4"
   },
   "peerDependencies": {
     "@canmi/seam-server": "workspace:*",
-    "hono": "^4.0.0"
+    "hono": "4"
   }
 }

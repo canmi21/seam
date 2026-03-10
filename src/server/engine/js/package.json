@@ -18,9 +18,9 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@types/node": "^25.3.3",
-    "tsdown": "^0.20.3",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "@types/node": "25",
+    "tsdown": "0.21",
+    "typescript": "5",
+    "vitest": "4"
   }
 }

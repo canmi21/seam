@@ -18,12 +18,12 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "eslint": "^10.0.2",
-    "tsdown": "^0.20.3",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "eslint": "10",
+    "tsdown": "0.21",
+    "typescript": "5",
+    "vitest": "4"
   },
   "peerDependencies": {
-    "eslint": ">=9"
+    "eslint": "9"
   }
 }

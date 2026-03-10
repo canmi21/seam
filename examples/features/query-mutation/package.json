@@ -15,18 +15,18 @@
     "@canmi/seam-router": "workspace:*",
     "@canmi/seam-server": "workspace:*",
     "@canmi/seam-tanstack-router": "workspace:*",
-    "@tanstack/react-query": "^5.80.0",
-    "@tanstack/react-router": "^1.163.3",
-    "hono": "^4.12.3",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "@tanstack/react-query": "5",
+    "@tanstack/react-router": "1",
+    "hono": "4",
+    "react": "19",
+    "react-dom": "19"
   },
   "devDependencies": {
     "@canmi/seam": "workspace:*",
     "@canmi/seam-cli": "workspace:*",
-    "@types/bun": "^1.2.12",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "typescript": "^5.9.3"
+    "@types/bun": "1",
+    "@types/react": "19",
+    "@types/react-dom": "19",
+    "typescript": "5"
   }
 }

@@ -5,6 +5,6 @@
   "type": "module",
   "dependencies": {
     "@canmi/seam-client": "workspace:*",
-    "eventsource": "^4.1.0"
+    "eventsource": "4"
   }
 }

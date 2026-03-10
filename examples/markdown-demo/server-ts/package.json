@@ -6,10 +6,10 @@
   "dependencies": {
     "@canmi/seam-adapter-bun": "workspace:*",
     "@canmi/seam-server": "workspace:*",
-    "marked": "^15"
+    "marked": "17"
   },
   "devDependencies": {
     "@canmi/seam": "workspace:*",
-    "@types/node": "^25"
+    "@types/node": "25"
   }
 }

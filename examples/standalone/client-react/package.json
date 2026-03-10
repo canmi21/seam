@@ -5,17 +5,17 @@
   "type": "module",
   "dependencies": {
     "@canmi/seam-react": "workspace:*",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react": "19",
+    "react-dom": "19"
   },
   "devDependencies": {
     "@canmi/seam": "workspace:*",
     "@canmi/seam-cli": "workspace:*",
     "@canmi/seam-vite": "workspace:*",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.4",
-    "typescript": "^5.9.3",
-    "vite": "^7.3.1"
+    "@types/react": "19",
+    "@types/react-dom": "19",
+    "@vitejs/plugin-react": "5",
+    "typescript": "5",
+    "vite": "7"
   }
 }

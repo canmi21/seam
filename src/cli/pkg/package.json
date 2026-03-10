@@ -16,12 +16,12 @@
   },
   "dependencies": {
     "@canmi/seam-vite": "0.5.32",
-    "@vitejs/plugin-react": "^5.1.4",
-    "vite": "^7.0.3"
+    "@vitejs/plugin-react": "5",
+    "vite": "7"
   },
   "devDependencies": {
-    "@types/node": "^25.3.3",
-    "vitest": "^4.0.18"
+    "@types/node": "25",
+    "vitest": "4"
   },
   "optionalDependencies": {
     "@canmi/seam-cli-darwin-arm64": "0.5.32",

@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/canmi21/seam/src/server/core/go v0.0.0
-	github.com/yuin/goldmark v1.7.12
+	github.com/yuin/goldmark v1.7.16
 )
 
 require (

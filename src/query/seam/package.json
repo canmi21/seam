@@ -17,11 +17,11 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@tanstack/query-core": "^5.80.0"
+    "@tanstack/query-core": "5"
   },
   "devDependencies": {
-    "tsdown": "^0.20.3",
-    "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "tsdown": "0.21",
+    "typescript": "5",
+    "vitest": "4"
   }
 }
