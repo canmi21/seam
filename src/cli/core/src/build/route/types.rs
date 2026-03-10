@@ -85,9 +85,17 @@ pub(super) struct RenderedVariant {
 	pub(super) html: String,
 }
 
+// -- Manifest metadata for freshness checks --
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct ManifestMeta {
+	pub(crate) seam_version: String,
+	pub(crate) config_hash: String,
+}
+
 // -- Route manifest output --
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub(super) struct LayoutManifestEntry {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub(super) template: Option<String>,
@@ -103,18 +111,21 @@ pub(super) struct LayoutManifestEntry {
 	pub(super) projections: Option<BTreeMap<String, Vec<String>>>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub(crate) struct RouteManifest {
-	#[serde(skip_serializing_if = "BTreeMap::is_empty")]
+	#[serde(skip_serializing_if = "Option::is_none", default)]
+	pub(crate) _meta: Option<ManifestMeta>,
+	#[serde(skip_serializing_if = "BTreeMap::is_empty", default)]
 	pub(super) layouts: BTreeMap<String, LayoutManifestEntry>,
+	#[serde(default)]
 	pub(super) routes: BTreeMap<String, RouteManifestEntry>,
-	#[serde(skip_serializing_if = "Option::is_none")]
+	#[serde(skip_serializing_if = "Option::is_none", default)]
 	pub(super) data_id: Option<String>,
-	#[serde(skip_serializing_if = "Option::is_none")]
+	#[serde(skip_serializing_if = "Option::is_none", default)]
 	pub(super) i18n: Option<I18nManifest>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub(super) struct I18nManifest {
 	pub(super) locales: Vec<String>,
 	pub(super) default: String,
@@ -128,7 +139,7 @@ pub(super) struct I18nManifest {
 }
 
 /// Per-route asset references for page-level resource splitting.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct RouteAssets {
 	/// Page-specific CSS files
 	pub(crate) styles: Vec<String>,
@@ -140,7 +151,7 @@ pub(crate) struct RouteAssets {
 	pub(crate) prefetch: Vec<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub(super) struct RouteManifestEntry {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub(super) template: Option<String>,
@@ -161,4 +172,11 @@ pub(super) struct RouteManifestEntry {
 	pub(super) projections: Option<BTreeMap<String, Vec<String>>>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub(super) prerender: Option<bool>,
+}
+
+pub(crate) fn build_manifest_meta(config: &super::super::config::BuildConfig) -> ManifestMeta {
+	ManifestMeta {
+		seam_version: env!("CARGO_PKG_VERSION").to_string(),
+		config_hash: config.config_hash(),
+	}
 }

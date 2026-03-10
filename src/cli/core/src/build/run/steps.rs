@@ -9,9 +9,10 @@ use anyhow::{Context, Result};
 
 use super::super::config::BuildConfig;
 use super::super::route::{
-	BundleContext, ProcedureRefGraph, RenderContext, RouteManifest, SkeletonOutput,
-	apply_output_mode, export_i18n, inject_route_procedures, inject_route_projections,
-	process_routes, read_i18n_messages, report_narrowing_savings, run_skeleton_renderer,
+	BundleContext, ManifestMeta, ProcedureRefGraph, RenderContext, RouteManifest, SkeletonOutput,
+	apply_output_mode, build_manifest_meta, export_i18n, inject_route_procedures,
+	inject_route_projections, process_routes, read_i18n_messages, report_narrowing_savings,
+	run_skeleton_renderer,
 };
 use super::super::types::{AssetFiles, read_bundle_manifest};
 use super::helpers::print_cache_stats;
@@ -76,8 +77,13 @@ pub(crate) fn bundle_frontend(
 	read_bundle_manifest(&base_dir.join(build_config.bundler_manifest()))
 }
 
-/// Write route-manifest.json to the output directory.
-pub(crate) fn write_route_manifest(out_dir: &Path, route_manifest: &RouteManifest) -> Result<()> {
+/// Write route-manifest.json to the output directory, optionally embedding `_meta`.
+pub(crate) fn write_route_manifest(
+	out_dir: &Path,
+	route_manifest: &mut RouteManifest,
+	meta: Option<ManifestMeta>,
+) -> Result<()> {
+	route_manifest._meta = meta;
 	let path = out_dir.join("route-manifest.json");
 	let json = serde_json::to_string_pretty(route_manifest)?;
 	std::fs::write(&path, &json).with_context(|| format!("failed to write {}", path.display()))?;
@@ -129,7 +135,8 @@ pub(crate) fn execute_route_steps(
 	report_narrowing_savings(&route_manifest);
 
 	if input.build_config.i18n.is_none() {
-		write_route_manifest(input.out_dir, &route_manifest)?;
+		let meta = Some(build_manifest_meta(input.build_config));
+		write_route_manifest(input.out_dir, &mut route_manifest, meta)?;
 	}
 
 	let route_count = input.skeleton.routes.len();
@@ -145,7 +152,8 @@ pub(crate) fn execute_route_steps(
 		let i18n_messages = read_i18n_messages(input.base_dir, cfg)?;
 		let t = tracker.begin();
 		export_i18n(input.out_dir, &i18n_messages, &mut route_manifest, cfg)?;
-		write_route_manifest(input.out_dir, &route_manifest)?;
+		let meta = Some(build_manifest_meta(input.build_config));
+		write_route_manifest(input.out_dir, &mut route_manifest, meta)?;
 		tracker.end(t);
 	}
 

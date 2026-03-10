@@ -30,4 +30,6 @@ pub(crate) use ref_graph::{
 	ProcedureRefGraph, build_reference_graph, generate_route_procedures_ts, inject_route_procedures,
 	validate_handoff_consistency, validate_procedure_references, warn_unused_queries,
 };
-pub(crate) use types::{CacheStats, RouteManifest, SkeletonOutput};
+pub(crate) use types::{
+	CacheStats, ManifestMeta, RouteManifest, SkeletonOutput, build_manifest_meta,
+};

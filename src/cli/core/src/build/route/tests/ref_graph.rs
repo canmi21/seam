@@ -152,6 +152,7 @@ fn ref_graph_route_procedures_dedup() {
 	assert_eq!(graph.route_deps["/"].len(), 2);
 
 	let mut route_manifest = RouteManifest {
+		_meta: None,
 		layouts: BTreeMap::new(),
 		routes: BTreeMap::from([(
 			"/".to_string(),

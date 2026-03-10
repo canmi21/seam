@@ -9,6 +9,7 @@ use crate::config::OutputMode;
 
 fn make_route_manifest(routes: Vec<(&str, Option<bool>)>) -> RouteManifest {
 	RouteManifest {
+		_meta: None,
 		layouts: BTreeMap::new(),
 		routes: routes
 			.into_iter()

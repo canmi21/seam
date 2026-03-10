@@ -1,5 +1,6 @@
 /* src/cli/core/src/build/config.rs */
 
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 use anyhow::{Result, bail};
@@ -135,6 +136,32 @@ impl BuildConfig {
 		}
 		bc.rpc_salt = None;
 		Ok(bc)
+	}
+
+	/// Stable hash of config fields that affect build output.
+	/// Excludes volatile fields (rpc_salt, config_path, out_dir, tool commands).
+	pub fn config_hash(&self) -> String {
+		let mut h = std::hash::DefaultHasher::new();
+		self.entry.hash(&mut h);
+		self.routes.hash(&mut h);
+		format!("{:?}", self.output).hash(&mut h);
+		self.renderer.hash(&mut h);
+		self.obfuscate.hash(&mut h);
+		self.sourcemap.hash(&mut h);
+		self.type_hint.hash(&mut h);
+		self.hash_length.hash(&mut h);
+		self.root_id.hash(&mut h);
+		self.data_id.hash(&mut h);
+		self.pages_dir.hash(&mut h);
+		self.is_fullstack.hash(&mut h);
+		if let Some(ref i18n) = self.i18n {
+			i18n.locales.hash(&mut h);
+			i18n.default.hash(&mut h);
+			i18n.messages_dir.hash(&mut h);
+			i18n.mode.as_str().hash(&mut h);
+			i18n.cache.hash(&mut h);
+		}
+		format!("{:016x}", h.finish())
 	}
 }
 
@@ -448,5 +475,67 @@ channel = { prefer = "ws", fallback = ["http"] }
 		let config = parse_fullstack("", "");
 		let bc = BuildConfig::from_seam_config(&config).unwrap();
 		assert_eq!(bc.dist_dir(), ".seam/dist");
+	}
+
+	#[test]
+	fn config_hash_deterministic() {
+		let config = parse_fullstack("", "");
+		let bc = BuildConfig::from_seam_config(&config).unwrap();
+		let h1 = bc.config_hash();
+		let h2 = bc.config_hash();
+		assert_eq!(h1, h2);
+		assert_eq!(h1.len(), 16, "hash should be 16 hex chars");
+	}
+
+	#[test]
+	fn config_hash_changes_with_entry() {
+		let c1 = parse_fullstack("", "");
+		let c2 = parse_config(
+			r#"
+[project]
+name = "test"
+
+[frontend]
+entry = "src/client/other.tsx"
+
+[build]
+routes = "./src/routes.ts"
+out_dir = ".seam/output"
+backend_build_command = "bun build"
+router_file = "src/server/router.ts"
+"#,
+		);
+		let h1 = BuildConfig::from_seam_config(&c1).unwrap().config_hash();
+		let h2 = BuildConfig::from_seam_config(&c2).unwrap().config_hash();
+		assert_ne!(h1, h2);
+	}
+
+	#[test]
+	fn config_hash_changes_with_obfuscate() {
+		let c1 = parse_fullstack("obfuscate = true", "");
+		let c2 = parse_fullstack("obfuscate = false", "");
+		let h1 = BuildConfig::from_seam_config(&c1).unwrap().config_hash();
+		let h2 = BuildConfig::from_seam_config(&c2).unwrap().config_hash();
+		assert_ne!(h1, h2);
+	}
+
+	#[test]
+	fn config_hash_ignores_rpc_salt() {
+		let config = parse_fullstack("", "");
+		let mut bc1 = BuildConfig::from_seam_config(&config).unwrap();
+		let mut bc2 = BuildConfig::from_seam_config(&config).unwrap();
+		bc1.rpc_salt = Some("salt-a".to_string());
+		bc2.rpc_salt = Some("salt-b".to_string());
+		assert_eq!(bc1.config_hash(), bc2.config_hash());
+	}
+
+	#[test]
+	fn config_hash_ignores_config_path() {
+		let config = parse_fullstack("", "");
+		let mut bc1 = BuildConfig::from_seam_config(&config).unwrap();
+		let mut bc2 = BuildConfig::from_seam_config(&config).unwrap();
+		bc1.config_path = Some("/a/seam.config.ts".to_string());
+		bc2.config_path = Some("/b/seam.config.ts".to_string());
+		assert_eq!(bc1.config_hash(), bc2.config_hash());
 	}
 }

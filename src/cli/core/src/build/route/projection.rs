@@ -176,6 +176,7 @@ mod tests {
 		std::fs::write(&tmpl_file, template_content).unwrap();
 
 		let manifest = RouteManifest {
+			_meta: None,
 			layouts: BTreeMap::new(),
 			routes: BTreeMap::from([(
 				"/test".to_string(),
@@ -265,6 +266,7 @@ mod tests {
 
 		use super::super::types::LayoutManifestEntry;
 		let mut manifest = RouteManifest {
+			_meta: None,
 			layouts: BTreeMap::from([(
 				"root".to_string(),
 				LayoutManifestEntry {

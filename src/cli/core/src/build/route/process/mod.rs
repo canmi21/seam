@@ -67,6 +67,7 @@ pub(crate) fn process_routes(
 		content_hashes: BTreeMap::new(),
 	});
 	let mut manifest = RouteManifest {
+		_meta: None,
 		layouts: BTreeMap::new(),
 		routes: BTreeMap::new(),
 		data_id: manifest_data_id,

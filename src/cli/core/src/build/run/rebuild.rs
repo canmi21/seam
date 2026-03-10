@@ -109,10 +109,8 @@ pub fn run_incremental_rebuild(
 		export_i18n(&out_dir, msgs, &mut route_manifest, cfg)?;
 	}
 
-	let route_manifest_path = out_dir.join("route-manifest.json");
-	let route_manifest_json = serde_json::to_string_pretty(&route_manifest)?;
-	std::fs::write(&route_manifest_path, &route_manifest_json)
-		.with_context(|| format!("failed to write {}", route_manifest_path.display()))?;
+	let meta = Some(super::super::route::build_manifest_meta(build_config));
+	steps::write_route_manifest(&out_dir, &mut route_manifest, meta)?;
 
 	if !is_vite {
 		package_static_assets(base_dir, &out_dir, build_config.dist_dir())?;

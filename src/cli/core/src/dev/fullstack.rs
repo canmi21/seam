@@ -17,6 +17,32 @@ use super::network::wait_for_port;
 use super::process::{ChildProcess, label_color, pipe_output, spawn_binary, spawn_child, wait_any};
 use super::ui::print_fullstack_banner;
 
+/// Partial struct for lightweight `_meta` extraction without full deserialization.
+#[derive(serde::Deserialize)]
+struct ManifestMetaOnly {
+	_meta: Option<crate::build::route::ManifestMeta>,
+}
+
+/// Returns `None` if the manifest is fresh, or `Some(reason)` explaining why a rebuild is needed.
+fn manifest_stale_reason(json: &str, build_config: &BuildConfig) -> Option<String> {
+	let wrapper: ManifestMetaOnly = match serde_json::from_str(json) {
+		Ok(w) => w,
+		Err(_) => return Some("manifest parse failed".to_string()),
+	};
+	let Some(meta) = wrapper._meta else {
+		return Some("legacy manifest without _meta".to_string());
+	};
+	let current_version = env!("CARGO_PKG_VERSION");
+	if meta.seam_version != current_version {
+		return Some(format!("seam version changed ({} -> {current_version})", meta.seam_version));
+	}
+	let current_hash = build_config.config_hash();
+	if meta.config_hash != current_hash {
+		return Some("config changed since last build".to_string());
+	}
+	None
+}
+
 fn setup_watcher(
 	server_dir: std::path::PathBuf,
 ) -> Result<(RecommendedWatcher, tokio::sync::mpsc::Receiver<RebuildMode>)> {
@@ -181,14 +207,24 @@ pub(super) async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> R
 		build_config.rpc_salt = Some(seam_codegen::generate_random_salt());
 	}
 
-	// Skip build if route-manifest.json already exists
+	// Skip build only if route-manifest.json exists and matches current version + config
 	let route_manifest_path = out_dir.join("route-manifest.json");
-	if route_manifest_path.exists() {
-		println!("  {}route-manifest.json found, skipping initial build{}", col(DIM), col(RESET));
-		println!("  {}(delete {} to force rebuild){}", col(DIM), out_dir.display(), col(RESET));
+	let should_rebuild = match std::fs::read_to_string(&route_manifest_path) {
+		Ok(json) => {
+			let reason = manifest_stale_reason(&json, &build_config);
+			if let Some(r) = &reason {
+				println!("  {}rebuilding: {r}{}", col(DIM), col(RESET));
+			}
+			reason.is_some()
+		}
+		Err(_) => true,
+	};
+	if should_rebuild {
+		crate::build::run::run_dev_build(config, &build_config, base_dir)?;
 		println!();
 	} else {
-		crate::build::run::run_dev_build(config, &build_config, base_dir)?;
+		println!("  {}route-manifest.json up to date, skipping initial build{}", col(DIM), col(RESET));
+		println!("  {}(delete {} to force rebuild){}", col(DIM), out_dir.display(), col(RESET));
 		println!();
 	}
 
@@ -272,4 +308,76 @@ pub(super) async fn run_dev_fullstack(config: &SeamConfig, base_dir: &Path) -> R
 	}
 
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn test_build_config() -> BuildConfig {
+		BuildConfig {
+			output: crate::config::OutputMode::Hybrid,
+			entry: "src/main.tsx".to_string(),
+			routes: "./src/routes.ts".to_string(),
+			out_dir: ".seam/dev-output".to_string(),
+			renderer: "react".to_string(),
+			backend_build_command: None,
+			router_file: None,
+			manifest_command: None,
+			typecheck_command: None,
+			is_fullstack: false,
+			obfuscate: false,
+			sourcemap: true,
+			type_hint: true,
+			hash_length: 12,
+			rpc_salt: None,
+			root_id: "__SEAM_ROOT__".to_string(),
+			data_id: "__data".to_string(),
+			pages_dir: None,
+			i18n: None,
+			config_path: None,
+		}
+	}
+
+	fn make_manifest_json(version: &str, hash: &str) -> String {
+		format!(r#"{{"_meta":{{"seam_version":"{version}","config_hash":"{hash}"}},"routes":{{}}}}"#)
+	}
+
+	#[test]
+	fn fresh_manifest_matching_meta() {
+		let bc = test_build_config();
+		let json = make_manifest_json(env!("CARGO_PKG_VERSION"), &bc.config_hash());
+		assert!(manifest_stale_reason(&json, &bc).is_none());
+	}
+
+	#[test]
+	fn stale_manifest_wrong_version() {
+		let bc = test_build_config();
+		let json = make_manifest_json("0.0.0", &bc.config_hash());
+		let reason = manifest_stale_reason(&json, &bc).unwrap();
+		assert!(reason.contains("version changed"));
+	}
+
+	#[test]
+	fn stale_manifest_wrong_config() {
+		let bc = test_build_config();
+		let json = make_manifest_json(env!("CARGO_PKG_VERSION"), "0000000000000000");
+		let reason = manifest_stale_reason(&json, &bc).unwrap();
+		assert!(reason.contains("config changed"));
+	}
+
+	#[test]
+	fn stale_manifest_no_meta() {
+		let bc = test_build_config();
+		let json = r#"{"routes":{}}"#;
+		let reason = manifest_stale_reason(json, &bc).unwrap();
+		assert!(reason.contains("legacy"));
+	}
+
+	#[test]
+	fn stale_manifest_invalid_json() {
+		let bc = test_build_config();
+		let json = "not valid json {{{";
+		assert!(manifest_stale_reason(json, &bc).is_some());
+	}
 }

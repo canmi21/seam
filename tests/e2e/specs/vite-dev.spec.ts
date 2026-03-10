@@ -3,7 +3,6 @@
 
 import { test, expect } from '@playwright/test'
 import { spawn, type ChildProcess } from 'node:child_process'
-import fs from 'node:fs'
 import { createConnection } from 'node:net'
 import path from 'node:path'
 
@@ -50,11 +49,6 @@ test.beforeAll(async () => {
 	// Fail fast if ports are occupied — otherwise seam dev silently picks
 	// a different port and the test connects to the stale process.
 	await Promise.all([assertPortFree(3000), assertPortFree(5173)])
-
-	// Force dev build by removing production route-manifest.json.
-	// Without this, seam dev skips initial build and serves stale production templates.
-	const manifest = path.join(appDir, '.seam/dev-output/route-manifest.json')
-	if (fs.existsSync(manifest)) fs.unlinkSync(manifest)
 
 	devProc = spawn(seamBin, ['dev'], {
 		cwd: appDir,

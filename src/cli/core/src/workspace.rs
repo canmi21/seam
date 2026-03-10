@@ -221,11 +221,8 @@ fn build_reference_member(
 	)?;
 	inject_route_procedures(&mut route_manifest, &ref_graph);
 
-	let route_manifest_path = shared_out_dir.join("route-manifest.json");
-	let route_manifest_json = serde_json::to_string_pretty(&route_manifest)?;
-	std::fs::write(&route_manifest_path, &route_manifest_json)
-		.with_context(|| format!("failed to write {}", route_manifest_path.display()))?;
-	ui::detail_ok("route-manifest.json");
+	let meta = Some(crate::build::route::build_manifest_meta(&first.build_config));
+	steps::write_route_manifest(shared_out_dir, &mut route_manifest, meta)?;
 
 	// [1.7] Package output
 	let first_member_out = shared_out_dir.join(&first.name);
