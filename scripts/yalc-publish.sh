@@ -37,7 +37,10 @@ printf '==> build local CLI wrapper (%s -> %s)\n' "$HOST_CLI_TARGET" "$HOST_CLI_
 bash "$ROOT/scripts/build-cli.sh" --target "$HOST_CLI_TARGET"
 
 PACKAGES=(
-  "$HOST_CLI_WRAPPER"
+  src/cli/wrapper/darwin-arm64
+  src/cli/wrapper/darwin-x64
+  src/cli/wrapper/linux-arm64
+  src/cli/wrapper/linux-x64
   src/cli/seam
   src/server/engine/js
   src/client/vanilla

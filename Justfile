@@ -137,7 +137,7 @@ build-ts-p3:
 
 # Build all TS packages (3-phase dependency order), then push to yalc locally if available
 build-ts: build-ts-p1 build-ts-p2 build-ts-p3
-    @if [[ -z "${CI:-}" ]] && command -v yalc >/dev/null 2>&1; then bash scripts/yalc-publish.sh --push; fi
+    @if [[ -z "${CI:-}" ]] && command -v yalc >/dev/null 2>&1; then bash scripts/build-cli.sh && bash scripts/yalc-publish.sh --push; fi
 
 # Build Rust workspace
 build-rs:
