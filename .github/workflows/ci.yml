@@ -28,6 +28,18 @@ jobs:
           version: v2.10
           args: --help
 
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '6.2'
+
+      - name: Install swiftlint
+        run: |
+          SWIFTLINT_VERSION=0.58.2
+          curl -fsSL "https://github.com/realm/SwiftLint/releases/download/${SWIFTLINT_VERSION}/swiftlint_linux.zip" -o swiftlint.zip
+          unzip -q swiftlint.zip swiftlint
+          sudo mv swiftlint /usr/local/bin/
+          rm swiftlint.zip
+
       - uses: extractions/setup-just@v3
 
       - name: Install chore-cli
@@ -36,7 +48,7 @@ jobs:
       - name: Format check
         run: just fmt-check
 
-      - name: Lint (oxlint + Go + deps + links)
+      - name: Lint (oxlint + Go + deps + links + Swift)
         run: just lint-check
 
   build:
@@ -55,6 +67,10 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: stable
+
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: '6.2'
 
       - uses: extractions/setup-just@v3
 
@@ -81,6 +97,9 @@ jobs:
 
       - name: Go unit tests
         run: just test-go
+
+      - name: Swift unit tests
+        run: just test-swift
 
       - name: Build CLI
         run: just build-cli-install

@@ -124,7 +124,7 @@ lint-links:
     bash scripts/ci/check-links.sh
 
 # Aggregate lint for CI check job (no build artifacts needed; excludes eslint and clippy)
-lint-check: lint-ox lint-go lint-deps lint-links
+lint-check: lint-ox lint-go lint-deps lint-links lint-swift
 
 # Aggregate lint for CI build job (requires TS build artifacts)
 lint-eslint:
