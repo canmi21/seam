@@ -1670,7 +1670,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "seam-cli"
-version = "0.5.31"
+version = "0.5.32"
 dependencies = [
  "anyhow",
  "axum",
@@ -1691,7 +1691,7 @@ dependencies = [
 
 [[package]]
 name = "seam-codegen"
-version = "0.5.31"
+version = "0.5.32"
 dependencies = [
  "anyhow",
  "hex",
@@ -1703,7 +1703,7 @@ dependencies = [
 
 [[package]]
 name = "seam-engine"
-version = "0.5.31"
+version = "0.5.32"
 dependencies = [
  "seam-injector",
  "serde",
@@ -1712,7 +1712,7 @@ dependencies = [
 
 [[package]]
 name = "seam-engine-wasm"
-version = "0.5.31"
+version = "0.5.32"
 dependencies = [
  "seam-engine",
  "seam-injector",
@@ -1722,14 +1722,14 @@ dependencies = [
 
 [[package]]
 name = "seam-injector"
-version = "0.5.31"
+version = "0.5.32"
 dependencies = [
  "serde_json",
 ]
 
 [[package]]
 name = "seam-injector-wasm"
-version = "0.5.31"
+version = "0.5.32"
 dependencies = [
  "seam-injector",
  "serde_json",
@@ -1738,7 +1738,7 @@ dependencies = [
 
 [[package]]
 name = "seam-macros"
-version = "0.5.31"
+version = "0.5.32"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1752,7 +1752,7 @@ dependencies = [
 
 [[package]]
 name = "seam-server"
-version = "0.5.31"
+version = "0.5.32"
 dependencies = [
  "bytes",
  "futures-core",
@@ -1765,7 +1765,7 @@ dependencies = [
 
 [[package]]
 name = "seam-server-axum"
-version = "0.5.31"
+version = "0.5.32"
 dependencies = [
  "axum",
  "futures-core",
@@ -1785,7 +1785,7 @@ dependencies = [
 
 [[package]]
 name = "seam-skeleton"
-version = "0.5.31"
+version = "0.5.32"
 dependencies = [
  "anyhow",
  "regex",

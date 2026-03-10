@@ -23,8 +23,14 @@ const router = buildRouter(build)
 
 const app = new Hono()
 
-// Seam middleware: handles /_seam/* (RPC, manifest, static, pages, dev reload)
-app.use('/*', seam(router, { staticDir: resolve(BUILD_DIR, 'public') }))
+// Seam middleware: handles /_seam/* (RPC, manifest, static, pages, public files, dev reload)
+app.use(
+	'/*',
+	seam(router, {
+		staticDir: resolve(BUILD_DIR, 'public'),
+		publicDir: build.publicDir,
+	}),
+)
 
 // Root-path page serving -- inject timing into data script's _meta
 app.get('*', async (c) => {
