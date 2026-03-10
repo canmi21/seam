@@ -274,6 +274,7 @@ type Router struct {
 	pages          []PageDef
 	rpcHashMap     *RpcHashMap
 	i18nConfig     *I18nConfig
+	publicDir      string
 	strategies     []ResolveStrategy
 	contextConfigs map[string]ContextConfig
 	validationMode ValidationMode
@@ -364,6 +365,9 @@ func (r *Router) Build(b BuildOutput) *Router {
 	if b.I18nConfig != nil {
 		r.i18nConfig = b.I18nConfig
 	}
+	if b.PublicDir != "" {
+		r.publicDir = b.PublicDir
+	}
 	return r
 }
 
@@ -417,5 +421,5 @@ func (r *Router) Handler(opts ...HandlerOptions) http.Handler {
 			o.PongTimeout = defaultHandlerOptions.PongTimeout
 		}
 	}
-	return buildHandler(r.procedures, r.subscriptions, r.streams, r.uploads, r.channels, r.pages, r.rpcHashMap, r.i18nConfig, r.strategies, r.contextConfigs, o, r.validationMode)
+	return buildHandler(r.procedures, r.subscriptions, r.streams, r.uploads, r.channels, r.pages, r.rpcHashMap, r.i18nConfig, r.publicDir, r.strategies, r.contextConfigs, o, r.validationMode)
 }

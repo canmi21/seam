@@ -35,7 +35,7 @@ type appState struct {
 	prerenderPages        map[string]*PageDef // route -> page (prerender only)
 }
 
-func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, streams []StreamDef, uploads []UploadDef, channels []ChannelDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, strategies []ResolveStrategy, contextConfigs map[string]ContextConfig, opts HandlerOptions, validationMode ValidationMode) http.Handler {
+func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, streams []StreamDef, uploads []UploadDef, channels []ChannelDef, pages []PageDef, rpcHashMap *RpcHashMap, i18nConfig *I18nConfig, publicDir string, strategies []ResolveStrategy, contextConfigs map[string]ContextConfig, opts HandlerOptions, validationMode ValidationMode) http.Handler {
 	state := &appState{
 		handlers:       make(map[string]*ProcedureDef),
 		subs:           make(map[string]*SubscriptionDef),
@@ -164,7 +164,32 @@ func buildHandler(procedures []ProcedureDef, subscriptions []SubscriptionDef, st
 		}
 	}
 
+	if publicDir != "" {
+		return &publicFileHandler{mux: mux, dir: publicDir}
+	}
 	return mux
+}
+
+// publicFileHandler wraps a mux and serves static public files for
+// non-/_seam/ GET requests before falling through to the mux.
+type publicFileHandler struct {
+	mux http.Handler
+	dir string
+}
+
+func (h *publicFileHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !strings.HasPrefix(r.URL.Path, "/_seam/") && r.Method == http.MethodGet {
+		clean := filepath.Clean(r.URL.Path)
+		if !strings.Contains(clean, "..") {
+			full := filepath.Join(h.dir, clean)
+			if info, err := os.Stat(full); err == nil && !info.IsDir() {
+				w.Header().Set("Cache-Control", "public, max-age=3600")
+				http.ServeFile(w, r, full)
+				return
+			}
+		}
+	}
+	h.mux.ServeHTTP(w, r)
 }
 
 // seamRouteToGoPattern converts ":param" style to "{param}" style.

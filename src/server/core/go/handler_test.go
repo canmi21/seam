@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -27,7 +29,7 @@ func slowHandler(d time.Duration) HandlerFunc {
 func TestRPCTimeout(t *testing.T) {
 	handler := buildHandler(
 		[]ProcedureDef{{Name: "slow", Handler: slowHandler(100 * time.Millisecond)}},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, nil,
 		HandlerOptions{RPCTimeout: 10 * time.Millisecond}, ValidationModeNever,
 	)
 
@@ -49,7 +51,7 @@ func TestRPCTimeout(t *testing.T) {
 func TestRPCZeroTimeout(t *testing.T) {
 	handler := buildHandler(
 		[]ProcedureDef{{Name: "slow", Handler: slowHandler(50 * time.Millisecond)}},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, nil,
 		HandlerOptions{RPCTimeout: 0}, ValidationModeNever,
 	)
 
@@ -75,7 +77,7 @@ func TestPageTimeout(t *testing.T) {
 				InputFn:   func(params map[string]string) any { return map[string]string{} },
 			}},
 		}},
-		nil, nil, nil, nil,
+		nil, nil, "", nil, nil,
 		HandlerOptions{PageTimeout: 10 * time.Millisecond}, ValidationModeNever,
 	)
 
@@ -106,7 +108,7 @@ func TestSSEIdleTimeout(t *testing.T) {
 	handler := buildHandler(
 		nil,
 		[]SubscriptionDef{{Name: "idle-test", Handler: subHandler}},
-		nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, "", nil, nil,
 		HandlerOptions{SSEIdleTimeout: 50 * time.Millisecond, HeartbeatInterval: 200 * time.Millisecond}, ValidationModeNever,
 	)
 
@@ -138,7 +140,7 @@ func validationHandler() http.Handler {
 			InputSchema: map[string]any{"properties": map[string]any{"name": map[string]any{"type": "string"}}},
 			Handler:     echoHandler(),
 		}},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, nil,
 		HandlerOptions{RPCTimeout: 30 * time.Second}, ValidationModeAlways,
 	)
 }
@@ -196,7 +198,7 @@ func TestValidationBatchOneInvalid(t *testing.T) {
 			InputSchema: map[string]any{"properties": map[string]any{"name": map[string]any{"type": "string"}}},
 			Handler:     echoHandler(),
 		}},
-		nil, nil, nil, nil, nil, hashMap, nil, nil, nil,
+		nil, nil, nil, nil, nil, hashMap, nil, "", nil, nil,
 		HandlerOptions{RPCTimeout: 30 * time.Second}, ValidationModeAlways,
 	)
 	body := `{"calls":[{"procedure":"greet","input":{"name":42}},{"procedure":"greet","input":{"name":"OK"}}]}`
@@ -237,7 +239,7 @@ func TestValidationNeverSkips(t *testing.T) {
 			InputSchema: map[string]any{"properties": map[string]any{"name": map[string]any{"type": "string"}}},
 			Handler:     echoHandler(),
 		}},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, nil,
 		HandlerOptions{RPCTimeout: 30 * time.Second}, ValidationModeNever,
 	)
 	// Invalid input passes through when validation is disabled
@@ -290,7 +292,7 @@ func TestManifestSuppressPropagated(t *testing.T) {
 			Handler:  echoHandler(),
 			Suppress: []string{"unused"},
 		}},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, nil,
 		HandlerOptions{RPCTimeout: 30 * time.Second}, ValidationModeNever,
 	)
 
@@ -311,7 +313,7 @@ func TestManifestSuppressPropagated(t *testing.T) {
 func TestManifestSuppressOmitted(t *testing.T) {
 	handler := buildHandler(
 		[]ProcedureDef{{Name: "clean", Handler: echoHandler()}},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, nil,
 		HandlerOptions{RPCTimeout: 30 * time.Second}, ValidationModeNever,
 	)
 
@@ -335,7 +337,7 @@ func TestManifestCacheTTL(t *testing.T) {
 			Handler: echoHandler(),
 			Cache:   map[string]any{"ttl": 30},
 		}},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, nil,
 		HandlerOptions{RPCTimeout: 30 * time.Second}, ValidationModeNever,
 	)
 
@@ -360,7 +362,7 @@ func TestManifestCacheFalse(t *testing.T) {
 			Handler: echoHandler(),
 			Cache:   false,
 		}},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, nil,
 		HandlerOptions{RPCTimeout: 30 * time.Second}, ValidationModeNever,
 	)
 
@@ -380,7 +382,7 @@ func TestManifestCacheFalse(t *testing.T) {
 func TestManifestCacheOmitted(t *testing.T) {
 	handler := buildHandler(
 		[]ProcedureDef{{Name: "default", Handler: echoHandler()}},
-		nil, nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, nil,
 		HandlerOptions{RPCTimeout: 30 * time.Second}, ValidationModeNever,
 	)
 
@@ -409,7 +411,7 @@ func TestSSEZeroIdleTimeout(t *testing.T) {
 	handler := buildHandler(
 		nil,
 		[]SubscriptionDef{{Name: "no-idle", Handler: subHandler}},
-		nil, nil, nil, nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil, "", nil, nil,
 		HandlerOptions{SSEIdleTimeout: 0, HeartbeatInterval: 1 * time.Second}, ValidationModeNever,
 	)
 
@@ -423,5 +425,77 @@ func TestSSEZeroIdleTimeout(t *testing.T) {
 	}
 	if !strings.Contains(body, "event: complete") {
 		t.Fatalf("expected complete event, got: %s", body)
+	}
+}
+
+func TestPublicFileServing(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "favicon.svg"), []byte("<svg/>"), 0644)
+	os.MkdirAll(filepath.Join(dir, "images"), 0755)
+	os.WriteFile(filepath.Join(dir, "images", "logo.png"), []byte("png"), 0644)
+
+	handler := buildHandler(
+		[]ProcedureDef{{Name: "test", Handler: echoHandler()}},
+		nil, nil, nil, nil, nil, nil, nil, dir, nil, nil,
+		HandlerOptions{RPCTimeout: 30 * time.Second}, ValidationModeNever,
+	)
+
+	// Serves file at root path
+	req := httptest.NewRequest("GET", "/favicon.svg", http.NoBody)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for favicon.svg, got %d", w.Code)
+	}
+	if !strings.Contains(w.Header().Get("Cache-Control"), "max-age=3600") {
+		t.Fatalf("expected public cache, got %s", w.Header().Get("Cache-Control"))
+	}
+
+	// Serves nested file
+	req = httptest.NewRequest("GET", "/images/logo.png", http.NoBody)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for nested file, got %d", w.Code)
+	}
+
+	// Falls through to mux for missing file
+	req = httptest.NewRequest("GET", "/nonexistent.txt", http.NoBody)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code == http.StatusOK {
+		t.Fatal("expected non-200 for missing file")
+	}
+
+	// /_seam/* routes still take priority
+	req = httptest.NewRequest("GET", "/_seam/manifest.json", http.NoBody)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for manifest, got %d", w.Code)
+	}
+
+	// Path traversal blocked
+	req = httptest.NewRequest("GET", "/../etc/passwd", http.NoBody)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code == http.StatusOK {
+		t.Fatal("expected path traversal to be blocked")
+	}
+}
+
+func TestPublicFilDisabled(t *testing.T) {
+	handler := buildHandler(
+		[]ProcedureDef{{Name: "test", Handler: echoHandler()}},
+		nil, nil, nil, nil, nil, nil, nil, "", nil, nil,
+		HandlerOptions{RPCTimeout: 30 * time.Second}, ValidationModeNever,
+	)
+
+	req := httptest.NewRequest("GET", "/favicon.svg", http.NoBody)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	// Without publicDir, non-/_seam/ routes go to default mux (404)
+	if w.Code == http.StatusOK {
+		t.Fatal("expected non-200 without publicDir")
 	}
 }

@@ -184,15 +184,22 @@ type BuildOutput struct {
 	Pages      []PageDef
 	RpcHashMap *RpcHashMap
 	I18nConfig *I18nConfig
+	PublicDir  string // path to public-root directory (empty when absent)
 }
 
 // LoadBuild loads all build artifacts (pages, rpcHashMap, i18n) in one call.
 func LoadBuild(dir string) BuildOutput {
 	pages, _ := LoadBuildOutput(dir)
+	publicDir := filepath.Join(dir, "public-root")
+	var pubDir string
+	if info, err := os.Stat(publicDir); err == nil && info.IsDir() {
+		pubDir = publicDir
+	}
 	return BuildOutput{
 		Pages:      pages,
 		RpcHashMap: LoadRpcHashMap(dir),
 		I18nConfig: LoadI18nConfig(dir),
+		PublicDir:  pubDir,
 	}
 }
 

@@ -96,7 +96,7 @@ func TestRPCWithContextHeader(t *testing.T) {
 
 	handler := buildHandler(
 		[]ProcedureDef{proc},
-		nil, nil, nil, nil, nil, nil, nil, nil, ctxConfigs,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, ctxConfigs,
 		HandlerOptions{}, ValidationModeNever,
 	)
 
@@ -136,7 +136,7 @@ func TestRPCWithContextCookie(t *testing.T) {
 
 	handler := buildHandler(
 		[]ProcedureDef{proc},
-		nil, nil, nil, nil, nil, nil, nil, nil, ctxConfigs,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, ctxConfigs,
 		HandlerOptions{}, ValidationModeNever,
 	)
 
@@ -176,7 +176,7 @@ func TestRPCWithContextQuery(t *testing.T) {
 
 	handler := buildHandler(
 		[]ProcedureDef{proc},
-		nil, nil, nil, nil, nil, nil, nil, nil, ctxConfigs,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, ctxConfigs,
 		HandlerOptions{}, ValidationModeNever,
 	)
 
@@ -212,7 +212,7 @@ func TestRPCMissingCookie(t *testing.T) {
 
 	handler := buildHandler(
 		[]ProcedureDef{proc},
-		nil, nil, nil, nil, nil, nil, nil, nil, ctxConfigs,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, ctxConfigs,
 		HandlerOptions{}, ValidationModeNever,
 	)
 
@@ -249,7 +249,7 @@ func TestRPCMissingQuery(t *testing.T) {
 
 	handler := buildHandler(
 		[]ProcedureDef{proc},
-		nil, nil, nil, nil, nil, nil, nil, nil, ctxConfigs,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, ctxConfigs,
 		HandlerOptions{}, ValidationModeNever,
 	)
 
@@ -286,7 +286,7 @@ func TestRPCMissingContextPassesNil(t *testing.T) {
 
 	handler := buildHandler(
 		[]ProcedureDef{proc},
-		nil, nil, nil, nil, nil, nil, nil, nil, ctxConfigs,
+		nil, nil, nil, nil, nil, nil, nil, "", nil, ctxConfigs,
 		HandlerOptions{}, ValidationModeNever,
 	)
 
