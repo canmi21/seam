@@ -1,11 +1,15 @@
 /* src/server/core/typescript/__tests__/reload-watcher.test.ts */
 /* oxlint-disable no-promise-executor-return */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { watchReloadTrigger } from '../src/dev/reload-watcher.js'
+import {
+	createReloadWatcher,
+	type ReloadWatcherBackend,
+	watchReloadTrigger,
+} from '../src/dev/reload-watcher.js'
 
 let distDir: string
 
@@ -64,37 +68,115 @@ describe('watchReloadTrigger', () => {
 
 		await expect(watcher.nextReload()).rejects.toThrow('watcher closed')
 	})
+})
 
-	it('watches directory when trigger file does not exist initially', async () => {
-		const freshDir = mkdtempSync(join(tmpdir(), 'seam-reload-nofile-'))
-		const triggerPath = join(freshDir, '.reload-trigger')
+class FakeReloadWatcherBackend implements ReloadWatcherBackend {
+	private readonly existing = new Set<string>()
+	private readonly watchers = new Map<
+		string,
+		{ onChange: () => void; onError: (error: unknown) => void }
+	>()
+	private readonly pollers = new Set<() => void>()
 
-		const reloads: number[] = []
-		const watcher = watchReloadTrigger(freshDir, () => reloads.push(Date.now()))
+	fileExists(path: string): boolean {
+		return this.existing.has(path)
+	}
+
+	watchFile(path: string, onChange: () => void, onError: (error: unknown) => void) {
+		if (!this.existing.has(path)) {
+			throw Object.assign(new Error('missing file'), { code: 'ENOENT' })
+		}
+		this.watchers.set(path, { onChange, onError })
+		return {
+			close: () => {
+				this.watchers.delete(path)
+			},
+		}
+	}
+
+	setPoll(callback: () => void) {
+		this.pollers.add(callback)
+		return {
+			close: () => {
+				this.pollers.delete(callback)
+			},
+		}
+	}
+
+	createFile(path: string) {
+		this.existing.add(path)
+	}
+
+	deleteFile(path: string) {
+		this.existing.delete(path)
+	}
+
+	emitChange(path: string) {
+		this.watchers.get(path)?.onChange()
+	}
+
+	emitError(path: string, error: unknown) {
+		this.watchers.get(path)?.onError(error)
+	}
+
+	tick() {
+		for (const poller of this.pollers) poller()
+	}
+}
+
+describe('createReloadWatcher', () => {
+	it('waits for the trigger file to appear, then switches to file watching', async () => {
+		const backend = new FakeReloadWatcherBackend()
+		const onReload = vi.fn()
+		const watcher = createReloadWatcher('/virtual/dist', onReload, backend)
+		const triggerPath = '/virtual/dist/.reload-trigger'
 
 		try {
-			await new Promise((r) => setTimeout(r, 50))
+			const firstReload = watcher.nextReload()
+			backend.tick()
+			expect(onReload).not.toHaveBeenCalled()
 
-			// Create the trigger file after watcher is set up — first creation fires immediately
-			let pending = watcher.nextReload()
-			writeFileSync(triggerPath, '1')
-			await pending
+			backend.createFile(triggerPath)
+			backend.tick()
+			await firstReload
 
-			expect(reloads.length).toBeGreaterThanOrEqual(1)
-			const countAfterFirstCreate = reloads.length
+			expect(onReload).toHaveBeenCalledTimes(1)
 
-			// The dir watcher callback just created a new file watcher — let it register
-			await new Promise((r) => setTimeout(r, 50))
+			const secondReload = watcher.nextReload()
+			backend.emitChange(triggerPath)
+			await secondReload
 
-			// Subsequent writes go through the file watcher
-			pending = watcher.nextReload()
-			writeFileSync(triggerPath, '2')
-			await pending
-
-			expect(reloads.length).toBeGreaterThan(countAfterFirstCreate)
+			expect(onReload).toHaveBeenCalledTimes(2)
 		} finally {
 			watcher.close()
-			rmSync(freshDir, { recursive: true, force: true })
+		}
+	})
+
+	it('falls back to polling again if the file watcher reports ENOENT', async () => {
+		const backend = new FakeReloadWatcherBackend()
+		const onReload = vi.fn()
+		const watcher = createReloadWatcher('/virtual/dist', onReload, backend)
+		const triggerPath = '/virtual/dist/.reload-trigger'
+
+		try {
+			backend.createFile(triggerPath)
+			const firstReload = watcher.nextReload()
+			backend.tick()
+			await firstReload
+
+			backend.deleteFile(triggerPath)
+			backend.emitError(triggerPath, Object.assign(new Error('gone'), { code: 'ENOENT' }))
+			const secondReload = watcher.nextReload()
+			backend.tick()
+			expect(onReload).toHaveBeenCalledTimes(1)
+
+			backend.createFile(triggerPath)
+			backend.tick()
+			await secondReload
+
+			expect(onReload).toHaveBeenCalledTimes(2)
+		} finally {
+			watcher.close()
 		}
 	})
 })

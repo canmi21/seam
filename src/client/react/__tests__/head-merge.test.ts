@@ -54,7 +54,9 @@ describe('mergeHeadConfigs', () => {
 		const result = mergeHeadConfigs(base, override) as HeadConfig
 		expect(result.meta).toEqual([{ property: 'og:title', content: 'override' }])
 	})
+})
 
+describe('mergeHeadConfigs - HeadFn', () => {
 	it('dedup meta by httpEquiv', () => {
 		const base: HeadConfig = {
 			meta: [{ httpEquiv: 'refresh', content: '30' }],
@@ -76,7 +78,7 @@ describe('mergeHeadConfigs', () => {
 		// Both keyed by name "x", so override replaces base
 		const result = mergeHeadConfigs(base, override) as HeadConfig
 		expect(result.meta).toHaveLength(1)
-		expect(result.meta![0].content).toBe('override')
+		expect(result.meta?.[0].content).toBe('override')
 	})
 
 	it('merges non-conflicting meta from both sides', () => {

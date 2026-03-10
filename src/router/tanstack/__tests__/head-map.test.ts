@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { collectHeadMap } from '../src/create-router.js'
-import type { RouteDef } from '@canmi/seam-react'
+import type { RouteDef, HeadConfig } from '@canmi/seam-react'
 
 describe('collectHeadMap', () => {
 	it('collects head from flat routes', () => {
@@ -38,8 +38,9 @@ describe('collectHeadMap', () => {
 		const map = collectHeadMap(routes)
 		expect(map.size).toBe(0)
 	})
+})
 
-	// Layout head propagation tests
+describe('collectHeadMap - layout propagation', () => {
 	const DummyLayout = (() => null) as unknown as RouteDef['layout']
 
 	it('layout head propagates to children without head', () => {
@@ -78,7 +79,7 @@ describe('collectHeadMap', () => {
 			},
 		]
 		const map = collectHeadMap(routes)
-		const about = map.get('/about') as import('@canmi/seam-react').HeadConfig
+		const about = map.get('/about') as HeadConfig
 		expect(about.title).toBe('About')
 		expect(about.link).toEqual([{ rel: 'icon', href: '/favicon.ico' }])
 	})
@@ -105,7 +106,7 @@ describe('collectHeadMap', () => {
 			},
 		]
 		const map = collectHeadMap(routes)
-		const users = map.get('/users') as import('@canmi/seam-react').HeadConfig
+		const users = map.get('/users') as HeadConfig
 		expect(users.title).toBe('Admin')
 		expect(users.link).toEqual([
 			{ rel: 'icon', href: '/favicon.ico' },
@@ -131,7 +132,7 @@ describe('collectHeadMap', () => {
 		]
 		const map = collectHeadMap(routes)
 		for (const p of ['/', '/page']) {
-			const head = map.get(p) as import('@canmi/seam-react').HeadConfig
+			const head = map.get(p) as HeadConfig
 			expect(head.title).toBe('My Site')
 			expect(head.meta).toEqual([{ name: 'author', content: 'Test' }])
 			expect(head.link).toEqual([{ rel: 'icon', href: '/icon.png' }])

@@ -1,6 +1,6 @@
 /* src/server/core/typescript/src/dev/reload-watcher.ts */
 
-import { watch, type FSWatcher } from 'node:fs'
+import { existsSync, watch } from 'node:fs'
 import { join } from 'node:path'
 
 export interface ReloadWatcher {
@@ -9,9 +9,52 @@ export interface ReloadWatcher {
 	nextReload(): Promise<void>
 }
 
-export function watchReloadTrigger(distDir: string, onReload: () => void): ReloadWatcher {
+interface Closable {
+	close(): void
+}
+
+export interface ReloadWatcherBackend {
+	watchFile(path: string, onChange: () => void, onError: (error: unknown) => void): Closable
+	fileExists(path: string): boolean
+	setPoll(callback: () => void, intervalMs: number): Closable
+}
+
+const nodeReloadWatcherBackend: ReloadWatcherBackend = {
+	watchFile(path, onChange, onError) {
+		const watcher = watch(path, () => onChange())
+		watcher.on('error', onError)
+		return watcher
+	},
+	fileExists(path) {
+		return existsSync(path)
+	},
+	setPoll(callback, intervalMs) {
+		const timer = setInterval(callback, intervalMs)
+		return {
+			close() {
+				clearInterval(timer)
+			},
+		}
+	},
+}
+
+function isMissingFileError(error: unknown): boolean {
+	return (
+		typeof error === 'object' &&
+		error !== null &&
+		'code' in error &&
+		error.code === 'ENOENT'
+	)
+}
+
+export function createReloadWatcher(
+	distDir: string,
+	onReload: () => void,
+	backend: ReloadWatcherBackend,
+): ReloadWatcher {
 	const triggerPath = join(distDir, '.reload-trigger')
-	let watcher: FSWatcher | null = null
+	let watcher: Closable | null = null
+	let poller: Closable | null = null
 	let closed = false
 	let pending: Array<{ resolve: () => void; reject: (e: Error) => void }> = []
 
@@ -37,32 +80,61 @@ export function watchReloadTrigger(distDir: string, onReload: () => void): Reloa
 		for (const p of batch) p.reject(err)
 	}
 
-	try {
-		watcher = watch(triggerPath, () => notify())
-	} catch {
-		// Trigger file may not exist yet; watch directory until it appears
-		const dirWatcher = watch(distDir, (_event, filename) => {
-			if (filename === '.reload-trigger') {
-				dirWatcher.close()
-				watcher = watch(triggerPath, () => notify())
-				// First creation IS the reload signal -- fire immediately
-				notify()
+	const stopWatcher = () => {
+		watcher?.close()
+		watcher = null
+	}
+
+	const stopPoller = () => {
+		poller?.close()
+		poller = null
+	}
+
+	const startPolling = () => {
+		if (closed || poller) return
+		poller = backend.setPoll(() => {
+			if (!backend.fileExists(triggerPath)) return
+			stopPoller()
+			// First appearance counts as a reload signal.
+			notify()
+			startWatchingFile()
+		}, 50)
+	}
+
+	const startWatchingFile = () => {
+		if (closed) return
+		try {
+			watcher = backend.watchFile(
+				triggerPath,
+				() => notify(),
+				(error) => {
+					stopWatcher()
+					if (!closed && isMissingFileError(error)) {
+						startPolling()
+					}
+				},
+			)
+		} catch (error) {
+			stopWatcher()
+			if (isMissingFileError(error)) {
+				startPolling()
+				return
 			}
-		})
-		return {
-			close() {
-				dirWatcher.close()
-				watcher?.close()
-				closeAll()
-			},
-			nextReload,
+			throw error
 		}
 	}
+
+	startWatchingFile()
 	return {
 		close() {
-			watcher?.close()
+			stopWatcher()
+			stopPoller()
 			closeAll()
 		},
 		nextReload,
 	}
+}
+
+export function watchReloadTrigger(distDir: string, onReload: () => void): ReloadWatcher {
+	return createReloadWatcher(distDir, onReload, nodeReloadWatcherBackend)
 }

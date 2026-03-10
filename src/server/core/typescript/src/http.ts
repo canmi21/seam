@@ -124,6 +124,19 @@ async function handlePublicFile(
 	}
 }
 
+function getPageRequestHeaders(req: HttpRequest): {
+	url: string
+	cookie?: string
+	acceptLanguage?: string
+} | undefined {
+	if (!req.header) return undefined
+	return {
+		url: req.url,
+		cookie: req.header('cookie') ?? undefined,
+		acceptLanguage: req.header('accept-language') ?? undefined,
+	}
+}
+
 /** Format a single SSE data event */
 export function sseDataEvent(data: unknown): string {
 	return `event: data\ndata: ${JSON.stringify(data)}\n\n`
@@ -357,20 +370,54 @@ async function handleProcedurePost<T extends DefinitionMap>(
 	return jsonResponse(result.status, result.body)
 }
 
+function buildHashLookup(hashMap: RpcHashMap | undefined): Map<string, string> | null {
+	if (!hashMap) return null
+	const map = new Map(Object.entries(hashMap.procedures).map(([n, h]) => [h, n]))
+	map.set('seam.i18n.query', 'seam.i18n.query')
+	return map
+}
+
+function createDevReloadResponse(
+	devState: { resolvers: Set<() => void> },
+	sseOptions?: SseOptions,
+): HttpStreamResponse {
+	const controller = new AbortController()
+	async function* devStream(): AsyncGenerator<string> {
+		yield ': connected\n\n'
+		const aborted = new Promise<never>((_, reject) => {
+			controller.signal.addEventListener('abort', () => reject(new Error('aborted')), {
+				once: true,
+			})
+		})
+		try {
+			while (!controller.signal.aborted) {
+				await Promise.race([
+					new Promise<void>((r) => {
+						devState.resolvers.add(r)
+					}),
+					aborted,
+				])
+				yield 'data: reload\n\n'
+			}
+		} catch {
+			/* aborted */
+		}
+	}
+	return {
+		status: 200,
+		headers: { ...SSE_HEADER, 'X-Accel-Buffering': 'no' },
+		stream: withSseLifecycle(devStream(), { ...sseOptions, sseIdleTimeout: 0 }),
+		onCancel: () => controller.abort(),
+	}
+}
+
 export function createHttpHandler<T extends DefinitionMap>(
 	router: Router<T>,
 	opts?: HttpHandlerOptions,
 ): HttpHandler {
 	// Explicit option overrides; fall back to router's stored value
 	const effectiveHashMap = opts?.rpcHashMap ?? router.rpcHashMap
-	// Build reverse lookup (hash -> original name) when obfuscation is active
-	const hashToName: Map<string, string> | null = effectiveHashMap
-		? new Map(Object.entries(effectiveHashMap.procedures).map(([n, h]) => [h, n]))
-		: null
-	// Built-in procedures bypass hash obfuscation (identity mapping)
-	if (hashToName) {
-		hashToName.set('seam.i18n.query', 'seam.i18n.query')
-	}
+	const hashToName = buildHashLookup(effectiveHashMap)
 	const batchHash = effectiveHashMap?.batch ?? null
 	const hasCtx = router.hasContext()
 
@@ -380,17 +427,18 @@ export function createHttpHandler<T extends DefinitionMap>(
 		(process.env.SEAM_DEV === '1' && process.env.SEAM_VITE !== '1'
 			? process.env.SEAM_OUTPUT_DIR
 			: undefined)
-	let devReloadResolvers: Set<() => void> | null = null
-	if (devDir) {
-		devReloadResolvers = new Set()
+	const devState: { resolvers: Set<() => void> } | null = devDir
+		? { resolvers: new Set() }
+		: null
+	if (devState && devDir) {
 		watchReloadTrigger(devDir, () => {
 			try {
 				router.reload(loadBuildDev(devDir))
 			} catch {
 				// Manifest might be mid-write; skip this reload cycle
 			}
-			const batch = devReloadResolvers!
-			devReloadResolvers = new Set()
+			const batch = devState.resolvers
+			devState.resolvers = new Set()
 			for (const r of batch) r()
 		})
 	}
@@ -451,13 +499,7 @@ export function createHttpHandler<T extends DefinitionMap>(
 		// github-dashboard ts-hono example for the fallback pattern.
 		if (req.method === 'GET' && pathname.startsWith(PAGE_PREFIX) && router.hasPages) {
 			const pagePath = '/' + pathname.slice(PAGE_PREFIX.length)
-			const headers = req.header
-				? {
-						url: req.url,
-						cookie: req.header('cookie') ?? undefined,
-						acceptLanguage: req.header('accept-language') ?? undefined,
-					}
-				: undefined
+			const headers = getPageRequestHeaders(req)
 			const result = await router.handlePage(pagePath, headers, rawCtx)
 			if (result) {
 				return { status: result.status, headers: HTML_HEADER, body: result.html }
@@ -479,37 +521,8 @@ export function createHttpHandler<T extends DefinitionMap>(
 		}
 
 		// Dev-mode live reload SSE endpoint
-		if (req.method === 'GET' && pathname === DEV_RELOAD_PATH && devReloadResolvers) {
-			const controller = new AbortController()
-			// Read devReloadResolvers from closure each iteration — the watcher
-			// callback swaps the Set on each rebuild; a captured reference would go stale.
-			async function* devStream(): AsyncGenerator<string> {
-				yield ': connected\n\n'
-				const aborted = new Promise<never>((_, reject) => {
-					controller.signal.addEventListener('abort', () => reject(new Error('aborted')), {
-						once: true,
-					})
-				})
-				try {
-					while (!controller.signal.aborted) {
-						await Promise.race([
-							new Promise<void>((r) => {
-								devReloadResolvers!.add(r)
-							}),
-							aborted,
-						])
-						yield 'data: reload\n\n'
-					}
-				} catch {
-					/* aborted */
-				}
-			}
-			return {
-				status: 200,
-				headers: { ...SSE_HEADER, 'X-Accel-Buffering': 'no' },
-				stream: withSseLifecycle(devStream(), { sseIdleTimeout: 0 }),
-				onCancel: () => controller.abort(),
-			}
+		if (req.method === 'GET' && pathname === DEV_RELOAD_PATH && devState) {
+			return createDevReloadResponse(devState, opts?.sseOptions)
 		}
 
 		// Public files at root path (after all /_seam/* routes, before fallback)
