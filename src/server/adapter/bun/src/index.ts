@@ -14,6 +14,7 @@ import type {
 export interface ServeBunOptions {
 	port?: number
 	staticDir?: string
+	publicDir?: string
 	fallback?: HttpHandler
 	rpcHashMap?: RpcHashMap
 	wsOptions?: ChannelWsOptions
@@ -32,6 +33,7 @@ interface WsData {
 export function serveBun<T extends DefinitionMap>(router: Router<T>, opts?: ServeBunOptions) {
 	const handler = createHttpHandler(router, {
 		staticDir: opts?.staticDir,
+		publicDir: opts?.publicDir,
 		fallback: opts?.fallback,
 		rpcHashMap: opts?.rpcHashMap,
 		sseOptions: opts?.sseOptions,

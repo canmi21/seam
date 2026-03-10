@@ -17,6 +17,7 @@ import { WebSocketServer } from 'ws'
 export interface ServeNodeOptions {
 	port?: number
 	staticDir?: string
+	publicDir?: string
 	fallback?: HttpHandler
 	rpcHashMap?: RpcHashMap
 	/** WebSocket proxy target for HMR (e.g. "ws://localhost:5173") */
@@ -57,6 +58,7 @@ async function sendResponse(res: ServerResponse, result: HttpResponse): Promise<
 export function serveNode<T extends DefinitionMap>(router: Router<T>, opts?: ServeNodeOptions) {
 	const handler = createHttpHandler(router, {
 		staticDir: opts?.staticDir,
+		publicDir: opts?.publicDir,
 		fallback: opts?.fallback,
 		rpcHashMap: opts?.rpcHashMap,
 		sseOptions: opts?.sseOptions,

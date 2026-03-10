@@ -177,6 +177,13 @@ export interface BuildOutput {
 	pages: Record<string, PageDef>
 	rpcHashMap: RpcHashMap | undefined
 	i18n: I18nConfig | null
+	publicDir: string | undefined
+}
+
+/** Detect public-root directory from build output */
+function detectPublicDir(distDir: string): string | undefined {
+	const publicRootDir = join(distDir, 'public-root')
+	return existsSync(publicRootDir) ? publicRootDir : undefined
 }
 
 /** Load all build artifacts (pages, rpcHashMap, i18n) in one call */
@@ -185,6 +192,7 @@ export function loadBuild(distDir: string): BuildOutput {
 		pages: loadBuildOutput(distDir),
 		rpcHashMap: loadRpcHashMap(distDir),
 		i18n: loadI18nMessages(distDir),
+		publicDir: detectPublicDir(distDir),
 	}
 }
 
@@ -194,6 +202,7 @@ export function loadBuildDev(distDir: string): BuildOutput {
 		pages: loadBuildOutputDev(distDir),
 		rpcHashMap: loadRpcHashMap(distDir),
 		i18n: loadI18nMessages(distDir),
+		publicDir: detectPublicDir(distDir),
 	}
 }
 

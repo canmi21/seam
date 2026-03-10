@@ -30,4 +30,11 @@ describe('MIME_TYPES', () => {
 		expect(MIME_TYPES['.woff']).toBe('font/woff')
 		expect(MIME_TYPES['.woff2']).toBe('font/woff2')
 	})
+
+	it('maps public file types', () => {
+		expect(MIME_TYPES['.txt']).toBe('text/plain')
+		expect(MIME_TYPES['.xml']).toBe('application/xml')
+		expect(MIME_TYPES['.webmanifest']).toBe('application/manifest+json')
+		expect(MIME_TYPES['.webp']).toBe('image/webp')
+	})
 })

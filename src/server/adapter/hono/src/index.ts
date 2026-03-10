@@ -32,6 +32,7 @@ export type UpgradeWebSocket = (
 
 export interface SeamHonoOptions {
 	staticDir?: string
+	publicDir?: string
 	fallback?: HttpHandler
 	rpcHashMap?: RpcHashMap
 	upgradeWebSocket?: UpgradeWebSocket
@@ -53,6 +54,7 @@ export function seam<T extends DefinitionMap>(
 ): MiddlewareHandler {
 	const handlerOpts: HttpHandlerOptions = {}
 	if (opts?.staticDir) handlerOpts.staticDir = opts.staticDir
+	if (opts?.publicDir) handlerOpts.publicDir = opts.publicDir
 	if (opts?.fallback) handlerOpts.fallback = opts.fallback
 	if (opts?.rpcHashMap) handlerOpts.rpcHashMap = opts.rpcHashMap
 	if (opts?.sseOptions) handlerOpts.sseOptions = opts.sseOptions
@@ -63,7 +65,17 @@ export function seam<T extends DefinitionMap>(
 		const url = new URL(c.req.url)
 
 		if (!url.pathname.startsWith(SEAM_PREFIX)) {
-			return next()
+			if (!opts?.publicDir || c.req.method !== 'GET') return next()
+			// Public file: let handler check the file, fall through to next() on miss
+			const raw = c.req.raw
+			const result = await handler({
+				method: raw.method,
+				url: raw.url,
+				body: () => Promise.reject(new Error('no body')),
+				header: (name) => raw.headers.get(name),
+			})
+			if (result.status === 404 && !('stream' in result)) return next()
+			return toWebResponse(result)
 		}
 
 		// WebSocket upgrade for channel paths

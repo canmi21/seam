@@ -48,6 +48,7 @@ export interface SseOptions {
 
 export interface HttpHandlerOptions {
 	staticDir?: string
+	publicDir?: string
 	fallback?: HttpHandler
 	rpcHashMap?: RpcHashMap
 	sseOptions?: SseOptions
@@ -70,6 +71,7 @@ const SSE_HEADER = {
 	Connection: 'keep-alive',
 }
 const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable'
+const PUBLIC_CACHE = 'public, max-age=3600'
 
 function jsonResponse(status: number, body: unknown): HttpBodyResponse {
 	return { status, headers: JSON_HEADER, body }
@@ -99,6 +101,26 @@ async function handleStaticAsset(assetPath: string, staticDir: string): Promise<
 		}
 	} catch {
 		return errorResponse(404, 'NOT_FOUND', 'Asset not found')
+	}
+}
+
+async function handlePublicFile(
+	pathname: string,
+	publicDir: string,
+): Promise<HttpBodyResponse | null> {
+	if (pathname.includes('..')) return null
+	const filePath = join(publicDir, pathname)
+	try {
+		const content = await readFile(filePath)
+		const ext = extname(filePath)
+		const contentType = MIME_TYPES[ext] || 'application/octet-stream'
+		return {
+			status: 200,
+			headers: { 'Content-Type': contentType, 'Cache-Control': PUBLIC_CACHE },
+			body: content,
+		}
+	} catch {
+		return null
 	}
 }
 
@@ -488,6 +510,12 @@ export function createHttpHandler<T extends DefinitionMap>(
 				stream: withSseLifecycle(devStream(), { sseIdleTimeout: 0 }),
 				onCancel: () => controller.abort(),
 			}
+		}
+
+		// Public files at root path (after all /_seam/* routes, before fallback)
+		if (req.method === 'GET' && opts?.publicDir) {
+			const publicResult = await handlePublicFile(pathname, opts.publicDir)
+			if (publicResult) return publicResult
 		}
 
 		if (opts?.fallback) return opts.fallback(req)
