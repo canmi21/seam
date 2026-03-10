@@ -23,7 +23,9 @@ export function resolveValidationMode(mode: ValidationMode | undefined): boolean
 }
 
 /** Build the resolve strategy list from options */
-export function buildStrategies(opts?: RouterOptions): {
+export function buildStrategies<TState = undefined>(
+	opts?: RouterOptions<TState>,
+): {
 	strategies: ResolveStrategy[]
 	hasUrlPrefix: boolean
 } {
