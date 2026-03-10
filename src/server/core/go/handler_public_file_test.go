@@ -36,6 +36,9 @@ func TestPublicFileServing(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for favicon.svg, got %d", w.Code)
 	}
+	if body := w.Body.String(); body != "<svg/>" {
+		t.Fatalf("expected raw favicon body, got %q", body)
+	}
 	if !strings.Contains(w.Header().Get("Cache-Control"), "max-age=3600") {
 		t.Fatalf("expected public cache, got %s", w.Header().Get("Cache-Control"))
 	}
@@ -45,6 +48,9 @@ func TestPublicFileServing(t *testing.T) {
 	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for nested file, got %d", w.Code)
+	}
+	if body := w.Body.String(); body != "png" {
+		t.Fatalf("expected raw nested file body, got %q", body)
 	}
 
 	req = httptest.NewRequest("GET", "/nonexistent.txt", http.NoBody)

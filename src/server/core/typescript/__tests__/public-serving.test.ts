@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { createRouter, t, createHttpHandler } from '../src/index.js'
+import { createRouter, t, createHttpHandler, toWebResponse } from '../src/index.js'
 
 const router = createRouter({
 	greet: {
@@ -53,6 +53,8 @@ describe('public file serving', () => {
 		expect(res.status).toBe(200)
 		expect(res.headers['Content-Type']).toBe('image/svg+xml')
 		expect(res.headers['Cache-Control']).toBe('public, max-age=3600')
+		const response = toWebResponse(res)
+		expect(await response.text()).toBe('<svg/>')
 	})
 
 	it('serves text files', async () => {
@@ -74,6 +76,7 @@ describe('public file serving', () => {
 		const res = await req(handler, 'GET', '/images/logo.png')
 		expect(res.status).toBe(200)
 		expect(res.headers['Content-Type']).toBe('image/png')
+		expect(res.body).toBeInstanceOf(Uint8Array)
 	})
 
 	it('returns 404 when file not found (no fallback)', async () => {

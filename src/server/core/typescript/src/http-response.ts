@@ -9,6 +9,32 @@ import type { HttpBodyResponse, HttpResponse } from './http.js'
 const JSON_HEADER = { 'Content-Type': 'application/json' }
 const PUBLIC_CACHE = 'public, max-age=3600'
 const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable'
+const TEXT_ENCODINGS = new Set([
+	'application/javascript',
+	'application/json',
+	'application/manifest+json',
+	'application/xml',
+	'image/svg+xml',
+])
+
+function normalizeBinaryBody(body: ArrayBufferView | ArrayBuffer): Uint8Array {
+	if (body instanceof Uint8Array) return body
+	if (body instanceof ArrayBuffer) return new Uint8Array(body)
+	return new Uint8Array(body.buffer, body.byteOffset, body.byteLength)
+}
+
+function isTextContentType(contentType: string): boolean {
+	const mime = contentType.split(';', 1)[0]?.trim().toLowerCase() ?? ''
+	return mime.startsWith('text/') || TEXT_ENCODINGS.has(mime)
+}
+
+async function readResponseBody(
+	filePath: string,
+	contentType: string,
+): Promise<string | Uint8Array> {
+	const content = await readFile(filePath)
+	return isTextContentType(contentType) ? content.toString('utf-8') : content
+}
 
 export function jsonResponse(status: number, body: unknown): HttpBodyResponse {
 	return { status, headers: JSON_HEADER, body }
@@ -28,9 +54,9 @@ export async function handleStaticAsset(
 
 	const filePath = join(staticDir, assetPath)
 	try {
-		const content = await readFile(filePath, 'utf-8')
 		const ext = extname(filePath)
 		const contentType = MIME_TYPES[ext] || 'application/octet-stream'
+		const content = await readResponseBody(filePath, contentType)
 		return {
 			status: 200,
 			headers: {
@@ -51,9 +77,9 @@ export async function handlePublicFile(
 	if (pathname.includes('..')) return null
 	const filePath = join(publicDir, pathname)
 	try {
-		const content = await readFile(filePath)
 		const ext = extname(filePath)
 		const contentType = MIME_TYPES[ext] || 'application/octet-stream'
+		const content = await readResponseBody(filePath, contentType)
 		return {
 			status: 200,
 			headers: { 'Content-Type': contentType, 'Cache-Control': PUBLIC_CACHE },
@@ -64,8 +90,12 @@ export async function handlePublicFile(
 	}
 }
 
-export function serialize(body: unknown): string {
-	return typeof body === 'string' ? body : JSON.stringify(body)
+export function serialize(body: unknown): string | Uint8Array {
+	if (typeof body === 'string') return body
+	if (body instanceof ArrayBuffer || ArrayBuffer.isView(body)) {
+		return normalizeBinaryBody(body)
+	}
+	return JSON.stringify(body)
 }
 
 export async function drainStream(
@@ -99,5 +129,8 @@ export function toWebResponse(result: HttpResponse): Response {
 		})
 		return new Response(readable, { status: result.status, headers: result.headers })
 	}
-	return new Response(serialize(result.body), { status: result.status, headers: result.headers })
+	return new Response(serialize(result.body) as BodyInit, {
+		status: result.status,
+		headers: result.headers,
+	})
 }

@@ -4,7 +4,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { createRouter, t, createHttpHandler } from '../src/index.js'
+import { createRouter, t, createHttpHandler, toWebResponse } from '../src/index.js'
 
 const router = createRouter({
 	greet: {
@@ -101,7 +101,9 @@ describe('static asset serving', () => {
 		const res = await req(handler, 'GET', '/_seam/static/data.bin')
 		expect(res.status).toBe(200)
 		expect(res.headers['Content-Type']).toBe('application/octet-stream')
-		expect(res.body).toBe('binary content')
+		expect(res.body).toBeInstanceOf(Uint8Array)
+		const response = toWebResponse(res)
+		expect(await response.text()).toBe('binary content')
 	})
 
 	it('serves woff2 with correct MIME type', async () => {

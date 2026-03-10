@@ -27,4 +27,16 @@ describe('serialize', () => {
 	it('serializes boolean to JSON', () => {
 		expect(serialize(true)).toBe('true')
 	})
+
+	it('passes through Uint8Array bodies for responses', () => {
+		const bytes = Uint8Array.from([1, 2, 3])
+		expect(serialize(bytes)).toBe(bytes)
+	})
+
+	it('normalizes ArrayBuffer views to Uint8Array', () => {
+		const bytes = Buffer.from('<svg/>')
+		const body = serialize(bytes)
+		expect(body).toBeInstanceOf(Uint8Array)
+		expect(Array.from(body as Uint8Array)).toEqual(Array.from(bytes))
+	})
 })
