@@ -309,6 +309,34 @@ describe('loadBuildOutputDev', () => {
 		expect(Object.keys(pages)).toEqual(['/user/:id', '/about'])
 	})
 
+	it('loads head_meta from manifest into headMeta field', () => {
+		const headDir = mkdtempSync(join(tmpdir(), 'seam-head-dev-'))
+		mkdirSync(join(headDir, 'templates'), { recursive: true })
+		writeFileSync(
+			join(headDir, 'templates/index.html'),
+			'<!DOCTYPE html><html><head></head><body></body></html>',
+		)
+		writeFileSync(
+			join(headDir, 'route-manifest.json'),
+			JSON.stringify({
+				routes: {
+					'/': {
+						template: 'templates/index.html',
+						loaders: {},
+						head_meta: '<title><!--seam:t--></title>',
+					},
+				},
+			}),
+		)
+
+		try {
+			const pages = loadBuildOutputDev(headDir)
+			expect(pages['/'].headMeta).toBe('<title><!--seam:t--></title>')
+		} finally {
+			rmSync(headDir, { recursive: true, force: true })
+		}
+	})
+
 	it('returns fresh template content on each access', () => {
 		const pages = loadBuildOutputDev(distDir)
 		const first = pages['/user/:id'].template

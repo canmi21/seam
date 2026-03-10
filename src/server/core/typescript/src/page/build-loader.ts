@@ -364,6 +364,7 @@ export function loadBuildOutputDev(distDir: string): Record<string, PageDef> {
 			localeTemplates,
 			loaders,
 			layoutChain,
+			headMeta: entry.head_meta,
 			dataId: manifest.data_id,
 			i18nKeys,
 			pageAssets: entry.assets,
