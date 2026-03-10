@@ -176,9 +176,9 @@ pub(super) fn run_fullstack_build(
 	// -- Processing routes + Exporting i18n --
 	let bundle_manifest =
 		resolve_bundle_manifest(skeleton_output.source_file_map.as_ref(), &manifest_path);
-	let (template_assets, package_assets) = match &bundle_manifest {
-		Some(bm) => (&bm.template, &bm.global),
-		None => (&assets, &assets),
+	let template_assets = match &bundle_manifest {
+		Some(bm) => &bm.template,
+		None => &assets,
 	};
 	let render = RenderContext {
 		root_id: &build_config.root_id,
@@ -206,8 +206,8 @@ pub(super) fn run_fullstack_build(
 
 	// -- Packaging output --
 	let t = tracker.begin();
-	package_static_assets(base_dir, package_assets, &out_dir, build_config.dist_dir())?;
-	tracker.end_with(t, &format!("{} files", package_assets.js.len() + package_assets.css.len()));
+	let asset_count = package_static_assets(base_dir, &out_dir, build_config.dist_dir())?;
+	tracker.end_with(t, &format!("{asset_count} files"));
 
 	// -- Pre-rendering static pages (conditional) --
 	let ssg_result = if has_ssg && steps::has_prerender_routes(&skeleton_output, build_config.output)
@@ -233,13 +233,9 @@ pub(super) fn run_fullstack_build(
 	}
 
 	let extra = if ssg_count > 0 {
-		format!(
-			"{} prerendered \u{00b7} {} assets",
-			ssg_count,
-			package_assets.js.len() + package_assets.css.len()
-		)
+		format!("{ssg_count} prerendered \u{00b7} {asset_count} assets")
 	} else {
-		format!("{} assets", package_assets.js.len() + package_assets.css.len())
+		format!("{asset_count} assets")
 	};
 	print_build_summary(
 		started,
@@ -356,17 +352,16 @@ pub fn run_dev_build(
 	)?;
 
 	// -- Packaging output (skipped in Vite mode) --
-	if !is_vite {
+	let asset_count = if !is_vite {
 		let t = tracker.begin();
-		package_static_assets(base_dir, &assets, &out_dir, build_config.dist_dir())?;
-		tracker.end_with(t, &format!("{} files", assets.js.len() + assets.css.len()));
-	}
-
-	let extra = if is_vite {
-		"vite mode".to_string()
+		let count = package_static_assets(base_dir, &out_dir, build_config.dist_dir())?;
+		tracker.end_with(t, &format!("{count} files"));
+		count
 	} else {
-		format!("{} assets", assets.js.len() + assets.css.len())
+		0
 	};
+
+	let extra = if is_vite { "vite mode".to_string() } else { format!("{asset_count} assets") };
 	print_build_summary(
 		started,
 		manifest.procedures.len(),

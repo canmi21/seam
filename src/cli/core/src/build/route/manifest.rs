@@ -396,34 +396,57 @@ pub(crate) fn run_typecheck(base_dir: &Path, command: &str) -> Result<()> {
 	Ok(())
 }
 
-/// Copy frontend assets from the bundler output directory to {out_dir}/public/
-/// `dist_dir` is the directory containing bundler output (e.g. ".seam/dist" or "frontend/.seam/dist").
+/// Copy all bundler output from `{base_dir}/{dist_dir}/` to `{out_dir}/public/`.
+/// Walks the directory recursively, skipping `.vite/` (internal cache).
+/// Returns the number of files copied.
 pub(crate) fn package_static_assets(
 	base_dir: &Path,
-	assets: &super::super::types::AssetFiles,
 	out_dir: &Path,
 	dist_dir: &str,
-) -> Result<()> {
+) -> Result<usize> {
+	let src_root = base_dir.join(dist_dir);
 	let public_dir = out_dir.join("public");
+	let mut count = 0usize;
 
-	let all_files: Vec<&str> =
-		assets.js.iter().chain(assets.css.iter()).map(std::string::String::as_str).collect();
+	copy_dir_recursive(&src_root, &src_root, &public_dir, &mut count)?;
+	Ok(count)
+}
 
-	for file in all_files {
-		let src = base_dir.join(dist_dir).join(file);
-		let dst = public_dir.join(file);
+fn copy_dir_recursive(root: &Path, src: &Path, dst: &Path, count: &mut usize) -> Result<()> {
+	let entries = std::fs::read_dir(src);
+	let entries = match entries {
+		Ok(e) => e,
+		Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+		Err(e) => return Err(e).with_context(|| format!("failed to read {}", src.display())),
+	};
 
-		if let Some(parent) = dst.parent() {
-			std::fs::create_dir_all(parent)
-				.with_context(|| format!("failed to create {}", parent.display()))?;
+	for entry in entries {
+		let entry = entry?;
+		let name = entry.file_name();
+		if name == ".vite" {
+			continue;
 		}
-
-		std::fs::copy(&src, &dst)
-			.with_context(|| format!("failed to copy {} -> {}", src.display(), dst.display()))?;
-
-		let size = std::fs::metadata(&dst).map(|m| m.len()).unwrap_or(0);
-		ui::detail_ok(&format!("{}public/{file}  ({}){}", col(DIM), ui::format_size(size), col(RESET)));
+		let src_path = entry.path();
+		let dst_path = dst.join(&name);
+		if entry.file_type()?.is_dir() {
+			copy_dir_recursive(root, &src_path, &dst_path, count)?;
+		} else {
+			std::fs::create_dir_all(dst)
+				.with_context(|| format!("failed to create {}", dst.display()))?;
+			std::fs::copy(&src_path, &dst_path).with_context(|| {
+				format!("failed to copy {} -> {}", src_path.display(), dst_path.display())
+			})?;
+			let rel = src_path.strip_prefix(root).unwrap_or(&src_path);
+			let size = std::fs::metadata(&dst_path).map(|m| m.len()).unwrap_or(0);
+			ui::detail_ok(&format!(
+				"{}public/{}  ({}){}",
+				col(DIM),
+				rel.display(),
+				ui::format_size(size),
+				col(RESET)
+			));
+			*count += 1;
+		}
 	}
-
 	Ok(())
 }

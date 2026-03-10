@@ -230,12 +230,11 @@ fn build_reference_member(
 	// [1.7] Package output
 	let first_member_out = shared_out_dir.join(&first.name);
 	std::fs::create_dir_all(&first_member_out)?;
-	package_static_assets(base_dir, &assets, shared_out_dir, first.build_config.dist_dir())?;
+	let asset_count = package_static_assets(base_dir, shared_out_dir, first.build_config.dist_dir())?;
 	crate::build::run::copy_wasm_binary_pub(base_dir, shared_out_dir)?;
 	ui::detail_ok(&format!("{}{}{} build complete", col(GREEN), first.name, col(RESET)));
 
 	let route_count = skeleton_output.routes.len();
-	let asset_count = assets.js.len() + assets.css.len();
 	Ok(ReferenceOutput { manifest, route_count, asset_count })
 }
 

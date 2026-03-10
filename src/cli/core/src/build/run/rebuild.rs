@@ -115,7 +115,7 @@ pub fn run_incremental_rebuild(
 		.with_context(|| format!("failed to write {}", route_manifest_path.display()))?;
 
 	if !is_vite {
-		package_static_assets(base_dir, &assets, &out_dir, build_config.dist_dir())?;
+		package_static_assets(base_dir, &out_dir, build_config.dist_dir())?;
 	}
 
 	Ok(())

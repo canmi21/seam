@@ -1,6 +1,7 @@
 /* src/cli/core/src/build/route/tests/mod.rs */
 
 mod output_mode;
+mod packaging;
 mod ref_graph;
 mod validation;
 

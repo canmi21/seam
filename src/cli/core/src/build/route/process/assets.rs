@@ -73,11 +73,8 @@ mod tests {
 
 	#[test]
 	fn compute_route_assets_missing_source_file_map() {
-		let bm = BundleManifest {
-			global: AssetFiles { js: vec![], css: vec![] },
-			entries: BTreeMap::new(),
-			template: AssetFiles { js: vec![], css: vec![] },
-		};
+		let bm =
+			BundleManifest { entries: BTreeMap::new(), template: AssetFiles { js: vec![], css: vec![] } };
 		let result = compute_route_assets("/", None, Some(&bm));
 		assert!(result.is_none());
 	}
@@ -93,11 +90,8 @@ mod tests {
 	#[test]
 	fn compute_route_assets_route_not_in_map() {
 		let sfm = BTreeMap::new(); // empty map
-		let bm = BundleManifest {
-			global: AssetFiles { js: vec![], css: vec![] },
-			entries: BTreeMap::new(),
-			template: AssetFiles { js: vec![], css: vec![] },
-		};
+		let bm =
+			BundleManifest { entries: BTreeMap::new(), template: AssetFiles { js: vec![], css: vec![] } };
 		let result = compute_route_assets("/missing", Some(&sfm), Some(&bm));
 		assert!(result.is_none());
 	}
@@ -107,7 +101,6 @@ mod tests {
 		let mut sfm = BTreeMap::new();
 		sfm.insert("/".to_string(), "src/Home.tsx".to_string());
 		let bm = BundleManifest {
-			global: AssetFiles { js: vec![], css: vec![] },
 			entries: BTreeMap::new(), // no entry for "src/Home.tsx"
 			template: AssetFiles { js: vec![], css: vec![] },
 		};
@@ -142,7 +135,7 @@ mod tests {
 			css: vec!["assets/main-tmpl.css".to_string()],
 		};
 
-		let bm = BundleManifest { global: AssetFiles { js: vec![], css: vec![] }, entries, template };
+		let bm = BundleManifest { entries, template };
 
 		// Home route
 		let home = compute_route_assets("/", Some(&sfm), Some(&bm)).unwrap();
