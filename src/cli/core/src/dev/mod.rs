@@ -71,6 +71,8 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
 			Err(_) => (base_dir.join(".seam/dist/.vite/manifest.json"), base_dir.join(".seam/dist")),
 		};
 		let assets = read_bundle_manifest(&manifest_path)?;
+		let public_dir = base_dir.join("public");
+		let public_dir = if public_dir.is_dir() { Some(public_dir) } else { None };
 
 		if children.is_empty() {
 			// No backend -- just run dev server
@@ -79,7 +81,7 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
 					println!();
 					root_ui::shutting_down();
 				}
-				result = dev_server::start_dev_server(static_dir, dev_port, config.backend.port, assets) => {
+				result = dev_server::start_dev_server(static_dir, dev_port, config.backend.port, assets, public_dir) => {
 					if let Err(e) = result {
 						root_ui::error(&format!("dev server: {e}"));
 					}
@@ -96,7 +98,7 @@ pub async fn run_dev(config: &SeamConfig, base_dir: &Path) -> Result<()> {
 					let color = label_color(label);
 					root_ui::process_exited(label, color, status);
 				}
-				result = dev_server::start_dev_server(static_dir, dev_port, config.backend.port, assets) => {
+				result = dev_server::start_dev_server(static_dir, dev_port, config.backend.port, assets, public_dir) => {
 					if let Err(e) = result {
 						root_ui::error(&format!("dev server: {e}"));
 					}

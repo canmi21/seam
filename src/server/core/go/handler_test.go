@@ -430,9 +430,15 @@ func TestSSEZeroIdleTimeout(t *testing.T) {
 
 func TestPublicFileServing(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "favicon.svg"), []byte("<svg/>"), 0644)
-	os.MkdirAll(filepath.Join(dir, "images"), 0755)
-	os.WriteFile(filepath.Join(dir, "images", "logo.png"), []byte("png"), 0644)
+	if err := os.WriteFile(filepath.Join(dir, "favicon.svg"), []byte("<svg/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "images"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "images", "logo.png"), []byte("png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	handler := buildHandler(
 		[]ProcedureDef{{Name: "test", Handler: echoHandler()}},

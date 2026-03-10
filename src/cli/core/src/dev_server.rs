@@ -97,6 +97,7 @@ pub async fn start_dev_server(
 	dev_port: u16,
 	backend_port: u16,
 	assets: AssetFiles,
+	public_dir: Option<PathBuf>,
 ) -> Result<()> {
 	let spa_html = generate_spa_html(&assets.css, &assets.js);
 	let state = DevState {
@@ -108,17 +109,24 @@ pub async fn start_dev_server(
 	// Static file serving for /assets/*
 	let serve_assets = ServeDir::new(static_dir);
 
-	let app = Router::new()
+	let mut app = Router::new()
 		// Proxy /_seam/* to backend
 		.route(
 			"/_seam/{*path}",
 			get(proxy_handler).post(proxy_handler).put(proxy_handler).delete(proxy_handler),
 		)
 		// Serve static assets from dist/
-		.nest_service("/assets", serve_assets)
-		// SPA fallback for everything else
-		.fallback(spa_fallback)
-		.with_state(state);
+		.nest_service("/assets", serve_assets);
+
+	// When public/ exists, serve it at root path before SPA fallback.
+	// ServeDir tries the file; on miss it falls through to the SPA.
+	if let Some(ref pub_dir) = public_dir {
+		let public_fallback = Router::new().fallback(spa_fallback).with_state(state.clone());
+		app = app.fallback_service(ServeDir::new(pub_dir).fallback(public_fallback));
+	} else {
+		app = app.fallback(spa_fallback);
+	}
+	let app = app.with_state(state);
 
 	let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{dev_port}")).await?;
 	axum::serve(listener, app).await?;
