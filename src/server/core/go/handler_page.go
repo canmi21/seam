@@ -243,6 +243,9 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 // lookupI18nMessages retrieves pre-resolved messages for a route+locale.
 // Memory mode: direct map lookup. Paged mode: read from disk.
 func lookupI18nMessages(cfg *I18nConfig, routeHash, locale string) json.RawMessage {
+	if !isKnownLocale(cfg, locale) || !isKnownRouteHash(cfg, routeHash) {
+		return json.RawMessage("{}")
+	}
 	if cfg.Mode == "paged" && cfg.DistDir != "" {
 		path := filepath.Join(cfg.DistDir, "i18n", routeHash, locale+".json")
 		data, err := os.ReadFile(path)
@@ -258,6 +261,35 @@ func lookupI18nMessages(cfg *I18nConfig, routeHash, locale string) json.RawMessa
 		}
 	}
 	return json.RawMessage("{}")
+}
+
+func isKnownLocale(cfg *I18nConfig, locale string) bool {
+	for _, candidate := range cfg.Locales {
+		if candidate == locale {
+			return true
+		}
+	}
+	return false
+}
+
+func isKnownRouteHash(cfg *I18nConfig, routeHash string) bool {
+	if routeHash == "" {
+		return false
+	}
+	if _, ok := cfg.ContentHashes[routeHash]; ok {
+		return true
+	}
+	for _, candidate := range cfg.RouteHashes {
+		if candidate == routeHash {
+			return true
+		}
+	}
+	for _, localeMessages := range cfg.Messages {
+		if _, ok := localeMessages[routeHash]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // --- helpers ---

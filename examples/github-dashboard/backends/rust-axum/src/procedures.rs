@@ -7,12 +7,33 @@ fn gh_client() -> reqwest::Client {
 	reqwest::Client::new()
 }
 
-fn gh_request(client: &reqwest::Client, url: &str) -> reqwest::RequestBuilder {
+fn gh_request(client: &reqwest::Client, url: reqwest::Url) -> reqwest::RequestBuilder {
 	let req = client
 		.get(url)
 		.header("Accept", "application/vnd.github.v3+json")
 		.header("User-Agent", "seam-github-dashboard");
 	if let Ok(token) = std::env::var("GITHUB_TOKEN") { req.bearer_auth(token) } else { req }
+}
+
+fn gh_user_url(username: &str) -> Result<reqwest::Url, SeamError> {
+	let mut url = reqwest::Url::parse("https://api.github.com/users/")
+		.map_err(|e| SeamError::internal(format!("invalid GitHub base URL: {e}")))?;
+	url
+		.path_segments_mut()
+		.map_err(|_| SeamError::internal("GitHub base URL cannot accept path segments".to_string()))?
+		.pop_if_empty()
+		.push(username);
+	Ok(url)
+}
+
+fn gh_user_repos_url(username: &str) -> Result<reqwest::Url, SeamError> {
+	let mut url = gh_user_url(username)?;
+	url
+		.path_segments_mut()
+		.map_err(|_| SeamError::internal("GitHub base URL cannot accept path segments".to_string()))?
+		.push("repos");
+	url.query_pairs_mut().append_pair("sort", "stars").append_pair("per_page", "6");
+	Ok(url)
 }
 
 // -- getSession --
@@ -67,9 +88,9 @@ pub struct GetUserOutput {
 
 #[seam_procedure(name = "getUser")]
 pub async fn get_user(input: GetUserInput) -> Result<GetUserOutput, SeamError> {
-	let url = format!("https://api.github.com/users/{}", input.username);
+	let url = gh_user_url(&input.username)?;
 	let client = gh_client();
-	let resp = gh_request(&client, &url)
+	let resp = gh_request(&client, url)
 		.send()
 		.await
 		.map_err(|e| SeamError::internal(format!("GitHub API error: {e}")))?;
@@ -115,9 +136,9 @@ pub struct RepoItem {
 
 #[seam_procedure(name = "getUserRepos")]
 pub async fn get_user_repos(input: GetUserReposInput) -> Result<Vec<RepoItem>, SeamError> {
-	let url = format!("https://api.github.com/users/{}/repos?sort=stars&per_page=6", input.username);
+	let url = gh_user_repos_url(&input.username)?;
 	let client = gh_client();
-	let resp = gh_request(&client, &url)
+	let resp = gh_request(&client, url)
 		.send()
 		.await
 		.map_err(|e| SeamError::internal(format!("GitHub API error: {e}")))?;
