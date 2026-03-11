@@ -31,18 +31,27 @@ export function isLazyLoader(c: unknown): c is LazyComponentLoader {
 /** Cache of resolved lazy components, keyed by route path */
 const lazyComponentCache = new Map<string, ComponentType>()
 
+function joinRoutePaths(parentPath: string, childPath: string): string {
+	if (childPath === '/') return parentPath || '/'
+	if (!parentPath || parentPath === '/') return childPath
+	return `${parentPath}${childPath}`
+}
+
+function hasRoutePath(path: string | undefined): path is string {
+	return !!path
+}
+
 /** Extract all leaf paths from a potentially nested route tree, joining parent prefixes */
 export function collectLeafPaths(defs: RouteDef[], parentPath = ''): string[] {
 	const paths: string[] = []
 	for (const d of defs) {
-		// Path grouping nodes (children, no layout, no component) use relative child paths;
-		// layout nodes already have absolute child paths — don't accumulate for layouts.
 		const isGrouping = d.children && !d.layout && !d.component
-		const full = d.path === '/' ? parentPath || '/' : `${parentPath}${d.path}`
+		const full = joinRoutePaths(parentPath, d.path)
 		if (d.children) {
-			paths.push(...collectLeafPaths(d.children, isGrouping ? full : parentPath))
+			const childParentPath = isGrouping || d.layout ? full : parentPath
+			paths.push(...collectLeafPaths(d.children, childParentPath))
 		} else {
-			paths.push(parentPath ? `${parentPath}${d.path}` : d.path)
+			paths.push(full)
 		}
 	}
 	return paths
@@ -58,7 +67,7 @@ export function collectHeadMap(
 	const map = new Map<string, HeadConfig | HeadFn>()
 	for (const d of defs) {
 		const isGrouping = d.children && !d.layout && !d.component
-		const full = d.path === '/' ? parentPath || '/' : `${parentPath}${d.path}`
+		const full = joinRoutePaths(parentPath, d.path)
 
 		if (d.layout && d.children) {
 			// Layout node: merge inherited + layout head, propagate to children
@@ -68,7 +77,7 @@ export function collectHeadMap(
 				const finalHead = mergeHeadConfigs(mergedHead, undefined)
 				if (finalHead) map.set(full, finalHead)
 			}
-			for (const [k, v] of collectHeadMap(d.children, parentPath, mergedHead)) {
+			for (const [k, v] of collectHeadMap(d.children, full, mergedHead)) {
 				map.set(k, v)
 			}
 		} else if (d.children) {
@@ -116,25 +125,29 @@ function buildRoutes(
 ): AnyRoute[] {
 	return defs.map((def) => {
 		if (def.layout && def.children) {
-			// Layout node — pathless route that wraps children.
-			// ID must not end with "/" to avoid colliding with index child route
-			// after TanStack Router's joinPaths + cleanPath normalization.
-			// Layout children have absolute paths, so don't accumulate parentPath.
+			// Layout nodes may be pathful (participate in URL matching) or pathless
+			// (wrapper-only). Use a stable custom ID either way so nested index
+			// children do not collide after TanStack normalization.
 			const segment =
 				def.path === '/' ? 'root' : def.path.replace(/^\/|\/$/g, '').replace(/\//g, '-')
 			const layoutId = def._layoutId ?? `_layout_${segment}`
 			const loaders = def.loaders ?? {}
 			const hasLoaders = Object.keys(loaders).length > 0
 			const handoffKeys = extractHandoffKeys(loaders)
+			const fullPath = joinRoutePaths(parentPath, def.path)
+			const routeOptions = hasRoutePath(def.path)
+				? { path: convertPath(def.path) }
+				: { id: layoutId }
 			const layoutRoute = createRoute({
 				getParentRoute: () => parent,
-				id: layoutId,
+				...routeOptions,
 				component: createLayoutWrapper(def.layout, hasLoaders, handoffKeys),
-				loader: hasLoaders ? createLoaderFromDefs(loaders, def.path, layoutId) : undefined,
+				loader: hasLoaders ? createLoaderFromDefs(loaders, fullPath, layoutId) : undefined,
 				staleTime: def.staleTime,
 				...boundaryFields(def),
 			})
-			const children = buildRoutes(def.children, layoutRoute, pages, parentPath)
+			const childParentPath = hasRoutePath(def.path) ? fullPath : parentPath
+			const children = buildRoutes(def.children, layoutRoute, pages, childParentPath)
 			return layoutRoute.addChildren(children)
 		}
 
@@ -143,7 +156,7 @@ function buildRoutes(
 		// Must render SeamOutlet so TanStack Router can display child matches.
 		// Children have relative paths, so accumulate parentPath.
 		if (def.children && !def.component) {
-			const fullPrefix = def.path === '/' ? parentPath || '/' : `${parentPath}${def.path}`
+			const fullPrefix = joinRoutePaths(parentPath, def.path)
 			const groupRoute = createRoute({
 				getParentRoute: () => parent,
 				path: convertPath(def.path),
@@ -153,10 +166,10 @@ function buildRoutes(
 		}
 
 		// Compute full path for leaf nodes (needed for SSR data matching)
-		const fullPath = parentPath ? `${parentPath}${def.path}` : def.path
+		const fullPath = joinRoutePaths(parentPath, def.path)
 
 		// Leaf node — page route, wrapped with SeamDataProvider for scoped useSeamData()
-		const explicitPage = pages?.[def.path]
+		const explicitPage = pages?.[fullPath] ?? pages?.[def.path]
 
 		if (!explicitPage && isLazyLoader(def.component)) {
 			// Lazy component: resolve in loader (runs before render), cache for reuse

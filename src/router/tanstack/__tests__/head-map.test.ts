@@ -40,9 +40,9 @@ describe('collectHeadMap', () => {
 	})
 })
 
-describe('collectHeadMap - layout propagation', () => {
-	const DummyLayout = (() => null) as unknown as RouteDef['layout']
+const DummyLayout = (() => null) as unknown as RouteDef['layout']
 
+describe('collectHeadMap - layout propagation', () => {
 	it('layout head propagates to children without head', () => {
 		const routes: RouteDef[] = [
 			{
@@ -106,7 +106,7 @@ describe('collectHeadMap - layout propagation', () => {
 			},
 		]
 		const map = collectHeadMap(routes)
-		const users = map.get('/users') as HeadConfig
+		const users = map.get('/admin/users') as HeadConfig
 		expect(users.title).toBe('Admin')
 		expect(users.link).toEqual([
 			{ rel: 'icon', href: '/favicon.ico' },
@@ -137,5 +137,34 @@ describe('collectHeadMap - layout propagation', () => {
 			expect(head.meta).toEqual([{ name: 'author', content: 'Test' }])
 			expect(head.link).toEqual([{ rel: 'icon', href: '/icon.png' }])
 		}
+	})
+})
+
+describe('collectHeadMap - pathful and pathless layout keys', () => {
+	it('pathless inner layout does not change inherited head keys', () => {
+		const routes: RouteDef[] = [
+			{
+				path: '/dashboard',
+				layout: DummyLayout,
+				head: { title: 'Dashboard' },
+				children: [
+					{
+						path: '',
+						layout: DummyLayout,
+						head: { link: [{ rel: 'stylesheet', href: '/panel.css' }] },
+						children: [
+							{
+								path: '/settings',
+								component: (() => null) as unknown as RouteDef['component'],
+							},
+						],
+					},
+				],
+			},
+		]
+		const map = collectHeadMap(routes)
+		const settings = map.get('/dashboard/settings') as HeadConfig
+		expect(settings.title).toBe('Dashboard')
+		expect(settings.link).toEqual([{ rel: 'stylesheet', href: '/panel.css' }])
 	})
 })

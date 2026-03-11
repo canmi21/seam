@@ -42,4 +42,29 @@ describe('collectLeafPaths', () => {
 		])
 		expect(result).toEqual(['/a', '/b'])
 	})
+
+	it('includes pathful layout prefixes in collected leaf paths', () => {
+		const result = collectLeafPaths([
+			{
+				path: '/dashboard',
+				layout: () => null,
+				children: [
+					{ path: '/', component: () => null },
+					{ path: '/settings', component: () => null },
+				],
+			},
+		])
+		expect(result).toEqual(['/dashboard', '/dashboard/settings'])
+	})
+
+	it('does not accumulate prefixes for pathless layouts', () => {
+		const result = collectLeafPaths([
+			{
+				path: '',
+				layout: () => null,
+				children: [{ path: '/settings', component: () => null }],
+			},
+		])
+		expect(result).toEqual(['/settings'])
+	})
 })
