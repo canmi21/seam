@@ -28,7 +28,7 @@ fn heartbeat_stream_router(interval: std::time::Duration) -> axum::Router {
 	let server = SeamServer::new()
 		.transport_config(seam_server::TransportConfig {
 			heartbeat_interval: interval,
-			sse_idle_timeout: std::time::Duration::from_secs(15),
+			sse_idle_timeout: std::time::Duration::from_secs(12),
 			pong_timeout: std::time::Duration::from_secs(5),
 		})
 		.stream(StreamDef {

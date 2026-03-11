@@ -108,7 +108,7 @@ function registerSseLifecycleTests() {
 		await iter.return?.(undefined)
 	})
 
-	test('default SSE heartbeat fires every 10 seconds', async () => {
+	test('default SSE heartbeat fires every 8 seconds', async () => {
 		vi.useFakeTimers()
 
 		const iter = withSseLifecycle(
@@ -124,14 +124,14 @@ function registerSseLifecycleTests() {
 		await expect(iter.next()).resolves.toEqual({ done: false, value: ': heartbeat\n\n' })
 
 		const nextChunk = iter.next()
-		vi.advanceTimersByTime(10_000)
+		vi.advanceTimersByTime(8_000)
 		await Promise.resolve()
 		await Promise.resolve()
 		await expect(nextChunk).resolves.toEqual({ done: false, value: ': heartbeat\n\n' })
 		await iter.return?.(undefined)
 	})
 
-	test('default SSE idle timeout completes after 15 seconds', async () => {
+	test('default SSE idle timeout completes after 12 seconds', async () => {
 		vi.useFakeTimers()
 
 		const iter = withSseLifecycle(
@@ -147,7 +147,7 @@ function registerSseLifecycleTests() {
 		await expect(iter.next()).resolves.toEqual({ done: false, value: ': heartbeat\n\n' })
 
 		const nextChunk = iter.next()
-		vi.advanceTimersByTime(15_000)
+		vi.advanceTimersByTime(12_000)
 		await Promise.resolve()
 		await Promise.resolve()
 		await expect(nextChunk).resolves.toEqual({

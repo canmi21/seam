@@ -88,7 +88,7 @@ fn heartbeat_router(interval: Duration) -> axum::Router {
 	let server = SeamServer::new()
 		.transport_config(TransportConfig {
 			heartbeat_interval: interval,
-			sse_idle_timeout: Duration::from_secs(15),
+			sse_idle_timeout: Duration::from_secs(12),
 			pong_timeout: Duration::from_secs(5),
 		})
 		.subscription(SubscriptionDef {
