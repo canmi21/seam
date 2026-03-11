@@ -19,6 +19,9 @@ cargo build -p i18n-demo-axum --release
 printf '\n==> Build fs-router demo\n'
 (cd "$ROOT/examples/fs-router-demo" && "$SEAM" build)
 
+printf '\n==> Build shadcn ui demo\n'
+(cd "$ROOT/examples/shadcn-ui-demo" && "$SEAM" build)
+
 printf '\n==> Build feature demos\n'
 for demo in stream-upload context-auth query-mutation handoff-narrowing channel-subscription; do
   (cd "$ROOT/examples/features/$demo" && "$SEAM" build)

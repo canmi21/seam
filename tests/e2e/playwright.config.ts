@@ -23,6 +23,7 @@ const paths = {
 		'examples/features/channel-subscription/.seam/output',
 	),
 	fsRouterDir: path.resolve(workspaceRoot, 'examples/fs-router-demo/.seam/output'),
+	shadcnUiDemoDir: path.resolve(workspaceRoot, 'examples/shadcn-ui-demo/.seam/output'),
 	nextAppDir: path.resolve(workspaceRoot, 'examples/github-dashboard/next-app'),
 	axumBin: path.join(workspaceRoot, 'target/release/github-dashboard-axum'),
 	i18nAxumBin: path.join(workspaceRoot, 'target/release/i18n-demo-axum'),
@@ -71,6 +72,7 @@ const portNames = [
 	'featureChannelSubscription',
 	'featureSseReconnect',
 	'fsRouter',
+	'shadcnUiDemo',
 	'viteApp',
 	'viteHmr',
 ] as const
@@ -184,7 +186,7 @@ const projectSpecs: ProjectSpec[] = [
 	{
 		name: 'chromium',
 		port: 'fixture',
-		testIgnore: /fullstack|vite-dev|workspace|nextjs|i18n|feature|fs-router/,
+		testIgnore: /fullstack|vite-dev|workspace|nextjs|i18n|feature|fs-router|shadcn-ui-demo/,
 	},
 	{ name: 'fullstack', port: 'fullstack', testMatch: /fullstack/ },
 	{
@@ -237,6 +239,7 @@ const projectSpecs: ProjectSpec[] = [
 		workers: 1,
 	},
 	{ name: 'fs-router', port: 'fsRouter', testMatch: /fs-router/ },
+	{ name: 'shadcn-ui-demo', port: 'shadcnUiDemo', testMatch: /shadcn-ui-demo/ },
 ]
 
 const serverSpecs: ServerSpec[] = [
@@ -318,6 +321,7 @@ const serverSpecs: ServerSpec[] = [
 	},
 	{ command: 'bun run server/index.js', cwd: paths.featureChannelDir, port: 'featureSseReconnect' },
 	{ command: 'bun run server/index.js', cwd: paths.fsRouterDir, port: 'fsRouter' },
+	{ command: 'bun run server/index.js', cwd: paths.shadcnUiDemoDir, port: 'shadcnUiDemo' },
 ]
 
 const configuredWorkers = process.env.PW_WORKERS ?? (process.env.CI ? '50%' : undefined)

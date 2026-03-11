@@ -32,6 +32,7 @@
     "examples/github-dashboard/seam-app",
     "examples/github-dashboard/next-app",
     "examples/i18n-demo/seam-app",
+    "examples/shadcn-ui-demo",
     "examples/fs-router-demo",
     "examples/features/stream-upload",
     "examples/features/context-auth",

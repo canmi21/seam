@@ -49,6 +49,7 @@ For a fullstack example with React frontend, see the [GitHub Dashboard](examples
 - [GitHub Dashboard](examples/github-dashboard/) — fullstack CTR with Rust, TypeScript, and Go backends
 - [Markdown Demo](examples/markdown-demo/) — SSR via HTML slot injection with server-side rendering
 - [i18n Demo](examples/i18n-demo/) — URL-prefix and hidden locale resolution
+- [shadcn/ui Demo](examples/shadcn-ui-demo/) — Tailwind CSS v4 + Radix/shadcn behavior under CTR and hydration
 - [FS Router Demo](examples/fs-router-demo/) — filesystem router with all route types
 - [Feature Demos](examples/features/) — channels, context, streams, queries, and handoff
 - [Standalone Servers](examples/standalone/) — minimal SDK usage for each language

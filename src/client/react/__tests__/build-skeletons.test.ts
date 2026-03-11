@@ -4,13 +4,23 @@
 
 import { describe, it, expect, afterAll } from 'vitest'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, rmSync, readdirSync, existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { buildSentinelData } from '../src/sentinel.js'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
+const bunStoreDir = resolve(__dirname, '../../../../node_modules/.bun')
+
+function resolveBunPackageEntry(packagePrefix: string, entryPath: string) {
+	const packageDir = readdirSync(bunStoreDir).find((name) => name.startsWith(packagePrefix))
+	if (!packageDir) throw new Error(`Could not find ${packagePrefix} in ${bunStoreDir}`)
+
+	const resolved = join(bunStoreDir, packageDir, 'node_modules', entryPath)
+	if (!existsSync(resolved)) throw new Error(`Could not find ${resolved}`)
+	return resolved
+}
 
 describe('buildSentinelData', () => {
 	it('converts flat object to sentinels', () => {
@@ -179,6 +189,14 @@ export default defineRoutes([{
 describe('render guards', () => {
 	const tmpDirs: string[] = []
 	const scriptPath = resolve(__dirname, '../scripts/build-skeletons.mjs')
+	const radixPortalPath = resolveBunPackageEntry(
+		'@radix-ui+react-portal@',
+		'@radix-ui/react-portal/dist/index.mjs',
+	)
+	const radixSlotPath = resolveBunPackageEntry(
+		'@radix-ui+react-slot@',
+		'@radix-ui/react-slot/dist/index.mjs',
+	)
 
 	afterAll(() => {
 		for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: true })
@@ -276,5 +294,124 @@ export default defineRoutes([{
 		const output = JSON.parse(result.stdout as string)
 		expect(output.warnings).toEqual([])
 		expect(output.routes[0].variants[0].html).toContain('%%SEAM:greeting%%')
+	})
+
+	it('returns undefined for browser globals and warns once per global', () => {
+		const result = runBuild(`
+import React from "react";
+import { defineRoutes } from "@canmi/seam-react";
+
+function Page() {
+  const hasDocument = globalThis?.document ? "yes" : "no";
+  const hasWindow = globalThis?.window ? "yes" : "no";
+  const hasDocumentAgain = globalThis?.document ? "yes" : "no";
+  return React.createElement(
+    "div",
+    null,
+    React.createElement("p", null, "document:" + hasDocument),
+    React.createElement("p", null, "window:" + hasWindow),
+    React.createElement("p", null, "document-again:" + hasDocumentAgain),
+  );
+}
+
+export default defineRoutes([{
+  path: "/",
+  component: Page,
+  loaders: {},
+  mock: {},
+}]);
+`)
+		expect(result.status).toBe(0)
+		const output = JSON.parse(result.stdout as string)
+		expect(output.warnings).toHaveLength(2)
+		expect(output.warnings[0]).toContain('Browser global "document"')
+		expect(output.warnings[1]).toContain('Browser global "window"')
+		expect(output.routes[0].variants[0].html).toContain('document:no')
+		expect(output.routes[0].variants[0].html).toContain('window:no')
+		expect(output.routes[0].variants[0].html).toContain('document-again:no')
+	})
+
+	it('builds a Radix portal-backed component and omits portal HTML during SSR', () => {
+		const result = runBuild(`
+import React from "react";
+import { Portal } from ${JSON.stringify(radixPortalPath)};
+import { defineRoutes } from "@canmi/seam-react";
+
+function Page() {
+  return React.createElement("div", null,
+    React.createElement("button", null, "open-dialog"),
+    React.createElement(Portal, null,
+      React.createElement("div", null, "dialog-title"),
+    )
+  );
+}
+
+export default defineRoutes([{
+  path: "/",
+  component: Page,
+  loaders: {},
+  mock: {},
+}]);
+`)
+		expect(result.status).toBe(0)
+		const output = JSON.parse(result.stdout as string)
+		const html = output.routes[0].variants[0].html
+		expect(html).toContain('open-dialog')
+		expect(html).not.toContain('dialog-title')
+		expect(output.warnings).toEqual([])
+	})
+
+	it('builds a shadcn-style composition with hydration-only portal content', () => {
+		const result = runBuild(`
+import React from "react";
+import { Portal } from ${JSON.stringify(radixPortalPath)};
+import { Slot } from ${JSON.stringify(radixSlotPath)};
+import { defineRoutes } from "@canmi/seam-react";
+
+function Button({ asChild, children }) {
+  const Comp = asChild ? Slot : "button";
+  return React.createElement(Comp, { className: "btn" }, children);
+}
+
+function Card({ children }) {
+  return React.createElement("section", { className: "card" }, children);
+}
+
+function DeferredOverlay({ mounted }) {
+  return mounted
+    ? React.createElement(Portal, null, React.createElement("div", null, "overlay-content"))
+    : React.createElement("p", null, "deferred");
+}
+
+function Page() {
+  return React.createElement("div", null,
+    React.createElement(Card, null,
+      React.createElement("h2", null, "display"),
+      React.createElement(Button, null, "primary"),
+    ),
+    React.createElement(Button, null, "dialog-trigger"),
+    React.createElement(Button, { asChild: true },
+      React.createElement("a", { href: "/menu" }, "menu-trigger"),
+    ),
+    React.createElement(DeferredOverlay, { mounted: false }),
+  );
+}
+
+export default defineRoutes([{
+  path: "/",
+  component: Page,
+  loaders: {},
+  mock: {},
+}]);
+`)
+		expect(result.status).toBe(0)
+		const output = JSON.parse(result.stdout as string)
+		const html = output.routes[0].variants[0].html
+		expect(html).toContain('display')
+		expect(html).toContain('primary')
+		expect(html).toContain('dialog-trigger')
+		expect(html).toContain('menu-trigger')
+		expect(html).toContain('deferred')
+		expect(html).not.toContain('overlay-content')
 	})
 })

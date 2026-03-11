@@ -1,6 +1,6 @@
 # seam-e2e
 
-Playwright end-to-end tests covering standalone fixtures, fullstack GitHub Dashboard, workspace backends, Next.js, and i18n demo.
+Playwright end-to-end tests covering standalone fixtures, fullstack GitHub Dashboard, workspace backends, Next.js, i18n demo, and the shadcn/ui demo.
 
 ## Structure
 
@@ -15,6 +15,7 @@ Playwright end-to-end tests covering standalone fixtures, fullstack GitHub Dashb
 | `fixture/.seam/output`                            | Standalone fixture pages                 |
 | `examples/github-dashboard/seam-app/.seam/output` | Fullstack dashboard + workspace backends |
 | `examples/i18n-demo/seam-app/.seam/output`        | i18n prefix and hidden modes             |
+| `examples/shadcn-ui-demo/.seam/output`            | Tailwind CSS v4 + shadcn/Radix hydration |
 
 ## Development
 

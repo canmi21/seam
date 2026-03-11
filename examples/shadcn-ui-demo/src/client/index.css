@@ -1,0 +1,48 @@
+/* examples/shadcn-ui-demo/src/client/index.css */
+
+@import 'tailwindcss';
+
+@theme {
+	--color-background: var(--paper);
+	--color-foreground: var(--slate-950);
+}
+
+:root {
+	--paper: #eef4ff;
+	--slate-100: #e2e8f0;
+	--slate-500: #64748b;
+	--slate-600: #475569;
+	--slate-700: #334155;
+	--slate-800: #1e293b;
+	--slate-900: #0f172a;
+	--slate-950: #020617;
+	--cobalt-100: #dbeafe;
+	--cobalt-600: #2563eb;
+	--cobalt-700: #1d4ed8;
+	--cobalt-900: #1e3a8a;
+	--amber-200: #fde68a;
+	--ring: rgba(37, 99, 235, 0.35);
+	font-family: 'Sora', 'Avenir Next', 'Segoe UI', sans-serif;
+	color: var(--slate-900);
+	background: var(--paper);
+}
+
+html {
+	scroll-behavior: smooth;
+}
+
+body {
+	margin: 0;
+	min-width: 320px;
+}
+
+a {
+	color: inherit;
+	text-decoration: none;
+}
+
+button,
+input,
+select {
+	font: inherit;
+}

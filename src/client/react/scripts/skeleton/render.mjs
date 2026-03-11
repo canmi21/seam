@@ -32,6 +32,8 @@ function renderWithData(component, data, i18nValue) {
 }
 
 function installRenderTraps(violations, teardowns) {
+	const warnedBrowserGlobals = new Set()
+
 	function trapCall(obj, prop, label) {
 		const orig = obj[prop]
 		obj[prop] = function () {
@@ -61,12 +63,20 @@ function installRenderTraps(violations, teardowns) {
 
 	// Trap browser globals (only if not already defined — these are undefined in Node;
 	// typeof checks bypass getters, so `typeof window !== 'undefined'` remains safe)
-	for (const name of ['window', 'document', 'localStorage']) {
+	for (const name of ['window', 'document', 'localStorage', 'sessionStorage']) {
 		if (!(name in globalThis)) {
 			Object.defineProperty(globalThis, name, {
 				get() {
-					violations.push({ severity: 'error', reason: `${name} accessed during skeleton render` })
-					throw new SeamBuildError(`${name} is not available in skeleton components`)
+					if (!warnedBrowserGlobals.has(name)) {
+						warnedBrowserGlobals.add(name)
+						violations.push({
+							severity: 'warning',
+							reason:
+								`Browser global "${name}" was accessed during skeleton rendering.\n` +
+								'  Returned undefined to match SSR behavior.',
+						})
+					}
+					return undefined
 				},
 				configurable: true,
 			})
