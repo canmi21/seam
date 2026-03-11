@@ -223,8 +223,8 @@ function scanImportEntries(source: string): ImportEntry[] {
 }
 
 function isImportTokenBoundary(source: string, start: number, end: number): boolean {
-	const before = start === 0 ? '' : source[start - 1]
-	const after = end >= source.length ? '' : source[end]
+	const before = start === 0 ? '' : source.charAt(start - 1)
+	const after = end >= source.length ? '' : source.charAt(end)
 	return !isIdentifierChar(before) && !isIdentifierChar(after)
 }
 
@@ -240,13 +240,13 @@ function skipWhitespace(source: string, index: number): number {
 function findFromKeyword(source: string, index: number): number {
 	let braceDepth = 0
 	for (let i = index; i < source.length - 3; i++) {
-		const char = source[i] as string
+		const char = source.charAt(i)
 		if (char === '{') braceDepth++
 		else if (char === '}') braceDepth = Math.max(0, braceDepth - 1)
 		if (braceDepth !== 0) continue
 		if (source.slice(i, i + 4) !== 'from') continue
-		const before = i === 0 ? '' : source[i - 1]
-		const after = i + 4 >= source.length ? '' : source[i + 4]
+		const before = i === 0 ? '' : source.charAt(i - 1)
+		const after = i + 4 >= source.length ? '' : source.charAt(i + 4)
 		if (!isIdentifierChar(before) && !isIdentifierChar(after)) return i
 	}
 	return -1
