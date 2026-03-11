@@ -172,25 +172,107 @@ export function seam(options?: SeamOptions): Plugin[] {
 /** Parse import statements from source, returning Map<localName, specifier> */
 export function parseComponentImports(source: string): Map<string, string> {
 	const map = new Map<string, string>()
-	const re = /import\s+(?:(\w+)\s*,?\s*)?(?:\{([^}]*)\}\s*)?from\s+['"]([^'"]+)['"]/g
-	let m: RegExpExecArray | null
-	while ((m = re.exec(source)) !== null) {
-		const [, defaultName, namedPart, specifier] = m
-		if (defaultName) map.set(defaultName, specifier as string)
-		if (namedPart) {
-			for (const part of namedPart.split(',')) {
-				const t = part.trim()
-				if (!t) continue
-				const asMatch = t.match(/^(\w+)\s+as\s+(\w+)$/)
-				if (asMatch) {
-					map.set(asMatch[2] as string, specifier as string)
-				} else {
-					map.set(t, specifier as string)
-				}
+	for (const entry of scanImportEntries(source)) {
+		if (entry.defaultName) map.set(entry.defaultName, entry.specifier)
+		for (const part of entry.namedParts) {
+			const asMatch = part.match(/^(\w+)\s+as\s+(\w+)$/)
+			if (asMatch) {
+				map.set(asMatch[2] as string, entry.specifier)
+			} else {
+				map.set(part, entry.specifier)
 			}
 		}
 	}
 	return map
+}
+
+interface ImportEntry {
+	defaultName: string | null
+	namedParts: string[]
+	specifier: string
+}
+
+function scanImportEntries(source: string): ImportEntry[] {
+	const entries: ImportEntry[] = []
+	let index = 0
+	while (index < source.length) {
+		const importPos = source.indexOf('import', index)
+		if (importPos === -1) break
+		index = importPos + 'import'.length
+		if (!isImportTokenBoundary(source, importPos, index)) continue
+
+		let cursor = skipWhitespace(source, index)
+		const firstChar = source[cursor]
+		if (!firstChar || firstChar === '(' || firstChar === '"' || firstChar === "'") continue
+
+		const fromPos = findFromKeyword(source, cursor)
+		if (fromPos === -1) continue
+
+		const clause = source.slice(cursor, fromPos).trim()
+		cursor = skipWhitespace(source, fromPos + 'from'.length)
+		const quote = source[cursor]
+		if (quote !== '"' && quote !== "'") continue
+		const specifierEnd = source.indexOf(quote, cursor + 1)
+		if (specifierEnd === -1) continue
+		const specifier = source.slice(cursor + 1, specifierEnd)
+		const entry = parseImportClause(clause, specifier)
+		if (entry) entries.push(entry)
+		index = specifierEnd + 1
+	}
+	return entries
+}
+
+function isImportTokenBoundary(source: string, start: number, end: number): boolean {
+	const before = start === 0 ? '' : source[start - 1]
+	const after = end >= source.length ? '' : source[end]
+	return !isIdentifierChar(before) && !isIdentifierChar(after)
+}
+
+function isIdentifierChar(char: string): boolean {
+	return char !== '' && /[A-Za-z0-9_$]/.test(char)
+}
+
+function skipWhitespace(source: string, index: number): number {
+	while (index < source.length && /\s/.test(source[index] as string)) index++
+	return index
+}
+
+function findFromKeyword(source: string, index: number): number {
+	let braceDepth = 0
+	for (let i = index; i < source.length - 3; i++) {
+		const char = source[i] as string
+		if (char === '{') braceDepth++
+		else if (char === '}') braceDepth = Math.max(0, braceDepth - 1)
+		if (braceDepth !== 0) continue
+		if (source.slice(i, i + 4) !== 'from') continue
+		const before = i === 0 ? '' : source[i - 1]
+		const after = i + 4 >= source.length ? '' : source[i + 4]
+		if (!isIdentifierChar(before) && !isIdentifierChar(after)) return i
+	}
+	return -1
+}
+
+function parseImportClause(clause: string, specifier: string): ImportEntry | null {
+	if (!clause || clause.startsWith('*')) return null
+
+	const namedStart = clause.indexOf('{')
+	const namedEnd = clause.lastIndexOf('}')
+	let defaultName: string | null = null
+	let namedParts: string[] = []
+
+	if (namedStart !== -1 && namedEnd > namedStart) {
+		const defaultPart = clause.slice(0, namedStart).replace(/,\s*$/, '').trim()
+		if (defaultPart) defaultName = defaultPart
+		namedParts = clause
+			.slice(namedStart + 1, namedEnd)
+			.split(',')
+			.map((part) => part.trim())
+			.filter(Boolean)
+	} else {
+		defaultName = clause.trim()
+	}
+
+	return { defaultName, namedParts, specifier }
 }
 
 /** Resolve a source file path, probing .tsx/.ts/.jsx/.js extensions */

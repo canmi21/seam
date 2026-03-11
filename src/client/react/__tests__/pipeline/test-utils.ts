@@ -12,6 +12,8 @@ import type { Axis } from './extract/index.js'
 
 export { inject, buildSentinelData }
 
+const UNSAFE_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor'])
+
 // -- Slot replacement (mirrors Rust sentinel_to_slots) --
 // Non-sentinel attributes (e.g. id="_R_1_" from React's useId) pass through
 // verbatim as static template literals. The ID format is React-version dependent
@@ -232,6 +234,7 @@ export function assertPipelineFidelity(config: FidelityTestConfig): void {
 
 function setNestedValue(obj: Record<string, unknown>, path: string, value: unknown): void {
 	const parts = path.split('.')
+	if (parts.some((part) => UNSAFE_PATH_SEGMENTS.has(part))) return
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let current: any = obj
 	for (let i = 0; i < parts.length - 1; i++) {

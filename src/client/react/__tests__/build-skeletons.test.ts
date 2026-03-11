@@ -3,7 +3,7 @@
 /* eslint-disable max-lines-per-function */
 
 import { describe, it, expect, afterAll } from 'vitest'
-import { execSync, spawnSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -160,7 +160,7 @@ export default defineRoutes([{
 		writeFileSync(routesFile, routesContent)
 
 		const scriptPath = resolve(__dirname, '../scripts/build-skeletons.mjs')
-		const stdout = execSync(`node ${scriptPath} ${routesFile}`, {
+		const stdout = execFileSync('node', [scriptPath, routesFile], {
 			cwd: tmpDir,
 			encoding: 'utf-8',
 			// node_modules resolution needs the monorepo root

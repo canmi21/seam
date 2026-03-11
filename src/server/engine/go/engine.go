@@ -70,8 +70,7 @@ func callWasm(funcName string, args ...string) (string, error) {
 	retptr := uint32(spRes[0])
 
 	// Write all string arguments to WASM memory
-	params := make([]uint64, 0, 1+len(args)*2)
-	params = append(params, uint64(retptr))
+	params := []uint64{uint64(retptr)}
 	for _, arg := range args {
 		argBytes := []byte(arg)
 		res, err := malloc.Call(ctx, uint64(len(argBytes)), 1)
