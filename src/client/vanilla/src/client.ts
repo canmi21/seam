@@ -257,7 +257,7 @@ function createStreamHandle(baseUrl: string, name: string, input: unknown): Stre
 }
 
 export function createClient(opts: ClientOptions): SeamClient {
-	const baseUrl = opts.baseUrl.replace(/\/+$/, '')
+	const baseUrl = trimTrailingSlashes(opts.baseUrl)
 	const batchPath = opts.batchEndpoint ?? '_batch'
 	const channelTransports = opts.channelTransports
 
@@ -331,4 +331,10 @@ export function createClient(opts: ClientOptions): SeamClient {
 			return (await res.json()) as unknown
 		},
 	}
+}
+
+function trimTrailingSlashes(value: string): string {
+	let end = value.length
+	while (end > 0 && value.charCodeAt(end - 1) === 47) end--
+	return value.slice(0, end)
 }
