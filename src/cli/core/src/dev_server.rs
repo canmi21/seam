@@ -14,6 +14,7 @@ use axum::extract::State;
 use axum::http::{Request, StatusCode};
 use axum::response::{Html, Response};
 use axum::routing::get;
+use reqwest::Url;
 use tower_http::services::ServeDir;
 
 #[derive(Clone)]
@@ -45,17 +46,14 @@ async fn proxy_handler(
 	State(state): State<DevState>,
 	req: Request<Body>,
 ) -> Result<Response, StatusCode> {
-	let path_and_query = req
-		.uri()
-		.path_and_query()
-		.map(axum::http::uri::PathAndQuery::as_str)
-		.unwrap_or(req.uri().path());
-	let url = format!("{}{}", state.backend_origin, path_and_query);
+	let mut url = Url::parse(&state.backend_origin).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+	url.set_path(req.uri().path());
+	url.set_query(req.uri().query());
 
 	let method = reqwest::Method::from_bytes(req.method().as_str().as_bytes())
 		.map_err(|_| StatusCode::BAD_REQUEST)?;
 
-	let mut builder = state.client.request(method, &url);
+	let mut builder = state.client.request(method, url);
 
 	// Forward headers (skip host)
 	for (key, value) in req.headers() {

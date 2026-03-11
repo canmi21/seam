@@ -81,18 +81,22 @@ mod tests {
 
 	#[test]
 	fn deterministic_with_same_salt() {
-		let map1 =
-			generate_rpc_hash_map(&["getUser", "getSession"], "abcd1234abcd1234", 12, true).unwrap();
-		let map2 =
-			generate_rpc_hash_map(&["getUser", "getSession"], "abcd1234abcd1234", 12, true).unwrap();
+		let salt = generate_random_salt();
+		let map1 = generate_rpc_hash_map(&["getUser", "getSession"], &salt, 12, true).unwrap();
+		let map2 = generate_rpc_hash_map(&["getUser", "getSession"], &salt, 12, true).unwrap();
 		assert_eq!(map1.procedures, map2.procedures);
 		assert_eq!(map1.batch, map2.batch);
 	}
 
 	#[test]
 	fn different_salt_different_hashes() {
-		let map1 = generate_rpc_hash_map(&["getUser"], "salt_a_1234567890", 12, true).unwrap();
-		let map2 = generate_rpc_hash_map(&["getUser"], "salt_b_1234567890", 12, true).unwrap();
+		let salt1 = generate_random_salt();
+		let mut salt2 = generate_random_salt();
+		if salt1 == salt2 {
+			salt2 = generate_random_salt();
+		}
+		let map1 = generate_rpc_hash_map(&["getUser"], &salt1, 12, true).unwrap();
+		let map2 = generate_rpc_hash_map(&["getUser"], &salt2, 12, true).unwrap();
 		assert_ne!(map1.procedures["getUser"], map2.procedures["getUser"]);
 	}
 
@@ -108,7 +112,8 @@ mod tests {
 			"getComments",
 			"addComment",
 		];
-		let map = generate_rpc_hash_map(&names, "test_salt_12345678", 12, true).unwrap();
+		let salt = generate_random_salt();
+		let map = generate_rpc_hash_map(&names, &salt, 12, true).unwrap();
 		assert_eq!(map.procedures.len(), names.len());
 		// All hashes are unique
 		let hashes: std::collections::HashSet<_> = map.procedures.values().collect();
@@ -117,7 +122,8 @@ mod tests {
 
 	#[test]
 	fn hash_length_type_hint_true() {
-		let map = generate_rpc_hash_map(&["test"], "salt_for_testing_1", 12, true).unwrap();
+		let salt = generate_random_salt();
+		let map = generate_rpc_hash_map(&["test"], &salt, 12, true).unwrap();
 		let hash = &map.procedures["test"];
 		// rpc- prefix (4) + 12 hex chars = 16 total
 		assert_eq!(hash.len(), 16);
@@ -129,7 +135,8 @@ mod tests {
 
 	#[test]
 	fn hash_length_type_hint_false() {
-		let map = generate_rpc_hash_map(&["test"], "salt_for_testing_1", 12, false).unwrap();
+		let salt = generate_random_salt();
+		let map = generate_rpc_hash_map(&["test"], &salt, 12, false).unwrap();
 		let hash = &map.procedures["test"];
 		// bare 12 hex chars, no prefix
 		assert_eq!(hash.len(), 12);
@@ -140,21 +147,22 @@ mod tests {
 
 	#[test]
 	fn hash_length_custom() {
+		let salt = generate_random_salt();
 		// 8 hex chars
-		let map = generate_rpc_hash_map(&["test"], "salt_for_testing_1", 8, true).unwrap();
+		let map = generate_rpc_hash_map(&["test"], &salt, 8, true).unwrap();
 		let hash = &map.procedures["test"];
 		assert_eq!(hash.len(), 12); // rpc- (4) + 8 hex
 		assert!(hash.starts_with("rpc-"));
 		assert!(hash[4..].chars().all(|c| c.is_ascii_hexdigit()));
 
 		// 20 hex chars
-		let map = generate_rpc_hash_map(&["test"], "salt_for_testing_1", 20, false).unwrap();
+		let map = generate_rpc_hash_map(&["test"], &salt, 20, false).unwrap();
 		let hash = &map.procedures["test"];
 		assert_eq!(hash.len(), 20);
 		assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
 
 		// Odd length (7 hex chars)
-		let map = generate_rpc_hash_map(&["test"], "salt_for_testing_1", 7, false).unwrap();
+		let map = generate_rpc_hash_map(&["test"], &salt, 7, false).unwrap();
 		let hash = &map.procedures["test"];
 		assert_eq!(hash.len(), 7);
 		assert!(hash.chars().all(|c| c.is_ascii_hexdigit()));
@@ -162,7 +170,8 @@ mod tests {
 
 	#[test]
 	fn serialization_roundtrip() {
-		let map = generate_rpc_hash_map(&["a", "b"], "roundtrip_salt_00", 12, true).unwrap();
+		let salt = generate_random_salt();
+		let map = generate_rpc_hash_map(&["a", "b"], &salt, 12, true).unwrap();
 		let json = serde_json::to_string(&map).unwrap();
 		let restored: RpcHashMap = serde_json::from_str(&json).unwrap();
 		assert_eq!(map.salt, restored.salt);
@@ -179,7 +188,8 @@ mod tests {
 
 	#[test]
 	fn empty_procedures() {
-		let map = generate_rpc_hash_map(&[], "empty_salt_123456", 12, true).unwrap();
+		let salt = generate_random_salt();
+		let map = generate_rpc_hash_map(&[], &salt, 12, true).unwrap();
 		assert!(map.procedures.is_empty());
 		assert!(!map.batch.is_empty());
 	}
