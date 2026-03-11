@@ -41,6 +41,10 @@ function hasRoutePath(path: string | undefined): path is string {
 	return !!path
 }
 
+function isPathfulLayout(path: string | undefined): path is string {
+	return hasRoutePath(path) && path !== '/'
+}
+
 /** Extract all leaf paths from a potentially nested route tree, joining parent prefixes */
 export function collectLeafPaths(defs: RouteDef[], parentPath = ''): string[] {
 	const paths: string[] = []
@@ -135,7 +139,7 @@ function buildRoutes(
 			const hasLoaders = Object.keys(loaders).length > 0
 			const handoffKeys = extractHandoffKeys(loaders)
 			const fullPath = joinRoutePaths(parentPath, def.path)
-			const routeOptions = hasRoutePath(def.path)
+			const routeOptions = isPathfulLayout(def.path)
 				? { path: convertPath(def.path) }
 				: { id: layoutId }
 			const layoutRoute = createRoute({
@@ -146,7 +150,7 @@ function buildRoutes(
 				staleTime: def.staleTime,
 				...boundaryFields(def),
 			})
-			const childParentPath = hasRoutePath(def.path) ? fullPath : parentPath
+			const childParentPath = isPathfulLayout(def.path) ? fullPath : parentPath
 			const children = buildRoutes(def.children, layoutRoute, pages, childParentPath)
 			return layoutRoute.addChildren(children)
 		}

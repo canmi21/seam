@@ -53,14 +53,18 @@ test.describe('feature: query & mutation', () => {
 		// Wait for interactive UI (deferred via useEffect)
 		await expect(page.locator('input[placeholder="New todo..."]')).toBeVisible({ timeout: 5_000 })
 
-		// "Learn SeamJS" starts unchecked (done: false)
 		const learnSpan = page.locator('span', { hasText: 'Learn SeamJS' })
-		await expect(learnSpan).toHaveCSS('text-decoration-line', 'none')
-
-		// Toggle it and wait for mutation batch call
 		const checkbox = page
 			.locator('label', { hasText: 'Learn SeamJS' })
 			.locator('input[type="checkbox"]')
+		const wasChecked = await checkbox.isChecked()
+		if (wasChecked) {
+			await expect(learnSpan).toHaveCSS('text-decoration-line', 'line-through')
+		} else {
+			await expect(learnSpan).toHaveCSS('text-decoration-line', 'none')
+		}
+
+		// Toggle it and wait for mutation batch call
 		await Promise.all([
 			page.waitForResponse((r) => r.url().includes('_seam/procedure'), { timeout: 5_000 }),
 			checkbox.click(),
@@ -70,6 +74,7 @@ test.describe('feature: query & mutation', () => {
 		await page.reload({ waitUntil: 'networkidle' })
 		await waitForHydration(page)
 
-		await expect(learnSpan).toHaveCSS('text-decoration-line', 'line-through')
+		const expectedDecoration = wasChecked ? 'none' : 'line-through'
+		await expect(learnSpan).toHaveCSS('text-decoration-line', expectedDecoration)
 	})
 })

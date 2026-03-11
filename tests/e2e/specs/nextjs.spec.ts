@@ -55,7 +55,7 @@ test.describe('Next.js SSR', () => {
 		})
 		page.on('pageerror', (err) => errors.push(`[pageerror] ${err.message}`))
 
-		await page.goto('/dashboard/octocat', { waitUntil: 'networkidle' })
+		await page.goto('/dashboard/octocat', { waitUntil: 'domcontentloaded' })
 
 		// Profile
 		await expect(page.getByRole('heading', { name: 'The Octocat' })).toBeVisible()

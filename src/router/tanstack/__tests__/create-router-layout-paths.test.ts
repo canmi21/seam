@@ -33,12 +33,16 @@ function normalizeMatchPaths(paths: string[]): string[] {
 	return paths.filter((path, index) => path !== paths[index - 1])
 }
 
-describe('createSeamRouter - layout route paths', () => {
+function resetEnv() {
+	Reflect.deleteProperty(globalThis, 'window')
+	Reflect.deleteProperty(globalThis, 'self')
+	Reflect.deleteProperty(globalThis, 'document')
+	Reflect.deleteProperty(globalThis, 'location')
+}
+
+describe('createSeamRouter - pathful layouts', () => {
 	afterEach(() => {
-		Reflect.deleteProperty(globalThis, 'window')
-		Reflect.deleteProperty(globalThis, 'self')
-		Reflect.deleteProperty(globalThis, 'document')
-		Reflect.deleteProperty(globalThis, 'location')
+		resetEnv()
 	})
 
 	it('matches nested pages under a pathful layout', () => {
@@ -59,22 +63,6 @@ describe('createSeamRouter - layout route paths', () => {
 			'/dashboard',
 			'/dashboard/settings',
 		])
-	})
-
-	it('keeps pathless layouts wrapper-only', () => {
-		createEnv()
-		const router = createSeamRouter({
-			routes: [
-				{
-					path: '',
-					layout: () => null,
-					children: [{ path: '/settings', component: () => null }],
-				},
-			],
-		})
-
-		expect(collectFullPaths(router)).toContain('/settings')
-		expect(normalizeMatchPaths(matchPaths(router, '/settings'))).toEqual(['/', '/settings'])
 	})
 
 	it('accumulates prefixes across nested pathful layouts', () => {
@@ -102,6 +90,50 @@ describe('createSeamRouter - layout route paths', () => {
 			'/admin/users',
 			'/admin/users/detail',
 		])
+	})
+})
+
+describe('createSeamRouter - pathless and root layouts', () => {
+	afterEach(() => {
+		resetEnv()
+	})
+
+	it('keeps root layout pathless to avoid duplicate root routes', () => {
+		createEnv()
+		const router = createSeamRouter({
+			routes: [
+				{
+					path: '/',
+					layout: () => null,
+					children: [
+						{ path: '/', component: () => null },
+						{ path: '/dashboard/:username', component: () => null },
+					],
+				},
+			],
+		})
+
+		expect(collectFullPaths(router)).toContain('/dashboard/$username')
+		expect(normalizeMatchPaths(matchPaths(router, '/dashboard/octocat'))).toEqual([
+			'/',
+			'/dashboard/$username',
+		])
+	})
+
+	it('keeps pathless layouts wrapper-only', () => {
+		createEnv()
+		const router = createSeamRouter({
+			routes: [
+				{
+					path: '',
+					layout: () => null,
+					children: [{ path: '/settings', component: () => null }],
+				},
+			],
+		})
+
+		expect(collectFullPaths(router)).toContain('/settings')
+		expect(normalizeMatchPaths(matchPaths(router, '/settings'))).toEqual(['/', '/settings'])
 	})
 
 	it('only accumulates prefixes from pathful layout levels in mixed nesting', () => {
