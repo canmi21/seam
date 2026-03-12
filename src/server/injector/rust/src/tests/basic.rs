@@ -39,6 +39,21 @@ fn text_slot_number() {
 	assert_eq!(html, "<p>42</p>");
 }
 
+#[test]
+fn text_slot_preserves_react_comment_boundary() {
+	let html = inject_no_script("<p>by <!-- --><!--seam:name--></p>", &json!({"name": "Alice"}));
+	assert_eq!(html, "<p>by <!-- -->Alice</p>");
+}
+
+#[test]
+fn two_text_slots_keep_boundary_comment() {
+	let html = inject_no_script(
+		"<p><!--seam:first--><!-- --><!--seam:last--></p>",
+		&json!({"first": "Ada", "last": "Lovelace"}),
+	);
+	assert_eq!(html, "<p>Ada<!-- -->Lovelace</p>");
+}
+
 // -- Raw HTML --
 
 #[test]
@@ -180,6 +195,73 @@ fn each_attr_inside() {
 	let tmpl = r#"<!--seam:each:links--><!--seam:$.url:attr:href--><a><!--seam:$.text--></a><!--seam:endeach-->"#;
 	let data = json!({"links": [{"url": "/a", "text": "A"}, {"url": "/b", "text": "B"}]});
 	assert_eq!(inject_no_script(tmpl, &data), r#"<a href="/a">A</a><a href="/b">B</a>"#);
+}
+
+#[test]
+fn each_inside_table_body() {
+	let tmpl = concat!(
+		"<table>",
+		"<thead><tr><th>Name</th></tr></thead>",
+		"<tbody>",
+		"<!--seam:each:rows--><tr><td><!--seam:$.name--></td></tr><!--seam:endeach-->",
+		"</tbody>",
+		"</table>",
+	);
+	let data = json!({"rows": [{"name": "Ada"}, {"name": "Lin"}]});
+	assert_eq!(
+		inject_no_script(tmpl, &data),
+		concat!(
+			"<table>",
+			"<thead><tr><th>Name</th></tr></thead>",
+			"<tbody><tr><td>Ada</td></tr><tr><td>Lin</td></tr></tbody>",
+			"</table>",
+		),
+	);
+}
+
+#[test]
+fn each_inside_select_keeps_placeholder_option() {
+	let tmpl = concat!(
+		"<select>",
+		"<option value=\"\">Choose one</option>",
+		"<!--seam:each:choices--><option><!--seam:$.label--></option><!--seam:endeach-->",
+		"</select>",
+	);
+	let data = json!({"choices": [{"label": "High"}, {"label": "Low"}]});
+	assert_eq!(
+		inject_no_script(tmpl, &data),
+		"<select><option value=\"\">Choose one</option><option>High</option><option>Low</option></select>",
+	);
+}
+
+#[test]
+fn each_with_match_inside_table_row() {
+	let tmpl = concat!(
+		"<table><tbody>",
+		"<!--seam:each:rows-->",
+		"<tr><td><!--seam:$.name-->",
+		"<!--seam:match:$.status-->",
+		"<!--seam:when:active--><span>Active</span>",
+		"<!--seam:when:paused--><span>Paused</span>",
+		"<!--seam:when:archived--><span>Archived</span>",
+		"<!--seam:endmatch-->",
+		"</td></tr>",
+		"<!--seam:endeach-->",
+		"</tbody></table>",
+	);
+	let data = json!({"rows": [
+		{"name": "Ada", "status": "active"},
+		{"name": "Lin", "status": "paused"}
+	]});
+	assert_eq!(
+		inject_no_script(tmpl, &data),
+		concat!(
+			"<table><tbody>",
+			"<tr><td>Ada<span>Active</span></td></tr>",
+			"<tr><td>Lin<span>Paused</span></td></tr>",
+			"</tbody></table>",
+		),
+	);
 }
 
 #[test]

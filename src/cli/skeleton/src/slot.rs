@@ -190,6 +190,20 @@ mod tests {
 		assert_eq!(result, "<span>by <!-- --><!--seam:author--></span>");
 	}
 
+	#[test]
+	fn preserves_react_boundary_between_two_text_slots() {
+		let html = "<span>%%SEAM:first%%<!-- -->%%SEAM:last%%</span>";
+		let result = sentinel_to_slots(html);
+		assert_eq!(result, "<span><!--seam:first--><!-- --><!--seam:last--></span>");
+	}
+
+	#[test]
+	fn preserves_react_boundary_inside_table_cell_text() {
+		let html = "<td>by <!-- -->%%SEAM:author%%</td>";
+		let result = sentinel_to_slots(html);
+		assert_eq!(result, "<td>by <!-- --><!--seam:author--></td>");
+	}
+
 	// React 19 comment markers
 	#[test]
 	fn preserves_react_suspense_markers() {

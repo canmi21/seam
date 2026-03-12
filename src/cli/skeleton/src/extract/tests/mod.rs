@@ -3,6 +3,7 @@
 use super::*;
 use serde_json::json;
 
+mod complex_structures;
 mod flat_axis;
 mod legacy;
 mod nested;

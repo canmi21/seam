@@ -215,4 +215,110 @@ mod tests {
 		assert!(err.contains("p"), "should mention <p> path: {err}");
 		assert!(err.contains("span"), "should mention <span> path: {err}");
 	}
+
+	#[test]
+	fn text_boundary_comment_pipeline_passes() {
+		let template = "<p>by <!-- --><!--seam:author--></p>";
+		let data = json!({"author": "Alice"});
+		let react_html = "<p>by <!-- -->Alice</p>";
+
+		let result = verify_ctr_equivalence("/boundary", react_html, template, &data, "__data");
+		assert!(result.is_ok(), "comment-boundary text pipeline failed: {result:?}");
+	}
+
+	#[test]
+	fn table_row_iteration_pipeline_passes() {
+		let template = concat!(
+			"<table>",
+			"<thead><tr><th>Name</th></tr></thead>",
+			"<tbody>",
+			"<!--seam:each:rows--><tr><td><!--seam:$.name--></td></tr><!--seam:endeach-->",
+			"</tbody>",
+			"</table>",
+		);
+		let data = json!({"rows": [{"name": "Ada"}, {"name": "Lin"}]});
+		let react_html = concat!(
+			"<table>",
+			"<thead><tr><th>Name</th></tr></thead>",
+			"<tbody><tr><td>Ada</td></tr><tr><td>Lin</td></tr></tbody>",
+			"</table>",
+		);
+
+		let result = verify_ctr_equivalence("/table", react_html, template, &data, "__data");
+		assert!(result.is_ok(), "table row iteration pipeline failed: {result:?}");
+	}
+
+	#[test]
+	fn nested_row_boolean_pipeline_passes() {
+		let template = concat!(
+			"<table><tbody>",
+			"<!--seam:each:rows-->",
+			"<tr><td><!--seam:$.name--><!--seam:if:$.selected--><strong>Selected</strong><!--seam:endif:$.selected--></td></tr>",
+			"<!--seam:endeach-->",
+			"</tbody></table>",
+		);
+		let data = json!({"rows": [
+			{"name": "Ada", "selected": true},
+			{"name": "Lin", "selected": false}
+		]});
+		let react_html = concat!(
+			"<table><tbody>",
+			"<tr><td>Ada<strong>Selected</strong></td></tr>",
+			"<tr><td>Lin</td></tr>",
+			"</tbody></table>",
+		);
+
+		let result = verify_ctr_equivalence("/table-selected", react_html, template, &data, "__data");
+		assert!(result.is_ok(), "nested row boolean pipeline failed: {result:?}");
+	}
+
+	#[test]
+	fn select_options_pipeline_passes() {
+		let template = concat!(
+			"<label>Priority<select>",
+			"<option value=\"\">Choose one</option>",
+			"<!--seam:each:choices--><option><!--seam:$.label--></option><!--seam:endeach-->",
+			"</select></label>",
+		);
+		let data = json!({"choices": [{"label": "High"}, {"label": "Low"}]});
+		let react_html = concat!(
+			"<label>Priority<select>",
+			"<option value=\"\">Choose one</option>",
+			"<option>High</option><option>Low</option>",
+			"</select></label>",
+		);
+
+		let result = verify_ctr_equivalence("/select", react_html, template, &data, "__data");
+		assert!(result.is_ok(), "select options pipeline failed: {result:?}");
+	}
+
+	#[test]
+	fn enum_inside_table_row_pipeline_passes() {
+		let template = concat!(
+			"<table><tbody>",
+			"<!--seam:each:rows-->",
+			"<tr><td><!--seam:$.name-->",
+			"<!--seam:match:$.status-->",
+			"<!--seam:when:active--><span>Active</span>",
+			"<!--seam:when:paused--><span>Paused</span>",
+			"<!--seam:when:archived--><span>Archived</span>",
+			"<!--seam:endmatch-->",
+			"</td></tr>",
+			"<!--seam:endeach-->",
+			"</tbody></table>",
+		);
+		let data = json!({"rows": [
+			{"name": "Ada", "status": "active"},
+			{"name": "Lin", "status": "archived"}
+		]});
+		let react_html = concat!(
+			"<table><tbody>",
+			"<tr><td>Ada<span>Active</span></td></tr>",
+			"<tr><td>Lin<span>Archived</span></td></tr>",
+			"</tbody></table>",
+		);
+
+		let result = verify_ctr_equivalence("/table-enum", react_html, template, &data, "__data");
+		assert!(result.is_ok(), "enum-inside-row pipeline failed: {result:?}");
+	}
 }
