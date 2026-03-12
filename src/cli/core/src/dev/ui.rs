@@ -90,14 +90,14 @@ pub(super) fn print_fullstack_banner(
 
 	ui::banner("dev", Some(config.project_name()));
 	if let Some(vp) = vite_port {
-		ui::label(MAGENTA, "vite", &format!("{}http://localhost:{vp}{}", col(DIM), col(RESET)));
+		ui::label(MAGENTA, "vite", &format!("{}proxied dev server :{vp}{}", col(DIM), col(RESET)));
 	}
 	ui::label(
 		CYAN,
 		"backend",
 		&format!("{}[{lang}]{} {}{backend_cmd}{}", col(DIM), col(RESET), col(DIM), col(RESET)),
 	);
-	ui::label(GREEN, "mode", "fullstack CTR");
+	ui::label(GREEN, "mode", "fullstack CTR + Vite HMR");
 	if !watched_dirs.is_empty() {
 		ui::label(GREEN, "watching", &format!("{}{}{}", col(DIM), watched_dirs.join(", "), col(RESET)));
 	}

@@ -6,21 +6,34 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
+use axum::Router;
 use axum::body::Body;
+use axum::extract::Request;
+use axum::extract::State;
+use axum::extract::ws::rejection::WebSocketUpgradeRejection;
+use axum::extract::ws::{CloseCode, CloseFrame, Message, WebSocket, WebSocketUpgrade};
+use axum::http::{HeaderValue, Method, StatusCode};
+use axum::response::{Html, IntoResponse, Response};
+use axum::routing::{any, get};
+use futures_util::{SinkExt, StreamExt};
+use reqwest::Url;
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::{self, Message as TungsteniteMessage};
+use tower_http::services::ServeDir;
 
 use crate::build::types::AssetFiles;
-use axum::Router;
-use axum::extract::State;
-use axum::http::{Request, StatusCode};
-use axum::response::{Html, Response};
-use axum::routing::get;
-use reqwest::Url;
-use tower_http::services::ServeDir;
 
 #[derive(Clone)]
 struct DevState {
 	spa_html: String,
 	backend_origin: String,
+	client: reqwest::Client,
+}
+
+#[derive(Clone)]
+struct FullstackDevState {
+	backend_origin: String,
+	vite_origin: String,
 	client: reqwest::Client,
 }
 
@@ -46,48 +59,204 @@ async fn proxy_handler(
 	State(state): State<DevState>,
 	req: Request<Body>,
 ) -> Result<Response, StatusCode> {
-	let mut url = Url::parse(&state.backend_origin).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-	url.set_path(req.uri().path());
-	url.set_query(req.uri().query());
-
-	let method = reqwest::Method::from_bytes(req.method().as_str().as_bytes())
-		.map_err(|_| StatusCode::BAD_REQUEST)?;
-
-	let mut builder = state.client.request(method, url);
-
-	// Forward headers (skip host)
-	for (key, value) in req.headers() {
-		if key != "host" {
-			builder = builder.header(key.as_str(), value.as_bytes());
-		}
-	}
-
-	let body_bytes =
-		axum::body::to_bytes(req.into_body(), usize::MAX).await.map_err(|_| StatusCode::BAD_REQUEST)?;
-
-	if !body_bytes.is_empty() {
-		builder = builder.body(body_bytes);
-	}
-
-	let upstream = builder.send().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
-
-	let status =
-		StatusCode::from_u16(upstream.status().as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-
-	let mut response = Response::builder().status(status);
-	for (key, value) in upstream.headers() {
-		response = response.header(key.as_str(), value.as_bytes());
-	}
-
-	// Stream the body back (reqwest -> axum Body)
-	let stream = upstream.bytes_stream();
-	let body = Body::from_stream(stream);
-	response.body(body).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+	proxy_http_request(&state.client, &state.backend_origin, req).await
 }
 
 /// SPA fallback: any non-asset, non-proxy route returns the SPA HTML.
 async fn spa_fallback(State(state): State<DevState>) -> Html<String> {
 	Html(state.spa_html.clone())
+}
+
+fn request_accepts_html(req: &Request<Body>) -> bool {
+	req
+		.headers()
+		.get(axum::http::header::ACCEPT)
+		.and_then(|value| value.to_str().ok())
+		.is_some_and(|value| value.contains("text/html"))
+}
+
+fn ws_origin(http_origin: &str) -> String {
+	if let Some(origin) = http_origin.strip_prefix("https://") {
+		return format!("wss://{origin}");
+	}
+	if let Some(origin) = http_origin.strip_prefix("http://") {
+		return format!("ws://{origin}");
+	}
+	http_origin.to_string()
+}
+
+fn copy_headers(
+	mut builder: reqwest::RequestBuilder,
+	headers: &axum::http::HeaderMap<HeaderValue>,
+) -> reqwest::RequestBuilder {
+	for (key, value) in headers {
+		if key != "host" && key != axum::http::header::CONNECTION && key != axum::http::header::UPGRADE
+		{
+			builder = builder.header(key.as_str(), value.as_bytes());
+		}
+	}
+	builder
+}
+
+async fn proxy_http_request(
+	client: &reqwest::Client,
+	target_origin: &str,
+	req: Request<Body>,
+) -> Result<Response, StatusCode> {
+	let (parts, body) = req.into_parts();
+	let mut url = Url::parse(target_origin).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+	url.set_path(parts.uri.path());
+	url.set_query(parts.uri.query());
+
+	let method = reqwest::Method::from_bytes(parts.method.as_str().as_bytes())
+		.map_err(|_| StatusCode::BAD_REQUEST)?;
+	let mut builder = client.request(method, url);
+	builder = copy_headers(builder, &parts.headers);
+
+	let body_bytes =
+		axum::body::to_bytes(body, usize::MAX).await.map_err(|_| StatusCode::BAD_REQUEST)?;
+	if !body_bytes.is_empty() {
+		builder = builder.body(body_bytes);
+	}
+
+	let upstream = builder.send().await.map_err(|_| StatusCode::BAD_GATEWAY)?;
+	let status =
+		StatusCode::from_u16(upstream.status().as_u16()).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
+	let mut response = Response::builder().status(status);
+	for (key, value) in upstream.headers() {
+		response = response.header(key.as_str(), value.as_bytes());
+	}
+	let stream = upstream.bytes_stream();
+	let body = Body::from_stream(stream);
+	response.body(body).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+fn is_seam_path(path: &str) -> bool {
+	path.starts_with("/_seam/")
+}
+
+async fn relay_client_to_upstream(
+	mut client_socket: futures_util::stream::SplitStream<WebSocket>,
+	mut upstream_socket: futures_util::stream::SplitSink<
+		tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+		TungsteniteMessage,
+	>,
+) {
+	while let Some(result) = client_socket.next().await {
+		let Ok(message) = result else { break };
+		let forward = match message {
+			Message::Text(text) => TungsteniteMessage::Text(text.to_string().into()),
+			Message::Binary(data) => TungsteniteMessage::Binary(data),
+			Message::Ping(data) => TungsteniteMessage::Ping(data),
+			Message::Pong(data) => TungsteniteMessage::Pong(data),
+			Message::Close(frame) => {
+				let close = frame.map(|frame| tungstenite::protocol::CloseFrame {
+					code: tungstenite::protocol::frame::coding::CloseCode::from(frame.code),
+					reason: frame.reason.to_string().into(),
+				});
+				let _ = upstream_socket.send(TungsteniteMessage::Close(close)).await;
+				break;
+			}
+		};
+		if upstream_socket.send(forward).await.is_err() {
+			break;
+		}
+	}
+}
+
+async fn relay_upstream_to_client(
+	mut upstream_socket: futures_util::stream::SplitStream<
+		tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+	>,
+	mut client_socket: futures_util::stream::SplitSink<WebSocket, Message>,
+) {
+	while let Some(result) = upstream_socket.next().await {
+		let Ok(message) = result else { break };
+		let forward = match message {
+			TungsteniteMessage::Text(text) => Message::Text(text.to_string().into()),
+			TungsteniteMessage::Binary(data) => Message::Binary(data),
+			TungsteniteMessage::Ping(data) => Message::Ping(data),
+			TungsteniteMessage::Pong(data) => Message::Pong(data),
+			TungsteniteMessage::Close(frame) => {
+				let close = frame.map(|frame| CloseFrame {
+					code: CloseCode::from(u16::from(frame.code)),
+					reason: frame.reason.to_string().into(),
+				});
+				let _ = client_socket.send(Message::Close(close)).await;
+				break;
+			}
+			TungsteniteMessage::Frame(_) => continue,
+		};
+		if client_socket.send(forward).await.is_err() {
+			break;
+		}
+	}
+}
+
+async fn relay_websocket(socket: WebSocket, target: String) {
+	let Ok((upstream, _)) = connect_async(target).await else {
+		return;
+	};
+	let (client_sink, client_stream) = socket.split();
+	let (upstream_sink, upstream_stream) = upstream.split();
+	let client_to_upstream = relay_client_to_upstream(client_stream, upstream_sink);
+	let upstream_to_client = relay_upstream_to_client(upstream_stream, client_sink);
+	let _ = tokio::join!(client_to_upstream, upstream_to_client);
+}
+
+async fn fullstack_proxy_handler(
+	State(state): State<FullstackDevState>,
+	ws: Result<WebSocketUpgrade, WebSocketUpgradeRejection>,
+	req: Request<Body>,
+) -> Result<Response, StatusCode> {
+	let path = req.uri().path().to_string();
+	if req.headers().contains_key(axum::http::header::UPGRADE) {
+		let ws: WebSocketUpgrade = ws.map_err(|_| StatusCode::BAD_REQUEST)?;
+		let base = if is_seam_path(&path) { &state.backend_origin } else { &state.vite_origin };
+		let mut url = Url::parse(&ws_origin(base)).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+		url.set_path(req.uri().path());
+		url.set_query(req.uri().query());
+		let response = ws.on_upgrade(move |socket| relay_websocket(socket, url.to_string()));
+		return Ok(response.into_response());
+	}
+
+	if is_seam_path(&path) || !matches!(req.method(), &Method::GET | &Method::HEAD) {
+		return proxy_http_request(&state.client, &state.backend_origin, req).await;
+	}
+
+	let accepts_html = request_accepts_html(&req);
+	if accepts_html {
+		return proxy_http_request(&state.client, &state.backend_origin, req).await;
+	}
+
+	let (parts, body) = req.into_parts();
+	let clone_method = parts.method.clone();
+	let clone_uri = parts.uri.clone();
+	let clone_headers = parts.headers.clone();
+	let body_bytes =
+		axum::body::to_bytes(body, usize::MAX).await.map_err(|_| StatusCode::BAD_REQUEST)?;
+
+	let backend_req = Request::builder()
+		.method(clone_method.clone())
+		.uri(clone_uri.clone())
+		.body(Body::from(body_bytes.clone()))
+		.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+	let mut backend_req = backend_req;
+	*backend_req.headers_mut() = clone_headers.clone();
+	let backend_response =
+		proxy_http_request(&state.client, &state.backend_origin, backend_req).await?;
+	if backend_response.status() != StatusCode::NOT_FOUND {
+		return Ok(backend_response);
+	}
+
+	let vite_req = Request::builder()
+		.method(clone_method)
+		.uri(clone_uri)
+		.body(Body::from(body_bytes))
+		.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+	let mut vite_req = vite_req;
+	*vite_req.headers_mut() = clone_headers;
+	proxy_http_request(&state.client, &state.vite_origin, vite_req).await
 }
 
 pub async fn start_dev_server(
@@ -131,9 +300,35 @@ pub async fn start_dev_server(
 	Ok(())
 }
 
+pub async fn start_fullstack_dev_server(
+	public_port: u16,
+	backend_port: u16,
+	vite_port: u16,
+) -> Result<()> {
+	let state = FullstackDevState {
+		backend_origin: format!("http://localhost:{backend_port}"),
+		vite_origin: format!("http://localhost:{vite_port}"),
+		client: reqwest::Client::new(),
+	};
+
+	let app = Router::new()
+		.route("/{*path}", any(fullstack_proxy_handler))
+		.route("/", any(fullstack_proxy_handler))
+		.with_state(state);
+
+	let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{public_port}")).await?;
+	axum::serve(listener, app).await?;
+	Ok(())
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use axum::body::Body;
+	use axum::http::Request as HttpRequest;
+	use axum::routing::get;
+	use std::net::TcpListener;
+	use tokio::task::JoinHandle;
 
 	#[test]
 	fn spa_html_contains_root_div() {
@@ -151,5 +346,93 @@ mod tests {
 		assert!(html.contains(r#"<div id="root">"#));
 		assert!(!html.contains("<link"));
 		assert!(!html.contains("<script"));
+	}
+
+	#[test]
+	fn detects_html_navigation_requests() {
+		let req = HttpRequest::builder()
+			.header("accept", "text/html,application/xhtml+xml")
+			.body(Body::empty())
+			.unwrap();
+		assert!(request_accepts_html(&req));
+	}
+
+	#[test]
+	fn ignores_non_html_asset_requests() {
+		let req = HttpRequest::builder().header("accept", "*/*").body(Body::empty()).unwrap();
+		assert!(!request_accepts_html(&req));
+	}
+
+	fn free_port() -> u16 {
+		let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+		let port = listener.local_addr().unwrap().port();
+		drop(listener);
+		port
+	}
+
+	async fn spawn_http_server(router: Router) -> (u16, JoinHandle<()>) {
+		let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+		let port = listener.local_addr().unwrap().port();
+		let handle = tokio::spawn(async move {
+			axum::serve(listener, router).await.unwrap();
+		});
+		(port, handle)
+	}
+
+	#[tokio::test]
+	async fn fullstack_proxy_routes_html_to_backend_and_modules_to_vite() {
+		let backend_router = Router::new()
+			.route("/dashboard", get(|| async { Html("<html>backend</html>".to_string()) }))
+			.route("/_seam/manifest.json", get(|| async { "manifest" }))
+			.route("/src/client/main.tsx", get(|| async { (StatusCode::NOT_FOUND, "missing") }));
+		let vite_router = Router::new()
+			.route("/src/client/main.tsx", get(|| async { "console.log('vite')" }))
+			.route("/@vite/client", get(|| async { "vite-client" }));
+
+		let (backend_port, backend_handle) = spawn_http_server(backend_router).await;
+		let (vite_port, vite_handle) = spawn_http_server(vite_router).await;
+		let public_port = free_port();
+		let proxy_handle = tokio::spawn(async move {
+			start_fullstack_dev_server(public_port, backend_port, vite_port).await.unwrap();
+		});
+
+		tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+
+		let client = reqwest::Client::new();
+		let html = client
+			.get(format!("http://127.0.0.1:{public_port}/dashboard"))
+			.header("accept", "text/html")
+			.send()
+			.await
+			.unwrap()
+			.text()
+			.await
+			.unwrap();
+		assert!(html.contains("backend"));
+
+		let module = client
+			.get(format!("http://127.0.0.1:{public_port}/src/client/main.tsx"))
+			.header("accept", "*/*")
+			.send()
+			.await
+			.unwrap()
+			.text()
+			.await
+			.unwrap();
+		assert!(module.contains("vite"));
+
+		let manifest = client
+			.get(format!("http://127.0.0.1:{public_port}/_seam/manifest.json"))
+			.send()
+			.await
+			.unwrap()
+			.text()
+			.await
+			.unwrap();
+		assert_eq!(manifest, "manifest");
+
+		proxy_handle.abort();
+		backend_handle.abort();
+		vite_handle.abort();
 	}
 }

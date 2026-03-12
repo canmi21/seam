@@ -266,7 +266,7 @@ pub fn run_dev_build(
 ) -> Result<()> {
 	let started = Instant::now();
 	let out_dir = base_dir.join(&build_config.out_dir);
-	let vite = vite_info_from_config(config);
+	let vite = vite_info_from_config(config, true);
 	let is_vite = vite.is_some();
 
 	ui::banner("dev build", Some(config.project_name()));

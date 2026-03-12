@@ -5,15 +5,26 @@ use std::time::{Duration, Instant};
 use anyhow::{Result, bail};
 
 pub(super) fn find_available_port(preferred: u16) -> Result<u16> {
-	if std::net::TcpListener::bind(("0.0.0.0", preferred)).is_ok() {
+	find_available_port_excluding(preferred, &[])
+}
+
+pub(super) fn find_available_port_excluding(preferred: u16, excluded: &[u16]) -> Result<u16> {
+	if !excluded.contains(&preferred) && std::net::TcpListener::bind(("0.0.0.0", preferred)).is_ok() {
 		return Ok(preferred);
 	}
 	for port in 3000..3100 {
-		if port != preferred && std::net::TcpListener::bind(("0.0.0.0", port)).is_ok() {
+		if port != preferred
+			&& !excluded.contains(&port)
+			&& std::net::TcpListener::bind(("0.0.0.0", port)).is_ok()
+		{
 			return Ok(port);
 		}
 	}
 	bail!("no available port found in range 3000-3099");
+}
+
+pub(super) fn preferred_vite_port(port: Option<u16>) -> u16 {
+	port.unwrap_or(5173)
 }
 
 /// Poll a TCP port until it accepts connections, or bail after timeout.

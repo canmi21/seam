@@ -1675,6 +1675,7 @@ dependencies = [
  "anyhow",
  "axum",
  "clap",
+ "futures-util",
  "indicatif",
  "notify",
  "reqwest",
@@ -1685,6 +1686,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "tokio-tungstenite",
  "toml",
  "tower-http",
 ]

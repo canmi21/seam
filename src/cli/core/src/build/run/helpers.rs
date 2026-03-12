@@ -73,10 +73,12 @@ pub fn maybe_generate_rpc_hashes_pub(
 	maybe_generate_rpc_hashes(build_config, manifest, out_dir)
 }
 
-/// Construct ViteDevInfo when vite_port is configured
-pub(super) fn vite_info_from_config(config: &SeamConfig) -> Option<ViteDevInfo> {
+/// Construct ViteDevInfo when vite_port is configured.
+/// In proxied dev mode, origin is left empty so the browser requests Vite
+/// modules from the same origin and lets the CLI proxy route them.
+pub(super) fn vite_info_from_config(config: &SeamConfig, proxied: bool) -> Option<ViteDevInfo> {
 	config.dev.vite_port.map(|port| ViteDevInfo {
-		origin: format!("http://localhost:{port}"),
+		origin: if proxied { String::new() } else { format!("http://localhost:{port}") },
 		entry: config
 			.frontend
 			.entry

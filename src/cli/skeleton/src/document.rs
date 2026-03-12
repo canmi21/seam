@@ -184,6 +184,16 @@ mod tests {
 	}
 
 	#[test]
+	fn vite_proxy_mode_uses_relative_dev_scripts() {
+		let vite = ViteDevInfo { origin: String::new(), entry: "src/client/main.tsx".to_string() };
+		let result = wrap_document("<p>vite-proxy</p>", &[], &[], true, Some(&vite), "__seam");
+
+		assert!(result.contains("import RefreshRuntime from '/@react-refresh'"));
+		assert!(result.contains(r#"<script type="module" src="/@vite/client"></script>"#));
+		assert!(result.contains(r#"<script type="module" src="/src/client/main.tsx"></script>"#));
+	}
+
+	#[test]
 	fn no_metadata_passes_through() {
 		let result = wrap_document("<div><p>Hello</p></div>", &[], &[], false, None, "__seam");
 		assert!(result.contains("<div id=\"__seam\"><div><p>Hello</p></div></div>"));
