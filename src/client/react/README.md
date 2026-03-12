@@ -7,6 +7,7 @@ React bindings for SeamJS, providing hooks and components to consume server-inje
 | Export                 | Purpose                                                                                                     |
 | ---------------------- | ----------------------------------------------------------------------------------------------------------- |
 | `defineRoutes`         | Define client-side route configuration                                                                      |
+| `Hydrated`             | Declare a hydration boundary: render `fallback` on SSR/CTR, then swap to children after hydration           |
 | `useSeamData`          | Access server-injected data: `useSeamData<T>()` (full data) or `useSeamData<T>(key)` (nested field by key)  |
 | `SeamDataProvider`     | Context provider for server data                                                                            |
 | `parseSeamData`        | Parse JSON from `<script id="__data">`                                                                      |
@@ -26,6 +27,7 @@ React bindings for SeamJS, providing hooks and components to consume server-inje
 
 | Type                        | Purpose                                                                         |
 | --------------------------- | ------------------------------------------------------------------------------- |
+| `HydratedProps`             | Props for `Hydrated`: required `fallback`, `children` as `ReactNode`            |
 | `RouteDef`                  | Route definition with component, loaders, and params                            |
 | `LoaderDef`                 | Loader definition for a route                                                   |
 | `ParamMapping`              | Parameter mapping configuration                                                 |
@@ -47,6 +49,7 @@ React bindings for SeamJS, providing hooks and components to consume server-inje
 ## Structure
 
 - `src/index.ts` — Public API exports
+- `src/hydrated.tsx` — `Hydrated` boundary for post-hydration client enhancement
 - `src/use-seam-data.ts` — Data provider and hooks
 - `src/use-seam-subscription.ts` — SSE subscription hook with reconnection support
 - `src/use-seam-stream.ts` — Stream procedure hook
@@ -68,3 +71,25 @@ React bindings for SeamJS, providing hooks and components to consume server-inje
 - Peer dependencies: `react` ^18 || ^19, `react-dom` ^18 || ^19
 - Depends on `@canmi/seam-client` for underlying RPC and subscription logic
 - `parseSeamData()` reads from a `<script>` tag injected by the server during HTML rendering
+
+## Hydration Boundary
+
+Use `Hydrated` when a `page.tsx` needs a stable SSR/CTR shell first and an interactive subtree only after hydration:
+
+```tsx
+import { Hydrated, useSeamData } from '@canmi/seam-react'
+
+export default function Page() {
+	const data = useSeamData<PageData>()
+
+	return (
+		<Hydrated fallback={<StaticAdminWatches watches={data.watches} />}>
+			<InteractiveAdminWatches initialWatches={data.watches} />
+		</Hydrated>
+	)
+}
+```
+
+- `fallback` is required, but it may be `null` when you intentionally want an empty SSR slot.
+- Prefer a real SSR-safe shell whenever possible; `fallback={null}` should be the explicit exception.
+- `children` are regular React nodes and may use client-only hooks after hydration.

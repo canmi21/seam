@@ -1,6 +1,7 @@
 /* src/client/react/src/index.ts */
 
 export { defineRoutes } from './define-routes.js'
+export { Hydrated } from './hydrated.js'
 export { useSeamData, SeamDataProvider, parseSeamData, isLoaderError } from './use-seam-data.js'
 export { buildSentinelData } from './sentinel.js'
 export { useSeamSubscription } from './use-seam-subscription.js'
@@ -19,6 +20,7 @@ export type {
 	HeadFn,
 } from './types.js'
 export type { LoaderError } from './use-seam-data.js'
+export type { HydratedProps } from './hydrated.js'
 export type {
 	UseSeamSubscriptionResult,
 	SubscriptionStatus,
