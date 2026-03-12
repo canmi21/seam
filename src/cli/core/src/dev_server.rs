@@ -12,12 +12,14 @@ use axum::extract::Request;
 use axum::extract::State;
 use axum::extract::ws::rejection::WebSocketUpgradeRejection;
 use axum::extract::ws::{CloseCode, CloseFrame, Message, WebSocket, WebSocketUpgrade};
-use axum::http::{HeaderValue, Method, StatusCode};
+use axum::http::header::SEC_WEBSOCKET_PROTOCOL;
+use axum::http::{HeaderMap, HeaderValue, Method, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{any, get};
 use futures_util::{SinkExt, StreamExt};
 use reqwest::Url;
 use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::{self, Message as TungsteniteMessage};
 use tower_http::services::ServeDir;
 
@@ -193,8 +195,34 @@ async fn relay_upstream_to_client(
 	}
 }
 
-async fn relay_websocket(socket: WebSocket, target: String) {
-	let Ok((upstream, _)) = connect_async(target).await else {
+fn websocket_protocols(headers: &HeaderMap<HeaderValue>) -> Vec<String> {
+	headers
+		.get_all(SEC_WEBSOCKET_PROTOCOL)
+		.iter()
+		.filter_map(|value| value.to_str().ok())
+		.flat_map(|value| value.split(','))
+		.map(str::trim)
+		.filter(|value| !value.is_empty())
+		.map(ToOwned::to_owned)
+		.collect()
+}
+
+fn build_upstream_websocket_request(
+	target: &str,
+	selected_protocol: Option<&HeaderValue>,
+) -> Result<tungstenite::handshake::client::Request, StatusCode> {
+	let mut request = target.into_client_request().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+	if let Some(protocol) = selected_protocol {
+		request.headers_mut().insert(SEC_WEBSOCKET_PROTOCOL, protocol.clone());
+	}
+	Ok(request)
+}
+
+async fn relay_websocket(
+	socket: WebSocket,
+	upstream_request: tungstenite::handshake::client::Request,
+) {
+	let Ok((upstream, _)) = connect_async(upstream_request).await else {
 		return;
 	};
 	let (client_sink, client_stream) = socket.split();
@@ -211,12 +239,15 @@ async fn fullstack_proxy_handler(
 ) -> Result<Response, StatusCode> {
 	let path = req.uri().path().to_string();
 	if req.headers().contains_key(axum::http::header::UPGRADE) {
+		let requested_protocols = websocket_protocols(req.headers());
 		let ws: WebSocketUpgrade = ws.map_err(|_| StatusCode::BAD_REQUEST)?;
+		let ws = if requested_protocols.is_empty() { ws } else { ws.protocols(requested_protocols) };
 		let base = if is_seam_path(&path) { &state.backend_origin } else { &state.vite_origin };
 		let mut url = Url::parse(&ws_origin(base)).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 		url.set_path(req.uri().path());
 		url.set_query(req.uri().query());
-		let response = ws.on_upgrade(move |socket| relay_websocket(socket, url.to_string()));
+		let upstream_request = build_upstream_websocket_request(url.as_str(), ws.selected_protocol())?;
+		let response = ws.on_upgrade(move |socket| relay_websocket(socket, upstream_request));
 		return Ok(response.into_response());
 	}
 
@@ -322,117 +353,4 @@ pub async fn start_fullstack_dev_server(
 }
 
 #[cfg(test)]
-mod tests {
-	use super::*;
-	use axum::body::Body;
-	use axum::http::Request as HttpRequest;
-	use axum::routing::get;
-	use std::net::TcpListener;
-	use tokio::task::JoinHandle;
-
-	#[test]
-	fn spa_html_contains_root_div() {
-		let html = generate_spa_html(&["style-abc.css".into()], &["main-xyz.js".into()]);
-		assert!(html.contains(r#"<div id="root">"#));
-		assert!(html.contains(r#"href="/assets/style-abc.css""#));
-		assert!(html.contains(r#"src="/assets/main-xyz.js""#));
-		// Must NOT contain __seam (CTR root id)
-		assert!(!html.contains("__seam"));
-	}
-
-	#[test]
-	fn spa_html_empty_assets() {
-		let html = generate_spa_html(&[], &[]);
-		assert!(html.contains(r#"<div id="root">"#));
-		assert!(!html.contains("<link"));
-		assert!(!html.contains("<script"));
-	}
-
-	#[test]
-	fn detects_html_navigation_requests() {
-		let req = HttpRequest::builder()
-			.header("accept", "text/html,application/xhtml+xml")
-			.body(Body::empty())
-			.unwrap();
-		assert!(request_accepts_html(&req));
-	}
-
-	#[test]
-	fn ignores_non_html_asset_requests() {
-		let req = HttpRequest::builder().header("accept", "*/*").body(Body::empty()).unwrap();
-		assert!(!request_accepts_html(&req));
-	}
-
-	fn free_port() -> u16 {
-		let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-		let port = listener.local_addr().unwrap().port();
-		drop(listener);
-		port
-	}
-
-	async fn spawn_http_server(router: Router) -> (u16, JoinHandle<()>) {
-		let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-		let port = listener.local_addr().unwrap().port();
-		let handle = tokio::spawn(async move {
-			axum::serve(listener, router).await.unwrap();
-		});
-		(port, handle)
-	}
-
-	#[tokio::test]
-	async fn fullstack_proxy_routes_html_to_backend_and_modules_to_vite() {
-		let backend_router = Router::new()
-			.route("/dashboard", get(|| async { Html("<html>backend</html>".to_string()) }))
-			.route("/_seam/manifest.json", get(|| async { "manifest" }))
-			.route("/src/client/main.tsx", get(|| async { (StatusCode::NOT_FOUND, "missing") }));
-		let vite_router = Router::new()
-			.route("/src/client/main.tsx", get(|| async { "console.log('vite')" }))
-			.route("/@vite/client", get(|| async { "vite-client" }));
-
-		let (backend_port, backend_handle) = spawn_http_server(backend_router).await;
-		let (vite_port, vite_handle) = spawn_http_server(vite_router).await;
-		let public_port = free_port();
-		let proxy_handle = tokio::spawn(async move {
-			start_fullstack_dev_server(public_port, backend_port, vite_port).await.unwrap();
-		});
-
-		tokio::time::sleep(std::time::Duration::from_millis(150)).await;
-
-		let client = reqwest::Client::new();
-		let html = client
-			.get(format!("http://127.0.0.1:{public_port}/dashboard"))
-			.header("accept", "text/html")
-			.send()
-			.await
-			.unwrap()
-			.text()
-			.await
-			.unwrap();
-		assert!(html.contains("backend"));
-
-		let module = client
-			.get(format!("http://127.0.0.1:{public_port}/src/client/main.tsx"))
-			.header("accept", "*/*")
-			.send()
-			.await
-			.unwrap()
-			.text()
-			.await
-			.unwrap();
-		assert!(module.contains("vite"));
-
-		let manifest = client
-			.get(format!("http://127.0.0.1:{public_port}/_seam/manifest.json"))
-			.send()
-			.await
-			.unwrap()
-			.text()
-			.await
-			.unwrap();
-		assert_eq!(manifest, "manifest");
-
-		proxy_handle.abort();
-		backend_handle.abort();
-		vite_handle.abort();
-	}
-}
+mod tests;
