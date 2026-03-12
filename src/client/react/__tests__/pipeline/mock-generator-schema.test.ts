@@ -5,6 +5,7 @@ import {
 	generateMockFromSchema,
 	flattenLoaderMock,
 	deepMerge,
+	buildStructuralSample,
 } from '../../scripts/mock-generator.mjs'
 
 // -- generateMockFromSchema: primitives --
@@ -231,6 +232,38 @@ describe('flattenLoaderMock', () => {
 		const keyed = { count: 42 }
 		const flat = flattenLoaderMock(keyed)
 		expect(flat).toEqual({ count: 42 })
+	})
+})
+
+// -- buildStructuralSample --
+
+describe('buildStructuralSample', () => {
+	it('seeds a representative item for empty nested object arrays', () => {
+		const schema = {
+			properties: {
+				watches: {
+					properties: {
+						watches: {
+							elements: {
+								properties: {
+									brand: { type: 'string' },
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		const data = {
+			watches: {
+				watches: [],
+			},
+		}
+		expect(buildStructuralSample(schema, data)).toEqual({
+			watches: {
+				watches: [{ brand: 'Sample Brand' }],
+			},
+		})
 	})
 })
 

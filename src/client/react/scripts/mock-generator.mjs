@@ -136,6 +136,55 @@ export function flattenLoaderMock(keyedMock) {
 }
 
 /**
+ * Build a populated structural sample from schema + actual mock data.
+ * This keeps the caller's real mock untouched while ensuring skeleton extraction
+ * still has a representative item for populated array / nullable-object branches.
+ * @param {object} schema
+ * @param {unknown} data
+ * @param {string} [fieldPath=""]
+ * @returns {unknown}
+ */
+export function buildStructuralSample(schema, data, fieldPath = '') {
+	if (!schema || typeof schema !== 'object') return data
+
+	if (schema.nullable) {
+		const inner = { ...schema }
+		delete inner.nullable
+		const seed =
+			data === null || data === undefined ? generateMockFromSchema(inner, fieldPath) : data
+		return buildStructuralSample(inner, seed, fieldPath)
+	}
+
+	if (schema.elements) {
+		const itemPath = fieldPath ? `${fieldPath}.$` : '$'
+		const item =
+			Array.isArray(data) && data.length > 0
+				? data[0]
+				: generateMockFromSchema(schema.elements, itemPath)
+		return [buildStructuralSample(schema.elements, item, itemPath)]
+	}
+
+	if (schema.properties || schema.optionalProperties) {
+		const input = data && typeof data === 'object' && !Array.isArray(data) ? data : {}
+		const result = {}
+		for (const [key, sub] of Object.entries({
+			...schema.properties,
+			...schema.optionalProperties,
+		})) {
+			const path = fieldPath ? `${fieldPath}.${key}` : key
+			result[key] = buildStructuralSample(sub, input[key], path)
+		}
+		return result
+	}
+
+	if (schema.values || (schema.discriminator && schema.mapping)) {
+		return data === undefined ? generateMockFromSchema(schema, fieldPath) : data
+	}
+
+	return data === undefined ? generateMockFromSchema(schema, fieldPath) : data
+}
+
+/**
  * Deep merge base with override:
  * - object + object → recursive merge
  * - array in override → replaces entirely

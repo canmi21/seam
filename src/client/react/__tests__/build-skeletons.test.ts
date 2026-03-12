@@ -184,6 +184,69 @@ export default defineRoutes([{
 		expect(output.routes[0].variants[0].html).toContain('%%SEAM:greeting%%')
 		expect(output.routes[0].loaders).toEqual({ greeting: { procedure: 'getGreeting' } })
 	})
+
+	it('keeps nested empty object arrays mappable during skeleton rendering', () => {
+		tmpDir = mkdtempSync(join(tmpdir(), 'seam-skeleton-empty-array-'))
+
+		const routesContent = `
+import React from "react";
+import { defineRoutes, useSeamData } from "@canmi/seam-react";
+
+function Reviewed() {
+  const data = useSeamData();
+  return React.createElement(
+    "div",
+    null,
+    data.watches.watches.map((watch) => React.createElement("span", { key: watch.brand }, watch.brand))
+  );
+}
+
+export default defineRoutes([{
+  path: "/reviewed",
+  component: Reviewed,
+  loaders: { watches: { procedure: "getReviewedWatches" } },
+  mock: { watches: { watches: [] } },
+}]);
+`
+		const manifestContent = JSON.stringify({
+			procedures: {
+				getReviewedWatches: {
+					kind: 'query',
+					output: {
+						properties: {
+							watches: {
+								elements: {
+									properties: {
+										brand: { type: 'string' },
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+
+		const routesFile = join(tmpDir, 'routes.tsx')
+		const manifestFile = join(tmpDir, 'manifest.json')
+		writeFileSync(routesFile, routesContent)
+		writeFileSync(manifestFile, manifestContent)
+
+		const scriptPath = resolve(__dirname, '../scripts/build-skeletons.mjs')
+		const stdout = execFileSync('node', [scriptPath, routesFile, manifestFile], {
+			cwd: tmpDir,
+			encoding: 'utf-8',
+			env: { ...process.env, NODE_PATH: resolve(__dirname, '../../..') },
+		})
+
+		const output = JSON.parse(stdout)
+		expect(output.routes).toHaveLength(1)
+		expect(output.routes[0].path).toBe('/reviewed')
+		expect(output.routes[0].loaders).toEqual({ watches: { procedure: 'getReviewedWatches' } })
+		expect(output.routes[0].variants[0].html).toContain('%%SEAM:watches.watches.$.brand%%')
+		expect(output.routes[0].mockHtml).toBe('<div></div>')
+		expect(output.routes[0].mock).toEqual({ watches: { watches: [] } })
+	})
 })
 
 describe('render guards', () => {

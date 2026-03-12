@@ -10,6 +10,7 @@ import {
 	generateMockFromSchema,
 	flattenLoaderMock,
 	deepMerge,
+	buildStructuralSample,
 	collectHtmlPaths,
 	createAccessTracker,
 	checkFieldAccess,
@@ -92,12 +93,13 @@ function renderRoute(route, manifest, i18nValue, ctx) {
 	const mock = resolveRouteMock(route, manifest)
 	const pageSchema = buildPageSchema(route, manifest)
 	const htmlPaths = pageSchema ? collectHtmlPaths(pageSchema) : new Set()
-	const baseSentinel = buildSentinelData(mock, '', htmlPaths)
-	const axes = pageSchema ? collectStructuralAxes(pageSchema, mock) : []
+	const sampleMock = pageSchema ? buildStructuralSample(pageSchema, mock) : mock
+	const baseSentinel = buildSentinelData(sampleMock, '', htmlPaths)
+	const axes = pageSchema ? collectStructuralAxes(pageSchema, sampleMock) : []
 	const combos = cartesianProduct(axes)
 
 	const variants = combos.map((variant) => {
-		const sentinel = buildVariantSentinel(baseSentinel, mock, variant)
+		const sentinel = buildVariantSentinel(baseSentinel, sampleMock, variant)
 		const html = guardedRender(route.path, route.component, sentinel, i18nValue, ctx)
 		return { variant, html }
 	})

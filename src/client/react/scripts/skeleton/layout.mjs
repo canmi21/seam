@@ -6,6 +6,7 @@ import {
 	generateMockFromSchema,
 	flattenLoaderMock,
 	deepMerge,
+	buildStructuralSample,
 	collectHtmlPaths,
 	createAccessTracker,
 	checkFieldAccess,
@@ -70,7 +71,9 @@ function renderLayout(LayoutComponent, id, entry, manifest, i18nValue, ctx) {
 	const schema =
 		Object.keys(entry.loaders || {}).length > 0 ? buildPageSchema(entry, manifest) : null
 	const htmlPaths = schema ? collectHtmlPaths(schema) : new Set()
-	const data = Object.keys(mock).length > 0 ? buildSentinelData(mock, '', htmlPaths) : {}
+	const sampleMock = schema ? buildStructuralSample(schema, mock) : mock
+	const data =
+		Object.keys(sampleMock).length > 0 ? buildSentinelData(sampleMock, '', htmlPaths) : {}
 
 	// Wrap data with Proxy to detect schema/component field mismatches
 	const accessed = new Set()
