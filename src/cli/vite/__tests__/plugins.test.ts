@@ -142,8 +142,8 @@ describe('seamConfigPlugin (via seam())', () => {
 		const plugins = seam()
 		const plugin = plugins.find((p) => p.name === 'seam-config') as PluginWithConfig
 		const result = plugin.config({})
-		const output = (result.build as { rollupOptions: { output: { entryFileNames: string } } })
-			.rollupOptions.output
+		const output = (result.build as { rolldownOptions: { output: { entryFileNames: string } } })
+			.rolldownOptions.output
 		expect(output.entryFileNames).toContain('hash')
 	})
 })

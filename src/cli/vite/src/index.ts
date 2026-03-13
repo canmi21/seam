@@ -73,9 +73,13 @@ function seamConfigPlugin(): Plugin {
 					outDir: distDir,
 					manifest: true,
 					sourcemap: process.env.SEAM_SOURCEMAP === '1',
-					rollupOptions: {
+					rolldownOptions: {
 						// Only inject input if user hasn't set it and SEAM_ENTRY exists
-						...(!userConfig.build?.rollupOptions?.input && entry ? { input: entry } : {}),
+						...(!(
+							userConfig.build?.rolldownOptions?.input ?? userConfig.build?.rollupOptions?.input
+						) && entry
+							? { input: entry }
+							: {}),
 						// Obfuscation output naming
 						...(obfuscate
 							? {
@@ -350,7 +354,7 @@ function analyzeRoutesForSplitting(routesFile: string): SplitInfo | null {
  *
  * Reads SEAM_ROUTES_FILE env var (set by `seam build`) to identify page
  * components, converts their static imports to dynamic imports, and adds
- * them as separate Rollup entry points for per-page chunking.
+ * them as separate Rolldown entry points for per-page chunking.
  *
  * Usage in vite.config.ts:
  * ```ts
@@ -376,7 +380,7 @@ export function seamPageSplit(): Plugin {
 		apply: 'build',
 
 		config(config) {
-			const existing = config.build?.rollupOptions?.input
+			const existing = config.build?.rolldownOptions?.input ?? config.build?.rollupOptions?.input
 			let base: Record<string, string>
 
 			if (typeof existing === 'string') {
@@ -394,7 +398,7 @@ export function seamPageSplit(): Plugin {
 				// (used by lazy page components) resolve to /_seam/static/ URLs.
 				base: '/_seam/static/',
 				build: {
-					rollupOptions: {
+					rolldownOptions: {
 						input: { ...base, ...splitInfo.entries },
 					},
 				},

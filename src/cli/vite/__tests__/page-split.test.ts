@@ -77,7 +77,10 @@ describe('seamPageSplit', () => {
 		expect(plugin.config).toBeDefined()
 		const result = plugin.config({ build: {} })
 		expect(result.base).toBe('/_seam/static/')
-		const input = (result.build as Record<string, unknown>).rollupOptions as Record<string, unknown>
+		const input = (result.build as Record<string, unknown>).rolldownOptions as Record<
+			string,
+			unknown
+		>
 		const entries = (input as { input: Record<string, string> }).input
 		expect(entries['page-Home']).toContain('Home.tsx')
 		expect(entries['page-About']).toContain('About.tsx')

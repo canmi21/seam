@@ -174,7 +174,7 @@ describe('vite build integration', { timeout: 30_000 }, () => {
 			logLevel: 'silent',
 			build: {
 				write: false,
-				rollupOptions: { treeshake: false },
+				rolldownOptions: { treeshake: false },
 			},
 		})
 

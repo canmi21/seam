@@ -13,7 +13,7 @@ if (!entry) {
 	process.exit(1)
 }
 
-// Set SEAM_ENTRY so seam() config plugin can inject it as rollupOptions.input
+// Set SEAM_ENTRY so seam() config plugin can inject it as rolldownOptions.input
 process.env.SEAM_ENTRY = entry
 if (!process.env.SEAM_DIST_DIR) process.env.SEAM_DIST_DIR = outDir
 
@@ -30,7 +30,12 @@ if (process.env.SEAM_CONFIG_PATH) {
 }
 
 // Warn on protected fields that seam controls
-const protectedPaths = ['build.outDir', 'build.manifest', 'build.rollupOptions.input']
+const protectedPaths = [
+	'build.outDir',
+	'build.manifest',
+	'build.rolldownOptions.input',
+	'build.rollupOptions.input',
+]
 for (const p of protectedPaths) {
 	const keys = p.split('.')
 	let obj = userConfig

@@ -48,7 +48,7 @@ Seam packages (`@canmi/seam-react`, `@canmi/seam-tanstack-router`, `@canmi/seam-
 When `seam build` runs, the `seamPageSplit` plugin:
 
 1. Reads `SEAM_ROUTES_FILE` (set by the CLI) to identify page components from the routes definition
-2. Adds each page component as a separate Rollup entry point
+2. Adds each page component as a separate Rolldown entry point
 3. Transforms static page imports into dynamic `() => import(...)` loaders with `__seamLazy` flag
 4. Sets `base: "/_seam/static/"` so runtime chunk resolution matches the SeamJS static serving path
 
@@ -58,7 +58,7 @@ Splitting activates only when 2 or more page components are referenced in routes
 
 ## Requirements
 
-- Vite 5 or later
+- Vite 8 or later
 - `seam build` must set the `SEAM_ROUTES_FILE` environment variable for page splitting (automatic when using the CLI)
 
 ## Development
