@@ -30,6 +30,13 @@ func projectRoot() string {
 	return abs
 }
 
+func seamProfile() string {
+	if p := os.Getenv("SEAM_PROFILE"); p != "" {
+		return p
+	}
+	return "release"
+}
+
 func runBuild(dir, label, name string, args ...string) {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
@@ -120,7 +127,7 @@ func TestMain(m *testing.M) {
 	tsURL := startDaemon(&daemons, root, "ts-hono", nil,
 		"bun", "run", filepath.Join("examples", "github-dashboard", "backends", "ts-hono", "src", "index.ts"))
 
-	rustBin := filepath.Join(root, "target", "debug", "github-dashboard-axum")
+	rustBin := filepath.Join(root, "target", seamProfile(), "github-dashboard-axum")
 	rustURL := startDaemon(&daemons, root, "rust-axum", nil, rustBin)
 
 	goURL := startDaemon(&daemons, goDir, "go-gin", nil, goBin)

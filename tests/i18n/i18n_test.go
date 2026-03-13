@@ -32,6 +32,13 @@ func projectRoot() string {
 	return abs
 }
 
+func seamProfile() string {
+	if p := os.Getenv("SEAM_PROFILE"); p != "" {
+		return p
+	}
+	return "release"
+}
+
 func freePort() int {
 	ln, err := net.Listen("tcp", ":0")
 	if err != nil {
@@ -44,7 +51,7 @@ func freePort() int {
 
 func startServer(mode string, port int, buildDir string) (*exec.Cmd, error) {
 	root := projectRoot()
-	binary := filepath.Join(root, "target", "release", "i18n-demo-axum")
+	binary := filepath.Join(root, "target", seamProfile(), "i18n-demo-axum")
 
 	cmd := exec.Command(binary)
 	cmd.Env = append(os.Environ(),
@@ -90,7 +97,7 @@ func TestMain(m *testing.M) {
 	}
 
 	// Verify binary exists
-	binary := filepath.Join(root, "target", "release", "i18n-demo-axum")
+	binary := filepath.Join(root, "target", seamProfile(), "i18n-demo-axum")
 	if _, err := os.Stat(binary); os.IsNotExist(err) {
 		fmt.Fprintln(os.Stderr, "binary not found: run 'cargo build -p i18n-demo-axum --release' first")
 		os.Exit(1)

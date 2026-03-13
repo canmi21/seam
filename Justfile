@@ -203,7 +203,7 @@ test-go:
 
 # Go integration tests (standalone + fullstack + i18n + fs-router + features + workspace)
 test-integration:
-    bash scripts/test-integration.sh
+    SEAM_PROFILE={{ _profile }} bash scripts/test-integration.sh
 
 # Playwright E2E tests
 test-e2e:
