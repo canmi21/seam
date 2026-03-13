@@ -10,7 +10,7 @@ pub(crate) use skeleton::run_skeleton_renderer;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 
 use super::helpers::path_to_filename;
 use super::types::{
@@ -21,7 +21,7 @@ use crate::build::types::{AssetFiles, BundleManifest, ViteDevInfo};
 use crate::config::{I18nSection, OutputMode};
 use crate::ui::{self, DIM, RESET, col};
 use assets::compute_route_assets;
-use seam_skeleton::{ctr_check, extract_template, sentinel_to_slots};
+use seam_skeleton::{check_template_invariants, ctr_check, extract_template, sentinel_to_slots};
 use seam_skeleton::{slot_warning, wrap_document};
 
 /// Rendering parameters shared across layout and route processing.
@@ -190,6 +190,36 @@ fn render_route_document(
 	}
 }
 
+fn ensure_template_invariants(
+	route_path: &str,
+	locale: Option<&str>,
+	axes: &[seam_skeleton::Axis],
+	variants: &[String],
+	template: &str,
+) -> Result<()> {
+	let violations = check_template_invariants(axes, variants, template);
+	if violations.is_empty() {
+		return Ok(());
+	}
+
+	let route_label = match locale {
+		Some(locale) => format!("{route_path} [{locale}]"),
+		None => route_path.to_string(),
+	};
+	let details = violations
+		.iter()
+		.map(|violation| format!("- {}", violation.message))
+		.collect::<Vec<_>>()
+		.join("\n");
+
+	bail!(
+		"template invariant check failed for route {route_label}\n\n\
+		 This likely indicates a Seam CTR extraction bug. The generated template violated structural \
+		 array invariants, so the build was stopped before writing broken output.\n\n\
+		 {details}"
+	);
+}
+
 // -- i18n route processing --
 
 fn process_i18n_route(
@@ -202,6 +232,7 @@ fn process_i18n_route(
 	for (locale, data) in locale_variants {
 		let processed: Vec<_> = data.variants.iter().map(|v| sentinel_to_slots(&v.html)).collect();
 		let template = extract_template(&data.axes, &processed);
+		ensure_template_invariants(&route.path, Some(locale), &data.axes, &processed, &template)?;
 
 		ctr_check::verify_ctr_equivalence(
 			&route.path,
@@ -295,6 +326,7 @@ fn process_single_route(
 
 	let processed: Vec<_> = variants.iter().map(|v| sentinel_to_slots(&v.html)).collect();
 	let template = extract_template(axes, &processed);
+	ensure_template_invariants(&route.path, None, axes, &processed, &template)?;
 
 	ctr_check::verify_ctr_equivalence(
 		&route.path,
@@ -377,5 +409,30 @@ pub(crate) fn apply_output_mode(manifest: &mut RouteManifest, output: OutputMode
 			OutputMode::Hybrid => explicit,
 		};
 		entry.prerender = effective;
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::ensure_template_invariants;
+	use seam_skeleton::Axis;
+
+	fn array_axis(path: &str) -> Axis {
+		Axis { path: path.to_string(), kind: "array".to_string(), values: vec![] }
+	}
+
+	#[test]
+	fn template_invariant_failure_mentions_route_and_axis() {
+		let axes = vec![array_axis("watches.items")];
+		let variants = vec![r#"<div><!--seam:watches.items.$.brand--></div>"#.to_string()];
+		let template = r#"<div><!--seam:watches.items.$.brand--></div>"#;
+
+		let err =
+			ensure_template_invariants("/reviewed", None, &axes, &variants, template).unwrap_err();
+		let message = err.to_string();
+
+		assert!(message.contains("template invariant check failed for route /reviewed"));
+		assert!(message.contains("array axis \"watches.items\""));
+		assert!(message.contains("missing <!--seam:each:watches.items-->"));
 	}
 }

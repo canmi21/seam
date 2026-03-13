@@ -4,10 +4,12 @@
 mod document;
 mod extract;
 mod slot;
+mod template_invariant;
 
 pub use document::wrap_document;
 pub use extract::extract_template;
 pub use slot::sentinel_to_slots;
+pub use template_invariant::{TemplateInvariantViolation, check_template_invariants};
 
 pub mod ctr_check;
 pub mod slot_paths;
