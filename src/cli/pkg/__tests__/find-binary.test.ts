@@ -1,21 +1,18 @@
 /* src/cli/pkg/__tests__/find-binary.test.ts */
 
-import { describe, it, expect, vi, afterEach } from 'vitest'
-import { existsSync } from 'fs'
-
-vi.mock('fs', () => ({
-	existsSync: vi.fn(() => false),
-}))
+import { describe, it, expect, afterEach } from 'vitest'
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { PLATFORM_PACKAGES, findBinary } = require('../lib/find-binary.cjs') as {
+const { PLATFORM_PACKAGES, findBinary, _deps } = require('../lib/find-binary.cjs') as {
 	PLATFORM_PACKAGES: Record<string, string>
 	findBinary: () => string | null
+	_deps: { existsSync: (p: string) => boolean }
 }
 
+const originalExistsSync = _deps.existsSync
+
 afterEach(() => {
-	vi.mocked(existsSync).mockReset()
-	vi.mocked(existsSync).mockReturnValue(false)
+	_deps.existsSync = originalExistsSync
 })
 
 describe('PLATFORM_PACKAGES', () => {
@@ -50,8 +47,7 @@ describe('findBinary', () => {
 	})
 
 	it('returns null when require.resolve throws', () => {
-		// Default behavior: existsSync returns false, and if the platform package
-		// is not installed, require.resolve throws — both paths return null
+		_deps.existsSync = () => false
 		const result = findBinary()
 		expect(result).toBeNull()
 	})
@@ -60,7 +56,7 @@ describe('findBinary', () => {
 		const key = `${process.platform}-${process.arch}`
 		if (!(key in PLATFORM_PACKAGES)) return // skip on unsupported test platform
 
-		vi.mocked(existsSync).mockReturnValue(true)
+		_deps.existsSync = () => true
 		const result = findBinary()
 		if (result !== null) {
 			expect(result).toMatch(/bin\/seam$/)
@@ -68,7 +64,7 @@ describe('findBinary', () => {
 	})
 
 	it('returns null when binary file not found', () => {
-		vi.mocked(existsSync).mockReturnValue(false)
+		_deps.existsSync = () => false
 		expect(findBinary()).toBeNull()
 	})
 })

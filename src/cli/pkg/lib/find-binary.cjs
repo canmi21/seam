@@ -10,17 +10,21 @@ const PLATFORM_PACKAGES = {
 	'linux-arm64': '@canmi/seam-cli-linux-arm64',
 }
 
+// Indirect reference so tests can replace existsSync
+// (vitest cannot intercept CJS require('fs') for built-in modules)
+const _deps = { existsSync }
+
 function findBinary() {
 	const pkg = PLATFORM_PACKAGES[`${process.platform}-${process.arch}`]
 	if (!pkg) return null
 	try {
 		const pkgDir = join(require.resolve(`${pkg}/package.json`), '..')
 		const bin = join(pkgDir, 'bin', 'seam')
-		if (existsSync(bin)) return bin
+		if (_deps.existsSync(bin)) return bin
 	} catch {
 		// Platform package not installed
 	}
 	return null
 }
 
-module.exports = { PLATFORM_PACKAGES, findBinary }
+module.exports = { PLATFORM_PACKAGES, findBinary, _deps }
