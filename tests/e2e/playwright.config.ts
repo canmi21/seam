@@ -161,6 +161,7 @@ try {
 const ghToken: Record<string, string> = process.env.GITHUB_TOKEN
 	? { GITHUB_TOKEN: process.env.GITHUB_TOKEN }
 	: {}
+const activeGroup = process.env.SEAM_E2E_GROUP
 const ports = resolvePorts()
 
 process.env.SEAM_E2E_VITE_APP_PORT = String(ports.viteApp)
@@ -325,6 +326,33 @@ const serverSpecs: ServerSpec[] = [
 	{ command: 'bun run server/index.js', cwd: paths.shadcnUiDemoDir, port: 'shadcnUiDemo' },
 ]
 
+const e2eGroups: Record<string, string[]> = {
+	core: ['chromium', 'fullstack', 'vite-dev'],
+	workspace: ['workspace-ts-hono', 'workspace-rust-axum', 'workspace-go-gin'],
+	feature: [
+		'feature-stream-upload',
+		'feature-context-auth',
+		'feature-query-mutation',
+		'feature-handoff-narrowing',
+		'feature-timeout-recovery',
+		'feature-channel-subscription',
+		'feature-sse-reconnect',
+	],
+	misc: ['i18n-prefix', 'i18n-hidden', 'nextjs', 'fs-router', 'shadcn-ui-demo'],
+}
+
+function filterByGroup(group: string | undefined) {
+	if (!group) return { projects: projectSpecs, servers: serverSpecs }
+	const names = e2eGroups[group]
+	if (!names) throw new Error(`Unknown SEAM_E2E_GROUP: ${group}`)
+	const filtered = projectSpecs.filter((p) => names.includes(p.name))
+	const neededPorts = new Set(filtered.map((p) => p.port))
+	const filteredServers = serverSpecs.filter((s) => neededPorts.has(s.port))
+	return { projects: filtered, servers: filteredServers }
+}
+
+const { projects: activeProjects, servers: activeServers } = filterByGroup(activeGroup)
+
 const configuredWorkers = process.env.PW_WORKERS ?? (process.env.CI ? '50%' : undefined)
 
 export default defineConfig({
@@ -339,7 +367,7 @@ export default defineConfig({
 		screenshot: 'only-on-failure',
 	},
 
-	projects: projectSpecs.map((project) => ({
+	projects: activeProjects.map((project) => ({
 		name: project.name,
 		use: { browserName: 'chromium', baseURL: `http://localhost:${ports[project.port]}` },
 		...(project.testMatch ? { testMatch: project.testMatch } : {}),
@@ -349,7 +377,7 @@ export default defineConfig({
 		...(project.workers ? { workers: project.workers } : {}),
 	})),
 
-	webServer: serverSpecs.map((server) => ({
+	webServer: activeServers.map((server) => ({
 		command: server.command,
 		...(server.cwd ? { cwd: server.cwd } : {}),
 		port: ports[server.port],

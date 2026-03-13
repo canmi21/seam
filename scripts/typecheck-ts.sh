@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # scripts/typecheck-ts.sh
-# Run tsc --noEmit for all TypeScript packages that ship typed surfaces.
-set -euo pipefail
+# Run tsc --noEmit for all TypeScript packages in parallel.
+set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -24,16 +24,22 @@ packages=(
   src/query/react
 )
 
-failed=()
-printf '\n==> Type check (tsc --noEmit)\n'
+printf '\n==> Type check (tsc --noEmit) — %d packages in parallel\n' "${#packages[@]}"
 
+pids=()
 for pkg in "${packages[@]}"; do
-  printf '  %s ... ' "$pkg"
-  if (cd "$ROOT" && bunx tsc --noEmit -p "$pkg/tsconfig.json") 2>&1; then
-    printf 'ok\n'
+  (cd "$ROOT" && bunx tsc --noEmit -p "$pkg/tsconfig.json") &
+  pids+=($!)
+done
+
+failed=()
+for i in "${!packages[@]}"; do
+  code=0; wait "${pids[$i]}" || code=$?
+  if [ "$code" != "0" ]; then
+    printf '  %s ... FAIL\n' "${packages[$i]}"
+    failed+=("${packages[$i]}")
   else
-    printf 'FAIL\n'
-    failed+=("$pkg")
+    printf '  %s ... ok\n' "${packages[$i]}"
   fi
 done
 

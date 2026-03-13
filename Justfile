@@ -22,13 +22,22 @@ default:
 # Format + lint (pre-commit gate)
 pre-commit: fmt lint
 
-# Run all formatters
+# Run all formatters (parallel: oxfmt + rustfmt + gofmt, then dprint)
 fmt:
-    chore .
-    {{ pm }} run fmt:ts
-    {{ pm }} run fmt:md
-    cargo fmt --all
-    gofmt -w .
+    #!/usr/bin/env bash
+    set -uo pipefail
+    chore . || exit $?
+    pids=(); names=()
+    just fmt-ts   & pids+=($!); names+=(oxfmt)
+    just fmt-rust & pids+=($!); names+=(rustfmt)
+    just fmt-go   & pids+=($!); names+=(gofmt)
+    failed=0
+    for i in "${!pids[@]}"; do
+      code=0; wait "${pids[$i]}" || code=$?
+      if [ "$code" != "0" ]; then printf '==> %s FAILED (exit %s)\n' "${names[$i]}" "$code"; failed=1; fi
+    done
+    if [ "$failed" != "0" ]; then exit 1; fi
+    just fmt-md
 
 # Format TS only (oxfmt)
 fmt-ts:
@@ -50,12 +59,21 @@ fmt-go:
 fmt-path:
     chore .
 
-# Check formatting without writing
+# Check formatting without writing (parallel: oxfmt + rustfmt + gofmt, then dprint)
 fmt-check:
-    {{ pm }} run fmt:ts:check
+    #!/usr/bin/env bash
+    set -uo pipefail
+    pids=(); names=()
+    {{ pm }} run fmt:ts:check &                                                          pids+=($!); names+=(oxfmt)
+    cargo fmt --all -- --check &                                                         pids+=($!); names+=(rustfmt)
+    bash -c 'bad=$(gofmt -l .); if [ -n "$bad" ]; then echo "$bad"; exit 1; fi' &        pids+=($!); names+=(gofmt)
+    failed=0
+    for i in "${!pids[@]}"; do
+      code=0; wait "${pids[$i]}" || code=$?
+      if [ "$code" != "0" ]; then printf '==> %s FAILED (exit %s)\n' "${names[$i]}" "$code"; failed=1; fi
+    done
+    if [ "$failed" != "0" ]; then exit 1; fi
     {{ pm }} run fmt:md:check
-    cargo fmt --all -- --check
-    test -z "$(gofmt -l .)"
 
 # Run all linters (parallel)
 lint:
@@ -98,20 +116,22 @@ lint-ox:
 lint-clippy:
     {{ _cranelift }} cargo clippy --workspace --all-targets {{ _crypto }} -- -D warnings
 
-# Lint Go (golangci-lint per module, parallel with concurrency limit)
+# Lint Go (golangci-lint per module; serial in CI, parallel locally)
 lint-go:
     #!/usr/bin/env bash
     set -uo pipefail
-    max_jobs=${LINT_GO_JOBS:-4}
-    tmpdir=$(mktemp -d)
-    trap 'rm -rf "$tmpdir"' EXIT
+    if [[ -n "${CI:-}" ]]; then
+      max_jobs=${LINT_GO_JOBS:-1}
+    else
+      max_jobs=${LINT_GO_JOBS:-4}
+    fi
     pids=()
     mods=()
     while IFS= read -r mod; do
       dir="$(dirname "$mod")"
       rel="${dir#"$(pwd)"/}"
       mods+=("$rel")
-      (cd "$dir" && golangci-lint run --allow-parallel-runners ./...) >"$tmpdir/${rel//\//_}.log" 2>&1 &
+      (cd "$dir" && golangci-lint run --allow-parallel-runners ./...) &
       pids+=($!)
       # throttle: wait for a slot when hitting max_jobs
       if (( ${#pids[@]} % max_jobs == 0 )); then
@@ -124,7 +144,6 @@ lint-go:
     for i in "${!pids[@]}"; do
       if ! wait "${pids[$i]}" 2>/dev/null; then
         printf '  FAIL: %s\n' "${mods[$i]}"
-        cat "$tmpdir/${mods[$i]//\//_}.log"
         failed=1
       fi
     done
@@ -158,8 +177,19 @@ lint-fix:
     {{ pm }} run lint:ox:fix
     {{ pm }} run lint:eslint:fix
 
-# Build TS + Rust
-build: build-ts build-rs
+# Build TS + Rust (parallel)
+build:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    pids=(); names=()
+    just build-ts & pids+=($!); names+=(build-ts)
+    just build-rs & pids+=($!); names+=(build-rs)
+    failed=0
+    for i in "${!pids[@]}"; do
+      code=0; wait "${pids[$i]}" || code=$?
+      if [ "$code" != "0" ]; then printf '==> %s FAILED (exit %s)\n' "${names[$i]}" "$code"; failed=1; fi
+    done
+    exit $failed
 
 # Build TS phase 1 (leaf packages, no cross-deps — parallel via tsdown workspace)
 build-ts-p1:
@@ -200,8 +230,19 @@ build-fixtures:
 # Run all tests (unit + integration + e2e)
 test: test-unit test-integration test-e2e
 
-# Run all unit tests (Rust + TS)
-test-unit: test-rs test-ts
+# Run all unit tests (Rust + TS, parallel)
+test-unit:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    pids=(); names=()
+    just test-rs & pids+=($!); names+=(test-rs)
+    just test-ts & pids+=($!); names+=(test-ts)
+    failed=0
+    for i in "${!pids[@]}"; do
+      code=0; wait "${pids[$i]}" || code=$?
+      if [ "$code" != "0" ]; then printf '==> %s FAILED (exit %s)\n' "${names[$i]}" "$code"; failed=1; fi
+    done
+    exit $failed
 
 # Rust unit tests
 test-rs:
@@ -236,9 +277,26 @@ test-go:
 test-integration:
     SEAM_PROFILE={{ _profile }} bash scripts/test-integration.sh
 
-# Playwright E2E tests
+# Playwright E2E tests (grouped parallel locally, serial in CI)
 test-e2e:
-    cd tests/e2e && SEAM_PROFILE={{ _profile }} {{ pm }}x playwright test
+    #!/usr/bin/env bash
+    set -uo pipefail
+    if [[ -n "${CI:-}" ]]; then
+      cd tests/e2e && SEAM_PROFILE={{ _profile }} {{ pm }}x playwright test
+      exit $?
+    fi
+    pids=(); names=()
+    for group in core workspace feature misc; do
+      names+=("$group")
+      (cd tests/e2e && SEAM_PROFILE={{ _profile }} SEAM_E2E_GROUP="$group" {{ pm }}x playwright test) &
+      pids+=($!)
+    done
+    failed=0
+    for i in "${!pids[@]}"; do
+      code=0; wait "${pids[$i]}" || code=$?
+      if [ "$code" != "0" ]; then printf '==> e2e/%s FAILED (exit %s)\n' "${names[$i]}" "$code"; failed=1; fi
+    done
+    exit $failed
 
 # TypeScript type checking
 typecheck:
