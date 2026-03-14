@@ -113,6 +113,10 @@ fn write_reload_trigger(out_dir: &Path) {
 	let _ = std::fs::write(&trigger, &ts);
 }
 
+pub(super) fn signal_rebuild_reload(out_dir: &Path, _is_vite: bool) {
+	write_reload_trigger(out_dir);
+}
+
 pub(super) async fn handle_rebuild(
 	config: &SeamConfig,
 	build_config: &BuildConfig,
@@ -141,9 +145,7 @@ pub(super) async fn handle_rebuild(
 				"seam",
 				&format!("rebuild complete ({:.1}s)", started.elapsed().as_secs_f64()),
 			);
-			if !is_vite {
-				write_reload_trigger(out_dir);
-			}
+			signal_rebuild_reload(out_dir, is_vite);
 		}
 		Ok(Err(e)) => ui::label(RED, "seam", &format!("rebuild error: {e}")),
 		Err(e) => ui::label(RED, "seam", &format!("rebuild panicked: {e}")),

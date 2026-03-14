@@ -5,7 +5,9 @@ use std::path::{Path, PathBuf};
 use crate::build::config::BuildConfig;
 use crate::build::run::RebuildMode;
 
-use super::helpers::{DevEvent, classify_event, manifest_stale_reason, merge_dev_events};
+use super::helpers::{
+	DevEvent, classify_event, manifest_stale_reason, merge_dev_events, signal_rebuild_reload,
+};
 
 fn test_build_config() -> BuildConfig {
 	BuildConfig {
@@ -102,4 +104,14 @@ fn stale_manifest_invalid_json() {
 	let bc = test_build_config();
 	let json = "not valid json {{{";
 	assert!(manifest_stale_reason(json, &bc).is_some());
+}
+
+#[test]
+fn vite_rebuild_writes_reload_trigger() {
+	let temp = tempfile::tempdir().unwrap();
+	signal_rebuild_reload(temp.path(), true);
+
+	let trigger = temp.path().join(".reload-trigger");
+	assert!(trigger.exists());
+	assert!(!std::fs::read_to_string(trigger).unwrap().trim().is_empty());
 }
