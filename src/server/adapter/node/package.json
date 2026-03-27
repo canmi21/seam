@@ -21,7 +21,7 @@
     "@types/node": "25",
     "@types/ws": "8",
     "tsdown": "0.21",
-    "typescript": "5",
+    "typescript": "6",
     "vitest": "4"
   },
   "dependencies": {

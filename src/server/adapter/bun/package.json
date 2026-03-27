@@ -21,7 +21,7 @@
     "@types/bun": "1",
     "bun-types": "1",
     "tsdown": "0.21",
-    "typescript": "5"
+    "typescript": "6"
   },
   "peerDependencies": {
     "@canmi/seam-server": "workspace:*"

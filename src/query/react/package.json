@@ -26,11 +26,11 @@
   "devDependencies": {
     "@testing-library/react": "16",
     "@types/react": "19",
-    "jsdom": "28",
+    "jsdom": "29",
     "react": "19",
     "react-dom": "19",
     "tsdown": "0.21",
-    "typescript": "5",
+    "typescript": "6",
     "vitest": "4"
   }
 }

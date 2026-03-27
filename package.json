@@ -54,11 +54,11 @@
     "lint:deps": "knip --include dependencies,unlisted,unresolved"
   },
   "devDependencies": {
-    "dprint": "0.52",
+    "dprint": "0.53",
     "eslint": "10",
     "eslint-plugin-oxlint": "1",
-    "knip": "5",
-    "oxfmt": "0.40",
+    "knip": "6",
+    "oxfmt": "0.42",
     "oxlint": "1",
     "tsdown": "0.21",
     "tsx": "4",

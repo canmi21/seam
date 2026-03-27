@@ -26,11 +26,11 @@
     "@canmi/seam-i18n": "workspace:*",
     "@types/react": "19",
     "@types/react-dom": "19",
-    "jsdom": "28",
+    "jsdom": "29",
     "react": "19",
     "react-dom": "19",
     "tsdown": "0.21",
-    "typescript": "5",
+    "typescript": "6",
     "vitest": "4"
   },
   "peerDependencies": {

@@ -36,15 +36,15 @@ version = "0.8"
 features = ["ws", "multipart"]
 
 [dependencies.seam-engine]
-version = "0.5.32"
+version = "0.5"
 path = "../../engine/rust"
 
 [dependencies.seam-injector]
-version = "0.5.32"
+version = "0.5"
 path = "../../injector/rust"
 
 [dependencies.seam-server]
-version = "0.5.32"
+version = "0.5"
 path = "../../core/rust"
 
 [dependencies.serde]
@@ -64,7 +64,7 @@ version = "0.6"
 features = ["fs"]
 
 [dev-dependencies]
-tokio-tungstenite = "0.28"
+tokio-tungstenite = "0.29"
 
 [dev-dependencies.tower]
 version = "0.5"

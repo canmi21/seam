@@ -20,10 +20,10 @@
     "@tailwindcss/postcss": "4",
     "@types/react": "19",
     "@types/react-dom": "19",
-    "@vitejs/plugin-react": "5",
+    "@vitejs/plugin-react": "6",
     "postcss": "8",
     "tailwindcss": "4",
-    "typescript": "5",
-    "vite": "7"
+    "typescript": "6",
+    "vite": "8"
   }
 }

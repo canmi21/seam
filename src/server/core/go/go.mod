@@ -3,7 +3,7 @@ module github.com/canmi21/seam/src/server/core/go
 go 1.25.0
 
 require (
-	github.com/canmi21/seam/src/server/engine/go v0.5.36
+	github.com/canmi21/seam/src/server/engine/go v0.5.37
 	github.com/gorilla/websocket v1.5.3
 )
 
