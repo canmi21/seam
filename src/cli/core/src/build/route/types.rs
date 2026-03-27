@@ -47,6 +47,8 @@ pub(crate) struct SkeletonOutput {
 pub(crate) struct SkeletonRoute {
 	pub(super) path: String,
 	pub(super) loaders: serde_json::Value,
+	#[serde(default)]
+	pub(super) derives: Option<BTreeMap<String, DeriveManifestEntry>>,
 	// i18n OFF: flat fields (backward compatible)
 	#[serde(default)]
 	pub(super) axes: Option<Vec<Axis>>,
@@ -83,6 +85,16 @@ pub(super) struct RenderedVariant {
 	#[serde(rename = "variant")]
 	pub(super) _variant: serde_json::Value,
 	pub(super) html: String,
+}
+
+/// Serialized derive entry: client-side data derivation from loader results.
+#[derive(Clone, Serialize, Deserialize)]
+pub(crate) struct DeriveManifestEntry {
+	pub(crate) sources: Vec<String>,
+	#[serde(rename = "fn")]
+	pub(crate) fn_source: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub(crate) output: Option<serde_json::Value>,
 }
 
 // -- Manifest metadata for freshness checks --
@@ -160,6 +172,8 @@ pub(super) struct RouteManifestEntry {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub(super) layout: Option<String>,
 	pub(super) loaders: serde_json::Value,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub(super) derives: Option<BTreeMap<String, DeriveManifestEntry>>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub(super) head_meta: Option<String>,
 	#[serde(skip_serializing_if = "Option::is_none")]

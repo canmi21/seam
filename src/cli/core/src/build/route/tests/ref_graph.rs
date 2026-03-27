@@ -161,6 +161,7 @@ fn ref_graph_route_procedures_dedup() {
 				templates: None,
 				layout: Some("root".to_string()),
 				loaders: serde_json::json!({}),
+				derives: None,
 				head_meta: None,
 				i18n_keys: None,
 				assets: None,

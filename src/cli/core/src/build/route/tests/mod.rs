@@ -110,6 +110,7 @@ pub(super) fn make_skeleton_ext(
 			.map(|(path, loaders, layout)| SkeletonRoute {
 				path: path.to_string(),
 				loaders,
+				derives: None,
 				axes: Some(vec![]),
 				variants: Some(vec![]),
 				mock_html: Some(String::new()),

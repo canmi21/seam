@@ -128,9 +128,23 @@ function renderRoute(route, manifest, i18nValue, ctx) {
 		headMeta = headConfigToSlotHtml(config)
 	}
 
+	// Serialize derive definitions with fn source code
+	let derives = undefined
+	if (route.derive && typeof route.derive === 'object') {
+		derives = {}
+		for (const [key, entry] of Object.entries(route.derive)) {
+			derives[key] = {
+				sources: entry.sources,
+				fn: entry.fn.toString(),
+				...(entry.output ? { output: entry.output } : {}),
+			}
+		}
+	}
+
 	return {
 		path: route.path,
 		loaders: route.loaders,
+		derives,
 		layout: route._layoutId || undefined,
 		axes,
 		variants,

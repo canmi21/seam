@@ -21,6 +21,7 @@ fn make_route_manifest(routes: Vec<(&str, Option<bool>)>) -> RouteManifest {
 						templates: None,
 						layout: None,
 						loaders: serde_json::Value::Null,
+						derives: None,
 						head_meta: None,
 						i18n_keys: None,
 						assets: None,
@@ -81,6 +82,7 @@ fn make_skeleton_with_prerender(
 			.map(|(path, prerender)| SkeletonRoute {
 				path: path.to_string(),
 				loaders: serde_json::Value::Null,
+				derives: None,
 				axes: None,
 				variants: None,
 				mock_html: None,
