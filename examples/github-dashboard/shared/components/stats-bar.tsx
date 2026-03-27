@@ -13,16 +13,19 @@ export function StatsBar({
 	publicRepos,
 	followers,
 	following,
+	totalStars,
 }: {
 	publicRepos: number
 	followers: number
 	following: number
+	totalStars?: number
 }) {
 	return (
-		<div className="grid grid-cols-3 gap-4">
+		<div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
 			<Stat label="Repos" value={publicRepos} />
 			<Stat label="Followers" value={followers} />
 			<Stat label="Following" value={following} />
+			{totalStars !== undefined ? <Stat label="Total Stars" value={totalStars} /> : null}
 		</div>
 	)
 }

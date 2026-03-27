@@ -36,6 +36,16 @@ function buildPageSchema(route, manifest) {
 		properties[loaderKey] = proc.output
 	}
 
+	const derivedProperties = {}
+	for (const [deriveKey, entry] of Object.entries(route.derive || {})) {
+		if (entry?.output) {
+			derivedProperties[deriveKey] = entry.output
+		}
+	}
+	if (Object.keys(derivedProperties).length > 0) {
+		properties.__derived = { properties: derivedProperties }
+	}
+
 	const result = {}
 	if (Object.keys(properties).length > 0) result.properties = properties
 	return Object.keys(result).length > 0 ? result : null

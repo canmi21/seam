@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@canmi/seam-client": "workspace:*",
+    "@canmi/seam-query-react": "workspace:*",
     "@canmi/seam-react": "workspace:*",
     "@canmi/seam-tanstack-router": "workspace:*",
     "@github-dashboard/shared": "workspace:*",

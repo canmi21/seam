@@ -8,6 +8,21 @@ import { renderPage } from '@canmi/seam-engine'
 import { flattenRoutes } from './skeleton/layout.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
+const HOOKS_STUB = `import { useSeamData } from '@canmi/seam-react'
+
+export const useSeamFetch = undefined
+export const useFetch = undefined
+export const useSeamQuery = undefined
+export const useSeamMutation = undefined
+
+export function useSeamDerive(key) {
+	const data = useSeamData()
+	const derived = data && typeof data === 'object' ? data.__derived : undefined
+	return derived && typeof derived === 'object' ? derived[key] : undefined
+}
+
+export const useDerive = useSeamDerive
+`
 
 function seamVirtualPlugin() {
 	const cwd = process.cwd()
@@ -28,7 +43,10 @@ function seamVirtualPlugin() {
 				if (existsSync(resolved)) return { path: resolved }
 				return { path: args.path, namespace: 'seam-virtual' }
 			})
-			build.onLoad({ filter: /.*/, namespace: 'seam-virtual' }, () => {
+			build.onLoad({ filter: /.*/, namespace: 'seam-virtual' }, (args) => {
+				if (args.path === 'virtual:seam/hooks') {
+					return { contents: HOOKS_STUB, loader: 'ts' }
+				}
 				return { contents: '', loader: 'ts' }
 			})
 		},

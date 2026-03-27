@@ -26,6 +26,7 @@
     "examples/standalone/server-node",
     "examples/standalone/client-vanilla",
     "examples/standalone/client-react",
+    "examples/github-dashboard",
     "examples/github-dashboard/shared",
     "examples/github-dashboard/backends/ts-hono",
     "examples/github-dashboard/frontend",

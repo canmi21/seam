@@ -161,6 +161,12 @@
         "typescript": "6",
       },
     },
+    "examples/github-dashboard": {
+      "name": "github-dashboard",
+      "devDependencies": {
+        "@canmi/seam": "workspace:*",
+      },
+    },
     "examples/github-dashboard/backends/ts-hono": {
       "name": "@github-dashboard/backend-ts-hono",
       "version": "0.0.0",
@@ -181,6 +187,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@canmi/seam-client": "workspace:*",
+        "@canmi/seam-query-react": "workspace:*",
         "@canmi/seam-react": "workspace:*",
         "@canmi/seam-tanstack-router": "workspace:*",
         "@github-dashboard/shared": "workspace:*",
@@ -227,6 +234,7 @@
       "dependencies": {
         "@canmi/seam-adapter-hono": "workspace:*",
         "@canmi/seam-client": "workspace:*",
+        "@canmi/seam-query-react": "workspace:*",
         "@canmi/seam-react": "workspace:*",
         "@canmi/seam-server": "workspace:*",
         "@canmi/seam-tanstack-router": "workspace:*",
@@ -1511,6 +1519,8 @@
     "get-nonce": ["get-nonce@1.0.1", "", {}, "sha512-FJhYRoDaiatfEkUK8HKlicmu/3SGFD51q3itKDGoSTysQJBnfOcxU5GxnhE1E6soB76MbT0MBtnKJuXyAx+96Q=="],
 
     "get-tsconfig": ["get-tsconfig@4.13.7", "", { "dependencies": { "resolve-pkg-maps": "^1.0.0" } }, "sha512-7tN6rFgBlMgpBML5j8typ92BKFi2sFQvIdpAqLA2beia5avZDrMs0FLZiM5etShWq5irVyGcGMEA1jcDaK7A/Q=="],
+
+    "github-dashboard": ["github-dashboard@workspace:examples/github-dashboard"],
 
     "github-dashboard-next": ["github-dashboard-next@workspace:examples/github-dashboard/next-app"],
 

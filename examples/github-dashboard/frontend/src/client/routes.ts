@@ -1,7 +1,8 @@
 /* examples/github-dashboard/frontend/src/client/routes.ts */
 
-import { defineSeamRoutes } from '@canmi/seam-tanstack-router/routes'
+import { defineSeamRoutes, seamRoute } from '@canmi/seam-tanstack-router/routes'
 import { AppLayout } from './components/app-layout.js'
+import { repoStatsRouteDerive } from './derive.js'
 import { HomeSkeleton } from './pages/home-skeleton.js'
 import { DashboardSkeleton } from './pages/dashboard-skeleton.js'
 
@@ -27,9 +28,13 @@ export default defineSeamRoutes([
 					page: { tagline: 'Compile-Time Rendering for React' },
 				},
 			},
-			{
+			seamRoute({
 				path: '/dashboard/:username',
 				component: DashboardSkeleton,
+				head: (data) => ({
+					title: `${data.name ?? data.login} | GitHub Dashboard`,
+					meta: [{ name: 'description', content: String(data.bio ?? '') }],
+				}),
 				loaders: {
 					user: {
 						procedure: 'getUser',
@@ -39,6 +44,9 @@ export default defineSeamRoutes([
 						procedure: 'getUserRepos',
 						params: { username: 'route' },
 					},
+				},
+				derive: {
+					repoStats: repoStatsRouteDerive,
 				},
 				mock: {
 					user: {
@@ -79,7 +87,7 @@ export default defineSeamRoutes([
 					'repos.$.description',
 					'repos.$.language',
 				],
-			},
+			}),
 		],
 	},
 ])

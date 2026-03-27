@@ -2,6 +2,7 @@
 
 import { defineSeamRoutes, seamRoute } from '@canmi/seam-tanstack-router/routes'
 import { AppLayout } from '@github-dashboard/shared/components/app-layout.js'
+import { repoStatsRouteDerive } from './derive.js'
 import { HomeSkeleton } from './pages/home-skeleton.js'
 import { DashboardSkeleton } from './pages/dashboard-skeleton.js'
 
@@ -46,15 +47,7 @@ export default defineSeamRoutes([
 					},
 				},
 				derive: {
-					repoStats: {
-						sources: ['user', 'repos'],
-						fn: (_user, repos) => ({
-							totalStars: (repos as { stargazers_count: number }[]).reduce(
-								(sum, r) => sum + r.stargazers_count,
-								0,
-							),
-						}),
-					},
+					repoStats: repoStatsRouteDerive,
 				},
 				mock: {
 					user: {

@@ -1,6 +1,10 @@
 {
   "name": "github-dashboard",
   "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@canmi/seam": "workspace:*"
+  },
   "scripts": {
     "dev:ts": "seam dev --member ts-hono",
     "dev:rust": "seam dev --member rust-axum",
