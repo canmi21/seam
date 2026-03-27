@@ -12,6 +12,7 @@ export { buildHeadSlotProxy, headConfigToSlotHtml, mergeHeadConfigs } from './he
 export type {
 	RouteDef,
 	LoaderDef,
+	DeriveEntry,
 	ParamMapping,
 	LazyComponentLoader,
 	HeadConfig,

@@ -41,12 +41,19 @@ export interface HeadConfig {
 
 export type HeadFn = (data: Record<string, unknown>) => HeadConfig
 
+export interface DeriveEntry {
+	sources: string[]
+	fn: (...args: unknown[]) => unknown
+	output?: Record<string, unknown>
+}
+
 export interface RouteDef {
 	path: string
 	component?: ComponentType<Record<string, unknown>> | LazyComponentLoader
 	layout?: ComponentType<{ children: ReactNode }>
 	children?: RouteDef[]
 	loaders?: Record<string, LoaderDef>
+	derive?: Record<string, DeriveEntry>
 	mock?: Record<string, unknown>
 	nullable?: string[]
 	staleTime?: number

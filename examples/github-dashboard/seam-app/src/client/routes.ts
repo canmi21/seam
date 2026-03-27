@@ -1,6 +1,6 @@
 /* examples/github-dashboard/seam-app/src/client/routes.ts */
 
-import { defineSeamRoutes } from '@canmi/seam-tanstack-router/routes'
+import { defineSeamRoutes, seamRoute } from '@canmi/seam-tanstack-router/routes'
 import { AppLayout } from '@github-dashboard/shared/components/app-layout.js'
 import { HomeSkeleton } from './pages/home-skeleton.js'
 import { DashboardSkeleton } from './pages/dashboard-skeleton.js'
@@ -28,7 +28,7 @@ export default defineSeamRoutes([
 				},
 				head: { title: 'GitHub Dashboard' },
 			},
-			{
+			seamRoute({
 				path: '/dashboard/:username',
 				component: DashboardSkeleton,
 				head: (data) => ({
@@ -43,6 +43,17 @@ export default defineSeamRoutes([
 					repos: {
 						procedure: 'getUserRepos',
 						params: { username: 'route' },
+					},
+				},
+				derive: {
+					repoStats: {
+						sources: ['user', 'repos'],
+						fn: (_user, repos) => ({
+							totalStars: (repos as { stargazers_count: number }[]).reduce(
+								(sum, r) => sum + r.stargazers_count,
+								0,
+							),
+						}),
 					},
 				},
 				mock: {
@@ -84,7 +95,7 @@ export default defineSeamRoutes([
 					'repos.$.description',
 					'repos.$.language',
 				],
-			},
+			}),
 		],
 	},
 ])
