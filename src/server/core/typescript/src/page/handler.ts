@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { renderPage, escapeHtml } from '@canmi/seam-engine'
 import { SeamError } from '../errors.js'
 import type { InternalProcedure } from '../procedure.js'
-import type { PageDef, LayoutDef, LoaderFn, I18nConfig } from './index.js'
+import type { PageDef, DeriveManifestEntry, LayoutDef, LoaderFn, I18nConfig } from './index.js'
 import { headConfigToHtml } from './head.js'
 import type { LoaderError } from './loader-error.js'
 import { applyProjection } from './projection.js'
@@ -140,6 +140,27 @@ function buildI18nPayload(opts: I18nOpts): string {
 	return JSON.stringify(i18nData)
 }
 
+/** Evaluate derive functions from route-manifest against loader data.
+ *  The fn source is a build-time artifact (not user input), so Function()
+ *  construction is safe. Per-derive try-catch mirrors loader error boundaries. */
+function executeDerives(
+	derives: Record<string, DeriveManifestEntry>,
+	data: Record<string, unknown>,
+): Record<string, unknown> {
+	const result: Record<string, unknown> = {}
+	for (const [key, entry] of Object.entries(derives)) {
+		try {
+			// eslint-disable-next-line @typescript-eslint/no-implied-eval, @typescript-eslint/no-unsafe-call
+			const fn = new Function('return ' + entry.fn)() as (...args: unknown[]) => unknown
+			const args = entry.sources.map((src) => data[src] ?? null)
+			result[key] = fn(...args)
+		} catch {
+			result[key] = null
+		}
+	}
+	return result
+}
+
 export async function handlePageRequest(
 	page: PageDef,
 	params: Record<string, string>,
@@ -192,22 +213,9 @@ export async function handlePageRequest(
 		// Prune to projected fields before template injection
 		const prunedData = applyProjection(allData, page.projections)
 
-		// Execute derives: evaluate fn source against loader data, merge as __derived.
-		// The fn source comes from route-manifest.json (build-time artifact, not user input),
-		// so Function() construction is safe — it only runs developer-authored derive functions.
+		// Execute derives and merge as __derived
 		if (page.derives) {
-			const derived: Record<string, unknown> = {}
-			for (const [key, entry] of Object.entries(page.derives)) {
-				try {
-					// eslint-disable-next-line @typescript-eslint/no-implied-eval, @typescript-eslint/no-unsafe-call
-					const fn = new Function('return ' + entry.fn)() as (...args: unknown[]) => unknown
-					const args = entry.sources.map((src) => prunedData[src] ?? null)
-					derived[key] = fn(...args)
-				} catch {
-					derived[key] = null
-				}
-			}
-			prunedData.__derived = derived
+			prunedData.__derived = executeDerives(page.derives, prunedData)
 		}
 
 		// Compose template: nest page inside layouts via outlet substitution

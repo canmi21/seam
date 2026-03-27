@@ -27,7 +27,7 @@ export function useSeamDerive<T = unknown>(key: string, registry?: DeriveRegistr
 	// Collect source data from QueryClient cache (partial key match by procedure name)
 	const sourceData = (entry?.sources ?? []).map((procName) => {
 		const queries = queryClient.getQueriesData<unknown>({ queryKey: [procName] })
-		return queries.length > 0 ? queries[queries.length - 1]![1] : null
+		return queries.length > 0 ? (queries[queries.length - 1]?.[1] ?? null) : null
 	})
 
 	return useMemo(
