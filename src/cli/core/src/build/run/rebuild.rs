@@ -9,8 +9,9 @@ use super::super::route::generate_types;
 use super::super::route::{
 	BundleContext, RenderContext, build_reference_graph, export_i18n, generate_route_procedures_ts,
 	inject_route_procedures, inject_route_projections, package_static_assets, process_routes,
-	read_i18n_messages, report_narrowing_savings, validate_handoff_consistency, validate_invalidates,
-	validate_procedure_references, warn_unused_queries,
+	read_i18n_messages, report_narrowing_savings, validate_derive_sources,
+	validate_handoff_consistency, validate_invalidates, validate_procedure_references,
+	warn_unused_queries,
 };
 use super::super::types::AssetFiles;
 use super::helpers;
@@ -71,6 +72,7 @@ pub fn run_incremental_rebuild(
 	validate_procedure_references(&ref_graph)?;
 	validate_invalidates(&manifest)?;
 	validate_handoff_consistency(&ref_graph);
+	validate_derive_sources(&skeleton_output);
 	warn_unused_queries(&ref_graph, &manifest);
 
 	let rp_path = base_dir.join(".seam/generated/route-procedures.ts");

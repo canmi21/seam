@@ -196,6 +196,51 @@ pub(crate) fn validate_handoff_consistency(graph: &ProcedureRefGraph) {
 	}
 }
 
+/// Validate that derive sources reference loader keys available on the route
+/// (including layout chain). Derive sources are indirect procedure references —
+/// they resolve through the loader key, so no separate ref graph tracking is
+/// needed, but invalid keys should be caught at build time.
+pub(crate) fn validate_derive_sources(skeleton: &SkeletonOutput) {
+	// Index layouts by id for chain walking
+	let layout_map: BTreeMap<&str, &super::types::SkeletonLayout> =
+		skeleton.layouts.iter().map(|l| (l.id.as_str(), l)).collect();
+
+	for route in &skeleton.routes {
+		let Some(derives) = &route.derives else { continue };
+
+		// Collect all loader keys available to this route (own + layout chain)
+		let mut available_keys: BTreeSet<String> = BTreeSet::new();
+		if let Some(obj) = route.loaders.as_object() {
+			available_keys.extend(obj.keys().cloned());
+		}
+		let mut current_layout = route.layout.as_deref();
+		while let Some(id) = current_layout {
+			if let Some(layout) = layout_map.get(id) {
+				if let Some(obj) = layout.loaders.as_object() {
+					available_keys.extend(obj.keys().cloned());
+				}
+				current_layout = layout.parent.as_deref();
+			} else {
+				break;
+			}
+		}
+
+		for (derive_key, entry) in derives {
+			for source in &entry.sources {
+				if !available_keys.contains(source) {
+					ui::warn(&format!(
+						"Route \"{}\" derive \"{derive_key}\" references source \"{source}\" \
+						which is not a loader key on this route or its layout chain. \
+						Available: {}",
+						route.path,
+						available_keys.iter().cloned().collect::<Vec<_>>().join(", "),
+					));
+				}
+			}
+		}
+	}
+}
+
 /// Warn when a query procedure has no loader references and is not suppressed.
 pub(crate) fn warn_unused_queries(graph: &ProcedureRefGraph, manifest: &Manifest) {
 	for name in &graph.all_procedures {

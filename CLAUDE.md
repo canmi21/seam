@@ -18,7 +18,6 @@
 
 ## Version Control
 
-- Never add AI co-authorship (e.g., "Co-Authored-By: Claude")
 - Before every `git commit`, run `just fmt && just lint` and fix any errors first; for TS-only changes also run `just test-ts`, for Rust changes run `just test-rs`
 - Docs-only changes (Markdown files): `just fmt` before commit, lint is not required
 - For full verification (fmt + lint + build + all tests): `just verify`
