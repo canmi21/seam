@@ -18,13 +18,21 @@ use crate::slots::{replace_asset_slots, strip_asset_slots};
 /// - `loader_data_json`: `{"key": value, ...}` from all loaders (layout + page)
 /// - `config_json`: serialized `PageConfig`
 /// - `i18n_opts_json`: optional serialized `I18nOpts`
+/// - `derives_json`: optional derive definitions `{"name": {"sources":[],"fn":"..."}}`
+///
+/// When the `quickjs` feature is enabled and `derives_json` is provided,
+/// derive functions are executed via QuickJS and results merged under `__derived`.
+/// When `quickjs` is not available (WASM builds), callers should pre-compute
+/// derive results and include `__derived` in `loader_data_json` directly.
 pub fn render_page(
 	template: &str,
 	loader_data_json: &str,
 	config_json: &str,
 	i18n_opts_json: Option<&str>,
+	derives_json: Option<&str>,
 ) -> String {
-	let loader_data: serde_json::Value =
+	#[allow(unused_mut)]
+	let mut loader_data: serde_json::Value =
 		serde_json::from_str(loader_data_json).unwrap_or(serde_json::Value::Null);
 	let config: PageConfig = match serde_json::from_str(config_json) {
 		Ok(c) => c,
@@ -32,10 +40,23 @@ pub fn render_page(
 	};
 	let i18n_opts: Option<I18nOpts> = i18n_opts_json.and_then(|s| serde_json::from_str(s).ok());
 
+	// Execute derives when quickjs is available and definitions are provided.
+	// Skip if loader_data already contains __derived (pre-computed by adapter).
+	#[cfg(feature = "quickjs")]
+	if let Some(dj) = derives_json
+		&& !dj.is_empty()
+		&& dj != "{}"
+		&& loader_data.get("__derived").is_none()
+		&& let Ok(result_json) = crate::derive::execute_derives(dj, loader_data_json)
+		&& let Ok(derived_val) = serde_json::from_str::<serde_json::Value>(&result_json)
+		&& let Some(obj) = loader_data.as_object_mut()
+	{
+		obj.insert("__derived".to_string(), derived_val);
+	}
+	#[cfg(not(feature = "quickjs"))]
+	let _ = derives_json;
+
 	// Step 1: Replace asset slot markers before injector sees them.
-	// When page_assets is present, replace with actual tags.
-	// When absent, strip markers (empty replacement) to prevent injector
-	// from treating them as data slots.
 	let working = match config.page_assets {
 		Some(ref assets) => replace_asset_slots(template, assets),
 		None => strip_asset_slots(template),
@@ -49,7 +70,6 @@ pub fn render_page(
 
 	// Step 4: Inject page-level head metadata
 	if let Some(ref meta) = config.head_meta {
-		// Inject the head_meta with slot data resolved
 		let injected_meta = seam_injector::inject_no_script(meta, &flat_data);
 		html = inject_head_meta(&html, &injected_meta);
 	}
@@ -81,7 +101,7 @@ mod tests {
 		let data = json!({"title": "Hello"}).to_string();
 		let config = json!({"layout_chain": [], "data_id": "__data"}).to_string();
 
-		let result = render_page(&template, &data, &config, None);
+		let result = render_page(&template, &data, &config, None, None);
 		assert!(result.contains("<p>Hello</p>"));
 		assert!(result.contains(r#"<script id="__data""#));
 		assert!(result.contains(r#""title":"Hello""#));
@@ -97,7 +117,7 @@ mod tests {
 		})
 		.to_string();
 
-		let result = render_page(&template, &data, &config, None);
+		let result = render_page(&template, &data, &config, None, None);
 		// nav should be under _layouts.root, not at top level
 		assert!(result.contains(r#""_layouts""#), "missing _layouts key");
 		assert!(result.contains(r#""root""#), "missing root layout key");
@@ -117,7 +137,7 @@ mod tests {
 		})
 		.to_string();
 
-		let result = render_page(&template, &data, &config, Some(&i18n));
+		let result = render_page(&template, &data, &config, Some(&i18n), None);
 		assert!(result.contains(r#"<html lang="zh""#));
 		assert!(result.contains(r#""_i18n""#));
 	}
@@ -133,7 +153,7 @@ mod tests {
 		})
 		.to_string();
 
-		let result = render_page(&template, &data, &config, None);
+		let result = render_page(&template, &data, &config, None, None);
 		// head_meta should be injected after <meta charset="utf-8">
 		assert!(result.contains(r#"<meta charset="utf-8"><title>Hello</title>"#));
 	}
@@ -141,7 +161,7 @@ mod tests {
 	#[test]
 	fn render_invalid_config_returns_template() {
 		let template = "plain html";
-		let result = render_page(template, "{}", "invalid json", None);
+		let result = render_page(template, "{}", "invalid json", None, None);
 		assert_eq!(result, "plain html");
 	}
 
@@ -170,7 +190,7 @@ mod tests {
 		})
 		.to_string();
 
-		let result = render_page(template, &data, &config, None);
+		let result = render_page(template, &data, &config, None, None);
 
 		// Asset slots replaced
 		assert!(result.contains(r#"href="/_seam/static/page-home.css""#));
@@ -199,7 +219,7 @@ mod tests {
 		let data = json!({"title": "Hello"}).to_string();
 		let config = json!({"layout_chain": [], "data_id": "__data"}).to_string();
 
-		let result = render_page(template, &data, &config, None);
+		let result = render_page(template, &data, &config, None, None);
 
 		// Slot markers stripped before injector (prevents misinterpretation)
 		assert!(!result.contains("<!--seam:page-styles-->"));
@@ -207,5 +227,45 @@ mod tests {
 		assert!(!result.contains("<!--seam:prefetch-->"));
 		// Data injection still works
 		assert!(result.contains("<p>Hello</p>"));
+	}
+
+	#[cfg(feature = "quickjs")]
+	#[test]
+	fn render_with_derives() {
+		let template = r#"<html><head><meta charset="utf-8"></head><body><p><!--seam:__derived.stats.total--></p></body></html>"#;
+		let data = json!({"repos": [{"stars": 100}, {"stars": 42}]}).to_string();
+		let config = json!({"layout_chain": [], "data_id": "__data"}).to_string();
+		let derives = json!({
+			"stats": {
+				"sources": ["repos"],
+				"fn": "(repos) => ({ total: repos.reduce((s, r) => s + r.stars, 0) })"
+			}
+		})
+		.to_string();
+
+		let result = render_page(template, &data, &config, None, Some(&derives));
+
+		// Slot replaced with computed derive value
+		assert!(result.contains("<p>142</p>"), "slot not replaced: {result}");
+		// __derived present in __data script
+		assert!(result.contains(r#""__derived""#), "missing __derived in data");
+		assert!(result.contains(r#""total":142"#), "missing total in derived");
+	}
+
+	#[test]
+	fn render_with_precomputed_derived() {
+		let template = r#"<html><head><meta charset="utf-8"></head><body><p><!--seam:__derived.stats.total--></p></body></html>"#;
+		// __derived already in loader data (WASM path: adapter pre-computed)
+		let data = json!({
+			"repos": [{"stars": 100}],
+			"__derived": {"stats": {"total": 100}}
+		})
+		.to_string();
+		let config = json!({"layout_chain": [], "data_id": "__data"}).to_string();
+
+		let result = render_page(template, &data, &config, None, None);
+
+		assert!(result.contains("<p>100</p>"), "precomputed slot not replaced");
+		assert!(result.contains(r#""__derived""#), "missing __derived in data");
 	}
 }

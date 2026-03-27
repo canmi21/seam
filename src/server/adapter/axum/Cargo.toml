@@ -38,6 +38,7 @@ features = ["ws", "multipart"]
 [dependencies.seam-engine]
 version = "0.5"
 path = "../../engine/rust"
+features = ["quickjs"]
 
 [dependencies.seam-injector]
 version = "0.5"

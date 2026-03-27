@@ -14,7 +14,7 @@ pub fn render_page(
 	i18n_opts_json: &str,
 ) -> String {
 	let i18n = if i18n_opts_json.is_empty() { None } else { Some(i18n_opts_json) };
-	seam_engine::render_page(template, loader_data_json, config_json, i18n)
+	seam_engine::render_page(template, loader_data_json, config_json, i18n, None)
 }
 
 #[wasm_bindgen]

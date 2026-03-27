@@ -45,11 +45,7 @@ pub fn execute_derives(derives_json: &str, loader_data_json: &str) -> Result<Str
 		let args: Vec<String> = entry
 			.sources
 			.iter()
-			.map(|src| {
-				loader_data
-					.get(src)
-					.map_or_else(|| "null".to_string(), ToString::to_string)
-			})
+			.map(|src| loader_data.get(src).map_or_else(|| "null".to_string(), ToString::to_string))
 			.collect();
 
 		let args_str = args.join(",");
