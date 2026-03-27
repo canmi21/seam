@@ -2,7 +2,7 @@
 
 export { createSeamQueryOptions, resolveStaleTime } from './query-options.js'
 export { createSeamMutationOptions, invalidateFromConfig } from './mutation-options.js'
-export { hydrateFromSeamData } from './hydrate.js'
+export { hydrateFromSeamData, getHydratedDerived } from './hydrate.js'
 export type {
 	ProcedureConfigEntry,
 	ProcedureConfigMap,

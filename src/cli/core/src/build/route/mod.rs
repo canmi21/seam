@@ -28,9 +28,9 @@ pub(crate) use process::{
 };
 pub(crate) use projection::{inject_route_projections, report_narrowing_savings};
 pub(crate) use ref_graph::{
-	ProcedureRefGraph, build_reference_graph, generate_route_procedures_ts, inject_route_procedures,
-	validate_derive_sources, validate_handoff_consistency, validate_procedure_references,
-	warn_unused_queries,
+	ProcedureRefGraph, build_reference_graph, generate_derive_registry_ts,
+	generate_route_procedures_ts, inject_route_procedures, validate_derive_sources,
+	validate_handoff_consistency, validate_procedure_references, warn_unused_queries,
 };
 pub(crate) use types::{
 	CacheStats, ManifestMeta, RouteManifest, SkeletonOutput, build_manifest_meta,

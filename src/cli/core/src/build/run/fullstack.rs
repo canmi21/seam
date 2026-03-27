@@ -8,10 +8,10 @@ use anyhow::Result;
 use super::super::config::BuildConfig;
 use super::super::route::generate_types;
 use super::super::route::{
-	BundleContext, RenderContext, build_reference_graph, generate_route_procedures_ts,
-	package_public_files, package_static_assets, print_asset_files, print_procedure_breakdown,
-	run_typecheck, validate_derive_sources, validate_handoff_consistency, validate_invalidates,
-	validate_procedure_references, warn_unused_queries,
+	BundleContext, RenderContext, build_reference_graph, generate_derive_registry_ts,
+	generate_route_procedures_ts, package_public_files, package_static_assets, print_asset_files,
+	print_procedure_breakdown, run_typecheck, validate_derive_sources, validate_handoff_consistency,
+	validate_invalidates, validate_procedure_references, warn_unused_queries,
 };
 use super::super::types::{AssetFiles, read_bundle_manifest_extended};
 use super::helpers;
@@ -150,6 +150,8 @@ pub(super) fn run_fullstack_build(
 	let t = tracker.begin();
 	let rp_path = base_dir.join(".seam/generated/route-procedures.ts");
 	generate_route_procedures_ts(&ref_graph, &manifest, &rp_path)?;
+	let dr_path = base_dir.join(".seam/generated/derive-registry.ts");
+	generate_derive_registry_ts(&skeleton_output, &dr_path)?;
 	tracker.end(t);
 
 	// -- Bundling frontend --
@@ -320,6 +322,8 @@ pub fn run_dev_build(
 	let t = tracker.begin();
 	let rp_path = base_dir.join(".seam/generated/route-procedures.ts");
 	generate_route_procedures_ts(&ref_graph, &manifest, &rp_path)?;
+	let dr_path = base_dir.join(".seam/generated/derive-registry.ts");
+	generate_derive_registry_ts(&skeleton_output, &dr_path)?;
 	tracker.end(t);
 
 	// -- Bundling frontend (skipped in Vite mode) --

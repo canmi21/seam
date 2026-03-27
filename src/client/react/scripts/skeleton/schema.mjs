@@ -91,9 +91,28 @@ function renderRoute(route, manifest, i18nValue, ctx) {
 	}
 
 	const mock = resolveRouteMock(route, manifest)
+
+	// Execute derive fns with mock data to produce __derived for skeleton rendering
+	if (route.derive && typeof route.derive === 'object') {
+		const derived = {}
+		for (const [key, entry] of Object.entries(route.derive)) {
+			try {
+				const args = entry.sources.map((src) => mock[src] ?? null)
+				derived[key] = entry.fn(...args)
+			} catch {
+				derived[key] = null
+			}
+		}
+		mock.__derived = derived
+	}
+
 	const pageSchema = buildPageSchema(route, manifest)
 	const htmlPaths = pageSchema ? collectHtmlPaths(pageSchema) : new Set()
 	const sampleMock = pageSchema ? buildStructuralSample(pageSchema, mock) : mock
+	// Carry __derived into sampleMock for sentinel/variant rendering
+	if (mock.__derived && sampleMock !== mock) {
+		sampleMock.__derived = mock.__derived
+	}
 	const baseSentinel = buildSentinelData(sampleMock, '', htmlPaths)
 	const axes = pageSchema ? collectStructuralAxes(pageSchema, sampleMock) : []
 	const combos = cartesianProduct(axes)

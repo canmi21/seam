@@ -430,14 +430,17 @@ fn procedure_config_invalidates_with_mapping() {
 #[test]
 fn hooks_module_codegen() {
 	let code = generate_hooks_module();
-	assert!(code.contains(
-		"import { useSeamFetch as _useSeamFetch, useSeamQuery as _useSeamQuery, useSeamMutation as _useSeamMutation } from \"@canmi/seam-query-react\";"
-	));
+	assert!(code.contains("_useSeamFetch"));
+	assert!(code.contains("_useSeamQuery"));
+	assert!(code.contains("_useSeamMutation"));
+	assert!(code.contains("_useSeamDerive"));
 	assert!(code.contains("import type { SeamProcedureMeta } from \"./client\";"));
 	assert!(code.contains("export const useSeamFetch = _useSeamFetch<SeamProcedureMeta>;"));
 	assert!(code.contains("export const useFetch = useSeamFetch;"));
 	assert!(code.contains("export const useSeamQuery = _useSeamQuery<SeamProcedureMeta>;"));
 	assert!(code.contains("export const useSeamMutation = _useSeamMutation<SeamProcedureMeta>;"));
+	assert!(code.contains("export const useSeamDerive = _useSeamDerive;"));
+	assert!(code.contains("export const useDerive = useSeamDerive;"));
 }
 
 #[test]

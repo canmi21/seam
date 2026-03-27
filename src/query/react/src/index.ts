@@ -6,6 +6,8 @@ export { useSeamQuery } from './use-seam-query.js'
 export { useSeamMutation } from './use-seam-mutation.js'
 export { useSeamFetch, useFetch } from './use-seam-fetch.js'
 export type { UseSeamFetchResult } from './use-seam-fetch.js'
+export { useSeamDerive, useDerive } from './use-seam-derive.js'
+export type { DeriveRegistry, DeriveRegistryEntry } from './use-seam-derive.js'
 
 // Re-export core types for convenience
 export type {

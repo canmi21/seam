@@ -336,3 +336,62 @@ pub(crate) fn generate_route_procedures_ts(
 		.with_context(|| format!("failed to write {}", output_path.display()))?;
 	Ok(())
 }
+
+/// Generate `.seam/generated/derive-registry.ts` mapping derive names
+/// to their source procedures and fn bodies.
+pub(crate) fn generate_derive_registry_ts(
+	skeleton: &SkeletonOutput,
+	output_path: &Path,
+) -> Result<()> {
+	let mut entries: BTreeMap<String, (Vec<String>, String)> = BTreeMap::new();
+
+	for route in &skeleton.routes {
+		let Some(derives) = &route.derives else { continue };
+		// Build loader key → procedure name lookup from route loaders
+		let loader_procs: BTreeMap<String, String> = route
+			.loaders
+			.as_object()
+			.map(|obj| {
+				obj
+					.iter()
+					.filter_map(|(k, v)| {
+						v.get("procedure").and_then(|p| p.as_str()).map(|p| (k.clone(), p.to_string()))
+					})
+					.collect()
+			})
+			.unwrap_or_default();
+
+		for (key, entry) in derives {
+			let sources: Vec<String> = entry
+				.sources
+				.iter()
+				.map(|src| loader_procs.get(src).cloned().unwrap_or_else(|| src.clone()))
+				.collect();
+			entries.insert(key.clone(), (sources, entry.fn_source.clone()));
+		}
+	}
+
+	let mut lines = Vec::new();
+	lines.push("/* .seam/generated/derive-registry.ts */\n".to_string());
+	lines.push("export const seamDeriveRegistry = {".to_string());
+
+	for (key, (sources, fn_source)) in &entries {
+		let sources_str = sources.iter().map(|s| format!("\"{s}\"")).collect::<Vec<_>>().join(", ");
+		lines.push(format!("  \"{key}\": {{"));
+		lines.push(format!("    sources: [{sources_str}],"));
+		lines.push(format!("    fn: {fn_source},"));
+		lines.push("  },".to_string());
+	}
+
+	lines.push("} as const;\n".to_string());
+	lines.push("export type SeamDeriveRegistry = typeof seamDeriveRegistry;\n".to_string());
+
+	let content = lines.join("\n");
+	if let Some(parent) = output_path.parent() {
+		std::fs::create_dir_all(parent)
+			.with_context(|| format!("failed to create {}", parent.display()))?;
+	}
+	std::fs::write(output_path, &content)
+		.with_context(|| format!("failed to write {}", output_path.display()))?;
+	Ok(())
+}
