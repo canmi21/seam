@@ -27,11 +27,18 @@ interface LayoutManifestEntry {
 	i18n_keys?: string[]
 }
 
+interface DeriveManifestEntryRaw {
+	sources: string[]
+	fn: string
+	output?: unknown
+}
+
 interface RouteManifestEntry {
 	template?: string
 	templates?: Record<string, string>
 	layout?: string
 	loaders: Record<string, LoaderConfig>
+	derives?: Record<string, DeriveManifestEntryRaw>
 	head_meta?: string
 	i18n_keys?: string[]
 	assets?: PageAssets
@@ -313,6 +320,7 @@ export function loadBuildOutput(distDir: string): Record<string, PageDef> {
 			template,
 			localeTemplates: loadLocaleTemplates(entry, distDir),
 			loaders,
+			derives: entry.derives,
 			layoutChain,
 			headMeta: entry.head_meta,
 			dataId: manifest.data_id,
@@ -372,6 +380,7 @@ export function loadBuildOutputDev(distDir: string): Record<string, PageDef> {
 			template: '', // placeholder, overridden by getter
 			localeTemplates,
 			loaders,
+			derives: entry.derives,
 			layoutChain,
 			headMeta: entry.head_meta,
 			dataId: manifest.data_id,

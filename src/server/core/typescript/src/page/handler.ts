@@ -192,6 +192,24 @@ export async function handlePageRequest(
 		// Prune to projected fields before template injection
 		const prunedData = applyProjection(allData, page.projections)
 
+		// Execute derives: evaluate fn source against loader data, merge as __derived.
+		// The fn source comes from route-manifest.json (build-time artifact, not user input),
+		// so Function() construction is safe — it only runs developer-authored derive functions.
+		if (page.derives) {
+			const derived: Record<string, unknown> = {}
+			for (const [key, entry] of Object.entries(page.derives)) {
+				try {
+					// eslint-disable-next-line @typescript-eslint/no-implied-eval, @typescript-eslint/no-unsafe-call
+					const fn = new Function('return ' + entry.fn)() as (...args: unknown[]) => unknown
+					const args = entry.sources.map((src) => prunedData[src] ?? null)
+					derived[key] = fn(...args)
+				} catch {
+					derived[key] = null
+				}
+			}
+			prunedData.__derived = derived
+		}
+
 		// Compose template: nest page inside layouts via outlet substitution
 		const pageTemplate = selectTemplate(page.template, page.localeTemplates, locale)
 		let composedTemplate = pageTemplate

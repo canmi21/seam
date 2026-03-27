@@ -37,16 +37,23 @@ type layoutEntry struct {
 	I18nKeys  []string          `json:"i18n_keys"`
 }
 
+type deriveManifestEntry struct {
+	Sources []string        `json:"sources"`
+	Fn      string          `json:"fn"`
+	Output  json.RawMessage `json:"output,omitempty"`
+}
+
 type routeEntry struct {
-	Template    string              `json:"template"`
-	Templates   map[string]string   `json:"templates"`
-	Layout      string              `json:"layout"`
-	Loaders     json.RawMessage     `json:"loaders"`
-	HeadMeta    string              `json:"head_meta"`
-	I18nKeys    []string            `json:"i18n_keys"`
-	Assets      *PageAssets         `json:"assets"`
-	Projections map[string][]string `json:"projections"`
-	Prerender   *bool               `json:"prerender"`
+	Template    string                         `json:"template"`
+	Templates   map[string]string              `json:"templates"`
+	Layout      string                         `json:"layout"`
+	Loaders     json.RawMessage                `json:"loaders"`
+	Derives     map[string]deriveManifestEntry `json:"derives,omitempty"`
+	HeadMeta    string                         `json:"head_meta"`
+	I18nKeys    []string                       `json:"i18n_keys"`
+	Assets      *PageAssets                    `json:"assets"`
+	Projections map[string][]string            `json:"projections"`
+	Prerender   *bool                          `json:"prerender"`
 }
 
 // pickTemplate returns the template path: prefer singular "template",
@@ -358,11 +365,21 @@ func LoadBuildOutput(dir string) ([]PageDef, error) {
 		}
 		i18nKeys = append(i18nKeys, entry.I18nKeys...)
 
+		// Convert derive manifest entries to DeriveEntry
+		var derives map[string]DeriveEntry
+		if len(entry.Derives) > 0 {
+			derives = make(map[string]DeriveEntry, len(entry.Derives))
+			for k, v := range entry.Derives {
+				derives[k] = DeriveEntry{Sources: v.Sources, Fn: v.Fn}
+			}
+		}
+
 		page := PageDef{
 			Route:           routePath,
 			Template:        template,
 			LocaleTemplates: localeTemplates,
 			Loaders:         allLoaders,
+			Derives:         derives,
 			DataID:          dataID,
 			LayoutChain:     layoutChain,
 			PageLoaderKeys:  pageLoaderKeys,

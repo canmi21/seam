@@ -31,10 +31,17 @@ export type HeadFn = (data: Record<string, unknown>) => {
 	link?: Record<string, string | undefined>[]
 }
 
+export interface DeriveManifestEntry {
+	sources: string[]
+	fn: string
+	output?: unknown
+}
+
 export interface PageDef {
 	template: string
 	localeTemplates?: Record<string, string>
 	loaders: Record<string, LoaderFn>
+	derives?: Record<string, DeriveManifestEntry>
 	layoutChain?: LayoutDef[]
 	headMeta?: string
 	headFn?: HeadFn

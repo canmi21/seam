@@ -216,21 +216,28 @@ type PageAssets struct {
 	Prefetch []string `json:"prefetch"`
 }
 
+// DeriveEntry holds a derive definition loaded from route-manifest.json.
+type DeriveEntry struct {
+	Sources []string
+	Fn      string
+}
+
 // PageDef defines a server-rendered page with loaders that fetch data before injection.
 type PageDef struct {
 	Route           string
 	Template        string
 	LocaleTemplates map[string]string // locale -> pre-resolved template HTML (layout chain applied)
 	Loaders         []LoaderDef
-	DataID          string              // script ID for the injected data JSON (default "__data")
-	LayoutChain     []LayoutChainEntry  // layout chain from outer to inner with per-layout loader keys
-	PageLoaderKeys  []string            // data keys from page-level loaders (not layout)
-	I18nKeys        []string            // merged i18n keys from route + layout chain; empty means include all
-	HeadMeta        string              // head metadata HTML (injected at render time by engine)
-	Assets          *PageAssets         // per-page CSS/JS/preload/prefetch (nil when splitting is off)
-	Projections     map[string][]string // per-loader field projections for schema narrowing (nil = no narrowing)
-	Prerender       bool                // SSG: serve pre-rendered static HTML instead of running loaders
-	StaticDir       string              // SSG: directory containing pre-rendered HTML files
+	Derives         map[string]DeriveEntry // derive definitions from route-manifest; nil when none
+	DataID          string                 // script ID for the injected data JSON (default "__data")
+	LayoutChain     []LayoutChainEntry     // layout chain from outer to inner with per-layout loader keys
+	PageLoaderKeys  []string               // data keys from page-level loaders (not layout)
+	I18nKeys        []string               // merged i18n keys from route + layout chain; empty means include all
+	HeadMeta        string                 // head metadata HTML (injected at render time by engine)
+	Assets          *PageAssets            // per-page CSS/JS/preload/prefetch (nil when splitting is off)
+	Projections     map[string][]string    // per-loader field projections for schema narrowing (nil = no narrowing)
+	Prerender       bool                   // SSG: serve pre-rendered static HTML instead of running loaders
+	StaticDir       string                 // SSG: directory containing pre-rendered HTML files
 }
 
 // I18nConfig holds runtime i18n state loaded from build output.

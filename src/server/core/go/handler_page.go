@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/dop251/goja"
+
 	engine "github.com/canmi21/seam/src/server/engine/go"
 )
 
@@ -173,6 +175,21 @@ func (s *appState) servePage(w http.ResponseWriter, r *http.Request, page *PageD
 		data = applyProjection(data, page.Projections)
 	}
 
+	// Execute derives via goja: evaluate fn source against loader data
+	if len(page.Derives) > 0 {
+		derived := make(map[string]any, len(page.Derives))
+		for key, entry := range page.Derives {
+			result, deriveErr := executeDeriveGoja(entry, data)
+			if deriveErr != nil {
+				fmt.Fprintf(os.Stderr, "[seam] Derive %q failed: %v\n", key, deriveErr)
+				derived[key] = nil
+			} else {
+				derived[key] = result
+			}
+		}
+		data["__derived"] = derived
+	}
+
 	// Marshal loader data to JSON (json.Marshal sorts map keys deterministically)
 	loaderDataJSON, err := json.Marshal(data)
 	if err != nil {
@@ -329,4 +346,39 @@ func extractParams(seamRoute string, r *http.Request) map[string]string {
 		}
 	}
 	return params
+}
+
+// executeDeriveGoja runs a single derive function via goja JS engine.
+// The fn source (from route-manifest.json) is evaluated with loader data as arguments.
+func executeDeriveGoja(entry DeriveEntry, data map[string]any) (any, error) {
+	// Build argument JSON strings from loader data
+	args := make([]string, len(entry.Sources))
+	for i, src := range entry.Sources {
+		val, ok := data[src]
+		if !ok {
+			args[i] = "null"
+			continue
+		}
+		b, err := json.Marshal(val)
+		if err != nil {
+			args[i] = "null"
+			continue
+		}
+		args[i] = string(b)
+	}
+
+	argsStr := strings.Join(args, ",")
+	expr := fmt.Sprintf("JSON.stringify((%s)(%s))", entry.Fn, argsStr)
+
+	vm := goja.New()
+	v, err := vm.RunString(expr)
+	if err != nil {
+		return nil, err
+	}
+
+	var result any
+	if err := json.Unmarshal([]byte(v.String()), &result); err != nil {
+		return nil, fmt.Errorf("invalid JSON from derive: %w", err)
+	}
+	return result, nil
 }
