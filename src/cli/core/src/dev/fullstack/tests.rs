@@ -6,7 +6,8 @@ use crate::build::config::BuildConfig;
 use crate::build::run::RebuildMode;
 
 use super::helpers::{
-	DevEvent, classify_event, manifest_stale_reason, merge_dev_events, signal_rebuild_reload,
+	DevEvent, classify_event, manifest_stale_reason, merge_dev_events, should_handle_event,
+	signal_rebuild_reload,
 };
 
 fn test_build_config() -> BuildConfig {
@@ -75,6 +76,30 @@ fn classify_event_marks_server_changes_as_full_rebuild() {
 
 	let kind = classify_event(&event, Path::new("/app/src/server"), Some(Path::new("/app/public")));
 	assert!(matches!(kind, DevEvent::Rebuild(RebuildMode::Full)));
+}
+
+#[test]
+fn access_events_are_ignored() {
+	let event = notify::Event {
+		kind: notify::EventKind::Access(notify::event::AccessKind::Any),
+		paths: vec![PathBuf::from("/app/src/server/index.ts")],
+		attrs: notify::event::EventAttributes::new(),
+	};
+
+	assert!(!should_handle_event(&event));
+}
+
+#[test]
+fn metadata_only_events_are_ignored() {
+	let event = notify::Event {
+		kind: notify::EventKind::Modify(notify::event::ModifyKind::Metadata(
+			notify::event::MetadataKind::Any,
+		)),
+		paths: vec![PathBuf::from("/app/src/server/index.ts")],
+		attrs: notify::event::EventAttributes::new(),
+	};
+
+	assert!(!should_handle_event(&event));
 }
 
 #[test]

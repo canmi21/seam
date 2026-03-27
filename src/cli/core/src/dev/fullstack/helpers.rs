@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
+use notify::event::ModifyKind;
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 
 use crate::build::config::BuildConfig;
@@ -86,6 +87,17 @@ pub(super) fn merge_dev_events(current: DevEvent, incoming: DevEvent) -> DevEven
 	}
 }
 
+pub(super) fn should_handle_event(event: &notify::Event) -> bool {
+	match event.kind {
+		// Bun/Vite/manifest extraction can continuously read files under src/server.
+		// Access notifications are not semantic source changes and cause rebuild loops.
+		notify::EventKind::Access(_) => false,
+		// Metadata-only updates (for example atime changes) are likewise non-semantic.
+		notify::EventKind::Modify(ModifyKind::Metadata(_)) => false,
+		_ => true,
+	}
+}
+
 pub(super) fn setup_watcher(
 	server_dir: PathBuf,
 	public_dir: Option<PathBuf>,
@@ -94,6 +106,9 @@ pub(super) fn setup_watcher(
 	let watcher = RecommendedWatcher::new(
 		move |res: std::result::Result<notify::Event, notify::Error>| {
 			if let Ok(event) = res {
+				if !should_handle_event(&event) {
+					return;
+				}
 				let dev_event = classify_event(&event, &server_dir, public_dir.as_deref());
 				let _ = tx.blocking_send(dev_event);
 			}
