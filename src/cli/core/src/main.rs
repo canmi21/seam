@@ -138,8 +138,12 @@ async fn main() {
 fn write_hooks_and_declarations(
 	seam_dir: &std::path::Path,
 	base_dir: &std::path::Path,
+	config: Option<&SeamConfig>,
 ) -> Result<()> {
-	let emit_hooks = build::route::has_query_react_dep(base_dir);
+	let emit_hooks = build::route::has_query_react_dep(
+		base_dir,
+		config.and_then(|cfg| cfg.frontend.entry.as_deref()),
+	);
 	std::fs::write(seam_dir.join("seam.d.ts"), seam_codegen::generate_type_declarations(emit_hooks))
 		.context("failed to write .seam/generated/seam.d.ts")?;
 	if emit_hooks {
@@ -197,7 +201,7 @@ async fn run() -> Result<()> {
 				.with_context(|| format!("failed to create {}", seam_dir.display()))?;
 			std::fs::write(seam_dir.join("client.ts"), &code)
 				.with_context(|| "failed to write .seam/generated/client.ts")?;
-			write_hooks_and_declarations(&seam_dir, &cwd)?;
+			write_hooks_and_declarations(&seam_dir, &cwd, cfg.as_ref())?;
 
 			// Secondary: if --out or config outDir specified, also write there
 			let user_out =

@@ -12,6 +12,7 @@ pub fn article_page() -> PageDef {
 			procedure: "getArticle".to_string(),
 			input_fn: std::sync::Arc::new(|_params| serde_json::json!({})),
 		}],
+		derives: None,
 		data_id: "__data".to_string(),
 		layout_chain: vec![],
 		page_loader_keys: vec!["article".to_string()],

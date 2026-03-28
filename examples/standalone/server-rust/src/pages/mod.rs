@@ -17,6 +17,7 @@ pub fn user_page() -> PageDef {
 				serde_json::json!({ "id": id })
 			}),
 		}],
+		derives: None,
 		data_id: "__data".to_string(),
 		layout_chain: vec![],
 		page_loader_keys: vec!["user".to_string()],

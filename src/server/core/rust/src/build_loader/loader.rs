@@ -232,6 +232,7 @@ pub fn load_build_output(dir: &str) -> Result<Vec<PageDef>, Box<dyn std::error::
 			template,
 			locale_templates,
 			loaders: all_loaders,
+			derives: entry.derives.clone(),
 			data_id: data_id.clone(),
 			layout_chain,
 			page_loader_keys,

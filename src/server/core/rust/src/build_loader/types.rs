@@ -54,6 +54,8 @@ pub(super) struct RouteEntry {
 	#[serde(default)]
 	pub(super) loaders: serde_json::Value,
 	#[serde(default)]
+	pub(super) derives: Option<serde_json::Value>,
+	#[serde(default)]
 	pub(super) head_meta: Option<String>,
 	#[serde(default)]
 	pub(super) i18n_keys: Vec<String>,

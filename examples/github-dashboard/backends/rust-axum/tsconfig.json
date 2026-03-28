@@ -4,10 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "skipLibCheck": true,
-    "noEmit": true,
-    "paths": {
-      "@canmi/seam": ["../../../../src/cli/seam/config.d.ts"]
-    }
+    "noEmit": true
   },
   "include": ["seam.config.ts"]
 }

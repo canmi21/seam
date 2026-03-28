@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "devDependencies": {
+    "@canmi/seam-client": "workspace:*",
+    "@canmi/seam-query-react": "workspace:*",
     "@canmi/seam": "workspace:*"
   },
   "scripts": {

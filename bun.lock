@@ -165,6 +165,8 @@
       "name": "github-dashboard",
       "devDependencies": {
         "@canmi/seam": "workspace:*",
+        "@canmi/seam-client": "workspace:*",
+        "@canmi/seam-query-react": "workspace:*",
       },
     },
     "examples/github-dashboard/backends/ts-hono": {
