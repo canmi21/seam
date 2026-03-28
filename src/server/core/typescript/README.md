@@ -40,3 +40,4 @@ Framework-agnostic server core that defines procedures, subscriptions, pages, an
 - JTD validation runs at the protocol boundary before procedure handlers execute
 - App state: `createRouter({ ..., state })` injects shared state (DB pools, services) into all procedure handlers as the `state` parameter
 - Public file serving: `HttpHandlerOptions.publicDir` enables serving files from `public/` directory; `loadBuild()` auto-detects `{distDir}/public-root/`; `Cache-Control: public, max-age=3600`; path traversal protected
+- Page handler executes derive functions from route-manifest after loader projection, merging results as `__derived` in page data

@@ -15,7 +15,7 @@ The CLI is split into three crates:
 - `src/main.rs` — CLI entry point (clap), dispatches subcommands
 - `src/config/` — Parses config files (`seam.config.ts` > `.mjs` > `.toml`), walks up directory tree to find config
 - `src/pull.rs` — Fetches `/_seam/manifest.json` from a running server
-- `src/build/` — Build pipeline orchestration (route processing, asset packaging)
+- `src/build/` — Build pipeline orchestration (route processing, asset packaging, derive source validation, derive registry codegen)
 - `src/dev/` — Starts backend + frontend dev servers
 - `src/ui.rs` — Terminal output formatting
 

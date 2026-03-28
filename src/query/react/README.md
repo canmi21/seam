@@ -9,16 +9,18 @@ React hooks wrapping `@canmi/seam-query` core. Provides `SeamQueryProvider` for 
 - `src/use-seam-query.ts` — `useSeamQuery` hook
 - `src/use-seam-mutation.ts` — `useSeamMutation` hook
 - `src/use-seam-fetch.ts` — `useSeamFetch` and `useFetch` hooks
+- `src/use-seam-derive.ts` — `useSeamDerive` / `useDerive` hook (CTR: reads hydrated `__derived`; SPA: recomputes from QueryClient cache via registry)
 
 ## Key Exports
 
-| Export                      | Purpose                                                        |
-| --------------------------- | -------------------------------------------------------------- |
-| `SeamQueryProvider`         | Context provider: wraps QueryClient, hydrates from `__loaders` |
-| `useSeamQueryContext`       | Access `{ rpcFn, config }` from provider context               |
-| `useSeamQuery`              | Query hook bound to a Seam procedure                           |
-| `useSeamMutation`           | Mutation hook with automatic query invalidation                |
-| `useSeamFetch` / `useFetch` | Data fetching hooks                                            |
+| Export                        | Purpose                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------- |
+| `SeamQueryProvider`           | Context provider: wraps QueryClient, hydrates from `__loaders`          |
+| `useSeamQueryContext`         | Access `{ rpcFn, config }` from provider context                        |
+| `useSeamQuery`                | Query hook bound to a Seam procedure                                    |
+| `useSeamMutation`             | Mutation hook with automatic query invalidation                         |
+| `useSeamFetch` / `useFetch`   | Data fetching hooks                                                     |
+| `useSeamDerive` / `useDerive` | Hook to read server-computed or client-recomputed derived values by key |
 
 ### Types
 
@@ -27,6 +29,8 @@ React hooks wrapping `@canmi/seam-query` core. Provides `SeamQueryProvider` for 
 | `SeamQueryProviderProps` | Provider props: `rpcFn`, `config?`, `queryClient?`, `dataId?`, `children` |
 | `SeamQueryContextValue`  | Context value: `{ rpcFn, config }`                                        |
 | `UseSeamFetchResult`     | Return type of `useSeamFetch`                                             |
+| `DeriveRegistry`         | `Record<string, DeriveRegistryEntry>` — derive key to sources+fn mapping  |
+| `DeriveRegistryEntry`    | `{ sources: string[], fn: (...args) => unknown }` — single derive entry   |
 
 ## Typed Hooks via Codegen
 

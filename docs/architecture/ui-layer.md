@@ -60,6 +60,8 @@ The client runtime reads injected data from `__data`, hydrates the skeleton, and
 
 **Structured Head Metadata**: routes can declare `head: HeadConfig | HeadFn` for per-page `<title>`, `<meta>`, and `<link>` tags. At build time, slot proxies generate head markers; at request time, the server resolves the head config with actual data. During SPA navigation, `updateHead()` manages `document.head` tags using `data-seam-head` markers.
 
+**Derived Data**: routes can declare `derive` entries that transform loader data into display-ready values. The ESLint rule `no-derived-data-in-skeleton` enforces this boundary — computations on seam data belong in derive definitions, not in `page.tsx` render logic. On the client, `useSeamDerive` reads server-computed values from the hydrated `__derived` cache and recomputes from QueryClient data on SPA navigation.
+
 - [Sentinel Protocol](../protocol/sentinel-protocol.md) — build-time placeholder format
 - [Slot Protocol](../protocol/slot-protocol.md) — server-side HTML injection syntax
 - [Skeleton Constraints](../protocol/skeleton-constraints.md) — rules for build-safe components

@@ -6,14 +6,14 @@ See root CLAUDE.md for general project rules.
 
 ## Architecture
 
-- `seam.go` — public API: `Router`, `HandlerOptions`, `PageAssets`, `ContextConfig`, `ProcedureOption`, `StreamDef`, `UploadDef`, `SeamFileHandle`, type definitions, error constructors; `PageDef.Prerender` and `PageDef.StaticDir` fields for SSG
+- `seam.go` — public API: `Router`, `HandlerOptions`, `PageAssets`, `ContextConfig`, `ProcedureOption`, `StreamDef`, `UploadDef`, `SeamFileHandle`, `DeriveEntry`, type definitions, error constructors; `PageDef.Prerender` and `PageDef.StaticDir` fields for SSG
 - `context.go` — context system: `ContextValue[T]` generic helper, `extractRawContext`, `resolveContextForProc`, `injectContext`
 - `handler.go` — core handler: `appState`, `buildHandler`, `registerProcedures`, `compileValidationSchemas`, RPC handler (uses `engine.I18nQuery` for built-in i18n), error helpers; `seam.` namespace validation (panic on reserved prefix); `handlePageData` for `/_seam/data/{path}` SSG endpoint
 - `manifest.go` — manifest v2 types (`manifestSchema`, `procedureEntry`), `buildManifest`, `handleManifest`
 - `handler_batch.go` — batch RPC handler (parallel execution via `sync.WaitGroup` + goroutines), SSE subscribe handler, SSE helpers
 - `handler_stream.go` — stream handler: SSE with incrementing `id` field, idle timeout, `writeStreamEvent`
 - `handler_upload.go` — upload handler: multipart/form-data parsing, `SeamFileHandle`, metadata JSON extraction
-- `handler_page.go` — page handler: `makePageHandler`, `servePage`, loader orchestration (delegates to `engine.RenderPage` for slot injection, per-page assets, data script, head meta, and locale)
+- `handler_page.go` — page handler: `makePageHandler`, `servePage`, loader orchestration, `executeDeriveGoja()` (goja JS engine for derive execution), delegates to `engine.RenderPage` for slot injection, per-page assets, data script, head meta, and locale
 - `resolve.go` — `ResolveStrategy` interface, `ResolveData`, built-in strategies (`FromUrlPrefix`, `FromCookie`, `FromAcceptLanguage`, `FromUrlQuery`), `ResolveChain`, `DefaultStrategies`
 - `generics.go` — `Query[In, Out]`, `Command[In, Out]`, `Subscribe[In, Out]`, `StreamProc[In, Chunk]`, `UploadProc[In, Out]` typed wrappers using generics
 - `build_loader.go` — `LoadBuild`, `LoadBuildOutput`, `LoadRpcHashMap`, `LoadI18nConfig`; `BuildOutput` struct; `RpcHashMap` with `ReverseLookup()`
@@ -87,6 +87,7 @@ Tests cover: RPC timeout (504), page loader timeout (504), SSE idle timeout (com
 - `Query[In, Out]`, `Subscribe[In, Out]`, `StreamProc[In, Chunk]`, and `UploadProc[In, Out]` provide type-safe generic wrappers over raw handler funcs
 - Context injection uses Go's idiomatic `context.WithValue`; handlers retrieve via generic `ContextValue` helper — handler signature unchanged
 - Per-procedure context: only keys declared in `ContextKeys` are injected; batch/page extract raw context once and resolve per-procedure
+- Derive execution uses goja (`github.com/dop251/goja`) to evaluate JS function sources from route-manifest against loader data. Per-derive error boundary logs to stderr and sets result to nil
 
 ## Gotchas
 

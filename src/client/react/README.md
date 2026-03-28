@@ -25,26 +25,27 @@ React bindings for SeamJS, providing hooks and components to consume server-inje
 
 ## Types
 
-| Type                        | Purpose                                                                         |
-| --------------------------- | ------------------------------------------------------------------------------- |
-| `HydratedProps`             | Props for `Hydrated`: required `fallback`, `children` as `ReactNode`            |
-| `RouteDef`                  | Route definition with component, loaders, and params                            |
-| `LoaderDef`                 | Loader definition for a route                                                   |
-| `ParamMapping`              | Parameter mapping configuration                                                 |
-| `LazyComponentLoader`       | Function returning `Promise<{ default: ComponentType }>`                        |
-| `LoaderError`               | Error marker for failed loaders                                                 |
-| `UseSeamSubscriptionResult` | Return type of `useSeamSubscription` (`data`, `error`, `status`, `retryCount`)  |
-| `SubscriptionStatus`        | `'connecting' \| 'connected' \| 'reconnecting' \| 'error' \| 'closed'`          |
-| `UseSeamStreamResult`       | Return type of `useSeamStream`                                                  |
-| `StreamStatus`              | Status for stream procedures                                                    |
-| `HeadConfig`                | Head metadata: `title?`, `meta?`, `link?`                                       |
-| `HeadFn`                    | `(data: Record<string, unknown>) => HeadConfig` — dynamic head from loader data |
-| `HeadMeta`                  | `{ name?: string; property?: string; content: string }`                         |
-| `HeadLink`                  | `{ rel: string; href: string; [key: string]: string }`                          |
+| Type                        | Purpose                                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `HydratedProps`             | Props for `Hydrated`: required `fallback`, `children` as `ReactNode`                                   |
+| `RouteDef`                  | Route definition with component, loaders, and params                                                   |
+| `DeriveEntry`               | Derive definition: `{ sources: string[], fn: (...args) => unknown, output?: Record<string, unknown> }` |
+| `LoaderDef`                 | Loader definition for a route                                                                          |
+| `ParamMapping`              | Parameter mapping configuration                                                                        |
+| `LazyComponentLoader`       | Function returning `Promise<{ default: ComponentType }>`                                               |
+| `LoaderError`               | Error marker for failed loaders                                                                        |
+| `UseSeamSubscriptionResult` | Return type of `useSeamSubscription` (`data`, `error`, `status`, `retryCount`)                         |
+| `SubscriptionStatus`        | `'connecting' \| 'connected' \| 'reconnecting' \| 'error' \| 'closed'`                                 |
+| `UseSeamStreamResult`       | Return type of `useSeamStream`                                                                         |
+| `StreamStatus`              | Status for stream procedures                                                                           |
+| `HeadConfig`                | Head metadata: `title?`, `meta?`, `link?`                                                              |
+| `HeadFn`                    | `(data: Record<string, unknown>) => HeadConfig` — dynamic head from loader data                        |
+| `HeadMeta`                  | `{ name?: string; property?: string; content: string }`                                                |
+| `HeadLink`                  | `{ rel: string; href: string; [key: string]: string }`                                                 |
 
 `RouteDef.component` accepts either a `ComponentType` or a `LazyComponentLoader` (a function returning `Promise<{ default: ComponentType }>`). The lazy variant is produced by `@canmi/seam-vite` when per-page splitting is active.
 
-`RouteDef` also supports `head?: HeadConfig | HeadFn` for per-page structured head metadata, `prerender?: boolean` for SSG opt-in, and `data?: Record<string, unknown>` for static page data.
+`RouteDef` also supports `head?: HeadConfig | HeadFn` for per-page structured head metadata, `prerender?: boolean` for SSG opt-in, `data?: Record<string, unknown>` for static page data, and `derive?: Record<string, DeriveEntry>` for declarative data transformations from loader results.
 
 ## Structure
 

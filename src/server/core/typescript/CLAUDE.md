@@ -35,7 +35,7 @@ src/
     state.ts        -- initRouterState (builds procedure/subscription/stream/upload maps + ctxConfig), buildRouterMethods (assembles router method handlers), buildRpcMethods
   page/
     index.ts        -- PageDef, PageAssets, LoaderFn, definePage()
-    handler.ts      -- handlePageRequest: runs loaders, passes page_assets to engine, injects data into template
+    handler.ts      -- handlePageRequest: runs loaders, executeDerives (merges __derived), passes page_assets to engine, injects data into template
     head.ts         -- HeadFn type, headConfigToHtml() for runtime head rendering
     route-matcher.ts -- RouteMatcher: pattern matching with `:param`, `*name` (catch-all), `*name?` (optional catch-all)
     build-loader.ts -- loadBuild, loadBuildOutput, loadBuildDev, loadRpcHashMap, loadI18nMessages; BuildOutput type; ParamConfig (from: "route" | "query", string shorthand accepted), handoff: "client" support
@@ -55,7 +55,7 @@ src/
 - **SSE**: `GET /_seam/procedure/{name}?input=` -> `createHttpHandler` -> `router.handleSubscription` -> `handleSubscription` -> yield SSE events
 - **Stream**: `POST /_seam/procedure/{name}` -> `createHttpHandler` -> `router.handleStream` -> `handleStream` -> yield SSE events with incrementing `id`
 - **Upload**: `POST /_seam/procedure/{name}` (multipart) -> `createHttpHandler` -> `router.handleUpload` -> `resolveCtxSafe` -> `handleUploadRequest` -> call handler with SeamFileHandle -> JSON response
-- **Page**: `GET /_seam/page/{path}` -> `createHttpHandler` -> `router.handlePage` -> `RouteMatcher` -> `handlePageRequest` -> run loaders (with query params, handoff) -> inject into template; each loader wrapped in independent try-catch; failed loaders return `LoaderError` marker, page still returns 200
+- **Page**: `GET /_seam/page/{path}` -> `createHttpHandler` -> `router.handlePage` -> `RouteMatcher` -> `handlePageRequest` -> run loaders (with query params, handoff) -> executeDerives (if route has derives, merges results as `__derived`) -> inject into template; each loader wrapped in independent try-catch; failed loaders return `LoaderError` marker, page still returns 200
 - **Page Data**: `GET /_seam/data/{path}` -> `createHttpHandler` -> `router.handlePageData` -> read `__data.json` from `staticDir` (SSG SPA navigation)
 - **Build Loading**: `loadBuild(distDir)` -> reads `route-manifest.json` + `rpc-hash-map.json` + i18n -> `BuildOutput { pages, rpcHashMap, i18n }`
 - **Manifest**: `GET /_seam/manifest.json` -> `router.manifest()` -> `buildManifest` (v2: context, transportDefaults, invalidates, chunkOutput)
@@ -77,6 +77,7 @@ src/
 - Per-loader error boundary: each loader runs in its own try-catch; failed loaders produce `LoaderError` marker in data, page renders partial data at 200 instead of failing entirely at 500
 - Loader input validation: gated by `shouldValidateInput` flag; when enabled, loader inputs are validated against JTD schema before execution
 - Exported validation types: `ValidationMode`, `ValidationConfig`, `ValidationDetail`
+- `executeDerives` evaluates route-manifest `fn` sources (build-time artifact from trusted codegen, not user input). Per-derive try-catch mirrors loader error boundaries — failed derives return `null`, page renders partial `__derived`
 
 ## Dependencies
 

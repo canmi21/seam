@@ -6,7 +6,7 @@ TanStack Router integration for SeamJS client-side hydration and routing. See [U
 
 - `src/hydrate.tsx` — `seamHydrate` entry point for client hydration
 - `src/create-router.ts` — `createSeamRouter` with server data bridging
-- `src/define-routes.ts` — `defineSeamRoutes` route configuration
+- `src/define-routes.ts` — `defineSeamRoutes` route configuration, `seamRoute` helper for derive-aware routes
 - `src/link-interceptor.ts` — `setupLinkInterception` for SPA navigation
 - `src/seam-data-bridge.tsx` — React bridge for server-injected `__data`
 - `src/seam-outlet.tsx` — Seam-aware route outlet component
@@ -23,19 +23,20 @@ TanStack Router integration for SeamJS client-side hydration and routing. See [U
 
 ## Key Exports
 
-| Export                  | Purpose                                            |
-| ----------------------- | -------------------------------------------------- |
-| `seamHydrate`           | Client entry: hydrate server-rendered page         |
-| `createSeamRouter`      | Create TanStack Router with Seam wiring            |
-| `defineSeamRoutes`      | Declare route definitions                          |
-| `setupLinkInterception` | Intercept `<a>` clicks for SPA nav                 |
-| `isLazyLoader`          | Check if a component is a lazy loader (page-split) |
-| `collectLeafPaths`      | Extract leaf paths from a nested route tree        |
-| `createSeamApp`         | Zero-config client entry (alias for `seamHydrate`) |
-| `HydrateOptions`        | Type: options for `seamHydrate`/`createSeamApp`    |
-| `ClientLoaderFn`        | Type: client-side loader function signature        |
-| `SeamRouterOptions`     | Type: router creation options                      |
-| `SeamRouteDef`          | Type: route definition shape                       |
+| Export                  | Purpose                                                                                                                                   |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `seamHydrate`           | Client entry: hydrate server-rendered page                                                                                                |
+| `createSeamRouter`      | Create TanStack Router with Seam wiring                                                                                                   |
+| `defineSeamRoutes`      | Declare route definitions                                                                                                                 |
+| `setupLinkInterception` | Intercept `<a>` clicks for SPA nav                                                                                                        |
+| `isLazyLoader`          | Check if a component is a lazy loader (page-split)                                                                                        |
+| `collectLeafPaths`      | Extract leaf paths from a nested route tree                                                                                               |
+| `createSeamApp`         | Zero-config client entry (alias for `seamHydrate`)                                                                                        |
+| `HydrateOptions`        | Type: options for `seamHydrate`/`createSeamApp`                                                                                           |
+| `ClientLoaderFn`        | Type: client-side loader function signature                                                                                               |
+| `SeamRouterOptions`     | Type: router creation options                                                                                                             |
+| `SeamRouteDef`          | Type: route definition shape                                                                                                              |
+| `seamRoute`             | Define a single route with compile-time derive source validation (`seamRoute<L>()` constrains `derive.*.sources` to existing loader keys) |
 
 ## Per-Page Splitting
 

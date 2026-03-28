@@ -29,13 +29,14 @@ See root CLAUDE.md for general conventions.
 
 ## Codegen Outputs
 
-| File                  | Generator                      | Content                                                                                                              |
-| --------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `client.ts`           | `generate_typescript()`        | createSeamClient factory, types, SeamProcedures, SeamProcedureMeta, seamProcedureConfig, seamTransportHint           |
-| `meta.ts`             | `generate_typescript()`        | DATA_ID, seamTransportHint, seamProcedureConfig, SeamProcedureMeta (shared subset of client.ts)                      |
-| `hooks.ts`            | `generate_hooks_module()`      | Typed hook wrappers via TS instantiation expressions (useSeamFetch, useSeamQuery, useSeamMutation)                   |
-| `seam.d.ts`           | `generate_type_declarations()` | Ambient `declare module` for `virtual:seam/client`, `virtual:seam/routes`, `virtual:seam/meta`, `virtual:seam/hooks` |
-| `route-procedures.ts` | build pipeline                 | Procedure-to-route mapping                                                                                           |
+| File                  | Generator                                                    | Content                                                                                                                     |
+| --------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `client.ts`           | `generate_typescript()`                                      | createSeamClient factory, types, SeamProcedures, SeamProcedureMeta, seamProcedureConfig, seamTransportHint                  |
+| `meta.ts`             | `generate_typescript()`                                      | DATA_ID, seamTransportHint, seamProcedureConfig, SeamProcedureMeta (shared subset of client.ts)                             |
+| `hooks.ts`            | `generate_hooks_module()`                                    | Typed hook wrappers via TS instantiation expressions (useSeamFetch, useSeamQuery, useSeamMutation, useSeamDerive/useDerive) |
+| `seam.d.ts`           | `generate_type_declarations()`                               | Ambient `declare module` for `virtual:seam/client`, `virtual:seam/routes`, `virtual:seam/meta`, `virtual:seam/hooks`        |
+| `route-procedures.ts` | build pipeline                                               | Procedure-to-route mapping                                                                                                  |
+| `derive-registry.ts`  | `generate_derive_registry_ts()` (in seam-cli `ref_graph.rs`) | `seamDeriveRegistry` mapping derive keys to source procedures and fn bodies                                                 |
 
 `hooks.ts` is only emitted when `@canmi/seam-query-react` is detected in project dependencies.
 

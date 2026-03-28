@@ -14,10 +14,11 @@ Three-stage pipeline:
 
 ## Additional Modules
 
-| Module            | Responsibility                                                   |
-| ----------------- | ---------------------------------------------------------------- |
-| `ctr_check/`      | CTR equivalence verification (React renderToString vs injection) |
-| `slot_warning.rs` | Detects open-string slots in style/class contexts                |
+| Module                  | Responsibility                                                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ctr_check/`            | CTR equivalence verification (React renderToString vs injection)                                                                                       |
+| `slot_warning.rs`       | Detects open-string slots in style/class contexts                                                                                                      |
+| `template_invariant.rs` | `check_template_invariants` — validates array axes have `<!--seam:each-->` directives and scoped `$.` slots; returns `Vec<TemplateInvariantViolation>` |
 
 ## Extract Sub-modules
 

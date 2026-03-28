@@ -26,7 +26,7 @@ export default defineConfig({
 
 `seam()` returns an array containing these internal plugins (not exported individually):
 
-- **seamConfigPlugin** -- auto-sets Vite build config from `SEAM_*` env vars (`SEAM_DIST_DIR`, `SEAM_ENTRY`, `SEAM_OBFUSCATE`, `SEAM_SOURCEMAP`, `SEAM_HASH_LENGTH`, `SEAM_TYPE_HINT`)
+- **seamConfigPlugin** -- auto-sets Vite build config from `SEAM_*` env vars (`SEAM_DIST_DIR`, `SEAM_ENTRY`, `SEAM_OBFUSCATE`, `SEAM_SOURCEMAP`, `SEAM_HASH_LENGTH`, `SEAM_TYPE_HINT`); uses `rolldownOptions` (Vite 8+) with `rollupOptions` fallback for older configs
 - **seamRpcPlugin** -- RPC procedure name to hash transform for obfuscation (reads `SEAM_RPC_MAP_PATH`)
 - **seamReloadPlugin** -- dev-only HMR full-reload on `.seam/dev-output` changes (imports `watchReloadTrigger` from `@canmi/seam-server`)
 
@@ -60,6 +60,7 @@ Splitting activates only when 2 or more page components are referenced in routes
 
 - Vite 8 or later
 - `seam build` must set the `SEAM_ROUTES_FILE` environment variable for page splitting (automatic when using the CLI)
+- `SEAM_VITE_CACHE_DIR` isolates Vite's dev cache by dependency fingerprint, preventing stale cache conflicts across branch switches or dependency updates
 
 ## Development
 

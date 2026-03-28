@@ -14,7 +14,7 @@ Go implementation of the SeamJS server core, defining procedures, subscriptions,
 - `handler_batch.go` — batch RPC (parallel goroutines), SSE subscribe handler
 - `handler_stream.go` — stream handler (SSE with incrementing `id`, idle timeout)
 - `handler_upload.go` — multipart/form-data parsing, `SeamFileHandle`
-- `handler_page.go` — page rendering, loader orchestration (delegates to `engine.RenderPage`)
+- `handler_page.go` — page rendering, loader orchestration, derive execution via `executeDeriveGoja()` (goja JS engine), delegates to `engine.RenderPage`
 - `handler_ws.go` — WebSocket channel handler (bidirectional messaging via gorilla/websocket)
 
 **Manifest & build:**
@@ -59,3 +59,4 @@ Go implementation of the SeamJS server core, defining procedures, subscriptions,
 - JTD validation with detailed error reporting (path/expected/actual)
 - `BuildOutput.PublicDir` auto-detected from `{dir}/public-root/` or `SEAM_PUBLIC_DIR` env var
 - `buildHandler` wraps mux with `publicFileHandler` when `publicDir` is set (GET/HEAD, non-`/_seam/`, `Cache-Control: public, max-age=3600`)
+- Derive execution uses `github.com/dop251/goja` to evaluate JS function sources from route-manifest against loader data; per-derive error boundary sets result to nil on failure

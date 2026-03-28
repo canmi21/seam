@@ -45,6 +45,7 @@ Everything listed here is planned and will be implemented. This is currently a s
 - [x] Query params in page loaders (from: "query" mapping)
 - [x] Loader handoff (handoff: "client" for one-time server-fetched loaders)
 - [x] Per-loader error boundaries (partial page rendering on loader failure)
+- [x] Declarative derive layer (route-level data transformations from loader results, executed via QuickJS/goja/Function)
 
 ## Router
 

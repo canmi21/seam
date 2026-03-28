@@ -6,16 +6,18 @@ See root CLAUDE.md for general project rules.
 
 ## Architecture
 
-| Module      | Responsibility                                                                                      |
-| ----------- | --------------------------------------------------------------------------------------------------- |
-| `escape.rs` | `ascii_escape_json` — escape non-ASCII in JSON string values                                        |
-| `page.rs`   | Page data assembly: `flatten_for_slots`, `build_seam_data`, `inject_*`, asset slot generation, i18n |
-| `render.rs` | `render_page` — top-level page pipeline (inject + data script + meta + lang)                        |
-| `build.rs`  | `parse_build_output`, `parse_i18n_config`, `parse_rpc_hash_map`                                     |
-| `lib.rs`    | Public API barrel re-exporting all modules                                                          |
+| Module      | Responsibility                                                                                                    |
+| ----------- | ----------------------------------------------------------------------------------------------------------------- |
+| `escape.rs` | `ascii_escape_json` — escape non-ASCII in JSON string values                                                      |
+| `page.rs`   | Page data assembly: `flatten_for_slots`, `build_seam_data`, `inject_*`, asset slot generation, i18n               |
+| `render.rs` | `render_page` — top-level page pipeline (inject + data script + meta + lang)                                      |
+| `build.rs`  | `parse_build_output`, `parse_i18n_config`, `parse_rpc_hash_map`                                                   |
+| `derive.rs` | `execute_derives(derives_json, loader_data_json)` — QuickJS-based derive execution. Feature-gated under `quickjs` |
+| `lib.rs`    | Public API barrel re-exporting all modules                                                                        |
 
 ## Key Types
 
+- `DeriveEntry { sources, fn_source }` — derive definition parsed from route-manifest (internal to `derive.rs`)
 - `PageConfig { layout_chain, data_id, head_meta, page_assets }` — page assembly configuration
 - `PageAssets { styles, scripts, preload, prefetch }` — per-page asset references for resource splitting
 - `LayoutChainEntry { id, loader_keys }` — per-layout data grouping (fixes the `_layouts` bug)
@@ -28,13 +30,16 @@ See root CLAUDE.md for general project rules.
 
 Asset slot markers (`<!--seam:page-styles-->`, `<!--seam:page-scripts-->`, `<!--seam:prefetch-->`) are processed before the injector to prevent misinterpretation as data slots. When `page_assets` is present, slots are replaced with actual `<link>`/`<script>` tags; when absent, slots are stripped.
 
+When the `quickjs` feature is enabled and `derives_json` is provided, derive functions execute via QuickJS and results merge under `__derived` before data injection. When `quickjs` is disabled (WASM builds), callers pre-compute `__derived` in `loader_data_json`.
+
 ## Dependencies
 
-| Dependency      | Purpose                        |
-| --------------- | ------------------------------ |
-| `seam-injector` | Template injection (slot fill) |
-| `serde`         | JSON serialization             |
-| `serde_json`    | JSON parsing                   |
+| Dependency      | Purpose                                                            |
+| --------------- | ------------------------------------------------------------------ |
+| `seam-injector` | Template injection (slot fill)                                     |
+| `serde`         | JSON serialization                                                 |
+| `serde_json`    | JSON parsing                                                       |
+| `rquickjs`      | QuickJS runtime for derive execution (optional, `quickjs` feature) |
 
 ## Testing
 
@@ -42,7 +47,7 @@ Asset slot markers (`<!--seam:page-styles-->`, `<!--seam:page-scripts-->`, `<!--
 cargo test -p seam-engine
 ```
 
-40 tests covering escape, page assembly, per-page asset slots, i18n query, render pipeline, and build parsing.
+47 tests covering escape, page assembly, per-page asset slots, i18n query, render pipeline, build parsing, and derive execution.
 
 ## Conventions
 
@@ -50,3 +55,4 @@ cargo test -p seam-engine
 - `serde_json::Value` used internally; callers pass stringified JSON
 - No filesystem I/O — all functions are pure
 - Engine does NOT handle `__loaders` metadata -- that is injected by the adapter's page handler before/alongside engine calls
+- Feature gating: `derive` module and `execute_derives` re-export require the `quickjs` Cargo feature
