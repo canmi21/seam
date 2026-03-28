@@ -8,19 +8,17 @@ Pure Rust engine for page assembly, i18n resolution, build output parsing, and J
 - `src/page.rs` — Page data assembly: `flatten_for_slots`, `build_seam_data`, per-page asset slot generation (`replace_asset_slots`, `strip_asset_slots`), i18n helpers
 - `src/build.rs` — `parse_build_output`, `parse_i18n_config`, `parse_rpc_hash_map`
 - `src/escape.rs` — `ascii_escape_json` for non-ASCII character escaping
-- `src/derive.rs` — `execute_derives` via QuickJS (requires `quickjs` feature)
 
 ## Key Exports
 
-| Function             | Purpose                                                           |
-| -------------------- | ----------------------------------------------------------------- |
-| `render_page`        | Full page pipeline: asset slots + data slots + meta + lang        |
-| `parse_build_output` | Parse route-manifest.json into page definitions                   |
-| `parse_i18n_config`  | Extract i18n configuration from manifest                          |
-| `parse_rpc_hash_map` | Build reverse lookup from RPC hash map                            |
-| `ascii_escape_json`  | Escape non-ASCII in JSON string values                            |
-| `i18n_query`         | Look up translation keys from locale messages                     |
-| `execute_derives`    | Execute derive functions via QuickJS (requires `quickjs` feature) |
+| Function             | Purpose                                                    |
+| -------------------- | ---------------------------------------------------------- |
+| `render_page`        | Full page pipeline: asset slots + data slots + meta + lang |
+| `parse_build_output` | Parse route-manifest.json into page definitions            |
+| `parse_i18n_config`  | Extract i18n configuration from manifest                   |
+| `parse_rpc_hash_map` | Build reverse lookup from RPC hash map                     |
+| `ascii_escape_json`  | Escape non-ASCII in JSON string values                     |
+| `i18n_query`         | Look up translation keys from locale messages              |
 
 ## Development
 
@@ -32,4 +30,4 @@ Pure Rust engine for page assembly, i18n resolution, build output parsing, and J
 - All functions take JSON strings in and return JSON strings out for WASM compatibility
 - Depends on [seam-injector](../../injector/rust/) for template slot injection
 - Consumed by [engine/wasm](../wasm/), which exposes these functions to JS and Go runtimes
-- The `quickjs` Cargo feature enables `derive.rs` and `execute_derives`. WASM builds omit this feature; adapters pre-compute derives instead
+- Derive execution lives in the Axum adapter (`seam-server-axum`); the engine only flattens and injects pre-computed `__derived` data from `loader_data_json`

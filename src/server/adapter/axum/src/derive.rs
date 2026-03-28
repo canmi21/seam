@@ -1,4 +1,4 @@
-/* src/server/engine/rust/src/derive.rs */
+/* src/server/adapter/axum/src/derive.rs */
 
 //! Execute derive functions via embedded QuickJS runtime.
 //!

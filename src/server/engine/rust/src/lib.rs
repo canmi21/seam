@@ -2,8 +2,6 @@
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
 pub mod build;
-#[cfg(feature = "quickjs")]
-pub mod derive;
 pub mod escape;
 pub mod page;
 pub mod render;
@@ -11,8 +9,6 @@ pub mod slots;
 
 // Public API re-exports
 pub use build::{PageDefOutput, parse_build_output, parse_i18n_config, parse_rpc_hash_map};
-#[cfg(feature = "quickjs")]
-pub use derive::execute_derives;
 pub use escape::ascii_escape_json;
 pub use page::{
 	I18nOpts, LayoutChainEntry, PageAssets, PageConfig, build_seam_data, filter_i18n_messages,

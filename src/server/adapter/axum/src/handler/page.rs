@@ -250,7 +250,7 @@ pub(super) async fn handle_page(
 	super::projection::apply_projection(&mut data, &page.projections);
 
 	if let Some(ref derives) = page.derives
-		&& let Ok(derived_json) = seam_engine::execute_derives(
+		&& let Ok(derived_json) = crate::derive::execute_derives(
 			&derives.to_string(),
 			&serde_json::Value::Object(data.clone()).to_string(),
 		) && let Ok(derived_value) = serde_json::from_str::<serde_json::Value>(&derived_json)

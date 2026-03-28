@@ -1754,7 +1754,6 @@ dependencies = [
 name = "seam-engine"
 version = "0.5.37"
 dependencies = [
- "rquickjs",
  "seam-injector",
  "serde",
  "serde_json",
@@ -1825,6 +1824,7 @@ dependencies = [
  "futures-util",
  "http-body-util",
  "multer",
+ "rquickjs",
  "seam-engine",
  "seam-injector",
  "seam-server",
