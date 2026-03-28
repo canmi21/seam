@@ -133,6 +133,7 @@ function seamRpcPlugin(): Plugin {
 		transform(code, id) {
 			if (!Object.keys(procedures).length) return
 			if (id.includes('node_modules') && !id.includes('@canmi/seam-')) return
+			if (!/\.[jt]sx?$/.test(id)) return
 			let result = code
 			for (const [name, hash] of Object.entries(procedures)) {
 				result = result.replaceAll(`"${name}"`, `"${hash}"`)

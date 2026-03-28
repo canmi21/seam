@@ -19,7 +19,7 @@ const FORMAT_METHODS = new Set([
 	'padEnd',
 	'join',
 ])
-const MAP_CALLBACK_METHODS = new Set(['map'])
+const MAP_CALLBACK_METHODS = new Set(['map', 'flatMap'])
 
 type AstNode = {
 	type: string
