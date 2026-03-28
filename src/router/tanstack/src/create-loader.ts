@@ -1,6 +1,7 @@
 /* src/router/tanstack/src/create-loader.ts */
 
 import type { LoaderDef } from '@canmi/seam-react'
+import { cacheLoaderData } from '@canmi/seam-query'
 import type { SeamRouterContext } from './types.js'
 
 /** Build RPC input from loader definition and route params */
@@ -76,6 +77,7 @@ export function createLoaderFromDefs(
 			entries.map(async ([key, def]) => {
 				const input = buildInput(def, ctx.params)
 				const result = await ctx.context.seamRpc(def.procedure, input)
+				cacheLoaderData(def.procedure, input, result)
 				return [key, result] as const
 			}),
 		)

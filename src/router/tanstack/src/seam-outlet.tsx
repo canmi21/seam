@@ -2,7 +2,10 @@
 
 import type { ComponentType, ReactNode } from 'react'
 import { Match, useLoaderData, useMatch, useRouterState } from '@tanstack/react-router'
+import type { LoaderDef } from '@canmi/seam-react'
 import { SeamDataProvider, SeamHandoffProvider } from '@canmi/seam-react'
+import { cacheLoaderData } from '@canmi/seam-query'
+import { buildInput } from './create-loader.js'
 
 /**
  * Drop-in replacement for TanStack Router's Outlet that skips the
@@ -32,12 +35,18 @@ export function SeamOutlet() {
  */
 export function createLayoutWrapper(
 	Layout: ComponentType<{ children: ReactNode }>,
-	hasLoaders?: boolean,
+	loaders: Record<string, LoaderDef> = {},
 	handoffKeys: string[] = [],
 ) {
+	const hasLoaders = Object.keys(loaders).length > 0
 	if (hasLoaders) {
 		return function LayoutWrapperWithData() {
 			const data: unknown = useLoaderData({ strict: false })
+			const params = useMatch({
+				strict: false,
+				select: (match) => match.params as Record<string, string>,
+			})
+			seedLoaderCache(data, loaders, params)
 			return (
 				<SeamHandoffProvider value={handoffKeys}>
 					<SeamDataProvider value={data}>
@@ -60,9 +69,18 @@ export function createLayoutWrapper(
 }
 
 /** Wrap a page component with SeamDataProvider so useSeamData() returns page-scoped data */
-export function createPageWrapper(Page: ComponentType, handoffKeys: string[] = []) {
+export function createPageWrapper(
+	Page: ComponentType,
+	loaders: Record<string, LoaderDef> = {},
+	handoffKeys: string[] = [],
+) {
 	return function PageWrapper() {
 		const data: unknown = useLoaderData({ strict: false })
+		const params = useMatch({
+			strict: false,
+			select: (match) => match.params as Record<string, string>,
+		})
+		seedLoaderCache(data, loaders, params)
 		return (
 			<SeamHandoffProvider value={handoffKeys}>
 				<SeamDataProvider value={data}>
@@ -70,5 +88,18 @@ export function createPageWrapper(Page: ComponentType, handoffKeys: string[] = [
 				</SeamDataProvider>
 			</SeamHandoffProvider>
 		)
+	}
+}
+
+function seedLoaderCache(
+	data: unknown,
+	loaders: Record<string, LoaderDef>,
+	params: Record<string, string>,
+) {
+	if (!data || typeof data !== 'object') return
+	for (const [key, def] of Object.entries(loaders)) {
+		const value = (data as Record<string, unknown>)[key]
+		if (value === undefined) continue
+		cacheLoaderData(def.procedure, buildInput(def, params), value)
 	}
 }

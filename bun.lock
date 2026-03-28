@@ -189,6 +189,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@canmi/seam-client": "workspace:*",
+        "@canmi/seam-query": "workspace:*",
         "@canmi/seam-query-react": "workspace:*",
         "@canmi/seam-react": "workspace:*",
         "@canmi/seam-tanstack-router": "workspace:*",
@@ -236,6 +237,7 @@
       "dependencies": {
         "@canmi/seam-adapter-hono": "workspace:*",
         "@canmi/seam-client": "workspace:*",
+        "@canmi/seam-query": "workspace:*",
         "@canmi/seam-query-react": "workspace:*",
         "@canmi/seam-react": "workspace:*",
         "@canmi/seam-server": "workspace:*",
@@ -565,6 +567,7 @@
       "version": "0.5.37",
       "dependencies": {
         "@canmi/seam-client": "workspace:*",
+        "@canmi/seam-query": "workspace:*",
         "@canmi/seam-react": "workspace:*",
       },
       "devDependencies": {

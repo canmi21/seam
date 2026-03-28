@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@canmi/seam-client": "workspace:*",
+    "@canmi/seam-query": "workspace:*",
     "@canmi/seam-react": "workspace:*"
   },
   "devDependencies": {

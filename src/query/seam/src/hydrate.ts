@@ -4,6 +4,41 @@ import type { QueryClient } from '@tanstack/query-core'
 
 // Module-level store for server-computed derive results
 let hydratedDerived: Record<string, unknown> | null = null
+let sharedQueryClient: QueryClient | null = null
+let pendingLoaderEntries: Array<{ procedure: string; input: unknown; data: unknown }> = []
+
+/** Register the active QueryClient for non-hook cache sync (e.g. router SPA loaders). */
+export function registerSharedQueryClient(queryClient: QueryClient): void {
+	sharedQueryClient = queryClient
+	if (pendingLoaderEntries.length > 0) {
+		for (const entry of pendingLoaderEntries) {
+			sharedQueryClient.setQueryData([entry.procedure, entry.input], entry.data)
+		}
+		pendingLoaderEntries = []
+	}
+}
+
+/** Remove the registered QueryClient when the owner provider unmounts. */
+export function unregisterSharedQueryClient(queryClient: QueryClient): void {
+	if (sharedQueryClient === queryClient) {
+		sharedQueryClient = null
+	}
+}
+
+/** Clear the registered QueryClient (primarily for tests). */
+export function clearSharedQueryClient(): void {
+	sharedQueryClient = null
+	pendingLoaderEntries = []
+}
+
+/** Write a loader result into the registered QueryClient cache when available. */
+export function cacheLoaderData(procedure: string, input: unknown, data: unknown): void {
+	if (sharedQueryClient) {
+		sharedQueryClient.setQueryData([procedure, input], data)
+		return
+	}
+	pendingLoaderEntries.push({ procedure, input, data })
+}
 
 /** Retrieve hydrated __derived values (set during hydrateFromSeamData). */
 export function getHydratedDerived(): Record<string, unknown> | null {

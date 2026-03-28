@@ -30,6 +30,10 @@ export function useSeamDerive(key) {
 
 export const useDerive = useSeamDerive
 `
+const QUERY_REACT_STUB = `export function SeamQueryProvider({ children }) {
+	return children
+}
+`
 
 function seamVirtualPlugin() {
 	const cwd = process.cwd()
@@ -39,10 +43,14 @@ function seamVirtualPlugin() {
 		'virtual:seam/meta': '.seam/generated/meta.ts',
 	}
 	// Hooks are client-only; always stub during skeleton rendering
-	const STUB_MODULES = new Set(['virtual:seam/hooks'])
+	const STUB_MODULES = new Set(['virtual:seam/hooks', '@canmi/seam-query-react'])
 	return {
 		name: 'seam-virtual',
 		setup(build) {
+			build.onResolve({ filter: /^@canmi\/seam-query-react$/ }, (args) => {
+				if (STUB_MODULES.has(args.path)) return { path: args.path, namespace: 'seam-virtual' }
+				return null
+			})
 			build.onResolve({ filter: /^virtual:seam\// }, (args) => {
 				if (STUB_MODULES.has(args.path)) return { path: args.path, namespace: 'seam-virtual' }
 				const target = mapping[args.path]
@@ -54,6 +62,9 @@ function seamVirtualPlugin() {
 			build.onLoad({ filter: /.*/, namespace: 'seam-virtual' }, (args) => {
 				if (args.path === 'virtual:seam/hooks') {
 					return { contents: HOOKS_STUB, loader: 'ts' }
+				}
+				if (args.path === '@canmi/seam-query-react') {
+					return { contents: QUERY_REACT_STUB, loader: 'ts' }
 				}
 				return { contents: '', loader: 'ts' }
 			})

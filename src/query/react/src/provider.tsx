@@ -1,9 +1,13 @@
 /* src/query/react/src/provider.tsx */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { hydrateFromSeamData } from '@canmi/seam-query'
+import {
+	hydrateFromSeamData,
+	registerSharedQueryClient,
+	unregisterSharedQueryClient,
+} from '@canmi/seam-query'
 import type { ProcedureConfigMap, RpcFn } from '@canmi/seam-query'
-import { createContext, useContext, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 
 // Safe at module level — evaluated before skeleton renderer installs traps
 const IS_SERVER = typeof window === 'undefined'
@@ -40,6 +44,17 @@ export function SeamQueryProvider({
 	const [defaultClient] = useState(() => (IS_SERVER ? null : new QueryClient()))
 	const client = IS_SERVER ? null : (externalClient ?? defaultClient)
 	const hydrated = useRef(false)
+
+	if (!IS_SERVER && client) {
+		registerSharedQueryClient(client)
+	}
+
+	useEffect(() => {
+		if (!client) return
+		return () => {
+			unregisterSharedQueryClient(client)
+		}
+	}, [client])
 
 	if (!IS_SERVER && client && !hydrated.current) {
 		try {

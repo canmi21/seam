@@ -4,6 +4,7 @@
 import { QueryClient } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cacheLoaderData, clearSharedQueryClient } from '@canmi/seam-query'
 import { SeamQueryProvider } from '../provider.js'
 
 describe('SeamQueryProvider', () => {
@@ -12,6 +13,7 @@ describe('SeamQueryProvider', () => {
 	afterEach(() => {
 		document.getElementById('__data')?.remove()
 		document.getElementById('custom')?.remove()
+		clearSharedQueryClient()
 	})
 
 	function injectDataScript(id: string, data: Record<string, unknown>) {
@@ -113,5 +115,17 @@ describe('SeamQueryProvider', () => {
 			</SeamQueryProvider>,
 		)
 		expect(spy.mock.calls.length).toBe(callCount)
+	})
+
+	it('registers the active QueryClient for shared cache writes', () => {
+		const qc = new QueryClient()
+		render(
+			<SeamQueryProvider rpcFn={mockRpc} queryClient={qc}>
+				<div />
+			</SeamQueryProvider>,
+		)
+
+		cacheLoaderData('getUser', { id: '1' }, { name: 'Alice' })
+		expect(qc.getQueryData(['getUser', { id: '1' }])).toEqual({ name: 'Alice' })
 	})
 })

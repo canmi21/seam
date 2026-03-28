@@ -145,7 +145,7 @@ function buildRoutes(
 			const layoutRoute = createRoute({
 				getParentRoute: () => parent,
 				...routeOptions,
-				component: createLayoutWrapper(def.layout, hasLoaders, handoffKeys),
+				component: createLayoutWrapper(def.layout, loaders, handoffKeys),
 				loader: hasLoaders ? createLoaderFromDefs(loaders, fullPath, layoutId) : undefined,
 				staleTime: def.staleTime,
 				...boundaryFields(def),
@@ -191,11 +191,15 @@ function buildRoutes(
 			return createRoute({
 				getParentRoute: () => parent,
 				path: convertPath(def.path),
-				component: createPageWrapper(function LazyPage() {
-					const Resolved = lazyComponentCache.get(routePath)
-					if (!Resolved) return null
-					return createElement(Resolved)
-				}, pageHandoffKeys),
+				component: createPageWrapper(
+					function LazyPage() {
+						const Resolved = lazyComponentCache.get(routePath)
+						if (!Resolved) return null
+						return createElement(Resolved)
+					},
+					def.loaders ?? {},
+					pageHandoffKeys,
+				),
 				loader: async (ctx: { params: Record<string, string>; context: SeamRouterContext }) => {
 					// Resolve lazy component (cached after first load)
 					if (!lazyComponentCache.has(routePath)) {
@@ -215,7 +219,7 @@ function buildRoutes(
 		return createRoute({
 			getParentRoute: () => parent,
 			path: convertPath(def.path),
-			component: createPageWrapper(pageComponent, pageHandoffKeys),
+			component: createPageWrapper(pageComponent, def.loaders ?? {}, pageHandoffKeys),
 			loader: cl
 				? ({ params, context }: { params: Record<string, string>; context: unknown }) => {
 						const ctx = context as SeamRouterContext

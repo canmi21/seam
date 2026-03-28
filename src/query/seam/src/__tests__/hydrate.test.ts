@@ -2,7 +2,12 @@
 
 import { QueryClient } from '@tanstack/query-core'
 import { describe, expect, it } from 'vitest'
-import { hydrateFromSeamData } from '../hydrate.js'
+import {
+	cacheLoaderData,
+	clearSharedQueryClient,
+	hydrateFromSeamData,
+	registerSharedQueryClient,
+} from '../hydrate.js'
 
 describe('hydrateFromSeamData', () => {
 	it('writes loader data into QueryClient cache using __loaders metadata', () => {
@@ -53,5 +58,16 @@ describe('hydrateFromSeamData', () => {
 		hydrateFromSeamData(qc, seamData)
 		expect(qc.getQueryData(['getUser', {}])).toEqual({ name: 'Alice' })
 		expect(qc.getQueryData(['getOrg', {}])).toBeUndefined()
+	})
+
+	it('queues loader cache writes until a QueryClient is registered', () => {
+		clearSharedQueryClient()
+		cacheLoaderData('getUser', { id: '1' }, { name: 'Alice' })
+
+		const qc = new QueryClient()
+		registerSharedQueryClient(qc)
+
+		expect(qc.getQueryData(['getUser', { id: '1' }])).toEqual({ name: 'Alice' })
+		clearSharedQueryClient()
 	})
 })

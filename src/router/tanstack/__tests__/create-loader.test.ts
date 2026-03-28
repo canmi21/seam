@@ -1,6 +1,7 @@
 /* src/router/tanstack/__tests__/create-loader.test.ts */
 
 import { describe, expect, it, vi } from 'vitest'
+import { clearSharedQueryClient, registerSharedQueryClient } from '@canmi/seam-query'
 import { buildInput, createLoaderFromDefs, createPrerenderLoader } from '../src/create-loader.js'
 import type { SeamRouterContext } from '../src/types.js'
 
@@ -95,6 +96,50 @@ describe('createLoaderFromDefs()', () => {
 		expect(result).toEqual({ user: { login: 'torvalds' }, repos: [{ name: 'linux' }] })
 		expect(mockRpc).toHaveBeenCalledWith('getUser', { username: 'torvalds' })
 		expect(mockRpc).toHaveBeenCalledWith('getUserRepos', { username: 'torvalds' })
+	})
+
+	it('hydrates shared QueryClient cache from SPA loader RPC results', async () => {
+		const cache = new Map<string, unknown>()
+		registerSharedQueryClient({
+			setQueryData(queryKey: unknown[], data: unknown) {
+				cache.set(JSON.stringify(queryKey), data)
+			},
+		} as never)
+
+		const mockRpc = vi.fn()
+		mockRpc.mockResolvedValueOnce({ login: 'torvalds' })
+		mockRpc.mockResolvedValueOnce([{ name: 'linux' }])
+
+		const loader = createLoaderFromDefs(
+			{
+				user: { procedure: 'getUser', params: { username: { from: 'route' } } },
+				repos: { procedure: 'getUserRepos', params: { username: { from: 'route' } } },
+			},
+			'/dashboard/:username',
+		)
+
+		const context: SeamRouterContext = {
+			seamRpc: mockRpc,
+			_seamInitial: {
+				path: '/',
+				params: {},
+				data: {},
+				layouts: {},
+				consumed: true,
+				consumedLayouts: new Set(),
+			},
+		}
+
+		await loader({ params: { username: 'torvalds' }, context })
+
+		expect(cache.get(JSON.stringify(['getUser', { username: 'torvalds' }]))).toEqual({
+			login: 'torvalds',
+		})
+		expect(cache.get(JSON.stringify(['getUserRepos', { username: 'torvalds' }]))).toEqual([
+			{ name: 'linux' },
+		])
+
+		clearSharedQueryClient()
 	})
 
 	it('calls RPC when no initial data', async () => {
