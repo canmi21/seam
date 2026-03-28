@@ -36,6 +36,16 @@ tester.run('no-derived-data-in-skeleton', rule, {
       `,
 			filename: 'src/components/home.tsx',
 		},
+		{
+			code: `
+        const { price } = useSeamData();
+        function inner() {
+          const price = 42;
+          const total = price * 2;
+        }
+      `,
+			filename: PAGE,
+		},
 	],
 	invalid: [
 		{
@@ -85,6 +95,41 @@ tester.run('no-derived-data-in-skeleton', rule, {
       `,
 			filename: PAGE,
 			errors: [{ messageId: 'numericComparison' }],
+		},
+		{
+			code: `
+        const { items } = useSeamData();
+        const rows = items.flatMap((item) => item.price > 0 ? [item] : []);
+      `,
+			filename: PAGE,
+			errors: [
+				{ messageId: 'arrayDerivation', data: { method: 'flatMap' } },
+				{ messageId: 'numericComparison' },
+			],
+		},
+		{
+			code: `
+        const data = useSeamData();
+        const result = data.items.filter((x) => x.active);
+      `,
+			filename: PAGE,
+			errors: [{ messageId: 'arrayDerivation', data: { method: 'filter' } }],
+		},
+		{
+			code: `
+        const { nums } = useSeamData();
+        const sum = nums.reduce((a, b) => a + b, 0);
+      `,
+			filename: PAGE,
+			errors: [{ messageId: 'arrayDerivation', data: { method: 'reduce' } }],
+		},
+		{
+			code: `
+        const { count } = useSeamData();
+        const next = count + 1;
+      `,
+			filename: PAGE,
+			errors: [{ messageId: 'arithmetic' }],
 		},
 	],
 })
