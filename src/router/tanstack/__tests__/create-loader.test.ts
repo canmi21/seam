@@ -44,7 +44,7 @@ describe('buildInput()', () => {
 	})
 })
 
-describe('createLoaderFromDefs()', () => {
+describe('createLoaderFromDefs() initial data', () => {
 	it('short-circuits on first load using initial data', async () => {
 		const initial = {
 			path: '/dashboard/:username',
@@ -73,7 +73,34 @@ describe('createLoaderFromDefs()', () => {
 		expect(context.seamRpc).not.toHaveBeenCalled()
 	})
 
-	it('calls RPC on SPA navigation (after initial consumed)', async () => {
+	it('calls RPC when no initial data', async () => {
+		const mockRpc = vi.fn().mockResolvedValue({ tagline: 'Hello' })
+
+		const loader = createLoaderFromDefs({ page: { procedure: 'getHomeData' } }, '/')
+
+		const context: SeamRouterContext = {
+			seamRpc: mockRpc,
+			_seamInitial: null,
+		}
+
+		const result = await loader({ params: {}, context })
+
+		expect(result).toEqual({ page: { tagline: 'Hello' } })
+		expect(mockRpc).toHaveBeenCalledWith('getHomeData', {})
+	})
+
+	it('empty loaderDefs returns empty object', async () => {
+		const mockRpc = vi.fn()
+		const loader = createLoaderFromDefs({}, '/')
+		const context: SeamRouterContext = { seamRpc: mockRpc, _seamInitial: null }
+		const result = await loader({ params: {}, context })
+		expect(result).toEqual({})
+		expect(mockRpc).not.toHaveBeenCalled()
+	})
+})
+
+describe('createLoaderFromDefs() SPA navigation', () => {
+	it('calls RPC after initial consumed', async () => {
 		const mockRpc = vi.fn()
 		mockRpc.mockResolvedValueOnce({ login: 'torvalds' })
 		mockRpc.mockResolvedValueOnce([{ name: 'linux' }])
@@ -98,7 +125,7 @@ describe('createLoaderFromDefs()', () => {
 		expect(mockRpc).toHaveBeenCalledWith('getUserRepos', { username: 'torvalds' })
 	})
 
-	it('hydrates shared QueryClient cache from SPA loader RPC results', async () => {
+	it('hydrates shared QueryClient cache from RPC results', async () => {
 		const cache = new Map<string, unknown>()
 		registerSharedQueryClient({
 			setQueryData(queryKey: unknown[], data: unknown) {
@@ -141,25 +168,9 @@ describe('createLoaderFromDefs()', () => {
 
 		clearSharedQueryClient()
 	})
+})
 
-	it('calls RPC when no initial data', async () => {
-		const mockRpc = vi.fn().mockResolvedValue({ tagline: 'Hello' })
-
-		const loader = createLoaderFromDefs({ page: { procedure: 'getHomeData' } }, '/')
-
-		const context: SeamRouterContext = {
-			seamRpc: mockRpc,
-			_seamInitial: null,
-		}
-
-		const result = await loader({ params: {}, context })
-
-		expect(result).toEqual({ page: { tagline: 'Hello' } })
-		expect(mockRpc).toHaveBeenCalledWith('getHomeData', {})
-	})
-
-	// -- buildInput error paths --
-
+describe('createLoaderFromDefs() error paths', () => {
 	it('non-numeric string for int param returns NaN', () => {
 		const result = buildInput(
 			{ procedure: 'getItem', params: { id: { from: 'route', type: 'int' } } },
@@ -181,8 +192,6 @@ describe('createLoaderFromDefs()', () => {
 		expect(result.id).toBeNaN()
 	})
 
-	// -- createLoaderFromDefs error paths --
-
 	it('RPC rejection propagates error', async () => {
 		const mockRpc = vi.fn().mockRejectedValue(new Error('network fail'))
 		const loader = createLoaderFromDefs({ data: { procedure: 'getData' } }, '/page')
@@ -200,15 +209,6 @@ describe('createLoaderFromDefs()', () => {
 		)
 		const context: SeamRouterContext = { seamRpc: mockRpc, _seamInitial: null }
 		await expect(loader({ params: {}, context })).rejects.toThrow('second fail')
-	})
-
-	it('empty loaderDefs returns empty object', async () => {
-		const mockRpc = vi.fn()
-		const loader = createLoaderFromDefs({}, '/')
-		const context: SeamRouterContext = { seamRpc: mockRpc, _seamInitial: null }
-		const result = await loader({ params: {}, context })
-		expect(result).toEqual({})
-		expect(mockRpc).not.toHaveBeenCalled()
 	})
 })
 

@@ -7,23 +7,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cacheLoaderData, clearSharedQueryClient } from '@canmi/seam-query'
 import { SeamQueryProvider } from '../provider.js'
 
-describe('SeamQueryProvider', () => {
-	const mockRpc = vi.fn()
+const mockRpc = vi.fn()
 
-	afterEach(() => {
-		document.getElementById('__data')?.remove()
-		document.getElementById('custom')?.remove()
-		clearSharedQueryClient()
-	})
+afterEach(() => {
+	document.getElementById('__data')?.remove()
+	document.getElementById('custom')?.remove()
+	clearSharedQueryClient()
+})
 
-	function injectDataScript(id: string, data: Record<string, unknown>) {
-		const el = document.createElement('script')
-		el.id = id
-		el.type = 'application/json'
-		el.textContent = JSON.stringify(data)
-		document.body.appendChild(el)
-	}
+function injectDataScript(id: string, data: Record<string, unknown>) {
+	const el = document.createElement('script')
+	el.id = id
+	el.type = 'application/json'
+	el.textContent = JSON.stringify(data)
+	document.body.appendChild(el)
+}
 
+describe('SeamQueryProvider rendering', () => {
 	it('renders children', () => {
 		render(
 			<SeamQueryProvider rpcFn={mockRpc}>
@@ -32,7 +32,9 @@ describe('SeamQueryProvider', () => {
 		)
 		expect(screen.getByTestId('child').textContent).toBe('hello')
 	})
+})
 
+describe('SeamQueryProvider hydration', () => {
 	it('auto-hydrates QueryClient from __data DOM element', () => {
 		injectDataScript('__data', {
 			userData: { name: 'Alice' },
@@ -75,24 +77,6 @@ describe('SeamQueryProvider', () => {
 		expect(qc.getQueryData(['getUser', {}])).toBeUndefined()
 	})
 
-	it('survives malformed JSON in __data', () => {
-		const el = document.createElement('script')
-		el.id = '__data'
-		el.type = 'application/json'
-		el.textContent = '{invalid json!!!'
-		document.body.appendChild(el)
-
-		const qc = new QueryClient()
-		const spy = vi.spyOn(qc, 'setQueryData')
-		render(
-			<SeamQueryProvider rpcFn={mockRpc} queryClient={qc}>
-				<div data-testid="malformed">ok</div>
-			</SeamQueryProvider>,
-		)
-		expect(screen.getByTestId('malformed').textContent).toBe('ok')
-		expect(spy).not.toHaveBeenCalled()
-	})
-
 	it('hydrates only once across re-renders', () => {
 		injectDataScript('__data', {
 			userData: { name: 'Alice' },
@@ -115,6 +99,26 @@ describe('SeamQueryProvider', () => {
 			</SeamQueryProvider>,
 		)
 		expect(spy.mock.calls.length).toBe(callCount)
+	})
+})
+
+describe('SeamQueryProvider edge cases', () => {
+	it('survives malformed JSON in __data', () => {
+		const el = document.createElement('script')
+		el.id = '__data'
+		el.type = 'application/json'
+		el.textContent = '{invalid json!!!'
+		document.body.appendChild(el)
+
+		const qc = new QueryClient()
+		const spy = vi.spyOn(qc, 'setQueryData')
+		render(
+			<SeamQueryProvider rpcFn={mockRpc} queryClient={qc}>
+				<div data-testid="malformed">ok</div>
+			</SeamQueryProvider>,
+		)
+		expect(screen.getByTestId('malformed').textContent).toBe('ok')
+		expect(spy).not.toHaveBeenCalled()
 	})
 
 	it('registers the active QueryClient for shared cache writes', () => {
