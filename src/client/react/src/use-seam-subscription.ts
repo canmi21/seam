@@ -1,7 +1,12 @@
 /* src/client/react/src/use-seam-subscription.ts */
 
 import { useEffect, useRef, useState } from 'react'
-import { SeamClientError, parseSseStream, ReconnectController } from '@canmi/seam-client'
+import {
+	SeamClientError,
+	parseSseStream,
+	ReconnectController,
+	trimTrailingSlashes,
+} from '@canmi/seam-client'
 import type { ReconnectConfig } from '@canmi/seam-client'
 
 export type SubscriptionStatus = 'connecting' | 'active' | 'error' | 'closed' | 'reconnecting'
@@ -15,12 +20,6 @@ export interface UseSeamSubscriptionResult<T> {
 
 export interface UseSeamSubscriptionOptions {
 	reconnect?: Partial<ReconnectConfig>
-}
-
-function trimTrailingSlashes(value: string): string {
-	let end = value.length
-	while (end > 0 && value.charCodeAt(end - 1) === 47) end--
-	return value.slice(0, end)
 }
 
 export function useSeamSubscription<T>(

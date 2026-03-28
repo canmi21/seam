@@ -1,7 +1,7 @@
 /* src/client/react/src/use-seam-stream.ts */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { SeamClientError, parseSseStream } from '@canmi/seam-client'
+import { SeamClientError, parseSseStream, trimTrailingSlashes } from '@canmi/seam-client'
 
 export type StreamStatus = 'idle' | 'streaming' | 'completed' | 'error'
 
@@ -11,12 +11,6 @@ export interface UseSeamStreamResult<T> {
 	status: StreamStatus
 	error: SeamClientError | null
 	cancel: () => void
-}
-
-function trimTrailingSlashes(value: string): string {
-	let end = value.length
-	while (end > 0 && value.charCodeAt(end - 1) === 47) end--
-	return value.slice(0, end)
 }
 
 export function useSeamStream<T>(

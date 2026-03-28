@@ -1,6 +1,11 @@
 /* src/server/adapter/bun/src/index.ts */
 
-import { createHttpHandler, toWebResponse, startChannelWs } from '@canmi/seam-server'
+import {
+	createHttpHandler,
+	toWebResponse,
+	startChannelWs,
+	buildMultipartFields,
+} from '@canmi/seam-server'
 import type {
 	DefinitionMap,
 	Router,
@@ -64,25 +69,14 @@ export function serveBun<T extends DefinitionMap>(router: Router<T>, opts?: Serv
 				}
 			}
 
-			const contentType = req.headers.get('content-type') ?? ''
-			const isMultipart = contentType.startsWith('multipart/form-data')
-
-			let formDataCache: FormData | undefined
-			const getFormData = async () => (formDataCache ??= await req.formData())
+			const { body, file } = buildMultipartFields(req)
 
 			const result = await handler({
 				method: req.method,
 				url: req.url,
-				body: isMultipart
-					? async () => JSON.parse((await getFormData()).get('metadata') as string) as unknown
-					: () => req.json(),
+				body,
 				header: (name) => req.headers.get(name),
-				file: isMultipart
-					? async () => {
-							const f = (await getFormData()).get('file') as File | null
-							return f ? { stream: () => f.stream() } : null
-						}
-					: undefined,
+				file,
 			})
 			return toWebResponse(result)
 		},

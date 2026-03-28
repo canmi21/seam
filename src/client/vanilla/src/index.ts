@@ -1,6 +1,6 @@
 /* src/client/vanilla/src/index.ts */
 
-export { createClient } from './client.js'
+export { createClient, trimTrailingSlashes } from './client.js'
 export { SeamClientError } from './errors.js'
 export { parseSseStream } from './sse-parser.js'
 export { seamRpc, configureRpcMap } from './rpc.js'

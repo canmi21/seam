@@ -46,6 +46,10 @@ pub struct ProcedureSchema {
 	pub cache: Option<serde_json::Value>,
 }
 
+fn context_option(keys: &[String]) -> Option<Vec<String>> {
+	if keys.is_empty() { None } else { Some(keys.to_vec()) }
+}
+
 pub fn build_manifest(
 	procedures: &[ProcedureDef],
 	subscriptions: &[SubscriptionDef],
@@ -60,7 +64,7 @@ pub fn build_manifest(
 			ProcedureType::Query => "query",
 			ProcedureType::Command => "command",
 		};
-		let context = if proc.context_keys.is_empty() { None } else { Some(proc.context_keys.clone()) };
+		let context = context_option(&proc.context_keys);
 		map.insert(
 			proc.name.clone(),
 			ProcedureSchema {
@@ -76,7 +80,7 @@ pub fn build_manifest(
 		);
 	}
 	for sub in subscriptions {
-		let context = if sub.context_keys.is_empty() { None } else { Some(sub.context_keys.clone()) };
+		let context = context_option(&sub.context_keys);
 		map.insert(
 			sub.name.clone(),
 			ProcedureSchema {
@@ -92,8 +96,7 @@ pub fn build_manifest(
 		);
 	}
 	for stream in streams {
-		let context =
-			if stream.context_keys.is_empty() { None } else { Some(stream.context_keys.clone()) };
+		let context = context_option(&stream.context_keys);
 		map.insert(
 			stream.name.clone(),
 			ProcedureSchema {
@@ -109,8 +112,7 @@ pub fn build_manifest(
 		);
 	}
 	for upload in uploads {
-		let context =
-			if upload.context_keys.is_empty() { None } else { Some(upload.context_keys.clone()) };
+		let context = context_option(&upload.context_keys);
 		map.insert(
 			upload.name.clone(),
 			ProcedureSchema {

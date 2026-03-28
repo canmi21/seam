@@ -95,3 +95,5 @@ export type { ChannelDef, ChannelResult, ChannelMeta, IncomingDef } from './chan
 export type { WsSink, ChannelWsSession, ChannelWsOptions } from './ws.js'
 export type { DevProxyOptions, StaticHandlerOptions } from './proxy.js'
 export type { ReloadWatcher } from './dev/index.js'
+export { buildMultipartFields } from './multipart.js'
+export type { MultipartSource } from './multipart.js'

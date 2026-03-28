@@ -143,64 +143,8 @@ func (s *appState) handleChannelWs(w http.ResponseWriter, r *http.Request) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		ticker := time.NewTicker(s.opts.HeartbeatInterval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case ev, ok := <-eventCh:
-				if !ok {
-					// Subscription closed; close the WebSocket
-					writeMu.Lock()
-					_ = conn.WriteMessage(websocket.CloseMessage,
-						websocket.FormatCloseMessage(websocket.CloseNormalClosure, "subscription ended"))
-					writeMu.Unlock()
-					cancel()
-					return
-				}
-				if ev.Err != nil {
-					if err := writeJSON(wsResponse{
-						Ok: false,
-						Error: &wsError{
-							Code:    ev.Err.Code,
-							Message: ev.Err.Message,
-						},
-					}); err != nil {
-						return
-					}
-					continue
-				}
-				// Channel subscription events are maps with "type" and "payload"
-				if m, ok := ev.Value.(map[string]interface{}); ok {
-					eventType, _ := m["type"].(string)
-					payload := m["payload"]
-					if err := writeJSON(wsPush{Event: eventType, Payload: payload}); err != nil {
-						return
-					}
-				} else {
-					// Fallback: send raw value as a "data" event
-					if err := writeJSON(wsPush{Event: "data", Payload: ev.Value}); err != nil {
-						return
-					}
-				}
-
-			case <-ticker.C:
-				if err := writeJSON(wsHeartbeat{Heartbeat: true}); err != nil {
-					return
-				}
-				// Send ping frame for half-open connection detection
-				writeMu.Lock()
-				deadline := time.Now().Add(s.opts.PongTimeout)
-				err := conn.WriteControl(websocket.PingMessage, nil, deadline)
-				writeMu.Unlock()
-				if err != nil {
-					return
-				}
-
-			case <-ctx.Done():
-				return
-			}
-		}
+		runChannelWriteLoop(ctx, cancel, eventCh, writeJSON, conn, &writeMu,
+			s.opts.HeartbeatInterval, s.opts.PongTimeout)
 	}()
 
 	// --- read loop: receive uplink commands ---
@@ -247,129 +191,7 @@ func (s *appState) handleChannelWs(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			// Resolve hash -> original name when hash map is present
-			procName := uplink.Procedure
-			if s.hashToName != nil {
-				resolved, ok := s.hashToName[procName]
-				if !ok {
-					if err := writeJSON(wsResponse{
-						ID: uplink.ID,
-						Ok: false,
-						Error: &wsError{
-							Code:    "NOT_FOUND",
-							Message: fmt.Sprintf("Procedure '%s' not found", procName),
-						},
-					}); err != nil {
-						return
-					}
-					continue
-				}
-				procName = resolved
-			}
-
-			proc, ok := s.handlers[procName]
-			if !ok {
-				if err := writeJSON(wsResponse{
-					ID: uplink.ID,
-					Ok: false,
-					Error: &wsError{
-						Code:    "NOT_FOUND",
-						Message: fmt.Sprintf("Procedure '%s' not found", procName),
-					},
-				}); err != nil {
-					return
-				}
-				continue
-			}
-
-			// Merge channel input + uplink input
-			mergedInput := mergeJSONInputs(channelInput, uplink.Input)
-
-			if s.shouldValidate {
-				if cs, ok := s.compiledInputSchemas[procName]; ok {
-					var parsed any
-					_ = json.Unmarshal(mergedInput, &parsed)
-					if msg, details := validateCompiled(cs, parsed); msg != "" {
-						if err := writeJSON(wsResponse{
-							ID: uplink.ID,
-							Ok: false,
-							Error: &wsError{
-								Code:    "VALIDATION_ERROR",
-								Message: fmt.Sprintf("Input validation failed for procedure '%s': %s", procName, msg),
-								Details: toAnySlice(details),
-							},
-						}); err != nil {
-							return
-						}
-						continue
-					}
-				}
-			}
-
-			// Dispatch command (explicit cancel to avoid defer leak in loop)
-			rpcCtx := ctx
-			// Inject per-procedure context (reuse connection-time extraction)
-			if len(s.contextConfigs) > 0 && len(proc.ContextKeys) > 0 {
-				rawCtx := extractRawContext(r, s.contextConfigs)
-				filtered := resolveContextForProc(rawCtx, proc.ContextKeys)
-				rpcCtx = injectContext(rpcCtx, filtered)
-			}
-			rpcCtx = injectState(rpcCtx, s.appState)
-			var rpcCancel context.CancelFunc
-			if s.opts.RPCTimeout > 0 {
-				rpcCtx, rpcCancel = context.WithTimeout(rpcCtx, s.opts.RPCTimeout)
-			}
-
-			result, err := proc.Handler(rpcCtx, mergedInput)
-			if rpcCancel != nil {
-				rpcCancel()
-			}
-			if err != nil {
-				if rpcCtx.Err() == context.DeadlineExceeded {
-					if err := writeJSON(wsResponse{
-						ID: uplink.ID,
-						Ok: false,
-						Error: &wsError{
-							Code:      "INTERNAL_ERROR",
-							Message:   "RPC timed out",
-							Transient: true,
-						},
-					}); err != nil {
-						return
-					}
-					continue
-				}
-				if seamErr, ok := err.(*Error); ok {
-					if err := writeJSON(wsResponse{
-						ID: uplink.ID,
-						Ok: false,
-						Error: &wsError{
-							Code:    seamErr.Code,
-							Message: seamErr.Message,
-						},
-					}); err != nil {
-						return
-					}
-				} else {
-					if err := writeJSON(wsResponse{
-						ID: uplink.ID,
-						Ok: false,
-						Error: &wsError{
-							Code:    "INTERNAL_ERROR",
-							Message: err.Error(),
-						},
-					}); err != nil {
-						return
-					}
-				}
-				continue
-			}
-
-			if err := writeJSON(wsResponse{
-				ID:   uplink.ID,
-				Ok:   true,
-				Data: result,
-			}); err != nil {
+			if err := s.executeChannelCommand(ctx, r, uplink, channelInput, writeJSON); err != nil {
 				return
 			}
 		}
@@ -377,6 +199,197 @@ func (s *appState) handleChannelWs(w http.ResponseWriter, r *http.Request) {
 
 	wg.Wait()
 	_ = conn.Close()
+}
+
+// runChannelWriteLoop forwards subscription events, heartbeat messages, and
+// WebSocket ping frames to the client. It runs until the subscription channel
+// closes, a write error occurs, or the context is cancelled.
+func runChannelWriteLoop(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	eventCh <-chan SubscriptionEvent,
+	writeJSON func(v interface{}) error,
+	conn *websocket.Conn,
+	writeMu *sync.Mutex,
+	heartbeatInterval time.Duration,
+	pongTimeout time.Duration,
+) {
+	ticker := time.NewTicker(heartbeatInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case ev, ok := <-eventCh:
+			if !ok {
+				// Subscription closed; close the WebSocket
+				writeMu.Lock()
+				_ = conn.WriteMessage(websocket.CloseMessage,
+					websocket.FormatCloseMessage(websocket.CloseNormalClosure, "subscription ended"))
+				writeMu.Unlock()
+				cancel()
+				return
+			}
+			if ev.Err != nil {
+				if err := writeJSON(wsResponse{
+					Ok: false,
+					Error: &wsError{
+						Code:    ev.Err.Code,
+						Message: ev.Err.Message,
+					},
+				}); err != nil {
+					return
+				}
+				continue
+			}
+			// Channel subscription events are maps with "type" and "payload"
+			if m, ok := ev.Value.(map[string]interface{}); ok {
+				eventType, _ := m["type"].(string)
+				payload := m["payload"]
+				if err := writeJSON(wsPush{Event: eventType, Payload: payload}); err != nil {
+					return
+				}
+			} else {
+				// Fallback: send raw value as a "data" event
+				if err := writeJSON(wsPush{Event: "data", Payload: ev.Value}); err != nil {
+					return
+				}
+			}
+
+		case <-ticker.C:
+			if err := writeJSON(wsHeartbeat{Heartbeat: true}); err != nil {
+				return
+			}
+			// Send ping frame for half-open connection detection
+			writeMu.Lock()
+			deadline := time.Now().Add(pongTimeout)
+			err := conn.WriteControl(websocket.PingMessage, nil, deadline)
+			writeMu.Unlock()
+			if err != nil {
+				return
+			}
+
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// executeChannelCommand handles a single uplink command: hash resolution,
+// procedure lookup, input merge, validation, context injection, RPC execution
+// with timeout, and response writing. Returns an error only if writeJSON fails
+// (indicating the connection is broken and the read loop should exit).
+func (s *appState) executeChannelCommand(
+	ctx context.Context,
+	r *http.Request,
+	uplink wsUplink,
+	channelInput json.RawMessage,
+	writeJSON func(v interface{}) error,
+) error {
+	// Resolve hash -> original name when hash map is present
+	procName := uplink.Procedure
+	if s.hashToName != nil {
+		resolved, ok := s.hashToName[procName]
+		if !ok {
+			return writeJSON(wsResponse{
+				ID: uplink.ID,
+				Ok: false,
+				Error: &wsError{
+					Code:    "NOT_FOUND",
+					Message: fmt.Sprintf("Procedure '%s' not found", procName),
+				},
+			})
+		}
+		procName = resolved
+	}
+
+	proc, ok := s.handlers[procName]
+	if !ok {
+		return writeJSON(wsResponse{
+			ID: uplink.ID,
+			Ok: false,
+			Error: &wsError{
+				Code:    "NOT_FOUND",
+				Message: fmt.Sprintf("Procedure '%s' not found", procName),
+			},
+		})
+	}
+
+	// Merge channel input + uplink input
+	mergedInput := mergeJSONInputs(channelInput, uplink.Input)
+
+	if s.shouldValidate {
+		if cs, ok := s.compiledInputSchemas[procName]; ok {
+			var parsed any
+			_ = json.Unmarshal(mergedInput, &parsed)
+			if msg, details := validateCompiled(cs, parsed); msg != "" {
+				return writeJSON(wsResponse{
+					ID: uplink.ID,
+					Ok: false,
+					Error: &wsError{
+						Code:    "VALIDATION_ERROR",
+						Message: fmt.Sprintf("Input validation failed for procedure '%s': %s", procName, msg),
+						Details: toAnySlice(details),
+					},
+				})
+			}
+		}
+	}
+
+	// Dispatch command (explicit cancel to avoid defer leak in loop)
+	rpcCtx := ctx
+	// Inject per-procedure context (reuse connection-time extraction)
+	if len(s.contextConfigs) > 0 && len(proc.ContextKeys) > 0 {
+		rawCtx := extractRawContext(r, s.contextConfigs)
+		filtered := resolveContextForProc(rawCtx, proc.ContextKeys)
+		rpcCtx = injectContext(rpcCtx, filtered)
+	}
+	rpcCtx = injectState(rpcCtx, s.appState)
+	var rpcCancel context.CancelFunc
+	if s.opts.RPCTimeout > 0 {
+		rpcCtx, rpcCancel = context.WithTimeout(rpcCtx, s.opts.RPCTimeout)
+	}
+
+	result, err := proc.Handler(rpcCtx, mergedInput)
+	if rpcCancel != nil {
+		rpcCancel()
+	}
+	if err != nil {
+		if rpcCtx.Err() == context.DeadlineExceeded {
+			return writeJSON(wsResponse{
+				ID: uplink.ID,
+				Ok: false,
+				Error: &wsError{
+					Code:      "INTERNAL_ERROR",
+					Message:   "RPC timed out",
+					Transient: true,
+				},
+			})
+		}
+		if seamErr, ok := err.(*Error); ok {
+			return writeJSON(wsResponse{
+				ID: uplink.ID,
+				Ok: false,
+				Error: &wsError{
+					Code:    seamErr.Code,
+					Message: seamErr.Message,
+				},
+			})
+		}
+		return writeJSON(wsResponse{
+			ID: uplink.ID,
+			Ok: false,
+			Error: &wsError{
+				Code:    "INTERNAL_ERROR",
+				Message: err.Error(),
+			},
+		})
+	}
+
+	return writeJSON(wsResponse{
+		ID:   uplink.ID,
+		Ok:   true,
+		Data: result,
+	})
 }
 
 // mergeJSONInputs merges two JSON objects (channel input + uplink input).
