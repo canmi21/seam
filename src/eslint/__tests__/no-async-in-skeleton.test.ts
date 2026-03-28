@@ -50,6 +50,12 @@ tester.run('no-async-in-skeleton', rule, {
 			filename: PAGE,
 			errors: [{ messageId: 'noAsyncComponent' }],
 		},
+		// async generator function
+		{
+			code: 'async function* gen() { yield 1; }',
+			filename: PAGE,
+			errors: [{ messageId: 'noAsyncComponent' }],
+		},
 		// Suspense boundary
 		{
 			code: '<Suspense fallback={<p>Loading</p>}><Child /></Suspense>;',
