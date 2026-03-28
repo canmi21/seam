@@ -4,6 +4,7 @@
 pub mod build_loader;
 pub mod channel;
 pub mod context;
+pub mod derive;
 pub mod errors;
 pub mod escape;
 pub mod manifest;
@@ -23,6 +24,7 @@ pub use context::{
 	ContextConfig, ContextFieldDef, RawContextMap, context_has_extracts, context_keys_from_schema,
 	extract_raw_context, parse_cookie_header, resolve_context,
 };
+pub use derive::execute_derives;
 pub use errors::SeamError;
 pub use escape::ascii_escape_json;
 pub use page::I18nConfig;

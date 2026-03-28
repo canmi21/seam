@@ -30,4 +30,4 @@ Pure Rust engine for page assembly, i18n resolution, build output parsing, and J
 - All functions take JSON strings in and return JSON strings out for WASM compatibility
 - Depends on [seam-injector](../../injector/rust/) for template slot injection
 - Consumed by [engine/wasm](../wasm/), which exposes these functions to JS and Go runtimes
-- Derive execution lives in the Axum adapter (`seam-server-axum`); the engine only flattens and injects pre-computed `__derived` data from `loader_data_json`
+- Derive execution lives in `seam-server` core; the engine only flattens and injects pre-computed `__derived` data from `loader_data_json`

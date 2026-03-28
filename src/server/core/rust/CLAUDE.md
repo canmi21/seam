@@ -16,6 +16,7 @@ See root CLAUDE.md for general project rules.
 | `manifest.rs`   | Builds JSON manifest from registered procedures and subscriptions                                                                                                               |
 | `errors.rs`     | `SeamError` struct (open code + status + optional details), axum-free                                                                                                           |
 | `validation.rs` | JTD input validator: `compile_schema`, `validate_compiled`, `ValidationMode`, `ValidationDetail`                                                                                |
+| `derive.rs`     | `execute_derives(derives_json, loader_data_json)` — QuickJS-based derive execution via `rquickjs`; per-derive error boundary                                                    |
 | `injector/`     | HTML template engine: tokenize -> parse -> render pipeline                                                                                                                      |
 | `lib.rs`        | Re-exports, `SeamType` trait + primitive JTD schema impls                                                                                                                       |
 

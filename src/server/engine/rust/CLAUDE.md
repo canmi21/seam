@@ -52,4 +52,4 @@ cargo test -p seam-engine
 - `serde_json::Value` used internally; callers pass stringified JSON
 - No filesystem I/O — all functions are pure
 - Engine does NOT handle `__loaders` metadata -- that is injected by the adapter's page handler before/alongside engine calls
-- Derive execution lives in the Axum adapter (`seam-server-axum`), not in the engine; the engine only flattens and injects pre-computed `__derived` data
+- Derive execution lives in `seam-server` core (not the engine); the engine only flattens and injects pre-computed `__derived` data
