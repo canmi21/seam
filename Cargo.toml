@@ -44,7 +44,7 @@ todo = "warn"
 unwrap_used = "warn"
 
 [workspace.package]
-version = "0.5.37"
+version = "0.5.38"
 edition = "2024"
 license = "MIT"
 authors = ["Canmi(Canmi21) <t@canmi.icu>"]

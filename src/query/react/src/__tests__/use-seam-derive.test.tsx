@@ -10,7 +10,7 @@ import type { DeriveRegistry } from '../use-seam-derive.js'
 import type { ReactNode } from 'react'
 
 vi.mock('@canmi/seam-query', async () => {
-	const actual = await vi.importActual<typeof import('@canmi/seam-query')>('@canmi/seam-query')
+	const actual = await vi.importActual('@canmi/seam-query')
 	return { ...actual, getHydratedDerived: vi.fn(() => null) }
 })
 

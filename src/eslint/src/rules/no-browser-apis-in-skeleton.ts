@@ -54,6 +54,25 @@ const rule: Rule.RuleModule = {
 
 				context.report({ node, messageId: 'forbidden', data: { name: node.name } })
 			},
+
+			MemberExpression(node) {
+				// globalThis.document, globalThis.window, etc.
+				if (
+					node.object.type === 'Identifier' &&
+					node.object.name === 'globalThis' &&
+					!node.computed &&
+					node.property.type === 'Identifier' &&
+					BROWSER_GLOBALS.has(node.property.name)
+				) {
+					// typeof globalThis.window — allowed for guard checks
+					if (node.parent?.type === 'UnaryExpression' && node.parent.operator === 'typeof') return
+					context.report({
+						node,
+						messageId: 'forbidden',
+						data: { name: `globalThis.${node.property.name}` },
+					})
+				}
+			},
 		}
 	},
 }
