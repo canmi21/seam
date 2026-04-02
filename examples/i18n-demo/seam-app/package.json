@@ -13,18 +13,18 @@
     "@canmi/seam-react": "workspace:*",
     "@canmi/seam-server": "workspace:*",
     "@canmi/seam-tanstack-router": "workspace:*",
-    "@tanstack/react-router": "1",
-    "react": "19",
-    "react-dom": "19"
+    "@tanstack/react-router": "^1.168.10",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@canmi/seam": "workspace:*",
     "@canmi/seam-cli": "workspace:*",
     "@canmi/seam-vite": "workspace:*",
-    "@types/react": "19",
-    "@types/react-dom": "19",
-    "@vitejs/plugin-react": "6",
-    "typescript": "6",
-    "vite": "8"
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3"
   }
 }

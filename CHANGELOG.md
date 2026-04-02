@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Documented that agents must update `CHANGELOG.md` as part of the final commit for both long tasks and single-change commits.
+- Refreshed npm dependencies across the workspace, updated Playwright to 1.59.1, and normalized package version ranges to caret-based pins.
 
 ## [0.5.38] - 2026-03-28
 

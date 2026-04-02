@@ -17,8 +17,8 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "tsdown": "0.21",
-    "typescript": "6",
-    "vitest": "4"
+    "tsdown": "^0.21.7",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
   }
 }

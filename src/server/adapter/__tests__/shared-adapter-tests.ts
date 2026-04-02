@@ -31,7 +31,7 @@ type Expect = (value: unknown) => {
 	toBeDefined: () => void
 }
 
-export function sharedRpcTests(fetchFn: FetchFn, expect: Expect) {
+function createManifestTests(fetchFn: FetchFn, expect: Expect) {
 	return {
 		async manifest() {
 			const res = await fetchFn('/_seam/manifest.json')
@@ -39,7 +39,11 @@ export function sharedRpcTests(fetchFn: FetchFn, expect: Expect) {
 			const body = await res.json()
 			expect(body.procedures.greet).toBeDefined()
 		},
+	}
+}
 
+function createProcedureTests(fetchFn: FetchFn, expect: Expect) {
+	return {
 		async rpcValid() {
 			const res = await fetchFn('/_seam/procedure/greet', {
 				method: 'POST',
@@ -97,7 +101,11 @@ export function sharedRpcTests(fetchFn: FetchFn, expect: Expect) {
 			const body = await res.json()
 			expect(body).toEqual({ ok: true, data: { success: true } })
 		},
+	}
+}
 
+function createSubscriptionTests(fetchFn: FetchFn, expect: Expect) {
+	return {
 		async subscriptionEvents() {
 			const res = await fetchFn('/_seam/procedure/onCount?input=%7B%22max%22%3A2%7D')
 			expect(res.status).toBe(200)
@@ -114,7 +122,11 @@ export function sharedRpcTests(fetchFn: FetchFn, expect: Expect) {
 			const events = parseSSE(await res.text())
 			expect(events.some((e) => e.event === 'error' && e.data?.includes('not found'))).toBe(true)
 		},
+	}
+}
 
+function createStreamTests(fetchFn: FetchFn, expect: Expect) {
+	return {
 		async streamIncrementingIds() {
 			const res = await fetchFn('/_seam/procedure/countdown', {
 				method: 'POST',
@@ -143,7 +155,11 @@ export function sharedRpcTests(fetchFn: FetchFn, expect: Expect) {
 				true,
 			)
 		},
+	}
+}
 
+function createUploadTests(fetchFn: FetchFn, expect: Expect) {
+	return {
 		async uploadMultipart() {
 			const form = new FormData()
 			form.append('metadata', JSON.stringify({ title: 'Doc' }))
@@ -167,5 +183,15 @@ export function sharedRpcTests(fetchFn: FetchFn, expect: Expect) {
 			const body = await res.json()
 			expect(body.error.code).toBe('VALIDATION_ERROR')
 		},
+	}
+}
+
+export function sharedRpcTests(fetchFn: FetchFn, expect: Expect) {
+	return {
+		...createManifestTests(fetchFn, expect),
+		...createProcedureTests(fetchFn, expect),
+		...createSubscriptionTests(fetchFn, expect),
+		...createStreamTests(fetchFn, expect),
+		...createUploadTests(fetchFn, expect),
 	}
 }

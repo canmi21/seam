@@ -16,22 +16,22 @@
     "@canmi/seam-server": "workspace:*",
     "@canmi/seam-tanstack-router": "workspace:*",
     "@github-dashboard/shared": "workspace:*",
-    "@tanstack/react-router": "1",
-    "hono": "4",
-    "react": "19",
-    "react-dom": "19"
+    "@tanstack/react-router": "^1.168.10",
+    "hono": "^4.12.10",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@canmi/seam": "workspace:*",
     "@canmi/seam-cli": "workspace:*",
     "@canmi/seam-vite": "workspace:*",
-    "@tailwindcss/postcss": "4",
-    "@types/react": "19",
-    "@types/react-dom": "19",
-    "@vitejs/plugin-react": "6",
-    "postcss": "8",
-    "tailwindcss": "4",
-    "typescript": "6",
-    "vite": "8"
+    "@tailwindcss/postcss": "^4.2.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "postcss": "^8.4.31",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3"
   }
 }

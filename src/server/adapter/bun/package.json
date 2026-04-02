@@ -18,10 +18,10 @@
   },
   "devDependencies": {
     "@canmi/seam-server": "workspace:*",
-    "@types/bun": "1",
-    "bun-types": "1",
-    "tsdown": "0.21",
-    "typescript": "6"
+    "@types/bun": "^1.3.11",
+    "bun-types": "^1.3.11",
+    "tsdown": "^0.21.7",
+    "typescript": "^6.0.2"
   },
   "peerDependencies": {
     "@canmi/seam-server": "workspace:*"

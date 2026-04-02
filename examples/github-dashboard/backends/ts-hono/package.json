@@ -6,12 +6,12 @@
   "dependencies": {
     "@canmi/seam-adapter-hono": "workspace:*",
     "@canmi/seam-server": "workspace:*",
-    "hono": "4"
+    "hono": "^4.12.10"
   },
   "devDependencies": {
     "@canmi/seam": "workspace:*",
     "@canmi/seam-cli": "workspace:*",
-    "@types/bun": "1",
-    "typescript": "6"
+    "@types/bun": "^1.3.11",
+    "typescript": "^6.0.2"
   }
 }
