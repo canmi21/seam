@@ -45,6 +45,8 @@ SeamJS is a full-stack web framework with a monorepo containing Rust crates, Typ
 - **Language**: code, comments, commits, and docs in English
 - **Commit format**: conventional commits (`feat:`, `fix:`, `refactor:`, etc.); no AI co-authorship lines
 - **Pre-commit**: run `just fmt && just lint` before every commit; for TS changes also `just test-ts`, for Rust changes `just test-rs`
+- **Changelog discipline**: if a task is large or spans many edits, update `CHANGELOG.md` as one of the final steps before the last commit for that task; if a user requests one specific change and you expect to make a single commit, update `CHANGELOG.md` in that same commit
+- **Changelog timing**: do not leave changelog updates for a later follow-up; finish the code or docs work first, then update `CHANGELOG.md`, then commit the final state together
 - **Naming**: kebab-case for files/dirs/npm packages; snake_case for Rust code
 - **No hard-coded values**: anything a user might configure must accept overrides with sensible defaults
 - **Comments**: explain why, not what; never state the obvious
