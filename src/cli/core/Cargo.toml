@@ -77,7 +77,7 @@ version = "1"
 features = ["full"]
 
 [dependencies.tower-http]
-version = "0.6"
+version = "0.7"
 features = ["fs"]
 
 [dev-dependencies]
