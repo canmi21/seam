@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@canmi/seam-client": "workspace:*",
-    "esbuild": "^0.27.3"
+    "esbuild": "^0.28.1"
   },
   "devDependencies": {
     "@canmi/seam-engine": "workspace:*",
