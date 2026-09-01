@@ -1,1 +1,6 @@
 * text=auto eol=lf
+
+# The v1 tree is kept to be read, not maintained. Left counted, GitHub would describe this
+# repository as the version being replaced. `vendored` rather than `generated`, because nothing
+# produced it: it is authored code that no longer speaks for the project.
+refs/** linguist-vendored=true
