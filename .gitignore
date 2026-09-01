@@ -4,6 +4,9 @@ target/
 # The TypeScript half.
 node_modules/
 
+# Where the conformance run writes Svelte's compiled output to import it.
+.build/
+
 # Never commit one, even by accident.
 .env
 

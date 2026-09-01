@@ -2,19 +2,27 @@
 # comes from one directory up: the formatters, the toolchain, the commit hooks. It declares no
 # tools of its own because it needs none the workspace does not already carry.
 #
-# The layout is crates/ for Rust and pkgs/ for TypeScript. pnpm-workspace.yaml already claims
-# pkgs/, because pnpm is content with a workspace that has no packages yet. There is no
-# Cargo.toml beside it, because cargo is not: a members glob matching nothing is a hard error,
-# so the Rust workspace arrives with the first crate.
+# The layout is crates/ for Rust and pkgs/ for TypeScript. There is no Cargo.toml yet, because
+# cargo rejects a members glob that matches nothing; the Rust workspace arrives with the first
+# crate.
 #
-# refs/ is in neither, and is deliberately not verified. It is the previous version, kept to be
-# read; holding a frozen tree to the current toolchain would be a gate nobody should ever have
-# to satisfy.
-#
-# check, lint and test arrive with the code they would run against. Until then verify says what
-# it did rather than passing silently, because a green check that checked nothing is worse than
-# a loud empty one.
+# Every task names pkgs/ rather than the repository root, which is what keeps refs/ out. That
+# tree is the previous version, kept to be read: holding a frozen codebase to the current
+# toolchain would be a gate nobody should ever have to satisfy, and oxlint had plenty to say
+# about it.
+
+[tasks.check]
+description = "Type-check every package"
+run = "pnpm exec tsc"
+
+[tasks.lint]
+description = "Lint the packages"
+run = "oxlint pkgs"
+
+[tasks.test]
+description = "Diff the injector against Svelte's own server output"
+run = "node pkgs/injector/conformance/run.ts"
 
 [tasks.verify]
 description = "Everything a change has to pass"
-run = "echo 'seam: crates/ and pkgs/ are empty, nothing to verify'"
+depends = ["check", "lint", "test"]
