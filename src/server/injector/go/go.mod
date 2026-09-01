@@ -1,7 +1,0 @@
-module github.com/canmi21/seam/src/server/injector/go
-
-go 1.25.0
-
-require github.com/tetratelabs/wazero v1.11.0
-
-require golang.org/x/sys v0.42.0 // indirect

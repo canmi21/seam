@@ -3,18 +3,10 @@ resolver = "3"
 members = [
 	"src/server/core/rust",
 	"src/server/core/rust-macros",
-	"src/server/adapter/axum",
 	"src/server/injector/rust",
-	"src/server/injector/wasm",
 	"src/server/engine/rust",
-	"src/server/engine/wasm",
 	"src/cli/skeleton",
 	"src/cli/codegen",
-	"src/cli/core",
-	"examples/standalone/server-rust",
-	"examples/github-dashboard/backends/rust-axum",
-	"examples/i18n-demo/backend",
-	"examples/markdown-demo/server-rust",
 ]
 
 [profile.release]
