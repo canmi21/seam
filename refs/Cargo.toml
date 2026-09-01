@@ -1,3 +1,6 @@
+# The v1 tree, kept to be read. It still resolves as a cargo workspace so an editor can
+# jump through it; nothing here is built or published. See the observation branch for
+# what was removed. A future workspace at the repository root must exclude this one.
 [workspace]
 resolver = "3"
 members = [
@@ -8,12 +11,6 @@ members = [
 	"src/cli/skeleton",
 	"src/cli/codegen",
 ]
-
-[profile.release]
-strip = true
-lto = true
-codegen-units = 1
-panic = "abort"
 
 [workspace.lints.clippy]
 too_many_lines = "warn"

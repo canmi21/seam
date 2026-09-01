@@ -1,40 +1,8 @@
-.DS_Store
-node_modules/
+# Cargo build output, wherever a crate sits.
 target/
-dist/
-.turbo/
-.seam/
-.plans/
-*.swp
-.claude
-.worktrees/
-generated/
+
+# Never commit one, even by accident.
 .env
 
-# Playwright
-tests/e2e/test-results/
-tests/e2e/playwright-report/
-
-# Demo
-examples/standalone/server-go/server-go
-examples/standalone/server-go-gin/server-go-gin
-examples/standalone/server-go-chi/server-go-chi
-examples/github-dashboard/backends/go-gin/go-gin
-examples/github-dashboard/backends/go-gin/server
-examples/github-dashboard/backends/go-gin/server-go
-examples/markdown-demo/server-go/server-go
-
-# CLI platform binaries (regenerate via build-cli.sh)
-src/cli/wrapper/*/bin/
-
-# WASM build artifacts (regenerate via build-wasm.sh)
-src/server/*/js/pkg/
-src/server/*/go/*.wasm
-
-# yalc (local package linking)
-.yalc/
-yalc.lock
-
-# Next.js
-.next/
-next-env.d.ts
+# OS
+.DS_Store
