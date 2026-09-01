@@ -1,6 +1,9 @@
 # Cargo build output, wherever a crate sits.
 target/
 
+# The TypeScript half.
+node_modules/
+
 # Never commit one, even by accident.
 .env
 

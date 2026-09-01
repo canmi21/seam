@@ -1,0 +1,5 @@
+# The TypeScript half of the monorepo. The Rust half is crates/, declared in a Cargo.toml that
+# arrives with the first crate: cargo refuses a members glob that matches nothing, while pnpm
+# is content with an empty workspace.
+packages:
+  - "pkgs/*"

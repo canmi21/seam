@@ -2,13 +2,19 @@
 # comes from one directory up: the formatters, the toolchain, the commit hooks. It declares no
 # tools of its own because it needs none the workspace does not already carry.
 #
-# The v2 tree has no code yet, so there is nothing to type-check, lint or test. The tasks arrive
-# with it, and until then verify says what it did rather than passing silently -- a green check
-# that checked nothing is worse than a loud empty one.
+# The layout is crates/ for Rust and pkgs/ for TypeScript. pnpm-workspace.yaml already claims
+# pkgs/, because pnpm is content with a workspace that has no packages yet. There is no
+# Cargo.toml beside it, because cargo is not: a members glob matching nothing is a hard error,
+# so the Rust workspace arrives with the first crate.
 #
-# refs/ is deliberately not verified. It is the previous version, kept to be read; holding a
-# frozen tree to the current toolchain would be a gate nobody should ever have to satisfy.
+# refs/ is in neither, and is deliberately not verified. It is the previous version, kept to be
+# read; holding a frozen tree to the current toolchain would be a gate nobody should ever have
+# to satisfy.
+#
+# check, lint and test arrive with the code they would run against. Until then verify says what
+# it did rather than passing silently, because a green check that checked nothing is worse than
+# a loud empty one.
 
 [tasks.verify]
 description = "Everything a change has to pass"
-run = "echo 'seam: no v2 code yet, nothing to verify'"
+run = "echo 'seam: crates/ and pkgs/ are empty, nothing to verify'"
