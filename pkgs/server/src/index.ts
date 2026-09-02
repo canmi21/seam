@@ -4,6 +4,7 @@ import {
 	type ServerResponse,
 } from 'node:http';
 import { inject, type ComponentIR } from 'injector';
+import { normalized, rawPaths } from 'normalize';
 import { wrap } from './document.ts';
 import { serveStatic } from './static.ts';
 
@@ -18,6 +19,14 @@ export interface Options {
 	shell: string;
 	routes: Record<string, Route>;
 	staticRoot: string;
+	/**
+	 * Put what `{@html}` writes through a parser before either the bytes or the wire see it.
+	 *
+	 * On by default, and there is one thing it buys: written as it arrived, a raw value does not
+	 * stay where it was put, and an unclosed tag takes the anchor that ends the block with it.
+	 * It is not sanitisation. See spec/refusals.md.
+	 */
+	normalize?: boolean;
 }
 
 async function handle(
@@ -29,11 +38,19 @@ async function handle(
 
 	const route = options.routes[pathname];
 	if (route !== undefined) {
+		// The paths are the IR's, so what is handed over is the shape the IR resolves against
+		// rather than the load stage's output, and what comes back is unwrapped again.
+		const clean =
+			options.normalize === false
+				? route.data
+				: (normalized({ data: route.data }, rawPaths(route.ir))['data'] as Record<string, unknown>);
+
 		// Two things, one level apart. The scope injection walks holds the data and the derived
-		// fields beside it; the wire carries the data alone.
-		const scope = route.derive(route.data);
+		// fields beside it; the wire carries the data alone. Both come from the same object, which
+		// is what makes the bytes and the payload agree about a raw value.
+		const scope = route.derive(clean);
 		const { body, head } = inject(route.ir, scope);
-		const html = wrap(options.shell, body, route.data, head);
+		const html = wrap(options.shell, body, clean, head);
 		response.writeHead(200, {
 			'content-type': 'text/html; charset=utf-8',
 			'content-length': Buffer.byteLength(html),

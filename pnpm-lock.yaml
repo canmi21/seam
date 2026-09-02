@@ -52,6 +52,15 @@ importers:
         specifier: ^5.57.0
         version: 5.57.0
 
+  pkgs/normalize:
+    dependencies:
+      injector:
+        specifier: workspace:*
+        version: link:../injector
+      parse5:
+        specifier: ^8.0.0
+        version: 8.0.1
+
   pkgs/server:
     dependencies:
       derive:
@@ -63,6 +72,9 @@ importers:
       injector:
         specifier: workspace:*
         version: link:../injector
+      normalize:
+        specifier: workspace:*
+        version: link:../normalize
     devDependencies:
       svelte:
         specifier: ^5.57.0
@@ -402,6 +414,10 @@ packages:
   devalue@5.9.2:
     resolution: {integrity: sha512-po4PAY5c53tw5XMocSnf8A/5OHhbbUftpr93aEN6BBoAdntUmK7vu7wOATqvt7cXO7m1Cl4gMVn6p7n6n4mj0w==}
 
+  entities@8.0.0:
+    resolution: {integrity: sha512-zwfzJecQ/Uej6tusMqwAqU/6KL2XaB2VZ2Jg54Je6ahNBGNH6Ek6g3jjNCF0fG9EWQKGZNddNjU5F1ZQn/sBnA==}
+    engines: {node: '>=20.19.0'}
+
   esbuild@0.27.7:
     resolution: {integrity: sha512-IxpibTjyVnmrIQo5aqNpCgoACA/dTKLTlhMHihVHhdkxKyPO1uBBthumT0rdHmcsk9uMonIWS0m4FljWzILh3w==}
     engines: {node: '>=18'}
@@ -426,6 +442,9 @@ packages:
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
+
+  parse5@8.0.1:
+    resolution: {integrity: sha512-z1e/HMG90obSGeidlli3hj7cbocou0/wa5HacvI3ASx34PecNjNQeaHNo5WIZpWofN9kgkqV1q5YvXe3F0FoPw==}
 
   svelte@5.57.0:
     resolution: {integrity: sha512-NdbDn7fl4be1ViUG0oq/lvG6OZy3oENolV2ONjiqqsfVoeAfzaQAKUcEX3MrQod/Bebv1PgwET9rfXhgn9s4Kg==}
@@ -621,6 +640,8 @@ snapshots:
 
   devalue@5.9.2: {}
 
+  entities@8.0.0: {}
+
   esbuild@0.27.7:
     optionalDependencies:
       '@esbuild/aix-ppc64': 0.27.7
@@ -665,6 +686,10 @@ snapshots:
   magic-string@0.30.21:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  parse5@8.0.1:
+    dependencies:
+      entities: 8.0.0
 
   svelte@5.57.0:
     dependencies:

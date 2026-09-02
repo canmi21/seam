@@ -96,6 +96,58 @@ The only place sanitizing means anything is where the value is produced, which i
 and [derivation.md](derivation.md) puts that outside the protocol on purpose. That is not the
 protocol declining a job it could do. It is the only place the job can be done.
 
+## But the fragment is made to stay where it was put
+
+Not escaping it is one thing. Letting it rearrange the page around it is another, and that one is
+fixed. **A raw value goes through a parser before either the bytes or the wire see it**, and what
+comes out is what a browser would have made of it.
+
+Measured, with the value written into the element that holds it:
+
+```
+"<b>unclosed"        <div><!----><b>unclosed<!----><span>after</span></b></div>
+"</div><em>escaped"  <div><!----></div><em>escaped<!----><span>after</span></em>
+```
+
+The closing anchor is no longer a sibling of the opening one, in the first because the unclosed
+tag swallowed it and in the second because the container ended early and took the rest of the page
+along. Svelte's client finds the end of a raw block by walking siblings, so both throw
+`hydration_mismatch` and the block is rebuilt from scratch. Confirmed in a browser: with the stage
+off, the `<span>` that should hold the fragment contains nothing but the opening anchor.
+
+**It is applied to the payload, not to the bytes, and that is the only place it works.** The
+server writes the bytes and serialises the payload, and the client re-renders a raw block from the
+payload when the value changes. Transforming one and not the other is how the first frame comes to
+disagree with every frame after it; transforming the payload transforms both, because both are
+read from it.
+
+Which values is not a second list: the IR already says `escape: false` on exactly those slots. A
+raw slot on a *derivation* is not among them, and that is the same rule rather than a gap in it --
+a derived value is computed per request and never serialised, so the client recomputes it and
+would disagree with anything done here.
+
+It cannot make the two backends disagree, which was the first objection and is a false one. The
+server that writes the bytes is the server that serialises the payload, so a Rust implementation
+and a TypeScript one never meet. They have to be internally consistent within one response, not
+byte-identical with each other, which is what separates this from devalue.
+
+### It removes two things and no more
+
+**Comments**, which are not elements, so they render nothing and no selector reaches them. And the
+newline after `<pre>`, which needs no code at all because the parser drops it, as the
+specification says to.
+
+Nothing else, and the reason is a measurement. Collapsing the whitespace between elements is where
+every byte anybody would want to save lives, and whether that whitespace is a rendered space is
+decided by CSS the markup cannot see. Two `<span>`s with the same whitespace between them render
+`x y` under `display: inline` and `x` above `y` under `display: block`, so no rule over tag names
+can decide it, and the fragment's CSS comes from the page it lands in rather than from itself.
+**The provably safe removals and the ones worth doing are disjoint sets**, which is why there is
+no minifying stage and no configuration for one.
+
+The whole thing is one switch, on by default, because a page whose injected content rearranges it
+is broken and the cost of preventing that was a parse.
+
 The one place the decision is visible to a backend is `escape: false` on a `slot`, which means
 write these bytes as they are. See [ir.md](ir.md).
 

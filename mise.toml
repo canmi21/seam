@@ -33,6 +33,7 @@ run = "cargo test --workspace"
 description = "Check both seams with Svelte: the AST we read and the HTML we emit"
 run = [
 	"node pkgs/ast/conformance/run.ts",
+	"node pkgs/normalize/conformance/run.ts",
 	"node pkgs/injector/conformance/run.ts",
 ]
 
