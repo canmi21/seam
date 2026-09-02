@@ -61,7 +61,16 @@ refused and the name is reported:**
 
 This is one pass over the expression's ESTree, collecting `Identifier` nodes and subtracting the
 locally bound ones. The AST is already in hand: the compiler reads the expression's source span
-off a node it has already parsed, so nothing new is parsed and no dependency is added.
+off a node it has already parsed, so nothing new is parsed and no dependency is added. It is
+`pkgs/ast/src/bindings.ts`, and `bundle` refuses before it reads anything out of the markup.
+
+**An expression the client owns is not this pass's business.** An event handler, a `use:`, a
+`transition:` or an `animate:` reads whatever the component's own scope holds and writes no bytes,
+so `onclick={() => n += 1}` is left alone where `{n}` would be refused. That is the same line the
+compiler already draws elsewhere and it was measured rather than assumed.
+
+What it does not do yet is walk into a function it was asked to carry, which is why an imported
+name is still reported here rather than followed.
 
 ## Carrying is declared, never inferred
 
@@ -201,10 +210,13 @@ budget, and that is a deployment choice rather than a rule here.
 
 ## Open
 
-- **Analysing a function body.** Carrying an imported function is decided; walking into its body
-  is what has to be built, and it is one more use of the pass that resolves bindings, which is
-  itself written down here and not yet written. Until it exists a call is refused, which is a
-  missing implementation rather than a missing answer.
+- **Analysing a function body.** Carrying an imported function is decided, and the pass that
+  resolves bindings now exists; walking into a body is one more use of it. Until that is built a
+  call is refused by name, which is a missing implementation rather than a missing answer.
+
+  Carrying a module constant waits on the same walk, so the table above describes where a name is
+  allowed to come from and the compiler currently allows two of the five: a prop and an each
+  binding.
 
   It is the largest thing standing between the compiler and components people have already
   published. The way a modern Svelte library writes a conditional class is `class={cn(...)}` or
