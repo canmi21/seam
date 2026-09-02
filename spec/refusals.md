@@ -126,6 +126,16 @@ raw slot on a *derivation* is not among them, and that is the same rule rather t
 a derived value is computed per request and never serialised, so the client recomputes it and
 would disagree with anything done here.
 
+**A raw slot inside an each is reached per item, not per path.** The IR's path is read in the
+scope the slot was written in, so `{@html r.html}` inside `{#each data.rows as r}` says `r.html`
+and names nothing at the payload's root. Reading it there returns nothing, which is
+indistinguishable from a value the payload does not carry, so those values went through this stage
+untouched and unreported until it was measured. The stage now carries the enclosing each blocks
+with the path and expands them, and a path whose first name no scope binds is an error rather than
+a skip -- it means the compiler and this walk disagree about scope, which is a fault and not a
+condition. An each over a derivation is excluded for the reason above, which is the same rule
+rather than a second one.
+
 It cannot make the two backends disagree, which was the first objection and is a false one. The
 server that writes the bytes is the server that serialises the payload, so a Rust implementation
 and a TypeScript one never meet. They have to be internally consistent within one response, not
