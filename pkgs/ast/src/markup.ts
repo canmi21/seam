@@ -16,12 +16,21 @@ export type MarkupNode =
 			body: MarkupNode[];
 			fallback: MarkupNode[] | null;
 	  }
+	| { k: 'component'; name: string; props: MarkupAttr[]; body: MarkupNode[] }
 	| { k: 'unsupported'; type: string; src: string };
 
 export type MarkupAttr =
 	| { k: 'attr'; name: string; value: true | MarkupNode[] }
 	| { k: 'unsupported'; type: string; src: string };
 
-export interface Markup {
+/** One component file. `imports` is every import it declares, unfiltered. */
+export interface Module {
 	markup: MarkupNode[];
+	imports: Record<string, string>;
+}
+
+/** An entry and everything reachable from it, keyed by an id derived from the file path. */
+export interface Bundle {
+	entry: string;
+	components: Record<string, Module>;
 }

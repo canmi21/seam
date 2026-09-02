@@ -2,7 +2,7 @@
 // injected here and rendered by Svelte's own server codegen, and the two are compared byte for
 // byte. A Svelte release that changes an anchor or an escaping rule lands here.
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile } from 'svelte/compiler';
 import { render } from 'svelte/server';
@@ -14,12 +14,33 @@ const cases = resolve(here, '../../../conformance/cases');
 const staging = resolve(here, '.build');
 
 // Svelte's compiled output imports 'svelte/internal/server', which only resolves from inside
-// this package, so the module has to be written here rather than to a temporary directory.
-async function svelteRenderer(source: string, id: string): Promise<(data: unknown) => string> {
+// this package, so the modules have to be written here rather than to a temporary directory.
+// A case may import other components, so the whole tree is compiled and its specifiers rewritten
+// to point at what was just written.
+function compileTree(file: string, seen: Map<string, string>): string {
+	const existing = seen.get(file);
+	if (existing !== undefined) return existing;
+
+	const source = readFileSync(file, 'utf8');
+	const name = basename(file, '.svelte');
+	let code = compile(source, { generate: 'server', name, filename: file }).js.code;
+
+	for (const match of source.matchAll(/from\s+'([^']+\.svelte)'/g)) {
+		const specifier = match[1];
+		if (specifier === undefined) continue;
+		const target = compileTree(resolve(dirname(file), specifier), seen);
+		code = code.replaceAll(`'${specifier}'`, JSON.stringify(pathToFileURL(target).href));
+	}
+
 	mkdirSync(staging, { recursive: true });
-	const file = resolve(staging, `${id}-${Date.now()}.js`);
-	writeFileSync(file, compile(source, { generate: 'server', name: 'Case' }).js.code);
-	const mod = await import(pathToFileURL(file).href);
+	const out = resolve(staging, `${name}-${seen.size}-${Date.now()}.js`);
+	writeFileSync(out, code);
+	seen.set(file, out);
+	return out;
+}
+
+async function svelteRenderer(file: string): Promise<(data: unknown) => string> {
+	const mod = await import(pathToFileURL(compileTree(file, new Map())).href);
 	return (data) => render(mod.default, { props: data as Record<string, unknown> }).body;
 }
 
@@ -35,7 +56,7 @@ for (const file of readdirSync(cases)
 		label: string;
 		data: Record<string, unknown>;
 	}[];
-	const svelte = await svelteRenderer(readFileSync(resolve(cases, file), 'utf8'), name);
+	const svelte = await svelteRenderer(resolve(cases, file));
 
 	for (const payload of payloads) {
 		total += 1;

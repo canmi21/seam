@@ -5,21 +5,32 @@
 //! Svelte's own server output. Together they say that a component compiled here renders the
 //! bytes Svelte would have rendered, without any of Svelte running at request time.
 
-use seam_lowering::{lower, markup::Markup};
+use seam_lowering::{lower, markup::Bundle};
 
 fn read(relative: &str) -> String {
 	let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(relative);
 	std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()))
 }
 
-/// The specification carries the IR as its worked example, so it is the expectation rather than
-/// a copy of one. An example edited into something lowering does not produce fails here.
+/// The specification carries one of these IRs as its worked example, so it is the expectation
+/// rather than a copy of one.
 fn ir_from_spec() -> serde_json::Value {
 	let spec = read("spec/ir.md");
 	let start = spec.find("```json").expect("spec/ir.md has no json block") + "```json\n".len();
 	let rest = &spec[start..];
 	let end = rest.find("```").expect("unterminated json block");
 	serde_json::from_str(&rest[..end]).expect("the json block does not parse")
+}
+
+fn bundle_of(source: &str) -> Bundle {
+	serde_json::from_str(source).expect("a bundle")
+}
+
+/// One entry with no imports, for checking what lowering refuses.
+fn single(markup: &str) -> Bundle {
+	bundle_of(&format!(
+		r#"{{"entry":"c","components":{{"c":{{"markup":{markup},"imports":{{}}}}}}}}"#
+	))
 }
 
 /// Every case, not just the one the specification carries. Adding a case is adding two files.
@@ -33,17 +44,11 @@ fn lowering_reproduces_every_committed_ir() {
 			continue;
 		}
 		let name = path.file_stem().expect("stem").to_string_lossy().into_owned();
-		let component = {
-			let mut chars = name.chars();
-			let first = chars.next().expect("a name").to_uppercase().to_string();
-			format!("{first}{}", chars.as_str())
-		};
-		let markup: Markup =
+		let bundle: Bundle =
 			serde_json::from_str(&read(&format!("conformance/cases/{name}.markup.json")))
 				.unwrap_or_else(|e| panic!("{name} markup: {e}"));
 		let produced =
-			serde_json::to_value(lower(&component, &markup).unwrap_or_else(|e| panic!("{name}: {e}")))
-				.expect("json");
+			serde_json::to_value(lower(&bundle).unwrap_or_else(|e| panic!("{name}: {e}"))).expect("json");
 		let committed: serde_json::Value =
 			serde_json::from_str(&read(&format!("conformance/cases/{name}.ir.json")))
 				.unwrap_or_else(|e| panic!("{name} ir: {e}"));
@@ -53,8 +58,6 @@ fn lowering_reproduces_every_committed_ir() {
 	assert!(checked > 0, "no cases found");
 }
 
-/// The specification carries one of those IRs as its worked example, so it is the expectation
-/// rather than a copy of one. An example edited into something lowering does not produce fails.
 #[test]
 fn the_specification_carries_the_ir_lowering_produces() {
 	let committed: serde_json::Value =
@@ -64,19 +67,36 @@ fn the_specification_carries_the_ir_lowering_produces() {
 
 #[test]
 fn an_expression_that_is_not_a_path_is_refused() {
-	let markup: Markup = serde_json::from_str(
-		r#"{"markup":[{"k":"if","test":"price > 10","consequent":[],"alternate":null}]}"#,
-	)
-	.expect("markup");
-	let error = lower("C", &markup).expect_err("a comparison is not a data path");
+	let bundle = single(r#"[{"k":"if","test":"price > 10","consequent":[],"alternate":null}]"#);
+	let error = lower(&bundle).expect_err("a comparison is not a data path");
 	assert!(error.contains("not a data path"), "{error}");
 }
 
 #[test]
 fn a_node_lowering_does_not_know_is_refused_rather_than_dropped() {
-	let markup: Markup =
-		serde_json::from_str(r#"{"markup":[{"k":"unsupported","type":"Component","src":"<Foo />"}]}"#)
-			.expect("markup");
-	let error = lower("C", &markup).expect_err("a component is not handled yet");
-	assert!(error.contains("Component"), "{error}");
+	let bundle =
+		single(r#"[{"k":"unsupported","type":"SvelteComponent","src":"<svelte:component />"}]"#);
+	let error = lower(&bundle).expect_err("an escape hatch is not handled yet");
+	assert!(error.contains("SvelteComponent"), "{error}");
+}
+
+#[test]
+fn a_component_the_bundle_does_not_carry_is_named() {
+	let bundle = bundle_of(
+		r#"{"entry":"c","components":{"c":{"markup":[{"k":"component","name":"Gone","props":[],"body":[]}],"imports":{"Gone":"missing"}}}}"#,
+	);
+	let error = lower(&bundle).expect_err("the child is not in the bundle");
+	assert!(error.contains("missing"), "{error}");
+}
+
+#[test]
+fn a_cycle_is_an_error_rather_than_a_hang() {
+	let bundle = bundle_of(
+		r#"{"entry":"a","components":{
+			"a":{"markup":[{"k":"component","name":"B","props":[],"body":[]}],"imports":{"B":"b"}},
+			"b":{"markup":[{"k":"component","name":"A","props":[],"body":[]}],"imports":{"A":"a"}}
+		}}"#,
+	);
+	let error = lower(&bundle).expect_err("a and b import each other");
+	assert!(error.contains("cycle"), "{error}");
 }

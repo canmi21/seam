@@ -1,5 +1,5 @@
 {
-	"component": "Product",
+	"component": "product",
 	"nodes": [
 		{
 			"t": "static",

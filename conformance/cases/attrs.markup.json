@@ -1,79 +1,85 @@
 {
-	"markup": [
-		{
-			"k": "element",
-			"name": "div",
-			"attrs": [
+	"entry": "attrs",
+	"components": {
+		"attrs": {
+			"markup": [
 				{
-					"k": "attr",
-					"name": "data-x",
-					"value": [
+					"k": "element",
+					"name": "div",
+					"attrs": [
 						{
-							"k": "expr",
-							"src": "p.x"
-						}
-					]
-				},
-				{
-					"k": "attr",
-					"name": "class",
-					"value": [
-						{
-							"k": "text",
-							"v": "a "
+							"k": "attr",
+							"name": "data-x",
+							"value": [
+								{
+									"k": "expr",
+									"src": "p.x"
+								}
+							]
 						},
 						{
-							"k": "expr",
-							"src": "p.c"
+							"k": "attr",
+							"name": "class",
+							"value": [
+								{
+									"k": "text",
+									"v": "a "
+								},
+								{
+									"k": "expr",
+									"src": "p.c"
+								},
+								{
+									"k": "text",
+									"v": " b"
+								}
+							]
 						},
 						{
-							"k": "text",
-							"v": " b"
+							"k": "attr",
+							"name": "title",
+							"value": [
+								{
+									"k": "text",
+									"v": "static"
+								}
+							]
 						}
-					]
-				},
-				{
-					"k": "attr",
-					"name": "title",
-					"value": [
+					],
+					"body": [
 						{
-							"k": "text",
-							"v": "static"
+							"k": "element",
+							"name": "span",
+							"attrs": [],
+							"body": [
+								{
+									"k": "html",
+									"src": "p.h"
+								}
+							]
+						},
+						{
+							"k": "element",
+							"name": "input",
+							"attrs": [
+								{
+									"k": "attr",
+									"name": "disabled",
+									"value": true
+								}
+							],
+							"body": []
+						},
+						{
+							"k": "element",
+							"name": "br",
+							"attrs": [],
+							"body": []
 						}
 					]
 				}
 			],
-			"body": [
-				{
-					"k": "element",
-					"name": "span",
-					"attrs": [],
-					"body": [
-						{
-							"k": "html",
-							"src": "p.h"
-						}
-					]
-				},
-				{
-					"k": "element",
-					"name": "input",
-					"attrs": [
-						{
-							"k": "attr",
-							"name": "disabled",
-							"value": true
-						}
-					],
-					"body": []
-				},
-				{
-					"k": "element",
-					"name": "br",
-					"attrs": [],
-					"body": []
-				}
-			]
+			"imports": {}
 		}
-	]
+	}
 }

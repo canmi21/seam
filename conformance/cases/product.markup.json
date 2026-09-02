@@ -1,83 +1,89 @@
 {
-	"markup": [
-		{
-			"k": "element",
-			"name": "article",
-			"attrs": [
-				{
-					"k": "attr",
-					"name": "class",
-					"value": [
-						{
-							"k": "text",
-							"v": "card"
-						}
-					]
-				}
-			],
-			"body": [
+	"entry": "product",
+	"components": {
+		"product": {
+			"markup": [
 				{
 					"k": "element",
-					"name": "h1",
-					"attrs": [],
-					"body": [
+					"name": "article",
+					"attrs": [
 						{
-							"k": "expr",
-							"src": "p.name"
-						}
-					]
-				},
-				{
-					"k": "if",
-					"test": "p.available",
-					"consequent": [
-						{
-							"k": "element",
-							"name": "button",
-							"attrs": [
-								{
-									"k": "attr",
-									"name": "onclick",
-									"value": [
-										{
-											"k": "expr",
-											"src": "() => { n += 1; console.log('seam: adopted, click', n) }"
-										}
-									]
-								}
-							],
-							"body": [
+							"k": "attr",
+							"name": "class",
+							"value": [
 								{
 									"k": "text",
-									"v": "Buy"
+									"v": "card"
 								}
 							]
 						}
 					],
-					"alternate": null
-				},
-				{
-					"k": "each",
-					"source": "p.tags",
-					"item": "t",
-					"index": null,
-					"key": null,
 					"body": [
 						{
 							"k": "element",
-							"name": "span",
+							"name": "h1",
 							"attrs": [],
 							"body": [
 								{
 									"k": "expr",
-									"src": "t"
+									"src": "p.name"
 								}
 							]
+						},
+						{
+							"k": "if",
+							"test": "p.available",
+							"consequent": [
+								{
+									"k": "element",
+									"name": "button",
+									"attrs": [
+										{
+											"k": "attr",
+											"name": "onclick",
+											"value": [
+												{
+													"k": "expr",
+													"src": "() => { n += 1; console.log('seam: adopted, click', n) }"
+												}
+											]
+										}
+									],
+									"body": [
+										{
+											"k": "text",
+											"v": "Buy"
+										}
+									]
+								}
+							],
+							"alternate": null
+						},
+						{
+							"k": "each",
+							"source": "p.tags",
+							"item": "t",
+							"index": null,
+							"key": null,
+							"body": [
+								{
+									"k": "element",
+									"name": "span",
+									"attrs": [],
+									"body": [
+										{
+											"k": "expr",
+											"src": "t"
+										}
+									]
+								}
+							],
+							"fallback": null
 						}
-					],
-					"fallback": null
+					]
 				}
-			]
+			],
+			"imports": {}
 		}
-	]
+	}
 }

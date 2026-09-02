@@ -32,6 +32,11 @@ pub enum Node {
 		body: Vec<Node>,
 		fallback: Option<Vec<Node>>,
 	},
+	Component {
+		name: String,
+		props: Vec<Attr>,
+		body: Vec<Node>,
+	},
 	Unsupported {
 		#[serde(rename = "type")]
 		kind: String,
@@ -60,7 +65,16 @@ pub enum AttrValue {
 	Parts(Vec<Node>),
 }
 
+/// One component file, with its imports already resolved to bundle ids by whoever read them.
 #[derive(Debug, Deserialize)]
-pub struct Markup {
+pub struct Module {
 	pub markup: Vec<Node>,
+	pub imports: std::collections::BTreeMap<String, String>,
+}
+
+/// An entry and everything reachable from it.
+#[derive(Debug, Deserialize)]
+pub struct Bundle {
+	pub entry: String,
+	pub components: std::collections::BTreeMap<String, Module>,
 }

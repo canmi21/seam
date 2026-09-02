@@ -31,7 +31,7 @@ them the class of bug where the extractor and the injector disagree about what a
 Five, and the tree bottoms out in strings.
 
 ```json
-{ "component": "Product", "nodes": [
+{ "component": "product", "nodes": [
   { "t": "static", "s": "<!--[--><article class=\"card\"><h1>" },
   { "t": "slot",   "path": "p.name", "escape": "content" },
   { "t": "static", "s": "</h1>" },
@@ -125,6 +125,38 @@ Svelte on `<b>&x`, because the obvious implementation escapes `>` and Svelte doe
 one run to find, and would have cost considerably more as a hydration mismatch reported by
 somebody else.
 
+## Composition inlines, and needs no node
+
+A child is spliced into its parent at compile time, with its paths rewritten. `<Badge label={p.name} />`
+lowers the child's `{label}` into a slot on `p.name`; `<Badge tone="warm" />` lowers the child's
+`{tone}` into **static text**, because a prop passed literally has nothing left to resolve. The
+runtime has no notion of a component, and the injector did not change to gain one.
+
+That works only because every prop value is already a path or a literal, which is the same
+constraint the protocol places on everything else. A prop that mixes text and an expression is
+refused: it has no value to pass until something computes one.
+
+The unit is still the component. A bundle carries the entry and everything reachable from it,
+and lowering walks that graph -- so a cycle is an error rather than a hang, and a component the
+bundle does not carry is named rather than skipped.
+
+## What reproducing Svelte's output actually costs
+
+The anchors around blocks are structural and were cheap. The rest is not, and the difference is
+worth recording, because it is a cost that recurs with every Svelte release.
+
+- A component writes a trailing `<!---->` **unless** it is the last node of an if branch, an
+  each body, or a root fragment that contains nothing else.
+- The root fragment and an each body write a leading `<!---->` when they open with text, an
+  expression or raw HTML. An element body and an if branch do not.
+- Svelte trims trailing whitespace off a fragment during code generation, so the AST's text and
+  the emitted text differ.
+
+None of these are derivable from the protocol. Each was found by rendering a shape and reading
+what came out, and the last one is not an anchor rule at all but a second transform living in
+the same place. **The conformance corpus is what makes this survivable**: every rule above has a
+case, and a Svelte release that changes one lands on that case rather than on a user.
+
 ## The coupling this creates, and what pays for it
 
 Baking Svelte's anchors couples the compiler to Svelte's internal output format, which may change
@@ -199,6 +231,10 @@ Recorded rather than decided, because guessing now would be worse than deciding 
 - **Empty values.** `{p.name}` with an empty string produced `<h1></h1>` in Svelte's SSR, with no
   text node. Whether hydration requires one to exist is not yet known, and it decides whether a
   `slot` must always emit something.
+- **Whitespace.** Only the trailing-trim above is reproduced by omission, in that no case
+  exercises it. Svelte's full normalisation is not implemented and a component that relies on it
+  will differ.
+- **Snippets and children.** A component given a body is refused; `{@render}` is untouched.
 - **A linear form.** A flat opcode buffer walks faster and deserializes cheaper than a nested
   tree. The tree comes first because it can be written by hand, which the first milestone needs.
   Any linear form must be a lowering of it, not a replacement.

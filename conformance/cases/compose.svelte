@@ -1,0 +1,1 @@
+<script>import Badge from './parts/Badge.svelte'; let { p } = $props()</script><div class="card"><Badge label={p.name} tone="warm" /><Badge label="static" tone={p.tone} /><p>{p.note}</p>{#if p.flag}<Badge label={p.name} tone="cold" />{/if}{#each p.tags as t}<Badge label={t} tone="cold" />{/each}</div>

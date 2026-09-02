@@ -1,5 +1,5 @@
 import { parse } from 'svelte/compiler';
-import type { Markup, MarkupAttr, MarkupNode } from './markup.ts';
+import type { MarkupAttr, MarkupNode, Module } from './markup.ts';
 
 // Svelte's AST is typed against its own internal shapes, which change between releases and
 // which this package deliberately does not model. It reads a handful of fields off each node
@@ -82,6 +82,15 @@ function reduceNode(source: string, node: unknown): MarkupNode {
 						? null
 						: children(source, node['fallback']),
 			};
+		case 'Component': {
+			const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
+			return {
+				k: 'component',
+				name: typeof node['name'] === 'string' ? node['name'] : '',
+				props: attributes.map((attr) => reduceAttr(source, attr)),
+				body: children(source, node['fragment']),
+			};
+		}
 		default:
 			// Passed through rather than dropped, so a Svelte feature this does not know about
 			// reaches lowering as something to refuse rather than as silence.
@@ -89,7 +98,33 @@ function reduceNode(source: string, node: unknown): MarkupNode {
 	}
 }
 
-export function reduce(source: string): Markup {
+// Every import the component declares, unfiltered: which of them are components is decided by
+// whoever resolves them, not here.
+function imports(instance: unknown): Record<string, string> {
+	const found: Record<string, string> = {};
+	if (!isNode(instance)) return found;
+	const content = instance['content'];
+	if (!isNode(content)) return found;
+	const body = content['body'];
+	if (!Array.isArray(body)) return found;
+
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
+		const from = statement['source'];
+		if (!isNode(from) || typeof from['value'] !== 'string') continue;
+		const specifiers = Array.isArray(statement['specifiers']) ? statement['specifiers'] : [];
+		for (const specifier of specifiers) {
+			if (!isNode(specifier)) continue;
+			const local = specifier['local'];
+			if (isNode(local) && typeof local['name'] === 'string') {
+				found[local['name']] = from['value'];
+			}
+		}
+	}
+	return found;
+}
+
+export function reduce(source: string): Module {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
-	return { markup: children(source, ast['fragment']) };
+	return { markup: children(source, ast['fragment']), imports: imports(ast['instance']) };
 }

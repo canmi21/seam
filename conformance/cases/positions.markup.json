@@ -1,0 +1,108 @@
+{
+	"entry": "positions",
+	"components": {
+		"positions": {
+			"markup": [
+				{
+					"k": "element",
+					"name": "div",
+					"attrs": [],
+					"body": [
+						{
+							"k": "component",
+							"name": "Badge",
+							"props": [
+								{
+									"k": "attr",
+									"name": "label",
+									"value": [
+										{
+											"k": "expr",
+											"src": "p.a"
+										}
+									]
+								},
+								{
+									"k": "attr",
+									"name": "tone",
+									"value": [
+										{
+											"k": "text",
+											"v": "x"
+										}
+									]
+								}
+							],
+							"body": []
+						}
+					]
+				},
+				{
+					"k": "text",
+					"v": "head"
+				},
+				{
+					"k": "component",
+					"name": "Badge",
+					"props": [
+						{
+							"k": "attr",
+							"name": "label",
+							"value": [
+								{
+									"k": "expr",
+									"src": "p.b"
+								}
+							]
+						},
+						{
+							"k": "attr",
+							"name": "tone",
+							"value": [
+								{
+									"k": "text",
+									"v": "y"
+								}
+							]
+						}
+					],
+					"body": []
+				}
+			],
+			"imports": {
+				"Badge": "parts/Badge"
+			}
+		},
+		"parts/Badge": {
+			"markup": [
+				{
+					"k": "element",
+					"name": "span",
+					"attrs": [
+						{
+							"k": "attr",
+							"name": "class",
+							"value": [
+								{
+									"k": "text",
+									"v": "badge "
+								},
+								{
+									"k": "expr",
+									"src": "tone"
+								}
+							]
+						}
+					],
+					"body": [
+						{
+							"k": "expr",
+							"src": "label"
+						}
+					]
+				}
+			],
+			"imports": {}
+		}
+	}
+}

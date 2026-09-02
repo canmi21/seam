@@ -1,0 +1,27 @@
+{
+	"component": "positions",
+	"nodes": [
+		{
+			"t": "static",
+			"s": "<!--[--><div><span class=\"badge x\">"
+		},
+		{
+			"t": "slot",
+			"path": "p.a",
+			"escape": "content"
+		},
+		{
+			"t": "static",
+			"s": "</span><!----></div>head<span class=\"badge y\">"
+		},
+		{
+			"t": "slot",
+			"path": "p.b",
+			"escape": "content"
+		},
+		{
+			"t": "static",
+			"s": "</span><!----><!--]-->"
+		}
+	]
+}

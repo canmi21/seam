@@ -4,7 +4,7 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { reduce } from '../src/reduce.ts';
+import { bundle } from '../src/bundle.ts';
 
 const cases = resolve(dirname(fileURLToPath(import.meta.url)), '../../../conformance/cases');
 let failed = 0;
@@ -13,7 +13,7 @@ for (const file of readdirSync(cases)
 	.filter((f) => f.endsWith('.svelte'))
 	.sort()) {
 	const name = file.slice(0, -'.svelte'.length);
-	const actual = `${JSON.stringify(reduce(readFileSync(resolve(cases, file), 'utf8')), null, '\t')}\n`;
+	const actual = `${JSON.stringify(bundle(resolve(cases, file)), null, '\t')}\n`;
 	const expected = readFileSync(resolve(cases, `${name}.markup.json`), 'utf8');
 	if (actual === expected) {
 		console.log(`match  ${name} reduces to its fixture`);
