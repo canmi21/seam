@@ -131,7 +131,9 @@ rather than a Svelte one -- two lines, and a backend still does not learn that S
 
 It was found by measuring rather than by reading, and the corpus missed it because the case that
 covers attributes writes `disabled` as a static attribute. A static attribute cannot stand in for
-a dynamic one, here or anywhere else: it takes a different path through the compiler.
+a dynamic one, here or anywhere else: it takes a different path through the compiler. The general
+form of both halves -- where a sentinel can stand, and why a static example measures the wrong
+program -- is in [pipeline.md](pipeline.md).
 
 ## Escaping is Svelte's, and is not what you would guess
 

@@ -48,6 +48,55 @@ is set by the number of blocks rather than by the size of any value space.
 The sentinel returns as a *marker of a known hole*, not as a probe. It must survive both escaping
 modes untouched, so it may contain none of `&`, `<`, `>` or `"`.
 
+## Where a sentinel can stand, and where it cannot
+
+A sentinel marks a hole. That works wherever the value it replaces **appears in the output**, and
+it cannot work anywhere the value instead **decides what output there is**. The two are worth
+naming, because which one a construct is decides whether it can be compiled by reading a render at
+all.
+
+| | the value | a sentinel |
+| --- | --- | --- |
+| **A substitution position** | is written into the bytes | stands there, and the render says everything |
+| **A decision position** | chooses which bytes exist | has nowhere to stand |
+
+`{data.name}` and `title={data.x}` are substitutions. `disabled={data.d}` is a decision: its
+output is `disabled=""` or nothing, and there is no place in either for a marker to sit. Put one
+there and it is swallowed, which the hole check reports rather than letting through. See
+[ir.md](ir.md), where the rule that had to be reproduced because of this is written out.
+
+**Decision positions already have a mechanism, and it is the one the blocks use.** An `if` is a
+decision over two outcomes, and the compiler handles it by rendering each outcome and keeping
+both. Nothing about that is specific to blocks. So a decision position is compilable exactly when
+**its outcomes can be enumerated at compile time**:
+
+| | outcomes | |
+| --- | --- | --- |
+| a boolean attribute, `class:`, `style:` | two | enumerable |
+| `<select value={x}>` marking one `<option>` | one per option, all in the source | enumerable |
+| `{...spread}` | whatever keys the data has | **not** enumerable |
+| `<svelte:element this={x}>` | any tag name | **not** enumerable |
+
+An unenumerable decision cannot be compiled into structure, and needs the runtime to make it. That
+is a real cost, since every backend then carries it, and a small one: writing attributes from an
+object, or a tag name from a string, is concatenation and a list of void elements. It is an HTML
+fact rather than a Svelte one, which is the same ground on which the boolean rule was let in.
+
+## Static in the corpus does not cover dynamic
+
+The boolean attribute rule was missing for as long as it was because the case covering attributes
+writes `disabled` as a static attribute, and every payload agreed with Svelte. It had to: nothing
+in that case ever reached the code that decides presence.
+
+**Svelte compiles a statically known value down a different path from an expression**, folding it
+into the template rather than calling the helper the expression would have gone through. So a
+static example is not a smaller version of a dynamic one, it is a different program, and a corpus
+made of static examples measures a compiler nobody will run.
+
+Every construct in the corpus should appear at least once with a value that is not statically
+known. That is the check that would have caught this, and it is cheaper than the next thing it
+catches.
+
 ## Deriving is what makes branch forcing possible
 
 To get the bytes of a branch, the compiler has to make Svelte take it. It cannot do that by
