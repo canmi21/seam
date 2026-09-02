@@ -69,18 +69,38 @@ One thing is not looked at closely enough to be listed either way. **Context** -
 need a compile-time walk of the component graph that has never been attempted here. It may turn
 out to be ordinary. It has not been shown to be.
 
-## What is not refused, and is not ours either
+## Raw HTML is not escaped at all, and cannot usefully be
 
-`{@html}` writes bytes without escaping them, which is what it is for. **Nothing in this protocol
-checks what those bytes are**, and that is the same position every comparable framework takes:
-React makes the author write `dangerouslySetInnerHTML` and sanitizes nothing, and Svelte's own
-documentation says it performs no sanitization and asks the author to escape the string or to
-populate it only with values under their control.
+Three things happen to `{@html data.x}` and none of them is escaping.
 
-It is worth stating rather than assuming, because the distance here is one hop longer. The value
-reaches `{@html}` out of the payload, and where the payload came from is the load stage, which
-[derivation.md](derivation.md) puts outside the protocol on purpose. So the chain from the author
-to the bytes runs through a stage nothing here governs, and it is still the author's.
+**At compile time the name is checked and the value is not.** Binding resolution says `data.x`
+resolves to something the data carries. It says nothing about what is in it.
+
+**At request time the bytes go out untouched.** `escape: false` is not a lighter escape than the
+other two, it is none: the value is turned into a string and written.
+
+**Whether that is safe is the author's.** That much is where React and Svelte both stand -- one
+encodes the warning in the name of the prop, the other says in its documentation that it
+sanitizes nothing -- but agreeing with them is the weakest reason available, and there is a
+stronger one.
+
+**Sanitizing on the server would not make the page safe.** Svelte's client does not re-render
+`{@html}` while hydrating; it walks from the opening anchor to the closing one and adopts
+whatever is there, saying so in a comment: *we're deliberately not trying to repair mismatches
+between server and client*. So a sanitized server rendering survives exactly until the value
+changes, at which point the client assigns the raw value to `innerHTML` and replaces it.
+Sanitizing here would buy no safety and would make the first frame disagree with every one after
+it.
+
+The only place sanitizing means anything is where the value is produced, which is the load stage,
+and [derivation.md](derivation.md) puts that outside the protocol on purpose. That is not the
+protocol declining a job it could do. It is the only place the job can be done.
 
 The one place the decision is visible to a backend is `escape: false` on a `slot`, which means
 write these bytes as they are. See [ir.md](ir.md).
+
+**A development build is a separate output and is not produced.** Compiled with `dev`, Svelte
+writes a hash of the value into the opening anchor so its client can warn when the two sides
+disagree. A hash of the value is a decision position, so the compiler cannot write one, and what
+it produces is the production form: an empty anchor, which the client's check returns from on its
+first line. See [pipeline.md](pipeline.md) for what a sentinel can and cannot stand in for.

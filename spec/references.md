@@ -113,10 +113,11 @@ devalue for the wire is what ruled it out, which is why the two decisions are no
 ## What is left to the author
 
 **React's `dangerouslySetInnerHTML`, and Svelte's `{@html}`.** Both write bytes without escaping
-them and neither sanitizes; React encodes the warning in the name, and Svelte's documentation
-states plainly that it performs no sanitization and asks the author to escape the string or to
-populate it only with values under their control. The position taken here is theirs, stated rather
-than assumed because the value arrives through a stage this protocol declines to govern. See
+them and neither sanitizes. React encodes the warning in the name, and Svelte's documentation
+states plainly that it performs no sanitization. The same position is taken here, though not on
+their authority: Svelte's client adopts whatever the server wrote for a raw block and replaces it
+with the unsanitized value on the first update, so sanitizing on the server would buy nothing.
+Agreeing with them turned out to be the weakest of the reasons available. See
 [refusals.md](refusals.md).
 
 ## The starting point
