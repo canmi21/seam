@@ -24,7 +24,7 @@
 			{
 				"t": "attr",
 				"name": "content",
-				"boolean": false,
+				"presence": "value",
 				"parts": [
 					{
 						"t": "slot",

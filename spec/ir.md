@@ -108,11 +108,20 @@ The rule is narrower than it looks, and was measured rather than assumed:
 So an `attr` node omits itself only when it has exactly one part, that part is a slot, and the
 value resolves to null or undefined. Everything else is written.
 
-**Except where the attribute is present or absent rather than named and valued.** `disabled`,
-`checked`, `selected` and the rest of HTML's boolean attributes are written as `name=""` when the
-value is truthy or an empty string, and omitted otherwise, so `disabled={false}` produces nothing
-while `data-x={false}` produces `data-x="false"`. `hidden` joins them for every value but
-`until-found`, which is decided by the value rather than the name.
+**Except where the name decides otherwise, which it does in two ways.** An `attr` node carries a
+`presence`:
+
+| | |
+| --- | --- |
+| `value` | written unless the value is null or undefined |
+| `boolean` | present or absent: `name=""` when the value is truthy or an empty string, nothing otherwise |
+| `nonempty` | written unless the value comes out empty |
+
+So `disabled={false}` produces nothing while `data-x={false}` produces `data-x="false"`, and
+`class={""}` produces nothing while `title={""}` produces `title=""`. `hidden` is boolean for
+every value but `until-found`, which the value decides rather than the name. All three are facts
+about HTML rather than about Svelte, which is what makes carrying them into the runtime
+affordable.
 
 **This is the one rule the render cannot show, and the reason is worth recording.** Rewriting an
 expression to a sentinel makes it a string literal, and Svelte folds a literal attribute into the
@@ -126,8 +135,8 @@ disabled={"%%s0%%"}    <input disabled="%%s0%%"/>           folded, the semantic
 The bytes collected are correct for the rewritten program and wrong for the written one. No other
 rewrite helps: a boolean attribute's output is `name=""` or nothing, and **a sentinel can stand
 where a value is substituted but not where presence is decided.** So the `attr` node carries a
-`boolean` field and the runtime carries the rule, which is affordable because it is an HTML fact
-rather than a Svelte one -- two lines, and a backend still does not learn that Svelte exists.
+`presence` field and the runtime carries the rule, and a backend still does not learn that Svelte
+exists.
 
 It was found by measuring rather than by reading, and the corpus missed it because the case that
 covers attributes writes `disabled` as a static attribute. A static attribute cannot stand in for

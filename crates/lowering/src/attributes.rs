@@ -49,11 +49,22 @@ const BOOLEAN: &[&str] = &[
 	"disableremoteplayback",
 ];
 
-/// Whether an attribute of this name is present or absent rather than named and valued.
+/// How an attribute's value decides whether the attribute is written.
 ///
-/// `hidden` is in here although Svelte's list does not carry it: its helper promotes `hidden` at
-/// runtime for every value but `until-found`, and the runtime keeps that exception, so what is
-/// recorded is that the name is a candidate rather than that it is always boolean.
-pub fn boolean(name: &str) -> bool {
-	name == "hidden" || BOOLEAN.contains(&name)
+/// Three answers, and the name picks which one. All three are facts about HTML rather than about
+/// Svelte, which is what makes carrying them into the runtime affordable.
+pub fn presence(name: &str) -> crate::ir::Presence {
+	// `hidden` is not on Svelte's boolean list, but its helper promotes it at runtime for every
+	// value but `until-found`. So the name marks it a candidate and the runtime keeps the
+	// exception, which is decided by the value.
+	if name == "hidden" || BOOLEAN.contains(&name) {
+		return crate::ir::Presence::Boolean;
+	}
+	// `class` and `style` go through helpers that return nothing at all for an empty result, so
+	// an element whose computed class comes out empty carries no class attribute. Every other
+	// name writes `name=""`.
+	if name == "class" || name == "style" {
+		return crate::ir::Presence::NonEmpty;
+	}
+	crate::ir::Presence::Value
 }

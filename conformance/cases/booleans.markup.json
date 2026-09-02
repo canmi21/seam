@@ -83,6 +83,33 @@
 						}
 					],
 					"body": []
+				},
+				{
+					"k": "element",
+					"name": "div",
+					"attrs": [
+						{
+							"k": "attr",
+							"name": "class",
+							"value": [
+								{
+									"k": "expr",
+									"src": "data.k"
+								}
+							]
+						},
+						{
+							"k": "attr",
+							"name": "style",
+							"value": [
+								{
+									"k": "expr",
+									"src": "data.s"
+								}
+							]
+						}
+					],
+					"body": []
 				}
 			],
 			"imports": {}

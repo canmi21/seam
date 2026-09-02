@@ -9,7 +9,7 @@
 			{
 				"t": "attr",
 				"name": "data-x",
-				"boolean": false,
+				"presence": "value",
 				"parts": [
 					{
 						"t": "slot",
@@ -21,7 +21,7 @@
 			{
 				"t": "attr",
 				"name": "class",
-				"boolean": false,
+				"presence": "nonempty",
 				"parts": [
 					{
 						"t": "static",

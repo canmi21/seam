@@ -216,7 +216,7 @@ fn attribute(
 	}
 	builder.push(ir::Node::Attr {
 		name: name.to_owned(),
-		boolean: crate::attributes::boolean(name),
+		presence: crate::attributes::presence(name),
 		parts: nodes,
 	});
 	Ok(())

@@ -1,12 +1,18 @@
 [
-	{ "label": "all true", "data": { "d": true, "r": true, "c": true, "h": true } },
-	{ "label": "all false", "data": { "d": false, "r": false, "c": false, "h": false } },
+	{
+		"label": "all true",
+		"data": { "d": true, "r": true, "c": true, "h": true, "k": "a b", "s": "color: red" }
+	},
+	{
+		"label": "all false",
+		"data": { "d": false, "r": false, "c": false, "h": false, "k": "", "s": "" }
+	},
 	{
 		"label": "empty string is present, until-found is a value",
-		"data": { "d": "", "r": null, "c": 0, "h": "until-found" }
+		"data": { "d": "", "r": null, "c": 0, "h": "until-found", "k": null, "s": null }
 	},
 	{
 		"label": "a string is present without its text",
-		"data": { "d": "yes", "r": 1, "c": "", "h": "x" }
+		"data": { "d": "yes", "r": 1, "c": "", "h": "x", "k": "z", "s": "top:0" }
 	}
 ]

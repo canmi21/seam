@@ -44,9 +44,21 @@ pub enum Node {
 	/// show it. See `crates/lowering/src/attributes.rs`.
 	Attr {
 		name: String,
-		boolean: bool,
+		presence: Presence,
 		parts: Vec<Node>,
 	},
+}
+
+/// How an attribute's value decides whether the attribute appears.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Presence {
+	/// Written unless the value is null or undefined.
+	Value,
+	/// Present or absent: `name=""` when the value is truthy or empty, nothing otherwise.
+	Boolean,
+	/// Written unless the value comes out empty, which is how `class` and `style` behave.
+	NonEmpty,
 }
 
 #[derive(Debug, Serialize)]

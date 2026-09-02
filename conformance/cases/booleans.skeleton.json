@@ -1,5 +1,5 @@
 {
-	"html": "<!--[--><input disabled=\"%%s0%%\" readonly=\"%%s1%%\"/><input type=\"checkbox\" checked=\"%%s2%%\"/><div hidden=\"%%s3%%\" data-x=\"%%s4%%\"></div><!--]-->",
+	"html": "<!--[--><input disabled=\"%%s0%%\" readonly=\"%%s1%%\"/><input type=\"checkbox\" checked=\"%%s2%%\"/><div hidden=\"%%s3%%\" data-x=\"%%s4%%\"></div><div class=\"%%s5%%\" style=\"%%s6%%\"></div><!--]-->",
 	"head": "",
 	"alternates": {},
 	"holes": [
@@ -26,6 +26,16 @@
 		{
 			"index": 4,
 			"expression": "data.d",
+			"raw": false
+		},
+		{
+			"index": 5,
+			"expression": "data.k",
+			"raw": false
+		},
+		{
+			"index": 6,
+			"expression": "data.s",
 			"raw": false
 		}
 	],

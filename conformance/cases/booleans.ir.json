@@ -9,7 +9,7 @@
 			{
 				"t": "attr",
 				"name": "disabled",
-				"boolean": true,
+				"presence": "boolean",
 				"parts": [
 					{
 						"t": "slot",
@@ -21,7 +21,7 @@
 			{
 				"t": "attr",
 				"name": "readonly",
-				"boolean": true,
+				"presence": "boolean",
 				"parts": [
 					{
 						"t": "slot",
@@ -37,7 +37,7 @@
 			{
 				"t": "attr",
 				"name": "checked",
-				"boolean": true,
+				"presence": "boolean",
 				"parts": [
 					{
 						"t": "slot",
@@ -53,7 +53,7 @@
 			{
 				"t": "attr",
 				"name": "hidden",
-				"boolean": true,
+				"presence": "boolean",
 				"parts": [
 					{
 						"t": "slot",
@@ -65,11 +65,39 @@
 			{
 				"t": "attr",
 				"name": "data-x",
-				"boolean": false,
+				"presence": "value",
 				"parts": [
 					{
 						"t": "slot",
 						"path": "data.d",
+						"escape": "attr"
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "></div><div"
+			},
+			{
+				"t": "attr",
+				"name": "class",
+				"presence": "nonempty",
+				"parts": [
+					{
+						"t": "slot",
+						"path": "data.k",
+						"escape": "attr"
+					}
+				]
+			},
+			{
+				"t": "attr",
+				"name": "style",
+				"presence": "nonempty",
+				"parts": [
+					{
+						"t": "slot",
+						"path": "data.s",
 						"escape": "attr"
 					}
 				]

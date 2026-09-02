@@ -2,7 +2,7 @@ import { escape } from './escape.ts';
 import type { ComponentIR, Node } from './ir.ts';
 import { resolve, type Scope } from './resolve.ts';
 
-export type { Branch, ComponentIR, EscapeMode, Node } from './ir.ts';
+export type { Branch, ComponentIR, EscapeMode, Node, Presence } from './ir.ts';
 export { resolve, type Scope } from './resolve.ts';
 
 function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
@@ -32,16 +32,21 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 				const value = single ? resolve(scopes, only.path) : walk(node.parts, scopes);
 				if (value === undefined || value === null) break;
 
-				// `hidden` is boolean for every value but this one, which is Svelte's exception
-				// and stays here because it is decided by the value rather than by the name.
-				const bare = node.boolean && !(node.name === 'hidden' && value === 'until-found');
+				// `hidden` is boolean for every value but this one, which is Svelte's exception and
+				// stays here because it is decided by the value rather than by the name.
+				const bare =
+					node.presence === 'boolean' && !(node.name === 'hidden' && value === 'until-found');
 				if (bare) {
 					// An empty string is a present boolean attribute, as it is in markup.
 					if (!value && value !== '') break;
 					out += ` ${node.name}=""`;
 					break;
 				}
-				out += ` ${node.name}="${single ? escape(value, 'attr') : String(value)}"`;
+				const text = single ? escape(value, 'attr') : String(value);
+				// `class` and `style` come out of helpers that write nothing for an empty result,
+				// so an element whose computed class is empty carries no class attribute at all.
+				if (node.presence === 'nonempty' && text === '') break;
+				out += ` ${node.name}="${text}"`;
 				break;
 			}
 			case 'each': {

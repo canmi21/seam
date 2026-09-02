@@ -1,5 +1,14 @@
 export type EscapeMode = 'content' | 'attr';
 
+/**
+ * How an attribute's value decides whether the attribute appears.
+ *
+ * - `value`: written unless the value is null or undefined.
+ * - `boolean`: present or absent, `name=""` or nothing. HTML's boolean attributes.
+ * - `nonempty`: written unless the value comes out empty, which is how `class` and `style` behave.
+ */
+export type Presence = 'value' | 'boolean' | 'nonempty';
+
 export interface Branch {
 	/** A data path, or null for the else. Never an expression: see spec/ir.md. */
 	test: string | null;
@@ -15,11 +24,11 @@ export type Node =
 			t: 'attr';
 			name: string;
 			/**
-			 * The attribute is present or absent rather than named and valued. Carried because
-			 * the render cannot show it: a sentinel stands where a value is substituted, and a
-			 * boolean attribute substitutes nothing. See spec/ir.md.
+			 * How the value decides whether the attribute appears at all. Carried because the
+			 * render cannot show it: a sentinel stands where a value is substituted, and none of
+			 * these three substitute anything. See spec/ir.md.
 			 */
-			boolean: boolean;
+			presence: Presence;
 			parts: Node[];
 	  };
 

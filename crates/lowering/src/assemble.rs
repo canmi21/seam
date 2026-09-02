@@ -359,7 +359,7 @@ impl Assembler<'_> {
 		parts.write(&html[at..until]);
 		Ok(ir::Node::Attr {
 			name: name.to_owned(),
-			boolean: crate::attributes::boolean(name),
+			presence: crate::attributes::presence(name),
 			parts: parts.finish(),
 		})
 	}
