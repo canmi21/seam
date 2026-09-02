@@ -9,7 +9,13 @@ function embed(payload: unknown): string {
 	return `<script type="application/json" data-seam-payload>${json}</script>`;
 }
 
+// The payload goes before </body> rather than into %seam.body%, because that placeholder is
+// the hydration target and Svelte walks its children expecting only its own output. A script
+// element sitting among them is one node too many.
 export function wrap(shell: string, fragment: string, payload: unknown, head = ''): string {
 	if (!shell.includes(BODY)) throw new Error(`app.html has no ${BODY}`);
-	return shell.replace(HEAD, head).replace(BODY, fragment + embed(payload));
+	return shell
+		.replace(HEAD, head)
+		.replace(BODY, fragment)
+		.replace('</body>', `${embed(payload)}</body>`);
 }

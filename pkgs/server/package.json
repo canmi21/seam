@@ -4,5 +4,8 @@
 	"type": "module",
 	"dependencies": {
 		"injector": "workspace:*"
+	},
+	"devDependencies": {
+		"svelte": "^5.57.0"
 	}
 }

@@ -3,3 +3,10 @@
 # is content with an empty workspace.
 packages:
   - "pkgs/*"
+
+# A package listed here may run arbitrary code during install. pnpm blocks that by default and
+# the default is right -- an install script runs before anybody reads a line of the code.
+# esbuild is allowed because it cannot work otherwise: the install step fetches and unpacks a
+# platform-specific binary. Nothing goes in this list to silence a warning.
+allowBuilds:
+  esbuild: true

@@ -155,6 +155,11 @@ output ends.
 | Types, the payload contract | The schema. The IR references paths and does not describe them. |
 | The element tree | Nowhere. Nothing needs it. |
 
+Client behaviour is the measured case. A component with `$state` and an `onclick` handler
+compiles to **the same SSR bytes** as one without, so it cannot belong in an artifact the server
+reads. Adding the handler to the conformance component changed none of the five expected
+outputs, which is the proof rather than the claim.
+
 The draft in the article bundled these into one `ComponentIR` struct. They are grouped by having
 come from one compilation, not by having one consumer, and there are four consumers between them.
 The server should have to understand one artifact, and this is that artifact.
