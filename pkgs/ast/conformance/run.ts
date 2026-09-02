@@ -37,6 +37,16 @@ const refusals: [string, string, string][] = [
 		'helpers',
 	],
 	['a clock', '<script>let { data } = $props()</script><b>{Date.now()}</b>', 'Date'],
+	[
+		'a rest element, which is neither a member nor an index',
+		'<script>let { data } = $props(); const { a, ...rest } = data.t</script><b>{rest}</b>',
+		'rest',
+	],
+	[
+		'a default inside a pattern',
+		'<script>let { data } = $props(); const { a = 1 } = data.t</script><b>{a}</b>',
+		'a',
+	],
 	['randomness', '<script>let { data } = $props()</script><b>{Math.random()}</b>', 'Math.random'],
 ];
 
@@ -78,6 +88,21 @@ const substitutions: [string, string, string][] = [
 		'a chain of them',
 		'<script>let { data } = $props(); const a = data.x * 2; const b = a + 1</script><b>{b}</b>',
 		'((data.x * 2) + 1)',
+	],
+	[
+		'a function declaration',
+		'<script>let { data } = $props(); function f(v) { return v }</script><b>{f(data.x)}</b>',
+		'(function f(v) { return v })(data.x)',
+	],
+	[
+		'an object destructuring, renamed',
+		'<script>let { data } = $props(); const { a: b } = data.t</script><b>{b}</b>',
+		'((data.t).a)',
+	],
+	[
+		'an array destructuring',
+		'<script>let { data } = $props(); const [x] = data.t</script><b>{x}</b>',
+		'((data.t)[0])',
 	],
 ];
 for (const [label, source, expected] of substitutions) {

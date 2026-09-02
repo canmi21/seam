@@ -222,7 +222,7 @@ function rewrite(source: string, taken: (block: number) => boolean): Rewritten {
 	// and crash inside Svelte's own renderer. It has already been substituted into every
 	// expression that used it, which leaves it dead here, so the render is handed a literal in
 	// its place rather than the expression it stood for.
-	for (const [from, to] of declared.reading) edits.push([from, to, 'null']);
+	for (const [[from, to], empty] of declared.reading) edits.push([from, to, empty]);
 
 	collect(source, ast['fragment'], holes, edits, blocks, taken, 'body', declared.rewrite);
 

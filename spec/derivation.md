@@ -88,6 +88,8 @@ require a shape the author declares.
 | --- | --- |
 | either `<script>`, not reading props | substituted into the expression, where it is a constant |
 | either `<script>`, reading props | substituted into the expression, where it is **a derivation** |
+| a function or a class | substituted as the expression form of itself |
+| a name taken out of a destructuring | substituted as the initialiser with the way in after it |
 | imported, with its source reachable | bundled with the expression that calls it |
 
 **A declaration is substituted, not evaluated**, and the two rows are one mechanism rather than
@@ -111,8 +113,21 @@ literal, and required an `export` to make the author's intent explicit. Substitu
 neither: there is no boundary being crossed, the declaration sitting in the same file as the
 markup that reads it, and asking for a keyword to permit that would be ceremony over nothing.
 
-A render is given no data, so a declaration reading a prop is handed `null` in the source the
-compiler renders. It has already been substituted into every expression that used it, which
+A function or a class is substituted as the expression form of itself, so `fmt(x)` becomes
+`(function fmt(v) {...})(x)`. One that calls itself still reaches itself, a named function
+expression carrying its own name, which is worth saying because a function is the one shape here
+that can. Declaring either evaluates nothing, so neither is neutralised for the render.
+
+A destructuring is the same substitution with the way in written after it: `a` out of
+`const { a, b: c } = data.t` expands to `((data.t).a)` and `c` to `((data.t).b)`, and `x` out of
+`const [x] = data.t` to `((data.t)[0])`. A default and a rest are neither a member nor an index
+and are left out, which reports the name rather than guessing at it.
+
+A render is given no data, so a declaration reading a prop is handed something harmless in the
+source the compiler renders -- `null`, or `{}` and `[]` where it was destructured, since a
+destructuring needs something it can be taken apart from. One place in the source is written over
+once however many names it declares, which a first attempt got wrong and took the file apart
+with. It has already been substituted into every expression that used it, which
 leaves it dead there. That is what a component doing this used to crash on, inside Svelte's own
 renderer, with a `TypeError` naming nothing an author could act on.
 
@@ -235,9 +250,10 @@ budget, and that is a deployment choice rather than a rule here.
 
 ## Open
 
-- **A declaration that is not a plain `const` or `let`.** A function declared in a script, a
-  class, and a destructuring other than `$props()` are all still unresolved names. Each is the
-  same substitution with a different shape to read off, and none waits on a decision.
+- **A default or a rest inside a destructuring.** `const { a = 1 } = t` and
+  `const { a, ...rest } = t` both leave a name that is not a member of anything, and a default
+  fires only on `undefined` where `??` would also catch `null`, so writing one as the other would
+  be wrong rather than partial. Both are reported by name.
 
   It is the largest thing standing between the compiler and components people have already
   published. The way a modern Svelte library writes a conditional class is `class={cn(...)}` or

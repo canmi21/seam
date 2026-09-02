@@ -236,6 +236,11 @@ export interface Declared {
 	at: [number, number];
 	/** Whether it reads a prop, which decides whether a render with no data can hold it. */
 	reads: boolean;
+	/** What follows the initialiser to reach this name: `.a` out of an object, `[0]` out of an
+	 * array, and nothing at all when the declaration named it directly. */
+	access: string;
+	/** What a render is handed in its place, which has to be destructurable when it was. */
+	holds: 'value' | 'callable' | 'object' | 'array';
 }
 
 /**
@@ -245,8 +250,53 @@ export interface Declared {
  * enforced: a module script has no props to read, so what it declares is constant, and an
  * instance script may read them, so what it declares is a derivation. Neither is evaluated here.
  */
+/** How a destructured name is reached from the value it was taken out of. */
+function paths(pattern: Node): [string, string][] {
+	const found: [string, string][] = [];
+	if (pattern['type'] === 'ObjectPattern') {
+		for (const property of Array.isArray(pattern['properties']) ? pattern['properties'] : []) {
+			if (!isNode(property) || property['type'] !== 'Property') continue;
+			const key = property['key'];
+			const value = property['value'];
+			if (!isNode(key) || !isNode(value) || value['type'] !== 'Identifier') continue;
+			const from = property['computed'] === true ? undefined : key['name'];
+			if (typeof from !== 'string' || typeof value['name'] !== 'string') continue;
+			found.push([value['name'], `.${from}`]);
+		}
+		return found;
+	}
+	if (pattern['type'] === 'ArrayPattern') {
+		const elements = Array.isArray(pattern['elements']) ? pattern['elements'] : [];
+		for (const [at, element] of elements.entries()) {
+			if (!isNode(element) || element['type'] !== 'Identifier') continue;
+			if (typeof element['name'] !== 'string') continue;
+			found.push([element['name'], `[${at}]`]);
+		}
+	}
+	return found;
+}
+
 function declared(ast: Node, source: string, names: ReadonlySet<string>): Map<string, Declared> {
 	const found = new Map<string, Declared>();
+
+	const record = (name: string, node: Node, extra: Partial<Declared>): void => {
+		const { start, end } = node;
+		if (typeof start !== 'number' || typeof end !== 'number') return;
+		const reading = new Set<string>();
+		free(node, new Set(), reading);
+		found.set(name, {
+			name,
+			source: source.slice(start, end),
+			at: [start, end],
+			node,
+			free: reading,
+			reads: [...reading].some((one) => names.has(one)),
+			access: '',
+			holds: 'value',
+			...extra,
+		} as Declared & { node: Node; free: Set<string> });
+	};
+
 	for (const block of [ast['module'], ast['instance']]) {
 		if (!isNode(block)) continue;
 		const content = block['content'];
@@ -258,33 +308,46 @@ function declared(ast: Node, source: string, names: ReadonlySet<string>): Map<st
 			if (!isNode(statement)) continue;
 			const declaration =
 				statement['type'] === 'ExportNamedDeclaration' ? statement['declaration'] : statement;
-			if (!isNode(declaration) || declaration['type'] !== 'VariableDeclaration') continue;
-			for (const one of Array.isArray(declaration['declarations'])
+			if (!isNode(declaration)) continue;
+			const kind = declaration['type'];
+
+			// A function or a class becomes the expression form of itself, which is what makes
+			// `fmt(x)` legal: the name expands to `(function fmt(...) {...})`, and one that calls
+			// itself still reaches itself, a named function expression carrying its own name.
+			// Declaring either evaluates nothing, so neither is neutralised for the render.
+			if (kind === 'FunctionDeclaration' || kind === 'ClassDeclaration') {
+				const id = declaration['id'];
+				if (isNode(id) && typeof id['name'] === 'string') {
+					record(id['name'], declaration, { holds: 'callable', reads: false });
+				}
+				continue;
+			}
+
+			if (kind !== 'VariableDeclaration') continue;
+			const declarations = Array.isArray(declaration['declarations'])
 				? declaration['declarations']
-				: []) {
+				: [];
+			for (const one of declarations) {
 				if (!isNode(one)) continue;
 				const id = one['id'];
 				const init = one['init'];
-				if (!isNode(id) || id['type'] !== 'Identifier' || typeof id['name'] !== 'string') continue;
-				if (!isNode(init)) continue;
+				if (!isNode(id) || !isNode(init)) continue;
 				// `$props()` is the destructuring itself, and a rune holds client state rather
 				// than a value the markup can be given.
 				if (init['type'] === 'CallExpression') {
 					const callee = init['callee'];
 					if (isNode(callee) && String(callee['name']).startsWith('$')) continue;
 				}
-				const { start, end } = init;
-				if (typeof start !== 'number' || typeof end !== 'number') continue;
-				const reading = new Set<string>();
-				free(init, new Set(), reading);
-				found.set(id['name'], {
-					name: id['name'],
-					source: source.slice(start, end),
-					at: [start, end],
-					node: init,
-					free: reading,
-					reads: [...reading].some((one) => names.has(one)),
-				} as Declared & { node: Node; free: Set<string> });
+				if (id['type'] === 'Identifier' && typeof id['name'] === 'string') {
+					record(id['name'], init, {});
+					continue;
+				}
+				// A destructuring is the same substitution with the way in written after it, so
+				// `a` out of `{ a }` expands to `(init).a`. A default or a rest is neither a
+				// member nor an index, and is left out, which reports the name rather than
+				// guessing at it.
+				const holds = id['type'] === 'ArrayPattern' ? 'array' : 'object';
+				for (const [name, access] of paths(id)) record(name, init, { access, holds });
 			}
 		}
 	}
@@ -316,16 +379,28 @@ function declared(ast: Node, source: string, names: ReadonlySet<string>): Map<st
  * and the second is a derivation for exactly the reason any other expression is. Nothing is run
  * at build time and nothing has to be serialisable. See spec/derivation.md.
  */
+/** Where to write, and what to write there, so a render given no data does not evaluate it. */
+export type Neutral = [[number, number], string];
+
+const EMPTY: Record<Declared['holds'], string> = {
+	value: 'null',
+	callable: 'null',
+	object: '{}',
+	array: '[]',
+};
+
 export interface Locals {
 	/** Whether the scripts declare this name. */
 	has: (name: string) => boolean;
 	/** An expression's source with every declared name replaced by what it was declared to be. */
 	rewrite: (node: unknown) => string;
 	/**
-	 * Where a declaration that reads a prop sits. A render is given no data, so holding one is
-	 * how a component used to crash inside Svelte's own renderer rather than being refused.
+	 * Where a declaration that reads a prop sits, and what to put there instead. A render is
+	 * given no data, so holding one is how a component used to crash inside Svelte's own renderer
+	 * rather than being refused. A destructuring needs something it can be taken apart from,
+	 * which `null` is not.
 	 */
-	reading: [number, number][];
+	reading: Neutral[];
 }
 
 export function locals(source: string): Locals {
@@ -367,7 +442,10 @@ export function locals(source: string): Locals {
 		// A name cannot stand in for itself. A cycle among declarations is the author's, and
 		// leaving the name in place lets the pass that resolves names report it.
 		const inner = new Set(open).add(name);
-		const text = slice(one.node, inner);
+		const body = slice(one.node, inner);
+		// Parenthesised because what follows it is a member access, and because a function or a
+		// class only reads as an expression that way.
+		const text = one.access === '' ? body : `(${body})${one.access}`;
 		if (open.size === 0) expanded.set(name, text);
 		return text;
 	}
@@ -375,7 +453,15 @@ export function locals(source: string): Locals {
 	return {
 		has: (name) => found.has(name),
 		rewrite: (node) => slice(node, new Set()),
-		reading: [...found.values()].filter((one) => one.reads).map((one) => one.at),
+		// By span rather than by name: one destructuring declares several names and is one place
+		// in the source, and writing over it twice would take the file apart.
+		reading: [
+			...new Map(
+				[...found.values()]
+					.filter((one) => one.reads)
+					.map((one): [string, Neutral] => [one.at.join(':'), [one.at, EMPTY[one.holds]]]),
+			).values(),
+		],
 	};
 }
 
