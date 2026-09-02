@@ -65,11 +65,20 @@ function reduceNode(source: string, node: unknown): MarkupNode {
 				alternate: node['alternate'] === null ? null : children(source, node['alternate']),
 			};
 		case 'EachBlock':
+			// index, key and fallback are carried even though the protocol has no use for them
+			// yet. Reading only the fields that happen to be supported is how `{:else}` on an
+			// each block would disappear between here and lowering instead of being refused.
 			return {
 				k: 'each',
 				source: span(source, node['expression']),
 				item: node['context'] === undefined ? null : span(source, node['context']),
+				index: typeof node['index'] === 'string' ? node['index'] : null,
+				key: node['key'] === null || node['key'] === undefined ? null : span(source, node['key']),
 				body: children(source, node['body']),
+				fallback:
+					node['fallback'] === null || node['fallback'] === undefined
+						? null
+						: children(source, node['fallback']),
 			};
 		default:
 			// Passed through rather than dropped, so a Svelte feature this does not know about

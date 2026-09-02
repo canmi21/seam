@@ -6,7 +6,15 @@ export type MarkupNode =
 	// consequent/alternate rather than then/else: an object carrying a `then` is thenable, so
 	// awaiting one anywhere would call it. The names are Svelte's own for the same fields.
 	| { k: 'if'; test: string; consequent: MarkupNode[]; alternate: MarkupNode[] | null }
-	| { k: 'each'; source: string; item: string | null; body: MarkupNode[] }
+	| {
+			k: 'each';
+			source: string;
+			item: string | null;
+			index: string | null;
+			key: string | null;
+			body: MarkupNode[];
+			fallback: MarkupNode[] | null;
+	  }
 	| { k: 'unsupported'; type: string; src: string };
 
 export type MarkupAttr =
