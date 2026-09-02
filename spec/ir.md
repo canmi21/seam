@@ -67,7 +67,8 @@ uses none of the three leaves `head` and `title` empty.
 - Bodies are node arrays, so the shape recurses.
 
 `{@html}` needs no node of its own. It is a `slot` with `escape: false` between two static
-`<!---->` chunks, which is the anchor pair Svelte writes around raw HTML.
+`<!---->` chunks, which is the anchor pair Svelte writes around raw HTML. Nothing checks what
+those bytes are, which is the author's, and is written out in [refusals.md](refusals.md).
 
 ## Svelte's anchors are baked in, not emitted
 

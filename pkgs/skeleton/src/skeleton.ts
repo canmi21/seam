@@ -134,7 +134,10 @@ function collect(
 			const before = blocks.length;
 			collect(source, node['alternate'], holes, edits, blocks, taken, stream, expand);
 			if (blocks.length !== before) {
-				throw new Error('a block inside an else is not handled by this pass yet');
+				throw new Error(
+					'a block inside an else is not handled yet: it is numbered but never appears in the ' +
+						'baseline render, so the render and the block list would stop lining up',
+				);
 			}
 		}
 		return;
@@ -157,7 +160,10 @@ function collect(
 		return;
 	}
 	if (type === 'AwaitBlock' || type === 'KeyBlock' || type === 'SnippetBlock') {
-		throw new Error(`${String(type)} is not handled by this pass yet`);
+		throw new Error(
+			`${String(type)} is not handled yet, though it has been measured and is not hard; see ` +
+				`spec/refusals.md`,
+		);
 	}
 
 	for (const value of Object.values(node)) {
@@ -247,12 +253,17 @@ export async function skeleton(entryFile: string): Promise<Skeleton> {
 
 	const { found, conditional } = titles(parse(source, { modern: true }) as unknown as AstNode);
 	if (found > 1) {
-		throw new Error(`this component writes ${found} titles, and only one of them would survive`);
+		throw new Error(
+			`this component writes ${found} titles, and which of them wins is not decided; see spec/ir.md`,
+		);
 	}
 	// The title leaves the block it was written in: the block renders empty and the title is
 	// appended after every one of them, so nothing in the bytes says the two go together.
 	if (conditional) {
-		throw new Error('a title inside a block is not handled yet: the block renders without it');
+		throw new Error(
+			'which of two titles wins is not decided, and a title inside a block is that question: the ' +
+				'block renders without it. See spec/ir.md',
+		);
 	}
 
 	// Everything taken: this render holds every consequent and every each body.

@@ -41,11 +41,16 @@ export function bundle(entryFile: string): Bundle {
 				where === name ? `\`${name}\`` : `\`${name}\` in \`${where}\``;
 			const ambient = loose.filter((one) => one.reason === 'ambient').map((one) => one.name);
 			const unknown = [...seen].filter(([name]) => !ambient.includes(name)).map(show);
+			// Both of these are refusals an author can act on now, so both say what to do about
+			// it rather than only what is wrong. See spec/refusals.md.
 			const reasons = [
-				unknown.length > 0 ? `${unknown.join(', ')}, which the data does not carry` : '',
+				unknown.length > 0
+					? `${unknown.join(', ')}, which the data does not carry; the name has to come from \
+the payload, an each block, a script in this file, or an import`
+					: '',
 				ambient.length > 0
 					? `${[...new Set(ambient)].map((name) => `\`${name}\``).join(', ')}, which does not \
-read the same twice`
+read the same twice; the load stage can determine the value and put it in the data`
 					: '',
 			].filter((one) => one !== '');
 			throw new Error(`${relative(root, file)} reads ${reasons.join('; and ')}`);
