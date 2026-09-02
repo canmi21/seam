@@ -42,7 +42,10 @@ run = "node pkgs/server/src/main.ts"
 
 [tasks.fixtures]
 description = "Regenerate the conformance fixtures after changing a case"
-run = "node conformance/generate.ts"
+run = [
+	"node conformance/generate.ts",
+	"node crates/devalue/fixtures/generate.ts",
+]
 
 [tasks.verify]
 description = "Everything a change has to pass"

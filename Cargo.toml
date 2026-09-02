@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/lowering"]
+members = ["crates/devalue", "crates/lowering"]
 # refs/ is the previous version, kept to be read. It carries its own workspace, and cargo would
 # otherwise refuse to build here because its crates belong to neither.
 exclude = ["refs"]

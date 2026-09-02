@@ -1,0 +1,15 @@
+[package]
+name = "devalue"
+# Tracks the npm package it reproduces, rather than the workspace. The two have to agree byte for
+# byte, and a version that says which one it agrees with is the only useful thing it can say.
+version = "5.9.2"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "A Rust port of devalue, byte for byte with the JavaScript package of the same version"
+
+[dev-dependencies]
+serde_json = "1"
+
+[lints]
+workspace = true
