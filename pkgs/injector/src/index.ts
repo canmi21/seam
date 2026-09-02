@@ -49,6 +49,12 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 	return out;
 }
 
-export function inject(ir: ComponentIR, data: Scope): string {
-	return walk(ir.nodes, [data]);
+/** What Svelte's `render()` returns, produced without any of Svelte running. */
+export interface Injected {
+	body: string;
+	head: string;
+}
+
+export function inject(ir: ComponentIR, data: Scope): Injected {
+	return { body: walk(ir.body, [data]), head: walk(ir.head, [data]) };
 }

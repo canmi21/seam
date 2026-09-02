@@ -64,6 +64,7 @@ struct Span {
 	to: usize,
 }
 
+const OPEN: &str = "<!--[";
 const CLOSE: &str = "<!--]-->";
 
 /// Finds the block that opens at or after `from`, at this nesting level, skipping any nested
@@ -71,7 +72,7 @@ const CLOSE: &str = "<!--]-->";
 fn next_block(html: &str, from: usize, until: usize) -> Option<Span> {
 	let mut at = from;
 	loop {
-		let open = html.get(at..until)?.find("<!--[")? + at;
+		let open = html.get(at..until)?.find(OPEN)? + at;
 		let close = html.get(at..until).and_then(|s| s.find(CLOSE)).map(|i| i + at);
 		if close.is_some_and(|close| close < open) {
 			return None;
@@ -86,7 +87,7 @@ fn next_block(html: &str, from: usize, until: usize) -> Option<Span> {
 		let mut depth = 1;
 		let mut scan = content;
 		while depth > 0 {
-			let next_open = html.get(scan..until).and_then(|s| s.find("<!--[")).map(|i| i + scan);
+			let next_open = html.get(scan..until).and_then(|s| s.find(OPEN)).map(|i| i + scan);
 			let next_close = html.get(scan..until).and_then(|s| s.find(CLOSE)).map(|i| i + scan);
 			let next_close = next_close?;
 			match next_open {
@@ -416,16 +417,6 @@ impl Assembler<'_> {
 }
 
 pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
-	// A component writing to the head renders a second stream, and the IR carries one sequence of
-	// nodes. Refused rather than dropped: the bytes exist, they belong in the document, and there
-	// is nowhere to put them. The hole check below cannot stand in for this, because a head that
-	// holds no expression produces no sentinel and so nothing to disagree with.
-	if !skeleton.head.is_empty() {
-		return Err(
-			"this component writes to the document head, which the IR does not carry yet".to_owned(),
-		);
-	}
-
 	// render() wraps the whole component in a pair that looks like an each. Stepping over it
 	// here keeps it in the output and out of the block count.
 	let outer = next_block(&skeleton.html, 0, skeleton.html.len())
@@ -441,10 +432,30 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 	out.write(&skeleton.html[outer.from..outer.content]);
 	assembler.region(&skeleton.html, outer.content, outer.until, &mut out)?;
 	out.write(&skeleton.html[outer.until..outer.to]);
+
+	// The head has no wrapping pair of its own: Svelte writes a hash anchor, then the content,
+	// and a child's head is already merged in ahead of time. So the whole string is one region.
+	// Assembled after the body because blocks are numbered in source order and counted as they
+	// are met, which lines up only while the head holds none.
+	let mut head = Out::default();
+	if !skeleton.head.is_empty() {
+		if skeleton.head.contains(OPEN) {
+			return Err(
+				"a block inside the document head is not handled yet: blocks are matched by \
+				 document order, and the head is a second stream ordered its own way"
+					.to_owned(),
+			);
+		}
+		assembler.region(&skeleton.head, 0, skeleton.head.len(), &mut head)?;
+	}
 	assembler.placed()?;
 
 	Ok(ir::Compiled {
-		ir: ir::ComponentIR { component: component.to_owned(), nodes: out.finish() },
+		ir: ir::ComponentIR {
+			component: component.to_owned(),
+			body: out.finish(),
+			head: head.finish(),
+		},
 		derivations: assembler.derivations,
 	})
 }

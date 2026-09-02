@@ -1,0 +1,51 @@
+{
+	"ir": {
+		"component": "head",
+		"body": [
+			{
+				"t": "static",
+				"s": "<!--[--><div>"
+			},
+			{
+				"t": "slot",
+				"path": "p.name",
+				"escape": "content"
+			},
+			{
+				"t": "static",
+				"s": "</div><!--]-->"
+			}
+		],
+		"head": [
+			{
+				"t": "static",
+				"s": "<!--1anhsfi--><meta name=\"description\""
+			},
+			{
+				"t": "attr",
+				"name": "content",
+				"parts": [
+					{
+						"t": "slot",
+						"path": "p.note",
+						"escape": "attr"
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "/><!----><title>"
+			},
+			{
+				"t": "slot",
+				"path": "p.name",
+				"escape": "content"
+			},
+			{
+				"t": "static",
+				"s": "</title>"
+			}
+		]
+	},
+	"derivations": []
+}

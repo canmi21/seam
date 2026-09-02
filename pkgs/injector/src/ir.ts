@@ -13,7 +13,12 @@ export type Node =
 	| { t: 'each'; source: string; item: string; body: Node[] }
 	| { t: 'attr'; name: string; parts: Node[] };
 
+/**
+ * Two streams, named after Svelte's own because they are the same two. `render()` returns a head
+ * and a body, and reading only one of them loses content with nothing to say so.
+ */
 export interface ComponentIR {
 	component: string;
-	nodes: Node[];
+	body: Node[];
+	head: Node[];
 }

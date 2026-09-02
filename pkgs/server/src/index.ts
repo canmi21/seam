@@ -30,7 +30,8 @@ async function handle(
 	const route = options.routes[pathname];
 	if (route !== undefined) {
 		const payload = route.derive(route.data);
-		const html = wrap(options.shell, inject(route.ir, payload), payload);
+		const { body, head } = inject(route.ir, payload);
+		const html = wrap(options.shell, body, payload, head);
 		response.writeHead(200, {
 			'content-type': 'text/html; charset=utf-8',
 			'content-length': Buffer.byteLength(html),

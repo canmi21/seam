@@ -1,0 +1,5 @@
+[
+	{ "label": "title and meta", "data": { "p": { "name": "Alice", "note": "hello" } } },
+	{ "label": "characters that escape", "data": { "p": { "name": "<b>&x", "note": "a\"b" } } },
+	{ "label": "meta omitted when null", "data": { "p": { "name": "Bob", "note": null } } }
+]

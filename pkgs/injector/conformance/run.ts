@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile as compileSvelte } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { compile as compileDerivations, type Derivation } from 'derive';
-import { inject } from '../src/index.ts';
+import { inject, type Injected } from '../src/index.ts';
 import type { ComponentIR } from '../src/ir.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -40,9 +40,13 @@ function compileTree(file: string, seen: Map<string, string>): string {
 	return out;
 }
 
-async function svelteRenderer(file: string): Promise<(data: unknown) => string> {
+/** Both streams, because the injector now produces both and only comparing one proves half. */
+async function svelteRenderer(file: string): Promise<(data: unknown) => Injected> {
 	const mod = await import(pathToFileURL(compileTree(file, new Map())).href);
-	return (data) => render(mod.default, { props: data as Record<string, unknown> }).body;
+	return (data) => {
+		const { body, head } = render(mod.default, { props: data as Record<string, unknown> });
+		return { body, head };
+	};
 }
 
 let failed = 0;
@@ -67,7 +71,7 @@ for (const file of readdirSync(cases)
 		total += 1;
 		const expected = svelte(payload.data);
 		const actual = inject(compiled.ir, derive(payload.data));
-		if (expected === actual) {
+		if (expected.body === actual.body && expected.head === actual.head) {
 			console.log(`match  ${name}: ${payload.label}`);
 			continue;
 		}

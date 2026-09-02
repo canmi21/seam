@@ -486,7 +486,13 @@ pub fn lower(bundle: &markup::Bundle) -> Result<ir::Compiled> {
 	builder.write("<!--]-->");
 
 	Ok(ir::Compiled {
-		ir: ir::ComponentIR { component: bundle.entry.clone(), nodes: builder.finish() },
+		// This pass refuses `<svelte:head>`, so its head is empty by construction rather than by
+		// omission.
+		ir: ir::ComponentIR {
+			component: bundle.entry.clone(),
+			body: builder.finish(),
+			head: Vec::new(),
+		},
 		derivations: derivations.list,
 	})
 }

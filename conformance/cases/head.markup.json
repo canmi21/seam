@@ -1,0 +1,26 @@
+{
+	"entry": "head",
+	"components": {
+		"head": {
+			"markup": [
+				{
+					"k": "unsupported",
+					"type": "SvelteHead",
+					"src": "<svelte:head><meta name=\"description\" content={p.note} /><title>{p.name}</title></svelte:head>"
+				},
+				{
+					"k": "element",
+					"name": "div",
+					"attrs": [],
+					"body": [
+						{
+							"k": "expr",
+							"src": "p.name"
+						}
+					]
+				}
+			],
+			"imports": {}
+		}
+	}
+}

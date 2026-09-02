@@ -1,0 +1,23 @@
+{
+	"html": "<!--[--><div>%%s2%%</div><!--]-->",
+	"head": "<!--1anhsfi--><meta name=\"description\" content=\"%%s0%%\"/><!----><title>%%s1%%</title>",
+	"alternates": {},
+	"holes": [
+		{
+			"index": 0,
+			"expression": "p.note",
+			"raw": false
+		},
+		{
+			"index": 1,
+			"expression": "p.name",
+			"raw": false
+		},
+		{
+			"index": 2,
+			"expression": "p.name",
+			"raw": false
+		}
+	],
+	"blocks": []
+}

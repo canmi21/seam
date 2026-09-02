@@ -28,10 +28,11 @@ them the class of bug where the extractor and the injector disagree about what a
 
 ## Node kinds
 
-Five, and the tree bottoms out in strings.
+Five, and the tree bottoms out in strings. `body` and `head` are the two streams Svelte renders
+and the two the injector produces; a component that writes to neither leaves `head` empty.
 
 ```json
-{ "component": "product", "nodes": [
+{ "component": "product", "head": [], "body": [
   { "t": "static", "s": "<!--[--><article class=\"card\"><h1>" },
   { "t": "slot",   "path": "p.name", "escape": "content" },
   { "t": "static", "s": "</h1>" },
@@ -188,16 +189,16 @@ output ends.
 
 ## The head is a second stream
 
-`render()` returns a head as well as a body, and the IR carries one sequence of nodes. Reading
-only the body is how a `<title>` came to compile without complaint and then not exist -- present
-after hydration, absent from the response, which is the failure this whole approach exists to
-avoid.
+`render()` returns a head as well as a body, so the IR carries both. Reading only the body is how
+a `<title>` came to compile without complaint and then not exist -- present after hydration,
+absent from the response, which is the failure this whole approach exists to avoid.
 
-So the head is read and **writing to it is refused** until the IR carries it. The hole check
-cannot stand in for that: a head holding no expression produces no sentinel, so every count stays
-correct while the bytes go missing.
+A head is assembled the way the body is, from the same string-splitting pass, and nothing about
+the node kinds changed to allow it. The hole check does not reach this case on its own: a head
+holding no expression produces no sentinel, so every count stays correct while the bytes go
+missing. Reading the stream is what makes its content reachable at all.
 
-What the shape will be is settled, because it was measured rather than argued:
+The shape was measured rather than argued:
 
 ```
 HEAD  <!--167snak--><!--[0--><meta name="a" content="%%s1%%"/><!--]--><!---->
@@ -222,11 +223,19 @@ of the stream** regardless of where it was written, leaving a `<!---->` where it
 not disturb holes, which are indexed, but it does disturb blocks, which are matched by document
 order.
 
-That is what the staging below is about. Reaching a head that holds no block needs the IR to carry
-a second node sequence and nothing else. Reaching a head that holds one needs blocks to know which
-stream they belong to, which is a field the render pass can supply because it has the AST. Merging
-across routes -- one page's title overriding a layout's -- is the only part that would require the
-IR to understand the bytes it concatenates, and it waits on routing, which does not exist.
+**A block in the head is refused, and that is the only thing still refused.** Holes are indexed so
+the hoisting cannot disturb them, but blocks are matched by walking one string in document order,
+and the head is a second string ordered its own way. Placing one needs a block to record which
+stream it belongs to, which the render pass can supply because it has the AST.
+
+Merging across routes -- one page's title overriding a layout's -- is the only part that would
+require the IR to understand the bytes it concatenates rather than treat them as opaque. It waits
+on routing, which does not exist.
+
+The written-bytes pass never learned `<svelte:head>` and never will, so where a case has one there
+is no second opinion to hold the render pass against. That is the oracle running out rather than a
+gap in it; it was always going to stop covering what came after it. See
+[pipeline.md](pipeline.md).
 
 ## What is not in it
 
@@ -234,7 +243,7 @@ IR to understand the bytes it concatenates, and it waits on routing, which does 
 | --- | --- |
 | CSS | A separate artifact. Its consumer is the bundler, not the server. |
 | Client behaviour, events, `$state` | Svelte's own client bundle already carries it. |
-| The document head | A second stream, read and refused today. See above. |
+| The document head | Nothing: it is in the IR, as a second sequence of nodes. See above. |
 | Types, the payload contract | The schema. The IR references paths and does not describe them. |
 | The element tree | Nowhere. Nothing needs it. |
 
@@ -263,10 +272,10 @@ Recorded rather than decided, because guessing now would be worse than deciding 
   iteration, which is a different mechanism rather than a larger version of this one. See
   [derivation.md](derivation.md).
 - **Snippets and children.** A component given a body is refused; `{@render}` is untouched.
-- **The head, in three steps.** A head with no block needs the IR to carry a second node sequence,
-  and depends on nothing else. A head with a block needs each block to record its stream, and
-  depends on the first. Title override across a route and its layout needs the IR to read the
-  bytes it concatenates, and depends on routing.
+- **A block inside the head.** Needs each block to record which stream it belongs to, because
+  blocks are matched by document order and the head is ordered its own way. Title override across
+  a route and its layout is further off still: it needs the IR to read the bytes it concatenates,
+  and it depends on routing.
 - **A linear form.** A flat opcode buffer walks faster and deserializes cheaper than a nested
   tree. The tree comes first because it can be written by hand, which the first milestone needs.
   Any linear form must be a lowering of it, not a replacement.

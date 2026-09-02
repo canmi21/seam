@@ -1,21 +1,22 @@
 {
-  "ir": {
-    "component": "roottext",
-    "nodes": [
-      {
-        "t": "static",
-        "s": "<!--[--><!---->head<span class=\"badge x\">"
-      },
-      {
-        "t": "slot",
-        "path": "p.a",
-        "escape": "content"
-      },
-      {
-        "t": "static",
-        "s": "</span><!----><!--]-->"
-      }
-    ]
-  },
-  "derivations": []
+	"ir": {
+		"component": "roottext",
+		"body": [
+			{
+				"t": "static",
+				"s": "<!--[--><!---->head<span class=\"badge x\">"
+			},
+			{
+				"t": "slot",
+				"path": "p.a",
+				"escape": "content"
+			},
+			{
+				"t": "static",
+				"s": "</span><!----><!--]-->"
+			}
+		],
+		"head": []
+	},
+	"derivations": []
 }

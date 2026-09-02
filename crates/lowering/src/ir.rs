@@ -38,10 +38,14 @@ pub struct Branch {
 	pub body: Vec<Node>,
 }
 
+/// Svelte renders two streams and the injector produces two, so the IR carries two. They are
+/// named after Svelte's own, because they are the same two: what goes in the document's body and
+/// what goes in its head. See `spec/ir.md`.
 #[derive(Debug, Serialize)]
 pub struct ComponentIR {
 	pub component: String,
-	pub nodes: Vec<Node>,
+	pub body: Vec<Node>,
+	pub head: Vec<Node>,
 }
 
 /// Where a name in a derivation's expression gets its value.
