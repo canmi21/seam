@@ -70,6 +70,9 @@ all. At request time it is evaluated once, over data, before injection.
 Without the rewrite there is no way to force a branch; without the forcing there is no way to
 collect the bytes.
 
+What such an expression may reference, and why that is a boundary rather than a feature list, is
+[derivation.md](derivation.md).
+
 ## What runs at request time, and what does not
 
 A derivation is a pure function of the payload. It computes values. It renders nothing, touches

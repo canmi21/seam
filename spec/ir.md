@@ -158,7 +158,8 @@ they now come from.
 `p.available` is legal. `price > 10` never reaches the IR: the compiler rewrites it into a
 derived field and carries the expression separately, so what the IR tests is always a path and
 what evaluates the predicate is a stage that runs before injection. See
-[pipeline.md](pipeline.md). Elements, enums and nullables are finite decisions and belong in
+[pipeline.md](pipeline.md) for why, and [derivation.md](derivation.md) for what such an expression
+is allowed to be a function of. Elements, enums and nullables are finite decisions and belong in
 the protocol; predicates over open value spaces are not, which is the correction the second
 article makes to the first.
 
@@ -216,7 +217,8 @@ Recorded rather than decided, because guessing now would be worse than deciding 
   `slot` must always emit something.
 - **Per-item derivation.** A derivation is a function of the payload, computed once, so an
   expression inside an each block is refused. What such an expression needs is a value per
-  iteration, which is a different mechanism rather than a larger version of this one.
+  iteration, which is a different mechanism rather than a larger version of this one. See
+  [derivation.md](derivation.md).
 - **Snippets and children.** A component given a body is refused; `{@render}` is untouched.
 - **A linear form.** A flat opcode buffer walks faster and deserializes cheaper than a nested
   tree. The tree comes first because it can be written by hand, which the first milestone needs.
