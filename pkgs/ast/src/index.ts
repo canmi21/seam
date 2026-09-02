@@ -1,8 +1,10 @@
 export {
+	apply,
 	type Bindings,
 	bindings,
 	type Carried,
 	type Declared,
+	type Edit,
 	type Locals,
 	locals,
 	type Unresolved,

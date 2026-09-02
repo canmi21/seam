@@ -382,6 +382,35 @@ function declared(ast: Node, source: string, names: ReadonlySet<string>): Map<st
 /** Where to write, and what to write there, so a render given no data does not evaluate it. */
 export type Neutral = [[number, number], string];
 
+/** One replacement in a source file: where it goes, and what goes there. */
+export type Edit = [number, number, string];
+
+/**
+ * Applies replacements to source text, back to front so the offsets ahead stay valid.
+ *
+ * **Two edits over the same characters is not a case to resolve, it is a mistake upstream.** It
+ * means one place in the file was recorded twice, and applying both writes the second into the
+ * middle of the first; what comes out is a file nobody wrote, reported on by Svelte's compiler in
+ * terms of the wreckage. That happened once, a destructuring declaring several names being
+ * recorded once per name rather than once per place, and it surfaced as an undefined variable
+ * naming nothing anybody could act on. So it is refused here instead.
+ */
+export function apply(text: string, edits: readonly Edit[], offset = 0): string {
+	const ordered = [...edits].toSorted((a, b) => b[0] - a[0]);
+	for (const [at, [start]] of ordered.entries()) {
+		const next = ordered[at + 1];
+		if (next !== undefined && next[1] > start) {
+			throw new Error(`two edits cover ${next[0]}..${next[1]}, so one place was recorded twice`);
+		}
+	}
+
+	let out = text;
+	for (const [start, end, replacement] of ordered) {
+		out = out.slice(0, start - offset) + replacement + out.slice(end - offset);
+	}
+	return out;
+}
+
 const EMPTY: Record<Declared['holds'], string> = {
 	value: 'null',
 	callable: 'null',
@@ -416,7 +445,7 @@ export function locals(source: string): Locals {
 		const { start, end } = node;
 		if (typeof start !== 'number' || typeof end !== 'number') return '';
 
-		const edits: [number, number, string][] = [];
+		const edits: Edit[] = [];
 		reads(node, new Set(), (at) => {
 			const name = at['name'];
 			if (typeof name !== 'string' || !found.has(name) || open.has(name)) return;
@@ -426,12 +455,7 @@ export function locals(source: string): Locals {
 			edits.push([from, to, `(${expand(name, open)})`]);
 		});
 
-		edits.sort((a, b) => b[0] - a[0]);
-		let out = source.slice(start, end);
-		for (const [from, to, text] of edits) {
-			out = out.slice(0, from - start) + text + out.slice(to - start);
-		}
-		return out;
+		return apply(source.slice(start, end), edits, start);
 	}
 
 	function expand(name: string, open: ReadonlySet<string>): string {

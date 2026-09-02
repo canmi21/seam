@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bindings } from '../src/bindings.ts';
+import { apply, bindings, type Edit } from '../src/bindings.ts';
 import { bundle } from '../src/bundle.ts';
 import { reduce } from '../src/reduce.ts';
 
@@ -133,6 +133,41 @@ for (const [label, statement, expected] of imports) {
 		failed += 1;
 		console.error(`MISS   ${label} came back as ${carried || '(nothing)'}, not ${expected}`);
 	}
+}
+
+// Rewriting a source file is a list of replacements applied back to front, and two of them over
+// the same characters means one place was recorded twice. Applying both writes the second into
+// the middle of the first and hands Svelte a file nobody wrote; it happened, and it surfaced as
+// an undefined variable naming nothing anybody could act on.
+const source = 'const { a, b } = data.t;';
+const overlapping: Edit[] = [
+	[17, 23, '{}'],
+	[17, 23, '{}'],
+];
+let refused = '';
+try {
+	apply(source, overlapping);
+} catch (error) {
+	refused = (error as Error).message;
+}
+if (refused.includes('recorded twice')) {
+	console.log('match  two edits over one place are refused rather than applied');
+} else {
+	failed += 1;
+	console.error(`MISS   overlapping edits were applied: ${refused || apply(source, overlapping)}`);
+}
+
+// Adjacent is not overlapping, and refusing it would refuse ordinary work.
+if (
+	apply('abcd', [
+		[0, 1, 'X'],
+		[1, 2, 'Y'],
+	]) === 'XYcd'
+) {
+	console.log('match  adjacent edits are applied');
+} else {
+	failed += 1;
+	console.error('MISS   adjacent edits were refused or misapplied');
 }
 
 rmSync(staging, { recursive: true, force: true });

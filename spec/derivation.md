@@ -126,8 +126,14 @@ and are left out, which reports the name rather than guessing at it.
 A render is given no data, so a declaration reading a prop is handed something harmless in the
 source the compiler renders -- `null`, or `{}` and `[]` where it was destructured, since a
 destructuring needs something it can be taken apart from. One place in the source is written over
-once however many names it declares, which a first attempt got wrong and took the file apart
-with. It has already been substituted into every expression that used it, which
+once however many names it declares.
+
+A first attempt wrote over it once per name, which took the file apart and was reported by
+Svelte's compiler as an undefined variable naming nothing anybody could act on. **Rewriting a
+source file is a list of replacements, and two of them over the same characters is not a case to
+resolve but a mistake upstream**, so applying them refuses instead of writing the second into the
+middle of the first. Both passes that rewrite a component go through the same applier, and both
+get the check. It has already been substituted into every expression that used it, which
 leaves it dead there. That is what a component doing this used to crash on, inside Svelte's own
 renderer, with a `TypeError` naming nothing an author could act on.
 

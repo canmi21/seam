@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve as resolvePath } from 'node:path';
 import { compile, parse } from 'svelte/compiler';
-import { type Locals, locals } from 'ast';
+import { apply, type Locals, locals } from 'ast';
 import { sentinel } from './sentinel.ts';
 
 /** One dynamic position, in the order it appears in the source. */
@@ -226,12 +226,7 @@ function rewrite(source: string, taken: (block: number) => boolean): Rewritten {
 
 	collect(source, ast['fragment'], holes, edits, blocks, taken, 'body', declared.rewrite);
 
-	edits.sort((a, b) => b[0] - a[0]);
-	let rewritten = source;
-	for (const [start, end, replacement] of edits) {
-		rewritten = rewritten.slice(0, start) + replacement + rewritten.slice(end);
-	}
-	return { rewritten, holes, blocks };
+	return { rewritten: apply(source, edits), holes, blocks };
 }
 
 /** Both of Svelte's output streams, because reading only one of them loses content silently. */
