@@ -1,0 +1,11 @@
+{
+	"name": "skeleton",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"svelte": "^5.57.0"
+	}
+}

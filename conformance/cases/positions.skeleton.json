@@ -1,0 +1,15 @@
+{
+	"html": "<!--[--><div><span class=\"badge x\">%%s0%%</span><!----></div>head<span class=\"badge y\">%%s1%%</span><!----><!--]-->",
+	"holes": [
+		{
+			"index": 0,
+			"expression": "p.a",
+			"raw": false
+		},
+		{
+			"index": 1,
+			"expression": "p.b",
+			"raw": false
+		}
+	]
+}

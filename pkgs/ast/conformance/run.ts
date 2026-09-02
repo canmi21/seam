@@ -11,7 +11,7 @@ let failed = 0;
 
 for (const file of readdirSync(cases)
 	.filter((f) => f.endsWith('.svelte'))
-	.sort()) {
+	.toSorted()) {
 	const name = file.slice(0, -'.svelte'.length);
 	const actual = `${JSON.stringify(bundle(resolve(cases, file)), null, '\t')}\n`;
 	const expected = readFileSync(resolve(cases, `${name}.markup.json`), 'utf8');

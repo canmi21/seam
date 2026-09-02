@@ -1,55 +1,55 @@
 {
-	"ir": {
-		"component": "attrs",
-		"nodes": [
-			{
-				"t": "static",
-				"s": "<!--[--><div"
-			},
-			{
-				"t": "attr",
-				"name": "data-x",
-				"parts": [
-					{
-						"t": "slot",
-						"path": "p.x",
-						"escape": "attr"
-					}
-				]
-			},
-			{
-				"t": "attr",
-				"name": "class",
-				"parts": [
-					{
-						"t": "static",
-						"s": "a "
-					},
-					{
-						"t": "slot",
-						"path": "p.c",
-						"escape": "attr"
-					},
-					{
-						"t": "static",
-						"s": " b"
-					}
-				]
-			},
-			{
-				"t": "static",
-				"s": " title=\"static\"><span><!---->"
-			},
-			{
-				"t": "slot",
-				"path": "p.h",
-				"escape": false
-			},
-			{
-				"t": "static",
-				"s": "<!----></span><input disabled=\"\"/><br/></div><!--]-->"
-			}
-		]
-	},
-	"derivations": []
+  "ir": {
+    "component": "attrs",
+    "nodes": [
+      {
+        "t": "static",
+        "s": "<!--[--><div"
+      },
+      {
+        "t": "attr",
+        "name": "data-x",
+        "parts": [
+          {
+            "t": "slot",
+            "path": "p.x",
+            "escape": "attr"
+          }
+        ]
+      },
+      {
+        "t": "attr",
+        "name": "class",
+        "parts": [
+          {
+            "t": "static",
+            "s": "a "
+          },
+          {
+            "t": "slot",
+            "path": "p.c",
+            "escape": "attr"
+          },
+          {
+            "t": "static",
+            "s": " b"
+          }
+        ]
+      },
+      {
+        "t": "static",
+        "s": " title=\"static\"><span><!---->"
+      },
+      {
+        "t": "slot",
+        "path": "p.h",
+        "escape": false
+      },
+      {
+        "t": "static",
+        "s": "<!----></span><input disabled=\"\"/><br/></div><!--]-->"
+      }
+    ]
+  },
+  "derivations": []
 }

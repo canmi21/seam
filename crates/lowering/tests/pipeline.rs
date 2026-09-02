@@ -5,7 +5,7 @@
 //! Svelte's own server output. Together they say that a component compiled here renders the
 //! bytes Svelte would have rendered, without any of Svelte running at request time.
 
-use lowering::{lower, markup::Bundle};
+use lowering::{assemble, assemble::Skeleton, lower, markup::Bundle};
 
 fn read(relative: &str) -> String {
 	let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(relative);
@@ -117,4 +117,41 @@ fn a_cycle_is_an_error_rather_than_a_hang() {
 	);
 	let error = lower(&bundle).expect_err("a and b import each other");
 	assert!(error.contains("cycle"), "{error}");
+}
+
+/// Two ways of producing the same IR, held to each other. One writes Svelte's anchors from rules
+/// read out of its code generator; the other splits what Svelte actually rendered. Where both can
+/// run, they must agree, and that agreement is what licenses replacing the first with the second.
+#[test]
+fn assembling_a_render_agrees_with_writing_the_bytes() {
+	let cases = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/cases");
+	let mut checked = 0;
+	for entry in std::fs::read_dir(&cases).expect("cases") {
+		let path = entry.expect("entry").path();
+		if path.extension().is_none_or(|e| e != "svelte") {
+			continue;
+		}
+		let name = path.file_stem().expect("stem").to_string_lossy().into_owned();
+		let rendered = cases.join(format!("{name}.skeleton.json"));
+		if !rendered.exists() {
+			continue;
+		}
+
+		let skeleton: Skeleton =
+			serde_json::from_str(&read(&format!("conformance/cases/{name}.skeleton.json")))
+				.unwrap_or_else(|e| panic!("{name} skeleton: {e}"));
+		let bundle: Bundle =
+			serde_json::from_str(&read(&format!("conformance/cases/{name}.markup.json")))
+				.unwrap_or_else(|e| panic!("{name} markup: {e}"));
+
+		let written = lower(&bundle).unwrap_or_else(|e| panic!("{name}: {e}")).ir;
+		let split = assemble(&name, &skeleton).unwrap_or_else(|e| panic!("{name}: {e}"));
+		assert_eq!(
+			serde_json::to_value(&split).expect("json"),
+			serde_json::to_value(&written).expect("json"),
+			"{name}: assembling the render disagrees with writing the bytes"
+		);
+		checked += 1;
+	}
+	assert!(checked > 0, "no rendered cases found");
 }

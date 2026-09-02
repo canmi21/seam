@@ -52,6 +52,12 @@ importers:
         specifier: ^5.57.0
         version: 5.57.0
 
+  pkgs/skeleton:
+    dependencies:
+      svelte:
+        specifier: ^5.57.0
+        version: 5.57.0
+
 packages:
 
   '@esbuild/aix-ppc64@0.27.7':

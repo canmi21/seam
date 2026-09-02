@@ -50,7 +50,7 @@ let total = 0;
 
 for (const file of readdirSync(cases)
 	.filter((f) => f.endsWith('.svelte'))
-	.sort()) {
+	.toSorted()) {
 	const name = file.slice(0, -'.svelte'.length);
 	const compiled = JSON.parse(readFileSync(resolve(cases, `${name}.ir.json`), 'utf8')) as {
 		ir: ComponentIR;
