@@ -1,0 +1,50 @@
+{
+	"ir": {
+		"component": "inert",
+		"body": [
+			{
+				"t": "static",
+				"s": "<!--[--><div>"
+			},
+			{
+				"t": "slot",
+				"path": "data.v",
+				"escape": "content"
+			},
+			{
+				"t": "static",
+				"s": "</div>"
+			},
+			{
+				"t": "if",
+				"branches": [
+					{
+						"test": "data.f",
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[0--><b>x</b>"
+							}
+						]
+					},
+					{
+						"test": null,
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[-1-->"
+							}
+						]
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--><!--]-->"
+			}
+		],
+		"head": [],
+		"title": []
+	},
+	"derivations": []
+}

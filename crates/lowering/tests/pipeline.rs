@@ -33,13 +33,16 @@ fn single(markup: &str) -> Bundle {
 	))
 }
 
-/// The written pass refuses `<svelte:head>`, so where a case has one there is no second opinion
-/// to hold the render pass against. That is the oracle running out, not a gap: it was always
-/// going to stop covering what came after it. See spec/pipeline.md.
-fn writes_to_the_head(name: &str) -> bool {
-	let committed: serde_json::Value =
-		serde_json::from_str(&read(&format!("conformance/cases/{name}.ir.json"))).expect("ir");
-	committed["ir"]["head"].as_array().is_some_and(|head| !head.is_empty())
+/// Whether the written pass can compile this case at all.
+///
+/// It refuses what it never learned, and it is not going to learn any more: `<svelte:head>` and
+/// the directives that contribute no bytes are both outside it. Where it refuses, there is no
+/// second opinion to hold the render pass against, and that is the oracle running out rather than
+/// a gap in it. It was always going to stop covering what came after it. See spec/pipeline.md.
+fn only_the_render_pass_compiles(name: &str) -> bool {
+	let bundle: Bundle =
+		serde_json::from_str(&read(&format!("conformance/cases/{name}.markup.json"))).expect("markup");
+	lower(&bundle).is_err()
 }
 
 /// Every case, not just the one the specification carries. Adding a case is adding two files.
@@ -56,7 +59,7 @@ fn lowering_reproduces_every_committed_ir() {
 		let bundle: Bundle =
 			serde_json::from_str(&read(&format!("conformance/cases/{name}.markup.json")))
 				.unwrap_or_else(|e| panic!("{name} markup: {e}"));
-		if writes_to_the_head(&name) {
+		if only_the_render_pass_compiles(&name) {
 			continue;
 		}
 		let produced =
@@ -255,7 +258,7 @@ fn assembling_a_render_agrees_with_writing_the_bytes() {
 		let bundle: Bundle =
 			serde_json::from_str(&read(&format!("conformance/cases/{name}.markup.json")))
 				.unwrap_or_else(|e| panic!("{name} markup: {e}"));
-		if writes_to_the_head(&name) {
+		if only_the_render_pass_compiles(&name) {
 			continue;
 		}
 

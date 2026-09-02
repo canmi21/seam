@@ -1,0 +1,27 @@
+{
+	"html": "<!--[--><div>%%s0%%</div><!--[0--><b>x</b><!--]--><!--]-->",
+	"head": "",
+	"alternates": {
+		"0": {
+			"body": "<!--[--><div>%%s0%%</div><!--[-1--><!--]--><!--]-->",
+			"head": ""
+		}
+	},
+	"holes": [
+		{
+			"index": 0,
+			"expression": "data.v",
+			"raw": false
+		}
+	],
+	"blocks": [
+		{
+			"index": 0,
+			"kind": "if",
+			"stream": "body",
+			"expression": "data.f",
+			"item": null,
+			"alternate": false
+		}
+	]
+}
