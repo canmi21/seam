@@ -1,12 +1,21 @@
 [package]
 name = "devalue"
 # Tracks the npm package it reproduces, rather than the workspace. The two have to agree byte for
-# byte, and a version that says which one it agrees with is the only useful thing it can say.
+# byte, and devalue's own non-goals include stability of the serialization mechanism between
+# versions, so the version is the only useful thing this can say about what it agrees with.
 version = "5.9.2"
+authors = ["Canmi <t@canmi.icu>"]
+categories = ["encoding", "web-programming"]
 edition.workspace = true
+keywords = ["devalue", "serialization", "json", "hydration", "ssr"]
 license.workspace = true
+readme = "README.md"
 repository.workspace = true
-description = "A Rust port of devalue, byte for byte with the JavaScript package of the same version"
+# What this is built and tested with, which is the toolchain the workspace pins. A lower floor
+# could be worked out from the features the code uses, but nobody would have compiled it there,
+# and a floor nobody has tried is a claim rather than a fact.
+rust-version = "1.98"
+description = "A Rust port of devalue, byte for byte with the JavaScript package of the same version."
 
 [dev-dependencies]
 serde_json = "1"
