@@ -214,9 +214,9 @@ Recorded rather than decided, because guessing now would be worse than deciding 
 - **Empty values.** `{p.name}` with an empty string produced `<h1></h1>` in Svelte's SSR, with no
   text node. Whether hydration requires one to exist is not yet known, and it decides whether a
   `slot` must always emit something.
-- **Derivation.** The rewrite described in [pipeline.md](pipeline.md) is specified and not yet
-  built. Until it is, lowering refuses an expression that is not a path rather than deriving it,
-  which leaves the work with the author.
+- **Per-item derivation.** A derivation is a function of the payload, computed once, so an
+  expression inside an each block is refused. What such an expression needs is a value per
+  iteration, which is a different mechanism rather than a larger version of this one.
 - **Snippets and children.** A component given a body is refused; `{@render}` is untouched.
 - **A linear form.** A flat opcode buffer walks faster and deserializes cheaper than a nested
   tree. The tree comes first because it can be written by hand, which the first milestone needs.

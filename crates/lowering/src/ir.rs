@@ -43,3 +43,31 @@ pub struct ComponentIR {
 	pub component: String,
 	pub nodes: Vec<Node>,
 }
+
+/// Where a name in a derivation's expression gets its value.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Source {
+	Path(String),
+	Literal(String),
+}
+
+/// A pure expression the author wrote that the protocol will not test or interpolate directly.
+/// It is evaluated once per request, over data, before anything is injected.
+#[derive(Debug, Serialize)]
+pub struct Derivation {
+	pub name: String,
+	pub expression: String,
+	/// The names the expression may use. `None` means the payload's own keys, which is the case
+	/// for the entry component because its props are the payload. A composed child gets the
+	/// bindings from its call site instead, which is what lets the expression stay unrewritten.
+	pub scope: Option<std::collections::BTreeMap<String, Source>>,
+}
+
+/// What the compiler emits. The IR is what the injector walks; the derivations are consumed by
+/// the stage before it, and the two are separate for the same reason CSS is not in the IR.
+#[derive(Debug, Serialize)]
+pub struct Compiled {
+	pub ir: ComponentIR,
+	pub derivations: Vec<Derivation>,
+}

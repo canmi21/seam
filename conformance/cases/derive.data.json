@@ -1,0 +1,7 @@
+[
+	{
+		"label": "expensive with tags",
+		"data": { "p": { "price": 42, "name": "alice", "tags": ["a"] } }
+	},
+	{ "label": "cheap without tags", "data": { "p": { "price": 3, "name": "bob", "tags": [] } } }
+]

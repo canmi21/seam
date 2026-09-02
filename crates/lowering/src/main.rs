@@ -1,6 +1,6 @@
 use std::io::Read as _;
 
-use seam_lowering::{lower, markup::Bundle};
+use lowering::{lower, markup::Bundle};
 
 fn main() -> std::process::ExitCode {
 	let mut input = String::new();

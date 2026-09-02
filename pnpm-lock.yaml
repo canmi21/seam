@@ -24,14 +24,26 @@ importers:
         specifier: ^5.57.0
         version: 5.57.0
 
+  pkgs/derive:
+    dependencies:
+      injector:
+        specifier: workspace:*
+        version: link:../injector
+
   pkgs/injector:
     devDependencies:
+      derive:
+        specifier: workspace:*
+        version: link:../derive
       svelte:
         specifier: ^5.57.0
         version: 5.57.0
 
   pkgs/server:
     dependencies:
+      derive:
+        specifier: workspace:*
+        version: link:../derive
       injector:
         specifier: workspace:*
         version: link:../injector

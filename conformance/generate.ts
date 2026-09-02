@@ -17,7 +17,7 @@ for (const file of readdirSync(cases)
 	const markup = `${JSON.stringify(bundle(resolve(cases, file)), null, '\t')}\n`;
 	writeFileSync(resolve(cases, `${name}.markup.json`), markup);
 
-	const ir = execFileSync('cargo', ['run', '-q', '-p', 'seam-lowering'], {
+	const ir = execFileSync('cargo', ['run', '-q', '-p', 'lowering'], {
 		cwd: root,
 		input: markup,
 		encoding: 'utf8',

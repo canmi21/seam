@@ -1,1 +1,1 @@
-<script>let { p } = $props(); let n = $state(0)</script><article class="card"><h1>{p.name}</h1>{#if p.available}<button onclick={() => { n += 1; console.log('seam: adopted, click', n) }}>Buy</button>{/if}{#each p.tags as t}<span>{t}</span>{/each}</article>
+<script>let { p } = $props(); let n = $state(0)</script><article class="card"><h1>{p.name}</h1>{#if p.available}<button onclick={() => { n += 1; console.log('adopted, click', n) }}>Buy</button>{/if}{#each p.tags as t}<span>{t}</span>{/each}</article>

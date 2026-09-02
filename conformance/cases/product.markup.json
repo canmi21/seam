@@ -44,7 +44,7 @@
 											"value": [
 												{
 													"k": "expr",
-													"src": "() => { n += 1; console.log('seam: adopted, click', n) }"
+													"src": "() => { n += 1; console.log('adopted, click', n) }"
 												}
 											]
 										}

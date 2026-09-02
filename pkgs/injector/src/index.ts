@@ -3,6 +3,7 @@ import type { ComponentIR, Node } from './ir.ts';
 import { resolve, type Scope } from './resolve.ts';
 
 export type { Branch, ComponentIR, EscapeMode, Node } from './ir.ts';
+export { resolve, type Scope } from './resolve.ts';
 
 function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 	let out = '';

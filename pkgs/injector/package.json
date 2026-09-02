@@ -6,6 +6,7 @@
 		".": "./src/index.ts"
 	},
 	"devDependencies": {
+		"derive": "workspace:*",
 		"svelte": "^5.57.0"
 	}
 }

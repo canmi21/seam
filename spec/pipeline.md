@@ -104,13 +104,19 @@ no UI code, no framework, and no JavaScript at all unless a derivation needs it.
 
 Written down before it is built, and the gap is worth naming rather than discovering.
 
-The compiler today does the thing this document rejects: it writes the anchors itself, from the
-four rules above, and refuses an expression that is not a data path instead of deriving it. It
-passes every case in the corpus. What it does not have is a reason to keep passing them after a
-Svelte release.
+Derivation is built. An expression that is not a data path becomes a field on the payload, the
+expression travels unrewritten with the names it may use, and a TypeScript server evaluates it
+once per request before injecting. A branch can therefore be forced by setting a boolean, which
+is the precondition for everything below.
 
-So the order is: derivation first, because forcing a branch depends on it; then the code
-generator, because collecting the bytes depends on the forcing. Neither is useful alone.
+The code generator is not. The compiler still writes the anchors itself, from the four rules
+above, and still passes every case in the corpus. What it does not have is a reason to keep
+passing them after a Svelte release.
+
+Two gaps remain in derivation itself. A derivation runs once per request, so an expression inside
+an each block has nowhere to put a value that differs per item, and is refused. And the names an
+expression may use are the component's props, so one reaching for anything else -- a helper
+imported in the script, say -- fails when it runs rather than when it compiles.
 
 ## What this does not change
 

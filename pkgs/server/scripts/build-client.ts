@@ -9,7 +9,7 @@ import { compile } from 'svelte/compiler';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
-const component = resolve(root, '../injector/conformance/cases/product.svelte');
+const component = resolve(root, '../../conformance/cases/product.svelte');
 
 // Staged inside the package, not in a temporary directory: esbuild resolves an import from
 // the importing file's location, and `svelte` only resolves from here.
@@ -27,8 +27,8 @@ writeFileSync(
 	`import { hydrate } from 'svelte';
 import Component from ${JSON.stringify(compiled)};
 
-const script = document.querySelector('[data-seam-payload]');
-const target = document.getElementById('seam');
+const script = document.querySelector('[data-payload]');
+const target = document.getElementById('app');
 if (script === null || target === null) throw new Error('no payload or no target');
 
 hydrate(Component, { target, props: JSON.parse(script.textContent ?? '{}') });

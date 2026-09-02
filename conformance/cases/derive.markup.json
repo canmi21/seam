@@ -1,0 +1,76 @@
+{
+	"entry": "derive",
+	"components": {
+		"derive": {
+			"markup": [
+				{
+					"k": "element",
+					"name": "div",
+					"attrs": [],
+					"body": [
+						{
+							"k": "if",
+							"test": "p.price > 10",
+							"consequent": [
+								{
+									"k": "element",
+									"name": "b",
+									"attrs": [],
+									"body": [
+										{
+											"k": "text",
+											"v": "pricey"
+										}
+									]
+								}
+							],
+							"alternate": [
+								{
+									"k": "element",
+									"name": "i",
+									"attrs": [],
+									"body": [
+										{
+											"k": "text",
+											"v": "cheap"
+										}
+									]
+								}
+							]
+						},
+						{
+							"k": "element",
+							"name": "span",
+							"attrs": [],
+							"body": [
+								{
+									"k": "expr",
+									"src": "p.name.toUpperCase()"
+								}
+							]
+						},
+						{
+							"k": "if",
+							"test": "p.tags.length === 0",
+							"consequent": [
+								{
+									"k": "element",
+									"name": "em",
+									"attrs": [],
+									"body": [
+										{
+											"k": "text",
+											"v": "none"
+										}
+									]
+								}
+							],
+							"alternate": null
+						}
+					]
+				}
+			],
+			"imports": {}
+		}
+	}
+}

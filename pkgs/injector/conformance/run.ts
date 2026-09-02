@@ -4,8 +4,9 @@
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { compile } from 'svelte/compiler';
+import { compile as compileSvelte } from 'svelte/compiler';
 import { render } from 'svelte/server';
+import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject } from '../src/index.ts';
 import type { ComponentIR } from '../src/ir.ts';
 
@@ -23,7 +24,7 @@ function compileTree(file: string, seen: Map<string, string>): string {
 
 	const source = readFileSync(file, 'utf8');
 	const name = basename(file, '.svelte');
-	let code = compile(source, { generate: 'server', name, filename: file }).js.code;
+	let code = compileSvelte(source, { generate: 'server', name, filename: file }).js.code;
 
 	for (const match of source.matchAll(/from\s+'([^']+\.svelte)'/g)) {
 		const specifier = match[1];
@@ -51,7 +52,11 @@ for (const file of readdirSync(cases)
 	.filter((f) => f.endsWith('.svelte'))
 	.sort()) {
 	const name = file.slice(0, -'.svelte'.length);
-	const ir = JSON.parse(readFileSync(resolve(cases, `${name}.ir.json`), 'utf8')) as ComponentIR;
+	const compiled = JSON.parse(readFileSync(resolve(cases, `${name}.ir.json`), 'utf8')) as {
+		ir: ComponentIR;
+		derivations: Derivation[];
+	};
+	const derive = compileDerivations(compiled.derivations);
 	const payloads = JSON.parse(readFileSync(resolve(cases, `${name}.data.json`), 'utf8')) as {
 		label: string;
 		data: Record<string, unknown>;
@@ -61,7 +66,7 @@ for (const file of readdirSync(cases)
 	for (const payload of payloads) {
 		total += 1;
 		const expected = svelte(payload.data);
-		const actual = inject(ir, payload.data);
+		const actual = inject(compiled.ir, derive(payload.data));
 		if (expected === actual) {
 			console.log(`match  ${name}: ${payload.label}`);
 			continue;

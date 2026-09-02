@@ -1,0 +1,91 @@
+{
+	"ir": {
+		"component": "derive",
+		"nodes": [
+			{
+				"t": "static",
+				"s": "<!--[--><div>"
+			},
+			{
+				"t": "if",
+				"branches": [
+					{
+						"test": "__d0",
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[0--><b>pricey</b>"
+							}
+						]
+					},
+					{
+						"test": null,
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[-1--><i>cheap</i>"
+							}
+						]
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--><span>"
+			},
+			{
+				"t": "slot",
+				"path": "__d1",
+				"escape": "content"
+			},
+			{
+				"t": "static",
+				"s": "</span>"
+			},
+			{
+				"t": "if",
+				"branches": [
+					{
+						"test": "__d2",
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[0--><em>none</em>"
+							}
+						]
+					},
+					{
+						"test": null,
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[-1-->"
+							}
+						]
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--></div><!--]-->"
+			}
+		]
+	},
+	"derivations": [
+		{
+			"name": "__d0",
+			"expression": "p.price > 10",
+			"scope": null
+		},
+		{
+			"name": "__d1",
+			"expression": "p.name.toUpperCase()",
+			"scope": null
+		},
+		{
+			"name": "__d2",
+			"expression": "p.tags.length === 0",
+			"scope": null
+		}
+	]
+}

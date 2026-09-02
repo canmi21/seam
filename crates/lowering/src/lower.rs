@@ -121,7 +121,20 @@ fn resolve(scope: &Scope, source: &str) -> Result<Binding> {
 	}
 }
 
-fn slot(builder: &mut Builder, scope: &Scope, source: &str, mode: ir::Escape) -> Result<()> {
+fn slot(
+	builder: &mut Builder,
+	scope: &Scope,
+	derivations: &mut Derivations,
+	source: &str,
+	mode: ir::Escape,
+) -> Result<()> {
+	// Not a path, so it becomes one: the expression moves to a derived field and the slot reads
+	// that field. The protocol still only ever tests and interpolates paths.
+	if !is_path(source.trim()) {
+		let name = derivations.add(scope, source)?;
+		builder.push(ir::Node::Slot { path: name, escape: mode });
+		return Ok(());
+	}
 	match resolve(scope, source)? {
 		Binding::Path(path) => builder.push(ir::Node::Slot { path, escape: mode }),
 		Binding::Literal(text) => builder.write(&escape(&text, mode)),
@@ -146,6 +159,7 @@ fn attributes(
 	builder: &mut Builder,
 	ctx: &Context,
 	scope: &Scope,
+	derivations: &mut Derivations,
 	attrs: &[markup::Attr],
 ) -> Result<()> {
 	for attr in attrs {
@@ -156,7 +170,9 @@ fn attributes(
 			markup::Attr::Attr { name, value } => match value {
 				markup::AttrValue::Present(true) => builder.write(&format!(" {name}=\"\"")),
 				markup::AttrValue::Present(false) => {}
-				markup::AttrValue::Parts(parts) => attribute(builder, ctx, scope, name, parts)?,
+				markup::AttrValue::Parts(parts) => {
+					attribute(builder, ctx, scope, derivations, name, parts)?;
+				}
 			},
 			markup::Attr::Unsupported { kind, src } => {
 				return Err(format!("`{src}` is a {kind}, which lowering does not handle yet"));
@@ -173,6 +189,7 @@ fn attribute(
 	builder: &mut Builder,
 	ctx: &Context,
 	scope: &Scope,
+	derivations: &mut Derivations,
 	name: &str,
 	parts: &[markup::Node],
 ) -> Result<()> {
@@ -180,7 +197,7 @@ fn attribute(
 	for part in parts {
 		match part {
 			markup::Node::Text { v } => inner.write(v),
-			markup::Node::Expr { src } => slot(&mut inner, scope, src, ir::Escape::Attr)?,
+			markup::Node::Expr { src } => slot(&mut inner, scope, derivations, src, ir::Escape::Attr)?,
 			other => return Err(format!("attribute `{name}` contains {}", describe(other))),
 		}
 	}
@@ -208,6 +225,46 @@ struct Context<'a> {
 	stack: Vec<String>,
 }
 
+/// Collected as lowering walks, because an expression that is not a path becomes a field on the
+/// payload rather than an error.
+#[derive(Default)]
+struct Derivations {
+	list: Vec<ir::Derivation>,
+}
+
+impl Derivations {
+	/// The expression is carried unrewritten, with the names it may use and where each comes
+	/// from. Rewriting it would mean parsing JavaScript in Rust, which is the thing being
+	/// avoided; carrying the scope moves that work to whatever already speaks JavaScript.
+	fn add(&mut self, scope: &Scope, expression: &str) -> Result<String> {
+		if !scope.locals.is_empty() {
+			return Err(format!(
+				"`{expression}` is inside an each block, and a derivation is computed once per \
+				 request rather than once per item"
+			));
+		}
+		let captured = scope.props.map(|props| {
+			props
+				.iter()
+				.map(|(name, binding)| {
+					let source = match binding {
+						Binding::Path(path) => ir::Source::Path(path.clone()),
+						Binding::Literal(text) => ir::Source::Literal(text.clone()),
+					};
+					(name.clone(), source)
+				})
+				.collect()
+		});
+		let name = format!("__d{}", self.list.len());
+		self.list.push(ir::Derivation {
+			name: name.clone(),
+			expression: expression.trim().to_owned(),
+			scope: captured,
+		});
+		Ok(name)
+	}
+}
+
 /// A fragment whose content gets spliced into a stream -- the root, and an each body, whose
 /// iterations concatenate -- needs a marker before a leading text node, because the client
 /// cannot otherwise find where it starts. An element or a block opens with something locatable
@@ -226,6 +283,7 @@ fn nodes(
 	builder: &mut Builder,
 	ctx: &Context,
 	scope: &Scope,
+	derivations: &mut Derivations,
 	source: &[markup::Node],
 	anchored: bool,
 ) -> Result<()> {
@@ -234,25 +292,25 @@ fn nodes(
 		match node {
 			markup::Node::Text { v } => builder.write(v),
 
-			markup::Node::Expr { src } => slot(builder, scope, src, ir::Escape::Content)?,
+			markup::Node::Expr { src } => slot(builder, scope, derivations, src, ir::Escape::Content)?,
 
 			// Svelte brackets raw HTML with a pair of empty comments, so the anchors are static
 			// and only the content between them is a slot.
 			markup::Node::Html { src } => {
 				builder.write("<!---->");
-				slot(builder, scope, src, ir::Escape::Raw)?;
+				slot(builder, scope, derivations, src, ir::Escape::Raw)?;
 				builder.write("<!---->");
 			}
 
 			markup::Node::Element { name, attrs, body } => {
 				builder.write(&format!("<{name}"));
-				attributes(builder, ctx, scope, attrs)?;
+				attributes(builder, ctx, scope, derivations, attrs)?;
 				if VOID.contains(&name.as_str()) {
 					builder.write("/>");
 					continue;
 				}
 				builder.write(">");
-				nodes(builder, ctx, scope, body, false)?;
+				nodes(builder, ctx, scope, derivations, body, false)?;
 				builder.write(&format!("</{name}>"));
 			}
 
@@ -262,18 +320,25 @@ fn nodes(
 				// to the block, because which one is written is only known per request.
 				// A literal test is a constant branch, but Svelte still writes the marker for
 				// whichever branch it took, so folding it away would not match its bytes.
-				let Binding::Path(path) = resolve(scope, test)? else {
-					return Err(format!("`{test}` resolves to a literal, which an if cannot test"));
+				let path = if is_path(test.trim()) {
+					match resolve(scope, test)? {
+						Binding::Path(path) => path,
+						Binding::Literal(_) => {
+							return Err(format!("`{test}` resolves to a literal, which an if cannot test"));
+						}
+					}
+				} else {
+					derivations.add(scope, test)?
 				};
 
 				let mut taken = Builder::default();
 				taken.write("<!--[0-->");
-				nodes(&mut taken, ctx, scope, consequent, true)?;
+				nodes(&mut taken, ctx, scope, derivations, consequent, true)?;
 
 				let mut otherwise = Builder::default();
 				otherwise.write("<!--[-1-->");
 				if let Some(alternate) = alternate {
-					nodes(&mut otherwise, ctx, scope, alternate, true)?;
+					nodes(&mut otherwise, ctx, scope, derivations, alternate, true)?;
 				}
 
 				builder.push(ir::Node::If {
@@ -309,7 +374,7 @@ fn nodes(
 				if leading_anchor(body) {
 					inner.write("<!---->");
 				}
-				nodes(&mut inner, ctx, &inner_scope, body, true)?;
+				nodes(&mut inner, ctx, &inner_scope, derivations, body, true)?;
 				// The open and close markers sit outside the node: one pair for the block, not
 				// one per iteration.
 				builder.write("<!--[-->");
@@ -321,7 +386,7 @@ fn nodes(
 				if !body.is_empty() {
 					return Err(format!("<{name}> was given children, which needs snippets"));
 				}
-				compose(builder, ctx, scope, name, props)?;
+				compose(builder, ctx, scope, derivations, name, props)?;
 				if !(last && anchored) {
 					builder.write("<!---->");
 				}
@@ -342,6 +407,7 @@ fn compose(
 	builder: &mut Builder,
 	ctx: &Context,
 	scope: &Scope,
+	derivations: &mut Derivations,
 	name: &str,
 	props: &[markup::Attr],
 ) -> Result<()> {
@@ -394,15 +460,16 @@ fn compose(
 	stack.push(id.clone());
 	let inner = Context { bundle: ctx.bundle, module: child, stack };
 	let scope = Scope { props: Some(&bindings), locals: Vec::new() };
-	nodes(builder, &inner, &scope, &child.markup, false)
+	nodes(builder, &inner, &scope, derivations, &child.markup, false)
 }
 
-pub fn lower(bundle: &markup::Bundle) -> Result<ir::ComponentIR> {
+pub fn lower(bundle: &markup::Bundle) -> Result<ir::Compiled> {
 	let Some(module) = bundle.components.get(&bundle.entry) else {
 		return Err(format!("the bundle has no entry `{}`", bundle.entry));
 	};
 	let ctx = Context { bundle, module, stack: vec![bundle.entry.clone()] };
 	let scope = Scope { props: None, locals: Vec::new() };
+	let mut derivations = Derivations::default();
 
 	let mut builder = Builder::default();
 	// Svelte wraps every component render in this pair, and only the outermost one: a child is
@@ -415,7 +482,11 @@ pub fn lower(bundle: &markup::Bundle) -> Result<ir::ComponentIR> {
 	if leading_anchor(&module.markup) {
 		builder.write("<!---->");
 	}
-	nodes(&mut builder, &ctx, &scope, &module.markup, module.markup.len() == 1)?;
+	nodes(&mut builder, &ctx, &scope, &mut derivations, &module.markup, module.markup.len() == 1)?;
 	builder.write("<!--]-->");
-	Ok(ir::ComponentIR { component: bundle.entry.clone(), nodes: builder.finish() })
+
+	Ok(ir::Compiled {
+		ir: ir::ComponentIR { component: bundle.entry.clone(), nodes: builder.finish() },
+		derivations: derivations.list,
+	})
 }

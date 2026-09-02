@@ -3,6 +3,7 @@
 	"private": true,
 	"type": "module",
 	"dependencies": {
+		"derive": "workspace:*",
 		"injector": "workspace:*"
 	},
 	"devDependencies": {

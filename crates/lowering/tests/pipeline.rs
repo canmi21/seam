@@ -5,7 +5,7 @@
 //! Svelte's own server output. Together they say that a component compiled here renders the
 //! bytes Svelte would have rendered, without any of Svelte running at request time.
 
-use seam_lowering::{lower, markup::Bundle};
+use lowering::{lower, markup::Bundle};
 
 fn read(relative: &str) -> String {
 	let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").join(relative);
@@ -62,14 +62,32 @@ fn lowering_reproduces_every_committed_ir() {
 fn the_specification_carries_the_ir_lowering_produces() {
 	let committed: serde_json::Value =
 		serde_json::from_str(&read("conformance/cases/product.ir.json")).expect("ir");
-	assert_eq!(committed, ir_from_spec());
+	assert_eq!(committed["ir"], ir_from_spec());
 }
 
 #[test]
-fn an_expression_that_is_not_a_path_is_refused() {
+fn an_expression_that_is_not_a_path_becomes_a_derivation() {
 	let bundle = single(r#"[{"k":"if","test":"price > 10","consequent":[],"alternate":null}]"#);
-	let error = lower(&bundle).expect_err("a comparison is not a data path");
-	assert!(error.contains("not a data path"), "{error}");
+	let compiled = lower(&bundle).expect("a comparison is derived, not refused");
+	let [derivation] = compiled.derivations.as_slice() else {
+		panic!("expected one derivation, got {:?}", compiled.derivations);
+	};
+	assert_eq!(derivation.expression, "price > 10");
+	let json = serde_json::to_value(&compiled.ir).expect("json");
+	let nodes = json["nodes"].as_array().expect("nodes");
+	let block = nodes.iter().find(|n| n["t"] == "if").expect("an if node");
+	assert_eq!(block["branches"][0]["test"], serde_json::json!(derivation.name));
+}
+
+/// A derivation runs once per request, so a value that differs per iteration has nowhere to go.
+#[test]
+fn an_expression_inside_an_each_block_is_refused() {
+	let bundle = single(
+		r#"[{"k":"each","source":"p.xs","item":"x","index":null,"key":null,"fallback":null,
+		     "body":[{"k":"expr","src":"x.toUpperCase()"}]}]"#,
+	);
+	let error = lower(&bundle).expect_err("per-item derivation is not available");
+	assert!(error.contains("each block"), "{error}");
 }
 
 #[test]

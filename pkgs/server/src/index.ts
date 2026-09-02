@@ -1,10 +1,16 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import {
+	createServer as createHttpServer,
+	type IncomingMessage,
+	type ServerResponse,
+} from 'node:http';
 import { inject, type ComponentIR } from 'injector';
 import { wrap } from './document.ts';
 import { serveStatic } from './static.ts';
 
 export interface Route {
 	ir: ComponentIR;
+	/// Runs once per request, over data, before anything is injected.
+	derive: (payload: Record<string, unknown>) => Record<string, unknown>;
 	data: Record<string, unknown>;
 }
 
@@ -23,7 +29,8 @@ async function handle(
 
 	const route = options.routes[pathname];
 	if (route !== undefined) {
-		const html = wrap(options.shell, inject(route.ir, route.data), route.data);
+		const payload = route.derive(route.data);
+		const html = wrap(options.shell, inject(route.ir, payload), payload);
 		response.writeHead(200, {
 			'content-type': 'text/html; charset=utf-8',
 			'content-length': Buffer.byteLength(html),
@@ -38,8 +45,8 @@ async function handle(
 	response.end('not found\n');
 }
 
-export function createSeamServer(options: Options) {
-	return createServer((request, response) => {
+export function createServer(options: Options) {
+	return createHttpServer((request, response) => {
 		handle(options, request, response).catch((error: unknown) => {
 			console.error(error);
 			if (!response.headersSent) response.writeHead(500);
