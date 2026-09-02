@@ -62,6 +62,18 @@ has no second source to read. See [derivation.md](derivation.md).
 
 **QuickJS.** The sense in which a backend that is not Node embeds an expression evaluator rather
 than a JavaScript runtime. Named as a size, not as a dependency. See [pipeline.md](pipeline.md).
+Its `JS_SetInterruptHandler` also settled which side can bound a running expression, and the
+answer was the opposite of the one that had been assumed: the embedded engine can, and Node,
+which cannot preempt synchronous code at all, cannot.
+
+**CEL, and Starlark.** The right prior art for whether an expression language should guarantee
+termination, and not consulted the first time the question came up -- framework tooling was
+searched when the answer was in expression languages. CEL is non-Turing-complete and evaluates in
+linear time; Starlark forbids recursion and unbounded loops. Both were considered and neither is
+followed, on the strength of a line from Starlark's own issue tracker: prohibiting recursion helps
+achieve finite execution in theory while in practice a five-line program can still fail to finish.
+That is what struck termination off the list of things this protocol governs. See
+[derivation.md](derivation.md).
 
 ## The payload
 

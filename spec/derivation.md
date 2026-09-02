@@ -27,10 +27,10 @@ already been determined.
 
 So the rule is not a list of permitted APIs. It is a property:
 
-> **A derivation is a pure, total, deterministic function of the payload.**
+> **A derivation is a pure, deterministic function of the payload.**
 
-Everything below follows from that sentence, and the sections are the three ways to violate it:
-ambient input, side effect, non-termination.
+Everything below follows from that sentence, and the sections are the two ways to violate it:
+ambient input and side effect. A third was counted once and struck; see the end.
 
 ## Every identifier resolves, or it is refused
 
@@ -81,6 +81,8 @@ require a shape the author declares.
 | `<script module>`, not exported | refused, with instructions to export it |
 | instance `<script>`, not reading props | refused, with instructions to move it to `<script module>` |
 | instance `<script>`, reading props | **lifted into a derivation** |
+| imported, with its source reachable | carried, and analysed the same way its caller was |
+| imported, with no source to read | refused, by name |
 
 The last row is not a concession. `const total = p.price * 2` **is a derivation the author wrote
 outside the markup**: its free variables are props, and its shape is the same as the expression
@@ -91,8 +93,17 @@ A chain, `const a = p.x * 2; const b = a + 1`, is substituted at compile time in
 rather than emitted as two derivations. That keeps derivations independent of one another, which
 the section below relies on.
 
-**Imported functions are not carried.** Not because they are impure -- most are not -- but for the
-termination reason given at the end.
+**An imported function is carried, on one condition: its source has to be reachable at compile
+time.** It usually is, being a module in the author's own bundle, and reaching it is what lets the
+analysis above continue through it. A dependency that arrives as a binary, or a call through a
+value rather than a name -- `handlers[k](x)` -- is refused, because there is nothing to look at.
+
+The analysis is the same one, run again on the body. A function is not exempt from what its caller
+had to satisfy: `format(data.d)` is legal only if `format` reads nothing ambient, mutates nothing,
+and calls only functions that also pass. **That is the real reason a carried function was ever a
+question**, and it is a question about divergence rather than about cost -- a `new Date()` inside
+a helper puts the server and the browser on different answers, which is precisely the failure the
+rest of this file exists to prevent.
 
 ## Ambient input is data, not capability
 
@@ -147,29 +158,55 @@ Independence keeps **evaluation order out of the protocol**, so two backends can
 evaluating in different orders. Recomputation is the cost and it is not worth avoiding; the
 compile-time substitution above already removes the case where sharing would have mattered.
 
-## Termination comes from the shape
+## Termination is not one of the three
 
-Neither prior art helps here. Qwik and Bun both serialize or evaluate, and neither has to bound
-anything.
+An earlier draft counted it as the third way to violate the sentence at the top, and claimed it
+came free: a derivation is an expression, there is no `while` and no named recursion to write, and
+what remains terminates. Imported functions were refused to protect that.
 
-It is free anyway, because **a derivation is an expression, not a statement**. There is no
-`while`, no `for`, and no named recursion to write. What remains -- `.map`, `.filter`, `.reduce`
-over finite arrays -- terminates. No instruction budget is needed, and the two backends do not
-need different mechanisms to agree.
+**The guarantee was never there.** Measured, with no carried function, no import and no loop
+keyword -- an expression, exactly what this file permits:
 
-**This guarantee is exactly as strong as the decision not to carry imported functions.** A
-carried function can recurse, at which point termination returns to the author, an embedded
-runtime needs a budget, and a component can succeed on one backend and exceed a budget on
-another.
+```
+[...Array(N)].map((_, i) => i).filter((i) => i % 7 === 0).length
+
+N = 1e5      2ms
+N = 1e6     11ms
+N = 1e7    128ms
+```
+
+`N` is a literal the author typed. Two more zeroes and the request never returns.
+
+The languages built for this say the same thing about themselves. CEL is non-Turing-complete and
+evaluates in linear time; Starlark forbids recursion and unbounded loops; both are the right prior
+art and neither was consulted the first time. But Starlark's own issue tracker puts it plainly:
+prohibiting recursion **helps achieve finite execution in theory, while in practice it is easy to
+write a five-line program which will not finish**. Syntactic totality buys *finite*, and a request
+needs *bounded*.
+
+So the third violation is struck. **This file governs divergence, not cost.** Ambient input,
+mutation and non-determinism each make one side wrong -- the server and the browser disagreeing,
+or two backends disagreeing about the bytes. A slow derivation is slow everywhere, which is not a
+disagreement about anything.
+
+Cost is the same question the load stage raises and it has the same answer: it is the author's,
+running the author's code over the author's data in the author's process, and an expression that
+will not finish is the same failure as a loader that will not return. The protocol declines both.
+
+The asymmetry that was supposed to follow runs the other way, which is worth recording because it
+was assumed rather than checked. **QuickJS can bound execution and Node cannot.** Its
+`JS_SetInterruptHandler` is called throughout evaluation and raises an uncatchable exception, and
+`rquickjs` exposes it; Node has no way to preempt synchronous code at all. A backend may set a
+budget, and that is a deployment choice rather than a rule here.
 
 ## Open
 
-- **Imported functions.** They should be allowed eventually: `format(p.d)` is a pure function of
-  the payload and there is no principled reason to refuse it. What has no answer yet is
-  termination, which the shape argument above no longer covers once a function can call itself.
-  Prior art gave nothing for this. It stays refused until there is a mechanism, not a preference.
+- **Analysing a function body.** Carrying an imported function is decided; walking into its body
+  is what has to be built, and it is one more use of the pass that resolves bindings, which is
+  itself written down here and not yet written. Until it exists a call is refused, which is a
+  missing implementation rather than a missing answer.
 
-  It is also the largest thing standing between the compiler and components people have already
+  It is the largest thing standing between the compiler and components people have already
   published. The way a modern Svelte library writes a conditional class is `class={cn(...)}` or
   `class={tv({...})}` -- a call, producing a string, in a substitution position the pipeline
   already handles. Measured across 1107 `.svelte` files in eleven published libraries, 267 carry
