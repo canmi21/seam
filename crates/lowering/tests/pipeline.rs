@@ -138,7 +138,7 @@ fn a_cycle_is_an_error_rather_than_a_hang() {
 fn a_block_inside_the_head_is_refused_while_blocks_are_matched_by_order() {
 	let skeleton: Skeleton = serde_json::from_str(
 		r#"{"html":"<!--[--><div></div><!--]-->",
-		    "head":"<!--3e142l--><!--[0--><meta name=\"a\" content=\"1\"/><!--]-->",
+		    "head":"<!--3e142l--><!--[0--><meta name=\"a\" content=\"1\"/><!--]--><!---->",
 		    "alternates":{},"holes":[],"blocks":[]}"#,
 	)
 	.expect("a skeleton");
@@ -151,15 +151,55 @@ fn a_block_inside_the_head_is_refused_while_blocks_are_matched_by_order() {
 #[test]
 fn a_static_head_becomes_nodes_rather_than_nothing() {
 	let skeleton: Skeleton = serde_json::from_str(
-		r#"{"html":"<!--[--><div></div><!--]-->","head":"<!--3e142l--><title>T</title>",
+		r#"{"html":"<!--[--><div></div><!--]-->",
+		    "head":"<!--3e142l--><meta name=\"a\" content=\"1\"/><!---->",
 		    "alternates":{},"holes":[],"blocks":[]}"#,
 	)
 	.expect("a skeleton");
 	let compiled = assemble("c", &skeleton).expect("a static head is carried");
 	assert_eq!(
 		serde_json::to_value(&compiled.ir.head).expect("json"),
-		serde_json::json!([{ "t": "static", "s": "<!--3e142l--><title>T</title>" }])
+		serde_json::json!([
+			{ "t": "static", "s": "<!--3e142l--><meta name=\"a\" content=\"1\"/><!---->" }
+		])
 	);
+}
+
+/// Svelte keeps the title out of both streams and appends it after every head block, so the
+/// compiler takes it out of the stream too. Carrying it as head bytes would work today and stop
+/// working the moment a title sits inside a branch, where the block renders empty and the title
+/// leaves it.
+#[test]
+fn the_title_is_taken_out_of_the_head_rather_than_left_in_it() {
+	let skeleton: Skeleton = serde_json::from_str(
+		r#"{"html":"<!--[--><div></div><!--]-->",
+		    "head":"<!--3e142l--><!----><title>T</title>",
+		    "alternates":{},"holes":[],"blocks":[]}"#,
+	)
+	.expect("a skeleton");
+	let compiled = assemble("c", &skeleton).expect("a title is carried");
+	assert_eq!(
+		serde_json::to_value(&compiled.ir.head).expect("json"),
+		serde_json::json!([{ "t": "static", "s": "<!--3e142l--><!---->" }])
+	);
+	assert_eq!(
+		serde_json::to_value(&compiled.ir.title).expect("json"),
+		serde_json::json!([{ "t": "static", "s": "<title>T</title>" }])
+	);
+}
+
+/// The split is Svelte's own line, `content.head + get_title()`, so anything else appearing after
+/// the last head block means that line changed and the reading is no longer sound.
+#[test]
+fn bytes_after_the_head_blocks_that_are_not_a_title_are_refused() {
+	let skeleton: Skeleton = serde_json::from_str(
+		r#"{"html":"<!--[--><div></div><!--]-->",
+		    "head":"<!--3e142l--><!----><style id=\"x\">a{}</style>",
+		    "alternates":{},"holes":[],"blocks":[]}"#,
+	)
+	.expect("a skeleton");
+	let error = assemble("c", &skeleton).expect_err("that is not a title");
+	assert!(error.contains("not a title"), "{error}");
 }
 
 /// The written pass walks the markup, so it refuses a node it does not know. This pass reads a

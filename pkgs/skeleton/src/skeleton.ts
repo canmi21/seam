@@ -147,6 +147,25 @@ function collect(
 }
 
 /**
+ * Svelte keeps the title in a channel rather than in a stream, and a second one overwrites the
+ * first by a precedence rule read off the render tree. Two readings of that rule each disagreed
+ * with what it actually does, so it is not reproduced: one title, or none. See spec/ir.md.
+ */
+function titles(node: unknown): number {
+	if (!isNode(node)) return 0;
+	if (node['type'] === 'TitleElement') return 1;
+	let found = 0;
+	for (const value of Object.values(node)) {
+		if (Array.isArray(value)) {
+			for (const child of value) found += titles(child);
+		} else if (isNode(value)) {
+			found += titles(value);
+		}
+	}
+	return found;
+}
+
+/**
  * Rewrites the markup so it renders with no data: every expression becomes a string literal
  * holding a sentinel, every if is written as a constant, and every each iterates one element.
  *
@@ -184,6 +203,11 @@ interface Rewritten {
 export async function skeleton(entryFile: string): Promise<Skeleton> {
 	const file = resolvePath(entryFile);
 	const source = readFileSync(file, 'utf8');
+
+	const found = titles(parse(source, { modern: true }) as unknown as AstNode);
+	if (found > 1) {
+		throw new Error(`this component writes ${found} titles, and only one of them would survive`);
+	}
 
 	// Everything taken: this render holds every consequent and every each body.
 	const baseline = rewrite(source, () => true);

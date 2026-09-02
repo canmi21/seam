@@ -46,6 +46,9 @@ pub struct ComponentIR {
 	pub component: String,
 	pub body: Vec<Node>,
 	pub head: Vec<Node>,
+	/// The title, which is a channel rather than markup. Walking it gives either nothing or a
+	/// whole `<title>` element, and the result belongs after the head. See `spec/ir.md`.
+	pub title: Vec<Node>,
 }
 
 /// Where a name in a derivation's expression gets its value.

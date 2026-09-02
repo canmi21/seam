@@ -21,4 +21,10 @@ export interface ComponentIR {
 	component: string;
 	body: Node[];
 	head: Node[];
+	/**
+	 * The title, which Svelte keeps in a channel of its own rather than in either stream, and
+	 * which the client sets with `document.title = ...` rather than hydrating. Walking it yields
+	 * either nothing or a whole `<title>` element. See spec/ir.md.
+	 */
+	title: Node[];
 }

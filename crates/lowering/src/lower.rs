@@ -492,6 +492,7 @@ pub fn lower(bundle: &markup::Bundle) -> Result<ir::Compiled> {
 			component: bundle.entry.clone(),
 			body: builder.finish(),
 			head: Vec::new(),
+			title: Vec::new(),
 		},
 		derivations: derivations.list,
 	})

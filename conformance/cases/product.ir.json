@@ -67,7 +67,8 @@
 				"s": "<!--]--></article><!--]-->"
 			}
 		],
-		"head": []
+		"head": [],
+		"title": []
 	},
 	"derivations": []
 }

@@ -65,6 +65,8 @@ struct Span {
 }
 
 const OPEN: &str = "<!--[";
+/// What a head block closes with, and what a fragment writes where it holds nothing.
+const EMPTY: &str = "<!---->";
 const CLOSE: &str = "<!--]-->";
 
 /// Finds the block that opens at or after `from`, at this nesting level, skipping any nested
@@ -433,20 +435,28 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 	assembler.region(&skeleton.html, outer.content, outer.until, &mut out)?;
 	out.write(&skeleton.html[outer.until..outer.to]);
 
-	// The head has no wrapping pair of its own: Svelte writes a hash anchor, then the content,
-	// and a child's head is already merged in ahead of time. So the whole string is one region.
-	// Assembled after the body because blocks are numbered in source order and counted as they
-	// are met, which lines up only while the head holds none.
+	// Each head block is a hash anchor, its content, and an empty comment; a child's is already
+	// merged in ahead of it. The title is not part of any of them -- Svelte keeps it in a channel
+	// of its own and appends it after the lot -- so the last empty comment is where the head ends
+	// and the title begins. Both are assembled after the body, because blocks are numbered in
+	// source order and counted as they are met, which lines up only while the head holds none.
+	let (head_bytes, title_bytes) = split_off_title(&skeleton.head)?;
+
 	let mut head = Out::default();
-	if !skeleton.head.is_empty() {
-		if skeleton.head.contains(OPEN) {
+	if !head_bytes.is_empty() {
+		if head_bytes.contains(OPEN) {
 			return Err(
 				"a block inside the document head is not handled yet: blocks are matched by \
 				 document order, and the head is a second stream ordered its own way"
 					.to_owned(),
 			);
 		}
-		assembler.region(&skeleton.head, 0, skeleton.head.len(), &mut head)?;
+		assembler.region(head_bytes, 0, head_bytes.len(), &mut head)?;
+	}
+
+	let mut title = Out::default();
+	if !title_bytes.is_empty() {
+		assembler.region(title_bytes, 0, title_bytes.len(), &mut title)?;
 	}
 	assembler.placed()?;
 
@@ -455,7 +465,27 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 			component: component.to_owned(),
 			body: out.finish(),
 			head: head.finish(),
+			title: title.finish(),
 		},
 		derivations: assembler.derivations,
 	})
+}
+
+/// Splits the rendered head into the head blocks and the title, at the close of the last block.
+///
+/// `head()` writes `<!--hash-->`, the content, then an empty comment, and `#close_render` appends
+/// `get_title()` after every one of those. So the split is that line of Svelte's rather than a
+/// position worked out here, and the title is checked to be a whole element so that a release
+/// which appends something else is a failure rather than a silent misreading.
+fn split_off_title(head: &str) -> Result<(&str, &str)> {
+	if head.is_empty() {
+		return Ok(("", ""));
+	}
+	let close = head.rfind(EMPTY).ok_or_else(|| "a rendered head with no block close".to_owned())?
+		+ EMPTY.len();
+	let (blocks, title) = head.split_at(close);
+	if !title.is_empty() && !(title.starts_with("<title>") && title.ends_with("</title>")) {
+		return Err(format!("the head carries `{title}` after its blocks, which is not a title"));
+	}
+	Ok((blocks, title))
 }

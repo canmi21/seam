@@ -29,10 +29,11 @@ them the class of bug where the extractor and the injector disagree about what a
 ## Node kinds
 
 Five, and the tree bottoms out in strings. `body` and `head` are the two streams Svelte renders
-and the two the injector produces; a component that writes to neither leaves `head` empty.
+and the two the injector produces; `title` is the channel it keeps beside them. A component that
+uses none of the three leaves `head` and `title` empty.
 
 ```json
-{ "component": "product", "head": [], "body": [
+{ "component": "product", "head": [], "title": [], "body": [
   { "t": "static", "s": "<!--[--><article class=\"card\"><h1>" },
   { "t": "slot",   "path": "p.name", "escape": "content" },
   { "t": "static", "s": "</h1>" },
@@ -218,15 +219,41 @@ BODY  <!--[--><div>%%s2%%</div><b>child</b><!----><!--]-->
   has, and the same requirement: one filename, spelled identically wherever the component is
   compiled.
 
-Only one rule of Svelte's has to be lived with rather than copied: **`<title>` is moved to the end
-of the stream** regardless of where it was written, leaving a `<!---->` where it stood. That does
-not disturb holes, which are indexed, but it does disturb blocks, which are matched by document
-order.
+## The title is a channel, not markup
 
-**A block in the head is refused, and that is the only thing still refused.** Holes are indexed so
-the hoisting cannot disturb them, but blocks are matched by walking one string in document order,
-and the head is a second string ordered its own way. Placing one needs a block to record which
-stream it belongs to, which the render pass can supply because it has the AST.
+It reads as an element and behaves as nothing of the sort. Svelte keeps it out of both streams:
+
+```js
+// internal/server/renderer.js, #close_render
+let head = content.head + renderer.global.get_title();
+```
+
+`head()` writes `<!--hash-->`, its content, then an empty comment. Every head block ends that way,
+and the title is appended after all of them, so **the last empty comment is where the head ends
+and the title begins**. That split is Svelte's own line rather than a position worked out here,
+and what follows it is checked to be a whole `<title>` so that a release appending something else
+fails rather than being misread.
+
+The client agrees, and more strongly. It compiles a title to `document.title = value` in an
+effect, with **no DOM node and no hydration**, so the title's bytes are outside the ABI entirely.
+That is why `{#if a}<title>T</title>{/if}` renders as an empty block with the title outside it:
+neither side treats it as content.
+
+So the IR carries `title` beside `body` and `head`. Walking it yields either nothing or a whole
+element, an unreached branch leaves it unset rather than empty, and the injector appends the
+result where Svelte appends its own. The nodes are the ordinary ones and the walk is the ordinary
+walk; only the name and the placement differ, because only the meaning does.
+
+**More than one title is refused.** A second overwrites the first by a precedence rule read off
+the render tree, and that rule is not reproduced here: two readings of `set_title` each disagreed
+with what it measurably does, and a rule discovered by measurement is exactly what this pipeline
+does not copy. See [pipeline.md](pipeline.md). One title, or none. Overriding across a route and
+its layout will be a rule stated here rather than one reverse-engineered from there.
+
+**A block in the head is refused.** Blocks are matched by walking one string in document order,
+and the head is a second string ordered its own way; holes are indexed so they do not have the
+problem. Placing one needs a block to record which stream it belongs to, which the render pass can
+supply because it has the AST.
 
 Merging across routes -- one page's title overriding a layout's -- is the only part that would
 require the IR to understand the bytes it concatenates rather than treat them as opaque. It waits

@@ -50,7 +50,8 @@
 				"s": "<!----></span><input disabled=\"\"/><br/></div><!--]-->"
 			}
 		],
-		"head": []
+		"head": [],
+		"title": []
 	},
 	"derivations": []
 }

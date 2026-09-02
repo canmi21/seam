@@ -49,6 +49,16 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 	return out;
 }
 
+/**
+ * The title, which reads as markup and behaves as a channel. It is written here rather than in
+ * the head so that the difference has a name: the head is bytes in place, while this is a value
+ * that is either set or not, and an unreached branch leaves it unset rather than empty. The walk
+ * underneath is the same one.
+ */
+function title(nodes: readonly Node[], scopes: readonly Scope[]): string {
+	return walk(nodes, scopes);
+}
+
 /** What Svelte's `render()` returns, produced without any of Svelte running. */
 export interface Injected {
 	body: string;
@@ -56,5 +66,7 @@ export interface Injected {
 }
 
 export function inject(ir: ComponentIR, data: Scope): Injected {
-	return { body: walk(ir.body, [data]), head: walk(ir.head, [data]) };
+	const scopes = [data];
+	// The title goes after the head blocks, which is where Svelte's own renderer appends it.
+	return { body: walk(ir.body, scopes), head: walk(ir.head, scopes) + title(ir.title, scopes) };
 }
