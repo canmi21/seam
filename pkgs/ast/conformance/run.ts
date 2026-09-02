@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'n
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { bindings } from '../src/bindings.ts';
 import { bundle } from '../src/bundle.ts';
 
 const cases = resolve(dirname(fileURLToPath(import.meta.url)), '../../../conformance/cases');
@@ -40,9 +41,9 @@ const refusals: [string, string, string][] = [
 		'LIMIT',
 	],
 	[
-		'an imported function',
-		"<script>import { cn } from 'x'; let { data } = $props()</script><div class={cn(data.c)}></div>",
-		'cn',
+		'a name that is neither a prop nor an import',
+		'<script>let { data } = $props()</script><b>{helpers[data.k](data.v)}</b>',
+		'helpers',
 	],
 	['a clock', '<script>let { data } = $props()</script><b>{Date.now()}</b>', 'Date'],
 	['randomness', '<script>let { data } = $props()</script><b>{Math.random()}</b>', 'Math.random'],
@@ -65,6 +66,29 @@ for (const [label, source, name] of refusals) {
 		console.error(`MISS   ${label} was not refused by name: ${message || '(it compiled)'}`);
 	}
 }
+// The other side of the same pass. An imported name is legal and is reported for bundling
+// rather than refused, and the three import forms are not interchangeable when it comes to
+// asking for the name again.
+const imports: [string, string, string][] = [
+	['a named import', "import { cn } from './u.ts'", 'named:cn'],
+	['a renamed import', "import { cn as c } from './u.ts'", 'named:c'],
+	['a default import', "import cn from './u.ts'", 'default:cn'],
+	['a namespace import', "import * as u from './u.ts'", 'namespace:u'],
+];
+for (const [label, statement, expected] of imports) {
+	const name = expected.split(':')[1] ?? '';
+	const source = `<script>${statement}; let { data } = $props()</script><b>{${name}.x ?? ${name}(data.v)}</b>`;
+	const carried = bindings(source)
+		.carried.map((one) => `${one.kind}:${one.local}`)
+		.join(',');
+	if (carried === expected) {
+		console.log(`match  ${label} is carried as ${expected}`);
+	} else {
+		failed += 1;
+		console.error(`MISS   ${label} came back as ${carried || '(nothing)'}, not ${expected}`);
+	}
+}
+
 rmSync(staging, { recursive: true, force: true });
 
 if (failed > 0) {

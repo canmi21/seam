@@ -1,0 +1,14 @@
+{
+	"name": "carry",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"ast": "workspace:*"
+	},
+	"devDependencies": {
+		"esbuild": "^0.27.0"
+	}
+}

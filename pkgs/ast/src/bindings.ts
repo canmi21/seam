@@ -61,6 +61,63 @@ export interface Unresolved {
 	reason: 'unknown' | 'ambient';
 }
 
+/** One name an expression uses that came from an import, and how to ask for it again. */
+export interface Carried {
+	/** The name as the markup writes it. */
+	local: string;
+	from: string;
+	/** What the module calls it: the export's name, `default`, or the whole module. */
+	kind: 'named' | 'default' | 'namespace';
+	/** For a named import, the exported name, which a rename makes different from `local`. */
+	exported?: string;
+}
+
+export interface Bindings {
+	unresolved: Unresolved[];
+	/**
+	 * The imported names the markup actually uses. They are legal, and they are the list of what
+	 * has to be bundled with the expressions that call them. Not analysed: see spec/derivation.md
+	 * for why a purity check over library code was measured and abandoned.
+	 */
+	carried: Carried[];
+}
+
+const KINDS: Record<string, Carried['kind']> = {
+	ImportSpecifier: 'named',
+	ImportDefaultSpecifier: 'default',
+	ImportNamespaceSpecifier: 'namespace',
+};
+
+/** Every name the instance script imports, and enough about each to import it again. */
+function imported(instance: unknown): Map<string, Carried> {
+	const found = new Map<string, Carried>();
+	if (!isNode(instance)) return found;
+	const content = instance['content'];
+	if (!isNode(content)) return found;
+	const body = content['body'];
+	if (!Array.isArray(body)) return found;
+
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
+		const from = statement['source'];
+		if (!isNode(from) || typeof from['value'] !== 'string') continue;
+		for (const specifier of Array.isArray(statement['specifiers']) ? statement['specifiers'] : []) {
+			if (!isNode(specifier)) continue;
+			const local = specifier['local'];
+			const kind = KINDS[String(specifier['type'])];
+			if (!isNode(local) || typeof local['name'] !== 'string' || kind === undefined) continue;
+			const named = specifier['imported'];
+			found.set(local['name'], {
+				local: local['name'],
+				from: from['value'],
+				kind,
+				...(isNode(named) && typeof named['name'] === 'string' ? { exported: named['name'] } : {}),
+			});
+		}
+	}
+	return found;
+}
+
 /** Every name a binding pattern introduces: `{ a, b: c }`, `[d]`, `...rest`, `e = 1`. */
 function bound(pattern: unknown, into: Set<string>): void {
 	if (!isNode(pattern)) return;
@@ -197,6 +254,7 @@ function report(
 	source: string,
 	scope: ReadonlySet<string>,
 	into: Unresolved[],
+	carried?: { known: ReadonlyMap<string, Carried>; used: Set<string> },
 ): void {
 	if (!isNode(expression)) return;
 	const names = new Set<string>();
@@ -206,9 +264,14 @@ function report(
 	const text = typeof start === 'number' && typeof end === 'number' ? source.slice(start, end) : '';
 
 	for (const name of names) {
-		if (!GLOBALS.has(name)) {
-			into.push({ name, expression: text, reason: 'unknown' });
+		if (GLOBALS.has(name)) continue;
+		// An imported name is legal and gets bundled rather than looked up in the data. A
+		// component is not one of these: it is composed at compile time and never a value here.
+		if (carried?.known.get(name)?.from.endsWith('.svelte') === false) {
+			carried.used.add(name);
+			continue;
 		}
+		into.push({ name, expression: text, reason: 'unknown' });
 	}
 
 	// A global on the list can still hold something that is not: `Math` is fine and
@@ -244,12 +307,18 @@ function walkMembers(node: unknown, found: (object: string, property: string) =>
 	}
 }
 
-function markup(node: unknown, source: string, scope: Set<string>, into: Unresolved[]): void {
+function markup(
+	node: unknown,
+	source: string,
+	scope: Set<string>,
+	into: Unresolved[],
+	carried: { known: ReadonlyMap<string, Carried>; used: Set<string> },
+): void {
 	if (!isNode(node)) return;
 	const type = node['type'];
 
 	if (type === 'ExpressionTag' || type === 'HtmlTag') {
-		report(node['expression'], source, scope, into);
+		report(node['expression'], source, scope, into, carried);
 		return;
 	}
 
@@ -257,7 +326,7 @@ function markup(node: unknown, source: string, scope: Set<string>, into: Unresol
 		if (clientOnly(node['name'])) return;
 		const value = node['value'];
 		for (const part of Array.isArray(value) ? value : [value]) {
-			markup(part, source, scope, into);
+			markup(part, source, scope, into, carried);
 		}
 		return;
 	}
@@ -273,41 +342,47 @@ function markup(node: unknown, source: string, scope: Set<string>, into: Unresol
 	}
 
 	if (type === 'IfBlock') {
-		report(node['test'], source, scope, into);
-		markup(node['consequent'], source, scope, into);
-		markup(node['alternate'], source, scope, into);
+		report(node['test'], source, scope, into, carried);
+		markup(node['consequent'], source, scope, into, carried);
+		markup(node['alternate'], source, scope, into, carried);
 		return;
 	}
 
 	if (type === 'EachBlock') {
-		report(node['expression'], source, scope, into);
+		report(node['expression'], source, scope, into, carried);
 		const inner = new Set(scope);
 		bound(node['context'], inner);
 		const index = node['index'];
 		if (typeof index === 'string') inner.add(index);
-		markup(node['body'], source, inner, into);
-		markup(node['fallback'], source, scope, into);
+		markup(node['body'], source, inner, into, carried);
+		markup(node['fallback'], source, scope, into, carried);
 		return;
 	}
 
 	for (const value of Object.values(node)) {
 		if (Array.isArray(value)) {
-			for (const child of value) markup(child, source, scope, into);
+			for (const child of value) markup(child, source, scope, into, carried);
 		} else if (isNode(value)) {
-			markup(value, source, scope, into);
+			markup(value, source, scope, into, carried);
 		}
 	}
 }
 
 /**
- * Every name in the markup that does not resolve, with the expression it was written in.
+ * Where every name in the markup comes from: the ones that resolve to nothing, and the imported
+ * ones that have to be bundled with it.
  *
- * An empty result means each name is a prop, an each binding, something the expression bound
- * itself, or one of the globals that reads the same everywhere.
+ * An empty `unresolved` means each name is a prop, an each binding, an import, something the
+ * expression bound itself, or one of the globals that reads the same everywhere.
  */
-export function unresolved(source: string): Unresolved[] {
+export function bindings(source: string): Bindings {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const found: Unresolved[] = [];
-	markup(ast['fragment'], source, props(ast['instance']), found);
-	return found;
+	const carried = { known: imported(ast['instance']), used: new Set<string>() };
+	markup(ast['fragment'], source, props(ast['instance']), found, carried);
+	const used = [...carried.used]
+		.toSorted()
+		.map((name) => carried.known.get(name))
+		.filter((one): one is Carried => one !== undefined);
+	return { unresolved: found, carried: used };
 }

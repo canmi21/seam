@@ -69,8 +69,8 @@ off a node it has already parsed, so nothing new is parsed and no dependency is 
 so `onclick={() => n += 1}` is left alone where `{n}` would be refused. That is the same line the
 compiler already draws elsewhere and it was measured rather than assumed.
 
-What it does not do yet is walk into a function it was asked to carry, which is why an imported
-name is still reported here rather than followed.
+An imported name is not reported here. It resolves, and what it resolves to is bundled: see the
+next section, and `pkgs/carry`.
 
 ## Carrying is declared, never inferred
 
@@ -91,7 +91,6 @@ require a shape the author declares.
 | instance `<script>`, not reading props | refused, with instructions to move it to `<script module>` |
 | instance `<script>`, reading props | **lifted into a derivation** |
 | imported, with its source reachable | bundled with the expression that calls it |
-| called through a value rather than a name | refused, there being no name to follow |
 
 The last row is not a concession. `const total = p.price * 2` **is a derivation the author wrote
 outside the markup**: its free variables are props, and its shape is the same as the expression
@@ -104,8 +103,12 @@ the section below relies on.
 
 **An imported function is carried, on one condition: its source has to be reachable at compile
 time**, so that it can be bundled with the expression that calls it. It usually is, being a module
-the author already depends on. A call through a value rather than a name -- `handlers[k](x)` --
-is refused, because there is no name to follow.
+the author already depends on.
+
+A draft refused a call through a value -- `handlers[k](x)` -- for having no name to follow.
+Bundling makes that unnecessary: `handlers` is the name, it is imported, the whole of it is
+bundled, and which entry the call reaches is decided at request time inside the bundle like any
+other lookup. What is refused is what was always refused, a name that resolves to nothing.
 
 **It is bundled, not analysed**, and a draft that said otherwise was wrong on measurement. The two
 functions the whole question is about do not survive an analysis: `clsx` is shipped minified and
@@ -217,10 +220,10 @@ budget, and that is a deployment choice rather than a rule here.
 
 ## Open
 
-- **Building the bundle.** Carrying an imported function is decided and unanalysed; producing the
-  script is what is left. Until it exists a call is refused by name, which is a missing
-  implementation rather than a missing answer, and the same holds for a module constant, which the
-  same step inlines.
+- **Carrying a module constant.** The three rows of the table above that are not about imports
+  are still refused: a constant in `<script module>` is not yet inlined, and one in the instance
+  script is not yet lifted. Both are steps the compiler can take with what it already has, and
+  neither is waiting on a decision.
 
   It is the largest thing standing between the compiler and components people have already
   published. The way a modern Svelte library writes a conditional class is `class={cn(...)}` or

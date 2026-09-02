@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve } from 'node:path';
-import { unresolved } from './bindings.ts';
+import { bindings } from './bindings.ts';
 import type { Bundle, Module } from './markup.ts';
 import { reduce } from './reduce.ts';
 
@@ -29,7 +29,7 @@ export function bundle(entryFile: string): Bundle {
 		// Before anything is read out of the markup, every name in it has to come from somewhere.
 		// A local variable and a payload key are indistinguishable by shape, so without this a
 		// component compiles and renders an empty string where the value should be.
-		const loose = unresolved(source);
+		const loose = bindings(source).unresolved;
 		if (loose.length > 0) {
 			// One line per name rather than per occurrence, and the expression only where it says
 			// more than the name does.

@@ -27,6 +27,16 @@ importers:
         specifier: ^5.57.0
         version: 5.57.0
 
+  pkgs/carry:
+    dependencies:
+      ast:
+        specifier: workspace:*
+        version: link:../ast
+    devDependencies:
+      esbuild:
+        specifier: ^0.27.0
+        version: 0.27.7
+
   pkgs/derive:
     dependencies:
       injector:

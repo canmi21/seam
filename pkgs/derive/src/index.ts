@@ -16,14 +16,40 @@ export interface Derivation {
  *
  * The body uses `with`, which is normally a mistake and is exactly right here. It binds the
  * names of an object as variables, which is what a component's props are, and it is what lets
- * the expression stay unrewritten. A function built this way is sloppy mode, so `with` is legal.
+ * the expression stay unrewritten. A function built this way is sloppy mode, so `with` is legal,
+ * where a module is always strict and would not take it at all.
+ *
+ * Two scopes, nested. The outer one holds what the component imported, which is the same for
+ * every request; the inner one holds the data, which is not. Nesting them rather than merging
+ * them is what stops a payload key from shadowing a carried function, or the reverse.
  */
-function build(expression: string): (bindings: Record<string, unknown>) => unknown {
+function build(
+	expression: string,
+	carried: Record<string, unknown>,
+): (bindings: Record<string, unknown>) => unknown {
 	// eslint-disable-next-line no-new-func
-	const fn = new Function('$scope', `with ($scope) { return (${expression}); }`) as (
-		bindings: Record<string, unknown>,
-	) => unknown;
-	return fn;
+	const make = new Function(
+		'$carried',
+		`with ($carried) { return ($scope) => { with ($scope) { return (${expression}); } }; }`,
+	) as (carried: Record<string, unknown>) => (bindings: Record<string, unknown>) => unknown;
+	return make(carried);
+}
+
+/**
+ * Evaluates the bundle a component's expressions call into, once, and returns what it exported.
+ *
+ * The script is an immediately invoked function assigning to one name, so returning that name is
+ * all it takes to read the exports back. No module loader is involved, which is the point: the
+ * evaluator that runs derivations is not required to have one. See spec/derivation.md.
+ */
+function evaluate(script: string): Record<string, unknown> {
+	if (script === '') return {};
+	// eslint-disable-next-line no-new-func
+	const exports = new Function(`${script}\nreturn __carried;`)() as unknown;
+	if (typeof exports !== 'object' || exports === null) {
+		throw new Error('the carried bundle did not produce anything to call');
+	}
+	return exports as Record<string, unknown>;
 }
 
 /**
@@ -39,11 +65,12 @@ export interface Derived {
 	(data: unknown): Scope;
 }
 
-export function compile(derivations: readonly Derivation[]): Derived {
+export function compile(derivations: readonly Derivation[], carried = ''): Derived {
+	const imported = evaluate(carried);
 	const compiled = derivations.map((derivation) => ({
 		name: derivation.name,
 		scope: derivation.scope,
-		evaluate: build(derivation.expression),
+		evaluate: build(derivation.expression, imported),
 		source: derivation.expression,
 	}));
 
