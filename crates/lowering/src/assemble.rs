@@ -179,6 +179,8 @@ impl Out {
 struct Assembler<'a> {
 	skeleton: &'a Skeleton,
 	derivations: Vec<ir::Derivation>,
+	/// How many times each hole came back in the render. Checked once at the end.
+	consumed: Vec<usize>,
 	/// Blocks are numbered in document order by the pass that rendered them, and appear in the
 	/// render in the same order, so one counter walks both.
 	block: usize,
@@ -201,12 +203,43 @@ impl Assembler<'_> {
 		name
 	}
 
-	fn hole(&self, index: usize) -> Result<&Hole> {
-		self
+	/// Reading a hole marks it used. Every hole has to be used exactly once: the render is the
+	/// only evidence the compiler has, so a sentinel that never comes back in it is content that
+	/// Svelte put somewhere this pass does not look, and emitting the rest as if nothing were
+	/// missing is the worst available outcome.
+	fn hole(&mut self, index: usize) -> Result<(String, bool)> {
+		let hole = self
 			.skeleton
 			.holes
 			.get(index)
-			.ok_or_else(|| format!("the render carries a sentinel {index} with no hole"))
+			.ok_or_else(|| format!("the render carries a sentinel {index} with no hole"))?;
+		let found = (hole.expression.clone(), hole.raw);
+		self.consumed[index] += 1;
+		Ok(found)
+	}
+
+	/// The pass that wrote the bytes walked the markup, so it could refuse a node it did not
+	/// know. This one reads a rendered string and has no notion of a node at all, which is why
+	/// that refusal had to be rebuilt in terms of what it does see. `<svelte:head>` is the shape
+	/// that found it: `render()` returns a head and a body, only the body is read, and a title
+	/// compiled without complaint and then did not exist.
+	fn placed(&self) -> Result<()> {
+		for (index, count) in self.consumed.iter().enumerate() {
+			if *count == 1 {
+				continue;
+			}
+			let expression = &self.skeleton.holes[index].expression;
+			return Err(if *count == 0 {
+				format!(
+					"`{expression}` is written but never comes back in the render, so it would be \
+					 dropped; content outside the component's body, `<svelte:head>` among it, is \
+					 not handled yet"
+				)
+			} else {
+				format!("`{expression}` comes back {count} times in the render, and belongs in one place")
+			});
+		}
+		Ok(())
 	}
 }
 
@@ -257,9 +290,9 @@ impl Assembler<'_> {
 			match landing(html, start, from)? {
 				Landing::Content => {
 					out.write(&html[at..start]);
-					let hole = self.hole(index)?;
-					let escape = if hole.raw { ir::Escape::Raw } else { ir::Escape::Content };
-					let path = self.path(&hole.expression.clone());
+					let (expression, raw) = self.hole(index)?;
+					let escape = if raw { ir::Escape::Raw } else { ir::Escape::Content };
+					let path = self.path(&expression);
 					out.push(ir::Node::Slot { path, escape });
 					at = end;
 				}
@@ -289,7 +322,7 @@ impl Assembler<'_> {
 		let mut at = from;
 		while let Some((start, end, index)) = sentinel_at(html, at, until) {
 			parts.write(&html[at..start]);
-			let expression = self.hole(index)?.expression.clone();
+			let (expression, _) = self.hole(index)?;
 			let path = self.path(&expression);
 			parts.push(ir::Node::Slot { path, escape: ir::Escape::Attr });
 			at = end;
@@ -384,11 +417,17 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 	let outer = next_block(&skeleton.html, 0, skeleton.html.len())
 		.ok_or_else(|| "a render with no component boundary".to_owned())?;
 
-	let mut assembler = Assembler { skeleton, derivations: Vec::new(), block: 0 };
+	let mut assembler = Assembler {
+		skeleton,
+		derivations: Vec::new(),
+		block: 0,
+		consumed: vec![0; skeleton.holes.len()],
+	};
 	let mut out = Out::default();
 	out.write(&skeleton.html[outer.from..outer.content]);
 	assembler.region(&skeleton.html, outer.content, outer.until, &mut out)?;
 	out.write(&skeleton.html[outer.until..outer.to]);
+	assembler.placed()?;
 
 	Ok(ir::Compiled {
 		ir: ir::ComponentIR { component: component.to_owned(), nodes: out.finish() },
