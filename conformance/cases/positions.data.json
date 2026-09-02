@@ -1,1 +1,9 @@
-[{ "label": "component last in element and last at root", "data": { "p": { "a": "A", "b": "B" } } }]
+[
+	{
+		"label": "component last in element and last at root",
+		"data": {
+			"a": "A",
+			"b": "B"
+		}
+	}
+]

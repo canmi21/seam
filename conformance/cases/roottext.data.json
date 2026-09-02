@@ -1,1 +1,8 @@
-[{ "label": "text then component at the root", "data": { "p": { "a": "A" } } }]
+[
+	{
+		"label": "text then component at the root",
+		"data": {
+			"a": "A"
+		}
+	}
+]

@@ -2,17 +2,31 @@
 	{
 		"label": "all present",
 		"data": {
-			"p": { "name": "Alice", "tone": "cool", "note": "hi", "flag": true, "tags": ["a", "b"] }
+			"name": "Alice",
+			"tone": "cool",
+			"note": "hi",
+			"flag": true,
+			"tags": ["a", "b"]
 		}
 	},
 	{
 		"label": "branch not taken, no items",
-		"data": { "p": { "name": "Bob", "tone": "warm", "note": "", "flag": false, "tags": [] } }
+		"data": {
+			"name": "Bob",
+			"tone": "warm",
+			"note": "",
+			"flag": false,
+			"tags": []
+		}
 	},
 	{
 		"label": "characters that escape",
 		"data": {
-			"p": { "name": "<b>&x", "tone": "a\"b", "note": "<i>", "flag": true, "tags": ["<t>"] }
+			"name": "<b>&x",
+			"tone": "a\"b",
+			"note": "<i>",
+			"flag": true,
+			"tags": ["<t>"]
 		}
 	}
 ]

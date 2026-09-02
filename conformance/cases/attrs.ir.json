@@ -12,7 +12,7 @@
 				"parts": [
 					{
 						"t": "slot",
-						"path": "p.x",
+						"path": "data.x",
 						"escape": "attr"
 					}
 				]
@@ -27,7 +27,7 @@
 					},
 					{
 						"t": "slot",
-						"path": "p.c",
+						"path": "data.c",
 						"escape": "attr"
 					},
 					{
@@ -42,7 +42,7 @@
 			},
 			{
 				"t": "slot",
-				"path": "p.h",
+				"path": "data.h",
 				"escape": false
 			},
 			{

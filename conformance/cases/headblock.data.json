@@ -1,14 +1,29 @@
 [
 	{
 		"label": "head branch taken, body branch taken",
-		"data": { "p": { "indexed": true, "links": ["a", "b"], "shown": true, "name": "Alice" } }
+		"data": {
+			"indexed": true,
+			"links": ["a", "b"],
+			"shown": true,
+			"name": "Alice"
+		}
 	},
 	{
 		"label": "head branch not taken, body branch not taken",
-		"data": { "p": { "indexed": false, "links": [], "shown": false, "name": "Bob" } }
+		"data": {
+			"indexed": false,
+			"links": [],
+			"shown": false,
+			"name": "Bob"
+		}
 	},
 	{
 		"label": "head not taken, body taken",
-		"data": { "p": { "indexed": false, "links": ["x"], "shown": true, "name": "<b>&x" } }
+		"data": {
+			"indexed": false,
+			"links": ["x"],
+			"shown": true,
+			"name": "<b>&x"
+		}
 	}
 ]

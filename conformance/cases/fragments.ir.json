@@ -8,7 +8,7 @@
 			},
 			{
 				"t": "each",
-				"source": "p.xs",
+				"source": "data.xs",
 				"item": "x",
 				"body": [
 					{
@@ -34,7 +34,7 @@
 				"t": "if",
 				"branches": [
 					{
-						"test": "p.t",
+						"test": "data.t",
 						"body": [
 							{
 								"t": "static",

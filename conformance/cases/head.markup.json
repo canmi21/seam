@@ -6,7 +6,7 @@
 				{
 					"k": "unsupported",
 					"type": "SvelteHead",
-					"src": "<svelte:head><meta name=\"description\" content={p.note} /><title>{p.name}</title></svelte:head>"
+					"src": "<svelte:head><meta name=\"description\" content={data.note} /><title>{data.name}</title></svelte:head>"
 				},
 				{
 					"k": "element",
@@ -15,7 +15,7 @@
 					"body": [
 						{
 							"k": "expr",
-							"src": "p.name"
+							"src": "data.name"
 						}
 					]
 				}

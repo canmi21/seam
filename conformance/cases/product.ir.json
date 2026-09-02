@@ -8,7 +8,7 @@
 			},
 			{
 				"t": "slot",
-				"path": "p.name",
+				"path": "data.name",
 				"escape": "content"
 			},
 			{
@@ -19,7 +19,7 @@
 				"t": "if",
 				"branches": [
 					{
-						"test": "p.available",
+						"test": "data.available",
 						"body": [
 							{
 								"t": "static",
@@ -44,7 +44,7 @@
 			},
 			{
 				"t": "each",
-				"source": "p.tags",
+				"source": "data.tags",
 				"item": "t",
 				"body": [
 					{

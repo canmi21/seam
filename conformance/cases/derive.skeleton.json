@@ -14,7 +14,7 @@
 	"holes": [
 		{
 			"index": 0,
-			"expression": "p.name.toUpperCase()",
+			"expression": "data.name.toUpperCase()",
 			"raw": false
 		}
 	],
@@ -23,7 +23,7 @@
 			"index": 0,
 			"kind": "if",
 			"stream": "body",
-			"expression": "p.price > 10",
+			"expression": "data.price > 10",
 			"item": null,
 			"alternate": true
 		},
@@ -31,7 +31,7 @@
 			"index": 1,
 			"kind": "if",
 			"stream": "body",
-			"expression": "p.tags.length === 0",
+			"expression": "data.tags.length === 0",
 			"item": null,
 			"alternate": false
 		}

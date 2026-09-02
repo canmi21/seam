@@ -76,17 +76,17 @@
 	"derivations": [
 		{
 			"name": "__d0",
-			"expression": "p.price > 10",
+			"expression": "data.price > 10",
 			"scope": null
 		},
 		{
 			"name": "__d1",
-			"expression": "p.name.toUpperCase()",
+			"expression": "data.name.toUpperCase()",
 			"scope": null
 		},
 		{
 			"name": "__d2",
-			"expression": "p.tags.length === 0",
+			"expression": "data.tags.length === 0",
 			"scope": null
 		}
 	]

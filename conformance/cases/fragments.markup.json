@@ -10,7 +10,7 @@
 					"body": [
 						{
 							"k": "each",
-							"source": "p.xs",
+							"source": "data.xs",
 							"item": "x",
 							"index": null,
 							"key": null,
@@ -41,7 +41,7 @@
 				},
 				{
 					"k": "if",
-					"test": "p.t",
+					"test": "data.t",
 					"consequent": [
 						{
 							"k": "element",

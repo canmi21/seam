@@ -13,7 +13,7 @@
 							"value": [
 								{
 									"k": "expr",
-									"src": "p.x"
+									"src": "data.x"
 								}
 							]
 						},
@@ -27,7 +27,7 @@
 								},
 								{
 									"k": "expr",
-									"src": "p.c"
+									"src": "data.c"
 								},
 								{
 									"k": "text",
@@ -54,7 +54,7 @@
 							"body": [
 								{
 									"k": "html",
-									"src": "p.h"
+									"src": "data.h"
 								}
 							]
 						},

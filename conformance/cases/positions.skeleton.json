@@ -5,12 +5,12 @@
 	"holes": [
 		{
 			"index": 0,
-			"expression": "p.a",
+			"expression": "data.a",
 			"raw": false
 		},
 		{
 			"index": 1,
-			"expression": "p.b",
+			"expression": "data.b",
 			"raw": false
 		}
 	],

@@ -35,17 +35,17 @@ uses none of the three leaves `head` and `title` empty.
 ```json
 { "component": "product", "head": [], "title": [], "body": [
   { "t": "static", "s": "<!--[--><article class=\"card\"><h1>" },
-  { "t": "slot",   "path": "p.name", "escape": "content" },
+  { "t": "slot",   "path": "data.name", "escape": "content" },
   { "t": "static", "s": "</h1>" },
 
   { "t": "if", "branches": [
-      { "test": "p.available", "body": [ {"t":"static","s":"<!--[0--><button>Buy</button>"} ] },
+      { "test": "data.available", "body": [ {"t":"static","s":"<!--[0--><button>Buy</button>"} ] },
       { "test": null,          "body": [ {"t":"static","s":"<!--[-1-->"} ] }
   ]},
 
   { "t": "static", "s": "<!--]--><!--[-->" },
 
-  { "t": "each", "source": "p.tags", "item": "t", "body": [
+  { "t": "each", "source": "data.tags", "item": "t", "body": [
       { "t": "static", "s": "<span>" },
       { "t": "slot",   "path": "t", "escape": "content" },
       { "t": "static", "s": "</span>" }
@@ -129,8 +129,8 @@ somebody else.
 
 ## Composition inlines, and needs no node
 
-A child is spliced into its parent at compile time, with its paths rewritten. `<Badge label={p.name} />`
-lowers the child's `{label}` into a slot on `p.name`; `<Badge tone="warm" />` lowers the child's
+A child is spliced into its parent at compile time, with its paths rewritten. `<Badge label={data.name} />`
+lowers the child's `{label}` into a slot on `data.name`; `<Badge tone="warm" />` lowers the child's
 `{tone}` into **static text**, because a prop passed literally has nothing left to resolve. The
 runtime has no notion of a component, and the injector did not change to gain one.
 
@@ -157,7 +157,7 @@ they now come from.
 
 **`test` and `path` are data paths. They are never expressions.**
 
-`p.available` is legal. `price > 10` never reaches the IR: the compiler rewrites it into a
+`data.available` is legal. `price > 10` never reaches the IR: the compiler rewrites it into a
 derived field and carries the expression separately, so what the IR tests is always a path and
 what evaluates the predicate is a stage that runs before injection. See
 [pipeline.md](pipeline.md) for why, and [derivation.md](derivation.md) for what such an expression
@@ -296,7 +296,7 @@ Recorded rather than decided, because guessing now would be worse than deciding 
   rather than standing beside it: `class="c"` with `class:on={true}` is one `class="c on"`, and
   `style:color` joins an existing `style` with `; `. That makes the attribute a computed join of
   conditional parts, which the `attr` node does not express.
-- **Empty values.** `{p.name}` with an empty string produced `<h1></h1>` in Svelte's SSR, with no
+- **Empty values.** `{data.name}` with an empty string produced `<h1></h1>` in Svelte's SSR, with no
   text node. Whether hydration requires one to exist is not yet known, and it decides whether a
   `slot` must always emit something.
 - **Per-item derivation.** A derivation is a function of the payload, computed once, so an

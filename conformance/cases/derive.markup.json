@@ -10,7 +10,7 @@
 					"body": [
 						{
 							"k": "if",
-							"test": "p.price > 10",
+							"test": "data.price > 10",
 							"consequent": [
 								{
 									"k": "element",
@@ -45,13 +45,13 @@
 							"body": [
 								{
 									"k": "expr",
-									"src": "p.name.toUpperCase()"
+									"src": "data.name.toUpperCase()"
 								}
 							]
 						},
 						{
 							"k": "if",
-							"test": "p.tags.length === 0",
+							"test": "data.tags.length === 0",
 							"consequent": [
 								{
 									"k": "element",

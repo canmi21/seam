@@ -40,11 +40,16 @@ function compileTree(file: string, seen: Map<string, string>): string {
 	return out;
 }
 
-/** Both streams, because the injector now produces both and only comparing one proves half. */
+/**
+ * Both streams, because the injector now produces both and only comparing one proves half.
+ *
+ * The load stage's output goes in under the one name the protocol gives it, which is the same
+ * arrangement the server uses and the same one the client hydrates with. See spec/payload.md.
+ */
 async function svelteRenderer(file: string): Promise<(data: unknown) => Injected> {
 	const mod = await import(pathToFileURL(compileTree(file, new Map())).href);
 	return (data) => {
-		const { body, head } = render(mod.default, { props: data as Record<string, unknown> });
+		const { body, head } = render(mod.default, { props: { data } });
 		return { body, head };
 	};
 }
@@ -61,9 +66,11 @@ for (const file of readdirSync(cases)
 		derivations: Derivation[];
 	};
 	const derive = compileDerivations(compiled.derivations);
+	// `data` here is what the load stage would have produced, not the props object: the one
+	// name it arrives under is added by the renderer and by `derive`, not written in the fixture.
 	const payloads = JSON.parse(readFileSync(resolve(cases, `${name}.data.json`), 'utf8')) as {
 		label: string;
-		data: Record<string, unknown>;
+		data: unknown;
 	}[];
 	const svelte = await svelteRenderer(resolve(cases, file));
 

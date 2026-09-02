@@ -1,1 +1,1 @@
-<script>let { p } = $props()</script><div>{#each p.xs as x}item {x}<b>.</b>{/each}</div>{#if p.t}<b>y</b>{/if}
+<script>let { data } = $props()</script><div>{#each data.xs as x}item {x}<b>.</b>{/each}</div>{#if data.t}<b>y</b>{/if}

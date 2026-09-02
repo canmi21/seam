@@ -29,7 +29,7 @@
 									"value": [
 										{
 											"k": "expr",
-											"src": "p.name"
+											"src": "data.name"
 										}
 									]
 								},
@@ -66,7 +66,7 @@
 									"value": [
 										{
 											"k": "expr",
-											"src": "p.tone"
+											"src": "data.tone"
 										}
 									]
 								}
@@ -80,13 +80,13 @@
 							"body": [
 								{
 									"k": "expr",
-									"src": "p.note"
+									"src": "data.note"
 								}
 							]
 						},
 						{
 							"k": "if",
-							"test": "p.flag",
+							"test": "data.flag",
 							"consequent": [
 								{
 									"k": "component",
@@ -98,7 +98,7 @@
 											"value": [
 												{
 													"k": "expr",
-													"src": "p.name"
+													"src": "data.name"
 												}
 											]
 										},
@@ -120,7 +120,7 @@
 						},
 						{
 							"k": "each",
-							"source": "p.tags",
+							"source": "data.tags",
 							"item": "t",
 							"index": null,
 							"key": null,

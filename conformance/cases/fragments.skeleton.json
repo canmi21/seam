@@ -19,7 +19,7 @@
 			"index": 0,
 			"kind": "each",
 			"stream": "body",
-			"expression": "p.xs",
+			"expression": "data.xs",
 			"item": "x",
 			"alternate": false
 		},
@@ -27,7 +27,7 @@
 			"index": 1,
 			"kind": "if",
 			"stream": "body",
-			"expression": "p.t",
+			"expression": "data.t",
 			"item": null,
 			"alternate": false
 		}

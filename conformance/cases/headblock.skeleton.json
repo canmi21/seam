@@ -19,7 +19,7 @@
 		},
 		{
 			"index": 1,
-			"expression": "p.name",
+			"expression": "data.name",
 			"raw": false
 		}
 	],
@@ -28,7 +28,7 @@
 			"index": 0,
 			"kind": "if",
 			"stream": "head",
-			"expression": "p.indexed",
+			"expression": "data.indexed",
 			"item": null,
 			"alternate": true
 		},
@@ -36,7 +36,7 @@
 			"index": 1,
 			"kind": "each",
 			"stream": "head",
-			"expression": "p.links",
+			"expression": "data.links",
 			"item": "l",
 			"alternate": false
 		},
@@ -44,7 +44,7 @@
 			"index": 2,
 			"kind": "if",
 			"stream": "body",
-			"expression": "p.shown",
+			"expression": "data.shown",
 			"item": null,
 			"alternate": false
 		}

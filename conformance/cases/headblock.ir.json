@@ -10,7 +10,7 @@
 				"t": "if",
 				"branches": [
 					{
-						"test": "p.shown",
+						"test": "data.shown",
 						"body": [
 							{
 								"t": "static",
@@ -18,7 +18,7 @@
 							},
 							{
 								"t": "slot",
-								"path": "p.name",
+								"path": "data.name",
 								"escape": "content"
 							},
 							{
@@ -52,7 +52,7 @@
 				"t": "if",
 				"branches": [
 					{
-						"test": "p.indexed",
+						"test": "data.indexed",
 						"body": [
 							{
 								"t": "static",
@@ -77,7 +77,7 @@
 			},
 			{
 				"t": "each",
-				"source": "p.links",
+				"source": "data.links",
 				"item": "l",
 				"body": [
 					{

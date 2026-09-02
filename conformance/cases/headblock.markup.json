@@ -6,7 +6,7 @@
 				{
 					"k": "unsupported",
 					"type": "SvelteHead",
-					"src": "<svelte:head>{#if p.indexed}<meta name=\"robots\" content=\"index\" />{:else}<meta name=\"robots\" content=\"noindex\" />{/if}{#each p.links as l}<link rel=\"alternate\" href={l} />{/each}</svelte:head>"
+					"src": "<svelte:head>{#if data.indexed}<meta name=\"robots\" content=\"index\" />{:else}<meta name=\"robots\" content=\"noindex\" />{/if}{#each data.links as l}<link rel=\"alternate\" href={l} />{/each}</svelte:head>"
 				},
 				{
 					"k": "element",
@@ -15,7 +15,7 @@
 					"body": [
 						{
 							"k": "if",
-							"test": "p.shown",
+							"test": "data.shown",
 							"consequent": [
 								{
 									"k": "element",
@@ -24,7 +24,7 @@
 									"body": [
 										{
 											"k": "expr",
-											"src": "p.name"
+											"src": "data.name"
 										}
 									]
 								}

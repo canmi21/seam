@@ -8,7 +8,7 @@
 			},
 			{
 				"t": "slot",
-				"path": "p.name",
+				"path": "data.name",
 				"escape": "content"
 			},
 			{
@@ -27,7 +27,7 @@
 				"parts": [
 					{
 						"t": "slot",
-						"path": "p.note",
+						"path": "data.note",
 						"escape": "attr"
 					}
 				]
@@ -44,7 +44,7 @@
 			},
 			{
 				"t": "slot",
-				"path": "p.name",
+				"path": "data.name",
 				"escape": "content"
 			},
 			{

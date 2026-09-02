@@ -4,6 +4,7 @@
 	"type": "module",
 	"dependencies": {
 		"derive": "workspace:*",
+		"devalue": "5.9.2",
 		"injector": "workspace:*"
 	},
 	"devDependencies": {

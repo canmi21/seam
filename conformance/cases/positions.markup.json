@@ -18,7 +18,7 @@
 									"value": [
 										{
 											"k": "expr",
-											"src": "p.a"
+											"src": "data.a"
 										}
 									]
 								},
@@ -51,7 +51,7 @@
 							"value": [
 								{
 									"k": "expr",
-									"src": "p.b"
+									"src": "data.b"
 								}
 							]
 						},

@@ -47,6 +47,9 @@ importers:
       derive:
         specifier: workspace:*
         version: link:../derive
+      devalue:
+        specifier: 5.9.2
+        version: 5.9.2
       injector:
         specifier: workspace:*
         version: link:../injector

@@ -29,9 +29,11 @@ async function handle(
 
 	const route = options.routes[pathname];
 	if (route !== undefined) {
-		const payload = route.derive(route.data);
-		const { body, head } = inject(route.ir, payload);
-		const html = wrap(options.shell, body, payload, head);
+		// Two things, one level apart. The scope injection walks holds the data and the derived
+		// fields beside it; the wire carries the data alone.
+		const scope = route.derive(route.data);
+		const { body, head } = inject(route.ir, scope);
+		const html = wrap(options.shell, body, route.data, head);
 		response.writeHead(200, {
 			'content-type': 'text/html; charset=utf-8',
 			'content-length': Buffer.byteLength(html),

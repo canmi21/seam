@@ -8,7 +8,7 @@
 			},
 			{
 				"t": "slot",
-				"path": "p.a",
+				"path": "data.a",
 				"escape": "content"
 			},
 			{

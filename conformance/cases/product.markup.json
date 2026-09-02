@@ -26,13 +26,13 @@
 							"body": [
 								{
 									"k": "expr",
-									"src": "p.name"
+									"src": "data.name"
 								}
 							]
 						},
 						{
 							"k": "if",
-							"test": "p.available",
+							"test": "data.available",
 							"consequent": [
 								{
 									"k": "element",
@@ -61,7 +61,7 @@
 						},
 						{
 							"k": "each",
-							"source": "p.tags",
+							"source": "data.tags",
 							"item": "t",
 							"index": null,
 							"key": null,

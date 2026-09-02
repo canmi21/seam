@@ -1,16 +1,40 @@
 [
 	{
 		"label": "branch taken, two items",
-		"data": { "p": { "name": "Alice", "available": true, "tags": ["a", "b"] } }
+		"data": {
+			"name": "Alice",
+			"available": true,
+			"tags": ["a", "b"]
+		}
 	},
 	{
 		"label": "branch not taken, empty",
-		"data": { "p": { "name": "Bob", "available": false, "tags": [] } }
+		"data": {
+			"name": "Bob",
+			"available": false,
+			"tags": []
+		}
 	},
 	{
 		"label": "characters that escape",
-		"data": { "p": { "name": "<b>&x\"q", "available": false, "tags": ["<i>", "a&b"] } }
+		"data": {
+			"name": "<b>&x\"q",
+			"available": false,
+			"tags": ["<i>", "a&b"]
+		}
 	},
-	{ "label": "empty string", "data": { "p": { "name": "", "available": true, "tags": ["a"] } } },
-	{ "label": "absent fields", "data": { "p": { "available": true } } }
+	{
+		"label": "empty string",
+		"data": {
+			"name": "",
+			"available": true,
+			"tags": ["a"]
+		}
+	},
+	{
+		"label": "absent fields",
+		"data": {
+			"available": true
+		}
+	}
 ]

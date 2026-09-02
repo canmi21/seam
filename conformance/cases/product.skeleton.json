@@ -10,7 +10,7 @@
 	"holes": [
 		{
 			"index": 0,
-			"expression": "p.name",
+			"expression": "data.name",
 			"raw": false
 		},
 		{
@@ -24,7 +24,7 @@
 			"index": 0,
 			"kind": "if",
 			"stream": "body",
-			"expression": "p.available",
+			"expression": "data.available",
 			"item": null,
 			"alternate": false
 		},
@@ -32,7 +32,7 @@
 			"index": 1,
 			"kind": "each",
 			"stream": "body",
-			"expression": "p.tags",
+			"expression": "data.tags",
 			"item": "t",
 			"alternate": false
 		}

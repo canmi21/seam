@@ -1,1 +1,1 @@
-<script>let { p } = $props()</script><svelte:head>{#if p.indexed}<meta name="robots" content="index" />{:else}<meta name="robots" content="noindex" />{/if}{#each p.links as l}<link rel="alternate" href={l} />{/each}</svelte:head><div>{#if p.shown}<b>{p.name}</b>{/if}</div>
+<script>let { data } = $props()</script><svelte:head>{#if data.indexed}<meta name="robots" content="index" />{:else}<meta name="robots" content="noindex" />{/if}{#each data.links as l}<link rel="alternate" href={l} />{/each}</svelte:head><div>{#if data.shown}<b>{data.name}</b>{/if}</div>

@@ -26,8 +26,17 @@ function build(expression: string): (bindings: Record<string, unknown>) => unkno
 	return fn;
 }
 
+/**
+ * Takes what the load stage produced and returns the scope injection walks: that value under the
+ * one name the protocol gives it, and the derived fields beside it.
+ *
+ * The two are one level apart rather than mixed, which is the point. A derived field is the
+ * compiler's, not the author's, and putting it beside `data` rather than among its keys is what
+ * makes a collision impossible and keeps it off the wire, where only `data` goes. See
+ * spec/payload.md.
+ */
 export interface Derived {
-	(payload: Scope): Scope;
+	(data: unknown): Scope;
 }
 
 export function compile(derivations: readonly Derivation[]): Derived {
@@ -38,9 +47,9 @@ export function compile(derivations: readonly Derivation[]): Derived {
 		source: derivation.expression,
 	}));
 
-	return (payload) => {
-		if (compiled.length === 0) return payload;
-		const out: Scope = { ...payload };
+	return (data) => {
+		const out: Scope = { data };
+		if (compiled.length === 0) return out;
 		for (const derivation of compiled) {
 			const bindings: Record<string, unknown> =
 				derivation.scope === null

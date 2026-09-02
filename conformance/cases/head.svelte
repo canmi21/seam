@@ -1,1 +1,1 @@
-<script>let { p } = $props()</script><svelte:head><meta name="description" content={p.note} /><title>{p.name}</title></svelte:head><div>{p.name}</div>
+<script>let { data } = $props()</script><svelte:head><meta name="description" content={data.note} /><title>{data.name}</title></svelte:head><div>{data.name}</div>
