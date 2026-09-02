@@ -86,20 +86,35 @@ require a shape the author declares.
 
 | where it is written | what happens |
 | --- | --- |
-| `<script module>`, exported | evaluated once at build time and inlined as a literal; the value must be serializable |
-| `<script module>`, not exported | refused, with instructions to export it |
-| instance `<script>`, not reading props | refused, with instructions to move it to `<script module>` |
-| instance `<script>`, reading props | **lifted into a derivation** |
+| either `<script>`, not reading props | substituted into the expression, where it is a constant |
+| either `<script>`, reading props | substituted into the expression, where it is **a derivation** |
 | imported, with its source reachable | bundled with the expression that calls it |
 
-The last row is not a concession. `const total = p.price * 2` **is a derivation the author wrote
-outside the markup**: its free variables are props, and its shape is the same as the expression
-inside `{#if p.price > 10}`. Lifting it costs no new mechanism, and it turns the loudest current
-failure into the most ordinary feature.
+**A declaration is substituted, not evaluated**, and the two rows are one mechanism rather than
+two. `TAX` becomes `(0.2)` and `total` becomes `(data.price * (1 + (0.2)))`; the first is a
+constant because a module script has no props to read, and the second is a derivation for exactly
+the reason any other expression over the data is one. Nothing runs at build time, nothing has to
+be serialisable, and neither block needs a rule the other does not.
 
-A chain, `const a = p.x * 2; const b = a + 1`, is substituted at compile time into `(p.x * 2) + 1`
+`const total = p.price * 2` **is a derivation the author wrote outside the markup**: its free
+variables are props, and its shape is the same as the expression inside `{#if p.price > 10}`.
+Substituting it costs no new mechanism, and it turns the loudest failure the compiler had into
+the most ordinary feature.
+
+A chain, `const a = p.x * 2; const b = a + 1`, is substituted through into `((p.x * 2) + 1)`
 rather than emitted as two derivations. That keeps derivations independent of one another, which
-the section below relies on.
+the section below relies on, at the cost of computing a shared subexpression once per use. Cost is
+not what this file governs.
+
+An earlier draft had the module block evaluated at build time and inlined as a serialisable
+literal, and required an `export` to make the author's intent explicit. Substitution needs
+neither: there is no boundary being crossed, the declaration sitting in the same file as the
+markup that reads it, and asking for a keyword to permit that would be ceremony over nothing.
+
+A render is given no data, so a declaration reading a prop is handed `null` in the source the
+compiler renders. It has already been substituted into every expression that used it, which
+leaves it dead there. That is what a component doing this used to crash on, inside Svelte's own
+renderer, with a `TypeError` naming nothing an author could act on.
 
 **An imported function is carried, on one condition: its source has to be reachable at compile
 time**, so that it can be bundled with the expression that calls it. It usually is, being a module
@@ -220,10 +235,9 @@ budget, and that is a deployment choice rather than a rule here.
 
 ## Open
 
-- **Carrying a module constant.** The three rows of the table above that are not about imports
-  are still refused: a constant in `<script module>` is not yet inlined, and one in the instance
-  script is not yet lifted. Both are steps the compiler can take with what it already has, and
-  neither is waiting on a decision.
+- **A declaration that is not a plain `const` or `let`.** A function declared in a script, a
+  class, and a destructuring other than `$props()` are all still unresolved names. Each is the
+  same substitution with a different shape to read off, and none waits on a decision.
 
   It is the largest thing standing between the compiler and components people have already
   published. The way a modern Svelte library writes a conditional class is `class={cn(...)}` or

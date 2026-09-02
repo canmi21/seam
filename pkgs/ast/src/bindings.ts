@@ -82,6 +82,12 @@ export interface Bindings {
 	carried: Carried[];
 }
 
+interface Context {
+	known: ReadonlyMap<string, Carried>;
+	used: Set<string>;
+	declares: (name: string) => boolean;
+}
+
 const KINDS: Record<string, Carried['kind']> = {
 	ImportSpecifier: 'named',
 	ImportDefaultSpecifier: 'default',
@@ -163,25 +169,25 @@ function bound(pattern: unknown, into: Set<string>): void {
  * written in brackets. A function's parameters and its own declarations are bound within it, so
  * they are subtracted rather than reported.
  */
-function free(node: unknown, scope: ReadonlySet<string>, into: Set<string>): void {
+function reads(node: unknown, scope: ReadonlySet<string>, visit: (at: Node) => void): void {
 	if (!isNode(node)) return;
 	const type = node['type'];
 
 	if (type === 'Identifier') {
 		const name = node['name'];
-		if (typeof name === 'string' && !scope.has(name)) into.add(name);
+		if (typeof name === 'string' && !scope.has(name)) visit(node);
 		return;
 	}
 
 	if (type === 'MemberExpression') {
-		free(node['object'], scope, into);
-		if (node['computed'] === true) free(node['property'], scope, into);
+		reads(node['object'], scope, visit);
+		if (node['computed'] === true) reads(node['property'], scope, visit);
 		return;
 	}
 
 	if (type === 'Property') {
-		if (node['computed'] === true) free(node['key'], scope, into);
-		free(node['value'], scope, into);
+		if (node['computed'] === true) reads(node['key'], scope, visit);
+		reads(node['value'], scope, visit);
 		return;
 	}
 
@@ -193,24 +199,184 @@ function free(node: unknown, scope: ReadonlySet<string>, into: Set<string>): voi
 		const inner = new Set(scope);
 		const params = node['params'];
 		if (Array.isArray(params)) for (const param of params) bound(param, inner);
-		free(node['body'], inner, into);
+		reads(node['body'], inner, visit);
 		return;
 	}
 
 	if (type === 'VariableDeclarator') {
 		// The name is introduced here rather than read, but its initialiser is read in the scope
 		// that existed before it.
-		free(node['init'], scope, into);
+		reads(node['init'], scope, visit);
 		return;
 	}
 
 	for (const value of Object.values(node)) {
 		if (Array.isArray(value)) {
-			for (const child of value) free(child, scope, into);
+			for (const child of value) reads(child, scope, visit);
 		} else if (isNode(value)) {
-			free(value, scope, into);
+			reads(value, scope, visit);
 		}
 	}
+}
+
+/** The names an expression reads from outside itself. */
+function free(node: unknown, scope: ReadonlySet<string>, into: Set<string>): void {
+	reads(node, scope, (at) => {
+		const name = at['name'];
+		if (typeof name === 'string') into.add(name);
+	});
+}
+
+/** One name a script declares, and the source of what it was declared to be. */
+export interface Declared {
+	name: string;
+	/** The initialiser, as written. */
+	source: string;
+	/** Where it sits in the file, so a render can be given something harmless in its place. */
+	at: [number, number];
+	/** Whether it reads a prop, which decides whether a render with no data can hold it. */
+	reads: boolean;
+}
+
+/**
+ * What each script declares, in either block, with the initialiser kept as source.
+ *
+ * Both blocks are read the same way and the difference between them falls out rather than being
+ * enforced: a module script has no props to read, so what it declares is constant, and an
+ * instance script may read them, so what it declares is a derivation. Neither is evaluated here.
+ */
+function declared(ast: Node, source: string, names: ReadonlySet<string>): Map<string, Declared> {
+	const found = new Map<string, Declared>();
+	for (const block of [ast['module'], ast['instance']]) {
+		if (!isNode(block)) continue;
+		const content = block['content'];
+		if (!isNode(content)) continue;
+		const body = content['body'];
+		if (!Array.isArray(body)) continue;
+
+		for (const statement of body) {
+			if (!isNode(statement)) continue;
+			const declaration =
+				statement['type'] === 'ExportNamedDeclaration' ? statement['declaration'] : statement;
+			if (!isNode(declaration) || declaration['type'] !== 'VariableDeclaration') continue;
+			for (const one of Array.isArray(declaration['declarations'])
+				? declaration['declarations']
+				: []) {
+				if (!isNode(one)) continue;
+				const id = one['id'];
+				const init = one['init'];
+				if (!isNode(id) || id['type'] !== 'Identifier' || typeof id['name'] !== 'string') continue;
+				if (!isNode(init)) continue;
+				// `$props()` is the destructuring itself, and a rune holds client state rather
+				// than a value the markup can be given.
+				if (init['type'] === 'CallExpression') {
+					const callee = init['callee'];
+					if (isNode(callee) && String(callee['name']).startsWith('$')) continue;
+				}
+				const { start, end } = init;
+				if (typeof start !== 'number' || typeof end !== 'number') continue;
+				const reading = new Set<string>();
+				free(init, new Set(), reading);
+				found.set(id['name'], {
+					name: id['name'],
+					source: source.slice(start, end),
+					at: [start, end],
+					node: init,
+					free: reading,
+					reads: [...reading].some((one) => names.has(one)),
+				} as Declared & { node: Node; free: Set<string> });
+			}
+		}
+	}
+	// Reading a prop is transitive. `const b = a.x` where `a` reads one would evaluate against
+	// nothing in a render given no data, and a null dereference is the crash this is here to
+	// prevent, so it is settled to a fixed point rather than one level deep.
+	const carrying = found as Map<string, Declared & { free: Set<string> }>;
+	for (let changed = true; changed;) {
+		changed = false;
+		for (const one of carrying.values()) {
+			if (one.reads) continue;
+			for (const name of one.free) {
+				if (carrying.get(name)?.reads === true) {
+					one.reads = true;
+					changed = true;
+					break;
+				}
+			}
+		}
+	}
+	return found;
+}
+
+/**
+ * A component's scripts, ready to be substituted into the expressions that use them.
+ *
+ * Substituting rather than evaluating is what makes a module constant and a constant reading
+ * props one mechanism rather than two: `LIMIT` becomes `10` and `total` becomes `data.x * 2`,
+ * and the second is a derivation for exactly the reason any other expression is. Nothing is run
+ * at build time and nothing has to be serialisable. See spec/derivation.md.
+ */
+export interface Locals {
+	/** Whether the scripts declare this name. */
+	has: (name: string) => boolean;
+	/** An expression's source with every declared name replaced by what it was declared to be. */
+	rewrite: (node: unknown) => string;
+	/**
+	 * Where a declaration that reads a prop sits. A render is given no data, so holding one is
+	 * how a component used to crash inside Svelte's own renderer rather than being refused.
+	 */
+	reading: [number, number][];
+}
+
+export function locals(source: string): Locals {
+	const ast = parse(source, { modern: true }) as unknown as Node;
+	const found = declared(ast, source, props(ast['instance'])) as Map<
+		string,
+		Declared & { node: Node }
+	>;
+	const expanded = new Map<string, string>();
+
+	function slice(node: unknown, open: ReadonlySet<string>): string {
+		if (!isNode(node)) return '';
+		const { start, end } = node;
+		if (typeof start !== 'number' || typeof end !== 'number') return '';
+
+		const edits: [number, number, string][] = [];
+		reads(node, new Set(), (at) => {
+			const name = at['name'];
+			if (typeof name !== 'string' || !found.has(name) || open.has(name)) return;
+			const from = at['start'];
+			const to = at['end'];
+			if (typeof from !== 'number' || typeof to !== 'number') return;
+			edits.push([from, to, `(${expand(name, open)})`]);
+		});
+
+		edits.sort((a, b) => b[0] - a[0]);
+		let out = source.slice(start, end);
+		for (const [from, to, text] of edits) {
+			out = out.slice(0, from - start) + text + out.slice(to - start);
+		}
+		return out;
+	}
+
+	function expand(name: string, open: ReadonlySet<string>): string {
+		const cached = expanded.get(name);
+		if (cached !== undefined && open.size === 0) return cached;
+		const one = found.get(name);
+		if (one === undefined) return name;
+		// A name cannot stand in for itself. A cycle among declarations is the author's, and
+		// leaving the name in place lets the pass that resolves names report it.
+		const inner = new Set(open).add(name);
+		const text = slice(one.node, inner);
+		if (open.size === 0) expanded.set(name, text);
+		return text;
+	}
+
+	return {
+		has: (name) => found.has(name),
+		rewrite: (node) => slice(node, new Set()),
+		reading: [...found.values()].filter((one) => one.reads).map((one) => one.at),
+	};
 }
 
 /** The props the component destructures, which are the names the data has to carry. */
@@ -254,7 +420,7 @@ function report(
 	source: string,
 	scope: ReadonlySet<string>,
 	into: Unresolved[],
-	carried?: { known: ReadonlyMap<string, Carried>; used: Set<string> },
+	carried?: Context,
 ): void {
 	if (!isNode(expression)) return;
 	const names = new Set<string>();
@@ -271,6 +437,9 @@ function report(
 			carried.used.add(name);
 			continue;
 		}
+		// A name the scripts declare is substituted rather than looked up, so by the time an
+		// expression reaches the compiler it is gone. What is checked is what it expanded into.
+		if (carried?.declares(name) === true) continue;
 		into.push({ name, expression: text, reason: 'unknown' });
 	}
 
@@ -312,7 +481,7 @@ function markup(
 	source: string,
 	scope: Set<string>,
 	into: Unresolved[],
-	carried: { known: ReadonlyMap<string, Carried>; used: Set<string> },
+	carried: Context,
 ): void {
 	if (!isNode(node)) return;
 	const type = node['type'];
@@ -378,7 +547,12 @@ function markup(
 export function bindings(source: string): Bindings {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const found: Unresolved[] = [];
-	const carried = { known: imported(ast['instance']), used: new Set<string>() };
+	const declares = locals(source);
+	const carried: Context = {
+		known: imported(ast['instance']),
+		used: new Set<string>(),
+		declares: declares.has,
+	};
 	markup(ast['fragment'], source, props(ast['instance']), found, carried);
 	const used = [...carried.used]
 		.toSorted()

@@ -7,6 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bindings } from '../src/bindings.ts';
 import { bundle } from '../src/bundle.ts';
+import { reduce } from '../src/reduce.ts';
 
 const cases = resolve(dirname(fileURLToPath(import.meta.url)), '../../../conformance/cases');
 let failed = 0;
@@ -30,16 +31,6 @@ for (const file of readdirSync(cases)
 // written here. Each was a real failure before the pass existed, and each failed differently:
 // silently, at request time, and inside Svelte's own renderer.
 const refusals: [string, string, string][] = [
-	[
-		'a local read as if it were data',
-		'<script>let { data } = $props(); const total = data.x * 2</script><b>{total}</b>',
-		'total',
-	],
-	[
-		'a module constant',
-		'<script>const LIMIT = 10; let { data } = $props()</script>{#if data.p > LIMIT}<b>y</b>{/if}',
-		'LIMIT',
-	],
 	[
 		'a name that is neither a prop nor an import',
 		'<script>let { data } = $props()</script><b>{helpers[data.k](data.v)}</b>',
@@ -69,6 +60,36 @@ for (const [label, source, name] of refusals) {
 // The other side of the same pass. An imported name is legal and is reported for bundling
 // rather than refused, and the three import forms are not interchangeable when it comes to
 // asking for the name again.
+// A name a script declares is substituted into the expression that uses it, which is what makes
+// a module constant and one reading props the same mechanism. `LIMIT` becomes what it was
+// declared to be; `total` becomes an expression over the data, which is a derivation.
+const substitutions: [string, string, string][] = [
+	[
+		'a module constant',
+		'<script module>export const LIMIT = 10</script><script>let { data } = $props()</script><b>{data.p > LIMIT}</b>',
+		'data.p > (10)',
+	],
+	[
+		'a constant reading props',
+		'<script>let { data } = $props(); const total = data.x * 2</script><b>{total}</b>',
+		'(data.x * 2)',
+	],
+	[
+		'a chain of them',
+		'<script>let { data } = $props(); const a = data.x * 2; const b = a + 1</script><b>{b}</b>',
+		'((data.x * 2) + 1)',
+	],
+];
+for (const [label, source, expected] of substitutions) {
+	const found = JSON.stringify(reduce(source).markup);
+	if (found.includes(JSON.stringify(expected).slice(1, -1))) {
+		console.log(`match  ${label} expands to ${expected}`);
+	} else {
+		failed += 1;
+		console.error(`MISS   ${label} did not expand to ${expected}: ${found}`);
+	}
+}
+
 const imports: [string, string, string][] = [
 	['a named import', "import { cn } from './u.ts'", 'named:cn'],
 	['a renamed import', "import { cn as c } from './u.ts'", 'named:c'],

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve as resolvePath } from 'node:path';
 import { compile, parse } from 'svelte/compiler';
+import { type Locals, locals } from 'ast';
 import { sentinel } from './sentinel.ts';
 
 /** One dynamic position, in the order it appears in the source. */
@@ -80,13 +81,15 @@ function collect(
 	blocks: Block[],
 	taken: (block: number) => boolean,
 	stream: Stream,
+	/** An expression as the compiler will see it, with declared names already substituted. */
+	expand: Locals['rewrite'],
 ) {
 	if (!isNode(node)) return;
 
 	const type = node['type'];
 	if (type === 'SvelteHead') {
 		for (const child of ((node['fragment'] as AstNode | undefined)?.['nodes'] as unknown[]) ?? []) {
-			collect(source, child, holes, edits, blocks, taken, 'head');
+			collect(source, child, holes, edits, blocks, taken, 'head', expand);
 		}
 		return;
 	}
@@ -97,7 +100,7 @@ function collect(
 		// Where the value lands, and therefore how it is escaped, is read off the render rather
 		// than guessed here. A prop passed to a component may end up in text or in an attribute,
 		// and only the component knows which.
-		holes.push({ index, expression: source.slice(at[0], at[1]), raw: type === 'HtmlTag' });
+		holes.push({ index, expression: expand(node['expression']), raw: type === 'HtmlTag' });
 		edits.push([at[0], at[1], JSON.stringify(sentinel(index))]);
 		return;
 	}
@@ -107,7 +110,7 @@ function collect(
 		if (name.startsWith('on') && name.length > 2) return;
 		const value = node['value'];
 		const parts = Array.isArray(value) ? value : [value];
-		for (const part of parts) collect(source, part, holes, edits, blocks, taken, stream);
+		for (const part of parts) collect(source, part, holes, edits, blocks, taken, stream, expand);
 		return;
 	}
 	if (type === 'IfBlock') {
@@ -118,18 +121,18 @@ function collect(
 			index,
 			kind: 'if',
 			stream,
-			expression: source.slice(at[0], at[1]),
+			expression: expand(node['test']),
 			item: null,
 			alternate: node['alternate'] !== null && node['alternate'] !== undefined,
 		});
 		edits.push([at[0], at[1], taken(index) ? 'true' : 'false']);
-		collect(source, node['consequent'], holes, edits, blocks, taken, stream);
+		collect(source, node['consequent'], holes, edits, blocks, taken, stream, expand);
 		if (isNode(node['alternate'])) {
 			// A block inside an else is numbered but never rendered in the baseline, where every
 			// if is taken, so the render and the block list would stop lining up. Refused rather
 			// than mis-assembled.
 			const before = blocks.length;
-			collect(source, node['alternate'], holes, edits, blocks, taken, stream);
+			collect(source, node['alternate'], holes, edits, blocks, taken, stream, expand);
 			if (blocks.length !== before) {
 				throw new Error('a block inside an else is not handled by this pass yet');
 			}
@@ -144,13 +147,13 @@ function collect(
 			index: blocks.length,
 			kind: 'each',
 			stream,
-			expression: source.slice(at[0], at[1]),
+			expression: expand(node['expression']),
 			item: context === null ? null : source.slice(context[0], context[1]),
 			alternate: false,
 		});
 		// One element, because the body's own expressions are sentinels and read nothing from it.
 		edits.push([at[0], at[1], '[0]']);
-		collect(source, node['body'], holes, edits, blocks, taken, stream);
+		collect(source, node['body'], holes, edits, blocks, taken, stream, expand);
 		return;
 	}
 	if (type === 'AwaitBlock' || type === 'KeyBlock' || type === 'SnippetBlock') {
@@ -159,12 +162,13 @@ function collect(
 
 	for (const value of Object.values(node)) {
 		if (Array.isArray(value)) {
-			for (const child of value) collect(source, child, holes, edits, blocks, taken, stream);
+			for (const child of value)
+				collect(source, child, holes, edits, blocks, taken, stream, expand);
 		} else if (isNode(value) && value['type'] !== undefined) {
-			collect(source, value, holes, edits, blocks, taken, stream);
+			collect(source, value, holes, edits, blocks, taken, stream, expand);
 		} else if (isNode(value) && Array.isArray(value['nodes'])) {
 			for (const child of value['nodes'])
-				collect(source, child, holes, edits, blocks, taken, stream);
+				collect(source, child, holes, edits, blocks, taken, stream, expand);
 		}
 	}
 }
@@ -212,7 +216,15 @@ function rewrite(source: string, taken: (block: number) => boolean): Rewritten {
 	const holes: Hole[] = [];
 	const blocks: Block[] = [];
 	const edits: [number, number, string][] = [];
-	collect(source, ast['fragment'], holes, edits, blocks, taken, 'body');
+	const declared = locals(source);
+
+	// A render is given no data, so a declaration reading a prop would evaluate against nothing
+	// and crash inside Svelte's own renderer. It has already been substituted into every
+	// expression that used it, which leaves it dead here, so the render is handed a literal in
+	// its place rather than the expression it stood for.
+	for (const [from, to] of declared.reading) edits.push([from, to, 'null']);
+
+	collect(source, ast['fragment'], holes, edits, blocks, taken, 'body', declared.rewrite);
 
 	edits.sort((a, b) => b[0] - a[0]);
 	let rewritten = source;

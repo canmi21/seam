@@ -1,0 +1,85 @@
+{
+	"ir": {
+		"component": "locals",
+		"body": [
+			{
+				"t": "static",
+				"s": "<!--[--><article><b>"
+			},
+			{
+				"t": "slot",
+				"path": "__d0",
+				"escape": "content"
+			},
+			{
+				"t": "static",
+				"s": "</b>"
+			},
+			{
+				"t": "if",
+				"branches": [
+					{
+						"test": "__d1",
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[0--><em>dear</em>"
+							}
+						]
+					},
+					{
+						"test": null,
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[-1--><i>cheap</i>"
+							}
+						]
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--><!--[-->"
+			},
+			{
+				"t": "each",
+				"source": "data.tags",
+				"item": "t",
+				"body": [
+					{
+						"t": "static",
+						"s": "<span>"
+					},
+					{
+						"t": "slot",
+						"path": "t",
+						"escape": "content"
+					},
+					{
+						"t": "static",
+						"s": "</span>"
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--></article><!--]-->"
+			}
+		],
+		"head": [],
+		"title": []
+	},
+	"derivations": [
+		{
+			"name": "__d0",
+			"expression": "(data.price * (1 + (0.2)))",
+			"scope": null
+		},
+		{
+			"name": "__d1",
+			"expression": "((data.price * (1 + (0.2))) > 50)",
+			"scope": null
+		}
+	]
+}

@@ -70,6 +70,9 @@ importers:
 
   pkgs/skeleton:
     dependencies:
+      ast:
+        specifier: workspace:*
+        version: link:../ast
       svelte:
         specifier: ^5.57.0
         version: 5.57.0

@@ -1,4 +1,5 @@
 import { parse } from 'svelte/compiler';
+import { type Locals, locals } from './bindings.ts';
 import type { MarkupAttr, MarkupNode, Module } from './markup.ts';
 
 // Svelte's AST is typed against its own internal shapes, which change between releases and
@@ -9,6 +10,13 @@ type AstNode = Record<string, unknown>;
 function isNode(value: unknown): value is AstNode {
 	return typeof value === 'object' && value !== null;
 }
+
+/**
+ * An expression as the compiler will see it, which is not always as it was written. A name the
+ * component's scripts declared is replaced by what it was declared to be, so `{total}` arrives as
+ * the expression `total` stood for. See spec/derivation.md.
+ */
+let expand: Locals['rewrite'] = () => '';
 
 function span(source: string, node: unknown): string {
 	if (!isNode(node)) return '';
@@ -47,9 +55,9 @@ function reduceNode(source: string, node: unknown): MarkupNode {
 		case 'Text':
 			return { k: 'text', v: typeof node['data'] === 'string' ? node['data'] : '' };
 		case 'ExpressionTag':
-			return { k: 'expr', src: span(source, node['expression']) };
+			return { k: 'expr', src: expand(node['expression']) };
 		case 'HtmlTag':
-			return { k: 'html', src: span(source, node['expression']) };
+			return { k: 'html', src: expand(node['expression']) };
 		case 'RegularElement': {
 			const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
 			return {
@@ -62,7 +70,7 @@ function reduceNode(source: string, node: unknown): MarkupNode {
 		case 'IfBlock':
 			return {
 				k: 'if',
-				test: span(source, node['test']),
+				test: expand(node['test']),
 				consequent: children(source, node['consequent']),
 				alternate: node['alternate'] === null ? null : children(source, node['alternate']),
 			};
@@ -72,7 +80,7 @@ function reduceNode(source: string, node: unknown): MarkupNode {
 			// each block would disappear between here and lowering instead of being refused.
 			return {
 				k: 'each',
-				source: span(source, node['expression']),
+				source: expand(node['expression']),
 				item: node['context'] === undefined ? null : span(source, node['context']),
 				index: typeof node['index'] === 'string' ? node['index'] : null,
 				key: node['key'] === null || node['key'] === undefined ? null : span(source, node['key']),
@@ -126,5 +134,6 @@ function imports(instance: unknown): Record<string, string> {
 
 export function reduce(source: string): Module {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
+	expand = locals(source).rewrite;
 	return { markup: children(source, ast['fragment']), imports: imports(ast['instance']) };
 }
