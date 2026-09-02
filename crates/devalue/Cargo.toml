@@ -8,7 +8,10 @@ authors = ["Canmi <t@canmi.icu>"]
 categories = ["encoding", "web-programming"]
 edition.workspace = true
 keywords = ["devalue", "serialization", "json", "hydration", "ssr"]
-license.workspace = true
+# Stated rather than inherited, because the crate is published on its own and a reader of the
+# manifest should not have to find the workspace to learn the terms. LICENSE beside it is a link
+# to the one at the root, which cargo resolves when it packages.
+license = "MIT"
 readme = "README.md"
 repository.workspace = true
 # What this is built and tested with, which is the toolchain the workspace pins. A lower floor

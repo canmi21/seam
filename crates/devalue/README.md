@@ -54,4 +54,4 @@ across versions.
 
 ## License
 
-MIT License © 2025 [Canmi](https://canmi.net)
+MIT License © 2026 [Canmi](https://canmi.net)
