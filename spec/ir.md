@@ -140,42 +140,25 @@ The unit is still the component. A bundle carries the entry and everything reach
 and lowering walks that graph -- so a cycle is an error rather than a hang, and a component the
 bundle does not carry is named rather than skipped.
 
-## What reproducing Svelte's output actually costs
+## The anchors come from Svelte, not from us
 
-The anchors around blocks are structural and were cheap. The rest is not, and the difference is
-worth recording, because it is a cost that recurs with every Svelte release.
+Every anchor in a static chunk is Svelte's, and the compiler no longer works out where they go.
+Reproducing that placement by hand was tried, cost four undocumented positional rules before the
+first real component, and was still growing when it was replaced by borrowing Svelte's own server
+code generator. See [pipeline.md](pipeline.md) for how the bytes are produced and why.
 
-- A component writes a trailing `<!---->` **unless** it is the last node of an if branch, an
-  each body, or a root fragment that contains nothing else.
-- The root fragment and an each body write a leading `<!---->` when they open with text, an
-  expression or raw HTML. An element body and an if branch do not.
-- Svelte trims trailing whitespace off a fragment during code generation, so the AST's text and
-  the emitted text differ.
-
-None of these are derivable from the protocol. Each was found by rendering a shape and reading
-what came out, and the last one is not an anchor rule at all but a second transform living in
-the same place. **The conformance corpus is what makes this survivable**: every rule above has a
-case, and a Svelte release that changes one lands on that case rather than on a user.
-
-## The coupling this creates, and what pays for it
-
-Baking Svelte's anchors couples the compiler to Svelte's internal output format, which may change
-in a minor release. **The coupling is build-time, not runtime**: the IR is regenerated on every
-build, and a Svelte upgrade means a recompile, which happens anyway.
-
-The risk that remains is silent divergence -- our anchors stop matching what the new client
-expects, and nothing says so. v1 guarded the equivalent risk with `ctr_check`, which re-injected
-mock data and diffed against a real `renderToString`. **That guard has to survive in a new form:
-compile a component with `svelte/compiler`'s server codegen, render it, and diff against what our
-IR and injector produce for the same data.** It is not a test suite and does not wait for one. It
-is the only thing standing between a Svelte patch release and broken hydration.
+What survives here is the shape: a chunk is opaque, the runtime never inspects it, and no backend
+emits an anchor of its own. That was the point of baking them in and it is unaffected by where
+they now come from.
 
 ## Expressions are not evaluated
 
 **`test` and `path` are data paths. They are never expressions.**
 
-`p.available` is legal. `price > 10` is not, and must be derived into a boolean field on the
-payload before the IR sees it. Elements, enums and nullables are finite decisions and belong in
+`p.available` is legal. `price > 10` never reaches the IR: the compiler rewrites it into a
+derived field and carries the expression separately, so what the IR tests is always a path and
+what evaluates the predicate is a stage that runs before injection. See
+[pipeline.md](pipeline.md). Elements, enums and nullables are finite decisions and belong in
 the protocol; predicates over open value spaces are not, which is the correction the second
 article makes to the first.
 
@@ -231,9 +214,9 @@ Recorded rather than decided, because guessing now would be worse than deciding 
 - **Empty values.** `{p.name}` with an empty string produced `<h1></h1>` in Svelte's SSR, with no
   text node. Whether hydration requires one to exist is not yet known, and it decides whether a
   `slot` must always emit something.
-- **Whitespace.** Only the trailing-trim above is reproduced by omission, in that no case
-  exercises it. Svelte's full normalisation is not implemented and a component that relies on it
-  will differ.
+- **Derivation.** The rewrite described in [pipeline.md](pipeline.md) is specified and not yet
+  built. Until it is, lowering refuses an expression that is not a path rather than deriving it,
+  which leaves the work with the author.
 - **Snippets and children.** A component given a body is refused; `{@render}` is untouched.
 - **A linear form.** A flat opcode buffer walks faster and deserializes cheaper than a nested
   tree. The tree comes first because it can be written by hand, which the first milestone needs.
