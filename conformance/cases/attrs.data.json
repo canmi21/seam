@@ -1,0 +1,10 @@
+[
+	{ "label": "all present", "data": { "p": { "x": "one", "c": "two", "h": "<b>raw</b>" } } },
+	{ "label": "attribute omitted when null", "data": { "p": { "x": null, "c": "two", "h": "" } } },
+	{ "label": "attribute kept when empty", "data": { "p": { "x": "", "c": "", "h": "" } } },
+	{ "label": "false and zero are not absent", "data": { "p": { "x": false, "c": 0, "h": "x" } } },
+	{
+		"label": "characters that escape",
+		"data": { "p": { "x": "a\"b<c>&d", "c": "<i>", "h": "<i>raw</i>" } }
+	}
+]

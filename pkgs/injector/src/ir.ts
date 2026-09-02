@@ -10,7 +10,8 @@ export type Node =
 	| { t: 'static'; s: string }
 	| { t: 'slot'; path: string; escape: EscapeMode | false }
 	| { t: 'if'; branches: Branch[] }
-	| { t: 'each'; source: string; item: string; body: Node[] };
+	| { t: 'each'; source: string; item: string; body: Node[] }
+	| { t: 'attr'; name: string; parts: Node[] };
 
 export interface ComponentIR {
 	component: string;

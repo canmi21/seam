@@ -1,0 +1,79 @@
+{
+	"markup": [
+		{
+			"k": "element",
+			"name": "div",
+			"attrs": [
+				{
+					"k": "attr",
+					"name": "data-x",
+					"value": [
+						{
+							"k": "expr",
+							"src": "p.x"
+						}
+					]
+				},
+				{
+					"k": "attr",
+					"name": "class",
+					"value": [
+						{
+							"k": "text",
+							"v": "a "
+						},
+						{
+							"k": "expr",
+							"src": "p.c"
+						},
+						{
+							"k": "text",
+							"v": " b"
+						}
+					]
+				},
+				{
+					"k": "attr",
+					"name": "title",
+					"value": [
+						{
+							"k": "text",
+							"v": "static"
+						}
+					]
+				}
+			],
+			"body": [
+				{
+					"k": "element",
+					"name": "span",
+					"attrs": [],
+					"body": [
+						{
+							"k": "html",
+							"src": "p.h"
+						}
+					]
+				},
+				{
+					"k": "element",
+					"name": "input",
+					"attrs": [
+						{
+							"k": "attr",
+							"name": "disabled",
+							"value": true
+						}
+					],
+					"body": []
+				},
+				{
+					"k": "element",
+					"name": "br",
+					"attrs": [],
+					"body": []
+				}
+			]
+		}
+	]
+}

@@ -1,5 +1,8 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, resolve as resolvePath } from 'node:path';
+// The seam between this package and Svelte. For every case, the IR the compiler produced is
+// injected here and rendered by Svelte's own server codegen, and the two are compared byte for
+// byte. A Svelte release that changes an anchor or an escaping rule lands here.
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile } from 'svelte/compiler';
 import { render } from 'svelte/server';
@@ -7,58 +10,48 @@ import { inject } from '../src/index.ts';
 import type { ComponentIR } from '../src/ir.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
-
-// The IR is read out of the specification rather than kept beside this file. One copy, so the
-// prose and the fixture cannot disagree: an example edited into something that does not hold is
-// a failing run rather than a document nobody rechecked.
-function irFromSpec(): ComponentIR {
-	const text = readFileSync(resolvePath(here, '../../../spec/ir.md'), 'utf8');
-	const block = /```json\n([\s\S]*?)```/.exec(text);
-	if (block?.[1] === undefined) throw new Error('spec/ir.md has no json block');
-	return JSON.parse(block[1]) as ComponentIR;
-}
+const cases = resolve(here, '../../../conformance/cases');
+const staging = resolve(here, '.build');
 
 // Svelte's compiled output imports 'svelte/internal/server', which only resolves from inside
 // this package, so the module has to be written here rather than to a temporary directory.
-async function svelteRenderer(source: string): Promise<(data: unknown) => string> {
-	const out = compile(source, { generate: 'server', name: 'Case' });
-	const dir = resolvePath(here, '.build');
-	mkdirSync(dir, { recursive: true });
-	const file = resolvePath(dir, `case-${Date.now()}.js`);
-	writeFileSync(file, out.js.code);
+async function svelteRenderer(source: string, id: string): Promise<(data: unknown) => string> {
+	mkdirSync(staging, { recursive: true });
+	const file = resolve(staging, `${id}-${Date.now()}.js`);
+	writeFileSync(file, compile(source, { generate: 'server', name: 'Case' }).js.code);
 	const mod = await import(pathToFileURL(file).href);
-	rmSync(dir, { recursive: true, force: true });
 	return (data) => render(mod.default, { props: data as Record<string, unknown> }).body;
 }
 
-// The server keeps its own copy of this IR, standing in for what the compiler will one day
-// write there. Two copies of one fact, so the run refuses to let them drift apart.
-function assertServerFixtureMatches(ir: ComponentIR): void {
-	const fixture = readFileSync(resolvePath(here, '../../server/fixtures/product.ir.json'), 'utf8');
-	const same = JSON.stringify(JSON.parse(fixture)) === JSON.stringify(ir);
-	if (!same) throw new Error('pkgs/server/fixtures/product.ir.json has drifted from spec/ir.md');
-}
-
-const ir = irFromSpec();
-assertServerFixtureMatches(ir);
-const source = readFileSync(resolvePath(here, 'cases/product.svelte'), 'utf8');
-const cases = JSON.parse(readFileSync(resolvePath(here, 'cases/product.data.json'), 'utf8')) as {
-	label: string;
-	data: Record<string, unknown>;
-}[];
-
-const svelte = await svelteRenderer(source);
 let failed = 0;
-for (const testCase of cases) {
-	const expected = svelte(testCase.data);
-	const actual = inject(ir, testCase.data);
-	const ok = expected === actual;
-	if (!ok) failed += 1;
-	console.log(`${ok ? 'match' : 'DIFF '}  ${testCase.label}`);
-	if (!ok) {
+let total = 0;
+
+for (const file of readdirSync(cases)
+	.filter((f) => f.endsWith('.svelte'))
+	.sort()) {
+	const name = file.slice(0, -'.svelte'.length);
+	const ir = JSON.parse(readFileSync(resolve(cases, `${name}.ir.json`), 'utf8')) as ComponentIR;
+	const payloads = JSON.parse(readFileSync(resolve(cases, `${name}.data.json`), 'utf8')) as {
+		label: string;
+		data: Record<string, unknown>;
+	}[];
+	const svelte = await svelteRenderer(readFileSync(resolve(cases, file), 'utf8'), name);
+
+	for (const payload of payloads) {
+		total += 1;
+		const expected = svelte(payload.data);
+		const actual = inject(ir, payload.data);
+		if (expected === actual) {
+			console.log(`match  ${name}: ${payload.label}`);
+			continue;
+		}
+		failed += 1;
+		console.log(`DIFF   ${name}: ${payload.label}`);
 		console.log(`   svelte: ${JSON.stringify(expected)}`);
 		console.log(`   ours:   ${JSON.stringify(actual)}`);
 	}
 }
-console.log(`\n${cases.length - failed}/${cases.length} agree with Svelte`);
+
+rmSync(staging, { recursive: true, force: true });
+console.log(`\n${total - failed}/${total} agree with Svelte`);
 if (failed > 0) process.exit(1);

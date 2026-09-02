@@ -40,6 +40,10 @@ run = [
 description = "Serve the fixture route: `dev` then open http://localhost:5100"
 run = "node pkgs/server/src/main.ts"
 
+[tasks.fixtures]
+description = "Regenerate the conformance fixtures after changing a case"
+run = "node conformance/generate.ts"
+
 [tasks.verify]
 description = "Everything a change has to pass"
 depends = ["check", "check-rust", "lint", "lint-rust", "test", "test-rust"]

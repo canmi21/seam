@@ -71,18 +71,7 @@ fn attributes(builder: &mut Builder, attrs: &[markup::Attr]) -> Result<()> {
 			markup::Attr::Attr { name, value } => match value {
 				markup::AttrValue::Present(true) => builder.write(&format!(" {name}=\"\"")),
 				markup::AttrValue::Present(false) => {}
-				markup::AttrValue::Parts(parts) => {
-					let mut text = String::new();
-					for part in parts {
-						match part {
-							markup::Node::Text { v } => text.push_str(v),
-							other => {
-								return Err(format!("attribute `{name}` is not static: {}", describe(other)));
-							}
-						}
-					}
-					builder.write(&format!(" {name}=\"{text}\""));
-				}
+				markup::AttrValue::Parts(parts) => attribute(builder, name, parts)?,
 			},
 			markup::Attr::Unsupported { kind, src } => {
 				return Err(format!("`{src}` is a {kind}, which lowering does not handle yet"));
@@ -92,10 +81,40 @@ fn attributes(builder: &mut Builder, attrs: &[markup::Attr]) -> Result<()> {
 	Ok(())
 }
 
+/// A wholly literal attribute is written into the surrounding static chunk. One with an
+/// expression anywhere becomes a node instead, because such an attribute can decide to write
+/// nothing at all, and characters already committed to a static chunk cannot be taken back.
+fn attribute(builder: &mut Builder, name: &str, parts: &[markup::Node]) -> Result<()> {
+	if parts.iter().all(|part| matches!(part, markup::Node::Text { .. })) {
+		let mut text = String::new();
+		for part in parts {
+			if let markup::Node::Text { v } = part {
+				text.push_str(v);
+			}
+		}
+		builder.write(&format!(" {name}=\"{text}\""));
+		return Ok(());
+	}
+
+	let mut inner = Builder::default();
+	for part in parts {
+		match part {
+			markup::Node::Text { v } => inner.write(v),
+			markup::Node::Expr { src } => {
+				inner.push(ir::Node::Slot { path: path(src)?, escape: ir::Escape::Attr });
+			}
+			other => return Err(format!("attribute `{name}` contains {}", describe(other))),
+		}
+	}
+	builder.push(ir::Node::Attr { name: name.to_owned(), parts: inner.finish() });
+	Ok(())
+}
+
 fn describe(node: &markup::Node) -> String {
 	match node {
 		markup::Node::Text { .. } => "text".to_owned(),
 		markup::Node::Expr { src } => format!("the expression `{src}`"),
+		markup::Node::Html { src } => format!("`{{@html {src}}}`"),
 		markup::Node::Element { name, .. } => format!("<{name}>"),
 		markup::Node::If { .. } => "an if block".to_owned(),
 		markup::Node::Each { .. } => "an each block".to_owned(),
@@ -109,7 +128,15 @@ fn nodes(builder: &mut Builder, source: &[markup::Node]) -> Result<()> {
 			markup::Node::Text { v } => builder.write(v),
 
 			markup::Node::Expr { src } => {
-				builder.push(ir::Node::Slot { path: path(src)?, escape: ir::Escape::Content })
+				builder.push(ir::Node::Slot { path: path(src)?, escape: ir::Escape::Content });
+			}
+
+			// Svelte brackets raw HTML with a pair of empty comments, so the anchors are static
+			// and only the content between them is a slot.
+			markup::Node::Html { src } => {
+				builder.write("<!---->");
+				builder.push(ir::Node::Slot { path: path(src)?, escape: ir::Escape::Raw });
+				builder.write("<!---->");
 			}
 
 			markup::Node::Element { name, attrs, body } => {

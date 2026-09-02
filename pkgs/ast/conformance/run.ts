@@ -1,21 +1,29 @@
-// Guards the one thing this package cannot control: Svelte's AST shape. A rename like
-// EachBlock.context would otherwise reduce to a null item and reach lowering as a component
-// that has no iteration variable, which is a wrong answer rather than a failure.
-import { readFileSync } from 'node:fs';
+// Guards the one thing pkgs/ast does not control: Svelte's AST shape. A rename like
+// EachBlock.context would otherwise reduce to a null iteration variable and reach lowering as a
+// wrong answer rather than a failure.
+import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { reduce } from '../src/reduce.ts';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const component = resolve(here, '../../injector/conformance/cases/product.svelte');
-const fixture = resolve(here, '../fixtures/product.markup.json');
+const cases = resolve(dirname(fileURLToPath(import.meta.url)), '../../../conformance/cases');
+let failed = 0;
 
-const actual = JSON.stringify(reduce(readFileSync(component, 'utf8')), null, '\t');
-const expected = readFileSync(fixture, 'utf8').trimEnd();
+for (const file of readdirSync(cases)
+	.filter((f) => f.endsWith('.svelte'))
+	.sort()) {
+	const name = file.slice(0, -'.svelte'.length);
+	const actual = `${JSON.stringify(reduce(readFileSync(resolve(cases, file), 'utf8')), null, '\t')}\n`;
+	const expected = readFileSync(resolve(cases, `${name}.markup.json`), 'utf8');
+	if (actual === expected) {
+		console.log(`match  ${name} reduces to its fixture`);
+	} else {
+		failed += 1;
+		console.error(`DIFF   ${name} no longer reduces to its fixture`);
+	}
+}
 
-if (actual !== expected.trimEnd()) {
-	console.error('the reduced markup no longer matches fixtures/product.markup.json');
-	console.error('regenerate with: node pkgs/ast/src/main.ts <component> > <fixture>');
+if (failed > 0) {
+	console.error('regenerate with: node conformance/generate.ts');
 	process.exit(1);
 }
-console.log('markup reduction matches its fixture');

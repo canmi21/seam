@@ -11,6 +11,9 @@ pub enum Node {
 	Expr {
 		src: String,
 	},
+	Html {
+		src: String,
+	},
 	Element {
 		name: String,
 		attrs: Vec<Attr>,

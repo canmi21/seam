@@ -22,6 +22,17 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 					}
 				}
 				break;
+			case 'attr': {
+				// Absent only when the whole value is one expression that resolves to nothing.
+				// An empty string, false and 0 are all written; see spec/ir.md.
+				const [only] = node.parts;
+				if (node.parts.length === 1 && only?.t === 'slot') {
+					const value = resolve(scopes, only.path);
+					if (value === undefined || value === null) break;
+				}
+				out += ` ${node.name}="${walk(node.parts, scopes)}"`;
+				break;
+			}
 			case 'each': {
 				// A source that is not an array renders nothing, matching what Svelte's
 				// ensure_array_like does with undefined.

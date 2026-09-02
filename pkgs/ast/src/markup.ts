@@ -2,6 +2,7 @@
 export type MarkupNode =
 	| { k: 'text'; v: string }
 	| { k: 'expr'; src: string }
+	| { k: 'html'; src: string }
 	| { k: 'element'; name: string; attrs: MarkupAttr[]; body: MarkupNode[] }
 	// consequent/alternate rather than then/else: an object carrying a `then` is thenable, so
 	// awaiting one anywhere would call it. The names are Svelte's own for the same fields.

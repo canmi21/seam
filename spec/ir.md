@@ -59,7 +59,13 @@ Five, and the tree bottoms out in strings.
 - **`if`** -- branches, each with a test and a body. The last branch may have `"test": null`,
   which is the else.
 - **`each`** -- a source path, the name bound to each item, and a body.
+- **`attr`** -- one attribute of the element being opened, written between the static chunk
+  that opens the tag and the one that closes it. It carries `parts`, which are `static` and
+  `slot` nodes, and it is the only node that can decide to write nothing at all.
 - Bodies are node arrays, so the shape recurses.
+
+`{@html}` needs no node of its own. It is a `slot` with `escape: false` between two static
+`<!---->` chunks, which is the anchor pair Svelte writes around raw HTML.
 
 ## Svelte's anchors are baked in, not emitted
 
@@ -81,6 +87,24 @@ same information twice and puts a Svelte-shaped obligation in every backend.
 v1 could not do this. It aimed to support more than one UI framework, so it could not depend on
 any one framework's ABI and had to define its own. v2 commits to Svelte, which is what makes
 borrowing the ABI available.
+
+## An attribute can disappear, which is why it is a node
+
+`data-x={value}` is not `data-x="` plus a slot plus `"`. When the value is null or undefined
+Svelte writes no attribute at all, and a slot inside a static chunk cannot take the surrounding
+characters with it.
+
+The rule is narrower than it looks, and was measured rather than assumed:
+
+| written | result |
+| --- | --- |
+| a single expression, null or undefined | the attribute is absent |
+| a single expression, empty string | `name=""` |
+| a single expression, `false` or `0` | `name="false"`, `name="0"` |
+| several parts, one of them null | the null becomes empty, the attribute stays |
+
+So an `attr` node omits itself only when it has exactly one part, that part is a slot, and the
+value resolves to null or undefined. Everything else is written.
 
 ## Escaping is Svelte's, and is not what you would guess
 
@@ -168,10 +192,10 @@ The server should have to understand one artifact, and this is that artifact.
 
 Recorded rather than decided, because guessing now would be worse than deciding later.
 
-- **Attribute and style slots.** `class:active={on}` keeps the name static and the value
-  dynamic. The node kinds above do not cover it yet, though the escape mode they need is known.
-- **`{@html}`.** v1's raw HTML slot maps onto a `slot` with `escape: false`, but whether that is
-  sufficient given Svelte's own handling is not established.
+- **`class:` and `style:` directives.** Both merge with a static attribute of the same name
+  rather than standing beside it: `class="c"` with `class:on={true}` is one `class="c on"`, and
+  `style:color` joins an existing `style` with `; `. That makes the attribute a computed join of
+  conditional parts, which the `attr` node does not express.
 - **Empty values.** `{p.name}` with an empty string produced `<h1></h1>` in Svelte's SSR, with no
   text node. Whether hydration requires one to exist is not yet known, and it decides whether a
   `slot` must always emit something.

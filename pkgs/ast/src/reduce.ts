@@ -48,6 +48,8 @@ function reduceNode(source: string, node: unknown): MarkupNode {
 			return { k: 'text', v: typeof node['data'] === 'string' ? node['data'] : '' };
 		case 'ExpressionTag':
 			return { k: 'expr', src: span(source, node['expression']) };
+		case 'HtmlTag':
+			return { k: 'html', src: span(source, node['expression']) };
 		case 'RegularElement': {
 			const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
 			return {

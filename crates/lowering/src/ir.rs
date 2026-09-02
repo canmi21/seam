@@ -2,11 +2,23 @@
 
 use serde::Serialize;
 
-#[derive(Debug, Serialize, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Escape {
 	Content,
 	Attr,
+	/// `{@html}`. Serialises as `false` rather than as a name, because the field answers how a
+	/// value is escaped and the answer here is that it is not.
+	Raw,
+}
+
+impl Serialize for Escape {
+	fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+		match self {
+			Self::Content => serializer.serialize_str("content"),
+			Self::Attr => serializer.serialize_str("attr"),
+			Self::Raw => serializer.serialize_bool(false),
+		}
+	}
 }
 
 #[derive(Debug, Serialize)]
@@ -16,6 +28,7 @@ pub enum Node {
 	Slot { path: String, escape: Escape },
 	If { branches: Vec<Branch> },
 	Each { source: String, item: String, body: Vec<Node> },
+	Attr { name: String, parts: Vec<Node> },
 }
 
 #[derive(Debug, Serialize)]
