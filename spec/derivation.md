@@ -53,7 +53,7 @@ refused and the name is reported:**
 
 | binding | comes from |
 | --- | --- |
-| a prop | the `$props()` destructuring |
+| a prop | the `$props()` destructuring, resolved against the data. See [payload.md](payload.md) |
 | an each binding | `{#each xs as t}` |
 | a carried constant | see below |
 | request context | see below |
@@ -171,6 +171,7 @@ another.
 - **Per-item derivation.** A derivation is computed once against the payload, so an expression
   inside an each block is refused. What it needs is a value per iteration, which is a different
   mechanism rather than a larger version of this one. See [ir.md](ir.md).
-- **The shape of request context.** `$.now`, `$.tz` and `$.locale` are named here; where they sit
-  in the payload, and whether the load stage is required to supply them or may omit them, is not
-  decided.
+- **The shape of request context.** `$.now`, `$.tz` and `$.locale` are named here, and the wire
+  carrying them is settled -- see [payload.md](payload.md), which means they can hold real values
+  rather than numbers the author has to reconstitute. Where they sit within the data, and whether
+  the load stage must supply them, is not decided.
