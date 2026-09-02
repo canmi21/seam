@@ -23,6 +23,10 @@ run = "oxlint pkgs"
 description = "Diff the injector against Svelte's own server output"
 run = "node pkgs/injector/conformance/run.ts"
 
+[tasks.dev]
+description = "Serve the fixture route: `dev` then open http://localhost:5100"
+run = "node pkgs/server/src/main.ts"
+
 [tasks.verify]
 description = "Everything a change has to pass"
 depends = ["check", "lint", "test"]

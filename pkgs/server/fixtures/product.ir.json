@@ -1,0 +1,69 @@
+{
+	"component": "Product",
+	"nodes": [
+		{
+			"t": "static",
+			"s": "<!--[--><article class=\"card\"><h1>"
+		},
+		{
+			"t": "slot",
+			"path": "p.name",
+			"escape": "content"
+		},
+		{
+			"t": "static",
+			"s": "</h1>"
+		},
+		{
+			"t": "if",
+			"branches": [
+				{
+					"test": "p.available",
+					"body": [
+						{
+							"t": "static",
+							"s": "<!--[0--><button>Buy</button>"
+						}
+					]
+				},
+				{
+					"test": null,
+					"body": [
+						{
+							"t": "static",
+							"s": "<!--[-1-->"
+						}
+					]
+				}
+			]
+		},
+		{
+			"t": "static",
+			"s": "<!--]--><!--[-->"
+		},
+		{
+			"t": "each",
+			"source": "p.tags",
+			"item": "t",
+			"body": [
+				{
+					"t": "static",
+					"s": "<span>"
+				},
+				{
+					"t": "slot",
+					"path": "t",
+					"escape": "content"
+				},
+				{
+					"t": "static",
+					"s": "</span>"
+				}
+			]
+		},
+		{
+			"t": "static",
+			"s": "<!--]--></article><!--]-->"
+		}
+	]
+}

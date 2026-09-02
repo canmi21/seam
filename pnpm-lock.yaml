@@ -21,6 +21,12 @@ importers:
         specifier: ^5.57.0
         version: 5.57.0
 
+  pkgs/server:
+    dependencies:
+      injector:
+        specifier: workspace:*
+        version: link:../injector
+
 packages:
 
   '@jridgewell/gen-mapping@0.3.13':

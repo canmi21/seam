@@ -1,0 +1,7 @@
+{
+	"p": {
+		"name": "Alice",
+		"available": true,
+		"tags": ["rust", "svelte"]
+	}
+}

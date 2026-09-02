@@ -31,7 +31,16 @@ async function svelteRenderer(source: string): Promise<(data: unknown) => string
 	return (data) => render(mod.default, { props: data as Record<string, unknown> }).body;
 }
 
+// The server keeps its own copy of this IR, standing in for what the compiler will one day
+// write there. Two copies of one fact, so the run refuses to let them drift apart.
+function assertServerFixtureMatches(ir: ComponentIR): void {
+	const fixture = readFileSync(resolvePath(here, '../../server/fixtures/product.ir.json'), 'utf8');
+	const same = JSON.stringify(JSON.parse(fixture)) === JSON.stringify(ir);
+	if (!same) throw new Error('pkgs/server/fixtures/product.ir.json has drifted from spec/ir.md');
+}
+
 const ir = irFromSpec();
+assertServerFixtureMatches(ir);
 const source = readFileSync(resolvePath(here, 'cases/product.svelte'), 'utf8');
 const cases = JSON.parse(readFileSync(resolvePath(here, 'cases/product.data.json'), 'utf8')) as {
 	label: string;
