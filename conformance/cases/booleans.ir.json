@@ -1,0 +1,86 @@
+{
+	"ir": {
+		"component": "booleans",
+		"body": [
+			{
+				"t": "static",
+				"s": "<!--[--><input"
+			},
+			{
+				"t": "attr",
+				"name": "disabled",
+				"boolean": true,
+				"parts": [
+					{
+						"t": "slot",
+						"path": "data.d",
+						"escape": "attr"
+					}
+				]
+			},
+			{
+				"t": "attr",
+				"name": "readonly",
+				"boolean": true,
+				"parts": [
+					{
+						"t": "slot",
+						"path": "data.r",
+						"escape": "attr"
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "/><input type=\"checkbox\""
+			},
+			{
+				"t": "attr",
+				"name": "checked",
+				"boolean": true,
+				"parts": [
+					{
+						"t": "slot",
+						"path": "data.c",
+						"escape": "attr"
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "/><div"
+			},
+			{
+				"t": "attr",
+				"name": "hidden",
+				"boolean": true,
+				"parts": [
+					{
+						"t": "slot",
+						"path": "data.h",
+						"escape": "attr"
+					}
+				]
+			},
+			{
+				"t": "attr",
+				"name": "data-x",
+				"boolean": false,
+				"parts": [
+					{
+						"t": "slot",
+						"path": "data.d",
+						"escape": "attr"
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "></div><!--]-->"
+			}
+		],
+		"head": [],
+		"title": []
+	},
+	"derivations": []
+}

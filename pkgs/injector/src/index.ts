@@ -24,14 +24,24 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 				}
 				break;
 			case 'attr': {
-				// Absent only when the whole value is one expression that resolves to nothing.
-				// An empty string, false and 0 are all written; see spec/ir.md.
+				// The one expression case keeps the value rather than its text, because both rules
+				// below read the value: null and undefined take the attribute with them, and a
+				// boolean one asks whether the value is falsy rather than what it prints as.
 				const [only] = node.parts;
-				if (node.parts.length === 1 && only?.t === 'slot') {
-					const value = resolve(scopes, only.path);
-					if (value === undefined || value === null) break;
+				const single = node.parts.length === 1 && only?.t === 'slot';
+				const value = single ? resolve(scopes, only.path) : walk(node.parts, scopes);
+				if (value === undefined || value === null) break;
+
+				// `hidden` is boolean for every value but this one, which is Svelte's exception
+				// and stays here because it is decided by the value rather than by the name.
+				const bare = node.boolean && !(node.name === 'hidden' && value === 'until-found');
+				if (bare) {
+					// An empty string is a present boolean attribute, as it is in markup.
+					if (!value && value !== '') break;
+					out += ` ${node.name}=""`;
+					break;
 				}
-				out += ` ${node.name}="${walk(node.parts, scopes)}"`;
+				out += ` ${node.name}="${single ? escape(value, 'attr') : String(value)}"`;
 				break;
 			}
 			case 'each': {

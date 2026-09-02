@@ -1,0 +1,12 @@
+[
+	{ "label": "all true", "data": { "d": true, "r": true, "c": true, "h": true } },
+	{ "label": "all false", "data": { "d": false, "r": false, "c": false, "h": false } },
+	{
+		"label": "empty string is present, until-found is a value",
+		"data": { "d": "", "r": null, "c": 0, "h": "until-found" }
+	},
+	{
+		"label": "a string is present without its text",
+		"data": { "d": "yes", "r": 1, "c": "", "h": "x" }
+	}
+]

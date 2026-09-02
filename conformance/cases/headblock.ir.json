@@ -87,6 +87,7 @@
 					{
 						"t": "attr",
 						"name": "href",
+						"boolean": false,
 						"parts": [
 							{
 								"t": "slot",

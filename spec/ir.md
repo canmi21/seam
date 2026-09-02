@@ -108,6 +108,31 @@ The rule is narrower than it looks, and was measured rather than assumed:
 So an `attr` node omits itself only when it has exactly one part, that part is a slot, and the
 value resolves to null or undefined. Everything else is written.
 
+**Except where the attribute is present or absent rather than named and valued.** `disabled`,
+`checked`, `selected` and the rest of HTML's boolean attributes are written as `name=""` when the
+value is truthy or an empty string, and omitted otherwise, so `disabled={false}` produces nothing
+while `data-x={false}` produces `data-x="false"`. `hidden` joins them for every value but
+`until-found`, which is decided by the value rather than the name.
+
+**This is the one rule the render cannot show, and the reason is worth recording.** Rewriting an
+expression to a sentinel makes it a string literal, and Svelte folds a literal attribute into the
+template rather than calling the helper that decides presence:
+
+```
+disabled={data.d}      $.attr('disabled', data.d, true)     the helper, with boolean semantics
+disabled={"%%s0%%"}    <input disabled="%%s0%%"/>           folded, the semantics gone
+```
+
+The bytes collected are correct for the rewritten program and wrong for the written one. No other
+rewrite helps: a boolean attribute's output is `name=""` or nothing, and **a sentinel can stand
+where a value is substituted but not where presence is decided.** So the `attr` node carries a
+`boolean` field and the runtime carries the rule, which is affordable because it is an HTML fact
+rather than a Svelte one -- two lines, and a backend still does not learn that Svelte exists.
+
+It was found by measuring rather than by reading, and the corpus missed it because the case that
+covers attributes writes `disabled` as a static attribute. A static attribute cannot stand in for
+a dynamic one, here or anywhere else: it takes a different path through the compiler.
+
 ## Escaping is Svelte's, and is not what you would guess
 
 `escape` is a mode, not a boolean, because Svelte escapes two ways and neither is general HTML
@@ -316,6 +341,10 @@ Recorded rather than decided, because guessing now would be worse than deciding 
   filename, so the clean split the table used to claim does not exist. Deciding it needs the
   answer to what happens to a component the compiler refuses, since a page whose styles cannot be
   served is the same kind of failure. Nothing here should be written until that is settled.
+- **`translate={true}`.** Svelte maps it to `translate="yes"` through a table of value
+  replacements that today holds only this one name. Ours would write `"true"`. The same reasoning
+  as the boolean attributes applies and the fix is the same shape; it is left until a second entry
+  makes the table worth carrying.
 - **`class:` and `style:` directives.** Both merge with a static attribute of the same name
   rather than standing beside it: `class="c"` with `class:on={true}` is one `class="c on"`, and
   `style:color` joins an existing `style` with `; `. That makes the attribute a computed join of

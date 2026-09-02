@@ -18,6 +18,7 @@
 			{
 				"t": "attr",
 				"name": "class",
+				"boolean": false,
 				"parts": [
 					{
 						"t": "static",

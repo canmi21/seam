@@ -214,7 +214,11 @@ fn attribute(
 		builder.write(&format!(" {name}=\"\""));
 		return Ok(());
 	}
-	builder.push(ir::Node::Attr { name: name.to_owned(), parts: nodes });
+	builder.push(ir::Node::Attr {
+		name: name.to_owned(),
+		boolean: crate::attributes::boolean(name),
+		parts: nodes,
+	});
 	Ok(())
 }
 

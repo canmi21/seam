@@ -9,6 +9,7 @@
 			{
 				"t": "attr",
 				"name": "data-x",
+				"boolean": false,
 				"parts": [
 					{
 						"t": "slot",
@@ -20,6 +21,7 @@
 			{
 				"t": "attr",
 				"name": "class",
+				"boolean": false,
 				"parts": [
 					{
 						"t": "static",

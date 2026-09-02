@@ -11,7 +11,17 @@ export type Node =
 	| { t: 'slot'; path: string; escape: EscapeMode | false }
 	| { t: 'if'; branches: Branch[] }
 	| { t: 'each'; source: string; item: string; body: Node[] }
-	| { t: 'attr'; name: string; parts: Node[] };
+	| {
+			t: 'attr';
+			name: string;
+			/**
+			 * The attribute is present or absent rather than named and valued. Carried because
+			 * the render cannot show it: a sentinel stands where a value is substituted, and a
+			 * boolean attribute substitutes nothing. See spec/ir.md.
+			 */
+			boolean: boolean;
+			parts: Node[];
+	  };
 
 /**
  * Two streams, named after Svelte's own because they are the same two. `render()` returns a head

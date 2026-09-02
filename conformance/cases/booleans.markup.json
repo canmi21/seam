@@ -1,0 +1,91 @@
+{
+	"entry": "booleans",
+	"components": {
+		"booleans": {
+			"markup": [
+				{
+					"k": "element",
+					"name": "input",
+					"attrs": [
+						{
+							"k": "attr",
+							"name": "disabled",
+							"value": [
+								{
+									"k": "expr",
+									"src": "data.d"
+								}
+							]
+						},
+						{
+							"k": "attr",
+							"name": "readonly",
+							"value": [
+								{
+									"k": "expr",
+									"src": "data.r"
+								}
+							]
+						}
+					],
+					"body": []
+				},
+				{
+					"k": "element",
+					"name": "input",
+					"attrs": [
+						{
+							"k": "attr",
+							"name": "type",
+							"value": [
+								{
+									"k": "text",
+									"v": "checkbox"
+								}
+							]
+						},
+						{
+							"k": "attr",
+							"name": "checked",
+							"value": [
+								{
+									"k": "expr",
+									"src": "data.c"
+								}
+							]
+						}
+					],
+					"body": []
+				},
+				{
+					"k": "element",
+					"name": "div",
+					"attrs": [
+						{
+							"k": "attr",
+							"name": "hidden",
+							"value": [
+								{
+									"k": "expr",
+									"src": "data.h"
+								}
+							]
+						},
+						{
+							"k": "attr",
+							"name": "data-x",
+							"value": [
+								{
+									"k": "expr",
+									"src": "data.d"
+								}
+							]
+						}
+					],
+					"body": []
+				}
+			],
+			"imports": {}
+		}
+	}
+}

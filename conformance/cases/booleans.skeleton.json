@@ -1,0 +1,33 @@
+{
+	"html": "<!--[--><input disabled=\"%%s0%%\" readonly=\"%%s1%%\"/><input type=\"checkbox\" checked=\"%%s2%%\"/><div hidden=\"%%s3%%\" data-x=\"%%s4%%\"></div><!--]-->",
+	"head": "",
+	"alternates": {},
+	"holes": [
+		{
+			"index": 0,
+			"expression": "data.d",
+			"raw": false
+		},
+		{
+			"index": 1,
+			"expression": "data.r",
+			"raw": false
+		},
+		{
+			"index": 2,
+			"expression": "data.c",
+			"raw": false
+		},
+		{
+			"index": 3,
+			"expression": "data.h",
+			"raw": false
+		},
+		{
+			"index": 4,
+			"expression": "data.d",
+			"raw": false
+		}
+	],
+	"blocks": []
+}

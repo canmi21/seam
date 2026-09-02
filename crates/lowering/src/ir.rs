@@ -24,11 +24,29 @@ impl Serialize for Escape {
 #[derive(Debug, Serialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
 pub enum Node {
-	Static { s: String },
-	Slot { path: String, escape: Escape },
-	If { branches: Vec<Branch> },
-	Each { source: String, item: String, body: Vec<Node> },
-	Attr { name: String, parts: Vec<Node> },
+	Static {
+		s: String,
+	},
+	Slot {
+		path: String,
+		escape: Escape,
+	},
+	If {
+		branches: Vec<Branch>,
+	},
+	Each {
+		source: String,
+		item: String,
+		body: Vec<Node>,
+	},
+	/// One attribute of the element being opened. `boolean` marks a name that is present or
+	/// absent rather than named and valued, which the runtime needs because the render cannot
+	/// show it. See `crates/lowering/src/attributes.rs`.
+	Attr {
+		name: String,
+		boolean: bool,
+		parts: Vec<Node>,
+	},
 }
 
 #[derive(Debug, Serialize)]

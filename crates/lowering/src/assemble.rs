@@ -357,7 +357,11 @@ impl Assembler<'_> {
 			at = end;
 		}
 		parts.write(&html[at..until]);
-		Ok(ir::Node::Attr { name: name.to_owned(), parts: parts.finish() })
+		Ok(ir::Node::Attr {
+			name: name.to_owned(),
+			boolean: crate::attributes::boolean(name),
+			parts: parts.finish(),
+		})
 	}
 
 	/// Writes the block into `out`. Which side of the node an anchor falls on differs by kind:
