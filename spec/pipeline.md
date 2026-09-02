@@ -128,15 +128,33 @@ A derivation is a pure function of the payload. It computes values. It renders n
 no component, and produces no HTML.
 
 - **A TypeScript server already has a JavaScript runtime**, and uses it.
-- **A Rust or Go server embeds a small one**, in the QuickJS sense: a JavaScript subset for
-  evaluating expressions, not Node and not Bun, with no filesystem, no network and no module
-  system.
+- **A Rust or Go server embeds one**, in the QuickJS sense: not Node and not Bun, no filesystem,
+  no network, no host of any kind.
+
+An earlier draft called that embedded engine "a JavaScript subset", which confused two things.
+QuickJS implements almost all of ES2025 and passes nearly the whole test suite; what it lacks is
+a host -- no DOM, no `fetch`, no `require`. **The subset is what this protocol allows an author to
+write, not what the engine can run.** It is also missing ECMA402, so a derivation reaching for
+`Intl` would not run there at all, which agrees with a rule already arrived at from the other
+direction.
 
 The line is between running data and running UI. Everything the old objection to a JavaScript
 backend was about -- a component tree executed per request, a renderer, a virtual DOM, a
-framework runtime -- stays gone. What arrives is an expression evaluator, and the alternative to
-it is asking the author to hand-write every derived value, which is the author doing the
-compiler's work.
+framework runtime -- stays gone. The alternative to running anything is asking the author to
+hand-write every derived value, which is the author doing the compiler's work.
+
+What arrives is the derivation bundle: the author's expressions, and the pure functions those
+expressions call, compiled to one script with no imports left in it. Bundling is what keeps the
+promise about a module system -- there is nothing to resolve, because nothing is imported at
+request time. Measured on the most ordinary case there is, a class helper over `clsx` and
+`tailwind-merge`: **27KB minified, zero references to any host API**, using nothing beyond
+classes, arrow functions and `Map`, and evaluated once when the process starts rather than once
+per request. See [derivation.md](derivation.md).
+
+One syntactic constraint comes out of that and is the same on both engines. `with` is a syntax
+error in a module, modules being always strict, so the carried code is bundled as ordinary
+functions and the expressions themselves are built with `new Function` at startup, which is
+sloppy mode and where `with` is legal.
 
 An enumerated operator set was considered instead, with the injector comparing a path against a
 constant and no JavaScript anywhere. It is rejected: the operators are a language, the language

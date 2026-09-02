@@ -90,8 +90,8 @@ require a shape the author declares.
 | `<script module>`, not exported | refused, with instructions to export it |
 | instance `<script>`, not reading props | refused, with instructions to move it to `<script module>` |
 | instance `<script>`, reading props | **lifted into a derivation** |
-| imported, with its source reachable | carried, and analysed the same way its caller was |
-| imported, with no source to read | refused, by name |
+| imported, with its source reachable | bundled with the expression that calls it |
+| called through a value rather than a name | refused, there being no name to follow |
 
 The last row is not a concession. `const total = p.price * 2` **is a derivation the author wrote
 outside the markup**: its free variables are props, and its shape is the same as the expression
@@ -103,16 +103,23 @@ rather than emitted as two derivations. That keeps derivations independent of on
 the section below relies on.
 
 **An imported function is carried, on one condition: its source has to be reachable at compile
-time.** It usually is, being a module in the author's own bundle, and reaching it is what lets the
-analysis above continue through it. A dependency that arrives as a binary, or a call through a
-value rather than a name -- `handlers[k](x)` -- is refused, because there is nothing to look at.
+time**, so that it can be bundled with the expression that calls it. It usually is, being a module
+the author already depends on. A call through a value rather than a name -- `handlers[k](x)` --
+is refused, because there is no name to follow.
 
-The analysis is the same one, run again on the body. A function is not exempt from what its caller
-had to satisfy: `format(data.d)` is legal only if `format` reads nothing ambient, mutates nothing,
-and calls only functions that also pass. **That is the real reason a carried function was ever a
-question**, and it is a question about divergence rather than about cost -- a `new Date()` inside
-a helper puts the server and the browser on different answers, which is precisely the failure the
-rest of this file exists to prevent.
+**It is bundled, not analysed**, and a draft that said otherwise was wrong on measurement. The two
+functions the whole question is about do not survive an analysis: `clsx` is shipped minified and
+its core recurses into itself, and `tailwind-merge` keeps a module-level LRU cache, which is a
+mutation that is nonetheless deterministic. A transitive purity check rejects both, and they are
+the ecosystem the carrying was for. Nor is a module the right granularity: the file exporting the
+clean `cn` measured above also exports `typeof document !== 'undefined'` and holds a module-level
+`Date.now()`, neither of which the function anybody wants touches.
+
+There is a reason not to analyse beyond its being impractical. **The client runs the same function
+during hydration**, out of the same module, so a library reading a clock produces the ordinary SSR
+mismatch that SvelteKit, Next and Remix all have and none prevent. Analysing library code would
+make this stricter than Svelte itself, at the cost of the library. What is genuinely ours to
+govern is what the author writes in the markup, and that is exactly what the pass above reads.
 
 ## Ambient input is data, not capability
 
@@ -210,13 +217,10 @@ budget, and that is a deployment choice rather than a rule here.
 
 ## Open
 
-- **Analysing a function body.** Carrying an imported function is decided, and the pass that
-  resolves bindings now exists; walking into a body is one more use of it. Until that is built a
-  call is refused by name, which is a missing implementation rather than a missing answer.
-
-  Carrying a module constant waits on the same walk, so the table above describes where a name is
-  allowed to come from and the compiler currently allows two of the five: a prop and an each
-  binding.
+- **Building the bundle.** Carrying an imported function is decided and unanalysed; producing the
+  script is what is left. Until it exists a call is refused by name, which is a missing
+  implementation rather than a missing answer, and the same holds for a module constant, which the
+  same step inlines.
 
   It is the largest thing standing between the compiler and components people have already
   published. The way a modern Svelte library writes a conditional class is `class={cn(...)}` or
