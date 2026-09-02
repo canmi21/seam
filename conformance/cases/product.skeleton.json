@@ -2,7 +2,10 @@
 	"html": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[0--><button>Buy</button><!--]--><!--[--><span>%%s1%%</span><!--]--></article><!--]-->",
 	"head": "",
 	"alternates": {
-		"0": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[-1--><!--]--><!--[--><span>%%s1%%</span><!--]--></article><!--]-->"
+		"0": {
+			"body": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[-1--><!--]--><!--[--><span>%%s1%%</span><!--]--></article><!--]-->",
+			"head": ""
+		}
 	},
 	"holes": [
 		{
@@ -20,6 +23,7 @@
 		{
 			"index": 0,
 			"kind": "if",
+			"stream": "body",
 			"expression": "p.available",
 			"item": null,
 			"alternate": false
@@ -27,6 +31,7 @@
 		{
 			"index": 1,
 			"kind": "each",
+			"stream": "body",
 			"expression": "p.tags",
 			"item": "t",
 			"alternate": false

@@ -1,0 +1,52 @@
+{
+	"html": "<!--[--><div><!--[0--><b>%%s1%%</b><!--]--></div><!--]-->",
+	"head": "<!--1q6azsd--><!--[0--><meta name=\"robots\" content=\"index\"/><!--]--><!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]--><!---->",
+	"alternates": {
+		"0": {
+			"body": "<!--[--><div><!--[0--><b>%%s1%%</b><!--]--></div><!--]-->",
+			"head": "<!--1q6azsd--><!--[-1--><meta name=\"robots\" content=\"noindex\"/><!--]--><!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]--><!---->"
+		},
+		"2": {
+			"body": "<!--[--><div><!--[-1--><!--]--></div><!--]-->",
+			"head": "<!--1q6azsd--><!--[0--><meta name=\"robots\" content=\"index\"/><!--]--><!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]--><!---->"
+		}
+	},
+	"holes": [
+		{
+			"index": 0,
+			"expression": "l",
+			"raw": false
+		},
+		{
+			"index": 1,
+			"expression": "p.name",
+			"raw": false
+		}
+	],
+	"blocks": [
+		{
+			"index": 0,
+			"kind": "if",
+			"stream": "head",
+			"expression": "p.indexed",
+			"item": null,
+			"alternate": true
+		},
+		{
+			"index": 1,
+			"kind": "each",
+			"stream": "head",
+			"expression": "p.links",
+			"item": "l",
+			"alternate": false
+		},
+		{
+			"index": 2,
+			"kind": "if",
+			"stream": "body",
+			"expression": "p.shown",
+			"item": null,
+			"alternate": false
+		}
+	]
+}

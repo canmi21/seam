@@ -2,7 +2,10 @@
 	"html": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[0--><span class=\"badge cold\">%%s3%%</span><!--]--><!--[--><span class=\"badge cold\">%%s4%%</span><!--]--></div><!--]-->",
 	"head": "",
 	"alternates": {
-		"0": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[-1--><!--]--><!--[--><span class=\"badge cold\">%%s4%%</span><!--]--></div><!--]-->"
+		"0": {
+			"body": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[-1--><!--]--><!--[--><span class=\"badge cold\">%%s4%%</span><!--]--></div><!--]-->",
+			"head": ""
+		}
 	},
 	"holes": [
 		{
@@ -35,6 +38,7 @@
 		{
 			"index": 0,
 			"kind": "if",
+			"stream": "body",
 			"expression": "p.flag",
 			"item": null,
 			"alternate": false
@@ -42,6 +46,7 @@
 		{
 			"index": 1,
 			"kind": "each",
+			"stream": "body",
 			"expression": "p.tags",
 			"item": "t",
 			"alternate": false

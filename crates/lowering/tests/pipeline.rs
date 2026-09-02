@@ -131,19 +131,31 @@ fn a_cycle_is_an_error_rather_than_a_hang() {
 	assert!(error.contains("cycle"), "{error}");
 }
 
-/// The head is assembled now, but blocks are matched by walking one string in document order and
-/// the head is a second string ordered its own way. Refused until a block records which stream it
-/// belongs to.
+/// Blocks are numbered across the whole source but each appears in one stream only, and the bytes
+/// do not say which: two ifs, one in the head and one in the body, render identically whichever
+/// came first. So each stream is walked against its own list, and the body's first block is the
+/// body's own even when the head declared one before it.
 #[test]
-fn a_block_inside_the_head_is_refused_while_blocks_are_matched_by_order() {
+fn a_block_in_the_head_does_not_shift_the_body_numbering() {
 	let skeleton: Skeleton = serde_json::from_str(
-		r#"{"html":"<!--[--><div></div><!--]-->",
+		r#"{"html":"<!--[--><div><!--[0--><b>B</b><!--]--></div><!--]-->",
 		    "head":"<!--3e142l--><!--[0--><meta name=\"a\" content=\"1\"/><!--]--><!---->",
-		    "alternates":{},"holes":[],"blocks":[]}"#,
+		    "alternates":{
+		      "0":{"body":"<!--[--><div><!--[0--><b>B</b><!--]--></div><!--]-->",
+		           "head":"<!--3e142l--><!--[-1--><!--]--><!---->"},
+		      "1":{"body":"<!--[--><div><!--[-1--><!--]--></div><!--]-->",
+		           "head":"<!--3e142l--><!--[0--><meta name=\"a\" content=\"1\"/><!--]--><!---->"}},
+		    "holes":[],
+		    "blocks":[
+		      {"kind":"if","stream":"head","expression":"p.a","item":null},
+		      {"kind":"if","stream":"body","expression":"p.b","item":null}]}"#,
 	)
 	.expect("a skeleton");
-	let error = assemble("c", &skeleton).expect_err("a block in the head is not placeable yet");
-	assert!(error.contains("head"), "{error}");
+	let compiled = assemble("c", &skeleton).expect("each stream walks its own blocks");
+	let head = serde_json::to_value(&compiled.ir.head).expect("json");
+	let body = serde_json::to_value(&compiled.ir.body).expect("json");
+	assert_eq!(head[1]["branches"][0]["test"], serde_json::json!("p.a"));
+	assert_eq!(body[1]["branches"][0]["test"], serde_json::json!("p.b"));
 }
 
 /// A head that holds no expression produces no sentinel, so the hole check has nothing to

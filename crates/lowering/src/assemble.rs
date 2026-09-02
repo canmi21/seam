@@ -25,12 +25,30 @@ pub enum Kind {
 	Each,
 }
 
+/// Which of Svelte's two output streams a block was rendered into. The bytes cannot say: the same
+/// two ifs, one in the head and one in the body, render identically whichever came first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Stream {
+	Body,
+	Head,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Block {
 	pub kind: Kind,
+	pub stream: Stream,
 	/// The test of an if, or the source of an each, as written.
 	pub expression: String,
 	pub item: Option<String>,
+}
+
+/// Both of the streams one render produced.
+#[derive(Debug, Deserialize)]
+pub struct Rendered {
+	pub body: String,
+	#[serde(default)]
+	pub head: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,8 +59,9 @@ pub struct Skeleton {
 	/// waits on the IR carrying more than one sequence of nodes.
 	#[serde(default)]
 	pub head: String,
-	/// One render per if, with that one not taken. Keyed by the block's index.
-	pub alternates: BTreeMap<String, String>,
+	/// One render per if, with that one not taken. Keyed by the block's index, and holding both
+	/// streams because the if may be in either.
+	pub alternates: BTreeMap<String, Rendered>,
 	pub holes: Vec<Hole>,
 	pub blocks: Vec<Block>,
 }
@@ -188,9 +207,12 @@ struct Assembler<'a> {
 	derivations: Vec<ir::Derivation>,
 	/// How many times each hole came back in the render. Checked once at the end.
 	consumed: Vec<usize>,
-	/// Blocks are numbered in document order by the pass that rendered them, and appear in the
-	/// render in the same order, so one counter walks both.
-	block: usize,
+	/// The stream being walked, and the source indices of its blocks in the order they appear in
+	/// it. Blocks are numbered across the whole source but each appears in one stream only, so
+	/// walking a stream steps through its own list rather than through the global numbering.
+	stream: Stream,
+	order: Vec<usize>,
+	taken: usize,
 }
 
 impl Assembler<'_> {
@@ -342,8 +364,12 @@ impl Assembler<'_> {
 	/// an each opens once for the whole block, so its marker is static and sits outside, while an
 	/// if writes a different marker per branch and so carries it inside.
 	fn block(&mut self, html: &str, span: &Span, out: &mut Out) -> Result<()> {
-		let index = self.block;
-		self.block += 1;
+		let ordinal = self.taken;
+		self.taken += 1;
+		let index = *self
+			.order
+			.get(ordinal)
+			.ok_or_else(|| "the render holds more blocks than the source declared".to_owned())?;
 		let block = self
 			.skeleton
 			.blocks
@@ -371,17 +397,24 @@ impl Assembler<'_> {
 				taken.write(&html[span.from..span.content]);
 				self.region(html, span.content, span.until, &mut taken)?;
 
-				let other = self
+				let rendered = self
 					.skeleton
 					.alternates
 					.get(&index.to_string())
 					.ok_or_else(|| format!("no render was made with block {index} not taken"))?;
+				// The alternate is taken from the same stream the block lives in, and the head's
+				// title is split off there too so the two renders are read the same way.
+				let other = match self.stream {
+					Stream::Body => rendered.body.as_str(),
+					Stream::Head => split_off_title(&rendered.head)?.0,
+				};
 				let mut otherwise = Out::default();
-				let at = self.locate(other, index)?;
+				// Found by counting within the stream, because that is how it was walked.
+				let at = self.locate(other, ordinal)?;
 				otherwise.write(&other[at.from..at.content]);
-				let saved = std::mem::replace(&mut self.block, index + 1);
+				let saved = std::mem::replace(&mut self.taken, ordinal + 1);
 				self.region(other, at.content, at.until, &mut otherwise)?;
-				self.block = saved;
+				self.taken = saved;
 
 				out.push(ir::Node::If {
 					branches: vec![
@@ -394,7 +427,9 @@ impl Assembler<'_> {
 		}
 	}
 
-	/// The nth block of another render, found by counting opening anchors in document order.
+	/// The nth block of another render of the same stream, found by counting opening anchors in
+	/// document order. The body is wrapped in a pair that looks like an each and the head is not,
+	/// so the region to count within is whichever this stream walks.
 	fn locate(&self, html: &str, index: usize) -> Result<Span> {
 		fn walk(html: &str, from: usize, until: usize, seen: &mut usize, want: usize) -> Option<Span> {
 			let mut at = from;
@@ -410,10 +445,16 @@ impl Assembler<'_> {
 			}
 			None
 		}
-		let outer = next_block(html, 0, html.len())
-			.ok_or_else(|| "a render with no component boundary".to_owned())?;
+		let (from, until) = match self.stream {
+			Stream::Body => {
+				let outer = next_block(html, 0, html.len())
+					.ok_or_else(|| "a render with no component boundary".to_owned())?;
+				(outer.content, outer.until)
+			}
+			Stream::Head => (0, html.len()),
+		};
 		let mut seen = 0;
-		walk(html, outer.content, outer.until, &mut seen, index)
+		walk(html, from, until, &mut seen, index)
 			.ok_or_else(|| format!("block {index} does not appear in the render made for it"))
 	}
 }
@@ -427,8 +468,10 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 	let mut assembler = Assembler {
 		skeleton,
 		derivations: Vec::new(),
-		block: 0,
 		consumed: vec![0; skeleton.holes.len()],
+		stream: Stream::Body,
+		order: order_in(skeleton, Stream::Body),
+		taken: 0,
 	};
 	let mut out = Out::default();
 	out.write(&skeleton.html[outer.from..outer.content]);
@@ -442,18 +485,16 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 	// source order and counted as they are met, which lines up only while the head holds none.
 	let (head_bytes, title_bytes) = split_off_title(&skeleton.head)?;
 
+	assembler.stream = Stream::Head;
+	assembler.order = order_in(skeleton, Stream::Head);
+	assembler.taken = 0;
 	let mut head = Out::default();
 	if !head_bytes.is_empty() {
-		if head_bytes.contains(OPEN) {
-			return Err(
-				"a block inside the document head is not handled yet: blocks are matched by \
-				 document order, and the head is a second stream ordered its own way"
-					.to_owned(),
-			);
-		}
 		assembler.region(head_bytes, 0, head_bytes.len(), &mut head)?;
 	}
 
+	// The title holds no block: one written inside one is refused by the render pass, because the
+	// title is not part of the block on either side and nothing in the bytes ties them together.
 	let mut title = Out::default();
 	if !title_bytes.is_empty() {
 		assembler.region(title_bytes, 0, title_bytes.len(), &mut title)?;
@@ -469,6 +510,17 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 		},
 		derivations: assembler.derivations,
 	})
+}
+
+/// The source indices of one stream's blocks, in the order they appear in it.
+fn order_in(skeleton: &Skeleton, stream: Stream) -> Vec<usize> {
+	skeleton
+		.blocks
+		.iter()
+		.enumerate()
+		.filter(|(_, block)| block.stream == stream)
+		.map(|(index, _)| index)
+		.collect()
 }
 
 /// Splits the rendered head into the head blocks and the title, at the close of the last block.

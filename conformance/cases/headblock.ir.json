@@ -1,0 +1,112 @@
+{
+	"ir": {
+		"component": "headblock",
+		"body": [
+			{
+				"t": "static",
+				"s": "<!--[--><div>"
+			},
+			{
+				"t": "if",
+				"branches": [
+					{
+						"test": "p.shown",
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[0--><b>"
+							},
+							{
+								"t": "slot",
+								"path": "p.name",
+								"escape": "content"
+							},
+							{
+								"t": "static",
+								"s": "</b>"
+							}
+						]
+					},
+					{
+						"test": null,
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[-1-->"
+							}
+						]
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--></div><!--]-->"
+			}
+		],
+		"head": [
+			{
+				"t": "static",
+				"s": "<!--1q6azsd-->"
+			},
+			{
+				"t": "if",
+				"branches": [
+					{
+						"test": "p.indexed",
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[0--><meta name=\"robots\" content=\"index\"/>"
+							}
+						]
+					},
+					{
+						"test": null,
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[-1--><meta name=\"robots\" content=\"noindex\"/>"
+							}
+						]
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--><!--[-->"
+			},
+			{
+				"t": "each",
+				"source": "p.links",
+				"item": "l",
+				"body": [
+					{
+						"t": "static",
+						"s": "<link rel=\"alternate\""
+					},
+					{
+						"t": "attr",
+						"name": "href",
+						"parts": [
+							{
+								"t": "slot",
+								"path": "l",
+								"escape": "attr"
+							}
+						]
+					},
+					{
+						"t": "static",
+						"s": "/>"
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--><!---->"
+			}
+		],
+		"title": []
+	},
+	"derivations": []
+}

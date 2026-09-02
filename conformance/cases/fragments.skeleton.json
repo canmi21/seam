@@ -2,7 +2,10 @@
 	"html": "<!--[--><div><!--[--><!---->item %%s0%%<b>.</b><!--]--></div><!--[0--><b>y</b><!--]--><!--]-->",
 	"head": "",
 	"alternates": {
-		"1": "<!--[--><div><!--[--><!---->item %%s0%%<b>.</b><!--]--></div><!--[-1--><!--]--><!--]-->"
+		"1": {
+			"body": "<!--[--><div><!--[--><!---->item %%s0%%<b>.</b><!--]--></div><!--[-1--><!--]--><!--]-->",
+			"head": ""
+		}
 	},
 	"holes": [
 		{
@@ -15,6 +18,7 @@
 		{
 			"index": 0,
 			"kind": "each",
+			"stream": "body",
 			"expression": "p.xs",
 			"item": "x",
 			"alternate": false
@@ -22,6 +26,7 @@
 		{
 			"index": 1,
 			"kind": "if",
+			"stream": "body",
 			"expression": "p.t",
 			"item": null,
 			"alternate": false

@@ -2,8 +2,14 @@
 	"html": "<!--[--><div><!--[0--><b>pricey</b><!--]--><span>%%s0%%</span><!--[0--><em>none</em><!--]--></div><!--]-->",
 	"head": "",
 	"alternates": {
-		"0": "<!--[--><div><!--[-1--><i>cheap</i><!--]--><span>%%s0%%</span><!--[0--><em>none</em><!--]--></div><!--]-->",
-		"1": "<!--[--><div><!--[0--><b>pricey</b><!--]--><span>%%s0%%</span><!--[-1--><!--]--></div><!--]-->"
+		"0": {
+			"body": "<!--[--><div><!--[-1--><i>cheap</i><!--]--><span>%%s0%%</span><!--[0--><em>none</em><!--]--></div><!--]-->",
+			"head": ""
+		},
+		"1": {
+			"body": "<!--[--><div><!--[0--><b>pricey</b><!--]--><span>%%s0%%</span><!--[-1--><!--]--></div><!--]-->",
+			"head": ""
+		}
 	},
 	"holes": [
 		{
@@ -16,6 +22,7 @@
 		{
 			"index": 0,
 			"kind": "if",
+			"stream": "body",
 			"expression": "p.price > 10",
 			"item": null,
 			"alternate": true
@@ -23,6 +30,7 @@
 		{
 			"index": 1,
 			"kind": "if",
+			"stream": "body",
 			"expression": "p.tags.length === 0",
 			"item": null,
 			"alternate": false

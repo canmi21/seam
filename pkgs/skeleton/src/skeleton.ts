@@ -11,10 +11,20 @@ export interface Hole {
 	raw: boolean;
 }
 
+/** Which of Svelte's two output streams something was rendered into. */
+export type Stream = 'body' | 'head';
+
 /** One if or each in the source, in document order. */
 export interface Block {
 	index: number;
 	kind: 'if' | 'each';
+	/**
+	 * Blocks are numbered across the whole source but appear in one stream or the other, and the
+	 * bytes give no way to tell which: the same two ifs, one in the head and one in the body,
+	 * render identically whichever came first. So the stream is recorded here, where the AST
+	 * still says.
+	 */
+	stream: Stream;
 	/** The test of an if, or the source of an each, as written. */
 	expression: string;
 	/** The name an each binds. */
@@ -33,8 +43,11 @@ export interface Skeleton {
 	 * calling that the whole render, which is how a title came to compile and then not exist.
 	 */
 	head: string;
-	/** One render per if, with that one not taken, holding its alternate. Keyed by block index. */
-	alternates: Record<string, string>;
+	/**
+	 * One render per if, with that one not taken, holding its alternate. Keyed by block index.
+	 * Both streams, because the if may be in either.
+	 */
+	alternates: Record<string, Rendered>;
 	holes: Hole[];
 	blocks: Block[];
 }
@@ -66,10 +79,17 @@ function collect(
 	edits: [number, number, string][],
 	blocks: Block[],
 	taken: (block: number) => boolean,
+	stream: Stream,
 ) {
 	if (!isNode(node)) return;
 
 	const type = node['type'];
+	if (type === 'SvelteHead') {
+		for (const child of ((node['fragment'] as AstNode | undefined)?.['nodes'] as unknown[]) ?? []) {
+			collect(source, child, holes, edits, blocks, taken, 'head');
+		}
+		return;
+	}
 	if (type === 'ExpressionTag' || type === 'HtmlTag') {
 		const at = span(node['expression']);
 		if (at === null) return;
@@ -87,7 +107,7 @@ function collect(
 		if (name.startsWith('on') && name.length > 2) return;
 		const value = node['value'];
 		const parts = Array.isArray(value) ? value : [value];
-		for (const part of parts) collect(source, part, holes, edits, blocks, taken);
+		for (const part of parts) collect(source, part, holes, edits, blocks, taken, stream);
 		return;
 	}
 	if (type === 'IfBlock') {
@@ -97,18 +117,19 @@ function collect(
 		blocks.push({
 			index,
 			kind: 'if',
+			stream,
 			expression: source.slice(at[0], at[1]),
 			item: null,
 			alternate: node['alternate'] !== null && node['alternate'] !== undefined,
 		});
 		edits.push([at[0], at[1], taken(index) ? 'true' : 'false']);
-		collect(source, node['consequent'], holes, edits, blocks, taken);
+		collect(source, node['consequent'], holes, edits, blocks, taken, stream);
 		if (isNode(node['alternate'])) {
 			// A block inside an else is numbered but never rendered in the baseline, where every
 			// if is taken, so the render and the block list would stop lining up. Refused rather
 			// than mis-assembled.
 			const before = blocks.length;
-			collect(source, node['alternate'], holes, edits, blocks, taken);
+			collect(source, node['alternate'], holes, edits, blocks, taken, stream);
 			if (blocks.length !== before) {
 				throw new Error('a block inside an else is not handled by this pass yet');
 			}
@@ -122,13 +143,14 @@ function collect(
 		blocks.push({
 			index: blocks.length,
 			kind: 'each',
+			stream,
 			expression: source.slice(at[0], at[1]),
 			item: context === null ? null : source.slice(context[0], context[1]),
 			alternate: false,
 		});
 		// One element, because the body's own expressions are sentinels and read nothing from it.
 		edits.push([at[0], at[1], '[0]']);
-		collect(source, node['body'], holes, edits, blocks, taken);
+		collect(source, node['body'], holes, edits, blocks, taken, stream);
 		return;
 	}
 	if (type === 'AwaitBlock' || type === 'KeyBlock' || type === 'SnippetBlock') {
@@ -137,32 +159,44 @@ function collect(
 
 	for (const value of Object.values(node)) {
 		if (Array.isArray(value)) {
-			for (const child of value) collect(source, child, holes, edits, blocks, taken);
+			for (const child of value) collect(source, child, holes, edits, blocks, taken, stream);
 		} else if (isNode(value) && value['type'] !== undefined) {
-			collect(source, value, holes, edits, blocks, taken);
+			collect(source, value, holes, edits, blocks, taken, stream);
 		} else if (isNode(value) && Array.isArray(value['nodes'])) {
-			for (const child of value['nodes']) collect(source, child, holes, edits, blocks, taken);
+			for (const child of value['nodes'])
+				collect(source, child, holes, edits, blocks, taken, stream);
 		}
 	}
 }
 
 /**
- * Svelte keeps the title in a channel rather than in a stream, and a second one overwrites the
- * first by a precedence rule read off the render tree. Two readings of that rule each disagreed
- * with what it actually does, so it is not reproduced: one title, or none. See spec/ir.md.
+ * How many titles the source writes, and whether any sits inside a block.
+ *
+ * A second title overwrites the first by a precedence rule read off the render tree, and two
+ * readings of that rule each disagreed with what it actually does, so it is not reproduced: one
+ * title, or none. A title inside a block is a separate problem: the title is not part of the
+ * block on either side, so the block renders empty and the title is appended regardless, and
+ * nothing in the bytes ties the one to the other. See spec/ir.md.
  */
-function titles(node: unknown): number {
-	if (!isNode(node)) return 0;
-	if (node['type'] === 'TitleElement') return 1;
+function titles(node: unknown, guarded = false): { found: number; conditional: boolean } {
+	if (!isNode(node)) return { found: 0, conditional: false };
+	if (node['type'] === 'TitleElement') return { found: 1, conditional: guarded };
+	const inside = guarded || node['type'] === 'IfBlock' || node['type'] === 'EachBlock';
 	let found = 0;
+	let conditional = false;
+	const visit = (child: unknown) => {
+		const seen = titles(child, inside);
+		found += seen.found;
+		conditional ||= seen.conditional;
+	};
 	for (const value of Object.values(node)) {
 		if (Array.isArray(value)) {
-			for (const child of value) found += titles(child);
+			for (const child of value) visit(child);
 		} else if (isNode(value)) {
-			found += titles(value);
+			visit(value);
 		}
 	}
-	return found;
+	return { found, conditional };
 }
 
 /**
@@ -178,7 +212,7 @@ function rewrite(source: string, taken: (block: number) => boolean): Rewritten {
 	const holes: Hole[] = [];
 	const blocks: Block[] = [];
 	const edits: [number, number, string][] = [];
-	collect(source, ast['fragment'], holes, edits, blocks, taken);
+	collect(source, ast['fragment'], holes, edits, blocks, taken, 'body');
 
 	edits.sort((a, b) => b[0] - a[0]);
 	let rewritten = source;
@@ -204,9 +238,14 @@ export async function skeleton(entryFile: string): Promise<Skeleton> {
 	const file = resolvePath(entryFile);
 	const source = readFileSync(file, 'utf8');
 
-	const found = titles(parse(source, { modern: true }) as unknown as AstNode);
+	const { found, conditional } = titles(parse(source, { modern: true }) as unknown as AstNode);
 	if (found > 1) {
 		throw new Error(`this component writes ${found} titles, and only one of them would survive`);
+	}
+	// The title leaves the block it was written in: the block renders empty and the title is
+	// appended after every one of them, so nothing in the bytes says the two go together.
+	if (conditional) {
+		throw new Error('a title inside a block is not handled yet: the block renders without it');
 	}
 
 	// Everything taken: this render holds every consequent and every each body.
@@ -215,11 +254,11 @@ export async function skeleton(entryFile: string): Promise<Skeleton> {
 
 	// One more render per if, with that one not taken, for the bytes of its other branch. Its
 	// ancestors stay taken, which is what keeps it reachable.
-	const alternates: Record<string, string> = {};
+	const alternates: Record<string, Rendered> = {};
 	for (const block of baseline.blocks) {
 		if (block.kind !== 'if') continue;
 		const flipped = rewrite(source, (index) => index !== block.index);
-		alternates[String(block.index)] = (await renderRewritten(file, flipped.rewritten)).body;
+		alternates[String(block.index)] = await renderRewritten(file, flipped.rewritten);
 	}
 
 	return { html, head, alternates, holes: baseline.holes, blocks: baseline.blocks };

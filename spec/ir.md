@@ -244,16 +244,21 @@ element, an unreached branch leaves it unset rather than empty, and the injector
 result where Svelte appends its own. The nodes are the ordinary ones and the walk is the ordinary
 walk; only the name and the placement differ, because only the meaning does.
 
+**A title inside a block is refused.** The title is not part of the block on either side, so the
+block renders empty and the title is appended regardless, and nothing in the bytes ties the one to
+the other. Carrying it would mean emitting a title the branch did not ask for.
+
 **More than one title is refused.** A second overwrites the first by a precedence rule read off
 the render tree, and that rule is not reproduced here: two readings of `set_title` each disagreed
 with what it measurably does, and a rule discovered by measurement is exactly what this pipeline
 does not copy. See [pipeline.md](pipeline.md). One title, or none. Overriding across a route and
 its layout will be a rule stated here rather than one reverse-engineered from there.
 
-**A block in the head is refused.** Blocks are matched by walking one string in document order,
-and the head is a second string ordered its own way; holes are indexed so they do not have the
-problem. Placing one needs a block to record which stream it belongs to, which the render pass can
-supply because it has the AST.
+**A block records which stream it is in.** Blocks are numbered across the whole source but each
+appears in one stream only, and the bytes cannot say which: two ifs, one in the head and one in
+the body, render identically whichever came first. So each stream is walked against its own list
+of block indices, and the alternate render for an if is read from the stream that if lives in.
+Holes never had this problem, being indexed.
 
 Merging across routes -- one page's title overriding a layout's -- is the only part that would
 require the IR to understand the bytes it concatenates rather than treat them as opaque. It waits
@@ -299,10 +304,9 @@ Recorded rather than decided, because guessing now would be worse than deciding 
   iteration, which is a different mechanism rather than a larger version of this one. See
   [derivation.md](derivation.md).
 - **Snippets and children.** A component given a body is refused; `{@render}` is untouched.
-- **A block inside the head.** Needs each block to record which stream it belongs to, because
-  blocks are matched by document order and the head is ordered its own way. Title override across
-  a route and its layout is further off still: it needs the IR to read the bytes it concatenates,
-  and it depends on routing.
+- **A title inside a block, and more than one title.** Both need a rule for which title wins,
+  which is stated here rather than taken from Svelte, whose own rule is not derivable. Overriding
+  across a route and its layout is the same question one level up, and depends on routing.
 - **A linear form.** A flat opcode buffer walks faster and deserializes cheaper than a nested
   tree. The tree comes first because it can be written by hand, which the first milestone needs.
   Any linear form must be a lowering of it, not a replacement.
