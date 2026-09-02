@@ -1,0 +1,80 @@
+{
+	"markup": [
+		{
+			"k": "element",
+			"name": "article",
+			"attrs": [
+				{
+					"k": "attr",
+					"name": "class",
+					"value": [
+						{
+							"k": "text",
+							"v": "card"
+						}
+					]
+				}
+			],
+			"body": [
+				{
+					"k": "element",
+					"name": "h1",
+					"attrs": [],
+					"body": [
+						{
+							"k": "expr",
+							"src": "p.name"
+						}
+					]
+				},
+				{
+					"k": "if",
+					"test": "p.available",
+					"consequent": [
+						{
+							"k": "element",
+							"name": "button",
+							"attrs": [
+								{
+									"k": "attr",
+									"name": "onclick",
+									"value": [
+										{
+											"k": "expr",
+											"src": "() => { n += 1; console.log('seam: adopted, click', n) }"
+										}
+									]
+								}
+							],
+							"body": [
+								{
+									"k": "text",
+									"v": "Buy"
+								}
+							]
+						}
+					],
+					"alternate": null
+				},
+				{
+					"k": "each",
+					"source": "p.tags",
+					"item": "t",
+					"body": [
+						{
+							"k": "element",
+							"name": "span",
+							"attrs": [],
+							"body": [
+								{
+									"k": "expr",
+									"src": "t"
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	]
+}

@@ -20,8 +20,11 @@ description = "Lint the packages"
 run = "oxlint pkgs"
 
 [tasks.test]
-description = "Diff the injector against Svelte's own server output"
-run = "node pkgs/injector/conformance/run.ts"
+description = "Check both seams with Svelte: the AST we read and the HTML we emit"
+run = [
+	"node pkgs/ast/conformance/run.ts",
+	"node pkgs/injector/conformance/run.ts",
+]
 
 [tasks.dev]
 description = "Serve the fixture route: `dev` then open http://localhost:5100"
