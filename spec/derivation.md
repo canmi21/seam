@@ -168,6 +168,12 @@ another.
   the payload and there is no principled reason to refuse it. What has no answer yet is
   termination, which the shape argument above no longer covers once a function can call itself.
   Prior art gave nothing for this. It stays refused until there is a mechanism, not a preference.
+
+  It is also the largest thing standing between the compiler and components people have already
+  published. The way a modern Svelte library writes a conditional class is `class={cn(...)}` or
+  `class={tv({...})}` -- a call, producing a string, in a substitution position the pipeline
+  already handles. Measured across 1107 `.svelte` files in eleven published libraries, 267 carry
+  such a call. Almost every one of them imports the function it calls.
 - **Per-item derivation.** A derivation is computed once against the payload, so an expression
   inside an each block is refused. What it needs is a value per iteration, which is a different
   mechanism rather than a larger version of this one. See [ir.md](ir.md).

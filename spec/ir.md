@@ -356,10 +356,28 @@ Recorded rather than decided, because guessing now would be worse than deciding 
   replacements that today holds only this one name. Ours would write `"true"`. The same reasoning
   as the boolean attributes applies and the fix is the same shape; it is left until a second entry
   makes the table worth carrying.
-- **`class:` and `style:` directives.** Both merge with a static attribute of the same name
-  rather than standing beside it: `class="c"` with `class:on={true}` is one `class="c on"`, and
-  `style:color` joins an existing `style` with `; `. That makes the attribute a computed join of
-  conditional parts, which the `attr` node does not express.
+- **`class:` and `style:` directives.** Deferred on what they are worth rather than blocked on
+  anything. Both are decision positions over two outcomes, so the mechanism is the one the blocks
+  already use, and the IR needs no new node: an `if` inside an element's node list can hold the
+  whole `attr`, which covers the attribute disappearing as well. What is missing is a way to find
+  an element in a render, since an attribute has no anchor the way a block does, and inventing one
+  is the cost.
+
+  The cost is not worth paying yet, and that was measured rather than felt. Across 1107 `.svelte`
+  files in eleven published libraries, `class:` appears in 215 and `style:` in 59 -- but 205 and
+  35 of those are one Svelte 4 era library. Excluding it, 10 files in 814 use `class:` and 24 use
+  `style:`, and 22 of the 24 are a charting library, where a per-frame `style:opacity` is what the
+  directive is for.
+
+  What the rest of them write instead is `class={cn(...)}`, a call producing a string. That is a
+  substitution and the pipeline already takes it. What it waits on is unrelated to this entry:
+  see **Imported functions** in [derivation.md](derivation.md).
+
+  Reproducing the rules instead was considered. `to_class` is short but carries a branch that
+  *removes* a name from a static class when the directive is false, and `to_style` is a CSS
+  parser that strips comments, tracks quoting and deduplicates by property. That parser runs only
+  when one element carries both a static `style` and a `style:` directive, which happened zero
+  times in the 1107 files.
 - **Empty values.** `{data.name}` with an empty string produced `<h1></h1>` in Svelte's SSR, with
   no text node. Whether hydration requires one to exist is not yet known, and it decides whether a
   `slot` must always emit something.
