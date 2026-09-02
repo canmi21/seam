@@ -11,6 +11,8 @@ was written against.
 
 The compiler asks each question of whatever already knows the answer. It reimplements neither.
 
+What invokes this for a whole project, and what it writes out, is [build.md](build.md).
+
 ## Why not write the bytes ourselves
 
 It was tried, and it works, and it is still the wrong trade. Reproducing Svelte's output by hand

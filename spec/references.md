@@ -120,6 +120,30 @@ with the unsanitized value on the first update, so sanitizing on the server woul
 Agreeing with them turned out to be the weakest of the reasons available. See
 [refusals.md](refusals.md).
 
+## How the build is invoked
+
+**SvelteKit's Vite plugin.** The entry is a plugin rather than a CLI, the configuration is the
+plugin's argument rather than a file of its own, and the Vite settings the compiler takes control
+of are a declared table that gets printed back at the user when it overrides one of theirs. All
+three are copied. A project generated today has no `svelte.config.js` at all, which is the same
+question about which setting wins, answered by removing the place it could be asked. See
+[build.md](build.md).
+
+**SvelteKit's and Astro's server output.** Both emit the server half as one JavaScript module, and
+both were looked at as a model and turned down. The reason they do it is not speed: their artifact
+holds a `Set`, a memoizing closure and a deferred import, and a compiled route is a function, so
+JSON was never available to them. Rendering to serialise rather than to run means that constraint
+is absent here, and copying the answer would have imported it. See [build.md](build.md).
+
+**Astro's CLI.** The one framework surveyed that drives Vite itself instead of plugging into it.
+Not followed: a plugin can already run more than one build, which SvelteKit does from inside its
+own hook, so the CLI bought nothing that was needed. See [build.md](build.md).
+
+**Qwik's `q-manifest.json`.** The only language-neutral carrier among the three, holding `mapping`,
+`bundles`, `symbols`, `injections` and `assets` as ordinary JSON. It is JSON for the reason ours
+has to be: the producer is a Rust optimizer and the consumer is not it. The same boundary runs
+between a WebAssembly lowering pass and a backend that may not be Node. See [build.md](build.md).
+
 ## The starting point
 
 **[Rendering as a Protocol](https://canmi.net/architecture/compile-time-rendering)** and
