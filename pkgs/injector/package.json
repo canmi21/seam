@@ -6,6 +6,8 @@
 		".": "./src/index.ts"
 	},
 	"devDependencies": {
+		"ast": "workspace:*",
+		"carry": "workspace:*",
 		"derive": "workspace:*",
 		"svelte": "^5.57.0"
 	}

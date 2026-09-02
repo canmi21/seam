@@ -1,11 +1,13 @@
 // The seam between this package and Svelte. For every case, the IR the compiler produced is
 // injected here and rendered by Svelte's own server codegen, and the two are compared byte for
 // byte. A Svelte release that changes an anchor or an escaping rule lands here.
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile as compileSvelte } from 'svelte/compiler';
 import { render } from 'svelte/server';
+import { bindings } from 'ast';
+import { carry } from 'carry';
 import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject, type Injected } from '../src/index.ts';
 import type { ComponentIR } from '../src/ir.ts';
@@ -69,11 +71,13 @@ for (const file of readdirSync(cases)
 		ir: ComponentIR;
 		derivations: Derivation[];
 	};
-	// The bundle sits beside the IR when the component's expressions call into one.
-	const script = resolve(cases, `${name}.carried.js`);
+	// Built here rather than committed. It is an artifact of the compiler and nobody reads one
+	// in a diff, and a generated file that the formatter then rewrites is a fight between two
+	// tasks that only ever produces noise.
+	const source = readFileSync(resolve(cases, file), 'utf8');
 	const derive = compileDerivations(
 		compiled.derivations,
-		existsSync(script) ? readFileSync(script, 'utf8') : '',
+		await carry(resolve(cases, file), bindings(source).carried),
 	);
 	// `data` here is what the load stage would have produced, not the props object: the one
 	// name it arrives under is added by the renderer and by `derive`, not written in the fixture.

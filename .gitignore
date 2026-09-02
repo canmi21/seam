@@ -15,3 +15,8 @@ pkgs/server/static/client.js
 
 # OS
 .DS_Store
+
+# Built by `mise run //repos/seam:wasm`, not carried. It is machine code for one file in this
+# repository and rebuilding it is a second of cargo, so committing it would only be a thing that
+# could go stale.
+pkgs/lowering/lowering.wasm

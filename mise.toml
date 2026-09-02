@@ -41,8 +41,22 @@ run = [
 description = "Serve the fixture route: `dev` then open http://localhost:5100"
 run = "node pkgs/server/src/main.ts"
 
+[tasks.wasm]
+description = "Build the lowering pass as one WebAssembly file the compiler can call"
+# Run from the repository so the pinned toolchain is the one that resolves: outside it, the
+# wasm target is not found, which fails in a way that names the wrong thing.
+run = [
+	"cargo build -q --release --target wasm32-unknown-unknown -p lowering",
+	# Raw output carries the whole standard library. Dropping what nothing reaches takes it from
+	# 1.6MB to 15KB, and the result runs identically.
+	"wasm-opt -Oz --enable-bulk-memory --enable-nontrapping-float-to-int --strip-debug --strip-producers target/wasm32-unknown-unknown/release/lowering.wasm -o pkgs/lowering/lowering.wasm",
+	"ls -l pkgs/lowering/lowering.wasm",
+]
+
 [tasks.fixtures]
 description = "Regenerate the conformance fixtures after changing a case"
+# The lowering module is not committed, so the step that needs it builds it.
+depends = ["wasm"]
 run = [
 	"node conformance/generate.ts",
 	"node crates/devalue/fixtures/generate.ts",

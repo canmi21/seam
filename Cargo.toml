@@ -11,6 +11,16 @@ edition = "2024"
 license = "MIT"
 repository = "https://github.com/canmi21/seam"
 
+# The release profile exists for one artifact: the WebAssembly build the compiler calls. Nothing
+# else is built this way, so it is tuned for what goes into a package rather than for speed --
+# the work it does is 0.05ms a component either way.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
 [workspace.lints.clippy]
 dbg_macro = "deny"
 todo = "warn"

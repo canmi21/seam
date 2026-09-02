@@ -45,6 +45,42 @@ fn only_the_render_pass_compiles(name: &str) -> bool {
 	lower(&bundle).is_err()
 }
 
+/// The committed IR came out of the render pass, through the WebAssembly build of this crate.
+/// Holding it against what the crate produces natively is what says the two are the same program:
+/// the module is built rather than carried, so it cannot go stale, but a change here that was not
+/// followed by regenerating the fixtures would leave them describing a compiler that no longer
+/// exists.
+#[test]
+fn the_committed_ir_is_what_this_source_produces() {
+	let cases = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/cases");
+	let mut checked = 0;
+	for entry in std::fs::read_dir(&cases).expect("cases") {
+		let path = entry.expect("entry").path();
+		if path.extension().is_none_or(|e| e != "svelte") {
+			continue;
+		}
+		let name = path.file_stem().expect("stem").to_string_lossy().into_owned();
+		if !cases.join(format!("{name}.skeleton.json")).exists() {
+			continue;
+		}
+		let skeleton: Skeleton =
+			serde_json::from_str(&read(&format!("conformance/cases/{name}.skeleton.json")))
+				.unwrap_or_else(|e| panic!("{name} skeleton: {e}"));
+		let produced =
+			serde_json::to_value(assemble(&name, &skeleton).unwrap_or_else(|e| panic!("{name}: {e}")))
+				.expect("json");
+		let committed: serde_json::Value =
+			serde_json::from_str(&read(&format!("conformance/cases/{name}.ir.json")))
+				.unwrap_or_else(|e| panic!("{name} ir: {e}"));
+		assert_eq!(
+			produced, committed,
+			"{name}: the committed IR is not what this source produces, so the wasm build is stale"
+		);
+		checked += 1;
+	}
+	assert!(checked > 0, "no rendered cases found");
+}
+
 /// Every case, not just the one the specification carries. Adding a case is adding two files.
 #[test]
 fn lowering_reproduces_every_committed_ir() {
