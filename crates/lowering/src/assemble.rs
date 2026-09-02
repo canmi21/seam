@@ -37,6 +37,10 @@ pub struct Block {
 pub struct Skeleton {
 	/// Every if taken, every each with one item.
 	pub html: String,
+	/// The other stream Svelte renders. Read so that writing to it can be refused; assembling it
+	/// waits on the IR carrying more than one sequence of nodes.
+	#[serde(default)]
+	pub head: String,
 	/// One render per if, with that one not taken. Keyed by the block's index.
 	pub alternates: BTreeMap<String, String>,
 	pub holes: Vec<Hole>,
@@ -412,6 +416,16 @@ impl Assembler<'_> {
 }
 
 pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
+	// A component writing to the head renders a second stream, and the IR carries one sequence of
+	// nodes. Refused rather than dropped: the bytes exist, they belong in the document, and there
+	// is nowhere to put them. The hole check below cannot stand in for this, because a head that
+	// holds no expression produces no sentinel and so nothing to disagree with.
+	if !skeleton.head.is_empty() {
+		return Err(
+			"this component writes to the document head, which the IR does not carry yet".to_owned(),
+		);
+	}
+
 	// render() wraps the whole component in a pair that looks like an each. Stepping over it
 	// here keeps it in the output and out of the block count.
 	let outer = next_block(&skeleton.html, 0, skeleton.html.len())

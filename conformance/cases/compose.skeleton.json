@@ -1,5 +1,6 @@
 {
 	"html": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[0--><span class=\"badge cold\">%%s3%%</span><!--]--><!--[--><span class=\"badge cold\">%%s4%%</span><!--]--></div><!--]-->",
+	"head": "",
 	"alternates": {
 		"0": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[-1--><!--]--><!--[--><span class=\"badge cold\">%%s4%%</span><!--]--></div><!--]-->"
 	},

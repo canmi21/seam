@@ -1,5 +1,6 @@
 {
 	"html": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[0--><button>Buy</button><!--]--><!--[--><span>%%s1%%</span><!--]--></article><!--]-->",
+	"head": "",
 	"alternates": {
 		"0": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[-1--><!--]--><!--[--><span>%%s1%%</span><!--]--></article><!--]-->"
 	},

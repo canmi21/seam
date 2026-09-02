@@ -26,6 +26,13 @@ export interface Block {
 export interface Skeleton {
 	/** Every if taken, every each with one item. Holds every consequent and every each body. */
 	html: string;
+	/**
+	 * The other stream. `render()` returns a head as well as a body, and a component that writes
+	 * to it produces bytes that belong in the document rather than in the fragment. Carried even
+	 * though nothing assembles it yet, because the alternative is reading only the body and
+	 * calling that the whole render, which is how a title came to compile and then not exist.
+	 */
+	head: string;
 	/** One render per if, with that one not taken, holding its alternate. Keyed by block index. */
 	alternates: Record<string, string>;
 	holes: Hole[];
@@ -162,6 +169,12 @@ function rewrite(source: string, taken: (block: number) => boolean): Rewritten {
 	return { rewritten, holes, blocks };
 }
 
+/** Both of Svelte's output streams, because reading only one of them loses content silently. */
+interface Rendered {
+	body: string;
+	head: string;
+}
+
 interface Rewritten {
 	rewritten: string;
 	holes: Hole[];
@@ -174,7 +187,7 @@ export async function skeleton(entryFile: string): Promise<Skeleton> {
 
 	// Everything taken: this render holds every consequent and every each body.
 	const baseline = rewrite(source, () => true);
-	const html = await renderRewritten(file, baseline.rewritten);
+	const { body: html, head } = await renderRewritten(file, baseline.rewritten);
 
 	// One more render per if, with that one not taken, for the bytes of its other branch. Its
 	// ancestors stay taken, which is what keeps it reachable.
@@ -182,10 +195,10 @@ export async function skeleton(entryFile: string): Promise<Skeleton> {
 	for (const block of baseline.blocks) {
 		if (block.kind !== 'if') continue;
 		const flipped = rewrite(source, (index) => index !== block.index);
-		alternates[String(block.index)] = await renderRewritten(file, flipped.rewritten);
+		alternates[String(block.index)] = (await renderRewritten(file, flipped.rewritten)).body;
 	}
 
-	return { html, alternates, holes: baseline.holes, blocks: baseline.blocks };
+	return { html, head, alternates, holes: baseline.holes, blocks: baseline.blocks };
 }
 
 // Staged inside this package, because Svelte's output imports 'svelte/internal/server' and that
@@ -195,7 +208,7 @@ export async function skeleton(entryFile: string): Promise<Skeleton> {
 // would otherwise be the same module: the second configuration would silently return the first.
 let generation = 0;
 
-async function renderRewritten(file: string, source: string): Promise<string> {
+async function renderRewritten(file: string, source: string): Promise<Rendered> {
 	const { mkdirSync, readFileSync: read, rmSync, writeFileSync } = await import('node:fs');
 	const { basename } = await import('node:path');
 	const { fileURLToPath, pathToFileURL } = await import('node:url');
@@ -241,7 +254,8 @@ async function renderRewritten(file: string, source: string): Promise<string> {
 			file,
 		);
 		const mod = (await import(pathToFileURL(entry).href)) as { default: unknown };
-		return render(mod.default as never, { props: {} }).body;
+		const { body, head } = render(mod.default as never, { props: {} });
+		return { body, head };
 	} finally {
 		rmSync(staging, { recursive: true, force: true });
 	}

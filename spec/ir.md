@@ -186,12 +186,55 @@ Svelte wraps every component render in `<!--[-->` and `<!--]-->`, so the composi
 output seam are the same place. That is not a coincidence: both describe where one component's
 output ends.
 
+## The head is a second stream
+
+`render()` returns a head as well as a body, and the IR carries one sequence of nodes. Reading
+only the body is how a `<title>` came to compile without complaint and then not exist -- present
+after hydration, absent from the response, which is the failure this whole approach exists to
+avoid.
+
+So the head is read and **writing to it is refused** until the IR carries it. The hole check
+cannot stand in for that: a head holding no expression produces no sentinel, so every count stays
+correct while the bytes go missing.
+
+What the shape will be is settled, because it was measured rather than argued:
+
+```
+HEAD  <!--167snak--><!--[0--><meta name="a" content="%%s1%%"/><!--]--><!---->
+      <!--eo1t1a--><meta name="child" content="c"/><!----><title>%%s0%%</title>
+BODY  <!--[--><div>%%s2%%</div><b>child</b><!----><!--]-->
+```
+
+- Sentinels reach the head, and a sentinel carries its own index, so **holes need no positional
+  correlation** and cross a stream boundary for free.
+- Blocks render there with the same anchors as anywhere else.
+- **A child's head is already merged into the parent's stream**, carrying its own hash anchor.
+  The aggregation other frameworks moved out of the component tree is done here at compile time,
+  by Svelte, because the component graph is static. Two `<svelte:head>` blocks in one component
+  are a compile error, so there is no ordering left to invent.
+- The hash is `hash(filename)` and not a hash of the source, so the sentinel rewrite does not move
+  it. It does depend on the filename string, which is the same coupling the scoped style class
+  has, and the same requirement: one filename, spelled identically wherever the component is
+  compiled.
+
+Only one rule of Svelte's has to be lived with rather than copied: **`<title>` is moved to the end
+of the stream** regardless of where it was written, leaving a `<!---->` where it stood. That does
+not disturb holes, which are indexed, but it does disturb blocks, which are matched by document
+order.
+
+That is what the staging below is about. Reaching a head that holds no block needs the IR to carry
+a second node sequence and nothing else. Reaching a head that holds one needs blocks to know which
+stream they belong to, which is a field the render pass can supply because it has the AST. Merging
+across routes -- one page's title overriding a layout's -- is the only part that would require the
+IR to understand the bytes it concatenates, and it waits on routing, which does not exist.
+
 ## What is not in it
 
 | | Where it goes instead |
 | --- | --- |
 | CSS | A separate artifact. Its consumer is the bundler, not the server. |
 | Client behaviour, events, `$state` | Svelte's own client bundle already carries it. |
+| The document head | A second stream, read and refused today. See above. |
 | Types, the payload contract | The schema. The IR references paths and does not describe them. |
 | The element tree | Nowhere. Nothing needs it. |
 
@@ -220,6 +263,10 @@ Recorded rather than decided, because guessing now would be worse than deciding 
   iteration, which is a different mechanism rather than a larger version of this one. See
   [derivation.md](derivation.md).
 - **Snippets and children.** A component given a body is refused; `{@render}` is untouched.
+- **The head, in three steps.** A head with no block needs the IR to carry a second node sequence,
+  and depends on nothing else. A head with a block needs each block to record its stream, and
+  depends on the first. Title override across a route and its layout needs the IR to read the
+  bytes it concatenates, and depends on routing.
 - **A linear form.** A flat opcode buffer walks faster and deserializes cheaper than a nested
   tree. The tree comes first because it can be written by hand, which the first milestone needs.
   Any linear form must be a lowering of it, not a replacement.

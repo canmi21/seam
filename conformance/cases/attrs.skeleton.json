@@ -1,5 +1,6 @@
 {
 	"html": "<!--[--><div data-x=\"%%s0%%\" class=\"a %%s1%% b\" title=\"static\"><span><!---->%%s2%%<!----></span><input disabled=\"\"/><br/></div><!--]-->",
+	"head": "",
 	"alternates": {},
 	"holes": [
 		{

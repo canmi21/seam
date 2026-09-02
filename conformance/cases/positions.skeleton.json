@@ -1,5 +1,6 @@
 {
 	"html": "<!--[--><div><span class=\"badge x\">%%s0%%</span><!----></div>head<span class=\"badge y\">%%s1%%</span><!----><!--]-->",
+	"head": "",
 	"alternates": {},
 	"holes": [
 		{

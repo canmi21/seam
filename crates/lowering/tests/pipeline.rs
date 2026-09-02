@@ -119,6 +119,20 @@ fn a_cycle_is_an_error_rather_than_a_hang() {
 	assert!(error.contains("cycle"), "{error}");
 }
 
+/// The hole check cannot stand in for this one. A head holding no expression produces no
+/// sentinel, so there is nothing for the holes to disagree about, and the bytes would go missing
+/// with every count still correct. Reading the stream itself is the only evidence there is.
+#[test]
+fn writing_to_the_head_is_refused_while_the_ir_carries_one_stream() {
+	let skeleton: Skeleton = serde_json::from_str(
+		r#"{"html":"<!--[--><div></div><!--]-->","head":"<!--3e142l--><title>T</title>",
+		    "alternates":{},"holes":[],"blocks":[]}"#,
+	)
+	.expect("a skeleton");
+	let error = assemble("c", &skeleton).expect_err("the head stream has nowhere to go");
+	assert!(error.contains("head"), "{error}");
+}
+
 /// The written pass walks the markup, so it refuses a node it does not know. This pass reads a
 /// rendered string and has no notion of a node, so the same guarantee has to be stated in what it
 /// does see: a sentinel it never gets back is content that went somewhere it does not look.
