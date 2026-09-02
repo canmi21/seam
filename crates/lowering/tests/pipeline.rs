@@ -145,7 +145,7 @@ fn assembling_a_render_agrees_with_writing_the_bytes() {
 				.unwrap_or_else(|e| panic!("{name} markup: {e}"));
 
 		let written = lower(&bundle).unwrap_or_else(|e| panic!("{name}: {e}")).ir;
-		let split = assemble(&name, &skeleton).unwrap_or_else(|e| panic!("{name}: {e}"));
+		let split = assemble(&name, &skeleton).unwrap_or_else(|e| panic!("{name}: {e}")).ir;
 		assert_eq!(
 			serde_json::to_value(&split).expect("json"),
 			serde_json::to_value(&written).expect("json"),

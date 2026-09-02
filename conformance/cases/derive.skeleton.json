@@ -1,0 +1,30 @@
+{
+	"html": "<!--[--><div><!--[0--><b>pricey</b><!--]--><span>%%s0%%</span><!--[0--><em>none</em><!--]--></div><!--]-->",
+	"alternates": {
+		"0": "<!--[--><div><!--[-1--><i>cheap</i><!--]--><span>%%s0%%</span><!--[0--><em>none</em><!--]--></div><!--]-->",
+		"1": "<!--[--><div><!--[0--><b>pricey</b><!--]--><span>%%s0%%</span><!--[-1--><!--]--></div><!--]-->"
+	},
+	"holes": [
+		{
+			"index": 0,
+			"expression": "p.name.toUpperCase()",
+			"raw": false
+		}
+	],
+	"blocks": [
+		{
+			"index": 0,
+			"kind": "if",
+			"expression": "p.price > 10",
+			"item": null,
+			"alternate": true
+		},
+		{
+			"index": 1,
+			"kind": "if",
+			"expression": "p.tags.length === 0",
+			"item": null,
+			"alternate": false
+		}
+	]
+}

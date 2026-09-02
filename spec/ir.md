@@ -142,10 +142,10 @@ bundle does not carry is named rather than skipped.
 
 ## The anchors come from Svelte, not from us
 
-Every anchor in a static chunk is Svelte's, and the compiler no longer works out where they go.
-Reproducing that placement by hand was tried, cost four undocumented positional rules before the
-first real component, and was still growing when it was replaced by borrowing Svelte's own server
-code generator. See [pipeline.md](pipeline.md) for how the bytes are produced and why.
+Every anchor in a static chunk is Svelte's, and the compiler no longer works out where they go:
+it renders the component with no data and splits the result. Reproducing that placement by hand
+was tried first, cost four undocumented positional rules before the first real component, and was
+still growing when it was replaced. See [pipeline.md](pipeline.md).
 
 What survives here is the shape: a chunk is opaque, the runtime never inspects it, and no backend
 emits an anchor of its own. That was the point of baking them in and it is unaffected by where

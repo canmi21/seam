@@ -11,10 +11,25 @@ export interface Hole {
 	raw: boolean;
 }
 
+/** One if or each in the source, in document order. */
+export interface Block {
+	index: number;
+	kind: 'if' | 'each';
+	/** The test of an if, or the source of an each, as written. */
+	expression: string;
+	/** The name an each binds. */
+	item: string | null;
+	/** True when the if has an else, which decides whether its alternate holds anything. */
+	alternate: boolean;
+}
+
 export interface Skeleton {
-	/** What Svelte rendered, with a sentinel where each hole is. */
+	/** Every if taken, every each with one item. Holds every consequent and every each body. */
 	html: string;
+	/** One render per if, with that one not taken, holding its alternate. Keyed by block index. */
+	alternates: Record<string, string>;
 	holes: Hole[];
+	blocks: Block[];
 }
 
 type AstNode = Record<string, unknown>;
@@ -37,7 +52,14 @@ function span(node: unknown): [number, number] | null {
  * Blocks are not handled here. An if or an each needs one render per branch, which is a
  * different shape of problem from replacing a value in place.
  */
-function collect(source: string, node: unknown, holes: Hole[], edits: [number, number, string][]) {
+function collect(
+	source: string,
+	node: unknown,
+	holes: Hole[],
+	edits: [number, number, string][],
+	blocks: Block[],
+	taken: (block: number) => boolean,
+) {
 	if (!isNode(node)) return;
 
 	const type = node['type'];
@@ -58,48 +80,121 @@ function collect(source: string, node: unknown, holes: Hole[], edits: [number, n
 		if (name.startsWith('on') && name.length > 2) return;
 		const value = node['value'];
 		const parts = Array.isArray(value) ? value : [value];
-		for (const part of parts) collect(source, part, holes, edits);
+		for (const part of parts) collect(source, part, holes, edits, blocks, taken);
 		return;
 	}
-	if (type === 'IfBlock' || type === 'EachBlock' || type === 'AwaitBlock' || type === 'KeyBlock') {
+	if (type === 'IfBlock') {
+		const at = span(node['test']);
+		if (at === null) return;
+		const index = blocks.length;
+		blocks.push({
+			index,
+			kind: 'if',
+			expression: source.slice(at[0], at[1]),
+			item: null,
+			alternate: node['alternate'] !== null && node['alternate'] !== undefined,
+		});
+		edits.push([at[0], at[1], taken(index) ? 'true' : 'false']);
+		collect(source, node['consequent'], holes, edits, blocks, taken);
+		if (isNode(node['alternate'])) {
+			// A block inside an else is numbered but never rendered in the baseline, where every
+			// if is taken, so the render and the block list would stop lining up. Refused rather
+			// than mis-assembled.
+			const before = blocks.length;
+			collect(source, node['alternate'], holes, edits, blocks, taken);
+			if (blocks.length !== before) {
+				throw new Error('a block inside an else is not handled by this pass yet');
+			}
+		}
+		return;
+	}
+	if (type === 'EachBlock') {
+		const at = span(node['expression']);
+		const context = span(node['context']);
+		if (at === null) return;
+		blocks.push({
+			index: blocks.length,
+			kind: 'each',
+			expression: source.slice(at[0], at[1]),
+			item: context === null ? null : source.slice(context[0], context[1]),
+			alternate: false,
+		});
+		// One element, because the body's own expressions are sentinels and read nothing from it.
+		edits.push([at[0], at[1], '[0]']);
+		collect(source, node['body'], holes, edits, blocks, taken);
+		return;
+	}
+	if (type === 'AwaitBlock' || type === 'KeyBlock' || type === 'SnippetBlock') {
 		throw new Error(`${String(type)} is not handled by this pass yet`);
 	}
 
 	for (const value of Object.values(node)) {
 		if (Array.isArray(value)) {
-			for (const child of value) collect(source, child, holes, edits);
+			for (const child of value) collect(source, child, holes, edits, blocks, taken);
 		} else if (isNode(value) && value['type'] !== undefined) {
-			collect(source, value, holes, edits);
+			collect(source, value, holes, edits, blocks, taken);
 		} else if (isNode(value) && Array.isArray(value['nodes'])) {
-			for (const child of value['nodes']) collect(source, child, holes, edits);
+			for (const child of value['nodes']) collect(source, child, holes, edits, blocks, taken);
 		}
 	}
 }
 
-function rewrite(source: string): { rewritten: string; holes: Hole[] } {
+/**
+ * Rewrites the markup so it renders with no data: every expression becomes a string literal
+ * holding a sentinel, every if is written as a constant, and every each iterates one element.
+ *
+ * Svelte does not fold a constant condition away -- `{#if true}` still writes `<!--[0-->` and
+ * `{#if false}` still writes `<!--[-1-->` -- so a branch can be chosen by editing the source
+ * rather than by threading a prop through the component.
+ */
+function rewrite(source: string, taken: (block: number) => boolean): Rewritten {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
 	const holes: Hole[] = [];
+	const blocks: Block[] = [];
 	const edits: [number, number, string][] = [];
-	collect(source, ast['fragment'], holes, edits);
+	collect(source, ast['fragment'], holes, edits, blocks, taken);
 
 	edits.sort((a, b) => b[0] - a[0]);
 	let rewritten = source;
 	for (const [start, end, replacement] of edits) {
 		rewritten = rewritten.slice(0, start) + replacement + rewritten.slice(end);
 	}
-	return { rewritten, holes };
+	return { rewritten, holes, blocks };
+}
+
+interface Rewritten {
+	rewritten: string;
+	holes: Hole[];
+	blocks: Block[];
 }
 
 export async function skeleton(entryFile: string): Promise<Skeleton> {
 	const file = resolvePath(entryFile);
-	const { rewritten, holes } = rewrite(readFileSync(file, 'utf8'));
-	const html = await renderRewritten(file, rewritten);
-	return { html, holes };
+	const source = readFileSync(file, 'utf8');
+
+	// Everything taken: this render holds every consequent and every each body.
+	const baseline = rewrite(source, () => true);
+	const html = await renderRewritten(file, baseline.rewritten);
+
+	// One more render per if, with that one not taken, for the bytes of its other branch. Its
+	// ancestors stay taken, which is what keeps it reachable.
+	const alternates: Record<string, string> = {};
+	for (const block of baseline.blocks) {
+		if (block.kind !== 'if') continue;
+		const flipped = rewrite(source, (index) => index !== block.index);
+		alternates[String(block.index)] = await renderRewritten(file, flipped.rewritten);
+	}
+
+	return { html, alternates, holes: baseline.holes, blocks: baseline.blocks };
 }
 
 // Staged inside this package, because Svelte's output imports 'svelte/internal/server' and that
 // only resolves from a directory where svelte is a dependency. Specifiers are rewritten to
 // absolute URLs, so the modules can live anywhere once they are written.
+// Bumped per render, because import() caches by URL and two renders of the same component
+// would otherwise be the same module: the second configuration would silently return the first.
+let generation = 0;
+
 async function renderRewritten(file: string, source: string): Promise<string> {
 	const { mkdirSync, readFileSync: read, rmSync, writeFileSync } = await import('node:fs');
 	const { basename } = await import('node:path');
@@ -109,6 +204,7 @@ async function renderRewritten(file: string, source: string): Promise<string> {
 	const here = dirname(fileURLToPath(import.meta.url));
 	const staging = resolvePath(here, '../.build');
 	mkdirSync(staging, { recursive: true });
+	generation += 1;
 	let written = 0;
 
 	function emit(from: string, code: string, origin: string): string {
@@ -121,7 +217,7 @@ async function renderRewritten(file: string, source: string): Promise<string> {
 				: target;
 			code = code.replaceAll(`'${specifier}'`, JSON.stringify(pathToFileURL(replacement).href));
 		}
-		const out = resolvePath(staging, `${basename(from, '.svelte')}-${written++}.js`);
+		const out = resolvePath(staging, `${basename(from, '.svelte')}-${generation}-${written++}.js`);
 		writeFileSync(out, code);
 		return out;
 	}

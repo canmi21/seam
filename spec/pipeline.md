@@ -102,21 +102,18 @@ no UI code, no framework, and no JavaScript at all unless a derivation needs it.
 
 ## Where the code is against this
 
-Written down before it is built, and the gap is worth naming rather than discovering.
+Both passes exist, and the render is the one that produces the IR. Every case in the corpus is
+compiled by rendering, including blocks, composition and derivation, and every payload still
+matches Svelte's own output byte for byte.
 
-Derivation is built. An expression that is not a data path becomes a field on the payload, the
-expression travels unrewritten with the names it may use, and a TypeScript server evaluates it
-once per request before injecting. A branch can therefore be forced by setting a boolean, which
-is the precondition for everything below.
+The written-bytes pass stays for now, not as a fallback but as an oracle: a test holds the two
+against each other on every case, and they agree field for field. It has a limited life. The
+first Svelte release that moves an anchor will break it and leave the render pass working, and
+that failure is the signal to delete it rather than a defect to fix.
 
-The code generator is not. The compiler still writes the anchors itself, from the four rules
-above, and still passes every case in the corpus. What it does not have is a reason to keep
-passing them after a Svelte release.
-
-Two gaps remain in derivation itself. A derivation runs once per request, so an expression inside
-an each block has nowhere to put a value that differs per item, and is refused. And the names an
-expression may use are the component's props, so one reaching for anything else -- a helper
-imported in the script, say -- fails when it runs rather than when it compiles.
+What the render pass does not take yet: a block inside an else, which is numbered but never
+appears in the baseline render where every if is taken, so the render and the block list would
+stop lining up. It is refused rather than mis-assembled.
 
 ## What this does not change
 

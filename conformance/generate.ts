@@ -18,22 +18,25 @@ for (const file of readdirSync(cases)
 	const markup = `${JSON.stringify(bundle(resolve(cases, file)), null, '\t')}\n`;
 	writeFileSync(resolve(cases, `${name}.markup.json`), markup);
 
-	const ir = execFileSync('cargo', ['run', '-q', '-p', 'lowering'], {
+	// The IR comes from the render where one can be made, because that is the pass that does
+	// not reproduce Svelte's decisions. The written-bytes pass stays for the shapes the render
+	// pass has not reached, and for the test that holds the two against each other.
+	let rendered = true;
+	let input = markup;
+	try {
+		const skel = await skeleton(resolve(cases, file));
+		input = `${JSON.stringify(skel, null, '\t')}\n`;
+		writeFileSync(resolve(cases, `${name}.skeleton.json`), input);
+	} catch {
+		rendered = false;
+		rmSync(resolve(cases, `${name}.skeleton.json`), { force: true });
+	}
+
+	const ir = execFileSync('cargo', ['run', '-q', '-p', 'lowering', '--', name], {
 		cwd: root,
-		input: markup,
+		input,
 		encoding: 'utf8',
 	});
 	writeFileSync(resolve(cases, `${name}.ir.json`), ir);
-
-	// Only for the shapes the render pass handles so far. A block needs one render per branch,
-	// which it does not do yet, and a case it cannot take is skipped rather than half-written.
-	let rendered = 'skipped';
-	try {
-		const skel = await skeleton(resolve(cases, file));
-		writeFileSync(resolve(cases, `${name}.skeleton.json`), `${JSON.stringify(skel, null, '\t')}\n`);
-		rendered = 'skeleton';
-	} catch {
-		rmSync(resolve(cases, `${name}.skeleton.json`), { force: true });
-	}
-	console.log(`${name}: markup, ir, ${rendered}`);
+	console.log(`${name}: markup, ${rendered ? 'render' : 'written'}, ir`);
 }

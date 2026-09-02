@@ -1,0 +1,34 @@
+{
+	"html": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[0--><button>Buy</button><!--]--><!--[--><span>%%s1%%</span><!--]--></article><!--]-->",
+	"alternates": {
+		"0": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[-1--><!--]--><!--[--><span>%%s1%%</span><!--]--></article><!--]-->"
+	},
+	"holes": [
+		{
+			"index": 0,
+			"expression": "p.name",
+			"raw": false
+		},
+		{
+			"index": 1,
+			"expression": "t",
+			"raw": false
+		}
+	],
+	"blocks": [
+		{
+			"index": 0,
+			"kind": "if",
+			"expression": "p.available",
+			"item": null,
+			"alternate": false
+		},
+		{
+			"index": 1,
+			"kind": "each",
+			"expression": "p.tags",
+			"item": "t",
+			"alternate": false
+		}
+	]
+}
