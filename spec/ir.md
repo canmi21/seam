@@ -129,8 +129,9 @@ somebody else.
 
 ## Composition inlines, and needs no node
 
-A child is spliced into its parent at compile time, with its paths rewritten. `<Badge label={data.name} />`
-lowers the child's `{label}` into a slot on `data.name`; `<Badge tone="warm" />` lowers the child's
+A child is spliced into its parent at compile time, with its paths rewritten.
+`<Badge label={data.name} />` lowers the child's `{label}` into a slot on `data.name`;
+`<Badge tone="warm" />` lowers the child's
 `{tone}` into **static text**, because a prop passed literally has nothing left to resolve. The
 runtime has no notion of a component, and the injector did not change to gain one.
 
@@ -273,11 +274,29 @@ gap in it; it was always going to stop covering what came after it. See
 
 | | Where it goes instead |
 | --- | --- |
-| CSS | A separate artifact. Its consumer is the bundler, not the server. |
+| CSS | **Undecided.** The rule that was here is wrong; see below. |
 | Client behaviour, events, `$state` | Svelte's own client bundle already carries it. |
 | The document head | Nothing: it is in the IR, as a second sequence of nodes. See above. |
-| Types, the payload contract | The schema. The IR references paths and does not describe them. |
+| Scalar types | Declared where the payload is produced. The IR enumerates paths, which is what a page requires rather than what its values are. See [payload.md](payload.md). |
 | The element tree | Nowhere. Nothing needs it. |
+
+**The CSS row used to say that the artifact is separate and its consumer is the bundler rather
+than the server. That is not true and it is left here as a question rather than an answer**,
+because a wrong rule is worse than a missing one. A component carrying a `<style>` puts a scoped
+class **into the bytes the IR holds**:
+
+```
+<div class="card %%s0%% svelte-1w6kyzv"><span class="svelte-1w6kyzv">%%s1%%</span></div>
+```
+
+Two things follow. The class lands on elements that had no `class` attribute at all, so it
+interacts with the rule about when an attribute disappears. And the hash is taken over the
+filename, so the compiler and the bundler have to spell one identically -- the same coupling the
+head block's hash has. Injected styles are appended to the head stream as well, which is what the
+check after the last head block is really watching for.
+
+So CSS is not in the IR today and something about it is, and which of the two that is depends on
+deciding who owns it. Recorded in the list below.
 
 Client behaviour is the measured case. A component with `$state` and an `onclick` handler
 compiles to **the same SSR bytes** as one without, so it cannot belong in an artifact the server
@@ -292,12 +311,17 @@ The server should have to understand one artifact, and this is that artifact.
 
 Recorded rather than decided, because guessing now would be worse than deciding later.
 
+- **Who owns CSS.** Undecided, and it blocks the row above. A component's `<style>` compiles to a
+  separate artifact, but its scoped class is in the response bytes and its hash is taken over the
+  filename, so the clean split the table used to claim does not exist. Deciding it needs the
+  answer to what happens to a component the compiler refuses, since a page whose styles cannot be
+  served is the same kind of failure. Nothing here should be written until that is settled.
 - **`class:` and `style:` directives.** Both merge with a static attribute of the same name
   rather than standing beside it: `class="c"` with `class:on={true}` is one `class="c on"`, and
   `style:color` joins an existing `style` with `; `. That makes the attribute a computed join of
   conditional parts, which the `attr` node does not express.
-- **Empty values.** `{data.name}` with an empty string produced `<h1></h1>` in Svelte's SSR, with no
-  text node. Whether hydration requires one to exist is not yet known, and it decides whether a
+- **Empty values.** `{data.name}` with an empty string produced `<h1></h1>` in Svelte's SSR, with
+  no text node. Whether hydration requires one to exist is not yet known, and it decides whether a
   `slot` must always emit something.
 - **Per-item derivation.** A derivation is a function of the payload, computed once, so an
   expression inside an each block is refused. What such an expression needs is a value per
