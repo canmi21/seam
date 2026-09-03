@@ -111,6 +111,50 @@ unblocked is held by something else as well -- which is what a ranking cannot te
 thing above it is gone. That is what a ranking is for: `{...spread}` at 96% is what the first list is really about, and
 it is a different kind of work.
 
+## The same question asked of the compiler, over a real application
+
+The numbers above come from a script that re-implements the rules and reads an AST. That is a
+proxy, and a proxy answers for the rules rather than for the compiler. Run instead by calling
+`skeleton()` itself over one application's own components -- 41 of them, the site in `repos/press`
+-- the first two things it reported were not refusals at all.
+
+**A shorthand attribute stopped the compile inside Svelte's parser.** `{n}` is `n={n}`, and the
+braces of the short form hold a bare name and nothing else; the marker this pass writes there is
+not one, so Svelte answered `attribute_empty_shorthand` -- an error naming the author's file and
+saying something untrue about it. It blocked four of the nine routes. Writing the name back out
+first fixes it, and the two forms render the same bytes, measured.
+
+**`{@render children()}` was refused by a branch that could not be reached.** The surface check
+covered `{@render data.children()}`, whose callee is a member and therefore has no name, and only
+the nameless half was refused. A bare `children` did have a name -- the one its own render tag had
+just put in the snippet table -- so it looked declared, passed the walk, and failed inside Svelte's
+renderer with `children is not a function`. The table now records whether a `{#snippet}` declared
+the name or a `{@render}` merely mentioned it.
+
+**Neither was in the ranking, because a re-implementation cannot report what it does not
+reproduce.** The proxy is worth keeping for the 4323 -- staging and rendering that many is a
+different kind of run -- but the ranking that decides what to work on next is the compiler's own.
+
+What the compiler says about those 41, first refusal per component, is:
+
+```
+   6  class:                     5  a block inside an else
+   5  {@render} of a snippet from a prop       3  {...spread}
+   2  a bind: the server writes  2  a snippet a component is passed, with parameters
+   1  {@const} inside a snippet that takes parameters
+   1  an each over a destructuring, which crashes rather than refusing
+   1  a snippet rendered twice   1  <svelte:element>   1  style:
+```
+
+**`{...spread}` is third here, where the whole-ecosystem list has it at 96%.** That is the
+difference the entry-only walk makes: a library wraps and forwards, an application does not.
+
+**Twelve of the 41 get past the walk and stop at module resolution.** The render is staged inside
+this repository, so another project's `$lib` and `$app` do not resolve, and the invariant that
+every hole is consumed exactly once never runs for them. Those twelve are not known to compile --
+they are known not to be refused. Resolving them is the Vite plugin's job, which is where this
+measurement continues. See spec/build.md.
+
 **A library component is a wrapper**, and forwarding its caller's attributes with `{...restProps}`
 is what a wrapper does, so `{...spread}` is nearly universal there and nearly absent in an
 application. **An application component holds its own state**, so a rune reaches its markup.

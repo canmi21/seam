@@ -52,6 +52,17 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// `{n}` is `n={n}`, and the braces of the short form hold a bare name and nothing else. The
+		// marker that goes there is not one, so this used to stop inside Svelte's parser with
+		// `attribute_empty_shorthand` -- an error about the author's own file, saying something
+		// untrue about it. See spec/refusals.md.
+		name: 'a shorthand attribute',
+		source:
+			'<script>let { data } = $props(); const n = data.a; const cls = data.b</script>' +
+			'<b {n} class={cls}>x</b>',
+		data: [{ a: 'v', b: 'c' }, { a: '', b: null }],
+	},
+	{
 		name: 'raw html',
 		source: `${PROPS}<p>{@html data.a}</p>`,
 		data: [{ a: '<b>x</b>' }, { a: '' }],
@@ -198,6 +209,15 @@ const refused: Case[] = [
 	{
 		name: 'a render of a snippet from a prop',
 		source: `${PROPS}<div>{@render data.children()}</div>`,
+	},
+	{
+		// The same thing under the name everybody writes it with, which used to reach Svelte's
+		// renderer and fail there with `children is not a function`. The case above passed for a
+		// reason that did not generalise: `data.children` is a member, so the callee had no name at
+		// all, and only the nameless half was refused. A bare `children` did have a name -- the one
+		// its own `{@render}` had just put in the table -- and looked declared. See spec/refusals.md.
+		name: 'a render of children, which is a snippet from a prop',
+		source: `${PROPS}<div>{@render children()}</div>`,
 	},
 	{
 		// Not the const tag: what it holds. A derivation is computed once against the payload, so one

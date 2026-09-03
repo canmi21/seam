@@ -293,6 +293,14 @@ function collect(
 						'`true` as `"yes"` through a replacement table this does not reproduce',
 				);
 			}
+			// `{n}` is sugar for `n={n}`, and the sugar only holds a bare name: put anything else
+			// between those braces and Svelte's parser stops with `attribute_empty_shorthand`. This
+			// pass puts a marker there, so a shorthand attribute made the compiler fail inside
+			// Svelte, pointing at the author's own file and telling them something untrue about it.
+			// Writing the name back out first is not a rewrite of the value -- the two forms render
+			// the same bytes, measured -- and it leaves the marker somewhere the parser accepts.
+			const at = span(node);
+			if (at !== null && source[at[0]] === '{') edits.push([at[0], at[0], `${name}=`]);
 			for (const part of parts) walk(part);
 			return;
 		}
@@ -378,7 +386,7 @@ function collect(
 			const callee = isNode(call) ? call['callee'] : undefined;
 			const name = isNode(callee) && typeof callee['name'] === 'string' ? callee['name'] : null;
 			const one = name === null ? undefined : snippets.get(name);
-			if (one === undefined) {
+			if (one === undefined || !one.declared) {
 				refuse(
 					'`{@render}` of a snippet this component does not declare is not handled yet: the ' +
 						'snippet comes from the call site, which is composition in the other direction',
@@ -552,6 +560,12 @@ function namesIn(pattern: unknown, into: Set<string>): void {
 
 /** What a component declares under one snippet name, and how many times it renders it. */
 interface Snippet {
+	/**
+	 * Whether a `{#snippet}` in this component declares it. A name only ever rendered is not
+	 * one: `{@render children()}` names a function that arrived as a prop, and this record
+	 * exists for it because the render was seen, not because anything here declares it.
+	 */
+	declared: boolean;
 	parameters: number;
 	renders: number;
 	/**
@@ -588,6 +602,7 @@ function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = false): 
 		const id = node['expression'];
 		if (isNode(id) && typeof id['name'] === 'string') {
 			const one = into.get(id['name']) ?? {
+				declared: false,
 				parameters: 0,
 				renders: 0,
 				passed: false,
@@ -595,6 +610,7 @@ function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = false): 
 				args: [],
 			};
 			const parameters = Array.isArray(node['parameters']) ? node['parameters'] : [];
+			one.declared = true;
 			one.parameters = parameters.length;
 			one.passed = inside;
 			one.holds = parameters.map((parameter) =>
@@ -612,6 +628,7 @@ function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = false): 
 		const callee = isNode(call) ? call['callee'] : undefined;
 		if (isNode(call) && isNode(callee) && typeof callee['name'] === 'string') {
 			const one = into.get(callee['name']) ?? {
+				declared: false,
 				parameters: 0,
 				renders: 0,
 				passed: false,
