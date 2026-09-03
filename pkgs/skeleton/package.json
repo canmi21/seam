@@ -10,6 +10,7 @@
 		"svelte": "^5.57.0"
 	},
 	"devDependencies": {
+		"derive": "workspace:*",
 		"injector": "workspace:*",
 		"lowering": "workspace:*"
 	}

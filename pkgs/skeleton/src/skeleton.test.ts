@@ -22,6 +22,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject } from 'injector';
 import { lower } from 'lowering';
 import { skeleton } from './skeleton.ts';
@@ -69,6 +70,16 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// The refusal for a name assigned after it is declared must not reach a handler: one does not
+		// run while the bytes are written, so the initialiser is still what the name holds. Held to
+		// Svelte's own output rather than to that reasoning.
+		name: 'a handler that assigns to a declared name',
+		source:
+			'<script>let { data } = $props(); let n = 0; function buy() { n += 1 }</script>' +
+			'<button onclick={buy}>{data.a}{n}</button><b onclick={() => { n += 1 }}>{n}</b>',
+		data: [{ a: 'v' }],
+	},
+	{
 		name: 'markup that is inert on the server',
 		source:
 			'<script>function act() {} let { data } = $props()</script>' +
@@ -105,6 +116,17 @@ const refused: Case[] = [
 		name: 'local state read from markup',
 		source: '<script>let { data } = $props(); let n = $state(0)</script><p>{data.a}{n}</p>',
 	},
+	{
+		// Substitution replaces a name with the expression it was declared to be, so an assignment
+		// afterwards makes that expression stop being what the name holds. Both of these compiled and
+		// wrote the wrong bytes before they were refused.
+		name: 'a name assigned after it is declared',
+		source: '<script>let { data } = $props(); let x = 1; x = 2</script><p>{x}</p>',
+	},
+	{
+		name: 'an object mutated after it is declared',
+		source: '<script>let { data } = $props(); const o = { a: 1 }; o.a = 2</script><p>{o.a}</p>',
+	},
 	{ name: 'translate as a boolean', source: `${PROPS}<p translate={true}>{data.a}</p>` },
 	{
 		name: 'a block inside an else',
@@ -116,14 +138,21 @@ const refused: Case[] = [
 async function attempt(
 	one: Case,
 	at: string,
-): Promise<{ ir?: Parameters<typeof inject>[0]; refusal?: string }> {
+): Promise<{
+	ir?: Parameters<typeof inject>[0];
+	derivations?: Derivation[];
+	refusal?: string;
+}> {
 	const file = resolve(staging, `${at}.svelte`);
 	writeFileSync(file, one.source);
 	try {
 		const compiled = lower([[one.name, JSON.stringify(await skeleton(file, staging))]])[0];
 		if (compiled === undefined) return { refusal: 'nothing came back from lowering' };
 		if ('error' in compiled) return { refusal: compiled.error };
-		return { ir: compiled.ir as Parameters<typeof inject>[0] };
+		return {
+			ir: compiled.ir as Parameters<typeof inject>[0],
+			derivations: compiled.derivations as Derivation[],
+		};
 	} catch (error) {
 		return { refusal: (error as Error).message };
 	}
@@ -154,7 +183,7 @@ it('renders the same bytes from any working directory', async () => {
 
 describe('what the compiler accepts, it reproduces byte for byte', () => {
 	it.each(accepted.map((one, at) => [one.name, one, at] as const))('%s', async (_name, one, at) => {
-		const { ir, refusal } = await attempt(one, `ok-${at}`);
+		const { ir, derivations, refusal } = await attempt(one, `ok-${at}`);
 		expect(refusal, 'it was refused instead, so the surface has moved').toBeUndefined();
 
 		const file = resolve(staging, `ok-${at}.svelte`);
@@ -171,8 +200,12 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 			default: Parameters<typeof render>[0];
 		};
 
+		// Through `derive`, not around it. Injecting `{ data }` alone leaves every derived field
+		// undefined, so an accepted case that produced one rendered empty and matched nothing --
+		// which stayed invisible for as long as every accepted case here happened to have none.
+		const derive = compileDerivations(derivations ?? []);
 		for (const data of one.data ?? []) {
-			expect(inject(ir as Parameters<typeof inject>[0], { data }).body).toBe(
+			expect(inject(ir as Parameters<typeof inject>[0], derive(data)).body).toBe(
 				render(mod.default, { props: { data } as never }).body,
 			);
 		}

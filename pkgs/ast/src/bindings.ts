@@ -432,12 +432,77 @@ export interface Locals {
 	reading: Neutral[];
 }
 
+/**
+ * Names the script assigns to after declaring them, which substitution cannot follow.
+ *
+ * A declared name is replaced by its initialiser wherever the markup reads it, so the initialiser
+ * has to be what the name holds when the component renders. An assignment afterwards breaks that,
+ * and it broke it silently: `let x = 1; x = 2` rendered `1` where Svelte renders `2`, and so did
+ * `const o = { a: 1 }; o.a = 2`. See spec/derivation.md.
+ *
+ * **Function bodies are not walked.** A handler that assigns to a name does not run during a
+ * render, so `let n = 0; function buy() { n += 1 }` still holds `0` when the bytes are written, and
+ * refusing it would refuse the ordinary way an event handler is written.
+ */
+function assigned(block: unknown, names: ReadonlySet<string>): Set<string> {
+	const found = new Set<string>();
+
+	/** The name an assignment target names, whether it is `x`, `x.a` or `x[0]`. */
+	const rootOf = (target: unknown): string | null => {
+		let at = target;
+		while (isNode(at) && at['type'] === 'MemberExpression') at = at['object'];
+		if (!isNode(at) || at['type'] !== 'Identifier') return null;
+		return typeof at['name'] === 'string' ? at['name'] : null;
+	};
+
+	const walk = (node: unknown): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) walk(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		const type = node['type'];
+		if (
+			type === 'FunctionDeclaration' ||
+			type === 'FunctionExpression' ||
+			type === 'ArrowFunctionExpression'
+		) {
+			return;
+		}
+		if (type === 'AssignmentExpression' || type === 'UpdateExpression') {
+			const name = rootOf(node[type === 'UpdateExpression' ? 'argument' : 'left']);
+			if (name !== null && names.has(name)) found.add(name);
+		}
+		for (const value of Object.values(node)) walk(value);
+	};
+
+	if (!isNode(block)) return found;
+	const content = block['content'];
+	if (isNode(content)) walk(content['body']);
+	return found;
+}
+
 export function locals(source: string): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const found = declared(ast, source, props(ast['instance'])) as Map<
 		string,
 		Declared & { node: Node }
 	>;
+
+	// Refused rather than substituted wrongly. Two of these compiled and wrote the wrong bytes with
+	// nothing to say so, which is the shape this compiler keeps finding: a model narrower than its
+	// input, and no error where they part.
+	const names = new Set(found.keys());
+	const moved = [...assigned(ast['module'], names), ...assigned(ast['instance'], names)];
+	if (moved.length > 0) {
+		const list = [...new Set(moved)].map((one) => `\`${one}\``).join(', ');
+		throw new Error(
+			`${list} ${moved.length > 1 ? 'are' : 'is'} assigned after being declared, and the markup ` +
+				'reads a name by the expression it was declared to be, which stops being what the name ' +
+				'holds. Compute the value in one expression, or move the assignment into a function, ' +
+				'which does not run while the bytes are written. See spec/derivation.md',
+		);
+	}
 	const expanded = new Map<string, string>();
 
 	function slice(node: unknown, open: ReadonlySet<string>): string {
