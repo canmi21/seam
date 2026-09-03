@@ -407,7 +407,22 @@ async function shippable(): Promise<void> {
 	checked = true;
 }
 
-export async function skeleton(entryFile: string): Promise<Skeleton> {
+/**
+ * `root` is handed to Svelte as `rootDir`, and it decides bytes rather than diagnostics.
+ *
+ * Two things Svelte writes are hashes of the component's filename: the anchor that opens a
+ * `<svelte:head>` block, and the class that scopes a `<style>`. Before hashing, it makes the
+ * filename relative to `rootDir`, which defaults to `process.cwd()` -- so left alone, the
+ * directory the build ran from is in the response, and one component compiled from three
+ * directories gets three different hashes.
+ *
+ * The client half hashes the same name and compares: `head()` in Svelte's client checks the
+ * anchor's text against the hash it was compiled with, and gives up if they differ. So `rootDir`
+ * is not a nicety on one side of the build; it is what makes the two sides agree. Passing it, and
+ * leaving `filename` absolute, is Svelte's own answer -- the filename stays real for errors and
+ * source maps. See spec/build.md.
+ */
+export async function skeleton(entryFile: string, root: string): Promise<Skeleton> {
 	await shippable();
 	const file = resolvePath(entryFile);
 	const source = readFileSync(file, 'utf8');
@@ -456,7 +471,7 @@ export async function skeleton(entryFile: string): Promise<Skeleton> {
 	// author at the wrong thing. The walk above refuses the construct, so what reaches here is a
 	// name in markup the compiler does understand.
 	resolved(source, basename(file));
-	const { body: html, head } = await renderRewritten(file, baseline.rewritten);
+	const { body: html, head } = await renderRewritten(file, baseline.rewritten, root);
 
 	// One more render per if, with that one not taken, for the bytes of its other branch. Its
 	// ancestors stay taken, which is what keeps it reachable.
@@ -464,7 +479,7 @@ export async function skeleton(entryFile: string): Promise<Skeleton> {
 	for (const block of baseline.blocks) {
 		if (block.kind !== 'if') continue;
 		const flipped = rewrite(source, (index) => index !== block.index);
-		alternates[String(block.index)] = await renderRewritten(file, flipped.rewritten);
+		alternates[String(block.index)] = await renderRewritten(file, flipped.rewritten, root);
 	}
 
 	return { html, head, alternates, holes: baseline.holes, blocks: baseline.blocks };
@@ -477,7 +492,7 @@ export async function skeleton(entryFile: string): Promise<Skeleton> {
 // would otherwise be the same module: the second configuration would silently return the first.
 let generation = 0;
 
-async function renderRewritten(file: string, source: string): Promise<Rendered> {
+async function renderRewritten(file: string, source: string, root: string): Promise<Rendered> {
 	const { mkdirSync, readFileSync: read, rmSync, writeFileSync } = await import('node:fs');
 	const { basename } = await import('node:path');
 	const { fileURLToPath, pathToFileURL } = await import('node:url');
@@ -509,6 +524,7 @@ async function renderRewritten(file: string, source: string): Promise<Rendered> 
 			generate: 'server',
 			name: basename(target, '.svelte'),
 			filename: target,
+			rootDir: root,
 		}).js.code;
 	}
 
@@ -519,6 +535,7 @@ async function renderRewritten(file: string, source: string): Promise<Rendered> 
 				generate: 'server',
 				name: 'Entry',
 				filename: file,
+				rootDir: root,
 			}).js.code,
 			file,
 		);

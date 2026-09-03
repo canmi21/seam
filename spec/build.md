@@ -292,33 +292,48 @@ carries the finished string:
 The server concatenates it with the component's own head. It never learns to spell a tag, which
 means there is nothing for a second implementation to get subtly different.
 
-## Scoped CSS is a filename, and a filename is not stable
+## A filename is an input to the bytes
 
-A component with a `<style>` gets a class written **into the response bytes**, and the class is a
-hash. What it hashes is not stable, measured on one component compiled three times:
+Two things Svelte writes are hashes of the component's filename, and both end up in the response:
 
+| | |
+| --- | --- |
+| the anchor that opens a `<svelte:head>` block | `hash(filename)`, in the server visitor for `SvelteHead` |
+| the class that scopes a `<style>` | `svelte-${hash(filename)}`, the default `cssHash` |
+
+Before either is taken, the filename is made relative to **`rootDir`**, which is an ordinary
+compiler option whose default is `process.cwd()`:
+
+```js
+if (typeof root_dir === 'string' && filename.startsWith(root_dir)) {
+  filename = filename.replace(root_dir, '').replace(/^[/\\]/, '');
+}
 ```
-cwd = the repository     ->  svelte-ch3g5v
-cwd = its parent         ->  svelte-29atyq
-cwd = /tmp               ->  svelte-1j3eup7
+
+Left at the default, **the directory the build ran from is in the response bytes.** Measured on one
+component before this was understood: three working directories, three different classes for the
+same file. Two people building the same commit from different places would get different
+artifacts.
+
+**And the client compares.** Svelte's `head()` on the client checks the anchor it finds against the
+hash it was compiled with and gives up when they differ:
+
+```js
+head_anchor.nodeType !== COMMENT_NODE || head_anchor.data !== hash
 ```
 
-The same file, the same absolute path, three classes. Svelte normalises the filename against the
-working directory before hashing it, so **which directory the build ran from is in the bytes**.
-Handed a path that is already relative, it is stable across all three.
+So this is not a tidiness question about one side of the build. The server bytes come from this
+compiler and the client comes from the client build, and if the two are rooted differently the
+client cannot find the head block it is looking for, and a scoped class selects nothing.
 
-Two things follow, and they are the reason `<style>` was refused until now.
+**So `rootDir` is the project root, on both halves, and `filename` stays absolute.** That is
+Svelte's own answer to this, which is why it exists as an option; handing it a pre-relativised
+filename would work by accident -- a relative path does not start with the working directory, so
+nothing rewrites it -- while throwing away the real path that errors and source maps need.
 
-**The class in the IR and the class in the stylesheet have to match.** They are produced by
-different halves -- the IR by this compiler, the CSS by the client build -- and if the two spell
-the filename differently the page renders with a class no rule selects. Nothing would say so.
-
-**And the IR would not be reproducible.** Two people building the same commit from different
-directories would get different bytes for any component with a style.
-
-**So the compiler hands Svelte the path relative to the project root, everywhere.** That is the id
-it already computes, which is the second thing the root from [above](#a-route-is-a-url-and-a-root-component)
-buys. With it, `<style>` stops being refused.
+It is the same rule as the root component: one field that both halves read, so they cannot drift
+apart without somebody changing the field. With it, `<style>` stops being refused once there is a
+client build to emit a stylesheet.
 
 ## Packaging is about the program, not the artifacts
 

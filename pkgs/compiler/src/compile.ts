@@ -90,7 +90,7 @@ export async function prepare(file: string, root: string): Promise<Prepared> {
 	// refuses markup nobody taught the compiler; `bundle` refuses a name nothing binds. An
 	// unsupported construct usually binds names of its own, so resolving names first reports the
 	// name and hides the construct that bound it.
-	const rendered = await skeleton(entry);
+	const rendered = await skeleton(entry, root);
 	// Run for its refusals as much as for its result: it is the pass that says every name resolves,
 	// over the whole tree the entry reaches rather than over the entry alone.
 	const markup = bundle(entry, root);

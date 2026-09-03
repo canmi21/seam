@@ -353,9 +353,9 @@ Recorded rather than decided, because guessing now would be worse than deciding 
   the clean split the table used to claim but is a split. Two things had to be settled first and
   both now are: what happens to a component the compiler refuses, in
   [refusals.md](refusals.md), and how a hashed asset reaches the document, which is a string the
-  compiler writes into the manifest. The hash is taken over a filename Svelte normalises against
-  the working directory, so **the compiler hands it a path relative to the project root** -- three
-  directories otherwise give three different classes for one file. **A `<style>` block stays
+  compiler writes into the manifest. The hash is taken over a filename Svelte makes relative to
+  `rootDir`, whose default is the working directory, so **both halves of the build pass the project
+  root** -- three directories otherwise give three different classes for one file. **A `<style>` block stays
   refused until the plugin exists**, because nothing emits a stylesheet yet; it is waiting on an
   implementation rather than on an answer. It used to compile: the class went into the bytes, the
   stylesheet reached no artifact, and the page rendered unstyled with an exit status of zero.

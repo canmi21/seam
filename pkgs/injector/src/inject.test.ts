@@ -27,7 +27,11 @@ function compileTree(file: string, seen: Map<string, string>): string {
 
 	const source = readFileSync(file, 'utf8');
 	const name = basename(file, '.svelte');
-	let code = compileSvelte(source, { generate: 'server', name, filename: file }).js.code;
+	// The same `rootDir` the compiler used. Svelte hashes the filename, made relative to `rootDir`,
+	// into a head anchor and into a scoped class, so an oracle rooted somewhere else is rendering a
+	// different component. See spec/build.md.
+	let code = compileSvelte(source, { generate: 'server', name, filename: file, rootDir: cases }).js
+		.code;
 
 	for (const match of source.matchAll(/from\s+'(\.[^']+)'/g)) {
 		const specifier = match[1];

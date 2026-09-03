@@ -16,6 +16,7 @@
 // reader what it is and where it is recorded; a message that names no specification file has told
 // the author their code is wrong and nothing else.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile } from 'svelte/compiler';
@@ -108,7 +109,7 @@ async function attempt(
 	const file = resolve(staging, `${at}.svelte`);
 	writeFileSync(file, one.source);
 	try {
-		const compiled = lower([[one.name, JSON.stringify(await skeleton(file))]])[0];
+		const compiled = lower([[one.name, JSON.stringify(await skeleton(file, staging))]])[0];
 		if (compiled === undefined) return { refusal: 'nothing came back from lowering' };
 		if ('error' in compiled) return { refusal: compiled.error };
 		return { ir: compiled.ir as Parameters<typeof inject>[0] };
@@ -119,6 +120,26 @@ async function attempt(
 
 beforeAll(() => mkdirSync(staging, { recursive: true }));
 afterAll(() => rmSync(staging, { recursive: true, force: true }));
+
+// Svelte hashes a component's filename into the anchor that opens a `<svelte:head>` block and into
+// the class that scopes a `<style>`, after making it relative to `rootDir` -- which defaults to
+// `process.cwd()`. Left at the default, the directory the build ran from would be in the response
+// bytes, and two people building one commit from different places would get different artifacts.
+it('renders the same bytes from any working directory', async () => {
+	const source = `${PROPS}<svelte:head><title>{data.a}</title></svelte:head><p>{data.a}</p>`;
+	const file = resolve(staging, 'rooted.svelte');
+	mkdirSync(staging, { recursive: true });
+	writeFileSync(file, source);
+
+	const before = process.cwd();
+	const here = await skeleton(file, staging);
+	process.chdir(tmpdir());
+	try {
+		expect(await skeleton(file, staging)).toEqual(here);
+	} finally {
+		process.chdir(before);
+	}
+});
 
 describe('what the compiler accepts, it reproduces byte for byte', () => {
 	it.each(accepted.map((one, at) => [one.name, one, at] as const))('%s', async (_name, one, at) => {
