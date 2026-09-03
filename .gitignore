@@ -20,3 +20,7 @@ pkgs/server/static/client.js
 # repository and rebuilding it is a second of cargo, so committing it would only be a thing that
 # could go stale.
 pkgs/lowering/lowering.wasm
+
+# What the compiler writes. An artifact of the build, rebuilt by `build`, and read from
+# there by whichever backend is serving. See spec/build.md.
+dist/

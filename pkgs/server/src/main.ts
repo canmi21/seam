@@ -1,34 +1,64 @@
+// The development server, reading what the compiler wrote.
+//
+// It used to read a fixture out of the conformance corpus and call `compile` with one argument,
+// which meant a component carrying an imported function failed at request time with a
+// `ReferenceError` and nothing anywhere could have prevented it: no step wrote a carried bundle to
+// a file. This reads the manifest instead, so it consumes the artifact rather than a rehearsal of
+// it. See spec/build.md.
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ComponentIR } from 'injector';
 import { compile as compileDerivations, type Derivation } from 'derive';
+import type { ComponentIR } from 'injector';
 import { createServer, type Route } from './index.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const read = (path: string): string => readFileSync(resolve(here, '..', path), 'utf8');
-const readRoot = (path: string): string => readFileSync(resolve(here, '../../..', path), 'utf8');
+const root = resolve(here, '../../..');
+const read = (path: string): string => readFileSync(resolve(root, path), 'utf8');
+
+interface Manifest {
+	routes: Record<string, { ir: string; carried: string | null }>;
+	client: string | null;
+}
+
+const manifest = JSON.parse(read('dist/server/manifest.json')) as Manifest;
 
 // Parsed once, here, rather than per request. That is the whole difference from v1, which
 // re-tokenized the skeleton on every request because the skeleton was a string.
-const routes: Record<string, Route> = {
-	'/': {
-		...(() => {
-			const compiled = JSON.parse(readRoot('conformance/cases/product.ir.json')) as {
-				ir: ComponentIR;
-				derivations: Derivation[];
-			};
-			return { ir: compiled.ir, derive: compileDerivations(compiled.derivations) };
-		})(),
-		// A placeholder, not a design. This is where server functions will produce a payload
-		// the slots can be filled from, and that contract is not settled yet.
-		data: JSON.parse(read('fixtures/product.data.json')) as Record<string, unknown>,
-	},
-};
+const routes: Record<string, Route> = {};
+for (const [id, entry] of Object.entries(manifest.routes)) {
+	const compiled = JSON.parse(read(`dist/server/${entry.ir}`)) as {
+		ir: ComponentIR;
+		derivations: Derivation[];
+	};
+	routes[`/${id}`] = {
+		ir: compiled.ir,
+		// The carried bundle is read from the artifact rather than built here, which is the point
+		// of the artifact: a backend that is not Node reads this same file.
+		derive: compileDerivations(
+			compiled.derivations,
+			entry.carried === null ? '' : read(`dist/server/${entry.carried}`),
+		),
+		// A placeholder, not a design. This is where server functions will produce a payload the
+		// slots can be filled from, and that contract is not settled yet, so the corpus payload
+		// stands in for one. See spec/payload.md.
+		data: (
+			JSON.parse(read(`conformance/cases/${id}.data.json`)) as { data: Record<string, unknown> }[]
+		)[0]?.data as Record<string, unknown>,
+	};
+}
+
+// One route also answers at the root, so opening the server without a path shows something.
+const first = Object.keys(routes)[0];
+if (routes['/product'] !== undefined) routes['/'] = routes['/product'];
+else if (first !== undefined) routes['/'] = routes[first] as Route;
 
 const port = Number(process.env['PORT'] ?? 5100);
 createServer({
-	shell: read('app.html'),
+	shell: readFileSync(resolve(here, '../app.html'), 'utf8'),
 	routes,
 	staticRoot: resolve(here, '..', 'static'),
-}).listen(port, () => console.log(`serving on http://localhost:${port}`));
+}).listen(port, () => {
+	console.log(`serving on http://localhost:${port}`);
+	for (const path of Object.keys(routes).toSorted()) console.log(`  ${path}`);
+});

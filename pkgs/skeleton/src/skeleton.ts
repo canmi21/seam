@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { dirname, resolve as resolvePath } from 'node:path';
+import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { compile, parse } from 'svelte/compiler';
-import { apply, type Locals, locals } from 'ast';
+import { apply, type Locals, locals, resolved } from 'ast';
 import { sentinel } from './sentinel.ts';
 
 /** One dynamic position, in the order it appears in the source. */
@@ -415,6 +415,15 @@ export async function skeleton(entryFile: string): Promise<Skeleton> {
 
 	// Everything taken: this render holds every consequent and every each body.
 	const baseline = rewrite(source, () => true);
+
+	// After the walk, not before it. Every name has to come from somewhere -- this pass renders
+	// rather than reading the markup, so a name nothing binds reaches Svelte's own renderer,
+	// evaluates to undefined and writes an empty string. But a construct the compiler has not been
+	// taught usually binds names of its own: `{#await}` binds its `:then`, a snippet binds its
+	// parameters. Checking names first reports the name and hides the construct, which points the
+	// author at the wrong thing. The walk above refuses the construct, so what reaches here is a
+	// name in markup the compiler does understand.
+	resolved(source, basename(file));
 	const { body: html, head } = await renderRewritten(file, baseline.rewritten);
 
 	// One more render per if, with that one not taken, for the bytes of its other branch. Its

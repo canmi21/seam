@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve } from 'node:path';
-import { bindings } from './bindings.ts';
+import { resolved } from './resolved.ts';
 import type { Bundle, Module } from './markup.ts';
 import { reduce } from './reduce.ts';
 
@@ -12,9 +12,17 @@ function idOf(root: string, file: string): string {
 	return relative(root, withoutExtension);
 }
 
-export function bundle(entryFile: string): Bundle {
+/**
+ * Every component the entry reaches, with the names already resolved.
+ *
+ * `projectRoot` is what component ids are relative to, and it is given rather than derived. It
+ * used to be the entry's own directory, which is right for one entry and wrong for a project: two
+ * entries in different directories would each name a shared component differently, so the same
+ * file would appear twice under two ids and never merge. See spec/build.md.
+ */
+export function bundle(entryFile: string, projectRoot: string): Bundle {
 	const entry = resolve(entryFile);
-	const root = dirname(entry);
+	const root = resolve(projectRoot);
 	const components: Record<string, Module> = {};
 
 	const pending = [entry];
@@ -29,44 +37,19 @@ export function bundle(entryFile: string): Bundle {
 		// Before anything is read out of the markup, every name in it has to come from somewhere.
 		// A local variable and a payload key are indistinguishable by shape, so without this a
 		// component compiles and renders an empty string where the value should be.
-		const loose = bindings(source).unresolved;
-		if (loose.length > 0) {
-			// One line per name rather than per occurrence, and the expression only where it says
-			// more than the name does.
-			const seen = new Map<string, string>();
-			for (const one of loose) {
-				if (!seen.has(one.name)) seen.set(one.name, one.expression);
-			}
-			const show = ([name, where]: [string, string]): string =>
-				where === name ? `\`${name}\`` : `\`${name}\` in \`${where}\``;
-			const ambient = loose.filter((one) => one.reason === 'ambient').map((one) => one.name);
-			const unknown = [...seen].filter(([name]) => !ambient.includes(name)).map(show);
-			// Both of these are refusals an author can act on now, so both say what to do about
-			// it rather than only what is wrong. See spec/refusals.md.
-			const reasons = [
-				unknown.length > 0
-					? `${unknown.join(', ')}, which the data does not carry; the name has to come from \
-the payload, an each block, a script in this file, or an import`
-					: '',
-				ambient.length > 0
-					? `${[...new Set(ambient)].map((name) => `\`${name}\``).join(', ')}, which does not \
-read the same twice; the load stage can determine the value and put it in the data`
-					: '',
-			].filter((one) => one !== '');
-			throw new Error(`${relative(root, file)} reads ${reasons.join('; and ')}`);
-		}
+		resolved(source, relative(root, file));
 
 		const module = reduce(source);
-		const resolved: Record<string, string> = {};
+		const targets: Record<string, string> = {};
 		for (const [local, specifier] of Object.entries(module.imports)) {
 			// Only a component can be composed. Everything else the file imports stays in the
 			// map unresolved, so lowering sees the name it could not follow rather than nothing.
 			if (!specifier.endsWith('.svelte')) continue;
 			const target = resolve(dirname(file), specifier);
-			resolved[local] = idOf(root, target);
+			targets[local] = idOf(root, target);
 			pending.push(target);
 		}
-		components[id] = { markup: module.markup, imports: resolved };
+		components[id] = { markup: module.markup, imports: targets };
 	}
 
 	return { entry: idOf(root, entry), components };

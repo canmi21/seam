@@ -16,7 +16,7 @@ for (const file of readdirSync(cases)
 	.filter((f) => f.endsWith('.svelte'))
 	.toSorted()) {
 	const name = file.slice(0, -'.svelte'.length);
-	const actual = `${JSON.stringify(bundle(resolve(cases, file)), null, '\t')}\n`;
+	const actual = `${JSON.stringify(bundle(resolve(cases, file), cases), null, '\t')}\n`;
 	const expected = readFileSync(resolve(cases, `${name}.markup.json`), 'utf8');
 	if (actual === expected) {
 		console.log(`match  ${name} reduces to its fixture`);
@@ -56,7 +56,7 @@ for (const [label, source, name] of refusals) {
 	writeFileSync(file, source);
 	let message = '';
 	try {
-		bundle(file);
+		bundle(file, staging);
 	} catch (error) {
 		message = (error as Error).message;
 	}

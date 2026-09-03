@@ -38,8 +38,19 @@ run = [
 	"node pkgs/injector/conformance/run.ts",
 ]
 
+[tasks.build]
+description = "Compile the corpus entries into dist/, which is the artifact a server reads"
+# The lowering module is not committed, so the step that needs it builds it.
+depends = ["wasm"]
+# Routing does not exist, so the entries are named. This is what the plugin's configuration will
+# do; see spec/build.md.
+run = """
+node pkgs/compiler/src/main.ts conformance/cases dist 	conformance/cases/product.svelte 	conformance/cases/carried.svelte 	conformance/cases/head.svelte
+"""
+
 [tasks.dev]
-description = "Serve the fixture route: `dev` then open http://localhost:5100"
+description = "Serve what the compiler wrote: `build`, then `dev`, then open http://localhost:5100"
+depends = ["build"]
 run = "node pkgs/server/src/main.ts"
 
 [tasks.wasm]

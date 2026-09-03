@@ -11,12 +11,18 @@ importers:
       '@types/node':
         specifier: ^26.2.0
         version: 26.4.0
+      compiler:
+        specifier: workspace:*
+        version: link:pkgs/compiler
       devalue:
         specifier: 5.9.2
         version: 5.9.2
       esbuild:
         specifier: ^0.27.0
         version: 0.27.7
+      lowering:
+        specifier: workspace:*
+        version: link:pkgs/lowering
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -36,6 +42,21 @@ importers:
       esbuild:
         specifier: ^0.27.0
         version: 0.27.7
+
+  pkgs/compiler:
+    dependencies:
+      ast:
+        specifier: workspace:*
+        version: link:../ast
+      carry:
+        specifier: workspace:*
+        version: link:../carry
+      lowering:
+        specifier: workspace:*
+        version: link:../lowering
+      skeleton:
+        specifier: workspace:*
+        version: link:../skeleton
 
   pkgs/derive:
     dependencies:
