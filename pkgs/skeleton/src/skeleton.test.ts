@@ -70,6 +70,17 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// On the server there is no reactivity, so a rune is a declaration whose value is its
+		// argument -- Svelte's own server transform says so in a line, and these hold that against
+		// its output rather than against the reading of it. See spec/derivation.md.
+		name: 'runes read from markup',
+		source:
+			'<script>let { data } = $props(); let n = $state(0); let t = $derived(data.a + "!"); ' +
+			'let u = $derived.by(() => data.a.length); $effect(() => { n = 9 })</script>' +
+			'<p>{n}/{t}/{u}</p>',
+		data: [{ a: 'v' }, { a: '' }],
+	},
+	{
 		// The refusal for a name assigned after it is declared must not reach a handler: one does not
 		// run while the bytes are written, so the initialiser is still what the name holds. Held to
 		// Svelte's own output rather than to that reasoning.
@@ -110,11 +121,10 @@ const refused: Case[] = [
 		source: `${PROPS}{#each data.xs as x}<p>{x}</p>{:else}<p>none</p>{/each}`,
 	},
 	{
-		// Common, and refused only by accident: `n` is local client state rather than a name the
-		// payload should carry, and the message it gets says the data does not carry it. Svelte's own
-		// server renders the initial value. Recorded here so the surface says so out loud.
-		name: 'local state read from markup',
-		source: '<script>let { data } = $props(); let n = $state(0)</script><p>{data.a}{n}</p>',
+		// A rune Svelte has but this does not substitute. `$props.id()` is a value the server and the
+		// client each generate, which is the shape spec/derivation.md refuses as ambient.
+		name: 'a rune that is not substituted',
+		source: '<script>let { data } = $props(); const k = $props.id()</script><p>{data.a}{k}</p>',
 	},
 	{
 		// Substitution replaces a name with the expression it was declared to be, so an assignment

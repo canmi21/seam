@@ -34,16 +34,32 @@ function children(source: string, fragment: unknown): MarkupNode[] {
 
 function reduceAttr(source: string, attr: unknown): MarkupAttr {
 	const type = isNode(attr) && typeof attr['type'] === 'string' ? attr['type'] : 'unknown';
-	// Everything that is not a plain attribute -- class:, style:, use:, {...rest}, an event
-	// handler -- is carried across whole. Deciding which of them are escapes is lowering's job,
-	// and doing it here would put that rule in two places.
+	// Everything that is not a plain attribute -- class:, style:, use:, {...rest} -- is carried
+	// across whole. Deciding which of them are escapes is lowering's job, and doing it here would
+	// put that rule in two places.
 	if (type !== 'Attribute' || !isNode(attr)) {
 		return { k: 'unsupported', type, src: span(source, attr) };
 	}
 	const name = typeof attr['name'] === 'string' ? attr['name'] : '';
 	const value = attr['value'];
 	if (value === true) return { k: 'attr', name, value: true };
+	// An event handler belongs to the client, so its source crosses unexpanded. Substituting into
+	// one turns an assignment target into the value it was declared to be -- `n += 1` became
+	// `(0) += 1`, which is not JavaScript. Svelte 4 spelled a handler `on:click` and this was a
+	// directive, carried whole by the branch above; Svelte 5 spells it `onclick`, an ordinary
+	// attribute, and the exemption had to be said again here.
 	const parts = Array.isArray(value) ? value : [value];
+	if (name.startsWith('on') && name.length > 2) {
+		return {
+			k: 'attr',
+			name,
+			value: parts.map((part) =>
+				isNode(part) && part['type'] === 'ExpressionTag'
+					? ({ k: 'expr', src: span(source, part['expression']) } as MarkupNode)
+					: reduceNode(source, part),
+			),
+		};
+	}
 	return { k: 'attr', name, value: parts.map((part) => reduceNode(source, part)) };
 }
 

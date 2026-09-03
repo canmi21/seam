@@ -237,6 +237,25 @@ So a rune declaration is substituted like any other, using the rune's argument a
 What made them look different is that they say something about the value's *future*, and the
 compiler read that as a statement about its present.
 
+Four are substituted, and the list is short on purpose:
+
+| | |
+| --- | --- |
+| `$state(x)`, `$state.raw(x)` | the value is `x` |
+| `$derived(e)` | the value is `e` |
+| `$derived.by(fn)` | the value is `fn()`, so what reaches it is a call |
+
+`$props()` is the payload and is read elsewhere. `$effect` declares nothing and does not run.
+`$props.id()` is a value the server and the client each generate, which is the shape this file
+refuses as ambient. Anything else is left unresolved and reported by name.
+
+**An event handler is exempt, and it had to be said twice.** Substituting into one turns an
+assignment target into the value it was declared to be: `n += 1` became `(0) += 1`, which is not
+JavaScript. The pass that resolves names already exempted handlers; the pass that reduces markup
+did not, because Svelte 4 spelled a handler `on:click` and that was a directive carried across
+whole, while Svelte 5 spells it `onclick`, an ordinary attribute. Nothing had noticed for as long
+as no substituted name was ever assigned to.
+
 The memoisation is worth one line. `$derived(e)` evaluates `e` once however many times it is read,
 where substituting it evaluates `e` per use. That is observable only if `e` has side effects, which
 [the rule above](#every-identifier-resolves-or-it-is-refused) already excludes.

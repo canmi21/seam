@@ -64,7 +64,6 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 | snippets, children, `{@render}`, `{@const}` | inlining, or a substitution one scope further in |
 | `class:`, `style:`, `<select value>`, `translate={true}` | decidable by enumeration; deferred on what they are worth |
 | `{...spread}`, `<svelte:element>` | an unenumerable decision, so a small closed runtime node |
-| a rune read from markup | refused by a rule whose stated reason is false: on the server a rune is an ordinary declaration whose value is its argument. See [derivation.md](derivation.md) |
 | per-item derivation, which of two titles wins | not decided |
 
 **So "a subset of Svelte" is a statement about how far the work has got, not about where a line
@@ -78,12 +77,11 @@ that is how a compiler comes to spend its effort on the wrong refusal. So the sa
 statically over every `.svelte` file on this machine -- 4323 of them, a real application and the
 dependency tree it installs.
 
-**28 of the 4323 would be refused for nothing: 0.6%.** What stops the rest, most common first:
+**35 of the 4323 would be refused for nothing: 0.8%.** What stops the rest, most common first:
 
 ```
 4157  {...spread}                             96%
  604  {@render}
- 584  a rune read from markup
   95  {#snippet}                95  bind:
   63  {@const}                  32  each with a key
   15  a name assigned after it is declared     12  {#key}
@@ -92,15 +90,19 @@ dependency tree it installs.
 ```
 
 **The ranking is different for the application's own components**, and the difference is not noise.
-Of the 4323, only 42 are written by the author rather than installed:
+Of the 4323, only 42 are written by the author rather than installed, and 8 of those compile:
 
 ```
-  33  a rune read from markup                  79%
   18  each with a key           12  bind:
   11  {@render}                  9  class:
    8  each with an index         8  {#snippet}
    7  {@const}                   3  {...spread}
 ```
+
+The first thing this ranking was used for was runes, which led the second list at 33 of 42 and sat
+third in the first at 584. Substituting them moved the application's own components from 2 that
+compile to 8, and the whole set from 28 to 35 -- which is what a ranking is for: the same work
+against the other list would have moved almost nothing.
 
 **A library component is a wrapper**, and forwarding its caller's attributes with `{...restProps}`
 is what a wrapper does, so `{...spread}` is nearly universal there and nearly absent in an

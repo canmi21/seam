@@ -276,6 +276,46 @@ function paths(pattern: Node): [string, string][] {
 	return found;
 }
 
+/**
+ * The rune a call names, as the dotted keypath Svelte itself builds: `$state`, `$derived.by`,
+ * `$props.id`. Null when the callee is not one.
+ */
+function runeOf(callee: unknown): string | null {
+	let at = callee;
+	let joined = '';
+	while (isNode(at) && at['type'] === 'MemberExpression') {
+		const property = at['property'];
+		if (at['computed'] === true || !isNode(property) || property['type'] !== 'Identifier') {
+			return null;
+		}
+		joined = `.${String(property['name'])}${joined}`;
+		at = at['object'];
+	}
+	if (!isNode(at) || at['type'] !== 'Identifier') return null;
+	const name = at['name'];
+	return typeof name === 'string' && name.startsWith('$') ? `${name}${joined}` : null;
+}
+
+/**
+ * What a rune declaration holds when the bytes are written, written as what follows its first
+ * argument to reach that value.
+ *
+ * On the server there is no reactivity, so nothing a rune marks can change after the render, and
+ * Svelte's own server transform says the value in a line: the initialiser is the rune's argument.
+ * `$derived.by` is given a function rather than a value, so reaching it is a call.
+ *
+ * A rune that is not here is left unresolved, which the pass that resolves names reports. It is
+ * the shorter list on purpose: `$props()` is the payload and is read elsewhere, `$effect` declares
+ * nothing and does not run, and `$props.id()` is a value the server and the client each generate,
+ * which is the shape spec/derivation.md refuses as ambient.
+ */
+const SUBSTITUTED: Readonly<Record<string, string>> = {
+	$state: '',
+	'$state.raw': '',
+	$derived: '',
+	'$derived.by': '()',
+};
+
 function declared(ast: Node, source: string, names: ReadonlySet<string>): Map<string, Declared> {
 	const found = new Map<string, Declared>();
 
@@ -332,11 +372,26 @@ function declared(ast: Node, source: string, names: ReadonlySet<string>): Map<st
 				const id = one['id'];
 				const init = one['init'];
 				if (!isNode(id) || !isNode(init)) continue;
-				// `$props()` is the destructuring itself, and a rune holds client state rather
-				// than a value the markup can be given.
+				// A rune is an ordinary declaration whose initialiser is its argument. This used to
+				// skip every one of them, on the written grounds that a rune holds client state
+				// rather than a value the markup can be given, which Svelte's server transform
+				// disproves in a line. See spec/derivation.md.
 				if (init['type'] === 'CallExpression') {
-					const callee = init['callee'];
-					if (isNode(callee) && String(callee['name']).startsWith('$')) continue;
+					const rune = runeOf(init['callee']);
+					if (rune !== null) {
+						const reach = SUBSTITUTED[rune];
+						const argument = Array.isArray(init['arguments']) ? init['arguments'][0] : undefined;
+						if (reach === undefined || !isNode(argument)) continue;
+						if (id['type'] === 'Identifier' && typeof id['name'] === 'string') {
+							record(id['name'], argument, { access: reach });
+							continue;
+						}
+						const holds = id['type'] === 'ArrayPattern' ? 'array' : 'object';
+						for (const [name, into] of paths(id)) {
+							record(name, argument, { access: `${reach}${into}`, holds });
+						}
+						continue;
+					}
 				}
 				if (id['type'] === 'Identifier' && typeof id['name'] === 'string') {
 					record(id['name'], init, {});
