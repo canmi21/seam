@@ -61,7 +61,7 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 | | |
 | --- | --- |
 | `{#await}`, `{#key}`, an `{:else}` on an each | measured, trivial, unwritten |
-| a snippet with parameters, or rendered twice | the body would need a different value per call, or would have to stand in two places |
+| a snippet rendered twice, or a parameter with a default | the body would have to stand in two places, or a name has no way in from the argument |
 | `{@render}` of a snippet from a prop | composition in the other direction; see below |
 | `{@const}` | a substitution one scope further in |
 | `class:`, `style:`, `<select value>`, `translate={true}` | decidable by enumeration; deferred on what they are worth |
@@ -85,9 +85,9 @@ dependency tree it installs.
 ```
 4157  {...spread}                             96%
  600  a render of a snippet from a prop
-  81  a bind: the server writes  80  a snippet with parameters
-  63  {@const}                   15  a name assigned after it is declared
-  12  {#key}                     11  class:
+  81  a bind: the server writes  63  {@const}
+  15  a name assigned after it is declared    12  {#key}
+  11  class:                      7  style:
 ```
 
 **The ranking is different for the application's own components**, and the difference is not noise.
@@ -95,18 +95,20 @@ Of the 4323, only 42 are written by the author rather than installed, and 16 of 
 
 ```
    9  class:                     7  {@const}
-   7  a render of a snippet from a prop        5  a snippet with parameters
+   7  a render of a snippet from a prop        4  a snippet rendered more than once
    3  a bind: the server writes  3  {...spread}
-   3  a render with arguments    2  style:
+   2  style:                     1  <svelte:element>
 ```
 
-Four things have been taken off these lists by consulting them, and all four moved the second far
-more than the first. Runes led the application's own at 33 of 42 and sat third in the whole set at
+Five things have been taken off these lists by consulting them, and all of them moved the second
+far more than the first. Runes led the application's own at 33 of 42 and sat third in the whole set at
 584; an each with a key or an index led what was left, at 18 and 8; `bind:` led what was left after
 that, at 12, and three quarters of its uses turned out to be bindings the server writes nothing
-for; a local snippet with no parameters was the tractable half of what came next. The application's
-own components went from 2 that compile to 8, 12, 15, and 16, where the whole set went from 28 to
-44. That is what a ranking is for: `{...spread}` at 96% is what the first list is really about, and
+for; a local snippet was the tractable half of what came next, first without parameters and then with
+them. The application's own components went from 2 that compile to 8, 12, 15, and 16, where the
+whole set went from 28 to 44. The last of those moved neither count, because every component it
+unblocked is held by something else as well -- which is what a ranking cannot tell you until the
+thing above it is gone. That is what a ranking is for: `{...spread}` at 96% is what the first list is really about, and
 it is a different kind of work.
 
 **A library component is a wrapper**, and forwarding its caller's attributes with `{...restProps}`
@@ -158,14 +160,24 @@ measured, along with snippets holding an `{#if}` and an `{#each}` of their own.
 
 Two shapes are refused and the reasons are different:
 
-**Parameters.** `{#snippet row(v)}` takes its value from the `{@render}` that calls it rather than
-from the payload, so one body would need a different value per call. That is the same shape as a
-per-item derivation, recorded in [derivation.md](derivation.md).
+**A parameter is the argument, substituted.** `{#snippet row(v)}` takes its value from the
+`{@render}` that calls it, and there is exactly one of those, so `v` stands for that argument
+wherever the body reads it -- in a slot, in a branch's test, as an each block's source. A
+destructured parameter is the same substitution a destructured declaration gets, with the way in
+written after the argument, which is why the two share one function. A default or a rest is neither
+a member nor an index, so it has no way in and is refused by name.
+
+The render is handed something in the argument's place rather than the argument itself, because
+the value is unused by then -- every expression in the body is already a marker -- and evaluating
+it would reach for data the render is not given. What it is handed has to be destructurable when
+the parameter destructures: `{}` or `[]` rather than `null`, which is the same rule a declaration
+that reads a prop already has.
 
 **Rendered more than once.** One body cannot stand in two places: every marker in it would come
 back twice, which the rule that each is consumed exactly once catches on its own. It is refused
 before that, because the invariant reports a value arriving twice and says nothing about the
-snippet that put it there.
+snippet that put it there. It is also what makes a parameter tractable at all -- one call means one
+argument per parameter.
 
 **`{@render children()}` is not a snippet problem.** It renders a snippet that came in as a prop,
 which is the markup a *parent* wrote inside the child's tag -- so it is composition running the

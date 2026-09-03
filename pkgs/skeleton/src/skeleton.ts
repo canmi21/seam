@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { compile, parse } from 'svelte/compiler';
-import { apply, type Locals, locals, resolved } from 'ast';
+import { apply, destructure, type Locals, locals, resolved } from 'ast';
 import { OMITTED_IN_SSR } from './omitted.ts';
 import { sentinel } from './sentinel.ts';
 
@@ -253,14 +253,65 @@ function collect(
 			// is fine: a marker carries its own index, so where it lands is not where it was
 			// written. A parameter is a different thing entirely -- its value comes from the call
 			// rather than from the payload, and one body would need a different one per call.
-			const declared = (Array.isArray(node['parameters']) ? node['parameters'] : []).length;
-			if (declared > 0) {
+			const parameters = Array.isArray(node['parameters']) ? node['parameters'] : [];
+			if (parameters.length === 0) {
+				fragment(node['body']);
+				return;
+			}
+
+			// A parameter's value is the argument at the `{@render}` that calls the snippet, and
+			// there is exactly one of those -- more than one is refused at the render tag, because
+			// one body cannot stand in two places. So the parameter substitutes like any other
+			// declared name, with the argument standing for it.
+			const id = node['expression'];
+			const named = isNode(id) && typeof id['name'] === 'string' ? id['name'] : '';
+			const one = snippets.get(named);
+			if (one === undefined || one.renders === 0) {
 				refuse(
-					'a `{#snippet}` that takes parameters is not handled yet: the value comes from the ' +
-						'`{@render}` that calls it, so one body would need a different value per call',
+					`the snippet \`${named}\` takes parameters and is never rendered, so they have no value`,
 				);
 			}
-			fragment(node['body']);
+			if (one.args.length !== parameters.length) {
+				refuse(
+					`the snippet \`${named}\` takes ${String(parameters.length)} parameter(s) and is ` +
+						`rendered with ${String(one.args.length)}`,
+				);
+			}
+
+			const bound = new Map<string, string>();
+			for (const [index, parameter] of parameters.entries()) {
+				if (!isNode(parameter)) refuse('a `{#snippet}` parameter this compiler cannot read');
+				// Expanded, so a script name inside the argument is already what it stands for.
+				const argument = expand(one.args[index]);
+				if (parameter['type'] === 'Identifier' && typeof parameter['name'] === 'string') {
+					bound.set(parameter['name'], argument);
+					continue;
+				}
+				// Destructured, which is the same substitution a destructured declaration gets: the
+				// name expands to the argument with the way in written after it.
+				const taken = destructure(parameter as never);
+				for (const [name, access] of taken) bound.set(name, `(${argument})${access}`);
+				// A default or a rest is neither a member nor an index, so it has no way in. Reported
+				// here rather than left to fail as an unresolved name three passes later.
+				const all = new Set<string>();
+				namesIn(parameter, all);
+				const missing = [...all].filter((name) => !bound.has(name));
+				if (missing.length > 0) {
+					refuse(
+						`the snippet \`${named}\` binds ${missing.map((name) => `\`${name}\``).join(', ')} ` +
+							'through a default or a rest, which is neither a member nor an index of the ' +
+							'argument, so there is no way in to write down',
+					);
+				}
+			}
+
+			// The body is walked with those names bound. Everything else about it is ordinary.
+			const inner: Locals['rewrite'] = (child) => expand(child, bound);
+			const body = node['body'];
+			const nodes = isNode(body) ? body['nodes'] : undefined;
+			for (const child of Array.isArray(nodes) ? nodes : []) {
+				collect(source, child, holes, edits, blocks, taken, stream, inner, snippets);
+			}
 			return;
 		}
 
@@ -284,11 +335,14 @@ function collect(
 						'body cannot stand in two places: each marker in it would come back more than once',
 				);
 			}
-			if ((isNode(call) && Array.isArray(call['arguments']) ? call['arguments'] : []).length > 0) {
-				refuse('`{@render}` with arguments is not handled yet: the snippet takes no parameters');
+			// The arguments are read where the snippet's body was walked, not here. Their values are
+			// unused during the render -- every expression in the body is already a marker -- and
+			// evaluating one would reach for data the render is not given, so each is written out.
+			const given = isNode(call) && Array.isArray(call['arguments']) ? call['arguments'] : [];
+			for (const [index, argument] of given.entries()) {
+				const at = span(argument);
+				if (at !== null) edits.push([at[0], at[1], one.holds[index] ?? 'null']);
 			}
-			// Nothing is planted. The body was walked where it was declared, and calling it is what
-			// puts those markers in the output.
 			return;
 		}
 
@@ -401,10 +455,37 @@ function titles(node: unknown, guarded = false): { found: number; conditional: b
  * `{#if false}` still writes `<!--[-1-->` -- so a branch can be chosen by editing the source
  * rather than by threading a prop through the component.
  */
+/** Every name a parameter pattern binds, so one it cannot be taken apart by is not left silent. */
+function namesIn(pattern: unknown, into: Set<string>): void {
+	if (Array.isArray(pattern)) {
+		for (const one of pattern) namesIn(one, into);
+		return;
+	}
+	if (!isNode(pattern)) return;
+	if (pattern['type'] === 'Identifier' && typeof pattern['name'] === 'string') {
+		into.add(pattern['name']);
+		return;
+	}
+	// A property's key is not a binding: `{ a: b }` binds `b`.
+	if (pattern['type'] === 'Property') {
+		namesIn(pattern['value'], into);
+		return;
+	}
+	for (const value of Object.values(pattern)) namesIn(value, into);
+}
+
 /** What a component declares under one snippet name, and how many times it renders it. */
 interface Snippet {
 	parameters: number;
 	renders: number;
+	/**
+	 * What a render has to be handed in each argument's place. The value is unused -- every
+	 * expression in the body is already a marker -- but a parameter that destructures needs
+	 * something it can be taken apart from, and `null` is not that.
+	 */
+	holds: string[];
+	/** The arguments of the one `{@render}` that calls it, as written. */
+	args: unknown[];
 }
 
 /**
@@ -424,17 +505,26 @@ function snippetsIn(node: unknown, into: Map<string, Snippet>): void {
 	if (node['type'] === 'SnippetBlock') {
 		const id = node['expression'];
 		if (isNode(id) && typeof id['name'] === 'string') {
-			const one = into.get(id['name']) ?? { parameters: 0, renders: 0 };
-			one.parameters = (Array.isArray(node['parameters']) ? node['parameters'] : []).length;
+			const one = into.get(id['name']) ?? { parameters: 0, renders: 0, holds: [], args: [] };
+			const parameters = Array.isArray(node['parameters']) ? node['parameters'] : [];
+			one.parameters = parameters.length;
+			one.holds = parameters.map((parameter) =>
+				isNode(parameter) && parameter['type'] === 'ObjectPattern'
+					? '{}'
+					: isNode(parameter) && parameter['type'] === 'ArrayPattern'
+						? '[]'
+						: 'null',
+			);
 			into.set(id['name'], one);
 		}
 	}
 	if (node['type'] === 'RenderTag') {
 		const call = node['expression'];
 		const callee = isNode(call) ? call['callee'] : undefined;
-		if (isNode(callee) && typeof callee['name'] === 'string') {
-			const one = into.get(callee['name']) ?? { parameters: 0, renders: 0 };
+		if (isNode(call) && isNode(callee) && typeof callee['name'] === 'string') {
+			const one = into.get(callee['name']) ?? { parameters: 0, renders: 0, holds: [], args: [] };
 			one.renders += 1;
+			one.args = Array.isArray(call['arguments']) ? call['arguments'] : [];
 			into.set(callee['name'], one);
 		}
 	}

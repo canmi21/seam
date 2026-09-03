@@ -250,8 +250,15 @@ export interface Declared {
  * enforced: a module script has no props to read, so what it declares is constant, and an
  * instance script may read them, so what it declares is a derivation. Neither is evaluated here.
  */
-/** How a destructured name is reached from the value it was taken out of. */
-function paths(pattern: Node): [string, string][] {
+/**
+ * How a destructured name is reached from the value it was taken out of.
+ *
+ * Exported because a snippet's parameter is destructured the same way a declaration is, and the
+ * value it comes apart from is the argument at the `{@render}` that calls it rather than an
+ * initialiser. A default or a rest is left out: neither is a member nor an index, so there is no
+ * way in to write down. See spec/derivation.md.
+ */
+export function destructure(pattern: Node): [string, string][] {
 	const found: [string, string][] = [];
 	if (pattern['type'] === 'ObjectPattern') {
 		for (const property of Array.isArray(pattern['properties']) ? pattern['properties'] : []) {
@@ -387,7 +394,7 @@ function declared(ast: Node, source: string, names: ReadonlySet<string>): Map<st
 							continue;
 						}
 						const holds = id['type'] === 'ArrayPattern' ? 'array' : 'object';
-						for (const [name, into] of paths(id)) {
+						for (const [name, into] of destructure(id)) {
 							record(name, argument, { access: `${reach}${into}`, holds });
 						}
 						continue;
@@ -402,7 +409,7 @@ function declared(ast: Node, source: string, names: ReadonlySet<string>): Map<st
 				// member nor an index, and is left out, which reports the name rather than
 				// guessing at it.
 				const holds = id['type'] === 'ArrayPattern' ? 'array' : 'object';
-				for (const [name, access] of paths(id)) record(name, init, { access, holds });
+				for (const [name, access] of destructure(id)) record(name, init, { access, holds });
 			}
 		}
 	}
@@ -476,8 +483,14 @@ const EMPTY: Record<Declared['holds'], string> = {
 export interface Locals {
 	/** Whether the scripts declare this name. */
 	has: (name: string) => boolean;
-	/** An expression's source with every declared name replaced by what it was declared to be. */
-	rewrite: (node: unknown) => string;
+	/**
+	 * An expression's source with every declared name replaced by what it was declared to be.
+	 *
+	 * `extra` names things a script did not declare, mapped to the source that stands for them. A
+	 * snippet's parameter is the case it exists for: its value is the argument at the one
+	 * `{@render}` that calls the snippet, which this file cannot see.
+	 */
+	rewrite: (node: unknown, extra?: ReadonlyMap<string, string>) => string;
 	/**
 	 * Where a declaration that reads a prop sits, and what to put there instead. A render is
 	 * given no data, so holding one is how a component used to crash inside Svelte's own renderer
@@ -560,7 +573,11 @@ export function locals(source: string): Locals {
 	}
 	const expanded = new Map<string, string>();
 
-	function slice(node: unknown, open: ReadonlySet<string>): string {
+	function slice(
+		node: unknown,
+		open: ReadonlySet<string>,
+		extra?: ReadonlyMap<string, string>,
+	): string {
 		if (!isNode(node)) return '';
 		const { start, end } = node;
 		if (typeof start !== 'number' || typeof end !== 'number') return '';
@@ -568,11 +585,17 @@ export function locals(source: string): Locals {
 		const edits: Edit[] = [];
 		reads(node, new Set(), (at) => {
 			const name = at['name'];
-			if (typeof name !== 'string' || !found.has(name) || open.has(name)) return;
+			if (typeof name !== 'string' || open.has(name)) return;
+			// A name bound by something other than a script, which the caller knows about and this
+			// does not: a snippet's parameter, whose value is the argument at the one `{@render}`
+			// that calls it. It wins over a script declaration of the same name, being the inner
+			// scope.
+			const given = extra?.get(name);
+			if (given === undefined && !found.has(name)) return;
 			const from = at['start'];
 			const to = at['end'];
 			if (typeof from !== 'number' || typeof to !== 'number') return;
-			edits.push([from, to, `(${expand(name, open)})`]);
+			edits.push([from, to, `(${given ?? expand(name, open)})`]);
 		});
 
 		return apply(source.slice(start, end), edits, start);
@@ -596,7 +619,7 @@ export function locals(source: string): Locals {
 
 	return {
 		has: (name) => found.has(name),
-		rewrite: (node) => slice(node, new Set()),
+		rewrite: (node, extra) => slice(node, new Set(), extra),
 		// By span rather than by name: one destructuring declares several names and is one place
 		// in the source, and writing over it twice would take the file apart.
 		reading: [

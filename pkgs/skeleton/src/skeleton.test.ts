@@ -124,6 +124,20 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A parameter's value is the argument at the one `{@render}` that calls the snippet, so it
+		// substitutes like any other declared name. Here it stands in a slot, in a branch's test and
+		// as an each block's source, and it shadows a script name of its own. See spec/refusals.md.
+		name: 'a snippet with parameters',
+		source:
+			"<script>let { data } = $props(); const v = 'script'</script>" +
+			'{#snippet r(v, n, { k }, [j])}<i>{v}{k}{j}</i>{#if n}<b>{v}</b>{/if}{/snippet}' +
+			'{@render r(data.a, data.f, data.o, data.xs)}<b>{v}</b>',
+		data: [
+			{ a: 'x', f: true, o: { k: 'K' }, xs: ['J'] },
+			{ a: '<&', f: false, o: {}, xs: [] },
+		],
+	},
+	{
 		name: 'markup that is inert on the server',
 		source:
 			'<script>function act() {} let { data } = $props()</script>' +
@@ -151,8 +165,12 @@ const refused: Case[] = [
 	{ name: 'await block', source: `${PROPS}{#await data.p}<p>w</p>{:then v}<p>{v}</p>{/await}` },
 	{ name: 'key block', source: `${PROPS}{#key data.k}<p>{data.a}</p>{/key}` },
 	{
-		name: 'a snippet with parameters',
-		source: `${PROPS}{#snippet r(v)}<p>{v}</p>{/snippet}{@render r(data.a)}`,
+		name: 'a snippet parameter with a default',
+		source: `${PROPS}{#snippet r({ a = 1 })}<p>{a}</p>{/snippet}{@render r(data.o)}`,
+	},
+	{
+		name: 'a snippet rendered with the wrong number of arguments',
+		source: `${PROPS}{#snippet r(a, b)}<p>{a}</p>{/snippet}{@render r(data.a)}`,
 	},
 	{
 		name: 'a snippet rendered twice',

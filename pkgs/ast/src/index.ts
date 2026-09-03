@@ -1,5 +1,6 @@
 export {
 	apply,
+	destructure,
 	type Bindings,
 	bindings,
 	type Carried,
