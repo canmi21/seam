@@ -64,7 +64,7 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 | a snippet rendered twice, or a parameter with a default | the body would have to stand in two places, or a name has no way in from the argument |
 | `{@render}` of a snippet from a prop | composition in the other direction; see below |
 | an expression over what an each binds | computed once against the payload; per-item is not decided |
-| `class:`, `style:`, `<select value>`, `translate={true}` | decidable by enumeration; deferred on what they are worth |
+| `class:`, `style:`, `<select value>`, `translate={true}` | decidable by enumeration, and all four wait on that one mechanism; see below |
 | a `bind:` the server writes | there is nowhere to plant the marker: `bind:` takes a name, not an expression |
 | `{...spread}`, `<svelte:element>` | an unenumerable decision, so a small closed runtime node |
 | per-item derivation, which of two titles wins | not decided |
@@ -184,6 +184,33 @@ which is the markup a *parent* wrote inside the child's tag -- so it is composit
 other way from the one this compiler does, which inlines a child into its parent. It is 600 of the
 4323 and the largest thing after `{...spread}`, and it is recorded here as its own question rather
 than as a missing piece of this one.
+
+## `class:` and `style:` are one problem, and it is the enumerable decision
+
+`class:on={t}` writes the class name when `t` is truthy and nothing when it is not, so the value
+**decides** rather than being written, and a marker has nowhere to stand -- which is the distinction
+[pipeline.md](pipeline.md) draws, and the reason a boolean attribute needed `presence`.
+
+`style:color={c}` looked like the other kind. Its value *is* written, into the style attribute, so
+a marker stands in it and four shapes came out byte for byte: alone, beside a static style, two
+together, and with characters that escape. It was ready to ship. The fifth shape was a nullish
+value:
+
+```
+style:color={undefined}      Svelte writes nothing at all
+                             this wrote  style="color: ;"
+```
+
+**Each declaration is dropped when its own value is nullish**, not only the attribute when
+everything in it comes out empty -- which `presence` already covers. So `style:` is a substitution
+*inside* a decision, and it waits on the same mechanism `class:` does rather than being the cheap
+one of the pair. It was found by trying a payload that made the decision go the other way, which is
+[pipeline.md](pipeline.md)'s rule about static examples, met again.
+
+That mechanism is rendering both outcomes and keeping both, which is what an `{#if}` already gets.
+What it does not get for free is *where* the outcomes differ: a block is found in the render by the
+anchors Svelte writes around it, and a directive has none, so the two renders have to be compared.
+`<select value>` and `translate={true}` are the same shape and would come with it.
 
 ## The compiler refuses by allowlist
 

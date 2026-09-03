@@ -121,11 +121,13 @@ const REFUSED: Record<string, string> = {
 		'takes a name rather than an expression, so a marker cannot stand where the value goes. The ' +
 		'bindings that write nothing are handled',
 	ClassDirective:
-		'`class:` is not handled yet. It is a decision over two outcomes and so is enumerable; it is ' +
-		'deferred on what it is worth rather than blocked',
+		'`class:` is not handled yet. Whether the class name is written is decided by the value ' +
+		'rather than the value being written, so a marker has nowhere to stand; the two outcomes ' +
+		'can be enumerated, which is the mechanism it waits on',
 	StyleDirective:
-		'`style:` is not handled yet. It is a decision over two outcomes and so is enumerable; it is ' +
-		'deferred on what it is worth rather than blocked',
+		'`style:` is not handled yet. Its value is written, but the declaration is dropped when the ' +
+		'value is nullish, so it is a substitution inside a decision and waits on the same mechanism ' +
+		'as `class:`',
 	LetDirective: '`let:` is not handled yet. It belongs with slots, and neither is written',
 	AttachTag: '`{@attach}` is not handled yet. It runs on the client and writes no bytes',
 };
