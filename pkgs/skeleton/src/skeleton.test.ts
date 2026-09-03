@@ -138,6 +138,18 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A `{@const}` is a declaration scoped to its block, so it substitutes like any other
+		// declared name -- chained, destructured, and in a branch's test. See spec/derivation.md.
+		name: 'const tags',
+		source:
+			`${PROPS}{#if data.f}{@const n = data.n}{@const twice = n * 2}` +
+			'{@const { k } = data.o}<i>{twice}{k}</i>{#if twice}<b>y</b>{/if}{/if}',
+		data: [
+			{ f: true, n: 3, o: { k: 'K' } },
+			{ f: true, n: 0, o: {} },
+		],
+	},
+	{
 		name: 'markup that is inert on the server',
 		source:
 			'<script>function act() {} let { data } = $props()</script>' +
@@ -180,7 +192,13 @@ const refused: Case[] = [
 		name: 'a render of a snippet from a prop',
 		source: `${PROPS}<div>{@render data.children()}</div>`,
 	},
-	{ name: 'const tag', source: `${PROPS}{#each data.xs as x}{@const u = x}<p>{u}</p>{/each}` },
+	{
+		// Not the const tag: what it holds. A derivation is computed once against the payload, so one
+		// that reads a name an each block binds per item has nothing to be computed from. It used to
+		// compile and throw at request time. See spec/derivation.md.
+		name: 'an expression over what an each binds',
+		source: `${PROPS}{#each data.xs as x}<p>{x > 2}</p>{/each}`,
+	},
 	{
 		name: 'else on an each',
 		source: `${PROPS}{#each data.xs as x}<p>{x}</p>{:else}<p>none</p>{/each}`,

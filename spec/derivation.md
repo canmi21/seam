@@ -284,6 +284,18 @@ structure comes from the AST and from forcing each branch.
 value; a branch needs something it can evaluate to a choice. Neither is a value known at compile
 time, which is the whole reason this stage exists.
 
+## `{@const}` is the same substitution, one scope in
+
+Svelte's server compiles `{@const x = e}` to `const x = e` in the block it sits in, so it is a
+declaration whose scope is that block rather than the script. It substitutes like any other: the
+name stands for its initialiser wherever the block's markup reads it, chained where one const reads
+another, and taken apart where it destructures -- the same function a destructured declaration
+uses. A default or a rest has no way in and is refused by name.
+
+The render is handed something in the initialiser's place, for the reason a declaration reading a
+prop already is: by then every read of it is a marker, and evaluating it would reach for data the
+render is not given. What stands in has to come apart the way the name does.
+
 ## Substitution maps a name to an expression, and a program is not an expression
 
 Every name the markup reads becomes one self-contained expression. `const t = data.a + 1` becomes
@@ -376,6 +388,13 @@ budget, and that is a deployment choice rather than a rule here.
 - **Per-item derivation.** A derivation is computed once against the payload, so an expression
   inside an each block is refused. What it needs is a value per iteration, which is a different
   mechanism rather than a larger version of this one. See [ir.md](ir.md).
+
+  It said *refused* here for a long time and was not: a component writing `{x > 2}` inside an each
+  compiled, and threw at request time with `deriving \`x > 2\` failed`. The pass that decides
+  between a path and an expression did not know what the block it was inside had bound. It does
+  now, and this is a compile-time refusal that names the binding it reached for. A path rooted at
+  an each binding is unaffected -- `{x.name}` is resolved per item by the runtime, which is the
+  whole difference between the two.
 - **The shape of request context.** `$.now`, `$.tz` and `$.locale` are named here, and the wire
   carrying them is settled -- see [payload.md](payload.md), which means they can hold real values
   rather than numbers the author has to reconstitute. Where they sit within the data, and whether

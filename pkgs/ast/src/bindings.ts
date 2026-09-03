@@ -744,6 +744,27 @@ function markup(
 		return;
 	}
 
+	// A `{@const}` binds for the rest of the block it sits in, so a fragment holding one is walked
+	// with those names in scope. Its own initialiser is read in the scope before it, which is what
+	// lets `{@const b = a + 1}` reach an `a` declared above and refuses one that reaches below.
+	if (type === 'Fragment') {
+		const nodes = Array.isArray(node['nodes']) ? node['nodes'] : [];
+		const inner = new Set(scope);
+		for (const child of nodes) {
+			if (!isNode(child) || child['type'] !== 'ConstTag') {
+				markup(child, source, inner, into, carried);
+				continue;
+			}
+			const declaration = child['declaration'];
+			const declarations = isNode(declaration) ? declaration['declarations'] : undefined;
+			const one = Array.isArray(declarations) ? declarations[0] : undefined;
+			if (!isNode(one)) continue;
+			report(one['init'], source, inner, into, carried);
+			bound(one['id'], inner);
+		}
+		return;
+	}
+
 	if (type === 'Attribute') {
 		if (clientOnly(node['name'])) return;
 		const value = node['value'];

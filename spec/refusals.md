@@ -63,7 +63,7 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 | `{#await}`, `{#key}`, an `{:else}` on an each | measured, trivial, unwritten |
 | a snippet rendered twice, or a parameter with a default | the body would have to stand in two places, or a name has no way in from the argument |
 | `{@render}` of a snippet from a prop | composition in the other direction; see below |
-| `{@const}` | a substitution one scope further in |
+| an expression over what an each binds | computed once against the payload; per-item is not decided |
 | `class:`, `style:`, `<select value>`, `translate={true}` | decidable by enumeration; deferred on what they are worth |
 | a `bind:` the server writes | there is nowhere to plant the marker: `bind:` takes a name, not an expression |
 | `{...spread}`, `<svelte:element>` | an unenumerable decision, so a small closed runtime node |

@@ -217,15 +217,74 @@ struct Assembler<'a> {
 	stream: Stream,
 	order: Vec<usize>,
 	taken: usize,
+	/// Names an enclosing each block binds. A derivation is computed once against the payload, so
+	/// one that reads a name bound per item has no value to be computed from. See spec/ir.md.
+	locals: Vec<String>,
+}
+
+/// Every identifier an expression reads, ignoring what is inside a string and what follows a dot.
+///
+/// A property name is not a read -- `x.item` reads `x` -- and a name inside a string is text. The
+/// scan is here rather than a parse because the one question asked of it is whether a derivation
+/// reaches for something the payload does not carry.
+fn reads(source: &str) -> Vec<String> {
+	let bytes: Vec<char> = source.chars().collect();
+	let mut found = Vec::new();
+	let mut at = 0;
+	let mut after_dot = false;
+	while at < bytes.len() {
+		let c = bytes[at];
+		if c == '\'' || c == '"' || c == '`' {
+			let quote = c;
+			at += 1;
+			while at < bytes.len() && bytes[at] != quote {
+				at += if bytes[at] == '\\' { 2 } else { 1 };
+			}
+			at += 1;
+			after_dot = false;
+			continue;
+		}
+		if c.is_ascii_alphabetic() || c == '_' || c == '$' {
+			let from = at;
+			while at < bytes.len()
+				&& (bytes[at].is_ascii_alphanumeric() || bytes[at] == '_' || bytes[at] == '$')
+			{
+				at += 1;
+			}
+			if !after_dot {
+				found.push(bytes[from..at].iter().collect());
+			}
+			after_dot = false;
+			continue;
+		}
+		if !c.is_whitespace() {
+			after_dot = c == '.';
+		}
+		at += 1;
+	}
+	found
 }
 
 impl Assembler<'_> {
 	/// A path stays a path; anything else becomes a field on the payload. Composition is Svelte's
 	/// here, so there is never a prop scope to carry.
-	fn path(&mut self, expression: &str) -> String {
+	fn path(&mut self, expression: &str) -> Result<String> {
 		let trimmed = expression.trim();
 		if is_path(trimmed) {
-			return trimmed.to_owned();
+			return Ok(trimmed.to_owned());
+		}
+		// A path rooted at an each block's binding is resolved per item by the runtime, which walks
+		// a scope stack. An expression is not: it is computed once, against the payload, before
+		// anything is injected. So one that reads a per-item name has nothing to be computed from,
+		// and this used to compile and then throw at request time. See spec/derivation.md.
+		let reaching: Vec<&String> =
+			self.locals.iter().filter(|one| reads(trimmed).iter().any(|read| read == *one)).collect();
+		if let Some(one) = reaching.first() {
+			return Err(format!(
+				"`{trimmed}` is computed once against the payload but reads `{one}`, which an each \
+				 block binds per item; a path is resolved per item and an expression is not. See \
+				 spec/derivation.md"
+			));
 		}
 		let name = format!("__d{}", self.derivations.len());
 		self.derivations.push(ir::Derivation {
@@ -233,7 +292,7 @@ impl Assembler<'_> {
 			expression: trimmed.to_owned(),
 			scope: None,
 		});
-		name
+		Ok(name)
 	}
 
 	/// Reading a hole marks it used. Every hole has to be used exactly once: the render is the
@@ -325,7 +384,7 @@ impl Assembler<'_> {
 					out.write(&html[at..start]);
 					let (expression, raw) = self.hole(index)?;
 					let escape = if raw { ir::Escape::Raw } else { ir::Escape::Content };
-					let path = self.path(&expression);
+					let path = self.path(&expression)?;
 					out.push(ir::Node::Slot { path, escape });
 					at = end;
 				}
@@ -356,7 +415,7 @@ impl Assembler<'_> {
 		while let Some((start, end, index)) = sentinel_at(html, at, until) {
 			parts.write(&html[at..start]);
 			let (expression, _) = self.hole(index)?;
-			let path = self.path(&expression);
+			let path = self.path(&expression)?;
 			parts.push(ir::Node::Slot { path, escape: ir::Escape::Attr });
 			at = end;
 		}
@@ -386,20 +445,29 @@ impl Assembler<'_> {
 
 		match block.kind {
 			Kind::Each => {
-				let source = self.path(&block.expression.clone());
+				let source = self.path(&block.expression.clone())?;
 				let item = block
 					.item
 					.clone()
 					.ok_or_else(|| "an each block without an iteration variable".to_owned())?;
-				let mut body = Out::default();
-				self.region(html, span.content, span.until, &mut body)?;
-				out.write(&html[span.from..span.content]);
 				let index = block.counter.clone();
+				// The body is walked with what the block binds in scope, so a derivation inside it
+				// can be told from a path: one is computed once, the other resolved per item.
+				let depth = self.locals.len();
+				self.locals.push(item.clone());
+				if let Some(counter) = index.clone() {
+					self.locals.push(counter);
+				}
+				let mut body = Out::default();
+				let walked = self.region(html, span.content, span.until, &mut body);
+				self.locals.truncate(depth);
+				walked?;
+				out.write(&html[span.from..span.content]);
 				out.push(ir::Node::Each { source, item, index, body: body.finish() });
 				Ok(())
 			}
 			Kind::If => {
-				let test = self.path(&block.expression.clone());
+				let test = self.path(&block.expression.clone())?;
 				let mut taken = Out::default();
 				// The branch marker belongs to the branch, because which one is written is only
 				// known per request. Svelte put it at the head of the span it opened.
@@ -481,6 +549,7 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 		stream: Stream::Body,
 		order: order_in(skeleton, Stream::Body),
 		taken: 0,
+		locals: Vec::new(),
 	};
 	let mut out = Out::default();
 	out.write(&skeleton.html[outer.from..outer.content]);

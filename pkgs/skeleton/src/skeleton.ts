@@ -103,9 +103,6 @@ const REFUSED: Record<string, string> = {
 		'`{#await}` is not handled yet. A synchronous render always takes its pending branch, which ' +
 		'is measured and small',
 	KeyBlock: '`{#key}` is not handled yet. Its only effect is on the client, and it is measured',
-	ConstTag:
-		'`{@const}` is not handled yet. It declares a name inside a block, which is the substitution ' +
-		'a script declaration already gets, applied one scope further in',
 	SvelteElement:
 		'`<svelte:element>` takes its tag from a value, so which bytes exist is decided at request ' +
 		'time and the outcomes cannot be enumerated at compile time. It needs a closed runtime node, ' +
@@ -192,16 +189,66 @@ function collect(
 	if (why !== undefined) refuse(why);
 
 	switch (type) {
-		case 'Fragment':
-			fragment(node);
+		case 'Fragment': {
+			const nodes = Array.isArray(node['nodes']) ? node['nodes'] : [];
+			// A `{@const}` is a declaration scoped to the block it sits in, so it binds for its
+			// siblings rather than for anything below. Svelte's server pushes it into that block's
+			// `init` and it writes no bytes of its own. See spec/derivation.md.
+			const consts = nodes.filter(
+				(child) => isNode(child) && child['type'] === 'ConstTag',
+			) as AstNode[];
+			if (consts.length === 0) {
+				for (const child of nodes) walk(child);
+				return;
+			}
+
+			const bound = new Map<string, string>();
+			for (const one of consts) {
+				const declared = declarationOf(one);
+				if (declared === null) refuse('a `{@const}` this compiler cannot read');
+				const [id, init] = declared;
+				// Expanded against what the earlier ones bound, so `{@const b = a + 1}` reaches `a`.
+				const value = expand(init, bound);
+				const at = span(init);
+				// The value is unused once every read of it is a marker, and evaluating it would
+				// reach for data the render is not given. What stands in has to come apart the way
+				// the name does.
+				if (at !== null) edits.push([at[0], at[1], holdsFor(id)]);
+
+				if (isNode(id) && id['type'] === 'Identifier' && typeof id['name'] === 'string') {
+					bound.set(id['name'], `(${value})`);
+					continue;
+				}
+				for (const [name, access] of destructure(id as never)) {
+					bound.set(name, `(${value})${access}`);
+				}
+				const all = new Set<string>();
+				namesIn(id, all);
+				const missing = [...all].filter((name) => !bound.has(name));
+				if (missing.length > 0) {
+					refuse(
+						`a \`{@const}\` binds ${missing.map((name) => `\`${name}\``).join(', ')} through a ` +
+							'default or a rest, which is neither a member nor an index of what it was ' +
+							'declared to be, so there is no way in to write down',
+					);
+				}
+			}
+
+			const inner: Locals['rewrite'] = (child, more) =>
+				expand(child, more === undefined ? bound : new Map([...bound, ...more]));
+			for (const child of nodes) {
+				if (isNode(child) && child['type'] === 'ConstTag') continue;
+				collect(source, child, holes, edits, blocks, taken, stream, inner, snippets);
+			}
 			return;
+		}
 
 		case 'Text':
 			return;
 
 		case 'SvelteHead':
 			// The other stream. Everything under it renders into the head rather than the body.
-			fragment(node['fragment'], 'head');
+			walk(node['fragment'], 'head');
 			return;
 
 		case 'ExpressionTag':
@@ -222,7 +269,7 @@ function collect(
 		case 'TitleElement': {
 			const attributes = node['attributes'];
 			if (Array.isArray(attributes)) for (const attr of attributes) walk(attr);
-			fragment(node['fragment']);
+			walk(node['fragment']);
 			return;
 		}
 
@@ -455,6 +502,24 @@ function titles(node: unknown, guarded = false): { found: number; conditional: b
  * `{#if false}` still writes `<!--[-1-->` -- so a branch can be chosen by editing the source
  * rather than by threading a prop through the component.
  */
+/** The id and initialiser of a `{@const}`, or null when it is not the one declaration it must be. */
+function declarationOf(node: AstNode): [unknown, unknown] | null {
+	const declaration = node['declaration'];
+	if (!isNode(declaration)) return null;
+	const declarations = declaration['declarations'];
+	const one = Array.isArray(declarations) ? declarations[0] : undefined;
+	if (!isNode(one)) return null;
+	return [one['id'], one['init']];
+}
+
+/** What a render is handed in place of a value it cannot compute, shaped so it still comes apart. */
+function holdsFor(id: unknown): string {
+	if (!isNode(id)) return 'null';
+	if (id['type'] === 'ObjectPattern') return '{}';
+	if (id['type'] === 'ArrayPattern') return '[]';
+	return 'null';
+}
+
 /** Every name a parameter pattern binds, so one it cannot be taken apart by is not left silent. */
 function namesIn(pattern: unknown, into: Set<string>): void {
 	if (Array.isArray(pattern)) {
