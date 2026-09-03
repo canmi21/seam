@@ -21,6 +21,18 @@ import { carry } from 'carry';
 import { lower, type Lowered } from 'lowering';
 import { skeleton, type Skeleton } from 'skeleton';
 
+/**
+ * One route: the URL it answers at, and the component the document is rendered from.
+ *
+ * The URL is given rather than derived. It was briefly the component's id, by way of a development
+ * server that served each artifact at `/<id>`, which is a routing convention invented by an
+ * implementation detail rather than decided. See spec/build.md.
+ */
+export interface Entry {
+	path: string;
+	component: string;
+}
+
 export interface Options {
 	/**
 	 * What component ids and artifact names are relative to. Given rather than derived: two
@@ -28,10 +40,10 @@ export interface Options {
 	 */
 	root: string;
 	/**
-	 * The components to compile. Routing does not exist, so the entries are named rather than
-	 * found, and naming them is what the plugin's configuration will do. See spec/build.md.
+	 * The routes to compile. Routing does not exist, so they are named rather than found, and
+	 * naming them is what the plugin's configuration will do. See spec/build.md.
 	 */
-	entries: readonly string[];
+	entries: readonly Entry[];
 	/** Where the artifacts go. The layout below is written under it. */
 	out: string;
 }
@@ -52,6 +64,7 @@ export interface Prepared {
 /** One line per artifact written, so a caller can say what it did without guessing. */
 export interface Report {
 	id: string;
+	path: string;
 	files: string[];
 }
 
@@ -110,13 +123,13 @@ export async function compile(options: Options): Promise<Report[]> {
 
 	// Every entry, then every refusal, rather than the first one. An author fixing a build wants
 	// the list, and stopping at the first turns one build into as many as they have mistakes.
-	const prepared: Prepared[] = [];
+	const prepared: (Prepared & { path: string })[] = [];
 	const refusals: string[] = [];
 	for (const entry of options.entries) {
 		try {
-			prepared.push(await prepare(entry, root));
+			prepared.push({ ...(await prepare(entry.component, root)), path: entry.path });
 		} catch (error) {
-			refusals.push(`${relative(root, resolve(entry))}: ${(error as Error).message}`);
+			refusals.push(`${relative(root, resolve(entry.component))}: ${(error as Error).message}`);
 		}
 	}
 
@@ -137,7 +150,10 @@ export async function compile(options: Options): Promise<Report[]> {
 	rmSync(server, { recursive: true, force: true });
 
 	const reports: Report[] = [];
-	const routes: Record<string, { ir: string; carried: string | null }> = {};
+	// Keyed by URL, because that is what a server has in its hand when a request arrives. The id
+	// stays inside: it names the artifacts and it is what Svelte hashes for a scoped class, and
+	// those are questions about the file rather than about the address. See spec/build.md.
+	const routes: Record<string, { id: string; ir: string; carried: string | null }> = {};
 
 	for (const [at, one] of prepared.entries()) {
 		const compiled = lowered[at] as Exclude<Lowered, { error: string }>;
@@ -158,8 +174,8 @@ export async function compile(options: Options): Promise<Report[]> {
 			files.push(carriedFile);
 		}
 
-		routes[one.id] = { ir: irFile, carried: carriedFile };
-		reports.push({ id: one.id, files });
+		routes[one.path] = { id: one.id, ir: irFile, carried: carriedFile };
+		reports.push({ id: one.id, path: one.path, files });
 	}
 
 	write(

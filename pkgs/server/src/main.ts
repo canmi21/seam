@@ -17,7 +17,8 @@ const root = resolve(here, '../../..');
 const read = (path: string): string => readFileSync(resolve(root, path), 'utf8');
 
 interface Manifest {
-	routes: Record<string, { ir: string; carried: string | null }>;
+	/** Keyed by URL, which is what a request arrives holding. See spec/build.md. */
+	routes: Record<string, { id: string; ir: string; carried: string | null }>;
 	client: string | null;
 }
 
@@ -26,12 +27,12 @@ const manifest = JSON.parse(read('dist/server/manifest.json')) as Manifest;
 // Parsed once, here, rather than per request. That is the whole difference from v1, which
 // re-tokenized the skeleton on every request because the skeleton was a string.
 const routes: Record<string, Route> = {};
-for (const [id, entry] of Object.entries(manifest.routes)) {
+for (const [path, entry] of Object.entries(manifest.routes)) {
 	const compiled = JSON.parse(read(`dist/server/${entry.ir}`)) as {
 		ir: ComponentIR;
 		derivations: Derivation[];
 	};
-	routes[`/${id}`] = {
+	routes[path] = {
 		ir: compiled.ir,
 		// The carried bundle is read from the artifact rather than built here, which is the point
 		// of the artifact: a backend that is not Node reads this same file.
@@ -43,15 +44,12 @@ for (const [id, entry] of Object.entries(manifest.routes)) {
 		// slots can be filled from, and that contract is not settled yet, so the corpus payload
 		// stands in for one. See spec/payload.md.
 		data: (
-			JSON.parse(read(`conformance/cases/${id}.data.json`)) as { data: Record<string, unknown> }[]
+			JSON.parse(read(`conformance/cases/${entry.id}.data.json`)) as {
+				data: Record<string, unknown>;
+			}[]
 		)[0]?.data as Record<string, unknown>,
 	};
 }
-
-// One route also answers at the root, so opening the server without a path shows something.
-const first = Object.keys(routes)[0];
-if (routes['/product'] !== undefined) routes['/'] = routes['/product'];
-else if (first !== undefined) routes['/'] = routes[first] as Route;
 
 const port = Number(process.env['PORT'] ?? 5100);
 createServer({
