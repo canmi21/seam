@@ -185,6 +185,13 @@ const refused: Case[] = [
 		source: `${PROPS}{#snippet r(a, b)}<p>{a}</p>{/snippet}{@render r(data.a)}`,
 	},
 	{
+		// Written inside a component's tag, so it is a prop that component receives. The child calls
+		// it, and with what is not visible from here. One with no parameters has nothing to decide,
+		// and that one works -- it is what `{@render children()}` is.
+		name: 'a snippet passed to a component, with parameters',
+		source: `${PROPS}<b>{data.a}</b>{#snippet row(r)}<i>{r}</i>{/snippet}`,
+	},
+	{
 		name: 'a snippet rendered twice',
 		source: `${PROPS}{#snippet h()}<p>{data.a}</p>{/snippet}{@render h()}{@render h()}`,
 	},

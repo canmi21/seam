@@ -315,9 +315,18 @@ function collect(
 			const id = node['expression'];
 			const named = isNode(id) && typeof id['name'] === 'string' ? id['name'] : '';
 			const one = snippets.get(named);
-			if (one === undefined || one.renders === 0) {
+			if (one === undefined) {
+				refuse(`the snippet \`${named}\` takes parameters and is never rendered`);
+			}
+			if (one.renders === 0) {
+				// Written inside a component's tag, so it is a prop that component receives: the child
+				// decides when to call it and with what, and neither is visible from here. One with no
+				// parameters has nothing to decide and already works, which is what `children` is.
 				refuse(
-					`the snippet \`${named}\` takes parameters and is never rendered, so they have no value`,
+					one.passed
+						? `the snippet \`${named}\` is passed to a component, which calls it with arguments ` +
+								'this compiler cannot see, so its parameters have no value to stand for'
+						: `the snippet \`${named}\` takes parameters and is never rendered`,
 				);
 			}
 			if (one.args.length !== parameters.length) {
@@ -546,6 +555,12 @@ interface Snippet {
 	parameters: number;
 	renders: number;
 	/**
+	 * Whether it was written inside a component's tag, which makes it a prop that component
+	 * receives rather than something this one renders. Svelte compiles it to a function passed
+	 * along, and the child decides when to call it and with what.
+	 */
+	passed: boolean;
+	/**
 	 * What a render has to be handed in each argument's place. The value is unused -- every
 	 * expression in the body is already a marker -- but a parameter that destructures needs
 	 * something it can be taken apart from, and `null` is not that.
@@ -562,9 +577,9 @@ interface Snippet {
  * snippet it names -- which is legal, and which the compiler handles: a marker carries its own
  * index, so where it comes back is not where it was written.
  */
-function snippetsIn(node: unknown, into: Map<string, Snippet>): void {
+function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = false): void {
 	if (Array.isArray(node)) {
-		for (const one of node) snippetsIn(one, into);
+		for (const one of node) snippetsIn(one, into, inside);
 		return;
 	}
 	if (!isNode(node)) return;
@@ -572,9 +587,16 @@ function snippetsIn(node: unknown, into: Map<string, Snippet>): void {
 	if (node['type'] === 'SnippetBlock') {
 		const id = node['expression'];
 		if (isNode(id) && typeof id['name'] === 'string') {
-			const one = into.get(id['name']) ?? { parameters: 0, renders: 0, holds: [], args: [] };
+			const one = into.get(id['name']) ?? {
+				parameters: 0,
+				renders: 0,
+				passed: false,
+				holds: [],
+				args: [],
+			};
 			const parameters = Array.isArray(node['parameters']) ? node['parameters'] : [];
 			one.parameters = parameters.length;
+			one.passed = inside;
 			one.holds = parameters.map((parameter) =>
 				isNode(parameter) && parameter['type'] === 'ObjectPattern'
 					? '{}'
@@ -589,13 +611,21 @@ function snippetsIn(node: unknown, into: Map<string, Snippet>): void {
 		const call = node['expression'];
 		const callee = isNode(call) ? call['callee'] : undefined;
 		if (isNode(call) && isNode(callee) && typeof callee['name'] === 'string') {
-			const one = into.get(callee['name']) ?? { parameters: 0, renders: 0, holds: [], args: [] };
+			const one = into.get(callee['name']) ?? {
+				parameters: 0,
+				renders: 0,
+				passed: false,
+				holds: [],
+				args: [],
+			};
 			one.renders += 1;
 			one.args = Array.isArray(call['arguments']) ? call['arguments'] : [];
 			into.set(callee['name'], one);
 		}
 	}
-	for (const value of Object.values(node)) snippetsIn(value, into);
+	// Inside a component's tag, a snippet is a prop rather than something this component renders.
+	const within = inside || node['type'] === 'Component' || node['type'] === 'SvelteComponent';
+	for (const value of Object.values(node)) snippetsIn(value, into, within);
 }
 
 function rewrite(source: string, taken: (block: number) => boolean): Rewritten {

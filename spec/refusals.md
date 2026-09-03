@@ -179,11 +179,13 @@ before that, because the invariant reports a value arriving twice and says nothi
 snippet that put it there. It is also what makes a parameter tractable at all -- one call means one
 argument per parameter.
 
-**`{@render children()}` is not a snippet problem.** It renders a snippet that came in as a prop,
-which is the markup a *parent* wrote inside the child's tag -- so it is composition running the
-other way from the one this compiler does, which inlines a child into its parent. It is 600 of the
-4323 and the largest thing after `{...spread}`, and it is recorded here as its own question rather
-than as a missing piece of this one.
+**A snippet written inside a component's tag is a prop that component receives.** Svelte compiles
+it to a function passed along, and the child decides when to call it and with what. One with no
+parameters has nothing to decide and **works** -- that is what `{@render children()}` is, measured
+on a page whose child renders the markup the page wrote inside its tag. One with parameters is
+refused, because the arguments are chosen by the child and are not visible from here; it used to be
+refused for saying it was never rendered, which was wrong in a way that would have sent an author
+looking for the wrong thing.
 
 ## `class:` and `style:` are one problem, and it is the enumerable decision
 
