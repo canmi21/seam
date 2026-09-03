@@ -61,7 +61,9 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 | | |
 | --- | --- |
 | `{#await}`, `{#key}`, an `{:else}` on an each | measured, trivial, unwritten |
-| snippets, children, `{@render}`, `{@const}` | inlining, or a substitution one scope further in |
+| a snippet with parameters, or rendered twice | the body would need a different value per call, or would have to stand in two places |
+| `{@render}` of a snippet from a prop | composition in the other direction; see below |
+| `{@const}` | a substitution one scope further in |
 | `class:`, `style:`, `<select value>`, `translate={true}` | decidable by enumeration; deferred on what they are worth |
 | a `bind:` the server writes | there is nowhere to plant the marker: `bind:` takes a name, not an expression |
 | `{...spread}`, `<svelte:element>` | an unenumerable decision, so a small closed runtime node |
@@ -78,34 +80,34 @@ that is how a compiler comes to spend its effort on the wrong refusal. So the sa
 statically over every `.svelte` file on this machine -- 4323 of them, a real application and the
 dependency tree it installs.
 
-**43 of the 4323 would be refused for nothing: 1.0%.** What stops the rest, most common first:
+**44 of the 4323 would be refused for nothing: 1.0%.** What stops the rest, most common first:
 
 ```
 4157  {...spread}                             96%
- 604  {@render}
-  95  {#snippet}                81  a bind: the server writes
-  63  {@const}                  15  a name assigned after it is declared
-  12  {#key}                    11  class:
-   7  style:                     6  <svelte:element>
+ 600  a render of a snippet from a prop
+  81  a bind: the server writes  80  a snippet with parameters
+  63  {@const}                   15  a name assigned after it is declared
+  12  {#key}                     11  class:
 ```
 
 **The ranking is different for the application's own components**, and the difference is not noise.
-Of the 4323, only 42 are written by the author rather than installed, and 15 of those compile:
+Of the 4323, only 42 are written by the author rather than installed, and 16 of those compile:
 
 ```
-  11  {@render}                  9  class:
-   8  {#snippet}                 7  {@const}
+   9  class:                     7  {@const}
+   7  a render of a snippet from a prop        5  a snippet with parameters
    3  a bind: the server writes  3  {...spread}
-   2  style:                     1  <svelte:element>
+   3  a render with arguments    2  style:
 ```
 
-Three things have been taken off these lists by consulting them, and all three moved the second far
+Four things have been taken off these lists by consulting them, and all four moved the second far
 more than the first. Runes led the application's own at 33 of 42 and sat third in the whole set at
 584; an each with a key or an index led what was left, at 18 and 8; `bind:` led what was left after
 that, at 12, and three quarters of its uses turned out to be bindings the server writes nothing
-for. The application's own components went from 2 that compile to 8, 12, and 15, where the whole
-set went from 28 to 43. That is what a ranking is for: `{...spread}` at 96% is what the first list
-is really about, and it is a different kind of work.
+for; a local snippet with no parameters was the tractable half of what came next. The application's
+own components went from 2 that compile to 8, 12, 15, and 16, where the whole set went from 28 to
+44. That is what a ranking is for: `{...spread}` at 96% is what the first list is really about, and
+it is a different kind of work.
 
 **A library component is a wrapper**, and forwarding its caller's attributes with `{...restProps}`
 is what a wrapper does, so `{...spread}` is nearly universal there and nearly absent in an
@@ -141,6 +143,35 @@ never came back name the omitted ones, which needs no list at all. It was turned
 would make an unconsumed hole mean *the server omits this* rather than *content was lost*, and that
 invariant is what has caught four defects here. **A list that can go stale is cheaper than an
 invariant that can no longer fail.**
+
+## A snippet is inlining, and the render does it
+
+Svelte's server compiles `{#snippet name()}` to a function declaration -- `function name($$renderer)
+{ ... }` -- and `{@render name()}` to a call. So a component that declares a snippet and renders it
+inlines it, and this compiler gets that for free: the skeleton comes from rendering, and Svelte
+calls the function while it renders.
+
+What the walk has to do is plant the markers in the snippet's body where it is *written*, and they
+come back where it is *called*. That is fine because **a marker carries its own index**, so a
+snippet declared below the render tag that names it works exactly as well as one declared above --
+measured, along with snippets holding an `{#if}` and an `{#each}` of their own.
+
+Two shapes are refused and the reasons are different:
+
+**Parameters.** `{#snippet row(v)}` takes its value from the `{@render}` that calls it rather than
+from the payload, so one body would need a different value per call. That is the same shape as a
+per-item derivation, recorded in [derivation.md](derivation.md).
+
+**Rendered more than once.** One body cannot stand in two places: every marker in it would come
+back twice, which the rule that each is consumed exactly once catches on its own. It is refused
+before that, because the invariant reports a value arriving twice and says nothing about the
+snippet that put it there.
+
+**`{@render children()}` is not a snippet problem.** It renders a snippet that came in as a prop,
+which is the markup a *parent* wrote inside the child's tag -- so it is composition running the
+other way from the one this compiler does, which inlines a child into its parent. It is 600 of the
+4323 and the largest thing after `{...spread}`, and it is recorded here as its own question rather
+than as a missing piece of this one.
 
 ## The compiler refuses by allowlist
 

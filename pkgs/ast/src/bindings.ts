@@ -747,6 +747,17 @@ function markup(
 		return;
 	}
 
+	if (type === 'SnippetBlock') {
+		// The parameters are the block's own, bound for the extent of its body, which is the same
+		// arrangement an each block has.
+		const inner = new Set(scope);
+		for (const parameter of Array.isArray(node['parameters']) ? node['parameters'] : []) {
+			bound(parameter, inner);
+		}
+		markup(node['body'], source, inner, into, carried);
+		return;
+	}
+
 	if (type === 'EachBlock') {
 		report(node['expression'], source, scope, into, carried);
 		const inner = new Set(scope);
@@ -774,6 +785,26 @@ function markup(
  * An empty `unresolved` means each name is a prop, an each binding, an import, something the
  * expression bound itself, or one of the globals that reads the same everywhere.
  */
+/**
+ * Every snippet the markup declares, by name.
+ *
+ * A snippet is a name the component binds, and `{@render}` reads it, so it belongs in scope like
+ * an each block's item. It is collected before the walk rather than during it, because a render
+ * tag may be written above the snippet it names.
+ */
+function snippetNames(node: unknown, into: Set<string>): void {
+	if (Array.isArray(node)) {
+		for (const one of node) snippetNames(one, into);
+		return;
+	}
+	if (!isNode(node)) return;
+	if (node['type'] === 'SnippetBlock') {
+		const id = node['expression'];
+		if (isNode(id) && typeof id['name'] === 'string') into.add(id['name']);
+	}
+	for (const value of Object.values(node)) snippetNames(value, into);
+}
+
 export function bindings(source: string): Bindings {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const found: Unresolved[] = [];
@@ -783,7 +814,11 @@ export function bindings(source: string): Bindings {
 		used: new Set<string>(),
 		declares: declares.has,
 	};
-	markup(ast['fragment'], source, props(ast['instance']), found, carried);
+	// A snippet's own name, and the names its parameters bind, are the component's rather than the
+	// payload's. See spec/refusals.md.
+	const scope = new Set(props(ast['instance']));
+	snippetNames(ast['fragment'], scope);
+	markup(ast['fragment'], source, scope, found, carried);
 	const used = [...carried.used]
 		.toSorted()
 		.map((name) => carried.known.get(name))

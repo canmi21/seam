@@ -110,6 +110,20 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// A snippet is a function Svelte's server declares and `{@render}` calls, so rendering the
+		// component inlines it: the body's markers are planted where it is written and come back
+		// where it is called, which a marker's own index makes fine. Declared after the render tag
+		// on purpose, and holding blocks of its own. See spec/refusals.md.
+		name: 'a local snippet with no parameters',
+		source:
+			`${PROPS}<div>{@render head()}</div>` +
+			'{#snippet head()}<h1>{data.a}</h1>{#if data.f}<b>{data.a}</b>{/if}{/snippet}',
+		data: [
+			{ a: 'v', f: true },
+			{ a: '<&', f: false },
+		],
+	},
+	{
 		name: 'markup that is inert on the server',
 		source:
 			'<script>function act() {} let { data } = $props()</script>' +
@@ -137,8 +151,16 @@ const refused: Case[] = [
 	{ name: 'await block', source: `${PROPS}{#await data.p}<p>w</p>{:then v}<p>{v}</p>{/await}` },
 	{ name: 'key block', source: `${PROPS}{#key data.k}<p>{data.a}</p>{/key}` },
 	{
-		name: 'snippet and render',
+		name: 'a snippet with parameters',
 		source: `${PROPS}{#snippet r(v)}<p>{v}</p>{/snippet}{@render r(data.a)}`,
+	},
+	{
+		name: 'a snippet rendered twice',
+		source: `${PROPS}{#snippet h()}<p>{data.a}</p>{/snippet}{@render h()}{@render h()}`,
+	},
+	{
+		name: 'a render of a snippet from a prop',
+		source: `${PROPS}<div>{@render data.children()}</div>`,
 	},
 	{ name: 'const tag', source: `${PROPS}{#each data.xs as x}{@const u = x}<p>{u}</p>{/each}` },
 	{

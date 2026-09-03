@@ -103,8 +103,6 @@ const REFUSED: Record<string, string> = {
 		'`{#await}` is not handled yet. A synchronous render always takes its pending branch, which ' +
 		'is measured and small',
 	KeyBlock: '`{#key}` is not handled yet. Its only effect is on the client, and it is measured',
-	SnippetBlock: '`{#snippet}` is not handled yet. It is inlining, which composition already does',
-	RenderTag: '`{@render}` is not handled yet. It is inlining, which composition already does',
 	ConstTag:
 		'`{@const}` is not handled yet. It declares a name inside a block, which is the substitution ' +
 		'a script declaration already gets, applied one scope further in',
@@ -165,6 +163,8 @@ function collect(
 	stream: Stream,
 	/** An expression as the compiler will see it, with declared names already substituted. */
 	expand: Locals['rewrite'],
+	/** Every snippet this component declares, by name, with how many parameters it takes. */
+	snippets: ReadonlyMap<string, Snippet>,
 ) {
 	if (!isNode(node)) return;
 	const type = node['type'];
@@ -173,7 +173,7 @@ function collect(
 	}
 
 	const walk = (child: unknown, into: Stream = stream): void => {
-		collect(source, child, holes, edits, blocks, taken, into, expand);
+		collect(source, child, holes, edits, blocks, taken, into, expand, snippets);
 	};
 	const fragment = (of: unknown, into: Stream = stream): void => {
 		if (!isNode(of)) return;
@@ -245,6 +245,50 @@ function collect(
 				);
 			}
 			for (const part of parts) walk(part);
+			return;
+		}
+
+		case 'SnippetBlock': {
+			// The body's holes are planted here and come back where the snippet is rendered, which
+			// is fine: a marker carries its own index, so where it lands is not where it was
+			// written. A parameter is a different thing entirely -- its value comes from the call
+			// rather than from the payload, and one body would need a different one per call.
+			const declared = (Array.isArray(node['parameters']) ? node['parameters'] : []).length;
+			if (declared > 0) {
+				refuse(
+					'a `{#snippet}` that takes parameters is not handled yet: the value comes from the ' +
+						'`{@render}` that calls it, so one body would need a different value per call',
+				);
+			}
+			fragment(node['body']);
+			return;
+		}
+
+		case 'RenderTag': {
+			const call = node['expression'];
+			const callee = isNode(call) ? call['callee'] : undefined;
+			const name = isNode(callee) && typeof callee['name'] === 'string' ? callee['name'] : null;
+			const one = name === null ? undefined : snippets.get(name);
+			if (one === undefined) {
+				refuse(
+					'`{@render}` of a snippet this component does not declare is not handled yet: the ' +
+						'snippet comes from the call site, which is composition in the other direction',
+				);
+			}
+			// Rendered twice, one body would have to appear twice, and its markers with it. The hole
+			// check catches that on its own, but it reports a value coming back more than once, which
+			// says nothing about the snippet that put it there.
+			if ((one?.renders ?? 0) > 1) {
+				refuse(
+					`the snippet \`${String(name)}\` is rendered ${String(one?.renders)} times, and one ` +
+						'body cannot stand in two places: each marker in it would come back more than once',
+				);
+			}
+			if ((isNode(call) && Array.isArray(call['arguments']) ? call['arguments'] : []).length > 0) {
+				refuse('`{@render}` with arguments is not handled yet: the snippet takes no parameters');
+			}
+			// Nothing is planted. The body was walked where it was declared, and calling it is what
+			// puts those markers in the output.
 			return;
 		}
 
@@ -357,6 +401,46 @@ function titles(node: unknown, guarded = false): { found: number; conditional: b
  * `{#if false}` still writes `<!--[-1-->` -- so a branch can be chosen by editing the source
  * rather than by threading a prop through the component.
  */
+/** What a component declares under one snippet name, and how many times it renders it. */
+interface Snippet {
+	parameters: number;
+	renders: number;
+}
+
+/**
+ * Every snippet the markup declares, and every `{@render}` that names one.
+ *
+ * Collected before the walk rather than during it, because a render tag may be written above the
+ * snippet it names -- which is legal, and which the compiler handles: a marker carries its own
+ * index, so where it comes back is not where it was written.
+ */
+function snippetsIn(node: unknown, into: Map<string, Snippet>): void {
+	if (Array.isArray(node)) {
+		for (const one of node) snippetsIn(one, into);
+		return;
+	}
+	if (!isNode(node)) return;
+
+	if (node['type'] === 'SnippetBlock') {
+		const id = node['expression'];
+		if (isNode(id) && typeof id['name'] === 'string') {
+			const one = into.get(id['name']) ?? { parameters: 0, renders: 0 };
+			one.parameters = (Array.isArray(node['parameters']) ? node['parameters'] : []).length;
+			into.set(id['name'], one);
+		}
+	}
+	if (node['type'] === 'RenderTag') {
+		const call = node['expression'];
+		const callee = isNode(call) ? call['callee'] : undefined;
+		if (isNode(callee) && typeof callee['name'] === 'string') {
+			const one = into.get(callee['name']) ?? { parameters: 0, renders: 0 };
+			one.renders += 1;
+			into.set(callee['name'], one);
+		}
+	}
+	for (const value of Object.values(node)) snippetsIn(value, into);
+}
+
 function rewrite(source: string, taken: (block: number) => boolean): Rewritten {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
 	const holes: Hole[] = [];
@@ -370,7 +454,9 @@ function rewrite(source: string, taken: (block: number) => boolean): Rewritten {
 	// its place rather than the expression it stood for.
 	for (const [[from, to], empty] of declared.reading) edits.push([from, to, empty]);
 
-	collect(source, ast['fragment'], holes, edits, blocks, taken, 'body', declared.rewrite);
+	const snippets = new Map<string, Snippet>();
+	snippetsIn(ast['fragment'], snippets);
+	collect(source, ast['fragment'], holes, edits, blocks, taken, 'body', declared.rewrite, snippets);
 
 	return { rewritten: apply(source, edits), holes, blocks };
 }
