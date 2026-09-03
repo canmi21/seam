@@ -61,6 +61,14 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }, { a: null }],
 	},
 	{
+		// The scoped class is a hash of the filename relative to `rootDir`, so this also pins that
+		// the render pass passes one. What it does not pin is that the client build passes the same
+		// one; that is `pkgs/plugin`, where the two halves are held against each other.
+		name: 'a scoped style',
+		source: `${PROPS}<p class="x">{data.a}</p><style>.x{color:red}</style>`,
+		data: [{ a: 'v' }],
+	},
+	{
 		name: 'markup that is inert on the server',
 		source:
 			'<script>function act() {} let { data } = $props()</script>' +
@@ -71,10 +79,6 @@ const accepted: Case[] = [
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
-	{
-		name: 'a style block',
-		source: `${PROPS}<p class="x">{data.a}</p><style>.x{color:red}</style>`,
-	},
 	{ name: 'class: directive', source: `${PROPS}<p class:on={data.f}>x</p>` },
 	{ name: 'style: directive', source: `${PROPS}<p style:color={data.a}>x</p>` },
 	{ name: 'a spread', source: `${PROPS}<p {...data.attrs}>x</p>` },
@@ -150,7 +154,11 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 		const out = resolve(staging, `ok-${at}.js`);
 		writeFileSync(
 			out,
-			compile(one.source, { generate: 'server', name: 'C', filename: file }).js.code,
+			// The same `rootDir` the compiler used. Svelte hashes the filename, relative to it, into a
+			// head anchor and into a scoped class, so an oracle rooted elsewhere renders a different
+			// component. See spec/build.md.
+			compile(one.source, { generate: 'server', name: 'C', filename: file, rootDir: staging }).js
+				.code,
 		);
 		const mod = (await import(pathToFileURL(out).href)) as {
 			default: Parameters<typeof render>[0];

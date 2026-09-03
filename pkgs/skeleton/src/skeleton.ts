@@ -429,21 +429,12 @@ export async function skeleton(entryFile: string, root: string): Promise<Skeleto
 
 	const parsed = parse(source, { modern: true }) as unknown as AstNode;
 
-	// `<style>` hangs off the root rather than off the fragment, so neither pass's walk can see it
-	// and neither could refuse it. A styled component compiled, exited zero, wrote Svelte's scoped
-	// class into the bytes, and carried the stylesheet nowhere: the page rendered with the class
-	// and no rule to match it. Measured, and the fourth defect of that shape in this compiler.
-	//
-	// What it waits on is named, because that is the difference between a refusal and a wall. How
-	// CSS is owned is answered in spec/build.md; what is missing is the half that emits a
-	// stylesheet at all, which is the client build the plugin runs.
-	if (parsed['css'] !== null && parsed['css'] !== undefined) {
-		refuse(
-			'a `<style>` block is not handled yet: its scoped class is written into the bytes but ' +
-				'nothing emits the stylesheet, so the page would render unstyled. It waits on the ' +
-				'plugin, which is what runs the client build; see spec/build.md',
-		);
-	}
+	// `<style>` used to be refused here. It hangs off the root rather than off the fragment, so
+	// neither pass's walk could see it and neither could refuse it: a styled component compiled,
+	// exited zero, wrote Svelte's scoped class into the bytes and carried the stylesheet nowhere.
+	// What it waited on was a half that emits one, which is the client build the plugin runs. The
+	// class is a hash of the filename relative to `rootDir`, and both halves pass the project root,
+	// which is what makes the class in these bytes the class in that stylesheet. See spec/build.md.
 
 	const { found, conditional } = titles(parsed);
 	if (found > 1) {
@@ -494,14 +485,16 @@ let generation = 0;
 
 async function renderRewritten(file: string, source: string, root: string): Promise<Rendered> {
 	const { mkdirSync, readFileSync: read, rmSync, writeFileSync } = await import('node:fs');
-	const { basename } = await import('node:path');
 	const { fileURLToPath, pathToFileURL } = await import('node:url');
 	const { render } = await import('svelte/server');
 
 	const here = dirname(fileURLToPath(import.meta.url));
-	const staging = resolvePath(here, '../.build');
-	mkdirSync(staging, { recursive: true });
+	// A directory of its own per render, and only that one is removed. It used to be one shared
+	// directory emptied in a `finally`, which is fine for one caller and a race for two: the
+	// checks drive this from several files at once and each was deleting the other's modules.
 	generation += 1;
+	const staging = resolvePath(here, `../.build/${process.pid}-${generation}`);
+	mkdirSync(staging, { recursive: true });
 	let written = 0;
 
 	function emit(from: string, code: string, origin: string): string {

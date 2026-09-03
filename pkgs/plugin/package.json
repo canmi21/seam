@@ -1,0 +1,19 @@
+{
+	"name": "plugin",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"compiler": "workspace:*",
+		"devalue": "5.9.2",
+		"svelte": "^5.57.0"
+	},
+	"devDependencies": {
+		"vite": "^8.2.2"
+	},
+	"peerDependencies": {
+		"vite": "^8.0.0"
+	}
+}

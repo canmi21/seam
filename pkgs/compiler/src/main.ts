@@ -4,9 +4,11 @@
 import { relative, resolve } from 'node:path';
 import { compile, type Entry } from './compile.ts';
 
-const [root, out, ...pairs] = process.argv.slice(2);
-if (root === undefined || out === undefined || pairs.length === 0) {
-	console.error('usage: node pkgs/compiler/src/main.ts <root> <out> <url>=<component.svelte>...');
+const [root, out, shell, ...pairs] = process.argv.slice(2);
+if (root === undefined || out === undefined || shell === undefined || pairs.length === 0) {
+	console.error(
+		'usage: node pkgs/compiler/src/main.ts <root> <out> <shell.html> <url>=<component.svelte>...',
+	);
 	process.exit(2);
 }
 
@@ -22,7 +24,9 @@ const entries: Entry[] = pairs.map((pair) => {
 	return { path: pair.slice(0, at), component: pair.slice(at + 1) };
 });
 
-const reports = await compile({ root, entries, out });
+// No asset tags: nothing here ran a client build, so a document served from this has the
+// component's own head and nothing to hydrate it with. The plugin is what fills that in.
+const reports = await compile({ root, entries, out, shell });
 for (const one of reports) {
 	console.log(`${one.path} -> ${one.id}: ${one.files.join(', ')}`);
 }

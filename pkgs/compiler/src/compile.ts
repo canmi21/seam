@@ -14,7 +14,7 @@
  *
  * See spec/build.md for the layout, and for why none of it is bundled.
  */
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
 import { bindings, bundle, type Bundle } from 'ast';
 import { carry } from 'carry';
@@ -46,6 +46,20 @@ export interface Options {
 	entries: readonly Entry[];
 	/** Where the artifacts go. The layout below is written under it. */
 	out: string;
+	/**
+	 * The document shell, copied beside the artifacts because a backend that is not Node has to
+	 * read it too. SvelteKit compiles its own into a JavaScript function, which is available to it
+	 * because its server artifact is code. See spec/build.md.
+	 */
+	shell?: string;
+	/**
+	 * What each route's document has to load, by URL, as the finished string a server concatenates.
+	 * It comes from whoever ran the client build, since that is what gives the assets their names.
+	 *
+	 * A string rather than a list of files, so that two backends never have to spell a script tag
+	 * identically -- which is a byte-level agreement of exactly the kind this protocol avoids.
+	 */
+	assets?: Readonly<Record<string, string>>;
 }
 
 /** What one component produced before anything was written down. */
@@ -84,7 +98,10 @@ function idOf(root: string, file: string): string {
  * component is the only part of it that was ever expensive. See pkgs/lowering.
  */
 export async function prepare(file: string, root: string): Promise<Prepared> {
-	const entry = resolve(file);
+	// Against the root, not the working directory. A route names its component the way the author
+	// wrote it in the configuration, which is relative to the project rather than to wherever the
+	// build happened to be started from.
+	const entry = resolve(root, file);
 	const source = readFileSync(entry, 'utf8');
 	// The order is deliberate and is not the order the fields are declared in. The render pass
 	// refuses markup nobody taught the compiler; `bundle` refuses a name nothing binds. An
@@ -129,7 +146,9 @@ export async function compile(options: Options): Promise<Report[]> {
 		try {
 			prepared.push({ ...(await prepare(entry.component, root)), path: entry.path });
 		} catch (error) {
-			refusals.push(`${relative(root, resolve(entry.component))}: ${(error as Error).message}`);
+			refusals.push(
+				`${relative(root, resolve(root, entry.component))}: ${(error as Error).message}`,
+			);
 		}
 	}
 
@@ -153,7 +172,8 @@ export async function compile(options: Options): Promise<Report[]> {
 	// Keyed by URL, because that is what a server has in its hand when a request arrives. The id
 	// stays inside: it names the artifacts and it is what Svelte hashes for a scoped class, and
 	// those are questions about the file rather than about the address. See spec/build.md.
-	const routes: Record<string, { id: string; ir: string; carried: string | null }> = {};
+	const routes: Record<string, { id: string; ir: string; carried: string | null; head: string }> =
+		{};
 
 	for (const [at, one] of prepared.entries()) {
 		const compiled = lowered[at] as Exclude<Lowered, { error: string }>;
@@ -174,14 +194,21 @@ export async function compile(options: Options): Promise<Report[]> {
 			files.push(carriedFile);
 		}
 
-		routes[one.path] = { id: one.id, ir: irFile, carried: carriedFile };
+		routes[one.path] = {
+			id: one.id,
+			ir: irFile,
+			carried: carriedFile,
+			head: options.assets?.[one.path] ?? '',
+		};
 		reports.push({ id: one.id, path: one.path, files });
 	}
 
-	write(
-		resolve(server, 'manifest.json'),
-		`${JSON.stringify({ routes, client: null }, null, '\t')}\n`,
-	);
+	if (options.shell !== undefined) {
+		mkdirSync(server, { recursive: true });
+		copyFileSync(resolve(options.shell), resolve(server, 'app.html'));
+	}
+
+	write(resolve(server, 'manifest.json'), `${JSON.stringify({ routes }, null, '\t')}\n`);
 	return reports;
 }
 

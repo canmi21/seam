@@ -18,8 +18,7 @@ const read = (path: string): string => readFileSync(resolve(root, path), 'utf8')
 
 interface Manifest {
 	/** Keyed by URL, which is what a request arrives holding. See spec/build.md. */
-	routes: Record<string, { id: string; ir: string; carried: string | null }>;
-	client: string | null;
+	routes: Record<string, { id: string; ir: string; carried: string | null; head: string }>;
 }
 
 const manifest = JSON.parse(read('dist/server/manifest.json')) as Manifest;
@@ -34,6 +33,7 @@ for (const [path, entry] of Object.entries(manifest.routes)) {
 	};
 	routes[path] = {
 		ir: compiled.ir,
+		head: entry.head,
 		// The carried bundle is read from the artifact rather than built here, which is the point
 		// of the artifact: a backend that is not Node reads this same file.
 		derive: compileDerivations(
@@ -53,7 +53,9 @@ for (const [path, entry] of Object.entries(manifest.routes)) {
 
 const port = Number(process.env['PORT'] ?? 5100);
 createServer({
-	shell: readFileSync(resolve(here, '../app.html'), 'utf8'),
+	// The shell the compiler wrote, not the one in this package: it is an artifact both backends
+	// read, and reading a different copy is how two servers come to disagree. See spec/build.md.
+	shell: read('dist/server/app.html'),
 	routes,
 	staticRoot: resolve(here, '..', 'static'),
 }).listen(port, () => {

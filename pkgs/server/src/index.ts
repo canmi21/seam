@@ -10,6 +10,11 @@ import { serveStatic } from './static.ts';
 
 export interface Route {
 	ir: ComponentIR;
+	/**
+	 * What this document has to load, as the compiler wrote it. A finished string rather than a
+	 * list of files, so that nothing here has to spell a script tag. See spec/build.md.
+	 */
+	head: string;
 	/// Runs once per request, over data, before anything is injected.
 	derive: (payload: Record<string, unknown>) => Record<string, unknown>;
 	data: Record<string, unknown>;
@@ -50,7 +55,7 @@ async function handle(
 		// is what makes the bytes and the payload agree about a raw value.
 		const scope = route.derive(clean);
 		const { body, head } = inject(route.ir, scope);
-		const html = wrap(options.shell, body, clean, head);
+		const html = wrap(options.shell, body, clean, head + route.head);
 		response.writeHead(200, {
 			'content-type': 'text/html; charset=utf-8',
 			'content-length': Buffer.byteLength(html),

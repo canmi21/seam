@@ -355,10 +355,11 @@ Recorded rather than decided, because guessing now would be worse than deciding 
   [refusals.md](refusals.md), and how a hashed asset reaches the document, which is a string the
   compiler writes into the manifest. The hash is taken over a filename Svelte makes relative to
   `rootDir`, whose default is the working directory, so **both halves of the build pass the project
-  root** -- three directories otherwise give three different classes for one file. **A `<style>` block stays
-  refused until the plugin exists**, because nothing emits a stylesheet yet; it is waiting on an
-  implementation rather than on an answer. It used to compile: the class went into the bytes, the
-  stylesheet reached no artifact, and the page rendered unstyled with an exit status of zero.
+  root** -- three directories otherwise give three different classes for one file. It is no longer refused: the plugin
+  runs the client build that emits the stylesheet, and a check holds the class in the bytes against
+  the class in that stylesheet, since neither half can be wrong alone. It used to compile without
+  either: the class went into the bytes, the stylesheet reached no artifact, and the page rendered
+  unstyled with an exit status of zero.
 - **`translate={true}`.** Svelte maps it to `translate="yes"` through a table of value
   replacements that today holds only this one name. Ours wrote no attribute at all, which is worse
   than the `"true"` this entry used to predict. The same reasoning as the boolean attributes
