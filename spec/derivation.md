@@ -338,18 +338,22 @@ budget, and that is a deployment choice rather than a rule here.
   already handles. Measured across 1107 `.svelte` files in eleven published libraries, 267 carry
   such a call. Almost every one of them imports the function it calls.
 - **A script that substitution cannot reach.** A reassignment, a mutation or a loop leaves a name
-  with no single expression standing for it, and today two of those compile and write the wrong
-  bytes. The two shapes are named rather than the choice made: **refuse them**, which is small,
-  honest, and costs a loop that builds a value; or **carry the script and run it per request**,
-  which is not a new mechanism -- `derive` already evaluates author source with `new Function`, and
-  a statement block differs from an expression only in what is returned.
+  with no single expression standing for it. **It is refused**, and the refusal is not permanent;
+  what it waits on is measured rather than argued.
 
-  What running it costs is one thing and it is not the evaluation. A backend needs a JavaScript
-  engine exactly when a component has a derivation, and 10 of the 14 components in the corpus have
-  none: their slots and tests are data paths, which a Rust server walks with no engine at all. That
-  property survives running the script only if substitution stays the thing that turns a name into
-  a path wherever it can, with the script reached for only when it cannot. Forcing every name
-  through the script would end it. See [ir.md](ir.md).
+  Across 4323 real components, 15 assign to a declared name outside a function, and **not one of
+  them is refused by that alone** -- every one is also turned away by a spread, a binding or
+  something else. So building the machinery would compile nothing that does not compile today. See
+  [refusals.md](refusals.md), where the whole ranking is.
+
+  **It is reopened when it becomes the refusal that decides a component**, which means after the
+  ones above it in that ranking. Then three questions have to be answered rather than one:
+  `<script module>` runs once where an instance script runs per render, so a preamble that merged
+  them would rebuild module state per request; the script's imports are a superset of the names
+  `carry` bundles today, which follow expressions only; and a backend needs a JavaScript engine
+  exactly when a component has a derivation -- 10 of the 14 components in the corpus have none, and
+  that survives only if substitution stays the thing that turns a name into a path wherever it can,
+  with the script reached for only where it cannot. See [ir.md](ir.md).
 - **Per-item derivation.** A derivation is computed once against the payload, so an expression
   inside an each block is refused. What it needs is a value per iteration, which is a different
   mechanism rather than a larger version of this one. See [ir.md](ir.md).

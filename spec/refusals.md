@@ -71,6 +71,45 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 was drawn.** The subset grows, and the README should say that rather than implying a boundary
 nobody has found.
 
+## How far the subset is from the ecosystem, measured
+
+The refusal surface says what is turned away. It does not say what that costs, and guessing at
+that is how a compiler comes to spend its effort on the wrong refusal. So the same rules were run
+statically over every `.svelte` file on this machine -- 4323 of them, a real application and the
+dependency tree it installs.
+
+**28 of the 4323 would be refused for nothing: 0.6%.** What stops the rest, most common first:
+
+```
+4157  {...spread}                             96%
+ 604  {@render}
+ 584  a rune read from markup
+  95  {#snippet}                95  bind:
+  63  {@const}                  32  each with a key
+  15  a name assigned after it is declared     12  {#key}
+  11  class:                    10  each with an index
+   7  style:                     6  <svelte:element>
+```
+
+**The ranking is different for the application's own components**, and the difference is not noise.
+Of the 4323, only 42 are written by the author rather than installed:
+
+```
+  33  a rune read from markup                  79%
+  18  each with a key           12  bind:
+  11  {@render}                  9  class:
+   8  each with an index         8  {#snippet}
+   7  {@const}                   3  {...spread}
+```
+
+**A library component is a wrapper**, and forwarding its caller's attributes with `{...restProps}`
+is what a wrapper does, so `{...spread}` is nearly universal there and nearly absent in an
+application. **An application component holds its own state**, so a rune reaches its markup.
+
+Both numbers matter and they answer different questions. Compiling the pages an author writes is
+the first; compiling the components they install is strictly harder, because composition pulls a
+library's components into the same compilation.
+
 ## The compiler refuses by allowlist
 
 The sentinel pass names the markup it understands and stops on everything else. It used to do the
