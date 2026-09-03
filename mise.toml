@@ -30,9 +30,10 @@ description = "Close the loop: markup fixture, lowering, the IR the specificatio
 run = "cargo test --workspace"
 
 [tasks.test]
-description = "Check both seams with Svelte: the AST we read and the HTML we emit"
+description = "Check every seam with Svelte: the AST we read, what we refuse, and the HTML we emit"
 run = [
 	"node pkgs/ast/conformance/run.ts",
+	"node pkgs/skeleton/conformance/run.ts",
 	"node pkgs/normalize/conformance/run.ts",
 	"node pkgs/injector/conformance/run.ts",
 ]

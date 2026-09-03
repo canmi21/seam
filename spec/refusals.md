@@ -48,21 +48,55 @@ The third is the only one where the author can act now, so a message that leaves
 alternative has failed. `Date.now()` is refused because it does not read the same twice, and the
 message that does not mention `$.now` has told them their code is wrong and nothing else.
 
-## Nothing is outside on principle
+## The list lives in a check, not in this file
 
-The list of what is refused today falls entirely into the first two kinds:
+**What is refused today is `pkgs/skeleton/conformance/run.ts`**, which compiles each construct and
+records whether it was turned away. This file used to carry the list instead, and the list was
+maintained by recollection. Measured against the compiler, it was wrong in both directions at
+once: it called an each block with a key and `{:else}` on an each unwritten when both compiled,
+and it did not mention `{@const}`, which compiled and rendered the wrong bytes.
+
+A list nobody runs is a claim. The check is the list, and this file keeps only the reasoning:
 
 | | |
 | --- | --- |
-| `{#await}`, `{#key}`, an each with an index or a key, `{:else}` on an each | measured, trivial, unwritten |
-| snippets, children, `{@render}` | inlining, which composition already does |
-| `class:`, `style:`, `<select value>` | decidable by enumeration; deferred on what they are worth |
+| `{#await}`, `{#key}`, an each with an index, a key or an `{:else}` | measured, trivial, unwritten |
+| snippets, children, `{@render}`, `{@const}` | inlining, or a substitution one scope further in |
+| `class:`, `style:`, `<select value>`, `translate={true}` | decidable by enumeration; deferred on what they are worth |
 | `{...spread}`, `<svelte:element>` | an unenumerable decision, so a small closed runtime node |
-| per-item derivation, which of two titles wins, who owns CSS | not decided |
+| `<style>` | waits on who owns the document shell; see [build.md](build.md) |
+| per-item derivation, which of two titles wins | not decided |
 
 **So "a subset of Svelte" is a statement about how far the work has got, not about where a line
 was drawn.** The subset grows, and the README should say that rather than implying a boundary
 nobody has found.
+
+## The compiler refuses by allowlist
+
+The sentinel pass names the markup it understands and stops on everything else. It used to do the
+opposite -- handle what it knew, then recurse over every property of anything else -- and that
+fallthrough is where every defect above came from. A construct it had never been taught descended
+quietly, planted no sentinel, and rendered wrong with an exit status of zero.
+
+**The refusal existed and was not carried across.** The pass that wrote the bytes walked the
+markup and refused a node it did not know; the pass that renders reads a string and never sees a
+node, so only one part of that refusal was rebuilt -- the one about holes, which is what caught
+`<svelte:head>`. Three constructs went through the part that was not rebuilt.
+
+Three things an allowlist over node types cannot catch, because they are not node types, and each
+is checked on its own:
+
+| | what it is |
+| --- | --- |
+| `<style>` | hangs off the AST root, not the fragment, so neither walk reaches it |
+| an each block's `index`, `key` and `{:else}` | fields of a node the compiler does handle |
+| `translate={true}` | the shape of an attribute's value, which Svelte maps through a table |
+
+**And an accepted construct is only accepted on the payloads it was tried with.** `{:else}` on an
+each agreed with Svelte byte for byte against a list with something in it, because the branch it
+turns on renders only when the list is empty. Every case in the check carries the payload its
+shape turns on. This is [pipeline.md](pipeline.md)'s rule about static examples, applied to the
+check that enforces it.
 
 One thing is not looked at closely enough to be listed either way. **Context** -- `setContext` and
 `getContext` -- writes nothing structural into the bytes, but where its value comes from would

@@ -350,13 +350,18 @@ Recorded rather than decided, because guessing now would be worse than deciding 
 
 - **Who owns CSS.** Undecided, and it blocks the row above. A component's `<style>` compiles to a
   separate artifact, but its scoped class is in the response bytes and its hash is taken over the
-  filename, so the clean split the table used to claim does not exist. Deciding it needs the
-  answer to what happens to a component the compiler refuses, since a page whose styles cannot be
-  served is the same kind of failure. Nothing here should be written until that is settled.
+  filename, so the clean split the table used to claim does not exist. What it waited on -- what
+  happens to a component the compiler refuses -- is settled in [refusals.md](refusals.md); what it
+  waits on now is who owns the document shell and what shape the client half takes, which
+  [build.md](build.md) defers to the plugin. **A `<style>` block is refused until then**, and the
+  message says so. It used to compile: the scoped class went into the bytes, the stylesheet
+  reached no artifact, and the page rendered unstyled with an exit status of zero.
 - **`translate={true}`.** Svelte maps it to `translate="yes"` through a table of value
-  replacements that today holds only this one name. Ours would write `"true"`. The same reasoning
-  as the boolean attributes applies and the fix is the same shape; it is left until a second entry
-  makes the table worth carrying.
+  replacements that today holds only this one name. Ours wrote no attribute at all, which is worse
+  than the `"true"` this entry used to predict. The same reasoning as the boolean attributes
+  applies and the fix is the same shape; it is left until a second entry makes the table worth
+  carrying. **It is refused rather than written wrong**, and only when the value is not plain
+  text, since a literal `translate="no"` never reaches the table.
 - **`class:` and `style:` directives.** Deferred on what they are worth rather than blocked on
   anything. Both are decision positions over two outcomes, so the mechanism is the one the blocks
   already use, and the IR needs no new node: an `if` inside an element's node list can hold the

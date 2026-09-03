@@ -8,5 +8,9 @@
 	"dependencies": {
 		"ast": "workspace:*",
 		"svelte": "^5.57.0"
+	},
+	"devDependencies": {
+		"injector": "workspace:*",
+		"lowering": "workspace:*"
 	}
 }
