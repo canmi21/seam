@@ -5,12 +5,43 @@ import { apply, destructure, type Locals, locals, resolved } from 'ast';
 import { OMITTED_IN_SSR } from './omitted.ts';
 import { sentinel } from './sentinel.ts';
 
+/**
+ * A decision position: the value chooses which bytes exist rather than being written into them.
+ *
+ * `tests` are the directive expressions in source order, and `outcomes` holds one finished
+ * attribute string per combination of their truthiness, indexed by the bits -- test `i` truthy
+ * sets bit `i`. Every string in it came out of Svelte's own `attr_class`, so the joining, the
+ * removal branch, the escaping and the empty result that writes no attribute at all are its
+ * answers rather than reproductions of them. See spec/refusals.md.
+ */
+export interface Choice {
+	tests: string[];
+	outcomes: string[];
+}
+
 /** One dynamic position, in the order it appears in the source. */
 export interface Hole {
 	index: number;
 	expression: string;
 	/** `{@html}`, which is the one thing about a hole the output cannot reveal. */
 	raw: boolean;
+	/** Set when the hole is a decision rather than a substitution. */
+	choice?: Choice;
+}
+
+/**
+ * What a class decision needs before the render, which is everything but the scoping hash.
+ *
+ * The hash is a hash of the filename and of the stylesheet, and Svelte appends it to the class
+ * itself, so the only place to read it without reproducing it is the render this pass is about to
+ * make. The outcomes are finished afterwards, in `skeleton`.
+ */
+interface PendingChoice {
+	index: number;
+	tests: string[];
+	names: string[];
+	/** The class attribute as written, or the empty string where there was none. */
+	base: string;
 }
 
 /** Which of Svelte's two output streams something was rendered into. */
@@ -120,10 +151,6 @@ const REFUSED: Record<string, string> = {
 		'this `bind:` is one the server writes, and the value has nowhere to be planted: `bind:` ' +
 		'takes a name rather than an expression, so a marker cannot stand where the value goes. The ' +
 		'bindings that write nothing are handled',
-	ClassDirective:
-		'`class:` is not handled yet. Whether the class name is written is decided by the value ' +
-		'rather than the value being written, so a marker has nowhere to stand; the two outcomes ' +
-		'can be enumerated, which is the mechanism it waits on',
 	StyleDirective:
 		'`style:` is not handled yet. Its value is written, but the declaration is dropped when the ' +
 		'value is nullish, so it is a substitution inside a decision and waits on the same mechanism ' +
@@ -164,6 +191,8 @@ function collect(
 	expand: Locals['rewrite'],
 	/** Every snippet this component declares, by name, with how many parameters it takes. */
 	snippets: ReadonlyMap<string, Snippet>,
+	/** Class decisions found on the way, to be finished once the render says what the hash is. */
+	pending: PendingChoice[],
 ) {
 	if (!isNode(node)) return;
 	const type = node['type'];
@@ -172,7 +201,7 @@ function collect(
 	}
 
 	const walk = (child: unknown, into: Stream = stream): void => {
-		collect(source, child, holes, edits, blocks, taken, into, expand, snippets);
+		collect(source, child, holes, edits, blocks, taken, into, expand, snippets, pending);
 	};
 	const fragment = (of: unknown, into: Stream = stream): void => {
 		if (!isNode(of)) return;
@@ -240,7 +269,7 @@ function collect(
 				expand(child, more === undefined ? bound : new Map([...bound, ...more]));
 			for (const child of nodes) {
 				if (isNode(child) && child['type'] === 'ConstTag') continue;
-				collect(source, child, holes, edits, blocks, taken, stream, inner, snippets);
+				collect(source, child, holes, edits, blocks, taken, stream, inner, snippets, pending);
 			}
 			return;
 		}
@@ -270,7 +299,13 @@ function collect(
 		case 'Component':
 		case 'TitleElement': {
 			const attributes = node['attributes'];
-			if (Array.isArray(attributes)) for (const attr of attributes) walk(attr);
+			// The class directives are taken together with the class attribute, because that is how
+			// Svelte writes them: one call producing one attribute, not one attribute plus a list of
+			// additions. What is left after this is walked the ordinary way.
+			const handled = classes(node, holes, edits, expand, pending);
+			if (Array.isArray(attributes)) {
+				for (const attr of attributes) if (!handled.has(attr)) walk(attr);
+			}
 			walk(node['fragment']);
 			return;
 		}
@@ -376,7 +411,7 @@ function collect(
 			const body = node['body'];
 			const nodes = isNode(body) ? body['nodes'] : undefined;
 			for (const child of Array.isArray(nodes) ? nodes : []) {
-				collect(source, child, holes, edits, blocks, taken, stream, inner, snippets);
+				collect(source, child, holes, edits, blocks, taken, stream, inner, snippets, pending);
 			}
 			return;
 		}
@@ -650,6 +685,7 @@ function rewrite(source: string, taken: (block: number) => boolean): Rewritten {
 	const holes: Hole[] = [];
 	const blocks: Block[] = [];
 	const edits: [number, number, string][] = [];
+	const pending: PendingChoice[] = [];
 	const declared = locals(source);
 
 	// A render is given no data, so a declaration reading a prop would evaluate against nothing
@@ -660,9 +696,163 @@ function rewrite(source: string, taken: (block: number) => boolean): Rewritten {
 
 	const snippets = new Map<string, Snippet>();
 	snippetsIn(ast['fragment'], snippets);
-	collect(source, ast['fragment'], holes, edits, blocks, taken, 'body', declared.rewrite, snippets);
+	collect(source, ast['fragment'], holes, edits, blocks, taken, 'body', declared.rewrite, snippets, pending);
 
-	return { rewritten: apply(source, edits), holes, blocks };
+	return { rewritten: apply(source, edits), holes, blocks, pending };
+}
+
+/**
+ * How many outcomes a single element's class directives may have.
+ *
+ * The outcomes are enumerated, so `n` directives on one element cost `2^n` strings. Four directives
+ * is past anything measured -- the most on one element in a real application is two -- and the
+ * limit exists so the cost is refused with a number in it rather than paid quietly.
+ */
+const CHOICES = 16;
+
+/**
+ * `class:` is one decision over the whole class attribute, not an addition beside it.
+ *
+ * Read out of Svelte's server transform rather than guessed. `build_attr_class` collects every
+ * directive on the element and emits a single `$.attr_class(value, hash, directives)`, and
+ * `to_class` appends the name of each truthy directive **and removes the name of each falsy one
+ * from the value it was handed**. So a directive is not something added to a class attribute: it
+ * decides what the attribute is, and it can decide the attribute away entirely -- `class="on"` with
+ * `class:on={false}` writes no class attribute at all. The analysis phase also invents an empty
+ * class attribute when a directive has none to work with, at the end of the attribute list, which
+ * is why one written here goes there too.
+ *
+ * The value never reaches the bytes; only its truthiness does. That makes this a decision position
+ * in the sense spec/pipeline.md sets out, and a decision is compilable when its outcomes can be
+ * enumerated. These can: `2^n` of them, each computed by calling Svelte's own `attr_class`, so
+ * neither the joining nor the removal nor the escaping nor the empty result is reproduced here.
+ *
+ * What is planted is a marker as the whole class value, with the directives deleted. That is the
+ * anchor: the render then carries ` class="<marker> <hash>"` at exactly the position the attribute
+ * belongs, which lowering already knows how to find and replace whole. See spec/refusals.md.
+ *
+ * @returns the attributes this took charge of, which the caller must not walk again.
+ */
+function classes(
+	node: AstNode,
+	holes: Hole[],
+	edits: [number, number, string][],
+	expand: Locals['rewrite'],
+	pending: PendingChoice[],
+): ReadonlySet<unknown> {
+	const empty: ReadonlySet<unknown> = new Set();
+	// Only a real element. Anything else carrying one of these is refused where it always was,
+	// which says what the construct is rather than what its attribute would have been.
+	if (node['type'] !== 'RegularElement') return empty;
+	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
+	const directives = attributes.filter(
+		(one): one is AstNode => isNode(one) && one['type'] === 'ClassDirective',
+	);
+	if (directives.length === 0) return empty;
+
+	if (1 << directives.length > CHOICES) {
+		refuse(
+			`this element has ${String(directives.length)} \`class:\` directives, which is ` +
+				`${String(1 << directives.length)} outcomes to enumerate. The mechanism is enumeration, ` +
+				`so the limit is ${String(CHOICES)}`,
+		);
+	}
+
+	const attribute = attributes.find(
+		(one) => isNode(one) && one['type'] === 'Attribute' && one['name'] === 'class',
+	);
+	let base = '';
+	if (isNode(attribute)) {
+		const value = attribute['value'];
+		const parts = value === true ? [] : Array.isArray(value) ? value : [value];
+		if (!parts.every((part) => isNode(part) && part['type'] === 'Text')) {
+			refuse(
+				'`class:` beside a `class` whose value is an expression is not handled yet: a falsy ' +
+					'directive removes its own name from that value, so which bytes exist is decided by a ' +
+					'string that only exists per request. Writing the whole class as one expression, ' +
+					'`class={...}` with no directive beside it, is a substitution, and that is handled',
+			);
+		}
+		base = parts.map((part) => String((part as AstNode)['data'] ?? '')).join('');
+	}
+
+	const index = holes.length;
+	const tests = directives.map((one) => expand(one['expression']));
+	holes.push({ index, expression: '', raw: false, choice: { tests, outcomes: [] } });
+	pending.push({ index, tests, names: directives.map((one) => String(one['name'])), base });
+
+	// The marker is appended to the class rather than put in place of it, and the directives stay
+	// where they are. Both matter, and neither was obvious: whether Svelte scopes an element is
+	// decided by whether a selector in the `<style>` matches it, and it matches against the class
+	// attribute's *text* and against the directive names -- `css-prune.js` reads a `ClassDirective`
+	// for exactly that. Replacing the text with an expression, or deleting a directive, tells the
+	// analysis the element is no longer selected, and the scoping hash then never reaches the
+	// render this pass reads it out of. Measured: the hash silently went missing.
+	//
+	// Every directive is made false so that nothing is appended after the marker, which leaves the
+	// hash as the whole of what follows it and makes reading it a `slice` rather than a parse.
+	for (const one of directives) {
+		const at = span(one);
+		if (at !== null) edits.push([at[0], at[1], `class:${String(one['name'])}={false}`]);
+	}
+	const marker = sentinel(index);
+	const at = span(attribute);
+	if (at !== null) {
+		edits.push([at[0], at[1], `class="${base === '' ? marker : `${base} ${marker}`}"`]);
+	} else {
+		// Where Svelte's own invented one goes, which is after every attribute that was written.
+		const last = Math.max(...attributes.map((one) => span(one)?.[1] ?? 0));
+		edits.push([last, last, ` class="${marker}"`]);
+	}
+
+	return new Set(isNode(attribute) ? [...directives, attribute] : directives);
+}
+
+/**
+ * Fills in each class decision's outcomes, which needs the render because it needs the hash.
+ *
+ * The scoping class is a hash of the filename relative to `rootDir` and of the stylesheet, and
+ * Svelte appends it inside the class attribute itself. Reproducing it here would be a third place
+ * that has to agree; reading it off the render is one. The marker stands as the whole class value,
+ * so whatever follows it inside the quotes is the hash and nothing else.
+ */
+async function outcomes(
+	holes: Hole[],
+	pending: readonly PendingChoice[],
+	streams: readonly string[],
+): Promise<void> {
+	if (pending.length === 0) return;
+	const { attr_class } = await import('svelte/internal/server');
+
+	for (const one of pending) {
+		const marker = sentinel(one.index);
+		let hash: string | undefined;
+		let found = false;
+		for (const stream of streams) {
+			const start = stream.indexOf(marker);
+			if (start < 0) continue;
+			const close = stream.indexOf('"', start);
+			if (close < 0) continue;
+			const after = stream.slice(start + marker.length, close);
+			hash = after.startsWith(' ') ? after.slice(1) : undefined;
+			found = true;
+			break;
+		}
+		if (!found) {
+			refuse(
+				`the class decision on \`${one.names.join('`, `')}\` was planted and no render brought ` +
+					'it back, so there is nothing to choose between',
+			);
+		}
+		const table: string[] = [];
+		for (let bits = 0; bits < 1 << one.names.length; bits++) {
+			const directives: Record<string, boolean> = {};
+			for (const [at, name] of one.names.entries()) directives[name] = ((bits >> at) & 1) === 1;
+			table.push(attr_class(one.base, hash, directives));
+		}
+		const hole = holes[one.index];
+		if (hole?.choice !== undefined) hole.choice.outcomes = table;
+	}
 }
 
 /** Both of Svelte's output streams, because reading only one of them loses content silently. */
@@ -675,6 +865,8 @@ interface Rewritten {
 	rewritten: string;
 	holes: Hole[];
 	blocks: Block[];
+	/** Class decisions whose outcomes the render has still to supply the hash for. */
+	pending: PendingChoice[];
 }
 
 /**
@@ -773,6 +965,14 @@ export async function skeleton(entryFile: string, root: string): Promise<Skeleto
 		const flipped = rewrite(source, (index) => index !== block.index);
 		alternates[String(block.index)] = await renderRewritten(file, flipped.rewritten, root);
 	}
+
+	// After every render rather than after the first: an element inside an if appears in the
+	// alternate and not in the baseline, and the hash has to be read wherever the marker landed.
+	await outcomes(baseline.holes, baseline.pending, [
+		html,
+		head,
+		...Object.values(alternates).flatMap((one) => [one.body, one.head]),
+	]);
 
 	return { html, head, alternates, holes: baseline.holes, blocks: baseline.blocks };
 }

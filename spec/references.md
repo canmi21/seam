@@ -9,6 +9,23 @@ Something appearing here is not an endorsement of it, and several entries are th
 looked at and turned down. Those are the ones most worth keeping, because a rejected option
 leaves no trace in the code.
 
+## Why this file is long, and why reading beats measuring
+
+**All this compiler changes is when the render happens.** The bytes are Svelte's, the escaping is
+Svelte's, the anchors are Svelte's; nothing here reproduces any of it. That is only possible
+because Svelte hands out the interface -- `compile`, `parse`, `render`, `compileModule`, a public
+AST, `rootDir` -- and because the rest is readable in `node_modules/svelte/src`. React offers no
+such surface, which is why every framework built on it guesses at component code from the outside
+and why so many of the entries below are things that could only ever be advice in their own
+setting and become protocol here.
+
+So a question about what Svelte does has an answer in Svelte, and the way to get it is to read it.
+Measuring first turns an open book into a black box and pays for the same fact twice. **Read, form
+the rule, then measure to confirm it -- and keep the measurement, because the reading goes stale
+and the check is what notices.** The general form of this is in
+[the workspace protocol](../../../spec/agent-protocol.md); this file is the record of having done
+it.
+
 ## The bytes
 
 **Svelte's serialized output.** The entire response format is Svelte's calling convention, not an

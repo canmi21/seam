@@ -64,7 +64,7 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 | a snippet rendered twice, or a parameter with a default | the body would have to stand in two places, or a name has no way in from the argument |
 | `{@render}` of a snippet from a prop | composition in the other direction; see below |
 | an expression over what an each binds | computed once against the payload; per-item is not decided |
-| `class:`, `style:`, `<select value>`, `translate={true}` | decidable by enumeration, and all four wait on that one mechanism; see below |
+| `style:`, `<select value>`, `translate={true}` | decidable by enumeration; `class:` was the first of these and is done, see below |
 | a `bind:` the server writes | there is nowhere to plant the marker: `bind:` takes a name, not an expression |
 | `{...spread}`, `<svelte:element>` | an unenumerable decision, so a small closed runtime node |
 | per-item derivation, which of two titles wins | not decided |
@@ -143,6 +143,23 @@ different kind of run. But the ranking that decides what to work on next is the 
    1  {@const} inside a snippet that takes parameters
    1  {#each} over a destructuring             1  a snippet rendered twice
    1  <svelte:element>                         1  style:
+   1  a marker where the child computes with the value
+   1  a marker where the child calls the value
+   1  context the entry has no ancestor to provide
+```
+
+**`class:` was the first of these to be taken, and 10 became 13.** What is left after it, first
+per component, is below. Six of the counts moved without anything being unblocked, which is what a
+first-refusal ranking does: a component held by two things reports the second once the first is
+gone.
+
+```
+   6  a block inside an else                   5  {@render} of a snippet from a prop
+   3  {...spread}                              2  a bind: the server writes
+   2  style:                                   2  a snippet rendered twice
+   1  a snippet a component is passed, with parameters
+   1  {@const} inside a snippet that takes parameters
+   1  {#each} over a destructuring             1  <svelte:element>
    1  a marker where the child computes with the value
    1  a marker where the child calls the value
    1  context the entry has no ancestor to provide
@@ -311,7 +328,7 @@ refused, because the arguments are chosen by the child and are not visible from 
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
 
-## `class:` and `style:` are one problem, and it is the enumerable decision
+## `class:` is done, and it was never the same problem as `style:`
 
 `class:on={t}` writes the class name when `t` is truthy and nothing when it is not, so the value
 **decides** rather than being written, and a marker has nowhere to stand -- which is the distinction
@@ -329,14 +346,59 @@ style:color={undefined}      Svelte writes nothing at all
 
 **Each declaration is dropped when its own value is nullish**, not only the attribute when
 everything in it comes out empty -- which `presence` already covers. So `style:` is a substitution
-*inside* a decision, and it waits on the same mechanism `class:` does rather than being the cheap
-one of the pair. It was found by trying a payload that made the decision go the other way, which is
-[pipeline.md](pipeline.md)'s rule about static examples, met again.
+*inside* a decision. It is still refused, and it is **not** waiting on what `class:` waited on: a
+class directive's value never reaches the bytes, so its outcomes are two, while a style
+declaration's value does, so its outcomes are the values.
 
-That mechanism is rendering both outcomes and keeping both, which is what an `{#if}` already gets.
-What it does not get for free is *where* the outcomes differ: a block is found in the render by the
-anchors Svelte writes around it, and a directive has none, so the two renders have to be compared.
-`<select value>` and `translate={true}` are the same shape and would come with it.
+### What the source said that no measurement had
+
+Read out of `phases/3-transform/server/visitors/shared/element.js` and
+`internal/shared/attributes.js` rather than inferred from renders, and two of the four would not
+have been found by trying payloads:
+
+- **A directive is not an addition beside the class attribute; it decides what the attribute is.**
+  Every directive on the element goes into one `$.attr_class(value, hash, directives)` call.
+- **A falsy directive is not a no-op: it removes its own name from the value it was given.**
+  `class="on"` with `class:on={false}` writes no class attribute at all, because the result comes
+  out empty and `attr_class` returns nothing rather than `class=""`.
+- **A truthy directive appends without checking**, so `class="on" class:on={true}` writes
+  `class="on on"`.
+- **The analysis invents an empty class attribute** when a directive has none to work with, and
+  puts it after every attribute that was written, wherever the directive itself was written.
+
+Confirmed afterwards by rendering each against Svelte, which is the order that
+[the workspace protocol](../../../spec/agent-protocol.md) asks for and the reason this took one
+pass rather than three.
+
+### How it compiles
+
+The outcomes are enumerated, which is the mechanism [pipeline.md](pipeline.md) names, and they are
+enumerated by **calling `attr_class` itself** -- so the joining, the removal, the escaping and the
+empty result are Svelte's answers rather than reproductions of them. `n` directives give `2^n`
+finished attribute strings, and the IR needs no new node: nested `if`s, one test each, ending in
+the bytes. The limit is 16 outcomes, refused with the number in it; the most on one element in a
+real application is two.
+
+**The anchor problem the earlier note worried about did not exist.** Lowering already finds a
+sentinel that landed inside a tag, names the attribute it landed in and owns the whole
+` name="..."` run including the space in front of it -- which is exactly the region a decision
+replaces, and exactly the shape `attr_class` returns.
+
+**What did not work was the obvious rewrite.** Putting the marker *in place of* the class value,
+and deleting the directives, silently lost the scoping hash: whether Svelte scopes an element is
+decided by whether a selector matches it, and it matches against the class attribute's text and
+against the directive names -- `css-prune.js` reads a `ClassDirective` for that. Told the element
+is no longer selected, the render carried no hash, and there was none to read. So the marker is
+**appended** to the class text and the directives stay where they are with their expressions made
+false, which leaves the analysis seeing what it would have seen and the hash as the whole of what
+follows the marker.
+
+### What is still refused
+
+`class={expr}` beside a directive. The falsy branch removes the directive's name from that value,
+so which bytes exist is decided by a string that only exists per request. Writing the whole class
+as one expression, with no directive beside it, is a substitution and has always worked -- which is
+what nearly every library does anyway, per the count in [ir.md](ir.md).
 
 ## The compiler refuses by allowlist
 

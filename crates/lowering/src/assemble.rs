@@ -16,6 +16,22 @@ pub struct Hole {
 	pub expression: String,
 	/// `{@html}`. Everything else about a hole is read off the render.
 	pub raw: bool,
+	/// Set where the hole is a decision rather than a substitution, which is what a `class:`
+	/// directive makes of the attribute it sits on. See `spec/refusals.md`.
+	#[serde(default)]
+	pub choice: Option<Choice>,
+}
+
+/// A decision whose outcomes were enumerated at compile time.
+///
+/// `tests` is one expression per directive in source order and `outcomes` holds one finished
+/// attribute string per combination of their truthiness, indexed by the bits -- test `i` truthy
+/// sets bit `i`. Each string came out of Svelte's own `attr_class`, so nothing about how a class
+/// attribute is joined, escaped or left out is decided here.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Choice {
+	pub tests: Vec<String>,
+	pub outcomes: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -179,6 +195,28 @@ fn landing(html: &str, sentinel: usize, from: usize) -> Result<Landing> {
 	Ok(Landing::Attribute { name: before[space + 1..quote].to_owned(), opens_at: from + space })
 }
 
+/// One level of a decision tree: test `at`, then the same again for what is left.
+///
+/// The empty outcome produces no node rather than an empty one, because writing nothing is what an
+/// attribute Svelte left out looks like and a node holding `""` says the same thing twice.
+fn nest(tests: &[String], outcomes: &[String], at: usize, bits: usize) -> Vec<ir::Node> {
+	let Some(test) = tests.get(at) else {
+		return match outcomes.get(bits) {
+			Some(one) if !one.is_empty() => vec![ir::Node::Static { s: one.clone() }],
+			_ => Vec::new(),
+		};
+	};
+	vec![ir::Node::If {
+		branches: vec![
+			ir::Branch {
+				test: Some(test.clone()),
+				body: nest(tests, outcomes, at + 1, bits | (1 << at)),
+			},
+			ir::Branch { test: None, body: nest(tests, outcomes, at + 1, bits) },
+		],
+	}]
+}
+
 /// Emits nodes, merging runs of literal output into one chunk apiece.
 #[derive(Default)]
 struct Out {
@@ -299,6 +337,41 @@ impl Assembler<'_> {
 	/// only evidence the compiler has, so a sentinel that never comes back in it is content that
 	/// Svelte put somewhere this pass does not look, and emitting the rest as if nothing were
 	/// missing is the worst available outcome.
+	/// The hole at `index` where it is a decision, consumed like any other hole when it is one.
+	fn choice(&mut self, index: usize) -> Result<Option<Choice>> {
+		let hole = self
+			.skeleton
+			.holes
+			.get(index)
+			.ok_or_else(|| format!("the render carries a sentinel {index} with no hole"))?;
+		let found = hole.choice.clone();
+		if found.is_some() {
+			self.consumed[index] += 1;
+		}
+		Ok(found)
+	}
+
+	/// A decision as nested ifs, one per test, ending in the bytes that combination produces.
+	///
+	/// Nested rather than one branch per combination, because a branch carries one test and a
+	/// combination is a conjunction of them. Each test is resolved once, before the tree is built,
+	/// so an expression among them becomes one derivation rather than one per path through it.
+	fn decide(&mut self, choice: &Choice) -> Result<Vec<ir::Node>> {
+		let mut tests = Vec::with_capacity(choice.tests.len());
+		for test in &choice.tests {
+			tests.push(self.path(test)?);
+		}
+		let wanted = 1usize << tests.len();
+		if choice.outcomes.len() != wanted {
+			return Err(format!(
+				"a decision over {} tests carries {} outcomes rather than {wanted}",
+				tests.len(),
+				choice.outcomes.len()
+			));
+		}
+		Ok(nest(&tests, &choice.outcomes, 0, 0))
+	}
+
 	fn hole(&mut self, index: usize) -> Result<(String, bool)> {
 		let hole = self
 			.skeleton
@@ -388,7 +461,7 @@ impl Assembler<'_> {
 					out.push(ir::Node::Slot { path, escape });
 					at = end;
 				}
-				Landing::Attribute { name, opens_at } => {
+					Landing::Attribute { name, opens_at } => {
 					out.write(&html[at..opens_at]);
 					let value_from = html[opens_at..until]
 						.find("=\"")
@@ -401,8 +474,17 @@ impl Assembler<'_> {
 						.find('"')
 						.ok_or_else(|| format!("attribute `{name}` is never closed"))?
 						+ value_from;
-					let node = self.attribute(&name, html, value_from, close)?;
-					out.push(node);
+					// A decision owns the whole attribute, including the space before its name and
+					// the scoping hash Svelte appended inside it, because each outcome already holds
+					// what Svelte would have written -- up to and including writing nothing at all.
+					if let Some(choice) = self.choice(index)? {
+						for node in self.decide(&choice)? {
+							out.push(node);
+						}
+					} else {
+						let node = self.attribute(&name, html, value_from, close)?;
+						out.push(node);
+					}
 					at = close + 1;
 				}
 			}

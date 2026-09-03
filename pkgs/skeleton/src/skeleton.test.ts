@@ -63,6 +63,40 @@ const accepted: Case[] = [
 		data: [{ a: 'v', b: 'c' }, { a: '', b: null }],
 	},
 	{
+		// Every branch of `to_class`, which is what a `class:` compiles to. The payloads matter more
+		// here than anywhere else: a directive that is falsy does not leave the class alone, it
+		// removes its own name from it, and `on` below is in the static class on purpose. When
+		// everything cancels there is no class attribute at all, which is the second payload.
+		name: 'a class directive, both ways',
+		source: `${PROPS}<p class="on" class:on={data.f}>x</p>`,
+		data: [{ f: true }, { f: false }, { f: 0 }, { f: 'yes' }],
+	},
+	{
+		// No class attribute to work with. Svelte's analysis invents an empty one and puts it after
+		// every attribute that was written, so this also pins where it lands.
+		name: 'a class directive with no class attribute',
+		source: `${PROPS}<p id="i" class:on={data.f}>x</p>`,
+		data: [{ f: true }, { f: false }],
+	},
+	{
+		name: 'two class directives on one element',
+		source: `${PROPS}<p class="a" class:on={data.f} class:off={data.g}>x</p>`,
+		data: [
+			{ f: true, g: true },
+			{ f: true, g: false },
+			{ f: false, g: true },
+			{ f: false, g: false },
+		],
+	},
+	{
+		// The scoping hash is written inside the class attribute, between the value and the
+		// directives, so a decision over the attribute has to carry it. It is read off the render
+		// rather than reproduced: three places that hash a filename is two too many.
+		name: 'a class directive in a scoped component',
+		source: `${PROPS}<p class="a" class:on={data.f}>x</p><style>.a{color:red}</style>`,
+		data: [{ f: true }, { f: false }],
+	},
+	{
 		name: 'raw html',
 		source: `${PROPS}<p>{@html data.a}</p>`,
 		data: [{ a: '<b>x</b>' }, { a: '' }],
@@ -171,7 +205,12 @@ const accepted: Case[] = [
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
-	{ name: 'class: directive', source: `${PROPS}<p class:on={data.f}>x</p>` },
+	{
+		// A directive removes its own name from the class it was given, so which bytes exist is
+		// decided by a string that only exists per request. See spec/refusals.md.
+		name: 'class: beside a class attribute that is an expression',
+		source: `${PROPS}<p class={data.a} class:on={data.f}>x</p>`,
+	},
 	{ name: 'style: directive', source: `${PROPS}<p style:color={data.a}>x</p>` },
 	{ name: 'a spread', source: `${PROPS}<p {...data.attrs}>x</p>` },
 	{
