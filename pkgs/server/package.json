@@ -9,6 +9,9 @@
 		"normalize": "workspace:*"
 	},
 	"devDependencies": {
+		"ast": "workspace:*",
+		"carry": "workspace:*",
+		"jsdom": "^30.0.1",
 		"svelte": "^5.57.0"
 	}
 }

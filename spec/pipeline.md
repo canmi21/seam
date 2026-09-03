@@ -187,6 +187,33 @@ What the render pass does not take yet: a block inside an else, which is numbere
 appears in the baseline render where every if is taken, so the render and the block list would
 stop lining up. It is refused rather than mis-assembled.
 
+## The client is held to the same oracle as the bytes
+
+The corpus compares `inject(ir, scope)` with Svelte's own server output, so the fragment is settled
+there: where two strings are identical, a client cannot tell them apart. What it does not cover is
+the document those bytes are placed in -- the shell around them, the payload written beside them,
+and whether the value read back off the wire is the value the bytes were rendered from.
+
+**Hydration does not leave a correct document alone**, which is the first thing measured here and
+the reason the obvious check is the wrong one. Two of Svelte's own client behaviours change the
+DOM without anything being wrong, and both are in its source rather than inferred:
+
+| | |
+| --- | --- |
+| `head_anchor.remove()` in `head()` | the anchor that opens a head block is consumed on purpose |
+| `dom.style.cssText = ''` in `set_style` | an empty style materialises an attribute the server omitted |
+
+Writing a list of allowances for those would be this project reproducing Svelte's behaviour by
+hand, which is what it stopped doing when it stopped writing the bytes. So the same document is
+built twice -- once from the IR, once from Svelte's own render -- and both are hydrated by the
+same client. What Svelte does to its own output, it does to ours, and the comparison cancels it.
+
+**But the comparison after hydration is not enough on its own, and this was measured rather than
+reasoned about.** With a word changed in the served bytes, the client repairs the text silently, in
+the direction of the payload, so both documents converge and a check that only compared what they
+became passed. The two documents are therefore compared *before* the client runs as well as after.
+The first assertion is the one with teeth; the second is what tolerates the mutations above.
+
 ## What this does not change
 
 **The IR does not change, and neither does the injector.** How the static chunks are produced
