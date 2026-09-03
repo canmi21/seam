@@ -98,6 +98,13 @@ const refused: Case[] = [
 		name: 'else on an each',
 		source: `${PROPS}{#each data.xs as x}<p>{x}</p>{:else}<p>none</p>{/each}`,
 	},
+	{
+		// Common, and refused only by accident: `n` is local client state rather than a name the
+		// payload should carry, and the message it gets says the data does not carry it. Svelte's own
+		// server renders the initial value. Recorded here so the surface says so out loud.
+		name: 'local state read from markup',
+		source: '<script>let { data } = $props(); let n = $state(0)</script><p>{data.a}{n}</p>',
+	},
 	{ name: 'translate as a boolean', source: `${PROPS}<p translate={true}>{data.a}</p>` },
 	{
 		name: 'a block inside an else',

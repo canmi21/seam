@@ -12,6 +12,9 @@
 		"ast": "workspace:*",
 		"carry": "workspace:*",
 		"jsdom": "^30.0.1",
-		"svelte": "^5.57.0"
+		"playwright": "^1.57.0",
+		"plugin": "workspace:*",
+		"svelte": "^5.57.0",
+		"vite": "^8.2.2"
 	}
 }

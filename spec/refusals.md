@@ -64,6 +64,7 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 | snippets, children, `{@render}`, `{@const}` | inlining, or a substitution one scope further in |
 | `class:`, `style:`, `<select value>`, `translate={true}` | decidable by enumeration; deferred on what they are worth |
 | `{...spread}`, `<svelte:element>` | an unenumerable decision, so a small closed runtime node |
+| a local `$state` read from markup | refused by the pass that resolves names, and told it is missing from the data; Svelte's own server renders the initial value, so this is a gap rather than a rule |
 | per-item derivation, which of two titles wins | not decided |
 
 **So "a subset of Svelte" is a statement about how far the work has got, not about where a line

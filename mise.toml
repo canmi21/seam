@@ -73,6 +73,12 @@ run = [
 	"node crates/devalue/fixtures/generate.ts",
 ]
 
+[tasks.e2e]
+description = "The two claims a DOM implementation cannot settle, in a real browser"
+# Not part of `verify`: it needs a browser on the machine, and it is one step rather than the
+# suite. It uses the Chrome that is installed rather than downloading one. See spec/build.md.
+run = "NODE_ENV=production pnpm exec vitest run --config vitest.e2e.config.ts"
+
 [tasks.verify]
 description = "Everything a change has to pass"
 depends = ["check", "check-rust", "lint", "lint-rust", "test", "test-rust"]
