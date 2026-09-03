@@ -176,6 +176,52 @@ This is the same question as `{@render children()}` seen from the other side, an
 **a route is a page inside its layout rather than a page**. What composes the two is not decided.
 See spec/build.md.
 
+### A layout around a page already works, and the word for what does not is composition
+
+`{@render children()}` and the missing `QueryClient` were written above as one question, and the
+guess at what they waited on -- routing -- was wrong. Measured: an entry that composes the two,
+
+```svelte
+<Layout><Page /></Layout>
+```
+
+compiles today. The layout is a child, so its `{@render children()}` is never walked; Svelte
+renders it, and the page inside it is the implicit `children` snippet, which is a snippet with no
+parameters written inside a component's tag and already works. The provider and the consumer are
+both inside one render, so the context is there. Both refusals came from compiling `+layout.svelte`
+as an entry, which is not what a route is. **Nothing here waits on a routing decision.** What is
+missing is only that some step has to write that wrapper, which is the plugin's, next to the
+hydration entry it already generates. See spec/build.md.
+
+### What a child may do with a prop, measured
+
+The entry-only walk holds because request-varying data reaches a child only as props, and a prop is
+a marker. That is sound exactly as far as the child only writes the marker out. Everything else:
+
+| the child | what happens |
+| --- | --- |
+| writes it | compiles |
+| computes with it | lowering: the value never comes back, so it would be dropped |
+| branches on it | lowering: the render holds more blocks than the source declared |
+| iterates it | lowering: the render holds more blocks than the source declared |
+| calls it | Svelte, mid-render: `f is not a function` |
+
+**Nothing is silent, and that is the invariant doing its job.** But none of the four messages says
+what happened, and three of them point somewhere else entirely: the first blames `<svelte:head>`,
+and the middle two describe block bookkeeping to an author who wrote one component tag. A marker
+crossing a component boundary into anything but a write is one situation and owes one message,
+which names the component and the prop.
+
+**Half of the application is on the wrong side of that table.** Of press's 41 components, 21 decide
+their own markup shape from a prop -- an `{#if}` or an `{#each}` over something `$props()` bound --
+so they cannot be somebody else's child while the walk stops at the entry. `<ArticleBody
+blocks={data.blocks}>` is the article route, and it is the shape of the thing.
+
+**This is what composition means, and it is the largest item on the list.** The walk has to descend
+into a child and carry the props it was given, rather than handing the child a marker and rendering
+it once. Until it does, the ranking above measures which markup an entry may contain, and this
+measures how much of an application may be reached from one.
+
 ### What the render cannot stage, which the plugin has to
 
 Rendering those 41 needed a module loader supplying three things Node does not: one copy of Svelte
