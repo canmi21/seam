@@ -17,6 +17,8 @@ const root = resolve(here, '../../..');
 const read = (path: string): string => readFileSync(resolve(root, path), 'utf8');
 
 interface Manifest {
+	/** Whether anything here has to be evaluated rather than walked. See spec/ir.md. */
+	expressions: boolean;
 	/** Keyed by URL, which is what a request arrives holding. See spec/build.md. */
 	routes: Record<string, { id: string; ir: string; carried: string | null; head: string }>;
 }

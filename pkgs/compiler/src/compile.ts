@@ -80,6 +80,8 @@ export interface Report {
 	id: string;
 	path: string;
 	files: string[];
+	/** How many expressions this component has to have evaluated per request. */
+	derivations: number;
 }
 
 /** The id of a file, which is also where its artifacts sit under the output directory. */
@@ -200,7 +202,12 @@ export async function compile(options: Options): Promise<Report[]> {
 			carried: carriedFile,
 			head: options.assets?.[one.path] ?? '',
 		};
-		reports.push({ id: one.id, path: one.path, files });
+		reports.push({
+			id: one.id,
+			path: one.path,
+			files,
+			derivations: compiled.derivations.length,
+		});
 	}
 
 	if (options.shell !== undefined) {
@@ -208,7 +215,19 @@ export async function compile(options: Options): Promise<Report[]> {
 		copyFileSync(resolve(options.shell), resolve(server, 'app.html'));
 	}
 
-	write(resolve(server, 'manifest.json'), `${JSON.stringify({ routes }, null, '\t')}\n`);
+	// Whether anything in this artifact has to be evaluated rather than walked.
+	//
+	// Walking the IR needs a dotted path, an escape and a truthiness test, and none of those is
+	// JavaScript; a derivation is the only thing that is. So a backend embeds an engine exactly when
+	// this is true, which for a compiled binary is a decision about the whole artifact rather than
+	// about one route -- one component with a derivation is enough. Stated here so that deciding it
+	// is reading one field rather than scanning every route. See spec/ir.md.
+	const expressions = reports.some((one) => one.derivations > 0);
+
+	write(
+		resolve(server, 'manifest.json'),
+		`${JSON.stringify({ expressions, routes }, null, '\t')}\n`,
+	);
 	return reports;
 }
 

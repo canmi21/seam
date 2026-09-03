@@ -165,7 +165,8 @@ dist/
     <id>.json      the IR and its derivations
     <id>.js        the carried bundle, where the component carries anything
     app.html       the document shell, with its two placeholders
-    manifest.json  which URL is which artifact, and the tags its document needs
+    manifest.json  which URL is which artifact, the tags its document needs, and whether
+                   anything here has to be evaluated rather than walked
 ```
 
 The two directories are a boundary rather than a symmetry. **A server artifact must not be

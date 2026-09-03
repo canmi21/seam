@@ -213,6 +213,77 @@ Independence keeps **evaluation order out of the protocol**, so two backends can
 evaluating in different orders. Recomputation is the cost and it is not worth avoiding; the
 compile-time substitution above already removes the case where sharing would have mattered.
 
+## A rune is an ordinary declaration
+
+The compiler used to skip any declaration whose initialiser called a name beginning with `$`, on
+the grounds that "a rune holds client state rather than a value the markup can be given". That is
+false, and one line of Svelte's server transform says so:
+
+```js
+const value = args.length > 0 ? visit(args[0]) : void0;   // the rune's first argument
+...
+if (declarator.id.type === 'Identifier') {
+  declarations.push(b.declarator(declarator.id, value));  // $state(0)  ->  let n = 0
+}
+```
+
+**On the server there is no reactivity**, so nothing a rune marks can change after the render.
+`$state(x)` is a declaration whose value is `x`; `$derived(e)` is one whose value is `e`, wrapped
+in a lazy cell that memoises it; `$derived.by(fn)` is `fn()`. `$effect` is not a declaration and
+does not run at all -- measured, on a component whose effect assigns `9` to a `$state(0)` read from
+the markup: Svelte's server renders `0`.
+
+So a rune declaration is substituted like any other, using the rune's argument as the initialiser.
+What made them look different is that they say something about the value's *future*, and the
+compiler read that as a statement about its present.
+
+The memoisation is worth one line. `$derived(e)` evaluates `e` once however many times it is read,
+where substituting it evaluates `e` per use. That is observable only if `e` has side effects, which
+[the rule above](#every-identifier-resolves-or-it-is-refused) already excludes.
+
+## What the compile-time render needs from the script, which is nothing
+
+The render that produces the byte skeleton does not read the script. Measured, on the source the
+sentinel pass actually hands to Svelte:
+
+```html
+<script>let { data } = $props(); let x = 1; x = 2</script><p>{"%%s0%%"}</p>{#if true}<b>y</b>{/if}
+```
+
+Every markup expression is already a sentinel and every branch is already a constant, so no name
+the script declares is referenced and neither is `data`. Rendering the same markup three ways --
+script intact, script reduced to its `$props()`, and no script at all -- gives **byte-identical
+output**.
+
+**So the script cannot influence the compile-time bytes, and the only way it can break that render
+is by executing.** A script that reads `data` throws inside Svelte's own renderer, because the
+render is given no data. That is a reason to stop executing it, not a reason the component cannot
+be compiled: what the compiler needs from a component at compile time is its structure, and
+structure comes from the AST and from forcing each branch.
+
+**What the runtime needs is not a value either.** A slot needs something it can evaluate to a
+value; a branch needs something it can evaluate to a choice. Neither is a value known at compile
+time, which is the whole reason this stage exists.
+
+## Substitution maps a name to an expression, and a program is not an expression
+
+Every name the markup reads becomes one self-contained expression. `const t = data.a + 1` becomes
+`(data.a + 1)`, and nothing else is needed. The limit is exact and it is not about runes:
+
+```
+let x = 1; x = 2                Svelte renders 2; substitution sees the initialiser, 1
+const o = { a: 1 }; o.a = 2     Svelte renders 2; substitution sees 1
+let s = ''; for (...) s += c    there is no expression to substitute at all
+```
+
+The first two **compiled and produced the wrong bytes with nothing to say so**, which is the same
+shape as every other defect this specification records: a model narrower than its input, and no
+error at the boundary.
+
+Running the script instead is not blocked by anything measured. Its inputs are `$$props` and the
+module scope, and there is no third: Svelte's compiled component is a function of exactly those,
+with no DOM, no lifecycle and no request. What it would cost is written under Open.
+
 ## Termination is not one of the three
 
 An earlier draft counted it as the third way to violate the sentence at the top, and claimed it
@@ -266,6 +337,19 @@ budget, and that is a deployment choice rather than a rule here.
   `class={tv({...})}` -- a call, producing a string, in a substitution position the pipeline
   already handles. Measured across 1107 `.svelte` files in eleven published libraries, 267 carry
   such a call. Almost every one of them imports the function it calls.
+- **A script that substitution cannot reach.** A reassignment, a mutation or a loop leaves a name
+  with no single expression standing for it, and today two of those compile and write the wrong
+  bytes. The two shapes are named rather than the choice made: **refuse them**, which is small,
+  honest, and costs a loop that builds a value; or **carry the script and run it per request**,
+  which is not a new mechanism -- `derive` already evaluates author source with `new Function`, and
+  a statement block differs from an expression only in what is returned.
+
+  What running it costs is one thing and it is not the evaluation. A backend needs a JavaScript
+  engine exactly when a component has a derivation, and 10 of the 14 components in the corpus have
+  none: their slots and tests are data paths, which a Rust server walks with no engine at all. That
+  property survives running the script only if substitution stays the thing that turns a name into
+  a path wherever it can, with the script reached for only when it cannot. Forcing every name
+  through the script would end it. See [ir.md](ir.md).
 - **Per-item derivation.** A derivation is computed once against the payload, so an expression
   inside an each block is refused. What it needs is a value per iteration, which is a different
   mechanism rather than a larger version of this one. See [ir.md](ir.md).

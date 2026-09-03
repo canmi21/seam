@@ -195,6 +195,25 @@ they now come from.
 
 **`test` and `path` are data paths. They are never expressions.**
 
+That is what lets a backend serve a component without a JavaScript engine. Walking this IR needs
+three things -- follow a dotted path over the payload, escape a string, and ask whether a value is
+truthy -- and none of them is JavaScript. An engine is needed exactly when a component carries a
+derivation, which happens exactly when the author wrote something that is not a path. **Measured on
+the corpus: 10 of 14 components carry none.** A Rust server runs those with nothing embedded in it.
+See [derivation.md](derivation.md), where what would end that property is recorded.
+
+**A compiled backend decides this once, for the whole binary, from a `cfg` flag.** One component
+with a derivation is enough to need the engine, so the question is about the artifact rather than
+about a route, and the manifest answers it in one field:
+
+```json
+{ "expressions": false, "routes": { ... } }
+```
+
+Reading a field rather than scanning every route is the point: a build script that had to open each
+IR to decide would be reimplementing this rule somewhere it could drift from. See
+[build.md](build.md).
+
 `data.available` is legal. `price > 10` never reaches the IR: the compiler rewrites it into a
 derived field and carries the expression separately, so what the IR tests is always a path and
 what evaluates the predicate is a stage that runs before injection. See

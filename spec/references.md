@@ -144,6 +144,11 @@ own hook, so the CLI bought nothing that was needed. See [build.md](build.md).
 has to be: the producer is a Rust optimizer and the consumer is not it. The same boundary runs
 between a WebAssembly lowering pass and a backend that may not be Node. See [build.md](build.md).
 
+**Svelte's server transform for declarations.** What a rune becomes when there is no reactivity,
+read rather than inferred: the initialiser is the rune's own argument, and `$effect` is not a
+declaration at all. It replaced a rule here whose written reason was false. See
+[derivation.md](derivation.md).
+
 ## The starting point
 
 **[Rendering as a Protocol](https://canmi.net/architecture/compile-time-rendering)** and
