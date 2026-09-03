@@ -41,6 +41,10 @@ pub struct Block {
 	/// The test of an if, or the source of an each, as written.
 	pub expression: String,
 	pub item: Option<String>,
+	/// The name an each block binds to its counter, where it names one. The IR calls it `index`;
+	/// here that name is the block's own ordinal.
+	#[serde(default)]
+	pub counter: Option<String>,
 }
 
 /// Both of the streams one render produced.
@@ -390,7 +394,8 @@ impl Assembler<'_> {
 				let mut body = Out::default();
 				self.region(html, span.content, span.until, &mut body)?;
 				out.write(&html[span.from..span.content]);
-				out.push(ir::Node::Each { source, item, body: body.finish() });
+				let index = block.counter.clone();
+				out.push(ir::Node::Each { source, item, index, body: body.finish() });
 				Ok(())
 			}
 			Kind::If => {

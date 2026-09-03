@@ -21,6 +21,7 @@
 			"stream": "body",
 			"expression": "data.xs",
 			"item": "x",
+			"counter": null,
 			"alternate": false
 		},
 		{
@@ -29,6 +30,7 @@
 			"stream": "body",
 			"expression": "data.t",
 			"item": null,
+			"counter": null,
 			"alternate": false
 		}
 	]

@@ -30,6 +30,7 @@
 			"stream": "head",
 			"expression": "data.indexed",
 			"item": null,
+			"counter": null,
 			"alternate": true
 		},
 		{
@@ -38,6 +39,7 @@
 			"stream": "head",
 			"expression": "data.links",
 			"item": "l",
+			"counter": null,
 			"alternate": false
 		},
 		{
@@ -46,6 +48,7 @@
 			"stream": "body",
 			"expression": "data.shown",
 			"item": null,
+			"counter": null,
 			"alternate": false
 		}
 	]

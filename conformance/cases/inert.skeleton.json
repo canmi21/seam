@@ -21,6 +21,7 @@
 			"stream": "body",
 			"expression": "data.f",
 			"item": null,
+			"counter": null,
 			"alternate": false
 		}
 	]

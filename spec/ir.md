@@ -60,7 +60,12 @@ uses none of the three leaves `head` and `title` empty.
 - **`slot`** -- a data path and an escape mode. Nothing else.
 - **`if`** -- branches, each with a test and a body. The last branch may have `"test": null`,
   which is the else.
-- **`each`** -- a source path, the name bound to each item, and a body.
+- **`each`** -- a source path, the name bound to each item, an optional `index`, and a body.
+  `index` is the name the source binds to the counter, and it is absent rather than null when the
+  source binds none. **A key is not here at all**: Svelte's server transform never mentions one,
+  and a keyed each renders byte for byte what an unkeyed one renders -- measured, on a full list
+  and an empty one. A key exists for the client's reconciliation, and the client compiles from the
+  source, where it still is.
 - **`attr`** -- one attribute of the element being opened, written between the static chunk
   that opens the tag and the one that closes it. It carries `parts`, which are `static` and
   `slot` nodes, and it is the only node that can decide to write nothing at all.
@@ -228,8 +233,9 @@ runtime is a JavaScript runtime in the backend by another name. That is the thin
 
 ## Scope
 
-`each` binds `item` for the extent of its body. Path resolution walks a scope stack: entering an
-`each` pushes the binding, leaving it pops.
+`each` binds `item` for the extent of its body, and `index` beside it rather than through it,
+which is what the `for` loop Svelte compiles to does with its own variable. Path resolution walks
+a scope stack: entering an `each` pushes the bindings, leaving it pops.
 
 Chosen over v1's `$.` prefix convention because prefixes collide under nesting -- two nested
 `each` blocks have no way to say which `$` they mean, while named bindings shadow in the ordinary

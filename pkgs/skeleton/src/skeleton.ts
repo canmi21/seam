@@ -30,6 +30,11 @@ export interface Block {
 	expression: string;
 	/** The name an each binds. */
 	item: string | null;
+	/**
+	 * The name an each binds to its counter, where it names one. The IR calls this `index`, which
+	 * this field cannot: `index` here is the block's own ordinal, and the two collided once.
+	 */
+	counter?: string | null;
 	/** True when the if has an else, which decides whether its alternate holds anything. */
 	alternate: boolean;
 }
@@ -246,6 +251,7 @@ function collect(
 				stream,
 				expression: expand(node['test']),
 				item: null,
+				counter: null,
 				alternate: node['alternate'] !== null && node['alternate'] !== undefined,
 			});
 			edits.push([at[0], at[1], taken(index) ? 'true' : 'false']);
@@ -276,12 +282,9 @@ function collect(
 						'element, so the branch for an empty list never appears in it',
 				);
 			}
-			if (typeof node['index'] === 'string') {
-				refuse('an each block with an index is not handled yet');
-			}
-			if (node['key'] !== null && node['key'] !== undefined) {
-				refuse('an each block with a key is not handled yet');
-			}
+			// A key is not carried, because Svelte's own server transform never mentions one: a
+			// keyed each renders byte for byte what an unkeyed one renders, measured. It belongs to
+			// the client, which compiles from the source and keeps it.
 			const at = span(node['expression']);
 			const context = span(node['context']);
 			if (at === null) return;
@@ -291,6 +294,7 @@ function collect(
 				stream,
 				expression: expand(node['expression']),
 				item: context === null ? null : source.slice(context[0], context[1]),
+				counter: typeof node['index'] === 'string' ? node['index'] : null,
 				alternate: false,
 			});
 			// One element, because the body's own expressions are sentinels and read nothing from it.

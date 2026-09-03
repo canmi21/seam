@@ -54,8 +54,12 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 				// ensure_array_like does with undefined.
 				const source = resolve(scopes, node.source);
 				if (!Array.isArray(source)) break;
-				for (const item of source) {
-					out += walk(node.body, [...scopes, { [node.item]: item }]);
+				// The counter is bound beside the item rather than reached through it, which is what
+				// Svelte's server does: it is the `for` loop's own variable.
+				for (const [at, item] of source.entries()) {
+					const bound: Scope = { [node.item]: item };
+					if (node.index != null) bound[node.index] = at;
+					out += walk(node.body, [...scopes, bound]);
 				}
 				break;
 			}

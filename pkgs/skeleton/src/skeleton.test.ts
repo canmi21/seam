@@ -91,6 +91,14 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// A key is not carried at all: Svelte's server transform never mentions one, and a keyed each
+		// renders byte for byte what an unkeyed one renders. The counter is bound beside the item,
+		// which is what the `for` loop it compiles to does. See spec/ir.md.
+		name: 'an each with a key and an index',
+		source: `${PROPS}{#each data.xs as x, n (x)}<i>{n}:{x}</i>{/each}`,
+		data: [{ xs: ['a', 'b'] }, { xs: [] }],
+	},
+	{
 		name: 'markup that is inert on the server',
 		source:
 			'<script>function act() {} let { data } = $props()</script>' +
@@ -114,8 +122,6 @@ const refused: Case[] = [
 		source: `${PROPS}{#snippet r(v)}<p>{v}</p>{/snippet}{@render r(data.a)}`,
 	},
 	{ name: 'const tag', source: `${PROPS}{#each data.xs as x}{@const u = x}<p>{u}</p>{/each}` },
-	{ name: 'an each with an index', source: `${PROPS}{#each data.xs as x, i}<p>{i}{x}</p>{/each}` },
-	{ name: 'an each with a key', source: `${PROPS}{#each data.xs as x (x)}<p>{x}</p>{/each}` },
 	{
 		name: 'else on an each',
 		source: `${PROPS}{#each data.xs as x}<p>{x}</p>{:else}<p>none</p>{/each}`,

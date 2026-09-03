@@ -25,6 +25,7 @@
 			"stream": "body",
 			"expression": "data.price > 10",
 			"item": null,
+			"counter": null,
 			"alternate": true
 		},
 		{
@@ -33,6 +34,7 @@
 			"stream": "body",
 			"expression": "data.tags.length === 0",
 			"item": null,
+			"counter": null,
 			"alternate": false
 		}
 	]

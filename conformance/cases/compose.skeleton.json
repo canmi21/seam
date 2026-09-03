@@ -41,6 +41,7 @@
 			"stream": "body",
 			"expression": "data.flag",
 			"item": null,
+			"counter": null,
 			"alternate": false
 		},
 		{
@@ -49,6 +50,7 @@
 			"stream": "body",
 			"expression": "data.tags",
 			"item": "t",
+			"counter": null,
 			"alternate": false
 		}
 	]

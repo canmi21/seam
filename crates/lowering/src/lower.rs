@@ -358,9 +358,10 @@ fn nodes(
 				if fallback.is_some() {
 					return Err("`{:else}` on an each block is not in the protocol yet".to_owned());
 				}
-				if at.is_some() || key.is_some() {
-					return Err("an each block with an index or a key is not handled yet".to_owned());
-				}
+				// A key changes nothing here: Svelte's own server transform never mentions one, and
+				// a keyed each renders byte for byte what an unkeyed one renders. It belongs to the
+				// client, which compiles from the source and keeps it.
+				let _ = key;
 				let Some(item) = item else {
 					return Err("an each block without an iteration variable is not handled yet".to_owned());
 				};
@@ -373,6 +374,14 @@ fn nodes(
 
 				let mut inner_scope = Scope { props: scope.props, locals: scope.locals.clone() };
 				inner_scope.locals.push(item.clone());
+				// The counter is a name of the block's own, bound beside the item rather than
+				// reached through it. Svelte's server makes it the `for` loop's variable.
+				if let Some(at) = at.clone() {
+					if !is_path(&at) {
+						return Err(format!("`{at}` is not a name an each block can bind"));
+					}
+					inner_scope.locals.push(at);
+				}
 
 				let mut inner = Builder::default();
 				if leading_anchor(body) {
@@ -382,7 +391,12 @@ fn nodes(
 				// The open and close markers sit outside the node: one pair for the block, not
 				// one per iteration.
 				builder.write("<!--[-->");
-				builder.push(ir::Node::Each { source: from, item: item.clone(), body: inner.finish() });
+				builder.push(ir::Node::Each {
+					source: from,
+					item: item.clone(),
+					index: at.clone(),
+					body: inner.finish(),
+				});
 				builder.write("<!--]-->");
 			}
 

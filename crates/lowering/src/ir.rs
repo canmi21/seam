@@ -37,6 +37,11 @@ pub enum Node {
 	Each {
 		source: String,
 		item: String,
+		/// The name bound to the iteration counter, where the source names one. Svelte's server
+		/// makes it the loop variable and nothing else; a key is not here because its server
+		/// transform never mentions one. See `spec/ir.md`.
+		#[serde(skip_serializing_if = "Option::is_none")]
+		index: Option<String>,
 		body: Vec<Node>,
 	},
 	/// One attribute of the element being opened. `boolean` marks a name that is present or

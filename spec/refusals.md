@@ -60,7 +60,7 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 
 | | |
 | --- | --- |
-| `{#await}`, `{#key}`, an each with an index, a key or an `{:else}` | measured, trivial, unwritten |
+| `{#await}`, `{#key}`, an `{:else}` on an each | measured, trivial, unwritten |
 | snippets, children, `{@render}`, `{@const}` | inlining, or a substitution one scope further in |
 | `class:`, `style:`, `<select value>`, `translate={true}` | decidable by enumeration; deferred on what they are worth |
 | `{...spread}`, `<svelte:element>` | an unenumerable decision, so a small closed runtime node |
@@ -77,32 +77,33 @@ that is how a compiler comes to spend its effort on the wrong refusal. So the sa
 statically over every `.svelte` file on this machine -- 4323 of them, a real application and the
 dependency tree it installs.
 
-**35 of the 4323 would be refused for nothing: 0.8%.** What stops the rest, most common first:
+**40 of the 4323 would be refused for nothing: 0.9%.** What stops the rest, most common first:
 
 ```
 4157  {...spread}                             96%
  604  {@render}
   95  {#snippet}                95  bind:
-  63  {@const}                  32  each with a key
-  15  a name assigned after it is declared     12  {#key}
-  11  class:                    10  each with an index
+  63  {@const}                  15  a name assigned after it is declared
+  12  {#key}                    11  class:
    7  style:                     6  <svelte:element>
 ```
 
 **The ranking is different for the application's own components**, and the difference is not noise.
-Of the 4323, only 42 are written by the author rather than installed, and 8 of those compile:
+Of the 4323, only 42 are written by the author rather than installed, and 12 of those compile:
 
 ```
-  18  each with a key           12  bind:
-  11  {@render}                  9  class:
-   8  each with an index         8  {#snippet}
+  12  bind:                     11  {@render}
+   9  class:                     8  {#snippet}
    7  {@const}                   3  {...spread}
+   2  style:                     1  <svelte:element>
 ```
 
-The first thing this ranking was used for was runes, which led the second list at 33 of 42 and sat
-third in the first at 584. Substituting them moved the application's own components from 2 that
-compile to 8, and the whole set from 28 to 35 -- which is what a ranking is for: the same work
-against the other list would have moved almost nothing.
+Two things have been taken off these lists by consulting them, and both moved the second far more
+than the first. Runes led the application's own at 33 of 42 and sat third in the whole set at 584;
+an each with a key or an index led what was left, at 18 and 8. The application's own components
+went from 2 that compile to 8 and then to 12, where the whole set went from 28 to 35 to 40. That is
+what a ranking is for: `{...spread}` at 96% is what the first list is really about, and it is a
+different kind of work.
 
 **A library component is a wrapper**, and forwarding its caller's attributes with `{...restProps}`
 is what a wrapper does, so `{...spread}` is nearly universal there and nearly absent in an
