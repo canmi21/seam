@@ -114,46 +114,80 @@ it is a different kind of work.
 ## The same question asked of the compiler, over a real application
 
 The numbers above come from a script that re-implements the rules and reads an AST. That is a
-proxy, and a proxy answers for the rules rather than for the compiler. Run instead by calling
-`skeleton()` itself over one application's own components -- 41 of them, the site in `repos/press`
--- the first two things it reported were not refusals at all.
+proxy, and a proxy answers for the rules rather than for the compiler. Asked of `skeleton()`
+instead, over one application's own 41 components -- the site in `repos/press`, copied out and
+rendered in full, children and installed packages included -- **10 compile and 31 do not**, and
+three of the things that stopped the other 31 were not refusals at all.
 
-**A shorthand attribute stopped the compile inside Svelte's parser.** `{n}` is `n={n}`, and the
-braces of the short form hold a bare name and nothing else; the marker this pass writes there is
-not one, so Svelte answered `attribute_empty_shorthand` -- an error naming the author's file and
-saying something untrue about it. It blocked four of the nine routes. Writing the name back out
-first fixes it, and the two forms render the same bytes, measured.
-
-**`{@render children()}` was refused by a branch that could not be reached.** The surface check
-covered `{@render data.children()}`, whose callee is a member and therefore has no name, and only
-the nameless half was refused. A bare `children` did have a name -- the one its own render tag had
-just put in the snippet table -- so it looked declared, passed the walk, and failed inside Svelte's
-renderer with `children is not a function`. The table now records whether a `{#snippet}` declared
-the name or a `{@render}` merely mentioned it.
+**Two were defects, and both were in the compiler's own diagnostics.** A shorthand attribute ended
+the compile inside Svelte's parser: `{n}` is `n={n}`, and the braces of the short form hold a bare
+name and nothing else, so the marker this pass writes there produced `attribute_empty_shorthand` --
+an error naming the author's file and saying something untrue about it. It blocked four of the nine
+routes. And `{@render children()}` was refused by a branch nothing could reach: the check covered
+`{@render data.children()}`, whose callee is a member and so has no name, while a bare `children`
+looked declared because its own render tag had put the name in the snippet table. It passed the
+walk and failed inside Svelte with `children is not a function`. A third defect was in the render
+harness, which rewrote a child's relative imports only when they were single-quoted -- which is not
+how a package writes them.
 
 **Neither was in the ranking, because a re-implementation cannot report what it does not
-reproduce.** The proxy is worth keeping for the 4323 -- staging and rendering that many is a
-different kind of run -- but the ranking that decides what to work on next is the compiler's own.
+reproduce.** The proxy is still worth having for the 4323: staging and rendering that many is a
+different kind of run. But the ranking that decides what to work on next is the compiler's own.
 
-What the compiler says about those 41, first refusal per component, is:
+### What stops the 31, first thing per component
 
 ```
-   6  class:                     5  a block inside an else
+   6  class:                                   5  a block inside an else
    5  {@render} of a snippet from a prop       3  {...spread}
-   2  a bind: the server writes  2  a snippet a component is passed, with parameters
+   2  a bind: the server writes                2  a snippet a component is passed, with parameters
    1  {@const} inside a snippet that takes parameters
-   1  an each over a destructuring, which crashes rather than refusing
-   1  a snippet rendered twice   1  <svelte:element>   1  style:
+   1  {#each} over a destructuring             1  a snippet rendered twice
+   1  <svelte:element>                         1  style:
+   1  a marker where the child computes with the value
+   1  a marker where the child calls the value
+   1  context the entry has no ancestor to provide
 ```
 
 **`{...spread}` is third here, where the whole-ecosystem list has it at 96%.** That is the
-difference the entry-only walk makes: a library wraps and forwards, an application does not.
+difference the entry-only walk makes, and it is the reason this measurement had to be redone: a
+library wraps and forwards, an application does not.
 
-**Twelve of the 41 get past the walk and stop at module resolution.** The render is staged inside
-this repository, so another project's `$lib` and `$app` do not resolve, and the invariant that
-every hole is consumed exactly once never runs for them. Those twelve are not known to compile --
-they are known not to be refused. Resolving them is the Vite plugin's job, which is where this
-measurement continues. See spec/build.md.
+### Four of them are not gaps in the markup, and three had no name before
+
+The bottom of that list is a different kind of thing from the top of it. Each of these compiled
+past every rule and then failed inside Svelte, which means the author gets Svelte's words for a
+decision this compiler made.
+
+**`{#each xs as [k, v]}` crashes.** The render replaces the each's source with `[0]` so the body
+runs once, and a destructuring context has nothing to be taken apart from -- `number 0 is not
+iterable`. It is the same problem a snippet parameter already solved, where the record says what a
+pattern has to be handed; the each block never got the same treatment.
+
+**A marker is a string, and a child may do more with a prop than write it.** `new Date(marker)`
+gives `Invalid time value`; a prop that is a function, called by the child, gives
+`callableMessage is not a function`. Substitution assumes what it substitutes into is inert, and a
+component boundary is exactly where that stops being true. The hole invariant would catch the
+quiet version of this -- a value transformed rather than written comes back changed and is not
+consumed -- so what is missing is the compile-time refusal, not the detection.
+
+**A component that reads context has no ancestor to provide it.** The entry is compiled alone, and
+`getContext` in press's article route finds no `QueryClient` because the provider is in the layout.
+This is the same question as `{@render children()}` seen from the other side, and both say that
+**a route is a page inside its layout rather than a page**. What composes the two is not decided.
+See spec/build.md.
+
+### What the render cannot stage, which the plugin has to
+
+Rendering those 41 needed a module loader supplying three things Node does not: one copy of Svelte
+for the whole graph, a `.svelte` file loaded from anywhere, and a `.svelte.js` compiled as a module
+rather than run as JavaScript. Without the first, a component calling `getContext` through the
+wrong copy fails with `lifecycle_outside_component`; without the second, every component a package
+ships is unreachable, because they arrive as `x.js` re-exporting `x.svelte`; without the third,
+`$state` is undefined in a package's own utilities.
+
+**All three are things a bundler does, and the compiler runs inside one.** So this is not a gap to
+close here -- it is a list of what `pkgs/plugin` owes the render pass, written down while it was
+measured. See spec/build.md.
 
 **A library component is a wrapper**, and forwarding its caller's attributes with `{...restProps}`
 is what a wrapper does, so `{...spread}` is nearly universal there and nearly absent in an

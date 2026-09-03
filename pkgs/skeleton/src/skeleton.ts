@@ -799,14 +799,22 @@ async function renderRewritten(file: string, source: string, root: string): Prom
 	let written = 0;
 
 	function emit(from: string, code: string, origin: string): string {
-		for (const match of code.matchAll(/from\s+'(\.[^']*)'/g)) {
-			const specifier = match[1];
+		// Either quote. Svelte keeps the one the author wrote, so a component whose imports are
+		// double-quoted -- which is most of what a package ships -- had its relative specifiers
+		// left alone here and its neighbours looked for beside the staged file rather than beside
+		// the source. What the author saw was Node reporting a missing module inside `.build`.
+		for (const match of code.matchAll(/from\s+(['"])(\.[^'"]*)\1/g)) {
+			const quote = match[1] ?? "'";
+			const specifier = match[2];
 			if (specifier === undefined) continue;
 			const target = resolvePath(dirname(origin), specifier);
 			const replacement = specifier.endsWith('.svelte')
 				? emit(target, compileFile(target), target)
 				: target;
-			code = code.replaceAll(`'${specifier}'`, JSON.stringify(pathToFileURL(replacement).href));
+			code = code.replaceAll(
+				`${quote}${specifier}${quote}`,
+				JSON.stringify(pathToFileURL(replacement).href),
+			);
 		}
 		const out = resolvePath(staging, `${basename(from, '.svelte')}-${generation}-${written++}.js`);
 		writeFileSync(out, code);
