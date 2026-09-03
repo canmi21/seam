@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { compile, parse } from 'svelte/compiler';
 import { apply, type Locals, locals, resolved } from 'ast';
+import { OMITTED_IN_SSR } from './omitted.ts';
 import { sentinel } from './sentinel.ts';
 
 /** One dynamic position, in the order it appears in the source. */
@@ -121,8 +122,9 @@ const REFUSED: Record<string, string> = {
 		'at request time and cannot be enumerated at compile time. It needs a closed runtime node, ' +
 		'which is not decided',
 	BindDirective:
-		'`bind:` is not handled yet. On the server it is an ordinary attribute, and this pass does ' +
-		'not plant a hole in one yet',
+		'this `bind:` is one the server writes, and the value has nowhere to be planted: `bind:` ' +
+		'takes a name rather than an expression, so a marker cannot stand where the value goes. The ' +
+		'bindings that write nothing are handled',
 	ClassDirective:
 		'`class:` is not handled yet. It is a decision over two outcomes and so is enumerable; it is ' +
 		'deferred on what it is worth rather than blocked',
@@ -181,6 +183,11 @@ function collect(
 	};
 
 	if (INERT.has(type)) return;
+
+	// A binding the server writes nothing for. It is not that the value is dropped: there is no
+	// value, because every one of these is a measurement only a browser can take. So the walk steps
+	// over it exactly as it steps over a transition. See `omitted.ts`, and spec/refusals.md.
+	if (type === 'BindDirective' && OMITTED_IN_SSR.has(String(node['name']))) return;
 	const why = REFUSED[type];
 	if (why !== undefined) refuse(why);
 

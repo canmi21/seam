@@ -99,6 +99,17 @@ const accepted: Case[] = [
 		data: [{ xs: ['a', 'b'] }, { xs: [] }],
 	},
 	{
+		// Every one of these is a measurement only a browser can take, so the server writes nothing
+		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
+		// against what Svelte does. See spec/refusals.md.
+		name: 'bindings the server writes nothing for',
+		source:
+			'<script>let { data } = $props(); let w = 0; let el = null</script>' +
+			'<svelte:window bind:innerWidth={w} bind:scrollY={w} />' +
+			'<div bind:this={el} bind:clientWidth={w}>{data.a}</div>',
+		data: [{ a: 'v' }],
+	},
+	{
 		name: 'markup that is inert on the server',
 		source:
 			'<script>function act() {} let { data } = $props()</script>' +
@@ -112,7 +123,15 @@ const refused: Case[] = [
 	{ name: 'class: directive', source: `${PROPS}<p class:on={data.f}>x</p>` },
 	{ name: 'style: directive', source: `${PROPS}<p style:color={data.a}>x</p>` },
 	{ name: 'a spread', source: `${PROPS}<p {...data.attrs}>x</p>` },
-	{ name: 'bind:', source: `${PROPS}<input bind:value={data.a} />` },
+	{
+		// A binding the server writes. There is nowhere to plant the marker: `bind:` takes a name
+		// rather than an expression. See spec/refusals.md.
+		name: 'a bind: the server writes',
+		source: `${PROPS}<script>let v = 1</script><input bind:value={v} />`.replace(
+			'</script><script>',
+			'; ',
+		),
+	},
 	{ name: 'svelte:element', source: `${PROPS}<svelte:element this={data.tag}>x</svelte:element>` },
 	{ name: 'svelte:boundary', source: `${PROPS}<svelte:boundary><p>{data.a}</p></svelte:boundary>` },
 	{ name: 'await block', source: `${PROPS}{#await data.p}<p>w</p>{:then v}<p>{v}</p>{/await}` },

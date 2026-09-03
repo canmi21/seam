@@ -63,6 +63,7 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 | `{#await}`, `{#key}`, an `{:else}` on an each | measured, trivial, unwritten |
 | snippets, children, `{@render}`, `{@const}` | inlining, or a substitution one scope further in |
 | `class:`, `style:`, `<select value>`, `translate={true}` | decidable by enumeration; deferred on what they are worth |
+| a `bind:` the server writes | there is nowhere to plant the marker: `bind:` takes a name, not an expression |
 | `{...spread}`, `<svelte:element>` | an unenumerable decision, so a small closed runtime node |
 | per-item derivation, which of two titles wins | not decided |
 
@@ -77,33 +78,34 @@ that is how a compiler comes to spend its effort on the wrong refusal. So the sa
 statically over every `.svelte` file on this machine -- 4323 of them, a real application and the
 dependency tree it installs.
 
-**40 of the 4323 would be refused for nothing: 0.9%.** What stops the rest, most common first:
+**43 of the 4323 would be refused for nothing: 1.0%.** What stops the rest, most common first:
 
 ```
 4157  {...spread}                             96%
  604  {@render}
-  95  {#snippet}                95  bind:
+  95  {#snippet}                81  a bind: the server writes
   63  {@const}                  15  a name assigned after it is declared
   12  {#key}                    11  class:
    7  style:                     6  <svelte:element>
 ```
 
 **The ranking is different for the application's own components**, and the difference is not noise.
-Of the 4323, only 42 are written by the author rather than installed, and 12 of those compile:
+Of the 4323, only 42 are written by the author rather than installed, and 15 of those compile:
 
 ```
-  12  bind:                     11  {@render}
-   9  class:                     8  {#snippet}
-   7  {@const}                   3  {...spread}
+  11  {@render}                  9  class:
+   8  {#snippet}                 7  {@const}
+   3  a bind: the server writes  3  {...spread}
    2  style:                     1  <svelte:element>
 ```
 
-Two things have been taken off these lists by consulting them, and both moved the second far more
-than the first. Runes led the application's own at 33 of 42 and sat third in the whole set at 584;
-an each with a key or an index led what was left, at 18 and 8. The application's own components
-went from 2 that compile to 8 and then to 12, where the whole set went from 28 to 35 to 40. That is
-what a ranking is for: `{...spread}` at 96% is what the first list is really about, and it is a
-different kind of work.
+Three things have been taken off these lists by consulting them, and all three moved the second far
+more than the first. Runes led the application's own at 33 of 42 and sat third in the whole set at
+584; an each with a key or an index led what was left, at 18 and 8; `bind:` led what was left after
+that, at 12, and three quarters of its uses turned out to be bindings the server writes nothing
+for. The application's own components went from 2 that compile to 8, 12, and 15, where the whole
+set went from 28 to 43. That is what a ranking is for: `{...spread}` at 96% is what the first list
+is really about, and it is a different kind of work.
 
 **A library component is a wrapper**, and forwarding its caller's attributes with `{...restProps}`
 is what a wrapper does, so `{...spread}` is nearly universal there and nearly absent in an
@@ -112,6 +114,33 @@ application. **An application component holds its own state**, so a rune reaches
 Both numbers matter and they answer different questions. Compiling the pages an author writes is
 the first; compiling the components they install is strictly harder, because composition pulls a
 library's components into the same compilation.
+
+## Half of `bind:` writes nothing, and that half is handled
+
+Svelte's server does not treat a binding as one thing. Its table marks forty of them `omit_in_ssr`,
+and every one is a measurement only a browser can take -- how wide the viewport is, where the page
+is scrolled, how far a video has played, which element has focus, what an element measured to. A
+server has none of those, so the bytes are the same with the binding and without it, and the walk
+steps over them exactly as it steps over a transition.
+
+**Three quarters of the uses in the application measured here are that half**: 9 of its 12
+components that use `bind:` use nothing else. Seven names are left that the server does write --
+`value`, `checked`, `open`, `group`, `innerText`, `innerHTML`, `textContent` -- and where each one
+lands is Svelte's business rather than a rule reproduced here: an attribute, the element's escaped
+content, or its unescaped content.
+
+Those seven are refused, for a reason that is about this compiler rather than about them.
+**`bind:` takes a name, not an expression** -- Svelte rejects `bind:value={"x"}` outright -- so a
+marker cannot stand where the value goes, and the pass that reads a render to find its holes has
+nothing to find.
+
+**The list is copied, and it is checked.** `omitted.test.ts` renders every name on it against
+Svelte and fails if one starts writing something, and spot-checks the other direction so the list
+cannot quietly grow. The alternative was to plant a marker in every binding and let the holes that
+never came back name the omitted ones, which needs no list at all. It was turned down because it
+would make an unconsumed hole mean *the server omits this* rather than *content was lost*, and that
+invariant is what has caught four defects here. **A list that can go stale is cheaper than an
+invariant that can no longer fail.**
 
 ## The compiler refuses by allowlist
 
