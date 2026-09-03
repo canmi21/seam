@@ -348,14 +348,17 @@ The server should have to understand one artifact, and this is that artifact.
 
 Recorded rather than decided, because guessing now would be worse than deciding later.
 
-- **Who owns CSS.** Undecided, and it blocks the row above. A component's `<style>` compiles to a
-  separate artifact, but its scoped class is in the response bytes and its hash is taken over the
-  filename, so the clean split the table used to claim does not exist. What it waited on -- what
-  happens to a component the compiler refuses -- is settled in [refusals.md](refusals.md); what it
-  waits on now is who owns the document shell and what shape the client half takes, which
-  [build.md](build.md) defers to the plugin. **A `<style>` block is refused until then**, and the
-  message says so. It used to compile: the scoped class went into the bytes, the stylesheet
-  reached no artifact, and the page rendered unstyled with an exit status of zero.
+- **Who owns CSS.** Decided in [build.md](build.md), and no longer blocking the row above. The
+  scoped class stays in the response bytes and the stylesheet is the client build's, which is not
+  the clean split the table used to claim but is a split. Two things had to be settled first and
+  both now are: what happens to a component the compiler refuses, in
+  [refusals.md](refusals.md), and how a hashed asset reaches the document, which is a string the
+  compiler writes into the manifest. The hash is taken over a filename Svelte normalises against
+  the working directory, so **the compiler hands it a path relative to the project root** -- three
+  directories otherwise give three different classes for one file. **A `<style>` block stays
+  refused until the plugin exists**, because nothing emits a stylesheet yet; it is waiting on an
+  implementation rather than on an answer. It used to compile: the class went into the bytes, the
+  stylesheet reached no artifact, and the page rendered unstyled with an exit status of zero.
 - **`translate={true}`.** Svelte maps it to `translate="yes"` through a table of value
   replacements that today holds only this one name. Ours wrote no attribute at all, which is worse
   than the `"true"` this entry used to predict. The same reasoning as the boolean attributes

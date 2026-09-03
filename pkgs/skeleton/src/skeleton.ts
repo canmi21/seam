@@ -419,14 +419,14 @@ export async function skeleton(entryFile: string): Promise<Skeleton> {
 	// class into the bytes, and carried the stylesheet nowhere: the page rendered with the class
 	// and no rule to match it. Measured, and the fourth defect of that shape in this compiler.
 	//
-	// What it waits on is named, because that is the difference between a refusal and a wall. The
-	// stylesheet has to be emitted and linked into the document shell, and who owns the shell and
-	// what shape the client half takes are settled at the plugin step. See spec/build.md.
+	// What it waits on is named, because that is the difference between a refusal and a wall. How
+	// CSS is owned is answered in spec/build.md; what is missing is the half that emits a
+	// stylesheet at all, which is the client build the plugin runs.
 	if (parsed['css'] !== null && parsed['css'] !== undefined) {
 		refuse(
-			'a `<style>` block is not handled yet: its scoped class is written into the bytes but the ' +
-				'stylesheet itself reaches no artifact, so the page would render unstyled. It waits on ' +
-				'who owns the document shell and what shape the client half takes; see spec/build.md',
+			'a `<style>` block is not handled yet: its scoped class is written into the bytes but ' +
+				'nothing emits the stylesheet, so the page would render unstyled. It waits on the ' +
+				'plugin, which is what runs the client build; see spec/build.md',
 		);
 	}
 

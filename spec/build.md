@@ -158,13 +158,14 @@ nothing and measured faster.
 ```
 dist/
   client/          served as-is, cacheable, public
-    _app/*.js      the hydration bundle
+    _app/*.js      the hydration entries and the chunks they share
     _app/*.css
     <assets>
   server/          read by the backend, never served
-    <route>.json   the IR and its derivations
-    <route>.js     the carried bundle, where the component carries anything
-    manifest.json  which route is which, and what the client half is called
+    <id>.json      the IR and its derivations
+    <id>.js        the carried bundle, where the component carries anything
+    app.html       the document shell, with its two placeholders
+    manifest.json  which URL is which artifact, and the tags its document needs
 ```
 
 The two directories are a boundary rather than a symmetry. **A server artifact must not be
@@ -182,6 +183,142 @@ The reason is the rule above. A Rust backend reads this file too and hands it to
 the TypeScript server bundled it into its own program while Rust read it from disk, the two would
 be running code that arrived by different routes, which is the divergence this whole section
 exists to prevent.
+
+## A route is a URL and a root component
+
+`compile` takes entries, and an entry is a pair rather than a path:
+
+```ts
+entries: [
+  { path: '/', component: 'src/pages/product.svelte' },
+  { path: '/about', component: 'src/pages/about.svelte' },
+]
+```
+
+**The URL is the author's, not the compiler's.** It was briefly the component's id, by way of a
+development server that served each artifact at `/<id>`, and that is a routing convention invented
+by an implementation detail rather than decided. Routing -- what finds the entries, whether a
+directory layout implies them, how a parameter is spelled -- is still not decided; naming the URL
+is what stops the compiler from deciding it by accident. See [refusals.md](refusals.md) for the
+difference between what is deferred and what is refused.
+
+**The root component is one field both halves read.** Today it is the entry's own component. The
+compiler renders it to produce the IR, and the plugin generates a hydration entry that mounts it,
+and the two agree because they read the same field rather than because somebody kept them in step.
+
+That is the same rule as one artifact and two readers, moved to the two halves of a build. It
+matters because the halves are produced by different things -- the IR by a WebAssembly pass, the
+entry by a Vite plugin -- and the bytes one writes have to be the shape the other mounts.
+
+## What a page made of several components needs, and what it costs
+
+Measured, on a page component rendered three ways:
+
+```
+the component alone   <!--[--><article>...</article><!--]-->
+inside a static wrap  <!--[--><article>...</article><!--]-->            identical
+inside a dynamic one  <!--[--><!--[--><article>...</article><!--]--><!--]-->
+```
+
+**A component that is statically known costs nothing.** Composition already works this way and the
+compiler inlines it: a page built from a dozen components is one IR, and a nested layout is a
+generated root that writes `<Layout><Page /></Layout>`, which compiles to the bytes the same
+markup would have produced by hand. **Nesting needs no change to the IR, the manifest or the
+artifact layout.** What it needs is a way to say which layout wraps which page, which is routing
+and is deferred.
+
+**A component chosen at request time costs one anchor pair**, because Svelte wraps a dynamic
+component in a block. That is the shape a client router needs: the mounted root cannot be the page
+if the page is the thing being swapped.
+
+So the door that could close is not the format. The IR is rebuilt by every build, so a wrapper
+added later is a rebuild rather than a migration. The door is the *agreement*: server bytes and
+client mount shape are produced by different halves, and a wrapper added to one and not the other
+is a hydration failure. The root component being one field is what holds it shut.
+
+## The client half
+
+**One hydration entry per route, generated as a virtual module.** It imports the route's root
+component, reads the payload, and calls `hydrate`. Nothing is staged on disk; a plugin that
+generates a module is what a virtual module is for, and SvelteKit's build is made of them.
+
+It is not a router and does not know the other routes. A router needs a map from URL to component
+with a deferred import for each, which is code and belongs on the client where code is the native
+form -- the rule that artifacts are data is about the half a backend reads.
+
+**What the router waits on, written down so that it is not rediscovered:**
+
+| | |
+| --- | --- |
+| the URL of every route | **done** once entries carry a path, which is why the pair above is worth having now |
+| a payload for a route the browser navigates to | the load stage, which [derivation.md](derivation.md) puts outside this protocol and which is not designed |
+| the extra anchor pair | a rebuild, once the root component becomes a dynamic one |
+
+Only the second is real work. The first is why `path` is in the entry today, and the third is a
+consequence of the first two rather than a decision of its own.
+
+**Several hydration roots on one page is the shape that would need more.** Astro's islands are
+separate roots with a payload each, and Svelte hydrates one root against one payload. It is not
+refused and not planned; it is recorded here because it is the only multi-component shape that the
+current artifact could not express.
+
+## The document shell
+
+The shell is a source file the author owns, with the two placeholders the server fills. It is
+copied to `dist/server/app.html` and read from there, because a backend that is not Node has to
+read it too.
+
+**SvelteKit compiles its shell into a JavaScript function** taking `{ head, body, assets, nonce,
+env }`, which is available to it because its server artifact is code. It is not available here for
+the same reason nothing else is: the file has to be readable by a Rust server.
+
+**The tags a document needs are written by the compiler, not assembled by the server.** A build
+gives its client files hashed names, and something has to turn those into a `<script type="module"
+src="...">`. If the server did it, two backends would have to spell a script tag identically, and
+that is a byte-level agreement of exactly the kind this protocol exists to avoid. So the manifest
+carries the finished string:
+
+```json
+"routes": {
+  "/": {
+    "id": "src/pages/product",
+    "ir": "src/pages/product.json",
+    "carried": null,
+    "head": "<link rel=\"modulepreload\" href=\"/_app/chunk.js\"><script type=\"module\" src=\"/_app/product.Bq7f.js\"></script>"
+  }
+}
+```
+
+The server concatenates it with the component's own head. It never learns to spell a tag, which
+means there is nothing for a second implementation to get subtly different.
+
+## Scoped CSS is a filename, and a filename is not stable
+
+A component with a `<style>` gets a class written **into the response bytes**, and the class is a
+hash. What it hashes is not stable, measured on one component compiled three times:
+
+```
+cwd = the repository     ->  svelte-ch3g5v
+cwd = its parent         ->  svelte-29atyq
+cwd = /tmp               ->  svelte-1j3eup7
+```
+
+The same file, the same absolute path, three classes. Svelte normalises the filename against the
+working directory before hashing it, so **which directory the build ran from is in the bytes**.
+Handed a path that is already relative, it is stable across all three.
+
+Two things follow, and they are the reason `<style>` was refused until now.
+
+**The class in the IR and the class in the stylesheet have to match.** They are produced by
+different halves -- the IR by this compiler, the CSS by the client build -- and if the two spell
+the filename differently the page renders with a class no rule selects. Nothing would say so.
+
+**And the IR would not be reproducible.** Two people building the same commit from different
+directories would get different bytes for any component with a style.
+
+**So the compiler hands Svelte the path relative to the project root, everywhere.** That is the id
+it already computes, which is the second thing the root from [above](#a-route-is-a-url-and-a-root-component)
+buys. With it, `<style>` stops being refused.
 
 ## Packaging is about the program, not the artifacts
 

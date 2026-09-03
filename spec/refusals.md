@@ -64,7 +64,7 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 | snippets, children, `{@render}`, `{@const}` | inlining, or a substitution one scope further in |
 | `class:`, `style:`, `<select value>`, `translate={true}` | decidable by enumeration; deferred on what they are worth |
 | `{...spread}`, `<svelte:element>` | an unenumerable decision, so a small closed runtime node |
-| `<style>` | waits on who owns the document shell; see [build.md](build.md) |
+| `<style>` | answered in [build.md](build.md); waits on the plugin to emit a stylesheet |
 | per-item derivation, which of two titles wins | not decided |
 
 **So "a subset of Svelte" is a statement about how far the work has got, not about where a line
