@@ -1,0 +1,154 @@
+// The refusal surface, measured rather than remembered.
+//
+// `spec/refusals.md` used to carry a table of what the compiler turns away. It was maintained by
+// recollection and it was wrong in both directions at once: it listed an each block with a key and
+// `{:else}` on an each as unwritten when both compiled, and it did not mention `{@const}` at all,
+// which compiled and rendered the wrong bytes. This file is that table, produced by running the
+// compiler, so it cannot drift from what the compiler does.
+//
+// Two rules it enforces, both of them the specification's own:
+//
+// **An accepted construct has to agree with Svelte, on every payload.** Not on one. `{:else}` on
+// an each looked correct against a list with something in it, because the branch it turns on only
+// appears when the list is empty. Every case here carries the payload its shape turns on.
+//
+// **A refusal has to say where the question lives.** `spec/refusals.md` says a refusal owes the
+// reader what it is and where it is recorded; a message that names no specification file has told
+// the author their code is wrong and nothing else.
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { compile } from 'svelte/compiler';
+import { render } from 'svelte/server';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { inject } from 'injector';
+import { lower } from 'lowering';
+import { skeleton } from './skeleton.ts';
+
+// Its own directory: `skeleton()` stages Svelte's compiled output in `../.build` and removes it
+// when it is done, which would take this with it halfway through a case.
+const staging = resolve(dirname(fileURLToPath(import.meta.url)), '../.build-surface');
+const PROPS = '<script>let { data } = $props()</script>';
+
+interface Case {
+	name: string;
+	source: string;
+	/**
+	 * The payloads the shape turns on. An each block needs an empty list as well as a full one, an
+	 * if needs both branches: a construct only has to be wrong on the payload nobody tried.
+	 */
+	data?: unknown[];
+}
+
+const accepted: Case[] = [
+	{
+		name: 'a value, a branch and a list',
+		source: `${PROPS}<p>{data.a}</p>{#if data.f}<b>{data.a}</b>{/if}{#each data.xs as x}<i>{x}</i>{/each}`,
+		data: [
+			{ a: 'v', f: true, xs: ['q', 'r'] },
+			{ a: '<&"', f: false, xs: [] },
+		],
+	},
+	{
+		name: 'raw html',
+		source: `${PROPS}<p>{@html data.a}</p>`,
+		data: [{ a: '<b>x</b>' }, { a: '' }],
+	},
+	{
+		name: 'the head and a title',
+		source: `${PROPS}<svelte:head><meta name="d" content={data.a} /><title>{data.a}</title></svelte:head><p>x</p>`,
+		data: [{ a: 'v' }, { a: null }],
+	},
+	{
+		name: 'markup that is inert on the server',
+		source:
+			'<script>function act() {} let { data } = $props()</script>' +
+			'<svelte:window /><svelte:body /><div use:act onclick={() => {}}>{data.a}</div>{@debug data}',
+		data: [{ a: 'v' }],
+	},
+];
+
+// Each one is a gap rather than a boundary, and the message has to say which.
+const refused: Case[] = [
+	{
+		name: 'a style block',
+		source: `${PROPS}<p class="x">{data.a}</p><style>.x{color:red}</style>`,
+	},
+	{ name: 'class: directive', source: `${PROPS}<p class:on={data.f}>x</p>` },
+	{ name: 'style: directive', source: `${PROPS}<p style:color={data.a}>x</p>` },
+	{ name: 'a spread', source: `${PROPS}<p {...data.attrs}>x</p>` },
+	{ name: 'bind:', source: `${PROPS}<input bind:value={data.a} />` },
+	{ name: 'svelte:element', source: `${PROPS}<svelte:element this={data.tag}>x</svelte:element>` },
+	{ name: 'svelte:boundary', source: `${PROPS}<svelte:boundary><p>{data.a}</p></svelte:boundary>` },
+	{ name: 'await block', source: `${PROPS}{#await data.p}<p>w</p>{:then v}<p>{v}</p>{/await}` },
+	{ name: 'key block', source: `${PROPS}{#key data.k}<p>{data.a}</p>{/key}` },
+	{
+		name: 'snippet and render',
+		source: `${PROPS}{#snippet r(v)}<p>{v}</p>{/snippet}{@render r(data.a)}`,
+	},
+	{ name: 'const tag', source: `${PROPS}{#each data.xs as x}{@const u = x}<p>{u}</p>{/each}` },
+	{ name: 'an each with an index', source: `${PROPS}{#each data.xs as x, i}<p>{i}{x}</p>{/each}` },
+	{ name: 'an each with a key', source: `${PROPS}{#each data.xs as x (x)}<p>{x}</p>{/each}` },
+	{
+		name: 'else on an each',
+		source: `${PROPS}{#each data.xs as x}<p>{x}</p>{:else}<p>none</p>{/each}`,
+	},
+	{ name: 'translate as a boolean', source: `${PROPS}<p translate={true}>{data.a}</p>` },
+	{
+		name: 'a block inside an else',
+		source: `${PROPS}{#if data.f}<p>a</p>{:else}{#if data.g}<p>b</p>{/if}{/if}`,
+	},
+];
+
+/** Compiles one case, and says either what it produced or why it was turned away. */
+async function attempt(
+	one: Case,
+	at: string,
+): Promise<{ ir?: Parameters<typeof inject>[0]; refusal?: string }> {
+	const file = resolve(staging, `${at}.svelte`);
+	writeFileSync(file, one.source);
+	try {
+		const compiled = lower([[one.name, JSON.stringify(await skeleton(file))]])[0];
+		if (compiled === undefined) return { refusal: 'nothing came back from lowering' };
+		if ('error' in compiled) return { refusal: compiled.error };
+		return { ir: compiled.ir as Parameters<typeof inject>[0] };
+	} catch (error) {
+		return { refusal: (error as Error).message };
+	}
+}
+
+beforeAll(() => mkdirSync(staging, { recursive: true }));
+afterAll(() => rmSync(staging, { recursive: true, force: true }));
+
+describe('what the compiler accepts, it reproduces byte for byte', () => {
+	it.each(accepted.map((one, at) => [one.name, one, at] as const))('%s', async (_name, one, at) => {
+		const { ir, refusal } = await attempt(one, `ok-${at}`);
+		expect(refusal, 'it was refused instead, so the surface has moved').toBeUndefined();
+
+		const file = resolve(staging, `ok-${at}.svelte`);
+		const out = resolve(staging, `ok-${at}.js`);
+		writeFileSync(
+			out,
+			compile(one.source, { generate: 'server', name: 'C', filename: file }).js.code,
+		);
+		const mod = (await import(pathToFileURL(out).href)) as {
+			default: Parameters<typeof render>[0];
+		};
+
+		for (const data of one.data ?? []) {
+			expect(inject(ir as Parameters<typeof inject>[0], { data }).body).toBe(
+				render(mod.default, { props: { data } as never }).body,
+			);
+		}
+	});
+});
+
+describe('what it refuses, it refuses by saying where the question lives', () => {
+	it.each(refused.map((one, at) => [one.name, one, at] as const))('%s', async (_name, one, at) => {
+		const { refusal } = await attempt(one, `no-${at}`);
+		expect(refusal, 'it compiled instead, so the surface has moved').toBeDefined();
+		// Checked rather than trusted. Four of these used to be a TypeError escaping from inside
+		// the sentinel pass, which is an internal stack rather than anything an author can act on.
+		expect(refusal, 'the message names no specification file').toContain('spec/');
+	});
+});

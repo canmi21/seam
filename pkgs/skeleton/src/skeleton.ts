@@ -376,7 +376,39 @@ interface Rewritten {
 	blocks: Block[];
 }
 
+/**
+ * Svelte's runtime, checked to be the one a server ships.
+ *
+ * `{@html}` opens its block with `<!---->` in production and with a hash of the value in
+ * development, so which build of Svelte was imported changes the bytes this pass renders -- and
+ * those bytes go into the IR. A hash of a sentinel is a hash of a value nobody will ever hold, so
+ * the artifact would be wrong for every payload rather than for an unusual one.
+ *
+ * Which build is loaded comes from `NODE_ENV`, two dependencies down: Svelte reads `DEV` from
+ * `esm-env`, whose fallback is true for any `NODE_ENV` that is set and does not begin with
+ * `prod`. Unset, as it is under a mise task, gives production. A test runner sets it to `test` and
+ * `vite dev` sets it to `development`, and the compiler is going to run inside a Vite plugin.
+ *
+ * Measured rather than reasoned about. The rule lives in a dependency of a dependency and could
+ * change without anybody here noticing; the one call below is the behaviour itself.
+ */
+let checked = false;
+async function shippable(): Promise<void> {
+	if (checked) return;
+	const { html } = await import('svelte/internal/server');
+	const open = html('x');
+	if (open !== '<!---->x<!---->') {
+		throw new Error(
+			`Svelte's development runtime is loaded: it writes \`${open}\` where a server writes ` +
+				'`<!---->x<!---->`, and the compiler would write that into the IR. The build is chosen ' +
+				'by NODE_ENV, which has to be `production` for a compile. See spec/pipeline.md',
+		);
+	}
+	checked = true;
+}
+
 export async function skeleton(entryFile: string): Promise<Skeleton> {
+	await shippable();
 	const file = resolvePath(entryFile);
 	const source = readFileSync(file, 'utf8');
 

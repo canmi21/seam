@@ -31,12 +31,13 @@ run = "cargo test --workspace"
 
 [tasks.test]
 description = "Check every seam with Svelte: the AST we read, what we refuse, and the HTML we emit"
-run = [
-	"node pkgs/ast/conformance/run.ts",
-	"node pkgs/skeleton/conformance/run.ts",
-	"node pkgs/normalize/conformance/run.ts",
-	"node pkgs/injector/conformance/run.ts",
-]
+# NODE_ENV before the runner rather than inside it. Svelte reads `DEV` from `esm-env`, which is
+# true for any value that is set and does not begin with `prod`, and vitest sets `test`. Its
+# development runtime writes a hash of the value into the anchor that opens a `{@html}` block, so
+# the compiler would render bytes no server ships. `skeleton()` refuses to compile under it, and
+# this is the environment it asks for. Setting it from inside the configuration is too late: the
+# value is read when the module graph loads.
+run = "NODE_ENV=production pnpm exec vitest run"
 
 [tasks.build]
 description = "Compile the corpus entries into dist/, which is the artifact a server reads"

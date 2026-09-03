@@ -195,8 +195,21 @@ is broken and the cost of preventing that was a parse.
 The one place the decision is visible to a backend is `escape: false` on a `slot`, which means
 write these bytes as they are. See [ir.md](ir.md).
 
-**A development build is a separate output and is not produced.** Compiled with `dev`, Svelte
-writes a hash of the value into the opening anchor so its client can warn when the two sides
-disagree. A hash of the value is a decision position, so the compiler cannot write one, and what
-it produces is the production form: an empty anchor, which the client's check returns from on its
-first line. See [pipeline.md](pipeline.md) for what a sentinel can and cannot stand in for.
+**A development build is a separate output and is not produced.** Under Svelte's development
+runtime, `{@html}` writes a hash of the value into the opening anchor so its client can warn when
+the two sides disagree. A hash of the value is a decision position, so the compiler cannot write
+one, and what it produces is the production form: an empty anchor, which the client's check
+returns from on its first line. See [pipeline.md](pipeline.md) for what a sentinel can and cannot
+stand in for.
+
+**Which runtime is loaded is not the compiler's to assume, so it is checked.** It comes from
+`NODE_ENV`, two dependencies away: Svelte reads `DEV` from `esm-env`, whose fallback is true for
+any value that is set and does not begin with `prod`. Unset gives production, which is why this
+was invisible for as long as the compiler only ever ran from a task. A test runner sets `test` and
+`vite dev` sets `development`, and the compiler is going to run inside a Vite plugin -- where it
+would render a hash of a *sentinel* into the IR, which is a hash of a value no request will ever
+carry, making the artifact wrong for every payload rather than for an unusual one.
+
+So the render pass measures it rather than reasoning about it: it calls the helper and compares
+what comes back, because the rule lives in a dependency of a dependency and the call is the
+behaviour itself. A development runtime is a refusal that names the variable to set.

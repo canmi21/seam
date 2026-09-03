@@ -7,8 +7,8 @@ node_modules/
 # Built by hand for now; the CLI will own this later.
 pkgs/server/static/client.js
 
-# Where the conformance run writes Svelte's compiled output to import it.
-.build/
+# Where a check writes Svelte's compiled output to import it.
+.build*/
 
 # Never commit one, even by accident.
 .env
