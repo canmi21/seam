@@ -63,12 +63,22 @@ importers:
       carry:
         specifier: workspace:*
         version: link:../carry
+      derive:
+        specifier: workspace:*
+        version: link:../derive
+      injector:
+        specifier: workspace:*
+        version: link:../injector
       lowering:
         specifier: workspace:*
         version: link:../lowering
       skeleton:
         specifier: workspace:*
         version: link:../skeleton
+    devDependencies:
+      svelte:
+        specifier: ^5.57.0
+        version: 5.57.0
 
   pkgs/derive:
     dependencies:

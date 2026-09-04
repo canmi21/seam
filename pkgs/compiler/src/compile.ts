@@ -18,7 +18,8 @@ import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'no
 import { dirname, extname, relative, resolve, sep } from 'node:path';
 import { bindings, bundle, type Bundle, type Carried } from 'ast';
 import { carry } from 'carry';
-import { lower, type Lowered } from 'lowering';
+import { lower } from 'lowering';
+import { combinations, type Fixed, joined, MANY, type Structure } from './variants.ts';
 import { skeleton, type Skeleton } from 'skeleton';
 
 /**
@@ -31,6 +32,16 @@ import { skeleton, type Skeleton } from 'skeleton';
 export interface Entry {
 	path: string;
 	component: string;
+	/**
+	 * Payload paths whose values this route is compiled once for each of, and their domains.
+	 *
+	 * A field the author's own markup does not branch on while something downstream does -- a
+	 * locale a translation package reads, a role that picks a layout. The compiler can read neither
+	 * the branch nor the domain, so the domain is declared here and every structure it induces is
+	 * produced at compile time. Enumerating the structures rather than the values is the rule this
+	 * serves; see spec/pipeline.md, and spec/build.md for why the domain is a build input.
+	 */
+	enumerate?: Readonly<Record<string, readonly unknown[]>>;
 }
 
 export interface Options {
@@ -115,7 +126,11 @@ function idOf(root: string, file: string): string {
  * with everything in it, because crossing into WebAssembly costs a `memcpy` and doing it per
  * component is the only part of it that was ever expensive. See pkgs/lowering.
  */
-export async function prepare(file: string, root: string): Promise<Prepared> {
+export async function prepare(
+	file: string,
+	root: string,
+	fixed: Fixed = new Map(),
+): Promise<Prepared> {
 	// Against the root, not the working directory. A route names its component the way the author
 	// wrote it in the configuration, which is relative to the project rather than to wherever the
 	// build happened to be started from.
@@ -125,7 +140,7 @@ export async function prepare(file: string, root: string): Promise<Prepared> {
 	// refuses markup nobody taught the compiler; `bundle` refuses a name nothing binds. An
 	// unsupported construct usually binds names of its own, so resolving names first reports the
 	// name and hides the construct that bound it.
-	const rendered = await skeleton(entry, root);
+	const rendered = await skeleton(entry, root, fixed);
 	// Run for its refusals as much as for its result: it is the pass that says every name resolves,
 	// over the whole tree the entry reaches rather than over the entry alone.
 	const markup = bundle(entry, root);
@@ -158,11 +173,31 @@ export async function compile(options: Options): Promise<Report[]> {
 
 	// Every entry, then every refusal, rather than the first one. An author fixing a build wants
 	// the list, and stopping at the first turns one build into as many as they have mistakes.
-	const prepared: (Prepared & { path: string })[] = [];
+	//
+	// A route with a declared domain is prepared once per combination of its values, and the runs
+	// stay side by side until lowering has finished with them. They are one route throughout: one
+	// URL, one id, one carried bundle, and one artifact at the end.
+	const prepared: (Prepared & { path: string; fixed: Fixed; of: number })[] = [];
 	const refusals: string[] = [];
+	const warnings: string[] = [];
 	for (const entry of options.entries) {
+		const values = combinations(entry.enumerate ?? {});
+		if (values.length > MANY) {
+			warnings.push(
+				`${entry.path} has ${String(values.length)} structures, from ${Object.keys(
+					entry.enumerate ?? {},
+				)
+					.map((one) => `\`${one}\``)
+					.join(
+						', ',
+					)}. A page really can, so this is compiled; a domain declared against a field that is not one is the likelier reading. See spec/pipeline.md`,
+			);
+		}
 		try {
-			prepared.push({ ...(await prepare(entry.component, root)), path: entry.path });
+			for (const fixed of values) {
+				const one = await prepare(entry.component, root, fixed);
+				prepared.push({ ...one, path: entry.path, fixed, of: values.length });
+			}
 		} catch (error) {
 			refusals.push(
 				`${relative(root, resolve(root, entry.component))}: ${(error as Error).message}`,
@@ -186,6 +221,8 @@ export async function compile(options: Options): Promise<Report[]> {
 	// artifacts alone rather than half of a new one beside half of an old one.
 	rmSync(server, { recursive: true, force: true });
 
+	for (const one of warnings) console.warn(`warning: ${one}`);
+
 	const reports: Report[] = [];
 	// Keyed by URL, because that is what a server has in its hand when a request arrives. The id
 	// stays inside: it names the artifacts and it is what Svelte hashes for a scoped class, and
@@ -193,8 +230,16 @@ export async function compile(options: Options): Promise<Report[]> {
 	const routes: Record<string, { id: string; ir: string; carried: string | null; head: string }> =
 		{};
 
-	for (const [at, one] of prepared.entries()) {
-		const compiled = lowered[at] as Exclude<Lowered, { error: string }>;
+	// Back to one entry per route: the runs made for one route are joined into the artifact that
+	// carries all of its structures, under an if over the paths their values were fixed at.
+	for (let at = 0; at < prepared.length;) {
+		const one = prepared[at] as (typeof prepared)[number];
+		const runs = prepared.slice(at, at + one.of).map((each, index) => ({
+			fixed: each.fixed,
+			compiled: lowered[at + index] as unknown as Structure,
+		}));
+		at += one.of;
+		const compiled = joined(one.id, runs);
 		const files: string[] = [];
 
 		const irFile = `${one.id}.json`;

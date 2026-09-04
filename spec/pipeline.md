@@ -151,6 +151,14 @@ different moment.
 per project without changing anything above it. What is settled here is that the structures are
 produced at compile time either way.
 
+**Every branch carries its own test, and none of them is the else.** The tempting shape is to let
+the last combination be the else, which makes the artifact total -- and total by handing a value
+outside the declared domain somebody else's structure. Measured: with `en`, `fr` and `de` declared,
+a payload saying `ja` rendered the German page and nothing anywhere said so. A page that renders
+nothing is a bug report; a page in the wrong language for one reader is not. The domain is a
+promise the build makes, and where the data breaks it the artifact has no structure to offer and
+says so by having none.
+
 The saving is not only the request-time work. A value carried to the runtime drags its dependencies
 into the derivation bundle with it: a locale evaluated per request means every message module it
 reaches is bundled, which for one real project is a 628KB directory with an 80KB runtime in it.
