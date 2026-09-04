@@ -683,6 +683,23 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A snippet declared at the top of a component and rendered inside a branch. Svelte compiles
+		// the declaration to a function and writes nothing for it; the body writes where the
+		// `{@render}` calls it. Walking it at the declaration numbered its blocks against the
+		// branches enclosing *that*, so a block inside the body belonged to a render nobody made and
+		// the assembler went looking for it: `block 15 does not appear in the render made for it`.
+		name: 'a snippet rendered inside a branch, holding a block of its own',
+		source:
+			`${PROPS}{#snippet row(v)}<i>{v}</i>{#if data.g}<b>{v}</b>{:else}<u>n</u>{/if}{/snippet}` +
+			'{#if data.f}<p>first</p>{:else if data.s}{@render row(data.a)}{:else}<p>last</p>{/if}',
+		data: [
+			{ f: false, s: true, g: true, a: 'x' },
+			{ f: false, s: true, g: false, a: '<&' },
+			{ f: true, s: false, g: false, a: 'y' },
+			{ f: false, s: false, g: false, a: 'z' },
+		],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',

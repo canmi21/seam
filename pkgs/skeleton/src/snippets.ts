@@ -35,6 +35,15 @@ export interface Snippet {
 	holds: string[];
 	/** The arguments of the one `{@render}` that calls it, as written. */
 	args: unknown[];
+	/**
+	 * The declaration, so its body can be walked where it is rendered rather than where it sits.
+	 *
+	 * Svelte declares a snippet as a function and inlines nothing: the body writes its bytes at the
+	 * `{@render}` that calls it. Walking it at the declaration numbered its blocks against the
+	 * branches enclosing *that*, so a snippet declared at the top of a component and rendered inside
+	 * an `{:else if}` had blocks no render ever held -- which the assembler then went looking for.
+	 */
+	node?: AstNode;
 }
 
 /**
@@ -64,6 +73,7 @@ export function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = f
 			};
 			const parameters = Array.isArray(node['parameters']) ? node['parameters'] : [];
 			one.declared = true;
+			one.node = node;
 			one.parameters = parameters.length;
 			one.passed = inside;
 			one.holds = parameters.map((parameter) =>

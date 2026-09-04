@@ -671,35 +671,24 @@ function collect(node: unknown, walk: Walk): void {
 		}
 
 		case 'SnippetBlock': {
-			// The body's holes are planted here and come back where the snippet is rendered, which
-			// is fine: a marker carries its own index, so where it lands is not where it was
-			// written. A parameter is a different thing entirely -- its value comes from the call
-			// rather than from the payload, and one body would need a different one per call.
+			// The declaration writes no bytes. Svelte compiles it to a function and the body writes
+			// where the `{@render}` calls it, so that is where it is walked -- which is also the
+			// only place its blocks are numbered against the branches that actually hold them.
+			//
+			// What is refused here is what the declaration alone decides, so that a snippet nobody
+			// renders still says why rather than passing unnoticed.
 			const parameters = Array.isArray(node['parameters']) ? node['parameters'] : [];
-			if (parameters.length === 0) {
-				// The fragment itself, not its children one at a time: a `{@const}` binds for its
-				// siblings and the arm that reads one is the Fragment's. Walking past it left a
-				// `{@const}` inside a snippet reaching the walk's default case, which refuses.
-				step(node['body']);
-				return;
-			}
+			if (parameters.length === 0) return;
 
-			// A parameter's value is the argument at the `{@render}` that calls the snippet, and
-			// there is exactly one of those -- more than one is refused at the render tag, because
-			// one body cannot stand in two places. So the parameter substitutes like any other
-			// declared name, with the argument standing for it.
 			const id = node['expression'];
 			const named = isNode(id) && typeof id['name'] === 'string' ? id['name'] : '';
 			const one = snippets.get(named);
-			if (one === undefined) {
-				refuse(`the snippet \`${named}\` takes parameters and is never rendered`);
-			}
-			if (one.renders === 0) {
+			if (one === undefined || one.renders === 0) {
 				// Written inside a component's tag, so it is a prop that component receives: the child
 				// decides when to call it and with what, and neither is visible from here. One with no
 				// parameters has nothing to decide and already works, which is what `children` is.
 				refuse(
-					one.passed
+					one?.passed === true
 						? `the snippet \`${named}\` is passed to a component, which calls it with arguments ` +
 								'this compiler cannot see, so its parameters have no value to stand for'
 						: `the snippet \`${named}\` takes parameters and is never rendered`,
@@ -711,41 +700,6 @@ function collect(node: unknown, walk: Walk): void {
 						`rendered with ${String(one.args.length)}`,
 				);
 			}
-
-			const bound = new Map<string, string>();
-			for (const [index, parameter] of parameters.entries()) {
-				if (!isNode(parameter)) refuse('a `{#snippet}` parameter this compiler cannot read');
-				// Expanded, so a script name inside the argument is already what it stands for.
-				const argument = expand(one.args[index]);
-				if (parameter['type'] === 'Identifier' && typeof parameter['name'] === 'string') {
-					bound.set(parameter['name'], argument);
-					continue;
-				}
-				// Destructured, which is the same substitution a destructured declaration gets: the
-				// name expands to the argument with the way in written after it.
-				const taken = destructure(parameter as never);
-				for (const [name, access] of taken) bound.set(name, `(${argument})${access}`);
-				// A default or a rest is neither a member nor an index, so it has no way in. Reported
-				// here rather than left to fail as an unresolved name three passes later.
-				const all = new Set<string>();
-				namesIn(parameter, all);
-				const missing = [...all].filter((name) => !bound.has(name));
-				if (missing.length > 0) {
-					refuse(
-						`the snippet \`${named}\` binds ${missing.map((name) => `\`${name}\``).join(', ')} ` +
-							'through a default or a rest, which is neither a member nor an index of the ' +
-							'argument, so there is no way in to write down',
-					);
-				}
-			}
-
-			// The body is walked with those names bound. Everything else about it is ordinary --
-			// including what the body binds for itself: a `{@const}` in it hands its own names down
-			// through `more`, and dropping them left the const expanding to nothing.
-			const inner: Locals['rewrite'] = (child, more) =>
-				expand(child, more === undefined ? bound : new Map([...bound, ...more]));
-			// The fragment itself, for the reason above: its own `{@const}`s bind for its siblings.
-			collect(node['body'], { ...walk, expand: inner });
 			return;
 		}
 
@@ -787,20 +741,61 @@ function collect(node: unknown, walk: Walk): void {
 			// Rendered twice, one body would have to appear twice, and its markers with it. The hole
 			// check catches that on its own, but it reports a value coming back more than once, which
 			// says nothing about the snippet that put it there.
-			if ((one?.renders ?? 0) > 1) {
+			if (one.renders > 1) {
 				refuse(
-					`the snippet \`${String(name)}\` is rendered ${String(one?.renders)} times, and one ` +
+					`the snippet \`${String(name)}\` is rendered ${String(one.renders)} times, and one ` +
 						'body cannot stand in two places: each marker in it would come back more than once',
 				);
 			}
-			// The arguments are read where the snippet's body was walked, not here. Their values are
-			// unused during the render -- every expression in the body is already a marker -- and
-			// evaluating one would reach for data the render is not given, so each is written out.
+			const declaration = one.node;
+			if (declaration === undefined) refuse(`the snippet \`${String(name)}\` has no declaration`);
+
+			// A parameter's value is the argument here, and there is exactly one call, so it
+			// substitutes like any other declared name with the argument standing for it. The
+			// arguments themselves are then written out: their values are unused during the render,
+			// every expression in the body being a marker already, and evaluating one would reach
+			// for data the render is not given.
+			const parameters = Array.isArray(declaration['parameters']) ? declaration['parameters'] : [];
+			const bound = new Map<string, string>();
+			for (const [index, parameter] of parameters.entries()) {
+				if (!isNode(parameter)) refuse('a `{#snippet}` parameter this compiler cannot read');
+				const argument = expand(one.args[index]);
+				if (parameter['type'] === 'Identifier' && typeof parameter['name'] === 'string') {
+					bound.set(parameter['name'], argument);
+					continue;
+				}
+				// Destructured, which is the same substitution a destructured declaration gets: the
+				// name expands to the argument with the way in written after it.
+				for (const [each, access] of destructure(parameter as never)) {
+					bound.set(each, `(${argument})${access}`);
+				}
+				// A default or a rest is neither a member nor an index, so it has no way in. Reported
+				// here rather than left to fail as an unresolved name three passes later.
+				const all = new Set<string>();
+				namesIn(parameter, all);
+				const missing = [...all].filter((each) => !bound.has(each));
+				if (missing.length > 0) {
+					refuse(
+						`the snippet \`${String(name)}\` binds ` +
+							`${missing.map((each) => `\`${each}\``).join(', ')} through a default or a rest, ` +
+							'which is neither a member nor an index of the argument, so there is no way in ' +
+							'to write down',
+					);
+				}
+			}
+
 			const given = isNode(call) && Array.isArray(call['arguments']) ? call['arguments'] : [];
 			for (const [index, argument] of given.entries()) {
 				const at = span(argument);
 				if (at !== null) edits.push([at[0], at[1], one.holds[index] ?? 'null']);
 			}
+
+			// The body, here, with the parameters bound and everything else this walk carries --
+			// which is what puts its blocks inside the branches that actually render them. What the
+			// body binds for itself comes down through `more`.
+			const inner: Locals['rewrite'] = (child, more) =>
+				expand(child, more === undefined ? bound : new Map([...bound, ...more]));
+			collect(declaration['body'], { ...walk, expand: inner });
 			return;
 		}
 
