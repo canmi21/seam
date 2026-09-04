@@ -84,6 +84,89 @@ is a real cost, since every backend then carries it, and a small one: writing at
 object, or a tag name from a string, is concatenation and a list of void elements. It is an HTML
 fact rather than a Svelte one, which is the same ground on which the boolean rule was let in.
 
+## Enumerate the structures, not the values
+
+The table above is written in terms of outcomes, and that word has to be pinned down, because the
+obvious reading of it is the one v1 died of. **The question is never how many values a field can
+hold. It is how many structures depend on it.**
+
+A field's type is not the count. `username` is a string with no bound, and what it costs depends
+on what reads it, not on how many values it has:
+
+| what the page does with it | structures | what compiles |
+| --- | --- | --- |
+| `<p>{username}</p>` | one | a slot, filled at request time |
+| `{#if username}<p>{username}</p>{/if}` | two | both rendered, both kept |
+| `<Message options={{ locale }} />`, nine locales | nine | nine rendered, all kept |
+
+In the first row every payload writes the same shape, so the domain is irrelevant and there is
+nothing to enumerate: the value is written into the bytes and a slot is the whole answer. **The one
+question left about it is whether it is there at all**, because that decides whether the attribute
+or the element around it is written -- a decision with two outcomes, whatever the field holds when
+it is there. Nothing about the content changes the shape.
+
+In the second row the same unbounded string induces exactly two structures, because two is how many
+the author's markup asked for. The value space of `username` is no more enumerable than it was; it
+never had to be.
+
+The third row is the only one that needs anything new, and only because the branching happens
+somewhere the compiler cannot read.
+
+**This is precisely the line between v1 and v2, stated from the other side.** v1 enumerated values
+-- a cartesian product over each field's type -- and diffed the renders to find the branches, which
+is why `price > 10` defeated it. v2 enumerates structures, which the AST names one at a time. The
+count is set by the markup, never by the data.
+
+## Where the structures come from
+
+Three sources, and the compiler treats them the same way once it has them.
+
+**The author's own markup.** An `{#if}`, the branches of an `{:else if}` chain, a `class:`
+directive's two states. The AST says how many, and the compiler renders each and keeps them all.
+This is what blocks already do; nothing here is new.
+
+**A declared domain.** A value the author's markup does not branch on, but something downstream
+does -- a locale read by a package, a role that selects a layout. The compiler cannot see inside
+the package and cannot know that a locale has nine values, so **the build declares the domain**,
+and the compiler renders once per value and keeps them all. Read out of paraglide's generated
+output: for a fixed locale a message's `parts` is a literal array -- the same length, the same
+markup names, in the same order -- and the only thing an input changes is a text value inside one
+of them. Nine locales are nine structures, and each of them is static bytes with holes, which is
+the shape this compiler is built for.
+
+**Nothing.** A domain nobody can enumerate: the keys a `{...spread}` carries, the tag a
+`<svelte:element>` names. The runtime makes that decision, and this is the residue the section
+above is about. **It is the only thing that reaches the runtime.** Everything enumerable is
+compiled.
+
+## What an enumerated field costs, and what it does not
+
+A field with `n` structures does not mean `n` files. The IR already carries branches, so the whole
+of it can sit in one artifact under an `n`-way `If` whose test reads that field -- which is what a
+`class:` directive already does with its `2^n` outcomes, in one hole. Emitting `n` artifacts and
+having the server choose between them is the same compilation with the branch resolved at a
+different moment.
+
+**So how many artifacts is a deployment choice, not an architecture one**, and it can be decided
+per project without changing anything above it. What is settled here is that the structures are
+produced at compile time either way.
+
+The saving is not only the request-time work. A value carried to the runtime drags its dependencies
+into the derivation bundle with it: a locale evaluated per request means every message module it
+reaches is bundled, which for one real project is a 628KB directory with an 80KB runtime in it.
+Enumerated at compile time, the text is bytes and none of it is carried at all.
+
+## A hundred structures is a warning
+
+**Not a refusal.** A page really can have that many, and a compiler that stops is a compiler
+guessing about the author's intent.
+
+But nobody reaches a hundred structures from one field by writing an ordinary page, so reaching it
+is more likely a domain declared wrongly -- an enumerable dimension pointed at a field that is not
+one -- than a page with a hundred shapes. The number exists to be said out loud at the moment the
+cost is incurred, to whoever is watching the build. It says which field and how many, and compiles
+anyway.
+
 ## Static in the corpus does not cover dynamic
 
 The boolean attribute rule was missing for as long as it was because the case covering attributes

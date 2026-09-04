@@ -211,6 +211,24 @@ That is the same rule as one artifact and two readers, moved to the two halves o
 matters because the halves are produced by different things -- the IR by a WebAssembly pass, the
 entry by a Vite plugin -- and the bytes one writes have to be the shape the other mounts.
 
+## A field whose domain the build declares
+
+[pipeline.md](pipeline.md) sets out the law the compiler works to: enumerate the structures a value
+induces, never the values themselves. Most of the time the markup names them, and the build has
+nothing to say. The exception is a field the author's own markup does not branch on while something
+downstream does -- a locale a translation package reads, a role that picks a layout -- where the
+compiler can see neither the branch nor the domain.
+
+**That domain is a build input, for the same reason the URL is.** The compiler cannot know that a
+locale has nine values, and working it out by inspecting whatever library happens to read it would
+be this project guessing at somebody else's code again. So it is declared beside the entry, the
+compiler renders once per value, and every one of those renders is kept.
+
+What is not settled here is how the results are stored -- one artifact carrying an `n`-way branch,
+or `n` artifacts the server picks between. Both are the same compilation with the branch resolved
+at a different moment, so it is a deployment choice and it waits on routing being decided, like the
+rest of what a URL means. See [pipeline.md](pipeline.md).
+
 ## What a page made of several components needs, and what it costs
 
 Measured, on a page component rendered three ways:
