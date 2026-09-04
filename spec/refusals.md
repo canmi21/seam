@@ -4,6 +4,30 @@ The compiler refuses things. An author who meets one needs to know which of thre
 are in, because the three ask for different actions, and until this file existed the compiler said
 the same kind of thing for all of them.
 
+## The target is zero refusals, and that is a statement about scope
+
+**In principle every way of writing Svelte has to compile.** There is no question of whether a
+construct *deserves* to be refused, and a refusal is never a judgement that somebody wrote
+something the wrong way. Every entry in this file is a gap in the work, and the work is finished
+when the file has nothing left in it.
+
+**The reason is structural rather than aspirational.** This compiler is arranged the way SvelteKit
+is; what changed is *when* the render happens. So anything SvelteKit serves should be portable to
+compile-time rendering, with one exception that is a definition rather than a limit: an application
+that genuinely needs arbitrary code executed per request, against something only that request
+knows. Everything else -- an article, a form, an admin screen, a dashboard -- is in scope.
+Interaction is not the line. A dashboard that filters, sorts and opens dialogs is a page whose
+bytes are fixed and whose behaviour is the client's, which is exactly what the client half is for.
+
+**So a refusal is a research task with a known method.** Read Svelte's source, and SvelteKit's,
+find what they do with the construct at request time, and move that to compile time. Nearly every
+item settled so far turned out to be less work than the refusal implied once the source was read,
+and several turned out to be defects rather than gaps. Where the source does not yield an answer --
+where the construct genuinely needs something this arrangement has no place for -- **that is worth
+stopping for and asking**, and the answer gets written down here with what it depends on. That case
+is rarer than it looks. The default expectation is that this handles it as cleanly as SvelteKit
+does, because it is doing less than SvelteKit does.
+
 ## Every refusal is a compile-time error
 
 **There is no runtime fallback.** A component the compiler cannot compile does not quietly get
@@ -208,6 +232,20 @@ counts marked as such:
    1  context the entry has no ancestor to provide
 ```
 
+**Then the declaration with no value, and 18 became 20.** What is left:
+
+```
+   5  {@render} of a snippet from a prop  -- none of them blocks the page it is used on
+   3  {...spread}  -- none of them blocks the page it is used on either
+   3  a bind: the server writes                2  style:
+   2  a marker where the child computes with the value
+   1  <svelte:element>
+   1  a snippet a component is passed, with parameters
+   1  {@const} inside a snippet that takes parameters
+   1  a marker where the child calls the value
+   1  context the entry has no ancestor to provide
+```
+
 **Eight of the eighteen are the scan rather than the compiler.** Both marked rows are components
 that only ever appear inside somebody else's markup, and they compile there. What is actually left
 in the way of a page is ten.
@@ -377,6 +415,42 @@ on a page whose child renders the markup the page wrote inside its tag. One with
 refused, because the arguments are chosen by the child and are not visible from here; it used to be
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
+
+## A declaration with no value, which is what client state looks like on the server
+
+Three of press's components were refused for reading a name *the data does not carry*, and all
+three are the same shape: a piece of client state, set by a handler, read by the markup.
+
+```svelte
+let tip = $state();
+function show(event, stat) { tip = { ... } }
+{#if tip} ... {/if}
+```
+
+The refusal blamed the assignment, and the assignment was never the problem -- `assigned()` has
+never walked a function body, because a handler does not run while the bytes are written. What was
+missing is smaller: **a declaration with nothing written for its value.** `let t = $state()` and
+`let t;` both leave a name with no initialiser to substitute, so the markup read a name nothing
+bound.
+
+Svelte answers it in one line, in `visitors/VariableDeclaration.js`:
+
+```js
+const value = args.length > 0 ? visit(args[0]) : b.void0;
+```
+
+`void 0`. The declaration holds `undefined` while the bytes are written, and a plain `let t;` holds
+the same. So it is a value like any other, and the branch it decides is decided the way Svelte
+decides it: `{#if tip}` renders its else, and the client takes over from there. **Which is the
+whole of what a client-only component is on the server**, and there was never a question of
+refusing it.
+
+An assignment at the top of the instance script stays refused, and that one is real: it does run
+during the render, so the initialiser is not what the name holds. What it needs is a substitution
+that maps a name to a sequence rather than to an expression, which
+[derivation.md](derivation.md) already records as the boundary of what substitution is.
+
+Of press's 41 components, 18 compiled and now 20 do.
 
 ## An each over a destructuring, which was a crash rather than a refusal
 

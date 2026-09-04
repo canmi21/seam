@@ -233,6 +233,32 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// Nothing is written for the value, and Svelte writes `void 0` there:
+		// `args.length > 0 ? visit(args[0]) : b.void0`. So the name holds `undefined` while the
+		// bytes are written, which is what a piece of client state looks like before the client has
+		// it. The markup used to be told the name had to come from the props.
+		name: 'state with no initial value',
+		source:
+			'<script>let { data } = $props(); let t = $state()</script>' +
+			'{#if t}<b>y</b>{:else}<i>{data.a}</i>{/if}',
+		data: [{ a: 'v' }],
+	},
+	{
+		// The whole of what a client-only component looks like on the server: state with no value,
+		// a handler that would set it, and markup that branches on it. Svelte renders the branch
+		// for the value it has, which is none, and the client takes over from there.
+		name: 'state a handler assigns, read in the markup',
+		source:
+			'<script>let { data } = $props(); let open = $state(); function show() { open = true }</script>' +
+			'<button onclick={show}>{#if open}<b>{data.a}</b>{:else}<i>closed</i>{/if}</button>',
+		data: [{ a: 'v' }],
+	},
+	{
+		name: 'a let with no initial value',
+		source: '<script>let { data } = $props(); let t</script><p>{t}</p><p>{data.a}</p>',
+		data: [{ a: 'v' }],
+	},
+	{
 		name: 'raw html',
 		source: `${PROPS}<p>{@html data.a}</p>`,
 		data: [{ a: '<b>x</b>' }, { a: '' }],

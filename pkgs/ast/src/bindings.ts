@@ -241,6 +241,15 @@ export interface Declared {
 	access: string;
 	/** What a render is handed in its place, which has to be destructurable when it was. */
 	holds: 'value' | 'callable' | 'object' | 'array';
+	/**
+	 * What the name expands to, where that is not a span of the source.
+	 *
+	 * `let t;` and `let t = $state()` declare a name with nothing written for its value, and
+	 * Svelte's server transform answers both the same way: `args.length > 0 ? visit(args[0]) :
+	 * b.void0`, so the declaration holds `undefined`. There is no source to slice for that, so it
+	 * is carried here instead.
+	 */
+	literal?: string;
 }
 
 /**
@@ -378,7 +387,16 @@ function declared(ast: Node, source: string, names: ReadonlySet<string>): Map<st
 				if (!isNode(one)) continue;
 				const id = one['id'];
 				const init = one['init'];
-				if (!isNode(id) || !isNode(init)) continue;
+				if (!isNode(id)) continue;
+				// Nothing written for the value. Svelte writes `void 0` there, so the name holds
+				// `undefined` while the bytes are written, which is a value like any other rather
+				// than a name the markup may not read.
+				if (!isNode(init)) {
+					if (id['type'] === 'Identifier' && typeof id['name'] === 'string') {
+						record(id['name'], id, { literal: 'undefined', reads: false });
+					}
+					continue;
+				}
 				// A rune is an ordinary declaration whose initialiser is its argument. This used to
 				// skip every one of them, on the written grounds that a rune holds client state
 				// rather than a value the markup can be given, which Svelte's server transform
@@ -388,7 +406,15 @@ function declared(ast: Node, source: string, names: ReadonlySet<string>): Map<st
 					if (rune !== null) {
 						const reach = SUBSTITUTED[rune];
 						const argument = Array.isArray(init['arguments']) ? init['arguments'][0] : undefined;
-						if (reach === undefined || !isNode(argument)) continue;
+						if (reach === undefined) continue;
+						// A rune called with nothing is the same `void 0`, and reaching into it is not
+						// a step to take: there is nothing there to reach through.
+						if (!isNode(argument)) {
+							if (id['type'] === 'Identifier' && typeof id['name'] === 'string') {
+								record(id['name'], id, { literal: 'undefined', reads: false });
+							}
+							continue;
+						}
 						if (id['type'] === 'Identifier' && typeof id['name'] === 'string') {
 							record(id['name'], argument, { access: reach });
 							continue;
@@ -606,6 +632,7 @@ export function locals(source: string): Locals {
 		if (cached !== undefined && open.size === 0) return cached;
 		const one = found.get(name);
 		if (one === undefined) return name;
+		if (one.literal !== undefined) return one.literal;
 		// A name cannot stand in for itself. A cycle among declarations is the author's, and
 		// leaving the name in place lets the pass that resolves names report it.
 		const inner = new Set(open).add(name);
