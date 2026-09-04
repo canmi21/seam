@@ -360,6 +360,75 @@ refused, because the arguments are chosen by the child and are not visible from 
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
 
+## `{...spread}`: one refusal covering two unrelated things, and 88% of it is the free one
+
+`{...spread}` leads the whole-ecosystem list at 4157 files of 4308, which made it look like the
+largest thing there is. Split by what Svelte actually compiles it to, most of that is not a
+decision position at all.
+
+**On a component it is prop merging.** `build_inline_component` puts the spread into
+`$.spread_props([...])` and the props go to the child. Nothing is serialised, no attribute is
+decided, and the child is rendered by Svelte. **On an element it is `$.attributes(object, hash,
+classes, styles, flags)`**, which walks the object's keys at request time -- and which keys exist
+is the thing that cannot be known at compile time.
+
+Counted over the same 4308 components:
+
+```
+ 3885  on a component   ·  a name            598  on an element  ·  a name
+   15  on an element    ·  a call              6  on a component ·  a call
+    2  on an element    ·  a choice of two object literals
+    2  on an element    ·  a logical expression
+```
+
+By file, which is what a ranking counts: **3657 carry a spread only on a component, and 500 carry
+at least one on an element.**
+
+### And the wrapper, which is what the 96% is, already compiles
+
+```svelte
+<script>let { children, ...rest } = $props();</script>
+<div {...rest}>{@render children()}</div>
+```
+
+Used as a child -- which is the only way a wrapper is ever used -- this compiles today. The
+attributes came from the entry's markup, so Svelte resolved the spread during the compile-time
+render and there was nothing left to decide. The refusal fires when such a file is made the entry,
+and nothing makes it one. The same artifact as the `{@render children()}` count, and the same
+answer: what would make it real is the walk descending into children, which is composition.
+
+### What an entry actually meets, and the line through it
+
+Two shapes, and they are not the same problem:
+
+- **A choice between object literals** -- `{...cond ? { target: '_blank', rel: '...' } : {}}` --
+  has a known set of keys per outcome and two outcomes. That is an enumerable decision, the same
+  one `class:` turned out to be, and the same mechanism takes it: call `$.attributes` per outcome
+  and keep the strings. Two of press's three spreads are this, and one of those two is in a route.
+  A literal whose *value* is request-varying is not this: it is a substitution inside a decision,
+  which is where `style:` sits.
+- **A name** -- `{...restProps}`, `{...data.attrs}` -- has no enumerable outcomes and needs the
+  runtime to write attributes from an object.
+
+**press's entries need the first and none of the second.**
+
+### What the runtime node would cost, exactly
+
+`$.attributes` is exported, so the JavaScript injector could call Svelte's own and reproduce
+nothing. A second backend cannot, and the protocol's whole claim is that two backends produce the
+same bytes. So the cost is a Rust reproduction of `attributes`, and of everything it reaches:
+`attr`, `clsx` -- including the npm package's handling of arrays and nested objects -- `to_class`,
+`to_style` with its `!important` split, the `replacements` table, the invalid-name regex, and three
+flags for namespaced, case-preserving and input elements. Around 150 lines, of which none is an
+HTML fact: skipping `$$`-prefixed keys, mapping `defaultvalue` on an input, and Svelte's
+deliberately odd falsy handling in `clsx` are conventions, and a convention reproduced somewhere
+else is a convention that drifts.
+
+**So it waits, and what it waits on is named.** Not on effort: on the walk descending into
+children, which is when a library's `<div {...restProps}>` stops being something Svelte renders for
+us and becomes something this compiler has to write. Until then the reproduction would be carried
+for 500 files that never reach it.
+
 ## `{@render}`, where the count of five was measuring the scan rather than the compiler
 
 Five components were held by *`{@render}` of a snippet this component does not declare*. Every one
