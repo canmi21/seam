@@ -78,8 +78,17 @@ export interface Block {
 	 * corrupt anything: the block simply does not appear, and the assembler says so.
 	 */
 	within?: [block: number, branch: number][];
-	/** The name an each binds. */
+	/** The name an each binds, or the pattern it binds through, as written. */
 	item: string | null;
+	/**
+	 * What a destructuring context binds, as pairs of name and how it is reached from one element.
+	 *
+	 * `{#each Object.entries(m) as [k, v]}` binds two names and neither is the element. Svelte's
+	 * server writes `let [k, v] = each_array[i]`, so the element has to come apart the way the
+	 * pattern says -- and the render, which iterates one placeholder, has to hand it something that
+	 * can. Absent for the ordinary case, where `item` is a name.
+	 */
+	binds?: [name: string, access: string][];
 	/**
 	 * The name an each binds to its counter, where it names one. The IR calls this `index`, which
 	 * this field cannot: `index` here is the block's own ordinal, and the two collided once.
@@ -548,8 +557,36 @@ function collect(
 			// keyed each renders byte for byte what an unkeyed one renders, measured. It belongs to
 			// the client, which compiles from the source and keeps it.
 			const at = span(node['expression']);
-			const context = span(node['context']);
+			const pattern = node['context'];
+			const context = span(pattern);
 			if (at === null) return;
+
+			// A destructuring context binds names rather than the element, and Svelte's server takes
+			// it apart with `let <pattern> = each_array[i]`. So the one element this render iterates
+			// has to be something the pattern accepts: `0` is not, and destructuring it threw inside
+			// Svelte's own output -- `number 0 is not iterable` -- which told the author nothing.
+			const kind = isNode(pattern) ? pattern['type'] : undefined;
+			const destructured = kind === 'ObjectPattern' || kind === 'ArrayPattern';
+			const element = kind === 'ObjectPattern' ? '{}' : kind === 'ArrayPattern' ? '[]' : '0';
+
+			let binds: [string, string][] | undefined;
+			if (destructured && isNode(pattern)) {
+				binds = destructure(pattern);
+				// The same rule a snippet's parameter follows: a default or a rest or a nesting is
+				// neither a member nor an index of the element, so there is no way in to write down.
+				const bound = new Set<string>();
+				namesIn(pattern, bound);
+				const reached = new Set(binds.map(([name]) => name));
+				const missing = [...bound].filter((name) => !reached.has(name));
+				if (missing.length > 0) {
+					refuse(
+						`\`${String(missing[0])}\` comes out of this each block's pattern through a ` +
+							'default, a rest or a nesting, which is neither a member nor an index of the ' +
+							'element, so there is no way in to write down',
+					);
+				}
+			}
+
 			blocks.push({
 				index: blocks.length,
 				kind: 'each',
@@ -557,11 +594,12 @@ function collect(
 				stream,
 				expression: expand(node['expression']),
 				item: context === null ? null : source.slice(context[0], context[1]),
+				...(binds === undefined ? {} : { binds }),
 				counter: typeof node['index'] === 'string' ? node['index'] : null,
 				alternate: false,
 			});
 			// One element, because the body's own expressions are sentinels and read nothing from it.
-			edits.push([at[0], at[1], '[0]']);
+			edits.push([at[0], at[1], `[${element}]`]);
 			walk(node['body']);
 			return;
 		}

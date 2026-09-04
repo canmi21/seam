@@ -62,6 +62,10 @@ pub struct Block {
 	#[serde(default)]
 	pub tests: Vec<String>,
 	pub item: Option<String>,
+	/// What a destructuring context binds, as name and how it is reached from one element. Empty
+	/// where the context is an ordinary name.
+	#[serde(default)]
+	pub binds: Vec<(String, String)>,
 	/// The name an each block binds to its counter, where it names one. The IR calls it `index`;
 	/// here that name is the block's own ordinal.
 	#[serde(default)]
@@ -538,10 +542,19 @@ impl Assembler<'_> {
 					.clone()
 					.ok_or_else(|| "an each block without an iteration variable".to_owned())?;
 				let index = block.counter.clone();
+				let binds = block.binds.clone();
 				// The body is walked with what the block binds in scope, so a derivation inside it
-				// can be told from a path: one is computed once, the other resolved per item.
+				// can be told from a path: one is computed once, the other resolved per item. A
+				// destructuring binds names rather than the element, and it is those names an
+				// expression could reach for, so they are what goes in scope.
 				let depth = self.locals.len();
-				self.locals.push(item.clone());
+				if binds.is_empty() {
+					self.locals.push(item.clone());
+				} else {
+					for (name, _) in &binds {
+						self.locals.push(name.clone());
+					}
+				}
 				if let Some(counter) = index.clone() {
 					self.locals.push(counter);
 				}
@@ -550,7 +563,7 @@ impl Assembler<'_> {
 				self.locals.truncate(depth);
 				walked?;
 				out.write(&html[span.from..span.content]);
-				out.push(ir::Node::Each { source, item, index, body: body.finish() });
+				out.push(ir::Node::Each { source, item, index, binds, body: body.finish() });
 				Ok(())
 			}
 			Kind::If => {

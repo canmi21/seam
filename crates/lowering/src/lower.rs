@@ -391,10 +391,21 @@ fn nodes(
 				// The open and close markers sit outside the node: one pair for the block, not
 				// one per iteration.
 				builder.write("<!--[-->");
+				// This path writes the bytes from the markup rather than reading them off a render,
+				// and it has never been taught a destructuring context. Rejected rather than emitted
+				// with the pattern standing where a name goes, which would be an IR that resolves
+				// nothing and says so nowhere.
+				if !item.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '$') {
+					return Err(format!(
+						"`{item}` is a destructuring, which writing the bytes has not been taught; the \
+						 render pass takes it"
+					));
+				}
 				builder.push(ir::Node::Each {
 					source: from,
 					item: item.clone(),
 					index: at.clone(),
+					binds: Vec::new(),
 					body: inner.finish(),
 				});
 				builder.write("<!--]-->");

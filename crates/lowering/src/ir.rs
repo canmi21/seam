@@ -42,6 +42,10 @@ pub enum Node {
 		/// transform never mentions one. See `spec/ir.md`.
 		#[serde(skip_serializing_if = "Option::is_none")]
 		index: Option<String>,
+		/// What a destructuring context binds, as name and how it is reached from one element.
+		/// Absent where the context is a name, which is the ordinary case. See `spec/ir.md`.
+		#[serde(skip_serializing_if = "Vec::is_empty")]
+		binds: Vec<(String, String)>,
 		body: Vec<Node>,
 	},
 	/// One attribute of the element being opened. `boolean` marks a name that is present or

@@ -204,6 +204,35 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// Svelte's server writes `let <pattern> = each_array[i]`, so the one element this render
+		// iterates has to be something the pattern accepts. It used to be `0`, and destructuring
+		// that threw inside Svelte's own output with `number 0 is not iterable`.
+		name: 'an each over an array pattern',
+		source: `${PROPS}{#each data.pairs as [k, v]}<p>{k}={v}</p>{/each}`,
+		data: [
+			{ pairs: [] },
+			{
+				pairs: [
+					['a', '1'],
+					['b', '2'],
+				],
+			},
+		],
+	},
+	{
+		name: 'an each over an object pattern, with an index',
+		source: `${PROPS}{#each data.rows as { id, label }, at}<i>{at}:{id}:{label}</i>{/each}`,
+		data: [
+			{ rows: [] },
+			{
+				rows: [
+					{ id: 'x', label: 'L' },
+					{ id: 'y', label: '<&' },
+				],
+			},
+		],
+	},
+	{
 		name: 'raw html',
 		source: `${PROPS}<p>{@html data.a}</p>`,
 		data: [{ a: '<b>x</b>' }, { a: '' }],
@@ -347,6 +376,12 @@ const refused: Case[] = [
 		// and that one works -- it is what `{@render children()}` is.
 		name: 'a snippet passed to a component, with parameters',
 		source: `${PROPS}<b>{data.a}</b>{#snippet row(r)}<i>{r}</i>{/snippet}`,
+	},
+	{
+		// The same rule a snippet's parameter follows: a default is neither a member nor an index
+		// of the element, so there is no way in to write down.
+		name: 'an each pattern with a default',
+		source: `${PROPS}{#each data.rows as { id = 1 }}<i>{id}</i>{/each}`,
 	},
 	{
 		// A snippet that renders itself. Duplicating per call site is what makes a repeated render

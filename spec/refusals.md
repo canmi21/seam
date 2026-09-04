@@ -194,6 +194,24 @@ counts marked as such:
    1  context the entry has no ancestor to provide
 ```
 
+**Then the each pattern, and 17 became 18.** What is left:
+
+```
+   5  {@render} of a snippet from a prop  -- none of them blocks the page it is used on
+   3  {...spread}  -- none of them blocks the page it is used on either
+   3  a bind: the server writes                3  a name assigned after it is declared
+   2  style:                                   1  <svelte:element>
+   1  a snippet a component is passed, with parameters
+   1  {@const} inside a snippet that takes parameters
+   1  a marker where the child computes with the value
+   1  a marker where the child calls the value
+   1  context the entry has no ancestor to provide
+```
+
+**Eight of the eighteen are the scan rather than the compiler.** Both marked rows are components
+that only ever appear inside somebody else's markup, and they compile there. What is actually left
+in the way of a page is ten.
+
 Three of those were reported for the first time rather than newly caused: a name assigned after it
 is declared was always there, behind a block refusal that ran first.
 
@@ -360,6 +378,36 @@ refused, because the arguments are chosen by the child and are not visible from 
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
 
+## An each over a destructuring, which was a crash rather than a refusal
+
+`{#each Object.entries(m) as [k, v]}` did not refuse. It stopped inside Svelte's own output with
+
+```
+number 0 is not iterable (cannot read property Symbol(Symbol.iterator))
+```
+
+which names nothing the author wrote. Two things were missing, and the source said what both were.
+
+**The element the render iterates has to fit the pattern.** `visitors/EachBlock.js` writes
+`let <context> = each_array[i]`, and this pass replaces the each's source with a one-element array
+so the body renders once. That element was `0`, which an array pattern cannot come apart from. It
+is now `[]` or `{}`, chosen by the pattern, which is the same rule a snippet's parameter already
+followed and the same table it used.
+
+**And the names have to reach the runtime.** A destructuring binds names rather than the element,
+so `item` -- which the IR hands to the runtime as the name to bind -- was the pattern text and
+resolved nothing. The block now carries what `destructure` returns, pairs of name and how each is
+reached from one element, and the IR's each node carries them through. The same pairs go into the
+scope lowering checks a derivation against, so an expression reading a destructured name is caught
+by the per-item rule exactly as one reading a plain binding is.
+
+A default, a rest or a nesting in the pattern is refused, and by name: none of them is a member or
+an index of the element, so there is nothing to write down. That is the rule
+[derivation.md](derivation.md) already states for a declaration and a snippet parameter, met a
+third time.
+
+Of press's 41 components, 17 compiled and now 18 do.
+
 ## `{...spread}`: one refusal covering two unrelated things, and 88% of it is the free one
 
 `{...spread}` leads the whole-ecosystem list at 4157 files of 4308, which made it look like the
@@ -459,11 +507,42 @@ is the same request-time evaluation the protocol already does for a derivation, 
 runtime, and it is strictly less than SvelteKit does -- which runs that same function per request
 along with the whole component tree.
 
-**It still waits, and now for an honest reason.** Not cost, and not a backend that cannot: there is
-no code to write it for. The shape that needs it does not appear in an entry in the application
-this is measured against, or in the 4157 files it installs. What would make one appear is the walk
-descending into children, which is composition. The enumerable shape -- a choice between object
-literals -- does appear, in a route, and is the same mechanism `class:` already uses.
+### Neither half is blocked. Both are unbuilt, and here is what each is waiting for
+
+**Nothing is refused here for want of a mechanism.** Saying "not yet" without saying when is a way
+of not deciding, so both halves get a condition that can be checked rather than felt.
+
+**The enumerable half** -- `{...cond ? { ... } : { ... }}` on an element -- needs no new machinery
+at all. It is the decision `class:` already compiles: call `$.attributes` once per outcome and keep
+the strings. It is not built because **the one place it appears is refused before it is reached**.
+press's home route writes it inside `{#each links as link}` beside
+`link.href.startsWith('/') ? ... : ...`, and lowering stops on that first:
+
+```
+`link.href.startsWith("/") ? link.label : "x"` is computed once against the payload but reads
+`link`, which an each block binds per item
+```
+
+So building it today would move nothing. **It is built when the per-item derivation is** -- the
+open item in [derivation.md](derivation.md), and concretely `path()` in
+`crates/lowering/src/assemble.rs`, which today refuses an expression reading a name an each binds.
+Whichever of the two lands second unblocks the route; there is no other order.
+
+**The unenumerable half** -- `{...data.attrs}`, keys arriving with the request -- is not built
+because **no code needs it**. Not in press, and not in the 4157 files press installs, because a
+library's `{...restProps}` is resolved by the call site and the call site is markup this compiler
+reads. Two separate things would make it needed, and they are not the same event:
+
+1. **An author writes an element spread whose object comes from the payload, in a route.** That
+   needs nothing else finished. `attributes` goes into the derivation bundle -- 2.3 kB, measured --
+   and the IR gains a node that writes attributes from a path. It can be built the week it appears.
+2. **The walk descends into a child.** Concretely: when `collect()` in
+   `pkgs/skeleton/src/skeleton.ts` walks the component a `Component` node names, instead of leaving
+   that subtree to Svelte's render, and lowering resolves the child's props through
+   `Derivation.scope`, which `crates/lowering/src/ir.rs` already carries for exactly this. On that
+   day every wrapper's `{...restProps}` stops being something Svelte resolves for us and becomes
+   something this compiler has to write, and the node stops being optional. That is when it is
+   required rather than possible.
 
 ## `{@render}`, where the count of five was measuring the scan rather than the compiler
 

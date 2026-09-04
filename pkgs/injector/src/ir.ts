@@ -19,7 +19,18 @@ export type Node =
 	| { t: 'static'; s: string }
 	| { t: 'slot'; path: string; escape: EscapeMode | false }
 	| { t: 'if'; branches: Branch[] }
-	| { t: 'each'; source: string; item: string; index?: string | null; body: Node[] }
+	| {
+			t: 'each';
+			source: string;
+			item: string;
+			index?: string | null;
+			/**
+			 * What a destructuring context binds, as name and how it is reached from one element.
+			 * Absent where `item` is a name, which is the ordinary case. See spec/ir.md.
+			 */
+			binds?: [name: string, access: string][];
+			body: Node[];
+	  }
 	| {
 			t: 'attr';
 			name: string;
