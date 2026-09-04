@@ -142,7 +142,14 @@ export async function probed(
 	);
 	let seen: string;
 	try {
-		const rendered = await renderRewritten(file, second.rewritten, root, second.copies, given);
+		const rendered = await renderRewritten(
+			file,
+			second.rewritten,
+			root,
+			second.copies,
+			given,
+			second.fresh,
+		);
 		seen = rendered.body + rendered.head;
 	} catch {
 		// The probe could not be made, so nothing is known and nothing is relaxed. That is the safe
@@ -333,6 +340,7 @@ async function unwritten(
 			root,
 			baseline.copies.map((copy) => ({ ...copy, source: swap(copy.source) })),
 			given,
+			baseline.fresh,
 		);
 		return again.body === seen.body && again.head === seen.head;
 	} catch {

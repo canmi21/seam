@@ -137,8 +137,9 @@ of them. Nine locales are nine structures, and each of them is static bytes with
 the shape this compiler is built for.
 
 **Nothing.** A domain nobody can enumerate: the keys a `{...spread}` carries, the tag a
-`<svelte:element>` names. The runtime makes that decision, and this is the residue the section
-above is about. **It is the only thing that reaches the runtime.** Everything enumerable is
+`<svelte:element>` names, and the id `$props.id()` hands out, which is one per component instance
+and so one per item of an each. The runtime makes that decision, and this is the residue the
+section above is about. **It is the only thing that reaches the runtime.** Everything enumerable is
 compiled.
 
 ## What an enumerated field costs, and what it does not

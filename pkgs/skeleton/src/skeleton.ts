@@ -3,6 +3,7 @@ import { basename, resolve as resolvePath } from 'node:path';
 import { parse } from 'svelte/compiler';
 import { resolved } from 'ast';
 import { partial } from './compose.ts';
+import { anchored } from './fresh.ts';
 import { type AstNode, titles } from './node.ts';
 import { renderRewritten, shippable } from './render.ts';
 import { dead, filled, outcomes, probed } from './resolve.ts';
@@ -127,6 +128,7 @@ export async function skeleton(
 		root,
 		baseline.copies,
 		given,
+		baseline.fresh,
 	).catch((error: unknown) => {
 		const why = baseline.missed
 			.map((one) => `  ${basename(one.file)}: ${one.reason.replace(/\s+/g, ' ')}`)
@@ -138,13 +140,11 @@ export async function skeleton(
 				`would bring. What stopped the walk:\n${why}`,
 		);
 	});
-	const { body: html, head } = rendered;
-
 	// The rest of each spread's call, which only the compiled output has.
 	filled(baseline, file, root);
 
 	// Before the alternates, because an if in markup nobody renders needs none of them.
-	await probed(baseline, source, file, root, [html, head], fixed, given, decided);
+	await probed(baseline, source, file, root, [rendered.body, rendered.head], fixed, given, decided);
 
 	// One more render per branch the baseline does not hold, keyed the way Svelte numbers them:
 	// `1`, `2` for each `{:else if}`, and `-1` for the else, which is what it writes into the
@@ -163,15 +163,22 @@ export async function skeleton(
 			const chosen = (index: number, at: number) =>
 				index === block.index ? at === branch : at === (forced.get(index) ?? 0);
 			const flipped = rewrite(source, chosen, file, root, false, fixed, decided);
-			alternates[`${String(block.index)}.${String(branch)}`] = await renderRewritten(
+			const other = await renderRewritten(
 				file,
 				flipped.rewritten,
 				root,
 				flipped.copies,
 				given,
+				flipped.fresh,
 			);
+			// The ids of the components the walk did not enter become holes here, one set per
+			// render, since each render numbers its own.
+			alternates[`${String(block.index)}.${String(branch)}`] = anchored(other, baseline.holes);
 		}
 	}
+	// Before anything counts the holes: an id written by a component the walk did not enter is not
+	// a hole until this makes it one.
+	const { body: html, head } = anchored(rendered, baseline.holes);
 
 	const everywhere = [
 		html,

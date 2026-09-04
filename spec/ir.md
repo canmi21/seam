@@ -57,7 +57,11 @@ uses none of the three leaves `head` and `title` empty.
 
 - **`static`** -- an opaque string. Markup and Svelte's anchors sit in it indistinguishably; the
   runtime neither parses nor inspects it.
-- **`slot`** -- a data path and an escape mode. Nothing else.
+- **`slot`** -- a data path and an escape mode. Nothing else, but for one flag: `fresh` marks the
+  anchor of a `$props.id()`, whose value the runtime counts out rather than reads -- `s1`, `s2`, in
+  output order, which is the order Svelte's own server counts in -- and binds under the path in the
+  innermost scope for every read that follows. The one value in the IR a backend makes rather than
+  resolves, and it is a counter. See [refusals.md](refusals.md).
 - **`if`** -- branches, each with a test and a body. The last branch may have `"test": null`,
   which is the else.
 - **`each`** -- a source path, the name bound to each item, an optional `index`, and a body.

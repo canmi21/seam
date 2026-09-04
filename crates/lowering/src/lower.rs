@@ -132,11 +132,11 @@ fn slot(
 	// that field. The protocol still only ever tests and interpolates paths.
 	if !is_path(source.trim()) {
 		let name = derivations.add(scope, source)?;
-		builder.push(ir::Node::Slot { path: name, escape: mode });
+		builder.push(ir::Node::Slot { path: name, escape: mode, fresh: false });
 		return Ok(());
 	}
 	match resolve(scope, source)? {
-		Binding::Path(path) => builder.push(ir::Node::Slot { path, escape: mode }),
+		Binding::Path(path) => builder.push(ir::Node::Slot { path, escape: mode, fresh: false }),
 		Binding::Literal(text) => builder.write(&escape(&text, mode)),
 	}
 	Ok(())

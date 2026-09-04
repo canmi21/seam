@@ -5,7 +5,19 @@ import { resolve, type Scope, settle } from './resolve.ts';
 export type { Branch, ComponentIR, EscapeMode, Node, Presence } from './ir.ts';
 export { resolve, SCOPED, type Scope, settle } from './resolve.ts';
 
-function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
+/**
+ * The ids one response counts out, for every `$props.id()` it meets.
+ *
+ * Svelte's server keeps one counter per render and spells the id `s1`, `s2`, ... in the order the
+ * components are instantiated, which is the order their anchors are written; the client reads each
+ * back from its anchor. Counting here in output order is the same sequence, so the bytes are the
+ * ones Svelte would have written.
+ */
+interface Fresh {
+	next: number;
+}
+
+function walk(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): string {
 	let out = '';
 	for (const node of nodes) {
 		switch (node.t) {
@@ -13,12 +25,22 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 				out += node.s;
 				break;
 			case 'slot':
+				if (node.fresh === true) {
+					// Bound in the innermost scope, which is the item's inside an each, so every
+					// item gets its own and the reads inside the body see it.
+					const id = `s${String(fresh.next)}`;
+					fresh.next += 1;
+					const innermost = scopes[scopes.length - 1];
+					if (innermost !== undefined) innermost[node.path] = id;
+					out += escape(id, node.escape);
+					break;
+				}
 				out += escape(settle(resolve(scopes, node.path), scopes), node.escape);
 				break;
 			case 'if':
 				for (const branch of node.branches) {
 					if (branch.test === null || settle(resolve(scopes, branch.test), scopes)) {
-						out += walk(branch.body, scopes);
+						out += walk(branch.body, scopes, fresh);
 						break;
 					}
 				}
@@ -31,7 +53,7 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 				const single = node.parts.length === 1 && only?.t === 'slot';
 				const value = single
 					? settle(resolve(scopes, only.path), scopes)
-					: walk(node.parts, scopes);
+					: walk(node.parts, scopes, fresh);
 				if (value === undefined || value === null) break;
 
 				// `hidden` is boolean for every value but this one, which is Svelte's exception and
@@ -68,7 +90,7 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 						for (const [name, access] of node.binds) bound[name] = reach(item, access);
 					}
 					if (node.index != null) bound[node.index] = at;
-					out += walk(node.body, [...scopes, bound]);
+					out += walk(node.body, [...scopes, bound], fresh);
 				}
 				break;
 			}
@@ -83,8 +105,8 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
  * that is either set or not, and an unreached branch leaves it unset rather than empty. The walk
  * underneath is the same one.
  */
-function title(nodes: readonly Node[], scopes: readonly Scope[]): string {
-	return walk(nodes, scopes);
+function title(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): string {
+	return walk(nodes, scopes, fresh);
 }
 
 /** What Svelte's `render()` returns, produced without any of Svelte running. */
@@ -108,6 +130,11 @@ function reach(value: unknown, access: string): unknown {
 
 export function inject(ir: ComponentIR, data: Scope): Injected {
 	const scopes = [data];
+	// One counter per response, starting where Svelte's does.
+	const fresh: Fresh = { next: 1 };
 	// The title goes after the head blocks, which is where Svelte's own renderer appends it.
-	return { body: walk(ir.body, scopes), head: walk(ir.head, scopes) + title(ir.title, scopes) };
+	return {
+		body: walk(ir.body, scopes, fresh),
+		head: walk(ir.head, scopes, fresh) + title(ir.title, scopes, fresh),
+	};
 }

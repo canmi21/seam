@@ -30,6 +30,11 @@ pub enum Node {
 	Slot {
 		path: String,
 		escape: Escape,
+		/// A `$props.id()` anchor: the value is the next id the runtime counts out rather than
+		/// one read from data, and it is bound under `path` for every read that follows. Svelte's
+		/// server counts the same way, so the bytes agree. See `spec/ir.md`.
+		#[serde(skip_serializing_if = "std::ops::Not::not")]
+		fresh: bool,
 	},
 	If {
 		branches: Vec<Branch>,

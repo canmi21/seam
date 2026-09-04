@@ -1467,11 +1467,75 @@ A test that reads a name an each block binds is refused, with the other spelling
 made per item, the derivation the branch is tested by has no item to read, and an `{#if}` around
 the component inside the each is a block and is taken per item.
 
-The route that forced this now walks past the notice and into the link cards, and stops one
-component later on `$props.id()`, which is its own item: [derivation.md](derivation.md) refuses it
-as a value each side generates, and Svelte's source says otherwise -- the server writes the id into
-a `<!--$id-->` anchor and the client's `props_id` reads it back from that anchor when hydrating.
-That is a decision to take rather than a gap to close, and it is not taken here.
+The route that forced this now walks past the notice and into the link cards, and stopped one
+component later on `$props.id()`, which is the next section.
+
+## `$props.id()` is counted by the runtime
+
+[derivation.md](derivation.md) refused it as a value each side generates. Read rather than
+assumed, it is nothing of the kind:
+
+| | |
+| --- | --- |
+| `transform-server.js` | `const id = $.props_id($$renderer)` is made the first statement of the component |
+| `props_id` on the server | `renderer.push('<!--$' + uid + '-->')`, the uid from a counter kept per `render()` |
+| `props_id` on the client | while hydrating, if the current node is a `$` comment, take its text as the id |
+
+So the id is the server's, and the client compares nothing. That looked like the best case for
+static bytes -- the compile-time render writes an anchor and a request-time one would write the
+same -- and Svelte's own output says otherwise, on two shapes measured before anything was built:
+
+```
+{#if a}{:else}<Id/>{/if}{#if b}{:else}<Id/>{/if}{#each items as it}<Id/>{/each}
+
+a=false b=false items=[p,q]     <!--$s1-->  <!--$s2-->  <!--$s3-->  <!--$s4-->
+```
+
+The two else branches are rendered separately here and each numbers from where its own render
+stands, so both would carry `s1`. The each body is rendered once and would carry one id for every
+item. Neither is the bytes above, and duplicate ids are not a hydration fault -- the client adopts
+whatever it finds -- but they are wrong HTML: `aria-describedby` on the second card resolves to the
+first card's description.
+
+**So the id is the one value in the IR the backend makes rather than reads.** A `slot` carrying
+`fresh` writes the next id, `s1`, `s2`, ... per response in output order, and binds it under the
+slot's path in the innermost scope; every read of the id is a slot on that path, and a derivation
+reading it is computed where it is used, as one reading an each binding is. Output order is the
+order Svelte's counter runs in, since the anchor is the first thing a component writes, so the
+bytes are the ones Svelte would have written and the corpus holds them to that without an
+exception. What a backend pays is an integer and a string per instance, which is what Svelte's own
+server pays; a scheme that avoided the counter -- a site number with the each index appended --
+would have cost the oracle instead.
+
+### Two ways an anchor is found, because there are two kinds of component
+
+**A component the walk entered** has its anchor planted. The declaration stays in the copy, so
+Svelte still writes the anchor where it writes it, and the compiled copy has the one call
+`$.props_id($$renderer)` replaced by a helper that writes the hole's marker in place of the id.
+Replacing the call rather than the helper keeps the placement Svelte's; the helper cannot be given
+the marker any other way, since a reference to `$$renderer` from the instance script is refused by
+Svelte's analysis and nothing the server runtime exports reaches the renderer.
+
+The name the id is bound under is one per copy, `__i` and the copy's ordinal, so two components
+declaring an id in one page do not share a binding, and the name is in the walk's dynamic set:
+an expression reading it varies per request and is a hole, however inert the rest of it looks.
+
+**A component the walk did not enter** is Svelte's to render, and packages declare ids too -- a
+menu trigger names the menu it opens by one. The render is given an `idPrefix`, so every such id is
+a token nothing else produces, numbered by Svelte; the first place a token appears is the anchor
+and becomes the hole that binds it, every other place is a read. The name is the number Svelte
+gave, which is one per render rather than per component, and that is enough: a component's reads
+follow its own anchor and end before a sibling's begins, and one nested inside it is instantiated
+after it in every render that holds both, so a rebind never reaches a read that meant the outer
+one. A first draft mapped anchors to walked components by counting them in document order, and the
+first real route had a package's anchor in the count.
+
+### What this changed beside itself
+
+A derivation is marked as computed per use by scanning its expression for the names in scope, and
+the scan stepped over a template literal as if it were a string, so `` `${id}-panel` `` read
+nothing. That was wrong for an each binding as well and had not been met; the template's
+expressions are scanned now.
 
 ## The compiler refuses by allowlist
 

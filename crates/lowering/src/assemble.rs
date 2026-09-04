@@ -55,6 +55,9 @@ struct Assembler<'a> {
 	/// Names an enclosing each block binds. A derivation is computed once against the payload, so
 	/// one that reads a name bound per item has no value to be computed from. See spec/ir.md.
 	locals: Vec<String>,
+	/// The names the ids are bound under, which the runtime decides where they are written: a
+	/// derivation reading one is computed where it is used, as one reading an each binding is.
+	fresh: Vec<String>,
 }
 
 // --- assembling ---------------------------------------------------------------------------
@@ -126,13 +129,23 @@ impl Assembler<'_> {
 				return Ok(());
 			};
 
+			// An id's anchor is `<!--$` and the marker and `-->`: inside a `<`, which is what
+			// `landing` reads as an attribute, and not one. The runtime counts the value out and
+			// binds it, so the node says so rather than naming a path to resolve.
+			if self.skeleton.holes.get(index).is_some_and(|hole| hole.fresh) {
+				out.write(&html[at..start]);
+				let (expression, _) = self.hole(index)?;
+				out.push(ir::Node::Slot { path: expression, escape: ir::Escape::Content, fresh: true });
+				at = end;
+				continue;
+			}
 			match landing(html, start, anchor)? {
 				Landing::Content => {
 					out.write(&html[at..start]);
 					let (expression, raw) = self.hole(index)?;
 					let escape = if raw { ir::Escape::Raw } else { ir::Escape::Content };
 					let path = self.path(&expression)?;
-					out.push(ir::Node::Slot { path, escape });
+					out.push(ir::Node::Slot { path, escape, fresh: false });
 					at = end;
 				}
 				Landing::Attribute { name, opens_at } => {
@@ -142,7 +155,7 @@ impl Assembler<'_> {
 					if self.skeleton.holes.get(index).is_some_and(|hole| hole.spread) {
 						let (expression, _) = self.hole(index)?;
 						let path = self.path(&expression)?;
-						out.push(ir::Node::Slot { path, escape: ir::Escape::Raw });
+						out.push(ir::Node::Slot { path, escape: ir::Escape::Raw, fresh: false });
 						at = closes(html, opens_at, until)
 							.ok_or_else(|| "an element whose attributes are spread is never closed".to_owned())?;
 						continue;
@@ -182,7 +195,7 @@ impl Assembler<'_> {
 			parts.write(&html[at..start]);
 			let (expression, _) = self.hole(index)?;
 			let path = self.path(&expression)?;
-			parts.push(ir::Node::Slot { path, escape: ir::Escape::Attr });
+			parts.push(ir::Node::Slot { path, escape: ir::Escape::Attr, fresh: false });
 			at = end;
 		}
 		parts.write(&html[at..until]);
@@ -242,7 +255,7 @@ impl Assembler<'_> {
 		open.write("<");
 		// Escaped as content, which changes nothing a valid tag name contains and leaves nothing
 		// that could close the tag it is being written into.
-		open.push(ir::Node::Slot { path: tag.clone(), escape: ir::Escape::Content });
+		open.push(ir::Node::Slot { path: tag.clone(), escape: ir::Escape::Content, fresh: false });
 		let mut body = open.finish();
 		body.extend(attributes.finish());
 		let mut rest = Out::default();
@@ -255,7 +268,7 @@ impl Assembler<'_> {
 			],
 		});
 		closed.write("</");
-		closed.push(ir::Node::Slot { path: tag, escape: ir::Escape::Content });
+		closed.push(ir::Node::Slot { path: tag, escape: ir::Escape::Content, fresh: false });
 		closed.write(">");
 		let mut inner = children.finish();
 		inner.extend(closed.finish());
@@ -422,6 +435,12 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 		consumed: vec![0; skeleton.holes.len()],
 		stream: Stream::Body,
 		locals: Vec::new(),
+		fresh: skeleton
+			.holes
+			.iter()
+			.filter(|hole| hole.fresh)
+			.map(|hole| hole.expression.clone())
+			.collect(),
 	};
 	let mut out = Out::default();
 	out.write(&skeleton.html[outer.from..outer.content]);

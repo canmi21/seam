@@ -30,6 +30,10 @@ pub struct Hole {
 	/// the request, so what is written is one finished run and it is already escaped.
 	#[serde(default)]
 	pub spread: bool,
+	/// The anchor of a `$props.id()`, whose value the runtime counts out. `expression` is then
+	/// the name the id is bound under. See `pkgs/skeleton/src/fresh.ts`.
+	#[serde(default)]
+	pub fresh: bool,
 }
 
 /// A decision whose outcomes were enumerated at compile time.

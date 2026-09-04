@@ -1,6 +1,7 @@
 import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { compile } from 'svelte/compiler';
 import type { Rendered } from './shape.ts';
+import { ID_PREFIX, sentinel } from './sentinel.ts';
 import type { Copy } from './walk.ts';
 
 /**
@@ -63,6 +64,8 @@ export async function renderRewritten(
 	 * that could read them would let an expression through that has to be a hole.
 	 */
 	props: Record<string, unknown> = {},
+	/** The hole standing for the entry's own `$props.id()` anchor, where it declares one. */
+	fresh?: number,
 ): Promise<Rendered> {
 	const { mkdirSync, readFileSync: read, rmSync, writeFileSync } = await import('node:fs');
 	const { fileURLToPath, pathToFileURL } = await import('node:url');
@@ -110,29 +113,58 @@ export async function renderRewritten(
 	function compileFile(target: string): string {
 		const copy = staged.get(target);
 		const from = copy?.file ?? target;
-		return compile(copy?.source ?? read(target, 'utf8'), {
+		const code = compile(copy?.source ?? read(target, 'utf8'), {
 			generate: 'server',
 			name: basename(from, '.svelte'),
 			filename: from,
 			rootDir: root,
 		}).js.code;
+		return copy?.fresh === undefined ? code : anchoring(code, copy.fresh);
 	}
 
 	try {
-		const entry = emit(
-			file,
-			compile(source, {
-				generate: 'server',
-				name: 'Entry',
-				filename: file,
-				rootDir: root,
-			}).js.code,
-			file,
-		);
+		const compiled = compile(source, {
+			generate: 'server',
+			name: 'Entry',
+			filename: file,
+			rootDir: root,
+		}).js.code;
+		const entry = emit(file, fresh === undefined ? compiled : anchoring(compiled, fresh), file);
 		const mod = (await import(pathToFileURL(entry).href)) as { default: unknown };
-		const { body, head } = render(mod.default as never, { props: props as never });
+		// The prefix is what makes a `$props.id()` anchor readable after the render. See `fresh.ts`.
+		const { body, head } = render(mod.default as never, {
+			props: props as never,
+			idPrefix: ID_PREFIX,
+		});
 		return { body, head };
 	} finally {
 		rmSync(staging, { recursive: true, force: true });
 	}
+}
+
+/** The call Svelte's server transform writes for `$props.id()`, first in the component's body. */
+const PROPS_ID = '$.props_id($$renderer)';
+
+/**
+ * The compiled component with the anchor of its `$props.id()` written as the marker of its hole.
+ *
+ * Svelte's helper pushes `<!--$` and an id from the renderer's counter and `-->`, and returns the
+ * id. The id is a value the runtime counts out, so what is wanted in the compile-time bytes is the
+ * hole's marker in its place -- and only there: every read of the id in the markup is already a
+ * hole of its own, so what the declaration holds during the render is never written. Replacing
+ * the one call rather than the helper keeps where the anchor goes Svelte's own. See `fresh.ts`
+ * for the components whose output this cannot reach.
+ */
+function anchoring(code: string, hole: number): string {
+	const at = code.indexOf(PROPS_ID);
+	if (at < 0 || code.indexOf(PROPS_ID, at + 1) >= 0) {
+		throw new Error(
+			'a component declaring `$props.id()` compiled to something other than one call of ' +
+				"Svelte's helper, so the anchor cannot be planted; Svelte's server transform has moved",
+		);
+	}
+	const marker = JSON.stringify(sentinel(hole));
+	const helper = `function __seam_id(renderer) { renderer.push('<!--$' + ${marker} + '-->'); return ${marker}; }\n`;
+	// A function rather than a string, since `$$` in a replacement string is one `$`.
+	return helper + code.replace(PROPS_ID, () => '__seam_id($$renderer)');
 }

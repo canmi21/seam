@@ -43,11 +43,44 @@ fn reads(source: &str) -> Vec<String> {
 	let mut after_dot = false;
 	while at < bytes.len() {
 		let c = bytes[at];
-		if c == '\'' || c == '"' || c == '`' {
+		if c == '\'' || c == '"' {
 			let quote = c;
 			at += 1;
 			while at < bytes.len() && bytes[at] != quote {
 				at += if bytes[at] == '\\' { 2 } else { 1 };
+			}
+			at += 1;
+			after_dot = false;
+			continue;
+		}
+		// A template is text with expressions inside it, and the expressions read names like any
+		// other: `${id}-panel` reads `id`. Skipping the whole of it as a string was how a
+		// derivation over what an each block binds came to be computed once, before the loop.
+		if c == '`' {
+			at += 1;
+			while at < bytes.len() && bytes[at] != '`' {
+				if bytes[at] == '\\' {
+					at += 2;
+					continue;
+				}
+				if bytes[at] == '$' && bytes.get(at + 1) == Some(&'{') {
+					let from = at + 2;
+					let mut depth = 1;
+					let mut to = from;
+					while to < bytes.len() && depth > 0 {
+						match bytes[to] {
+							'{' => depth += 1,
+							'}' => depth -= 1,
+							_ => {}
+						}
+						to += 1;
+					}
+					let inner: String = bytes[from..to.saturating_sub(1)].iter().collect();
+					found.extend(reads(&inner));
+					at = to;
+					continue;
+				}
+				at += 1;
 			}
 			at += 1;
 			after_dot = false;
@@ -90,7 +123,8 @@ impl Assembler<'_> {
 		// function either way; what changes is how often it is called, and that follows from what
 		// its inputs are rather than from a rule about derivations. See spec/derivation.md.
 		let read = reads(trimmed);
-		let scoped = self.locals.iter().any(|one| read.iter().any(|name| name == one));
+		let scoped =
+			self.locals.iter().chain(self.fresh.iter()).any(|one| read.iter().any(|name| name == one));
 		let name = format!("__d{}", self.derivations.len());
 		self.derivations.push(ir::Derivation {
 			name: name.clone(),
@@ -151,7 +185,7 @@ impl Assembler<'_> {
 			out.write(&outcome[at..start]);
 			let (expression, _) = self.hole(index)?;
 			let path = self.path(&expression)?;
-			out.push(ir::Node::Slot { path, escape: ir::Escape::Attr });
+			out.push(ir::Node::Slot { path, escape: ir::Escape::Attr, fresh: false });
 			at = end;
 		}
 		out.write(&outcome[at..]);

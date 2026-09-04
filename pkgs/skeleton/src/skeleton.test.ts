@@ -664,6 +664,34 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// `$props.id()` is an id Svelte's server counts out per render and writes into an anchor the
+		// client reads back, so it is decided when the bytes are written: the runtime counts in the
+		// same order, and every read of it is a binding made at the anchor. The shapes here are the
+		// ones static bytes got wrong -- an each body, where one id would repeat per item, and an
+		// else branch, whose separate render numbered from one and collided -- plus a read inside a
+		// derivation and a component that declares an id and never reads it. See spec/refusals.md.
+		name: 'an id per component instance',
+		beside: {
+			Tagged:
+				'<script>let { label } = $props(); const id = $props.id();' +
+				' const panel = `${id}-panel`;</script>' +
+				'<i id={id} aria-describedby={label ? id : undefined}>{label}</i>' +
+				'<b id={panel}>{id}</b>',
+			Quiet: '<script>let { x } = $props(); const unused = $props.id();</script><u>{x}</u>',
+		},
+		source:
+			"<script>import Tagged from './Tagged.svelte'; import Quiet from './Quiet.svelte';" +
+			' let { data } = $props(); const own = $props.id();</script>' +
+			'<section id={own}>{#if data.a}<Tagged label={data.a} />{:else}<Quiet x={own} />' +
+			'<Tagged label="" />{/if}{#each data.xs as x}<Tagged label={x} /><Quiet {x} />{/each}' +
+			'<p>{own}</p></section>',
+		data: [
+			{ a: 'first', xs: ['p', 'q'] },
+			{ a: '', xs: ['<&'] },
+			{ a: 'only', xs: [] },
+		],
+	},
+	{
 		// A `{@const}` inside a snippet. Its body was walked child by child rather than as the
 		// fragment it is, which stepped past the arm that reads one -- so a const tag reached the
 		// walk's default case and was refused as a construct nobody had taught it, in a shape the
@@ -1101,12 +1129,6 @@ const refused: Case[] = [
 	{
 		name: 'else on an each',
 		source: `${PROPS}{#each data.xs as x}<p>{x}</p>{:else}<p>none</p>{/each}`,
-	},
-	{
-		// A rune Svelte has but this does not substitute. `$props.id()` is a value the server and the
-		// client each generate, which is the shape spec/derivation.md refuses as ambient.
-		name: 'a rune that is not substituted',
-		source: '<script>let { data } = $props(); const k = $props.id()</script><p>{data.a}{k}</p>',
 	},
 	{
 		// Substitution replaces a name with the expression it was declared to be, so an assignment

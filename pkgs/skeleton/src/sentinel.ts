@@ -53,3 +53,19 @@ export function carrier(index: number, parent: string | null): string {
 	if (parent === 'option') return mark;
 	return `<template>${mark}</template>`;
 }
+
+/**
+ * The `idPrefix` every compile-time render is given, so that the id Svelte's `props_id` writes
+ * into its anchor is a token nothing else can produce.
+ *
+ * Svelte spells the id `${prefix}-s${n}`, `n` counting up from one per render in the order the
+ * components declaring an id are instantiated. The prefix makes the anchors findable after the
+ * render, and `n` says which instance each one is; both are read back by `fresh.ts`. A prefix may
+ * not contain `--`, since it sits inside a comment.
+ */
+export const ID_PREFIX = '%%id';
+
+/** The id Svelte writes for the `n`th instance of a render made with `ID_PREFIX`. */
+export function freshId(n: number): string {
+	return `${ID_PREFIX}-s${String(n)}`;
+}

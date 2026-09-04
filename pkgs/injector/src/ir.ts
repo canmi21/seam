@@ -17,7 +17,17 @@ export interface Branch {
 
 export type Node =
 	| { t: 'static'; s: string }
-	| { t: 'slot'; path: string; escape: EscapeMode | false }
+	| {
+			t: 'slot';
+			path: string;
+			escape: EscapeMode | false;
+			/**
+			 * A `$props.id()` anchor. The value is the next id this response counts out, bound under
+			 * `path` in the innermost scope for every read that follows, rather than resolved from
+			 * data. Counted the way Svelte's server counts, so the bytes agree. See spec/ir.md.
+			 */
+			fresh?: true;
+	  }
 	| { t: 'if'; branches: Branch[] }
 	| {
 			t: 'each';

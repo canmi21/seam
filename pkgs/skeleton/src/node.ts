@@ -147,3 +147,35 @@ export function namesIn(pattern: unknown, into: Set<string>): void {
 	}
 	for (const value of Object.values(pattern)) namesIn(value, into);
 }
+
+/**
+ * Whether the instance script declares `$props.id()`.
+ *
+ * Svelte allows exactly one, as the initialiser of a plain declarator at the top of the instance
+ * script -- `props_id_invalid_placement` and `props_duplicate` in its analysis -- so finding one is
+ * finding the component's id.
+ */
+export function identified(ast: AstNode): boolean {
+	const instance = ast['instance'];
+	const content = isNode(instance) ? instance['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'VariableDeclaration') continue;
+		for (const one of Array.isArray(statement['declarations']) ? statement['declarations'] : []) {
+			const init = isNode(one) ? one['init'] : undefined;
+			const callee = isNode(init) && init['type'] === 'CallExpression' ? init['callee'] : undefined;
+			if (!isNode(callee) || callee['type'] !== 'MemberExpression') continue;
+			const object = callee['object'];
+			const property = callee['property'];
+			if (
+				isNode(object) &&
+				object['name'] === '$props' &&
+				isNode(property) &&
+				property['name'] === 'id'
+			) {
+				return true;
+			}
+		}
+	}
+	return false;
+}

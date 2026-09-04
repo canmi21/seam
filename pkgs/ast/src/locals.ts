@@ -66,8 +66,8 @@ function runeOf(callee: unknown): string | null {
  *
  * A rune that is not here is left unresolved, which the pass that resolves names reports. It is
  * the shorter list on purpose: `$props()` is the payload and is read elsewhere, `$effect` declares
- * nothing and does not run, and `$props.id()` is a value the server and the client each generate,
- * which is the shape spec/derivation.md refuses as ambient.
+ * nothing and does not run, and `$props.id()` is not a substitution at all -- see `locals`, which
+ * gives it a name the runtime binds.
  */
 const SUBSTITUTED: Readonly<Record<string, string>> = {
 	$state: '',
@@ -83,7 +83,12 @@ const SUBSTITUTED: Readonly<Record<string, string>> = {
  * enforced: a module script has no props to read, so what it declares is constant, and an
  * instance script may read them, so what it declares is a derivation. Neither is evaluated here.
  */
-function declared(ast: Node, source: string, names: ReadonlySet<string>): Map<string, Declared> {
+function declared(
+	ast: Node,
+	source: string,
+	names: ReadonlySet<string>,
+	fresh: string,
+): Map<string, Declared> {
 	const found = new Map<string, Declared>();
 
 	const record = (name: string, node: Node, extra: Partial<Declared>): void => {
@@ -154,6 +159,16 @@ function declared(ast: Node, source: string, names: ReadonlySet<string>): Map<st
 				// disproves in a line. See spec/derivation.md.
 				if (init['type'] === 'CallExpression') {
 					const rune = runeOf(init['callee']);
+					// The id Svelte's server writes into a `<!--$id-->` anchor and the client reads back
+					// from it. Not a value this pass can substitute: it is decided per instance when the
+					// bytes are written, so the name stands for a binding the runtime makes there, and
+					// the declaration stays for the render to write the anchor. See spec/derivation.md.
+					if (rune === '$props.id') {
+						if (id['type'] === 'Identifier' && typeof id['name'] === 'string') {
+							record(id['name'], id, { literal: fresh, reads: false });
+						}
+						continue;
+					}
 					if (rune !== null) {
 						const reach = SUBSTITUTED[rune];
 						const argument = Array.isArray(init['arguments']) ? init['arguments'][0] : undefined;
@@ -564,10 +579,20 @@ export function constant(expression: string): boolean {
  * is not a hole: it is a literal in this render, in the expressions the markup carries and in the
  * script that computed it, so both say the same thing. See spec/pipeline.md.
  */
-export function locals(source: string, fixed: ReadonlyMap<string, string> = new Map()): Locals {
+export function locals(
+	source: string,
+	fixed: ReadonlyMap<string, string> = new Map(),
+	/**
+	 * The name a `$props.id()` declaration stands for: a binding the runtime makes when it writes
+	 * the anchor, one per component instance, so two components declaring an id in one page do not
+	 * share it. Given by the walk, which knows which copy this is; the default serves a caller that
+	 * only asks which names are declared.
+	 */
+	fresh = '__i',
+): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const carried = props(ast['instance']);
-	const found = declared(ast, source, carried) as Map<string, Declared & { node: Node }>;
+	const found = declared(ast, source, carried, fresh) as Map<string, Declared & { node: Node }>;
 
 	// Refused rather than substituted wrongly. Two of these compiled and wrote the wrong bytes with
 	// nothing to say so, which is the shape this compiler keeps finding: a model narrower than its

@@ -31,6 +31,11 @@ run = "cargo test --workspace"
 
 [tasks.test]
 description = "Check every seam with Svelte: the AST we read, what we refuse, and the HTML we emit"
+# The TypeScript checks call lowering through the WebAssembly build, so a change to a crate that
+# is not followed by rebuilding it tests a compiler that no longer exists. Depending on `wasm`
+# closes that: cargo and mise both skip work that is up to date, so an unchanged crate costs
+# nothing here.
+depends = ["wasm"]
 # NODE_ENV before the runner rather than inside it. Svelte reads `DEV` from `esm-env`, which is
 # true for any value that is set and does not begin with `prod`, and vitest sets `test`. Its
 # development runtime writes a hash of the value into the anchor that opens a `{@html}` block, so
@@ -54,6 +59,10 @@ run = "node pkgs/server/src/main.ts"
 
 [tasks.wasm]
 description = "Build the lowering pass as one WebAssembly file the compiler can call"
+# Skipped by mise when the module is newer than every source it is built from, which is what
+# lets `test` depend on it without paying for a build nothing changed.
+sources = ["crates/**/*.rs", "crates/**/Cargo.toml", "Cargo.toml", "Cargo.lock"]
+outputs = ["pkgs/lowering/lowering.wasm"]
 # Run from the repository so the pinned toolchain is the one that resolves: outside it, the
 # wasm target is not found, which fails in a way that names the wrong thing.
 run = [

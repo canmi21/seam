@@ -48,6 +48,17 @@ export interface Hole {
 	 */
 	safe?: true;
 	/**
+	 * The anchor of a `$props.id()`: the value is made by the runtime rather than read from data.
+	 *
+	 * Svelte's server writes `<!--$id-->` at the start of a component that declares one, with an id
+	 * from a counter it keeps per render, and the client reads the id back from that anchor when it
+	 * hydrates. Static bytes cannot carry it -- an each body would repeat one id per item, and two
+	 * branches rendered separately would collide -- so the runtime counts instead, in the same
+	 * order Svelte does, and binds the value under `expression` for every read that follows. See
+	 * spec/ir.md.
+	 */
+	fresh?: true;
+	/**
 	 * The component this value was handed to, and the prop it was handed as.
 	 *
 	 * Carried for the diagnostic rather than for the compilation. A component is a plain function

@@ -246,8 +246,13 @@ Four are substituted, and the list is short on purpose:
 | `$derived.by(fn)` | the value is `fn()`, so what reaches it is a call |
 
 `$props()` is the payload and is read elsewhere. `$effect` declares nothing and does not run.
-`$props.id()` is a value the server and the client each generate, which is the shape this file
-refuses as ambient. Anything else is left unresolved and reported by name.
+`$props.id()` is not substituted either, and for the opposite reason to the one this file used to
+give: an earlier draft called it a value the server and the client each generate, which would be
+ambient, and Svelte's source says otherwise. The server writes the id into a `<!--$id-->` anchor
+from a counter it keeps per render, and the client's `props_id` reads it back off that anchor when
+it hydrates, so the value is the server's and is decided per component instance when the bytes are
+written. The name stands for a binding the runtime makes at the anchor; see
+[refusals.md](refusals.md). Anything else is left unresolved and reported by name.
 
 **An event handler is exempt, and it had to be said twice.** Substituting into one turns an
 assignment target into the value it was declared to be: `n += 1` became `(0) += 1`, which is not

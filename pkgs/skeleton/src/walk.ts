@@ -22,6 +22,7 @@ import {
 	elseIf,
 	extent,
 	holdsFor,
+	identified,
 	isNode,
 	namesIn,
 	refuse,
@@ -62,6 +63,11 @@ export interface Copy {
 	file: string;
 	at: string;
 	source: string;
+	/**
+	 * The hole standing for this component's `$props.id()` anchor, where it declares one. The
+	 * render puts the hole's marker where Svelte's helper would have put the id. See `render.ts`.
+	 */
+	fresh?: number;
 }
 
 /** One component's children, and the holes and blocks the walk put inside them. */
@@ -205,6 +211,12 @@ export interface Walk {
 	/** What the request decides, in the scope the call site sits in. */
 	dynamic: ReadonlySet<string>;
 	/**
+	 * The names of the ids the enclosing components bind, outermost first. In `dynamic` as well,
+	 * since an id is decided when the bytes are written; kept apart because a ternary reading one is
+	 * not a choice made per item.
+	 */
+	fresh: readonly string[];
+	/**
 	 * The element the walk is directly inside, by tag name, or null where it is not inside one this
 	 * file writes: the root, or markup handed to a component, which puts it wherever it likes. It
 	 * decides what a block's stamp is carried by and nothing else. See `carrier()`.
@@ -242,6 +254,8 @@ export interface Rewritten {
 	blocks: Block[];
 	/** Class decisions whose outcomes the render has still to supply the hash for. */
 	pending: PendingChoice[];
+	/** The hole standing for the entry's own `$props.id()` anchor, where it declares one. */
+	fresh?: number;
 }
 
 /**
@@ -406,7 +420,11 @@ function stands(expression: string, walk: Walk): string {
 		// A name a block binds is decided per item, and a decision over it cannot be enumerated for
 		// the page: the derivation the branch would test has no item to read. The choice has another
 		// spelling, which is the block that is taken per item.
-		const scoped = new Set([...walk.dynamic].filter((one) => walk.site.payload?.has(one) !== true));
+		const scoped = new Set(
+			[...walk.dynamic].filter(
+				(one) => walk.site.payload?.has(one) !== true && !walk.fresh.includes(one),
+			),
+		);
 		if (mentions(held.undecided, scoped)) {
 			refuse(
 				`\`${held.undecided}\` chooses what a component is given and reads a name an each block ` +
@@ -1133,12 +1151,18 @@ function descend(node: AstNode, walk: Walk): boolean {
 	try {
 		const raw = inlined(unbound(readFileSync(file, 'utf8')));
 		const ahead = parse(raw, { modern: true }) as unknown as AstNode;
+		// Its number now, not when the tag is renamed: the walk below takes copies of its own, so
+		// counting then gave a nested pair of the same component one name twice.
+		const ordinal = walk.site.copies.length;
+		// A `$props.id()` is a binding the runtime makes when it writes the anchor, named for this
+		// copy so that two components declaring one in a page do not share it. See `fresh.ts`.
+		const fresh = identified(ahead) ? `__i${String(ordinal + 1)}` : null;
 		// The paths this render is fixed at, said in the child's own names. A prop bound to the
 		// whole of one is that path inside the child; a prop bound to a prefix of one carries the
 		// rest of it along. Without this a child would read `data.locale.code` as its own `data`,
 		// which is a different value with the same spelling.
 		const held = rebased(walk.site.fixed, propsOf(ahead, raw) ?? [], bindings);
-		const declared = locals(raw, held);
+		const declared = locals(raw, held, fresh ?? undefined);
 		const inner: [number, number, string][] = [];
 		for (const [[from, to], empty] of declared.reading) inner.push([from, to, empty]);
 
@@ -1163,10 +1187,14 @@ function descend(node: AstNode, walk: Walk): boolean {
 			`__seam-${basename(file, '.svelte')}-${String(walk.site.copies.length)}.svelte`,
 		);
 		const copy: Copy = { file, at, source: '' };
-		// Its number now, not when the tag is renamed: the walk below takes copies of its own, so
-		// counting then gave a nested pair of the same component one name twice.
-		const ordinal = walk.site.copies.length;
 		walk.site.copies.push(copy);
+
+		// The anchor's hole comes before every hole the child plants, which is where Svelte writes
+		// the anchor: at the start of the component, before anything it renders.
+		if (fresh !== null) {
+			copy.fresh = walk.holes.length;
+			walk.holes.push({ index: copy.fresh, expression: fresh, raw: false, fresh: true });
+		}
 
 		collect(ast['fragment'], {
 			...walk,
@@ -1175,6 +1203,8 @@ function descend(node: AstNode, walk: Walk): boolean {
 			expand: (child, extra) =>
 				declared.rewrite(child, new Map([...bound, ...(extra ?? new Map())])),
 			snippets,
+			dynamic: fresh === null ? walk.dynamic : new Set([...walk.dynamic, fresh]),
+			fresh: fresh === null ? walk.fresh : [...walk.fresh, fresh],
 			site: {
 				file,
 				root: walk.site.root,
@@ -1265,7 +1295,9 @@ export function rewrite(
 	const blocks: Block[] = [];
 	const edits: [number, number, string][] = [];
 	const pending: PendingChoice[] = [];
-	const declared = locals(source, fixed);
+	// The entry's own id, where it declares one, named apart from every copy's.
+	const fresh = identified(ast) ? '__i0' : null;
+	const declared = locals(source, fixed, fresh ?? undefined);
 
 	// A render is given no data, so a declaration reading a prop would evaluate against nothing
 	// and crash inside Svelte's own renderer. It has already been substituted into every
@@ -1282,6 +1314,7 @@ export function rewrite(
 	const missed: { file: string; reason: string }[] = [];
 	const handed: Handed[] = [];
 	const spreads: PendingSpread[] = [];
+	if (fresh !== null) holes.push({ index: 0, expression: fresh, raw: false, fresh: true });
 	collect(ast['fragment'], {
 		source,
 		holes,
@@ -1310,7 +1343,8 @@ export function rewrite(
 			fixed,
 			decided,
 		},
-		dynamic: payload ?? new Set(),
+		dynamic: fresh === null ? (payload ?? new Set()) : new Set([...(payload ?? []), fresh]),
+		fresh: fresh === null ? [] : [fresh],
 		parent: null,
 	});
 	withPrelude(source, ast, prelude, edits);
@@ -1324,5 +1358,6 @@ export function rewrite(
 		missed,
 		handed,
 		spreads,
+		...(fresh === null ? {} : { fresh: 0 }),
 	};
 }
