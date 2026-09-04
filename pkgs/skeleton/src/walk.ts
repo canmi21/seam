@@ -31,7 +31,7 @@ import {
 import { OMITTED_IN_SSR } from './omitted.ts';
 import { carrier, sentinel } from './sentinel.ts';
 import type { Block, Hole, Stream } from './shape.ts';
-import { inlined, type Snippet, snippetsIn } from './snippets.ts';
+import { inlined, type Snippet, snippetsIn, supplied } from './snippets.ts';
 import { RAW_TEXT_ELEMENTS, VALID_TAG_NAME, VOID_ELEMENTS } from './tags.ts';
 import { unbound } from './unbind.ts';
 
@@ -183,6 +183,13 @@ export interface Walk {
 	 * decides what a block's stamp is carried by and nothing else. See `carrier()`.
 	 */
 	parent: string | null;
+	/**
+	 * Names an enclosing passed snippet's parameters bind, which the component supplies.
+	 *
+	 * A `{@render}` of one of these is the component handing back markup of its own, so nothing is
+	 * planted for it and the render writes whatever it writes. See `supplied()`.
+	 */
+	handed?: ReadonlySet<string>;
 	/**
 	 * True while walking a prop of a component the walk could not enter.
 	 *
@@ -687,13 +694,22 @@ function collect(node: unknown, walk: Walk): void {
 			// no `{@render}` here to walk it at, and it is rendered, so the declaration is the only
 			// place -- which is what `children` is, and every snippet a package is handed.
 			if (one?.passed === true && one.renders === 0) {
-				if (parameters.length > 0) {
+				// The component supplies the arguments, and this pass cannot see them. Where a
+				// parameter is only ever rendered that is not a problem: what it holds is markup the
+				// component writes during the render, like any other component writing its own
+				// bytes. Where one is read as a value there is nothing to put in its place.
+				const names = supplied(node);
+				if (names === null) {
 					refuse(
 						`the snippet \`${named}\` is passed to a component, which calls it with arguments ` +
-							'this compiler cannot see, so its parameters have no value to stand for',
+							'this compiler cannot see, and it reads one of them as a value rather than ' +
+							'rendering it, so there is nothing to stand in its place',
 					);
 				}
-				step(node['body']);
+				collect(node['body'], {
+					...walk,
+					handed: names.size === 0 ? walk.handed : new Set([...(walk.handed ?? []), ...names]),
+				});
 				return;
 			}
 
@@ -737,6 +753,19 @@ function collect(node: unknown, walk: Walk): void {
 						snippets: handed.snippets,
 						site: handed.site,
 					});
+				}
+				return;
+			}
+
+			// A snippet an enclosing passed snippet was handed: the component supplies it, so what it
+			// writes is the component's own bytes and nothing here stands for any of it.
+			if (name !== null && walk.handed?.has(name) === true) {
+				const args = isNode(call) && Array.isArray(call['arguments']) ? call['arguments'] : [];
+				if (args.length > 0) {
+					refuse(
+						`\`{@render ${name}()}\` passes arguments to a snippet the component supplied, ` +
+							'which this compiler cannot see the body of',
+					);
 				}
 				return;
 			}

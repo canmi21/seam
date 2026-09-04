@@ -1,6 +1,6 @@
 import { parse } from 'svelte/compiler';
 import { apply } from 'ast';
-import { type AstNode, called, isNode, refuse, renders, span } from './node.ts';
+import { type AstNode, called, isNode, namesIn, refuse, renders, span } from './node.ts';
 
 /**
  * What the markup declares under `{#snippet}`, and the one rewrite that makes a snippet ordinary.
@@ -44,6 +44,57 @@ export interface Snippet {
 	 * an `{:else if}` had blocks no render ever held -- which the assembler then went looking for.
 	 */
 	node?: AstNode;
+}
+
+/**
+ * Whether every name a passed snippet's parameters bind is only ever rendered, never read.
+ *
+ * A `{#snippet}` written inside a component's tag is a prop that component receives, and the
+ * component decides what to call it with. Where a parameter's value is *written* -- into a class,
+ * into a test -- there is nothing this compiler can put there, and it is refused.
+ *
+ * Where the parameter is itself a snippet and the body only renders it, there is nothing to put
+ * there either, and nothing needs to be: `{#snippet link({ children })}<a>{@render children?.()}</a>`
+ * is asking the component for the markup it holds, and the component supplies it during the render
+ * like any other component writing its own bytes. Read out of the server transform: a snippet is a
+ * plain function declaration and `{@render x()}` is `x?.($$renderer)`, so a parameter that is only
+ * a callee is a function the render already has.
+ *
+ * Measured on paraglide, which is the shape this is for: the markup part its message wraps is
+ * `String(i?.language)`, so what comes back through it is the marker the caller put in `inputs` --
+ * a hole, resolved per request, rather than bytes baked in.
+ *
+ * @returns the names the component supplies, or null where one of them is read.
+ */
+export function supplied(node: AstNode): ReadonlySet<string> | null {
+	const parameters = Array.isArray(node['parameters']) ? node['parameters'] : [];
+	const names = new Set<string>();
+	for (const parameter of parameters) namesIn(parameter, names);
+	if (names.size === 0) return names;
+
+	// Every identifier the body reads, and separately every one that is a `{@render}`'s callee.
+	const callees = new Set<unknown>();
+	const read: AstNode[] = [];
+	const walk = (at: unknown): void => {
+		if (Array.isArray(at)) {
+			for (const one of at) walk(one);
+			return;
+		}
+		if (!isNode(at)) return;
+		if (at['type'] === 'RenderTag') {
+			const callee = called(at['expression'])?.['callee'];
+			if (isNode(callee)) callees.add(callee);
+		}
+		if (at['type'] === 'Identifier') read.push(at);
+		for (const value of Object.values(at)) walk(value);
+	};
+	walk(node['body']);
+
+	for (const one of read) {
+		const name = one['name'];
+		if (typeof name === 'string' && names.has(name) && !callees.has(one)) return null;
+	}
+	return names;
 }
 
 /**

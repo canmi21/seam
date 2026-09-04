@@ -769,6 +769,30 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A snippet with a parameter, written inside the tag of a component the walk cannot enter,
+		// where the parameter is itself a snippet the component supplies and the body only renders
+		// it. There is nothing for this pass to put in its place and nothing that needs putting:
+		// the component writes those bytes during the render, as any component writes its own.
+		//
+		// Paraglide's `<Message>` is the shape -- `{#snippet link({ children })}<a>{@render
+		// children?.()}</a>{/snippet}` -- and what comes back through it is the marker the caller
+		// put in `inputs`, measured on the generated message: the markup part wraps
+		// `String(i?.language)`, so the value stays a hole rather than being baked in.
+		name: 'a snippet whose parameter the component supplies and the body only renders',
+		beside: {
+			Weaves:
+				'<script>let { link, inputs, ...rest } = $props();</script>' +
+				'{#snippet inner()}{inputs.name}{/snippet}' +
+				'<p>before {@render link?.({ children: inner })} after</p>',
+		},
+		source:
+			"<script>import Weaves from './Weaves.svelte'; let { data } = $props();</script>" +
+			'<Weaves inputs={{ name: data.a.toUpperCase() }}>' +
+			'{#snippet link({ children })}<a href="/x">{@render children?.()}</a>{/snippet}' +
+			'</Weaves>',
+		data: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',
@@ -974,6 +998,17 @@ const refused: Case[] = [
 		// and that one works -- it is what `{@render children()}` is.
 		name: 'a snippet passed to a component, with parameters',
 		source: `${PROPS}<b>{data.a}</b>{#snippet row(r)}<i>{r}</i>{/snippet}`,
+	},
+	{
+		// The other side of what a component may supply. A parameter only ever rendered is markup
+		// the component writes, and needs nothing put in its place; one read as a value does, and
+		// there is nothing to put there -- bits-ui's `{#snippet children({ checked })}` is this,
+		// with `checked` decided by a state machine inside the package.
+		name: 'a snippet a component supplies a value to, not markup',
+		beside: { Feeds: '<script>let { row, ...rest } = $props();</script><p>{@render row?.(1)}</p>' },
+		source:
+			"<script>import Feeds from './Feeds.svelte'; let { data } = $props();</script>" +
+			'<Feeds>{#snippet row(n)}<i class={n > 0 ? "up" : "down"}>{data.a}</i>{/snippet}</Feeds>',
 	},
 	{
 		// The same rule a snippet's parameter follows: a default is neither a member nor an index
