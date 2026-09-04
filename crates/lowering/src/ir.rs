@@ -108,6 +108,16 @@ pub struct Derivation {
 	/// for the entry component because its props are the payload. A composed child gets the
 	/// bindings from its call site instead, which is what lets the expression stay unrewritten.
 	pub scope: Option<std::collections::BTreeMap<String, Source>>,
+	/// Computed where it is used rather than once before injection, because it reads a name an
+	/// each block binds and that name only exists inside the loop.
+	///
+	/// A derivation is a pure function of what is in scope. Where that is the payload alone it can
+	/// be computed once, which is what every other derivation does; where it also reads what a
+	/// block binds, the same function is called per item instead. Both were refused before this,
+	/// on the reading that a derivation is computed once *per request* -- but once per request is
+	/// a consequence of what its inputs are, not a rule about it. See `spec/derivation.md`.
+	#[serde(skip_serializing_if = "std::ops::Not::not")]
+	pub scoped: bool,
 }
 
 /// What the compiler emits. The IR is what the injector walks; the derivations are consumed by

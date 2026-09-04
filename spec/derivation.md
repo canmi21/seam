@@ -385,16 +385,33 @@ budget, and that is a deployment choice rather than a rule here.
   exactly when a component has a derivation -- 10 of the 14 components in the corpus have none, and
   that survives only if substitution stays the thing that turns a name into a path wherever it can,
   with the script reached for only where it cannot. See [ir.md](ir.md).
-- **Per-item derivation.** A derivation is computed once against the payload, so an expression
-  inside an each block is refused. What it needs is a value per iteration, which is a different
-  mechanism rather than a larger version of this one. See [ir.md](ir.md).
+- **Per-item derivation.** *Settled.* A derivation reading a name an each block binds is computed
+  where it is used, once per item, rather than once before injection.
 
-  It said *refused* here for a long time and was not: a component writing `{x > 2}` inside an each
-  compiled, and threw at request time with `deriving \`x > 2\` failed`. The pass that decides
-  between a path and an expression did not know what the block it was inside had bound. It does
-  now, and this is a compile-time refusal that names the binding it reached for. A path rooted at
-  an each binding is unaffected -- `{x.name}` is resolved per item by the runtime, which is the
-  whole difference between the two.
+  It was refused twice over, and the second refusal was right about the fault and wrong about the
+  reason. First it was not refused at all: a component writing `{x > 2}` inside an each compiled and
+  threw at request time with `deriving \`x > 2\` failed`, because the pass deciding between a path
+  and an expression did not know what the block it sat in had bound. Teaching it turned that into a
+  compile-time refusal naming the binding -- an improvement, and still a refusal.
+
+  What was wrong is the premise. **"Computed once per request" was read as a rule about derivations
+  and is a consequence of what their inputs are.** A derivation is a pure function of what is in
+  scope; where that is the payload alone it can be computed once, and where it also reads a loop
+  variable the same function is called per item. Nothing else changes: no component runs, no
+  markup is rendered, and the expression is the author's own, unrewritten, as every other one is.
+
+  So a scoped derivation is carried into the scope as a function of the scope stack rather than as
+  a value, tagged so the injector calls it at the point of use instead of writing it out. A path
+  rooted at an each binding is unaffected -- `{x.name}` was always resolved per item by the
+  runtime, and the two now differ only in whether a function is called on the way.
+
+  The cost is real and worth naming: an expression inside an each is evaluated once per item rather
+  than once per request, so a list of a thousand is a thousand calls. That is what the author wrote,
+  and it is what Svelte would have done with it.
+
+  The written-bytes pass still refuses this, and stays refusing. It is an oracle with a limited
+  life -- see [pipeline.md](pipeline.md) -- and the agreement test simply does not cover a case the
+  render pass takes and it does not.
 - **The shape of request context.** `$.now`, `$.tz` and `$.locale` are named here, and the wire
   carrying them is settled -- see [payload.md](payload.md), which means they can hold real values
   rather than numbers the author has to reconstitute. Where they sit within the data, and whether

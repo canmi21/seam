@@ -85,24 +85,18 @@ impl Assembler<'_> {
 		if is_path(inner) {
 			return Ok(inner.to_owned());
 		}
-		// A path rooted at an each block's binding is resolved per item by the runtime, which walks
-		// a scope stack. An expression is not: it is computed once, against the payload, before
-		// anything is injected. So one that reads a per-item name has nothing to be computed from,
-		// and this used to compile and then throw at request time. See spec/derivation.md.
-		let reaching: Vec<&String> =
-			self.locals.iter().filter(|one| reads(trimmed).iter().any(|read| read == *one)).collect();
-		if let Some(one) = reaching.first() {
-			return Err(format!(
-				"`{trimmed}` is computed once against the payload but reads `{one}`, which an each \
-				 block binds per item; a path is resolved per item and an expression is not. See \
-				 spec/derivation.md"
-			));
-		}
+		// An expression reading a name an each block binds is computed where it is used rather than
+		// once before injection, because that name only exists inside the loop. It is the same pure
+		// function either way; what changes is how often it is called, and that follows from what
+		// its inputs are rather than from a rule about derivations. See spec/derivation.md.
+		let read = reads(trimmed);
+		let scoped = self.locals.iter().any(|one| read.iter().any(|name| name == one));
 		let name = format!("__d{}", self.derivations.len());
 		self.derivations.push(ir::Derivation {
 			name: name.clone(),
 			expression: trimmed.to_owned(),
 			scope: None,
+			scoped,
 		});
 		Ok(name)
 	}

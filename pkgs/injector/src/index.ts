@@ -1,9 +1,9 @@
 import { escape } from './escape.ts';
 import type { ComponentIR, Node } from './ir.ts';
-import { resolve, type Scope } from './resolve.ts';
+import { resolve, type Scope, settle } from './resolve.ts';
 
 export type { Branch, ComponentIR, EscapeMode, Node, Presence } from './ir.ts';
-export { resolve, type Scope } from './resolve.ts';
+export { resolve, SCOPED, type Scope, settle } from './resolve.ts';
 
 function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 	let out = '';
@@ -13,11 +13,11 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 				out += node.s;
 				break;
 			case 'slot':
-				out += escape(resolve(scopes, node.path), node.escape);
+				out += escape(settle(resolve(scopes, node.path), scopes), node.escape);
 				break;
 			case 'if':
 				for (const branch of node.branches) {
-					if (branch.test === null || resolve(scopes, branch.test)) {
+					if (branch.test === null || settle(resolve(scopes, branch.test), scopes)) {
 						out += walk(branch.body, scopes);
 						break;
 					}
@@ -29,7 +29,9 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 				// boolean one asks whether the value is falsy rather than what it prints as.
 				const [only] = node.parts;
 				const single = node.parts.length === 1 && only?.t === 'slot';
-				const value = single ? resolve(scopes, only.path) : walk(node.parts, scopes);
+				const value = single
+					? settle(resolve(scopes, only.path), scopes)
+					: walk(node.parts, scopes);
 				if (value === undefined || value === null) break;
 
 				// `hidden` is boolean for every value but this one, which is Svelte's exception and
@@ -52,7 +54,7 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[]): string {
 			case 'each': {
 				// A source that is not an array renders nothing, matching what Svelte's
 				// ensure_array_like does with undefined.
-				const source = resolve(scopes, node.source);
+				const source = settle(resolve(scopes, node.source), scopes);
 				if (!Array.isArray(source)) break;
 				// The counter is bound beside the item rather than reached through it, which is what
 				// Svelte's server does: it is the `for` loop's own variable.

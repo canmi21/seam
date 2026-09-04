@@ -594,6 +594,29 @@ const accepted: Case[] = [
 		data: [{ n: 'v' }, { n: '<&' }],
 	},
 	{
+		// A derivation that reads what an each block binds. Every other one is a pure function of
+		// the payload and is computed once, before anything is injected; this is the same pure
+		// function with one more input, and that input only exists inside the loop. So it is called
+		// per item instead. Both lowering passes refused it before, on the reading that a
+		// derivation is computed once per request -- which is a consequence of what its inputs are
+		// rather than a rule about it. Here it stands in a slot, in an attribute, and as a test.
+		name: 'a derivation that reads what an each block binds',
+		source:
+			`${PROPS}{#each data.rows as r}` +
+			'<span title={r.name + "!"}>{r.name.toUpperCase()}</span>' +
+			'{#if r.count * 2 > 4}<b>many</b>{:else}<i>few</i>{/if}' +
+			'{/each}',
+		data: [
+			{
+				rows: [
+					{ name: 'a', count: 3 },
+					{ name: '<&', count: 1 },
+				],
+			},
+			{ rows: [] },
+		],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',
@@ -843,13 +866,6 @@ const refused: Case[] = [
 		// its own `{@render}` had just put in the table -- and looked declared. See spec/refusals.md.
 		name: 'a render of children, which is a snippet from a prop',
 		source: `${PROPS}<div>{@render children()}</div>`,
-	},
-	{
-		// Not the const tag: what it holds. A derivation is computed once against the payload, so one
-		// that reads a name an each block binds per item has nothing to be computed from. It used to
-		// compile and throw at request time. See spec/derivation.md.
-		name: 'an expression over what an each binds',
-		source: `${PROPS}{#each data.xs as x}<p>{x > 2}</p>{/each}`,
 	},
 	{
 		name: 'else on an each',

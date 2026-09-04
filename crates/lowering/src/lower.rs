@@ -264,6 +264,8 @@ impl Derivations {
 			name: name.clone(),
 			expression: expression.trim().to_owned(),
 			scope: captured,
+			// The written-bytes pass still refuses this above, so it never marks one.
+			scoped: false,
 		});
 		Ok(name)
 	}

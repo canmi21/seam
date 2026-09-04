@@ -1,4 +1,4 @@
-import { resolve, type Scope } from 'injector';
+import { resolve, SCOPED, type Scope } from 'injector';
 
 export type Source = { path: string } | { literal: string };
 
@@ -7,6 +7,14 @@ export interface Derivation {
 	expression: string;
 	/** `null` means the payload's own keys, which is the case for an entry component. */
 	scope: Record<string, Source> | null;
+	/**
+	 * Computed where it is used rather than here, because it reads a name an each block binds.
+	 *
+	 * It is the same pure function as any other derivation; what its inputs are decides how often
+	 * it is called. So it goes into the scope as a function of the scopes, and the injector calls
+	 * it at the point of use, where the loop variable exists. See spec/derivation.md.
+	 */
+	scoped?: boolean;
 }
 
 /**
@@ -70,6 +78,7 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 	const compiled = derivations.map((derivation) => ({
 		name: derivation.name,
 		scope: derivation.scope,
+		scoped: derivation.scoped,
 		evaluate: build(derivation.expression, imported),
 		source: derivation.expression,
 	}));
@@ -78,7 +87,7 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 		const out: Scope = { data };
 		if (compiled.length === 0) return out;
 		for (const derivation of compiled) {
-			const bindings: Record<string, unknown> =
+			const bindings = (): Record<string, unknown> =>
 				derivation.scope === null
 					? out
 					: Object.fromEntries(
@@ -87,8 +96,23 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 								'path' in source ? resolve([out], source.path) : source.literal,
 							]),
 						);
+			// A scoped one is not computed here at all: what it reads does not exist yet. It goes
+			// into the scope as a function of the scope stack, tagged so the injector knows to call
+			// it rather than write it out, and the stack is flattened innermost last so an each
+			// binding shadows an outer name the way `resolve` has it shadow.
+			if (derivation.scoped === true) {
+				const held = (scopes: readonly Scope[]): unknown => {
+					try {
+						return derivation.evaluate(Object.assign({}, ...scopes) as Record<string, unknown>);
+					} catch (error) {
+						throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
+					}
+				};
+				out[derivation.name] = Object.assign(held, { [SCOPED]: true });
+				continue;
+			}
 			try {
-				out[derivation.name] = derivation.evaluate(bindings);
+				out[derivation.name] = derivation.evaluate(bindings());
 			} catch (error) {
 				throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
 			}
