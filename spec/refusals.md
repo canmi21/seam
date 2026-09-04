@@ -460,6 +460,67 @@ refused, because the arguments are chosen by the child and are not visible from 
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
 
+## A component that renders none of what it was given, which is a portal
+
+This gates all eight of press's routes, and reading what actually happens changed what it is.
+
+**It is not the dialog being closed.** `bits-ui`'s `Dialog.Root` ends in `{@render children?.()}`
+and renders them. What writes nothing is `Portal`:
+
+```svelte
+{#if disabled}
+	{@render children?.()}
+{/if}
+```
+
+Everything else it does is `mount(PortalConsumer, { target })` inside a `watch`, against a target
+found by `document.querySelector` and guarded by `isBrowser`. **A portal has no server rendering by
+construction.** `Dialog.Content` closes a second gate over the same content --
+`{#if contentState.shouldRender || forceMount}`, and `shouldRender` starts at `open.current`.
+
+**Svelte's own answer is nothing, and Kit's is the same.** Measured rather than reasoned about:
+press's `dialog.svelte` rendered by `svelte/server`, with a real locale, no compiler involved and
+no marker anywhere near it, is
+
+```
+73 bytes: <!--[--><!--[--><!--[--><!--[-1--><!--]--><!--]--><!----><!--]-->
+```
+
+Anchors, and no content. That is what SvelteKit sends; the dialog is created on the client after
+hydration. So **the right output here is nothing, and the markers planted inside are meant to
+disappear** -- the only thing objecting is the invariant that every hole comes back exactly once.
+
+### Why they may disappear, and the one condition that makes it safe
+
+The compile-time render *is* the server render, so whatever Svelte writes is what a request would
+get. The only way the two could differ is if this render's markers changed a decision the real
+values would have made differently -- a child branching on a prop, where a marker is a truthy
+string and the real value might be falsy.
+
+So the condition is exactly: **a component whose props reach nothing the request decides renders
+the same thing every request.** `inert()` already computes that per attribute for a different
+reason -- deciding whether to hand a package a marker at all -- and a component is inert when all
+of its attributes are. `<Dialog.Portal>` takes none, and `<Dialog.Root {open}>` takes a piece of
+client state with no value yet, so both qualify.
+
+**All-or-nothing per call site.** The markup handed to a component is rendered inline and whole, so
+either every marker in it comes back or none does. Partial is not a portal; it is a value the child
+did something with, and stays a loss. That is the rule, and it keeps the invariant strong
+everywhere it was strong before.
+
+**The residual risk, named:** a request-varying value can reach a subtree through *context* rather
+than through props, and a decision taken on that would not be visible in the attributes. Nothing in
+press does it, and a compiler cannot see it without walking the provider; it is written down here
+rather than guarded against.
+
+### What it needs, which is two lists rather than one
+
+Holes are not the whole of it. The markup handed to `<Dialog.Content>` carries `{#if}` and
+`{#each}` blocks, and a block that never appears in the render shifts every ordinal after it. So a
+group is recorded over both: the holes planted while walking a non-descended component's children,
+and the blocks numbered there. When none of the group's markers comes back, the holes are absent
+rather than lost and the blocks leave the order entirely.
+
 ## The measurement is a route now, and it says four things are left
 
 Every count above was files: each `.svelte` compiled as though it were the entry. That question has
