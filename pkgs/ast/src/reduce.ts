@@ -1,5 +1,5 @@
 import { parse } from 'svelte/compiler';
-import { type Locals, locals } from './bindings.ts';
+import { type Locals, locals } from './locals.ts';
 import type { MarkupAttr, MarkupNode, Module } from './markup.ts';
 
 // Svelte's AST is typed against its own internal shapes, which change between releases and
