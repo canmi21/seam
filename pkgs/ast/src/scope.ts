@@ -59,7 +59,15 @@ export function bound(pattern: unknown, into: Set<string>): void {
  * written in brackets. A function's parameters and its own declarations are bound within it, so
  * they are subtracted rather than reported.
  */
-export function reads(node: unknown, scope: ReadonlySet<string>, visit: (at: Node) => void): void {
+export function reads(
+	node: unknown,
+	scope: ReadonlySet<string>,
+	/**
+	 * Called with each name read, and with whether it is a shorthand property's key and value at
+	 * once -- which decides whether writing over it takes the key with it.
+	 */
+	visit: (at: Node, shorthand?: boolean) => void,
+): void {
 	if (!isNode(node)) return;
 	const type = node['type'];
 
@@ -77,6 +85,16 @@ export function reads(node: unknown, scope: ReadonlySet<string>, visit: (at: Nod
 
 	if (type === 'Property') {
 		if (node['computed'] === true) reads(node['key'], scope, visit);
+		// A shorthand property is one node standing as both key and value, so writing over it in
+		// place takes the key with it: `{ locale }` became `{ (data.locale.code) }`, which is not
+		// JavaScript at all. The third time this shape has been met -- an attribute's `{n}` and a
+		// `{@const}` were the others -- and the answer is the same one: write the name back out.
+		if (node['shorthand'] === true) {
+			reads(node['value'], scope, (at) => {
+				visit(at, true);
+			});
+			return;
+		}
 		reads(node['value'], scope, visit);
 		return;
 	}

@@ -582,6 +582,18 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A shorthand property is one node standing as both key and value, so substituting it in
+		// place takes the key with it and leaves `{ (data.n) }`, which is not JavaScript. The third
+		// time this shape has come up: an attribute's `{n}` and a `{@const}` were the others. It is
+		// how a locale reaches a message -- `m['x']({}, { locale })` -- so every translated string
+		// in a real page went through it.
+		name: 'an object shorthand whose value is substituted',
+		source:
+			'<script>let { data } = $props(); const n = data.n;</script>' +
+			'<p>{Object.values({ n })[0]}</p><b>{Object.keys({ n }).join()}</b>',
+		data: [{ n: 'v' }, { n: '<&' }],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',

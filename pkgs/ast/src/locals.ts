@@ -407,7 +407,7 @@ export function locals(source: string): Locals {
 		if (typeof start !== 'number' || typeof end !== 'number') return '';
 
 		const edits: Edit[] = [];
-		reads(node, new Set(), (at) => {
+		reads(node, new Set(), (at, shorthand) => {
 			const name = at['name'];
 			if (typeof name !== 'string' || open.has(name)) return;
 			// A name bound by something other than a script, which the caller knows about and this
@@ -419,7 +419,8 @@ export function locals(source: string): Locals {
 			const from = at['start'];
 			const to = at['end'];
 			if (typeof from !== 'number' || typeof to !== 'number') return;
-			edits.push([from, to, `(${given ?? expand(name, open, extra)})`]);
+			const held = `(${given ?? expand(name, open, extra)})`;
+			edits.push([from, to, shorthand === true ? `${name}: ${held}` : held]);
 		});
 
 		return apply(source.slice(start, end), edits, start);
