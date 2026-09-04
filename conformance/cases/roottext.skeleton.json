@@ -6,7 +6,8 @@
 		{
 			"index": 0,
 			"expression": "data.a",
-			"raw": false
+			"raw": false,
+			"given": "`<Badge>` as `label`"
 		}
 	],
 	"blocks": []

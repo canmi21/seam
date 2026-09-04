@@ -460,6 +460,69 @@ refused, because the arguments are chosen by the child and are not visible from 
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
 
+## What a child may do with what it is given, measured across every shape
+
+Five of what was left were one question asked five ways, so it was asked once, of a matrix: one
+child per thing a child can do with a prop, one entry handing it a marker, and the answer read off
+the compiler rather than reasoned about.
+
+**A component compiles to a plain call.** `visitors/shared/component.js` ends at
+`Child($$renderer, { ...props })`, and unless the component is dynamic there is **no anchor around
+what it writes**. So the assembler cannot tell which bytes came from the child, and a marker that
+does not come back is an absence with nothing attached to it. That is the whole of why this family
+is hard, and it is one line of Svelte's output rather than anything about props.
+
+| the child | what happens |
+| --- | --- |
+| writes it | compiles, and agrees with Svelte byte for byte |
+| writes it in an attribute | compiles |
+| writes it in `<svelte:head>` | compiles |
+| concatenates it with text | compiles |
+| renames it while destructuring, or gives it a default | compiles |
+| hands it to a child of its own | compiles |
+| computes with it, measures it, reads a member of it | the value never comes back |
+| **does not use it at all** | the value never comes back |
+| **writes it twice** | the value comes back twice |
+| calls it | Svelte, mid-render: `p is not a function` |
+| branches on it, iterates it, or renders none of what it was given | the render holds more blocks than the source declared |
+| makes it a tag name | Svelte, mid-render: `dynamic_element_invalid_tag` |
+
+**Nothing in that table is silent**, which is the result that matters most and the invariant doing
+its job.
+
+### The rule that is actually being enforced, which is narrower than it looked
+
+Not *content must not be lost*. It is: **the entry's model of a component is that every prop it
+hands over is written out verbatim, exactly once.** Two rows above are not losses at all -- a child
+that ignores a prop loses nothing, and a child that writes one twice has written everything -- and
+both are ordinary Svelte. They are refused because an unconsumed hole and a mangled value look
+identical from outside a call with no anchor.
+
+**They can only be told apart by looking at the child.** That is not a preference between designs;
+the information is not present anywhere else. So this whole family is one item and it is
+composition: the walk descending into the component a `Component` node names, with the child's props
+bound to the expressions at the call site. `Derivation.scope` in `crates/lowering/src/ir.rs`
+already exists for it and says so in its own comment, and `bundle()` in `pkgs/ast` already resolves
+the tree. Once the walk is inside, every refused row becomes something already compiled: no uses is
+no slot, two uses is two slots, computing is a derivation in the child's scope, branching and
+iterating are blocks, calling is a snippet, and rendering nothing is a block that is not taken.
+**Only the tag name stays**, and that is `<svelte:element>`, which is its own item and unenumerable
+for its own reason.
+
+### What was worth doing before that, which is the diagnostic
+
+A hole now carries the component and prop it was handed to, and the two messages say so:
+
+```
+`data.created` was given to `<Card>` as `created` and did not come back. A value handed to a
+component has to be written out by it, and this one was used for something else -- computed
+with, called, branched on, or not used at all.
+```
+
+The old message blamed `<svelte:head>`, which the table above measures as working. It was true once
+and had outlived the thing it described, which is what a message costs when nothing holds it to
+what it claims.
+
 ## `style:` is the same decision, with the value written inside the outcome
 
 Reading `build_attr_style` and `to_style` first was what made this small, because almost none of it

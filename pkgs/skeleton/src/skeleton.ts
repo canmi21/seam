@@ -27,6 +27,14 @@ export interface Hole {
 	raw: boolean;
 	/** Set when the hole is a decision rather than a substitution. */
 	choice?: Choice;
+	/**
+	 * The component this value was handed to, and the prop it was handed as.
+	 *
+	 * Carried for the diagnostic rather than for the compilation. A component is a plain function
+	 * call with no anchor around what it writes, so when a marker does not come back the assembler
+	 * sees an absence and nothing else; this is the one thing the walk knows that it does not.
+	 */
+	given?: string;
 }
 
 /**
@@ -371,8 +379,17 @@ function collect(
 			// additions. What is left after this is walked the ordinary way.
 			const handled = classes(node, holes, edits, expand, pending);
 			const styled = styles(source, node, holes, edits, expand, pending);
+			const given = type === 'Component';
+			const tag = typeof node['name'] === 'string' ? node['name'] : '';
 			if (Array.isArray(attributes)) {
-				for (const attr of attributes) if (!handled.has(attr) && !styled.has(attr)) walk(attr);
+				for (const attr of attributes) {
+					if (handled.has(attr) || styled.has(attr)) continue;
+					const before = holes.length;
+					walk(attr);
+					if (!given || !isNode(attr)) continue;
+					const prop = typeof attr['name'] === 'string' ? attr['name'] : '';
+					for (const one of holes.slice(before)) one.given = `\`<${tag}>\` as \`${prop}\``;
+				}
 			}
 			walk(node['fragment']);
 			return;

@@ -20,6 +20,11 @@ pub struct Hole {
 	/// directive makes of the attribute it sits on. See `spec/refusals.md`.
 	#[serde(default)]
 	pub choice: Option<Choice>,
+	/// The component this value was handed to and the prop it was handed as, where it was. Carried
+	/// for the diagnostic: a component is a plain call with no anchor around what it writes, so an
+	/// absence here is all this pass can see on its own.
+	#[serde(default)]
+	pub given: Option<String>,
 }
 
 /// A decision whose outcomes were enumerated at compile time.
@@ -421,15 +426,30 @@ impl Assembler<'_> {
 			if *count == 1 {
 				continue;
 			}
-			let expression = &self.skeleton.holes[index].expression;
-			return Err(if *count == 0 {
-				format!(
+			let hole = &self.skeleton.holes[index];
+			let expression = &hole.expression;
+			return Err(match (*count, hole.given.as_deref()) {
+				// The common shape by far, and the one an absence alone says nothing about. What a
+				// component may do with a value it is handed is measured in `spec/refusals.md`:
+				// write it out, once, is the whole of it.
+				(0, Some(given)) => format!(
+					"`{expression}` was given to {given} and did not come back. A value handed to a \
+					 component has to be written out by it, and this one was used for something \
+					 else -- computed with, called, branched on, or not used at all. See \
+					 spec/refusals.md"
+				),
+				(0, None) => format!(
 					"`{expression}` is written but never comes back in the render, so it would be \
-					 dropped; content outside the component's body, `<svelte:head>` among it, is \
-					 not handled yet"
-				)
-			} else {
-				format!("`{expression}` comes back {count} times in the render, and belongs in one place")
+					 dropped"
+				),
+				(count, Some(given)) => format!(
+					"`{expression}` was given to {given} and comes back {count} times. A value \
+					 handed to a component may be written once, because one value cannot stand in \
+					 two places. See spec/refusals.md"
+				),
+				(count, None) => format!(
+					"`{expression}` comes back {count} times in the render, and belongs in one place"
+				),
 			});
 		}
 		Ok(())

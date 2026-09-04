@@ -11,12 +11,14 @@
 		{
 			"index": 0,
 			"expression": "data.name",
-			"raw": false
+			"raw": false,
+			"given": "`<Badge>` as `label`"
 		},
 		{
 			"index": 1,
 			"expression": "data.tone",
-			"raw": false
+			"raw": false,
+			"given": "`<Badge>` as `tone`"
 		},
 		{
 			"index": 2,
@@ -26,12 +28,14 @@
 		{
 			"index": 3,
 			"expression": "data.name",
-			"raw": false
+			"raw": false,
+			"given": "`<Badge>` as `label`"
 		},
 		{
 			"index": 4,
 			"expression": "t",
-			"raw": false
+			"raw": false,
+			"given": "`<Badge>` as `label`"
 		}
 	],
 	"blocks": [
