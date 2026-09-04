@@ -64,9 +64,10 @@ export interface Copy {
 
 /** One component's children, and the holes and blocks the walk put inside them. */
 export interface Handed {
-	/** What stands in the markup's place while probing. */
+	/** The literal planted at the head of the group while probing. */
 	probe: string;
-	component: string;
+	/** The component and the name the group arrives under, as a refusal says it. */
+	what: string;
 	holes: [number, number];
 	blocks: [number, number];
 }
@@ -245,6 +246,80 @@ const REFUSED: Record<string, string> = {
  * compilation and says which type it was, so the next one is found by the first author who writes
  * it instead of by a page that is quietly missing something.
  */
+/** One name the markup inside a component's tag arrives under, and the literal that measures it. */
+interface Group {
+	/** Where the literal goes: the head of the group, in the source. */
+	at: number;
+	probe: string;
+	/** The component and the name, as a refusal says it. */
+	what: string;
+}
+
+/**
+ * What a component is handed, by the name each part of it arrives under.
+ *
+ * Read out of `visitors/shared/component.js`. The markup inside a component's tag is not one
+ * thing. Every `{#snippet}` directly inside it is hoisted and pushed as a prop of its own under
+ * its own name; a child carrying `slot="x"` joins the group of that name; everything left over
+ * becomes one function passed as `children`. So a component may write one group and not another,
+ * and asking about the tag as a whole cannot tell that from a fault -- which is what
+ * `<DropdownMenu.Trigger>` was: markup measured as one group, part of it written, and the
+ * arithmetic reporting a contradiction that was never there.
+ *
+ * Keyed by the child so the walk stays in document order, which is the order the ordinals count in.
+ */
+function handedTo(
+	file: string,
+	tag: string,
+	nodes: readonly unknown[],
+): ReadonlyMap<unknown, Group> {
+	const found = new Map<unknown, Group>();
+	const groups = new Map<string, Group>();
+	const under = (name: string, at: number): Group => {
+		const held = groups.get(name);
+		if (held !== undefined) return held;
+		const one: Group = {
+			at,
+			probe: `%%h${identity(file, at)}%%`,
+			what: name === 'children' ? `\`<${tag}>\`` : `\`<${tag}>\` as \`${name}\``,
+		};
+		groups.set(name, one);
+		return one;
+	};
+
+	for (const child of nodes) {
+		if (!isNode(child)) continue;
+		if (child['type'] === 'SnippetBlock') {
+			const id = child['expression'];
+			const name = isNode(id) && typeof id['name'] === 'string' ? id['name'] : '';
+			// The body, so the declaration keeps its name and the component still receives the prop.
+			// An empty one holds nothing to measure and nothing to relax.
+			const at = extent(child['body'])?.[0];
+			if (name === '' || at === undefined) continue;
+			found.set(child, under(name, at));
+			continue;
+		}
+		const at = span(child)?.[0];
+		if (at === undefined) continue;
+		found.set(child, under(slotOf(child) ?? 'children', at));
+	}
+	return found;
+}
+
+/** The slot a child is written into, told by a literal `slot="x"` the way Svelte tells. */
+function slotOf(node: AstNode): string | null {
+	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
+	for (const one of attributes) {
+		if (!isNode(one) || one['type'] !== 'Attribute' || one['name'] !== 'slot') continue;
+		const parts = Array.isArray(one['value']) ? one['value'] : [one['value']];
+		const [only] = parts;
+		if (isNode(only) && only['type'] === 'Text' && typeof only['data'] === 'string') {
+			return only['data'];
+		}
+	}
+	return null;
+}
+
 function collect(node: unknown, walk: Walk): void {
 	const {
 		blocks,
@@ -435,33 +510,43 @@ function collect(node: unknown, walk: Walk): void {
 				}
 			}
 
-			// Markup handed to a component the walk could not enter. Its range is kept so that a
-			// second render can say whether that component writes it at all.
+			// Markup handed to a component the walk could not enter, in the groups Svelte splits it
+			// into. Each group's range is kept so that a second render can say whether the component
+			// writes that group at all.
 			const fragment = node['fragment'];
 			const inside = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
 			if (!given || inside.length === 0) {
 				step(fragment);
 				return;
 			}
-			// Named for where it is rather than for how many came before it. The probing walk does
-			// not walk a handed fragment, so any group nested inside one is never recorded there and
-			// a counter would say different things in the two walks -- which marked the wrong
-			// markup absent and then reported itself as a contradiction.
-			const probe = `%%h${identity(site.file, extent(fragment)?.[0] ?? 0)}%%`;
-			if (site.probing) {
-				const where = extent(fragment);
-				if (where !== null) edits.push([where[0], where[1], probe]);
-				site.handed.push({ probe, component: tag, holes: [0, 0], blocks: [0, 0] });
-				return;
+			const groups = handedTo(site.file, tag, inside);
+			const planted = new Set<Group>();
+			for (const child of inside) {
+				const group = groups.get(child);
+				// A literal at the head of the group rather than in place of it. **The probing walk
+				// has to be the same walk**, and replacing the markup made it a different one: it
+				// descended where the baseline had not and did not where the baseline had, so the
+				// markup rendered with none of the rewriting the pass had done and the render threw
+				// far more often than it answered. Worse, an outer replacement erased every group
+				// nested inside it, so a component sitting in another component's markup was never
+				// measured -- which is not an absence, it is a group that was never asked about, and
+				// it read as the contradiction it is not. Inserting leaves the walk alone: every
+				// group at every depth carries its own literal, and one render answers for all of
+				// them.
+				if (group !== undefined && site.probing && !planted.has(group)) {
+					planted.add(group);
+					edits.push([group.at, group.at, group.probe]);
+				}
+				const from: [number, number] = [holes.length, blocks.length];
+				step(child);
+				if (group === undefined) continue;
+				site.handed.push({
+					probe: group.probe,
+					what: group.what,
+					holes: [from[0], holes.length],
+					blocks: [from[1], blocks.length],
+				});
 			}
-			const from: [number, number] = [holes.length, blocks.length];
-			step(fragment);
-			site.handed.push({
-				probe,
-				component: tag,
-				holes: [from[0], holes.length],
-				blocks: [from[1], blocks.length],
-			});
 			return;
 		}
 
@@ -828,6 +913,8 @@ function descend(node: AstNode, walk: Walk): boolean {
 		edits: walk.edits.length,
 		pending: walk.pending.length,
 		copies: walk.site.copies.length,
+		handed: walk.site.handed.length,
+		spreads: walk.site.spreads.length,
 	};
 
 	try {

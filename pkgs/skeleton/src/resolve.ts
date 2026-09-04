@@ -107,10 +107,14 @@ function restOf(code: string, key: string): string | null {
  * nothing for it -- or something took the value, which is content lost. **Absence cannot tell them
  * apart, and neither can it tell either from a compiler that has stopped working.**
  *
- * So absence is never the evidence. The same render is made again with each handed fragment
- * replaced by a literal nobody could produce, and the literal coming back is what says the
- * component writes what it is given. Only where it does not are the holes inside allowed to go
- * unconsumed, and the blocks to leave the order.
+ * So absence is never the evidence. The same render is made again with a literal nobody could
+ * produce inserted at the head of each group the markup arrives as, and the literal coming back is
+ * what says the component writes that group. Only where it does not are the holes inside allowed
+ * to go unconsumed, and the blocks to leave the order.
+ *
+ * **Inserted rather than put in place of the markup**, which is what makes one render answer for
+ * every group at every depth: the walk is the baseline's walk, so a group nested inside another
+ * one still carries its own literal and still renders exactly what the baseline rendered.
  *
  * The reading that keeps this honest: **a marker missing where the probe came back stays an
  * error**, and a probe missing where the whole mechanism has broken is what the surface checks
@@ -130,7 +134,10 @@ export async function probed(
 		const rendered = await renderRewritten(file, second.rewritten, root, second.copies);
 		seen = rendered.body + rendered.head;
 	} catch {
-		// The probe could not be made, so nothing is known and nothing is relaxed.
+		// The probe could not be made, so nothing is known and nothing is relaxed. That is the safe
+		// direction and not a quiet pass: a hole inside handed markup that does not come back is
+		// then reported the way any other missing hole is, which is a worse message about a real
+		// problem rather than a compile that skipped a check.
 		return;
 	}
 
@@ -145,9 +152,9 @@ export async function probed(
 			if (hole === undefined) continue;
 			if (text.includes(sentinel(at))) {
 				refuse(
-					`\`<${one.component}>\` writes none of the markup it is given, and something from ` +
-						'that markup came back anyway. Two things that cannot both be true, so this is ' +
-						'the compiler rather than the component',
+					`${one.what} writes none of the markup it is given, and something from that markup ` +
+						'came back anyway. Two things that cannot both be true, so this is the compiler ' +
+						'rather than the component',
 				);
 			}
 			hole.safe = true;

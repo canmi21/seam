@@ -135,13 +135,35 @@ export function hands(walk: Walk, nodes: readonly unknown[]): ReadonlyMap<string
 	]);
 }
 
+/**
+ * How long every list the walk appends to was before a descent, so the descent can be undone.
+ *
+ * Named rather than a bag of counts, because two of these were missing and nothing said so. A
+ * descent that stopped left its `handed` records and its spreads behind, pointing at holes that had
+ * been rolled back -- so a group inside a component the walk never entered was still asked whether
+ * its markup came back, over a range that by then belonged to somebody else. `missed` is the one
+ * list that stays: it is the record of why the descent stopped, and it is wanted precisely because
+ * the descent did not finish.
+ */
+interface Marks {
+	holes: number;
+	blocks: number;
+	edits: number;
+	pending: number;
+	copies: number;
+	handed: number;
+	spreads: number;
+}
+
 /** Puts back what a walk that did not finish appended, and says it did not take the component. */
-export function rolled(walk: Walk, mark: Record<string, number>): false {
-	walk.holes.length = mark['holes'] ?? 0;
-	walk.blocks.length = mark['blocks'] ?? 0;
-	walk.edits.length = mark['edits'] ?? 0;
-	walk.pending.length = mark['pending'] ?? 0;
-	walk.site.copies.length = mark['copies'] ?? 0;
+export function rolled(walk: Walk, mark: Marks): false {
+	walk.holes.length = mark.holes;
+	walk.blocks.length = mark.blocks;
+	walk.edits.length = mark.edits;
+	walk.pending.length = mark.pending;
+	walk.site.copies.length = mark.copies;
+	walk.site.handed.length = mark.handed;
+	walk.site.spreads.length = mark.spreads;
 	return false;
 }
 

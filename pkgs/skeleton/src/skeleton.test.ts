@@ -492,6 +492,61 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// One of those inside another. The literal is inserted at the head of each group rather
+		// than written in place of the markup, which is what lets one render answer for both: a
+		// replacement erases every group nested inside it, and the inner component then reads as
+		// never having been asked about -- which the arithmetic reported as a contradiction.
+		name: 'markup given to one unenterable child inside another',
+		beside: {
+			Opaque2:
+				'<script>let { children, ...rest } = $props();</script>' +
+				'<div>{@render children()}</div>',
+		},
+		source:
+			"<script>import O from './Opaque2.svelte'; let { data } = $props();</script>" +
+			'<O><O><b>{data.a}</b></O></O>',
+		data: [{ a: 'x' }],
+	},
+	{
+		// A `{#snippet}` written inside a component's tag is a prop of its own under its own name,
+		// and everything else in the tag is `children`. So a component may write one and not the
+		// other, which is what bits-ui's trigger does. Measured as one group it looked like a
+		// component writing none of what it was given while a marker from that markup came back.
+		// See `visitors/shared/component.js` and spec/refusals.md.
+		name: 'a snippet beside markup, where the child writes only the markup',
+		beside: {
+			Sided:
+				'<script>let { children, ...rest } = $props();</script>' +
+				'<div>{@render children()}</div>',
+		},
+		source:
+			"<script>import Sided from './Sided.svelte'; let { data } = $props();</script>" +
+			'<Sided><b>{data.a}</b>{#snippet extra()}<i>{data.b}</i>{#if data.f}<u>u</u>{/if}{/snippet}</Sided>',
+		data: [
+			{ a: 'x', b: 'y', f: true },
+			{ a: '<&', b: 'z', f: false },
+		],
+	},
+	{
+		// A descent that stops is rolled back and the component is left to Svelte, which is what
+		// keeps this from refusing what already worked. What it appended has to go back too: the
+		// group it recorded on the way in outlived the holes it was measured against, so a
+		// component the walk never entered was still asked whether its markup came back, over
+		// indices that by then belonged to somebody else. `{#key}` is the refusal here because it
+		// writes no anchors, so what is left is the rollback and nothing else.
+		name: 'a descent that stops takes its records back with it',
+		beside: {
+			Shed: '<script>let { children, ...rest } = $props();</script><div>{@render children()}</div>',
+			Stops:
+				"<script>import Shed from './Shed.svelte'; let { v } = $props();</script>" +
+				'<Shed><b>{v}</b></Shed>{#key v}<i>k</i>{/key}',
+		},
+		source:
+			"<script>import Stops from './Stops.svelte'; let { data } = $props();</script>" +
+			'<Stops v={data.a} /><em>{data.b}</em>',
+		data: [{ a: 'x', b: 'y' }],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',
