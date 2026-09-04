@@ -1207,6 +1207,7 @@ function rewrite(
 	const prelude: string[] = [];
 	const declares = propsOf(ast, source);
 	const payload = declares === null ? null : new Set(declares.map((one) => one.local));
+	const missed: { file: string; reason: string }[] = [];
 	collect(
 		source,
 		ast['fragment'],
@@ -1228,12 +1229,13 @@ function rewrite(
 			prelude,
 			given: new Map(),
 			payload,
+			missed,
 		},
 		payload ?? new Set(),
 	);
 	withPrelude(source, ast, prelude, edits);
 
-	return { rewritten: apply(source, edits), holes, blocks, pending, copies };
+	return { rewritten: apply(source, edits), holes, blocks, pending, copies, missed };
 }
 
 /**
@@ -1714,6 +1716,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 				prelude,
 				given: hands(walk, nodes),
 				payload: walk.site.payload,
+				missed: walk.site.missed,
 			},
 			walk.dynamic,
 		);
@@ -1753,6 +1756,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 		// compile, so it is not theirs to see.
 		rolled(walk, mark);
 		if (String((error as Error).message).includes('is part of a cycle')) throw error;
+		walk.site.missed.push({ file, reason: String((error as Error).message) });
 		return false;
 	}
 }
@@ -1930,6 +1934,15 @@ interface Site {
 	/** Imports the rewritten source needs that the author did not write: one per copy taken. */
 	prelude: string[];
 	/**
+	 * Why a component was left to Svelte, one line each.
+	 *
+	 * A walk that stops is rolled back and the component is rendered as it was before, which is
+	 * what keeps this from refusing what already worked. But when the render then fails -- and it
+	 * does whenever the child does more with a prop than write it -- the author was shown Svelte's
+	 * crash and never the refusal that led to it. These are kept so that failure can say both.
+	 */
+	missed: { file: string; reason: string }[];
+	/**
 	 * Markup this component was handed by its caller, by the name it arrives under.
 	 *
 	 * Written inside a component's tag, markup becomes an arrow function passed as `children` --
@@ -1980,6 +1993,8 @@ interface Rewritten {
 	rewritten: string;
 	/** Every child walked into, as the source the render has to stage in its place. */
 	copies: Copy[];
+	/** Every child left to Svelte instead, and why the walk stopped. */
+	missed: { file: string; reason: string }[];
 	holes: Hole[];
 	blocks: Block[];
 	/** Class decisions whose outcomes the render has still to supply the hash for. */
@@ -2075,7 +2090,23 @@ export async function skeleton(entryFile: string, root: string): Promise<Skeleto
 	// author at the wrong thing. The walk above refuses the construct, so what reaches here is a
 	// name in markup the compiler does understand.
 	resolved(source, basename(file));
-	const { body: html, head } = await renderRewritten(file, baseline.rewritten, root, baseline.copies);
+	// A render that fails is nearly always a component the walk could not enter and Svelte then
+	// rendered without the data it needed. The author was shown that crash and never the refusal
+	// behind it, so both are said here, the refusals first.
+	const rendered = await renderRewritten(file, baseline.rewritten, root, baseline.copies).catch(
+		(error: unknown) => {
+			const why = baseline.missed
+				.map((one) => `  ${basename(one.file)}: ${one.reason.replace(/\s+/g, ' ')}`)
+				.join('\n');
+			if (why === '') throw error;
+			throw new Error(
+				`${String((error as Error).message)}\n\nThe render stopped inside a component this ` +
+					'compiler could not walk into, so Svelte rendered it without the values a request ' +
+					`would bring. What stopped the walk:\n${why}`,
+			);
+		},
+	);
+	const { body: html, head } = rendered;
 
 	// One more render per branch the baseline does not hold, keyed the way Svelte numbers them:
 	// `1`, `2` for each `{:else if}`, and `-1` for the else, which is what it writes into the
