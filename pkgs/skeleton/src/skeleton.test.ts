@@ -727,6 +727,27 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A literal handed down through a component the walk entered. Every prop is handed to the
+		// render as null, because the child's markers already carry the expressions and evaluating
+		// what the call site passed would reach for data the render is not given -- but a literal
+		// is not data, it reads nothing, and an expression over it is inert and left for Svelte.
+		// Handed null it evaluated against nothing; the value the call site passed is carried now.
+		name: 'a literal prop read by markup left for Svelte to evaluate',
+		beside: {
+			Tells:
+				'<script>let { tag, ...rest } = $props();</script>' +
+				"{#if tag === 'warm-x'}<i>warm</i>{:else}<i>{tag}</i>{/if}",
+			Carries:
+				"<script>import Tells from './Tells.svelte'; let { tone, data } = $props();</script>" +
+				`<Tells tag={[tone, 'x'].join('-')} /><p>{data.a}</p>`,
+		},
+		source:
+			"<script>import Carries from './Carries.svelte'; let { data } = $props();" +
+			" const tone = 'warm';</script>" +
+			'<Carries {tone} {data} />',
+		data: [{ a: 'v' }, { a: '<&' }],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',

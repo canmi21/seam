@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { type Locals, mentions, pathOf, reduce } from 'ast';
+import { literalOf, type Locals, mentions, pathOf, reduce } from 'ast';
 import { type AstNode, isNode, span } from './node.ts';
 import { type Snippet, snippetsIn } from './snippets.ts';
 import type { Given, Walk } from './walk.ts';
@@ -118,11 +118,20 @@ export function rebased(
 	declares: readonly { local: string; prop: string }[],
 	bindings: ReadonlyMap<string, string>,
 ): ReadonlyMap<string, string> {
-	if (fixed.size === 0) return fixed;
 	const found = new Map<string, string>(fixed);
 	for (const one of declares) {
 		const given = bindings.get(one.prop);
 		if (given === undefined) continue;
+		// The call site may have handed over a value rather than a path -- expanding an expression
+		// writes a fixed path out as its literal, so `locale={data.locale.code}` arrives as `"en"`
+		// and the spelling that would have matched is gone. A literal is worth carrying whatever it
+		// came from: it reads nothing, so the child can be handed it rather than the null every
+		// other prop gets, and an inert expression over it evaluates to what it should.
+		const value = literalOf(given);
+		if (value !== undefined) {
+			found.set(one.local, value);
+			continue;
+		}
 		const base = pathOf(given);
 		if (base === null) continue;
 		for (const [path, literal] of fixed) {

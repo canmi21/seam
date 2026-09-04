@@ -375,6 +375,31 @@ export function pathOf(expression: string): string | null {
 }
 
 /**
+ * The value an expression is, as JSON, where it is a literal and nothing else.
+ *
+ * Substitution parenthesises what it writes, so a prop handed a fixed path arrives as `("en")` and
+ * comparing the text against the literal it came from finds nothing. The parser keeps no
+ * parentheses, so asking the AST is asking the question that was meant.
+ */
+export function literalOf(expression: string): string | undefined {
+	let ast: Node;
+	try {
+		ast = parsed(expression);
+	} catch {
+		return undefined;
+	}
+	const fragment = ast['fragment'];
+	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	const [only] = nodes;
+	if (nodes.length !== 1 || !isNode(only) || only['type'] !== 'ExpressionTag') return undefined;
+	const inner = only['expression'];
+	if (!isNode(inner) || inner['type'] !== 'Literal') return undefined;
+	const value = inner['value'];
+	if (typeof value === 'object' && value !== null) return undefined;
+	return JSON.stringify(value ?? null);
+}
+
+/**
  * Whether an expression is a literal and nothing else, once substitution has had its way with it.
  *
  * `<Badge tone="x" />` becomes `("x")` where the child writes `{tone}`, and a marker planted there
