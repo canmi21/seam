@@ -172,18 +172,18 @@ fn a_cycle_is_an_error_rather_than_a_hang() {
 
 /// Blocks are numbered across the whole source but each appears in one stream only, and the bytes
 /// do not say which: two ifs, one in the head and one in the body, render identically whichever
-/// came first. So each stream is walked against its own list, and the body's first block is the
+/// came first. The stamp after each block says which one it is, so the body's first block is the
 /// body's own even when the head declared one before it.
 #[test]
 fn a_block_in_the_head_does_not_shift_the_body_numbering() {
 	let skeleton: Skeleton = serde_json::from_str(
-		r#"{"html":"<!--[--><div><!--[0--><b>B</b><!--]--></div><!--]-->",
-		    "head":"<!--3e142l--><!--[0--><meta name=\"a\" content=\"1\"/><!--]--><!---->",
+		r#"{"html":"<!--[--><div><!--[0--><b>B</b><!--]-->%%b1%%</div><!--]-->",
+		    "head":"<!--3e142l--><!--[0--><meta name=\"a\" content=\"1\"/><!--]-->%%b0%%<!---->",
 		    "alternates":{
-		      "0.-1":{"body":"<!--[--><div><!--[0--><b>B</b><!--]--></div><!--]-->",
-		           "head":"<!--3e142l--><!--[-1--><!--]--><!---->"},
-		      "1.-1":{"body":"<!--[--><div><!--[-1--><!--]--></div><!--]-->",
-		           "head":"<!--3e142l--><!--[0--><meta name=\"a\" content=\"1\"/><!--]--><!---->"}},
+		      "0.-1":{"body":"<!--[--><div><!--[0--><b>B</b><!--]-->%%b1%%</div><!--]-->",
+		           "head":"<!--3e142l--><!--[-1--><!--]-->%%b0%%<!---->"},
+		      "1.-1":{"body":"<!--[--><div><!--[-1--><!--]-->%%b1%%</div><!--]-->",
+		           "head":"<!--3e142l--><!--[0--><meta name=\"a\" content=\"1\"/><!--]-->%%b0%%<!---->"}},
 		    "holes":[],
 		    "blocks":[
 		      {"kind":"if","stream":"head","expression":"p.a","item":null},

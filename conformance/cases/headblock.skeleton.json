@@ -1,14 +1,14 @@
 {
-	"html": "<!--[--><div><!--[0--><b>%%s1%%</b><!--]--></div><!--]-->",
-	"head": "<!--hrv3jt--><!--[0--><meta name=\"robots\" content=\"index\"/><!--]--><!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]--><!---->",
+	"html": "<!--[--><div><!--[0--><b>%%s1%%</b><!--]--><template>%%b2%%</template></div><!--]-->",
+	"head": "<!--hrv3jt--><!--[0--><meta name=\"robots\" content=\"index\"/><!--]--><template>%%b0%%</template><!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]--><template>%%b1%%</template><!---->",
 	"alternates": {
 		"0.-1": {
-			"body": "<!--[--><div><!--[0--><b>%%s1%%</b><!--]--></div><!--]-->",
-			"head": "<!--hrv3jt--><!--[-1--><meta name=\"robots\" content=\"noindex\"/><!--]--><!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]--><!---->"
+			"body": "<!--[--><div><!--[0--><b>%%s1%%</b><!--]--><template>%%b2%%</template></div><!--]-->",
+			"head": "<!--hrv3jt--><!--[-1--><meta name=\"robots\" content=\"noindex\"/><!--]--><template>%%b0%%</template><!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]--><template>%%b1%%</template><!---->"
 		},
 		"2.-1": {
-			"body": "<!--[--><div><!--[-1--><!--]--></div><!--]-->",
-			"head": "<!--hrv3jt--><!--[0--><meta name=\"robots\" content=\"index\"/><!--]--><!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]--><!---->"
+			"body": "<!--[--><div><!--[-1--><!--]--><template>%%b2%%</template></div><!--]-->",
+			"head": "<!--hrv3jt--><!--[0--><meta name=\"robots\" content=\"index\"/><!--]--><template>%%b0%%</template><!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]--><template>%%b1%%</template><!---->"
 		}
 	},
 	"holes": [
@@ -29,9 +29,7 @@
 			"kind": "if",
 			"stream": "head",
 			"expression": "data.indexed",
-			"tests": [
-				"data.indexed"
-			],
+			"tests": ["data.indexed"],
 			"item": null,
 			"counter": null,
 			"alternate": true,
@@ -52,9 +50,7 @@
 			"kind": "if",
 			"stream": "body",
 			"expression": "data.shown",
-			"tests": [
-				"data.shown"
-			],
+			"tests": ["data.shown"],
 			"item": null,
 			"counter": null,
 			"alternate": false,

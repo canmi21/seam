@@ -79,8 +79,11 @@ impl Assembler<'_> {
 	/// here, so there is never a prop scope to carry.
 	pub(super) fn path(&mut self, expression: &str) -> Result<String> {
 		let trimmed = expression.trim();
-		if is_path(trimmed) {
-			return Ok(trimmed.to_owned());
+		// The parentheses substitution wraps it in decide nothing about what it is, so they come
+		// off for the question and stay on for the answer: a derivation is recorded as written.
+		let inner = bare(trimmed);
+		if is_path(inner) {
+			return Ok(inner.to_owned());
 		}
 		// A path rooted at an each block's binding is resolved per item by the runtime, which walks
 		// a scope stack. An expression is not: it is computed once, against the payload, before
@@ -218,6 +221,57 @@ impl Assembler<'_> {
 			});
 		}
 		Ok(())
+	}
+}
+
+/// The same expression without the parentheses that wrap the whole of it.
+///
+/// Substitution puts them there. A name declared in a script is replaced by `(its initialiser)`
+/// and a prop by `(what the call site passed)`, so a component rendered inside an each block gets
+/// `((t))` where the author wrote `t`. That is the same expression, but it is not the same string,
+/// and the string is what decides whether this is a path resolved per item or a derivation
+/// computed once against the payload -- so `{#each tags as t}<Badge label={t} />{/each}` compiled
+/// to a derivation reading a name the payload does not carry, and was refused.
+///
+/// Only a pair that wraps everything is taken: `(a)(b)` opens and closes twice and is a call.
+fn bare(source: &str) -> &str {
+	let mut at = source;
+	loop {
+		let trimmed = at.trim();
+		if !trimmed.starts_with('(') || !trimmed.ends_with(')') {
+			return trimmed;
+		}
+		let mut depth = 0usize;
+		let mut quote = None;
+		let mut closed = None;
+		for (index, c) in trimmed.char_indices() {
+			if let Some(open) = quote {
+				if c == '\\' {
+					continue;
+				}
+				if c == open {
+					quote = None;
+				}
+				continue;
+			}
+			match c {
+				'\'' | '"' | '`' => quote = Some(c),
+				'(' => depth += 1,
+				')' => {
+					depth -= 1;
+					if depth == 0 {
+						closed = Some(index);
+						break;
+					}
+				}
+				_ => {}
+			}
+		}
+		// The first pair does not close at the end, so it wraps a part rather than the whole.
+		match closed {
+			Some(index) if index + 1 == trimmed.len() => at = &trimmed[1..index],
+			_ => return trimmed,
+		}
 	}
 }
 

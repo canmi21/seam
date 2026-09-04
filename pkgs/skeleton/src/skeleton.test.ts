@@ -547,6 +547,41 @@ const accepted: Case[] = [
 		data: [{ a: 'x', b: 'y' }],
 	},
 	{
+		// A component the walk did not enter writes anchors of its own, and they look exactly like
+		// ours: `{#if}` in a package's markup opens and closes the way `{#if}` here does. Matching
+		// them by the order they appear in counted somebody else's blocks as ours and ran out of
+		// list. The stamp after each block says which one it is, so a pair without one is bytes --
+		// copied out, and walked through, because our own block renders inside theirs.
+		name: 'a child the walk cannot enter wraps what it was given in a block of its own',
+		beside: {
+			Wraps:
+				'<script>let { children, ...rest } = $props(); const on = true;</script>' +
+				'{#if on}<div>{@render children()}</div>{:else}<p>off</p>{/if}',
+		},
+		source:
+			"<script>import Wraps from './Wraps.svelte'; let { data } = $props();</script>" +
+			'<Wraps><b>{data.a}</b>{#if data.f}<i>{data.a}</i>{:else}<u>n</u>{/if}</Wraps>',
+		data: [
+			{ a: 'x', f: true },
+			{ a: '<&', f: false },
+		],
+	},
+	{
+		// The stamp that says which block just closed cannot always be bare text. Svelte refuses
+		// `<#text>` inside a table's parts, and a text or element child of a `<select>` makes it
+		// rich, which closes the tag with `<!>`. Each of these is a position where the carrier has
+		// to be something the element already allows and already ignores. See `carrier()`.
+		name: 'blocks inside elements that will not hold text',
+		source:
+			`${PROPS}<table><tbody>{#each data.rows as r}<tr><td>{r}</td></tr>{/each}</tbody></table>` +
+			'<select>{#each data.opts as o}<option>{o}</option>{/each}</select>' +
+			'<select><option>{#if data.f}{data.a}{/if}</option></select>',
+		data: [
+			{ rows: ['a', 'b'], opts: ['x'], f: true, a: 'v' },
+			{ rows: [], opts: [], f: false, a: '' },
+		],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',

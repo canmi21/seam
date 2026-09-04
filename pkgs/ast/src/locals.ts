@@ -325,6 +325,39 @@ export function mentions(expression: string, names: ReadonlySet<string>): boolea
 	return found;
 }
 
+/**
+ * Whether an expression is a literal and nothing else, once substitution has had its way with it.
+ *
+ * `<Badge tone="x" />` becomes `("x")` where the child writes `{tone}`, and a marker planted there
+ * is a hole whose value nothing decides. Svelte renders a literal into the bytes and escapes it
+ * the way it escapes everything else, so leaving it to do that is fewer moving parts than carrying
+ * the value through the protocol and putting it back -- and it is what the other lowering path
+ * already did, which is where the two came apart.
+ *
+ * Deliberately only a literal. An expression that merely reaches no payload name is not the same
+ * thing: it may read something ambient, and a compile-time render would bake in whatever that was.
+ */
+export function constant(expression: string): boolean {
+	let ast: Node;
+	try {
+		ast = parse(`{${expression}}`, { modern: true }) as unknown as Node;
+	} catch {
+		return false;
+	}
+	const fragment = ast['fragment'];
+	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	const [only] = nodes;
+	if (nodes.length !== 1 || !isNode(only) || only['type'] !== 'ExpressionTag') return false;
+	const inner = only['expression'];
+	if (!isNode(inner)) return false;
+	// A negative number is a unary operator over one, which the parser keeps as two nodes.
+	const value =
+		inner['type'] === 'UnaryExpression' && (inner['operator'] === '-' || inner['operator'] === '+')
+			? inner['argument']
+			: inner;
+	return isNode(value) && value['type'] === 'Literal';
+}
+
 /** Every name the two scripts declare, with what each stands for and where each was written. */
 export function locals(source: string): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;

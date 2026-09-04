@@ -1,24 +1,22 @@
 {
-	"html": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[0--><span class=\"badge cold\">%%s3%%</span><!--]--><!--[--><span class=\"badge cold\">%%s4%%</span><!--]--></div><!--]-->",
+	"html": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[0--><span class=\"badge cold\">%%s3%%</span><!--]--><template>%%b0%%</template><!--[--><span class=\"badge cold\">%%s4%%</span><!--]--><template>%%b1%%</template></div><!--]-->",
 	"head": "",
 	"alternates": {
 		"0.-1": {
-			"body": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[-1--><!--]--><!--[--><span class=\"badge cold\">%%s4%%</span><!--]--></div><!--]-->",
+			"body": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[-1--><!--]--><template>%%b0%%</template><!--[--><span class=\"badge cold\">%%s4%%</span><!--]--><template>%%b1%%</template></div><!--]-->",
 			"head": ""
 		}
 	},
 	"holes": [
 		{
 			"index": 0,
-			"expression": "data.name",
-			"raw": false,
-			"given": "`<Badge>` as `label`"
+			"expression": "((data.name))",
+			"raw": false
 		},
 		{
 			"index": 1,
-			"expression": "data.tone",
-			"raw": false,
-			"given": "`<Badge>` as `tone`"
+			"expression": "((data.tone))",
+			"raw": false
 		},
 		{
 			"index": 2,
@@ -27,15 +25,13 @@
 		},
 		{
 			"index": 3,
-			"expression": "data.name",
-			"raw": false,
-			"given": "`<Badge>` as `label`"
+			"expression": "((data.name))",
+			"raw": false
 		},
 		{
 			"index": 4,
-			"expression": "t",
-			"raw": false,
-			"given": "`<Badge>` as `label`"
+			"expression": "((t))",
+			"raw": false
 		}
 	],
 	"blocks": [
@@ -44,9 +40,7 @@
 			"kind": "if",
 			"stream": "body",
 			"expression": "data.flag",
-			"tests": [
-				"data.flag"
-			],
+			"tests": ["data.flag"],
 			"item": null,
 			"counter": null,
 			"alternate": false,

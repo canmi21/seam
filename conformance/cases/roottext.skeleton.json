@@ -5,9 +5,8 @@
 	"holes": [
 		{
 			"index": 0,
-			"expression": "data.a",
-			"raw": false,
-			"given": "`<Badge>` as `label`"
+			"expression": "((data.a))",
+			"raw": false
 		}
 	],
 	"blocks": []

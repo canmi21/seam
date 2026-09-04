@@ -1,9 +1,9 @@
 {
-	"html": "<!--[--><div>%%s0%%</div><!--[0--><b>x</b><!--]--><!--]-->",
+	"html": "<!--[--><div>%%s0%%</div><!--[0--><b>x</b><!--]--><template>%%b0%%</template><!--]-->",
 	"head": "",
 	"alternates": {
 		"0.-1": {
-			"body": "<!--[--><div>%%s0%%</div><!--[-1--><!--]--><!--]-->",
+			"body": "<!--[--><div>%%s0%%</div><!--[-1--><!--]--><template>%%b0%%</template><!--]-->",
 			"head": ""
 		}
 	},
@@ -20,9 +20,7 @@
 			"kind": "if",
 			"stream": "body",
 			"expression": "data.f",
-			"tests": [
-				"data.f"
-			],
+			"tests": ["data.f"],
 			"item": null,
 			"counter": null,
 			"alternate": false,

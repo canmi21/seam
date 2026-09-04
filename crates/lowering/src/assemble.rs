@@ -11,7 +11,9 @@ mod skeleton;
 
 pub use skeleton::{Block, Choice, Hole, Kind, Rendered, Result, Skeleton, Stream};
 
-use scan::{Dynamic, EMPTY, Landing, Span, closes, landing, next_block, next_dynamic, sentinel_at};
+use scan::{
+	Dynamic, EMPTY, Landing, Span, closes, landing, next_block, next_dynamic, sentinel_at, stamped,
+};
 
 use crate::ir;
 
@@ -47,12 +49,9 @@ struct Assembler<'a> {
 	derivations: Vec<ir::Derivation>,
 	/// How many times each hole came back in the render. Checked once at the end.
 	consumed: Vec<usize>,
-	/// The stream being walked, and the source indices of its blocks in the order they appear in
-	/// it. Blocks are numbered across the whole source but each appears in one stream only, so
-	/// walking a stream steps through its own list rather than through the global numbering.
+	/// The stream being walked. A block is numbered across the whole source but appears in one
+	/// stream only, and an alternate is read from the same stream the block lives in.
 	stream: Stream,
-	order: Vec<usize>,
-	taken: usize,
 	/// Names an enclosing each block binds. A derivation is computed once against the payload, so
 	/// one that reads a name bound per item has no value to be computed from. See spec/ir.md.
 	locals: Vec<String>,
@@ -104,9 +103,21 @@ impl Assembler<'_> {
 			if block.as_ref().is_some_and(|one| Some(one.from) == earliest) {
 				let span = block.ok_or_else(|| "unreachable".to_owned())?;
 				out.write(&html[at..span.from]);
-				self.block(html, &span, out)?;
+				// A component the walk did not enter writes its own anchors, and they are bytes: the
+				// pair is copied out and what sits between it is walked exactly as anything else is,
+				// because markup handed to that component renders inside it and those blocks are
+				// ours. Stepping over the whole span instead would lose them; treating the close as
+				// text would end this region at the first one.
+				let Some((index, after)) = stamped(html, span.to) else {
+					out.write(&html[span.from..span.content]);
+					self.region(html, span.content, span.until, out)?;
+					out.write(&html[span.until..span.to]);
+					at = span.to;
+					continue;
+				};
+				self.block(html, &span, index, out)?;
 				out.write(&html[span.until..span.to]);
-				at = span.to;
+				at = after;
 				continue;
 			}
 
@@ -192,21 +203,16 @@ impl Assembler<'_> {
 	/// What `is_void`, `is_raw_text_element` and the tag name regex are travels in the expressions
 	/// the walk wrote, so neither backend keeps a list of its own. See `pkgs/skeleton/src/tags.ts`.
 	fn dynamic(&mut self, html: &str, span: &Dynamic, out: &mut Out) -> Result<()> {
-		let ordinal = self.taken;
-		self.taken += 1;
-		let index = *self
-			.order
-			.get(ordinal)
-			.ok_or_else(|| "the render holds more blocks than the source declared".to_owned())?;
-		let block = self
-			.skeleton
-			.blocks
-			.get(index)
-			.ok_or_else(|| "the render holds more blocks than the source declared".to_owned())?;
-		if !matches!(block.kind, Kind::Element) || index != span.index {
+		// The stand-in tag carries its own number, so a dynamic element needs no stamp: nothing a
+		// component writes can look like one.
+		let index = span.index;
+		let block = self.skeleton.blocks.get(index).ok_or_else(|| {
+			format!("the render holds a stand-in for a block {index} that was never declared")
+		})?;
+		if !matches!(block.kind, Kind::Element) {
 			return Err(format!(
 				"the render holds a dynamic element where block {index} is not one, which means the \
-				 walk and the render stopped agreeing about the order"
+				 walk and the render stopped agreeing"
 			));
 		}
 
@@ -275,18 +281,12 @@ impl Assembler<'_> {
 	/// Writes the block into `out`. Which side of the node an anchor falls on differs by kind:
 	/// an each opens once for the whole block, so its marker is static and sits outside, while an
 	/// if writes a different marker per branch and so carries it inside.
-	fn block(&mut self, html: &str, span: &Span, out: &mut Out) -> Result<()> {
-		let ordinal = self.taken;
-		self.taken += 1;
-		let index = *self
-			.order
-			.get(ordinal)
-			.ok_or_else(|| "the render holds more blocks than the source declared".to_owned())?;
+	fn block(&mut self, html: &str, span: &Span, index: usize, out: &mut Out) -> Result<()> {
 		let block = self
 			.skeleton
 			.blocks
 			.get(index)
-			.ok_or_else(|| "the render holds more blocks than the source declared".to_owned())?;
+			.ok_or_else(|| format!("the render stamps a block {index} the source never declared"))?;
 
 		match block.kind {
 			Kind::Element => Err(
@@ -359,8 +359,8 @@ impl Assembler<'_> {
 						Stream::Head => split_off_title(&rendered.head)?.0,
 					};
 					let mut body = Out::default();
-					// Found by counting within the stream, because that is how it was walked.
-					let at = self.locate(other, ordinal)?;
+					// Found by its stamp, which is the same place in the other render.
+					let at = self.locate(other, index)?;
 					body.write(&other[at.from..at.content]);
 					// The cursor is not rewound between branches. Blocks are numbered by the source
 					// walk in the order it takes them -- this branch's after the last one's -- and
@@ -376,18 +376,21 @@ impl Assembler<'_> {
 		}
 	}
 
-	/// The nth block of another render of the same stream, found by counting opening anchors in
-	/// document order. The body is wrapped in a pair that looks like an each and the head is not,
-	/// so the region to count within is whichever this stream walks.
+	/// One block of another render of the same stream, found by the stamp that names it.
+	///
+	/// It used to be found by counting opening anchors in document order, with the cursor carried
+	/// between branches so the two walks stayed in step. The stamp says which block it is, so
+	/// neither the counting nor the carrying is needed and neither can drift. The body is wrapped
+	/// in a pair that looks like an each and the head is not, so the region to search is whichever
+	/// this stream walks.
 	fn locate(&self, html: &str, index: usize) -> Result<Span> {
-		fn walk(html: &str, from: usize, until: usize, seen: &mut usize, want: usize) -> Option<Span> {
+		fn walk(html: &str, from: usize, until: usize, want: usize) -> Option<Span> {
 			let mut at = from;
 			while let Some(span) = next_block(html, at, until) {
-				if *seen == want {
+				if stamped(html, span.to).is_some_and(|(found, _)| found == want) {
 					return Some(span);
 				}
-				*seen += 1;
-				if let Some(found) = walk(html, span.content, span.until, seen, want) {
+				if let Some(found) = walk(html, span.content, span.until, want) {
 					return Some(found);
 				}
 				at = span.to;
@@ -402,8 +405,7 @@ impl Assembler<'_> {
 			}
 			Stream::Head => (0, html.len()),
 		};
-		let mut seen = 0;
-		walk(html, from, until, &mut seen, index)
+		walk(html, from, until, index)
 			.ok_or_else(|| format!("block {index} does not appear in the render made for it"))
 	}
 }
@@ -419,8 +421,6 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 		derivations: Vec::new(),
 		consumed: vec![0; skeleton.holes.len()],
 		stream: Stream::Body,
-		order: order_in(skeleton, Stream::Body),
-		taken: 0,
 		locals: Vec::new(),
 	};
 	let mut out = Out::default();
@@ -436,8 +436,6 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 	let (head_bytes, title_bytes) = split_off_title(&skeleton.head)?;
 
 	assembler.stream = Stream::Head;
-	assembler.order = order_in(skeleton, Stream::Head);
-	assembler.taken = 0;
 	let mut head = Out::default();
 	if !head_bytes.is_empty() {
 		assembler.region(head_bytes, 0, head_bytes.len(), &mut head)?;
@@ -460,17 +458,6 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 		},
 		derivations: assembler.derivations,
 	})
-}
-
-/// The source indices of one stream's blocks, in the order they appear in it.
-fn order_in(skeleton: &Skeleton, stream: Stream) -> Vec<usize> {
-	skeleton
-		.blocks
-		.iter()
-		.enumerate()
-		.filter(|(_, block)| block.stream == stream && !block.absent)
-		.map(|(index, _)| index)
-		.collect()
 }
 
 /// Splits the rendered head into the head blocks and the title, at the close of the last block.

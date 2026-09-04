@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { parse } from 'svelte/compiler';
-import { apply, destructure, type Locals, locals } from 'ast';
+import { apply, constant, destructure, type Locals, locals } from 'ast';
 import { classes, type PendingChoice, type PendingSpread, spread, styles } from './attributes.ts';
 import {
 	hands,
@@ -27,7 +27,7 @@ import {
 	span,
 } from './node.ts';
 import { OMITTED_IN_SSR } from './omitted.ts';
-import { sentinel } from './sentinel.ts';
+import { carrier, sentinel } from './sentinel.ts';
 import type { Block, Hole, Stream } from './shape.ts';
 import { inlined, type Snippet, snippetsIn } from './snippets.ts';
 import { RAW_TEXT_ELEMENTS, VALID_TAG_NAME, VOID_ELEMENTS } from './tags.ts';
@@ -165,6 +165,12 @@ export interface Walk {
 	site: Site;
 	/** What the request decides, in the scope the call site sits in. */
 	dynamic: ReadonlySet<string>;
+	/**
+	 * The element the walk is directly inside, by tag name, or null where it is not inside one this
+	 * file writes: the root, or markup handed to a component, which puts it wherever it likes. It
+	 * decides what a block's stamp is carried by and nothing else. See `carrier()`.
+	 */
+	parent: string | null;
 }
 
 export interface Rewritten {
@@ -327,6 +333,7 @@ function collect(node: unknown, walk: Walk): void {
 		edits,
 		expand,
 		holes,
+		parent,
 		pending,
 		site,
 		snippets,
@@ -429,11 +436,19 @@ function collect(node: unknown, walk: Walk): void {
 		case 'HtmlTag': {
 			const at = span(node['expression']);
 			if (at === null) return;
+			// A literal decides nothing, so nothing has to stand for it. Written out in its expanded
+			// form rather than left as it was: what it expanded from may have been a name, and the
+			// declaration that name came from has been neutralised for the render.
+			const written = expand(node['expression']);
+			if (constant(written)) {
+				edits.push([at[0], at[1], written]);
+				return;
+			}
 			const index = holes.length;
 			// Where the value lands, and therefore how it is escaped, is read off the render rather
 			// than guessed here. A prop passed to a component may end up in text or in an attribute,
 			// and only the component knows which.
-			holes.push({ index, expression: expand(node['expression']), raw: type === 'HtmlTag' });
+			holes.push({ index, expression: written, raw: type === 'HtmlTag' });
 			edits.push([at[0], at[1], JSON.stringify(sentinel(index))]);
 			return;
 		}
@@ -510,13 +525,18 @@ function collect(node: unknown, walk: Walk): void {
 				}
 			}
 
+			// From here down the walk is inside this element, which is what decides how a block's
+			// stamp is carried. A component is not one: what it does with the markup, and where it
+			// puts it, is the child's business.
+			const encloses = type === 'RegularElement' ? tag : null;
+
 			// Markup handed to a component the walk could not enter, in the groups Svelte splits it
 			// into. Each group's range is kept so that a second render can say whether the component
 			// writes that group at all.
 			const fragment = node['fragment'];
 			const inside = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
 			if (!given || inside.length === 0) {
-				step(fragment);
+				collect(fragment, { ...walk, parent: encloses });
 				return;
 			}
 			const groups = handedTo(site.file, tag, inside);
@@ -538,7 +558,7 @@ function collect(node: unknown, walk: Walk): void {
 					edits.push([group.at, group.at, group.probe]);
 				}
 				const from: [number, number] = [holes.length, blocks.length];
-				step(child);
+				collect(child, { ...walk, parent: encloses });
 				if (group === undefined) continue;
 				site.handed.push({
 					probe: group.probe,
@@ -742,6 +762,10 @@ function collect(node: unknown, walk: Walk): void {
 				if (at !== null) edits.push([at[0], at[1], taken(index, branch) ? 'true' : 'false']);
 			}
 
+			// Which block just closed, written where the render puts it and nowhere else.
+			const whole = span(node);
+			if (whole !== null) edits.push([whole[1], whole[1], carrier(index, parent)]);
+
 			// Only the first branch is in the baseline render, so only its blocks are numbered where
 			// the assembler counts them. A block in any other branch is numbered here and appears in
 			// a render nobody counts, which is the two lists coming apart. See spec/refusals.md.
@@ -802,8 +826,9 @@ function collect(node: unknown, walk: Walk): void {
 				}
 			}
 
+			const index = blocks.length;
 			blocks.push({
-				index: blocks.length,
+				index,
 				kind: 'each',
 				within: [...within],
 				stream,
@@ -815,6 +840,9 @@ function collect(node: unknown, walk: Walk): void {
 			});
 			// One element, because the body's own expressions are sentinels and read nothing from it.
 			edits.push([at[0], at[1], `[${element}]`]);
+			// Which block just closed, written where the render puts it and nowhere else.
+			const whole = span(node);
+			if (whole !== null) edits.push([whole[1], whole[1], carrier(index, parent)]);
 			// What the block binds is decided per item, so an expression reading it is a marker
 			// even when nothing else in it reaches the payload.
 			const inside = new Set(dynamic);
@@ -1077,6 +1105,7 @@ export function rewrite(
 			probing,
 		},
 		dynamic: payload ?? new Set(),
+		parent: null,
 	});
 	withPrelude(source, ast, prelude, edits);
 

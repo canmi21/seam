@@ -78,6 +78,37 @@ pub(super) fn sentinel_at(html: &str, from: usize, until: usize) -> Option<(usiz
 	Some((start, start + 3 + digits + 2, index))
 }
 
+/// The block this pass declared, where the render says so just after a block's close.
+///
+/// Svelte's anchors say a block opened, not which one. A component the walk did not enter writes
+/// its own -- an `{#if}` or an `{#each}` in a package's markup opens and closes exactly as ours
+/// does -- so matching by the order they appear in counted somebody else's blocks as ours and ran
+/// out of block list. This is the stamp `pkgs/skeleton/src/sentinel.ts` writes: present means the
+/// block is one of ours and says which, absent means it belongs to a component and is bytes.
+///
+/// Three carriers, because bare text is not writable everywhere: a table's parts reject it and a
+/// `<select>` is changed by it. Which one carries the marker is decided there, against the element
+/// the block sits in; here they are simply all read.
+///
+/// Returns the index and where the stamp ends.
+pub(super) fn stamped(html: &str, at: usize) -> Option<(usize, usize)> {
+	const CARRIERS: [(&str, &str); 3] =
+		[("<template>", "</template>"), ("<option value=\"", "\"></option>"), ("", "")];
+	let rest = html.get(at..)?;
+	for (open, close) in CARRIERS {
+		let Some(body) = rest.strip_prefix(open) else { continue };
+		let Some(digits) = body.strip_prefix("%%b") else { continue };
+		let Some(end) = digits.find("%%") else { continue };
+		let Ok(index) = digits.get(..end)?.parse::<usize>() else { continue };
+		let after = &digits[end + 2..];
+		if !after.starts_with(close) {
+			continue;
+		}
+		return Some((index, at + open.len() + 3 + end + 2 + close.len()));
+	}
+	None
+}
+
 /// The stand-in a dynamic element was rendered under, and the parts of what it wrote.
 ///
 /// Svelte's `element()` writes `<!---->`, then the tag with its attributes, then the children, an
