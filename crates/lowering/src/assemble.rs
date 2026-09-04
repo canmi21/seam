@@ -25,6 +25,11 @@ pub struct Hole {
 	/// absence here is all this pass can see on its own.
 	#[serde(default)]
 	pub given: Option<String>,
+	/// Allowed not to come back. Set by the render pass, and only on positive evidence that the
+	/// component holding this markup writes none of it -- never on the value simply being missing,
+	/// which is also what a compiler that has stopped working looks like. See `spec/refusals.md`.
+	#[serde(default)]
+	pub safe: bool,
 }
 
 /// A decision whose outcomes were enumerated at compile time.
@@ -77,6 +82,10 @@ pub struct Block {
 	/// here that name is the block's own ordinal.
 	#[serde(default)]
 	pub counter: Option<String>,
+	/// Numbered by the walk and written by nothing, because it sits in markup a component does not
+	/// render. It leaves the order counted against, or every ordinal after it shifts.
+	#[serde(default)]
+	pub absent: bool,
 }
 
 /// Both of the streams one render produced.
@@ -489,6 +498,11 @@ impl Assembler<'_> {
 				continue;
 			}
 			let hole = &self.skeleton.holes[index];
+			// Planted in markup a component was measured not to write. Every other absence is
+			// still one, which is what keeps this check from becoming a formality.
+			if *count == 0 && hole.safe {
+				continue;
+			}
 			let expression = &hole.expression;
 			return Err(match (*count, hole.given.as_deref()) {
 				// The common shape by far, and the one an absence alone says nothing about. What a
@@ -938,7 +952,7 @@ fn order_in(skeleton: &Skeleton, stream: Stream) -> Vec<usize> {
 		.blocks
 		.iter()
 		.enumerate()
-		.filter(|(_, block)| block.stream == stream)
+		.filter(|(_, block)| block.stream == stream && !block.absent)
 		.map(|(index, _)| index)
 		.collect()
 }

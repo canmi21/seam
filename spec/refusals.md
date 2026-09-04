@@ -513,13 +513,58 @@ than through props, and a decision taken on that would not be visible in the att
 press does it, and a compiler cannot see it without walking the provider; it is written down here
 rather than guarded against.
 
-### What it needs, which is two lists rather than one
+### Absence is never the evidence, because absence is also what a broken compiler looks like
 
-Holes are not the whole of it. The markup handed to `<Dialog.Content>` carries `{#if}` and
-`{#each}` blocks, and a block that never appears in the render shifts every ordinal after it. So a
-group is recorded over both: the holes planted while walking a non-descended component's children,
-and the blocks numbered there. When none of the group's markers comes back, the holes are absent
-rather than lost and the blocks leave the order entirely.
+A first design read the render and said: none of this group's markers came back, so the component
+did not write it. That is post-hoc, and it fails the only question worth asking of a check like
+this -- **would it still catch the day Svelte changes how children are passed?** It would not. The
+markers would be missing then too, and the compiler would quietly accept a page with its content
+gone. A drift check that cannot fail is decoration.
+
+So the evidence is positive and comes from an experiment. **The same render is made a second time,
+with each handed fragment replaced by a literal nobody could produce.** The literal coming back is
+what says the component writes what it is given:
+
+| the probe | what it means | what the invariant does |
+| --- | --- | --- |
+| comes back | the component writes what it is handed | unchanged: every marker must come back once |
+| does not | it writes none of it, which is what a portal is | the holes there may go unconsumed, and the blocks leave the order |
+| does not, but a marker came back | two things that cannot both be true | refused, and the message says it is the compiler rather than the component |
+
+**What the probe cannot see is the mechanism itself failing**, and that is not its job: it is
+pinned by the surface checks for a wrapper around markup and a layout around a page, which walk a
+component's children end to end and compare bytes with Svelte. If children stop being passed, those
+fail loudly and this is never reached.
+
+Holes are not the whole of it either. Markup handed to `<Dialog.Content>` carries `{#if}` and
+`{#each}` blocks, and a block that never appears shifts every ordinal after it, so the group covers
+both.
+
+### And it uncovered a second thing, which has to come first
+
+**A component the walk does not enter writes Svelte's own block anchors, and the assembler counts
+every anchor as one of its own.** Measured with no markup of ours involved at all:
+
+```svelte
+<p>{data.head}</p>
+<Dialog.Root><Dialog.Portal /></Dialog.Root>
+```
+
+```
+render    <!--[--><p>%%s0%%</p> <!--[--><!--[--><!--[-1--><!--]--><!--]--><!----><!--]--><!--]-->
+declared  1 hole, 0 blocks
+lowering  the render holds more blocks than the source declared
+```
+
+Those anchors are `bits-ui`'s, from its own `{#if}`s. Nothing in the walk numbered them and nothing
+can, because the file was never opened. This is **not caused by the probe** -- it predates it, and
+it is why the portal case cannot compile even once the accounting is right.
+
+It does not arise for a component the walk enters, whose blocks are numbered where the assembler
+meets them. It arises for a package's, and for any local one a walk was rolled back on. So it is
+the next thing, and the shape of it is: the assembler needs to know which anchors are not its to
+count, which means knowing where a component's output begins and ends -- and a component call has
+no anchor around it, which is the same fact this whole family keeps returning to.
 
 ## The measurement is a route now, and it says four things are left
 

@@ -29,6 +29,16 @@ export interface Hole {
 	/** Set when the hole is a decision rather than a substitution. */
 	choice?: Choice;
 	/**
+	 * Allowed not to come back, because it was planted in markup a component does not render.
+	 *
+	 * Set only on positive evidence, never on absence: the same render is made a second time with
+	 * that markup replaced by a literal nobody could produce, and this is set when the literal does
+	 * not come back either. So it says *this component renders none of what it is given*, which is
+	 * a fact about the component, rather than *the marker is missing*, which is also what a broken
+	 * compiler looks like. See spec/refusals.md.
+	 */
+	safe?: true;
+	/**
 	 * The component this value was handed to, and the prop it was handed as.
 	 *
 	 * Carried for the diagnostic rather than for the compilation. A component is a plain function
@@ -122,6 +132,11 @@ export interface Block {
 	counter?: string | null;
 	/** True when the if has an else, which decides whether its alternate holds anything. */
 	alternate: boolean;
+	/**
+	 * Numbered by the walk and written by nothing, because it sits in markup a component does not
+	 * render. It leaves the order the assembler counts against, or every ordinal after it shifts.
+	 */
+	absent?: true;
 }
 
 export interface Skeleton {
@@ -486,7 +501,31 @@ function collect(
 					for (const one of holes.slice(before)) one.given = `\`<${tag}>\` as \`${prop}\``;
 				}
 			}
-			walk(node['fragment']);
+
+			// Markup handed to a component the walk could not enter. Its range is kept so that a
+			// second render can say whether that component writes it at all.
+			const fragment = node['fragment'];
+			const inside =
+				isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+			if (!given || inside.length === 0) {
+				walk(fragment);
+				return;
+			}
+			const probe = `%%h${String(site.handed.length)}%%`;
+			if (site.probing) {
+				const where = span(fragment);
+				if (where !== null) edits.push([where[0], where[1], probe]);
+				site.handed.push({ probe, component: tag, holes: [0, 0], blocks: [0, 0] });
+				return;
+			}
+			const from: [number, number] = [holes.length, blocks.length];
+			walk(fragment);
+			site.handed.push({
+				probe,
+				component: tag,
+				holes: [from[0], holes.length],
+				blocks: [from[1], blocks.length],
+			});
 			return;
 		}
 
@@ -1187,6 +1226,7 @@ function rewrite(
 	taken: (block: number, branch: number) => boolean,
 	file: string,
 	root: string,
+	probing = false,
 ): Rewritten {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
 	const holes: Hole[] = [];
@@ -1208,6 +1248,7 @@ function rewrite(
 	const declares = propsOf(ast, source);
 	const payload = declares === null ? null : new Set(declares.map((one) => one.local));
 	const missed: { file: string; reason: string }[] = [];
+	const handed: Handed[] = [];
 	collect(
 		source,
 		ast['fragment'],
@@ -1230,12 +1271,14 @@ function rewrite(
 			given: new Map(),
 			payload,
 			missed,
+			handed,
+			probing,
 		},
 		payload ?? new Set(),
 	);
 	withPrelude(source, ast, prelude, edits);
 
-	return { rewritten: apply(source, edits), holes, blocks, pending, copies, missed };
+	return { rewritten: apply(source, edits), holes, blocks, pending, copies, missed, handed };
 }
 
 /**
@@ -1470,6 +1513,67 @@ function styles(
 }
 
 /**
+ * Which components write the markup they were handed, asked by rendering a second time.
+ *
+ * A component compiles to a plain call with no anchor around what it writes, so a marker planted
+ * in what it was given and not coming back has two readings: the component never rendered that
+ * markup, which is ordinary and correct -- a portal is client-only, and Svelte's own server writes
+ * nothing for it -- or something took the value, which is content lost. **Absence cannot tell them
+ * apart, and neither can it tell either from a compiler that has stopped working.**
+ *
+ * So absence is never the evidence. The same render is made again with each handed fragment
+ * replaced by a literal nobody could produce, and the literal coming back is what says the
+ * component writes what it is given. Only where it does not are the holes inside allowed to go
+ * unconsumed, and the blocks to leave the order.
+ *
+ * The reading that keeps this honest: **a marker missing where the probe came back stays an
+ * error**, and a probe missing where the whole mechanism has broken is what the surface checks
+ * for a wrapper around markup are for. See spec/refusals.md.
+ */
+async function probed(
+	baseline: Rewritten,
+	source: string,
+	file: string,
+	root: string,
+	streams: readonly string[],
+): Promise<void> {
+	if (baseline.handed.length === 0) return;
+	const probe = rewrite(source, (_block, branch) => branch === 0, file, root, true);
+	let seen: string;
+	try {
+		const rendered = await renderRewritten(file, probe.rewritten, root, probe.copies);
+		seen = rendered.body + rendered.head;
+	} catch {
+		// The probe could not be made, so nothing is known and nothing is relaxed.
+		return;
+	}
+
+	const text = streams.join('');
+	for (const one of baseline.handed) {
+		if (seen.includes(one.probe)) continue;
+
+		// It writes none of it, so what was planted there was never going to come back. Anything
+		// that did is a contradiction rather than a relaxation.
+		for (let at = one.holes[0]; at < one.holes[1]; at++) {
+			const hole = baseline.holes[at];
+			if (hole === undefined) continue;
+			if (text.includes(sentinel(at))) {
+				refuse(
+					`\`<${one.component}>\` writes none of the markup it is given, and something from ` +
+						'that markup came back anyway. Two things that cannot both be true, so this is ' +
+						'the compiler rather than the component',
+				);
+			}
+			hole.safe = true;
+		}
+		for (let at = one.blocks[0]; at < one.blocks[1]; at++) {
+			const block = baseline.blocks[at];
+			if (block !== undefined) block.absent = true;
+		}
+	}
+}
+
+/**
  * Fills in each class decision's outcomes, which needs the render because it needs the hash.
  *
  * The scoping class is a hash of the filename relative to `rootDir` and of the stylesheet, and
@@ -1501,6 +1605,8 @@ async function outcomes(
 			found = true;
 			break;
 		}
+		// A decision inside markup a component does not render is absent like everything else there.
+		if (!found && holes[one.index]?.safe === true) continue;
 		if (!found) {
 			// Not a fault in the decision. The usual cause is a component that was given markup and
 			// rendered none of it -- a closed dialog, a collapsed panel -- which is what Svelte's own
@@ -1717,6 +1823,8 @@ function descend(node: AstNode, walk: Walk): boolean {
 				given: hands(walk, nodes),
 				payload: walk.site.payload,
 				missed: walk.site.missed,
+				handed: walk.site.handed,
+				probing: walk.site.probing,
 			},
 			walk.dynamic,
 		);
@@ -1965,6 +2073,28 @@ interface Site {
 	 * of planting one everywhere rather than guessing.
 	 */
 	payload: ReadonlySet<string> | null;
+	/**
+	 * Markup handed to a component the walk could not enter, with what was planted in it.
+	 *
+	 * A component is a plain call, so from outside it there is no way to tell markup a component
+	 * never rendered from markup whose values it mangled. What settles it is a second render with
+	 * each of these replaced by a literal nobody could produce. See `Hole.safe`.
+	 */
+	handed: Handed[];
+	/**
+	 * True while making that second render: the markup is replaced rather than walked, so nothing
+	 * is planted in it and what comes back says only whether the component writes it.
+	 */
+	probing: boolean;
+}
+
+/** One component's children, and the holes and blocks the walk put inside them. */
+interface Handed {
+	/** What stands in the markup's place while probing. */
+	probe: string;
+	component: string;
+	holes: [number, number];
+	blocks: [number, number];
 }
 
 /** One caller's markup, and everything needed to walk it in the scope it was written in. */
@@ -1995,6 +2125,8 @@ interface Rewritten {
 	copies: Copy[];
 	/** Every child left to Svelte instead, and why the walk stopped. */
 	missed: { file: string; reason: string }[];
+	/** Markup handed to one of those, with the holes and blocks the walk put inside it. */
+	handed: Handed[];
 	holes: Hole[];
 	blocks: Block[];
 	/** Class decisions whose outcomes the render has still to supply the hash for. */
@@ -2108,13 +2240,16 @@ export async function skeleton(entryFile: string, root: string): Promise<Skeleto
 	);
 	const { body: html, head } = rendered;
 
+	// Before the alternates, because an if in markup nobody renders needs none of them.
+	await probed(baseline, source, file, root, [html, head]);
+
 	// One more render per branch the baseline does not hold, keyed the way Svelte numbers them:
 	// `1`, `2` for each `{:else if}`, and `-1` for the else, which is what it writes into the
 	// marker that opens the branch. Every other block stays on its first branch, which is what
 	// keeps this one reachable.
 	const alternates: Record<string, Rendered> = {};
 	for (const block of baseline.blocks) {
-		if (block.kind !== 'if') continue;
+		if (block.kind !== 'if' || block.absent === true) continue;
 		const wanted = [...(block.tests ?? []).keys()].slice(1);
 		// The else always gets a render, with or without a `{:else}` written: Svelte opens the
 		// branch either way and an empty one is still the bytes for an if that is not taken.
