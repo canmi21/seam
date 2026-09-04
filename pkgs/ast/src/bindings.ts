@@ -576,6 +576,44 @@ function assigned(block: unknown, names: ReadonlySet<string>): Set<string> {
 	return found;
 }
 
+/**
+ * Whether an expression reads any of these names, free of anything that binds them inside it.
+ *
+ * Asked of an expression that has already been expanded, to decide whether a marker belongs where
+ * it stands. A marker stands where request-varying data goes; an expression that reaches none of
+ * the payload's names is the same every request, and the render writes it as bytes.
+ */
+export function mentions(expression: string, names: ReadonlySet<string>): boolean {
+	if (names.size === 0) return false;
+	let ast: Node;
+	try {
+		// Parsed as a component with one expression in it, which is the shape the caller has.
+		ast = parse(`{${expression}}`, { modern: true }) as unknown as Node;
+	} catch {
+		// Unreadable here is not a reason to write it out as bytes: keep the marker, and let the
+		// pass that reads names report whatever is wrong with it.
+		return true;
+	}
+	let found = false;
+	const walk = (node: unknown): void => {
+		if (found) return;
+		if (Array.isArray(node)) {
+			for (const one of node) walk(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		if (node['type'] === 'ExpressionTag') {
+			reads(node['expression'], new Set(), (at) => {
+				if (typeof at['name'] === 'string' && names.has(at['name'])) found = true;
+			});
+			return;
+		}
+		for (const one of Object.values(node)) walk(one);
+	};
+	walk(ast['fragment']);
+	return found;
+}
+
 export function locals(source: string): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const found = declared(ast, source, props(ast['instance'])) as Map<

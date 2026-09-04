@@ -8,6 +8,7 @@ export {
 	type Edit,
 	type Locals,
 	locals,
+	mentions,
 	type Unresolved,
 } from './bindings.ts';
 export { bundle } from './bundle.ts';

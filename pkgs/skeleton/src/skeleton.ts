@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { compile, parse } from 'svelte/compiler';
-import { apply, destructure, type Locals, locals, reduce, resolved } from 'ast';
+import { apply, destructure, type Locals, locals, mentions, reduce, resolved } from 'ast';
 import { OMITTED_IN_SSR } from './omitted.ts';
 import { sentinel } from './sentinel.ts';
 
@@ -270,6 +270,12 @@ function collect(
 	within: [number, number][],
 	/** The file this walk is in, and everything the walk into a child needs. */
 	site: Site,
+	/**
+	 * Every name in scope whose value the request decides: the payload's own, and what an
+	 * enclosing each or snippet binds. An expression reaching none of them is the same bytes
+	 * every request, so the render writes it and no marker stands there.
+	 */
+	dynamic: ReadonlySet<string>,
 ) {
 	if (!isNode(node)) return;
 	const type = node['type'];
@@ -291,6 +297,7 @@ function collect(
 			pending,
 			within,
 			site,
+			dynamic,
 		);
 	};
 	const fragment = (of: unknown, into: Stream = stream): void => {
@@ -372,6 +379,7 @@ function collect(
 				pending,
 				within,
 				site,
+				dynamic,
 			);
 			}
 			return;
@@ -427,6 +435,7 @@ function collect(
 					pending,
 					within,
 					site,
+					dynamic,
 				})
 			) {
 				return;
@@ -435,6 +444,12 @@ function collect(
 			if (Array.isArray(attributes)) {
 				for (const attr of attributes) {
 					if (handled.has(attr) || styled.has(attr)) continue;
+					// A prop handed to a component this walk could not enter, whose value the request
+					// does not decide. Left as written, so Svelte evaluates it during the render: a
+					// marker is a string, and a component given one where it expected an object with
+					// methods calls a method on a string. `<Provider client={queryClient}>` is that,
+					// and it is the shape every wrapper from a package has.
+					if (given && site.payload !== null && inert(attr, expand, dynamic)) continue;
 					const before = holes.length;
 					walk(attr);
 					if (!given || !isNode(attr)) continue;
@@ -560,6 +575,7 @@ function collect(
 				pending,
 				within,
 				site,
+				dynamic,
 			);
 			}
 			return;
@@ -568,6 +584,38 @@ function collect(
 		case 'RenderTag': {
 			const call = called(node['expression']);
 			const name = renders(node);
+
+			// Markup the caller wrote inside this component's tag. Walked here, where the child
+			// renders it, in the scope it was written in.
+			const handed = name === null ? undefined : site.given.get(name);
+			if (handed !== undefined) {
+				const given = isNode(call) && Array.isArray(call['arguments']) ? call['arguments'] : [];
+				if (given.length > 0) {
+					refuse(
+						`\`{@render ${name}()}\` is called with arguments, and what it renders was written ` +
+							'at the call site, which has no name to give them to',
+					);
+				}
+				for (const child of handed.nodes) {
+					collect(
+						handed.source,
+						child,
+						holes,
+						handed.edits,
+						blocks,
+						taken,
+						stream,
+						handed.expand,
+						handed.snippets,
+						pending,
+						within,
+						handed.site,
+						dynamic,
+					);
+				}
+				return;
+			}
+
 			const one = name === null ? undefined : snippets.get(name);
 			if (one === undefined || !one.declared) {
 				refuse(
@@ -699,7 +747,26 @@ function collect(
 			});
 			// One element, because the body's own expressions are sentinels and read nothing from it.
 			edits.push([at[0], at[1], `[${element}]`]);
-			walk(node['body']);
+			// What the block binds is decided per item, so an expression reading it is a marker
+			// even when nothing else in it reaches the payload.
+			const inside = new Set(dynamic);
+			namesIn(pattern, inside);
+			if (typeof node['index'] === 'string') inside.add(node['index']);
+			collect(
+				source,
+				node['body'],
+				holes,
+				edits,
+				blocks,
+				taken,
+				stream,
+				expand,
+				snippets,
+				pending,
+				within,
+				site,
+				inside,
+			);
 			return;
 		}
 
@@ -1109,6 +1176,8 @@ function rewrite(
 	snippetsIn(ast['fragment'], snippets);
 	const copies: Copy[] = [];
 	const prelude: string[] = [];
+	const declares = propsOf(ast, source);
+	const payload = declares === null ? null : new Set(declares.map((one) => one.local));
 	collect(
 		source,
 		ast['fragment'],
@@ -1121,7 +1190,17 @@ function rewrite(
 		snippets,
 		pending,
 		[],
-		{ file, root, imports: importsOf(source), copies, stack: [file], prelude },
+		{
+			file,
+			root,
+			imports: importsOf(source),
+			copies,
+			stack: [file],
+			prelude,
+			given: new Map(),
+			payload,
+		},
+		payload ?? new Set(),
 	);
 	withPrelude(source, ast, prelude, edits);
 
@@ -1466,6 +1545,8 @@ interface Walk {
 	pending: PendingChoice[];
 	within: [number, number][];
 	site: Site;
+	/** What the request decides, in the scope the call site sits in. */
+	dynamic: ReadonlySet<string>;
 }
 
 /**
@@ -1508,10 +1589,12 @@ function descend(node: AstNode, walk: Walk): boolean {
 	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
 	const fragment = node['fragment'];
 	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
-	// Markup inside the tag is a `children` snippet the child is handed, and following that is
-	// following a snippet across a file, which is not written. Left to Svelte, as before.
-	if (nodes.length > 0) return false;
 	if (attributes.some((one) => isNode(one) && one['type'] === 'SpreadAttribute')) return false;
+	// A `{#snippet}` inside the tag arrives under its own name and may take parameters, which the
+	// caller does not choose. Only the markup that becomes `children` is followed.
+	if (nodes.some((one) => isNode(one) && one['type'] === 'SnippetBlock')) return false;
+	// `let:` puts the markup in `$$slots` instead, on a different path through the visitor.
+	if (attributes.some((one) => isNode(one) && one['type'] === 'LetDirective')) return false;
 
 	// What the call site passes, as expressions in the caller's own terms. A handler is bound to
 	// null: it is never called while the bytes are written, and leaving it unbound would make the
@@ -1575,6 +1658,9 @@ function descend(node: AstNode, walk: Walk): boolean {
 			`__seam-${basename(file, '.svelte')}-${String(walk.site.copies.length)}.svelte`,
 		);
 		const copy: Copy = { file, at, source: '' };
+		// Its number now, not when the tag is renamed: the walk below takes copies of its own, so
+		// counting then gave a nested pair of the same component one name twice.
+		const ordinal = walk.site.copies.length;
 		walk.site.copies.push(copy);
 
 		collect(
@@ -1596,7 +1682,10 @@ function descend(node: AstNode, walk: Walk): boolean {
 				copies: walk.site.copies,
 				stack: [...walk.site.stack, file],
 				prelude,
+				given: hands(walk, nodes),
+				payload: walk.site.payload,
 			},
+			walk.dynamic,
 		);
 		withPrelude(raw, ast, prelude, inner);
 		copy.source = apply(raw, inner);
@@ -1626,7 +1715,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 
 		// The parent imports this call site's copy rather than the file, which is two edits: the
 		// tag's name where it opens and where it closes, and one import beside the others.
-		rename(walk, node, tag, at);
+		rename(walk, node, tag, at, ordinal);
 		return true;
 	} catch (error) {
 		// Rolled back, and the component is rendered by Svelte the way it was before this tried.
@@ -1636,6 +1725,32 @@ function descend(node: AstNode, walk: Walk): boolean {
 		if (String((error as Error).message).includes('is part of a cycle')) throw error;
 		return false;
 	}
+}
+
+/**
+ * What the caller hands the child: its markup, under the name Svelte gives it.
+ *
+ * `children`, and only that. Svelte builds it as an arrow function and passes it under that name
+ * unless the caller wrote a `children` prop of its own, in which case the markup goes to
+ * `$$slots` and this is not it.
+ */
+function hands(walk: Walk, nodes: readonly unknown[]): ReadonlyMap<string, Given> {
+	if (nodes.length === 0) return new Map();
+	const here = new Map<string, Snippet>();
+	snippetsIn(nodes, here);
+	return new Map([
+		[
+			'children',
+			{
+				source: walk.source,
+				nodes: [...nodes],
+				expand: walk.expand,
+				edits: walk.edits,
+				snippets: here,
+				site: walk.site,
+			},
+		],
+	]);
 }
 
 /** Puts back what a walk that did not finish appended, and says it did not take the component. */
@@ -1722,6 +1837,30 @@ function propsOf(ast: AstNode, source: string): { local: string; prop: string; f
 	return found;
 }
 
+/**
+ * Whether a prop's value is the same every request, so that nothing has to stand in for it.
+ *
+ * Only asked of a component the walk did not enter. Inside one, an expression is walked and its
+ * value is a marker like any other; outside, the value is handed to somebody else's code, and a
+ * marker is a string wherever that code expected something else.
+ */
+function inert(
+	attr: unknown,
+	expand: Locals['rewrite'],
+	dynamic: ReadonlySet<string>,
+): boolean {
+	if (!isNode(attr) || attr['type'] !== 'Attribute') return false;
+	const value = attr['value'];
+	if (value === true) return false;
+	const parts = Array.isArray(value) ? value : [value];
+	return parts.every((part) => {
+		if (!isNode(part)) return false;
+		if (part['type'] === 'Text') return true;
+		if (part['type'] !== 'ExpressionTag') return false;
+		return !mentions(expand(part['expression']), dynamic);
+	});
+}
+
 /** Every import a file declares, by the name it binds, read the way `reduce` reads them. */
 function importsOf(source: string): Record<string, string> {
 	return reduce(source).imports;
@@ -1730,11 +1869,11 @@ function importsOf(source: string): Record<string, string> {
 /**
  * Points one component tag at a copy of its own: the name where it opens and closes, and an import.
  */
-function rename(walk: Walk, node: AstNode, tag: string, at: string): void {
+function rename(walk: Walk, node: AstNode, tag: string, at: string, ordinal: number): void {
 	const span = [node['start'], node['end']];
 	const [from, to] = span;
 	if (typeof from !== 'number' || typeof to !== 'number') return;
-	const fresh = `${tag}$${String(walk.site.copies.length - 1)}`;
+	const fresh = `${tag}$${String(ordinal)}`;
 	const text = walk.source.slice(from, to);
 	walk.edits.push([from + 1, from + 1 + tag.length, fresh]);
 	if (text.endsWith(`</${tag}>`)) {
@@ -1760,6 +1899,39 @@ interface Site {
 	stack: string[];
 	/** Imports the rewritten source needs that the author did not write: one per copy taken. */
 	prelude: string[];
+	/**
+	 * Markup this component was handed by its caller, by the name it arrives under.
+	 *
+	 * Written inside a component's tag, markup becomes an arrow function passed as `children` --
+	 * `visitors/shared/component.js` builds it -- and the child renders it with `{@render
+	 * children()}`. So it is walked where the child renders it rather than where it was written:
+	 * the markers go into the caller's source, which is where Svelte compiled the body, and the
+	 * blocks are numbered where the assembler will meet them.
+	 */
+	given: ReadonlyMap<string, Given>;
+	/**
+	 * The names the payload arrives under, which is what the entry's `$props()` destructures.
+	 *
+	 * A marker stands where request-varying data goes. In the entry every markup expression may be
+	 * one, because its props are the payload; inside a child most are not, and one that reaches
+	 * none of these is the same bytes every request. Planting a marker there made the render
+	 * evaluate it per request instead -- which for `<Provider client={queryClient}>` meant a new
+	 * client per request, and a marker where a package expected an object with methods.
+	 *
+	 * Null where the entry's props are a shape this cannot read, which keeps the older behaviour
+	 * of planting one everywhere rather than guessing.
+	 */
+	payload: ReadonlySet<string> | null;
+}
+
+/** One caller's markup, and everything needed to walk it in the scope it was written in. */
+interface Given {
+	source: string;
+	nodes: unknown[];
+	expand: Locals['rewrite'];
+	edits: [number, number, string][];
+	snippets: ReadonlyMap<string, Snippet>;
+	site: Site;
 }
 
 interface Copy {

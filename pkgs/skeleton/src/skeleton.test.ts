@@ -390,6 +390,69 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }],
 	},
 	{
+		// Markup inside a component's tag is an arrow function passed as `children`, and the child
+		// renders it with `{@render children()}`. So it is walked where the child renders it, not
+		// where it was written: the markers go into the caller's source, which is where Svelte
+		// compiled the body, and the blocks are numbered where the assembler will meet them.
+		name: 'a wrapper around markup',
+		beside: {
+			Wrap: '<script>let { children, cls } = $props();</script><div class={cls}>{@render children()}</div>',
+		},
+		source:
+			"<script>import Wrap from './Wrap.svelte'; let { data } = $props();</script>" +
+			'<Wrap cls={data.b}><b>{data.a}</b></Wrap>',
+		data: [{ a: 'x', b: 'c' }, { a: '<&', b: null }],
+	},
+	{
+		name: 'a block on each side of the boundary',
+		beside: {
+			Half: '<script>let { children, f } = $props();</script>' +
+				'{#if f}<div>{@render children()}</div>{:else}<p>n</p>{/if}',
+		},
+		source:
+			"<script>import Half from './Half.svelte'; let { data } = $props();</script>" +
+			'<Half f={data.f}>{#each data.xs as x}<i>{x}</i>{/each}</Half>',
+		data: [
+			{ f: true, xs: ['p', 'q'] },
+			{ f: false, xs: [] },
+			{ f: true, xs: [] },
+		],
+	},
+	{
+		// The same wrapper inside itself. Its copy is numbered when it is taken rather than when
+		// the tag is renamed, because the walk between the two takes copies of its own.
+		name: 'a wrapper inside itself',
+		beside: { Nest: '<script>let { children } = $props();</script><div>{@render children()}</div>' },
+		source:
+			"<script>import Nest from './Nest.svelte'; let { data } = $props();</script>" +
+			'<Nest><Nest><b>{data.a}</b></Nest></Nest>',
+		data: [{ a: 'x' }],
+	},
+	{
+		// A child that never renders what it was given. Svelte writes none of it, and so does this.
+		name: 'a wrapper that renders none of it',
+		beside: { Drop: '<script>let { children } = $props();</script><div>fixed</div>' },
+		source:
+			"<script>import Drop from './Drop.svelte'; let { data } = $props();</script>" +
+			'<Drop><b>{data.a}</b></Drop>',
+		data: [{ a: 'x' }],
+	},
+	{
+		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
+		// and the page's markup come out of one render.
+		name: 'a layout around a page',
+		beside: {
+			Layout: '<script>let { children } = $props();</script>' +
+				'<svelte:head><meta name="l" content="v" /></svelte:head><header>h</header>' +
+				'{@render children()}<footer>f</footer>',
+			Page: '<script>let { data } = $props();</script><main>{data.a}</main>',
+		},
+		source:
+			"<script>import Layout from './Layout.svelte'; import Page from './Page.svelte';" +
+			' let { data } = $props();</script><Layout><Page {data} /></Layout>',
+		data: [{ a: 'x' }],
+	},
+	{
 		name: 'raw html',
 		source: `${PROPS}<p>{@html data.a}</p>`,
 		data: [{ a: '<b>x</b>' }, { a: '' }],

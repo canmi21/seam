@@ -501,15 +501,60 @@ Of press's 41 components, 22 compiled and now 23 do, and the shapes that leave a
 was for: a child formatting a date it was handed, a child using a prop twice, a child not using one
 at all.
 
+### And into the markup the caller wrote inside the tag
+
+Markup written inside a component's tag becomes an arrow function passed as `children` --
+`visitors/shared/component.js` builds it -- and the child renders it with `{@render children()}`.
+So it is walked **where the child renders it**, not where it was written. The markers still go into
+the caller's source, which is where Svelte compiled the body, and the blocks are numbered in the
+order the assembler will meet them, which is the order the render puts them in.
+
+That is what a route is:
+
+```svelte
+<Layout><Page {data} /></Layout>
+```
+
+Both halves are now one walk. The layout's `<svelte:head>` and the page's markup come out of one
+render, and the context the layout provides is there for the page because neither ever left.
+
+**A wrapper that renders none of what it was given writes none of it**, which is what Svelte does,
+and needs no rule of its own: the markup is walked at the `{@render}`, and if there is no
+`{@render}` it is not walked.
+
+### The rule this needed, which is about who evaluates a prop
+
+Walking into a layout means walking its own markup, and one line of it was
+
+```svelte
+<PersistQueryClientProvider client={queryClient}>
+```
+
+`queryClient` is `new QueryClient(...)`, a local constant. Planting a marker there made the render
+hand a package a string where it expected an object with methods, and made the artifact construct
+a client per request. Before the walk went in, Svelte evaluated it and the value was real.
+
+So: **a prop handed to a component the walk did not enter, whose expression reaches nothing the
+request decides, is left as written.** Svelte evaluates it during the render, as it always did.
+Inside a component the walk did enter there is no such rule and none is needed, because the value
+is never handed to anyone -- it is walked.
+
+The first attempt applied that test to every markup expression, not only to a prop crossing into
+somebody else's code, and it cost three components: expressions that had been markers became
+evaluations, and some of them throw without the context a request would have brought. Measured, and
+narrowed to where the problem was.
+
 ### What it does not do yet
 
-**Children.** Markup inside a component's tag is a `children` snippet the child is handed, and
-following it means following a snippet across a file. Left to Svelte, which is why `{@render}` of a
-snippet from a prop is still on the list -- and why it still blocks nothing, since Svelte renders
-those correctly.
+**A named or parameterised snippet inside the tag.** It arrives under its own name and may be
+called with arguments the caller does not choose, which is the shape already refused.
 
 **A spread at the call site**, for the reason the spread section gives: the props are keys the walk
 cannot enumerate.
+
+**A component from a package.** Its file is not one this compiler is arranged to rewrite, and
+Svelte renders it as before -- which, measured across the 4157 components press installs, is what
+already works.
 
 ## What a child may do with what it is given, measured across every shape
 
