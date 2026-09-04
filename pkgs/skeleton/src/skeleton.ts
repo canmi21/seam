@@ -462,7 +462,7 @@ function collect(
 			// Svelte writes them: one call producing one attribute, not one attribute plus a list of
 			// additions. What is left after this is walked the ordinary way.
 			// A spread takes the whole run, so the two directive passes have nothing left to decide.
-			const spreads = spread(source, node, holes, edits, expand, site.spreads);
+			const spreads = spread(source, node, holes, edits, expand, site.spreads, site.copy);
 			const handled = spreads.size > 0 ? spreads : classes(node, holes, edits, expand, pending);
 			const styled =
 				spreads.size > 0 ? spreads : styles(source, node, holes, edits, expand, pending);
@@ -518,7 +518,11 @@ function collect(
 				walk(fragment);
 				return;
 			}
-			const probe = `%%h${String(site.handed.length)}%%`;
+			// Named for where it is rather than for how many came before it. The probing walk does
+			// not walk a handed fragment, so any group nested inside one is never recorded there and
+			// a counter would say different things in the two walks -- which marked the wrong
+			// markup absent and then reported itself as a contradiction.
+			const probe = `%%h${identity(site.file, span(fragment)?.[0] ?? 0)}%%`;
 			if (site.probing) {
 				const where = span(fragment);
 				if (where !== null) edits.push([where[0], where[1], probe]);
@@ -1281,6 +1285,7 @@ function rewrite(
 			missed,
 			handed,
 			spreads,
+			copy: null,
 			probing,
 		},
 		payload ?? new Set(),
@@ -1324,6 +1329,7 @@ function spread(
 	edits: [number, number, string][],
 	expand: Locals['rewrite'],
 	pending: PendingSpread[],
+	copy: Copy | null,
 ): ReadonlySet<unknown> {
 	const empty: ReadonlySet<unknown> = new Set();
 	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
@@ -1384,7 +1390,7 @@ function spread(
 	const index = holes.length;
 	// Filled in after the render, which is where the rest of the call comes from.
 	holes.push({ index, expression: '', raw: true, spread: true });
-	pending.push({ index, object: `{ ${parts.join(', ')} }` });
+	pending.push({ index, object: `{ ${parts.join(', ')} }`, copy });
 
 	// Everything the element wrote is replaced by one spread of one key, so that the render writes
 	// a marker where the run belongs and the call keeps the arguments the element decides.
@@ -1405,6 +1411,12 @@ function probe(index: number): string {
 interface PendingSpread {
 	index: number;
 	object: string;
+	/**
+	 * The copy this element sits in, or null for the entry. A child walked into is compiled as its
+	 * own file, so the call to read the arguments back out of is in that file's output rather than
+	 * in the entry's.
+	 */
+	copy: Copy | null;
 }
 
 /**
@@ -1645,9 +1657,22 @@ function filled(baseline: Rewritten, file: string, root: string): void {
 		filename: file,
 		rootDir: root,
 	}).js.code;
+	const seen = new Map<Copy, string>();
+	const compiled = (copy: Copy, at: string): string => {
+		const held = seen.get(copy);
+		if (held !== undefined) return held;
+		const out = compile(copy.source, {
+			generate: 'server',
+			name: basename(copy.file, '.svelte'),
+			filename: copy.file,
+			rootDir: at,
+		}).js.code;
+		seen.set(copy, out);
+		return out;
+	};
 
 	for (const one of baseline.spreads) {
-		const rest = restOf(code, probe(one.index));
+		const rest = restOf(one.copy === null ? code : compiled(one.copy, root), probe(one.index));
 		if (rest === null) {
 			refuse(
 				'an element whose attributes a `{...}` decides was planted and Svelte compiled no call ' +
@@ -2011,6 +2036,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 				missed: walk.site.missed,
 				handed: walk.site.handed,
 				spreads: walk.site.spreads,
+				copy,
 				probing: walk.site.probing,
 			},
 			walk.dynamic,
@@ -2270,11 +2296,26 @@ interface Site {
 	handed: Handed[];
 	/** Elements whose attributes a spread decides, waiting for the rest of their call. */
 	spreads: PendingSpread[];
+	/** The copy this walk is rewriting, or null for the entry. */
+	copy: Copy | null;
 	/**
 	 * True while making that second render: the markup is replaced rather than walked, so nothing
 	 * is planted in it and what comes back says only whether the component writes it.
 	 */
 	probing: boolean;
+}
+
+/**
+ * A name for one place in one file, stable however the walk reaches it.
+ *
+ * Short and hexadecimal, because it is written into markup and has to survive being rendered.
+ */
+function identity(file: string, at: number): string {
+	let hash = 0x811c9dc5;
+	for (const c of `${file}:${String(at)}`) {
+		hash = Math.imul(hash ^ c.codePointAt(0)!, 0x01000193) >>> 0;
+	}
+	return hash.toString(16);
 }
 
 /** One component's children, and the holes and blocks the walk put inside them. */
