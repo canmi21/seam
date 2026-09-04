@@ -678,21 +678,30 @@ function collect(node: unknown, walk: Walk): void {
 			// What is refused here is what the declaration alone decides, so that a snippet nobody
 			// renders still says why rather than passing unnoticed.
 			const parameters = Array.isArray(node['parameters']) ? node['parameters'] : [];
-			if (parameters.length === 0) return;
-
 			const id = node['expression'];
 			const named = isNode(id) && typeof id['name'] === 'string' ? id['name'] : '';
 			const one = snippets.get(named);
+
+			// Written inside a component's tag, so the component decides when to call it. There is
+			// no `{@render}` here to walk it at, and it is rendered, so the declaration is the only
+			// place -- which is what `children` is, and every snippet a package is handed.
+			if (one?.passed === true && one.renders === 0) {
+				if (parameters.length > 0) {
+					refuse(
+						`the snippet \`${named}\` is passed to a component, which calls it with arguments ` +
+							'this compiler cannot see, so its parameters have no value to stand for',
+					);
+				}
+				step(node['body']);
+				return;
+			}
+
+			if (parameters.length === 0) return;
 			if (one === undefined || one.renders === 0) {
 				// Written inside a component's tag, so it is a prop that component receives: the child
 				// decides when to call it and with what, and neither is visible from here. One with no
 				// parameters has nothing to decide and already works, which is what `children` is.
-				refuse(
-					one?.passed === true
-						? `the snippet \`${named}\` is passed to a component, which calls it with arguments ` +
-								'this compiler cannot see, so its parameters have no value to stand for'
-						: `the snippet \`${named}\` takes parameters and is never rendered`,
-				);
+				refuse(`the snippet \`${named}\` takes parameters and is never rendered`);
 			}
 			if (one.args.length !== parameters.length) {
 				refuse(

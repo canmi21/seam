@@ -700,6 +700,25 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A snippet passed to a component that calls it. There is no `{@render}` in this component
+		// to walk the body at -- the child decides when to call it -- so the declaration is the only
+		// place, and skipping it left the child rendering the author's markup unrewritten, against
+		// declarations the render had emptied.
+		name: 'a snippet passed to a child that calls it',
+		beside: {
+			Calls:
+				'<script>let { extra, children, ...rest } = $props();</script>' +
+				'<div>{@render children()}{@render extra()}</div>',
+		},
+		source:
+			"<script>import Calls from './Calls.svelte'; let { data } = $props(); const n = data.n;</script>" +
+			'<Calls><b>{data.a}</b>{#snippet extra()}<i>{n}</i>{#if data.f}<u>y</u>{/if}{/snippet}</Calls>',
+		data: [
+			{ a: 'x', n: 3, f: true },
+			{ a: '<&', n: 0, f: false },
+		],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',
