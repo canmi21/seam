@@ -648,6 +648,21 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A `{@const}` inside a snippet. Its body was walked child by child rather than as the
+		// fragment it is, which stepped past the arm that reads one -- so a const tag reached the
+		// walk's default case and was refused as a construct nobody had taught it, in a shape the
+		// compiler had handled everywhere else for a while.
+		name: 'a const tag inside a snippet',
+		source:
+			`${PROPS}<div>{@render row(data.n)}{@render plain()}</div>` +
+			'{#snippet row(v)}{@const twice = v * 2}<i>{twice}</i>{/snippet}' +
+			'{#snippet plain()}{@const k = data.a}<b>{k}</b>{/snippet}',
+		data: [
+			{ n: 3, a: 'x' },
+			{ n: 0, a: '<&' },
+		],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',

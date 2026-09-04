@@ -364,12 +364,6 @@ function collect(node: unknown, walk: Walk): void {
 	const step = (child: unknown, into: Stream = stream): void => {
 		collect(child, into === stream ? walk : { ...walk, stream: into });
 	};
-	const fragment = (of: unknown, into: Stream = stream): void => {
-		if (!isNode(of)) return;
-		const nodes = of['nodes'];
-		if (!Array.isArray(nodes)) return;
-		for (const child of nodes) step(child, into);
-	};
 
 	if (INERT.has(type)) return;
 
@@ -618,7 +612,10 @@ function collect(node: unknown, walk: Walk): void {
 			// rather than from the payload, and one body would need a different one per call.
 			const parameters = Array.isArray(node['parameters']) ? node['parameters'] : [];
 			if (parameters.length === 0) {
-				fragment(node['body']);
+				// The fragment itself, not its children one at a time: a `{@const}` binds for its
+				// siblings and the arm that reads one is the Fragment's. Walking past it left a
+				// `{@const}` inside a snippet reaching the walk's default case, which refuses.
+				step(node['body']);
 				return;
 			}
 
@@ -677,13 +674,13 @@ function collect(node: unknown, walk: Walk): void {
 				}
 			}
 
-			// The body is walked with those names bound. Everything else about it is ordinary.
-			const inner: Locals['rewrite'] = (child) => expand(child, bound);
-			const body = node['body'];
-			const nodes = isNode(body) ? body['nodes'] : undefined;
-			for (const child of Array.isArray(nodes) ? nodes : []) {
-				collect(child, { ...walk, expand: inner });
-			}
+			// The body is walked with those names bound. Everything else about it is ordinary --
+			// including what the body binds for itself: a `{@const}` in it hands its own names down
+			// through `more`, and dropping them left the const expanding to nothing.
+			const inner: Locals['rewrite'] = (child, more) =>
+				expand(child, more === undefined ? bound : new Map([...bound, ...more]));
+			// The fragment itself, for the reason above: its own `{@const}`s bind for its siblings.
+			collect(node['body'], { ...walk, expand: inner });
 			return;
 		}
 
