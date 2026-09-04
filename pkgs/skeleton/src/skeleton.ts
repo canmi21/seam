@@ -5,7 +5,7 @@ import { resolved } from 'ast';
 import { partial } from './compose.ts';
 import { type AstNode, titles } from './node.ts';
 import { renderRewritten, shippable } from './render.ts';
-import { filled, outcomes, probed } from './resolve.ts';
+import { dead, filled, outcomes, probed } from './resolve.ts';
 import type { Rendered, Skeleton } from './shape.ts';
 import { inlined } from './snippets.ts';
 import { unbound } from './unbind.ts';
@@ -156,6 +156,15 @@ export async function skeleton(
 			);
 		}
 	}
+
+	const everywhere = [
+		html,
+		head,
+		...Object.values(alternates).flatMap((one) => [one.body, one.head]),
+	];
+
+	// After the alternates, because a value that comes back in one of them is not missing at all.
+	await dead(baseline, file, root, given, rendered, everywhere);
 
 	// After every render rather than after the first: an element inside an if appears in the
 	// alternate and not in the baseline, and the hash has to be read wherever the marker landed.

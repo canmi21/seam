@@ -664,6 +664,33 @@ the next thing, and the shape of it is: the assembler needs to know which anchor
 count, which means knowing where a component's output begins and ends -- and a component call has
 no anchor around it, which is the same fact this whole family keeps returning to.
 
+## A value a component never writes
+
+A marker that does not come back has two readings, and only one of them is a fault.
+
+The component may have **transformed** it -- computed with it, measured it, branched on it -- and
+written something the value decided rather than the value. That is content lost, and it stays
+refused: the artifact would carry bytes nobody can reproduce.
+
+Or the component may simply **not write it**. press's language switcher hands its menu a source
+language, the menu is a dropdown that is closed, and Svelte's own server writes the trigger and
+nothing else. Measured directly, by rendering the component with a value nobody could produce: it
+appears nowhere in the output. Refusing that refuses a page that would have been correct.
+
+**Absence cannot tell them apart, so absence is not the evidence.** The render is made again with a
+different value in each place a marker went missing, and the two outputs are compared. Identical
+bytes say the value reaches none of them. A difference says it reaches some, which is the first
+reading.
+
+The replacement differs in length as well as in content, because a component that writes what it
+measured would otherwise agree by accident.
+
+This is the same shape as the probe for handed markup, and carries the same exposure, which is
+worth naming rather than leaving implied: what a component writes at compile time is what it writes
+for the render it was given. A subtree that stays closed there stays closed at request time for the
+same reason -- it is client state, false on the server both times -- and a subtree that would open
+per request is a decision the compiler cannot see either way.
+
 ## The measurement is a route now, and it says four things are left
 
 Every count above was files: each `.svelte` compiled as though it were the entry. That question has

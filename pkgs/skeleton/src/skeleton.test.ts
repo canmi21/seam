@@ -748,6 +748,27 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }, { a: '<&' }],
 	},
 	{
+		// A value handed to a component the walk cannot enter, which writes none of it. The marker
+		// does not come back, and absence alone cannot tell that from the component having eaten it
+		// -- so the render is made again with a different value in its place, and identical bytes
+		// say it reaches none of them. This is press's language switcher: it hands its menu a source
+		// language, the menu is a dropdown that is closed, and Svelte's own server writes the
+		// trigger and nothing else. Measured on the real component before it was written here.
+		name: 'a value a child is given and never writes',
+		beside: {
+			Shuts:
+				'<script>let { tag, ...rest } = $props(); const open = false;</script>' +
+				'{#if open}<i>{tag}</i>{/if}<b>shut</b>',
+		},
+		source:
+			"<script>import Shuts from './Shuts.svelte'; let { data } = $props();</script>" +
+			'<Shuts tag={data.a} /><p>{data.b}</p>',
+		data: [
+			{ a: 'x', b: 'v' },
+			{ a: '<&', b: '<&' },
+		],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',
@@ -1020,6 +1041,19 @@ const refused: Case[] = [
 		source: '<script>let { data } = $props(); const o = { a: 1 }; o.a = 2</script><p>{o.a}</p>',
 	},
 	{ name: 'translate as a boolean', source: `${PROPS}<p translate={true}>{data.a}</p>` },
+	{
+		// The other reading of a marker that does not come back, and the one that is a fault: the
+		// component wrote something it computed from the value rather than the value. Rendering
+		// again with a different one in its place changes the bytes, which is what says so -- and
+		// what keeps the relaxation beside this from covering it.
+		name: 'a value a child is given and transforms',
+		beside: {
+			Chews: '<script>let { tag, ...rest } = $props();</script><i>{tag.toUpperCase()}</i>',
+		},
+		source:
+			"<script>import Chews from './Chews.svelte'; let { data } = $props();</script>" +
+			'<Chews tag={data.a} />',
+	},
 ];
 
 /** Compiles one case, and says either what it produced or why it was turned away. */

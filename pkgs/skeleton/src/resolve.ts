@@ -252,3 +252,65 @@ export async function outcomes(
 		if (hole?.choice !== undefined) hole.choice.outcomes = table;
 	}
 }
+
+/**
+ * Which values do not reach the bytes at all, asked by rendering again with different ones.
+ *
+ * A marker that does not come back has two readings, and they are not the same fault. The
+ * component may have *transformed* it -- computed with it, measured it, branched on it -- which is
+ * content lost and has to be refused. Or the value may simply not be written: a language switcher
+ * hands its menu a source language, and the menu is a dropdown that is closed, so Svelte's own
+ * server writes the trigger and nothing else. The second is not a fault at all, and refusing it
+ * refuses a page that would have been correct.
+ *
+ * **Absence cannot tell them apart, so absence is not the evidence.** The same render is made
+ * again with a different value in each of those places, and the two outputs are compared. Identical
+ * bytes say the value reaches none of them; a difference says it reaches some, which is the first
+ * reading and stays refused.
+ *
+ * The sentinels are swapped in the rewritten source rather than walked for again: each is a token
+ * nothing else can produce, so replacing the text is exact, and the walk that produced them is not
+ * something to run twice. The replacement differs in length as well as in content, because a
+ * component that writes what it measured would otherwise agree by accident.
+ *
+ * This carries the same exposure the handed-markup probe does, and it is worth naming: what a
+ * component writes at compile time is what it writes for the render it was given, and a subtree
+ * that stays closed there stays closed at request time for the same reason -- it is client state,
+ * false on the server both times. See spec/refusals.md.
+ */
+export async function dead(
+	baseline: Rewritten,
+	file: string,
+	root: string,
+	given: Record<string, unknown>,
+	seen: { body: string; head: string },
+	streams: readonly string[],
+): Promise<void> {
+	const missing = baseline.holes.filter(
+		(hole) => hole.safe !== true && !streams.some((one) => one.includes(sentinel(hole.index))),
+	);
+	if (missing.length === 0) return;
+
+	const swap = (text: string): string =>
+		missing.reduce((held, hole) => held.replaceAll(sentinel(hole.index), other(hole.index)), text);
+	let again: { body: string; head: string };
+	try {
+		again = await renderRewritten(
+			file,
+			swap(baseline.rewritten),
+			root,
+			baseline.copies.map((copy) => ({ ...copy, source: swap(copy.source) })),
+			given,
+		);
+	} catch {
+		// Nothing is known, so nothing is relaxed, and the missing values are reported as before.
+		return;
+	}
+	if (again.body !== seen.body || again.head !== seen.head) return;
+	for (const hole of missing) hole.safe = true;
+}
+
+/** A value in the same shape as a sentinel and different from it in every way that could be read. */
+function other(index: number): string {
+	return `%%z${String(index)}z%%`;
+}
