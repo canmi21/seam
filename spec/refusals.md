@@ -460,6 +460,58 @@ refused, because the arguments are chosen by the child and are not visible from 
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
 
+## A component call has no boundary, and Svelte's answer is that it never needed one
+
+The assembler counts every `<!--[` anchor in the render as one of the blocks the walk numbered. A
+component the walk did not enter writes its own, and there is nothing in the bytes to tell them
+apart. Reading how Svelte marks a component boundary answered the question by not having one.
+
+**`block_open` is written in five places** -- an each, a `<slot>`, a `<svelte:boundary>`, an async
+`{#key}`, and a *dynamic* component. A static component call is `Child($$renderer, props)` and
+writes nothing around itself.
+
+**Because the client does not need it.** From `internal/client/dom/hydration.js`:
+
+> The node that is currently being hydrated ... updates each time a component calls `$.child(...)`
+> or `$.sibling(...)`.
+
+Hydration walks the DOM in lockstep with the component tree it is *executing*. Each component
+consumes exactly the nodes it produced, so the boundary is implicit in running the same code again.
+Svelte never asks where a component's output ends, because it is always inside the component when
+it matters.
+
+**This compiler does not execute the tree; it reads the bytes afterwards.** So what is implicit for
+Svelte is missing for us, and the rule that follows is simple: **whoever reads these bytes has to
+have walked the tree that wrote them.** Which is what composition is, arrived at from the other
+end.
+
+### Making the boundary explicit was tried and is not clean
+
+Wrapping the call in `{#if true}` would give it Svelte's own anchors. Measured, it does more than
+that:
+
+```
+bare      <p>a</p> <!--[--><i>1x</i><i>2x</i><!--]--><!----> <p>b</p>
+wrapped   <p>a</p> <!--[0--><!--[--><i>1x</i><i>2x</i><!--]--><!--]--> <p>b</p>
+```
+
+The wrapper also **removes the trailing `<!---->`**, because a component's empty comment is written
+only when it is not standalone and a block makes it one. Stripping the difference would mean
+reproducing Svelte's own positional rule, which is the thing this compiler exists not to do.
+
+### So it is the walk, and what the walk needs is already priced
+
+For a component from a package that means two things. Resolving `<Dialog.Root>` -- a member of a
+namespace import -- to a file, which is module analysis rather than a lookup. And the walk
+surviving library source: over sixty of `bits-ui`'s components, the markup constructs that stop it
+are `{...spread}` on an element and a parameterised snippet handed to a component.
+
+**Which closes a loop.** The spread section says the unenumerable half becomes *required rather
+than possible* on the day the walk descends into a child. This is that day, reached from the other
+side: the boundary problem is solved by walking in, and walking in is blocked by the spread. Its
+cost was measured there -- `attributes` and what it reaches bundle to 2.3 kB of Svelte's own code,
+in the derivation bundle both backends already run, with nothing reproduced anywhere.
+
 ## A component that renders none of what it was given, which is a portal
 
 This gates all eight of press's routes, and reading what actually happens changed what it is.
