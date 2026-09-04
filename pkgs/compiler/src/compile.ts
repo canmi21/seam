@@ -19,8 +19,16 @@ import { dirname, extname, relative, resolve, sep } from 'node:path';
 import { bindings, bundle, type Bundle, type Carried } from 'ast';
 import { carry } from 'carry';
 import { lower } from 'lowering';
-import { combinations, type Fixed, joined, MANY, type Structure } from './variants.ts';
-import { skeleton, type Skeleton } from 'skeleton';
+import {
+	combinations,
+	type Decided,
+	type Fixed,
+	joined,
+	MANY,
+	type Run,
+	type Structure,
+} from './variants.ts';
+import { skeleton, type Skeleton, Undecided } from 'skeleton';
 
 /**
  * One route: the URL it answers at, and the component the document is rendered from.
@@ -130,6 +138,7 @@ export async function prepare(
 	file: string,
 	root: string,
 	fixed: Fixed = new Map(),
+	decided: Decided = new Map(),
 ): Promise<Prepared> {
 	// Against the root, not the working directory. A route names its component the way the author
 	// wrote it in the configuration, which is relative to the project rather than to wherever the
@@ -140,7 +149,7 @@ export async function prepare(
 	// refuses markup nobody taught the compiler; `bundle` refuses a name nothing binds. An
 	// unsupported construct usually binds names of its own, so resolving names first reports the
 	// name and hides the construct that bound it.
-	const rendered = await skeleton(entry, root, fixed);
+	const rendered = await skeleton(entry, root, fixed, decided);
 	// Run for its refusals as much as for its result: it is the pass that says every name resolves,
 	// over the whole tree the entry reaches rather than over the entry alone.
 	const markup = bundle(entry, root);
@@ -152,6 +161,44 @@ export async function prepare(
 		skeleton: rendered,
 		carried: await carry(entry, [...bindings(source).carried, ...helpers(rendered)]),
 	};
+}
+
+/**
+ * Every structure one route has, each prepared with what it was fixed at.
+ *
+ * The declared domains give the first runs, one per combination. The rest are found: a run whose
+ * walk meets a `?:` handed to a component it cannot enter stops with `Undecided`, and is replaced
+ * by two runs that decide it each way. A ternary inside one of those may stop again, one render
+ * deeper, so what comes out is a tree of runs rather than a product -- a ternary in a branch that
+ * is not taken costs nothing. See spec/refusals.md.
+ *
+ * Breadth first, the taken branch first, so the structures come out in an order a reader can
+ * follow and the same order every build.
+ */
+export async function structures(entry: Entry, root: string): Promise<(Prepared & Run)[]> {
+	const queue: Run[] = combinations(entry.enumerate ?? {}).map((fixed) => ({
+		fixed,
+		decided: new Map(),
+	}));
+	const found: (Prepared & Run)[] = [];
+	for (let at = 0; at < queue.length; at++) {
+		const run = queue[at] as Run;
+		try {
+			found.push({ ...(await prepare(entry.component, root, run.fixed, run.decided)), ...run });
+		} catch (error) {
+			if (!(error instanceof Undecided)) throw error;
+			// Settled, and asked again: the walk would not have stopped on it, so this is the compiler.
+			if (run.decided.has(error.test)) {
+				throw new Error(`\`${error.test}\` was decided and the walk asked about it again`, {
+					cause: error,
+				});
+			}
+			for (const taken of [true, false]) {
+				queue.push({ fixed: run.fixed, decided: new Map([...run.decided, [error.test, taken]]) });
+			}
+		}
+	}
+	return found;
 }
 
 /**
@@ -177,27 +224,28 @@ export async function compile(options: Options): Promise<Report[]> {
 	// A route with a declared domain is prepared once per combination of its values, and the runs
 	// stay side by side until lowering has finished with them. They are one route throughout: one
 	// URL, one id, one carried bundle, and one artifact at the end.
-	const prepared: (Prepared & { path: string; fixed: Fixed; of: number })[] = [];
+	const prepared: (Prepared & Run & { path: string; of: number })[] = [];
 	const refusals: string[] = [];
 	const warnings: string[] = [];
 	for (const entry of options.entries) {
-		const values = combinations(entry.enumerate ?? {});
-		if (values.length > MANY) {
-			warnings.push(
-				`${entry.path} has ${String(values.length)} structures, from ${Object.keys(
-					entry.enumerate ?? {},
-				)
-					.map((one) => `\`${one}\``)
-					.join(
-						', ',
-					)}. A page really can, so this is compiled; a domain declared against a field that is not one is the likelier reading. See spec/pipeline.md`,
-			);
-		}
 		try {
-			for (const fixed of values) {
-				const one = await prepare(entry.component, root, fixed);
-				prepared.push({ ...one, path: entry.path, fixed, of: values.length });
+			const runs = await structures(entry, root);
+			if (runs.length > MANY) {
+				const fields = Object.keys(entry.enumerate ?? {}).map((one) => `\`${one}\``);
+				const chosen = new Set(runs.flatMap((one) => [...one.decided.keys()]));
+				const from = [
+					fields.length > 0 ? fields.join(', ') : '',
+					chosen.size > 0
+						? `${String(chosen.size)} choice(s) in values handed to components the compiler could not read`
+						: '',
+				]
+					.filter((one) => one !== '')
+					.join(' and ');
+				warnings.push(
+					`${entry.path} has ${String(runs.length)} structures, from ${from}. A page really can, so this is compiled; a domain declared against a field that is not one is the likelier reading. See spec/pipeline.md`,
+				);
 			}
+			for (const one of runs) prepared.push({ ...one, path: entry.path, of: runs.length });
 		} catch (error) {
 			refusals.push(
 				`${relative(root, resolve(root, entry.component))}: ${(error as Error).message}`,
@@ -236,6 +284,7 @@ export async function compile(options: Options): Promise<Report[]> {
 		const one = prepared[at] as (typeof prepared)[number];
 		const runs = prepared.slice(at, at + one.of).map((each, index) => ({
 			fixed: each.fixed,
+			decided: each.decided,
 			compiled: lowered[at + index] as unknown as Structure,
 		}));
 		at += one.of;

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { parse } from 'svelte/compiler';
-import { apply, constant, destructure, type Locals, locals } from 'ast';
+import { apply, constant, destructure, type Locals, locals, mentions, settle } from 'ast';
 import { classes, type PendingChoice, type PendingSpread, spread, styles } from './attributes.ts';
 import {
 	hands,
@@ -159,6 +159,33 @@ export interface Site {
 	 * passes. See spec/pipeline.md.
 	 */
 	fixed: ReadonlyMap<string, string>;
+	/**
+	 * Which branch each `?:` handed to a component the walk could not enter takes in this render,
+	 * keyed by the test's source text.
+	 *
+	 * A ternary handed to code the compiler cannot read chooses what is handed rather than writing
+	 * a value, so a marker cannot stand for it. It is a decision with two outcomes and the build
+	 * renders once per branch, the way it renders once per value of a declared domain. In payload
+	 * terms already, so a child needs no rebasing of it. See `Undecided`, and spec/refusals.md.
+	 */
+	decided: ReadonlyMap<string, boolean>;
+}
+
+/**
+ * A `?:` in a value handed to a component the walk could not enter, which this render was not told
+ * how to take.
+ *
+ * Not a refusal. The walk stops so that the build can make this render twice, once per branch,
+ * and `test` is what it asks the build to decide. It goes up as its own type because `descend`
+ * turns every other error into a component left to Svelte, and this is the walk asking for
+ * something rather than failing at it.
+ */
+export class Undecided extends Error {
+	readonly test: string;
+	constructor(test: string) {
+		super(`\`${test}\` chooses what a component is given, and this render was not told which way`);
+		this.test = test;
+	}
 }
 
 /** Everything the walk of one file is carrying, so a walk into a child can start another. */
@@ -355,7 +382,52 @@ function slotOf(node: AstNode): string | null {
 }
 
 /**
- * Plants a marker at each value of an object or array literal, in place of one for the whole.
+ * What stands in for a value handed to a component the walk could not enter, as source.
+ *
+ * The value is going somewhere this pass cannot read, so what stands for it has to survive being
+ * *used* rather than only being written out. Three things follow, in order.
+ *
+ * A `?:` in it whose branches are not all things a marker can stand for chooses what is handed --
+ * the case that forced this chose between two message functions. It is written as the branch this
+ * render was told to take, and where it was not told, the walk stops and asks. See `settle` for
+ * which ternaries those are; the rest are values and get a marker like anything else.
+ *
+ * A value the request does not decide is left as written, so Svelte evaluates it during the
+ * render: `<Provider client={queryClient}>` is that, and so is the branch a settled ternary leaves
+ * behind. The same rule `inert` applies to a whole attribute, one level in.
+ *
+ * An object or an array gets a marker at each value rather than one for the whole, so the fields
+ * the component reads off it are still there. What is left gets one marker, and is reported if it
+ * does not come back.
+ */
+function stands(expression: string, walk: Walk): string {
+	const held = settle(expression, walk.site.decided, walk.dynamic);
+	if (held.undecided !== null) {
+		// A name a block binds is decided per item, and a decision over it cannot be enumerated for
+		// the page: the derivation the branch would test has no item to read. The choice has another
+		// spelling, which is the block that is taken per item.
+		const scoped = new Set([...walk.dynamic].filter((one) => walk.site.payload?.has(one) !== true));
+		if (mentions(held.undecided, scoped)) {
+			refuse(
+				`\`${held.undecided}\` chooses what a component is given and reads a name an each block ` +
+					'binds, so the choice is made per item and cannot be enumerated for the page. Write it ' +
+					'as an `{#if}` around the component, which is a block and is taken per item',
+			);
+		}
+		throw new Undecided(held.undecided);
+	}
+	const text = held.text;
+	if (walk.site.payload !== null && !mentions(text, walk.dynamic)) return text;
+	const apart = leaves(text, walk);
+	if (apart !== null) return apart;
+	const index = walk.holes.length;
+	walk.holes.push({ index, expression: text, raw: false });
+	return JSON.stringify(sentinel(index));
+}
+
+/**
+ * An object or array literal with something standing at each of its values, or null where the
+ * expression is not one this can take apart.
  *
  * Only for a value handed to a component the walk could not enter, and only for what is written
  * out as a literal here: the keys are the author's, so what the component reads off the object is
@@ -366,44 +438,48 @@ function slotOf(node: AstNode): string | null {
  * A shorthand property has its name written back out, for the third-time reason `scope.ts` gives.
  * Anything the shape does not allow -- a spread, a computed key, a getter -- is left to the caller,
  * which plants one marker for the whole and reports it if it does not come back.
- *
- * @returns whether it took the value over.
  */
-function leaves(expression: unknown, walk: Walk): boolean {
-	if (!isNode(expression)) return false;
-	const kind = expression['type'];
-	if (kind !== 'ObjectExpression' && kind !== 'ArrayExpression') return false;
-	const parts = kind === 'ObjectExpression' ? expression['properties'] : expression['elements'];
-	if (!Array.isArray(parts) || parts.length === 0) return false;
+function leaves(expression: string, walk: Walk): string | null {
+	const ast = parse(`<script lang="ts"></script>{${expression}}`, {
+		modern: true,
+	}) as unknown as AstNode;
+	const offset = '<script lang="ts"></script>{'.length;
+	const fragment = ast['fragment'];
+	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	const [only] = nodes;
+	if (nodes.length !== 1 || !isNode(only) || only['type'] !== 'ExpressionTag') return null;
+	const literal = only['expression'];
+	if (!isNode(literal)) return null;
+	const kind = literal['type'];
+	if (kind !== 'ObjectExpression' && kind !== 'ArrayExpression') return null;
+	const parts = kind === 'ObjectExpression' ? literal['properties'] : literal['elements'];
+	if (!Array.isArray(parts) || parts.length === 0) return null;
 
-	const planned: (() => void)[] = [];
+	const planned: [[number, number], string, boolean][] = [];
 	for (const one of parts) {
-		if (!isNode(one)) return false;
+		if (!isNode(one)) return null;
 		const shorthand = kind === 'ObjectExpression' && one['shorthand'] === true;
 		if (kind === 'ObjectExpression') {
 			if (one['type'] !== 'Property' || one['computed'] === true || one['kind'] !== 'init') {
-				return false;
+				return null;
 			}
 		}
 		const value = kind === 'ObjectExpression' ? one['value'] : one;
 		const key = kind === 'ObjectExpression' ? one['key'] : undefined;
 		const name = isNode(key) && typeof key['name'] === 'string' ? key['name'] : '';
 		const where = span(value);
-		if (where === null) return false;
+		if (where === null) return null;
 		// An event handler is never serialised, so nothing stands for it.
 		if (name.startsWith('on') && name.length > 2) continue;
-		planned.push(() => {
-			// Nested, so an object inside an object comes apart the same way.
-			if (leaves(value, walk)) return;
-			const index = walk.holes.length;
-			walk.holes.push({ index, expression: walk.expand(value), raw: false });
-			const marker = JSON.stringify(sentinel(index));
-			walk.edits.push([where[0], where[1], shorthand ? `${name}: ${marker}` : marker]);
-		});
+		planned.push([[where[0] - offset, where[1] - offset], name, shorthand]);
 	}
-	if (planned.length === 0) return false;
-	for (const one of planned) one();
-	return true;
+	if (planned.length === 0) return null;
+	const edits: [number, number, string][] = [];
+	for (const [[from, to], name, shorthand] of planned) {
+		const held = stands(expression.slice(from, to), walk);
+		edits.push([from, to, shorthand ? `${name}: ${held}` : held]);
+	}
+	return apply(expression, edits);
 }
 
 function collect(node: unknown, walk: Walk): void {
@@ -518,10 +594,12 @@ function collect(node: unknown, walk: Walk): void {
 				edits.push([at[0], at[1], written]);
 				return;
 			}
-			// A value going to a component the walk could not enter, written as an object or an
-			// array: a marker per element rather than one for the whole. The component reads fields
-			// off what it is given, and a string has none of them.
-			if (walk.opaque === true && leaves(node['expression'], walk)) return;
+			// A value going to a component the walk could not enter, which has to survive being used
+			// rather than only written out. See `stands`.
+			if (walk.opaque === true) {
+				edits.push([at[0], at[1], stands(written, walk)]);
+				return;
+			}
 			const index = holes.length;
 			// Where the value lands, and therefore how it is escaped, is read off the render rather
 			// than guessed here. A prop passed to a component may end up in text or in an attribute,
@@ -1112,6 +1190,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 				copy,
 				probing: walk.site.probing,
 				fixed: held,
+				decided: walk.site.decided,
 			},
 		});
 		withPrelude(raw, ast, prelude, inner);
@@ -1135,15 +1214,15 @@ function descend(node: AstNode, walk: Walk): boolean {
 			const name = typeof one['name'] === 'string' ? one['name'] : '';
 			const local = declares.find((each) => each.prop === name)?.local;
 			const known = local === undefined ? undefined : partial(held, local);
-			const stands = known === undefined ? 'null' : JSON.stringify(known);
+			const placed = known === undefined ? 'null' : JSON.stringify(known);
 			if (whole !== null && walk.source[whole[0]] === '{') {
-				walk.edits.push([whole[0], whole[1], `${name}={${stands}}`]);
+				walk.edits.push([whole[0], whole[1], `${name}={${placed}}`]);
 				continue;
 			}
 			for (const part of parts) {
 				if (!isNode(part) || part['type'] !== 'ExpressionTag') continue;
 				const where = span(part['expression']);
-				if (where !== null) walk.edits.push([where[0], where[1], stands]);
+				if (where !== null) walk.edits.push([where[0], where[1], placed]);
 			}
 		}
 
@@ -1156,6 +1235,8 @@ function descend(node: AstNode, walk: Walk): boolean {
 		// A refusal from inside a child is a refusal about a file the author did not ask to
 		// compile, so it is not theirs to see.
 		rolled(walk, mark);
+		// The walk asking for a second render is not the walk failing, and it is answered above.
+		if (error instanceof Undecided) throw error;
 		if (String((error as Error).message).includes('is part of a cycle')) throw error;
 		walk.site.missed.push({ file, reason: String((error as Error).message) });
 		return false;
@@ -1177,6 +1258,7 @@ export function rewrite(
 	root: string,
 	probing = false,
 	fixed: ReadonlyMap<string, string> = new Map(),
+	decided: ReadonlyMap<string, boolean> = new Map(),
 ): Rewritten {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
 	const holes: Hole[] = [];
@@ -1226,6 +1308,7 @@ export function rewrite(
 			copy: null,
 			probing,
 			fixed,
+			decided,
 		},
 		dynamic: payload ?? new Set(),
 		parent: null,

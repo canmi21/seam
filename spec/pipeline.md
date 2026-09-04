@@ -123,7 +123,9 @@ Three sources, and the compiler treats them the same way once it has them.
 
 **The author's own markup.** An `{#if}`, the branches of an `{:else if}` chain, a `class:`
 directive's two states. The AST says how many, and the compiler renders each and keeps them all.
-This is what blocks already do; nothing here is new.
+This is what blocks already do; nothing here is new. A `?:` in a value handed to a component the
+compiler cannot read is the same source one step into the script, and is enumerated when a marker
+could not stand for what it chooses between; see [refusals.md](refusals.md).
 
 **A declared domain.** A value the author's markup does not branch on, but something downstream
 does -- a locale read by a package, a role that selects a layout. The compiler cannot see inside
@@ -171,7 +173,8 @@ guessing about the author's intent.
 
 But nobody reaches a hundred structures from one field by writing an ordinary page, so reaching it
 is more likely a domain declared wrongly -- an enumerable dimension pointed at a field that is not
-one -- than a page with a hundred shapes. The number exists to be said out loud at the moment the
+one -- than a page with a hundred shapes. The choices the walk finds on its own count towards the
+same number, since each doubles the route it sits in. The number exists to be said out loud at the moment the
 cost is incurred, to whoever is watching the build. It says which field and how many, and compiles
 anyway.
 

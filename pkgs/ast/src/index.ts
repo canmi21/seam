@@ -9,6 +9,7 @@ export {
 	locals,
 	mentions,
 	pathOf,
+	settle,
 } from './locals.ts';
 export type { Bundle, MarkupAttr, MarkupNode, Module } from './markup.ts';
 export { reduce } from './reduce.ts';

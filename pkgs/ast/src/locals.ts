@@ -399,6 +399,130 @@ export function literalOf(expression: string): string | undefined {
 	return JSON.stringify(value ?? null);
 }
 
+/** What `parsed` wraps an expression in, so a position in its AST maps back to the expression. */
+const WRAPPED = '<script lang="ts"></script>{'.length;
+
+/**
+ * Every `?:` a marker cannot stand for, written as the branch it was decided for, outermost first.
+ *
+ * Asked of a value handed to code the compiler cannot read. A marker stands where a value is
+ * written into bytes; the branches of a ternary handed over may instead be things the component
+ * *uses* -- the one that made this necessary chose between two message functions, and a string
+ * where a function was expected stopped the render inside the package. Such a ternary chooses
+ * what is handed, which is a decision with two outcomes, and it is compiled the way every other
+ * decision is: the build renders once per branch and keeps both, and in each render the ternary
+ * is written as its branch. See spec/refusals.md.
+ *
+ * **Which ternaries, and it is narrower than all of them.** A branch the request decides has to
+ * be a marker whatever it is, and a literal is a value that can only be written, so a ternary
+ * between those is a value like any other and the marker stands for the whole of it -- `tone ===
+ * 'dark' ? 'text-black' : 'text-white'` on a package's icon is that, and it is written per item
+ * inside an each, which enumeration could not have done. What forces a branch is a value the
+ * request does not decide that is not a literal: a name, a member, a call, a function, an object
+ * -- the same things `inert` leaves for Svelte to evaluate, met one level in. A ternary in a
+ * branch is asked the same question, so a choice between two choices is enumerated as a tree.
+ *
+ * `decided` is keyed by the test's own source text, which is stable because the expression has
+ * already been expanded: a name declared in a script is gone and a fixed path is its literal. The
+ * first ternary nobody has decided comes back as `undecided`, and the caller asks the build for
+ * both renders. Outermost first and one at a time, so a ternary inside the branch that is not
+ * taken is never asked about, and nesting costs a tree of renders rather than a product.
+ *
+ * A ternary inside a function is left alone. It runs per call, inside the component, and decides
+ * nothing about which bytes the page has.
+ */
+export function settle(
+	expression: string,
+	decided: ReadonlyMap<string, boolean>,
+	/** The names the request decides, in the scope the expression was written in. */
+	dynamic: ReadonlySet<string>,
+): { text: string; undecided: string | null } {
+	let text = expression;
+	for (;;) {
+		let ast: Node;
+		try {
+			ast = parsed(text);
+		} catch {
+			return { text, undecided: null };
+		}
+		const found = conditional(ast['fragment'], dynamic);
+		if (found === null) return { text, undecided: null };
+		const [whole, test, consequent, alternate] = found;
+		const at = (range: [number, number]): string =>
+			text.slice(range[0] - WRAPPED, range[1] - WRAPPED);
+		const taken = decided.get(at(test));
+		if (taken === undefined) return { text, undecided: at(test) };
+		text = apply(text, [
+			[whole[0] - WRAPPED, whole[1] - WRAPPED, `(${at(taken ? consequent : alternate)})`],
+		]);
+	}
+}
+
+type Spans = [[number, number], [number, number], [number, number], [number, number]];
+
+/**
+ * The first `?:` met in document order that a marker cannot stand for, as four spans. One a
+ * marker can stand for is a value, and nothing inside it is looked at: the whole of it is written.
+ */
+function conditional(node: unknown, dynamic: ReadonlySet<string>): Spans | null {
+	if (Array.isArray(node)) {
+		for (const one of node) {
+			const found = conditional(one, dynamic);
+			if (found !== null) return found;
+		}
+		return null;
+	}
+	if (!isNode(node)) return null;
+	const type = node['type'];
+	if (type === 'ArrowFunctionExpression' || type === 'FunctionExpression') return null;
+	if (type === 'ConditionalExpression') {
+		if (!chooses(node, dynamic)) return null;
+		const spans = [node, node['test'], node['consequent'], node['alternate']].map(where);
+		const [whole, test, consequent, alternate] = spans;
+		if (whole && test && consequent && alternate) return [whole, test, consequent, alternate];
+		return null;
+	}
+	for (const value of Object.values(node)) {
+		const found = conditional(value, dynamic);
+		if (found !== null) return found;
+	}
+	return null;
+}
+
+/** Whether a ternary has a branch a marker cannot stand for, looking through nested ones. */
+function chooses(node: Node, dynamic: ReadonlySet<string>): boolean {
+	return [node['consequent'], node['alternate']].some((branch) => {
+		if (!isNode(branch)) return false;
+		if (branch['type'] === 'ConditionalExpression') return chooses(branch, dynamic);
+		if (isLiteral(branch)) return false;
+		let varies = false;
+		reads(branch, new Set(), (at) => {
+			if (typeof at['name'] === 'string' && dynamic.has(at['name'])) varies = true;
+		});
+		return !varies;
+	});
+}
+
+/**
+ * A value that can only be written: a literal, a template, a sign in front of a number, or
+ * `undefined`, which the parser keeps as a name rather than a literal and which is one anyway.
+ */
+function isLiteral(node: Node): boolean {
+	const type = node['type'];
+	if (type === 'Literal' || type === 'TemplateLiteral') return true;
+	if (type === 'Identifier' && node['name'] === 'undefined') return true;
+	if (type === 'UnaryExpression' && (node['operator'] === '-' || node['operator'] === '+')) {
+		return isNode(node['argument']) && node['argument']['type'] === 'Literal';
+	}
+	return false;
+}
+
+function where(node: unknown): [number, number] | null {
+	if (!isNode(node)) return null;
+	const { start, end } = node;
+	return typeof start === 'number' && typeof end === 'number' ? [start, end] : null;
+}
+
 /**
  * Whether an expression is a literal and nothing else, once substitution has had its way with it.
  *

@@ -32,6 +32,30 @@ export const MANY = 100;
 export type Fixed = ReadonlyMap<string, string>;
 
 /**
+ * Which branch each `?:` handed to a component the walk could not enter takes, by its test.
+ *
+ * Found by the walk rather than declared by the build: a ternary handed to code the compiler
+ * cannot read chooses what is handed, and the walk stops at the first it has not been told about
+ * so the build can render once per branch. Nested ones are found one render deeper, so the runs
+ * form a tree and a ternary inside a branch not taken is never rendered. See spec/refusals.md.
+ */
+export type Decided = ReadonlyMap<string, boolean>;
+
+/** What one render was fixed at: the declared paths, and the choices found on the way to it. */
+export interface Run {
+	fixed: Fixed;
+	decided: Decided;
+}
+
+/** The test one run's structure is kept under: everything it was fixed at, all of it true. */
+export function testOf(run: Run): string {
+	return [
+		...[...run.fixed].map(([path, value]) => `${path} === ${value}`),
+		...[...run.decided].map(([test, taken]) => (taken ? `(${test})` : `!(${test})`)),
+	].join(' && ');
+}
+
+/**
  * Every combination of the declared domains, in order, each as the paths it fixes.
  *
  * A cartesian product, because two declared fields are two dimensions and a page may turn on both.
@@ -92,7 +116,7 @@ function renamed(nodes: readonly Node[], by: ReadonlyMap<string, string>): Node[
  */
 export function joined(
 	component: string,
-	runs: readonly { fixed: Fixed; compiled: Structure }[],
+	runs: readonly (Run & { compiled: Structure })[],
 ): Structure {
 	const [only] = runs;
 	if (only === undefined) throw new Error('a component compiled to no structures at all');
@@ -118,11 +142,7 @@ export function joined(
 		// IR tests a path's truth and never an expression, so the comparison is computed before it
 		// is tested.
 		const test = `__t${String(at)}`;
-		derivations.push({
-			name: test,
-			expression: [...run.fixed].map(([path, value]) => `${path} === ${value}`).join(' && '),
-			scope: null,
-		});
+		derivations.push({ name: test, expression: testOf(run), scope: null });
 		body.push({ test, body: renamed(run.compiled.ir.body, by) });
 		head.push({ test, body: renamed(run.compiled.ir.head, by) });
 		title.push({ test, body: renamed(run.compiled.ir.title, by) });

@@ -1381,6 +1381,98 @@ so which bytes exist is decided by a string that only exists per request. Writin
 as one expression, with no directive beside it, is a substitution and has always worked -- which is
 what nearly every library does anyway, per the count in [ir.md](ir.md).
 
+## A `?:` handed to a package chooses what is handed, and is enumerated
+
+The last route of the real application stopped inside a translation package with `callableMessage
+is not a function`. What it had been given was a marker, and what it wanted was a function:
+
+```svelte
+const message = $derived(
+  (code === 'zh' && source === 'tw') || (code === 'tw' && source === 'zh')
+    ? m['notice.script']
+    : source === code ? m['notice.polished'] : m['notice.translated'],
+);
+<ParaglideMessage {message} ... />
+```
+
+`code` is the locale the build fixes and `source` comes off the request, so the expression picks a
+different function per request. Under the law in [pipeline.md](pipeline.md) that is a decision with
+enumerable outcomes -- two structures once the locale is fixed -- but it sits in an expression
+rather than in the markup, where the blocks are. Two ways were on the table.
+
+**Refuse it, and say the other spelling.** Move the choice into a block: `{#if source === code}
+<Message .../>{:else}<Message .../>{/if}` compiles today, and the refusal would be the third kind
+above. Rejected because the author wrote a page SvelteKit serves, and the target is that every
+such page compiles without being rewritten for this compiler.
+
+**Enumerate it.** The compiler renders once per branch and keeps both, the way it renders once per
+value of a declared domain. This is what was chosen, and what follows is how it is bounded.
+
+### Which ternaries, because a marker still stands for most of them
+
+Not every `?:` in a prop. A marker stands wherever the value is *written*, and a ternary whose
+branches are all things a marker can stand for is a value like any other: `tone === 'dark' ?
+'text-black' : 'text-white'` on a package's icon is written per item inside an each block, which
+one marker does and which enumeration could not have done at all. So the rule is about the branches
+and not about the operator:
+
+| a branch that is | a marker | because |
+| --- | --- | --- |
+| a literal, a template, `undefined` | stands for it | it can only be written |
+| a value the request decides | stands for it | it would have to be a marker whatever it was |
+| anything else the request does not decide | **cannot** | it is a name, a member, a call, a function, an object -- what `inert` leaves for Svelte to evaluate, and a string in its place is the crash above |
+
+A ternary with a branch in the third row is enumerated; a ternary in a branch is asked the same
+question, so a choice between choices comes out as a tree. It is `settle` in `pkgs/ast`, and the
+first draft enumerated every ternary in an opaque prop, which turned link cards and the language
+switcher away for a choice between two strings that had always compiled.
+
+### Where the branch goes, because a component call has no anchor
+
+A `class:` decision is joined where its attribute sits, because lowering can find the attribute in
+the render. A component call has nothing around what it writes -- the same line of
+`visitors/shared/component.js` that makes every item above hard -- so there is no place inside the
+render to put an `if` whose branches are the two things the package wrote. The join is therefore
+the one a declared domain already has: the whole route, rendered once per branch, under one `if`
+at the top of the artifact, with each branch tested by the expression it was rendered for. Nothing
+new in the IR, the injector or lowering; `joined()` in `pkgs/compiler` gained a second kind of key.
+
+Rewriting the source to an `{#if}` instead was considered and is not available: a block writes
+`<!--[0-->` anchors the client was not compiled against, and the client is compiled from the
+author's own source.
+
+### Found rather than declared, and a tree rather than a product
+
+The build cannot declare these: the expression is the author's, and a declared domain is for a
+value the compiler cannot see the branch of. So the walk finds them. Meeting a ternary it has not
+been told about, it stops with `Undecided` naming the test, and the build replaces that run with
+two -- the same run told `true`, and told `false`. A ternary in one of those branches stops again
+one render deeper. The runs come out as a tree: a choice inside the branch that is not taken is
+never rendered, and two nested choices cost three structures rather than four.
+
+The key is the test's own source text, after expansion, so `code` has become its literal and a
+prop has become the caller's expression by the time it is compared. `descend` has to let this one
+error through where it turns every other into a component left to Svelte, since it is the walk
+asking for something rather than failing at it.
+
+### What it costs, and what it refuses
+
+Each choice doubles the renders of the route it sits in, and the hundred-structure warning in
+[pipeline.md](pipeline.md) now counts these beside the declared domains. A test the request does
+not decide is not folded -- once the locale is fixed, `("en") === 'zh' && ...` is still rendered
+both ways, one of which no request reaches -- because folding would be evaluating the author's
+expression at build time, and the structure it produces is correct if unreachable.
+
+A test that reads a name an each block binds is refused, with the other spelling: the choice is
+made per item, the derivation the branch is tested by has no item to read, and an `{#if}` around
+the component inside the each is a block and is taken per item.
+
+The route that forced this now walks past the notice and into the link cards, and stops one
+component later on `$props.id()`, which is its own item: [derivation.md](derivation.md) refuses it
+as a value each side generates, and Svelte's source says otherwise -- the server writes the id into
+a `<!--$id-->` anchor and the client's `props_id` reads it back from that anchor when hydrating.
+That is a decision to take rather than a gap to close, and it is not taken here.
+
 ## The compiler refuses by allowlist
 
 The sentinel pass names the markup it understands and stops on everything else. It used to do the
