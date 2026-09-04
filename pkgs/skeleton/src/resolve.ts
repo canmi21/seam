@@ -126,9 +126,10 @@ export async function probed(
 	file: string,
 	root: string,
 	streams: readonly string[],
+	fixed: ReadonlyMap<string, string> = new Map(),
 ): Promise<void> {
 	if (baseline.handed.length === 0) return;
-	const second = rewrite(source, (_block, branch) => branch === 0, file, root, true);
+	const second = rewrite(source, (_block, branch) => branch === 0, file, root, true, fixed);
 	let seen: string;
 	try {
 		const rendered = await renderRewritten(file, second.rewritten, root, second.copies);

@@ -43,6 +43,11 @@ interface Case {
 	data?: unknown[];
 	/** Sibling files the case imports, by name without the extension. Composition needs two. */
 	beside?: Record<string, string>;
+	/**
+	 * Payload paths this render is fixed at, as literal source text. The payloads below have to
+	 * agree with them, since the oracle is given the whole of the data and renders what it says.
+	 */
+	fixed?: Record<string, string>;
 }
 
 const accepted: Case[] = [
@@ -617,6 +622,32 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A payload path the build declared a domain for, and this render is one of the values in
+		// it. The path is a literal rather than a hole everywhere it is read: in markup, in a
+		// declaration computed from it, and in a prop handed to a component the walk cannot enter
+		// -- which is the position that matters, because a marker there is a string where the
+		// component expected a value and there is no way in from outside. A field with no declared
+		// domain beside it is a hole as always. See spec/pipeline.md.
+		name: 'a render fixed at a payload path',
+		fixed: { 'data.locale.code': '"en"' },
+		beside: {
+			// It decides on the value rather than writing it out, which is the position a marker
+			// cannot stand in: a string nobody chose takes the wrong branch, silently.
+			Shown:
+				'<script>let { tag, ...rest } = $props();</script>' +
+				"{#if tag === 'en'}<i>english</i>{:else}<i>{tag}</i>{/if}",
+		},
+		source:
+			"<script>import Shown from './Shown.svelte'; let { data } = $props();" +
+			' const loc = data.locale.code;</script>' +
+			'<p>{loc}</p><b>{data.locale.code}</b><Shown tag={loc} /><em>{data.title}</em>' +
+			'{#if data.locale.code === "en"}<u>english</u>{:else}<u>other</u>{/if}',
+		data: [
+			{ locale: { code: 'en' }, title: 'x' },
+			{ locale: { code: 'en' }, title: '<&' },
+		],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',
@@ -908,7 +939,7 @@ async function attempt(
 	}
 	writeFileSync(file, one.source);
 	try {
-		const rendered = await skeleton(file, staging);
+		const rendered = await skeleton(file, staging, new Map(Object.entries(one.fixed ?? {})));
 		const compiled = lower([[one.name, JSON.stringify(rendered)]])[0];
 		if (compiled === undefined) return { refusal: 'nothing came back from lowering' };
 		if ('error' in compiled) return { refusal: compiled.error };

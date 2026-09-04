@@ -9,6 +9,7 @@ import {
 	importsOf,
 	inert,
 	propsOf,
+	rebased,
 	rename,
 	rolled,
 	withPrelude,
@@ -147,6 +148,16 @@ export interface Site {
 	 * is planted in it and what comes back says only whether the component writes it.
 	 */
 	probing: boolean;
+	/**
+	 * Payload paths this render is being made for, as literal source text.
+	 *
+	 * The build declares a field's domain and the compiler renders once per value; in each of those
+	 * renders the path is not a hole but a literal, so nothing stands for it and everything reading
+	 * it -- the expressions the walk carries, and the markup left for Svelte to evaluate -- says the
+	 * same thing. Rooted at the payload, so a child gets them rebased through what its call site
+	 * passes. See spec/pipeline.md.
+	 */
+	fixed: ReadonlyMap<string, string>;
 }
 
 /** Everything the walk of one file is carrying, so a walk into a child can start another. */
@@ -947,11 +958,17 @@ function descend(node: AstNode, walk: Walk): boolean {
 
 	try {
 		const raw = inlined(unbound(readFileSync(file, 'utf8')));
-		const declared = locals(raw);
+		const ahead = parse(raw, { modern: true }) as unknown as AstNode;
+		// The paths this render is fixed at, said in the child's own names. A prop bound to the
+		// whole of one is that path inside the child; a prop bound to a prefix of one carries the
+		// rest of it along. Without this a child would read `data.locale.code` as its own `data`,
+		// which is a different value with the same spelling.
+		const held = rebased(walk.site.fixed, propsOf(ahead, raw) ?? [], bindings);
+		const declared = locals(raw, held);
 		const inner: [number, number, string][] = [];
 		for (const [[from, to], empty] of declared.reading) inner.push([from, to, empty]);
 
-		const ast = parse(raw, { modern: true }) as unknown as AstNode;
+		const ast = ahead;
 		const prelude: string[] = [];
 		const snippets = new Map<string, Snippet>();
 		snippetsIn(ast['fragment'], snippets);
@@ -998,6 +1015,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 				spreads: walk.site.spreads,
 				copy,
 				probing: walk.site.probing,
+				fixed: held,
 			},
 		});
 		withPrelude(raw, ast, prelude, inner);
@@ -1055,13 +1073,14 @@ export function rewrite(
 	file: string,
 	root: string,
 	probing = false,
+	fixed: ReadonlyMap<string, string> = new Map(),
 ): Rewritten {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
 	const holes: Hole[] = [];
 	const blocks: Block[] = [];
 	const edits: [number, number, string][] = [];
 	const pending: PendingChoice[] = [];
-	const declared = locals(source);
+	const declared = locals(source, fixed);
 
 	// A render is given no data, so a declaration reading a prop would evaluate against nothing
 	// and crash inside Svelte's own renderer. It has already been substituted into every
@@ -1103,6 +1122,7 @@ export function rewrite(
 			spreads,
 			copy: null,
 			probing,
+			fixed,
 		},
 		dynamic: payload ?? new Set(),
 		parent: null,

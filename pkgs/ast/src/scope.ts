@@ -127,6 +127,57 @@ export function reads(
 	}
 }
 
+/**
+ * Every member chain of plain names in an expression, with where it sits and what it spells.
+ *
+ * `data.locale.code` is one chain of three names. A computed member or a call anywhere in it stops
+ * the chain, because what it reads is then not a name -- `a[i].b` spells nothing this can compare.
+ * The visitor is given the base identifier separately, since what the base stands for depends on
+ * the scope the expression is being read in and only the caller knows that.
+ *
+ * A chain that matches is not descended into, so the base identifier inside it is not also
+ * reported: two edits over the same characters is a mistake upstream rather than a case to resolve.
+ */
+export function chains(
+	node: unknown,
+	visit: (at: [number, number], base: Node, rest: readonly string[]) => boolean,
+): void {
+	if (Array.isArray(node)) {
+		for (const one of node) chains(one, visit);
+		return;
+	}
+	if (!isNode(node)) return;
+
+	if (node['type'] === 'MemberExpression') {
+		const rest: string[] = [];
+		let at: unknown = node;
+		while (isNode(at) && at['type'] === 'MemberExpression') {
+			const property = at['property'];
+			if (at['computed'] === true || !isNode(property) || typeof property['name'] !== 'string') {
+				at = null;
+				break;
+			}
+			rest.unshift(property['name']);
+			at = at['object'];
+		}
+		if (isNode(at) && at['type'] === 'Identifier') {
+			const start = node['start'];
+			const end = node['end'];
+			if (typeof start === 'number' && typeof end === 'number' && visit([start, end], at, rest)) {
+				return;
+			}
+		}
+	}
+
+	for (const value of Object.values(node)) {
+		if (Array.isArray(value)) {
+			for (const child of value) chains(child, visit);
+		} else if (isNode(value)) {
+			chains(value, visit);
+		}
+	}
+}
+
 /** The names an expression reads from outside itself. */
 export function free(node: unknown, scope: ReadonlySet<string>, into: Set<string>): void {
 	reads(node, scope, (at) => {

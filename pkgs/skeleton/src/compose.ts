@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { type Locals, mentions, reduce } from 'ast';
+import { type Locals, mentions, pathOf, reduce } from 'ast';
 import { type AstNode, isNode, span } from './node.ts';
 import { type Snippet, snippetsIn } from './snippets.ts';
 import type { Given, Walk } from './walk.ts';
@@ -62,6 +62,36 @@ export function propsOf(
 					fallback: source.slice(right[0], right[1]),
 				});
 			}
+		}
+	}
+	return found;
+}
+
+/**
+ * The paths a render is fixed at, said in a child's own names.
+ *
+ * They are rooted at the payload, and a child does not have the payload -- it has whatever its call
+ * site passed. So each one is translated through the props: a prop bound to the whole of a path
+ * *is* that path inside the child, and a prop bound to a prefix of one carries the rest along.
+ *
+ * Without this a child reading `data.locale.code` would be taken at its spelling, and its own
+ * `data` is a different value with the same name.
+ */
+export function rebased(
+	fixed: ReadonlyMap<string, string>,
+	declares: readonly { local: string; prop: string }[],
+	bindings: ReadonlyMap<string, string>,
+): ReadonlyMap<string, string> {
+	if (fixed.size === 0) return fixed;
+	const found = new Map<string, string>();
+	for (const one of declares) {
+		const given = bindings.get(one.prop);
+		if (given === undefined) continue;
+		const base = pathOf(given);
+		if (base === null) continue;
+		for (const [path, literal] of fixed) {
+			if (path === base) found.set(one.local, literal);
+			else if (path.startsWith(`${base}.`)) found.set(one.local + path.slice(base.length), literal);
 		}
 	}
 	return found;

@@ -1,6 +1,6 @@
 import { parse } from 'svelte/compiler';
 import { type Edit, type Neutral, apply } from './edits.ts';
-import { destructure, free, isNode, type Node, props, reads } from './scope.ts';
+import { chains, destructure, free, isNode, type Node, props, reads } from './scope.ts';
 
 /**
  * What a component's scripts declare, as source to be substituted into whatever reads it.
@@ -341,6 +341,40 @@ export function mentions(expression: string, names: ReadonlySet<string>): boolea
 }
 
 /**
+ * The dotted name an expression spells, or null where it spells none.
+ *
+ * `data.locale.code` and `((data)).locale.code` are the same path: the parser keeps no
+ * parentheses, so substitution's own wrapping falls away without anything having to strip it. A
+ * call, an index or anything computed is not a path and gets null.
+ */
+export function pathOf(expression: string): string | null {
+	let ast: Node;
+	try {
+		ast = parsed(expression);
+	} catch {
+		return null;
+	}
+	const fragment = ast['fragment'];
+	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	const [only] = nodes;
+	if (nodes.length !== 1 || !isNode(only) || only['type'] !== 'ExpressionTag') return null;
+
+	const names: string[] = [];
+	let at: unknown = only['expression'];
+	while (isNode(at) && at['type'] === 'MemberExpression') {
+		const property = at['property'];
+		if (at['computed'] === true || !isNode(property) || typeof property['name'] !== 'string') {
+			return null;
+		}
+		names.unshift(property['name']);
+		at = at['object'];
+	}
+	if (!isNode(at) || at['type'] !== 'Identifier' || typeof at['name'] !== 'string') return null;
+	names.unshift(at['name']);
+	return names.join('.');
+}
+
+/**
  * Whether an expression is a literal and nothing else, once substitution has had its way with it.
  *
  * `<Badge tone="x" />` becomes `("x")` where the child writes `{tone}`, and a marker planted there
@@ -373,13 +407,18 @@ export function constant(expression: string): boolean {
 	return isNode(value) && value['type'] === 'Literal';
 }
 
-/** Every name the two scripts declare, with what each stands for and where each was written. */
-export function locals(source: string): Locals {
+/**
+ * Every name the two scripts declare, with what each stands for and where each was written.
+ *
+ * `fixed` names payload paths whose value this render is being made for -- a locale, a role, any
+ * field whose domain the build declared and which the compiler is enumerating over. A path in it
+ * is not a hole: it is a literal in this render, in the expressions the markup carries and in the
+ * script that computed it, so both say the same thing. See spec/pipeline.md.
+ */
+export function locals(source: string, fixed: ReadonlyMap<string, string> = new Map()): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
-	const found = declared(ast, source, props(ast['instance'])) as Map<
-		string,
-		Declared & { node: Node }
-	>;
+	const carried = props(ast['instance']);
+	const found = declared(ast, source, carried) as Map<string, Declared & { node: Node }>;
 
 	// Refused rather than substituted wrongly. Two of these compiled and wrote the wrong bytes with
 	// nothing to say so, which is the shape this compiler keeps finding: a model narrower than its
@@ -407,6 +446,25 @@ export function locals(source: string): Locals {
 		if (typeof start !== 'number' || typeof end !== 'number') return '';
 
 		const edits: Edit[] = [];
+		// A path this render is being made for is written out as the value it holds. Whole chains
+		// first, and an identifier inside one is left alone afterwards, because two edits over the
+		// same characters is a mistake upstream rather than a case to resolve.
+		const taken = new Set<number>();
+		if (fixed.size > 0) {
+			chains(node, (at, base, rest) => {
+				const name = base['name'];
+				if (typeof name !== 'string') return false;
+				const root = extra?.get(name) ?? (found.has(name) ? expand(name, open, extra) : name);
+				const head = pathOf(root);
+				if (head === null) return false;
+				const literal = fixed.get([head, ...rest].join('.'));
+				if (literal === undefined) return false;
+				const from = base['start'];
+				if (typeof from === 'number') taken.add(from);
+				edits.push([at[0], at[1], literal]);
+				return true;
+			});
+		}
 		reads(node, new Set(), (at, shorthand) => {
 			const name = at['name'];
 			if (typeof name !== 'string' || open.has(name)) return;
@@ -419,6 +477,8 @@ export function locals(source: string): Locals {
 			const from = at['start'];
 			const to = at['end'];
 			if (typeof from !== 'number' || typeof to !== 'number') return;
+			// Already written out as part of a bound path.
+			if (taken.has(from)) return;
 			const held = `(${given ?? expand(name, open, extra)})`;
 			edits.push([from, to, shorthand === true ? `${name}: ${held}` : held]);
 		});
@@ -446,7 +506,10 @@ export function locals(source: string): Locals {
 		const body = slice(one.node, inner, extra);
 		// Parenthesised because what follows it is a member access, and because a function or a
 		// class only reads as an expression that way.
-		const text = one.access === '' ? body : `(${body})${one.access}`;
+		const written = one.access === '' ? body : `(${body})${one.access}`;
+		// A name declared to be one of the bound paths holds that path's value in this render.
+		const path = fixed.size === 0 ? null : pathOf(written);
+		const text = (path === null ? undefined : fixed.get(path)) ?? written;
 		if (open.size === 0 && extra === undefined) expanded.set(name, text);
 		return text;
 	}
@@ -456,11 +519,24 @@ export function locals(source: string): Locals {
 		rewrite: (node, extra) => slice(node, new Set(), extra),
 		// By span rather than by name: one destructuring declares several names and is one place
 		// in the source, and writing over it twice would take the file apart.
+		// A declaration that reads a prop is handed something harmless, because the render is given
+		// no data and evaluating it would reach for what is not there.
+		//
+		// **Unless it no longer reads one.** A render made for a bound path has that path's value,
+		// so `const locale = data.locale.code` expands to a literal and there is nothing left to
+		// hold: it is written out as what it is, and the name works for whoever reads it -- markup
+		// left for Svelte to evaluate included, which is the half that would otherwise disagree
+		// with the expression the walk carried. A destructuring is not substituted this way, since
+		// one initialiser stands for several names and the expansion is only ever one of them.
 		reading: [
 			...new Map(
 				[...found.values()]
 					.filter((one) => one.reads)
-					.map((one): [string, Neutral] => [one.at.join(':'), [one.at, EMPTY[one.holds]]]),
+					.map((one): [string, Neutral] => {
+						const text = one.access === '' ? expand(one.name, new Set()) : null;
+						const settled = text !== null && !mentions(text, carried) ? text : EMPTY[one.holds];
+						return [one.at.join(':'), [one.at, settled]];
+					}),
 			).values(),
 		],
 	};

@@ -37,7 +37,18 @@ export type { Block, Choice, Hole, Rendered, Skeleton, Stream } from './shape.ts
  * leaving `filename` absolute, is Svelte's own answer -- the filename stays real for errors and
  * source maps. See spec/build.md.
  */
-export async function skeleton(entryFile: string, root: string): Promise<Skeleton> {
+export async function skeleton(
+	entryFile: string,
+	root: string,
+	/**
+	 * Payload paths this render is being made for, as literal source text.
+	 *
+	 * The build declares a field's domain and calls this once per value; in each render the path is
+	 * a literal rather than a hole, so the structures it induces are produced at compile time
+	 * instead of being decided per request. See spec/pipeline.md.
+	 */
+	fixed: ReadonlyMap<string, string> = new Map(),
+): Promise<Skeleton> {
 	await shippable();
 	const file = resolvePath(entryFile);
 	// Before anything reads it: a snippet rendered more than once becomes one copy per call, which
@@ -70,7 +81,7 @@ export async function skeleton(entryFile: string, root: string): Promise<Skeleto
 
 	// The first branch of every if, and every each with one item. An if with no `{:else if}` has
 	// only that branch, so this is what "everything taken" used to mean.
-	const baseline = rewrite(source, (_block, branch) => branch === 0, file, root);
+	const baseline = rewrite(source, (_block, branch) => branch === 0, file, root, false, fixed);
 
 	// After the walk, not before it. Every name has to come from somewhere -- this pass renders
 	// rather than reading the markup, so a name nothing binds reaches Svelte's own renderer,
@@ -102,7 +113,7 @@ export async function skeleton(entryFile: string, root: string): Promise<Skeleto
 	filled(baseline, file, root);
 
 	// Before the alternates, because an if in markup nobody renders needs none of them.
-	await probed(baseline, source, file, root, [html, head]);
+	await probed(baseline, source, file, root, [html, head], fixed);
 
 	// One more render per branch the baseline does not hold, keyed the way Svelte numbers them:
 	// `1`, `2` for each `{:else if}`, and `-1` for the else, which is what it writes into the
@@ -120,7 +131,7 @@ export async function skeleton(entryFile: string, root: string): Promise<Skeleto
 			const forced = new Map(block.within ?? []);
 			const chosen = (index: number, at: number) =>
 				index === block.index ? at === branch : at === (forced.get(index) ?? 0);
-			const flipped = rewrite(source, chosen, file, root);
+			const flipped = rewrite(source, chosen, file, root, false, fixed);
 			alternates[`${String(block.index)}.${String(branch)}`] = await renderRewritten(
 				file,
 				flipped.rewritten,
