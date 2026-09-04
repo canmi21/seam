@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { basename, resolve as resolvePath } from 'node:path';
 import { parse } from 'svelte/compiler';
 import { resolved } from 'ast';
+import { partial } from './compose.ts';
 import { type AstNode, titles } from './node.ts';
 import { renderRewritten, shippable } from './render.ts';
 import { filled, outcomes, probed } from './resolve.ts';
@@ -94,26 +95,40 @@ export async function skeleton(
 	// A render that fails is nearly always a component the walk could not enter and Svelte then
 	// rendered without the data it needed. The author was shown that crash and never the refusal
 	// behind it, so both are said here, the refusals first.
-	const rendered = await renderRewritten(file, baseline.rewritten, root, baseline.copies).catch(
-		(error: unknown) => {
-			const why = baseline.missed
-				.map((one) => `  ${basename(one.file)}: ${one.reason.replace(/\s+/g, ' ')}`)
-				.join('\n');
-			if (why === '') throw error;
-			throw new Error(
-				`${String((error as Error).message)}\n\nThe render stopped inside a component this ` +
-					'compiler could not walk into, so Svelte rendered it without the values a request ' +
-					`would bring. What stopped the walk:\n${why}`,
-			);
-		},
-	);
+	// What the entry's own props are, which is the payload: the render is given the paths it is
+	// fixed at under the names they arrive as, and nothing else.
+	const given: Record<string, unknown> = {};
+	for (const path of fixed.keys()) {
+		const [name] = path.split('.');
+		if (name !== undefined && !(name in given)) {
+			const held = partial(fixed, name);
+			if (held !== undefined) given[name] = held;
+		}
+	}
+	const rendered = await renderRewritten(
+		file,
+		baseline.rewritten,
+		root,
+		baseline.copies,
+		given,
+	).catch((error: unknown) => {
+		const why = baseline.missed
+			.map((one) => `  ${basename(one.file)}: ${one.reason.replace(/\s+/g, ' ')}`)
+			.join('\n');
+		if (why === '') throw error;
+		throw new Error(
+			`${String((error as Error).message)}\n\nThe render stopped inside a component this ` +
+				'compiler could not walk into, so Svelte rendered it without the values a request ' +
+				`would bring. What stopped the walk:\n${why}`,
+		);
+	});
 	const { body: html, head } = rendered;
 
 	// The rest of each spread's call, which only the compiled output has.
 	filled(baseline, file, root);
 
 	// Before the alternates, because an if in markup nobody renders needs none of them.
-	await probed(baseline, source, file, root, [html, head], fixed);
+	await probed(baseline, source, file, root, [html, head], fixed, given);
 
 	// One more render per branch the baseline does not hold, keyed the way Svelte numbers them:
 	// `1`, `2` for each `{:else if}`, and `-1` for the else, which is what it writes into the
@@ -137,6 +152,7 @@ export async function skeleton(
 				flipped.rewritten,
 				root,
 				flipped.copies,
+				given,
 			);
 		}
 	}

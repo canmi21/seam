@@ -636,12 +636,20 @@ const accepted: Case[] = [
 			Shown:
 				'<script>let { tag, ...rest } = $props();</script>' +
 				"{#if tag === 'en'}<i>english</i>{:else}<i>{tag}</i>{/if}",
+			// A page inside its layout, which is the shape a route has, so the fixed path is read
+			// inside a component the walk entered -- where the call site's values are handed over as
+			// nothing. Nothing except the paths the render is fixed at, which is what this is for:
+			// the second `<Shown>` is inert and left for Svelte, and it reads `data` out of props.
+			Held:
+				"<script>import Shown from './Shown.svelte'; let { data } = $props();" +
+				' const loc = data.locale.code;</script>' +
+				'<p>{loc}</p><b>{data.locale.code}</b><Shown tag={loc} /><em>{data.title}</em>' +
+				`<Shown tag={['a', data.locale.code].join('-')} />` +
+				'{#if data.locale.code === "en"}<u>english</u>{:else}<u>other</u>{/if}',
 		},
 		source:
-			"<script>import Shown from './Shown.svelte'; let { data } = $props();" +
-			' const loc = data.locale.code;</script>' +
-			'<p>{loc}</p><b>{data.locale.code}</b><Shown tag={loc} /><em>{data.title}</em>' +
-			'{#if data.locale.code === "en"}<u>english</u>{:else}<u>other</u>{/if}',
+			"<script>import Held from './Held.svelte'; let { data } = $props();</script>" +
+			'<Held {data} />',
 		data: [
 			{ locale: { code: 'en' }, title: 'x' },
 			{ locale: { code: 'en' }, title: '<&' },

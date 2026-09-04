@@ -68,14 +68,50 @@ export function propsOf(
 }
 
 /**
- * The paths a render is fixed at, said in a child's own names.
+ * The values a render is fixed at, as the shape they sit in, for one name.
  *
- * They are rooted at the payload, and a child does not have the payload -- it has whatever its call
- * site passed. So each one is translated through the props: a prop bound to the whole of a path
- * *is* that path inside the child, and a prop bound to a prefix of one carries the rest along.
+ * A render is given no data, so a child's props are handed null and the entry's are handed
+ * nothing. That is right for everything a marker stands for and wrong for the one thing a marker
+ * does not: a path this render is fixed at is a value the compiler knows, and markup left for
+ * Svelte to evaluate reads it out of the props like anything else. `<Modal title={m['x']({}, {
+ * locale })}>` is that -- inert, because nothing in it varies per request once the locale is fixed,
+ * and evaluated against a `data` that was null.
  *
- * Without this a child reading `data.locale.code` would be taken at its spelling, and its own
- * `data` is a different value with the same name.
+ * So the render is given exactly those paths and nothing else. `data.locale.code` fixed at `"en"`
+ * becomes `{ locale: { code: 'en' } }`, and every other field of `data` is still absent, which is
+ * what keeps a marker the only way to read one.
+ */
+export function partial(fixed: ReadonlyMap<string, string>, root: string): unknown {
+	let found: unknown;
+	for (const [path, literal] of fixed) {
+		const names = path.split('.');
+		if (names[0] !== root) continue;
+		const value: unknown = JSON.parse(literal);
+		if (names.length === 1) return value;
+		found ??= {};
+		let at = found as Record<string, unknown>;
+		for (const name of names.slice(1, -1)) {
+			at[name] ??= {};
+			at = at[name] as Record<string, unknown>;
+		}
+		at[names[names.length - 1] as string] = value;
+	}
+	return found;
+}
+
+/**
+ * The paths a render is fixed at, in both spellings a child needs.
+ *
+ * They are rooted at the payload, and there are two ways a child meets one. An expression that has
+ * been expanded says it the payload's way, because substitution has already put the call site's
+ * words in -- `locale.code` inside the child comes out as `((data)).locale.code`. A declaration
+ * read before any of that says it the child's way, because its own props are still its own names.
+ *
+ * So both are carried. Each payload-rooted path is also translated through the props: a prop bound
+ * to the whole of one *is* that path inside the child, and a prop bound to a prefix carries the
+ * rest along. Keeping only the translation is what left `<LanguageSwitcher code={locale.code}>`
+ * unbound on a real route -- the expansion spelled it `data.locale.code` and the map held only
+ * `locale.code`.
  */
 export function rebased(
 	fixed: ReadonlyMap<string, string>,
@@ -83,7 +119,7 @@ export function rebased(
 	bindings: ReadonlyMap<string, string>,
 ): ReadonlyMap<string, string> {
 	if (fixed.size === 0) return fixed;
-	const found = new Map<string, string>();
+	const found = new Map<string, string>(fixed);
 	for (const one of declares) {
 		const given = bindings.get(one.prop);
 		if (given === undefined) continue;

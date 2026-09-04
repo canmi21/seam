@@ -8,6 +8,7 @@ import {
 	identity,
 	importsOf,
 	inert,
+	partial,
 	propsOf,
 	rebased,
 	rename,
@@ -1090,6 +1091,10 @@ function descend(node: AstNode, walk: Walk): boolean {
 		// The values stay where they were written and are handed to the render as nothing. The
 		// child's markers already carry the expressions, so what the call site passes is dead --
 		// and live, it would be evaluated against data the render is not given.
+		//
+		// Nothing, except for the paths this render is fixed at: those the compiler knows, and
+		// markup the child leaves for Svelte to evaluate reads them out of its props like anything
+		// else. So the prop is handed exactly them, in the shape they sit in, and nothing more.
 		for (const one of attributes) {
 			if (!isNode(one) || one['type'] !== 'Attribute') continue;
 			const value = one['value'];
@@ -1098,15 +1103,18 @@ function descend(node: AstNode, walk: Walk): boolean {
 			// `{p}` is `p={p}`, and the short form's braces hold a bare name and nothing else, so
 			// the whole attribute is written out rather than its value replaced. The same thing a
 			// marker planted in one costs, met again.
+			const name = typeof one['name'] === 'string' ? one['name'] : '';
+			const local = declares.find((each) => each.prop === name)?.local;
+			const known = local === undefined ? undefined : partial(held, local);
+			const stands = known === undefined ? 'null' : JSON.stringify(known);
 			if (whole !== null && walk.source[whole[0]] === '{') {
-				const name = typeof one['name'] === 'string' ? one['name'] : '';
-				walk.edits.push([whole[0], whole[1], `${name}={null}`]);
+				walk.edits.push([whole[0], whole[1], `${name}={${stands}}`]);
 				continue;
 			}
 			for (const part of parts) {
 				if (!isNode(part) || part['type'] !== 'ExpressionTag') continue;
 				const where = span(part['expression']);
-				if (where !== null) walk.edits.push([where[0], where[1], 'null']);
+				if (where !== null) walk.edits.push([where[0], where[1], stands]);
 			}
 		}
 

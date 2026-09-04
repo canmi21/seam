@@ -127,12 +127,13 @@ export async function probed(
 	root: string,
 	streams: readonly string[],
 	fixed: ReadonlyMap<string, string> = new Map(),
+	given: Record<string, unknown> = {},
 ): Promise<void> {
 	if (baseline.handed.length === 0) return;
 	const second = rewrite(source, (_block, branch) => branch === 0, file, root, true, fixed);
 	let seen: string;
 	try {
-		const rendered = await renderRewritten(file, second.rewritten, root, second.copies);
+		const rendered = await renderRewritten(file, second.rewritten, root, second.copies, given);
 		seen = rendered.body + rendered.head;
 	} catch {
 		// The probe could not be made, so nothing is known and nothing is relaxed. That is the safe

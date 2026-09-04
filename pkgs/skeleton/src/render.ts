@@ -56,6 +56,13 @@ export async function renderRewritten(
 	source: string,
 	root: string,
 	copies: readonly Copy[] = [],
+	/**
+	 * The payload the render is given, which holds the paths it is fixed at and nothing else.
+	 *
+	 * Every other field is absent on purpose: a marker is the only way to read one, and a render
+	 * that could read them would let an expression through that has to be a hole.
+	 */
+	props: Record<string, unknown> = {},
 ): Promise<Rendered> {
 	const { mkdirSync, readFileSync: read, rmSync, writeFileSync } = await import('node:fs');
 	const { fileURLToPath, pathToFileURL } = await import('node:url');
@@ -123,7 +130,7 @@ export async function renderRewritten(
 			file,
 		);
 		const mod = (await import(pathToFileURL(entry).href)) as { default: unknown };
-		const { body, head } = render(mod.default as never, { props: {} });
+		const { body, head } = render(mod.default as never, { props: props as never });
 		return { body, head };
 	} finally {
 		rmSync(staging, { recursive: true, force: true });
