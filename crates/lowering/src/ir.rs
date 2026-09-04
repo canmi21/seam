@@ -21,7 +21,7 @@ impl Serialize for Escape {
 	}
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 #[serde(tag = "t", rename_all = "lowercase")]
 pub enum Node {
 	Static {
@@ -70,7 +70,7 @@ pub enum Presence {
 	NonEmpty,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Branch {
 	/// A data path, or `None` for the branch Svelte marks `-1`.
 	pub test: Option<String>,

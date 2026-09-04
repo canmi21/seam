@@ -16,4 +16,8 @@ declare module 'svelte/internal/server' {
 		hash?: string,
 		directives?: Record<string, boolean>,
 	): string;
+	export function attr_style(
+		value: unknown,
+		directives?: Record<string, unknown> | [Record<string, unknown>, Record<string, unknown>],
+	): string;
 }

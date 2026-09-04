@@ -287,6 +287,36 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// Two of them and no `style` attribute, which is the shape that could not be independent
+		// declarations: the result is trimmed, so whichever is present first loses its leading
+		// space. Enumerated instead, each outcome built by calling `attr_style`, and each carrying
+		// markers of its own so a value in half the outcomes is a hole consumed once.
+		name: 'two style directives',
+		source: `${PROPS}<span style:width={data.w} style:margin-top={data.m}></span>`,
+		data: [
+			{ w: '1px', m: '2px' },
+			{ w: null, m: '2px' },
+			{ w: '1px', m: null },
+			{ w: null, m: null },
+			// Neither is truthy and both are written: `to_style` asks whether the value is null or
+			// the empty string, not whether it is falsy.
+			{ w: 0, m: '' },
+		],
+	},
+	{
+		// A `style` attribute beside a directive is not passed through: the attribute is
+		// reassembled, so this one is re-parsed and re-emitted, and `width` disappears out of it
+		// because a directive names it.
+		name: 'a style directive beside a style attribute',
+		source: `${PROPS}<span style="width:9px;color:red" style:width={data.w}></span>`,
+		data: [{ w: '1px' }, { w: null }],
+	},
+	{
+		name: 'an important style directive, and a written one',
+		source: `${PROPS}<span style:color="red" style:width|important={data.w}></span>`,
+		data: [{ w: '1px' }, { w: null }],
+	},
+	{
 		name: 'raw html',
 		source: `${PROPS}<p>{@html data.a}</p>`,
 		data: [{ a: '<b>x</b>' }, { a: '' }],
@@ -401,7 +431,11 @@ const refused: Case[] = [
 		name: 'class: beside a class attribute that is an expression',
 		source: `${PROPS}<p class={data.a} class:on={data.f}>x</p>`,
 	},
-	{ name: 'style: directive', source: `${PROPS}<p style:color={data.a}>x</p>` },
+	{
+		// Svelte joins text and an expression into one value; this reads a single expression.
+		name: 'a style directive mixing text and an expression',
+		source: `${PROPS}<p style:width="{data.a}px">x</p>`,
+	},
 	{ name: 'a spread', source: `${PROPS}<p {...data.attrs}>x</p>` },
 
 	{ name: 'svelte:element', source: `${PROPS}<svelte:element this={data.tag}>x</svelte:element>` },

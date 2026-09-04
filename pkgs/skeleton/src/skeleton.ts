@@ -39,9 +39,26 @@ export interface Hole {
 interface PendingChoice {
 	index: number;
 	tests: string[];
+	/** `class` for a class attribute's directives, `style` for a style attribute's. */
+	kind: 'class' | 'style';
 	names: string[];
-	/** The class attribute as written, or the empty string where there was none. */
+	/** The attribute as written, or the empty string where there was none. */
 	base: string;
+	/**
+	 * A style decision's declarations, in source order: what to write for the value when it is
+	 * present, whether it carries `!important`, and whether it is a decision at all.
+	 *
+	 * A declaration written with plain text is always present and needs no test; one written with
+	 * an expression is present when the value is neither null nor the empty string, which is the
+	 * rule `to_style` applies, and stands as a marker of its own per outcome so that every hole is
+	 * consumed exactly once.
+	 */
+	declarations?: {
+		name: string;
+		important: boolean;
+		literal: string | null;
+		expression: string | null;
+	}[];
 }
 
 /** Which of Svelte's two output streams something was rendered into. */
@@ -353,8 +370,9 @@ function collect(
 			// Svelte writes them: one call producing one attribute, not one attribute plus a list of
 			// additions. What is left after this is walked the ordinary way.
 			const handled = classes(node, holes, edits, expand, pending);
+			const styled = styles(source, node, holes, edits, expand, pending);
 			if (Array.isArray(attributes)) {
-				for (const attr of attributes) if (!handled.has(attr)) walk(attr);
+				for (const attr of attributes) if (!handled.has(attr) && !styled.has(attr)) walk(attr);
 			}
 			walk(node['fragment']);
 			return;
@@ -1101,7 +1119,13 @@ function classes(
 	const index = holes.length;
 	const tests = directives.map((one) => expand(one['expression']));
 	holes.push({ index, expression: '', raw: false, choice: { tests, outcomes: [] } });
-	pending.push({ index, tests, names: directives.map((one) => String(one['name'])), base });
+	pending.push({
+		index,
+		tests,
+		kind: 'class',
+		names: directives.map((one) => String(one['name'])),
+		base,
+	});
 
 	// The marker is appended to the class rather than put in place of it, and the directives stay
 	// where they are. Both matter, and neither was obvious: whether Svelte scopes an element is
@@ -1131,6 +1155,123 @@ function classes(
 }
 
 /**
+ * `style:` is the same decision as `class:`, with the value written inside the outcome.
+ *
+ * Read out of `build_attr_style` and `to_style`. It is not the cheap half of the pair the way an
+ * earlier note in spec/refusals.md guessed: the whole attribute is reassembled. The base is
+ * re-parsed as CSS -- comments stripped, quotes and parentheses tracked -- every declaration in it
+ * whose name a directive also names is **dropped**, each surviving one is re-emitted as ` x;`, then
+ * the directives are appended, normal ones first and `!important` ones after, and the result is
+ * trimmed. So `style="color:red"` beside a directive is not written as it was written.
+ *
+ * A declaration is present when its value is neither null nor the empty string, which is a decision
+ * with the value substituted inside it. That is what stopped this before: a marker can stand where
+ * the value goes, and nothing could stand where the declaration's presence is decided. Enumerating
+ * gives both -- `2^n` outcomes, each one built by calling `attr_style` with markers for the values
+ * that are present -- and **each outcome gets markers of its own**, so a value that appears in half
+ * the outcomes is still a hole consumed exactly once.
+ *
+ * @returns the attributes this took charge of, which the caller must not walk again.
+ */
+function styles(
+	source: string,
+	node: AstNode,
+	holes: Hole[],
+	edits: [number, number, string][],
+	expand: Locals['rewrite'],
+	pending: PendingChoice[],
+): ReadonlySet<unknown> {
+	const empty: ReadonlySet<unknown> = new Set();
+	if (node['type'] !== 'RegularElement') return empty;
+	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
+	const directives = attributes.filter(
+		(one): one is AstNode => isNode(one) && one['type'] === 'StyleDirective',
+	);
+	if (directives.length === 0) return empty;
+
+	const attribute = attributes.find(
+		(one) => isNode(one) && one['type'] === 'Attribute' && one['name'] === 'style',
+	);
+	let base = '';
+	if (isNode(attribute)) {
+		const value = attribute['value'];
+		const parts = value === true ? [] : Array.isArray(value) ? value : [value];
+		if (!parts.every((part) => isNode(part) && part['type'] === 'Text')) {
+			refuse(
+				'`style:` beside a `style` whose value is an expression is not handled yet: the ' +
+					'attribute is reassembled from both, and a declaration in that value whose name a ' +
+					'directive also names is dropped, so which bytes exist is decided by a string that ' +
+					'only exists per request',
+			);
+		}
+		base = parts.map((part) => String((part as AstNode)['data'] ?? '')).join('');
+	}
+
+	const declarations: PendingChoice['declarations'] & object = [];
+	const tests: string[] = [];
+	for (const one of directives) {
+		const raw = typeof one['name'] === 'string' ? one['name'] : '';
+		// `to_css_name`: a custom property keeps its case, everything else is lowered.
+		const name = raw.startsWith('--') ? raw : raw.toLowerCase();
+		const important = Array.isArray(one['modifiers']) && one['modifiers'].includes('important');
+		const value = one['value'];
+		// The shorthand, which Svelte reads as the variable of the same name.
+		const parts = value === true ? null : Array.isArray(value) ? value : [value];
+
+		if (parts !== null && parts.every((part) => isNode(part) && part['type'] === 'Text')) {
+			const text = parts.map((part) => String((part as AstNode)['data'] ?? '')).join('');
+			// Written text, so it is present or not once and for all rather than per request.
+			declarations.push({ name, important, literal: text === '' ? null : text, expression: null });
+			continue;
+		}
+
+		const only = parts === null ? one['expression'] : parts.length === 1 ? parts[0] : undefined;
+		const inner = parts === null ? only : isNode(only) ? only['expression'] : undefined;
+		if (!isNode(inner)) {
+			refuse(
+				`\`style:${raw}\` mixes text and an expression, which Svelte joins into one value; ` +
+					'this reads a single expression, so write the whole value as one',
+			);
+		}
+		const written = expand(inner);
+		declarations.push({ name, important, literal: null, expression: written });
+		// Svelte's own test, from `append_styles`: `value != null && value !== ''`. Truthiness is
+		// not it -- `style:width={0}` writes `width: 0;`.
+		tests.push(`(${written}) != null && (${written}) !== ''`);
+	}
+
+	if (1 << tests.length > CHOICES) {
+		refuse(
+			`this element has ${String(tests.length)} \`style:\` directives with values decided per ` +
+				`request, which is ${String(1 << tests.length)} outcomes to enumerate. The mechanism is ` +
+				`enumeration, so the limit is ${String(CHOICES)}`,
+		);
+	}
+
+	const index = holes.length;
+	holes.push({ index, expression: '', raw: false, choice: { tests, outcomes: [] } });
+	pending.push({ index, tests, kind: 'style', names: [], base, declarations });
+
+	for (const one of directives) {
+		const at = span(one);
+		if (at !== null) edits.push([at[0], at[1], `style:${String(one['name'])}={null}`]);
+	}
+	// A declaration of its own, so the render puts the marker inside a `style="..."` run and the
+	// assembler finds the attribute the way it finds any other. Its name is not one a directive can
+	// reserve, and a custom property keeps its case through `to_css_name`.
+	const anchor = `style="--seam-at: ${sentinel(index)}"`;
+	const at = span(attribute);
+	if (at !== null) {
+		edits.push([at[0], at[1], anchor]);
+	} else {
+		const last = Math.max(...attributes.map((one) => span(one)?.[1] ?? 0));
+		edits.push([last, last, ` ${anchor}`]);
+	}
+
+	return new Set(isNode(attribute) ? [...directives, attribute] : directives);
+}
+
+/**
  * Fills in each class decision's outcomes, which needs the render because it needs the hash.
  *
  * The scoping class is a hash of the filename relative to `rootDir` and of the stylesheet, and
@@ -1145,6 +1286,8 @@ async function outcomes(
 ): Promise<void> {
 	if (pending.length === 0) return;
 	const { attr_class } = await import('svelte/internal/server');
+
+	const { attr_style } = await import('svelte/internal/server');
 
 	for (const one of pending) {
 		const marker = sentinel(one.index);
@@ -1166,16 +1309,45 @@ async function outcomes(
 			// server does with it and which leaves everything planted inside with nowhere to come
 			// back from. See spec/refusals.md.
 			refuse(
-				`the class decision on \`${one.names.join('`, `')}\` was planted and no render brought ` +
+				`the ${one.kind} decision on this element was planted and no render brought ` +
 					'it back. Markup this element sits inside was given to a component that rendered ' +
 					'none of it, so there is nothing here to choose between',
 			);
 		}
 		const table: string[] = [];
-		for (let bits = 0; bits < 1 << one.names.length; bits++) {
-			const directives: Record<string, boolean> = {};
-			for (const [at, name] of one.names.entries()) directives[name] = ((bits >> at) & 1) === 1;
-			table.push(attr_class(one.base, hash, directives));
+		if (one.kind === 'class') {
+			for (let bits = 0; bits < 1 << one.names.length; bits++) {
+				const directives: Record<string, boolean> = {};
+				for (const [at, name] of one.names.entries()) directives[name] = ((bits >> at) & 1) === 1;
+				table.push(attr_class(one.base, hash, directives));
+			}
+		} else {
+			const declarations = one.declarations ?? [];
+			const some = declarations.some((each) => each.important);
+			for (let bits = 0; bits < 1 << one.tests.length; bits++) {
+				const normal: Record<string, unknown> = {};
+				const important: Record<string, unknown> = {};
+				let test = 0;
+				for (const each of declarations) {
+					const bag = each.important ? important : normal;
+					if (each.expression === null) {
+						bag[each.name] = each.literal;
+						continue;
+					}
+					const present = ((bits >> test) & 1) === 1;
+					test += 1;
+					if (!present) {
+						bag[each.name] = null;
+						continue;
+					}
+					// A marker of its own per outcome, so a value in half the outcomes is still a
+					// hole planted once and consumed once.
+					const at = holes.length;
+					holes.push({ index: at, expression: each.expression, raw: false });
+					bag[each.name] = sentinel(at);
+				}
+				table.push(attr_style(one.base, some ? [normal, important] : normal));
+			}
 		}
 		const hole = holes[one.index];
 		if (hole?.choice !== undefined) hole.choice.outcomes = table;

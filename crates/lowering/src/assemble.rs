@@ -208,12 +208,9 @@ fn landing(html: &str, sentinel: usize, from: usize) -> Result<Landing> {
 ///
 /// The empty outcome produces no node rather than an empty one, because writing nothing is what an
 /// attribute Svelte left out looks like and a node holding `""` says the same thing twice.
-fn nest(tests: &[String], outcomes: &[String], at: usize, bits: usize) -> Vec<ir::Node> {
+fn nest(tests: &[String], outcomes: &[Vec<ir::Node>], at: usize, bits: usize) -> Vec<ir::Node> {
 	let Some(test) = tests.get(at) else {
-		return match outcomes.get(bits) {
-			Some(one) if !one.is_empty() => vec![ir::Node::Static { s: one.clone() }],
-			_ => Vec::new(),
-		};
+		return outcomes.get(bits).cloned().unwrap_or_default();
 	};
 	vec![ir::Node::If {
 		branches: vec![
@@ -378,7 +375,29 @@ impl Assembler<'_> {
 				choice.outcomes.len()
 			));
 		}
-		Ok(nest(&tests, &choice.outcomes, 0, 0))
+		// Each outcome is finished bytes, and a style decision writes the value inside them, so an
+		// outcome is split at its markers the way an attribute's region is. Every marker belongs to
+		// one outcome, which is what keeps a value appearing in half of them a hole consumed once.
+		let mut leaves = Vec::with_capacity(choice.outcomes.len());
+		for outcome in &choice.outcomes {
+			leaves.push(self.pieces(outcome)?);
+		}
+		Ok(nest(&tests, &leaves, 0, 0))
+	}
+
+	/// One outcome as nodes: its literal runs, and a slot wherever a marker stands in it.
+	fn pieces(&mut self, outcome: &str) -> Result<Vec<ir::Node>> {
+		let mut out = Out::default();
+		let mut at = 0;
+		while let Some((start, end, index)) = sentinel_at(outcome, at, outcome.len()) {
+			out.write(&outcome[at..start]);
+			let (expression, _) = self.hole(index)?;
+			let path = self.path(&expression)?;
+			out.push(ir::Node::Slot { path, escape: ir::Escape::Attr });
+			at = end;
+		}
+		out.write(&outcome[at..]);
+		Ok(out.finish())
 	}
 
 	fn hole(&mut self, index: usize) -> Result<(String, bool)> {

@@ -261,6 +261,23 @@ one of those is a shape that had not been seen before:
    1  a name the markup reads that nothing binds
 ```
 
+**Then `style:`, and 20 became 22.** What is left:
+
+```
+   5  {@render} of a snippet from a prop  -- none of them blocks the page it is used on
+   3  {...spread}  -- none of them blocks the page it is used on either
+   2  context the entry has no ancestor to provide
+   2  a marker where the child computes with the value
+   1  a component that rendered none of the markup it was given
+   1  a marker where the child calls the value           1  <svelte:element>
+   1  a snippet a component is passed, with parameters
+   1  {@const} inside a snippet that takes parameters
+   1  a name the markup reads that nothing binds
+```
+
+**Eight of the eighteen still measure the scan.** Of the ten that are real, five are one question
+asked five ways: what a child may do with what it is given. See the table above.
+
 **A component that rendered none of the markup it was given** is press's search dialog:
 `<Dialog.Root {open}>` with `open` a piece of client state that has no value yet, so bits-ui writes
 nothing and every marker planted inside it has nowhere to come back from. **That is what Svelte's
@@ -442,6 +459,49 @@ on a page whose child renders the markup the page wrote inside its tag. One with
 refused, because the arguments are chosen by the child and are not visible from here; it used to be
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
+
+## `style:` is the same decision, with the value written inside the outcome
+
+Reading `build_attr_style` and `to_style` first was what made this small, because almost none of it
+is what the name suggests. **A `style` attribute beside a directive is not passed through.** The
+whole attribute is reassembled: the base is re-parsed as CSS, with comments stripped and quotes and
+parentheses tracked; **every declaration in it whose name a directive also names is dropped**; each
+survivor is re-emitted as ` x;`; the directives are appended, the normal ones and then the
+`!important` ones; and the result is trimmed.
+
+```
+style="width:9px;color:red"  style:width={w}    ->   style="color:red; width: 1px;"
+```
+
+Measured against Svelte before a line was written, and none of the four rules in that one example
+would have been guessed.
+
+**A declaration is present when its value is neither null nor the empty string.** Not truthy:
+`style:width={0}` writes `width: 0;`. That is what makes it a substitution inside a decision -- a
+marker stands where the value goes, and nothing could stand where the presence is decided.
+
+### Why the declarations are not independent, and why that stopped mattering
+
+The obvious encoding is one decision per declaration, which needs no enumeration at all. It is
+wrong for one reason: the result is **trimmed**, and every declaration is written with a leading
+space, so whichever is present *first* loses its space. With a base there is always something in
+front and they are independent; with no base they are not. press writes exactly that shape --
+`<span style:width={...} style:margin-top={...}>` with no `style` attribute -- so the easy half
+would not have covered the one file there is.
+
+So it is enumerated, which is what `class:` already does: `2^n` outcomes, each built by calling
+`attr_style`, so the parsing, the dropping, the ordering, the `!important` bag, the trim and the
+empty result that writes no attribute are all Svelte's answers. **The one thing that is new is that
+an outcome carries markers**, and lowering splits an outcome at them the way it splits an
+attribute's region. Each outcome gets markers of its own, so a value appearing in half of them is
+still a hole planted once and consumed once, and the invariant that has caught most of the defects
+here did not have to be weakened to let this through.
+
+Refused: a `style` attribute whose value is an expression, because which of its declarations
+survive is decided by a string that only exists per request; and a directive mixing text with an
+expression, because Svelte joins them into one value and this reads a single expression.
+
+Of press's 41 components, 20 compiled and now 22 do.
 
 ## `bind:`, where the syntax takes a name and the output does not
 
@@ -769,9 +829,12 @@ style:color={undefined}      Svelte writes nothing at all
 
 **Each declaration is dropped when its own value is nullish**, not only the attribute when
 everything in it comes out empty -- which `presence` already covers. So `style:` is a substitution
-*inside* a decision. It is still refused, and it is **not** waiting on what `class:` waited on: a
-class directive's value never reaches the bytes, so its outcomes are two, while a style
-declaration's value does, so its outcomes are the values.
+*inside* a decision.
+
+A note here used to say that meant it was **not** waiting on what `class:` waited on, because a
+class directive's value never reaches the bytes while a style declaration's does, so its outcomes
+would be the values rather than two. That was wrong, and the section below says what it is
+instead: the outcomes are two per directive after all, and the value stands inside them.
 
 ### What the source said that no measurement had
 
