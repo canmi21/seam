@@ -40,6 +40,8 @@ interface Case {
 	 * if needs both branches: a construct only has to be wrong on the payload nobody tried.
 	 */
 	data?: unknown[];
+	/** Sibling files the case imports, by name without the extension. Composition needs two. */
+	beside?: Record<string, string>;
 }
 
 const accepted: Case[] = [
@@ -317,6 +319,77 @@ const accepted: Case[] = [
 		data: [{ w: '1px' }, { w: null }],
 	},
 	{
+		// Into the child, with its props bound to what the call site passes. Every row here was
+		// refused before, and each for the same reason: a component is a plain call with no anchor
+		// around what it writes, so a value handed over and not written back was an absence with
+		// nothing attached to it. From inside, none of them is a special case.
+		name: 'a child that computes with what it is given',
+		beside: { Kid: '<script>let { p } = $props();</script><b>{String(p).toUpperCase()}</b>' },
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid p={data.a} />',
+		data: [{ a: 'x' }, { a: '' }],
+	},
+	{
+		name: 'a child that writes a prop twice, and one that never writes it',
+		beside: {
+			Twice: '<script>let { p } = $props();</script><b>{p}</b><i>{p}</i>',
+			Never: '<script>let { p } = $props();</script><b>fixed</b>',
+		},
+		source:
+			"<script>import Twice from './Twice.svelte'; import Never from './Never.svelte';" +
+			' let { data } = $props();</script><Twice p={data.a} /><Never p={data.a} />',
+		data: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
+		// Blocks in the child, numbered in the walk that reaches them and met in the render in the
+		// same order, which is the whole of what makes them line up.
+		name: 'a child that branches and iterates over what it is given',
+		beside: {
+			Both: '<script>let { xs, f } = $props();</script>{#if f}<b>y</b>{:else}<i>n</i>{/if}' +
+				'<ul>{#each xs as x}<li>{x}</li>{/each}</ul>',
+		},
+		source:
+			"<script>import Both from './Both.svelte'; let { data } = $props();</script>" +
+			'<Both xs={data.xs} f={data.f} />',
+		data: [
+			{ xs: ['a', 'b'], f: true },
+			{ xs: [], f: false },
+		],
+	},
+	{
+		// A prop the call site leaves out is its default, which is what `$props()` destructuring
+		// does. Getting this wrong wrote the wrong bytes rather than refusing, and only the
+		// comparison with Svelte said so.
+		name: 'a child with a default the call site does not pass',
+		beside: { Fallback: '<script>let { p, r = "d" } = $props();</script><b>{p}{r}</b>' },
+		source:
+			"<script>import Fallback from './Fallback.svelte'; let { data } = $props();</script>" +
+			'<Fallback p={data.a} />',
+		data: [{ a: 'x' }],
+	},
+	{
+		// One copy per call site. The same module rendered twice writes the same markers twice, and
+		// a marker has to come back once.
+		name: 'the same child at two call sites',
+		beside: { Same: '<script>let { p } = $props();</script><b>{p}</b>' },
+		source:
+			"<script>import Same from './Same.svelte'; let { data } = $props();</script>" +
+			'<Same p={data.a} /><Same p={data.b} />',
+		data: [{ a: 'x', b: 'y' }],
+	},
+	{
+		name: 'a child of a child',
+		beside: {
+			Outer: "<script>import Inner from './Inner.svelte'; let { p } = $props();</script><Inner q={p} />",
+			Inner: '<script>let { q } = $props();</script><b>{q}</b>',
+		},
+		source:
+			"<script>import Outer from './Outer.svelte'; let { data } = $props();</script>" +
+			'<Outer p={data.a} />',
+		data: [{ a: 'x' }],
+	},
+	{
 		name: 'raw html',
 		source: `${PROPS}<p>{@html data.a}</p>`,
 		data: [{ a: '<b>x</b>' }, { a: '' }],
@@ -541,6 +614,9 @@ async function attempt(
 	refusal?: string;
 }> {
 	const file = resolve(staging, `${at}.svelte`);
+	for (const [name, source] of Object.entries(one.beside ?? {})) {
+		writeFileSync(resolve(staging, `${name}.svelte`), source);
+	}
 	writeFileSync(file, one.source);
 	try {
 		const compiled = lower([[one.name, JSON.stringify(await skeleton(file, staging))]])[0];
@@ -585,14 +661,40 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 
 		const file = resolve(staging, `ok-${at}.svelte`);
 		const out = resolve(staging, `ok-${at}.js`);
-		writeFileSync(
-			out,
-			// The same `rootDir` the compiler used. Svelte hashes the filename, relative to it, into a
-			// head anchor and into a scoped class, so an oracle rooted elsewhere renders a different
-			// component. See spec/build.md.
-			compile(one.source, { generate: 'server', name: 'C', filename: file, rootDir: staging }).js
-				.code,
-		);
+		// The same `rootDir` the compiler used. Svelte hashes the filename, relative to it, into a
+		// head anchor and into a scoped class, so an oracle rooted elsewhere renders a different
+		// component. See spec/build.md.
+		let code = compile(one.source, {
+			generate: 'server',
+			name: 'C',
+			filename: file,
+			rootDir: staging,
+		}).js.code;
+		// A sibling the case imports is compiled beside it and every specifier pointed at the
+		// result, because Node cannot load a `.svelte` and this oracle is Node. Every file, not
+		// only the entry: a child of a child imports its own.
+		const siblings = Object.entries(one.beside ?? {}).map(([name, source]) => ({
+			name,
+			at: resolve(staging, `${name}.js`),
+			code: compile(source, {
+				generate: 'server',
+				name,
+				filename: resolve(staging, `${name}.svelte`),
+				rootDir: staging,
+			}).js.code,
+		}));
+		const point = (text: string): string => {
+			let out = text;
+			for (const sibling of siblings) {
+				out = out.replace(
+					new RegExp(`(['"])\\./${sibling.name}\\.svelte\\1`),
+					JSON.stringify(pathToFileURL(sibling.at).href),
+				);
+			}
+			return out;
+		};
+		for (const sibling of siblings) writeFileSync(sibling.at, point(sibling.code));
+		writeFileSync(out, point(code));
 		const mod = (await import(pathToFileURL(out).href)) as {
 			default: Parameters<typeof render>[0];
 		};

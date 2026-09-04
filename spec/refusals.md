@@ -460,6 +460,57 @@ refused, because the arguments are chosen by the child and are not visible from 
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
 
+## Composition: the walk goes into the child
+
+The table below measures what a child may do with a value it is handed, and the answer was that
+telling any two of those apart needs to be inside the child. So the walk goes in.
+
+**It is the same walk.** On a `Component` whose tag resolves to a `.svelte` file this project holds,
+the child's source is read, its props are bound to the expressions at the call site, and `collect`
+runs over its markup. From inside, none of the rows in that table is a special case: **the child's
+own expressions become the markers**, and each expands through the props to the caller's expression.
+A prop written twice is two markers; a prop never read is none; a prop computed with is the
+computation. Nothing in the walk knows which of those it is doing.
+
+Six things had to be true, and each was measured before it was written:
+
+- **A copy per call site, not per file.** A component is a plain call, so the same module rendered
+  twice writes the same markers twice and each comes back twice. The same shape a snippet rendered
+  twice had, and the same answer.
+- **Svelte is told the real filename.** The scoped class and the head anchor are hashes of the
+  filename relative to `rootDir`; a copy staged under another name moves both.
+- **A prop the call site leaves out is the child's default.** `$props()` destructures, so a missing
+  prop is `undefined` and the default fires. Getting this wrong **wrote the wrong bytes rather than
+  refusing**, and only the comparison against Svelte said so.
+- **The call site's values are handed to the render as nothing.** The child's markers already carry
+  the expressions, so what the tag passes is dead -- and live, it would be evaluated against data
+  the render is not given.
+- **A shorthand prop is written out first.** `{data}` is `data={data}`, and the short form's braces
+  hold a bare name, so `{null}` is `'null' is a reserved word`. The same cost a marker planted in
+  one had, met a second time in a different pass.
+- **A cycle is refused rather than followed**, which `compose()` in
+  `crates/lowering/src/lower.rs` has always done for the other lowering path.
+
+**A component this cannot follow is left to Svelte, exactly as before.** The walk is attempted and
+everything it touched is rolled back if it stops, so nothing that compiled before this stops
+compiling now: a package's component, one given markup as children, one behind a spread, and
+anything inside a child that the walk has not been taught. What is gained is gained; nothing is
+traded for it.
+
+Of press's 41 components, 22 compiled and now 23 do, and the shapes that leave are the ones this
+was for: a child formatting a date it was handed, a child using a prop twice, a child not using one
+at all.
+
+### What it does not do yet
+
+**Children.** Markup inside a component's tag is a `children` snippet the child is handed, and
+following it means following a snippet across a file. Left to Svelte, which is why `{@render}` of a
+snippet from a prop is still on the list -- and why it still blocks nothing, since Svelte renders
+those correctly.
+
+**A spread at the call site**, for the reason the spread section gives: the props are keys the walk
+cannot enumerate.
+
 ## What a child may do with what it is given, measured across every shape
 
 Five of what was left were one question asked five ways, so it was asked once, of a matrix: one

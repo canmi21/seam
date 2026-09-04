@@ -621,26 +621,34 @@ export function locals(source: string): Locals {
 			const from = at['start'];
 			const to = at['end'];
 			if (typeof from !== 'number' || typeof to !== 'number') return;
-			edits.push([from, to, `(${given ?? expand(name, open)})`]);
+			edits.push([from, to, `(${given ?? expand(name, open, extra)})`]);
 		});
 
 		return apply(source.slice(start, end), edits, start);
 	}
 
-	function expand(name: string, open: ReadonlySet<string>): string {
+	function expand(
+		name: string,
+		open: ReadonlySet<string>,
+		extra?: ReadonlyMap<string, string>,
+	): string {
+		// Not cached when names come from outside: the same declaration expands differently for
+		// two callers, which is the whole point of a composed child having its own call site.
 		const cached = expanded.get(name);
-		if (cached !== undefined && open.size === 0) return cached;
+		if (cached !== undefined && open.size === 0 && extra === undefined) return cached;
 		const one = found.get(name);
 		if (one === undefined) return name;
 		if (one.literal !== undefined) return one.literal;
 		// A name cannot stand in for itself. A cycle among declarations is the author's, and
 		// leaving the name in place lets the pass that resolves names report it.
 		const inner = new Set(open).add(name);
-		const body = slice(one.node, inner);
+		// Carried down, so a declaration that reads a prop reaches the value the caller passed
+		// rather than the name it was written with.
+		const body = slice(one.node, inner, extra);
 		// Parenthesised because what follows it is a member access, and because a function or a
 		// class only reads as an expression that way.
 		const text = one.access === '' ? body : `(${body})${one.access}`;
-		if (open.size === 0) expanded.set(name, text);
+		if (open.size === 0 && extra === undefined) expanded.set(name, text);
 		return text;
 	}
 
