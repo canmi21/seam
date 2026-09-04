@@ -177,6 +177,26 @@ const REFUSED: Record<string, string> = {
 	AttachTag: '`{@attach}` is not handled yet. It runs on the client and writes no bytes',
 };
 
+/**
+ * The call a `{@render}` makes, with an optional chain unwrapped.
+ *
+ * `{@render children?.()}` parses as a `ChainExpression` around the call, so reading `callee`
+ * straight off the expression finds nothing and the tag looks like a render of something this
+ * component never declared. Svelte's own transform calls `unwrap_optional` here for the same
+ * reason, and this is that function.
+ */
+function called(expression: unknown): AstNode | null {
+	if (!isNode(expression)) return null;
+	const inner = expression['type'] === 'ChainExpression' ? expression['expression'] : expression;
+	return isNode(inner) ? inner : null;
+}
+
+/** The name a `{@render}` calls, where it calls one by name rather than through a member. */
+function renders(node: AstNode): string | null {
+	const callee = called(node['expression'])?.['callee'];
+	return isNode(callee) && typeof callee['name'] === 'string' ? callee['name'] : null;
+}
+
 /** What a refusal says, in one shape, so the reader always learns where the question lives. */
 function refuse(what: string): never {
 	throw new Error(`${what}. See spec/refusals.md`);
@@ -438,9 +458,8 @@ function collect(
 		}
 
 		case 'RenderTag': {
-			const call = node['expression'];
-			const callee = isNode(call) ? call['callee'] : undefined;
-			const name = isNode(callee) && typeof callee['name'] === 'string' ? callee['name'] : null;
+			const call = called(node['expression']);
+			const name = renders(node);
 			const one = name === null ? undefined : snippets.get(name);
 			if (one === undefined || !one.declared) {
 				refuse(
@@ -712,10 +731,10 @@ function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = false): 
 		}
 	}
 	if (node['type'] === 'RenderTag') {
-		const call = node['expression'];
-		const callee = isNode(call) ? call['callee'] : undefined;
-		if (isNode(call) && isNode(callee) && typeof callee['name'] === 'string') {
-			const one = into.get(callee['name']) ?? {
+		const call = called(node['expression']);
+		const name = renders(node);
+		if (call !== null && name !== null) {
+			const one = into.get(name) ?? {
 				declared: false,
 				parameters: 0,
 				renders: 0,
@@ -725,12 +744,110 @@ function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = false): 
 			};
 			one.renders += 1;
 			one.args = Array.isArray(call['arguments']) ? call['arguments'] : [];
-			into.set(callee['name'], one);
+			into.set(name, one);
 		}
 	}
 	// Inside a component's tag, a snippet is a prop rather than something this component renders.
 	const within = inside || node['type'] === 'Component' || node['type'] === 'SvelteComponent';
 	for (const value of Object.values(node)) snippetsIn(value, into, within);
+}
+
+/**
+ * One copy of a snippet per `{@render}` that calls it, so that a body stands in one place only.
+ *
+ * A snippet is a function -- `{#snippet a(v)}` compiles to `function a($$renderer, v)` and
+ * `{@render a(x)}` to `a($$renderer, x)`, read out of `visitors/SnippetBlock.js` and
+ * `visitors/RenderTag.js`. Calling it twice inlines the body twice, and this compiler plants its
+ * markers in the body once: each would come back twice, which the hole check reports, and a
+ * parameter would have to stand for two different arguments at once. Both used to be refused.
+ *
+ * Duplicating the declaration is what makes them go away, because it is what the render does
+ * anyway. Each copy has one call, so it has one set of markers and one argument per parameter, and
+ * everything downstream is the case that already worked. A snippet declaration writes no bytes --
+ * the visitor pushes a function to `hoisted` or `init`, never to the template -- so a copy adds
+ * none either, which is what makes this a rewrite rather than a change of output.
+ *
+ * Done to the source before any other pass reads it, so nothing downstream knows about it.
+ */
+function inlined(source: string): string {
+	const ast = parse(source, { modern: true }) as unknown as AstNode;
+	const snippets = new Map<string, Snippet>();
+	snippetsIn(ast['fragment'], snippets);
+
+	const wanted = new Set(
+		[...snippets]
+			.filter(([, one]) => one.declared && !one.passed && one.renders > 1)
+			.map(([name]) => name),
+	);
+	if (wanted.size === 0) return source;
+
+	const declarations = new Map<string, AstNode>();
+	const calls = new Map<string, AstNode[]>();
+	const find = (node: unknown): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) find(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		if (node['type'] === 'SnippetBlock') {
+			const id = node['expression'];
+			if (isNode(id) && typeof id['name'] === 'string' && wanted.has(id['name'])) {
+				declarations.set(id['name'], node);
+			}
+		}
+		if (node['type'] === 'RenderTag') {
+			const name = renders(node);
+			const callee = called(node['expression'])?.['callee'];
+			if (name !== null && wanted.has(name) && isNode(callee)) {
+				calls.set(name, [...(calls.get(name) ?? []), callee]);
+			}
+		}
+		for (const value of Object.values(node)) find(value);
+	};
+	find(ast['fragment']);
+
+	// A name nothing else in the file uses, so a copy cannot shadow a snippet the author wrote.
+	const taken = new Set(snippets.keys());
+	const naming = (name: string, at: number): string => {
+		let candidate = `${name}$${String(at)}`;
+		while (taken.has(candidate)) candidate += '$';
+		taken.add(candidate);
+		return candidate;
+	};
+
+	const edits: [number, number, string][] = [];
+	for (const name of wanted) {
+		const block = declarations.get(name);
+		const sites = calls.get(name) ?? [];
+		const at = span(block);
+		const id = span(isNode(block) ? block['expression'] : undefined);
+		if (block === undefined || at === null || id === null) continue;
+		// A snippet that renders itself would lose the name it recurses through, and a recursion
+		// has no fixed number of copies to make in the first place.
+		if (
+			sites.some((site) => {
+				const where = span(site);
+				return where !== null && where[0] > at[0] && where[1] < at[1];
+			})
+		) {
+			refuse(
+				`the snippet \`${name}\` renders itself, and a compile-time render has no way to stop: ` +
+					'the body would have to stand in as many places as the data has depth',
+			);
+		}
+		const text = source.slice(at[0], at[1]);
+		const names = sites.map((_, index) => naming(name, index));
+		const body = (to: string) =>
+			text.slice(0, id[0] - at[0]) + to + text.slice(id[1] - at[0]);
+		edits.push([at[0], at[1], names.map(body).join('')]);
+		for (const [index, site] of sites.entries()) {
+			const where = span(site);
+			const to = names[index];
+			if (where !== null && to !== undefined) edits.push([where[0], where[1], to]);
+		}
+	}
+
+	return apply(source, edits);
 }
 
 function rewrite(
@@ -986,7 +1103,9 @@ async function shippable(): Promise<void> {
 export async function skeleton(entryFile: string, root: string): Promise<Skeleton> {
 	await shippable();
 	const file = resolvePath(entryFile);
-	const source = readFileSync(file, 'utf8');
+	// Before anything reads it: a snippet rendered more than once becomes one copy per call, which
+	// is what the render does with it anyway and what leaves every pass below the case it knows.
+	const source = inlined(readFileSync(file, 'utf8'));
 
 	const parsed = parse(source, { modern: true }) as unknown as AstNode;
 

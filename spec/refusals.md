@@ -179,6 +179,21 @@ gone.
    1  context the entry has no ancestor to provide
 ```
 
+**Then the repeated snippet, and 15 became 17.** What is left, with the five that only a scan
+counts marked as such:
+
+```
+   5  {@render} of a snippet from a prop  -- none of them blocks the page it is used on
+   3  {...spread}                              3  a bind: the server writes
+   3  a name assigned after it is declared     2  style:
+   1  a snippet a component is passed, with parameters
+   1  {@const} inside a snippet that takes parameters
+   1  {#each} over a destructuring             1  <svelte:element>
+   1  a marker where the child computes with the value
+   1  a marker where the child calls the value
+   1  context the entry has no ancestor to provide
+```
+
 Three of those were reported for the first time rather than newly caused: a name assigned after it
 is declared was always there, behind a block refusal that ran first.
 
@@ -344,6 +359,48 @@ on a page whose child renders the markup the page wrote inside its tag. One with
 refused, because the arguments are chosen by the child and are not visible from here; it used to be
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
+
+## `{@render}`, where the count of five was measuring the scan rather than the compiler
+
+Five components were held by *`{@render}` of a snippet this component does not declare*. Every one
+of them writes `{@render children()}`, and every one of them is a component somebody else's markup
+goes inside -- a layout, a modal, a popover, a menu, an article. **Compiled where they are actually
+used, four of the five compile and the fifth stops on something else entirely** (a `getContext` its
+ancestor provides). The refusal fires only when such a file is made the entry, which nothing makes
+it.
+
+So the number was measuring the shape of the scan, not the compiler, for the second time. It is
+kept here rather than deleted because the refusal is still right: an entry's props are the payload,
+and a payload carries data rather than functions, so an entry genuinely cannot be handed a snippet.
+What would make it possible is the walk descending into children, which is the composition item,
+and this is one of its faces rather than a thing of its own.
+
+### What was real, and it was the other half of the same tag
+
+`{#snippet a(v)}` compiles to `function a($$renderer, v)` and `{@render a(x)}` to
+`a($$renderer, x)` -- `visitors/SnippetBlock.js` and `visitors/RenderTag.js`. So **two renders
+inline the body twice**, and this compiler plants its markers in that body once: each came back
+twice, which the hole check reports, and a parameter would have to stand for two arguments at once.
+Both were refused, and press writes it five times: a footnote entry, a copy button, a code action,
+a label, a source link.
+
+**One copy of the declaration per call site is what the render does anyway.** Each copy then has one
+call, so it has one set of markers and one argument per parameter, and every pass below it is back
+in the case it already handled. A snippet declaration writes no bytes -- the visitor pushes a
+function to `hoisted` or `init`, never to the template -- so a copy adds none, which is what makes
+this a rewrite of the source rather than a change to the output. It is done before any other pass
+reads the file, and nothing downstream knows about it.
+
+A snippet that renders itself is refused instead, and says so: a recursion has no fixed number of
+call sites to make copies for.
+
+**`{@render a?.()}` was refused for a reason that was simply untrue.** The optional form parses as
+a `ChainExpression` around the call, so reading `callee` off the expression found nothing and a
+snippet the component *does* declare was reported as one it does not. Svelte's own transform calls
+`unwrap_optional` at exactly this point, which is what this now does. Third time a refusal has been
+right about stopping and wrong about why.
+
+Of press's 41 components, 15 compiled and now 17 do.
 
 ## A block inside an else, and the `{:else if}` that was never one
 

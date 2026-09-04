@@ -164,6 +164,46 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A snippet is a function and a render is a call, so two renders inline the body twice.
+		// The markers are planted once, in one body, and used to come back twice. One copy per call
+		// site is what the render does anyway, and it leaves every pass below the case it knows.
+		name: 'a snippet rendered more than once',
+		source: `${PROPS}{#snippet h()}<p>{data.a}</p>{/snippet}{@render h()}{@render h()}`,
+		data: [{ a: 'v' }, { a: '<&"' }],
+	},
+	{
+		// The reason this could not be one body: a parameter has to stand for a different argument
+		// at each call.
+		name: 'a snippet with a parameter, rendered more than once',
+		source:
+			`${PROPS}{#snippet h(v)}<p>{v}</p>{/snippet}` +
+			'{@render h(data.a)}{@render h(data.b)}{@render h(data.a)}',
+		data: [
+			{ a: 'p', b: 'q' },
+			{ a: '', b: null },
+		],
+	},
+	{
+		// One of the calls inside a block, so the copies are not adjacent and the block numbering
+		// has to survive the rewrite.
+		name: 'a repeated snippet with one call inside a block',
+		source:
+			`${PROPS}{#snippet h(v)}<i>{v}</i>{/snippet}` +
+			'{@render h(data.a)}{#if data.f}{@render h(data.b)}{/if}',
+		data: [
+			{ a: 'p', b: 'q', f: true },
+			{ a: 'p', b: 'q', f: false },
+		],
+	},
+	{
+		// The optional form. Svelte parses it as a chain around the call, so reading the callee
+		// straight off the expression found nothing and this was refused for naming a snippet the
+		// component does not declare -- which it does.
+		name: 'an optional render of a local snippet',
+		source: `${PROPS}{#snippet h()}<p>{data.a}</p>{/snippet}<div>{@render h?.()}</div>`,
+		data: [{ a: 'v' }],
+	},
+	{
 		name: 'raw html',
 		source: `${PROPS}<p>{@html data.a}</p>`,
 		data: [{ a: '<b>x</b>' }, { a: '' }],
@@ -309,8 +349,10 @@ const refused: Case[] = [
 		source: `${PROPS}<b>{data.a}</b>{#snippet row(r)}<i>{r}</i>{/snippet}`,
 	},
 	{
-		name: 'a snippet rendered twice',
-		source: `${PROPS}{#snippet h()}<p>{data.a}</p>{/snippet}{@render h()}{@render h()}`,
+		// A snippet that renders itself. Duplicating per call site is what makes a repeated render
+		// work, and a recursion has no fixed number of call sites to duplicate for.
+		name: 'a snippet that renders itself',
+		source: `${PROPS}{#snippet h(v)}<p>{v}</p>{@render h(v)}{/snippet}{@render h(data.a)}`,
 	},
 	{
 		name: 'a render of a snippet from a prop',
