@@ -460,6 +460,49 @@ refused, because the arguments are chosen by the child and are not visible from 
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
 
+## The measurement is a route now, and it says four things are left
+
+Every count above was files: each `.svelte` compiled as though it were the entry. That question has
+no answer for a library component, which is never one, and the lists kept carrying rows that
+measured the scan rather than the compiler. Now that a page inside its layout is one walk, the unit
+is what it should have been:
+
+```svelte
+<script>
+	import L0 from '../+layout.svelte';
+	import Page from './+page.svelte';
+	let { data } = $props();
+</script>
+
+<L0><Page {data} /></L0>
+```
+
+which is what SvelteKit composes. Over press's eight routes, **none compiles yet**, and what stops
+them is four things rather than the eighteen the file count last showed.
+
+| what | where | routes |
+| --- | --- | --- |
+| a component that renders none of the markup it was given | the layout's search dialog: `<Dialog.Root {open}>` with `open` a piece of client state that has no value yet | **all eight** |
+| a parameterised snippet inside a component's tag | `{#snippet child({ props })}`, which is how `bits-ui` hands an element back to its caller | two |
+| `{...spread}` on an element | the home page, and the article body | one |
+| `{@const}` inside a snippet that takes parameters | the support block | one |
+
+**The first one gates everything**, because it is in the layout: the other three routes stop for
+their own reason first, and would meet it next.
+
+### Two errors that were not gaps, and one measurement habit that was hiding them
+
+`No locale found` and `Cannot read properties of undefined` were on that list until the diagnostic
+was fixed. Neither is a gap: both are **Svelte rendering a component the walk could not enter,
+without the values a request would bring**. The walk is rolled back when it stops, which is what
+keeps this from refusing what already worked -- and the refusal was being thrown away with it, so
+what the author saw was a crash from inside a library. Every abandoned walk now records why, and a
+failed render says both. Three of press's four remaining gaps were found only after that.
+
+**Both of these -- the unit and the discarded reason -- were the same mistake in different
+clothes.** A measurement that answers a question nobody asks, and an error that reports the last
+thing that happened rather than the first.
+
 ## `<svelte:element>`, where the tag decides four shapes and nothing else
 
 Refused as *an unenumerable decision, so a small closed runtime node*, which had the cost right and
