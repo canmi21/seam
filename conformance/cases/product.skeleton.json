@@ -1,9 +1,9 @@
 {
-	"html": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[0--><button>Buy</button><!--]--><template>%%b0%%</template><!--[--><span>%%s1%%</span><!--]--><template>%%b1%%</template></article><!--]-->",
+	"html": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[0--><button>Buy</button><!--]-->%%b0%%<!--[--><span>%%s1%%</span><!--]-->%%b1%%</article><!--]-->",
 	"head": "",
 	"alternates": {
 		"0.-1": {
-			"body": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[-1--><!--]--><template>%%b0%%</template><!--[--><span>%%s1%%</span><!--]--><template>%%b1%%</template></article><!--]-->",
+			"body": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[-1--><!--]-->%%b0%%<!--[--><span>%%s1%%</span><!--]-->%%b1%%</article><!--]-->",
 			"head": ""
 		}
 	},
@@ -41,5 +41,6 @@
 			"counter": null,
 			"alternate": false
 		}
-	]
+	],
+	"entered": []
 }

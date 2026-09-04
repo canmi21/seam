@@ -141,6 +141,20 @@ renderer, with a `TypeError` naming nothing an author could act on.
 time**, so that it can be bundled with the expression that calls it. It usually is, being a module
 the author already depends on.
 
+**What is carried is gathered from every file whose expressions became derivations, not from the
+entry alone.** Composition walks into a child, and the child's own markup becomes derivations in
+the *entry's* artifact -- so a child writing `{shout(word)}` around a function it imported itself
+compiled cleanly and threw `ReferenceError: shout is not defined` at request time. Nothing at
+compile time could say so, because a render never evaluates a derivation: the expression is
+collected as source and first runs when a request arrives. A component the walk did not enter is
+rendered by Svelte and contributes no derivation, so it is not gathered from.
+
+Two consequences worth stating. A specifier is resolved against the file that wrote it, since two
+components in different directories spell `./helper.ts` differently and the bundle is written from
+one place. And **one name means one module**: derivations are evaluated in a single scope, so two
+components carrying the same local name for different modules is refused rather than settled by
+whichever was read last.
+
 A draft refused a call through a value -- `handlers[k](x)` -- for having no name to follow.
 Bundling makes that unnecessary: `handlers` is the name, it is imported, the whole of it is
 bundled, and which entry the call reaches is decided at request time inside the bundle like any

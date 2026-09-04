@@ -1,14 +1,14 @@
 {
-	"html": "<!--[--><div><!--[0--><b>%%s1%%</b><!--]--><template>%%b2%%</template></div><!--]-->",
-	"head": "<!--hrv3jt--><!--[0--><meta name=\"robots\" content=\"index\"/><!--]--><template>%%b0%%</template><!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]--><template>%%b1%%</template><!---->",
+	"html": "<!--[--><div><!--[0--><b>%%s1%%</b><!--]-->%%b2%%</div><!--]-->",
+	"head": "<!--hrv3jt--><!--[0--><meta name=\"robots\" content=\"index\"/><!--]-->%%b0%%<!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]-->%%b1%%<!---->",
 	"alternates": {
 		"0.-1": {
-			"body": "<!--[--><div><!--[0--><b>%%s1%%</b><!--]--><template>%%b2%%</template></div><!--]-->",
-			"head": "<!--hrv3jt--><!--[-1--><meta name=\"robots\" content=\"noindex\"/><!--]--><template>%%b0%%</template><!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]--><template>%%b1%%</template><!---->"
+			"body": "<!--[--><div><!--[0--><b>%%s1%%</b><!--]-->%%b2%%</div><!--]-->",
+			"head": "<!--hrv3jt--><!--[-1--><meta name=\"robots\" content=\"noindex\"/><!--]-->%%b0%%<!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]-->%%b1%%<!---->"
 		},
 		"2.-1": {
-			"body": "<!--[--><div><!--[-1--><!--]--><template>%%b2%%</template></div><!--]-->",
-			"head": "<!--hrv3jt--><!--[0--><meta name=\"robots\" content=\"index\"/><!--]--><template>%%b0%%</template><!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]--><template>%%b1%%</template><!---->"
+			"body": "<!--[--><div><!--[-1--><!--]-->%%b2%%</div><!--]-->",
+			"head": "<!--hrv3jt--><!--[0--><meta name=\"robots\" content=\"index\"/><!--]-->%%b0%%<!--[--><link rel=\"alternate\" href=\"%%s0%%\"/><!--]-->%%b1%%<!---->"
 		}
 	},
 	"holes": [
@@ -56,5 +56,6 @@
 			"alternate": false,
 			"within": []
 		}
-	]
+	],
+	"entered": []
 }

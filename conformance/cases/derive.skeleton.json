@@ -1,13 +1,13 @@
 {
-	"html": "<!--[--><div><!--[0--><b>pricey</b><!--]--><template>%%b0%%</template><span>%%s0%%</span><!--[0--><em>none</em><!--]--><template>%%b1%%</template></div><!--]-->",
+	"html": "<!--[--><div><!--[0--><b>pricey</b><!--]-->%%b0%%<span>%%s0%%</span><!--[0--><em>none</em><!--]-->%%b1%%</div><!--]-->",
 	"head": "",
 	"alternates": {
 		"0.-1": {
-			"body": "<!--[--><div><!--[-1--><i>cheap</i><!--]--><template>%%b0%%</template><span>%%s0%%</span><!--[0--><em>none</em><!--]--><template>%%b1%%</template></div><!--]-->",
+			"body": "<!--[--><div><!--[-1--><i>cheap</i><!--]-->%%b0%%<span>%%s0%%</span><!--[0--><em>none</em><!--]-->%%b1%%</div><!--]-->",
 			"head": ""
 		},
 		"1.-1": {
-			"body": "<!--[--><div><!--[0--><b>pricey</b><!--]--><template>%%b0%%</template><span>%%s0%%</span><!--[-1--><!--]--><template>%%b1%%</template></div><!--]-->",
+			"body": "<!--[--><div><!--[0--><b>pricey</b><!--]-->%%b0%%<span>%%s0%%</span><!--[-1--><!--]-->%%b1%%</div><!--]-->",
 			"head": ""
 		}
 	},
@@ -41,5 +41,6 @@
 			"alternate": false,
 			"within": []
 		}
-	]
+	],
+	"entered": []
 }

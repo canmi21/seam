@@ -16,8 +16,8 @@
  */
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
-import { bindings, bundle, type Bundle, type Carried } from 'ast';
-import { carry } from 'carry';
+import { bundle, type Bundle, type Carried } from 'ast';
+import { carriedBy, carry } from 'carry';
 import { lower } from 'lowering';
 import {
 	combinations,
@@ -159,7 +159,7 @@ export async function prepare(
 		source,
 		markup,
 		skeleton: rendered,
-		carried: await carry(entry, [...bindings(source).carried, ...helpers(rendered)]),
+		carried: await carry(entry, [...carriedBy([entry, ...rendered.entered]), ...helpers(rendered)]),
 	};
 }
 

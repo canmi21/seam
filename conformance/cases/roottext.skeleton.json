@@ -9,5 +9,6 @@
 			"raw": false
 		}
 	],
-	"blocks": []
+	"blocks": [],
+	"entered": ["/Users/canmi/workspace/repos/seam/conformance/cases/parts/Badge.svelte"]
 }

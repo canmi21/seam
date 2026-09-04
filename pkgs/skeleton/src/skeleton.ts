@@ -197,5 +197,14 @@ export async function skeleton(
 		...Object.values(alternates).flatMap((one) => [one.body, one.head]),
 	]);
 
-	return { html, head, alternates, holes: baseline.holes, blocks: baseline.blocks };
+	return {
+		html,
+		head,
+		alternates,
+		holes: baseline.holes,
+		blocks: baseline.blocks,
+		// One entry per file rather than per call site: two calls of one component carry the same
+		// imports, and what is wanted here is which modules the bundle has to reach.
+		entered: [...new Set(baseline.copies.map((copy) => copy.file))],
+	};
 }

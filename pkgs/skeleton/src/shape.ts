@@ -150,4 +150,13 @@ export interface Skeleton {
 	alternates: Record<string, Rendered>;
 	holes: Hole[];
 	blocks: Block[];
+	/**
+	 * Every component the walk went inside, as absolute paths.
+	 *
+	 * A child the walk entered has its own expressions become derivations in the entry's artifact,
+	 * so what those expressions call has to be in the entry's carried bundle -- and the list of
+	 * what to carry was read from the entry's imports alone. One the walk did not enter is rendered
+	 * by Svelte and contributes no derivation, so it is not here. See spec/derivation.md.
+	 */
+	entered: string[];
 }

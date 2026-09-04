@@ -22,7 +22,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { carry } from 'carry';
+import { carriedBy, carry } from 'carry';
 import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject } from 'injector';
 import { lower } from 'lowering';
@@ -43,6 +43,8 @@ interface Case {
 	data?: unknown[];
 	/** Sibling files the case imports, by name without the extension. Composition needs two. */
 	beside?: Record<string, string>;
+	/** Sibling files that are not components, written as named. What a derivation may call. */
+	alongside?: Record<string, string>;
 	/**
 	 * Payload paths this render is fixed at, as literal source text. The payloads below have to
 	 * agree with them, since the oracle is given the whole of the data and renders what it says.
@@ -742,6 +744,24 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A child the walk enters whose markup calls a function *it* imported. The expression
+		// becomes a derivation in the entry's artifact, and what a derivation may call is whatever
+		// the carried bundle holds -- which was read from the entry's own imports alone, so the
+		// name resolved at compile time and threw `ReferenceError` at request time. Nothing in the
+		// compile said so, because the render never evaluates a derivation.
+		name: 'a child that calls a function it imported itself',
+		beside: {
+			Shouts:
+				"<script>import { shout } from './shout-helper.ts'; let { word } = $props();</script>" +
+				'<b>{shout(word)}</b>',
+		},
+		alongside: { 'shout-helper.ts': 'export const shout = (v) => String(v).toUpperCase() + "!";' },
+		source:
+			"<script>import Shouts from './Shouts.svelte'; let { data } = $props();</script>" +
+			'<Shouts word={data.a} />',
+		data: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
 		// A `{@const}` inside a snippet. Its body was walked child by child rather than as the
 		// fragment it is, which stepped past the arm that reads one -- so a const tag reached the
 		// walk's default case and was refused as a construct nobody had taught it, in a shape the
@@ -1234,6 +1254,9 @@ async function attempt(
 	for (const [name, source] of Object.entries(one.beside ?? {})) {
 		writeFileSync(resolve(staging, `${name}.svelte`), source);
 	}
+	for (const [name, source] of Object.entries(one.alongside ?? {})) {
+		writeFileSync(resolve(staging, name), source);
+	}
 	writeFileSync(file, one.source);
 	try {
 		const rendered = await skeleton(file, staging, new Map(Object.entries(one.fixed ?? {})));
@@ -1243,12 +1266,14 @@ async function attempt(
 		return {
 			ir: compiled.ir as Parameters<typeof inject>[0],
 			derivations: compiled.derivations as Derivation[],
-			// The same list `pkgs/compiler` adds, so what the check runs is what a page runs.
-			carried: rendered.holes.some((hole) => hole.spread === true)
-				? await carry(file, [
-						{ local: 'attributes', from: 'svelte/internal/server', kind: 'named' },
-					])
-				: '',
+			// Gathered by the function the build gathers with, over the same files, so what the
+			// check runs is what a page runs rather than a second arrangement of the same parts.
+			carried: await carry(file, [
+				...carriedBy([file, ...rendered.entered]),
+				...(rendered.holes.some((hole) => hole.spread === true)
+					? [{ local: 'attributes', from: 'svelte/internal/server', kind: 'named' } as const]
+					: []),
+			]),
 		};
 	} catch (error) {
 		return { refusal: (error as Error).message };

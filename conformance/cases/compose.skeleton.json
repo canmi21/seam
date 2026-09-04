@@ -1,9 +1,9 @@
 {
-	"html": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[0--><span class=\"badge cold\">%%s3%%</span><!--]--><template>%%b0%%</template><!--[--><span class=\"badge cold\">%%s4%%</span><!--]--><template>%%b1%%</template></div><!--]-->",
+	"html": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[0--><span class=\"badge cold\">%%s3%%</span><!--]-->%%b0%%<!--[--><span class=\"badge cold\">%%s4%%</span><!--]-->%%b1%%</div><!--]-->",
 	"head": "",
 	"alternates": {
 		"0.-1": {
-			"body": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[-1--><!--]--><template>%%b0%%</template><!--[--><span class=\"badge cold\">%%s4%%</span><!--]--><template>%%b1%%</template></div><!--]-->",
+			"body": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[-1--><!--]-->%%b0%%<!--[--><span class=\"badge cold\">%%s4%%</span><!--]-->%%b1%%</div><!--]-->",
 			"head": ""
 		}
 	},
@@ -56,5 +56,6 @@
 			"counter": null,
 			"alternate": false
 		}
-	]
+	],
+	"entered": ["/Users/canmi/workspace/repos/seam/conformance/cases/parts/Badge.svelte"]
 }
