@@ -182,6 +182,15 @@ export interface Walk {
 	 * decides what a block's stamp is carried by and nothing else. See `carrier()`.
 	 */
 	parent: string | null;
+	/**
+	 * True while walking a prop of a component the walk could not enter.
+	 *
+	 * The value is going somewhere this pass cannot read, so what stands for it has to survive
+	 * being *used* rather than only being written out. An object is the case that does not: one
+	 * marker for the whole of `{ count: n }` hands the component a string, and the field it reads
+	 * off it is undefined. The marker goes on each value instead, so the object is still an object.
+	 */
+	opaque?: boolean;
 }
 
 export interface Rewritten {
@@ -337,6 +346,58 @@ function slotOf(node: AstNode): string | null {
 	return null;
 }
 
+/**
+ * Plants a marker at each value of an object or array literal, in place of one for the whole.
+ *
+ * Only for a value handed to a component the walk could not enter, and only for what is written
+ * out as a literal here: the keys are the author's, so what the component reads off the object is
+ * still there, and only the values it writes are markers. `{ count: n }` becomes
+ * `{ count: "%%s5%%" }` rather than `"%%s5%%"`, which is the difference between a field the
+ * component can read and a string that has none.
+ *
+ * A shorthand property has its name written back out, for the third-time reason `scope.ts` gives.
+ * Anything the shape does not allow -- a spread, a computed key, a getter -- is left to the caller,
+ * which plants one marker for the whole and reports it if it does not come back.
+ *
+ * @returns whether it took the value over.
+ */
+function leaves(expression: unknown, walk: Walk): boolean {
+	if (!isNode(expression)) return false;
+	const kind = expression['type'];
+	if (kind !== 'ObjectExpression' && kind !== 'ArrayExpression') return false;
+	const parts = kind === 'ObjectExpression' ? expression['properties'] : expression['elements'];
+	if (!Array.isArray(parts) || parts.length === 0) return false;
+
+	const planned: (() => void)[] = [];
+	for (const one of parts) {
+		if (!isNode(one)) return false;
+		const shorthand = kind === 'ObjectExpression' && one['shorthand'] === true;
+		if (kind === 'ObjectExpression') {
+			if (one['type'] !== 'Property' || one['computed'] === true || one['kind'] !== 'init') {
+				return false;
+			}
+		}
+		const value = kind === 'ObjectExpression' ? one['value'] : one;
+		const key = kind === 'ObjectExpression' ? one['key'] : undefined;
+		const name = isNode(key) && typeof key['name'] === 'string' ? key['name'] : '';
+		const where = span(value);
+		if (where === null) return false;
+		// An event handler is never serialised, so nothing stands for it.
+		if (name.startsWith('on') && name.length > 2) continue;
+		planned.push(() => {
+			// Nested, so an object inside an object comes apart the same way.
+			if (leaves(value, walk)) return;
+			const index = walk.holes.length;
+			walk.holes.push({ index, expression: walk.expand(value), raw: false });
+			const marker = JSON.stringify(sentinel(index));
+			walk.edits.push([where[0], where[1], shorthand ? `${name}: ${marker}` : marker]);
+		});
+	}
+	if (planned.length === 0) return false;
+	for (const one of planned) one();
+	return true;
+}
+
 function collect(node: unknown, walk: Walk): void {
 	const {
 		blocks,
@@ -449,6 +510,10 @@ function collect(node: unknown, walk: Walk): void {
 				edits.push([at[0], at[1], written]);
 				return;
 			}
+			// A value going to a component the walk could not enter, written as an object or an
+			// array: a marker per element rather than one for the whole. The component reads fields
+			// off what it is given, and a string has none of them.
+			if (walk.opaque === true && leaves(node['expression'], walk)) return;
 			const index = holes.length;
 			// Where the value lands, and therefore how it is escaped, is read off the render rather
 			// than guessed here. A prop passed to a component may end up in text or in an attribute,
@@ -523,7 +588,7 @@ function collect(node: unknown, walk: Walk): void {
 					// and it is the shape every wrapper from a package has.
 					if (given && site.payload !== null && inert(attr, expand, dynamic)) continue;
 					const before = holes.length;
-					step(attr);
+					collect(attr, { ...walk, opaque: given });
 					if (!given || !isNode(attr)) continue;
 					const prop = typeof attr['name'] === 'string' ? attr['name'] : '';
 					for (const one of holes.slice(before)) one.given = `\`<${tag}>\` as \`${prop}\``;

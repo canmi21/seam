@@ -663,6 +663,26 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A value handed to a component the walk could not enter, written as an object. One marker
+		// for the whole of it makes the component's own read -- `i.count` -- undefined, because a
+		// string has no fields; the marker goes on each value instead, so what arrives is still an
+		// object and only what the component writes out is standing in. Paraglide's `inputs` is
+		// this shape, and it is how a translated string gets a number put inside it.
+		name: 'an object handed to a child the walk cannot enter',
+		beside: {
+			Reads:
+				'<script>let { inputs, ...rest } = $props();</script>' +
+				'<i>{inputs.count}</i><b>{inputs.deep.name}</b><u>{inputs.list[0]}</u>',
+		},
+		source:
+			"<script>import Reads from './Reads.svelte'; let { data } = $props();</script>" +
+			'<Reads inputs={{ count: data.n, deep: { name: data.a }, list: [data.a] }} />',
+		data: [
+			{ n: 3, a: 'x' },
+			{ n: 0, a: '<&' },
+		],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',
