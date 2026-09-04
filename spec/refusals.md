@@ -246,6 +246,33 @@ counts marked as such:
    1  context the entry has no ancestor to provide
 ```
 
+**Then `bind:`, and the count stayed at 20.** Every component it unblocked met something else, and
+one of those is a shape that had not been seen before:
+
+```
+   5  {@render} of a snippet from a prop  -- none of them blocks the page it is used on
+   3  {...spread}  -- none of them blocks the page it is used on either
+   2  context the entry has no ancestor to provide       2  style:
+   2  a marker where the child computes with the value
+   1  a component that rendered none of the markup it was given
+   1  a marker where the child calls the value           1  <svelte:element>
+   1  a snippet a component is passed, with parameters
+   1  {@const} inside a snippet that takes parameters
+   1  a name the markup reads that nothing binds
+```
+
+**A component that rendered none of the markup it was given** is press's search dialog:
+`<Dialog.Root {open}>` with `open` a piece of client state that has no value yet, so bits-ui writes
+nothing and every marker planted inside it has nowhere to come back from. **That is what Svelte's
+own server does** -- a closed dialog is not in the response, and the client opens it -- so the right
+output is nothing, and the markers are lost on purpose rather than swallowed.
+
+Telling the two apart is the item. A child that mangles one value loses one marker while its
+neighbours survive; a child that renders nothing loses every marker in that subtree together and
+writes no marker of its own. What makes it safe is that the decision was taken from values that do
+not vary per request: one taken from a marker would have rendered, and shown up as a block count
+that does not match. It depends on nothing else being built first.
+
 **Eight of the eighteen are the scan rather than the compiler.** Both marked rows are components
 that only ever appear inside somebody else's markup, and they compile there. What is actually left
 in the way of a page is ten.
@@ -415,6 +442,37 @@ on a page whose child renders the markup the page wrote inside its tag. One with
 refused, because the arguments are chosen by the child and are not visible from here; it used to be
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
+
+## `bind:`, where the syntax takes a name and the output does not
+
+Half of `bind:` was already handled: forty of the forty-seven bindings are measurements a browser
+takes, and Svelte's table marks them `omit_in_ssr`. The other seven were refused, and the message
+said a marker cannot stand where the value goes because **`bind:` takes a name rather than an
+expression**. That is true of the syntax and false of the output, which is the only thing that
+matters here.
+
+`visitors/shared/element.js` ends a written binding at
+
+```js
+attributes.push({ type: 'transformed', name: get_attribute_name(node, attribute), expression });
+```
+
+so `bind:value={v}` writes exactly what `value={v}` writes. On a component,
+`visitors/shared/component.js` turns it into a getter and a setter for the same prop, and only the
+getter runs while the bytes are written. **So the rewrite is the whole of it**: `bind:NAME={expr}`
+becomes `NAME={expr}` in the source, before any other pass reads the file, and nothing downstream
+knows there was ever a binding. A boolean one lands on `presence` exactly as a written attribute
+does, which was already there.
+
+Everything the visitor drops is dropped, from the same reading: `bind:this`, the forty the table
+marks, and `bind:value` on a `<select>` or on a file input, both of which it skips because the
+attribute has no effect on either.
+
+Three shapes are not an attribute, and each now says what it is rather than what it is not:
+`bind:innerHTML`, `bind:textContent` and `bind:innerText` are written as the element's *content*,
+replacing its children; `bind:value` on a `<textarea>` is the same; and `bind:group` is written as
+`checked`, computed from the bound value together with the element's own `value` attribute. A
+getter/setter pair is refused for the same reason, which is that the server calls the getter.
 
 ## A declaration with no value, which is what client state looks like on the server
 

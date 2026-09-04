@@ -259,6 +259,34 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// A binding is not a separate kind of output. The element visitor ends at
+		// `attributes.push({ type: 'transformed', name, expression })`, so this writes what
+		// `value={v}` writes. The refusal said a marker cannot stand where the value goes because
+		// `bind:` takes a name; the syntax does, the output does not.
+		name: 'a bind: the server writes',
+		source: '<script>let { data } = $props(); let v = $state(data.a)</script><input bind:value={v} />',
+		data: [{ a: 'v' }, { a: '' }, { a: null }],
+	},
+	{
+		// Boolean, so what is written is the attribute's presence rather than its value, which is
+		// the one rule `presence` already carries because a render cannot show it.
+		name: 'a bind: on a boolean attribute',
+		source:
+			'<script>let { data } = $props(); let v = $state(data.f)</script>' +
+			'<input type="checkbox" bind:checked={v} /><details bind:open={v}><p>x</p></details>',
+		data: [{ f: true }, { f: false }],
+	},
+	{
+		// Three the visitor drops on the way out: `bind:this` is client-only, and `value` is
+		// skipped on a select and on a file input because the attribute has no effect there.
+		name: 'the bindings the server drops',
+		source:
+			'<script>let { data } = $props(); let el; let v = $state(data.a)</script>' +
+			'<div bind:this={el}>{data.a}</div><select bind:value={v}><option>a</option></select>' +
+			'<input type="file" bind:value={v} />',
+		data: [{ a: 'v' }],
+	},
+	{
 		name: 'raw html',
 		source: `${PROPS}<p>{@html data.a}</p>`,
 		data: [{ a: '<b>x</b>' }, { a: '' }],
@@ -375,15 +403,7 @@ const refused: Case[] = [
 	},
 	{ name: 'style: directive', source: `${PROPS}<p style:color={data.a}>x</p>` },
 	{ name: 'a spread', source: `${PROPS}<p {...data.attrs}>x</p>` },
-	{
-		// A binding the server writes. There is nowhere to plant the marker: `bind:` takes a name
-		// rather than an expression. See spec/refusals.md.
-		name: 'a bind: the server writes',
-		source: `${PROPS}<script>let v = 1</script><input bind:value={v} />`.replace(
-			'</script><script>',
-			'; ',
-		),
-	},
+
 	{ name: 'svelte:element', source: `${PROPS}<svelte:element this={data.tag}>x</svelte:element>` },
 	{ name: 'svelte:boundary', source: `${PROPS}<svelte:boundary><p>{data.a}</p></svelte:boundary>` },
 	{ name: 'await block', source: `${PROPS}{#await data.p}<p>w</p>{:then v}<p>{v}</p>{/await}` },
@@ -408,6 +428,23 @@ const refused: Case[] = [
 		// of the element, so there is no way in to write down.
 		name: 'an each pattern with a default',
 		source: `${PROPS}{#each data.rows as { id = 1 }}<i>{id}</i>{/each}`,
+	},
+	{
+		// Written as the element's content rather than as an attribute, so it replaces the children
+		// rather than standing among them. See spec/refusals.md.
+		name: 'bind:innerHTML',
+		source: `${PROPS}<script>let v = $state()</script><div contenteditable bind:innerHTML={v}></div>`.replace(
+			'</script><script>',
+			'; ',
+		),
+	},
+	{
+		// `checked`, computed from this value together with the element's own `value` attribute.
+		name: 'bind:group',
+		source: `${PROPS}<script>let v = $state()</script><input type="radio" value="a" bind:group={v} />`.replace(
+			'</script><script>',
+			'; ',
+		),
 	},
 	{
 		// A snippet that renders itself. Duplicating per call site is what makes a repeated render
