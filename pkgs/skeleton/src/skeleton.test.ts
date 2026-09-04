@@ -63,7 +63,10 @@ const accepted: Case[] = [
 		source:
 			'<script>let { data } = $props(); const n = data.a; const cls = data.b</script>' +
 			'<b {n} class={cls}>x</b>',
-		data: [{ a: 'v', b: 'c' }, { a: '', b: null }],
+		data: [
+			{ a: 'v', b: 'c' },
+			{ a: '', b: null },
+		],
 	},
 	{
 		// Every branch of `to_class`, which is what a `class:` compiles to. The payloads matter more
@@ -115,7 +118,11 @@ const accepted: Case[] = [
 	{
 		name: 'an else-if chain with no final else',
 		source: `${PROPS}{#if data.a}<b>a</b>{:else if data.b}<i>b</i>{/if}`,
-		data: [{ a: true, b: true }, { a: false, b: true }, { a: false, b: false }],
+		data: [
+			{ a: true, b: true },
+			{ a: false, b: true },
+			{ a: false, b: false },
+		],
 	},
 	{
 		// Three of them, so the branch numbering is exercised past the one place an off-by-one
@@ -267,7 +274,8 @@ const accepted: Case[] = [
 		// `value={v}` writes. The refusal said a marker cannot stand where the value goes because
 		// `bind:` takes a name; the syntax does, the output does not.
 		name: 'a bind: the server writes',
-		source: '<script>let { data } = $props(); let v = $state(data.a)</script><input bind:value={v} />',
+		source:
+			'<script>let { data } = $props(); let v = $state(data.a)</script><input bind:value={v} />',
 		data: [{ a: 'v' }, { a: '' }, { a: null }],
 	},
 	{
@@ -347,7 +355,8 @@ const accepted: Case[] = [
 		// same order, which is the whole of what makes them line up.
 		name: 'a child that branches and iterates over what it is given',
 		beside: {
-			Both: '<script>let { xs, f } = $props();</script>{#if f}<b>y</b>{:else}<i>n</i>{/if}' +
+			Both:
+				'<script>let { xs, f } = $props();</script>{#if f}<b>y</b>{:else}<i>n</i>{/if}' +
 				'<ul>{#each xs as x}<li>{x}</li>{/each}</ul>',
 		},
 		source:
@@ -382,7 +391,8 @@ const accepted: Case[] = [
 	{
 		name: 'a child of a child',
 		beside: {
-			Outer: "<script>import Inner from './Inner.svelte'; let { p } = $props();</script><Inner q={p} />",
+			Outer:
+				"<script>import Inner from './Inner.svelte'; let { p } = $props();</script><Inner q={p} />",
 			Inner: '<script>let { q } = $props();</script><b>{q}</b>',
 		},
 		source:
@@ -402,12 +412,16 @@ const accepted: Case[] = [
 		source:
 			"<script>import Wrap from './Wrap.svelte'; let { data } = $props();</script>" +
 			'<Wrap cls={data.b}><b>{data.a}</b></Wrap>',
-		data: [{ a: 'x', b: 'c' }, { a: '<&', b: null }],
+		data: [
+			{ a: 'x', b: 'c' },
+			{ a: '<&', b: null },
+		],
 	},
 	{
 		name: 'a block on each side of the boundary',
 		beside: {
-			Half: '<script>let { children, f } = $props();</script>' +
+			Half:
+				'<script>let { children, f } = $props();</script>' +
 				'{#if f}<div>{@render children()}</div>{:else}<p>n</p>{/if}',
 		},
 		source:
@@ -423,7 +437,9 @@ const accepted: Case[] = [
 		// The same wrapper inside itself. Its copy is numbered when it is taken rather than when
 		// the tag is renamed, because the walk between the two takes copies of its own.
 		name: 'a wrapper inside itself',
-		beside: { Nest: '<script>let { children } = $props();</script><div>{@render children()}</div>' },
+		beside: {
+			Nest: '<script>let { children } = $props();</script><div>{@render children()}</div>',
+		},
 		source:
 			"<script>import Nest from './Nest.svelte'; let { data } = $props();</script>" +
 			'<Nest><Nest><b>{data.a}</b></Nest></Nest>',
@@ -439,11 +455,49 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }],
 	},
 	{
+		// A child the walk cannot enter -- its `$props()` gathers a rest, which is a set of keys at
+		// the call site rather than a value -- that does render what it was given. From outside it
+		// there is no anchor around what it writes, so the second render is what says so: the
+		// markup is replaced by a literal nobody could produce and the literal comes back. Holding
+		// a block, because a block wrongly called absent leaves the order the assembler counts and
+		// the branch nobody rendered is the one that goes missing. See spec/refusals.md.
+		name: 'markup given to a child the walk cannot enter, which writes it',
+		beside: {
+			Opaque:
+				'<script>let { children, ...rest } = $props();</script>' +
+				'<div>{@render children()}</div>',
+		},
+		source:
+			"<script>import Opaque from './Opaque.svelte'; let { data } = $props();</script>" +
+			'<Opaque><b>{data?.a}</b>{#if data?.f}<i>{data?.a}</i>{:else}<u>n</u>{/if}</Opaque>',
+		data: [
+			{ a: 'x', f: true },
+			{ a: '<&', f: false },
+		],
+	},
+	{
+		// The same child, writing none of what it was given, which is what a portal and a closed
+		// dialog do. The literal does not come back either, so every marker inside is allowed not
+		// to -- on that evidence, never on the absence itself. See spec/refusals.md.
+		name: 'markup given to a child the walk cannot enter, which writes none of it',
+		beside: {
+			Shut: '<script>let { children, ...rest } = $props();</script><div>fixed</div>',
+		},
+		source:
+			"<script>import Shut from './Shut.svelte'; let { data } = $props();</script>" +
+			'<Shut><b>{data.a}</b>{#if data.f}<i>{data.a}</i>{/if}</Shut>',
+		data: [
+			{ a: 'x', f: true },
+			{ a: '<&', f: false },
+		],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',
 		beside: {
-			Layout: '<script>let { children } = $props();</script>' +
+			Layout:
+				'<script>let { children } = $props();</script>' +
 				'<svelte:head><meta name="l" content="v" /></svelte:head><header>h</header>' +
 				'{@render children()}<footer>f</footer>',
 			Page: '<script>let { data } = $props();</script><main>{data.a}</main>',
@@ -503,10 +557,7 @@ const accepted: Case[] = [
 		// case of its attribute names. Neither is worked out here; both come out of the call.
 		name: 'a spread on an input and on a custom element',
 		source: `${PROPS}<input {...data.r} /><my-el {...data.r}>x</my-el>`,
-		data: [
-			{ r: { defaultValue: 'd', dataFoo: 'v' } },
-			{ r: { value: 'v', disabled: true } },
-		],
+		data: [{ r: { defaultValue: 'd', dataFoo: 'v' } }, { r: { value: 'v', disabled: true } }],
 	},
 	{
 		name: 'raw html',
@@ -657,18 +708,20 @@ const refused: Case[] = [
 		// Written as the element's content rather than as an attribute, so it replaces the children
 		// rather than standing among them. See spec/refusals.md.
 		name: 'bind:innerHTML',
-		source: `${PROPS}<script>let v = $state()</script><div contenteditable bind:innerHTML={v}></div>`.replace(
-			'</script><script>',
-			'; ',
-		),
+		source:
+			`${PROPS}<script>let v = $state()</script><div contenteditable bind:innerHTML={v}></div>`.replace(
+				'</script><script>',
+				'; ',
+			),
 	},
 	{
 		// `checked`, computed from this value together with the element's own `value` attribute.
 		name: 'bind:group',
-		source: `${PROPS}<script>let v = $state()</script><input type="radio" value="a" bind:group={v} />`.replace(
-			'</script><script>',
-			'; ',
-		),
+		source:
+			`${PROPS}<script>let v = $state()</script><input type="radio" value="a" bind:group={v} />`.replace(
+				'</script><script>',
+				'; ',
+			),
 	},
 	{
 		// A snippet that renders itself. Duplicating per call site is what makes a repeated render
@@ -718,7 +771,6 @@ const refused: Case[] = [
 		source: '<script>let { data } = $props(); const o = { a: 1 }; o.a = 2</script><p>{o.a}</p>',
 	},
 	{ name: 'translate as a boolean', source: `${PROPS}<p translate={true}>{data.a}</p>` },
-
 ];
 
 /** Compiles one case, and says either what it produced or why it was turned away. */
@@ -747,7 +799,9 @@ async function attempt(
 			derivations: compiled.derivations as Derivation[],
 			// The same list `pkgs/compiler` adds, so what the check runs is what a page runs.
 			carried: rendered.holes.some((hole) => hole.spread === true)
-				? await carry(file, [{ local: 'attributes', from: 'svelte/internal/server', kind: 'named' }])
+				? await carry(file, [
+						{ local: 'attributes', from: 'svelte/internal/server', kind: 'named' },
+					])
 				: '',
 		};
 	} catch (error) {

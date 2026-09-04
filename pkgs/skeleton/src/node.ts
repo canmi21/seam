@@ -26,6 +26,27 @@ export function refuse(what: string): never {
 }
 
 /**
+ * Where a fragment sits in the source: from its first child to its last.
+ *
+ * A `Fragment` carries `nodes` and nothing else -- no `start`, no `end` -- so asking one for a span
+ * gets a pair of `undefined` and every caller that took one did nothing at all, quietly. That is
+ * what the probe render was doing: it planted no literal, so no component was ever measured to
+ * write the markup it was given, and the fragment it did not replace it also did not walk, which
+ * left the markup rendering with none of the rewriting the pass had done everywhere else.
+ *
+ * The children carry the whitespace between the tags, so first to last is the whole of what was
+ * written inside them.
+ */
+export function extent(fragment: unknown): [number, number] | null {
+	if (!isNode(fragment)) return null;
+	const nodes = fragment['nodes'];
+	if (!Array.isArray(nodes) || nodes.length === 0) return null;
+	const first = span(nodes[0]);
+	const last = span(nodes[nodes.length - 1]);
+	return first === null || last === null ? null : [first[0], last[1]];
+}
+
+/**
  * The call a `{@render}` makes, with an optional chain unwrapped.
  *
  * `{@render children?.()}` parses as a `ChainExpression` around the call, so reading `callee`

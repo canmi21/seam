@@ -18,6 +18,7 @@ import {
 	called,
 	declarationOf,
 	elseIf,
+	extent,
 	holdsFor,
 	isNode,
 	namesIn,
@@ -446,9 +447,9 @@ function collect(node: unknown, walk: Walk): void {
 			// not walk a handed fragment, so any group nested inside one is never recorded there and
 			// a counter would say different things in the two walks -- which marked the wrong
 			// markup absent and then reported itself as a contradiction.
-			const probe = `%%h${identity(site.file, span(fragment)?.[0] ?? 0)}%%`;
+			const probe = `%%h${identity(site.file, extent(fragment)?.[0] ?? 0)}%%`;
 			if (site.probing) {
-				const where = span(fragment);
+				const where = extent(fragment);
 				if (where !== null) edits.push([where[0], where[1], probe]);
 				site.handed.push({ probe, component: tag, holes: [0, 0], blocks: [0, 0] });
 				return;
