@@ -460,6 +460,52 @@ refused, because the arguments are chosen by the child and are not visible from 
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
 
+## `{...spread}` on an element, which Svelte hands over whole
+
+The refusal called it an unenumerable decision needing a closed runtime node. The first half was
+right and the second was too small a description: what is needed is not a node this compiler
+writes, it is **Svelte's own function, carried**.
+
+**An element with a spread does not write its attributes one at a time.** Every attribute and every
+spread on it is merged into one object and handed to
+`$.attributes(object, hash, classes, styles, flags)`, which walks the object's keys at request
+time. Which keys those are is the only thing that cannot be known at compile time.
+
+So the marker stands for the whole run rather than for an attribute in it, and the expression
+behind it is that same call. **And the call is taken from Svelte's own output**, which is what the
+compiled code looks like:
+
+```js
+$.attributes({ ...data.r, id: 'i' })
+$.attributes({ ...data.r }, void 0, void 0, void 0, 4)          // an input
+$.attributes({ ...data.r }, void 0, void 0, void 0, 3)          // inside <svg>
+$.attributes({ ...data.r, class: 'a' }, 'svelte-1lj1c3f')       // a scoped element
+```
+
+Everything after the object is decided by the element rather than by its attributes, so replacing
+the attributes with a probe leaves the hash, the directives and the flags exactly where they were,
+and they are read back from the compiled output verbatim. Nothing here reproduces the merging
+order, the escaping, the boolean names, `defaultValue` on an input, the case rules for a namespaced
+or custom element, or the invalid-name regex.
+
+### The runtime node is `attributes` itself, in the bundle that already exists
+
+`spec/pipeline.md` defines the derivation bundle as the author's expressions **and the pure
+functions those expressions call**, compiled to one script with no imports left in it, which both a
+TypeScript and a QuickJS backend already evaluate. `attributes` is a pure function, so it goes in
+that bundle beside the author's own imports and the two backends run one implementation rather than
+agreeing about a rule.
+
+Measured: bundled it is 17 kB, and its only two host references are
+`globalThis.process?.env?.NODE_ENV` and `globalThis.document?.contentType` -- **optionally chained
+off `globalThis`**, so an evaluator with no host reads them as undefined rather than failing. It
+evaluates and answers in a bare sandbox with nothing but `new Function`.
+
+Refused beside it, each saying what it is: a `class:` or `style:` directive on the same element,
+which is a further argument to that one call; an attribute mixing text with an expression, which is
+one value once merged; and `{...}` on a `<svelte:element>`, where the tag and the attributes are
+each decided per request and only one of the two is written.
+
 ## A component call has no boundary, and Svelte's answer is that it never needed one
 
 The assembler counts every `<!--[` anchor in the render as one of the blocks the walk numbered. A

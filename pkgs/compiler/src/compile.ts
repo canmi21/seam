@@ -16,7 +16,7 @@
  */
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
-import { bindings, bundle, type Bundle } from 'ast';
+import { bindings, bundle, type Bundle, type Carried } from 'ast';
 import { carry } from 'carry';
 import { lower, type Lowered } from 'lowering';
 import { skeleton, type Skeleton } from 'skeleton';
@@ -84,6 +84,22 @@ export interface Report {
 	derivations: number;
 }
 
+/**
+ * Svelte's own functions a component's expressions call, which the author did not import.
+ *
+ * `attributes` writes the whole of an element's attributes from an object, which is what a `{...}`
+ * needs and what cannot be enumerated at compile time. It goes in the carried bundle beside the
+ * author's own imports, so both backends run **Svelte's implementation** rather than agreeing
+ * about a rule: nothing here reproduces the merging, the escaping, the boolean names, the
+ * `defaultValue` mapping on an input or the case rules for a namespaced element. Measured at 17 kB
+ * bundled, with its only host references optionally chained off `globalThis`, so an evaluator with
+ * no host reads them as undefined rather than failing. See spec/refusals.md.
+ */
+function helpers(skeleton: Skeleton): Carried[] {
+	if (!skeleton.holes.some((one) => one.spread === true)) return [];
+	return [{ local: 'attributes', from: 'svelte/internal/server', kind: 'named' }];
+}
+
 /** The id of a file, which is also where its artifacts sit under the output directory. */
 function idOf(root: string, file: string): string {
 	const withoutExtension = file.slice(0, -extname(file).length);
@@ -119,7 +135,7 @@ export async function prepare(file: string, root: string): Promise<Prepared> {
 		source,
 		markup,
 		skeleton: rendered,
-		carried: await carry(entry, bindings(source).carried),
+		carried: await carry(entry, [...bindings(source).carried, ...helpers(rendered)]),
 	};
 }
 

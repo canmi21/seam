@@ -30,6 +30,10 @@ pub struct Hole {
 	/// which is also what a compiler that has stopped working looks like. See `spec/refusals.md`.
 	#[serde(default)]
 	pub safe: bool,
+	/// The whole of an element's attributes rather than one of them. A spread's keys arrive with
+	/// the request, so what is written is one finished run and it is already escaped.
+	#[serde(default)]
+	pub spread: bool,
 }
 
 /// A decision whose outcomes were enumerated at compile time.
@@ -204,6 +208,24 @@ struct Dynamic {
 	/// Just past the trailing empty comment.
 	to: usize,
 	index: usize,
+}
+
+/// The `>` that closes a tag, skipping any inside a quoted value. Svelte escapes `&` and `"` in
+/// an attribute and leaves `>` alone, so one can sit inside a value.
+fn closes(html: &str, from: usize, until: usize) -> Option<usize> {
+	let mut quoted = false;
+	for (offset, c) in html.get(from..until)?.char_indices() {
+		match c {
+			'"' => quoted = !quoted,
+			// The `/` of a void element belongs to what comes after the attributes, not to them.
+			'>' if !quoted => {
+				let at = from + offset;
+				return Some(if html.get(..at)?.ends_with('/') { at - 1 } else { at });
+			}
+			_ => {}
+		}
+	}
+	None
 }
 
 const STANDIN: &str = "<seam-el";
@@ -613,6 +635,16 @@ impl Assembler<'_> {
 				}
 					Landing::Attribute { name, opens_at } => {
 					out.write(&html[at..opens_at]);
+					// A spread takes the run rather than an attribute in it: everything from the
+					// space before the first name to the `>` that closes the tag is one value.
+					if self.skeleton.holes.get(index).is_some_and(|hole| hole.spread) {
+						let (expression, _) = self.hole(index)?;
+						let path = self.path(&expression)?;
+						out.push(ir::Node::Slot { path, escape: ir::Escape::Raw });
+						at = closes(html, opens_at, until)
+							.ok_or_else(|| "an element whose attributes are spread is never closed".to_owned())?;
+						continue;
+					}
 					let value_from = html[opens_at..until]
 						.find("=\"")
 						.ok_or_else(|| format!("attribute `{name}` has no value"))?

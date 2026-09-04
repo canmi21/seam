@@ -22,6 +22,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { carry } from 'carry';
 import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject } from 'injector';
 import { lower } from 'lowering';
@@ -482,6 +483,32 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// An element carrying a spread does not write its attributes one at a time: every attribute
+		// and every spread on it are merged into one object and handed to `$.attributes`, which
+		// walks the object's keys at request time. Which keys those are is the only thing that
+		// cannot be known here, so the marker stands for the whole run and the expression behind it
+		// is that same call -- with the object rebuilt from the source and every other argument
+		// taken verbatim from what Svelte compiled.
+		name: 'a spread on an element',
+		source: `${PROPS}<div {...data.r} id={data.i}>x{data.t}</div>`,
+		data: [
+			{ r: { a: '1', title: 'T' }, i: 'q', t: 'T' },
+			{ r: {}, i: null, t: '' },
+			// Escaping, a boolean name, a function and a key the writer skips, all Svelte's rules.
+			{ r: { 'data-x': '<&"', hidden: true, onclick: () => {}, $$weird: 1 }, i: 'z', t: 'U' },
+		],
+	},
+	{
+		// The flags an element decides: an input maps `defaultValue`, a custom element keeps the
+		// case of its attribute names. Neither is worked out here; both come out of the call.
+		name: 'a spread on an input and on a custom element',
+		source: `${PROPS}<input {...data.r} /><my-el {...data.r}>x</my-el>`,
+		data: [
+			{ r: { defaultValue: 'd', dataFoo: 'v' } },
+			{ r: { value: 'v', disabled: true } },
+		],
+	},
+	{
 		name: 'raw html',
 		source: `${PROPS}<p>{@html data.a}</p>`,
 		data: [{ a: '<b>x</b>' }, { a: '' }],
@@ -601,7 +628,6 @@ const refused: Case[] = [
 		name: 'a style directive mixing text and an expression',
 		source: `${PROPS}<p style:width="{data.a}px">x</p>`,
 	},
-	{ name: 'a spread', source: `${PROPS}<p {...data.attrs}>x</p>` },
 
 	{ name: 'svelte:boundary', source: `${PROPS}<svelte:boundary><p>{data.a}</p></svelte:boundary>` },
 	{ name: 'await block', source: `${PROPS}{#await data.p}<p>w</p>{:then v}<p>{v}</p>{/await}` },
@@ -702,6 +728,8 @@ async function attempt(
 ): Promise<{
 	ir?: Parameters<typeof inject>[0];
 	derivations?: Derivation[];
+	/** What the expressions call into, which a spread needs: `attributes` is Svelte's own. */
+	carried?: string;
 	refusal?: string;
 }> {
 	const file = resolve(staging, `${at}.svelte`);
@@ -710,12 +738,17 @@ async function attempt(
 	}
 	writeFileSync(file, one.source);
 	try {
-		const compiled = lower([[one.name, JSON.stringify(await skeleton(file, staging))]])[0];
+		const rendered = await skeleton(file, staging);
+		const compiled = lower([[one.name, JSON.stringify(rendered)]])[0];
 		if (compiled === undefined) return { refusal: 'nothing came back from lowering' };
 		if ('error' in compiled) return { refusal: compiled.error };
 		return {
 			ir: compiled.ir as Parameters<typeof inject>[0],
 			derivations: compiled.derivations as Derivation[],
+			// The same list `pkgs/compiler` adds, so what the check runs is what a page runs.
+			carried: rendered.holes.some((hole) => hole.spread === true)
+				? await carry(file, [{ local: 'attributes', from: 'svelte/internal/server', kind: 'named' }])
+				: '',
 		};
 	} catch (error) {
 		return { refusal: (error as Error).message };
@@ -747,7 +780,7 @@ it('renders the same bytes from any working directory', async () => {
 
 describe('what the compiler accepts, it reproduces byte for byte', () => {
 	it.each(accepted.map((one, at) => [one.name, one, at] as const))('%s', async (_name, one, at) => {
-		const { ir, derivations, refusal } = await attempt(one, `ok-${at}`);
+		const { ir, derivations, carried, refusal } = await attempt(one, `ok-${at}`);
 		expect(refusal, 'it was refused instead, so the surface has moved').toBeUndefined();
 
 		const file = resolve(staging, `ok-${at}.svelte`);
@@ -793,7 +826,7 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 		// Through `derive`, not around it. Injecting `{ data }` alone leaves every derived field
 		// undefined, so an accepted case that produced one rendered empty and matched nothing --
 		// which stayed invisible for as long as every accepted case here happened to have none.
-		const derive = compileDerivations(derivations ?? []);
+		const derive = compileDerivations(derivations ?? [], carried ?? '');
 		for (const data of one.data ?? []) {
 			expect(inject(ir as Parameters<typeof inject>[0], derive(data)).body).toBe(
 				render(mod.default, { props: { data } as never }).body,

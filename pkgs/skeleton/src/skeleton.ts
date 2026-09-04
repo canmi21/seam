@@ -29,6 +29,14 @@ export interface Hole {
 	/** Set when the hole is a decision rather than a substitution. */
 	choice?: Choice;
 	/**
+	 * The whole of an element's attributes, written by `$.attributes` at request time.
+	 *
+	 * A spread's keys arrive with the request, so which attributes exist cannot be enumerated and
+	 * a marker cannot stand for one of them. It stands for all of them instead: the value is the
+	 * finished run, ` a="1" b="2"`, and it is written raw because it is already escaped.
+	 */
+	spread?: true;
+	/**
 	 * Allowed not to come back, because it was planted in markup a component does not render.
 	 *
 	 * Set only on positive evidence, never on absence: the same render is made a second time with
@@ -207,10 +215,6 @@ const REFUSED: Record<string, string> = {
 	SvelteSelf: '`<svelte:self>` is not handled yet: composition does not yet follow a cycle',
 	SvelteComponent: '`<svelte:component>` chooses a component from a value, which is not decided',
 	SlotElement: '`<slot>` is not handled yet. Snippets replaced it, and neither is written',
-	SpreadAttribute:
-		'`{...}` spreads whichever keys the data carries, so the attributes that exist are decided ' +
-		'at request time and cannot be enumerated at compile time. It needs a closed runtime node, ' +
-		'which is not decided',
 	BindDirective:
 		'this `bind:` is one the server writes, and the value has nowhere to be planted: `bind:` ' +
 		'takes a name rather than an expression, so a marker cannot stand where the value goes. The ' +
@@ -457,8 +461,11 @@ function collect(
 			// The class directives are taken together with the class attribute, because that is how
 			// Svelte writes them: one call producing one attribute, not one attribute plus a list of
 			// additions. What is left after this is walked the ordinary way.
-			const handled = classes(node, holes, edits, expand, pending);
-			const styled = styles(source, node, holes, edits, expand, pending);
+			// A spread takes the whole run, so the two directive passes have nothing left to decide.
+			const spreads = spread(source, node, holes, edits, expand, site.spreads);
+			const handled = spreads.size > 0 ? spreads : classes(node, holes, edits, expand, pending);
+			const styled =
+				spreads.size > 0 ? spreads : styles(source, node, holes, edits, expand, pending);
 			const given = type === 'Component';
 			const tag = typeof node['name'] === 'string' ? node['name'] : '';
 
@@ -1249,6 +1256,7 @@ function rewrite(
 	const payload = declares === null ? null : new Set(declares.map((one) => one.local));
 	const missed: { file: string; reason: string }[] = [];
 	const handed: Handed[] = [];
+	const spreads: PendingSpread[] = [];
 	collect(
 		source,
 		ast['fragment'],
@@ -1272,13 +1280,14 @@ function rewrite(
 			payload,
 			missed,
 			handed,
+			spreads,
 			probing,
 		},
 		payload ?? new Set(),
 	);
 	withPrelude(source, ast, prelude, edits);
 
-	return { rewritten: apply(source, edits), holes, blocks, pending, copies, missed, handed };
+	return { rewritten: apply(source, edits), holes, blocks, pending, copies, missed, handed, spreads };
 }
 
 /**
@@ -1289,6 +1298,114 @@ function rewrite(
  * limit exists so the cost is refused with a number in it rather than paid quietly.
  */
 const CHOICES = 16;
+
+/**
+ * An element whose attributes a spread decides, written as one value the runtime produces.
+ *
+ * Read out of `build_spread_object` and `prepare_element_spread`, and out of what they compile to.
+ * An element carrying a spread does not write its attributes one at a time: every attribute and
+ * every spread on it is merged into one object and handed to `$.attributes(object, hash, classes,
+ * styles, flags)`, which walks the object's keys at request time. Which keys those are is what
+ * cannot be known here, and it is the only thing that cannot.
+ *
+ * So the marker stands for the whole run rather than for one attribute in it, and the expression
+ * behind it is that same call: the object rebuilt from the source, and every other argument taken
+ * verbatim from what Svelte compiled. The hash, the flags for a namespaced or case-preserving or
+ * input element, the merging order -- none of it is worked out here. `attributes` itself is
+ * bundled with the component's other carried functions, so the two backends run one implementation
+ * rather than agreeing about a rule.
+ *
+ * @returns the attributes this took charge of, which the caller must not walk again.
+ */
+function spread(
+	source: string,
+	node: AstNode,
+	holes: Hole[],
+	edits: [number, number, string][],
+	expand: Locals['rewrite'],
+	pending: PendingSpread[],
+): ReadonlySet<unknown> {
+	const empty: ReadonlySet<unknown> = new Set();
+	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
+	if (!attributes.some((one) => isNode(one) && one['type'] === 'SpreadAttribute')) return empty;
+	if (node['type'] !== 'RegularElement') {
+		refuse(
+			'`{...}` on a `<svelte:element>` is not handled yet: the tag and the attributes are each ' +
+				'decided per request, and only one of the two is written',
+		);
+	}
+
+	// The object, in the order `build_spread_object` builds it: every attribute and every spread,
+	// as written, left to right.
+	const parts: string[] = [];
+	for (const one of attributes) {
+		if (!isNode(one)) return empty;
+		if (one['type'] === 'SpreadAttribute') {
+			parts.push(`...(${expand(one['expression'])})`);
+			continue;
+		}
+		if (one['type'] !== 'Attribute') {
+			refuse(
+				`\`${source.slice(...(span(one) ?? [0, 0])).slice(0, 40)}\` beside a \`{...}\` is not ` +
+					'handled yet: a directive on an element whose attributes are spread is a fourth ' +
+					'argument to the one call that writes them',
+			);
+		}
+		const name = typeof one['name'] === 'string' ? one['name'] : '';
+		const key = JSON.stringify(name);
+		const value = one['value'];
+		// An event handler is in the object and skipped by name when the attributes are written, so
+		// what it holds never reaches the bytes. Null keeps it out of the derivation.
+		if (name.startsWith('on') && name.length > 2) {
+			parts.push(`${key}: null`);
+			continue;
+		}
+		if (value === true) {
+			parts.push(`${key}: true`);
+			continue;
+		}
+		const written = Array.isArray(value) ? value : [value];
+		if (written.every((part) => isNode(part) && part['type'] === 'Text')) {
+			parts.push(
+				`${key}: ${JSON.stringify(written.map((part) => String(part['data'] ?? '')).join(''))}`,
+			);
+			continue;
+		}
+		const [only] = written;
+		if (written.length !== 1 || !isNode(only) || only['type'] !== 'ExpressionTag') {
+			refuse(
+				`\`${name}\` beside a \`{...}\` mixes text and an expression, which is one value once ` +
+					'the attributes are merged; this reads a single expression',
+			);
+		}
+		parts.push(`${key}: (${expand(only['expression'])})`);
+	}
+
+	const index = holes.length;
+	// Filled in after the render, which is where the rest of the call comes from.
+	holes.push({ index, expression: '', raw: true, spread: true });
+	pending.push({ index, object: `{ ${parts.join(', ')} }` });
+
+	// Everything the element wrote is replaced by one spread of one key, so that the render writes
+	// a marker where the run belongs and the call keeps the arguments the element decides.
+	const at = span(attributes[0]);
+	const last = span(attributes[attributes.length - 1]);
+	if (at !== null && last !== null) {
+		edits.push([at[0], last[1], `{...{ ${JSON.stringify(probe(index))}: ${JSON.stringify(sentinel(index))} }}`]);
+	}
+	return new Set(attributes);
+}
+
+/** The attribute name a spread's marker is written under, which nothing else could produce. */
+function probe(index: number): string {
+	return `data-seam-${String(index)}`;
+}
+
+/** A spread waiting for the rest of its call, which only the compiled output has. */
+interface PendingSpread {
+	index: number;
+	object: string;
+}
 
 /**
  * `class:` is one decision over the whole class attribute, not an addition beside it.
@@ -1510,6 +1627,75 @@ function styles(
 	}
 
 	return new Set(isNode(attribute) ? [...directives, attribute] : directives);
+}
+
+/**
+ * Finishes each spread's expression by reading the call Svelte compiled for that element.
+ *
+ * Everything after the object -- the scoping hash, the class and style directives, and the flags
+ * for a namespaced, case-preserving or input element -- is decided by the element rather than by
+ * its attributes, so replacing the attributes leaves all of it in place. It is taken from the
+ * output verbatim, which is the difference between borrowing a rule and having one.
+ */
+function filled(baseline: Rewritten, file: string, root: string): void {
+	if (baseline.spreads.length === 0) return;
+	const code = compile(baseline.rewritten, {
+		generate: 'server',
+		name: 'Entry',
+		filename: file,
+		rootDir: root,
+	}).js.code;
+
+	for (const one of baseline.spreads) {
+		const rest = restOf(code, probe(one.index));
+		if (rest === null) {
+			refuse(
+				'an element whose attributes a `{...}` decides was planted and Svelte compiled no call ' +
+					'to write them, which is this compiler rather than the component',
+			);
+		}
+		const hole = baseline.holes[one.index];
+		if (hole !== undefined) hole.expression = `attributes(${one.object}${rest})`;
+	}
+}
+
+/**
+ * The arguments after the first, from the `$.attributes(...)` call whose object holds this key.
+ *
+ * Read by scanning rather than by parsing: what is wanted is the source of those arguments,
+ * unchanged, and the shortest way to keep it unchanged is not to take it apart.
+ */
+function restOf(code: string, key: string): string | null {
+	const CALL = '$.attributes(';
+	for (let at = code.indexOf(CALL); at >= 0; at = code.indexOf(CALL, at + 1)) {
+		let depth = 0;
+		let quote: string | null = null;
+		let first = -1;
+		for (let i = at + CALL.length - 1; i < code.length; i++) {
+			const c = code[i];
+			if (quote !== null) {
+				if (c === '\\') i += 1;
+				else if (c === quote) quote = null;
+				continue;
+			}
+			if (c === '"' || c === "'" || c === '`') {
+				quote = c;
+				continue;
+			}
+			if (c === '(' || c === '{' || c === '[') depth += 1;
+			else if (c === ')' || c === '}' || c === ']') {
+				depth -= 1;
+				if (depth === 0) {
+					const text = code.slice(at + CALL.length, i);
+					if (!text.includes(key)) break;
+					return first < 0 ? '' : text.slice(first);
+				}
+			} else if (c === ',' && depth === 1 && first < 0) {
+				first = i - (at + CALL.length);
+			}
+		}
+	}
+	return null;
 }
 
 /**
@@ -1824,6 +2010,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 				payload: walk.site.payload,
 				missed: walk.site.missed,
 				handed: walk.site.handed,
+				spreads: walk.site.spreads,
 				probing: walk.site.probing,
 			},
 			walk.dynamic,
@@ -2081,6 +2268,8 @@ interface Site {
 	 * each of these replaced by a literal nobody could produce. See `Hole.safe`.
 	 */
 	handed: Handed[];
+	/** Elements whose attributes a spread decides, waiting for the rest of their call. */
+	spreads: PendingSpread[];
 	/**
 	 * True while making that second render: the markup is replaced rather than walked, so nothing
 	 * is planted in it and what comes back says only whether the component writes it.
@@ -2127,6 +2316,8 @@ interface Rewritten {
 	missed: { file: string; reason: string }[];
 	/** Markup handed to one of those, with the holes and blocks the walk put inside it. */
 	handed: Handed[];
+	/** Elements whose attributes a spread decides, waiting for the rest of their call. */
+	spreads: PendingSpread[];
 	holes: Hole[];
 	blocks: Block[];
 	/** Class decisions whose outcomes the render has still to supply the hash for. */
@@ -2239,6 +2430,9 @@ export async function skeleton(entryFile: string, root: string): Promise<Skeleto
 		},
 	);
 	const { body: html, head } = rendered;
+
+	// The rest of each spread's call, which only the compiled output has.
+	filled(baseline, file, root);
 
 	// Before the alternates, because an if in markup nobody renders needs none of them.
 	await probed(baseline, source, file, root, [html, head]);

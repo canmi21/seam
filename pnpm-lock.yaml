@@ -164,6 +164,9 @@ importers:
         specifier: ^5.57.0
         version: 5.57.0
     devDependencies:
+      carry:
+        specifier: workspace:*
+        version: link:../carry
       derive:
         specifier: workspace:*
         version: link:../derive

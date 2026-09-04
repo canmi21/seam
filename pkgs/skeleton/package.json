@@ -12,6 +12,7 @@
 	"devDependencies": {
 		"derive": "workspace:*",
 		"injector": "workspace:*",
-		"lowering": "workspace:*"
+		"lowering": "workspace:*",
+		"carry": "workspace:*"
 	}
 }
