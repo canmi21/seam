@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bindings } from './bindings.ts';
 import { apply, type Edit } from './edits.ts';
+import { mentions } from './locals.ts';
 import { reduce } from './reduce.ts';
 
 // A name a script declares is substituted into the expression that uses it, which is what makes a
@@ -87,5 +88,17 @@ describe('rewriting a source file', () => {
 				[1, 2, 'Y'],
 			]),
 		).toBe('XYcd');
+	});
+});
+
+describe('what an expression reaches for', () => {
+	it('reads an expression that carries a TypeScript annotation', () => {
+		// Svelte chooses its parser from the script tag rather than from the expression, so an
+		// annotation in the markup of a `lang="ts"` component is a syntax error without one. A parse
+		// failure here is read as "assume it reaches the payload", which is safe and, for a value
+		// that is the same every request, wrong: a marker went into `<PersistQueryClientProvider
+		// persistOptions={...}>` and the package was handed a string.
+		expect(mentions('({ f: (q: { s: string }) => q.s })', new Set(['data']))).toBe(false);
+		expect(mentions('({ f: (q: { s: string }) => data.x })', new Set(['data']))).toBe(true);
 	});
 });

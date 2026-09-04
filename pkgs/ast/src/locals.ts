@@ -288,6 +288,22 @@ function assigned(block: unknown, names: ReadonlySet<string>): Set<string> {
 }
 
 /**
+ * One expression, parsed as the component it would be the whole of.
+ *
+ * The empty script is what makes TypeScript readable. An expression in the markup of a
+ * `lang="ts"` component may carry an annotation or an `as`, and Svelte chooses its parser from the
+ * script tag rather than from the expression -- so without one, `(q: { s: string }) => q.s` is a
+ * syntax error. That was not a parse failure anyone saw: `mentions` reads a failure as "assume it
+ * reaches the payload", which is the safe answer and the wrong one here, and a value that was the
+ * same every request got a marker planted in it and was handed to a package as a string.
+ */
+function parsed(expression: string): Node {
+	return parse(`<script lang="ts"></script>{${expression}}`, {
+		modern: true,
+	}) as unknown as Node;
+}
+
+/**
  * Whether an expression reads any of these names, free of anything that binds them inside it.
  *
  * Asked of an expression that has already been expanded, to decide whether a marker belongs where
@@ -298,8 +314,7 @@ export function mentions(expression: string, names: ReadonlySet<string>): boolea
 	if (names.size === 0) return false;
 	let ast: Node;
 	try {
-		// Parsed as a component with one expression in it, which is the shape the caller has.
-		ast = parse(`{${expression}}`, { modern: true }) as unknown as Node;
+		ast = parsed(expression);
 	} catch {
 		// Unreadable here is not a reason to write it out as bytes: keep the marker, and let the
 		// pass that reads names report whatever is wrong with it.
@@ -340,7 +355,7 @@ export function mentions(expression: string, names: ReadonlySet<string>): boolea
 export function constant(expression: string): boolean {
 	let ast: Node;
 	try {
-		ast = parse(`{${expression}}`, { modern: true }) as unknown as Node;
+		ast = parsed(expression);
 	} catch {
 		return false;
 	}
