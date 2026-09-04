@@ -70,12 +70,38 @@ pub(super) fn next_block(html: &str, from: usize, until: usize) -> Option<Span> 
 
 // --- splitting at the sentinels -----------------------------------------------------------
 
-pub(super) fn sentinel_at(html: &str, from: usize, until: usize) -> Option<(usize, usize, usize)> {
-	let start = from + html.get(from..until)?.find("%%s")?;
+/// What a marker in the render stands for.
+///
+/// Three families, all written by `pkgs/skeleton/src/sentinel.ts` and all read here by the same
+/// scan, so a value in an attribute and a value in content take one path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Mark {
+	/// `%%sN%%`: the hole at this index, which is where a value the walk recorded goes.
+	Hole(usize),
+	/// `%%qN%%`: the anchor of a `$props.id()` in a component the walk did not enter. The runtime
+	/// counts the id out and binds it under this name. See `pkgs/skeleton/src/fresh.ts`.
+	Id { name: usize, anchor: bool },
+}
+
+/// The first marker at or after `from`, whichever family it belongs to.
+pub(super) fn sentinel_at(html: &str, from: usize, until: usize) -> Option<(usize, usize, Mark)> {
+	let text = html.get(from..until)?;
+	let start = from + text.find("%%")?;
 	let rest = html.get(start + 3..until)?;
 	let digits = rest.find("%%")?;
-	let index: usize = rest.get(..digits)?.parse().ok()?;
-	Some((start, start + 3 + digits + 2, index))
+	let number: usize = rest.get(..digits)?.parse().ok()?;
+	let mark = match html.as_bytes().get(start + 2)? {
+		b's' => Mark::Hole(number),
+		b'q' => Mark::Id { name: number, anchor: true },
+		b'p' => Mark::Id { name: number, anchor: false },
+		_ => return None,
+	};
+	Some((start, start + 3 + digits + 2, mark))
+}
+
+/// The name the runtime binds an id under, which is the number Svelte gave it in that render.
+pub(super) fn id_name(name: usize) -> String {
+	format!("__p{name}")
 }
 
 /// The block this pass declared, where the render says so just after a block's close.
@@ -86,27 +112,34 @@ pub(super) fn sentinel_at(html: &str, from: usize, until: usize) -> Option<(usiz
 /// out of block list. This is the stamp `pkgs/skeleton/src/sentinel.ts` writes: present means the
 /// block is one of ours and says which, absent means it belongs to a component and is bytes.
 ///
-/// Three carriers, because bare text is not writable everywhere: a table's parts reject it and a
-/// `<select>` is changed by it. Which one carries the marker is decided there, against the element
-/// the block sits in; here they are simply all read.
+/// What the stamp is written inside is decided where it is written, against the element the block
+/// sits in -- `carrier()` in `pkgs/skeleton/src/sentinel.ts`, which has the measurement. Here they
+/// are simply all read.
 ///
 /// Returns the index and where the stamp ends.
 pub(super) fn stamped(html: &str, at: usize) -> Option<(usize, usize)> {
-	const CARRIERS: [(&str, &str); 3] =
-		[("<template>", "</template>"), ("<option value=\"", "\"></option>"), ("", "")];
 	let rest = html.get(at..)?;
-	for (open, close) in CARRIERS {
-		let Some(body) = rest.strip_prefix(open) else { continue };
-		let Some(digits) = body.strip_prefix("%%b") else { continue };
-		let Some(end) = digits.find("%%") else { continue };
-		let Ok(index) = digits.get(..end)?.parse::<usize>() else { continue };
-		let after = &digits[end + 2..];
-		if !after.starts_with(close) {
-			continue;
-		}
-		return Some((index, at + open.len() + 3 + end + 2 + close.len()));
+	// Three carriers, because what the stamp may be is decided by the element it sits in --
+	// `carrier()` in `pkgs/skeleton/src/sentinel.ts` chooses, and this reads whichever came back.
+	// A `<template>` carries attributes of its own where the component has a stylesheet that
+	// scopes every element in it, which a `@keyframes` rule does, so its tag is read to the `>`
+	// rather than matched whole. Anything that opens like a carrier and does not hold a stamp is
+	// not one, so there is nothing to fall through to.
+	let (body, close, opened) = if let Some(after) = rest.strip_prefix("<template") {
+		let end = after.find('>')? + 1;
+		(after.get(end..)?, "</template>", "<template".len() + end)
+	} else if let Some(after) = rest.strip_prefix("<option value=\"") {
+		(after, "\"></option>", "<option value=\"".len())
+	} else {
+		(rest, "", 0)
+	};
+	let digits = body.strip_prefix("%%b")?;
+	let end = digits.find("%%")?;
+	let index = digits.get(..end)?.parse::<usize>().ok()?;
+	if !digits.get(end + 2..)?.starts_with(close) {
+		return None;
 	}
-	None
+	Some((index, at + opened + 3 + end + 2 + close.len()))
 }
 
 /// The stand-in a dynamic element was rendered under, and the parts of what it wrote.

@@ -1521,14 +1521,25 @@ declaring an id in one page do not share a binding, and the name is in the walk'
 an expression reading it varies per request and is a hole, however inert the rest of it looks.
 
 **A component the walk did not enter** is Svelte's to render, and packages declare ids too -- a
-menu trigger names the menu it opens by one. The render is given an `idPrefix`, so every such id is
-a token nothing else produces, numbered by Svelte; the first place a token appears is the anchor
-and becomes the hole that binds it, every other place is a read. The name is the number Svelte
-gave, which is one per render rather than per component, and that is enough: a component's reads
-follow its own anchor and end before a sibling's begins, and one nested inside it is instantiated
-after it in every render that holds both, so a rebind never reaches a read that meant the outer
-one. A first draft mapped anchors to walked components by counting them in document order, and the
-first real route had a package's anchor in the count.
+menu trigger names the panel it opens by one. The render is given an `idPrefix`, so every such id
+is a token nothing else produces, numbered by Svelte, and the anchor is told from a read by the
+`<!--$` around it rather than by which came first.
+
+**Those ids are markers rather than holes, and the difference is the whole of what makes them
+work.** A hole is a position in one list every render shares. Svelte numbers ids per render, in
+instantiation order, so the same component is `s5` in one render and `s6` in another that took a
+different branch -- and neither a hole per render nor a hole shared between them can hold that. Per
+render leaves holes that no region is ever read for, which is what `__p1 is written but never comes
+back` was; shared gives one hole to two different components. So the number goes into the marker,
+each render says what it means, and lowering reads it where it stands. That also costs nothing to
+put an id in an attribute, which is where a package puts it -- `aria-controls="p-s3"` -- because the
+scan that finds it is the one that already finds every other marker.
+
+The name is the number Svelte gave, which is one per render rather than one per component, and that
+is enough: a component's reads follow its own anchor and end before a sibling's begins, and one
+nested inside it is instantiated after it in every render that holds both, so a rebinding never
+reaches a read that meant the outer one. A first draft mapped anchors to walked components by
+counting them in document order, and the first real route had a package's anchor in the count.
 
 ### What this changed beside itself
 
@@ -1536,6 +1547,45 @@ A derivation is marked as computed per use by scanning its expression for the na
 the scan stepped over a template literal as if it were a string, so `` `${id}-panel` `` read
 nothing. That was wrong for an each binding as well and had not been met; the template's
 expressions are scanned now.
+
+## The marker saying which block closed is a sibling, and Svelte's CSS reads siblings
+
+Every block writes a stamp after it so the assembler can tell our blocks from those a package
+renders -- a package's `{#if}` opens and closes exactly as ours does, and matching by order counted
+somebody else's as ours. The stamp is removed again when the IR is assembled, so it reaches no
+artifact and no reader. **What it must not do is change anything else in the render it sits in**,
+and it was doing exactly that.
+
+It was a `<template>` wherever text was not writable, which was almost everywhere. A `<template>` is
+an element, and Svelte's CSS analysis walks elements: `get_possible_element_siblings` stops at the
+first one it meets, so a stamp standing between two of the author's elements makes `.a + .b` stop
+matching and **both of them lose their scoping class**. Nothing says so; the page renders unstyled
+in one place.
+
+Measured, every carrier in every parent, against the same markup carrying none:
+
+| parent | text | `<template>` | `<option>` |
+| --- | --- | --- | --- |
+| anything ordinary, the root, `<pre>`, `<option>` | same | **differs** under `+` or `~` | refused |
+| `<table>` and its parts | refused | same | refused |
+| `<select>`, `<optgroup>` | makes it rich | makes it rich | same |
+
+**Text is not an element, so the analysis steps over it**, and it is the carrier wherever text is
+writable. An element is used only where it is the one thing that works: an `<option>` inside a
+`<select>`, where anything else makes the select *rich* and changes how it closes, and a
+`<template>` inside a table, where text is refused outright.
+
+A `<template>` inside a table keeps the problem, and no carrier there avoids it. So that one
+combination is **refused**: a block directly inside a table part, in a component whose stylesheet
+relates siblings with `+` or `~`. The stylesheet says so in its own AST, which is cheaper than
+meeting it, and the alternative is a page that is quietly missing a class. Everything else compiles.
+
+This was found through a route that would not compile, and the failure named something else
+entirely -- a value written but never coming back, three components away from the stamp that had
+made the compiler read the wrong block as a package's. The scoping class was the second half of it:
+a `@keyframes` rule scopes every element in a component, the stamp included, so a `<template>`
+carrier comes back wearing a class and the assembler stopped recognising it. It reads the tag to
+the `>` now rather than matching `<template>` whole.
 
 ## The compiler refuses by allowlist
 

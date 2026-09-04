@@ -12,7 +12,8 @@ mod skeleton;
 pub use skeleton::{Block, Choice, Hole, Kind, Rendered, Result, Skeleton, Stream};
 
 use scan::{
-	Dynamic, EMPTY, Landing, Span, closes, landing, next_block, next_dynamic, sentinel_at, stamped,
+	Dynamic, EMPTY, Landing, Mark, Span, closes, id_name, landing, next_block, next_dynamic,
+	sentinel_at, stamped,
 };
 
 use crate::ir;
@@ -124,14 +125,24 @@ impl Assembler<'_> {
 				continue;
 			}
 
-			let Some((start, end, index)) = sentinel else {
+			let Some((start, end, mark)) = sentinel else {
 				out.write(&html[at..until]);
 				return Ok(());
 			};
 
-			// An id's anchor is `<!--$` and the marker and `-->`: inside a `<`, which is what
-			// `landing` reads as an attribute, and not one. The runtime counts the value out and
-			// binds it, so the node says so rather than naming a path to resolve.
+			// An id of a component the walk did not enter. It sits inside `<!--$` and `-->`, which
+			// `landing` would read as a tag, and it names no path to resolve: the runtime counts the
+			// value out and binds it. See `pkgs/skeleton/src/fresh.ts`.
+			if let Mark::Id { name, anchor: fresh } = mark {
+				out.write(&html[at..start]);
+				out.push(ir::Node::Slot { path: id_name(name), escape: ir::Escape::Content, fresh });
+				at = end;
+				continue;
+			}
+			let Mark::Hole(index) = mark else { unreachable!() };
+
+			// The anchor of a `$props.id()` in a component the walk entered, whose hole the walk
+			// allocated so that the child's own expressions can read it by name.
 			if self.skeleton.holes.get(index).is_some_and(|hole| hole.fresh) {
 				out.write(&html[at..start]);
 				let (expression, _) = self.hole(index)?;
@@ -191,11 +202,22 @@ impl Assembler<'_> {
 	fn attribute(&mut self, name: &str, html: &str, from: usize, until: usize) -> Result<ir::Node> {
 		let mut parts = Out::default();
 		let mut at = from;
-		while let Some((start, end, index)) = sentinel_at(html, at, until) {
+		while let Some((start, end, mark)) = sentinel_at(html, at, until) {
 			parts.write(&html[at..start]);
-			let (expression, _) = self.hole(index)?;
-			let path = self.path(&expression)?;
-			parts.push(ir::Node::Slot { path, escape: ir::Escape::Attr, fresh: false });
+			match mark {
+				// An id read inside an attribute value, which is where a package puts the id of the
+				// thing it points at: `aria-controls="bits-s3"`.
+				Mark::Id { name, anchor } => parts.push(ir::Node::Slot {
+					path: id_name(name),
+					escape: ir::Escape::Attr,
+					fresh: anchor,
+				}),
+				Mark::Hole(index) => {
+					let (expression, _) = self.hole(index)?;
+					let path = self.path(&expression)?;
+					parts.push(ir::Node::Slot { path, escape: ir::Escape::Attr, fresh: false });
+				}
+			}
 			at = end;
 		}
 		parts.write(&html[at..until]);

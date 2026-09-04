@@ -26,11 +26,12 @@ import {
 	isNode,
 	namesIn,
 	refuse,
+	relatesSiblings,
 	renders,
 	span,
 } from './node.ts';
 import { OMITTED_IN_SSR } from './omitted.ts';
-import { carrier, sentinel } from './sentinel.ts';
+import { carrier, elementCarrier, sentinel } from './sentinel.ts';
 import type { Block, Hole, Stream } from './shape.ts';
 import { inlined, type Snippet, snippetsIn, supplied } from './snippets.ts';
 import { RAW_TEXT_ELEMENTS, VALID_TAG_NAME, VOID_ELEMENTS } from './tags.ts';
@@ -222,6 +223,11 @@ export interface Walk {
 	 * decides what a block's stamp is carried by and nothing else. See `carrier()`.
 	 */
 	parent: string | null;
+	/**
+	 * Whether this file's stylesheet relates siblings, which decides whether a stamp that has to be
+	 * an element may be written at all. See `stamps()`.
+	 */
+	siblings: boolean;
 	/**
 	 * Names an enclosing passed snippet's parameters bind, which the component supplies.
 	 *
@@ -500,6 +506,28 @@ function leaves(expression: string, walk: Walk): string | null {
 	return apply(expression, edits);
 }
 
+/**
+ * The stamp that says which block just closed, refused where writing one would change the bytes.
+ *
+ * Inside a table, text is not writable and the stamp has to be an element -- and an element is a
+ * sibling, which Svelte's CSS analysis stops at, so a `+` or `~` in this component's stylesheet
+ * would stop matching and the elements it relates would silently lose their scoping class.
+ * Measured: two `<tr>`s related by `+`, with a block between them, both lost it. No carrier avoids
+ * it there, so the combination is named rather than compiled wrong. See `carrier()`.
+ */
+function stamps(walk: Walk, index: number): string {
+	if (walk.siblings && elementCarrier(walk.parent)) {
+		refuse(
+			`this block sits directly inside \`<${String(walk.parent)}>\`, where the marker saying which ` +
+				'block closed has to be an element because text is not writable there -- and this ' +
+				"component's stylesheet relates siblings with `+` or `~`, which that element would stand " +
+				'between, so the elements it relates would lose their scoping class. Wrapping the block in ' +
+				'a cell of its own, or relating those two elements without a sibling combinator, avoids it',
+		);
+	}
+	return carrier(index, walk.parent);
+}
+
 function collect(node: unknown, walk: Walk): void {
 	const {
 		blocks,
@@ -507,7 +535,6 @@ function collect(node: unknown, walk: Walk): void {
 		edits,
 		expand,
 		holes,
-		parent,
 		pending,
 		site,
 		snippets,
@@ -967,7 +994,7 @@ function collect(node: unknown, walk: Walk): void {
 
 			// Which block just closed, written where the render puts it and nowhere else.
 			const whole = span(node);
-			if (whole !== null) edits.push([whole[1], whole[1], carrier(index, parent)]);
+			if (whole !== null) edits.push([whole[1], whole[1], stamps(walk, index)]);
 
 			// Only the first branch is in the baseline render, so only its blocks are numbered where
 			// the assembler counts them. A block in any other branch is numbered here and appears in
@@ -1045,7 +1072,7 @@ function collect(node: unknown, walk: Walk): void {
 			edits.push([at[0], at[1], `[${element}]`]);
 			// Which block just closed, written where the render puts it and nowhere else.
 			const whole = span(node);
-			if (whole !== null) edits.push([whole[1], whole[1], carrier(index, parent)]);
+			if (whole !== null) edits.push([whole[1], whole[1], stamps(walk, index)]);
 			// What the block binds is decided per item, so an expression reading it is a marker
 			// even when nothing else in it reaches the payload.
 			const inside = new Set(dynamic);
@@ -1203,6 +1230,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 			expand: (child, extra) =>
 				declared.rewrite(child, new Map([...bound, ...(extra ?? new Map())])),
 			snippets,
+			siblings: relatesSiblings(ast),
 			dynamic: fresh === null ? walk.dynamic : new Set([...walk.dynamic, fresh]),
 			fresh: fresh === null ? walk.fresh : [...walk.fresh, fresh],
 			site: {
@@ -1346,6 +1374,7 @@ export function rewrite(
 		dynamic: fresh === null ? (payload ?? new Set()) : new Set([...(payload ?? []), fresh]),
 		fresh: fresh === null ? [] : [fresh],
 		parent: null,
+		siblings: relatesSiblings(ast),
 	});
 	withPrelude(source, ast, prelude, edits);
 

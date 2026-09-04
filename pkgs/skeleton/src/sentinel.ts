@@ -30,28 +30,53 @@ export function stamp(index: number): string {
 }
 
 /**
+ * The elements whose content model refuses text, which is the only reason a stamp is ever an
+ * element. Measured against Svelte's own placement check rather than taken from the HTML spec.
+ *
+ * `elementCarrier` is the same question asked before the stamp is written, because a block here
+ * carries one in a component whose stylesheet relates siblings, and that combination is refused.
+ */
+const REFUSES_TEXT = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'colgroup']);
+
+/**
  * What the stamp is written inside, which depends on what the element around it allows.
  *
- * Bare text cannot go everywhere. Svelte refuses `<#text>` inside a table's parts, and a text or
- * element child of a `<select>` or an `<optgroup>` makes it *rich*, which is a real change in the
- * bytes: `is_customizable_select_element` in `phases/nodes.js` decides it, and a rich select
- * closes with `<!>` before its tag. So the marker is carried by something the element already
- * allows and already ignores.
+ * **The carrier has to be invisible to Svelte, not merely ignored by a browser**, and those are
+ * different things. An element carrier is a sibling, and Svelte's CSS analysis walks siblings:
+ * `get_possible_element_siblings` stops at the first `RegularElement` it meets, so a `<template>`
+ * standing between two of the author's elements makes `.a + .b` no longer match and **both of them
+ * lose their scoping class**. That is the stamp changing the bytes it exists to be absent from.
+ * Text is not an element and the walk steps over it, which is what makes it the default here.
  *
- * Three carriers, each measured against every parent in `sentinel.test.ts` rather than reasoned
- * about from the specification:
+ * Measured, every carrier in every parent, against the same markup carrying none:
  *
- * - `<template>`, which every element that rejects text accepts, and which nothing reads.
- * - `<option>` inside a `<select>` or an `<optgroup>`, where a template would make it rich. Its
- *   value is the marker, so it can never be the one the select has selected.
- * - bare text inside an `<option>`, which holds neither of the other two and is not made rich by
- *   text.
+ * | parent | text | `<template>` | `<option>` |
+ * | --- | --- | --- | --- |
+ * | anything ordinary, the root, `<pre>`, `<option>` | same | **differs** under `+` or `~` | refused |
+ * | `<table>` and its parts | refused | same | refused |
+ * | `<select>`, `<optgroup>` | makes it rich | makes it rich | same |
+ *
+ * So text wherever text is allowed, and an element only where it is the one thing that works. A
+ * `<template>` in a table part keeps the sibling problem, which no carrier there avoids: text and
+ * an `<option>` are both refused outright. A `+` between two cells with a block between them is
+ * the shape that would meet it, and it is recorded rather than solved.
+ *
+ * The stamp never reaches a reader either way -- the assembler reads it and steps over it, so it
+ * is in the compile-time render and in no artifact. What matters is only that its presence changes
+ * nothing else in that render. See spec/refusals.md.
  */
+export function elementCarrier(parent: string | null): boolean {
+	return parent !== null && REFUSES_TEXT.has(parent);
+}
+
 export function carrier(index: number, parent: string | null): string {
 	const mark = stamp(index);
+	// A text or element child makes a select *rich*, which closes the tag with `<!>` -- a real
+	// change in the bytes. An `<option>` is what it already expects, and its value is the marker,
+	// so it can never be the one the select has selected.
 	if (parent === 'select' || parent === 'optgroup') return `<option value="${mark}"></option>`;
-	if (parent === 'option') return mark;
-	return `<template>${mark}</template>`;
+	if (parent !== null && REFUSES_TEXT.has(parent)) return `<template>${mark}</template>`;
+	return mark;
 }
 
 /**

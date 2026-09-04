@@ -171,14 +171,14 @@ export async function skeleton(
 				given,
 				flipped.fresh,
 			);
-			// The ids of the components the walk did not enter become holes here, one set per
-			// render, since each render numbers its own.
-			alternates[`${String(block.index)}.${String(branch)}`] = anchored(other, baseline.holes);
+			// The ids of the components the walk did not enter are numbered by this render, so they
+			// are read back out of it rather than held in the one list every render shares.
+			alternates[`${String(block.index)}.${String(branch)}`] = anchored(other);
 		}
 	}
-	// Before anything counts the holes: an id written by a component the walk did not enter is not
-	// a hole until this makes it one.
-	const { body: html, head } = anchored(rendered, baseline.holes);
+	// An id written by a component the walk did not enter is a marker rather than a hole, because
+	// Svelte numbers them per render. See `anchored`.
+	const { body: html, head } = anchored(rendered);
 
 	const everywhere = [
 		html,

@@ -580,6 +580,34 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// The stamp that says which block just closed is a sibling of the author's own markup, and
+		// Svelte's CSS analysis walks siblings: `get_possible_element_siblings` stops at the first
+		// element it meets, so a `<template>` between two of them made `.a + .b` stop matching and
+		// **both lost their scoping class**. Bare text is not an element and the walk steps over it,
+		// which is why it is the carrier wherever text is writable. A `@keyframes` rule is here
+		// because it scopes every element in the component, which puts a class on a `<template>`
+		// carrier and is what the assembler has to read past. See `carrier()`.
+		name: 'a stamp beside markup the stylesheet relates',
+		source:
+			`${PROPS}<div>{#if data.f}<i class="a">{data.a}</i>{/if}<b class="b">y</b></div>` +
+			'<style>.a + .b { color: red }</style>',
+		data: [
+			{ f: true, a: 'x' },
+			{ f: false, a: '<&' },
+		],
+	},
+	{
+		// Where text is refused the stamp is a `<template>`, and a `@keyframes` rule scopes every
+		// element in the component -- the template included -- so it comes back carrying a class of
+		// Svelte's. The assembler reads its tag to the `>` rather than matching `<template>` whole,
+		// which is what a route with one such rule in it found. See `stamped()`.
+		name: 'a stamp Svelte scopes, where text is not writable',
+		source:
+			`${PROPS}<table><tbody>{#each data.rows as r}<tr><td class="c">{r}</td></tr>{/each}` +
+			'</tbody></table><style>.c { color: red } @keyframes -global-turn { 0% { opacity: 0 } }</style>',
+		data: [{ rows: ['p', 'q'] }, { rows: [] }],
+	},
+	{
 		// The stamp that says which block just closed cannot always be bare text. Svelte refuses
 		// `<#text>` inside a table's parts, and a text or element child of a `<select>` makes it
 		// rich, which closes the tag with `<!>`. Each of these is a position where the carrier has
@@ -689,6 +717,28 @@ const accepted: Case[] = [
 			{ a: 'first', xs: ['p', 'q'] },
 			{ a: '', xs: ['<&'] },
 			{ a: 'only', xs: [] },
+		],
+	},
+	{
+		// A component the walk cannot enter -- its `$props()` gathers a rest -- that declares an id
+		// of its own, which is what a package does: a trigger names the panel it opens by one. Its
+		// output is Svelte's, so the id is read back off the render as a marker rather than held in
+		// a hole, because Svelte numbers ids per render and a hole belongs to every render at once.
+		// Inside an each, where one static id would repeat, and read in an attribute as well as in
+		// content, which is where a package puts it. See `anchored()`.
+		name: 'an id declared by a component the walk cannot enter',
+		beside: {
+			Panel:
+				'<script>let { label, ...rest } = $props(); const id = $props.id();</script>' +
+				'<button aria-controls="p-{id}">{label}</button><div id="p-{id}">{id}</div>',
+		},
+		source:
+			"<script>import Panel from './Panel.svelte'; let { data } = $props();</script>" +
+			'{#each data.xs as x}<Panel label={x} />{/each}{#if data.f}<Panel label={data.a} />{/if}',
+		data: [
+			{ xs: ['p', 'q'], f: true, a: 'x' },
+			{ xs: [], f: false, a: '' },
+			{ xs: ['<&'], f: true, a: '<&' },
 		],
 	},
 	{
@@ -1024,6 +1074,18 @@ const accepted: Case[] = [
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// Inside a table the stamp has to be an element, because text is refused there, and an
+		// element is the sibling the case above is about. No carrier avoids it -- text and an
+		// `<option>` are both refused outright -- so the one combination that would write wrong
+		// bytes is named instead. Measured: two `<tr>`s related by `+`, with a block between them,
+		// both silently lost their scoping class.
+		name: 'a block inside a table whose stylesheet relates siblings',
+		source:
+			`${PROPS}<table><tbody>{#each data.rows as r}<tr class="x"><td>{r}</td></tr>{/each}` +
+			'<tr class="y"><td>last</td></tr></tbody></table><style>.x + .y { color: red }</style>',
+		says: 'scoping class',
+	},
 	{
 		// A directive removes its own name from the class it was given, so which bytes exist is
 		// decided by a string that only exists per request. See spec/refusals.md.

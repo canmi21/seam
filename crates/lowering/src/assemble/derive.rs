@@ -7,7 +7,7 @@
 //! `placed` is here as well, because it is the same accounting seen from the other end: every hole
 //! consumed exactly once is the only evidence this pass has that the render held everything.
 
-use super::scan::sentinel_at;
+use super::scan::{Mark, sentinel_at};
 use super::skeleton::{Choice, Result};
 use super::{Assembler, Out};
 use crate::ir;
@@ -181,7 +181,12 @@ impl Assembler<'_> {
 	pub(super) fn pieces(&mut self, outcome: &str) -> Result<Vec<ir::Node>> {
 		let mut out = Out::default();
 		let mut at = 0;
-		while let Some((start, end, index)) = sentinel_at(outcome, at, outcome.len()) {
+		while let Some((start, end, mark)) = sentinel_at(outcome, at, outcome.len()) {
+			// A decision's outcomes are attribute strings this pass wrote from the walk's own
+			// holes, so an id cannot appear among them.
+			let Mark::Hole(index) = mark else {
+				return Err("an id marker landed inside an enumerated attribute".to_owned());
+			};
 			out.write(&outcome[at..start]);
 			let (expression, _) = self.hole(index)?;
 			let path = self.path(&expression)?;

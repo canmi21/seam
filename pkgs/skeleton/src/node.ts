@@ -179,3 +179,28 @@ export function identified(ast: AstNode): boolean {
 	}
 	return false;
 }
+
+/**
+ * Whether the component's stylesheet relates one element to a sibling, with `+` or `~`.
+ *
+ * Asked because a stamp that has to be an element -- inside a table, where text is refused -- is a
+ * sibling, and Svelte's CSS analysis stops at the first one it meets. See `carrier()`.
+ */
+export function relatesSiblings(ast: AstNode): boolean {
+	let found = false;
+	const walk = (node: unknown): void => {
+		if (found) return;
+		if (Array.isArray(node)) {
+			for (const one of node) walk(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		if (node['type'] === 'Combinator' && (node['name'] === '+' || node['name'] === '~')) {
+			found = true;
+			return;
+		}
+		for (const value of Object.values(node)) walk(value);
+	};
+	walk(ast['css']);
+	return found;
+}
