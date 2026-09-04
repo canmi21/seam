@@ -685,6 +685,12 @@ reading.
 The replacement differs in length as well as in content, because a component that writes what it
 measured would otherwise agree by accident.
 
+**All of them at once first, then one at a time.** Asked together, a difference only says that
+something reaches the bytes and not which -- so one live value kept every dead one beside it
+refused, and the refusal named whichever came first rather than the one that was a fault. The
+common answer is that they are all dead, and that is one render; the rest are asked separately only
+when it is not.
+
 This is the same shape as the probe for handed markup, and carries the same exposure, which is
 worth naming rather than leaving implied: what a component writes at compile time is what it writes
 for the render it was given. A subtree that stays closed there stays closed at request time for the

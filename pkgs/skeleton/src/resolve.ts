@@ -291,23 +291,45 @@ export async function dead(
 	);
 	if (missing.length === 0) return;
 
+	// All of them at once first, which is the common answer and one render. Where that says
+	// something reaches the bytes it does not say which, and one live value would otherwise keep
+	// every dead one beside it refused -- so the ones that are left are asked one at a time. On a
+	// real route that was the difference between naming the component that ate a value and naming
+	// the one that merely never wrote it.
+	if (await unwritten(baseline, file, root, given, seen, missing)) {
+		for (const hole of missing) hole.safe = true;
+		return;
+	}
+	if (missing.length === 1) return;
+	for (const hole of missing) {
+		if (await unwritten(baseline, file, root, given, seen, [hole])) hole.safe = true;
+	}
+}
+
+/** Whether the render is the same bytes with a different value in each of these places. */
+async function unwritten(
+	baseline: Rewritten,
+	file: string,
+	root: string,
+	given: Record<string, unknown>,
+	seen: { body: string; head: string },
+	holes: readonly Hole[],
+): Promise<boolean> {
 	const swap = (text: string): string =>
-		missing.reduce((held, hole) => held.replaceAll(sentinel(hole.index), other(hole.index)), text);
-	let again: { body: string; head: string };
+		holes.reduce((held, hole) => held.replaceAll(sentinel(hole.index), other(hole.index)), text);
 	try {
-		again = await renderRewritten(
+		const again = await renderRewritten(
 			file,
 			swap(baseline.rewritten),
 			root,
 			baseline.copies.map((copy) => ({ ...copy, source: swap(copy.source) })),
 			given,
 		);
+		return again.body === seen.body && again.head === seen.head;
 	} catch {
-		// Nothing is known, so nothing is relaxed, and the missing values are reported as before.
-		return;
+		// Nothing is known, so nothing is relaxed and the value is reported as before.
+		return false;
 	}
-	if (again.body !== seen.body || again.head !== seen.head) return;
-	for (const hole of missing) hole.safe = true;
 }
 
 /** A value in the same shape as a sentinel and different from it in every way that could be read. */

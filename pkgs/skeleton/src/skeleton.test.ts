@@ -48,6 +48,14 @@ interface Case {
 	 * agree with them, since the oracle is given the whole of the data and renders what it says.
 	 */
 	fixed?: Record<string, string>;
+	/**
+	 * What the refusal has to say, where saying the right thing is the point of the case.
+	 *
+	 * Most refusals are checked only for existing, because the message is prose and pinning prose
+	 * makes a test that fails when somebody improves it. This is for the ones where *which* thing
+	 * the message names is the behaviour under test.
+	 */
+	says?: string;
 }
 
 const accepted: Case[] = [
@@ -793,6 +801,25 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '<&' }],
 	},
 	{
+		// Two values given away, one written and one not. Asked together the answer is only that
+		// something reaches the bytes, which says nothing about which -- so one live value kept
+		// every dead one beside it refused, and the refusal named whichever came first. Asked one
+		// at a time after that, each gets its own answer.
+		name: 'one value a child writes and one it does not',
+		beside: {
+			Picks:
+				'<script>let { shown, hidden, ...rest } = $props(); const open = false;</script>' +
+				'<b>{shown}</b>{#if open}<i>{hidden}</i>{/if}',
+		},
+		source:
+			"<script>import Picks from './Picks.svelte'; let { data } = $props();</script>" +
+			'<Picks shown={data.a} hidden={data.b} />',
+		data: [
+			{ a: 'x', b: 'y' },
+			{ a: '<&', b: 'z' },
+		],
+	},
+	{
 		// What a route is: a page inside its layout. Both halves are one walk, so the layout's head
 		// and the page's markup come out of one render.
 		name: 'a layout around a page',
@@ -998,6 +1025,23 @@ const refused: Case[] = [
 		// and that one works -- it is what `{@render children()}` is.
 		name: 'a snippet passed to a component, with parameters',
 		source: `${PROPS}<b>{data.a}</b>{#snippet row(r)}<i>{r}</i>{/snippet}`,
+	},
+	{
+		// Two values given away, one never written and one written after being computed with. Asked
+		// together the only answer is that something reaches the bytes, which says nothing about
+		// which -- so the live one kept the dead one refused beside it and the message named
+		// whichever came first. Asked one at a time after that, the message names the one that is
+		// actually a fault.
+		name: 'one value a child eats and one it never writes',
+		says: '`eaten`',
+		beside: {
+			Eats:
+				'<script>let { eaten, ignored, ...rest } = $props(); const open = false;</script>' +
+				'<b>{eaten.toUpperCase()}</b>{#if open}<i>{ignored}</i>{/if}',
+		},
+		source:
+			"<script>import Eats from './Eats.svelte'; let { data } = $props();</script>" +
+			'<Eats ignored={data.b} eaten={data.a} />',
 	},
 	{
 		// The other side of what a component may supply. A parameter only ever rendered is markup
@@ -1214,5 +1258,6 @@ describe('what it refuses, it refuses by saying where the question lives', () =>
 		// Checked rather than trusted. Four of these used to be a TypeError escaping from inside
 		// the sentinel pass, which is an internal stack rather than anything an author can act on.
 		expect(refusal, 'the message names no specification file').toContain('spec/');
+		if (one.says !== undefined) expect(refusal).toContain(one.says);
 	});
 });
