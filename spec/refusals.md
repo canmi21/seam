@@ -412,22 +412,58 @@ Two shapes, and they are not the same problem:
 
 **press's entries need the first and none of the second.**
 
-### What the runtime node would cost, exactly
+### The 500 are one package, and it already compiles
 
-`$.attributes` is exported, so the JavaScript injector could call Svelte's own and reproduce
-nothing. A second backend cannot, and the protocol's whole claim is that two backends produce the
-same bytes. So the cost is a Rust reproduction of `attributes`, and of everything it reaches:
-`attr`, `clsx` -- including the npm package's handling of arrays and nested objects -- `to_class`,
-`to_style` with its `!important` split, the `replacements` table, the invalid-name regex, and three
-flags for namespaced, case-preserving and input elements. Around 150 lines, of which none is an
-HTML fact: skipping `$$`-prefixed keys, mapping `defaultvalue` on an input, and Svelte's
-deliberately odd falsy handling in `clsx` are conventions, and a convention reproduced somewhere
-else is a convention that drifts.
+Of the 500 files carrying a spread on an element, **495 are `bits-ui`**, three are press's own and
+two are `@lucide/svelte`. So the question is not what the ecosystem does, it is what one widely
+used package does, and whether depending on it works.
 
-**So it waits, and what it waits on is named.** Not on effort: on the walk descending into
-children, which is when a library's `<div {...restProps}>` stops being something Svelte renders for
-us and becomes something this compiler has to write. Until then the reproduction would be carried
-for 500 files that never reach it.
+It works. A request-varying value passed to a component whose element spreads `{...restProps}`
+comes out the other side as an ordinary attribute:
+
+```svelte
+<DropdownMenu.Trigger id={data.id} class={data.c}>{data.label}</DropdownMenu.Trigger>
+```
+
+```
+<button class="%%s1%%" id="%%s0%%" aria-haspopup="menu" aria-expanded="false" data-state="closed"
+```
+
+**Because the keys are decided by the call site, and the call site is markup this compiler reads.**
+`{...restProps}` is opaque only if you look at the wrapper alone. Looked at from the entry, the set
+of attribute names is written out in the entry's own markup and the values are markers, so the
+spread resolves during the compile-time render and lowering sees three `attr` nodes with three data
+paths. The same holds for press's own `{...attributes}` icon.
+
+**So the unenumerable case is narrower than the refusal says.** It needs the spread to be in the
+entry *and* its object to come from the payload -- `{...data.attrs}` -- because only then do the
+keys arrive per request. press has none, and neither does anything it installs.
+
+### And it would not cost a reproduction, which an earlier draft of this section got wrong
+
+That draft said a second backend "cannot" call `$.attributes` and would need around 150 lines of
+Rust reproducing it. Both halves are wrong, and the file it contradicted is
+[pipeline.md](pipeline.md): **a Rust backend embeds QuickJS and already runs the derivation
+bundle**, which is defined there as the author's expressions *and the pure functions those
+expressions call*, compiled to one script with no imports left in it. `attributes` is a pure
+function. It belongs in that bundle like any other.
+
+Measured: `attr`, `clsx`, `to_class`, `to_style` and `escape_html` bundle to **2.3 kB with no
+reference to `process`, `globalThis`, `Intl` or any DOM name**. Nothing is reproduced anywhere and
+there is nothing to drift.
+
+**What this does not change is that it is request-time work on the server, and that it belongs to
+SSR rather than to the client.** The attribute bytes have to be in the response: a page whose
+`target` or `aria-label` only appears after hydration is wrong before it and mismatched at it. It
+is the same request-time evaluation the protocol already does for a derivation, not a browser
+runtime, and it is strictly less than SvelteKit does -- which runs that same function per request
+along with the whole component tree.
+
+**It still waits, and now for an honest reason.** Not cost, and not a backend that cannot: there is
+no code to write it for. The shape that needs it does not appear in an entry in the application
+this is measured against, or in the 4157 files it installs. What would make one appear is the walk
+descending into children, which is composition. The enumerable shape -- a choice between object
+literals -- does appear, in a route, and is the same mechanism `class:` already uses.
 
 ## `{@render}`, where the count of five was measuring the scan rather than the compiler
 
