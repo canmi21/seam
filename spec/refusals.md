@@ -90,7 +90,7 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 | an expression over what an each binds | computed once against the payload; per-item is not decided |
 | `style:`, `<select value>`, `translate={true}` | decidable by enumeration; `class:` was the first of these and is done, see below |
 | a `bind:` the server writes | there is nowhere to plant the marker: `bind:` takes a name, not an expression |
-| `{...spread}`, `<svelte:element>` | an unenumerable decision, so a small closed runtime node |
+| `{...spread}` on an element | an unenumerable decision; see below |
 | per-item derivation, which of two titles wins | not decided |
 
 **So "a subset of Svelte" is a statement about how far the work has got, not about where a line
@@ -459,6 +459,62 @@ on a page whose child renders the markup the page wrote inside its tag. One with
 refused, because the arguments are chosen by the child and are not visible from here; it used to be
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
+
+## `<svelte:element>`, where the tag decides four shapes and nothing else
+
+Refused as *an unenumerable decision, so a small closed runtime node*, which had the cost right and
+the shape wrong. `internal/server`'s `element()` is nine lines:
+
+```js
+renderer.push('<!---->');
+if (tag) {
+  if (!REGEX_VALID_TAG_NAME.test(tag)) e.dynamic_element_invalid_tag(tag);
+  renderer.push(`<${tag}`); attributes_fn(); renderer.push(`>`);
+  if (!is_void(tag)) {
+    children_fn();
+    if (!is_raw_text_element(tag)) renderer.push(EMPTY_COMMENT);
+    renderer.push(`</${tag}>`);
+  }
+}
+renderer.push('<!---->');
+```
+
+**The attributes and the children do not depend on the tag.** `build_element_attributes` is the
+same function a written element uses, and the namespace and the case rules it reads come off the
+node rather than off the value -- so those bytes can be rendered once and kept. What the tag
+decides is four things and no more: whether anything is written, what the name is, whether there
+are children and a closing tag, and whether an empty comment precedes that closing tag.
+
+### A stand-in tag makes the render produce the shape, and the anchor
+
+The render cannot be given a marker as the tag: `%%s0%%` fails the name regex and Svelte throws,
+which is what the refusal used to look like from the outside. It is given `seam-elN` instead --
+a valid name, never void, never raw text -- so the render always writes the full shape, and the
+name is also **the anchor**, appearing at both ends of exactly the region that belongs to it.
+
+The IR is then nested decisions with the children in one branch only, which is what keeps them from
+being walked twice:
+
+```
+<!---->  if valid(tag) { "<" tag ATTRS ">"
+                          if !void(tag) { CHILDREN  if !raw(tag) { <!----> }  "</" tag ">" } }
+<!---->
+```
+
+`is_void`, `is_raw_text_element` and the name regex are **written into those expressions** rather
+than into a runtime, so the lists travel in the derivation bundle both backends already run and
+neither keeps one of its own. They are copied from Svelte's `src/utils.js`, so `tags.test.ts`
+renders every name in both lists and holds it to what it does, the way `omitted.ts` is held.
+
+### One divergence, and it is written down
+
+**Svelte throws for a tag name its regex rejects; this writes nothing.** A compiled artifact has
+nowhere to raise the author's error at request time, so the validity test is part of the decision
+and an invalid name takes the same branch a falsy one takes. An empty string already behaved that
+way in Svelte, since `if (tag)` is reached first -- which the drift check found while it was being
+written, and which is the shape the divergence takes for every other rejected name.
+
+Of press's 41 components, 23 compiled and now 24 do.
 
 ## Composition: the walk goes into the child
 

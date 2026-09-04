@@ -453,6 +453,35 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }],
 	},
 	{
+		// `element()` writes an empty comment, then the tag and its attributes, then the children,
+		// another empty comment and a closing tag unless the tag is void, then a third. The
+		// attributes and the children are the bytes a written element would produce, because the
+		// namespace and the case rules are read off the node rather than off the value -- so the
+		// render is given a stand-in tag and only what the tag decides is left to the request.
+		name: 'svelte:element',
+		source: `${PROPS}<svelte:element this={data.tag} id={data.i}>x{data.a}</svelte:element>`,
+		data: [
+			{ tag: 'h2', i: 'q', a: 'A' },
+			// Void: no children and no closing tag.
+			{ tag: 'br', i: 'q', a: 'A' },
+			// Raw text: children, and no empty comment before the closing tag.
+			{ tag: 'title', i: 'q', a: 'A' },
+			// Nothing at all between the two comments.
+			{ tag: null, i: 'q', a: 'A' },
+		],
+	},
+	{
+		name: 'svelte:element with directives and a block inside it',
+		source:
+			`${PROPS}<svelte:element this={data.tag} class="a" class:on={data.f} style:width={data.w}>` +
+			'{#each data.xs as x}<i>{x}</i>{/each}</svelte:element>',
+		data: [
+			{ tag: 'h3', f: true, w: '1px', xs: ['p', 'q'] },
+			{ tag: 'p', f: false, w: null, xs: [] },
+			{ tag: 'hr', f: true, w: '2px', xs: ['r'] },
+		],
+	},
+	{
 		name: 'raw html',
 		source: `${PROPS}<p>{@html data.a}</p>`,
 		data: [{ a: '<b>x</b>' }, { a: '' }],
@@ -574,7 +603,6 @@ const refused: Case[] = [
 	},
 	{ name: 'a spread', source: `${PROPS}<p {...data.attrs}>x</p>` },
 
-	{ name: 'svelte:element', source: `${PROPS}<svelte:element this={data.tag}>x</svelte:element>` },
 	{ name: 'svelte:boundary', source: `${PROPS}<svelte:boundary><p>{data.a}</p></svelte:boundary>` },
 	{ name: 'await block', source: `${PROPS}{#await data.p}<p>w</p>{:then v}<p>{v}</p>{/await}` },
 	{ name: 'key block', source: `${PROPS}{#key data.k}<p>{data.a}</p>{/key}` },

@@ -44,6 +44,8 @@ pub struct Choice {
 pub enum Kind {
 	If,
 	Each,
+	/// `<svelte:element>`, whose tag the request decides. See `spec/refusals.md`.
+	Element,
 }
 
 /// Which of Svelte's two output streams a block was rendered into. The bytes cannot say: the same
@@ -173,6 +175,66 @@ fn sentinel_at(html: &str, from: usize, until: usize) -> Option<(usize, usize, u
 	let digits = rest.find("%%")?;
 	let index: usize = rest.get(..digits)?.parse().ok()?;
 	Some((start, start + 3 + digits + 2, index))
+}
+
+/// The stand-in a dynamic element was rendered under, and the parts of what it wrote.
+///
+/// Svelte's `element()` writes `<!---->`, then the tag with its attributes, then the children, an
+/// empty comment and a closing tag unless the tag is void or raw text, then `<!---->`. The render
+/// is given a name that is none of those, so what comes back is always the full shape and every
+/// piece of it has a known edge.
+struct Dynamic {
+	/// Where the leading empty comment starts.
+	from: usize,
+	/// Just after `<seam-elN`, where the attributes begin.
+	attributes: usize,
+	/// The `>` that closes the opening tag.
+	opened: usize,
+	/// Where the children end, before the empty comment that precedes the closing tag.
+	content: usize,
+	/// Just past the trailing empty comment.
+	to: usize,
+	index: usize,
+}
+
+const STANDIN: &str = "<seam-el";
+
+fn next_dynamic(html: &str, from: usize, until: usize) -> Option<Dynamic> {
+	let at = html.get(from..until)?.find(STANDIN)? + from;
+	let rest = html.get(at + STANDIN.len()..until)?;
+	let digits = rest.find(|c: char| !c.is_ascii_digit())?;
+	let index: usize = rest.get(..digits)?.parse().ok()?;
+	let attributes = at + STANDIN.len() + digits;
+
+	// The first `>` outside a quoted value. Svelte escapes `&` and `"` in an attribute and leaves
+	// `>` alone, so one can sit inside a value and the naive scan would stop on it.
+	let mut quoted = false;
+	let mut opened = None;
+	for (offset, c) in html.get(attributes..until)?.char_indices() {
+		match c {
+			'"' => quoted = !quoted,
+			'>' if !quoted => {
+				opened = Some(attributes + offset);
+				break;
+			}
+			_ => {}
+		}
+	}
+	let opened = opened?;
+
+	let closing = format!("</seam-el{index}>");
+	let close_at = html.get(opened..until)?.find(&closing)? + opened;
+	if !html.get(..at)?.ends_with(EMPTY) || !html.get(..close_at)?.ends_with(EMPTY) {
+		return None;
+	}
+	Some(Dynamic {
+		from: at - EMPTY.len(),
+		attributes,
+		opened,
+		content: close_at - EMPTY.len(),
+		to: close_at + closing.len() + EMPTY.len(),
+		index,
+	})
 }
 
 /// Where the sentinel landed, which decides how the value is escaped and whether the characters
@@ -475,18 +537,44 @@ impl Assembler<'_> {
 	/// Walks one region of a render, emitting nodes. `html[from..until]` is the region; blocks
 	/// inside it are consumed in order, and their bodies recursed into.
 	fn region(&mut self, html: &str, from: usize, until: usize, out: &mut Out) -> Result<()> {
+		self.region_from(html, from, until, out, from)
+	}
+
+	/// The same, with the point a sentinel's surroundings are read back from given separately.
+	///
+	/// An element's attributes are walked as a region of their own, and reading whether a sentinel
+	/// sits inside a tag means scanning back to the `<` -- which is behind where that region
+	/// starts. So the scan start and the anchor part company for exactly that call.
+	fn region_from(
+		&mut self,
+		html: &str,
+		from: usize,
+		until: usize,
+		out: &mut Out,
+		anchor: usize,
+	) -> Result<()> {
 		let mut at = from;
 		loop {
 			let block = next_block(html, at, until);
 			let sentinel = sentinel_at(html, at, until);
+			let dynamic = next_dynamic(html, at, until);
 
-			let block_first = match (&block, &sentinel) {
-				(Some(block), Some(sentinel)) => block.from < sentinel.0,
-				(Some(_), None) => true,
-				_ => false,
-			};
+			let first = [
+				block.as_ref().map(|one| one.from),
+				sentinel.map(|one| one.0),
+				dynamic.as_ref().map(|one| one.from),
+			];
+			let earliest = first.iter().flatten().min().copied();
 
-			if block_first {
+			if dynamic.as_ref().is_some_and(|one| Some(one.from) == earliest) {
+				let span = dynamic.ok_or_else(|| "unreachable".to_owned())?;
+				out.write(&html[at..span.from]);
+				self.dynamic(html, &span, out)?;
+				at = span.to;
+				continue;
+			}
+
+			if block.as_ref().is_some_and(|one| Some(one.from) == earliest) {
 				let span = block.ok_or_else(|| "unreachable".to_owned())?;
 				out.write(&html[at..span.from]);
 				self.block(html, &span, out)?;
@@ -500,7 +588,7 @@ impl Assembler<'_> {
 				return Ok(());
 			};
 
-			match landing(html, start, from)? {
+			match landing(html, start, anchor)? {
 				Landing::Content => {
 					out.write(&html[at..start]);
 					let (expression, raw) = self.hole(index)?;
@@ -557,6 +645,96 @@ impl Assembler<'_> {
 		})
 	}
 
+	/// Writes a dynamic element: the tag put back where the stand-in stood, and what it decides.
+	///
+	/// `element()` is four shapes and the tag chooses between them, so the tag is a value written
+	/// twice and the rest is nested decisions over it. The children sit in one branch only, which
+	/// is what keeps them from being walked twice: a void tag is the else of "not void", and the
+	/// empty comment a raw text element leaves out is a decision inside that.
+	///
+	/// What `is_void`, `is_raw_text_element` and the tag name regex are travels in the expressions
+	/// the walk wrote, so neither backend keeps a list of its own. See `pkgs/skeleton/src/tags.ts`.
+	fn dynamic(&mut self, html: &str, span: &Dynamic, out: &mut Out) -> Result<()> {
+		let ordinal = self.taken;
+		self.taken += 1;
+		let index = *self
+			.order
+			.get(ordinal)
+			.ok_or_else(|| "the render holds more blocks than the source declared".to_owned())?;
+		let block = self
+			.skeleton
+			.blocks
+			.get(index)
+			.ok_or_else(|| "the render holds more blocks than the source declared".to_owned())?;
+		if !matches!(block.kind, Kind::Element) || index != span.index {
+			return Err(format!(
+				"the render holds a dynamic element where block {index} is not one, which means the \
+				 walk and the render stopped agreeing about the order"
+			));
+		}
+
+		let tests = block.tests.clone();
+		let expression = block.expression.clone();
+		let [written, not_void, not_raw] = <[String; 3]>::try_from(tests)
+			.map_err(|_| "a dynamic element without its three tests".to_owned())?;
+		let tag = self.path(&expression)?;
+		let written = self.path(&written)?;
+		let not_void = self.path(&not_void)?;
+		let not_raw = self.path(&not_raw)?;
+
+		// The attributes are read as a region so that a value in them lands the way any other
+		// attribute's does, anchored at the `<` the stand-in opened.
+		let mut attributes = Out::default();
+		self.region_from(
+			html,
+			span.attributes,
+			span.opened,
+			&mut attributes,
+			span.from + EMPTY.len(),
+		)?;
+		let mut children = Out::default();
+		self.region(html, span.opened + 1, span.content, &mut children)?;
+
+		let mut open = Out::default();
+		open.write("<");
+		// Escaped as content, which changes nothing a valid tag name contains and leaves nothing
+		// that could close the tag it is being written into.
+		open.push(ir::Node::Slot { path: tag.clone(), escape: ir::Escape::Content });
+		let mut body = open.finish();
+		body.extend(attributes.finish());
+		let mut rest = Out::default();
+		rest.write(">");
+		let mut closed = Out::default();
+		closed.push(ir::Node::If {
+			branches: vec![
+				ir::Branch { test: Some(not_raw), body: vec![ir::Node::Static { s: EMPTY.to_owned() }] },
+				ir::Branch { test: None, body: Vec::new() },
+			],
+		});
+		closed.write("</");
+		closed.push(ir::Node::Slot { path: tag, escape: ir::Escape::Content });
+		closed.write(">");
+		let mut inner = children.finish();
+		inner.extend(closed.finish());
+		rest.push(ir::Node::If {
+			branches: vec![
+				ir::Branch { test: Some(not_void), body: inner },
+				ir::Branch { test: None, body: Vec::new() },
+			],
+		});
+		body.extend(rest.finish());
+
+		out.write(EMPTY);
+		out.push(ir::Node::If {
+			branches: vec![
+				ir::Branch { test: Some(written), body },
+				ir::Branch { test: None, body: Vec::new() },
+			],
+		});
+		out.write(EMPTY);
+		Ok(())
+	}
+
 	/// Writes the block into `out`. Which side of the node an anchor falls on differs by kind:
 	/// an each opens once for the whole block, so its marker is static and sits outside, while an
 	/// if writes a different marker per branch and so carries it inside.
@@ -574,6 +752,11 @@ impl Assembler<'_> {
 			.ok_or_else(|| "the render holds more blocks than the source declared".to_owned())?;
 
 		match block.kind {
+			Kind::Element => Err(
+				"a dynamic element was met where a block's anchors were expected, which means the \
+				 render and the block list stopped agreeing about the order"
+					.to_owned(),
+			),
 			Kind::Each => {
 				let source = self.path(&block.expression.clone())?;
 				let item = block

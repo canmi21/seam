@@ -3,6 +3,7 @@ import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { compile, parse } from 'svelte/compiler';
 import { apply, destructure, type Locals, locals, mentions, reduce, resolved } from 'ast';
 import { OMITTED_IN_SSR } from './omitted.ts';
+import { RAW_TEXT_ELEMENTS, VALID_TAG_NAME, VOID_ELEMENTS } from './tags.ts';
 import { sentinel } from './sentinel.ts';
 
 /**
@@ -75,7 +76,7 @@ export type Stream = 'body' | 'head';
 /** One if or each in the source, in document order. */
 export interface Block {
 	index: number;
-	kind: 'if' | 'each';
+	kind: 'if' | 'each' | 'element';
 	/**
 	 * Blocks are numbered across the whole source but appear in one stream or the other, and the
 	 * bytes give no way to tell which: the same two ifs, one in the head and one in the body,
@@ -186,10 +187,6 @@ const REFUSED: Record<string, string> = {
 		'`{#await}` is not handled yet. A synchronous render always takes its pending branch, which ' +
 		'is measured and small',
 	KeyBlock: '`{#key}` is not handled yet. Its only effect is on the client, and it is measured',
-	SvelteElement:
-		'`<svelte:element>` takes its tag from a value, so which bytes exist is decided at request ' +
-		'time and the outcomes cannot be enumerated at compile time. It needs a closed runtime node, ' +
-		'which is not decided',
 	SvelteBoundary: '`<svelte:boundary>` is not handled yet',
 	SvelteFragment: '`<svelte:fragment>` is not handled yet',
 	SvelteSelf: '`<svelte:self>` is not handled yet: composition does not yet follow a cycle',
@@ -406,9 +403,41 @@ function collect(
 			return;
 		}
 
+		case 'SvelteElement':
 		case 'RegularElement':
 		case 'Component':
 		case 'TitleElement': {
+			// A tag decided per request. Svelte's `element()` writes `<!---->`, then the tag and its
+			// attributes, then the children and a closing tag unless the tag is void, then
+			// `<!---->` -- and the attributes and the children are the same bytes a written element
+			// would produce, because the namespace and the case rules are read off the node rather
+			// than off the value. So the render is given a stand-in tag and the value is put back
+			// where it belongs, with what it decides expressed as tests over it.
+			if (type === 'SvelteElement') {
+				const where = span(node['tag']);
+				if (where === null) return;
+				const index = blocks.length;
+				const tag = expand(node['tag']);
+				blocks.push({
+					index,
+					kind: 'element',
+					stream,
+					within: [...within],
+					expression: tag,
+					// Its own validity first: Svelte throws for a name its regex rejects, and a
+					// compiled artifact has nowhere to raise that, so the element is not written.
+					tests: [
+						`${VALID_TAG_NAME}.test(${tag}) && (${tag})`,
+						`!${JSON.stringify(VOID_ELEMENTS)}.includes(${tag})`,
+						`!${JSON.stringify(RAW_TEXT_ELEMENTS)}.includes(${tag})`,
+					],
+					item: null,
+					counter: null,
+					alternate: false,
+				});
+				// Valid, never void and never raw text, so the render always writes the full shape.
+				edits.push([where[0], where[1], JSON.stringify(`seam-el${String(index)}`)]);
+			}
 			const attributes = node['attributes'];
 			// The class directives are taken together with the class attribute, because that is how
 			// Svelte writes them: one call producing one attribute, not one attribute plus a list of
@@ -1247,9 +1276,10 @@ function classes(
 	pending: PendingChoice[],
 ): ReadonlySet<unknown> {
 	const empty: ReadonlySet<unknown> = new Set();
-	// Only a real element. Anything else carrying one of these is refused where it always was,
-	// which says what the construct is rather than what its attribute would have been.
-	if (node['type'] !== 'RegularElement') return empty;
+	// An element, written or decided per request: `build_element_attributes` is one function and
+	// runs for both. Anything else carrying one of these is refused where it always was, which
+	// says what the construct is rather than what its attribute would have been.
+	if (node['type'] !== 'RegularElement' && node['type'] !== 'SvelteElement') return empty;
 	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
 	const directives = attributes.filter(
 		(one): one is AstNode => isNode(one) && one['type'] === 'ClassDirective',
@@ -1348,7 +1378,7 @@ function styles(
 	pending: PendingChoice[],
 ): ReadonlySet<unknown> {
 	const empty: ReadonlySet<unknown> = new Set();
-	if (node['type'] !== 'RegularElement') return empty;
+	if (node['type'] !== 'RegularElement' && node['type'] !== 'SvelteElement') return empty;
 	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
 	const directives = attributes.filter(
 		(one): one is AstNode => isNode(one) && one['type'] === 'StyleDirective',
