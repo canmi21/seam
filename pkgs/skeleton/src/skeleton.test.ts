@@ -97,6 +97,73 @@ const accepted: Case[] = [
 		data: [{ f: true }, { f: false }],
 	},
 	{
+		// One block, not two. Svelte's server transform flattens the chain and tells the branches
+		// apart by numbering the marker it opens each one with -- `<!--[0-->`, `<!--[1-->`, and
+		// `<!--[-1-->` for the else. Following the AST, which nests them, numbers a block the render
+		// never wrote. Every branch is a payload here, including the one nothing matches.
+		name: 'an else-if chain',
+		source: `${PROPS}{#if data.a}<b>{data.x}</b>{:else if data.b}<i>{data.x}</i>{:else}<u>z</u>{/if}`,
+		data: [
+			{ a: true, b: false, x: 'p' },
+			{ a: false, b: true, x: 'q' },
+			{ a: false, b: false, x: 'r' },
+		],
+	},
+	{
+		name: 'an else-if chain with no final else',
+		source: `${PROPS}{#if data.a}<b>a</b>{:else if data.b}<i>b</i>{/if}`,
+		data: [{ a: true, b: true }, { a: false, b: true }, { a: false, b: false }],
+	},
+	{
+		// Three of them, so the branch numbering is exercised past the one place an off-by-one
+		// would still line up.
+		name: 'a chain of four branches',
+		source:
+			`${PROPS}{#if data.a}<b>1</b>{:else if data.b}<i>2</i>` +
+			`{:else if data.c}<u>3</u>{:else}<s>4</s>{/if}`,
+		data: [
+			{ a: true, b: true, c: true },
+			{ a: false, b: true, c: true },
+			{ a: false, b: false, c: true },
+			{ a: false, b: false, c: false },
+		],
+	},
+	{
+		// A block in a branch the baseline render does not hold. It is numbered by the source walk
+		// after the branch above it, and the assembler meets it in that branch's own render -- in
+		// the same order, which is the whole of why the two line up. Rewinding the count between
+		// branches was what made this impossible, and rewinding was never needed.
+		name: 'a block inside an else',
+		source: `${PROPS}{#if data.f}<p>a</p>{:else}{#each data.xs as x}<p>{x}</p>{/each}{/if}`,
+		data: [
+			{ f: true, xs: ['p'] },
+			{ f: false, xs: ['p', 'q'] },
+			{ f: false, xs: [] },
+		],
+	},
+	{
+		name: 'a block inside an else-if branch',
+		source: `${PROPS}{#if data.f}<p>a</p>{:else if data.g}{#if data.h}<p>b</p>{/if}{/if}`,
+		data: [
+			{ f: true, g: true, h: true },
+			{ f: false, g: true, h: true },
+			{ f: false, g: true, h: false },
+			{ f: false, g: false, h: true },
+		],
+	},
+	{
+		// Both branches holding one, so the count has to carry from the first into the second
+		// rather than restart in either.
+		name: 'a block in the consequent and another in the else',
+		source:
+			`${PROPS}{#if data.f}{#each data.xs as x}<p>{x}</p>{/each}` +
+			`{:else}{#each data.ys as y}<i>{y}</i>{/each}{/if}`,
+		data: [
+			{ f: true, xs: ['p', 'q'], ys: [] },
+			{ f: false, xs: [], ys: ['r', 's'] },
+		],
+	},
+	{
 		name: 'raw html',
 		source: `${PROPS}<p>{@html data.a}</p>`,
 		data: [{ a: '<b>x</b>' }, { a: '' }],
@@ -287,10 +354,7 @@ const refused: Case[] = [
 		source: '<script>let { data } = $props(); const o = { a: 1 }; o.a = 2</script><p>{o.a}</p>',
 	},
 	{ name: 'translate as a boolean', source: `${PROPS}<p translate={true}>{data.a}</p>` },
-	{
-		name: 'a block inside an else',
-		source: `${PROPS}{#if data.f}<p>a</p>{:else}{#if data.g}<p>b</p>{/if}{/if}`,
-	},
+
 ];
 
 /** Compiles one case, and says either what it produced or why it was turned away. */

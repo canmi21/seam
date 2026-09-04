@@ -2,7 +2,7 @@
 	"html": "<!--[--><article><b>%%s0%%</b><!--[0--><em>dear</em><!--]--><!--[--><span>%%s1%%</span><!--]--></article><!--]-->",
 	"head": "",
 	"alternates": {
-		"0": {
+		"0.-1": {
 			"body": "<!--[--><article><b>%%s0%%</b><!--[-1--><i>cheap</i><!--]--><!--[--><span>%%s1%%</span><!--]--></article><!--]-->",
 			"head": ""
 		}
@@ -25,13 +25,18 @@
 			"kind": "if",
 			"stream": "body",
 			"expression": "((data.price * (1 + (0.2))) > 50)",
+			"tests": [
+				"((data.price * (1 + (0.2))) > 50)"
+			],
 			"item": null,
 			"counter": null,
-			"alternate": true
+			"alternate": true,
+			"within": []
 		},
 		{
 			"index": 1,
 			"kind": "each",
+			"within": [],
 			"stream": "body",
 			"expression": "data.tags",
 			"item": "t",

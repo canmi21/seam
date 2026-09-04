@@ -60,6 +60,24 @@ export interface Block {
 	stream: Stream;
 	/** The test of an if, or the source of an each, as written. */
 	expression: string;
+	/**
+	 * Every test of an if, in order, which is one per branch before the final else.
+	 *
+	 * `{:else if}` is one block rather than a nested one. Svelte's server transform flattens the
+	 * chain -- `metadata.flattened` in `visitors/IfBlock.js` -- and tells the branches apart by
+	 * numbering the marker it opens with: `<!--[0-->`, `<!--[1-->`, and `<!--[-1-->` for the else.
+	 * The AST nests them, so a walk that followed it would number blocks the render never wrote.
+	 */
+	tests?: string[];
+	/**
+	 * The branch each enclosing if has to be on for this block to be rendered at all, as pairs of
+	 * block and branch. Empty for anything the baseline render holds.
+	 *
+	 * A block inside an `{:else}` only exists in the render made for that branch, so the render
+	 * made for *its* own branches has to put its ancestors there too. Getting this wrong does not
+	 * corrupt anything: the block simply does not appear, and the assembler says so.
+	 */
+	within?: [block: number, branch: number][];
 	/** The name an each binds. */
 	item: string | null;
 	/**
@@ -185,7 +203,8 @@ function collect(
 	holes: Hole[],
 	edits: [number, number, string][],
 	blocks: Block[],
-	taken: (block: number) => boolean,
+	/** Whether test `branch` of the chain numbered `block` is rendered as true. */
+	taken: (block: number, branch: number) => boolean,
 	stream: Stream,
 	/** An expression as the compiler will see it, with declared names already substituted. */
 	expand: Locals['rewrite'],
@@ -193,6 +212,8 @@ function collect(
 	snippets: ReadonlyMap<string, Snippet>,
 	/** Class decisions found on the way, to be finished once the render says what the hash is. */
 	pending: PendingChoice[],
+	/** The branch of each enclosing if that this walk is inside of. */
+	within: [number, number][],
 ) {
 	if (!isNode(node)) return;
 	const type = node['type'];
@@ -201,7 +222,7 @@ function collect(
 	}
 
 	const walk = (child: unknown, into: Stream = stream): void => {
-		collect(source, child, holes, edits, blocks, taken, into, expand, snippets, pending);
+		collect(source, child, holes, edits, blocks, taken, into, expand, snippets, pending, within);
 	};
 	const fragment = (of: unknown, into: Stream = stream): void => {
 		if (!isNode(of)) return;
@@ -269,7 +290,7 @@ function collect(
 				expand(child, more === undefined ? bound : new Map([...bound, ...more]));
 			for (const child of nodes) {
 				if (isNode(child) && child['type'] === 'ConstTag') continue;
-				collect(source, child, holes, edits, blocks, taken, stream, inner, snippets, pending);
+				collect(source, child, holes, edits, blocks, taken, stream, inner, snippets, pending, within);
 			}
 			return;
 		}
@@ -411,7 +432,7 @@ function collect(
 			const body = node['body'];
 			const nodes = isNode(body) ? body['nodes'] : undefined;
 			for (const child of Array.isArray(nodes) ? nodes : []) {
-				collect(source, child, holes, edits, blocks, taken, stream, inner, snippets, pending);
+				collect(source, child, holes, edits, blocks, taken, stream, inner, snippets, pending, within);
 			}
 			return;
 		}
@@ -448,32 +469,48 @@ function collect(
 		}
 
 		case 'IfBlock': {
-			const at = span(node['test']);
-			if (at === null) return;
+			// The whole `{:else if}` chain, because Svelte's server writes it as one block: the
+			// transform flattens it and numbers the marker per branch rather than nesting a second
+			// pair of anchors. Following the AST instead would number blocks the render never wrote.
+			const chain = [node];
+			for (;;) {
+				const next = elseIf(chain[chain.length - 1]?.['alternate']);
+				if (next === null) break;
+				chain.push(next);
+			}
+			const last = chain[chain.length - 1];
+			const otherwise = last?.['alternate'];
 			const index = blocks.length;
+			const tests = chain.map((one) => expand(one['test']));
 			blocks.push({
 				index,
 				kind: 'if',
 				stream,
-				expression: expand(node['test']),
+				expression: tests[0] ?? '',
+				tests,
 				item: null,
 				counter: null,
-				alternate: node['alternate'] !== null && node['alternate'] !== undefined,
+				alternate: otherwise !== null && otherwise !== undefined,
+				within: [...within],
 			});
-			edits.push([at[0], at[1], taken(index) ? 'true' : 'false']);
-			walk(node['consequent']);
-			if (isNode(node['alternate'])) {
-				// A block inside an else is numbered but never rendered in the baseline, where every
-				// if is taken, so the render and the block list would stop lining up. Refused rather
-				// than mis-assembled.
-				const before = blocks.length;
-				walk(node['alternate']);
-				if (blocks.length !== before) {
-					refuse(
-						'a block inside an else is not handled yet: it is numbered but never appears in ' +
-							'the baseline render, so the render and the block list would stop lining up',
-					);
-				}
+
+			for (const [branch, one] of chain.entries()) {
+				const at = span(one['test']);
+				if (at !== null) edits.push([at[0], at[1], taken(index, branch) ? 'true' : 'false']);
+			}
+
+			// Only the first branch is in the baseline render, so only its blocks are numbered where
+			// the assembler counts them. A block in any other branch is numbered here and appears in
+			// a render nobody counts, which is the two lists coming apart. See spec/refusals.md.
+			for (const [branch, one] of chain.entries()) {
+				within.push([index, branch]);
+				walk(one['consequent']);
+				within.pop();
+			}
+			if (isNode(otherwise)) {
+				within.push([index, -1]);
+				walk(otherwise);
+				within.pop();
 			}
 			return;
 		}
@@ -497,6 +534,7 @@ function collect(
 			blocks.push({
 				index: blocks.length,
 				kind: 'each',
+				within: [...within],
 				stream,
 				expression: expand(node['expression']),
 				item: context === null ? null : source.slice(context[0], context[1]),
@@ -527,6 +565,21 @@ function collect(
  * block on either side, so the block renders empty and the title is appended regardless, and
  * nothing in the bytes ties the one to the other. See spec/ir.md.
  */
+/**
+ * The `{:else if}` this alternate is, or null where it is an ordinary `{:else}` or nothing.
+ *
+ * The parser puts the continuation in the alternate as a fragment holding one `IfBlock` marked
+ * `elseif`. Svelte's own transform reads the same thing to flatten the chain.
+ */
+function elseIf(alternate: unknown): AstNode | null {
+	if (!isNode(alternate) || alternate['type'] !== 'Fragment') return null;
+	const nodes = alternate['nodes'];
+	if (!Array.isArray(nodes) || nodes.length !== 1) return null;
+	const [only] = nodes;
+	if (!isNode(only) || only['type'] !== 'IfBlock' || only['elseif'] !== true) return null;
+	return only;
+}
+
 function titles(node: unknown, guarded = false): { found: number; conditional: boolean } {
 	if (!isNode(node)) return { found: 0, conditional: false };
 	if (node['type'] === 'TitleElement') return { found: 1, conditional: guarded };
@@ -680,7 +733,10 @@ function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = false): 
 	for (const value of Object.values(node)) snippetsIn(value, into, within);
 }
 
-function rewrite(source: string, taken: (block: number) => boolean): Rewritten {
+function rewrite(
+	source: string,
+	taken: (block: number, branch: number) => boolean,
+): Rewritten {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
 	const holes: Hole[] = [];
 	const blocks: Block[] = [];
@@ -696,7 +752,19 @@ function rewrite(source: string, taken: (block: number) => boolean): Rewritten {
 
 	const snippets = new Map<string, Snippet>();
 	snippetsIn(ast['fragment'], snippets);
-	collect(source, ast['fragment'], holes, edits, blocks, taken, 'body', declared.rewrite, snippets, pending);
+	collect(
+		source,
+		ast['fragment'],
+		holes,
+		edits,
+		blocks,
+		taken,
+		'body',
+		declared.rewrite,
+		snippets,
+		pending,
+		[],
+	);
 
 	return { rewritten: apply(source, edits), holes, blocks, pending };
 }
@@ -944,8 +1012,9 @@ export async function skeleton(entryFile: string, root: string): Promise<Skeleto
 		);
 	}
 
-	// Everything taken: this render holds every consequent and every each body.
-	const baseline = rewrite(source, () => true);
+	// The first branch of every if, and every each with one item. An if with no `{:else if}` has
+	// only that branch, so this is what "everything taken" used to mean.
+	const baseline = rewrite(source, (_block, branch) => branch === 0);
 
 	// After the walk, not before it. Every name has to come from somewhere -- this pass renders
 	// rather than reading the markup, so a name nothing binds reaches Svelte's own renderer,
@@ -957,13 +1026,29 @@ export async function skeleton(entryFile: string, root: string): Promise<Skeleto
 	resolved(source, basename(file));
 	const { body: html, head } = await renderRewritten(file, baseline.rewritten, root);
 
-	// One more render per if, with that one not taken, for the bytes of its other branch. Its
-	// ancestors stay taken, which is what keeps it reachable.
+	// One more render per branch the baseline does not hold, keyed the way Svelte numbers them:
+	// `1`, `2` for each `{:else if}`, and `-1` for the else, which is what it writes into the
+	// marker that opens the branch. Every other block stays on its first branch, which is what
+	// keeps this one reachable.
 	const alternates: Record<string, Rendered> = {};
 	for (const block of baseline.blocks) {
 		if (block.kind !== 'if') continue;
-		const flipped = rewrite(source, (index) => index !== block.index);
-		alternates[String(block.index)] = await renderRewritten(file, flipped.rewritten, root);
+		const wanted = [...(block.tests ?? []).keys()].slice(1);
+		// The else always gets a render, with or without a `{:else}` written: Svelte opens the
+		// branch either way and an empty one is still the bytes for an if that is not taken.
+		for (const branch of [...wanted, -1]) {
+			// The ancestors go back on the branch that makes this block exist, or the render would
+			// not hold it and there would be nothing to read.
+			const forced = new Map(block.within ?? []);
+			const chosen = (index: number, at: number) =>
+				index === block.index ? at === branch : at === (forced.get(index) ?? 0);
+			const flipped = rewrite(source, chosen);
+			alternates[`${String(block.index)}.${String(branch)}`] = await renderRewritten(
+				file,
+				flipped.rewritten,
+				root,
+			);
+		}
 	}
 
 	// After every render rather than after the first: an element inside an if appears in the

@@ -2,7 +2,7 @@
 	"html": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[0--><button>Buy</button><!--]--><!--[--><span>%%s1%%</span><!--]--></article><!--]-->",
 	"head": "",
 	"alternates": {
-		"0": {
+		"0.-1": {
 			"body": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[-1--><!--]--><!--[--><span>%%s1%%</span><!--]--></article><!--]-->",
 			"head": ""
 		}
@@ -25,13 +25,18 @@
 			"kind": "if",
 			"stream": "body",
 			"expression": "data.available",
+			"tests": [
+				"data.available"
+			],
 			"item": null,
 			"counter": null,
-			"alternate": false
+			"alternate": false,
+			"within": []
 		},
 		{
 			"index": 1,
 			"kind": "each",
+			"within": [],
 			"stream": "body",
 			"expression": "data.tags",
 			"item": "t",

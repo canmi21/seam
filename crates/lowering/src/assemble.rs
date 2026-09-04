@@ -56,6 +56,11 @@ pub struct Block {
 	pub stream: Stream,
 	/// The test of an if, or the source of an each, as written.
 	pub expression: String,
+	/// Every test of an if, in order, which is one per branch before the final else. A
+	/// `{:else if}` chain is one block: Svelte's server transform flattens it and numbers the
+	/// marker it opens each branch with, rather than nesting a second pair of anchors.
+	#[serde(default)]
+	pub tests: Vec<String>,
 	pub item: Option<String>,
 	/// The name an each block binds to its counter, where it names one. The IR calls it `index`;
 	/// here that name is the block's own ordinal.
@@ -549,38 +554,58 @@ impl Assembler<'_> {
 				Ok(())
 			}
 			Kind::If => {
-				let test = self.path(&block.expression.clone())?;
-				let mut taken = Out::default();
-				// The branch marker belongs to the branch, because which one is written is only
-				// known per request. Svelte put it at the head of the span it opened.
-				taken.write(&html[span.from..span.content]);
-				self.region(html, span.content, span.until, &mut taken)?;
-
-				let rendered = self
-					.skeleton
-					.alternates
-					.get(&index.to_string())
-					.ok_or_else(|| format!("no render was made with block {index} not taken"))?;
-				// The alternate is taken from the same stream the block lives in, and the head's
-				// title is split off there too so the two renders are read the same way.
-				let other = match self.stream {
-					Stream::Body => rendered.body.as_str(),
-					Stream::Head => split_off_title(&rendered.head)?.0,
+				// One block, one branch per test, and a last one for the else. A chain of
+				// `{:else if}` arrives here flattened, the way Svelte's own transform writes it.
+				let tests = if block.tests.is_empty() {
+					vec![block.expression.clone()]
+				} else {
+					block.tests.clone()
 				};
-				let mut otherwise = Out::default();
-				// Found by counting within the stream, because that is how it was walked.
-				let at = self.locate(other, ordinal)?;
-				otherwise.write(&other[at.from..at.content]);
-				let saved = std::mem::replace(&mut self.taken, ordinal + 1);
-				self.region(other, at.content, at.until, &mut otherwise)?;
-				self.taken = saved;
+				let mut paths = Vec::with_capacity(tests.len());
+				for test in &tests {
+					paths.push(self.path(test)?);
+				}
 
-				out.push(ir::Node::If {
-					branches: vec![
-						ir::Branch { test: Some(test), body: taken.finish() },
-						ir::Branch { test: None, body: otherwise.finish() },
-					],
-				});
+				let mut branches = Vec::with_capacity(paths.len() + 1);
+				// The first branch is the render being walked. The branch marker belongs to the
+				// branch, because which one is written is only known per request; Svelte put it at
+				// the head of the span it opened.
+				let mut first = Out::default();
+				first.write(&html[span.from..span.content]);
+				self.region(html, span.content, span.until, &mut first)?;
+				branches.push(ir::Branch { test: paths.first().cloned(), body: first.finish() });
+
+				// The rest, each from the render made with that branch taken, keyed the way Svelte
+				// numbers them: `1` upward for each `{:else if}`, and `-1` for the else.
+				let rest = (1..paths.len() as i64).chain(std::iter::once(-1));
+				for branch in rest {
+					let key = format!("{index}.{branch}");
+					let rendered = self.skeleton.alternates.get(&key).ok_or_else(|| {
+						format!("no render was made with branch {branch} of block {index} taken")
+					})?;
+					// The alternate is taken from the same stream the block lives in, and the head's
+					// title is split off there too so the two renders are read the same way.
+					let other = match self.stream {
+						Stream::Body => rendered.body.as_str(),
+						Stream::Head => split_off_title(&rendered.head)?.0,
+					};
+					let mut body = Out::default();
+					// Found by counting within the stream, because that is how it was walked.
+					let at = self.locate(other, ordinal)?;
+					body.write(&other[at.from..at.content]);
+					// The cursor is not rewound between branches. Blocks are numbered by the source
+					// walk in the order it takes them -- this branch's after the last one's -- and
+					// this walk takes them in the same order, so continuing is what lines the two up.
+					self.region(other, at.content, at.until, &mut body)?;
+					let test = if branch < 0 {
+						None
+					} else {
+						paths.get(branch as usize).cloned()
+					};
+					branches.push(ir::Branch { test, body: body.finish() });
+				}
+
+				out.push(ir::Node::If { branches });
 				Ok(())
 			}
 		}

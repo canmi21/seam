@@ -2,11 +2,11 @@
 	"html": "<!--[--><div><!--[0--><b>pricey</b><!--]--><span>%%s0%%</span><!--[0--><em>none</em><!--]--></div><!--]-->",
 	"head": "",
 	"alternates": {
-		"0": {
+		"0.-1": {
 			"body": "<!--[--><div><!--[-1--><i>cheap</i><!--]--><span>%%s0%%</span><!--[0--><em>none</em><!--]--></div><!--]-->",
 			"head": ""
 		},
-		"1": {
+		"1.-1": {
 			"body": "<!--[--><div><!--[0--><b>pricey</b><!--]--><span>%%s0%%</span><!--[-1--><!--]--></div><!--]-->",
 			"head": ""
 		}
@@ -24,18 +24,26 @@
 			"kind": "if",
 			"stream": "body",
 			"expression": "data.price > 10",
+			"tests": [
+				"data.price > 10"
+			],
 			"item": null,
 			"counter": null,
-			"alternate": true
+			"alternate": true,
+			"within": []
 		},
 		{
 			"index": 1,
 			"kind": "if",
 			"stream": "body",
 			"expression": "data.tags.length === 0",
+			"tests": [
+				"data.tags.length === 0"
+			],
 			"item": null,
 			"counter": null,
-			"alternate": false
+			"alternate": false,
+			"within": []
 		}
 	]
 }

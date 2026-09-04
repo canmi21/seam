@@ -2,7 +2,7 @@
 	"html": "<!--[--><div>%%s0%%</div><!--[0--><b>x</b><!--]--><!--]-->",
 	"head": "",
 	"alternates": {
-		"0": {
+		"0.-1": {
 			"body": "<!--[--><div>%%s0%%</div><!--[-1--><!--]--><!--]-->",
 			"head": ""
 		}
@@ -20,9 +20,13 @@
 			"kind": "if",
 			"stream": "body",
 			"expression": "data.f",
+			"tests": [
+				"data.f"
+			],
 			"item": null,
 			"counter": null,
-			"alternate": false
+			"alternate": false,
+			"within": []
 		}
 	]
 }

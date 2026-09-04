@@ -165,6 +165,23 @@ gone.
    1  context the entry has no ancestor to provide
 ```
 
+**Then the else, and 13 became 15.** What is left:
+
+```
+   5  {@render} of a snippet from a prop       3  {...spread}
+   3  a name assigned after it is declared     3  a snippet rendered twice
+   2  a bind: the server writes                2  style:
+   1  a snippet a component is passed, with parameters
+   1  {@const} inside a snippet that takes parameters
+   1  {#each} over a destructuring             1  <svelte:element>
+   1  a marker where the child computes with the value
+   1  a marker where the child calls the value
+   1  context the entry has no ancestor to provide
+```
+
+Three of those were reported for the first time rather than newly caused: a name assigned after it
+is declared was always there, behind a block refusal that ran first.
+
 **`{...spread}` is third here, where the whole-ecosystem list has it at 96%.** That is the
 difference the entry-only walk makes, and it is the reason this measurement had to be redone: a
 library wraps and forwards, an application does not.
@@ -327,6 +344,39 @@ on a page whose child renders the markup the page wrote inside its tag. One with
 refused, because the arguments are chosen by the child and are not visible from here; it used to be
 refused for saying it was never rendered, which was wrong in a way that would have sent an author
 looking for the wrong thing.
+
+## A block inside an else, and the `{:else if}` that was never one
+
+Five of press's components were held by *a block inside an else is not handled yet*, and reading
+Svelte's `visitors/IfBlock.js` said that most of them were not that case at all.
+
+**An `{:else if}` chain is one block.** The transform walks `metadata.flattened` and emits one
+`if`/`else if`/`else` statement, telling the branches apart by numbering the marker it opens each
+one with: `<!--[0-->`, `<!--[1-->` upward, and `<!--[-1-->` for the else, all inside one
+`<!--[-->`/`<!--]-->` pair. The AST nests them -- the alternate is a fragment holding one `IfBlock`
+marked `elseif` -- so a walk that followed the AST numbered a second block the render never wrote,
+and the refusal fired on the commonest form of the construct there is. Confirmed by rendering, and
+one more thing came with it: **a bare `{#if}` with no else still writes `<!--[-1--><!--]-->` when it
+is not taken**, so the branch always exists whether or not anything was written for it.
+
+So a block carries every test of its chain, one render is made per branch, and the IR's `if` node
+already took a list of branches. `<!--[-1-->` is both Svelte's number for the else and the key the
+render is filed under, which is one convention rather than two.
+
+**The genuine case turned out to be one line.** A block inside a real `{:else}` is numbered by the
+source walk after the branch above it, and the assembler meets it in that branch's own render --
+in the same order. The two lined up already. What stopped them was that the assembler *rewound*
+its block count before walking the alternate, so a block there would have been given a number the
+consequent had already used. Nothing needed that rewind: it was invisible for as long as the
+refusal meant no alternate ever held a block.
+
+One thing did have to be added. A block inside an else exists only in the render made for that
+branch, so the render made for **its** branches has to put its ancestors on the branch that makes
+it exist. Each block records the branch of every if it sits inside, and the driver replays them.
+Getting that wrong corrupts nothing -- the block does not appear, and the assembler says so, which
+is how it was found.
+
+Of press's 41 components, 13 compiled and now 15 do, and this refusal is gone from the list.
 
 ## `class:` is done, and it was never the same problem as `style:`
 

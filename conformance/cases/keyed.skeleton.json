@@ -33,6 +33,7 @@
 		{
 			"index": 0,
 			"kind": "each",
+			"within": [],
 			"stream": "body",
 			"expression": "data.rows",
 			"item": "row",
@@ -42,6 +43,7 @@
 		{
 			"index": 1,
 			"kind": "each",
+			"within": [],
 			"stream": "body",
 			"expression": "row.tags",
 			"item": "tag",
