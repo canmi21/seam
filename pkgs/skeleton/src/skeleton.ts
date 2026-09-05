@@ -226,6 +226,16 @@ export async function skeleton(
 	// component in a branch the baseline does not take has answered too. One nothing rendered is
 	// not asked again: it is walked as the decision it was, which the runtime makes.
 	if (baseline.asks.length > 0 || baseline.wants.length > 0) {
+		if (process.env['SEAM_TRACE'] !== undefined) {
+			console.error(
+				`[seam] ${basename(file)}: asked ${String(baseline.asks.length)} tests and ` +
+					`${String(baseline.wants.length)} values (told ${String(told.size)}, decided ` +
+					`${String(decided.size)}, mute ${String(mute.size)}, blocks ${String(baseline.blocks.length)})`,
+			);
+			for (const want of baseline.wants) {
+				console.error(`[seam]   want ${want.replace(/\s+/g, ' ').slice(0, 160)} -> told ${String(told.has(want))}`);
+			}
+		}
 		const answers = asked['__seam_asked'] ?? {};
 		const settled = new Map(decided);
 		const values = new Map(told);

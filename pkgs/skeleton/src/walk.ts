@@ -10,6 +10,7 @@ import {
 	type Locals,
 	locals,
 	mentions,
+	onlyWithin,
 	readsOf,
 	settle,
 } from 'ast';
@@ -147,6 +148,11 @@ export interface Site {
 	wants: [key: string, code: string][];
 	/** The answers to `wants` this walk was told, by expression, as JSON. */
 	told: ReadonlyMap<string, string>;
+	/**
+	 * Names imported from a runes module, `.svelte.ts` or `.svelte.js`, across every file walked.
+	 * A call into one with a request-decided argument is decided by the render. See `varies()`.
+	 */
+	runes: Set<string>;
 	/**
 	 * Asks no render answered: markup nothing rendered, a branch nobody took. Not asked again,
 	 * and walked as a decision the runtime makes, which is what they were before.
@@ -757,6 +763,28 @@ function contents(
 	skipped.add(binding);
 }
 
+/** The locals a file imports from a runes module, which Svelte compiles and nothing else runs. */
+function runesOf(imports: Record<string, string>): Set<string> {
+	const found = new Set<string>();
+	for (const [local, from] of Object.entries(imports)) {
+		if (/\.svelte\.(?:ts|js)$/.test(from)) found.add(local);
+	}
+	return found;
+}
+
+/**
+ * Whether the request decides an expression's value: it reads a name the walk does not hold,
+ * and not only inside the arguments of a call into a runes module. Such a call's value on the
+ * server is decided inside a render by the library -- a query never runs there and is pending
+ * whatever its key -- so the render is asked, the way it is asked about anything the request
+ * does not decide. See `onlyWithin`.
+ */
+function varies(expression: string, walk: Walk): boolean {
+	const names = unknown(walk);
+	if (!mentions(expression, names)) return false;
+	return !onlyWithin(expression, names, walk.site.runes);
+}
+
 /**
  * The names an expression may read whose value this walk does not hold: what the request
  * decides, and what a component supplies to a snippet it was passed, which is decided by the
@@ -832,7 +860,14 @@ function snippetNamed(child: unknown, name: string): child is AstNode {
 function asWritten(node: unknown, written: string, walk: Walk): string {
 	const at = span(node);
 	if (at === null) return written;
-	return walk.plain(node) === written ? walk.source.slice(at[0], at[1]) : written;
+	const plain = walk.plain(node);
+	if (plain === written) return walk.source.slice(at[0], at[1]);
+	// The expansion reaches the request only inside a call into a runes module, whose value the
+	// library decides without the argument's value -- a query is pending on the server whatever
+	// its key. What the render evaluates is then the expression in this file's own names, which
+	// the copy has in scope; the expansion names the caller's, which it does not.
+	if (mentions(written, unknown(walk))) return plain;
+	return written;
 }
 
 /** Every name a snippet's parameters bind. */
@@ -1131,7 +1166,7 @@ function collect(node: unknown, walk: Walk): void {
 				site.payload !== null &&
 				walk.opaque !== true &&
 				walk.asking !== true &&
-				!mentions(written, unknown(walk))
+				!varies(written, walk)
 			) {
 				edits.push([at[0], at[1], shielded(asWritten(node['expression'], written, walk))]);
 				return;
@@ -1653,7 +1688,26 @@ function collect(node: unknown, walk: Walk): void {
 			}
 			const last = chain[chain.length - 1];
 			const otherwise = last?.['alternate'];
-			const tests = chain.map((one) => expand(one['test']));
+			// A `?:` in a test whose branches a marker cannot stand for -- one choosing between two
+			// icon components on a payload key -- is a structure, and is enumerated the way one
+			// handed to a package is: the walk stops and asks, and the build renders once per
+			// branch. Told, the test is what the branch leaves, and the request may no longer
+			// decide it, in which case the render does. See `stands`.
+			const tests = chain.map((one) => {
+				const held = settle(expand(one['test']), site.decided, dynamic);
+				if (held.undecided === null) return held.text;
+				const scoped = new Set(
+					[...dynamic].filter((name) => site.payload?.has(name) !== true && !walk.fresh.includes(name)),
+				);
+				if (mentions(held.undecided, scoped)) {
+					refuse(
+						`\`${held.undecided}\` chooses between things a marker cannot stand for and reads a ` +
+							'name an each block binds, so the choice is made per item and cannot be ' +
+							'enumerated for the page',
+					);
+				}
+				throw new Undecided(held.undecided);
+			});
 
 			// A block whose every test the request does not decide is decided once, by the render,
 			// and is bytes: the branch it takes, between anchors the assembler copies as it copies
@@ -1666,7 +1720,7 @@ function collect(node: unknown, walk: Walk): void {
 			if (
 				site.payload !== null &&
 				walk.asking !== true &&
-				tests.every((test) => !mentions(test, unknown(walk)) && !site.mute.has(test))
+				tests.every((test) => !varies(test, walk) && !site.mute.has(test))
 			) {
 				const answers = tests.map((test) => site.decided.get(test));
 				if (answers.every((one) => one !== undefined)) {
@@ -1769,7 +1823,8 @@ function collect(node: unknown, walk: Walk): void {
 			if (
 				site.payload !== null &&
 				walk.asking !== true &&
-				!mentions(written, unknown(walk)) &&
+				!constant(written) &&
+				!varies(written, walk) &&
 				!site.mute.has(written)
 			) {
 				const held = site.told.get(written);
@@ -1913,7 +1968,15 @@ function descend(node: AstNode, walk: Walk): boolean {
 		// render, so `const u = new URL(x); u.searchParams.set('q', y)` holds the query there and
 		// the expansion of `u` does not. The render is asked, as it is asked for an each's source,
 		// and answers with JSON where the value is data; anything else stays the expansion.
-		if (walk.site.payload !== null && walk.asking !== true && !mentions(grown, unknown(walk))) {
+		// A literal is its own value and is not asked for; one no render could answer is not asked
+		// again.
+		if (
+			walk.site.payload !== null &&
+			walk.asking !== true &&
+			!constant(grown) &&
+			!walk.site.mute.has(written) &&
+			!varies(grown, walk)
+		) {
 			const held = walk.site.told.get(written);
 			if (held !== undefined) {
 				bindings.set(name, held);
@@ -1983,6 +2046,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 		const asks: [string, string][] = [];
 		const wants: [string, string][] = [];
 		const own = importsOf(raw);
+		for (const name of runesOf(own)) walk.site.runes.add(name);
 		for (const one of brought) {
 			const already = own[one.local];
 			if (already === one.from) continue;
@@ -2046,6 +2110,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 				wants,
 				told: walk.site.told,
 				mute: walk.site.mute,
+				runes: walk.site.runes,
 				given: hands(walk, nodes),
 				payload: walk.site.payload,
 				missed: walk.site.missed,
@@ -2189,6 +2254,7 @@ export function rewrite(
 			wants,
 			told,
 			mute,
+			runes: runesOf(importsOf(source)),
 			given: new Map(),
 			payload,
 			missed,

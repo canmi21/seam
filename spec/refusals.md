@@ -1480,6 +1480,22 @@ where it is data -- a string, a number, a boolean, null, arrays and plain object
 `URL` or a `Date` would round-trip as a string and come back a different thing, and for those
 the expansion stays.
 
+**A call into a runes module is decided by the render whatever its arguments read.** press's
+article reads `createReadsQuery(() => slug).data?.read_count`, and `slug` is the payload's. The
+expression mentions the request, and its value on the server is decided inside a render by the
+library without the argument's value ever mattering: a query is pending on the server whatever
+its key. `reads.svelte.ts` is a runes module, compiled by Svelte and legal nowhere else, so the
+render is the only place it can be evaluated at all. So a read of the request that sits only
+inside the arguments of a call into a runes module does not make the expression the request's,
+and it is asked of the render like anything else the request does not decide -- in the file's
+own names, since the copy has those in scope and the caller's it does not.
+
+**A `?:` in a test whose branches a marker cannot stand for is a structure**, and is enumerated
+the way one handed to a package is: `{#if (summary ? PROVIDERS[summary.provider] : undefined)
+?.icon}` chooses between icon components on a payload key, and told which way, the test is what
+the branch leaves and the render decides it. Evaluating it per request would have reached for
+components in a scope that holds data.
+
 **Two more things the same oracle found beside these.** A class written as an expression on an
 element the stylesheet could match: Svelte scopes the element when it cannot read what the class
 could be -- `gather_possible_values` in `2-analyze/css/utils.js` reads a literal, a ternary, a

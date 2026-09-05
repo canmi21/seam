@@ -186,6 +186,9 @@ export async function structures(entry: Entry, root: string): Promise<(Prepared 
 	const found: (Prepared & Run)[] = [];
 	for (let at = 0; at < queue.length; at++) {
 		const run = queue[at] as Run;
+		if (process.env['SEAM_TRACE'] !== undefined) {
+			console.error(`[seam] structure ${String(at + 1)} of ${String(queue.length)} queued so far`);
+		}
 		try {
 			found.push({ ...(await prepare(entry.component, root, run.fixed, run.decided)), ...run });
 		} catch (error) {

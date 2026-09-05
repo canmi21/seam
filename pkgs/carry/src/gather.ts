@@ -35,8 +35,12 @@ export function carriedBy(
 	// a name it reads is taken from the first of them that imports it, and which that is only
 	// the imports say.
 	const reads = new Map<string, Set<string>>();
+	const trace = process.env['SEAM_TRACE'] !== undefined;
 	for (const one of expressions) {
 		const names = readsOf([one.expression]);
+		if (trace && [...names].some((name) => /Query|Mutation/.test(name))) {
+			console.error(`[seam]   reads ${one.expression.replace(/\s+/g, ' ').slice(0, 200)} in ${one.files[0] ?? '?'}`);
+		}
 		for (const file of one.files) {
 			const held = reads.get(file) ?? new Set<string>();
 			for (const name of names) held.add(name);

@@ -557,6 +557,72 @@ function where(node: unknown): [number, number] | null {
 }
 
 /**
+ * Whether every read of one of `names` in the expression sits inside the arguments of a call
+ * whose callee is rooted at one of `callees`, arrow functions among the arguments included.
+ *
+ * What it is for: a runes module -- `reads.svelte.ts`, compiled by Svelte and legal nowhere
+ * else -- called with a value the request decides, `createReadsQuery(() => data.slug)`. The
+ * expression mentions the payload, and what it evaluates to on the server is decided inside a
+ * render by the library and nowhere else, so the runtime cannot hold it as a derivation and the
+ * render is the only place it can be asked. Every other read of the request stays a hole.
+ */
+export function onlyWithin(
+	expression: string,
+	names: ReadonlySet<string>,
+	callees: ReadonlySet<string>,
+): boolean {
+	if (names.size === 0 || callees.size === 0) return false;
+	let ast: Node;
+	try {
+		ast = parsed(expression);
+	} catch {
+		return false;
+	}
+	let outside = false;
+	let called = false;
+	const rootOf = (node: unknown): string | null => {
+		let at = node;
+		while (isNode(at) && (at['type'] === 'MemberExpression' || at['type'] === 'ChainExpression')) {
+			at = at['type'] === 'ChainExpression' ? at['expression'] : at['object'];
+		}
+		return isNode(at) && at['type'] === 'Identifier' && typeof at['name'] === 'string' ? at['name'] : null;
+	};
+	const walk = (node: unknown, inside: boolean): void => {
+		if (outside) return;
+		if (Array.isArray(node)) {
+			for (const one of node) walk(one, inside);
+			return;
+		}
+		if (!isNode(node)) return;
+		if (node['type'] === 'CallExpression') {
+			const root = rootOf(node['callee']);
+			const shielding = root !== null && callees.has(root);
+			if (shielding) called = true;
+			walk(node['callee'], inside);
+			walk(node['arguments'], inside || shielding);
+			return;
+		}
+		if (node['type'] === 'Identifier') {
+			if (!inside && typeof node['name'] === 'string' && names.has(node['name'])) outside = true;
+			return;
+		}
+		if (node['type'] === 'MemberExpression') {
+			walk(node['object'], inside);
+			if (node['computed'] === true) walk(node['property'], inside);
+			return;
+		}
+		if (node['type'] === 'Property') {
+			if (node['computed'] === true) walk(node['key'], inside);
+			walk(node['value'], inside);
+			return;
+		}
+		for (const one of Object.values(node)) walk(one, inside);
+	};
+	walk(ast['fragment'], false);
+	return called && !outside;
+}
+
+/**
  * Whether an expression is a literal and nothing else, once substitution has had its way with it.
  *
  * `<Badge tone="x" />` becomes `("x")` where the child writes `{tone}`, and a marker planted there

@@ -15,6 +15,7 @@ export {
 	type Locals,
 	locals,
 	mentions,
+	onlyWithin,
 	pathOf,
 	settle,
 } from './locals.ts';
