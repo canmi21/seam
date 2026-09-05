@@ -1,0 +1,11 @@
+{
+	"name": "routes",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"dependencies": {
+		"@sveltejs/kit": "workspace:*"
+	}
+}

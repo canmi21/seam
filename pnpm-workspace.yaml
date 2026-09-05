@@ -3,6 +3,8 @@
 # is content with an empty workspace.
 packages:
   - "pkgs/*"
+  # Source taken from another project and kept as it was written; see vendor/kit/VENDOR.md.
+  - "vendor/*"
 
 # A package listed here may run arbitrary code during install. pnpm blocks that by default and
 # the default is right -- an install script runs before anybody reads a line of the code.

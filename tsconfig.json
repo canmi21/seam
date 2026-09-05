@@ -10,7 +10,11 @@
 		"verbatimModuleSyntax": true,
 		"allowImportingTsExtensions": true,
 		"erasableSyntaxOnly": true,
-		"types": ["node"]
+		"types": ["node"],
+		"allowJs": true,
+		"paths": {
+			"types": ["./vendor/kit/src/types/internal.d.ts"]
+		}
 	},
 	"include": ["pkgs/*/src/**/*.ts", "pkgs/*/conformance/**/*.ts"]
 }

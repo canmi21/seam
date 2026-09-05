@@ -44,6 +44,14 @@ depends = ["wasm"]
 # value is read when the module graph loads.
 run = "NODE_ENV=production pnpm exec vitest run"
 
+[tasks.test-vendor]
+description = "Run SvelteKit's own checks over the vendored source, upstream's Node half"
+# From the vendor directory, under its own config: the repository's `test` does not include it,
+# and its config is not a `vitest.config.*` so the root run does not pick it up either. See
+# vendor/kit/VENDOR.md.
+dir = "vendor/kit"
+run = "pnpm exec vitest run --config vitest.config.ts"
+
 [tasks.build]
 description = "Compile the corpus routes into dist/, which is the artifact a server reads"
 # The lowering module is not committed, so the step that needs it builds it.
