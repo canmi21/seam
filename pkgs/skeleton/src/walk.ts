@@ -2800,6 +2800,58 @@ function collect(node: unknown, walk: Walk): void {
 	}
 }
 
+/** The key `merged()` binds a child's rest under, which no attribute can be named. */
+const REST = '...';
+
+/**
+ * What a call site's spreads leave for each prop the child declares, where a spread's keys are
+ * the request's and cannot be listed.
+ *
+ * `spread_props` in `internal/server/index.js` merges the attributes and the spreads in order,
+ * each own enumerable key of a later object overriding an earlier one's -- with `undefined` as
+ * much as with a value, since it is the key's presence that decides -- and skips an object that
+ * is null. The child reads the props its `$props()` names, so each of those is the fold of the
+ * parts in order: an attribute naming it is its value from there on, and a spread is its own
+ * value where it has the key and the value so far where it does not. A prop nothing names stays
+ * unbound, so the child's default answers. The rest, where the child gathers one, is every key
+ * the merge holds that the pattern does not name, which is the merge itself with those taken out.
+ * Everything here is an expression over the request, evaluated per request as any derivation is.
+ */
+function merged(
+	order: readonly ({ name: string } | { spread: string })[],
+	declares: readonly { local: string; prop: string; fallback: string; rest?: true }[],
+	bindings: Map<string, string>,
+): void {
+	const named = declares.filter((one) => one.rest !== true).map((one) => one.prop);
+	for (const prop of named) {
+		const key = JSON.stringify(prop);
+		let value = 'undefined';
+		let touched = false;
+		for (const part of order) {
+			if ('name' in part) {
+				if (part.name === prop) value = bindings.get(prop) ?? 'undefined';
+				continue;
+			}
+			touched = true;
+			value =
+				`(${part.spread} != null && Object.prototype.hasOwnProperty.call(${part.spread}, ${key}) ` +
+				`? ${part.spread}[${key}] : ${value})`;
+		}
+		if (touched) bindings.set(prop, value);
+	}
+	if (!declares.some((one) => one.rest === true)) return;
+	const sources = order.map((part) =>
+		'spread' in part
+			? part.spread
+			: `({ ${JSON.stringify(part.name)}: ${bindings.get(part.name) ?? 'undefined'} })`,
+	);
+	const taken = named.map((prop, at) => `[${JSON.stringify(prop)}]: __seam_named_${String(at)}`);
+	bindings.set(
+		REST,
+		`((({ ${[...taken, '...__seam_rest'].join(', ')} }) => __seam_rest)(Object.assign({}, ${sources.join(', ')})))`,
+	);
+}
+
 /**
  * Walks into the component a tag names, with its props bound to what the call site passes.
  *
@@ -2867,23 +2919,35 @@ function descend(
 	// a query client to set as context, a store, a function -- values that are not data and could
 	// not be told as JSON, and that a child's markup never writes but its script may need whole.
 	const inertProps = new Set<string>();
+	// The call site's attributes and spreads in the order `$.spread_props` merges them, kept where
+	// a spread's keys cannot be listed: a name for an attribute or a listed key, an expression for
+	// a spread whose keys are the request's. See `merged()`.
+	const order: ({ name: string } | { spread: string; at: [number, number] | null })[] = [];
 	for (const one of attributes) {
 		// An attachment is in the props and nothing on the server calls it.
 		if (isNode(one) && one['type'] === 'AttachTag') continue;
 		// `{...props}` is `$.spread_props`, the props merged in order, and a call site knows the
 		// keys exactly when the object is written out -- which a rest gathered from a caller's own
 		// attributes is, once expanded. Then it is so many props. An object the request hands over
-		// whole has keys nobody can list, and the child is Svelte's to render, as before.
+		// whole has keys nobody can list, but the child's declaration lists which it reads, and each
+		// of those is the value the merge leaves for it; the rest is the merge without them. Both
+		// are decided once the child is read, below.
 		if (isNode(one) && one['type'] === 'SpreadAttribute') {
-			const entries = objectEntries(walk.expand(one['expression']));
-			if (entries === null) return false;
+			const grown = walk.expand(one['expression']);
+			const entries = objectEntries(grown);
+			if (entries === null) {
+				order.push({ spread: `(${grown})`, at: span(one) });
+				continue;
+			}
 			for (const [key, value] of entries) {
 				bindings.set(key, key.startsWith('on') && key.length > 2 ? 'null' : `(${value})`);
+				order.push({ name: key });
 			}
 			continue;
 		}
 		if (!isNode(one) || one['type'] !== 'Attribute') return false;
 		const name = typeof one['name'] === 'string' ? one['name'] : '';
+		order.push({ name });
 		const value = one['value'];
 		if (name.startsWith('on') && name.length > 2) {
 			bindings.set(name, 'null');
@@ -2938,7 +3002,10 @@ function descend(
 	// child binds itself to the same module is its own; to another is a collision that
 	// JavaScript would not have had, and is said.
 	const brought: Carried[] = [];
-	const read = readsOf(bindings.values());
+	const read = readsOf([
+		...bindings.values(),
+		...order.flatMap((part) => ('spread' in part ? [part.spread] : [])),
+	]);
 	for (const [local, one] of importedBy(walk.source)) {
 		if (!read.has(local)) continue;
 		if (!one.from.startsWith('.')) {
@@ -2985,6 +3052,7 @@ function descend(
 		// A default only fires on `undefined`, which is what a prop the caller left out is.
 		const declares = propsOf(ahead, raw);
 		if (declares === null) return rolled(walk, mark);
+		if (order.some((part) => 'spread' in part)) merged(order, declares, bindings);
 
 		// A component that renders itself -- through `<svelte:self>` or an import of its own file --
 		// is a fragment the runtime calls, and is walked as one: its props are names bound per
@@ -3016,7 +3084,13 @@ function descend(
 			}
 			if (one.rest === true) {
 				// What `$props()` leaves in a rest: every attribute the caller wrote that the pattern
-				// did not name, as an object of the caller's own expressions.
+				// did not name, as an object of the caller's own expressions. Where a spread's keys
+				// are the request's, `merged()` bound the rest already.
+				const whole = bindings.get(REST);
+				if (whole !== undefined) {
+					bound.set(one.local, whole);
+					continue;
+				}
 				const others = [...bindings]
 					.filter(([prop]) => !named.has(prop))
 					.map(([prop, value]) => `${JSON.stringify(prop)}: ${value}`);
@@ -3190,6 +3264,11 @@ function descend(
 		// Nothing, except for the paths this render is fixed at: those the compiler knows, and
 		// markup the child leaves for Svelte to evaluate reads them out of its props like anything
 		// else. So the prop is handed exactly them, in the shape they sit in, and nothing more.
+		// A spread of the request's goes the same way, whole: every prop it decided is bound
+		// inside the child, and evaluated here it would read the payload the render is not given.
+		for (const part of order) {
+			if ('spread' in part && part.at !== null) walk.edits.push([part.at[0], part.at[1], '']);
+		}
 		for (const one of attributes) {
 			if (!isNode(one) || one['type'] !== 'Attribute') continue;
 			const value = one['value'];

@@ -648,8 +648,22 @@ and the child was left to Svelte -- where `n * 2` on a marker was `NaN`, and the
 value was eaten called it safe. A call site knows exactly what a rest gathers: the object of every
 attribute the caller wrote that the pattern did not name, in the caller's own expressions. The same
 object, spread onto a child of the child, `<Inner {...rest}>`, is so many props again: `$.spread_props`
-merges in order and a call site whose object is written out knows the keys. One the request hands
-over whole has keys nobody can list, and that child is Svelte's.
+merges in order and a call site whose object is written out knows the keys.
+
+**A spread of an object the request hands over whole is bound by what the child declares.** Its
+keys nobody can list, and that child used to be Svelte's. But the child's `$props()` lists which
+keys it reads, and `spread_props` in `internal/server/index.js` says what each is worth: the
+attributes and the spreads merged in order, a later object's own key overriding an earlier one's
+-- by the key's presence, so `undefined` overrides too -- and a null object skipped. So each
+declared prop is that fold written as an expression over the parts in order, an attribute naming
+it being its value from there on and a spread being its own value where it has the key and the
+value so far where it does not; a prop nothing names stays unbound and the child's default
+answers. A rest is the merge with the declared keys taken out, `Object.assign` over the parts and
+a destructuring around it, which the child then spreads onto an element per request as it does
+any object the request decides. The spread itself goes from the render's call site, since every
+prop it decided is bound inside the child and evaluated there it would read the payload the render
+is not given. Measured with the spread before and after an attribute, a key present as
+`undefined`, a missing key taking the default, and a null object. `merged()` in `walk.ts`.
 
 **A declaration reading a prop is neutralised only where the prop varies.** The render is given no
 data, so a declaration reading a prop used to be handed something harmless whatever the prop was

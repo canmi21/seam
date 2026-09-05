@@ -25,10 +25,11 @@ resolution through `exports` under the `svelte` condition and the package's re-e
 the caller's other attributes, a prop-reading declaration neutralised only where the prop varies,
 an id as a marker the component computes with, an inert spread as bytes, modules left at their
 real paths. On press every route is byte-identical with every component entered, `bits-ui` and
-`@tanstack` included, and nothing left to the render. What would still be left to it: a component
-spread with an object the request hands it whole, whose keys nobody can list. The residual risk
-noted in [pipeline.md](pipeline.md) -- a marker outside a function's domain -- now applies only to
-such a component.
+`@tanstack` included, and nothing left to the render. The one shape that would still have been
+left to it -- a component spread with an object the request hands it whole -- is bound by what the
+child declares, [refusals.md](refusals.md) has how. The residual risk noted in
+[pipeline.md](pipeline.md) -- a marker outside a function's domain -- now applies only to a
+component the walk could not enter for a reason it names.
 
 **The title rule is done.** It is Svelte's own and it was derivable; [ir.md](ir.md) has it.
 

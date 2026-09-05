@@ -1846,6 +1846,26 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// `{...data.obj}` on a component is `$.spread_props` over an object whose keys the request
+		// decides. The child's `$props()` names what it reads, so each of those is the value the
+		// merge leaves for it -- a later part overriding an earlier one by the key's presence, a
+		// missing key leaving the default -- and the rest is the merge with the named keys taken
+		// out, spread onto an element per request. See `merged()` in walk.ts.
+		name: 'a spread on a component whose object the request hands over',
+		beside: {
+			Inner:
+				'<script>let { a, b = 1, extra, ...rest } = $props();</script><p {...rest}>{a}{b}{extra}</p>',
+		},
+		source:
+			"<script>import Inner from './Inner.svelte'; let { data } = $props();</script>" +
+			'<Inner {...data.obj} extra="e" /><Inner a="first" {...data.obj} b={data.n} />',
+		data: [
+			{ obj: { a: 'q', b: 2, title: 't' }, n: 7 },
+			{ obj: { a: 'r', b: undefined, 'data-x': '1' }, n: undefined },
+			{ obj: null, n: 0 },
+		],
+	},
+	{
 		// `$.head` runs where the component does, so a headed child inside an each writes one head
 		// block per item and one inside an if writes one per branch taken, and the head is a flat
 		// run of head blocks with nothing around the ones a block produced. The walk stands the
