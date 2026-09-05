@@ -398,6 +398,9 @@ const INERT = new Set([
 	'UseDirective',
 	'TransitionDirective',
 	'AnimateDirective',
+	// No server visitor emits one: `shared/component.js` puts it into a component's props, where
+	// nothing on the server calls it, and an element's is not visited at all.
+	'AttachTag',
 	'DebugTag',
 ]);
 
@@ -418,7 +421,6 @@ const REFUSED: Record<string, string> = {
 		'takes a name rather than an expression, so a marker cannot stand where the value goes. The ' +
 		'bindings that write nothing are handled',
 	LetDirective: '`let:` is not handled yet. It belongs with slots, and neither is written',
-	AttachTag: '`{@attach}` is not handled yet. It runs on the client and writes no bytes',
 };
 
 /**
@@ -2087,6 +2089,8 @@ function descend(node: AstNode, walk: Walk): boolean {
 	// child read a name nothing binds.
 	const bindings = new Map<string, string>();
 	for (const one of attributes) {
+		// An attachment is in the props and nothing on the server calls it.
+		if (isNode(one) && one['type'] === 'AttachTag') continue;
 		if (!isNode(one) || one['type'] !== 'Attribute') return false;
 		const name = typeof one['name'] === 'string' ? one['name'] : '';
 		const value = one['value'];

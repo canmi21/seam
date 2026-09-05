@@ -1196,10 +1196,12 @@ const accepted: Case[] = [
 	},
 	{
 		name: 'markup that is inert on the server',
+		beside: { Quiet: '<script>let { v } = $props();</script><i>{v}</i>' },
 		source:
-			'<script>function act() {} let { data } = $props()</script>' +
-			'<svelte:window /><svelte:body /><div use:act onclick={() => {}}>{data.a}</div>{@debug data}',
-		data: [{ a: 'v' }],
+			"<script>import Quiet from './Quiet.svelte'; function act() {} let { data } = $props()</script>" +
+			'<svelte:window /><svelte:body /><div use:act onclick={() => {}} {@attach act} {@attach data.g}>{data.a}</div>' +
+			'<Quiet v={data.a} {@attach act} />{@debug data}',
+		data: [{ a: 'v', g: null }],
 	},
 	{
 		// What `$.await` writes for a value that is not a promise: `<!--[!-->` and the then branch,

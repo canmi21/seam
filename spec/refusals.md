@@ -1358,6 +1358,11 @@ replacement table with one entry: `translate`, `true` to `"yes"` and `false` to 
 decided per request is a hole like any other, and the injector carries the table under the name,
 the way it carries the boolean list. See [ir.md](ir.md).
 
+**`{@attach}`.** No server visitor emits one. On an element it is not visited at all, and on a
+component `shared/component.js` puts it into the props, where nothing on the server calls it, and
+checks it only for the async blockers that would change the anchors around the call. So it goes
+where `use:` and the event handlers go: silent, left in the render, written nowhere.
+
 **`bind:group`.** `element.js` writes `checked`, computed from the bound value together with the
 element's own `value`: `includes` for a checkbox, `===` for a radio, and nothing at all where the
 element has no `value` attribute. So the directive is rewritten to exactly that -- `checked={g ===

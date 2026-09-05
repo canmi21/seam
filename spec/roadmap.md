@@ -44,7 +44,6 @@ this order, one commit each:
 
 | construct | what Svelte does, and where | what ours does |
 | --- | --- | --- |
-| `{@attach}` on an element | no server visitor emits it; only `shared/component.js` puts it in a component's props | dropped, as `use:` is |
 | `<svelte:component this={T[data.k]}>` | `SvelteComponent.js` calls whatever the expression is | a decision whose domain is the literal's keys; otherwise the declared domain [build.md](build.md) already has |
 | `{#each}` over a `Map` or `Set` | `ensure_array_like` takes `Array.from` of an iterable | the injector iterates rather than indexing |
 | `{@const}` in a snippet with parameters, more shapes | `ConstTag.js` is one visitor for all of them | unmeasured; measure, then take what fails |
