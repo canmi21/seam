@@ -1,1 +1,1 @@
-export { skeleton, type Skeleton, type Hole, Undecided } from './skeleton.ts';
+export { expressionsOf, skeleton, type Skeleton, type Hole, Undecided } from './skeleton.ts';

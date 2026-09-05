@@ -1,4 +1,11 @@
-export { type Bindings, bindings, type Carried, type Unresolved } from './bindings.ts';
+export {
+	type Bindings,
+	bindings,
+	type Carried,
+	importsOf,
+	readsOf,
+	type Unresolved,
+} from './bindings.ts';
 export { bundle } from './bundle.ts';
 export { apply, type Edit, type Neutral } from './edits.ts';
 export {

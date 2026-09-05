@@ -15,6 +15,7 @@
  * costs 0.32ms for five megabytes, which is a `memcpy`.
  */
 import { readFileSync } from 'node:fs';
+import { stripTypeScriptTypes } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -61,5 +62,36 @@ export function lower(batch: readonly (readonly [string, string])[]): Lowered[] 
 		throw new Error('the batch handed to lowering could not be read');
 	}
 	const out = Buffer.from(new Uint8Array(wasm.memory.buffer, wasm.out_ptr(), wasm.out_len()));
-	return JSON.parse(out.toString('utf8')) as Lowered[];
+	const lowered = JSON.parse(out.toString('utf8')) as Lowered[];
+	for (const one of lowered) {
+		if ('error' in one) continue;
+		for (const derivation of one.derivations) {
+			if (typeof derivation === 'object' && derivation !== null && 'expression' in derivation) {
+				const held = derivation as { expression: unknown };
+				if (typeof held.expression === 'string') held.expression = javascript(held.expression);
+			}
+		}
+	}
+	return lowered;
+}
+
+/**
+ * The expression as JavaScript, which is what the IR carries and what every evaluator runs.
+ *
+ * A component written with `<script lang="ts">` writes its expressions with annotations and `as`
+ * in them, and the walk copies them as written -- a derivation is the author's source, recorded
+ * rather than rewritten. Svelte strips the types on its own way to the render; nothing did on the
+ * way to the IR, and `new Function` then stopped at the first colon. This is the one point every
+ * derivation passes through between the skeleton and the IR, so it is stripped here, with the
+ * same stripper Node loads a `.ts` file with: types become whitespace and nothing else moves.
+ * Wrapped in parentheses so an object literal is an expression rather than a block.
+ */
+export function javascript(expression: string): string {
+	try {
+		const stripped = stripTypeScriptTypes(`(${expression})`, { mode: 'strip' });
+		return stripped.slice(1, -1);
+	} catch {
+		// Not TypeScript the stripper can read, so it is left as written and fails where it did.
+		return expression;
+	}
 }

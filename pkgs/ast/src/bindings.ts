@@ -326,6 +326,38 @@ function snippetNames(node: unknown, into: Set<string>): void {
 	for (const value of Object.values(node)) snippetNames(value, into);
 }
 
+/** Every name the component's instance script imports, by local name. See `carriedBy()`. */
+export function importsOf(source: string): Map<string, Carried> {
+	const ast = parse(source, { modern: true }) as unknown as Node;
+	return imported(ast['instance']);
+}
+
+/**
+ * Every free name the given expressions read, which is what the evaluator will look up.
+ *
+ * Parsed as the one tag of a TypeScript-aware component, since an expression copied out of a
+ * `lang="ts"` component may carry an `as`. One that will not parse reads nothing here and fails
+ * where it is evaluated, which says more than a parse error would.
+ */
+export function readsOf(expressions: Iterable<string>): Set<string> {
+	const names = new Set<string>();
+	for (const expression of expressions) {
+		if (expression.trim() === '') continue;
+		let tag: Node;
+		try {
+			tag = parse(`<script lang="ts"></script>{${expression}}`, {
+				modern: true,
+			}) as unknown as Node;
+		} catch {
+			continue;
+		}
+		const fragment = tag['fragment'];
+		const [only] = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+		if (isNode(only)) free(only['expression'], new Set(), names);
+	}
+	return names;
+}
+
 export function bindings(source: string): Bindings {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const found: Unresolved[] = [];

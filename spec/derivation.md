@@ -149,11 +149,33 @@ compile time could say so, because a render never evaluates a derivation: the ex
 collected as source and first runs when a request arrives. A component the walk did not enter is
 rendered by Svelte and contributes no derivation, so it is not gathered from.
 
+**And it is gathered from what the expressions read, not from what the markup names.** The
+markup's own identifiers were the list once, and press's home route showed it wrong in both
+directions. `const src = imgsrc(...)` read as `{src}` is a derivation calling `imgsrc`, which the
+markup never names, so the bundle held nothing and the first derivation stopped at a name that was
+not defined. And `<Provider client={queryClient}>` names a package the render evaluates and no
+derivation ever calls; bundling it pulled a component library into esbuild, which has no loader
+for `.svelte`. So the skeleton hands over every expression it planted -- each hole's, each
+decision's tests, each block's source and tests -- and an import is carried when one of them
+reads it. That is the same set the evaluator will look up, by construction.
+
 Two consequences worth stating. A specifier is resolved against the file that wrote it, since two
 components in different directories spell `./helper.ts` differently and the bundle is written from
 one place. And **one name means one module**: derivations are evaluated in a single scope, so two
 components carrying the same local name for different modules is refused rather than settled by
-whichever was read last.
+whichever was read last. press does this with paraglide's messages, `import * as m` in one file and
+`import { m }` in another, which are the same functions through two bindings; the sample copy is
+normalised to one form, and press itself is told.
+
+**Every derivation is JavaScript by the time it is evaluated.** A component written with `<script
+lang="ts">` writes its expressions with annotations and `as` in them, and the walk copies them as
+written, because a derivation is the author's source recorded rather than rewritten. Svelte strips
+the types on its own way to the render; nothing did on the way to the IR, and `new Function`
+stopped at the first colon. They are stripped at the one point every derivation passes through
+between the skeleton and the IR, in the lowering wrapper, with the same stripper Node loads a
+`.ts` file with -- types become whitespace and nothing else moves -- and the test a route's
+structures are chosen by goes through the same function, being source text a `?:` was written
+with.
 
 A draft refused a call through a value -- `handlers[k](x)` -- for having no name to follow.
 Bundling makes that unnecessary: `handlers` is the name, it is imported, the whole of it is

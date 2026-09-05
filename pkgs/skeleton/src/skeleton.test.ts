@@ -22,11 +22,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { readsOf } from 'ast';
 import { carriedBy, carry } from 'carry';
 import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject } from 'injector';
 import { lower } from 'lowering';
-import { skeleton } from './skeleton.ts';
+import { expressionsOf, skeleton } from './skeleton.ts';
 
 // Its own directory: `skeleton()` stages Svelte's compiled output in `../.build` and removes it
 // when it is done, which would take this with it halfway through a case.
@@ -1254,6 +1255,17 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// An import the markup never names: the declaration calls it and the markup reads the
+		// declaration, which substitutes into a derivation calling the import. The bundle has to
+		// hold it, and it did not: only what the markup named directly was gathered.
+		name: 'an import reached through a declaration',
+		alongside: { 'loud.ts': 'export const loud = (v) => String(v).toUpperCase();' },
+		source:
+			"<script>import { loud } from './loud.ts'; let { data } = $props(); const shout = loud(data.a);</script>" +
+			'<p>{shout}</p>',
+		data: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
 		// The key is the client's. Svelte's server never evaluates it and writes the fragment between
 		// two empty comments, which are not a block, so the body is walked as if the key were not
 		// there. Holding a block and a value, because that is what the fragment may hold.
@@ -1478,7 +1490,10 @@ async function attempt(
 			// Gathered by the function the build gathers with, over the same files, so what the
 			// check runs is what a page runs rather than a second arrangement of the same parts.
 			carried: await carry(file, [
-				...carriedBy([file, ...rendered.entered.map((one) => resolve(staging, one))]),
+				...carriedBy(
+					[file, ...rendered.entered.map((one) => resolve(staging, one))],
+					readsOf(expressionsOf(rendered)),
+				),
 				...(rendered.holes.some((hole) => hole.spread === true)
 					? [{ local: 'attributes', from: 'svelte/internal/server', kind: 'named' } as const]
 					: []),

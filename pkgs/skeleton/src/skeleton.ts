@@ -214,3 +214,19 @@ export async function skeleton(
 		entered: [...new Set(baseline.copies.map((copy) => relative(root, copy.file)))],
 	};
 }
+
+/**
+ * Every expression the compiled component will evaluate: each hole's, each decision's tests, and
+ * each block's source and tests. What they read is what has to be carried. See `carriedBy()`.
+ */
+export function expressionsOf(rendered: Skeleton): string[] {
+	const found: string[] = [];
+	for (const hole of rendered.holes) {
+		found.push(hole.expression);
+		if (hole.choice !== undefined) found.push(...hole.choice.tests);
+	}
+	for (const block of rendered.blocks) {
+		found.push(block.expression, ...(block.tests ?? []));
+	}
+	return found;
+}

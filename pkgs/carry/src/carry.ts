@@ -10,6 +10,7 @@
  * measured against the two functions the question exists for and abandoned.
  */
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import type { Carried } from 'ast';
 
@@ -53,7 +54,8 @@ export async function carry(file: string, names: readonly Carried[]): Promise<st
  * whose shape happens to differ, which is the kind that reaches a page rather than a test.
  */
 function restate(one: Carried): string {
-	const from = JSON.stringify(one.from);
+	// Node resolves a `file:` URL as a specifier and esbuild does not, so it is handed the path.
+	const from = JSON.stringify(one.from.startsWith('file:') ? fileURLToPath(one.from) : one.from);
 	if (one.kind === 'namespace') return `export * as ${one.local} from ${from};`;
 	if (one.kind === 'default') return `export { default as ${one.local} } from ${from};`;
 	const exported = one.exported ?? one.local;

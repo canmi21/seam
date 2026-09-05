@@ -84,7 +84,11 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 	}));
 
 	return (data) => {
-		const out: Scope = { data };
+		// What the component imported sits under the data, so a path rooted at an import -- a
+		// constant read as `URLS.external.fonts`, which the lowering keeps as a path because it
+		// is one -- resolves the way a derivation reading the same name does. The data is spread
+		// last for the same reason the two `with` scopes nest: a payload key shadows an import.
+		const out: Scope = { ...imported, data };
 		if (compiled.length === 0) return out;
 		for (const derivation of compiled) {
 			const bindings = (): Record<string, unknown> =>

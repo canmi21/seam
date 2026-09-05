@@ -11,6 +11,7 @@
  */
 import type { Derivation } from 'derive';
 import type { Branch, ComponentIR, Node } from 'injector';
+import { javascript } from 'lowering';
 
 /**
  * One compilation, with the IR read as the shape it is.
@@ -141,8 +142,10 @@ export function joined(
 		// Tested against the values it was compiled for, which is a derivation like any other: the
 		// IR tests a path's truth and never an expression, so the comparison is computed before it
 		// is tested.
+		// The test is source text a `?:` was written with, and a `lang="ts"` component writes it
+		// with types in; every derivation is JavaScript by the time it is evaluated.
 		const test = `__t${String(at)}`;
-		derivations.push({ name: test, expression: testOf(run), scope: null });
+		derivations.push({ name: test, expression: javascript(testOf(run)), scope: null });
 		body.push({ test, body: renamed(run.compiled.ir.body, by) });
 		head.push({ test, body: renamed(run.compiled.ir.head, by) });
 		title.push({ test, body: renamed(run.compiled.ir.title, by) });

@@ -16,7 +16,7 @@
  */
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
-import { bundle, type Bundle, type Carried } from 'ast';
+import { bundle, type Bundle, type Carried, readsOf } from 'ast';
 import { carriedBy, carry } from 'carry';
 import { lower } from 'lowering';
 import {
@@ -28,7 +28,7 @@ import {
 	type Run,
 	type Structure,
 } from './variants.ts';
-import { skeleton, type Skeleton, Undecided } from 'skeleton';
+import { expressionsOf, skeleton, type Skeleton, Undecided } from 'skeleton';
 
 /**
  * One route: the URL it answers at, and the component the document is rendered from.
@@ -160,7 +160,10 @@ export async function prepare(
 		markup,
 		skeleton: rendered,
 		carried: await carry(entry, [
-			...carriedBy([entry, ...rendered.entered.map((one) => resolve(root, one))]),
+			...carriedBy(
+				[entry, ...rendered.entered.map((one) => resolve(root, one))],
+				readsOf(expressionsOf(rendered)),
+			),
 			...helpers(rendered),
 		]),
 	};

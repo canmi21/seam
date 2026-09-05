@@ -480,6 +480,26 @@ function takenApart(
 	return bound;
 }
 
+/** Writes each expression of an attribute back out in its expanded form, for Svelte to evaluate. */
+function expanded(
+	attr: AstNode,
+	source: string,
+	expand: Locals['rewrite'],
+	edits: [number, number, string][],
+): void {
+	const name = typeof attr['name'] === 'string' ? attr['name'] : '';
+	const value = attr['value'];
+	if (value === true) return;
+	const at = span(attr);
+	// The shorthand holds a bare name and nothing else, so the name is written out first.
+	if (at !== null && source[at[0]] === '{') edits.push([at[0], at[0], `${name}=`]);
+	for (const part of Array.isArray(value) ? value : [value]) {
+		if (!isNode(part) || part['type'] !== 'ExpressionTag') continue;
+		const where = span(part['expression']);
+		if (where !== null) edits.push([where[0], where[1], expand(part['expression'])]);
+	}
+}
+
 /** Where an element's opening tag closes: the index of its `>`. */
 function closing(source: string, node: AstNode): number {
 	const at = span(node);
@@ -1025,7 +1045,17 @@ function collect(node: unknown, walk: Walk): void {
 					// marker is a string, and a component given one where it expected an object with
 					// methods calls a method on a string. `<Provider client={queryClient}>` is that,
 					// and it is the shape every wrapper from a package has.
-					if (given && site.payload !== null && inert(attr, expand, dynamic)) continue;
+					//
+					// Left as written is not left as the author wrote it: what a name expanded from may
+					// be a declaration the render has been handed a literal for, or a fixed path the
+					// render holds as a literal, so the expression is written out expanded -- the same
+					// rule a constant in markup already follows -- and Svelte evaluates that. Measured
+					// on press's language switcher, given `code={locale}` with `locale` neutralised:
+					// the render computed the trigger's label from nothing and baked it in.
+					if (given && site.payload !== null && inert(attr, expand, dynamic)) {
+						expanded(attr, source, expand, edits);
+						continue;
+					}
 					const before = holes.length;
 					collect(attr, { ...walk, opaque: given });
 					if (!given || !isNode(attr)) continue;
