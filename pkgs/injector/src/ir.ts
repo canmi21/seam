@@ -42,6 +42,19 @@ export type Node =
 			body: Node[];
 	  }
 	| {
+			/**
+			 * A `<title>` where Svelte executed it, or the start of a head block holding one. Svelte
+			 * keeps the title in a channel and `set_title` keeps the one whose render path compares
+			 * later; a head block is hoisted ahead of its fragment, so the last head block executed
+			 * wins and, inside it, the first title executed -- a top-level one before any inside a
+			 * block. The injector applies the rule and appends the winner after the head. See
+			 * spec/ir.md.
+			 */
+			t: 'title';
+			role: 'open' | 'top' | 'nested';
+			body: Node[];
+	  }
+	| {
 			t: 'attr';
 			name: string;
 			/**
@@ -62,9 +75,11 @@ export interface ComponentIR {
 	body: Node[];
 	head: Node[];
 	/**
-	 * The title, which Svelte keeps in a channel of its own rather than in either stream, and
-	 * which the client sets with `document.title = ...` rather than hydrating. Walking it yields
-	 * either nothing or a whole `<title>` element. See spec/ir.md.
+	 * A title written by a component the walk did not enter, which Svelte's own render decided
+	 * and kept in its channel. Walking it yields either nothing or a whole `<title>` element, and
+	 * where there is one it is the winner: it was decided by Svelte over everything the render
+	 * held. A component the walk entered writes its titles as `title` nodes in the head stream
+	 * instead. See spec/ir.md.
 	 */
 	title: Node[];
 }

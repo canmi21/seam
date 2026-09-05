@@ -21,6 +21,10 @@ export { resolve, SCOPED, type Scope, settle } from './resolve.ts';
  */
 interface Fresh {
 	next: number;
+	/** How many head blocks holding a title have started, which is what a title candidate ranks by. */
+	block: number;
+	/** The title winning so far under `set_title`'s rule. See the `title` node. */
+	title?: { block: number; top: boolean; text: string };
 }
 
 function walk(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): string {
@@ -43,6 +47,29 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): s
 				}
 				out += escape(settle(resolve(scopes, node.path), scopes), node.escape);
 				break;
+			case 'title': {
+				// `set_title` keeps the title whose render path compares later, and a head block is
+				// hoisted ahead of the fragment it sits in, so a later head block always compares
+				// later and, within one block, every title shares the block's path and the first
+				// one set is kept -- a top-level title runs at the block's init, before any block
+				// inside it. So a later head block wins, and inside a block a top-level title beats
+				// a nested one and an earlier one beats a later one of the same kind.
+				if (node.role === 'open') {
+					fresh.block += 1;
+					break;
+				}
+				const text = walk(node.body, scopes, fresh);
+				const top = node.role === 'top';
+				const held = fresh.title;
+				if (
+					held === undefined ||
+					fresh.block > held.block ||
+					(fresh.block === held.block && top && !held.top)
+				) {
+					fresh.title = { block: fresh.block, top, text };
+				}
+				break;
+			}
 			case 'if':
 				for (const branch of node.branches) {
 					if (branch.test === null || settle(resolve(scopes, branch.test), scopes)) {
@@ -129,13 +156,15 @@ function arrayLike(source: unknown): readonly unknown[] | null {
 }
 
 /**
- * The title, which reads as markup and behaves as a channel. It is written here rather than in
- * the head so that the difference has a name: the head is bytes in place, while this is a value
- * that is either set or not, and an unreached branch leaves it unset rather than empty. The walk
- * underneath is the same one.
+ * The title, which reads as markup and behaves as a channel: a value that is either set or not,
+ * appended after the head where Svelte appends its own. One decided by Svelte's render -- written
+ * by a component the walk did not enter -- is the winner, as it was over everything the render
+ * held; otherwise the one the `title` nodes decided while the head was walked.
  */
 function title(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): string {
-	return walk(nodes, scopes, fresh);
+	const decided = walk(nodes, scopes, fresh);
+	if (decided !== '') return decided;
+	return fresh.title === undefined ? '' : `<title>${fresh.title.text}</title>`;
 }
 
 /** What Svelte's `render()` returns, produced without any of Svelte running. */
@@ -160,7 +189,7 @@ function reach(value: unknown, access: string): unknown {
 export function inject(ir: ComponentIR, data: Scope): Injected {
 	const scopes = [data];
 	// One counter per response, starting where Svelte's does.
-	const fresh: Fresh = { next: 1 };
+	const fresh: Fresh = { next: 1, block: 0 };
 	// The title goes after the head blocks, which is where Svelte's own renderer appends it.
 	return {
 		body: walk(ir.body, scopes, fresh),

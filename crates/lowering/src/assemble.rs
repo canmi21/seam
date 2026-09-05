@@ -13,7 +13,7 @@ pub use skeleton::{Block, Choice, Hole, Kind, Rendered, Result, Skeleton, Stream
 
 use scan::{
 	Dynamic, EMPTY, Landing, Mark, Span, closes, id_name, landing, next_block, next_dynamic,
-	sentinel_at, stamped,
+	next_title, sentinel_at, stamped,
 };
 
 use crate::ir;
@@ -88,13 +88,26 @@ impl Assembler<'_> {
 			let block = next_block(html, at, until);
 			let sentinel = sentinel_at(html, at, until);
 			let dynamic = next_dynamic(html, at, until);
+			let title = next_title(html, at, until);
 
 			let first = [
 				block.as_ref().map(|one| one.from),
 				sentinel.map(|one| one.0),
 				dynamic.as_ref().map(|one| one.from),
+				title.as_ref().map(|one| one.from),
 			];
 			let earliest = first.iter().flatten().min().copied();
+
+			// A title where Svelte executed it, as a node the injector decides rather than bytes.
+			if title.as_ref().is_some_and(|one| Some(one.from) == earliest) {
+				let span = title.ok_or_else(|| "unreachable".to_owned())?;
+				out.write(&html[at..span.from]);
+				let mut body = Out::default();
+				self.region(html, span.content, span.until, &mut body)?;
+				out.push(ir::Node::Title { role: span.role, body: body.finish() });
+				at = span.to;
+				continue;
+			}
 
 			if dynamic.as_ref().is_some_and(|one| Some(one.from) == earliest) {
 				let span = dynamic.ok_or_else(|| "unreachable".to_owned())?;
@@ -544,8 +557,8 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 		assembler.region(head_bytes, 0, head_bytes.len(), &mut head)?;
 	}
 
-	// The title holds no block: one written inside one is refused by the render pass, because the
-	// title is not part of the block on either side and nothing in the bytes ties them together.
+	// What is left in Svelte's channel is a title from a component the walk did not enter: the
+	// walk's own titles stand in the head stream as `Title` nodes. See `spec/ir.md`.
 	let mut title = Out::default();
 	if !title_bytes.is_empty() {
 		assembler.region(title_bytes, 0, title_bytes.len(), &mut title)?;

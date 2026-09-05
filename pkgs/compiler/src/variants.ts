@@ -98,6 +98,8 @@ function renamed(nodes: readonly Node[], by: ReadonlyMap<string, string>): Node[
 				return { ...node, source: path(node.source), body: renamed(node.body, by) };
 			case 'attr':
 				return { ...node, parts: renamed(node.parts, by) };
+			case 'title':
+				return { ...node, body: renamed(node.body, by) };
 		}
 	});
 }

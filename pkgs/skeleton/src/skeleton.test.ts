@@ -1588,10 +1588,46 @@ const accepted: Case[] = [
 			{ v: { a: '', xs: [] }, w: { a: 'x<', b: null, xs: [3] } },
 		],
 	},
+	{
+		// `set_title` in `internal/server/renderer.js` keeps the title whose render path compares
+		// later, and `$.head` is hoisted ahead of its fragment, so a child's head block runs after
+		// its parent's and wins whichever order they are written in, a later sibling wins over an
+		// earlier one, and inside one head block the first title executed is kept: a top-level one
+		// before any inside a block. Measured against Svelte for every case here.
+		name: 'which title wins',
+		beside: {
+			Kid: '<script>let { t } = $props();</script><svelte:head><title>kid {t}</title></svelte:head><i>k</i>',
+			Kid2: '<script>let { t } = $props();</script><svelte:head><title>kid2 {t}</title></svelte:head><i>k</i>',
+			Deep: "<script>import Kid from './Kid.svelte'; let { t } = $props();</script><Kid {t} /><svelte:head><title>deep {t}</title></svelte:head>",
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; import Kid2 from './Kid2.svelte'; import Deep from './Deep.svelte'; let { data } = $props();</script>" +
+			'<svelte:head>{#if data.f}<title>B {data.a}</title>{/if}<title>A {data.a}</title><title>C</title></svelte:head>' +
+			'{#if data.g}<Kid t={data.t} />{/if}{#if data.h}<Deep t={data.t} /><Kid2 t={data.t} />{/if}<p>{data.a}</p>',
+		data: [
+			{ f: true, g: false, h: false, a: 'x', t: 'T' },
+			{ f: false, g: true, h: false, a: 'y', t: '<' },
+			{ f: true, g: true, h: true, a: 'z', t: 'U' },
+			{ f: false, g: false, h: true, a: 'w', t: 'V' },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// `$.head` runs once per iteration, so the child writes one head block per item and the
+		// each would have to stand in the head stream too. It does not yet; the bytes used to come
+		// out one block short. See spec/roadmap.md.
+		name: 'a component with a head inside an each',
+		beside: {
+			Kid: '<script>let { t } = $props();</script><svelte:head><meta name="k" content={t} /></svelte:head><i>k</i>',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'{#each data.xs as x}<Kid t={x} />{/each}',
+		says: 'head stream',
+	},
 	{
 		// Inside a table the stamp has to be an element, because text is refused there, and an
 		// element is the sibling the case above is about. No carrier avoids it -- text and an

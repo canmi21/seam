@@ -81,36 +81,6 @@ export function elseIf(alternate: unknown): AstNode | null {
 	return only;
 }
 
-/**
- * How many titles the source writes, and whether any sits inside a block.
- *
- * A second title overwrites the first by a precedence rule read off the render tree, and two
- * readings of that rule each disagreed with what it actually does, so it is not reproduced: one
- * title, or none. A title inside a block is a separate problem: the title is not part of the
- * block on either side, so the block renders empty and the title is appended regardless, and
- * nothing in the bytes ties the one to the other. See spec/ir.md.
- */
-export function titles(node: unknown, guarded = false): { found: number; conditional: boolean } {
-	if (!isNode(node)) return { found: 0, conditional: false };
-	if (node['type'] === 'TitleElement') return { found: 1, conditional: guarded };
-	const inside = guarded || node['type'] === 'IfBlock' || node['type'] === 'EachBlock';
-	let found = 0;
-	let conditional = false;
-	const visit = (child: unknown) => {
-		const seen = titles(child, inside);
-		found += seen.found;
-		conditional ||= seen.conditional;
-	};
-	for (const value of Object.values(node)) {
-		if (Array.isArray(value)) {
-			for (const child of value) visit(child);
-		} else if (isNode(value)) {
-			visit(value);
-		}
-	}
-	return { found, conditional };
-}
-
 /** The id and initialiser of a `{@const}`, or null when it is not the one declaration it must be. */
 export function declarationOf(node: AstNode): [unknown, unknown] | null {
 	const declaration = node['declaration'];

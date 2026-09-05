@@ -313,35 +313,37 @@ effect, with **no DOM node and no hydration**, so the title's bytes are outside 
 That is why `{#if a}<title>T</title>{/if}` renders as an empty block with the title outside it:
 neither side treats it as content.
 
-So the IR carries `title` beside `body` and `head`. Walking it yields either nothing or a whole
-element, an unreached branch leaves it unset rather than empty, and the injector appends the
-result where Svelte appends its own. The nodes are the ordinary ones and the walk is the ordinary
-walk; only the name and the placement differ, because only the meaning does.
+**Which title wins is Svelte's rule, and it is derivable.** An earlier draft here said it was not,
+and refused a title inside a block and more than one title on a page. Read rather than measured,
+`set_title(value, path)` in `internal/server/renderer.js` keeps the title whose render path
+compares later -- lexicographically, a longer path winning on an equal prefix -- where a path is
+the chain of `#out` indexes from the root renderer down to the one the title was set on. Two
+facts of the transform decide what that means in practice. `SvelteHead.js` pushes `$.head` into
+the template, and `clean_nodes` hoists a `<svelte:head>` ahead of everything else in its fragment,
+so a component's head block runs before any child component it calls and gets a smaller index
+than any of them. And `TitleElement.js` pushes `$$renderer.title` into the *init* of the block it
+sits in, so a title at the top level of a head block runs before one inside an `{#if}` there, and
+every title in one head block shares that block's path. Together: **the last head block executed
+wins, and inside it the first title executed** -- a child's title beats its parent's whichever
+order they are written in, a later sibling beats an earlier one, the last iteration of an each
+beats the rest, and within one block a top-level title beats a nested one and an earlier one beats
+a later one of its kind. Measured against Svelte for each of those.
 
-**A title inside a block is refused.** The title is not part of the block on either side, so the
-block renders empty and the title is appended regardless, and nothing in the bytes ties the one to
-the other. Carrying it would mean emitting a title the branch did not ask for.
+So the walk leaves the title where Svelte executed it. In the render, `<title>` becomes a
+stand-in element, `<seam-title-top>` or `<seam-title-nested>` by where it sits in its head block,
+and every head block holding one opens with `<seam-title-open>`, so the title's bytes stay in the
+head stream inside whatever block they were written in and the assembler reads them as a `title`
+node with that role. The injector walks the head, counts a head block at each `open`, and keeps a
+candidate when its block is later than the winner's, or the same block and top-level where the
+winner was nested; what it keeps is appended after the head, wrapped as `<title>`, where Svelte
+appends its own. The client compiles a title to `document.title = value` in an effect, with no DOM
+node and no hydration, so nothing about the stand-in reaches it.
 
-**More than one title is refused.** A second overwrites the first by a precedence rule read off
-the render tree, and that rule is not reproduced here: two readings of `set_title` each disagreed
-with what it measurably does, and a rule discovered by measurement is exactly what this pipeline
-does not copy. See [pipeline.md](pipeline.md). One title, or none. Overriding across a route and
-its layout will be a rule stated here rather than one reverse-engineered from there.
-
-**A block records which stream it is in.** Blocks are numbered across the whole source but each
-appears in one stream only, and the bytes cannot say which: two ifs, one in the head and one in
-the body, render identically whichever came first. So each stream is walked against its own list
-of block indices, and the alternate render for an if is read from the stream that if lives in.
-Holes never had this problem, being indexed.
-
-Merging across routes -- one page's title overriding a layout's -- is the only part that would
-require the IR to understand the bytes it concatenates rather than treat them as opaque. It waits
-on routing, which does not exist.
-
-The written-bytes pass never learned `<svelte:head>` and never will, so where a case has one there
-is no second opinion to hold the render pass against. That is the oracle running out rather than a
-gap in it; it was always going to stop covering what came after it. See
-[pipeline.md](pipeline.md).
+The `title` field beside `body` and `head` stays for the one case the render still decides: a
+title written by a component the walk did not enter goes through Svelte's channel and comes out
+after the head, and it is the winner as Svelte decided it over everything in that render. A
+headed component inside an each is refused, because `$.head` runs once per iteration and the each
+does not yet stand in the head stream; see [roadmap.md](roadmap.md).
 
 ## What is not in it
 

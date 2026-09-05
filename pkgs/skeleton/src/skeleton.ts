@@ -4,7 +4,7 @@ import { parse } from 'svelte/compiler';
 import { type Carried, resolved } from 'ast';
 import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
-import { type AstNode, titles } from './node.ts';
+import type { AstNode } from './node.ts';
 import { renderRewritten, shippable } from './render.ts';
 import { dead, filled, outcomes, probed } from './resolve.ts';
 import type { Block, Rendered, Skeleton } from './shape.ts';
@@ -77,21 +77,6 @@ export async function skeleton(
 	// What it waited on was a half that emits one, which is the client build the plugin runs. The
 	// class is a hash of the filename relative to `rootDir`, and both halves pass the project root,
 	// which is what makes the class in these bytes the class in that stylesheet. See spec/build.md.
-
-	const { found, conditional } = titles(parsed);
-	if (found > 1) {
-		throw new Error(
-			`this component writes ${found} titles, and which of them wins is not decided; see spec/ir.md`,
-		);
-	}
-	// The title leaves the block it was written in: the block renders empty and the title is
-	// appended after every one of them, so nothing in the bytes says the two go together.
-	if (conditional) {
-		throw new Error(
-			'which of two titles wins is not decided, and a title inside a block is that question: the ' +
-				'block renders without it. See spec/ir.md',
-		);
-	}
 
 	// The first branch of every if, and every each with one item. An if with no `{:else if}` has
 	// only that branch, so this is what "everything taken" used to mean.

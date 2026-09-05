@@ -31,13 +31,11 @@ carried; a passed snippet is inlined; context is a `Map` on the server (`interna
 whose value is an ancestor's expression, which is substitution and not code. Large, and the next
 major item after the small ones below.
 
-**The title rule is Svelte's, and it is derivable.** [ir.md](ir.md) said the rule for which of two
-titles wins is not derivable and would have to be stated. `internal/server/renderer.js` states it:
-`set_title(value, path)` keeps the title whose render path compares later, lexicographically, and
-`#close_render` appends it after the head. So a title inside a block and two titles on one page
-are both decided per structure, and a page's title beating its layout's in SvelteKit is this rule
-rather than the framework's. Needs no routing: the wrapper the oracle already builds gives the
-order.
+**The title rule is done.** It is Svelte's own and it was derivable; [ir.md](ir.md) has it. What it
+found beside it: **a component with a `<svelte:head>` inside an `{#each}`** is refused now, where it
+used to compile one head block short. `$.head` runs once per iteration, so the each has to stand
+in the head stream as well as in the body, and the walk numbers a block in one stream. Ready, not
+done, and small.
 
 **The small ones are done.** Thirteen constructs, each a mechanism that already existed used once
 more, each read out of the visitor that writes it, measured with Node, written, checked and

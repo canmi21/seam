@@ -897,6 +897,14 @@ function contents(
  * it is written: handed to a package, naming a component, testing a block, or read as a value
  * whose evaluation would reach for those things in a scope that holds data. See `settle`.
  */
+/** Whether markup holds a node of this type anywhere inside it. */
+function holds(node: unknown, type: string): boolean {
+	if (Array.isArray(node)) return node.some((one) => holds(one, type));
+	if (!isNode(node)) return false;
+	if (node['type'] === type) return true;
+	return Object.values(node).some((one) => holds(one, type));
+}
+
 /**
  * The component an expression chooses, settled. A `?:` in it chooses which component, the way one
  * handed to a package chooses what is handed, and is enumerated the same way: the walk stops and
@@ -1311,10 +1319,20 @@ function collect(node: unknown, walk: Walk): void {
 		case 'Text':
 			return;
 
-		case 'SvelteHead':
+		case 'SvelteHead': {
 			// The other stream. Everything under it renders into the head rather than the body.
+			// A head block holding a title opens with a stand-in that says so, because which title
+			// wins is decided per head block: `$.head` is hoisted ahead of its fragment, so the last
+			// head block executed compares later under `set_title`, and inside one block the first
+			// title executed is kept. The injector counts the blocks by this. See spec/ir.md.
+			if (holds(node['fragment'], 'TitleElement')) {
+				const whole = span(node);
+				const open = whole === null ? -1 : source.indexOf('>', whole[0]);
+				if (open >= 0) edits.push([open + 1, open + 1, '<seam-title-open></seam-title-open>']);
+			}
 			step(node['fragment'], 'head');
 			return;
+		}
 
 		case 'ExpressionTag':
 		case 'HtmlTag': {
@@ -1409,6 +1427,19 @@ function collect(node: unknown, walk: Walk): void {
 					where[1],
 					choosing(expand(node['expression']), 'svelte:component', walk),
 				]);
+			}
+			// A title stays in the head stream where Svelte executed it rather than going to the
+			// channel Svelte keeps it in, as a stand-in element the assembler reads as a `title`
+			// node: `top` at the head block's top level, which runs at the block's init, and
+			// `nested` inside a block within the head. Its children are walked as any element's.
+			if (type === 'TitleElement') {
+				const whole = span(node);
+				const role = within.length === 0 ? 'top' : 'nested';
+				const close = `</title>`;
+				if (whole !== null && source.endsWith(close, whole[1])) {
+					edits.push([whole[0] + 1, whole[0] + 1 + 'title'.length, `seam-title-${role}`]);
+					edits.push([whole[1] - close.length, whole[1], `</seam-title-${role}>`]);
+				}
 			}
 			// A tag decided per request. Svelte's `element()` writes `<!---->`, then the tag and its
 			// attributes, then the children and a closing tag unless the tag is void, then
@@ -2204,6 +2235,20 @@ function descend(node: AstNode, walk: Walk): boolean {
 	try {
 		const raw = inlined(unbound(readFileSync(file, 'utf8')));
 		const ahead = parse(raw, { modern: true }) as unknown as AstNode;
+		// `$.head` runs once per iteration, so a headed child inside an each writes one head block
+		// per item, and the each would have to stand in the head stream as well as the body. It
+		// does not yet, and the bytes came out one block short rather than refused; measured. See
+		// spec/roadmap.md.
+		if (
+			holds(ahead['fragment'], 'SvelteHead') &&
+			walk.within.some(([index]) => walk.blocks[index]?.kind === 'each')
+		) {
+			refuse(
+				`<${tag} /> writes a \`<svelte:head>\` and sits inside an each block, which would put ` +
+					'one head block per item in the head, and the each does not yet stand in the head ' +
+					'stream',
+			);
+		}
 		// Its number now, not when the tag is renamed: the walk below takes copies of its own, so
 		// counting then gave a nested pair of the same component one name twice.
 		const ordinal = walk.site.copies.length;
@@ -2359,6 +2404,9 @@ function descend(node: AstNode, walk: Walk): boolean {
 		// The walk asking for a second render is not the walk failing, and it is answered above.
 		if (error instanceof Undecided) throw error;
 		if (String((error as Error).message).includes('is part of a cycle')) throw error;
+		// Left to Svelte, the child would render one head block where a request renders one per
+		// item, and nothing downstream could tell. So this one is the author's to see.
+		if (String((error as Error).message).includes('stand in the head stream')) throw error;
 		walk.site.missed.push({ file, reason: String((error as Error).message) });
 		return false;
 	}

@@ -53,6 +53,17 @@ pub enum Node {
 		binds: Vec<(String, String)>,
 		body: Vec<Node>,
 	},
+	/// A `<title>` the head stream met where Svelte executed it, or the start of a head block that
+	/// holds one. Svelte keeps the title in a channel: `set_title` in `internal/server/renderer.js`
+	/// keeps the one whose render path compares later, and a head block is hoisted ahead of its
+	/// fragment, so the last head block executed wins and, inside it, the first title executed. The
+	/// injector applies that rule and appends the winner after the head. `role` is `open` for the
+	/// start of a head block, `top` for a title at the block's top level, `nested` for one inside a
+	/// block within the head. See `spec/ir.md`.
+	Title {
+		role: String,
+		body: Vec<Node>,
+	},
 	/// One attribute of the element being opened. `boolean` marks a name that is present or
 	/// absent rather than named and valued, which the runtime needs because the render cannot
 	/// show it. See `crates/lowering/src/attributes.rs`.

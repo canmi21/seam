@@ -220,6 +220,32 @@ pub(super) fn next_dynamic(html: &str, from: usize, until: usize) -> Option<Dyna
 	})
 }
 
+/// A title's stand-in in the head, `<seam-title-ROLE>...</seam-title-ROLE>`, planted by the walk
+/// where the author wrote `<title>` so that the title stays in the head stream where Svelte
+/// executed it, inside whatever block it sits in, rather than in the channel Svelte keeps it in.
+pub(super) struct TitleSpan {
+	pub(super) from: usize,
+	/// Just past the opening tag.
+	pub(super) content: usize,
+	/// Where the closing tag starts.
+	pub(super) until: usize,
+	pub(super) to: usize,
+	pub(super) role: String,
+}
+
+pub(super) const TITLE: &str = "<seam-title-";
+
+pub(super) fn next_title(html: &str, from: usize, until: usize) -> Option<TitleSpan> {
+	let at = html.get(from..until)?.find(TITLE)? + from;
+	let rest = html.get(at + TITLE.len()..until)?;
+	let end = rest.find('>')?;
+	let role = rest.get(..end)?.to_owned();
+	let content = at + TITLE.len() + end + 1;
+	let closing = format!("</seam-title-{role}>");
+	let close_at = html.get(content..until)?.find(&closing)? + content;
+	Some(TitleSpan { from: at, content, until: close_at, to: close_at + closing.len(), role })
+}
+
 /// Where the sentinel landed, which decides how the value is escaped and whether the characters
 /// around it belong to an attribute that can disappear.
 pub(super) enum Landing {
