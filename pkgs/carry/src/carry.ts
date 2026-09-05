@@ -54,6 +54,11 @@ export async function carry(
 		format: 'iife',
 		globalName: NAME,
 		platform: 'neutral',
+		// Resolved the way a Svelte-aware bundler resolves: the `svelte` condition first, then the
+		// ESM ones, and the `svelte`, `module` and `main` fields for a package without an `exports`
+		// map. A neutral platform resolves nothing of that on its own.
+		conditions: ['svelte', 'import', 'module', 'default'],
+		mainFields: ['svelte', 'module', 'main'],
 		target: 'es2022',
 		write: false,
 		logLevel: 'silent',

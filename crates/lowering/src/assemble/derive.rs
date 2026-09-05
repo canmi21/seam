@@ -240,6 +240,10 @@ impl Assembler<'_> {
 				continue;
 			}
 			let hole = &self.skeleton.holes[index];
+			// An id is bound where its anchor lands and read wherever else the component wrote it.
+			if *count > 1 && hole.fresh {
+				continue;
+			}
 			// Planted in markup a component was measured not to write. Every other absence is
 			// still one, which is what keeps this check from becoming a formality.
 			if *count == 0 && hole.safe {

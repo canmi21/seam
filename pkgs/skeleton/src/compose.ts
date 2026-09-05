@@ -21,17 +21,19 @@ import type { Given, Walk } from './walk.ts';
  * which is what Svelte's own output does, since `$props()` destructures the props object. Missing
  * this wrote the wrong bytes rather than refusing, and only the comparison against Svelte said so.
  *
- * Null where the pattern is one this cannot read: a rest element gathers whatever was not named,
- * and what that is at the call site is a set of keys rather than a value.
+ * A rest element, `...rest`, gathers whatever the caller passed and the pattern did not name, and
+ * at a call site that is known: it is the object of the caller's other attributes, which is what
+ * `$props()` destructuring leaves in it. It comes back with `rest` set and `descend` builds the
+ * object. Null where the pattern is one this cannot read.
  */
 export function propsOf(
 	ast: AstNode,
 	source: string,
-): { local: string; prop: string; fallback: string }[] | null {
+): { local: string; prop: string; fallback: string; rest?: true }[] | null {
 	const instance = ast['instance'];
 	const content = isNode(instance) ? instance['content'] : undefined;
 	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
-	const found: { local: string; prop: string; fallback: string }[] = [];
+	const found: { local: string; prop: string; fallback: string; rest?: true }[] = [];
 
 	for (const statement of body) {
 		if (!isNode(statement) || statement['type'] !== 'VariableDeclaration') continue;
@@ -44,6 +46,12 @@ export function propsOf(
 			const id = one['id'];
 			if (!isNode(id) || id['type'] !== 'ObjectPattern') return null;
 			for (const property of Array.isArray(id['properties']) ? id['properties'] : []) {
+				if (isNode(property) && property['type'] === 'RestElement') {
+					const argument = property['argument'];
+					if (!isNode(argument) || typeof argument['name'] !== 'string') return null;
+					found.push({ local: argument['name'], prop: '', fallback: '{}', rest: true });
+					continue;
+				}
 				if (!isNode(property) || property['type'] !== 'Property') return null;
 				const key = property['key'];
 				const value = property['value'];
@@ -52,15 +60,27 @@ export function propsOf(
 					found.push({ local: value['name'], prop: key['name'], fallback: 'undefined' });
 					continue;
 				}
-				// `p = 1`, which is the default, and it is the only other shape this reads.
+				// `p = 1`, which is the default, and it is the only other shape this reads. A
+				// `$bindable(x)` default is `x`: the rune marks the prop as one a parent may bind and
+				// may only be written inside `$props()`, so what stands for the default elsewhere is
+				// its argument, or `undefined` where it has none.
 				const left = value['type'] === 'AssignmentPattern' ? value['left'] : undefined;
-				const right = value['type'] === 'AssignmentPattern' ? span(value['right']) : null;
+				const given = value['type'] === 'AssignmentPattern' ? value['right'] : undefined;
+				const right = span(given);
 				if (!isNode(left) || typeof left['name'] !== 'string' || right === null) return null;
-				found.push({
-					local: left['name'],
-					prop: key['name'],
-					fallback: source.slice(right[0], right[1]),
-				});
+				let fallback = source.slice(right[0], right[1]);
+				const called = isNode(given) ? given['callee'] : undefined;
+				if (
+					isNode(given) &&
+					given['type'] === 'CallExpression' &&
+					isNode(called) &&
+					called['name'] === '$bindable'
+				) {
+					const [initial] = Array.isArray(given['arguments']) ? given['arguments'] : [];
+					const at = span(initial);
+					fallback = at === null ? 'undefined' : source.slice(at[0], at[1]);
+				}
+				found.push({ local: left['name'], prop: key['name'], fallback });
 			}
 		}
 	}
@@ -132,11 +152,12 @@ export function partial(fixed: ReadonlyMap<string, string>, root: string): unkno
  */
 export function rebased(
 	fixed: ReadonlyMap<string, string>,
-	declares: readonly { local: string; prop: string }[],
+	declares: readonly { local: string; prop: string; rest?: true }[],
 	bindings: ReadonlyMap<string, string>,
 ): ReadonlyMap<string, string> {
 	const found = new Map<string, string>(fixed);
 	for (const one of declares) {
+		if (one.rest === true) continue;
 		const given = bindings.get(one.prop);
 		if (given === undefined) continue;
 		// The call site may have handed over a value rather than a path -- expanding an expression
@@ -285,14 +306,41 @@ export function withPrelude(
 /**
  * Points one component tag at a copy of its own: the name where it opens and closes, and an import.
  */
-export function rename(walk: Walk, node: AstNode, tag: string, at: string, ordinal: number): void {
+export function rename(
+	walk: Walk,
+	node: AstNode,
+	tag: string,
+	at: string,
+	ordinal: number,
+	/**
+	 * Set where the tag is a dynamic component the walk settled to one import: the tag of a rune
+	 * declaration, or `<svelte:component this={...}>` itself, whose `this` span is given. Either
+	 * stays dynamic in the render, so the anchors Svelte writes around one stay too.
+	 */
+	dynamic?: { expression: [number, number] | null },
+): void {
 	const [from, to] = [node['start'], node['end']];
 	if (typeof from !== 'number' || typeof to !== 'number') return;
-	const fresh = `${tag}$${String(ordinal)}`;
+	const fresh = `${tag.replaceAll('.', '_')}$${String(ordinal)}`;
 	const text = walk.source.slice(from, to);
-	walk.edits.push([from + 1, from + 1 + tag.length, fresh]);
-	if (text.endsWith(`</${tag}>`)) {
-		walk.edits.push([to - 1 - tag.length, to - 1, fresh]);
+	if (dynamic?.expression) {
+		walk.edits.push([dynamic.expression[0], dynamic.expression[1], fresh]);
+	} else {
+		// A member tag, `Kit.Root`, is one name once it is a copy's import -- and it stays a
+		// dynamic component: `2-analyze/visitors/Component.js` marks a tag with a `.` in it
+		// dynamic, and the server then writes `<!--[-->` and `<!--]-->` around what it renders, so
+		// the copy is written as `<svelte:component this={...}>`, the same dynamic call, and keeps
+		// the anchors. So does a tag naming a rune declaration, for the same reason.
+		const member = tag.includes('.') || dynamic !== undefined;
+		const name = typeof node['name'] === 'string' ? node['name'] : tag;
+		walk.edits.push([
+			from + 1,
+			from + 1 + name.length,
+			member ? `svelte:component this={${fresh}}` : fresh,
+		]);
+		if (text.endsWith(`</${name}>`)) {
+			walk.edits.push([to - 1 - name.length, to - 1, member ? 'svelte:component' : fresh]);
+		}
 	}
 	const relative = `./${basename(at)}`;
 	walk.site.prelude.push(`import ${fresh} from '${relative}';`);

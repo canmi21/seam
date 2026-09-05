@@ -118,6 +118,21 @@ export function reads(
 		return;
 	}
 
+	// A name written to is not read: `open = false` in a handler holds nothing of `open`, and a
+	// substitution written over it -- `(false) = false` -- is not JavaScript at all. The value
+	// assigned is read; a member written to reads its object.
+	if (type === 'AssignmentExpression') {
+		const left = node['left'];
+		if (isNode(left) && left['type'] !== 'Identifier') reads(left, scope, visit);
+		reads(node['right'], scope, visit);
+		return;
+	}
+	if (type === 'UpdateExpression') {
+		const argument = node['argument'];
+		if (isNode(argument) && argument['type'] !== 'Identifier') reads(argument, scope, visit);
+		return;
+	}
+
 	// A type is not a read. `x as keyof typeof T` reads `x` and names `T` in a position that
 	// only the type checker looks at -- and a substitution written there is not TypeScript at
 	// all, which is how `SUMMARY_PROVIDERS[p as keyof typeof SUMMARY_PROVIDERS]` came to expand

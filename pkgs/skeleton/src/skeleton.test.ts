@@ -15,11 +15,13 @@
 // **A refusal has to say where the question lives.** `spec/refusals.md` says a refusal owes the
 // reader what it is and where it is recorded; a message that names no specification file has told
 // the author their code is wrong and nothing else.
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { stripTypeScriptTypes } from 'node:module';
+import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { compile } from 'svelte/compiler';
+import { build } from 'esbuild';
+import { compile, compileModule } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { carriedBy, carry } from 'carry';
@@ -45,6 +47,8 @@ interface Case {
 	beside?: Record<string, string>;
 	/** Sibling files that are not components, written as named. What a derivation may call. */
 	alongside?: Record<string, string>;
+	/** Files under the case's own `node_modules`, by path there: a package the case imports. */
+	installed?: Record<string, string>;
 	/**
 	 * Payload paths this render is fixed at, as literal source text. The payloads below have to
 	 * agree with them, since the oracle is given the whole of the data and renders what it says.
@@ -1611,6 +1615,112 @@ const accepted: Case[] = [
 			{ f: false, g: false, h: true, a: 'w', t: 'V' },
 		],
 	},
+	{
+		// A package's component is a component like any other. The bare specifier is resolved
+		// through the package's `exports` under the `svelte` condition and the export followed
+		// through the re-exports a `svelte-package` build writes -- `export * as`, `export { default
+		// as }` -- to the file, and the walk enters it as it enters the project's own. What that
+		// buys is what an unentered child cannot have: a value it transforms, a spread it writes.
+		name: 'a component from a package',
+		installed: {
+			'kit/package.json': JSON.stringify({
+				name: 'kit',
+				type: 'module',
+				exports: {
+					'.': { svelte: './index.js', default: './index.js' },
+					'./icons/*': { svelte: './icons/*.svelte' },
+				},
+			}),
+			'kit/index.js':
+				"export * as Kit from './kit/exports.js';\nexport { default as Badge } from './badge.svelte';",
+			'kit/kit/exports.js':
+				"export { default as Root } from './root.svelte';\nexport { default as Item } from '../item.svelte';",
+			'kit/kit/root.svelte':
+				'<script>let { children, tone } = $props();</script><section class={tone}>{@render children?.()}</section>',
+			'kit/item.svelte': '<script>let { n, ...rest } = $props();</script><b {...rest}>{n * 2}</b>',
+			'kit/badge.svelte': '<script>let { label } = $props();</script><i>{label.toUpperCase()}</i>',
+			'kit/icons/star.svelte':
+				'<script>let { size = 1 } = $props();</script><svg width={size}></svg>',
+		},
+		source:
+			"<script>import { Kit, Badge } from 'kit'; import Star from 'kit/icons/star'; let { data } = $props();</script>" +
+			'<Kit.Root tone={data.t}><Kit.Item n={data.n} id={data.i} /><Badge label={data.l} /></Kit.Root><Star size={data.s} />',
+		data: [
+			{ t: 'warm', n: 2, i: 'x', l: 'ok', s: 3 },
+			{ t: '', n: 0, i: '<', l: 'a&b', s: 0 },
+		],
+	},
+	{
+		// `let { n, ...rest } = $props()`: the rest is the object of what the caller passed and the
+		// pattern did not name, which a call site knows exactly. The walk used to stop at a rest and
+		// leave the child to Svelte, where `n * 2` on a marker was `NaN` and the check that says a
+		// value was eaten called it safe.
+		name: 'a rest beside a prop the child transforms',
+		beside: { Item: '<script>let { n, ...rest } = $props();</script><b {...rest}>{n * 2}</b>' },
+		source:
+			"<script>import Item from './Item.svelte'; let { data } = $props();</script>" +
+			'<Item n={data.n} id={data.i} onclick={() => {}} />',
+		data: [
+			{ n: 2, i: 'x' },
+			{ n: 0, i: null },
+		],
+	},
+	{
+		// Entered, a child that computes with a value or never writes one is the ordinary case: the
+		// computation is a derivation and the unwritten value is markup nobody renders. The same
+		// children are refused below when a spread at the call site keeps the walk out.
+		name: 'one value a child eats and one it never writes, entered',
+		beside: {
+			Eats:
+				'<script>let { eaten, ignored, ...rest } = $props(); const open = false;</script>' +
+				'<b>{eaten.toUpperCase()}</b>{#if open}<i>{ignored}</i>{/if}',
+			Chews: '<script>let { tag, ...rest } = $props();</script><i>{tag.toUpperCase()}</i>',
+		},
+		source:
+			"<script>import Eats from './Eats.svelte'; import Chews from './Chews.svelte'; let { data } = $props();</script>" +
+			'<Eats ignored={data.b} eaten={data.a} /><Chews tag={data.a} />',
+		data: [
+			{ a: 'x', b: 'y' },
+			{ a: '<&', b: null },
+		],
+	},
+	{
+		// `clean_nodes` hoists a title out of its fragment, so the whitespace around it is trimmed
+		// where it opened or closed the fragment and one space where two neighbours remain. The
+		// stand-in stays in the fragment, and the whitespace is written as hoisting leaves it.
+		name: 'a title among the whitespace of its head',
+		beside: {
+			Mid: '<svelte:head>\n\t<meta name="a" />\n\t<title>M</title>\n\t<meta name="b" />\n</svelte:head>',
+			Last: '<svelte:head>\n\t<meta name="c" />\n\t<title>L</title>\n</svelte:head>',
+		},
+		source:
+			"<script>import Mid from './Mid.svelte'; import Last from './Last.svelte'; let { data } = $props();</script>" +
+			'<svelte:head>\n\t<title>F {data.a}</title>\n\t<meta name="d" />\n\t{#if data.f}\n\t\t<title>I</title>\n\t{/if}\n\t<meta name="e" />\n</svelte:head>' +
+			'{#if data.g}<Mid /><Last />{/if}<p>{data.a}</p>',
+		data: [
+			{ a: 'x', f: true, g: true },
+			{ a: 'y', f: false, g: false },
+		],
+	},
+	{
+		// `{...props}` on a component is `$.spread_props`, and a call site knows the keys exactly
+		// when the object is written out, which a rest gathered from the caller's attributes is once
+		// it is expanded. Then the spread is so many props and the child is entered.
+		name: 'a spread on a component whose object is known',
+		beside: {
+			Outer:
+				'<script>import Inner from \'./Inner.svelte\'; let { title, ...props } = $props();</script><h2>{title}</h2><Inner {...props} extra="e" />',
+			Inner:
+				'<script>let { a, b = 1, extra } = $props();</script><p>{a.toUpperCase()}{b * 2}{extra}</p>',
+		},
+		source:
+			"<script>import Outer from './Outer.svelte'; let { data } = $props();</script>" +
+			'<Outer title={data.t} a={data.a} b={data.b} onclick={() => {}} />',
+		data: [
+			{ t: 'T', a: 'x', b: 3 },
+			{ t: '<', a: 'y', b: undefined },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
@@ -1670,6 +1780,8 @@ const refused: Case[] = [
 		// which -- so the live one kept the dead one refused beside it and the message named
 		// whichever came first. Asked one at a time after that, the message names the one that is
 		// actually a fault.
+		// The snippet inside the tag is what keeps the walk out of the child; entered, the same
+		// child compiles, which the accepted case with the same name says.
 		name: 'one value a child eats and one it never writes',
 		says: '`eaten`',
 		beside: {
@@ -1679,7 +1791,7 @@ const refused: Case[] = [
 		},
 		source:
 			"<script>import Eats from './Eats.svelte'; let { data } = $props();</script>" +
-			'<Eats ignored={data.b} eaten={data.a} />',
+			'<Eats ignored={data.b} eaten={data.a}>{#snippet extra()}<u>e</u>{/snippet}</Eats>',
 	},
 	{
 		// The other side of what a component may supply. A parameter only ever rendered is markup
@@ -1736,7 +1848,7 @@ const refused: Case[] = [
 		},
 		source:
 			"<script>import Chews from './Chews.svelte'; let { data } = $props();</script>" +
-			'<Chews tag={data.a} />',
+			'<Chews tag={data.a}>{#snippet extra()}<u>e</u>{/snippet}</Chews>',
 	},
 ];
 
@@ -1768,6 +1880,11 @@ async function attempt(
 	}
 	for (const [name, source] of Object.entries(one.alongside ?? {})) {
 		writeFileSync(resolve(dir, name), source);
+	}
+	for (const [name, source] of Object.entries(one.installed ?? {})) {
+		const at = resolve(dir, 'node_modules', name);
+		mkdirSync(dirname(at), { recursive: true });
+		writeFileSync(at, source);
 	}
 	writeFileSync(file, one.source);
 	try {
@@ -1830,31 +1947,49 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 			filename: file,
 			rootDir: staging,
 		}).js.code;
-		// A sibling the case imports is compiled beside it and every specifier pointed at the
-		// result, because Node cannot load a `.svelte` and this oracle is Node. Every file, not
-		// only the entry: a child of a child imports its own.
-		const siblings = Object.entries(one.beside ?? {}).map(([name, source]) => ({
-			name,
-			at: resolve(dir, `${name}.js`),
-			code: compile(source, {
-				generate: 'server',
-				name,
-				filename: resolve(dir, `${name}.svelte`),
-				rootDir: staging,
-			}).js.code,
-		}));
-		const point = (text: string): string => {
-			let out = text;
-			for (const sibling of siblings) {
-				out = out.replace(
-					new RegExp(`(['"])\\./${sibling.name}\\.svelte\\1`),
-					JSON.stringify(pathToFileURL(sibling.at).href),
-				);
-			}
-			return out;
-		};
-		for (const sibling of siblings) writeFileSync(sibling.at, point(sibling.code));
-		writeFileSync(out, point(code));
+		// Bundled the way a page is, because Node cannot load a `.svelte` and this oracle is Node:
+		// every component the entry reaches -- a sibling, a package's through its `exports` under
+		// the `svelte` condition -- is compiled where it sits and its runes modules with it, and
+		// Svelte's own runtime stays external so the render runs one copy of it.
+		writeFileSync(out, code);
+		const bundled = await build({
+			entryPoints: [out],
+			bundle: true,
+			write: false,
+			format: 'esm',
+			platform: 'node',
+			conditions: ['svelte', 'import', 'default'],
+			external: ['svelte', 'svelte/*'],
+			logLevel: 'silent',
+			plugins: [
+				{
+					name: 'svelte',
+					setup(api) {
+						api.onLoad({ filter: /\.svelte$/ }, (args) => ({
+							contents: compile(readFileSync(args.path, 'utf8'), {
+								generate: 'server',
+								name: basename(args.path, '.svelte'),
+								filename: args.path,
+								rootDir: staging,
+							}).js.code,
+							loader: 'js',
+						}));
+						api.onLoad({ filter: /\.svelte\.(js|ts)$/ }, (args) => {
+							const text = readFileSync(args.path, 'utf8');
+							const source = args.path.endsWith('.ts') ? stripTypeScriptTypes(text) : text;
+							return {
+								contents: compileModule(source, { generate: 'server', filename: args.path }).js
+									.code,
+								loader: 'js',
+							};
+						});
+					},
+				},
+			],
+		});
+		const [output] = bundled.outputFiles;
+		if (output === undefined) throw new Error('nothing came out of bundling the oracle');
+		writeFileSync(out, output.text);
 		const mod = (await import(pathToFileURL(out).href)) as {
 			default: Parameters<typeof render>[0];
 		};

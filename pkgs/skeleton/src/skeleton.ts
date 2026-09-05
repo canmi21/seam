@@ -242,6 +242,15 @@ export async function skeleton(
 		return skeleton(file, root, fixed, settled, values, muted);
 	}
 
+	if (process.env['SEAM_TRACE'] !== undefined) {
+		const entered = [...new Set(baseline.copies.map((copy) => relative(root, copy.file)))];
+		console.error(`[seam] entered ${String(entered.length)} files: ${entered.join(', ')}`);
+		for (const one of baseline.missed) {
+			console.error(
+				`[seam] left to the render: ${relative(root, one.file)} -- ${one.reason.replace(/\s+/g, ' ').slice(0, 200)}`,
+			);
+		}
+	}
 	// An id written by a component the walk did not enter is a marker rather than a hole, because
 	// Svelte numbers them per render. See `anchored`.
 	const { body: html, head } = anchored(rendered);

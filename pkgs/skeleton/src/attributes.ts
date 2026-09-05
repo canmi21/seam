@@ -123,6 +123,8 @@ export function spread(
 	expand: Locals['rewrite'],
 	pending: PendingSpread[],
 	copy: Copy | null,
+	/** Whether an expression varies with nothing the request decides, so the render evaluates it. */
+	inert: (expression: string) => boolean,
 ): ReadonlySet<unknown> {
 	const empty: ReadonlySet<unknown> = new Set();
 	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
@@ -213,12 +215,19 @@ export function spread(
 		);
 	}
 
+	// A run nothing the request decides is bytes: the render evaluates the same call Svelte wrote
+	// and writes what it writes, which is what a package's element spreading its merged props is
+	// once the caller's values are constants. Left as written, and every attribute with it, so
+	// that the state a package computes them from is Svelte's to run and never a derivation's.
+	const object = `{ ${parts.join(', ')} }`;
+	if (inert(object) && classed.every(inert) && styled.every(inert)) return new Set(attributes);
+
 	const index = holes.length;
 	// Filled in after the render, which is where the rest of the call comes from.
 	holes.push({ index, expression: '', raw: true, spread: true });
 	pending.push({
 		index,
-		object: `{ ${parts.join(', ')} }`,
+		object,
 		copy,
 		...(classed.length === 0 ? {} : { classes: `{ ${classed.join(', ')} }` }),
 		...(styled.length === 0 ? {} : { styles: `{ ${styled.join(', ')} }` }),

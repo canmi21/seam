@@ -93,7 +93,7 @@ function declared(
 	ast: Node,
 	source: string,
 	names: ReadonlySet<string>,
-	fresh: string,
+	fresh: string | null,
 ): Map<string, Declared> {
 	const found = new Map<string, Declared>();
 
@@ -171,7 +171,11 @@ function declared(
 					// the declaration stays for the render to write the anchor. See spec/derivation.md.
 					if (rune === '$props.id') {
 						if (id['type'] === 'Identifier' && typeof id['name'] === 'string') {
-							record(id['name'], id, { literal: fresh, reads: false });
+							// Left as the name where no binding is given: the render then evaluates it
+							// to the id Svelte's helper counts out, which `anchored()` reads back as a
+							// marker wherever it landed -- in a string, in an attribute, in a component's
+							// own computation -- and everything computed from it stays inert.
+							record(id['name'], id, { literal: fresh ?? id['name'], reads: false, rune });
 						}
 						continue;
 					}
@@ -243,6 +247,8 @@ export interface Locals {
 	has: (name: string) => boolean;
 	/** The rune a declaration was written with, or undefined for a plain one or no declaration. */
 	rune: (name: string) => string | undefined;
+	/** The names declared with `$props.id()`, which the render evaluates and which hold a string. */
+	ids: ReadonlySet<string>;
 	/**
 	 * An expression's source with every declared name replaced by what it was declared to be.
 	 *
@@ -337,6 +343,45 @@ function parsed(expression: string): Node {
  * nothing for. Null where the expression is not that shape, or where a key is not a name or a
  * string -- a number compares to a string key as the author's lookup would not.
  */
+/**
+ * The entries of an object literal, as the source of each key and value, or null where the
+ * expression is not one written out in full: a spread inside it, a computed key, a getter.
+ *
+ * What a `{...props}` on a component call site spreads is a set of keys, and a call site knows
+ * them exactly when the object is written out -- which is what a rest gathered from a caller's
+ * attributes expands to. Then the spread is so many props, and the walk can enter the child.
+ */
+export function objectEntries(expression: string): [key: string, value: string][] | null {
+	const wrapped = `<script lang="ts"></script>{${expression}}`;
+	let ast: Node;
+	try {
+		ast = parse(wrapped, { modern: true }) as unknown as Node;
+	} catch {
+		return null;
+	}
+	const fragment = ast['fragment'];
+	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	const tag = nodes.find((one) => isNode(one) && one['type'] === 'ExpressionTag');
+	const node = isNode(tag) ? tag['expression'] : undefined;
+	if (!isNode(node) || node['type'] !== 'ObjectExpression') return null;
+	const found: [string, string][] = [];
+	for (const one of Array.isArray(node['properties']) ? node['properties'] : []) {
+		if (!isNode(one) || one['type'] !== 'Property' || one['computed'] === true) return null;
+		if (one['kind'] !== 'init') return null;
+		const key = one['key'];
+		const value = one['value'];
+		if (!isNode(key) || !isNode(value)) return null;
+		let name: string;
+		if (key['type'] === 'Identifier' && typeof key['name'] === 'string') name = key['name'];
+		else if (key['type'] === 'Literal' && typeof key['value'] === 'string') name = key['value'];
+		else return null;
+		const { start, end } = value;
+		if (typeof start !== 'number' || typeof end !== 'number') return null;
+		found.push([name, wrapped.slice(start, end)]);
+	}
+	return found;
+}
+
 export function tabled(expression: string): string | null {
 	const wrapped = `<script lang="ts"></script>{${expression}}`;
 	let ast: Node;
@@ -512,6 +557,12 @@ export function settle(
 	decided: ReadonlyMap<string, boolean>,
 	/** The names the request decides, in the scope the expression was written in. */
 	dynamic: ReadonlySet<string>,
+	/**
+	 * Names that hold a string the render writes rather than something a marker cannot stand for:
+	 * an id from `$props.id()`, evaluated by the render and read back as a marker. A branch that is
+	 * one of these is a value, not a choice of structure.
+	 */
+	plain: ReadonlySet<string> = new Set(),
 ): { text: string; undecided: string | null } {
 	let text = expression;
 	for (;;) {
@@ -521,7 +572,7 @@ export function settle(
 		} catch {
 			return { text, undecided: null };
 		}
-		const found = conditional(ast['fragment'], dynamic);
+		const found = conditional(ast['fragment'], dynamic, plain);
 		if (found === null) return { text, undecided: null };
 		const [whole, test, consequent, alternate] = found;
 		const at = (range: [number, number]): string =>
@@ -540,10 +591,14 @@ type Spans = [[number, number], [number, number], [number, number], [number, num
  * The first `?:` met in document order that a marker cannot stand for, as four spans. One a
  * marker can stand for is a value, and nothing inside it is looked at: the whole of it is written.
  */
-function conditional(node: unknown, dynamic: ReadonlySet<string>): Spans | null {
+function conditional(
+	node: unknown,
+	dynamic: ReadonlySet<string>,
+	plain: ReadonlySet<string>,
+): Spans | null {
 	if (Array.isArray(node)) {
 		for (const one of node) {
-			const found = conditional(one, dynamic);
+			const found = conditional(one, dynamic, plain);
 			if (found !== null) return found;
 		}
 		return null;
@@ -551,7 +606,7 @@ function conditional(node: unknown, dynamic: ReadonlySet<string>): Spans | null 
 	if (!isNode(node)) return null;
 	const type = node['type'];
 	if (type === 'ArrowFunctionExpression' || type === 'FunctionExpression') return null;
-	if (type === 'ConditionalExpression' && chooses(node, dynamic)) {
+	if (type === 'ConditionalExpression' && chooses(node, dynamic, plain)) {
 		// A test the request does not decide is a value the render can evaluate, so the whole
 		// ternary is left to Svelte the way any inert expression is, and only what is inside its
 		// branches is looked at. Enumerating it cost a structure per constant choice -- press's
@@ -564,17 +619,17 @@ function conditional(node: unknown, dynamic: ReadonlySet<string>): Spans | null 
 		}
 	}
 	for (const value of Object.values(node)) {
-		const found = conditional(value, dynamic);
+		const found = conditional(value, dynamic, plain);
 		if (found !== null) return found;
 	}
 	return null;
 }
 
 /** Whether a ternary has a branch a marker cannot stand for, looking through nested ones. */
-function chooses(node: Node, dynamic: ReadonlySet<string>): boolean {
+function chooses(node: Node, dynamic: ReadonlySet<string>, plain: ReadonlySet<string>): boolean {
 	return [node['consequent'], node['alternate']].some((branch) => {
 		if (!isNode(branch)) return false;
-		if (branch['type'] === 'ConditionalExpression') return chooses(branch, dynamic);
+		if (branch['type'] === 'ConditionalExpression') return chooses(branch, dynamic, plain);
 		if (isLiteral(branch)) return false;
 		// A branch that names nothing and holds no function is a value like a literal:
 		// `(undefined).entries`, which is what state with no value expands to, chooses no
@@ -582,7 +637,8 @@ function chooses(node: Node, dynamic: ReadonlySet<string>): boolean {
 		// or is one, and reads nothing the request decides.
 		let structural = false;
 		reads(branch, new Set(), (at) => {
-			if (at['name'] !== 'undefined') structural = true;
+			const name = at['name'];
+			if (name !== 'undefined' && !(typeof name === 'string' && plain.has(name))) structural = true;
 		});
 		const functions = (part: unknown): void => {
 			if (structural) return;
@@ -749,7 +805,15 @@ export function locals(
 	 * share it. Given by the walk, which knows which copy this is; the default serves a caller that
 	 * only asks which names are declared.
 	 */
-	fresh = '__i',
+	fresh: string | null = null,
+	/**
+	 * What each prop is bound to at the call site, by the prop's local name, as an expression in
+	 * the caller's terms already expanded. Given for a component the walk entered; the entry has
+	 * none, its props being the payload.
+	 */
+	bound?: ReadonlyMap<string, string>,
+	/** The names the request decides in the caller's scope, which is what `bound` may mention. */
+	dynamic?: ReadonlySet<string>,
 ): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const carried = props(ast['instance']);
@@ -852,6 +916,9 @@ export function locals(
 	return {
 		has: (name) => found.has(name),
 		rune: (name) => found.get(name)?.rune,
+		ids: new Set(
+			[...found.values()].filter((one) => one.rune === '$props.id').map((one) => one.name),
+		),
 		rewrite: (node, extra) => slice(node, new Set(), extra),
 		// By span rather than by name: one destructuring declares several names and is one place
 		// in the source, and writing over it twice would take the file apart.
@@ -862,15 +929,30 @@ export function locals(
 		// so `const locale = data.locale.code` expands to a literal and there is nothing left to
 		// hold: it is written out as what it is, and the name works for whoever reads it -- markup
 		// left for Svelte to evaluate included, which is the half that would otherwise disagree
-		// with the expression the walk carried. A destructuring is not substituted this way, since
-		// one initialiser stands for several names and the expansion is only ever one of them.
+		// with the expression the walk carried. The same holds one level up: a component the walk
+		// entered has each prop bound to the caller's expression, and where that expression varies
+		// with nothing the request decides, the declaration is inert with it and the render
+		// evaluates it as written -- which is what lets a package's component set the context its
+		// children read, from props the caller gave it as constants. A destructuring is not
+		// substituted this way, since one initialiser stands for several names and the expansion
+		// is only ever one of them.
 		reading: [
 			...new Map(
 				[...found.values()]
 					.filter((one) => one.reads)
 					.map((one): [string, Neutral] => {
-						const text = one.access === '' ? expand(one.name, new Set()) : null;
-						const settled = text !== null && !mentions(text, carried) ? text : EMPTY[one.holds];
+						const text = one.access === '' ? expand(one.name, new Set(), bound) : null;
+						const settled =
+							text !== null && !mentions(text, dynamic ?? carried) ? text : EMPTY[one.holds];
+						if (process.env['SEAM_TRACE'] !== undefined && text !== null && settled !== text) {
+							const mentioned = [...(dynamic ?? carried)].filter((each) =>
+								mentions(text, new Set([each])),
+							);
+							console.error(
+								`[seam] neutralised \`${one.name}\` mentioning ${mentioned.join(', ') || '(unparsable)'}: ` +
+									text.replace(/\s+/g, ' ').slice(0, 240),
+							);
+						}
 						return [one.at.join(':'), [one.at, settled]];
 					}),
 			).values(),

@@ -156,12 +156,16 @@ impl Assembler<'_> {
 			}
 			let Mark::Hole(index) = mark else { unreachable!() };
 
-			// The anchor of a `$props.id()` in a component the walk entered, whose hole the walk
-			// allocated so that the child's own expressions can read it by name.
+			// A `$props.id()` in a component the walk entered, whose hole the walk allocated so that
+			// the child's own expressions can read it by name. The first place its marker lands is
+			// the anchor Svelte writes at the head of the component, which is where the runtime
+			// counts the id out and binds it; every later landing is a read of the binding, wherever
+			// the render put the id -- the component computes with the marker as its id.
 			if self.skeleton.holes.get(index).is_some_and(|hole| hole.fresh) {
 				out.write(&html[at..start]);
 				let (expression, _, _) = self.hole(index)?;
-				out.push(ir::Node::Slot { path: expression, escape: ir::Escape::Content, fresh: true });
+				let first = self.consumed[index] == 1;
+				out.push(ir::Node::Slot { path: expression, escape: ir::Escape::Content, fresh: first });
 				at = end;
 				continue;
 			}

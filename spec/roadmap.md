@@ -20,16 +20,15 @@ that holds the two together. See the workspace's `spec/agent-protocol.md`.
 
 ## Ready, and not done
 
-**The one that decides several others: the walk does not enter a package's component.**
-`walk.ts` walks only a component this project holds and leaves a package's to Svelte's render. That
-was the expedient while spreads and passed snippets were refused, and both are handled now. A
-package's `.svelte` is a component like any other, and leaving it to the render is where four
-refusals come from: a value a child transforms, a supplied snippet reading a parameter, a choice a
-package makes on a request value, and the marker-outside-a-domain risk in
-[pipeline.md](pipeline.md). What stood in the way is gone: `{...restProps}` is `$.attributes`,
-carried; a passed snippet is inlined; context is a `Map` on the server (`internal/server/context.js`)
-whose value is an ancestor's expression, which is substitution and not code. Large, and the next
-major item after the small ones below.
+**The walk enters a package's component.** Done; [refusals.md](refusals.md) has what it took --
+resolution through `exports` under the `svelte` condition and the package's re-exports, a rest as
+the caller's other attributes, a prop-reading declaration neutralised only where the prop varies,
+an id as a marker the component computes with, an inert spread as bytes, modules left at their
+real paths. On press every route is byte-identical with every component entered, `bits-ui` and
+`@tanstack` included, and nothing left to the render. What would still be left to it: a component
+spread with an object the request hands it whole, whose keys nobody can list. The residual risk
+noted in [pipeline.md](pipeline.md) -- a marker outside a function's domain -- now applies only to
+such a component.
 
 **The title rule is done.** It is Svelte's own and it was derivable; [ir.md](ir.md) has it. What it
 found beside it: **a component with a `<svelte:head>` inside an `{#each}`** is refused now, where it

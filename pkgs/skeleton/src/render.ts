@@ -1,5 +1,7 @@
 import { basename, dirname, resolve as resolvePath } from 'node:path';
+import { realpathSync } from 'node:fs';
 import { compile } from 'svelte/compiler';
+import { resolveBare } from 'ast';
 import type { Rendered } from './shape.ts';
 import { ID_PREFIX, sentinel } from './sentinel.ts';
 import type { Copy } from './walk.ts';
@@ -85,16 +87,30 @@ export async function renderRewritten(
 		// double-quoted -- which is most of what a package ships -- had its relative specifiers
 		// left alone here and its neighbours looked for beside the staged file rather than beside
 		// the source. What the author saw was Node reporting a missing module inside `.build`.
-		for (const match of code.matchAll(/from\s+(['"])(\.[^'"]*)\1/g)) {
+		for (const match of code.matchAll(/from\s+(['"])([^'"]+)\1/g)) {
 			const quote = match[1] ?? "'";
 			const specifier = match[2];
 			if (specifier === undefined) continue;
-			const target = resolvePath(dirname(origin), specifier);
+			// Svelte's own modules stay as written: the staged file resolves them from this package,
+			// which is the one copy of Svelte the render runs, and a second copy resolved from a
+			// component's own tree would be a second set of module state. Everything else a
+			// component imports by a bare name is resolved from where the component sits, because
+			// the staged file sits nowhere near its `node_modules`.
+			if (specifier === 'svelte' || specifier.startsWith('svelte/')) continue;
+			const target = specifier.startsWith('.')
+				? resolvePath(dirname(origin), specifier)
+				: resolveBare(specifier, origin);
+			if (target === null) continue;
 			// A copy resolves its own relative imports from where its original sits, not from the
-			// name it was staged under.
-			const replacement = specifier.endsWith('.svelte')
+			// name it was staged under. A module reached by a bare name is left where it really is,
+			// by its real path, so that it stays the one module the host loads: staging a copy of a
+			// package's JavaScript made two of every module, and a context keyed by an object one
+			// copy made was not found by the other. What Node cannot load on its own -- a `.svelte`
+			// a package re-exports, a runes module -- is the host's loader's or bundler's to compile,
+			// as it is for the project's own; only the `.svelte` this pass rewrote is compiled here.
+			const replacement = target.endsWith('.svelte')
 				? emit(target, compileFile(target), staged.get(target)?.file ?? target)
-				: target;
+				: real(target);
 			code = code.replaceAll(
 				`${quote}${specifier}${quote}`,
 				JSON.stringify(pathToFileURL(replacement).href),
@@ -139,6 +155,15 @@ export async function renderRewritten(
 		return { body, head };
 	} finally {
 		rmSync(staging, { recursive: true, force: true });
+	}
+}
+
+/** The path with every link followed, or the path itself where there is nothing to follow. */
+function real(path: string): string {
+	try {
+		return realpathSync(path);
+	} catch {
+		return path;
 	}
 }
 

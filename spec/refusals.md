@@ -619,6 +619,86 @@ side: the boundary problem is solved by walking in, and walking in is blocked by
 cost was measured there -- `attributes` and what it reaches bundle to 2.3 kB of Svelte's own code,
 in the derivation bundle both backends already run, with nothing reproduced anywhere.
 
+### The walk enters a package's component, and what it took to
+
+A package's `.svelte` is a component like any other, and the walk enters it the way it enters the
+project's own; what stood between the tag and the file was module resolution, and what stood
+between the file and correct bytes was a handful of things package code does that project code
+did not. Each was read out of Svelte or the package and measured before it was written.
+
+**From the tag to the file.** `import { DropdownMenu } from 'bits-ui'` and then
+`<DropdownMenu.Root>`: the bare specifier is resolved through the package's `exports` map under the
+`svelte` condition first, then `import`, `module` and `default`, with `*` patterns and the
+`svelte`, `module` and `main` fields for a package without a map, walked from the file's real path
+the way Node walks -- a package a package manager links into place has its dependencies beside its
+real location. Then the export is followed through the JavaScript a `svelte-package` build writes,
+statement by statement rather than evaluated: `export { default as Root } from './root.svelte'`,
+`export * as Dialog from './exports.js'`, `export *`, an imported name re-exported, a default
+export of one. Member by member until a `.svelte` file is reached, or the chain ends elsewhere and
+the component is Svelte's to render, as before. `pkgs/ast/src/packages.ts`.
+
+**A member tag stays dynamic.** `2-analyze/visitors/Component.js` marks a tag with a `.` in it
+dynamic, and the server writes `<!--[-->` and `<!--]-->` around what it renders, so the copy is
+written as `<svelte:component this={...}>`, the same dynamic call, and keeps the anchors. So does
+a tag naming a rune declaration or a `<svelte:component>` whose choice settles to one import: it is
+entered as that component and stays dynamic in the render.
+
+**A rest is the caller's other attributes.** `let { n, ...rest } = $props()` used to stop the walk,
+and the child was left to Svelte -- where `n * 2` on a marker was `NaN`, and the check that says a
+value was eaten called it safe. A call site knows exactly what a rest gathers: the object of every
+attribute the caller wrote that the pattern did not name, in the caller's own expressions. The same
+object, spread onto a child of the child, `<Inner {...rest}>`, is so many props again: `$.spread_props`
+merges in order and a call site whose object is written out knows the keys. One the request hands
+over whole has keys nobody can list, and that child is Svelte's.
+
+**A declaration reading a prop is neutralised only where the prop varies.** The render is given no
+data, so a declaration reading a prop used to be handed something harmless whatever the prop was
+bound to. A package's component builds its context from its props -- `MenuRootState.create({
+variant: boxWith(() => variant), ... })` -- and its children read that context; handed `null`, the
+child read `null.getBitsAttr`. With each prop bound to the caller's expression, a declaration whose
+expansion varies with nothing the request decides is inert, and the render evaluates it as written.
+Two things had to hold for the expansion to be JavaScript: a name written to is not read, so
+`open = false` in a handler is left alone rather than becoming `(false) = false`, and a
+`$bindable(x)` default is `x`, the rune being one that may only be written inside `$props()`.
+A default is JavaScript's too: a prop the caller passes as `undefined` takes it, as one the caller
+leaves out does.
+
+**An id is a marker the component computes with.** `$props.id()` is counted by the runtime and
+bound where its anchor lands; a package computes its whole attribute set from it -- `createId(uid)`
+inside a state class -- and treating the id as a value the request decides made that computation a
+derivation, which dragged runes modules into the bundle a request runs. The render is handed the
+hole's marker as the id instead, so everything computed from it is inert and Svelte's, the marker
+lands wherever the id went, the first landing -- the anchor -- is where the runtime counts the id
+out and binds it, and every later landing reads the binding. A derivation that reads the id all
+the same has the binding.
+
+**An inert spread is bytes.** `{...mergedProps}` on a package's `<button>`, with every value a
+constant once the caller's are, is the same `$.attributes` call whether the render evaluates it or
+the runtime does; the render does, and the state the package computed it from is never a
+derivation's. A run the request decides is the carried call, as before.
+
+**What the render loads.** A module reached by a bare name is left where it really is, by its
+real path: staging a copy of a package's JavaScript made two of every module, and a context keyed
+by an object one copy made was not found by the other. What Node cannot load on its own -- a
+`.svelte` a package re-exports, a runes module -- is the host's loader's or bundler's to compile, as
+for the project's own; only the `.svelte` this pass rewrote is compiled here. An import whose every
+use became a copy is dropped from the rewritten source, or the render would load the package's
+whole tree of re-exports for nothing. The carried bundle resolves a package's imports from where
+the importing file sits, under the `svelte` condition, and with the `main` and `module` fields a
+neutral platform would otherwise ignore.
+
+**A copy's inert props are handed to the render as written.** A prop whose value is data is asked
+of the render and told as JSON, which is what the child's markup writes. One whose value is not
+data -- a query client to set as context, a store, a function -- used to be handed to the render
+as nothing, and a provider entered that way set nothing for its children to find. Where the
+caller's expression varies with nothing the request decides, the attribute is left as written and
+Svelte hands the child the value itself.
+
+**Measured on press.** Every route byte-identical with the walk entering its packages and nothing
+left to the render: the home route enters fourteen files where it entered five, the article
+thirty-six, among them `bits-ui`'s menu, trigger, floating layer, portal and dialog and both of
+`@tanstack`'s providers.
+
 ## A component that renders none of what it was given, which is a portal
 
 This gates all eight of press's routes, and reading what actually happens changed what it is.

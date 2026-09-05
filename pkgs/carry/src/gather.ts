@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { type Carried, importsOf, readsOf } from 'ast';
+import { type Carried, importsOf, readsOf, resolveBare } from 'ast';
 
 /**
  * What the expressions of this route call, gathered from every file whose expressions became
@@ -38,8 +38,10 @@ export function carriedBy(
 	const trace = process.env['SEAM_TRACE'] !== undefined;
 	for (const one of expressions) {
 		const names = readsOf([one.expression]);
-		if (trace && [...names].some((name) => /Query|Mutation/.test(name))) {
-			console.error(`[seam]   reads ${one.expression.replace(/\s+/g, ' ').slice(0, 200)} in ${one.files[0] ?? '?'}`);
+		if (trace && (one.files[0] ?? '').includes('node_modules')) {
+			console.error(
+				`[seam]   reads ${one.expression.replace(/\s+/g, ' ').slice(0, 200)} in ${one.files[0] ?? '?'}`,
+			);
 		}
 		for (const file of one.files) {
 			const held = reads.get(file) ?? new Set<string>();
@@ -54,7 +56,11 @@ export function carriedBy(
 		for (const [local, one] of importsOf(readFileSync(at, 'utf8'))) {
 			// A component is composed at compile time and never a value an expression calls.
 			if (!names.has(local) || one.from.endsWith('.svelte')) continue;
-			const from = one.from.startsWith('.') ? resolve(dirname(at), one.from) : one.from;
+			// Resolved from where the file sits, a bare name too: a package's component imports its
+			// own dependencies, which are beside the package and not beside the bundle's entry.
+			const from = one.from.startsWith('.')
+				? resolve(dirname(at), one.from)
+				: (resolveBare(one.from, at) ?? one.from);
 			carried.push({ ...one, from });
 		}
 		if (carried.length > 0) found.set(file, carried);

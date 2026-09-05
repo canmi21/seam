@@ -12,6 +12,8 @@ import {
 	mentions,
 	onlyWithin,
 	readsOf,
+	componentOf,
+	objectEntries,
 	settle,
 	tabled,
 } from 'ast';
@@ -144,6 +146,8 @@ export interface Site {
 	root: string;
 	/** Local name to specifier, for this file, so `<Card />` finds the file it was imported from. */
 	imports: Record<string, string>;
+	/** The same imports with what each one is -- default, named, the module -- for a package's. */
+	carried: ReadonlyMap<string, Carried>;
 	copies: Copy[];
 	stack: string[];
 	/** Imports the rewritten source needs that the author did not write: one per copy taken. */
@@ -897,13 +901,82 @@ function contents(
  * it is written: handed to a package, naming a component, testing a block, or read as a value
  * whose evaluation would reach for those things in a scope that holds data. See `settle`.
  */
+/**
+ * The `.svelte` file a component tag names, or null.
+ *
+ * A component the project holds is imported by a relative path ending in `.svelte`, and that is
+ * the file. A package's is imported by a bare specifier -- `import { DropdownMenu } from
+ * 'bits-ui'` and then `<DropdownMenu.Root>` -- and is found by resolving the specifier the way a
+ * Svelte-aware bundler does and following the package's re-exports to the file, member by member.
+ * A package's component is a component like any other once the file is in hand, and the walk
+ * enters it the same way; where it cannot, the component is left to Svelte's render, as before.
+ * See `packages.ts` and spec/refusals.md.
+ */
+function componentFile(tag: string, walk: Walk): string | null {
+	const [head, ...members] = tag.split('.');
+	if (head === undefined || head === '') return null;
+	const one = walk.site.carried.get(head);
+	if (one === undefined) return null;
+	if (one.from.startsWith('.')) {
+		if (members.length > 0 || one.kind !== 'default' || !one.from.endsWith('.svelte')) return null;
+		return resolvePath(dirname(walk.site.file), one.from);
+	}
+	const names =
+		one.kind === 'default'
+			? ['default', ...members]
+			: one.kind === 'named'
+				? [one.exported ?? one.local, ...members]
+				: members;
+	if (names.length === 0) return null;
+	return componentOf(one.from, names, walk.site.file);
+}
+
+/**
+ * The rewritten source with the imports nothing in it reads any more taken out.
+ *
+ * A component tag the walk replaced with a copy leaves its import behind, and the render would
+ * still load the module: for a package that is its whole tree of re-exports, `.svelte` files
+ * Node cannot load among them, so a name whose every use became a copy is not imported. Read off
+ * the rewritten text: an import whose local names appear nowhere else in it binds nothing.
+ */
+function unimported(text: string): string {
+	let ast: AstNode;
+	try {
+		ast = parse(text, { modern: true }) as unknown as AstNode;
+	} catch {
+		return text;
+	}
+	const instance = ast['instance'];
+	const content = isNode(instance) ? instance['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	const edits: [number, number, string][] = [];
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
+		const at = span(statement);
+		const specifiers = Array.isArray(statement['specifiers']) ? statement['specifiers'] : [];
+		if (at === null || specifiers.length === 0) continue;
+		const rest = text.slice(0, at[0]) + text.slice(at[1]);
+		const used = specifiers.some((one) => {
+			const local = isNode(one) ? one['local'] : undefined;
+			const name = isNode(local) && typeof local['name'] === 'string' ? local['name'] : null;
+			if (name === null) return true;
+			return new RegExp(`(?<![\\w$])${name.replaceAll('$', '\\$')}(?![\\w$])`).test(rest);
+		});
+		if (!used) edits.push([at[0], at[1], '']);
+	}
+	return edits.length === 0 ? text : apply(text, edits);
+}
+
 /** Whether markup holds a node of this type anywhere inside it. */
-function holds(node: unknown, type: string): boolean {
-	if (Array.isArray(node)) return node.some((one) => holds(one, type));
+function contains(node: unknown, type: string): boolean {
+	if (Array.isArray(node)) return node.some((one) => contains(one, type));
 	if (!isNode(node)) return false;
 	if (node['type'] === type) return true;
-	return Object.values(node).some((one) => holds(one, type));
+	return Object.values(node).some((one) => contains(one, type));
 }
+
+/** One plain name, which is what a settled dynamic component is when it is one import. */
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
 /**
  * The component an expression chooses, settled. A `?:` in it chooses which component, the way one
@@ -931,7 +1004,7 @@ function choosing(written: string, tag: string, walk: Walk): string {
 }
 
 function settled(expression: string, walk: Walk): string {
-	const held = settle(expression, walk.site.decided, walk.dynamic);
+	const held = settle(expression, walk.site.decided, walk.dynamic, new Set(walk.fresh));
 	if (held.undecided === null) return held.text;
 	// A name a block binds is decided per item, and a decision over it cannot be enumerated for
 	// the page: the derivation the branch would test has no item to read.
@@ -1012,6 +1085,12 @@ function withAsks(
 				`&& Object.values(x).every(ok)); return ok(v) ? JSON.stringify(v) : undefined; })(${code});`,
 		),
 	];
+	appended(ast, lines, edits);
+}
+
+/** Statements added at the end of the instance script, or in one made for them. */
+function appended(ast: AstNode, lines: readonly string[], edits: [number, number, string][]): void {
+	if (lines.length === 0) return;
 	const instance = ast['instance'];
 	const content = isNode(instance) ? instance['content'] : undefined;
 	const at = isNode(content) ? content['end'] : undefined;
@@ -1020,6 +1099,22 @@ function withAsks(
 		return;
 	}
 	edits.push([0, 0, `<script>\n${lines.join('\n')}\n</script>\n`]);
+}
+
+/**
+ * The binding the runtime makes for a `$props.id()`, declared in the render too: the render is
+ * handed the hole's marker as the id, so an expression written in terms of the binding evaluates
+ * there to the marker, and one the request decides reads the binding at request time.
+ */
+function withFresh(
+	ast: AstNode,
+	fresh: string | null,
+	ids: ReadonlySet<string>,
+	edits: [number, number, string][],
+): void {
+	const [name] = ids;
+	if (fresh === null || name === undefined) return;
+	appended(ast, [`;const ${fresh} = ${name};`], edits);
 }
 
 /** An import written again, in the form it was written in: named, default, or the module. */
@@ -1118,7 +1213,7 @@ function slotOf(node: AstNode): string | null {
  * does not come back.
  */
 function stands(expression: string, walk: Walk): string {
-	const held = settle(expression, walk.site.decided, walk.dynamic);
+	const held = settle(expression, walk.site.decided, walk.dynamic, new Set(walk.fresh));
 	if (held.undecided !== null) {
 		// A name a block binds is decided per item, and a decision over it cannot be enumerated for
 		// the page: the derivation the branch would test has no item to read. The choice has another
@@ -1295,12 +1390,12 @@ function collect(node: unknown, walk: Walk): void {
 				// Taken apart the way a snippet's parameter is: a member or an index per name, a
 				// default as the choice JavaScript makes, and a rest or a nesting refused by name. A
 				// default may read an earlier const, so it is expanded against what those bound.
-				const within: Locals['rewrite'] = (child, more) =>
+				const amid: Locals['rewrite'] = (child, more) =>
 					expand(child, more === undefined ? bound : new Map([...bound, ...more]));
 				for (const [name, reached] of takenApart(
 					id as AstNode,
 					`(${value})`,
-					within,
+					amid,
 					() => 'a `{@const}`',
 				)) {
 					bound.set(name, reached);
@@ -1325,10 +1420,17 @@ function collect(node: unknown, walk: Walk): void {
 			// wins is decided per head block: `$.head` is hoisted ahead of its fragment, so the last
 			// head block executed compares later under `set_title`, and inside one block the first
 			// title executed is kept. The injector counts the blocks by this. See spec/ir.md.
-			if (holds(node['fragment'], 'TitleElement')) {
+			if (contains(node['fragment'], 'TitleElement')) {
+				// Where the first child starts, with the whitespace before it taken out: Svelte trims
+				// the whitespace that opens a fragment, and the stand-in must not turn it into a space
+				// between two elements.
 				const whole = span(node);
 				const open = whole === null ? -1 : source.indexOf('>', whole[0]);
-				if (open >= 0) edits.push([open + 1, open + 1, '<seam-title-open></seam-title-open>']);
+				if (open >= 0) {
+					let first = open + 1;
+					while (first < source.length && /\s/.test(source[first] ?? '')) first += 1;
+					edits.push([open + 1, first, '<seam-title-open></seam-title-open>']);
+				}
 			}
 			step(node['fragment'], 'head');
 			return;
@@ -1419,14 +1521,26 @@ function collect(node: unknown, walk: Walk): void {
 			// component, the same dynamic call a tag naming a rune goes through below. The
 			// expression is settled the same way, and a lookup in a table of components is the
 			// choice its keys spell out. See spec/refusals.md.
+			// A dynamic component the walk settles to one import is that component, and is entered
+			// as one where it can be -- the render keeps the dynamic call, and so the anchors. Where
+			// it cannot, the settled expression is written for Svelte to evaluate, as before.
+			let settledTag: {
+				name: string;
+				expression: [number, number] | null;
+				written: () => void;
+			} | null = null;
 			if (type === 'SvelteComponent') {
 				const where = span(node['expression']);
 				if (where === null) return;
-				edits.push([
-					where[0],
-					where[1],
-					choosing(expand(node['expression']), 'svelte:component', walk),
-				]);
+				const chosen = choosing(expand(node['expression']), 'svelte:component', walk);
+				const written = (): void => {
+					edits.push([where[0], where[1], chosen]);
+				};
+				if (IDENTIFIER.test(chosen) && site.carried.has(chosen)) {
+					settledTag = { name: chosen, expression: where, written };
+				} else {
+					written();
+				}
 			}
 			// A title stays in the head stream where Svelte executed it rather than going to the
 			// channel Svelte keeps it in, as a stand-in element the assembler reads as a `title`
@@ -1439,6 +1553,24 @@ function collect(node: unknown, walk: Walk): void {
 				if (whole !== null && source.endsWith(close, whole[1])) {
 					edits.push([whole[0] + 1, whole[0] + 1 + 'title'.length, `seam-title-${role}`]);
 					edits.push([whole[1] - close.length, whole[1], `</seam-title-${role}>`]);
+					// A title is hoisted out of its fragment by `clean_nodes`, so the whitespace around
+					// it is whitespace around nothing: trimmed where it opens or closes the fragment,
+					// one space where two neighbours remain. The stand-in stays in the fragment, so
+					// the whitespace is written as that: gone, or one space after the stand-in.
+					let from = whole[0];
+					while (from > 0 && /\s/.test(source[from - 1] ?? '')) from -= 1;
+					let to = whole[1];
+					while (to < source.length && /\s/.test(source[to] ?? '')) to += 1;
+					const before = source.slice(0, from);
+					const after = source.slice(to);
+					const opens = /(<svelte:head[^>]*>|\{[#:][^}]*\})$/.test(before);
+					const closes = /^(<\/svelte:head>|\{[/:])/.test(after);
+					const between = !opens && !closes && from > 0 && to < source.length;
+					// The head's own edit already took the whitespace after its opening tag.
+					const opened = /<svelte:head[^>]*>$/.test(before);
+					if (from < whole[0] && !opened) edits.push([from, whole[0], '']);
+					if (to > whole[1]) edits.push([whole[1], to, between ? ' ' : '']);
+					else if (between) edits.push([whole[1], whole[1], ' ']);
 				}
 			}
 			// A tag decided per request. Svelte's `element()` writes `<!---->`, then the tag and its
@@ -1486,7 +1618,16 @@ function collect(node: unknown, walk: Walk): void {
 			// Svelte writes them: one call producing one attribute, not one attribute plus a list of
 			// additions. What is left after this is walked the ordinary way.
 			// A spread takes the whole run, so the two directive passes have nothing left to decide.
-			const spreads = spread(source, node, holes, edits, expand, site.spreads, site.copy);
+			const spreads = spread(
+				source,
+				node,
+				holes,
+				edits,
+				expand,
+				site.spreads,
+				site.copy,
+				(text) => site.payload !== null && !varies(text, walk),
+			);
 			const handled = spreads.size > 0 ? spreads : classes(node, holes, edits, expand, pending);
 			const styled =
 				spreads.size > 0 ? spreads : styles(source, node, holes, edits, expand, pending);
@@ -1497,9 +1638,11 @@ function collect(node: unknown, walk: Walk): void {
 			// what the child does with the value rather than the value itself, so a prop used twice,
 			// or not at all, or computed with, is the ordinary case rather than a marker that does
 			// not come back. See spec/refusals.md.
-			if (given && descend(node, walk)) {
+			if (given && descend(node, walk, settledTag ?? undefined)) {
 				return;
 			}
+			// Not entered: the dynamic call gets the settled expression after all.
+			if (settledTag !== null) settledTag.written();
 			// A tag naming a declaration written with a rune, which Svelte's analysis reads as a
 			// dynamic component: `metadata.dynamic` in `2-analyze/visitors/Component.js` is set for
 			// a binding whose kind is not `normal`, and the server then writes `<!--[-->` and
@@ -1519,10 +1662,17 @@ function collect(node: unknown, walk: Walk): void {
 					// what is handed, and is enumerated the same way: the walk stops and asks, and the
 					// build renders once per branch. What the taken branch leaves has to be inert.
 					const chosen = choosing(written, tag, walk);
-					edits.push([at[0], at[1], `svelte:component this={${chosen}}`]);
-					const close = `</${tag}>`;
-					if (source.endsWith(close, whole[1])) {
-						edits.push([whole[1] - close.length, whole[1], '</svelte:component>']);
+					const rewritten = (): void => {
+						edits.push([at[0], at[1], `svelte:component this={${chosen}}`]);
+						const close = `</${tag}>`;
+						if (source.endsWith(close, whole[1])) {
+							edits.push([whole[1] - close.length, whole[1], '</svelte:component>']);
+						}
+					};
+					if (IDENTIFIER.test(chosen) && site.carried.has(chosen)) {
+						settledTag = { name: chosen, expression: null, written: rewritten };
+					} else {
+						rewritten();
 					}
 				}
 			}
@@ -2120,15 +2270,17 @@ function collect(node: unknown, walk: Walk): void {
  * is attempted, and everything it touched is rolled back if it stops. Returns whether it took the
  * component over.
  */
-function descend(node: AstNode, walk: Walk): boolean {
-	const tag = typeof node['name'] === 'string' ? node['name'] : '';
-	const specifier = walk.site.imports[tag];
-	// Only a component this project holds. A package's is Svelte's to render, and its file is not
-	// one this compiler is arranged to rewrite.
-	if (specifier === undefined || !specifier.startsWith('.') || !specifier.endsWith('.svelte')) {
-		return false;
-	}
-	const file = resolvePath(dirname(walk.site.file), specifier);
+function descend(
+	node: AstNode,
+	walk: Walk,
+	/** A dynamic component settled to one import: the import's name, and the `this` span. */
+	dynamic?: { name: string; expression: [number, number] | null },
+): boolean {
+	const tag = dynamic?.name ?? (typeof node['name'] === 'string' ? node['name'] : '');
+	const file = componentFile(tag, walk);
+	// Nothing this walk can find a file for -- a name bound some other way, a package whose chain
+	// of re-exports ends in something that is not a component -- is Svelte's to render, as before.
+	if (file === null) return false;
 	if (walk.site.stack.includes(file)) {
 		refuse(
 			`<${tag} /> is part of a cycle -- ${[...walk.site.stack, file]
@@ -2140,7 +2292,6 @@ function descend(node: AstNode, walk: Walk): boolean {
 	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
 	const fragment = node['fragment'];
 	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
-	if (attributes.some((one) => isNode(one) && one['type'] === 'SpreadAttribute')) return false;
 	// A `{#snippet}` inside the tag arrives under its own name and may take parameters, which the
 	// caller does not choose. Only the markup that becomes `children` is followed.
 	if (nodes.some((one) => isNode(one) && one['type'] === 'SnippetBlock')) return false;
@@ -2151,9 +2302,26 @@ function descend(node: AstNode, walk: Walk): boolean {
 	// null: it is never called while the bytes are written, and leaving it unbound would make the
 	// child read a name nothing binds.
 	const bindings = new Map<string, string>();
+	// The props whose caller expression varies with nothing the request decides. The render is
+	// handed these as written, so the child's script gets what Svelte's own render would give it:
+	// a query client to set as context, a store, a function -- values that are not data and could
+	// not be told as JSON, and that a child's markup never writes but its script may need whole.
+	const inertProps = new Set<string>();
 	for (const one of attributes) {
 		// An attachment is in the props and nothing on the server calls it.
 		if (isNode(one) && one['type'] === 'AttachTag') continue;
+		// `{...props}` is `$.spread_props`, the props merged in order, and a call site knows the
+		// keys exactly when the object is written out -- which a rest gathered from a caller's own
+		// attributes is, once expanded. Then it is so many props. An object the request hands over
+		// whole has keys nobody can list, and the child is Svelte's to render, as before.
+		if (isNode(one) && one['type'] === 'SpreadAttribute') {
+			const entries = objectEntries(walk.expand(one['expression']));
+			if (entries === null) return false;
+			for (const [key, value] of entries) {
+				bindings.set(key, key.startsWith('on') && key.length > 2 ? 'null' : `(${value})`);
+			}
+			continue;
+		}
 		if (!isNode(one) || one['type'] !== 'Attribute') return false;
 		const name = typeof one['name'] === 'string' ? one['name'] : '';
 		const value = one['value'];
@@ -2174,6 +2342,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 		if (parts.length !== 1 || !isNode(only) || only['type'] !== 'ExpressionTag') return false;
 		const grown = walk.expand(only['expression']);
 		const written = `(${grown})`;
+		if (walk.site.payload !== null && !varies(grown, walk)) inertProps.add(name);
 		// A prop the request does not decide is bound to what the render computes for it rather
 		// than to its expansion, where the render can say: the caller's script runs whole in the
 		// render, so `const u = new URL(x); u.searchParams.set('q', y)` holds the query there and
@@ -2240,7 +2409,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 		// does not yet, and the bytes came out one block short rather than refused; measured. See
 		// spec/roadmap.md.
 		if (
-			holds(ahead['fragment'], 'SvelteHead') &&
+			contains(ahead['fragment'], 'SvelteHead') &&
 			walk.within.some(([index]) => walk.blocks[index]?.kind === 'each')
 		) {
 			refuse(
@@ -2253,16 +2422,60 @@ function descend(node: AstNode, walk: Walk): boolean {
 		// counting then gave a nested pair of the same component one name twice.
 		const ordinal = walk.site.copies.length;
 		// A `$props.id()` is a binding the runtime makes when it writes the anchor, named for this
-		// copy so that two components declaring one in a page do not share it. See `fresh.ts`.
+		// copy so that two components declaring one in a page do not share it. The name is not one
+		// the request decides: the render is handed the hole's marker as the id, so everything a
+		// component computes from its id -- a package's state object, a derived attribute set -- is
+		// inert and Svelte's to evaluate, and the marker lands in the bytes wherever the id went. A
+		// derivation that reads the id all the same has the binding. See `fresh.ts`.
 		const fresh = identified(ahead) ? `__i${String(ordinal + 1)}` : null;
 		// The paths this render is fixed at, said in the child's own names. A prop bound to the
 		// whole of one is that path inside the child; a prop bound to a prefix of one carries the
 		// rest of it along. Without this a child would read `data.locale.code` as its own `data`,
 		// which is a different value with the same spelling.
 		const held = rebased(walk.site.fixed, propsOf(ahead, raw) ?? [], bindings);
-		const declared = locals(raw, held, fresh ?? undefined);
+
+		// Every prop the child declares, bound to what the call site passes or to its own default.
+		// A default only fires on `undefined`, which is what a prop the caller left out is.
+		const declares = propsOf(ahead, raw);
+		if (declares === null) return rolled(walk, mark);
+		const bound = new Map<string, string>();
+		const named = new Set(declares.filter((one) => one.rest !== true).map((one) => one.prop));
+		for (const one of declares) {
+			if (one.rest === true) {
+				// What `$props()` leaves in a rest: every attribute the caller wrote that the pattern
+				// did not name, as an object of the caller's own expressions.
+				const others = [...bindings]
+					.filter(([prop]) => !named.has(prop))
+					.map(([prop, value]) => `${JSON.stringify(prop)}: ${value}`);
+				bound.set(one.local, `({ ${others.join(', ')} })`);
+				continue;
+			}
+			// A default is JavaScript's, taken when the value is `undefined` and only then -- a prop
+			// the caller passes as `undefined` takes it as much as one the caller leaves out.
+			const given = bindings.get(one.prop);
+			bound.set(
+				one.local,
+				given === undefined
+					? one.fallback
+					: one.fallback === 'undefined'
+						? given
+						: `(${given} === undefined ? (${one.fallback}) : ${given})`,
+			);
+		}
+
+		// The child's declarations, with what each prop is bound to, so that one reading a prop the
+		// caller gave a constant is left for the render to evaluate rather than neutralised.
+		const declared = locals(raw, held, fresh, bound, walk.dynamic);
 		const inner: [number, number, string][] = [];
 		for (const [[from, to], empty] of declared.reading) inner.push([from, to, empty]);
+		if (process.env['SEAM_TRACE'] !== undefined) {
+			for (const [[from, to], empty] of declared.reading) {
+				console.error(
+					`[seam] ${basename(file)}: \`${raw.slice(from, to).replace(/\s+/g, ' ').slice(0, 70)}\` -> ` +
+						`${empty.replace(/\s+/g, ' ').slice(0, 90)}`,
+				);
+			}
+		}
 
 		const ast = ahead;
 		const prelude: string[] = [];
@@ -2286,16 +2499,6 @@ function descend(node: AstNode, walk: Walk): boolean {
 		}
 		const snippets = new Map<string, Snippet>();
 		snippetsIn(ast['fragment'], snippets);
-
-		// Every prop the child declares, bound to what the call site passes or to its own default.
-		// A default only fires on `undefined`, which is what a prop the caller left out is.
-		const declares = propsOf(ast, raw);
-		if (declares === null) return rolled(walk, mark);
-		const bound = new Map<string, string>();
-		for (const one of declares) {
-			const given = bindings.get(one.prop);
-			bound.set(one.local, given ?? one.fallback);
-		}
 
 		// A copy per call site, so two of the same component do not write one marker twice.
 		const at = resolvePath(
@@ -2322,12 +2525,13 @@ function descend(node: AstNode, walk: Walk): boolean {
 			runeOf: declared.rune,
 			snippets,
 			siblings: relatesSiblings(ast),
-			dynamic: fresh === null ? walk.dynamic : new Set([...walk.dynamic, fresh]),
+			dynamic: walk.dynamic,
 			fresh: fresh === null ? walk.fresh : [...walk.fresh, fresh],
 			site: {
 				file,
 				root: walk.site.root,
 				imports: importsOf(raw),
+				carried: importedBy(raw),
 				copies: walk.site.copies,
 				stack: [...walk.site.stack, file],
 				prelude,
@@ -2349,9 +2553,10 @@ function descend(node: AstNode, walk: Walk): boolean {
 		});
 		withPrelude(raw, ast, prelude, inner);
 		withAsks(ast, asks, wants, inner);
+		withFresh(ast, fresh, declared.ids, inner);
 		copy.asks = asks;
 		copy.wants = wants;
-		copy.source = apply(raw, inner);
+		copy.source = unimported(apply(raw, inner));
 
 		// The values stay where they were written and are handed to the render as nothing. The
 		// child's markers already carry the expressions, so what the call site passes is dead --
@@ -2371,6 +2576,9 @@ function descend(node: AstNode, walk: Walk): boolean {
 			const name = typeof one['name'] === 'string' ? one['name'] : '';
 			const local = declares.find((each) => each.prop === name)?.local;
 			const known = local === undefined ? undefined : partial(held, local);
+			// Left as written where the value varies with nothing the request decides: Svelte
+			// evaluates the caller's expression and hands the child the value itself.
+			if (known === undefined && inertProps.has(name)) continue;
 			const placed = known === undefined ? 'null' : JSON.stringify(known);
 			if (whole !== null && walk.source[whole[0]] === '{') {
 				walk.edits.push([whole[0], whole[1], `${name}={${placed}}`]);
@@ -2385,7 +2593,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 
 		// The parent imports this call site's copy rather than the file, which is two edits: the
 		// tag's name where it opens and where it closes, and one import beside the others.
-		rename(walk, node, tag, at, ordinal);
+		rename(walk, node, tag, at, ordinal, dynamic);
 
 		// Every hole and block this child planted and no deeper child has claimed is written
 		// across this file and its callers, innermost first. The deeper ones finished first, so
@@ -2436,9 +2644,9 @@ export function rewrite(
 	const blocks: Block[] = [];
 	const edits: [number, number, string][] = [];
 	const pending: PendingChoice[] = [];
-	// The entry's own id, where it declares one, named apart from every copy's.
+	// The entry's own id, where it declares one, named apart from every copy's. See `descend()`.
 	const fresh = identified(ast) ? '__i0' : null;
-	const declared = locals(source, fixed, fresh ?? undefined);
+	const declared = locals(source, fixed, fresh);
 
 	// A render is given no data, so a declaration reading a prop would evaluate against nothing
 	// and crash inside Svelte's own renderer. It has already been substituted into every
@@ -2475,6 +2683,7 @@ export function rewrite(
 			file,
 			root,
 			imports: importsOf(source),
+			carried: importedBy(source),
 			copies,
 			stack: [file],
 			prelude,
@@ -2493,19 +2702,20 @@ export function rewrite(
 			fixed,
 			decided,
 		},
-		dynamic: fresh === null ? (payload ?? new Set()) : new Set([...(payload ?? []), fresh]),
+		dynamic: payload ?? new Set(),
 		fresh: fresh === null ? [] : [fresh],
 		parent: null,
 		siblings: relatesSiblings(ast),
 	});
 	withPrelude(source, ast, prelude, edits);
 	withAsks(ast, asks, wants, edits);
+	withFresh(ast, fresh, declared.ids, edits);
 	const own = [relative(root, file)];
 	for (const hole of holes) hole.files ??= own;
 	for (const block of blocks) block.files ??= own;
 
 	return {
-		rewritten: apply(source, edits),
+		rewritten: unimported(apply(source, edits)),
 		holes,
 		blocks,
 		pending,
