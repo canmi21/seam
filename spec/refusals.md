@@ -1407,7 +1407,8 @@ would bring. So the oracle is: fetch the payload, compile the route through the 
 build uses, inject, and compare against Svelte's own server render of the same route entry given
 the same data. press itself is never touched; its output is read.
 
-**Five of seven routes were byte-identical after six fixes**, one of them 346 KB long. What
+**Every one of press's seven routes is byte-identical** as of the rules below, one of them
+346 KB and one 238 KB long. Five were after the first six fixes. What
 stood between the compile and the first comparison was six things, each invisible to a compile that never
 evaluates a derivation, and each recorded where it belongs: the `file:` specifier a sample maps a
 workspace library to, which esbuild cannot resolve; the TypeScript a `lang="ts"` component writes
@@ -1490,11 +1491,21 @@ inside the arguments of a call into a runes module does not make the expression 
 and it is asked of the render like anything else the request does not decide -- in the file's
 own names, since the copy has those in scope and the caller's it does not.
 
-**A `?:` in a test whose branches a marker cannot stand for is a structure**, and is enumerated
-the way one handed to a package is: `{#if (summary ? PROVIDERS[summary.provider] : undefined)
-?.icon}` chooses between icon components on a payload key, and told which way, the test is what
-the branch leaves and the render decides it. Evaluating it per request would have reached for
-components in a scope that holds data.
+**A `?:` whose branches a marker cannot stand for is a structure wherever it is written**, and
+is enumerated the way one handed to a package is: `{#if (summary ? PROVIDERS[summary.provider] :
+undefined)?.icon}` chooses between icon components on a payload key, and so does
+`{summaryProvider.name}` beside it, whose object holds the same components. Told which way, the
+expression is what the branch leaves, and the render decides it. Evaluating either per request
+would have reached for components in a scope that holds data. What makes a branch one a marker
+cannot stand for is that it names something or is a function; `(undefined).entries`, which is
+what state with no value expands to, names nothing and is a value like a literal, and the
+ternary around it is the runtime's.
+
+**With the article at 238 KB byte-identical, all seven of press's routes are.** Its compile is
+eight minutes, of which nearly all is renders: each pass renders the baseline and one alternate
+per block, and a route with sixty blocks that asks three times renders two hundred times per
+structure. The alternates a pass makes are the same as the last pass's for every block whose
+branches hold nothing asked, and caching them across passes is the obvious next cut.
 
 **Two more things the same oracle found beside these.** A class written as an expression on an
 element the stylesheet could match: Svelte scopes the element when it cannot read what the class

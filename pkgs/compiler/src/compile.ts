@@ -193,6 +193,9 @@ export async function structures(entry: Entry, root: string): Promise<(Prepared 
 			found.push({ ...(await prepare(entry.component, root, run.fixed, run.decided)), ...run });
 		} catch (error) {
 			if (!(error instanceof Undecided)) throw error;
+			if (process.env['SEAM_TRACE'] !== undefined) {
+				console.error(`[seam] undecided: ${error.test.replace(/\s+/g, ' ').slice(0, 160)}`);
+			}
 			// Settled, and asked again: the walk would not have stopped on it, so this is the compiler.
 			if (run.decided.has(error.test)) {
 				throw new Error(`\`${error.test}\` was decided and the walk asked about it again`, {

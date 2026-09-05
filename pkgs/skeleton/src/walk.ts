@@ -763,6 +763,33 @@ function contents(
 	skipped.add(binding);
 }
 
+/**
+ * The expression with every `?:` a marker cannot stand for settled to the branch this render
+ * takes, or the walk stopped to ask which. A ternary over the request between things a marker
+ * cannot stand for -- components, functions, an object holding them -- is a structure wherever
+ * it is written: handed to a package, naming a component, testing a block, or read as a value
+ * whose evaluation would reach for those things in a scope that holds data. See `settle`.
+ */
+function settled(expression: string, walk: Walk): string {
+	const held = settle(expression, walk.site.decided, walk.dynamic);
+	if (held.undecided === null) return held.text;
+	// A name a block binds is decided per item, and a decision over it cannot be enumerated for
+	// the page: the derivation the branch would test has no item to read.
+	const scoped = new Set(
+		[...walk.dynamic].filter(
+			(one) => walk.site.payload?.has(one) !== true && !walk.fresh.includes(one),
+		),
+	);
+	if (mentions(held.undecided, scoped)) {
+		refuse(
+			`\`${held.undecided}\` chooses between things a marker cannot stand for and reads a name ` +
+				'an each block binds, so the choice is made per item and cannot be enumerated for the ' +
+				'page. Write it as an `{#if}` around the markup, which is a block and is taken per item',
+		);
+	}
+	throw new Undecided(held.undecided);
+}
+
 /** The locals a file imports from a runes module, which Svelte compiles and nothing else runs. */
 function runesOf(imports: Record<string, string>): Set<string> {
 	const found = new Set<string>();
@@ -1144,7 +1171,7 @@ function collect(node: unknown, walk: Walk): void {
 			// A literal decides nothing, so nothing has to stand for it. Written out in its expanded
 			// form rather than left as it was: what it expanded from may have been a name, and the
 			// declaration that name came from has been neutralised for the render.
-			const written = expand(node['expression']);
+			const written = settled(expand(node['expression']), walk);
 			// Inside a class value nothing written here may be readable by the analysis. See
 			// `Walk.classValue`.
 			const shielded = (text: string): string => (walk.inClass === true ? `(0, ${text})` : text);
@@ -1293,16 +1320,15 @@ function collect(node: unknown, walk: Walk): void {
 					// A `?:` in it chooses which component, the way one handed to a package chooses
 					// what is handed, and is enumerated the same way: the walk stops and asks, and the
 					// build renders once per branch. What the taken branch leaves has to be inert.
-					const held = settle(written, site.decided, dynamic);
-					if (held.undecided !== null) throw new Undecided(held.undecided);
-					if (mentions(held.text, dynamic)) {
+					const chosen = settled(written, walk);
+					if (mentions(chosen, dynamic)) {
 						refuse(
 							`\`<${tag}>\` chooses a component from a value the request decides, which is not ` +
 								'decided: a structure is enumerated, and this one is not enumerable. It stands ' +
-								`for \`${held.text.replace(/\s+/g, ' ').slice(0, 200)}\``,
+								`for \`${chosen.replace(/\s+/g, ' ').slice(0, 200)}\``,
 						);
 					}
-					edits.push([at[0], at[1], `svelte:component this={${held.text}}`]);
+					edits.push([at[0], at[1], `svelte:component this={${chosen}}`]);
 					const close = `</${tag}>`;
 					if (source.endsWith(close, whole[1])) {
 						edits.push([whole[1] - close.length, whole[1], '</svelte:component>']);
@@ -1693,21 +1719,7 @@ function collect(node: unknown, walk: Walk): void {
 			// handed to a package is: the walk stops and asks, and the build renders once per
 			// branch. Told, the test is what the branch leaves, and the request may no longer
 			// decide it, in which case the render does. See `stands`.
-			const tests = chain.map((one) => {
-				const held = settle(expand(one['test']), site.decided, dynamic);
-				if (held.undecided === null) return held.text;
-				const scoped = new Set(
-					[...dynamic].filter((name) => site.payload?.has(name) !== true && !walk.fresh.includes(name)),
-				);
-				if (mentions(held.undecided, scoped)) {
-					refuse(
-						`\`${held.undecided}\` chooses between things a marker cannot stand for and reads a ` +
-							'name an each block binds, so the choice is made per item and cannot be ' +
-							'enumerated for the page',
-					);
-				}
-				throw new Undecided(held.undecided);
-			});
+			const tests = chain.map((one) => settled(expand(one['test']), walk));
 
 			// A block whose every test the request does not decide is decided once, by the render,
 			// and is bytes: the branch it takes, between anchors the assembler copies as it copies

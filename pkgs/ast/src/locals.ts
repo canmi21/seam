@@ -523,7 +523,29 @@ function chooses(node: Node, dynamic: ReadonlySet<string>): boolean {
 		if (!isNode(branch)) return false;
 		if (branch['type'] === 'ConditionalExpression') return chooses(branch, dynamic);
 		if (isLiteral(branch)) return false;
-		return !varies(branch, dynamic);
+		// A branch that names nothing and holds no function is a value like a literal:
+		// `(undefined).entries`, which is what state with no value expands to, chooses no
+		// component. What a marker cannot stand for names something -- a component, a function --
+		// or is one, and reads nothing the request decides.
+		let structural = false;
+		reads(branch, new Set(), (at) => {
+			if (at['name'] !== 'undefined') structural = true;
+		});
+		const functions = (part: unknown): void => {
+			if (structural) return;
+			if (Array.isArray(part)) {
+				for (const one of part) functions(one);
+				return;
+			}
+			if (!isNode(part)) return;
+			if (part['type'] === 'ArrowFunctionExpression' || part['type'] === 'FunctionExpression') {
+				structural = true;
+				return;
+			}
+			for (const one of Object.values(part)) functions(one);
+		};
+		functions(branch);
+		return structural && !varies(branch, dynamic);
 	});
 }
 
