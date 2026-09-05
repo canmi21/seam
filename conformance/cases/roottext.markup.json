@@ -36,10 +36,10 @@
 				}
 			],
 			"imports": {
-				"Badge": "parts/Badge"
+				"Badge": "parts/badge"
 			}
 		},
-		"parts/Badge": {
+		"parts/badge": {
 			"markup": [
 				{
 					"k": "element",
