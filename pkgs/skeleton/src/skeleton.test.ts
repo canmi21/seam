@@ -1500,6 +1500,21 @@ const accepted: Case[] = [
 			{ c: null, t: false },
 		],
 	},
+	{
+		// `prepare_element_spread`: the class directives and the style directives are the third and
+		// fourth arguments of the one `$.attributes` call, and an attribute mixing text and an
+		// expression is one template in the object. All of it is Svelte's own call, read back.
+		name: 'directives and mixed text beside a spread',
+		source:
+			'<script>let { data } = $props(); const on = data.t;</script>' +
+			'<div {...data.r} class:on style:color={data.c} a="x{data.y}" class="k">x</div>' +
+			'<p {...data.r} class:off={!data.t} style:width="{data.w}px" style:margin|important={data.m}>y</p>' +
+			'<style>div { color: red }</style>',
+		data: [
+			{ r: { id: 'i', class: 'on q' }, t: true, c: 'red', y: 'Y', w: 3, m: '1px' },
+			{ r: {}, t: false, c: null, y: null, w: null, m: null },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.

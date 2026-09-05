@@ -551,10 +551,16 @@ Measured: bundled it is 17 kB, and its only two host references are
 off `globalThis`**, so an evaluator with no host reads them as undefined rather than failing. It
 evaluates and answers in a bare sandbox with nothing but `new Function`.
 
-Refused beside it, each saying what it is: a `class:` or `style:` directive on the same element,
-which is a further argument to that one call; an attribute mixing text with an expression, which is
-one value once merged; and `{...}` on a `<svelte:element>`, where the tag and the attributes are
-each decided per request and only one of the two is written.
+Two things beside it used to be refused and are the same call. A `class:` or `style:` directive on
+the element is the third or fourth argument: `prepare_element_spread` makes one object of the
+class directives and one of the style directives, name to value, and hands both to `attributes`
+(an `|important` modifier goes nowhere there, which is Svelte's and is kept). The directives stay
+in the render with a value that evaluates to nothing, so Svelte compiles the two slots with the
+hash and the flags around them, and the objects built from the source -- each expression in the
+scope it was written in -- go into those slots when the call is read back. An attribute mixing
+text with an expression is one value once the attributes are merged, and it is the template
+`build_attribute_value` builds, with nothing for null and undefined. A `style:` written short
+beside a spread stays refused: the name is a local this pass has no node to expand.
 
 ## A component call has no boundary, and Svelte's answer is that it never needed one
 

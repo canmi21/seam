@@ -44,8 +44,6 @@ this order, one commit each:
 
 | construct | what Svelte does, and where | what ours does |
 | --- | --- | --- |
-| `class:`/`style:` beside `{...}` | the third and fourth arguments of `$.attributes` | read from the compiled call, as the hash already is |
-| `a="x{y}"` beside `{...}` | one template literal in the object | the same literal |
 | `{...}` on `<svelte:element>` | `$.element(renderer, tag, attributes_fn, children_fn)` | the attribute run is a hole inside the `element` block that already exists |
 | `{@attach}` on an element | no server visitor emits it; only `shared/component.js` puts it in a component's props | dropped, as `use:` is |
 | `<svelte:component this={T[data.k]}>` | `SvelteComponent.js` calls whatever the expression is | a decision whose domain is the literal's keys; otherwise the declared domain [build.md](build.md) already has |

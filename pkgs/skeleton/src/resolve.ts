@@ -54,8 +54,14 @@ export function filled(baseline: Rewritten, file: string, root: string): void {
 					'to write them, which is this compiler rather than the component',
 			);
 		}
+		// The slots Svelte compiled for the directives hold what the render was given, which is
+		// nothing; the objects built from the source go there.
+		if (one.classes !== undefined) rest[1] = one.classes;
+		if (one.styles !== undefined) rest[2] = one.styles;
 		const hole = baseline.holes[one.index];
-		if (hole !== undefined) hole.expression = `attributes(${one.object}${rest})`;
+		if (hole !== undefined) {
+			hole.expression = `attributes(${[one.object, ...rest].join(', ')})`;
+		}
 	}
 }
 
@@ -63,14 +69,16 @@ export function filled(baseline: Rewritten, file: string, root: string): void {
  * The arguments after the first, from the `$.attributes(...)` call whose object holds this key.
  *
  * Read by scanning rather than by parsing: what is wanted is the source of those arguments,
- * unchanged, and the shortest way to keep it unchanged is not to take it apart.
+ * unchanged, and the shortest way to keep it unchanged is not to take it apart further than the
+ * commas between them. Each comes back as written, so that putting one back is putting the rest
+ * back unchanged.
  */
-function restOf(code: string, key: string): string | null {
+function restOf(code: string, key: string): string[] | null {
 	const CALL = '$.attributes(';
 	for (let at = code.indexOf(CALL); at >= 0; at = code.indexOf(CALL, at + 1)) {
 		let depth = 0;
 		let quote: string | null = null;
-		let first = -1;
+		const commas: number[] = [];
 		for (let i = at + CALL.length - 1; i < code.length; i++) {
 			const c = code[i];
 			if (quote !== null) {
@@ -88,10 +96,16 @@ function restOf(code: string, key: string): string | null {
 				if (depth === 0) {
 					const text = code.slice(at + CALL.length, i);
 					if (!text.includes(key)) break;
-					return first < 0 ? '' : text.slice(first);
+					const cuts = commas.map((each) => each - (at + CALL.length));
+					const args: string[] = [];
+					for (const [n, cut] of cuts.entries()) {
+						const end = cuts[n + 1] ?? text.length;
+						args.push(text.slice(cut + 1, end).trim());
+					}
+					return args;
 				}
-			} else if (c === ',' && depth === 1 && first < 0) {
-				first = i - (at + CALL.length);
+			} else if (c === ',' && depth === 1) {
+				commas.push(i);
 			}
 		}
 	}

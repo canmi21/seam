@@ -81,6 +81,15 @@ export interface PendingSpread {
 	 * in the entry's.
 	 */
 	copy: Copy | null;
+	/**
+	 * The class directives as the object `prepare_element_spread` makes of them, the third
+	 * argument of the call, with each expression written in the scope it was written in. The
+	 * render is given the directives with `false` for each, so Svelte compiles the slot and
+	 * evaluates nothing; `filled()` puts this in the slot.
+	 */
+	classes?: string;
+	/** The style directives, the fourth argument, the same way. */
+	styles?: string;
 }
 
 /** The attribute name a spread's marker is written under, which nothing else could produce. */
@@ -128,17 +137,52 @@ export function spread(
 	// The object, in the order `build_spread_object` builds it: every attribute and every spread,
 	// as written, left to right.
 	const parts: string[] = [];
+	// The directives, which `prepare_element_spread` makes the third and fourth arguments of the
+	// same call: an object of the class directives and one of the style directives, name to
+	// value. They stay in the render, after the probe, each with a value that evaluates to nothing,
+	// so that Svelte compiles the two slots with the hash and the flags around them; the objects
+	// themselves are built here, in the scope the expressions were written in, and `filled()` puts
+	// them in the slots. An `|important` modifier goes nowhere, because that is where Svelte's
+	// `prepare_element_spread` puts it: the object holds the name and the value and nothing else.
+	const directives: string[] = [];
+	const classes: string[] = [];
+	const styles: string[] = [];
 	for (const one of attributes) {
 		if (!isNode(one)) return empty;
 		if (one['type'] === 'SpreadAttribute') {
 			parts.push(`...(${expand(one['expression'])})`);
 			continue;
 		}
+		if (one['type'] === 'ClassDirective') {
+			directives.push(`class:${String(one['name'])}={false}`);
+			classes.push(`${JSON.stringify(String(one['name']))}: (${expand(one['expression'])})`);
+			continue;
+		}
+		if (one['type'] === 'StyleDirective') {
+			const value = one['value'];
+			if (value === true) {
+				refuse(
+					`\`style:${String(one['name'])}\` written short beside a \`{...}\` is not handled yet: ` +
+						'the name is a local this pass has no node for',
+				);
+			}
+			const written = Array.isArray(value) ? value : [value];
+			const [only] = written;
+			// One expression either way, as `build_attribute_value` leaves a single expression and
+			// joins text and expressions into a template, so that what Svelte compiles is what is
+			// written here rather than a call into its own runtime.
+			const expression =
+				written.length === 1 && isNode(only) && only['type'] === 'ExpressionTag'
+					? `(${expand(only['expression'])})`
+					: joined(written, expand);
+			directives.push(`style:${String(one['name'])}={null}`);
+			styles.push(`${JSON.stringify(String(one['name']))}: ${expression}`);
+			continue;
+		}
 		if (one['type'] !== 'Attribute') {
 			refuse(
 				`\`${source.slice(...(span(one) ?? [0, 0])).slice(0, 40)}\` beside a \`{...}\` is not ` +
-					'handled yet: a directive on an element whose attributes are spread is a fourth ' +
-					'argument to the one call that writes them',
+					'handled yet: it is not an attribute, a spread or a directive',
 			);
 		}
 		const name = typeof one['name'] === 'string' ? one['name'] : '';
@@ -162,19 +206,25 @@ export function spread(
 			continue;
 		}
 		const [only] = written;
-		if (written.length !== 1 || !isNode(only) || only['type'] !== 'ExpressionTag') {
-			refuse(
-				`\`${name}\` beside a \`{...}\` mixes text and an expression, which is one value once ` +
-					'the attributes are merged; this reads a single expression',
-			);
-		}
-		parts.push(`${key}: (${expand(only['expression'])})`);
+		// Text beside an expression is one value once the attributes are merged: the template
+		// `build_attribute_value` builds, with nothing for null and undefined.
+		parts.push(
+			written.length === 1 && isNode(only) && only['type'] === 'ExpressionTag'
+				? `${key}: (${expand(only['expression'])})`
+				: `${key}: ${joined(written, expand)}`,
+		);
 	}
 
 	const index = holes.length;
 	// Filled in after the render, which is where the rest of the call comes from.
 	holes.push({ index, expression: '', raw: true, spread: true });
-	pending.push({ index, object: `{ ${parts.join(', ')} }`, copy });
+	pending.push({
+		index,
+		object: `{ ${parts.join(', ')} }`,
+		copy,
+		...(classes.length === 0 ? {} : { classes: `{ ${classes.join(', ')} }` }),
+		...(styles.length === 0 ? {} : { styles: `{ ${styles.join(', ')} }` }),
+	});
 
 	// Everything the element wrote is replaced by one spread of one key, so that the render writes
 	// a marker where the run belongs and the call keeps the arguments the element decides.
@@ -184,7 +234,10 @@ export function spread(
 		edits.push([
 			at[0],
 			last[1],
-			`{...{ ${JSON.stringify(probe(index))}: ${JSON.stringify(sentinel(index))} }}`,
+			[
+				`{...{ ${JSON.stringify(probe(index))}: ${JSON.stringify(sentinel(index))} }}`,
+				...directives,
+			].join(' '),
 		]);
 	}
 	return new Set(attributes);
