@@ -770,44 +770,115 @@ function valueExpression(
 }
 
 /**
- * `bind:innerHTML`, which the server writes unescaped as the element's content.
+ * A binding the server writes as the element's content: `bind:innerHTML`, unescaped, and
+ * `bind:textContent`, `bind:innerText` and a textarea's `bind:value`, escaped.
  *
- * `element.js`: the binding's expression is the body, written as it is when truthy and the
- * children otherwise. With no children that is `value || ''`, raw, and with no anchors around
- * it -- which is not `{@html}`, whose anchors the client reads. So the hole is planted as text
- * where the content goes, and the directive goes.
+ * `RegularElement.js`: the binding's expression is the body, written when truthy and the
+ * children otherwise, with no anchor around either -- which is not `{@html}`, whose anchors the
+ * client reads. With no children the body is the whole content: `value || ''` raw for
+ * `innerHTML`, and `{value}` for the rest, which `unbind.ts` writes. With children it is a
+ * decision between the value and them, and it is written as the if it is, marked bare so that
+ * the anchors the render carries stay out of the bytes. A textarea takes no block, so there the
+ * children are the text they can only be and the choice is one expression.
+ *
+ * What is tested is what Svelte tests: the value itself for `innerHTML`, and `$.escape(value)`
+ * for the rest, which is empty exactly when `String(value ?? '')` is.
  */
 function contents(
 	node: AstNode,
-	source: string,
-	expand: Locals['rewrite'],
+	walk: Walk,
 	holes: Hole[],
 	edits: [number, number, string][],
 	skipped: Set<unknown>,
-): void {
+): number | undefined {
+	const { source, expand, blocks, within, taken, stream } = walk;
+	const tag = typeof node['name'] === 'string' ? node['name'] : '';
 	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
 	const binding = attributes.find(
 		(one): one is AstNode =>
-			isNode(one) && one['type'] === 'BindDirective' && one['name'] === 'innerHTML',
+			isNode(one) &&
+			one['type'] === 'BindDirective' &&
+			(one['name'] === 'innerHTML' ||
+				one['name'] === 'textContent' ||
+				one['name'] === 'innerText' ||
+				(one['name'] === 'value' && tag === 'textarea')),
 	);
 	if (binding === undefined) return;
+	const raw = binding['name'] === 'innerHTML';
 	const fragment = node['fragment'];
 	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
-	if (nodes.length > 0) {
-		refuse(
-			'`bind:innerHTML` on an element with children is not handled yet: the server writes the ' +
-				'children only where the value is falsy, which is a decision per request',
-		);
-	}
 	const at = span(binding);
 	const close = closing(source, node);
 	if (at === null || source[close - 1] === '/')
-		refuse('`bind:innerHTML` on a tag this compiler cannot read');
-	const index = holes.length;
-	holes.push({ index, expression: `((${expand(binding['expression'])}) || '')`, raw: true });
-	edits.push([at[0], at[1], '']);
-	edits.push([close + 1, close + 1, sentinel(index)]);
+		refuse(`\`bind:${String(binding['name'])}\` on a tag this compiler cannot read`);
+	const value = `(${expand(binding['expression'])})`;
 	skipped.add(binding);
+	edits.push([at[0], at[1], '']);
+
+	if (nodes.length === 0) {
+		const index = holes.length;
+		holes.push({ index, expression: `(${value} || '')`, raw: true });
+		edits.push([close + 1, close + 1, sentinel(index)]);
+		return;
+	}
+
+	if (tag === 'textarea') {
+		// Its children are text and nothing else once Svelte has looked at them: anything dynamic
+		// is moved into a `value` attribute by `2-analyze/visitors/RegularElement.js`, which a
+		// binding beside it then contradicts.
+		const parts: string[] = [];
+		for (const child of nodes) {
+			if (!isNode(child) || child['type'] !== 'Text') {
+				refuse(
+					'a `<textarea>` with a `bind:value` and children that are not text is not handled ' +
+						'yet: Svelte moves such children into a `value` attribute',
+				);
+			}
+			parts.push(JSON.stringify(String(child['data'] ?? '')));
+		}
+		const index = holes.length;
+		holes.push({
+			index,
+			expression: `(String(${value} ?? '') !== '' ? ${value} : ${parts.join(' + ')})`,
+			raw: false,
+		});
+		const whole = span(node);
+		const end = whole === null ? -1 : source.lastIndexOf('</', whole[1]);
+		if (end < 0) refuse('a `<textarea>` this compiler cannot read the end of');
+		edits.push([close + 1, end, sentinel(index)]);
+		return;
+	}
+
+	const test = raw ? value : `String(${value} ?? '') !== ''`;
+	const index = blocks.length;
+	blocks.push({
+		index,
+		kind: 'if',
+		stream,
+		expression: test,
+		tests: [test],
+		item: null,
+		counter: null,
+		alternate: true,
+		within: [...within],
+		bare: true,
+	});
+	const hole = holes.length;
+	holes.push({ index: hole, expression: value, raw });
+	const whole = span(node);
+	const end = whole === null ? -1 : source.lastIndexOf('</', whole[1]);
+	if (end < 0)
+		refuse(
+			`an element with \`bind:${String(binding['name'])}\` this compiler cannot read the end of`,
+		);
+	edits.push([
+		close + 1,
+		close + 1,
+		`{#if ${taken(index, 0) ? 'true' : 'false'}}${sentinel(hole)}{:else}`,
+	]);
+	edits.push([end, end, `{/if}${stamps({ ...walk, parent: tag }, index)}`]);
+	// The children are the else, and the caller walks them within it.
+	return index;
 }
 
 /**
@@ -1330,7 +1401,8 @@ function collect(node: unknown, walk: Walk): void {
 				type === 'RegularElement'
 					? selection(node, source, expand, holes, edits, walk.selecting, skipped)
 					: walk.selecting;
-			if (type === 'RegularElement') contents(node, source, expand, holes, edits, skipped);
+			const bare =
+				type === 'RegularElement' ? contents(node, walk, holes, edits, skipped) : undefined;
 			// The class directives are taken together with the class attribute, because that is how
 			// Svelte writes them: one call producing one attribute, not one attribute plus a list of
 			// additions. What is left after this is walked the ordinary way.
@@ -1421,7 +1493,10 @@ function collect(node: unknown, walk: Walk): void {
 			const fragment = node['fragment'];
 			const inside = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
 			if (!given || inside.length === 0) {
+				// A content binding's children are the else of the bare if it planted.
+				if (bare !== undefined) within.push([bare, -1]);
 				collect(fragment, { ...walk, parent: encloses, selecting });
+				if (bare !== undefined) within.pop();
 				return;
 			}
 			const groups = handedTo(site.file, tag, inside);

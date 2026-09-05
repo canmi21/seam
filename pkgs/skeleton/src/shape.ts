@@ -139,6 +139,11 @@ export interface Block {
 	 * render. It leaves the order the assembler counts against, or every ordinal after it shifts.
 	 */
 	absent?: true;
+	/**
+	 * An if Svelte writes without anchors: a content binding's `if (body) { value } else {
+	 * children }`. The render carries anchors so the else can be found; the bytes do not.
+	 */
+	bare?: true;
 }
 
 /** Both of Svelte's output streams, because reading only one of them loses content silently. */

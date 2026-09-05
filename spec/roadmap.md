@@ -44,7 +44,6 @@ this order, one commit each:
 
 | construct | what Svelte does, and where | what ours does |
 | --- | --- | --- |
-| `bind:innerHTML` with children | `RegularElement.js:179`: the body only when the binding is falsy | two outcomes, an if |
 | `<svelte:boundary pending={p}>` | `SvelteBoundary.js`: an attribute and a `{#snippet pending()}` are one thing | the attribute's snippet is the pending body |
 | `{@render s(a, b)}` with one parameter | `RenderTag.js` passes the arguments through; JavaScript drops the extra | accepted; the refusal was ours |
 | `class={expr}` beside `class:` | `to_class(value, hash, directives)` in `internal/shared/attributes.js` | carry `to_class` as `attributes` is carried, one hole |

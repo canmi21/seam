@@ -96,6 +96,12 @@ pub struct Block {
 	/// render. It leaves the order counted against, or every ordinal after it shifts.
 	#[serde(default)]
 	pub absent: bool,
+	/// An if that Svelte writes without anchors: a content binding's `if (body) { value } else {
+	/// children }`, read out of `RegularElement.js`. The walk gives it a block so that the else is
+	/// rendered and found the way every other else is, and the anchors that render carries are
+	/// left out of the bytes, because the client was compiled against markup that has none.
+	#[serde(default)]
+	pub bare: bool,
 	/// True where an each has an `{:else}`, which is a second shape rendered from an empty list
 	/// and keyed `-1` among the alternates the way an if's else is. Unused for an if, whose else
 	/// is already among its branches.

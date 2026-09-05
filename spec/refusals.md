@@ -1354,7 +1354,18 @@ request that nothing takes yet.
 **`bind:innerHTML`.** The same, unescaped: the value when truthy, the children otherwise, and no
 anchor around either -- which is what tells it from `{@html}`, whose `<!---->` pair the client
 reads. So it is a raw hole for `value || ''`, planted as text where the content goes, and the
-directive goes. Children stay refused for the same reason as above.
+directive goes.
+
+**A content binding on an element with children.** `RegularElement.js` writes `if (body) {
+value } else { children }`, and nothing around either branch. That is an if with no anchors, and
+it is written as one: the walk plants a block whose first branch is the hole and whose else is the
+children, so the else is rendered and found the way every other else is, and the block is marked
+`bare` so that the assembler leaves the anchors that render carries out of the bytes. What is
+tested is what Svelte tests -- the value itself for `innerHTML`, and `$.escape(value)` for the
+rest, which is empty exactly when `String(value ?? '')` is, so `0` is written and `null` is not.
+A `<textarea>` can hold no block; its children are text once Svelte has looked at them (anything
+dynamic is moved into a `value` attribute by the analysis, which a binding beside it contradicts),
+so there the choice is one escaped expression between the value and that text.
 
 **A snippet parameter with a default.** A default is JavaScript's: taken when the value is
 `undefined` and only then. So `{#snippet r(v = 1)}` binds `v` to `(arg === undefined ? 1 : arg)`,

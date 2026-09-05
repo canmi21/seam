@@ -66,25 +66,20 @@ export function unbound(source: string): string {
 
 			if (dropped) {
 				if (at !== null) edits.push([at[0], at[1], '']);
-			} else if (onElement && name === 'innerHTML') {
-				// Left as written. The server writes the value unescaped as the element's content,
-				// which is a raw hole with no anchors around it, and only the walk can plant one.
 			} else if (
 				onElement &&
-				(CONTENT_BINDINGS.has(name) || (name === 'value' && tag === 'textarea'))
+				(name === 'innerHTML' || (hasChildren(inside) && isContent(name, tag)))
 			) {
-				// The server writes `$.escape(value)` as the content, and the children only where that
-				// comes out empty. With no children the two are one thing, `{value}` as the content,
-				// and an element with children is a decision this does not take.
+				// Left as written. The server writes the value as the element's content -- unescaped
+				// for `innerHTML` -- and the children only where the value comes out empty, with no
+				// anchor around either. A hole with nothing around it, or a choice between one and
+				// the children, is the walk's to plant. See `contents()` in walk.ts.
+			} else if (onElement && isContent(name, tag)) {
+				// The server writes `$.escape(value)` as the content. With no children that is one
+				// thing, `{value}` as the content.
 				const opened = opening(source, inside);
 				if (opened === null) {
 					refuse(`\`bind:${name}\` on an element this compiler cannot read the tag of`);
-				}
-				if (hasChildren(inside)) {
-					refuse(
-						`\`bind:${name}\` on an element with children is not handled yet: the server writes ` +
-							'the children only where the value comes out empty, which is a decision per request',
-					);
 				}
 				if (at !== null) edits.push([at[0], at[1], '']);
 				edits.push([opened, opened, `{${expression}}`]);
@@ -116,6 +111,11 @@ export function unbound(source: string): string {
 
 /** Svelte's `CONTENT_EDITABLE_BINDINGS`, which the server writes as content rather than markup. */
 const CONTENT_BINDINGS: ReadonlySet<string> = new Set(['textContent', 'innerText']);
+
+/** A binding the server writes as the element's escaped content, by name and tag. */
+function isContent(name: string, tag: string): boolean {
+	return CONTENT_BINDINGS.has(name) || (name === 'value' && tag === 'textarea');
+}
 
 /** Where an element's opening tag ends, or null for one written self-closing. */
 function opening(source: string, node: AstNode): number | null {

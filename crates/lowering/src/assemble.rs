@@ -120,7 +120,9 @@ impl Assembler<'_> {
 					continue;
 				};
 				self.block(html, &span, index, out)?;
-				out.write(&html[span.until..span.to]);
+				if !self.bare(index) {
+					out.write(&html[span.until..span.to]);
+				}
 				at = after;
 				continue;
 			}
@@ -412,7 +414,9 @@ impl Assembler<'_> {
 				// branch, because which one is written is only known per request; Svelte put it at
 				// the head of the span it opened.
 				let mut first = Out::default();
-				first.write(&html[span.from..span.content]);
+				if !block.bare {
+					first.write(&html[span.from..span.content]);
+				}
 				self.region(html, span.content, span.until, &mut first)?;
 				branches.push(ir::Branch { test: paths.first().cloned(), body: first.finish() });
 
@@ -433,7 +437,9 @@ impl Assembler<'_> {
 					let mut body = Out::default();
 					// Found by its stamp, which is the same place in the other render.
 					let at = self.locate(other, index)?;
-					body.write(&other[at.from..at.content]);
+					if !block.bare {
+						body.write(&other[at.from..at.content]);
+					}
 					// The cursor is not rewound between branches. Blocks are numbered by the source
 					// walk in the order it takes them -- this branch's after the last one's -- and
 					// this walk takes them in the same order, so continuing is what lines the two up.
@@ -446,6 +452,11 @@ impl Assembler<'_> {
 				Ok(())
 			}
 		}
+	}
+
+	/// Whether the block's anchors stay out of the bytes. See `Block::bare`.
+	fn bare(&self, index: usize) -> bool {
+		self.skeleton.blocks.get(index).is_some_and(|block| block.bare)
 	}
 
 	/// One block of another render of the same stream, found by the stamp that names it.

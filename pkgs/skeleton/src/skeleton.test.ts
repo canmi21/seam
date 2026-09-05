@@ -1432,6 +1432,22 @@ const accepted: Case[] = [
 			{ s: 'b', v: undefined, m: [] },
 		],
 	},
+	{
+		// `RegularElement.js`: `if (body) { value } else { children }`, with no anchor around
+		// either. The if is written bare, and a textarea, which can hold no block, is one
+		// expression choosing between the value and the text.
+		name: 'a content binding on an element with children',
+		source:
+			'<script>let { data } = $props(); let v = $state(data.h); let t = $state(data.t);</script>' +
+			'<div contenteditable bind:innerHTML={v}>x<b>{data.a}</b>{#if data.f}<i>f</i>{/if}</div>' +
+			'<p contenteditable bind:textContent={t}>y{data.a}</p>' +
+			'<textarea bind:value={t}>z &lt;</textarea>',
+		data: [
+			{ h: '<i>H</i>', t: 'T<', a: 'A', f: true },
+			{ h: '', t: undefined, a: 'B', f: false },
+			{ h: 0, t: 0, a: 'C', f: true },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
@@ -1517,17 +1533,6 @@ const refused: Case[] = [
 		source:
 			"<script>import Feeds from './Feeds.svelte'; let { data } = $props();</script>" +
 			'<Feeds>{#snippet row(n)}<i class={n > 0 ? "up" : "down"}>{data.a}</i>{/snippet}</Feeds>',
-	},
-	{
-		// The server writes the children only where the value comes out empty, which is a decision
-		// per request that nothing here takes yet.
-		name: 'a content binding on an element with children',
-		source:
-			`${PROPS}<script>let v = $state()</script><div contenteditable bind:innerHTML={v}>x</div>`.replace(
-				'</script><script>',
-				'; ',
-			),
-		says: 'children',
 	},
 	{
 		// A snippet that renders itself. Duplicating per call site is what makes a repeated render
