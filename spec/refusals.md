@@ -94,6 +94,15 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 was drawn.** The subset grows, and the README should say that rather than implying a boundary
 nobody has found.
 
+## What is still refused is ranked in one place, by what it waits on
+
+[roadmap.md](roadmap.md) holds every construct still refused, sorted three ways: ready and not
+done, not yet the time, and blocked on the meta-framework. The line it sorts by is the one at the
+top of this file, stated once more there so that it can be checked against each item: before
+hydration the page is what SvelteKit's SSR would serve, after it a standard Svelte SPA, and the
+only thing given up is rendering the UI per request. The reasoning behind each refusal stays in
+this file; the ranking and the dependencies are there.
+
 ## How far the subset is from the ecosystem, measured
 
 The refusal surface says what is turned away. It does not say what that costs, and guessing at
