@@ -1466,10 +1466,21 @@ render had been handed a literal for it, and the tag rendered nothing where a re
 icon: ten bytes short on every route that carries the switcher. `<svelte:component this={...}>`
 goes through the same `build_inline_component`, dynamic, so the tag is rewritten to that with the
 expression expanded -- what the name stands for, with every fixed path a literal -- for Svelte to
-evaluate. A tag naming a plain `const` is not dynamic and is not rewritten. One whose expression
-reaches the request is a component chosen per request, which is a structure that is not
+evaluate. A tag naming a plain `const` is not dynamic and is not rewritten. `<svelte:component
+this={...}>` written by the author is the same call and is settled the same way. One whose
+expression reaches the request is a component chosen per request, which is a structure that is not
 enumerable, and is refused by name; the article route's switcher is that, being given the
 article's own language, and declaring `data.meta.lang` a domain is what would enumerate it.
+
+**A lookup in a table of components has its domain in the table.** `ICONS[data.k]` with `const
+ICONS = { a: Ay, b: Bee }` chooses per request, and the keys it chooses among are in the source. So
+it is written as the chain of `?:` it is, `(data.k) === "a" ? (Ay) : (data.k) === "b" ? (Bee) :
+undefined`, and settled like any structural ternary: each test varies with the request, each branch
+names a component, and `settle` enumerates it as a tree, one structure per key and one for a key
+the table lacks, which is the `undefined` that `build_inline_component` writes `<!--[!--><!--]-->`
+for. Measured against the lookup itself and against the derived tag: the three write the same
+bytes for every key and for none. A key that is not a name or a string is not taken, since a
+number compares to a string key as the author's lookup would not.
 
 **A value the request does not decide is bytes, and the render is where it is computed.** The
 home page's newsletter block reads `createEngagementQuery().data?.subscriber_count ?? 0`, and

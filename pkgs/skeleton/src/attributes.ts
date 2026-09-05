@@ -143,8 +143,8 @@ export function spread(
 	// them in the slots. An `|important` modifier goes nowhere, because that is where Svelte's
 	// `prepare_element_spread` puts it: the object holds the name and the value and nothing else.
 	const directives: string[] = [];
-	const classes: string[] = [];
-	const styles: string[] = [];
+	const classed: string[] = [];
+	const styled: string[] = [];
 	for (const one of attributes) {
 		if (!isNode(one)) return empty;
 		if (one['type'] === 'SpreadAttribute') {
@@ -153,7 +153,7 @@ export function spread(
 		}
 		if (one['type'] === 'ClassDirective') {
 			directives.push(`class:${String(one['name'])}={false}`);
-			classes.push(`${JSON.stringify(String(one['name']))}: (${expand(one['expression'])})`);
+			classed.push(`${JSON.stringify(String(one['name']))}: (${expand(one['expression'])})`);
 			continue;
 		}
 		if (one['type'] === 'StyleDirective') {
@@ -174,7 +174,7 @@ export function spread(
 					? `(${expand(only['expression'])})`
 					: joined(written, expand);
 			directives.push(`style:${String(one['name'])}={null}`);
-			styles.push(`${JSON.stringify(String(one['name']))}: ${expression}`);
+			styled.push(`${JSON.stringify(String(one['name']))}: ${expression}`);
 			continue;
 		}
 		if (one['type'] !== 'Attribute') {
@@ -220,8 +220,8 @@ export function spread(
 		index,
 		object: `{ ${parts.join(', ')} }`,
 		copy,
-		...(classes.length === 0 ? {} : { classes: `{ ${classes.join(', ')} }` }),
-		...(styles.length === 0 ? {} : { styles: `{ ${styles.join(', ')} }` }),
+		...(classed.length === 0 ? {} : { classes: `{ ${classed.join(', ')} }` }),
+		...(styled.length === 0 ? {} : { styles: `{ ${styled.join(', ')} }` }),
 	});
 
 	// Everything the element wrote is replaced by one spread of one key, so that the render writes

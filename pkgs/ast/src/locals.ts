@@ -327,6 +327,59 @@ function parsed(expression: string): Node {
 }
 
 /**
+ * A lookup in an object literal, `({ a: A, b: B })[key]`, written as the choice it is:
+ * `(key) === "a" ? (A) : (key) === "b" ? (B) : undefined`.
+ *
+ * The keys of a literal are in the source, so a component chosen through such a table is chosen
+ * from a domain the compiler can read, and the chain is a structural ternary like any other: each
+ * test varies with the request and each branch names a component, so `settle` enumerates it as
+ * the tree it is, and a key the table lacks is the `undefined` that `<svelte:component>` writes
+ * nothing for. Null where the expression is not that shape, or where a key is not a name or a
+ * string -- a number compares to a string key as the author's lookup would not.
+ */
+export function tabled(expression: string): string | null {
+	const wrapped = `<script lang="ts"></script>{${expression}}`;
+	let ast: Node;
+	try {
+		ast = parse(wrapped, { modern: true }) as unknown as Node;
+	} catch {
+		return null;
+	}
+	const fragment = ast['fragment'];
+	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	const tag = nodes.find((one) => isNode(one) && one['type'] === 'ExpressionTag');
+	const node = isNode(tag) ? tag['expression'] : undefined;
+	if (!isNode(node) || node['type'] !== 'MemberExpression' || node['computed'] !== true)
+		return null;
+	const object = node['object'];
+	const property = node['property'];
+	if (!isNode(object) || object['type'] !== 'ObjectExpression' || !isNode(property)) return null;
+	const slice = (part: Node): string | null => {
+		const { start, end } = part;
+		return typeof start === 'number' && typeof end === 'number' ? wrapped.slice(start, end) : null;
+	};
+	const key = slice(property);
+	if (key === null) return null;
+	const arms: string[] = [];
+	for (const one of Array.isArray(object['properties']) ? object['properties'] : []) {
+		if (!isNode(one) || one['type'] !== 'Property' || one['computed'] === true) return null;
+		if (one['kind'] !== 'init') return null;
+		const name = one['key'];
+		const value = one['value'];
+		if (!isNode(name) || !isNode(value)) return null;
+		let text: string;
+		if (name['type'] === 'Identifier' && typeof name['name'] === 'string') text = name['name'];
+		else if (name['type'] === 'Literal' && typeof name['value'] === 'string') text = name['value'];
+		else return null;
+		const chosen = slice(value);
+		if (chosen === null) return null;
+		arms.push(`(${key}) === ${JSON.stringify(text)} ? (${chosen})`);
+	}
+	if (arms.length === 0) return null;
+	return `(${arms.join(' : ')} : undefined)`;
+}
+
+/**
  * Whether an expression reads any of these names, free of anything that binds them inside it.
  *
  * Asked of an expression that has already been expanded, to decide whether a marker belongs where
@@ -607,7 +660,9 @@ export function onlyWithin(
 		while (isNode(at) && (at['type'] === 'MemberExpression' || at['type'] === 'ChainExpression')) {
 			at = at['type'] === 'ChainExpression' ? at['expression'] : at['object'];
 		}
-		return isNode(at) && at['type'] === 'Identifier' && typeof at['name'] === 'string' ? at['name'] : null;
+		return isNode(at) && at['type'] === 'Identifier' && typeof at['name'] === 'string'
+			? at['name']
+			: null;
 	};
 	const walk = (node: unknown, inside: boolean): void => {
 		if (outside) return;

@@ -44,7 +44,6 @@ this order, one commit each:
 
 | construct | what Svelte does, and where | what ours does |
 | --- | --- | --- |
-| `<svelte:component this={T[data.k]}>` | `SvelteComponent.js` calls whatever the expression is | a decision whose domain is the literal's keys; otherwise the declared domain [build.md](build.md) already has |
 | `{@const}` in a snippet with parameters, more shapes | `ConstTag.js` is one visitor for all of them | unmeasured; measure, then take what fails |
 
 **Recursion in structure.** `<svelte:self>` is `build_inline_component(node, analysis.name)` in

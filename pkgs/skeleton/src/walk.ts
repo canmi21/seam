@@ -13,6 +13,7 @@ import {
 	onlyWithin,
 	readsOf,
 	settle,
+	tabled,
 } from 'ast';
 import {
 	classes,
@@ -414,7 +415,6 @@ const INERT = new Set([
 const REFUSED: Record<string, string> = {
 	SvelteFragment: '`<svelte:fragment>` is not handled yet',
 	SvelteSelf: '`<svelte:self>` is not handled yet: composition does not yet follow a cycle',
-	SvelteComponent: '`<svelte:component>` chooses a component from a value, which is not decided',
 	SlotElement: '`<slot>` is not handled yet. Snippets replaced it, and neither is written',
 	BindDirective:
 		'this `bind:` is one the server writes, and the value has nowhere to be planted: `bind:` ' +
@@ -897,6 +897,31 @@ function contents(
  * it is written: handed to a package, naming a component, testing a block, or read as a value
  * whose evaluation would reach for those things in a scope that holds data. See `settle`.
  */
+/**
+ * The component an expression chooses, settled. A `?:` in it chooses which component, the way one
+ * handed to a package chooses what is handed, and is enumerated the same way: the walk stops and
+ * asks, and the build renders once per branch. A lookup in a table of components -- `T[data.k]`
+ * with `T` an object literal -- is the same choice with its domain in the table's keys, and is
+ * written as the chain of `?:` it is before being settled. What the taken branch leaves has to be
+ * inert; one that still reaches the request is a component chosen per request, which is not
+ * enumerable and is refused.
+ */
+function choosing(written: string, tag: string, walk: Walk): string {
+	let chosen = settled(written, walk);
+	if (mentions(chosen, walk.dynamic)) {
+		const table = tabled(chosen);
+		if (table !== null) chosen = settled(table, walk);
+	}
+	if (mentions(chosen, walk.dynamic)) {
+		refuse(
+			`\`<${tag}>\` chooses a component from a value the request decides, which is not ` +
+				'decided: a structure is enumerated, and this one is not enumerable. It stands ' +
+				`for \`${chosen.replace(/\s+/g, ' ').slice(0, 200)}\``,
+		);
+	}
+	return chosen;
+}
+
 function settled(expression: string, walk: Walk): string {
 	const held = settle(expression, walk.site.decided, walk.dynamic);
 	if (held.undecided === null) return held.text;
@@ -1370,7 +1395,21 @@ function collect(node: unknown, walk: Walk): void {
 		case 'SvelteElement':
 		case 'RegularElement':
 		case 'Component':
+		case 'SvelteComponent':
 		case 'TitleElement': {
+			// `<svelte:component this={...}>` is `build_inline_component` with the expression as the
+			// component, the same dynamic call a tag naming a rune goes through below. The
+			// expression is settled the same way, and a lookup in a table of components is the
+			// choice its keys spell out. See spec/refusals.md.
+			if (type === 'SvelteComponent') {
+				const where = span(node['expression']);
+				if (where === null) return;
+				edits.push([
+					where[0],
+					where[1],
+					choosing(expand(node['expression']), 'svelte:component', walk),
+				]);
+			}
 			// A tag decided per request. Svelte's `element()` writes `<!---->`, then the tag and its
 			// attributes, then the children and a closing tag unless the tag is void, then
 			// `<!---->` -- and the attributes and the children are the same bytes a written element
@@ -1420,7 +1459,7 @@ function collect(node: unknown, walk: Walk): void {
 			const handled = spreads.size > 0 ? spreads : classes(node, holes, edits, expand, pending);
 			const styled =
 				spreads.size > 0 ? spreads : styles(source, node, holes, edits, expand, pending);
-			const given = type === 'Component';
+			const given = type === 'Component' || type === 'SvelteComponent';
 			const tag = typeof node['name'] === 'string' ? node['name'] : '';
 
 			// Into the child, where the child is one this walk can follow. What it plants there is
@@ -1448,14 +1487,7 @@ function collect(node: unknown, walk: Walk): void {
 					// A `?:` in it chooses which component, the way one handed to a package chooses
 					// what is handed, and is enumerated the same way: the walk stops and asks, and the
 					// build renders once per branch. What the taken branch leaves has to be inert.
-					const chosen = settled(written, walk);
-					if (mentions(chosen, dynamic)) {
-						refuse(
-							`\`<${tag}>\` chooses a component from a value the request decides, which is not ` +
-								'decided: a structure is enumerated, and this one is not enumerable. It stands ' +
-								`for \`${chosen.replace(/\s+/g, ' ').slice(0, 200)}\``,
-						);
-					}
+					const chosen = choosing(written, tag, walk);
 					edits.push([at[0], at[1], `svelte:component this={${chosen}}`]);
 					const close = `</${tag}>`;
 					if (source.endsWith(close, whole[1])) {
@@ -1932,12 +1964,12 @@ function collect(node: unknown, walk: Walk): void {
 			const defaulted = new Map<string, string>();
 			if (destructured && isNode(pattern)) {
 				binds = destructure(pattern);
-				for (const [name, access, fallback] of defaults(pattern)) {
+				for (const [name, access, otherwise] of defaults(pattern)) {
 					binds.push([name, access]);
-					defaulted.set(name, `(${name} === undefined ? (${expand(fallback)}) : ${name})`);
+					defaulted.set(name, `(${name} === undefined ? (${expand(otherwise)}) : ${name})`);
 					// The render is not given what the default reads, and every read in the body is
 					// a marker already, so the render takes nothing from it.
-					const where = span(fallback);
+					const where = span(otherwise);
 					if (where !== null) edits.push([where[0], where[1], 'undefined']);
 				}
 				// The same rule a snippet's parameter follows: a rest or a nesting is neither a member

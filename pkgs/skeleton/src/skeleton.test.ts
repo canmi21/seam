@@ -1550,6 +1550,29 @@ const accepted: Case[] = [
 			{ m: [['z', 3]], s: undefined },
 		],
 	},
+	{
+		// A lookup in a table of components is a choice whose domain is the table's keys, written as
+		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
+		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request
+		// the same chain is enumerated as a tree, which is the compiler's and measured with it.
+		name: 'a dynamic component chosen through a table',
+		beside: { Ay2: '<i>A</i>', Bee2: '<b>B</b>' },
+		source:
+			"<script>import Ay2 from './Ay2.svelte'; import Bee2 from './Bee2.svelte'; let { data } = $props();" +
+			' const ICONS = { a: Ay2, b: Bee2 }; const Pick = $derived(ICONS[data.k]);</script>' +
+			'<Pick /><svelte:component this={ICONS[data.k]} /><p>{data.x}</p>',
+		fixed: { 'data.k': '"b"' },
+		data: [{ k: 'b', x: '1' }],
+	},
+	{
+		name: 'a dynamic component chosen through a table, with a key the table lacks',
+		beside: { Ay2: '<i>A</i>' },
+		source:
+			"<script>import Ay2 from './Ay2.svelte'; let { data } = $props();" +
+			' const ICONS = { a: Ay2 };</script><svelte:component this={ICONS[data.k]} /><p>{data.x}</p>',
+		fixed: { 'data.k': '"zz"' },
+		data: [{ k: 'zz', x: '2' }],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
@@ -1567,14 +1590,11 @@ const refused: Case[] = [
 		says: 'scoping class',
 	},
 	{
-		// The same, chosen by a value the request decides through a table: which component is a
-		// structure, and one looked up per request is not enumerable. A `?:` would be, the way one
-		// handed to a package is, and stops the walk to ask instead.
+		// Chosen by a value the request decides and not through a table: which component is a
+		// structure, and one the payload hands over whole is not enumerable. A `?:` or a lookup in
+		// a literal would be, and stops the walk to ask instead.
 		name: 'a dynamic component chosen by the request',
-		beside: { Ay2: '<i>A</i>', Bee2: '<b>B</b>' },
-		source:
-			"<script>import Ay2 from './Ay2.svelte'; import Bee2 from './Bee2.svelte'; let { data } = $props();" +
-			' const ICONS = { a: Ay2, b: Bee2 }; const Pick = $derived(ICONS[data.k]);</script><Pick />',
+		source: '<script>let { data } = $props(); const Pick = $derived(data.c);</script><Pick />',
 		says: 'chooses a component',
 	},
 	{
