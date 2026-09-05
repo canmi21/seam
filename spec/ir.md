@@ -75,7 +75,11 @@ uses none of the three leaves `head` and `title` empty.
   See [refusals.md](refusals.md).
 - **`attr`** -- one attribute of the element being opened, written between the static chunk
   that opens the tag and the one that closes it. It carries `parts`, which are `static` and
-  `slot` nodes, and it is the only node that can decide to write nothing at all.
+  `slot` nodes, and it is the only node that can decide to write nothing at all. One name carries
+  a table with it: `translate`, whose value `true` is written `"yes"` and `false` `"no"`, because
+  `translate="false"` would mean yes. It is the whole of Svelte's `replacements` in
+  `internal/shared/attributes.js`, and a backend carries it under the name the way it carries the
+  boolean list.
 - Bodies are node arrays, so the shape recurses.
 
 `{@html}` needs no node of its own. It is a `slot` with `escape: false` between two static

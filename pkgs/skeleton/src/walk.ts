@@ -247,6 +247,14 @@ export interface Walk {
 	 */
 	handed?: ReadonlySet<string>;
 	/**
+	 * The value the enclosing `<select>` was given, and whether it is `multiple`.
+	 *
+	 * Svelte's renderer omits the select's `value` and writes ` selected=""` on whichever option
+	 * matches it, read out of `renderer.js`. So the decision is the option's, and every option
+	 * under the select gets one, as a boolean attribute nothing in the source wrote.
+	 */
+	selecting?: { value: string; multiple: boolean };
+	/**
 	 * True while walking a prop of a component the walk could not enter.
 	 *
 	 * The value is going somewhere this pass cannot read, so what stands for it has to survive
@@ -397,6 +405,252 @@ function handedTo(
 		found.set(child, under(slotOf(child) ?? 'children', at));
 	}
 	return found;
+}
+
+/**
+ * What a parameter binds, each name as the expression that reaches it from the argument.
+ *
+ * The same substitution a destructured declaration gets, with the way in written after the
+ * argument, and a default written the way JavaScript reads one: taken when the value is
+ * `undefined` and only then. A rest or a nesting is neither a member nor an index, so it has no
+ * way in and is refused by name -- here rather than three passes later as an unresolved name.
+ */
+function takenApart(
+	pattern: AstNode,
+	argument: string,
+	expand: Locals['rewrite'],
+	what: () => string,
+): Map<string, string> {
+	const bound = new Map<string, string>();
+	const withDefault = (reached: string, fallback: unknown): string =>
+		`(${reached} === undefined ? (${expand(fallback)}) : ${reached})`;
+	const one = (target: unknown, reached: string): void => {
+		if (!isNode(target)) return;
+		if (target['type'] === 'Identifier' && typeof target['name'] === 'string') {
+			bound.set(target['name'], reached);
+			return;
+		}
+		if (target['type'] === 'AssignmentPattern') {
+			one(target['left'], withDefault(reached, target['right']));
+		}
+	};
+	if (pattern['type'] === 'ObjectPattern') {
+		for (const property of Array.isArray(pattern['properties']) ? pattern['properties'] : []) {
+			if (!isNode(property) || property['type'] !== 'Property') continue;
+			const key = property['key'];
+			if (property['computed'] === true || !isNode(key) || typeof key['name'] !== 'string')
+				continue;
+			one(property['value'], `${argument}.${key['name']}`);
+		}
+	} else if (pattern['type'] === 'ArrayPattern') {
+		for (const [at, element] of (Array.isArray(pattern['elements'])
+			? pattern['elements']
+			: []
+		).entries()) {
+			one(element, `${argument}[${String(at)}]`);
+		}
+	} else {
+		one(pattern, argument);
+	}
+	// The names the pattern binds, and not the ones a default reads: `{ a = data.d }` binds `a`.
+	const all = new Set<string>();
+	const binding = (target: unknown): void => {
+		if (!isNode(target)) return;
+		if (target['type'] === 'Identifier' && typeof target['name'] === 'string')
+			all.add(target['name']);
+		else if (target['type'] === 'AssignmentPattern') binding(target['left']);
+		else if (target['type'] === 'RestElement') binding(target['argument']);
+		else if (target['type'] === 'Property') binding(target['value']);
+		else if (target['type'] === 'ObjectPattern') {
+			for (const part of Array.isArray(target['properties']) ? target['properties'] : [])
+				binding(part);
+		} else if (target['type'] === 'ArrayPattern') {
+			for (const part of Array.isArray(target['elements']) ? target['elements'] : []) binding(part);
+		}
+	};
+	binding(pattern);
+	const missing = [...all].filter((each) => !bound.has(each));
+	if (missing.length > 0) {
+		refuse(
+			`${what()} binds ${missing.map((each) => `\`${each}\``).join(', ')} through a rest or ` +
+				'a nesting, which is neither a member nor an index of the argument, so there is no way ' +
+				'in to write down',
+		);
+	}
+	return bound;
+}
+
+/** Where an element's opening tag closes: the index of its `>`. */
+function closing(source: string, node: AstNode): number {
+	const at = span(node);
+	let last = at === null ? 0 : at[0];
+	for (const one of Array.isArray(node['attributes']) ? node['attributes'] : []) {
+		const where = span(one);
+		if (where !== null) last = Math.max(last, where[1]);
+	}
+	const close = source.indexOf('>', last);
+	if (close < 0) refuse('an element this compiler cannot read the tag of');
+	return close;
+}
+
+/** One attribute of an element by name, or undefined. */
+function attributeOf(node: AstNode, name: string): AstNode | undefined {
+	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
+	return attributes.find(
+		(one): one is AstNode =>
+			isNode(one) && one['type'] === 'Attribute' && String(one['name']).toLowerCase() === name,
+	);
+}
+
+/**
+ * A `<select value>` and the `<option>`s under it, read out of `renderer.js`.
+ *
+ * The renderer drops the select's `value` and keeps it aside; each option then compares its own
+ * value against it as it closes -- `includes` where the select is `multiple` and the value an
+ * array, `===` otherwise -- and writes ` selected=""` after its attributes when they match. An
+ * option's own value is its `value` attribute, or the single expression that is its content,
+ * which Svelte's analysis marks so a number stays a number, or otherwise its rendered text.
+ *
+ * So the select's value is cut from the render, which writes nothing for it, and every option
+ * gets a boolean `selected` decided by the comparison, as a hole planted where the renderer
+ * writes it: last, before the `>`. Returns what the children walk under.
+ */
+function selection(
+	node: AstNode,
+	source: string,
+	expand: Locals['rewrite'],
+	holes: Hole[],
+	edits: [number, number, string][],
+	selecting: Walk['selecting'],
+	skipped: Set<unknown>,
+): Walk['selecting'] {
+	const tag = node['name'];
+	if (tag === 'select') {
+		if (attributeOf(node, 'defaultvalue') !== undefined) {
+			refuse('`<select defaultValue>` is not handled yet: `value` is, and it reads the same');
+		}
+		const value = attributeOf(node, 'value');
+		if (value === undefined) return undefined;
+		const written = valueExpression(value, source, expand);
+		if (written === null) {
+			refuse(
+				'`<select value>` mixing text and an expression is not handled yet: the options compare ' +
+					'against the joined string',
+			);
+		}
+		const at = span(value);
+		if (at !== null) edits.push([at[0], at[1], '']);
+		skipped.add(value);
+		return { value: written, multiple: attributeOf(node, 'multiple') !== undefined };
+	}
+	if (tag !== 'option' || selecting === undefined) return selecting;
+
+	const own = attributeOf(node, 'value');
+	let compared: string | null;
+	if (own !== undefined) {
+		compared = valueExpression(own, source, expand);
+	} else {
+		const fragment = node['fragment'];
+		const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+		const [only] = nodes;
+		if (nodes.length === 1 && isNode(only) && only['type'] === 'ExpressionTag') {
+			compared = `(${expand(only['expression'])})`;
+		} else if (nodes.every((child) => isNode(child) && child['type'] === 'Text')) {
+			compared = JSON.stringify(
+				nodes
+					.map((child) => String((child as AstNode)['raw'] ?? (child as AstNode)['data'] ?? ''))
+					.join(''),
+			);
+		} else {
+			compared = null;
+		}
+	}
+	if (compared === null) {
+		refuse(
+			'an `<option>` under a `<select value>` whose own value is mixed content is not handled ' +
+				'yet: the renderer compares against the rendered text, which is one value once written',
+		);
+	}
+	const { value, multiple } = selecting;
+	const test = multiple
+		? `(Array.isArray(${value}) ? (${value}).includes(${compared}) : (${value}) === (${compared}))`
+		: `(${value}) === (${compared})`;
+	// An option's attributes are written by the runtime helper rather than folded into the
+	// template, and the helper writes a boolean attribute as `=""` whatever its value, so a marker
+	// planted as the value never comes back. It is a decision instead, the way a `class:` is: the
+	// marker rides in an attribute of its own, written last, and the decision owns the whole of
+	// that attribute -- the space, the name, the value -- and replaces it with what the renderer
+	// writes there: nothing, or ` selected=""`. The outcomes need no render to be known.
+	const index = holes.length;
+	holes.push({
+		index,
+		expression: '',
+		raw: false,
+		choice: { tests: [test], outcomes: ['', ' selected=""'] },
+	});
+	const close = closing(source, node);
+	edits.push([close, close, ` data-seam-selected={${JSON.stringify(sentinel(index))}}`]);
+	return selecting;
+}
+
+/** An attribute's value as one expression: a literal for text, the expression for one, else null. */
+function valueExpression(
+	attribute: AstNode,
+	source: string,
+	expand: Locals['rewrite'],
+): string | null {
+	const value = attribute['value'];
+	if (value === true) return 'true';
+	const parts = Array.isArray(value) ? value : [value];
+	if (parts.every((part) => isNode(part) && part['type'] === 'Text')) {
+		return JSON.stringify(parts.map((part) => String((part as AstNode)['data'] ?? '')).join(''));
+	}
+	const [only] = parts;
+	if (parts.length === 1 && isNode(only) && only['type'] === 'ExpressionTag') {
+		return `(${expand(only['expression'])})`;
+	}
+	return null;
+}
+
+/**
+ * `bind:innerHTML`, which the server writes unescaped as the element's content.
+ *
+ * `element.js`: the binding's expression is the body, written as it is when truthy and the
+ * children otherwise. With no children that is `value || ''`, raw, and with no anchors around
+ * it -- which is not `{@html}`, whose anchors the client reads. So the hole is planted as text
+ * where the content goes, and the directive goes.
+ */
+function contents(
+	node: AstNode,
+	source: string,
+	expand: Locals['rewrite'],
+	holes: Hole[],
+	edits: [number, number, string][],
+	skipped: Set<unknown>,
+): void {
+	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
+	const binding = attributes.find(
+		(one): one is AstNode =>
+			isNode(one) && one['type'] === 'BindDirective' && one['name'] === 'innerHTML',
+	);
+	if (binding === undefined) return;
+	const fragment = node['fragment'];
+	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	if (nodes.length > 0) {
+		refuse(
+			'`bind:innerHTML` on an element with children is not handled yet: the server writes the ' +
+				'children only where the value is falsy, which is a decision per request',
+		);
+	}
+	const at = span(binding);
+	const close = closing(source, node);
+	if (at === null || source[close - 1] === '/')
+		refuse('`bind:innerHTML` on a tag this compiler cannot read');
+	const index = holes.length;
+	holes.push({ index, expression: `((${expand(binding['expression'])}) || '')`, raw: true });
+	edits.push([at[0], at[1], '']);
+	edits.push([close + 1, close + 1, sentinel(index)]);
+	skipped.add(binding);
 }
 
 /** Whether a node is a `{#snippet}` declared under the given name. */
@@ -736,6 +990,14 @@ function collect(node: unknown, walk: Walk): void {
 				edits.push([where[0], where[1], JSON.stringify(`seam-el${String(index)}`)]);
 			}
 			const attributes = node['attributes'];
+			// The three shapes a `<select>` and an `<option>` add, and `bind:innerHTML`, each a value
+			// the render cannot show where it lands. See `selection()` and `contents()`.
+			const skipped = new Set<unknown>();
+			const selecting =
+				type === 'RegularElement'
+					? selection(node, source, expand, holes, edits, walk.selecting, skipped)
+					: walk.selecting;
+			if (type === 'RegularElement') contents(node, source, expand, holes, edits, skipped);
 			// The class directives are taken together with the class attribute, because that is how
 			// Svelte writes them: one call producing one attribute, not one attribute plus a list of
 			// additions. What is left after this is walked the ordinary way.
@@ -757,7 +1019,7 @@ function collect(node: unknown, walk: Walk): void {
 
 			if (Array.isArray(attributes)) {
 				for (const attr of attributes) {
-					if (handled.has(attr) || styled.has(attr)) continue;
+					if (handled.has(attr) || styled.has(attr) || skipped.has(attr)) continue;
 					// A prop handed to a component this walk could not enter, whose value the request
 					// does not decide. Left as written, so Svelte evaluates it during the render: a
 					// marker is a string, and a component given one where it expected an object with
@@ -783,7 +1045,7 @@ function collect(node: unknown, walk: Walk): void {
 			const fragment = node['fragment'];
 			const inside = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
 			if (!given || inside.length === 0) {
-				collect(fragment, { ...walk, parent: encloses });
+				collect(fragment, { ...walk, parent: encloses, selecting });
 				return;
 			}
 			const groups = handedTo(site.file, tag, inside);
@@ -828,16 +1090,10 @@ function collect(node: unknown, walk: Walk): void {
 			// A bare name, which is the attribute being present rather than valued.
 			if (value === true) return;
 			const parts = Array.isArray(value) ? value : [value];
-			// Svelte puts a handful of attribute values through a replacement table on the way out,
-			// and `translate` is the only entry in it: `true` is written `"yes"`. A static string is
-			// unaffected and passes; anything the table would touch does not, because reproducing a
-			// one-entry table is a decision nobody has taken. See spec/ir.md.
-			if (name === 'translate' && !parts.every((part) => isNode(part) && part['type'] === 'Text')) {
-				refuse(
-					'`translate` with a value that is not plain text is not handled yet: Svelte writes ' +
-						'`true` as `"yes"` through a replacement table this does not reproduce',
-				);
-			}
+			// Svelte puts `translate` through a replacement table on the way out -- `true` is written
+			// `"yes"` and `false` `"no"` -- and it is the one entry. A literal is folded by Svelte in
+			// the render; a value decided per request is a hole like any other, and the injector
+			// carries the table under the name. See spec/ir.md.
 			// `{n}` is sugar for `n={n}`, and the sugar only holds a bare name: put anything else
 			// between those braces and Svelte's parser stops with `attribute_empty_shorthand`. This
 			// pass puts a marker there, so a shorthand attribute made the compiler fail inside
@@ -889,7 +1145,9 @@ function collect(node: unknown, walk: Walk): void {
 				// parameters has nothing to decide and already works, which is what `children` is.
 				refuse(`the snippet \`${named}\` takes parameters and is never rendered`);
 			}
-			if (one.args.length !== parameters.length) {
+			// Fewer arguments than parameters is a function call: the rest are `undefined`, and a
+			// default is what answers to that. More is an argument nothing receives.
+			if (one.args.length > parameters.length) {
 				refuse(
 					`the snippet \`${named}\` takes ${String(parameters.length)} parameter(s) and is ` +
 						`rendered with ${String(one.args.length)}`,
@@ -967,28 +1225,16 @@ function collect(node: unknown, walk: Walk): void {
 			const bound = new Map<string, string>();
 			for (const [index, parameter] of parameters.entries()) {
 				if (!isNode(parameter)) refuse('a `{#snippet}` parameter this compiler cannot read');
-				const argument = expand(one.args[index]);
-				if (parameter['type'] === 'Identifier' && typeof parameter['name'] === 'string') {
-					bound.set(parameter['name'], argument);
-					continue;
-				}
-				// Destructured, which is the same substitution a destructured declaration gets: the
-				// name expands to the argument with the way in written after it.
-				for (const [each, access] of destructure(parameter as never)) {
-					bound.set(each, `(${argument})${access}`);
-				}
-				// A default or a rest is neither a member nor an index, so it has no way in. Reported
-				// here rather than left to fail as an unresolved name three passes later.
-				const all = new Set<string>();
-				namesIn(parameter, all);
-				const missing = [...all].filter((each) => !bound.has(each));
-				if (missing.length > 0) {
-					refuse(
-						`the snippet \`${String(name)}\` binds ` +
-							`${missing.map((each) => `\`${each}\``).join(', ')} through a default or a rest, ` +
-							'which is neither a member nor an index of the argument, so there is no way in ' +
-							'to write down',
-					);
+				// An argument not written is `undefined`, which is what the function receives and
+				// what a default answers to.
+				const argument = index < one.args.length ? expand(one.args[index]) : 'undefined';
+				for (const [each, reached] of takenApart(
+					parameter,
+					`(${argument})`,
+					expand,
+					() => `the snippet \`${String(name)}\``,
+				)) {
+					bound.set(each, reached);
 				}
 			}
 
@@ -1055,27 +1301,9 @@ function collect(node: unknown, walk: Walk): void {
 				// The value is the expression itself, resolved: `then_fn(promise)` is called with what
 				// was awaited, which was never a promise on this branch. So it substitutes the way a
 				// snippet's parameter does, with a destructuring reached through the way in.
-				const bound = new Map<string, string>();
-				if (isNode(value)) {
-					const argument = `(${expression})`;
-					if (value['type'] === 'Identifier' && typeof value['name'] === 'string') {
-						bound.set(value['name'], argument);
-					} else {
-						for (const [each, access] of destructure(value as never)) {
-							bound.set(each, `${argument}${access}`);
-						}
-						const all = new Set<string>();
-						namesIn(value, all);
-						const missing = [...all].filter((each) => !bound.has(each));
-						if (missing.length > 0) {
-							refuse(
-								`\`${String(missing[0])}\` comes out of this await's pattern through a default, ` +
-									'a rest or a nesting, which is neither a member nor an index of the value, ' +
-									'so there is no way in to write down',
-							);
-						}
-					}
-				}
+				const bound = isNode(value)
+					? takenApart(value, `(${expression})`, expand, () => 'this await')
+					: new Map<string, string>();
 				const inner: Locals['rewrite'] = (child, more) =>
 					expand(child, more === undefined ? bound : new Map([...bound, ...more]));
 				within.push([index, -1]);

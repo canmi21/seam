@@ -303,14 +303,101 @@ const accepted: Case[] = [
 		data: [{ f: true }, { f: false }],
 	},
 	{
-		// Three the visitor drops on the way out: `bind:this` is client-only, and `value` is
-		// skipped on a select and on a file input because the attribute has no effect there.
+		// Two the visitor drops on the way out: `bind:this` is client-only, and `value` is skipped
+		// on a file input because the attribute has no effect there.
 		name: 'the bindings the server drops',
 		source:
 			'<script>let { data } = $props(); let el; let v = $state(data.a)</script>' +
-			'<div bind:this={el}>{data.a}</div><select bind:value={v}><option>a</option></select>' +
-			'<input type="file" bind:value={v} />',
+			'<div bind:this={el}>{data.a}</div><input type="file" bind:value={v} />',
 		data: [{ a: 'v' }],
+	},
+	{
+		// `checked`, computed the way `element.js` computes it: `===` against the element's own
+		// `value` for a radio, `includes` for a checkbox, and nothing where there is no `value`.
+		name: 'bind:group',
+		source:
+			'<script>let { data } = $props(); let g = $state(data.g); let cs = $state(data.cs)</script>' +
+			'<input type="radio" value="a" bind:group={g} /><input type="radio" value={data.b} bind:group={g} />' +
+			'<input type="checkbox" value="x" bind:group={cs} /><input type="radio" bind:group={g} />',
+		data: [
+			{ g: 'a', b: 'b', cs: ['x'] },
+			{ g: 'b', b: 'b', cs: [] },
+			{ g: null, b: 'b', cs: ['y'] },
+		],
+	},
+	{
+		// Written as the element's content rather than as an attribute. Escaped for the text
+		// bindings and a textarea's value, raw for `innerHTML`, and with no anchors around any of
+		// them, which is what tells them from `{@html}`. See spec/refusals.md.
+		name: 'the bindings the server writes as content',
+		source:
+			'<script>let { data } = $props(); let t = $state(data.t); let h = $state(data.h)</script>' +
+			'<div contenteditable bind:textContent={t}></div><div contenteditable bind:innerText={t}></div>' +
+			'<textarea bind:value={t}></textarea><div contenteditable bind:innerHTML={h}></div>',
+		data: [
+			{ t: '<&"', h: '<b>x</b>' },
+			{ t: '', h: '' },
+			{ t: null, h: null },
+			{ t: 0, h: 0 },
+		],
+	},
+	{
+		// The one entry in Svelte's replacement table: `true` is `"yes"` and `false` is `"no"`,
+		// because `translate="false"` means yes. A literal is folded by Svelte in the render, and a
+		// value decided per request goes through the injector's copy of the table.
+		name: 'translate',
+		source: `${PROPS}<p translate={data.f}>{data.a}</p><i translate={true}>x</i><u translate="no">y</u>`,
+		data: [
+			{ f: true, a: 'x' },
+			{ f: false, a: 'x' },
+			{ f: 'yes', a: 'x' },
+			{ f: null, a: 'x' },
+		],
+	},
+	{
+		// A default is JavaScript's: taken when the value is `undefined` and only then, which is
+		// also what a parameter with no argument written for it holds.
+		name: 'snippet parameters with defaults',
+		source:
+			`${PROPS}{#snippet r(v = data.d)}<p>{v}</p>{/snippet}{@render r(data.a)}` +
+			'{#snippet s({ a = 1, b })}<i>{a}{b}</i>{/snippet}{@render s(data.o)}' +
+			"{#snippet t(v = 'z')}<u>{v}</u>{/snippet}{@render t()}",
+		data: [
+			{ d: 'D', a: 'x', o: { a: 0, b: 'B' } },
+			{ d: 'D', o: { b: 'B' } },
+			{ d: 'D', a: null, o: { a: null, b: null } },
+		],
+	},
+	{
+		// Text beside an expression is one value, joined the way `build_attribute_value` joins it:
+		// a template with `$.stringify` around each expression, so null writes nothing and the
+		// declaration `width: px;` is still written.
+		name: 'style directives mixing text and expressions',
+		source: `${PROPS}<p style:width="{data.a}px" style:color="{data.c}">x</p>`,
+		data: [
+			{ a: 10, c: 'red' },
+			{ a: null, c: '' },
+			{ a: 0, c: 'blue' },
+		],
+	},
+	{
+		// The renderer drops the select's value and writes ` selected=""` on the option that matches
+		// it: `===` against the option's own value -- its attribute, or the one expression that is
+		// its content, or its text -- and `includes` where the select is `multiple` and the value an
+		// array. A bound value reads the same way. See spec/refusals.md.
+		name: 'a select with a value',
+		source:
+			'<script>let { data } = $props(); let s = $state(data.s)</script>' +
+			'<select value={data.s}><option value="a">A</option><option>b</option>' +
+			'<option value={data.o}>{data.o}</option>{#each data.xs as x}<option value={x}>{x}</option>{/each}</select>' +
+			'<select multiple value={data.m}><option value="a">A</option><option value="b">B</option></select>' +
+			'<select bind:value={s}><option>{data.n}</option><option value="1">one</option></select>',
+		data: [
+			{ s: 'a', o: 'o', xs: ['x', 'y'], m: ['a', 'b'], n: 1 },
+			{ s: 'y', o: 'y', xs: ['y'], m: 'b', n: 2 },
+			{ s: 1, o: 'o', xs: [], m: [], n: 1 },
+			{ s: null, o: null, xs: ['x'], m: null, n: null },
+		],
 	},
 	{
 		// Two of them and no `style` attribute, which is the shape that could not be independent
@@ -1231,12 +1318,6 @@ const refused: Case[] = [
 		source: `${PROPS}<p class={data.a} class:on={data.f}>x</p>`,
 	},
 	{
-		// Svelte joins text and an expression into one value; this reads a single expression.
-		name: 'a style directive mixing text and an expression',
-		source: `${PROPS}<p style:width="{data.a}px">x</p>`,
-	},
-
-	{
 		// A snippet handed by attribute is chosen at request time: Svelte renders the children when
 		// the value is nullish and the snippet otherwise. One written inside the tag is not.
 		name: 'a boundary given its pending snippet by attribute',
@@ -1246,12 +1327,10 @@ const refused: Case[] = [
 		says: 'attribute',
 	},
 	{
-		name: 'a snippet parameter with a default',
-		source: `${PROPS}{#snippet r({ a = 1 })}<p>{a}</p>{/snippet}{@render r(data.o)}`,
-	},
-	{
-		name: 'a snippet rendered with the wrong number of arguments',
-		source: `${PROPS}{#snippet r(a, b)}<p>{a}</p>{/snippet}{@render r(data.a)}`,
+		// Fewer arguments than parameters is a call like any other, the rest being `undefined`;
+		// more is an argument nothing receives.
+		name: 'a snippet rendered with more arguments than it takes',
+		source: `${PROPS}{#snippet r(a)}<p>{a}</p>{/snippet}{@render r(data.a, data.b)}`,
 	},
 	{
 		// Written inside a component's tag, so it is a prop that component receives. The child calls
@@ -1298,23 +1377,20 @@ const refused: Case[] = [
 		source: `${PROPS}{#each data.rows as { id = 1 }}<i>{id}</i>{/each}`,
 	},
 	{
-		// Written as the element's content rather than as an attribute, so it replaces the children
-		// rather than standing among them. See spec/refusals.md.
-		name: 'bind:innerHTML',
+		// The server writes the children only where the value comes out empty, which is a decision
+		// per request that nothing here takes yet.
+		name: 'a content binding on an element with children',
 		source:
-			`${PROPS}<script>let v = $state()</script><div contenteditable bind:innerHTML={v}></div>`.replace(
+			`${PROPS}<script>let v = $state()</script><div contenteditable bind:innerHTML={v}>x</div>`.replace(
 				'</script><script>',
 				'; ',
 			),
+		says: 'children',
 	},
 	{
-		// `checked`, computed from this value together with the element's own `value` attribute.
-		name: 'bind:group',
-		source:
-			`${PROPS}<script>let v = $state()</script><input type="radio" value="a" bind:group={v} />`.replace(
-				'</script><script>',
-				'; ',
-			),
+		name: 'a select with a defaultValue',
+		source: `${PROPS}<select defaultValue={data.s}><option>a</option></select>`,
+		says: 'defaultValue',
 	},
 	{
 		// A snippet that renders itself. Duplicating per call site is what makes a repeated render
@@ -1346,7 +1422,6 @@ const refused: Case[] = [
 		name: 'an object mutated after it is declared',
 		source: '<script>let { data } = $props(); const o = { a: 1 }; o.a = 2</script><p>{o.a}</p>',
 	},
-	{ name: 'translate as a boolean', source: `${PROPS}<p translate={true}>{data.a}</p>` },
 	{
 		// The other reading of a marker that does not come back, and the one that is a fault: the
 		// component wrote something it computed from the value rather than the value. Rendering

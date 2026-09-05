@@ -2,6 +2,12 @@ import { escape } from './escape.ts';
 import type { ComponentIR, Node } from './ir.ts';
 import { resolve, type Scope, settle } from './resolve.ts';
 
+/** Svelte's `replacements`, which has this one entry. */
+const TRANSLATE: ReadonlyMap<unknown, string> = new Map<unknown, string>([
+	[true, 'yes'],
+	[false, 'no'],
+]);
+
 export type { Branch, ComponentIR, EscapeMode, Node, Presence } from './ir.ts';
 export { resolve, SCOPED, type Scope, settle } from './resolve.ts';
 
@@ -66,7 +72,12 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): s
 					out += ` ${node.name}=""`;
 					break;
 				}
-				const text = single ? escape(value, 'attr') : String(value);
+				// The one entry in Svelte's replacement table, `internal/shared/attributes.js`: the
+				// value `true` is written `"yes"` and `false` `"no"`, because `translate="false"` would
+				// mean yes. The name is the whole of the rule, so it is carried here as the boolean
+				// list is, rather than read off a render that cannot show it.
+				const shown = node.name === 'translate' && single ? (TRANSLATE.get(value) ?? value) : value;
+				const text = single ? escape(shown, 'attr') : String(value);
 				// `class` and `style` come out of helpers that write nothing for an empty result,
 				// so an element whose computed class is empty carries no class attribute at all.
 				if (node.presence === 'nonempty' && text === '') break;

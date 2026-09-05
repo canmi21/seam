@@ -301,6 +301,25 @@ export function classes(
  *
  * @returns the attributes this took charge of, which the caller must not walk again.
  */
+/**
+ * Text and expressions joined the way `build_attribute_value` joins them: a template literal, with
+ * `$.stringify` around each expression -- a string as it is, null and undefined as nothing,
+ * anything else through `+ ''`.
+ */
+function joined(parts: readonly unknown[], expand: Locals['rewrite']): string {
+	const pieces = parts.map((part) => {
+		if (!isNode(part)) return '';
+		if (part['type'] === 'Text') {
+			return String(part['data'] ?? '')
+				.replace(/\\/g, '\\\\')
+				.replace(/`/g, '\\`')
+				.replace(/\$\{/g, '\\${');
+		}
+		return `\${(${expand(part['expression'])}) ?? ''}`;
+	});
+	return `\`${pieces.join('')}\``;
+}
+
 export function styles(
 	source: string,
 	node: AstNode,
@@ -355,13 +374,10 @@ export function styles(
 
 		const only = parts === null ? one['expression'] : parts.length === 1 ? parts[0] : undefined;
 		const inner = parts === null ? only : isNode(only) ? only['expression'] : undefined;
-		if (!isNode(inner)) {
-			refuse(
-				`\`style:${raw}\` mixes text and an expression, which Svelte joins into one value; ` +
-					'this reads a single expression, so write the whole value as one',
-			);
-		}
-		const written = expand(inner);
+		// Text beside an expression is one value: `build_attribute_value` joins the parts into a
+		// template literal with each expression through `$.stringify`, which writes nothing for
+		// null and undefined. So that is what is written here, as one expression.
+		const written = isNode(inner) ? expand(inner) : joined(parts ?? [], expand);
 		declarations.push({ name, important, literal: null, expression: written });
 		// Svelte's own test, from `append_styles`: `value != null && value !== ''`. Truthiness is
 		// not it -- `style:width={0}` writes `width: 0;`.

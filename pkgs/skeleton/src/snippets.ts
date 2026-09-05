@@ -127,13 +127,15 @@ export function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = f
 			one.node = node;
 			one.parameters = parameters.length;
 			one.passed = inside;
-			one.holds = parameters.map((parameter) =>
-				isNode(parameter) && parameter['type'] === 'ObjectPattern'
-					? '{}'
-					: isNode(parameter) && parameter['type'] === 'ArrayPattern'
-						? '[]'
-						: 'null',
-			);
+			one.holds = parameters.map((parameter) => {
+				// A default wraps the pattern, and what is handed has to suit the pattern inside.
+				const inner =
+					isNode(parameter) && parameter['type'] === 'AssignmentPattern'
+						? parameter['left']
+						: parameter;
+				const kind = isNode(inner) ? inner['type'] : undefined;
+				return kind === 'ObjectPattern' ? '{}' : kind === 'ArrayPattern' ? '[]' : 'null';
+			});
 			into.set(id['name'], one);
 		}
 	}

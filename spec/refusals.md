@@ -84,11 +84,9 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 
 | | |
 | --- | --- |
-| a snippet rendered twice, or a parameter with a default | the body would have to stand in two places, or a name has no way in from the argument |
+| a snippet rendered twice | the body would have to stand in two places |
 | `{@render}` of a snippet from a prop | composition in the other direction; see below |
 | an expression over what an each binds | computed once against the payload; per-item is not decided |
-| `style:`, `<select value>`, `translate={true}` | decidable by enumeration; `class:` was the first of these and is done, see below |
-| a `bind:` the server writes | there is nowhere to plant the marker: `bind:` takes a name, not an expression |
 | `{...spread}` on an element | an unenumerable decision; see below |
 | per-item derivation, which of two titles wins | not decided |
 
@@ -1336,6 +1334,68 @@ The failed snippet is cut from the rendered source, since a snippet with a param
 renders is otherwise a refusal about a body nobody writes. `pending={p}` and `failed={p}` as
 attributes stay refused: Svelte chooses at request time between the snippet and the children by
 whether `p` is nullish, and a name handed that way would have to be seen rendered.
+
+## Six small ones, each read out of the visitor that writes it
+
+None of these was a boundary, and together they were most of what the allowlist still turned
+away in a component with no composition in it. Each is one rule, and each rule is Svelte's.
+
+**`translate={...}`.** `internal/shared/attributes.js` puts attribute values through a
+replacement table with one entry: `translate`, `true` to `"yes"` and `false` to `"no"`, because
+`translate="false"` means yes. A literal is folded by Svelte in the render and is bytes. A value
+decided per request is a hole like any other, and the injector carries the table under the name,
+the way it carries the boolean list. See [ir.md](ir.md).
+
+**`bind:group`.** `element.js` writes `checked`, computed from the bound value together with the
+element's own `value`: `includes` for a checkbox, `===` for a radio, and nothing at all where the
+element has no `value` attribute. So the directive is rewritten to exactly that -- `checked={g ===
+"a"}` -- before the walk, beside the other bindings the server writes as attributes.
+
+**`bind:textContent`, `bind:innerText`, `bind:value` on a `<textarea>`.** The server writes
+`$.escape(value)` as the element's content, and the children only where that comes out empty.
+With no children the two are one thing, `{value}` as the content, and that is what the directive
+becomes. An element with children stays refused: which of the two is written is a decision per
+request that nothing takes yet.
+
+**`bind:innerHTML`.** The same, unescaped: the value when truthy, the children otherwise, and no
+anchor around either -- which is what tells it from `{@html}`, whose `<!---->` pair the client
+reads. So it is a raw hole for `value || ''`, planted as text where the content goes, and the
+directive goes. Children stay refused for the same reason as above.
+
+**A snippet parameter with a default.** A default is JavaScript's: taken when the value is
+`undefined` and only then. So `{#snippet r(v = 1)}` binds `v` to `(arg === undefined ? 1 : arg)`,
+and a destructured default reaches through the member the same way, which is one function shared
+with an await's pattern. An argument not written is `undefined` too, so `{@render r()}` is a call
+like any other; more arguments than parameters is still refused, being an argument nothing
+receives. A rest or a nesting stays refused: neither is a member nor an index, so it has no way
+in. An each block's pattern is the one place a default is still refused, because there the name
+is bound by the runtime per item rather than substituted, and a default there is an expression
+the runtime would have to evaluate.
+
+**`style:` mixing text and an expression.** `build_attribute_value` joins the parts into a
+template literal with `$.stringify` around each expression, which writes nothing for null and
+undefined. So the directive's value is written as that template, one expression, and the
+declaration's presence is decided by it the way a single expression's already was:
+`style:width="{a}px"` with `a` null is `width: px;`, and it is written, because that is what
+Svelte writes.
+
+**`<select value>`.** Read out of `renderer.js`. The renderer drops the select's `value` and
+keeps it aside; each option compares its own value against it as it closes -- `includes` where
+the select is `multiple` and the value an array, `===` otherwise -- and writes ` selected=""`
+after its attributes when they match. An option's own value is its `value` attribute, or the one
+expression that is its content, which the analysis marks so a number stays a number, or otherwise
+its rendered text. A `bind:value` on a select reads the same way, and is no longer dropped.
+
+So the select's value is cut from the render, which writes nothing for it, and every option
+under the select gets a decision nobody wrote. It cannot be a marker: an option's attributes go
+through the runtime helper rather than being folded into the template, and the helper writes a
+boolean attribute as `=""` whatever its value, so a marker planted as the value never comes back
+-- measured, and the second render that tells a swallowed value from an unwritten one then
+called it safe, which is the one wrong answer that check can give. It is a decision the way a
+`class:` is: the marker rides in an attribute of its own, written last, and the decision owns
+the whole of that attribute and replaces it with nothing or ` selected=""`. The outcomes need no
+render to be known. `defaultValue` on a select, and an option whose own value is mixed content,
+stay refused by name.
 
 ## `{@render}`, where the count of five was measuring the scan rather than the compiler
 
