@@ -1,31 +1,15 @@
-# Cargo build output, wherever a crate sits.
+# Build output, wherever it sits.
 target/
-
-# The TypeScript half.
 node_modules/
+dist/
+.build*/
+.svelte-kit/
+*.wasm
 
 # Built by hand for now; the CLI will own this later.
 pkgs/server/static/client.js
 
-# Where a check writes Svelte's compiled output to import it.
-.build*/
-
 # Never commit one, even by accident.
 .env
 
-# OS
 .DS_Store
-
-# Built by `mise run //repos/seam:wasm`, not carried. It is machine code for one file in this
-# repository and rebuilding it is a second of cargo, so committing it would only be a thing that
-# could go stale.
-pkgs/lowering/lowering.wasm
-
-# What the compiler writes. An artifact of the build, rebuilt by `build`, and read from
-# there by whichever backend is serving. See spec/build.md.
-dist/
-
-# What SvelteKit's own specs write into their fixtures when run over the vendored source, except
-# the one fixture upstream keeps a `.svelte-kit` in on purpose. See vendor/kit/VENDOR.md.
-vendor/kit/**/.svelte-kit/
-!vendor/kit/src/core/adapt/fixtures/*/.svelte-kit/

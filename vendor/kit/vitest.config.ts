@@ -30,6 +30,9 @@ export default defineConfig({
 			'src/**/*.svelte.spec.js',
 			// Reads a script upstream keeps beside the package, which is not taken.
 			'src/version.spec.js',
+			// Reads a built `.svelte-kit` upstream commits as a fixture; build output is not kept
+			// here, and adapters are not taken. See VENDOR.md.
+			'src/core/adapt/builder.spec.js',
 			// The `$types` generator drives the TypeScript compiler API, and the one installed here
 			// is a major ahead of the one upstream wrote against; it is not wired and not checked.
 			'src/core/sync/write_types/index.spec.js',
