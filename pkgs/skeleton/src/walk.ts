@@ -672,21 +672,32 @@ function selection(
 ): Walk['selecting'] {
 	const tag = node['name'];
 	if (tag === 'select') {
-		if (attributeOf(node, 'defaultvalue') !== undefined) {
-			refuse('`<select defaultValue>` is not handled yet: `value` is, and it reads the same');
-		}
+		// `renderer.select()` takes both off the attributes, writes neither, and compares the
+		// options against `value === undefined ? defaultValue : value`.
 		const value = attributeOf(node, 'value');
-		if (value === undefined) return undefined;
-		const written = valueExpression(value, source, expand);
-		if (written === null) {
-			refuse(
-				'`<select value>` mixing text and an expression is not handled yet: the options compare ' +
-					'against the joined string',
-			);
-		}
-		const at = span(value);
-		if (at !== null) edits.push([at[0], at[1], '']);
-		skipped.add(value);
+		const fallback = attributeOf(node, 'defaultvalue');
+		if (value === undefined && fallback === undefined) return undefined;
+		const each = (attribute: AstNode): string => {
+			const written = valueExpression(attribute, source, expand);
+			if (written === null) {
+				refuse(
+					'`<select value>` mixing text and an expression is not handled yet: the options ' +
+						'compare against the joined string',
+				);
+			}
+			const at = span(attribute);
+			if (at !== null) edits.push([at[0], at[1], '']);
+			skipped.add(attribute);
+			return written;
+		};
+		const chosen = value === undefined ? undefined : each(value);
+		const held = fallback === undefined ? undefined : each(fallback);
+		const written =
+			chosen === undefined
+				? String(held)
+				: held === undefined
+					? chosen
+					: `(${chosen} === undefined ? ${held} : ${chosen})`;
 		return { value: written, multiple: attributeOf(node, 'multiple') !== undefined };
 	}
 	if (tag !== 'option' || selecting === undefined) return selecting;

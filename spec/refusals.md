@@ -1079,8 +1079,7 @@ attribute has no effect on either.
 Three shapes are not an attribute, and each now says what it is rather than what it is not:
 `bind:innerHTML`, `bind:textContent` and `bind:innerText` are written as the element's *content*,
 replacing its children; `bind:value` on a `<textarea>` is the same; and `bind:group` is written as
-`checked`, computed from the bound value together with the element's own `value` attribute. A
-getter/setter pair is refused for the same reason, which is that the server calls the getter.
+`checked`, computed from the bound value together with the element's own `value` attribute.
 
 ## A declaration with no value, which is what client state looks like on the server
 
@@ -1395,8 +1394,10 @@ boolean attribute as `=""` whatever its value, so a marker planted as the value 
 called it safe, which is the one wrong answer that check can give. It is a decision the way a
 `class:` is: the marker rides in an attribute of its own, written last, and the decision owns
 the whole of that attribute and replaces it with nothing or ` selected=""`. The outcomes need no
-render to be known. `defaultValue` on a select, and an option whose own value is mixed content,
-stay refused by name.
+render to be known. `defaultValue` on a select is the same comparison: `renderer.select()` takes
+`value` and `defaultValue` both off the attributes, writes neither, and compares the options
+against `value === undefined ? defaultValue : value`, which is what the test reads when both are
+written. An option whose own value is mixed content stays refused by name.
 
 ## A byte oracle over press's own payloads, and what it found first
 

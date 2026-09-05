@@ -1419,6 +1419,19 @@ const accepted: Case[] = [
 			{ a: '<&', b: false },
 		],
 	},
+	{
+		// `renderer.select()` compares the options against `value === undefined ? defaultValue :
+		// value`, and writes neither attribute.
+		name: 'a select with a defaultValue',
+		source:
+			`${PROPS}<select defaultValue={data.s}><option>a</option><option value="b">B</option></select>` +
+			'<select value={data.v} defaultValue="b"><option>a</option><option>b</option></select>' +
+			'<select multiple defaultValue={data.m}><option>a</option><option>b</option></select>',
+		data: [
+			{ s: 'a', v: 'a', m: ['a', 'b'] },
+			{ s: 'b', v: undefined, m: [] },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
@@ -1515,11 +1528,6 @@ const refused: Case[] = [
 				'; ',
 			),
 		says: 'children',
-	},
-	{
-		name: 'a select with a defaultValue',
-		source: `${PROPS}<select defaultValue={data.s}><option>a</option></select>`,
-		says: 'defaultValue',
 	},
 	{
 		// A snippet that renders itself. Duplicating per call site is what makes a repeated render
