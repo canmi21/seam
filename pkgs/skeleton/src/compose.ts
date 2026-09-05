@@ -82,16 +82,23 @@ export function propsOf(
  * what keeps a marker the only way to read one.
  */
 export function partial(fixed: ReadonlyMap<string, string>, root: string): unknown {
-	let found: unknown;
+	let found: Record<string, unknown> | undefined;
 	for (const [path, literal] of fixed) {
 		const names = path.split('.');
 		if (names[0] !== root) continue;
 		const value: unknown = JSON.parse(literal);
 		if (names.length === 1) return value;
-		found ??= {};
-		let at = found as Record<string, unknown>;
+		// Built without a prototype, so that a segment spelled `__proto__` is a key like any other
+		// rather than the object's prototype: on an ordinary `{}`, `at[name] ??= {}` leaves the
+		// inherited prototype where it is, the walk steps into `Object.prototype`, and the last
+		// assignment writes onto every object in the process while `found` stays empty. The paths
+		// come from the build's own configuration, so nobody hostile writes one, but a name that
+		// is not a name is a wrong result rather than a refused one, and the render reads props off
+		// this object exactly as it would off one with a prototype.
+		found ??= Object.create(null) as Record<string, unknown>;
+		let at = found;
 		for (const name of names.slice(1, -1)) {
-			at[name] ??= {};
+			at[name] ??= Object.create(null) as Record<string, unknown>;
 			at = at[name] as Record<string, unknown>;
 		}
 		at[names[names.length - 1] as string] = value;
