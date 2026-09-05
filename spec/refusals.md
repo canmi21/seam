@@ -456,9 +456,53 @@ argument per parameter.
 it to a function passed along, and the child decides when to call it and with what. One with no
 parameters has nothing to decide and **works** -- that is what `{@render children()}` is, measured
 on a page whose child renders the markup the page wrote inside its tag. One with parameters is
-refused, because the arguments are chosen by the child and are not visible from here; it used to be
-refused for saying it was never rendered, which was wrong in a way that would have sent an author
-looking for the wrong thing.
+where the arguments are chosen by the child and are not visible from here; it used to be refused
+for saying it was never rendered, which was wrong in a way that would have sent an author looking
+for the wrong thing, and what happens to it now is the next section.
+
+### A parameter the component supplies, and whether the component ever asks for it
+
+Read out of `3-transform/server/visitors/SnippetBlock.js` and `RenderTag.js`: `{#snippet
+children({ checked })}` inside a tag is `function children($$renderer, { checked })`, passed as the
+`children` prop, and the component's `{@render children?.({ checked: state.isChecked })}` is
+`children?.($$renderer, { checked: ... })`. So the body runs inside the component's render, with a
+value the component computed. In bits-ui's radio item that value is `groupValues.includes(value)`,
+and `value` came from the page's own data -- so from outside, `checked` is a decision the package
+takes, per request, that no marker can stand for. It is the same wall as walking into the package.
+
+**But a parameter only matters where the component calls the snippet, and a closed menu never
+does.** press's language switcher is the case: the snippet sits inside `<DropdownMenu.Content>`,
+whose `menu-content.svelte` renders nothing while `open` is false, and `open` is client state with
+no value on the server. Svelte's own server writes no menu; `checked` is never asked for; the rows
+are content the client makes after hydration. That is the stance already taken above for a
+declaration with no value and for the search dialog: **the whole of what a client-only thing is on
+the server is its absence**, and the markers planted in it are meant not to come back.
+
+The refusal was taken at the declaration, which is before the question can be answered. Now the
+walk plants markers in the body as it does in any markup and records, on the group the snippet
+arrives as, why the group cannot compile *if the component writes it* -- and the probe render,
+which already exists to say whether a component writes what it is handed, decides:
+
+| the probe's literal | what it means | what happens |
+| --- | --- | --- |
+| does not come back | the component never calls the snippet on the server | compiles; the holes are safe and the blocks absent, as for a portal |
+| comes back | the component calls it, with a value the walk cannot see | refused, with the message it always had, and now for a reason that is true |
+| the probe cannot be made | nothing is known | refused, because a compile that skipped the check is the wrong direction |
+
+A `forceMount`, or a menu open by default, renders the snippet on the server and is refused the
+way it was. What changed is that a snippet nobody renders is no longer refused for a value nobody
+computed. Of press's 42 components rendered bare, 32 compile where 31 did, and the one that moved
+is the switcher.
+
+**The probe had never measured a `{#snippet children}` at all, and this is what found it.** The
+literal is planted at the head of the group the markup arrives under, and the group for
+`children` was being opened by the *whitespace* between the tag and the snippet -- a text node,
+one child among the others. The literal landed there, Svelte's analysis saw non-whitespace content
+beside an explicit `children` snippet, and the probe failed with `snippet_conflict` -- silently,
+which for the render-only shape meant nothing was relaxed and nothing was reported, and for this
+shape would have meant refusing every case. Svelte's rule, in `2-analyze/visitors/SnippetBlock.js`,
+is that whitespace text and comments are not content, so they open no group now; they hold nothing
+to measure either way.
 
 ## `{...spread}` on an element, which Svelte hands over whole
 

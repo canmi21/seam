@@ -79,6 +79,17 @@ export interface Handed {
 	what: string;
 	holes: [number, number];
 	blocks: [number, number];
+	/**
+	 * Why the group cannot be compiled if the component writes it, or undefined where it can.
+	 *
+	 * A passed snippet that reads one of its parameters as a value has nothing standing in that
+	 * value's place, but that only matters where the component calls it during the render. Where
+	 * it does not -- a closed menu, which writes none of what it is given -- the body is content
+	 * the client makes and the server never had, which is what spec/refusals.md says of every
+	 * client-only thing. So the walk records the reason here and the probe decides. See
+	 * `supplied()`.
+	 */
+	reads?: string;
 }
 
 /** One caller's markup, and everything needed to walk it in the scope it was written in. */
@@ -380,11 +391,44 @@ function handedTo(
 			found.set(child, under(name, at));
 			continue;
 		}
+		// Whitespace and comments are not content: Svelte's analysis lets them sit beside an
+		// explicit `{#snippet children}` and refuses anything else with `snippet_conflict`. So they
+		// open no group, or the literal planted at the group's head would be the content that
+		// conflicts, and every probe of a tag written across lines would fail before it measured.
+		if (child['type'] === 'Comment') continue;
+		if (child['type'] === 'Text' && String(child['data'] ?? '').trim() === '') continue;
 		const at = span(child)?.[0];
 		if (at === undefined) continue;
 		found.set(child, under(slotOf(child) ?? 'children', at));
 	}
 	return found;
+}
+
+/** Every name a snippet's parameters bind. */
+function parameterNames(parameters: readonly unknown[]): Set<string> {
+	const names = new Set<string>();
+	for (const parameter of parameters) namesIn(parameter, names);
+	return names;
+}
+
+/**
+ * Why a snippet passed to a component cannot be compiled if the component writes it, or null.
+ *
+ * Only a `{#snippet}` written directly inside the tag, which is the prop the component calls with
+ * arguments of its own. Where the body reads one of those as a value, the walk plants markers that
+ * name something no render binds; that is fine in markup the component never writes and a refusal
+ * in markup it does, and which of the two is the probe's to say. See `Handed.reads`.
+ */
+function reading(child: AstNode): string | null {
+	if (child['type'] !== 'SnippetBlock') return null;
+	if (supplied(child) !== null) return null;
+	const id = child['expression'];
+	const named = isNode(id) && typeof id['name'] === 'string' ? id['name'] : '';
+	return (
+		`the snippet \`${named}\` is passed to a component, which calls it with arguments this ` +
+		'compiler cannot see, and it reads one of them as a value rather than rendering it, so ' +
+		'there is nothing to stand in its place'
+	);
 }
 
 /** The slot a child is written into, told by a literal `slot="x"` the way Svelte tells. */
@@ -761,12 +805,15 @@ function collect(node: unknown, walk: Walk): void {
 				const from: [number, number] = [holes.length, blocks.length];
 				collect(child, { ...walk, parent: encloses });
 				if (group === undefined) continue;
-				site.handed.push({
+				const one: Handed = {
 					probe: group.probe,
 					what: group.what,
 					holes: [from[0], holes.length],
 					blocks: [from[1], blocks.length],
-				});
+				};
+				const reads = isNode(child) ? reading(child) : null;
+				if (reads !== null) one.reads = reads;
+				site.handed.push(one);
 			}
 			return;
 		}
@@ -821,14 +868,11 @@ function collect(node: unknown, walk: Walk): void {
 				// parameter is only ever rendered that is not a problem: what it holds is markup the
 				// component writes during the render, like any other component writing its own
 				// bytes. Where one is read as a value there is nothing to put in its place.
-				const names = supplied(node);
-				if (names === null) {
-					refuse(
-						`the snippet \`${named}\` is passed to a component, which calls it with arguments ` +
-							'this compiler cannot see, and it reads one of them as a value rather than ' +
-							'rendering it, so there is nothing to stand in its place',
-					);
-				}
+				//
+				// Where one is read as a value there is nothing to put in its place -- if the component
+				// writes the body at all. That is not known here; it is what the probe render measures,
+				// so the body is walked as written and the group carries the reason. See `Handed.reads`.
+				const names = supplied(node) ?? parameterNames(parameters);
 				collect(node['body'], {
 					...walk,
 					handed: names.size === 0 ? walk.handed : new Set([...(walk.handed ?? []), ...names]),

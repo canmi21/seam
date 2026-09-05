@@ -835,6 +835,27 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A snippet that reads one of the arguments the child would call it with, given to a child
+		// that never calls it: a closed menu, which bits-ui writes nothing for. The value has nothing
+		// standing in its place, and nothing needs to -- the markup is content the client makes
+		// after hydration and the server never had, which is what Svelte's own server writes for a
+		// closed menu, and it is the probe that says so rather than the declaration. A tag written
+		// across lines, because the whitespace beside the snippet used to open a `children` group
+		// of its own and the probe's literal there was the content Svelte refuses beside an
+		// explicit `children`. See spec/refusals.md.
+		name: 'a snippet reading a value, given to a child that never calls it',
+		beside: {
+			Closed:
+				'<script>let { children, ...rest } = $props(); const open = false;</script>' +
+				'<div>{#if open}{@render children?.({ checked: true })}{/if}</div>',
+		},
+		source:
+			"<script>import Closed from './Closed.svelte'; let { data } = $props();</script>" +
+			'<Closed>\n\t{#snippet children({ checked })}<i class={checked ? "on" : "off"}>{data.a}</i>' +
+			'{#if checked}<u>c</u>{/if}{/snippet}\n</Closed><p>{data.a}</p>',
+		data: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
 		// A literal handed down through a component the walk entered. Every prop is handed to the
 		// render as null, because the child's markers already carry the expressions and evaluating
 		// what the call site passed would reach for data the render is not given -- but a literal
@@ -1159,8 +1180,11 @@ const refused: Case[] = [
 		// The other side of what a component may supply. A parameter only ever rendered is markup
 		// the component writes, and needs nothing put in its place; one read as a value does, and
 		// there is nothing to put there -- bits-ui's `{#snippet children({ checked })}` is this,
-		// with `checked` decided by a state machine inside the package.
+		// with `checked` decided by a state machine inside the package. Refused only because the
+		// child writes the body, which the probe says; the same snippet given to a child that
+		// never calls it compiles, above.
 		name: 'a snippet a component supplies a value to, not markup',
+		says: 'reads one of them as a value',
 		beside: { Feeds: '<script>let { row, ...rest } = $props();</script><p>{@render row?.(1)}</p>' },
 		source:
 			"<script>import Feeds from './Feeds.svelte'; let { data } = $props();</script>" +

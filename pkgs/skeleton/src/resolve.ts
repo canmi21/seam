@@ -155,13 +155,22 @@ export async function probed(
 		// The probe could not be made, so nothing is known and nothing is relaxed. That is the safe
 		// direction and not a quiet pass: a hole inside handed markup that does not come back is
 		// then reported the way any other missing hole is, which is a worse message about a real
-		// problem rather than a compile that skipped a check.
+		// problem rather than a compile that skipped a check. A group that was only ever allowed
+		// on the probe's say-so is refused outright, for the same reason.
+		const held = baseline.handed.find((one) => one.reads !== undefined);
+		if (held?.reads !== undefined) refuse(held.reads);
 		return;
 	}
 
 	const text = streams.join('');
 	for (const one of baseline.handed) {
-		if (seen.includes(one.probe)) continue;
+		if (seen.includes(one.probe)) {
+			// The component writes it, so what the walk planted has to come back as bytes -- and
+			// where it planted the name of a value only the component holds, nothing can. See
+			// `Handed.reads`.
+			if (one.reads !== undefined) refuse(one.reads);
+			continue;
+		}
 
 		// It writes none of it, so what was planted there was never going to come back. Anything
 		// that did is a contradiction rather than a relaxation.
