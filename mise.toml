@@ -2,12 +2,8 @@
 # comes from one directory up: the formatters, the toolchain, the commit hooks. It declares no
 # tools of its own because it needs none the workspace does not already carry.
 #
-# The layout is crates/ for Rust and pkgs/ for TypeScript.
-#
-# Every task names pkgs/ rather than the repository root, which is what keeps refs/ out. That
-# tree is the previous version, kept to be read: holding a frozen codebase to the current
-# toolchain would be a gate nobody should ever have to satisfy, and oxlint had plenty to say
-# about it.
+# The layout is crates/ for Rust, pkgs/ for TypeScript, corpus/ for the fixtures both read, and
+# vendor/ for source taken from elsewhere, which has checks of its own (see vendor/README.md).
 
 [tasks.check]
 description = "Type-check every package"
