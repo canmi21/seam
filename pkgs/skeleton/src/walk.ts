@@ -426,7 +426,7 @@ export interface Rewritten {
 /**
  * Markup that reaches the server and writes nothing, so the walk steps over it.
  *
- * Each of these is measured rather than assumed: `conformance/cases/inert.svelte` holds them all
+ * Each of these is measured rather than assumed: `corpus/cases/inert.svelte` holds them all
  * and its expected bytes are Svelte's own.
  */
 const INERT = new Set([

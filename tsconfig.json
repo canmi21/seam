@@ -16,5 +16,5 @@
 			"types": ["./vendor/kit/src/types/internal.d.ts"]
 		}
 	},
-	"include": ["pkgs/*/src/**/*.ts", "pkgs/*/conformance/**/*.ts"]
+	"include": ["pkgs/*/src/**/*.ts", "corpus/*.ts"]
 }

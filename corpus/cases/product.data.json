@@ -1,0 +1,40 @@
+[
+	{
+		"label": "branch taken, two items",
+		"data": {
+			"name": "Alice",
+			"available": true,
+			"tags": ["a", "b"]
+		}
+	},
+	{
+		"label": "branch not taken, empty",
+		"data": {
+			"name": "Bob",
+			"available": false,
+			"tags": []
+		}
+	},
+	{
+		"label": "characters that escape",
+		"data": {
+			"name": "<b>&x\"q",
+			"available": false,
+			"tags": ["<i>", "a&b"]
+		}
+	},
+	{
+		"label": "empty string",
+		"data": {
+			"name": "",
+			"available": true,
+			"tags": ["a"]
+		}
+	},
+	{
+		"label": "absent fields",
+		"data": {
+			"available": true
+		}
+	}
+]

@@ -1,0 +1,14 @@
+[
+	{
+		"label": "every part present",
+		"data": { "badge": { "label": "new", "tone": "warm" }, "tags": ["a", "b"], "price": 12 }
+	},
+	{
+		"label": "empty parts",
+		"data": { "badge": { "label": "", "tone": null }, "tags": [], "price": 0 }
+	},
+	{
+		"label": "characters that escape",
+		"data": { "badge": { "label": "a<b", "tone": "c&d" }, "tags": ["<i>"], "price": 1 }
+	}
+]

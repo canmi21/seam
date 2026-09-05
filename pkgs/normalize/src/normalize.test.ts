@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { normalize, normalized, type RawPath, rawPaths } from './normalize.ts';
 
-const cases = resolve(dirname(fileURLToPath(import.meta.url)), '../../../conformance/cases');
+const cases = resolve(dirname(fileURLToPath(import.meta.url)), '../../../corpus/cases');
 const root = (path: string): RawPath => ({ frames: [], path });
 
 describe('a fragment is made to stay where it was put', () => {

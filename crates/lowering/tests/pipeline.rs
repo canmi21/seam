@@ -41,7 +41,7 @@ fn single(markup: &str) -> Bundle {
 /// a gap in it. It was always going to stop covering what came after it. See spec/pipeline.md.
 fn only_the_render_pass_compiles(name: &str) -> bool {
 	let bundle: Bundle =
-		serde_json::from_str(&read(&format!("conformance/cases/{name}.markup.json"))).expect("markup");
+		serde_json::from_str(&read(&format!("corpus/cases/{name}.markup.json"))).expect("markup");
 	lower(&bundle).is_err()
 }
 
@@ -52,7 +52,7 @@ fn only_the_render_pass_compiles(name: &str) -> bool {
 /// exists.
 #[test]
 fn the_committed_ir_is_what_this_source_produces() {
-	let cases = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/cases");
+	let cases = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/cases");
 	let mut checked = 0;
 	for entry in std::fs::read_dir(&cases).expect("cases") {
 		let path = entry.expect("entry").path();
@@ -64,13 +64,13 @@ fn the_committed_ir_is_what_this_source_produces() {
 			continue;
 		}
 		let skeleton: Skeleton =
-			serde_json::from_str(&read(&format!("conformance/cases/{name}.skeleton.json")))
+			serde_json::from_str(&read(&format!("corpus/cases/{name}.skeleton.json")))
 				.unwrap_or_else(|e| panic!("{name} skeleton: {e}"));
 		let produced =
 			serde_json::to_value(assemble(&name, &skeleton).unwrap_or_else(|e| panic!("{name}: {e}")))
 				.expect("json");
 		let committed: serde_json::Value =
-			serde_json::from_str(&read(&format!("conformance/cases/{name}.ir.json")))
+			serde_json::from_str(&read(&format!("corpus/cases/{name}.ir.json")))
 				.unwrap_or_else(|e| panic!("{name} ir: {e}"));
 		assert_eq!(
 			produced, committed,
@@ -84,7 +84,7 @@ fn the_committed_ir_is_what_this_source_produces() {
 /// Every case, not just the one the specification carries. Adding a case is adding two files.
 #[test]
 fn lowering_reproduces_every_committed_ir() {
-	let cases = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/cases");
+	let cases = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/cases");
 	let mut checked = 0;
 	for entry in std::fs::read_dir(&cases).expect("cases") {
 		let path = entry.expect("entry").path();
@@ -92,16 +92,15 @@ fn lowering_reproduces_every_committed_ir() {
 			continue;
 		}
 		let name = path.file_stem().expect("stem").to_string_lossy().into_owned();
-		let bundle: Bundle =
-			serde_json::from_str(&read(&format!("conformance/cases/{name}.markup.json")))
-				.unwrap_or_else(|e| panic!("{name} markup: {e}"));
+		let bundle: Bundle = serde_json::from_str(&read(&format!("corpus/cases/{name}.markup.json")))
+			.unwrap_or_else(|e| panic!("{name} markup: {e}"));
 		if only_the_render_pass_compiles(&name) {
 			continue;
 		}
 		let produced =
 			serde_json::to_value(lower(&bundle).unwrap_or_else(|e| panic!("{name}: {e}"))).expect("json");
 		let committed: serde_json::Value =
-			serde_json::from_str(&read(&format!("conformance/cases/{name}.ir.json")))
+			serde_json::from_str(&read(&format!("corpus/cases/{name}.ir.json")))
 				.unwrap_or_else(|e| panic!("{name} ir: {e}"));
 		assert_eq!(produced, committed, "{name} no longer lowers to its committed IR");
 		checked += 1;
@@ -112,7 +111,7 @@ fn lowering_reproduces_every_committed_ir() {
 #[test]
 fn the_specification_carries_the_ir_lowering_produces() {
 	let committed: serde_json::Value =
-		serde_json::from_str(&read("conformance/cases/product.ir.json")).expect("ir");
+		serde_json::from_str(&read("corpus/cases/product.ir.json")).expect("ir");
 	assert_eq!(committed["ir"], ir_from_spec());
 }
 
@@ -276,7 +275,7 @@ fn a_hole_the_render_never_returns_is_refused_rather_than_dropped() {
 /// run, they must agree, and that agreement is what licenses replacing the first with the second.
 #[test]
 fn assembling_a_render_agrees_with_writing_the_bytes() {
-	let cases = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../conformance/cases");
+	let cases = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus/cases");
 	let mut checked = 0;
 	for entry in std::fs::read_dir(&cases).expect("cases") {
 		let path = entry.expect("entry").path();
@@ -290,11 +289,10 @@ fn assembling_a_render_agrees_with_writing_the_bytes() {
 		}
 
 		let skeleton: Skeleton =
-			serde_json::from_str(&read(&format!("conformance/cases/{name}.skeleton.json")))
+			serde_json::from_str(&read(&format!("corpus/cases/{name}.skeleton.json")))
 				.unwrap_or_else(|e| panic!("{name} skeleton: {e}"));
-		let bundle: Bundle =
-			serde_json::from_str(&read(&format!("conformance/cases/{name}.markup.json")))
-				.unwrap_or_else(|e| panic!("{name} markup: {e}"));
+		let bundle: Bundle = serde_json::from_str(&read(&format!("corpus/cases/{name}.markup.json")))
+			.unwrap_or_else(|e| panic!("{name} markup: {e}"));
 		if only_the_render_pass_compiles(&name) {
 			continue;
 		}

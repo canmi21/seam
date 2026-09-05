@@ -1,0 +1,40 @@
+{
+	"entry": "headblock",
+	"components": {
+		"headblock": {
+			"markup": [
+				{
+					"k": "unsupported",
+					"type": "SvelteHead",
+					"src": "<svelte:head>{#if data.indexed}<meta name=\"robots\" content=\"index\" />{:else}<meta name=\"robots\" content=\"noindex\" />{/if}{#each data.links as l}<link rel=\"alternate\" href={l} />{/each}</svelte:head>"
+				},
+				{
+					"k": "element",
+					"name": "div",
+					"attrs": [],
+					"body": [
+						{
+							"k": "if",
+							"test": "data.shown",
+							"consequent": [
+								{
+									"k": "element",
+									"name": "b",
+									"attrs": [],
+									"body": [
+										{
+											"k": "expr",
+											"src": "data.name"
+										}
+									]
+								}
+							],
+							"alternate": null
+						}
+					]
+				}
+			],
+			"imports": {}
+		}
+	}
+}

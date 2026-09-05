@@ -1,0 +1,16 @@
+[
+	{
+		"label": "each body opening with text",
+		"data": {
+			"xs": ["a", "b"],
+			"t": true
+		}
+	},
+	{
+		"label": "empty each, branch not taken",
+		"data": {
+			"xs": [],
+			"t": false
+		}
+	}
+]

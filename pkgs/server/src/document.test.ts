@@ -33,7 +33,7 @@ import { normalized, rawPaths } from 'normalize';
 import { wrap } from './document.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const cases = resolve(here, '../../../conformance/cases');
+const cases = resolve(here, '../../../corpus/cases');
 const shell = readFileSync(resolve(here, '../app.html'), 'utf8');
 const staging = resolve(here, '../.build-hydrate');
 

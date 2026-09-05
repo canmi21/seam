@@ -10,7 +10,7 @@ wired it differently:
 
 | | joined | left out |
 | --- | --- | --- |
-| `conformance/generate.ts` | bundle, skeleton, lower | carrying; and it wrote its results beside the source |
+| `corpus/generate.ts` | bundle, skeleton, lower | carrying; and it wrote its results beside the source |
 | `pkgs/injector/conformance/run.ts` | reads the IR, then **runs binding resolution and carrying again** | nothing, which is the problem |
 | `pkgs/server/scripts/build-client.ts` | Svelte's client codegen, esbuild | marked manual, with one component's path written into it |
 | `pkgs/server/src/main.ts` | reads a fixture | **the carried bundle**, which it has no way to obtain |

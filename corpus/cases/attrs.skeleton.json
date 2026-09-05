@@ -1,0 +1,28 @@
+{
+	"html": "<!--[--><div data-x=\"%%s0%%\" class=\"a %%s1%% b\" title=\"static\"><span><!---->%%s2%%<!----></span><input disabled=\"\"/><br/></div><!--]-->",
+	"head": "",
+	"alternates": {},
+	"holes": [
+		{
+			"index": 0,
+			"expression": "data.x",
+			"raw": false,
+			"files": ["attrs.svelte"]
+		},
+		{
+			"index": 1,
+			"expression": "data.c",
+			"raw": false,
+			"files": ["attrs.svelte"]
+		},
+		{
+			"index": 2,
+			"expression": "data.h",
+			"raw": true,
+			"files": ["attrs.svelte"]
+		}
+	],
+	"blocks": [],
+	"entered": [],
+	"payload": ["data"]
+}

@@ -1,0 +1,51 @@
+{
+	"html": "<!--[--><article><b>%%s0%%</b><!--[0--><em>dear</em><!--]-->%%b0%%<!--[--><span>%%s1%%</span><!--]-->%%b1%%</article><!--]-->",
+	"head": "",
+	"alternates": {
+		"0.-1": {
+			"body": "<!--[--><article><b>%%s0%%</b><!--[-1--><i>cheap</i><!--]-->%%b0%%<!--[--><span>%%s1%%</span><!--]-->%%b1%%</article><!--]-->",
+			"head": ""
+		}
+	},
+	"holes": [
+		{
+			"index": 0,
+			"expression": "(data.price * (1 + (0.2)))",
+			"raw": false,
+			"files": ["locals.svelte"]
+		},
+		{
+			"index": 1,
+			"expression": "t",
+			"raw": false,
+			"files": ["locals.svelte"]
+		}
+	],
+	"blocks": [
+		{
+			"index": 0,
+			"kind": "if",
+			"stream": "body",
+			"expression": "((data.price * (1 + (0.2))) > 50)",
+			"tests": ["((data.price * (1 + (0.2))) > 50)"],
+			"item": null,
+			"counter": null,
+			"alternate": true,
+			"within": [],
+			"files": ["locals.svelte"]
+		},
+		{
+			"index": 1,
+			"kind": "each",
+			"within": [],
+			"stream": "body",
+			"expression": "data.tags",
+			"item": "t",
+			"counter": null,
+			"alternate": false,
+			"files": ["locals.svelte"]
+		}
+	],
+	"entered": [],
+	"payload": ["data"]
+}

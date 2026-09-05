@@ -58,7 +58,7 @@ description = "Compile the corpus routes into dist/, which is the artifact a ser
 depends = ["wasm"]
 # A URL and a component for each route. Routing does not exist, so they are named rather than
 # found, and this is what the plugin's configuration will do; see spec/build.md.
-run = "node pkgs/compiler/src/main.ts conformance/cases dist pkgs/server/app.html /=product.svelte /carried=carried.svelte /head=head.svelte"
+run = "node pkgs/compiler/src/main.ts corpus/cases dist pkgs/server/app.html /=product.svelte /carried=carried.svelte /head=head.svelte"
 
 [tasks.dev]
 description = "Serve what the compiler wrote: `build`, then `dev`, then open http://localhost:5100"
@@ -82,11 +82,11 @@ run = [
 ]
 
 [tasks.fixtures]
-description = "Regenerate the conformance fixtures after changing a case"
+description = "Regenerate the corpus after changing a case"
 # The lowering module is not committed, so the step that needs it builds it.
 depends = ["wasm"]
 run = [
-	"node conformance/generate.ts",
+	"node corpus/generate.ts",
 	"node crates/devalue/fixtures/generate.ts",
 ]
 

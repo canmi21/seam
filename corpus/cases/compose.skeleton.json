@@ -1,0 +1,69 @@
+{
+	"html": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[0--><span class=\"badge cold\">%%s3%%</span><!--]-->%%b0%%<!--[--><span class=\"badge cold\">%%s4%%</span><!--]-->%%b1%%</div><!--]-->",
+	"head": "",
+	"alternates": {
+		"0.-1": {
+			"body": "<!--[--><div class=\"card\"><span class=\"badge warm\">%%s0%%</span><!----><span class=\"badge %%s1%%\">static</span><!----><p>%%s2%%</p><!--[-1--><!--]-->%%b0%%<!--[--><span class=\"badge cold\">%%s4%%</span><!--]-->%%b1%%</div><!--]-->",
+			"head": ""
+		}
+	},
+	"holes": [
+		{
+			"index": 0,
+			"expression": "((data.name))",
+			"raw": false,
+			"files": ["parts/badge.svelte", "compose.svelte"]
+		},
+		{
+			"index": 1,
+			"expression": "((data.tone))",
+			"raw": false,
+			"files": ["parts/badge.svelte", "compose.svelte"]
+		},
+		{
+			"index": 2,
+			"expression": "data.note",
+			"raw": false,
+			"files": ["compose.svelte"]
+		},
+		{
+			"index": 3,
+			"expression": "((data.name))",
+			"raw": false,
+			"files": ["parts/badge.svelte", "compose.svelte"]
+		},
+		{
+			"index": 4,
+			"expression": "((t))",
+			"raw": false,
+			"files": ["parts/badge.svelte", "compose.svelte"]
+		}
+	],
+	"blocks": [
+		{
+			"index": 0,
+			"kind": "if",
+			"stream": "body",
+			"expression": "data.flag",
+			"tests": ["data.flag"],
+			"item": null,
+			"counter": null,
+			"alternate": false,
+			"within": [],
+			"files": ["compose.svelte"]
+		},
+		{
+			"index": 1,
+			"kind": "each",
+			"within": [],
+			"stream": "body",
+			"expression": "data.tags",
+			"item": "t",
+			"counter": null,
+			"alternate": false,
+			"files": ["compose.svelte"]
+		}
+	],
+	"entered": ["parts/badge.svelte"],
+	"payload": ["data"]
+}

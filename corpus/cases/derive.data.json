@@ -1,0 +1,18 @@
+[
+	{
+		"label": "expensive with tags",
+		"data": {
+			"price": 42,
+			"name": "alice",
+			"tags": ["a"]
+		}
+	},
+	{
+		"label": "cheap without tags",
+		"data": {
+			"price": 3,
+			"name": "bob",
+			"tags": []
+		}
+	}
+]

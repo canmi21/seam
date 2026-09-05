@@ -1,0 +1,65 @@
+{
+	"ir": {
+		"component": "fragments",
+		"body": [
+			{
+				"t": "static",
+				"s": "<!--[--><div><!--[-->"
+			},
+			{
+				"t": "each",
+				"source": "data.xs",
+				"item": "x",
+				"body": [
+					{
+						"t": "static",
+						"s": "<!---->item "
+					},
+					{
+						"t": "slot",
+						"path": "x",
+						"escape": "content"
+					},
+					{
+						"t": "static",
+						"s": "<b>.</b>"
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--></div>"
+			},
+			{
+				"t": "if",
+				"branches": [
+					{
+						"test": "data.t",
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[0--><b>y</b>"
+							}
+						]
+					},
+					{
+						"test": null,
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[-1-->"
+							}
+						]
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--><!--]-->"
+			}
+		],
+		"head": [],
+		"title": []
+	},
+	"derivations": []
+}

@@ -1,0 +1,1 @@
+<script>let { data } = $props(); const { label, tone: shade } = data.badge; const [first] = data.tags; function shout(v) { return String(v).toUpperCase() } class Money { constructor(n) { this.n = n } get shown() { return `$${this.n}` } }</script><article data-tone={shade}><b>{shout(label)}</b><i>{first}</i><s>{new Money(data.price).shown}</s></article>

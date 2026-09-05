@@ -1,0 +1,61 @@
+{
+	"entry": "declared",
+	"components": {
+		"declared": {
+			"markup": [
+				{
+					"k": "element",
+					"name": "article",
+					"attrs": [
+						{
+							"k": "attr",
+							"name": "data-tone",
+							"value": [
+								{
+									"k": "expr",
+									"src": "((data.badge).tone)"
+								}
+							]
+						}
+					],
+					"body": [
+						{
+							"k": "element",
+							"name": "b",
+							"attrs": [],
+							"body": [
+								{
+									"k": "expr",
+									"src": "(function shout(v) { return String(v).toUpperCase() })(((data.badge).label))"
+								}
+							]
+						},
+						{
+							"k": "element",
+							"name": "i",
+							"attrs": [],
+							"body": [
+								{
+									"k": "expr",
+									"src": "((data.tags)[0])"
+								}
+							]
+						},
+						{
+							"k": "element",
+							"name": "s",
+							"attrs": [],
+							"body": [
+								{
+									"k": "expr",
+									"src": "new (class Money { constructor(n) { this.n = n } get shown() { return `$${this.n}` } })(data.price).shown"
+								}
+							]
+						}
+					]
+				}
+			],
+			"imports": {}
+		}
+	}
+}

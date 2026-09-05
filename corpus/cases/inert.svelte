@@ -1,0 +1,1 @@
+<script>import { fade } from 'svelte/transition'; function act(node) {} let { data } = $props()</script><svelte:window /><svelte:body /><div use:act onclick={() => {}}>{data.v}</div>{#if data.f}<b transition:fade>x</b>{/if}{@debug data}

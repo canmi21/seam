@@ -1,0 +1,19 @@
+[
+	{
+		"label": "two rows, one with tags",
+		"data": {
+			"rows": [
+				{ "id": "a", "name": "Alice", "tags": ["x", "y"] },
+				{ "id": "b", "name": "Bob", "tags": [] }
+			]
+		}
+	},
+	{
+		"label": "no rows",
+		"data": { "rows": [] }
+	},
+	{
+		"label": "characters that escape",
+		"data": { "rows": [{ "id": "a", "name": "<b>&\"", "tags": ["<i>"] }] }
+	}
+]

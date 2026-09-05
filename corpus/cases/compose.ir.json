@@ -1,0 +1,112 @@
+{
+	"ir": {
+		"component": "compose",
+		"body": [
+			{
+				"t": "static",
+				"s": "<!--[--><div class=\"card\"><span class=\"badge warm\">"
+			},
+			{
+				"t": "slot",
+				"path": "data.name",
+				"escape": "content"
+			},
+			{
+				"t": "static",
+				"s": "</span><!----><span"
+			},
+			{
+				"t": "attr",
+				"name": "class",
+				"presence": "nonempty",
+				"parts": [
+					{
+						"t": "static",
+						"s": "badge "
+					},
+					{
+						"t": "slot",
+						"path": "data.tone",
+						"escape": "attr"
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": ">static</span><!----><p>"
+			},
+			{
+				"t": "slot",
+				"path": "data.note",
+				"escape": "content"
+			},
+			{
+				"t": "static",
+				"s": "</p>"
+			},
+			{
+				"t": "if",
+				"branches": [
+					{
+						"test": "data.flag",
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[0--><span class=\"badge cold\">"
+							},
+							{
+								"t": "slot",
+								"path": "data.name",
+								"escape": "content"
+							},
+							{
+								"t": "static",
+								"s": "</span>"
+							}
+						]
+					},
+					{
+						"test": null,
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[-1-->"
+							}
+						]
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--><!--[-->"
+			},
+			{
+				"t": "each",
+				"source": "data.tags",
+				"item": "t",
+				"body": [
+					{
+						"t": "static",
+						"s": "<span class=\"badge cold\">"
+					},
+					{
+						"t": "slot",
+						"path": "t",
+						"escape": "content"
+					},
+					{
+						"t": "static",
+						"s": "</span>"
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--></div><!--]-->"
+			}
+		],
+		"head": [],
+		"title": []
+	},
+	"derivations": []
+}

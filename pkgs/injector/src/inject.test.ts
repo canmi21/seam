@@ -14,7 +14,7 @@ import { inject } from './index.ts';
 import type { ComponentIR } from './ir.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const cases = resolve(here, '../../../conformance/cases');
+const cases = resolve(here, '../../../corpus/cases');
 const staging = resolve(here, '../.build');
 
 // Svelte's compiled output imports 'svelte/internal/server', which only resolves from inside this

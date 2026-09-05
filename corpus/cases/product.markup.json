@@ -1,0 +1,89 @@
+{
+	"entry": "product",
+	"components": {
+		"product": {
+			"markup": [
+				{
+					"k": "element",
+					"name": "article",
+					"attrs": [
+						{
+							"k": "attr",
+							"name": "class",
+							"value": [
+								{
+									"k": "text",
+									"v": "card"
+								}
+							]
+						}
+					],
+					"body": [
+						{
+							"k": "element",
+							"name": "h1",
+							"attrs": [],
+							"body": [
+								{
+									"k": "expr",
+									"src": "data.name"
+								}
+							]
+						},
+						{
+							"k": "if",
+							"test": "data.available",
+							"consequent": [
+								{
+									"k": "element",
+									"name": "button",
+									"attrs": [
+										{
+											"k": "attr",
+											"name": "onclick",
+											"value": [
+												{
+													"k": "expr",
+													"src": "() => { n += 1; console.log('adopted, click', n) }"
+												}
+											]
+										}
+									],
+									"body": [
+										{
+											"k": "text",
+											"v": "Buy"
+										}
+									]
+								}
+							],
+							"alternate": null
+						},
+						{
+							"k": "each",
+							"source": "data.tags",
+							"item": "t",
+							"index": null,
+							"key": null,
+							"body": [
+								{
+									"k": "element",
+									"name": "span",
+									"attrs": [],
+									"body": [
+										{
+											"k": "expr",
+											"src": "t"
+										}
+									]
+								}
+							],
+							"fallback": null
+						}
+					]
+				}
+			],
+			"imports": {}
+		}
+	}
+}

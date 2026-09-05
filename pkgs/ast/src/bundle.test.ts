@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { bundle } from './bundle.ts';
 
-const cases = resolve(dirname(fileURLToPath(import.meta.url)), '../../../conformance/cases');
+const cases = resolve(dirname(fileURLToPath(import.meta.url)), '../../../corpus/cases');
 
 describe('the corpus reduces to its fixtures', () => {
 	const files = readdirSync(cases)
@@ -18,7 +18,7 @@ describe('the corpus reduces to its fixtures', () => {
 	it.each(files)('%s', (file) => {
 		const name = file.slice(0, -'.svelte'.length);
 		const actual = `${JSON.stringify(bundle(resolve(cases, file), cases), null, '\t')}\n`;
-		expect(actual, 'regenerate with: node conformance/generate.ts').toBe(
+		expect(actual, 'regenerate with: node corpus/generate.ts').toBe(
 			readFileSync(resolve(cases, `${name}.markup.json`), 'utf8'),
 		);
 	});

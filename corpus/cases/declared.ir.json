@@ -1,0 +1,82 @@
+{
+	"ir": {
+		"component": "declared",
+		"body": [
+			{
+				"t": "static",
+				"s": "<!--[--><article"
+			},
+			{
+				"t": "attr",
+				"name": "data-tone",
+				"presence": "value",
+				"parts": [
+					{
+						"t": "slot",
+						"path": "__d0",
+						"escape": "attr"
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "><b>"
+			},
+			{
+				"t": "slot",
+				"path": "__d1",
+				"escape": "content"
+			},
+			{
+				"t": "static",
+				"s": "</b><i>"
+			},
+			{
+				"t": "slot",
+				"path": "__d2",
+				"escape": "content"
+			},
+			{
+				"t": "static",
+				"s": "</i><s>"
+			},
+			{
+				"t": "slot",
+				"path": "__d3",
+				"escape": "content"
+			},
+			{
+				"t": "static",
+				"s": "</s></article><!--]-->"
+			}
+		],
+		"head": [],
+		"title": []
+	},
+	"derivations": [
+		{
+			"name": "__d0",
+			"expression": "((data.badge).tone)",
+			"scope": null,
+			"files": ["declared.svelte"]
+		},
+		{
+			"name": "__d1",
+			"expression": "(function shout(v) { return String(v).toUpperCase() })(((data.badge).label))",
+			"scope": null,
+			"files": ["declared.svelte"]
+		},
+		{
+			"name": "__d2",
+			"expression": "((data.tags)[0])",
+			"scope": null,
+			"files": ["declared.svelte"]
+		},
+		{
+			"name": "__d3",
+			"expression": "new (class Money { constructor(n) { this.n = n } get shown() { return `$${this.n}` } })(data.price).shown",
+			"scope": null,
+			"files": ["declared.svelte"]
+		}
+	]
+}

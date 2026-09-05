@@ -46,7 +46,7 @@ for (const [path, entry] of Object.entries(manifest.routes)) {
 		// slots can be filled from, and that contract is not settled yet, so the corpus payload
 		// stands in for one. See spec/payload.md.
 		data: (
-			JSON.parse(read(`conformance/cases/${entry.id}.data.json`)) as {
+			JSON.parse(read(`corpus/cases/${entry.id}.data.json`)) as {
 				data: Record<string, unknown>;
 			}[]
 		)[0]?.data as Record<string, unknown>,

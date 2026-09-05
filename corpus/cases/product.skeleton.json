@@ -1,0 +1,51 @@
+{
+	"html": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[0--><button>Buy</button><!--]-->%%b0%%<!--[--><span>%%s1%%</span><!--]-->%%b1%%</article><!--]-->",
+	"head": "",
+	"alternates": {
+		"0.-1": {
+			"body": "<!--[--><article class=\"card\"><h1>%%s0%%</h1><!--[-1--><!--]-->%%b0%%<!--[--><span>%%s1%%</span><!--]-->%%b1%%</article><!--]-->",
+			"head": ""
+		}
+	},
+	"holes": [
+		{
+			"index": 0,
+			"expression": "data.name",
+			"raw": false,
+			"files": ["product.svelte"]
+		},
+		{
+			"index": 1,
+			"expression": "t",
+			"raw": false,
+			"files": ["product.svelte"]
+		}
+	],
+	"blocks": [
+		{
+			"index": 0,
+			"kind": "if",
+			"stream": "body",
+			"expression": "data.available",
+			"tests": ["data.available"],
+			"item": null,
+			"counter": null,
+			"alternate": false,
+			"within": [],
+			"files": ["product.svelte"]
+		},
+		{
+			"index": 1,
+			"kind": "each",
+			"within": [],
+			"stream": "body",
+			"expression": "data.tags",
+			"item": "t",
+			"counter": null,
+			"alternate": false,
+			"files": ["product.svelte"]
+		}
+	],
+	"entered": [],
+	"payload": ["data"]
+}

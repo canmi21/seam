@@ -1,0 +1,52 @@
+{
+	"ir": {
+		"component": "carried",
+		"body": [
+			{
+				"t": "static",
+				"s": "<!--[--><div"
+			},
+			{
+				"t": "attr",
+				"name": "class",
+				"presence": "nonempty",
+				"parts": [
+					{
+						"t": "slot",
+						"path": "__d0",
+						"escape": "attr"
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "><b>"
+			},
+			{
+				"t": "slot",
+				"path": "__d1",
+				"escape": "content"
+			},
+			{
+				"t": "static",
+				"s": "</b></div><!--]-->"
+			}
+		],
+		"head": [],
+		"title": []
+	},
+	"derivations": [
+		{
+			"name": "__d0",
+			"expression": "cn('card', data.tone, [data.size, ['fixed']])",
+			"scope": null,
+			"files": ["carried.svelte"]
+		},
+		{
+			"name": "__d1",
+			"expression": "cn(data.tone)",
+			"scope": null,
+			"files": ["carried.svelte"]
+		}
+	]
+}

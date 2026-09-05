@@ -1,0 +1,96 @@
+{
+	"ir": {
+		"component": "derive",
+		"body": [
+			{
+				"t": "static",
+				"s": "<!--[--><div>"
+			},
+			{
+				"t": "if",
+				"branches": [
+					{
+						"test": "__d0",
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[0--><b>pricey</b>"
+							}
+						]
+					},
+					{
+						"test": null,
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[-1--><i>cheap</i>"
+							}
+						]
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--><span>"
+			},
+			{
+				"t": "slot",
+				"path": "__d1",
+				"escape": "content"
+			},
+			{
+				"t": "static",
+				"s": "</span>"
+			},
+			{
+				"t": "if",
+				"branches": [
+					{
+						"test": "__d2",
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[0--><em>none</em>"
+							}
+						]
+					},
+					{
+						"test": null,
+						"body": [
+							{
+								"t": "static",
+								"s": "<!--[-1-->"
+							}
+						]
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!--]--></div><!--]-->"
+			}
+		],
+		"head": [],
+		"title": []
+	},
+	"derivations": [
+		{
+			"name": "__d0",
+			"expression": "data.price > 10",
+			"scope": null,
+			"files": ["derive.svelte"]
+		},
+		{
+			"name": "__d1",
+			"expression": "data.name.toUpperCase()",
+			"scope": null,
+			"files": ["derive.svelte"]
+		},
+		{
+			"name": "__d2",
+			"expression": "data.tags.length === 0",
+			"scope": null,
+			"files": ["derive.svelte"]
+		}
+	]
+}

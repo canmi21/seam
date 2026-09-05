@@ -1,0 +1,64 @@
+{
+	"entry": "fragments",
+	"components": {
+		"fragments": {
+			"markup": [
+				{
+					"k": "element",
+					"name": "div",
+					"attrs": [],
+					"body": [
+						{
+							"k": "each",
+							"source": "data.xs",
+							"item": "x",
+							"index": null,
+							"key": null,
+							"body": [
+								{
+									"k": "text",
+									"v": "item "
+								},
+								{
+									"k": "expr",
+									"src": "x"
+								},
+								{
+									"k": "element",
+									"name": "b",
+									"attrs": [],
+									"body": [
+										{
+											"k": "text",
+											"v": "."
+										}
+									]
+								}
+							],
+							"fallback": null
+						}
+					]
+				},
+				{
+					"k": "if",
+					"test": "data.t",
+					"consequent": [
+						{
+							"k": "element",
+							"name": "b",
+							"attrs": [],
+							"body": [
+								{
+									"k": "text",
+									"v": "y"
+								}
+							]
+						}
+					],
+					"alternate": null
+				}
+			],
+			"imports": {}
+		}
+	}
+}

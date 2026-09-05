@@ -1,0 +1,1 @@
+<script>let { data } = $props(); let n = $state(0)</script><article class="card"><h1>{data.name}</h1>{#if data.available}<button onclick={() => { n += 1; console.log('adopted, click', n) }}>Buy</button>{/if}{#each data.tags as t}<span>{t}</span>{/each}</article>
