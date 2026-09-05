@@ -82,7 +82,14 @@ export async function renderRewritten(
 	mkdirSync(staging, { recursive: true });
 	let written = 0;
 
+	// One staged file per source, however many times it is imported, which is also what ends the
+	// walk of a component that imports itself.
+	const emitted = new Map<string, string>();
 	function emit(from: string, code: string, origin: string): string {
+		const held = emitted.get(from);
+		if (held !== undefined) return held;
+		const out = resolvePath(staging, `${basename(from, '.svelte')}-${generation}-${written++}.js`);
+		emitted.set(from, out);
 		// Either quote. Svelte keeps the one the author wrote, so a component whose imports are
 		// double-quoted -- which is most of what a package ships -- had its relative specifiers
 		// left alone here and its neighbours looked for beside the staged file rather than beside
@@ -116,7 +123,6 @@ export async function renderRewritten(
 				JSON.stringify(pathToFileURL(replacement).href),
 			);
 		}
-		const out = resolvePath(staging, `${basename(from, '.svelte')}-${generation}-${written++}.js`);
 		writeFileSync(out, code);
 		return out;
 	}

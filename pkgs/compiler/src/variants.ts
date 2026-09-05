@@ -100,6 +100,12 @@ function renamed(nodes: readonly Node[], by: ReadonlyMap<string, string>): Node[
 				return { ...node, parts: renamed(node.parts, by) };
 			case 'title':
 				return { ...node, body: renamed(node.body, by) };
+			case 'call':
+				return {
+					...node,
+					fragment: path(node.fragment),
+					binds: node.binds.map(([name, one]): [string, string] => [name, path(one)]),
+				};
 		}
 	});
 }
@@ -129,6 +135,7 @@ export function joined(
 	const body: Branch[] = [];
 	const head: Branch[] = [];
 	const title: Branch[] = [];
+	const fragments: Record<string, Node[]> = {};
 
 	for (const [at, run] of runs.entries()) {
 		// A derivation is named for its position among its own component's, so several components'
@@ -137,6 +144,14 @@ export function joined(
 		const by = new Map(
 			run.compiled.derivations.map((one) => [one.name, `__v${String(at)}${one.name.slice(2)}`]),
 		);
+		// A fragment is named for its position among its own component's too, so each run's are
+		// moved the same way, and the calls that name them with them.
+		for (const name of Object.keys(run.compiled.ir.fragments ?? {})) {
+			by.set(name, `__w${String(at)}${name.slice(3)}`);
+		}
+		for (const [name, nodes] of Object.entries(run.compiled.ir.fragments ?? {})) {
+			fragments[by.get(name) ?? name] = renamed(nodes, by);
+		}
 		for (const one of run.compiled.derivations) {
 			derivations.push({ ...one, name: by.get(one.name) ?? one.name });
 		}
@@ -160,6 +175,7 @@ export function joined(
 		// An empty title in every branch is no title at all, and an if around nothing would make
 		// the head end with a `<title></title>` that Svelte never wrote.
 		title: title.every((one) => one.body.length === 0) ? [] : [{ t: 'if', branches: title }],
+		...(Object.keys(fragments).length === 0 ? {} : { fragments }),
 	};
 	return { ir, derivations };
 }

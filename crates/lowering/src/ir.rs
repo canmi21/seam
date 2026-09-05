@@ -1,5 +1,7 @@
 //! The shape `spec/ir.md` describes, and the shape `pkgs/injector` walks.
 
+use std::collections::BTreeMap;
+
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +66,14 @@ pub enum Node {
 		role: String,
 		body: Vec<Node>,
 	},
+	/// A call of a fragment in `ComponentIR::fragments`: the runtime binds each parameter to the
+	/// path or derivation beside it, in a scope of its own, and walks the fragment's body there.
+	/// Recursion in structure -- a component rendering itself, a snippet rendering itself -- is
+	/// this and nothing else: the body is fixed, the depth is the data's. See `spec/ir.md`.
+	Call {
+		fragment: String,
+		binds: Vec<(String, String)>,
+	},
 	/// One attribute of the element being opened. `boolean` marks a name that is present or
 	/// absent rather than named and valued, which the runtime needs because the render cannot
 	/// show it. See `crates/lowering/src/attributes.rs`.
@@ -104,6 +114,10 @@ pub struct ComponentIR {
 	/// The title, which is a channel rather than markup. Walking it gives either nothing or a
 	/// whole `<title>` element, and the result belongs after the head. See `spec/ir.md`.
 	pub title: Vec<Node>,
+	/// The bodies `Call` nodes walk, by name: one per recursive snippet or component, its
+	/// parameters being locals inside it. Absent where the component has none.
+	#[serde(skip_serializing_if = "BTreeMap::is_empty")]
+	pub fragments: BTreeMap<String, Vec<Node>>,
 }
 
 /// Where a name in a derivation's expression gets its value.

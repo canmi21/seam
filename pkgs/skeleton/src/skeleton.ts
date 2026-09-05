@@ -1,10 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { basename, relative, resolve as resolvePath } from 'node:path';
-import { parse } from 'svelte/compiler';
 import { type Carried, resolved } from 'ast';
 import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
-import type { AstNode } from './node.ts';
 import { renderRewritten, shippable } from './render.ts';
 import { dead, filled, outcomes, probed } from './resolve.ts';
 import type { Block, Rendered, Skeleton } from './shape.ts';
@@ -69,7 +67,9 @@ export async function skeleton(
 	// is what the render does with it anyway and what leaves every pass below the case it knows.
 	const source = inlined(unbound(readFileSync(file, 'utf8')));
 
-	const parsed = parse(source, { modern: true }) as unknown as AstNode;
+	if (process.env['SEAM_TRACE_SOURCE'] !== undefined) {
+		console.error(`[seam] entry ${basename(file)} as walked:\n${source}\n`);
+	}
 
 	// `<style>` used to be refused here. It hangs off the root rather than off the fragment, so
 	// neither pass's walk could see it and neither could refuse it: a styled component compiled,
@@ -116,6 +116,9 @@ export async function skeleton(
 	// What the render is asked to decide is read back after it, below.
 	const asked = globalThis as unknown as Record<string, Record<string, unknown> | undefined>;
 	asked['__seam_asked'] = {};
+	if (process.env['SEAM_TRACE_SOURCE'] !== undefined) {
+		console.error(`[seam] entry ${basename(file)} rewritten:\n${baseline.rewritten}\n`);
+	}
 	const rendered = await renderRewritten(
 		file,
 		baseline.rewritten,
@@ -294,12 +297,14 @@ export function expressionsOf(rendered: Skeleton): { expression: string; files: 
 		const files = hole.files ?? [];
 		found.push({ expression: hole.expression, files });
 		for (const test of hole.choice?.tests ?? []) found.push({ expression: test, files });
+		for (const [, expression] of hole.call?.binds ?? []) found.push({ expression, files });
 	}
 	for (const block of rendered.blocks) {
 		const files = block.files ?? [];
 		for (const expression of [block.expression, ...(block.tests ?? [])]) {
 			found.push({ expression, files });
 		}
+		for (const [, expression] of block.fragment?.binds ?? []) found.push({ expression, files });
 	}
 	return found;
 }

@@ -24,5 +24,5 @@ export {
 export type { Bundle, MarkupAttr, MarkupNode, Module } from './markup.ts';
 export { reduce } from './reduce.ts';
 export { resolved } from './resolved.ts';
-export { destructure } from './scope.ts';
+export { destructure, reads } from './scope.ts';
 export { componentOf, resolveBare } from './packages.ts';

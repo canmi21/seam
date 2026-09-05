@@ -35,6 +35,8 @@ export interface Snippet {
 	holds: string[];
 	/** The arguments of the one `{@render}` that calls it, as written. */
 	args: unknown[];
+	/** Every `{@render}` that calls it, so a call inside its own body can be told from one outside. */
+	calls: AstNode[];
 	/**
 	 * The declaration, so its body can be walked where it is rendered rather than where it sits.
 	 *
@@ -121,6 +123,7 @@ export function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = f
 				passed: false,
 				holds: [],
 				args: [],
+				calls: [],
 			};
 			const parameters = Array.isArray(node['parameters']) ? node['parameters'] : [];
 			one.declared = true;
@@ -150,9 +153,11 @@ export function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = f
 				passed: false,
 				holds: [],
 				args: [],
+				calls: [],
 			};
 			one.renders += 1;
 			one.args = Array.isArray(call['arguments']) ? call['arguments'] : [];
+			one.calls.push(node);
 			into.set(name, one);
 		}
 	}
@@ -232,18 +237,16 @@ export function inlined(given: string): string {
 		const at = span(block);
 		const id = span(isNode(block) ? block['expression'] : undefined);
 		if (block === undefined || at === null || id === null) continue;
-		// A snippet that renders itself would lose the name it recurses through, and a recursion
-		// has no fixed number of copies to make in the first place.
+		// A snippet that renders itself is not copied: it is a fragment the runtime calls, with the
+		// call inside its body a call of the same fragment, and the walk takes it as one. See
+		// spec/ir.md.
 		if (
 			sites.some((site) => {
 				const where = span(site);
 				return where !== null && where[0] > at[0] && where[1] < at[1];
 			})
 		) {
-			refuse(
-				`the snippet \`${name}\` renders itself, and a compile-time render has no way to stop: ` +
-					'the body would have to stand in as many places as the data has depth',
-			);
+			continue;
 		}
 		const text = source.slice(at[0], at[1]);
 		const names = sites.map((_, index) => naming(name, index));

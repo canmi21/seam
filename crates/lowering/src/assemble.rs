@@ -16,6 +16,8 @@ use scan::{
 	next_title, sentinel_at, stamped,
 };
 
+use std::collections::BTreeMap;
+
 use crate::ir;
 
 /// Emits nodes, merging runs of literal output into one chunk apiece.
@@ -59,6 +61,8 @@ struct Assembler<'a> {
 	/// The names the ids are bound under, which the runtime decides where they are written: a
 	/// derivation reading one is computed where it is used, as one reading an each binding is.
 	fresh: Vec<String>,
+	/// The bodies `Call` nodes walk, by name, collected as their blocks are met.
+	fragments: BTreeMap<String, Vec<ir::Node>>,
 }
 
 // --- assembling ---------------------------------------------------------------------------
@@ -156,6 +160,15 @@ impl Assembler<'_> {
 			}
 			let Mark::Hole(index) = mark else { unreachable!() };
 
+			// A call of a fragment: the runtime binds the parameters and walks the body again.
+			if let Some(call) = self.skeleton.holes.get(index).and_then(|hole| hole.call.clone()) {
+				out.write(&html[at..start]);
+				let (_, _, files) = self.hole(index)?;
+				let binds = self.binds(&call.binds, &files)?;
+				out.push(ir::Node::Call { fragment: call.fragment, binds });
+				at = end;
+				continue;
+			}
 			// A `$props.id()` in a component the walk entered, whose hole the walk allocated so that
 			// the child's own expressions can read it by name. The first place its marker lands is
 			// the anchor Svelte writes at the head of the component, which is where the runtime
@@ -431,6 +444,29 @@ impl Assembler<'_> {
 				Ok(())
 			}
 			Kind::If => {
+				// A fragment: the body of a recursive snippet or component, wrapped by the walk in a
+				// bare `{#if true}` so that it has anchors to be found by. It is kept under its name
+				// rather than written in place, with the parameters as locals inside it, and the
+				// place it was found becomes the first call. See `spec/ir.md`.
+				if let Some(fragment) = block.fragment.clone() {
+					let depth = self.locals.len();
+					self.locals.extend(fragment.params.iter().cloned());
+					let mut body = Out::default();
+					// `is_text_first` in `clean_nodes`: a snippet's or component's body that opens with
+					// text gets an empty comment ahead of it, so the text node is not fused with its
+					// surroundings while hydrating. The bare block the walk wrapped the body in is an
+					// if, which gets none, so it is written back here.
+					if fragment.text_first {
+						body.write(EMPTY);
+					}
+					let walked = self.region(html, span.content, span.until, &mut body);
+					self.locals.truncate(depth);
+					walked?;
+					self.fragments.insert(fragment.name.clone(), body.finish());
+					let binds = self.binds(&fragment.binds, &block.files)?;
+					out.push(ir::Node::Call { fragment: fragment.name, binds });
+					return Ok(());
+				}
 				// One block, one branch per test, and a last one for the else. A chain of
 				// `{:else if}` arrives here flattened, the way Svelte's own transform writes it.
 				let tests =
@@ -483,6 +519,20 @@ impl Assembler<'_> {
 				Ok(())
 			}
 		}
+	}
+
+	/// What a call binds each of a fragment's parameters to, as paths or derivations resolved
+	/// where the call sits.
+	fn binds(
+		&mut self,
+		binds: &[(String, String)],
+		files: &[String],
+	) -> Result<Vec<(String, String)>> {
+		let mut found = Vec::with_capacity(binds.len());
+		for (name, expression) in binds {
+			found.push((name.clone(), self.path(expression, files)?));
+		}
+		Ok(found)
 	}
 
 	/// Whether the block's anchors stay out of the bytes. See `Block::bare`.
@@ -542,6 +592,7 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 			.filter(|hole| hole.fresh)
 			.map(|hole| hole.expression.clone())
 			.collect(),
+		fragments: BTreeMap::new(),
 	};
 	let mut out = Out::default();
 	out.write(&skeleton.html[outer.from..outer.content]);
@@ -575,6 +626,7 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 			body: out.finish(),
 			head: head.finish(),
 			title: title.finish(),
+			fragments: assembler.fragments,
 		},
 		derivations: assembler.derivations,
 	})

@@ -42,6 +42,10 @@ pub struct Hole {
 	/// carried the way `attributes` is. See `spec/refusals.md`.
 	#[serde(default)]
 	pub whole: bool,
+	/// A call of a fragment: the runtime binds the fragment's parameters and walks it again. See
+	/// `Block::fragment` and `spec/ir.md`.
+	#[serde(default)]
+	pub call: Option<Call>,
 	/// The anchor of a `$props.id()`, whose value the runtime counts out. `expression` is then
 	/// the name the id is bound under. See `pkgs/skeleton/src/fresh.ts`.
 	#[serde(default)]
@@ -108,6 +112,11 @@ pub struct Block {
 	/// left out of the bytes, because the client was compiled against markup that has none.
 	#[serde(default)]
 	pub bare: bool,
+	/// A bare block around the body of a recursive snippet or component, kept as a fragment the
+	/// runtime calls rather than written in place: its parameters are locals inside it, as an
+	/// each's item is, and `binds` are what the first call binds them to. See `spec/ir.md`.
+	#[serde(default)]
+	pub fragment: Option<Fragment>,
 	/// True where an each has an `{:else}`, which is a second shape rendered from an empty list
 	/// and keyed `-1` among the alternates the way an if's else is. Unused for an if, whose else
 	/// is already among its branches.
@@ -148,3 +157,23 @@ pub struct Skeleton {
 }
 
 pub type Result<T> = std::result::Result<T, String>;
+
+/// A fragment the runtime calls: a recursive snippet's or component's body, named, with what each
+/// of its parameters is bound to at the call.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Fragment {
+	pub name: String,
+	pub params: Vec<String>,
+	pub binds: Vec<(String, String)>,
+	/// Whether the body opens with text, which Svelte writes an empty comment ahead of in a
+	/// snippet's or component's fragment and not in an if's. See `spec/ir.md`.
+	#[serde(default, rename = "textFirst")]
+	pub text_first: bool,
+}
+
+/// One call of a fragment, at a hole.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Call {
+	pub fragment: String,
+	pub binds: Vec<(String, String)>,
+}

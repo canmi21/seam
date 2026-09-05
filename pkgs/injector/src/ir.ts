@@ -55,6 +55,17 @@ export type Node =
 			body: Node[];
 	  }
 	| {
+			/**
+			 * A call of one of the component's fragments: the runtime binds each parameter to the
+			 * value at its path, in a scope of its own, and walks the fragment's body there. A
+			 * component or a snippet rendering itself is this: the body is fixed, the depth is the
+			 * data's. See spec/ir.md.
+			 */
+			t: 'call';
+			fragment: string;
+			binds: [name: string, path: string][];
+	  }
+	| {
 			t: 'attr';
 			name: string;
 			/**
@@ -82,4 +93,6 @@ export interface ComponentIR {
 	 * instead. See spec/ir.md.
 	 */
 	title: Node[];
+	/** The bodies `call` nodes walk, by name. Absent where the component has none. */
+	fragments?: Record<string, Node[]>;
 }

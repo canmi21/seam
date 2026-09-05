@@ -25,6 +25,8 @@ interface Fresh {
 	block: number;
 	/** The title winning so far under `set_title`'s rule. See the `title` node. */
 	title?: { block: number; top: boolean; text: string };
+	/** The component's fragments, which a `call` node walks. */
+	fragments: Readonly<Record<string, Node[]>>;
 }
 
 function walk(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): string {
@@ -68,6 +70,18 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): s
 				) {
 					fresh.title = { block: fresh.block, top, text };
 				}
+				break;
+			}
+			case 'call': {
+				// The fragment's body in a scope of its own, each parameter bound to the value at its
+				// path where the call sits, the way an each binds its item per iteration. The depth
+				// is the data's: a call inside the body is met again with the next value.
+				const body = fresh.fragments[node.fragment];
+				if (body === undefined)
+					throw new Error(`a call of a fragment the IR does not hold: ${node.fragment}`);
+				const bound: Scope = {};
+				for (const [name, path] of node.binds) bound[name] = settle(resolve(scopes, path), scopes);
+				out += walk(body, [...scopes, bound], fresh);
 				break;
 			}
 			case 'if':
@@ -189,7 +203,7 @@ function reach(value: unknown, access: string): unknown {
 export function inject(ir: ComponentIR, data: Scope): Injected {
 	const scopes = [data];
 	// One counter per response, starting where Svelte's does.
-	const fresh: Fresh = { next: 1, block: 0 };
+	const fresh: Fresh = { next: 1, block: 0, fragments: ir.fragments ?? {} };
 	// The title goes after the head blocks, which is where Svelte's own renderer appends it.
 	return {
 		body: walk(ir.body, scopes, fresh),

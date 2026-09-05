@@ -1721,6 +1721,81 @@ const accepted: Case[] = [
 			{ t: '<', a: 'y', b: undefined },
 		],
 	},
+	{
+		// Recursion in structure: the body is fixed and the depth is the data's. A snippet that
+		// renders itself is a fragment the runtime calls, its parameters bound per call the way an
+		// each's item is per iteration; the call inside the body is a call of the same fragment,
+		// and the render tag around it writes what Svelte writes around any. Measured against
+		// Svelte's own recursion, which compiles the snippet to a function calling itself.
+		name: 'a snippet that renders itself',
+		source:
+			`${PROPS}{#snippet h(node, depth = 0)}<li class="d{depth}">{node.label}` +
+			'{#each node.children ?? [] as child}<ul>{@render h(child, depth + 1)}</ul>{/each}</li>{/snippet}' +
+			'<ul>{@render h(data.tree)}</ul><ol>{@render h(data.other, 5)}</ol>',
+		data: [
+			{
+				tree: {
+					label: 'a',
+					children: [
+						{ label: 'b', children: [] },
+						{ label: 'c', children: [{ label: 'd' }] },
+					],
+				},
+				other: { label: 'x' },
+			},
+			{ tree: { label: '<', children: [] }, other: { label: 'y', children: [{ label: 'z' }] } },
+		],
+	},
+	{
+		// A recursive body that opens with text, which `is_text_first` in `Fragment.js` writes an
+		// empty comment ahead of, and a second outer call of the same fragment.
+		name: 'a snippet that renders itself, opening with text',
+		source:
+			`${PROPS}{#snippet t(n)}{n.v}{#each n.kids ?? [] as k}<i>{@render t(k)}</i>{/each}{/snippet}` +
+			'<div>{@render t(data.t)}</div><p>{@render t(data.u)}</p>',
+		data: [
+			{ t: { v: 'a', kids: [{ v: 'b' }, { v: 'c', kids: [{ v: 'd' }] }] }, u: { v: 'x' } },
+			{ t: { v: '<' }, u: { v: 'y', kids: [{ v: '&' }] } },
+		],
+	},
+	{
+		// The same through a component importing its own file: `build_inline_component` calls the
+		// component itself. The component is entered as the fragment it is, its props names bound
+		// per call, and the call inside it stands in as a copy whose whole body is the marker.
+		name: 'a component that imports itself',
+		beside: {
+			Tree:
+				"<script>import Tree from './Tree.svelte'; let { node, depth = 0 } = $props();</script>" +
+				'<li data-depth={depth}>{node.label}{#each node.children ?? [] as child}<ul><Tree node={child} depth={depth + 1} /></ul>{/each}</li>',
+		},
+		source: `<script>import Tree from './Tree.svelte'; let { data } = $props();</script><ul><Tree node={data.tree} /></ul>`,
+		data: [
+			{
+				tree: {
+					label: 'a',
+					children: [
+						{ label: 'b', children: [] },
+						{ label: 'c', children: [{ label: 'd' }] },
+					],
+				},
+			},
+			{ tree: { label: 'only' } },
+		],
+	},
+	{
+		// And through `<svelte:self>`, which `SvelteSelf.js` compiles to the same call.
+		name: 'a component that renders itself with svelte:self',
+		beside: {
+			Nest:
+				'<script>let { node } = $props();</script>' +
+				'<li>{node.label}{#each node.children ?? [] as child}<ul><svelte:self node={child} /></ul>{/each}</li>',
+		},
+		source: `<script>import Nest from './Nest.svelte'; let { data } = $props();</script><ul><Nest node={data.tree} /></ul>`,
+		data: [
+			{ tree: { label: 'a', children: [{ label: 'b', children: [{ label: 'c' }] }] } },
+			{ tree: { label: '&', children: [] } },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
@@ -1806,12 +1881,6 @@ const refused: Case[] = [
 		source:
 			"<script>import Feeds from './Feeds.svelte'; let { data } = $props();</script>" +
 			'<Feeds>{#snippet row(n)}<i class={n > 0 ? "up" : "down"}>{data.a}</i>{/snippet}</Feeds>',
-	},
-	{
-		// A snippet that renders itself. Duplicating per call site is what makes a repeated render
-		// work, and a recursion has no fixed number of call sites to duplicate for.
-		name: 'a snippet that renders itself',
-		source: `${PROPS}{#snippet h(v)}<p>{v}</p>{@render h(v)}{/snippet}{@render h(data.a)}`,
 	},
 	{
 		name: 'a render of a snippet from a prop',

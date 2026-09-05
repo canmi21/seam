@@ -14,6 +14,7 @@ import {
 	readsOf,
 	componentOf,
 	objectEntries,
+	reads as readsIn,
 	settle,
 	tabled,
 } from 'ast';
@@ -148,6 +149,13 @@ export interface Site {
 	imports: Record<string, string>;
 	/** The same imports with what each one is -- default, named, the module -- for a package's. */
 	carried: ReadonlyMap<string, Carried>;
+	/**
+	 * The fragment this file's copy is the body of, where the component renders itself: a call of
+	 * itself inside it is a call of this fragment. Undefined for a component that does not.
+	 */
+	fragment?: string;
+	/** The fragments this file's recursive snippets became, by the snippet's name. */
+	fragments: Map<string, string>;
 	copies: Copy[];
 	stack: string[];
 	/** Imports the rewritten source needs that the author did not write: one per copy taken. */
@@ -418,7 +426,6 @@ const INERT = new Set([
  */
 const REFUSED: Record<string, string> = {
 	SvelteFragment: '`<svelte:fragment>` is not handled yet',
-	SvelteSelf: '`<svelte:self>` is not handled yet: composition does not yet follow a cycle',
 	SlotElement: '`<slot>` is not handled yet. Snippets replaced it, and neither is written',
 	BindDirective:
 		'this `bind:` is one the server writes, and the value has nowhere to be planted: `bind:` ' +
@@ -946,25 +953,257 @@ function unimported(text: string): string {
 	} catch {
 		return text;
 	}
+	// Every name the rest of the file reads: the scripts' statements other than the imports, and
+	// the markup's expressions. Read off the tree rather than the text, since a name inside a
+	// string or a specifier is not a use and prose is full of apostrophes.
+	const used = new Set<string>();
+	const mark = (node: unknown): void => {
+		readsIn(node, new Set(), (at) => {
+			if (typeof at['name'] === 'string') used.add(at['name']);
+		});
+	};
+	// A default inside a pattern is read too -- `let { onOpenChange = noop } = $props()` reads
+	// `noop` -- and a pattern is where `reads` stops, the names in it being bound rather than read.
+	const defaults = (pattern: unknown): void => {
+		if (Array.isArray(pattern)) {
+			for (const one of pattern) defaults(one);
+			return;
+		}
+		if (!isNode(pattern)) return;
+		if (pattern['type'] === 'AssignmentPattern') {
+			mark(pattern['right']);
+			defaults(pattern['left']);
+			return;
+		}
+		if (pattern['type'] === 'Property') {
+			defaults(pattern['value']);
+			return;
+		}
+		for (const value of Object.values(pattern)) defaults(value);
+	};
+	const scripts = [ast['instance'], ast['module']];
+	for (const script of scripts) {
+		const content = isNode(script) ? script['content'] : undefined;
+		const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+		for (const statement of body) {
+			if (!isNode(statement) || statement['type'] === 'ImportDeclaration') continue;
+			mark(statement);
+			if (statement['type'] === 'VariableDeclaration') {
+				for (const one of Array.isArray(statement['declarations'])
+					? statement['declarations']
+					: []) {
+					if (isNode(one)) defaults(one['id']);
+				}
+			}
+		}
+	}
+	mark(ast['fragment']);
+	// A component tag names its import without an identifier node: `<Tree$0>` reads `Tree$0`.
+	const tags = (node: unknown): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) tags(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		if (node['type'] === 'Component' && typeof node['name'] === 'string') {
+			used.add(node['name'].split('.')[0] ?? node['name']);
+		}
+		for (const value of Object.values(node)) tags(value);
+	};
+	tags(ast['fragment']);
+
+	const edits: [number, number, string][] = [];
 	const instance = ast['instance'];
 	const content = isNode(instance) ? instance['content'] : undefined;
 	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
-	const edits: [number, number, string][] = [];
 	for (const statement of body) {
 		if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
 		const at = span(statement);
 		const specifiers = Array.isArray(statement['specifiers']) ? statement['specifiers'] : [];
 		if (at === null || specifiers.length === 0) continue;
-		const rest = text.slice(0, at[0]) + text.slice(at[1]);
-		const used = specifiers.some((one) => {
+		const wanted = specifiers.some((one) => {
 			const local = isNode(one) ? one['local'] : undefined;
 			const name = isNode(local) && typeof local['name'] === 'string' ? local['name'] : null;
-			if (name === null) return true;
-			return new RegExp(`(?<![\\w$])${name.replaceAll('$', '\\$')}(?![\\w$])`).test(rest);
+			return name === null || used.has(name);
 		});
-		if (!used) edits.push([at[0], at[1], '']);
+		if (!wanted) edits.push([at[0], at[1], '']);
 	}
 	return edits.length === 0 ? text : apply(text, edits);
+}
+
+/** Whether a component's script imports its own file. */
+function importsItself(raw: string, file: string): boolean {
+	return [...importedBy(raw).values()].some(
+		(one) =>
+			one.from.startsWith('.') &&
+			one.from.endsWith('.svelte') &&
+			resolvePath(dirname(file), one.from) === file,
+	);
+}
+
+/**
+ * What a call of a component fragment binds each prop to: the caller's expression, or the prop's
+ * own default where the caller leaves it out or passes `undefined`, as JavaScript does.
+ */
+function propBinds(
+	declares: readonly { local: string; prop: string; fallback: string }[],
+	bindings: ReadonlyMap<string, string>,
+): [string, string][] {
+	return declares.map((one): [string, string] => {
+		const given = bindings.get(one.prop);
+		if (given === undefined) return [one.local, one.fallback];
+		if (one.fallback === 'undefined') return [one.local, given];
+		return [one.local, `(${given} === undefined ? (${one.fallback}) : ${given})`];
+	});
+}
+
+/**
+ * A component tag that is a call of the fragment its own component is, standing in for a render
+ * that would not end. The tag is renamed to a copy whose whole body is the hole's marker, so that
+ * the render writes what it writes around a component call, and the hole carries what the runtime
+ * binds the fragment's props to.
+ */
+function selfCall(node: AstNode, walk: Walk, tag: string, fragment: string): void {
+	const ast = parse(walk.source, { modern: true }) as unknown as AstNode;
+	const declares = propsOf(ast, walk.source);
+	if (declares === null)
+		refuse(`<${tag} /> renders itself and this compiler cannot read its props`);
+	const bindings = new Map<string, string>();
+	for (const one of Array.isArray(node['attributes']) ? node['attributes'] : []) {
+		if (!isNode(one)) continue;
+		if (one['type'] === 'AttachTag') continue;
+		if (one['type'] === 'SpreadAttribute') {
+			const entries = objectEntries(walk.expand(one['expression']));
+			if (entries === null)
+				refuse(`<${tag} /> renders itself with a spread nobody can list the keys of`);
+			for (const [key, value] of entries) bindings.set(key, `(${value})`);
+			continue;
+		}
+		if (one['type'] !== 'Attribute')
+			refuse(`<${tag} /> renders itself with a directive, which is not handled yet`);
+		const name = typeof one['name'] === 'string' ? one['name'] : '';
+		const value = one['value'];
+		if (name.startsWith('on') && name.length > 2) {
+			bindings.set(name, 'null');
+			continue;
+		}
+		if (value === true) {
+			bindings.set(name, 'true');
+			continue;
+		}
+		const parts = Array.isArray(value) ? value : [value];
+		if (parts.every((part) => isNode(part) && part['type'] === 'Text')) {
+			bindings.set(name, JSON.stringify(parts.map((part) => String(part['data'] ?? '')).join('')));
+			continue;
+		}
+		const [only] = parts;
+		if (parts.length !== 1 || !isNode(only) || only['type'] !== 'ExpressionTag') {
+			refuse(
+				`<${tag} /> renders itself with \`${name}\` mixing text and an expression, which is not handled yet`,
+			);
+		}
+		bindings.set(name, `(${walk.expand(only['expression'])})`);
+	}
+	const index = walk.holes.length;
+	walk.holes.push({
+		index,
+		expression: '',
+		raw: true,
+		call: { fragment, binds: propBinds(declares, bindings) },
+	});
+	const ordinal = walk.site.copies.length;
+	// The marker stands beside the tag, for the reason `standIn` gives: a component whose fragment
+	// opens with text gets `<!---->` written ahead of it. The copy renders nothing, and the call
+	// writes after itself what a component call writes after any.
+	const at = resolvePath(dirname(walk.site.file), `__seam-call-${String(index)}.svelte`);
+	walk.site.copies.push({ file: walk.site.file, at, source: '', within: [...walk.within] });
+	const where = span(node);
+	if (where !== null) walk.edits.push([where[0], where[0], sentinel(index)]);
+	rename(walk, node, tag, at, ordinal);
+}
+
+/**
+ * Whether a fragment's first node, whitespace aside, is text or an expression: what `is_text_first`
+ * in `clean_nodes` asks before writing an empty comment ahead of a snippet's or component's body.
+ */
+function opensWithText(fragment: unknown): boolean {
+	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	const first = nodes.find(
+		(one) => isNode(one) && !(one['type'] === 'Text' && /^\s*$/.test(String(one['data'] ?? ''))),
+	);
+	return isNode(first) && (first['type'] === 'Text' || first['type'] === 'ExpressionTag');
+}
+
+/** Whether a snippet renders itself: one of its `{@render}` calls sits inside its own body. */
+function recurses(one: Snippet): boolean {
+	const declared = one.node === undefined ? null : span(one.node);
+	if (declared === null) return false;
+	return one.calls.some((call) => {
+		const where = span(call);
+		return where !== null && where[0] > declared[0] && where[1] < declared[1];
+	});
+}
+
+/** The names a fragment's parameters bind, one plain name each; a pattern is refused. */
+function parameterNamesOf(parameters: readonly unknown[], what: string): string[] {
+	return parameters.map((parameter) => {
+		const target =
+			isNode(parameter) && parameter['type'] === 'AssignmentPattern'
+				? parameter['left']
+				: parameter;
+		if (!isNode(target) || target['type'] !== 'Identifier' || typeof target['name'] !== 'string') {
+			refuse(
+				`the snippet \`${what}\` renders itself and takes a parameter that is a pattern, which ` +
+					'is not handled yet: a fragment binds its parameters by name',
+			);
+		}
+		return target['name'];
+	});
+}
+
+/**
+ * What a call binds each parameter to: the argument as written, `undefined` where none is, and
+ * the default where the parameter has one and the argument is `undefined`, as JavaScript does.
+ */
+function argumentBinds(
+	parameters: readonly unknown[],
+	args: readonly unknown[],
+	expand: Locals['rewrite'],
+): [string, string][] {
+	return parameters.map((parameter, at): [string, string] => {
+		const pattern = isNode(parameter) && parameter['type'] === 'AssignmentPattern';
+		const target = pattern ? parameter['left'] : parameter;
+		const name = isNode(target) && typeof target['name'] === 'string' ? target['name'] : '';
+		const given = at < args.length ? `(${expand(args[at])})` : 'undefined';
+		if (!pattern) return [name, given];
+		const fallback = `(${expand(parameter['right'])})`;
+		return [
+			name,
+			given === 'undefined' ? fallback : `(${given} === undefined ? ${fallback} : ${given})`,
+		];
+	});
+}
+
+/**
+ * A call of a fragment where a `{@render}` stood: a hole the render writes a marker for, through a
+ * stand-in snippet whose whole body is the marker, so that the render tag stays a render tag and
+ * Svelte writes around it what it writes around any.
+ */
+function standIn(
+	walk: Walk,
+	at: [number, number],
+	fragment: string,
+	binds: [string, string][],
+): void {
+	const index = walk.holes.length;
+	walk.holes.push({ index, expression: '', raw: true, call: { fragment, binds } });
+	// The marker stands beside the render tag rather than inside the stand-in's body: a snippet
+	// whose fragment opens with text gets `<!---->` written ahead of it, `is_text_first` in
+	// `Fragment.js`, and the original wrote no such thing. The stand-in renders nothing, and the
+	// render tag writes after itself what it writes after any.
+	const name = `__seam_call_${String(index)}`;
+	walk.edits.push([at[0], at[1], `${sentinel(index)}{@render ${name}()}`]);
+	walk.edits.push([walk.source.length, walk.source.length, `\n{#snippet ${name}()}{/snippet}`]);
 }
 
 /** Whether markup holds a node of this type anywhere inside it. */
@@ -1413,6 +1652,19 @@ function collect(node: unknown, walk: Walk): void {
 
 		case 'Text':
 			return;
+
+		case 'SvelteSelf': {
+			// A call of the fragment this component is: `SvelteSelf.js` is `build_inline_component`
+			// with the component itself, and the walk entered the component as a fragment.
+			if (site.fragment === undefined) {
+				refuse(
+					'`<svelte:self>` in a component the walk did not enter as one rendering itself is ' +
+						'not handled yet: the entry cannot be its own fragment',
+				);
+			}
+			selfCall(node, walk, 'SeamSelf', site.fragment);
+			return;
+		}
 
 		case 'SvelteHead': {
 			// The other stream. Everything under it renders into the head rather than the body.
@@ -1877,6 +2129,76 @@ function collect(node: unknown, walk: Walk): void {
 						'snippet comes from the call site, which is composition in the other direction',
 				);
 			}
+			// A snippet that renders itself is a fragment the runtime calls: its body is walked once
+			// with its parameters as names bound per call, the way an each's item is bound per
+			// iteration, and every `{@render}` of it -- the one inside its body included -- is a call
+			// of that fragment with the arguments as what the parameters are bound to. The body is
+			// rendered once, at the first call outside it, where it is wrapped as a bare block so the
+			// assembler can find it; every other call renders a stand-in snippet whose whole body is
+			// the hole's marker, so that Svelte still writes what it writes around a render tag. See
+			// spec/ir.md.
+			if (recurses(one)) {
+				const declaration = one.node;
+				if (declaration === undefined) refuse(`the snippet \`${String(name)}\` has no declaration`);
+				const parameters = Array.isArray(declaration['parameters'])
+					? declaration['parameters']
+					: [];
+				const args = isNode(call) && Array.isArray(call['arguments']) ? call['arguments'] : [];
+				const params = parameterNamesOf(parameters, String(name));
+				const binds = argumentBinds(parameters, args, expand);
+				const whole = span(node);
+				const declared = span(declaration);
+				if (whole === null || declared === null) return;
+				const inside = whole[0] > declared[0] && whole[1] < declared[1];
+				const known = site.fragments.get(String(name));
+				if (inside || known !== undefined) {
+					if (known === undefined)
+						refuse(`the snippet \`${String(name)}\` renders itself before anything renders it`);
+					standIn(walk, whole, known, binds);
+					return;
+				}
+				const index = blocks.length;
+				const fragment = `__f${String(index)}`;
+				blocks.push({
+					index,
+					kind: 'if',
+					stream,
+					expression: 'true',
+					tests: ['true'],
+					item: null,
+					counter: null,
+					alternate: false,
+					within: [...within],
+					bare: true,
+					fragment: { name: fragment, params, binds },
+				});
+				site.fragments.set(String(name), fragment);
+				if (opensWithText(declaration['body'])) blocks[index]!.fragment!.textFirst = true;
+				// The arguments are written out: the body's expressions are markers, and a parameter
+				// that destructures needs something to come apart from.
+				for (const [at, argument] of args.entries()) {
+					const where = span(argument);
+					if (where !== null) edits.push([where[0], where[1], one.holds[at] ?? 'null']);
+				}
+				const after =
+					parameters.length > 0
+						? span(parameters[parameters.length - 1])
+						: span(declaration['expression']);
+				const open = after === null ? -1 : source.indexOf('}', after[1]) + 1;
+				const close = declared[1] - '{/snippet}'.length;
+				if (open <= 0 || !source.endsWith('{/snippet}', declared[1])) {
+					refuse(
+						`the snippet \`${String(name)}\` is written in a way this compiler cannot read the body of`,
+					);
+				}
+				edits.push([open, open, '{#if true}']);
+				edits.push([close, close, `{/if}${stamps(walk, index)}`]);
+				within.push([index, 0]);
+				collect(declaration['body'], { ...walk, dynamic: new Set([...dynamic, ...params]) });
+				within.pop();
+				return;
+			}
+
 			// Rendered twice, one body would have to appear twice, and its markers with it. The hole
 			// check catches that on its own, but it reports a value coming back more than once, which
 			// says nothing about the snippet that put it there.
@@ -2282,6 +2604,12 @@ function descend(
 	// of re-exports ends in something that is not a component -- is Svelte's to render, as before.
 	if (file === null) return false;
 	if (walk.site.stack.includes(file)) {
+		// A component rendering itself, entered as the fragment it is: this call is a call of that
+		// fragment, standing in for a render that would otherwise not end. See spec/ir.md.
+		if (walk.site.fragment !== undefined && file === walk.site.file) {
+			selfCall(node, walk, tag, walk.site.fragment);
+			return true;
+		}
 		refuse(
 			`<${tag} /> is part of a cycle -- ${[...walk.site.stack, file]
 				.map((one) => basename(one))
@@ -2432,15 +2760,36 @@ function descend(
 		// whole of one is that path inside the child; a prop bound to a prefix of one carries the
 		// rest of it along. Without this a child would read `data.locale.code` as its own `data`,
 		// which is a different value with the same spelling.
-		const held = rebased(walk.site.fixed, propsOf(ahead, raw) ?? [], bindings);
-
 		// Every prop the child declares, bound to what the call site passes or to its own default.
 		// A default only fires on `undefined`, which is what a prop the caller left out is.
 		const declares = propsOf(ahead, raw);
 		if (declares === null) return rolled(walk, mark);
+
+		// A component that renders itself -- through `<svelte:self>` or an import of its own file --
+		// is a fragment the runtime calls, and is walked as one: its props are names bound per
+		// call, as an each's item is per iteration, rather than substituted, its body is wrapped as
+		// a bare block for the assembler to find, and the call inside it is a call of the fragment.
+		// Its head could not be wrapped in a block and a rest gathers per call, so neither is taken.
+		const recursion =
+			contains(ahead['fragment'], 'SvelteSelf') || importsItself(raw, file)
+				? `__f${String(walk.blocks.length)}`
+				: null;
+		if (recursion !== null && contains(ahead['fragment'], 'SvelteHead')) {
+			refuse(`<${tag} /> renders itself and writes a \`<svelte:head>\`, which is not handled yet`);
+		}
+		if (recursion !== null && declares.some((one) => one.rest === true)) {
+			refuse(`<${tag} /> renders itself and gathers a rest, which is not handled yet`);
+		}
+		const held =
+			recursion === null ? rebased(walk.site.fixed, declares, bindings) : new Map<string, string>();
+		const params = declares.map((one) => one.local);
 		const bound = new Map<string, string>();
 		const named = new Set(declares.filter((one) => one.rest !== true).map((one) => one.prop));
 		for (const one of declares) {
+			if (recursion !== null) {
+				bound.set(one.local, one.local);
+				continue;
+			}
 			if (one.rest === true) {
 				// What `$props()` leaves in a rest: every attribute the caller wrote that the pattern
 				// did not name, as an object of the caller's own expressions.
@@ -2465,7 +2814,28 @@ function descend(
 
 		// The child's declarations, with what each prop is bound to, so that one reading a prop the
 		// caller gave a constant is left for the render to evaluate rather than neutralised.
-		const declared = locals(raw, held, fresh, bound, walk.dynamic);
+		const inside = recursion === null ? walk.dynamic : new Set([...walk.dynamic, ...params]);
+		const declared = locals(raw, held, fresh, bound, inside);
+		if (recursion !== null) {
+			walk.blocks.push({
+				index: walk.blocks.length,
+				kind: 'if',
+				stream: walk.stream,
+				expression: 'true',
+				tests: ['true'],
+				item: null,
+				counter: null,
+				alternate: false,
+				within: [...walk.within],
+				bare: true,
+				fragment: {
+					name: recursion,
+					params,
+					binds: propBinds(declares, bindings),
+					...(opensWithText(ahead['fragment']) ? { textFirst: true as const } : {}),
+				},
+			});
+		}
 		const inner: [number, number, string][] = [];
 		for (const [[from, to], empty] of declared.reading) inner.push([from, to, empty]);
 		if (process.env['SEAM_TRACE'] !== undefined) {
@@ -2525,7 +2895,7 @@ function descend(
 			runeOf: declared.rune,
 			snippets,
 			siblings: relatesSiblings(ast),
-			dynamic: walk.dynamic,
+			dynamic: inside,
 			fresh: fresh === null ? walk.fresh : [...walk.fresh, fresh],
 			site: {
 				file,
@@ -2540,6 +2910,8 @@ function descend(
 				told: walk.site.told,
 				mute: walk.site.mute,
 				runes: walk.site.runes,
+				...(recursion === null ? {} : { fragment: recursion }),
+				fragments: new Map(),
 				given: hands(walk, nodes),
 				payload: walk.site.payload,
 				missed: walk.site.missed,
@@ -2551,12 +2923,31 @@ function descend(
 				decided: walk.site.decided,
 			},
 		});
+		// The body as the fragment: everything the root fragment writes, wrapped as the bare block
+		// the fragment's block is, with the stamp that names it where the render puts it.
+		if (recursion !== null) {
+			const root = ast['fragment'];
+			const written = (isNode(root) && Array.isArray(root['nodes']) ? root['nodes'] : []).filter(
+				(one) =>
+					isNode(one) && !(one['type'] === 'Text' && /^\s*$/.test(String(one['data'] ?? ''))),
+			);
+			const first = span(written[0]);
+			const last = span(written[written.length - 1]);
+			if (first !== null && last !== null) {
+				const index = walk.blocks.findIndex((one) => one.fragment?.name === recursion);
+				inner.push([first[0], first[0], '{#if true}']);
+				inner.push([last[1], last[1], `{/if}${stamps(walk, index)}`]);
+			}
+		}
 		withPrelude(raw, ast, prelude, inner);
 		withAsks(ast, asks, wants, inner);
 		withFresh(ast, fresh, declared.ids, inner);
 		copy.asks = asks;
 		copy.wants = wants;
 		copy.source = unimported(apply(raw, inner));
+		if (process.env['SEAM_TRACE_SOURCE'] !== undefined) {
+			console.error(`[seam] copy ${basename(copy.at)} of ${basename(file)}:\n${copy.source}\n`);
+		}
 
 		// The values stay where they were written and are handed to the render as nothing. The
 		// child's markers already carry the expressions, so what the call site passes is dead --
@@ -2692,6 +3083,7 @@ export function rewrite(
 			told,
 			mute,
 			runes: runesOf(importsOf(source)),
+			fragments: new Map(),
 			given: new Map(),
 			payload,
 			missed,

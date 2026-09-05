@@ -45,11 +45,10 @@ class expression beside a directive, directives and mixed text beside a spread, 
 `Set`, and `{@const}` shapes inside a parameterised snippet. Each is recorded where its rule is,
 in [refusals.md](refusals.md) or [derivation.md](derivation.md).
 
-**Recursion in structure.** `<svelte:self>` is `build_inline_component(node, analysis.name)` in
-`SvelteSelf.js`, a call to the component itself, and a snippet rendering itself is the same call.
-The depth is the data's; the structure of each level is fixed. That is recursion in structure,
-not in code, and the IR has no node for it: it needs a named fragment and a call to one. **Waits
-on a decision about the IR node**, which [ir.md](ir.md)'s linear form can be decided with.
+**Recursion in structure is done.** A snippet or component that renders itself is a fragment the
+runtime calls, with `call` nodes where it is entered; [ir.md](ir.md) has the node and how the body
+gets its region. Not taken, and waiting for a case: a pattern as a recursive snippet's parameter,
+`<svelte:self>` in the entry, and a cycle through a second component.
 
 **Close, not build.** [ir.md](ir.md) asks whether hydration needs an empty text node to exist
 where a value is empty. The bytes are Svelte's own server bytes, byte for byte, and hydration is

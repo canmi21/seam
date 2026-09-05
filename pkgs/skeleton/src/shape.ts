@@ -30,6 +30,12 @@ export interface Hole {
 	/** Set when the hole is a decision rather than a substitution. */
 	choice?: Choice;
 	/**
+	 * Set when the hole is a call of a fragment: a recursive snippet or component rendering
+	 * itself, where the runtime binds the fragment's parameters to these expressions and walks
+	 * the fragment again. The render wrote the marker where the call sits. See spec/ir.md.
+	 */
+	call?: { fragment: string; binds: [name: string, expression: string][] };
+	/**
 	 * The files the expression was written across, innermost first: the component it sits in,
 	 * then each caller up to the entry, relative to the root.
 	 *
@@ -152,6 +158,23 @@ export interface Block {
 	 * children }`. The render carries anchors so the else can be found; the bytes do not.
 	 */
 	bare?: true;
+	/**
+	 * A bare block around the body of a recursive snippet or component, which the assembler keeps
+	 * as a fragment the runtime calls: its parameters are the names the body reads per call, as an
+	 * each's item is per iteration, and `binds` are what this first call binds them to. Every other
+	 * call is a hole with `call` set. See spec/ir.md.
+	 */
+	fragment?: {
+		name: string;
+		params: string[];
+		binds: [name: string, expression: string][];
+		/**
+		 * Whether the body opens with text. `is_text_first` in `clean_nodes` writes an empty comment
+		 * ahead of a snippet's or component's body that does, and not ahead of an if's, so the bare
+		 * block around the body loses it and the assembler writes it back.
+		 */
+		textFirst?: true;
+	};
 }
 
 /** Both of Svelte's output streams, because reading only one of them loses content silently. */

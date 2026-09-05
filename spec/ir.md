@@ -82,6 +82,13 @@ uses none of the three leaves `head` and `title` empty.
   boolean list.
 - Bodies are node arrays, so the shape recurses.
 
+- **`call`** -- a fragment's name and what each of its parameters is bound to, a path or a
+  derivation resolved where the call sits. The runtime opens a scope holding the parameters and
+  walks the fragment's body there, the way an `each` opens one per item. The bodies live beside
+  the streams in `fragments`, by name, and are absent where a component has none. This is
+  recursion in structure -- a component rendering itself, a snippet rendering itself -- and nothing
+  else: the body is fixed and the depth is the data's. See **Recursion is a fragment and a call**.
+
 `{@html}` needs no node of its own. It is a `slot` with `escape: false` between two static
 `<!---->` chunks, which is the anchor pair Svelte writes around raw HTML. Nothing checks what
 those bytes are, which is the author's, and is written out in [refusals.md](refusals.md).
@@ -195,6 +202,40 @@ refused: it has no value to pass until something computes one.
 The unit is still the component. A bundle carries the entry and everything reachable from it,
 and lowering walks that graph -- so a cycle is an error rather than a hang, and a component the
 bundle does not carry is named rather than skipped.
+
+## Recursion is a fragment and a call
+
+`<svelte:self>` is `build_inline_component(node, analysis.name)` in `SvelteSelf.js`, a component
+calling itself; a component importing its own file is the same call; a snippet rendering itself is
+its function calling itself, `RenderTag.js`. In all three the body is one fixed shape and the
+depth is whatever the data has -- a tree, a thread of comments -- which is recursion in structure
+and not in code, and the IR carries it as such: the body once, under a name in `fragments`, with
+its parameters as names the body reads per call, and a `call` node wherever it is entered, the
+first time from outside included. The runtime binds each parameter to the value at its path, in a
+scope of its own, and walks the body; a `call` inside the body is met again with the next value,
+and ends where the data does.
+
+**How the body gets its region.** A component call has no boundary in the bytes, so the walk
+gives the body one: it wraps the body in `{#if true}` in the render, marked `bare` so the anchors
+the render carries stay out of the bytes, and the assembler finds the region by the block's stamp
+as it finds any block's. Two things `clean_nodes` does to a fragment had to be written back: a
+snippet's or component's body that opens with text gets `<!---->` ahead of it (`is_text_first`),
+which an if's body does not, so the fragment carries `textFirst` and the assembler writes it; and
+the body of a recursive component has to hold no `<svelte:head>`, which cannot sit in a block, so
+one that does is left to the render. A rest gathered per call is left to the render as well.
+
+**How the calls get their bytes.** Every call but the first renders a stand-in in place -- an
+empty snippet rendered, an empty copy called -- with the hole's marker written beside it as text,
+so that Svelte writes around the render tag or the component call exactly what it writes around
+the original, and the assembler reads the marker as the `call`. The marker stands beside rather
+than inside because a stand-in whose own fragment opened with text would get the `<!---->` above.
+Measured against Svelte's own recursion for the three spellings, a body opening with text, a
+parameter default (`depth = 0`, taken where the argument is `undefined` as JavaScript takes it)
+and a second call from outside. `pkgs/skeleton/src/walk.ts`, `standIn` and `selfCall`.
+
+Not taken: a recursive snippet whose parameter is a pattern, a `<svelte:self>` in the entry, and
+a cycle through a second component (`A` renders `B` renders `A`), which is the same shape one
+level up and waits for a case.
 
 ## The anchors come from Svelte, not from us
 
