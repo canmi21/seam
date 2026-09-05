@@ -169,8 +169,9 @@ impl Assembler<'_> {
 						let (expression, _, files) = self.hole(index)?;
 						let path = self.path(&expression, &files)?;
 						out.push(ir::Node::Slot { path, escape: ir::Escape::Raw, fresh: false });
-						at = closes(html, opens_at, until)
-							.ok_or_else(|| "an element whose attributes are spread is never closed".to_owned())?;
+						// A dynamic element's attributes are read as a region that ends at the `>`,
+						// so there the run is the rest of the region.
+						at = closes(html, opens_at, until).unwrap_or(until);
 						continue;
 					}
 					let value_from = html[opens_at..until]

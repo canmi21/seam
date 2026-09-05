@@ -127,12 +127,10 @@ export function spread(
 	const empty: ReadonlySet<unknown> = new Set();
 	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
 	if (!attributes.some((one) => isNode(one) && one['type'] === 'SpreadAttribute')) return empty;
-	if (node['type'] !== 'RegularElement') {
-		refuse(
-			'`{...}` on a `<svelte:element>` is not handled yet: the tag and the attributes are each ' +
-				'decided per request, and only one of the two is written',
-		);
-	}
+	// A `<svelte:element>` too: `$.element()` calls the same `$.attributes` inside the function it
+	// is given for the attributes, and the stand-in tag the render is given keeps the namespace and
+	// the flags what the author's tag would decide. The run is a hole inside the element block.
+	if (node['type'] !== 'RegularElement' && node['type'] !== 'SvelteElement') return empty;
 
 	// The object, in the order `build_spread_object` builds it: every attribute and every spread,
 	// as written, left to right.

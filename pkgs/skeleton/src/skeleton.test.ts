@@ -1515,6 +1515,19 @@ const accepted: Case[] = [
 			{ r: {}, t: false, c: null, y: null, w: null, m: null },
 		],
 	},
+	{
+		// `$.element()` writes the tag and calls the same `$.attributes` for the run, so the run is
+		// a hole inside the element block, hash and flags read back as on a written element.
+		name: 'svelte:element with a spread',
+		source:
+			`${PROPS}<svelte:element this={data.tag} {...data.r} id="x" class:on={data.t}>c</svelte:element>` +
+			'<svelte:element this={data.tag} {...data.r} /><style>div { color: red }</style>',
+		data: [
+			{ tag: 'div', r: { a: '1' }, t: true },
+			{ tag: 'br', r: {}, t: false },
+			{ tag: 'p', r: { class: 'q' }, t: false },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.

@@ -560,7 +560,12 @@ hash and the flags around them, and the objects built from the source -- each ex
 scope it was written in -- go into those slots when the call is read back. An attribute mixing
 text with an expression is one value once the attributes are merged, and it is the template
 `build_attribute_value` builds, with nothing for null and undefined. A `style:` written short
-beside a spread stays refused: the name is a local this pass has no node to expand.
+beside a spread stays refused: the name is a local this pass has no node to expand. `{...}` on a
+`<svelte:element>` used to be refused too, as a tag and attributes each decided per request; it is
+the same call again. `$.element()` writes the tag and calls the same `$.attributes` inside the
+function it is given for the attributes, and the stand-in tag the render is given keeps the
+namespace and the flags what the author's tag decides, so the run is a hole inside the element
+block the dynamic tag already is.
 
 ## A component call has no boundary, and Svelte's answer is that it never needed one
 
