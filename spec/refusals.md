@@ -1067,7 +1067,10 @@ so `bind:value={v}` writes exactly what `value={v}` writes. On a component,
 getter runs while the bytes are written. **So the rewrite is the whole of it**: `bind:NAME={expr}`
 becomes `NAME={expr}` in the source, before any other pass reads the file, and nothing downstream
 knows there was ever a binding. A boolean one lands on `presence` exactly as a written attribute
-does, which was already there.
+does, which was already there. A getter and a setter, `bind:value={get, set}`, is the same rewrite
+with the getter called: `element.js` writes `b.call(expression.expressions[0])` where the value
+goes, `component.js` a getter returning that call, and the setter is never run while bytes are
+written. Svelte itself refuses the pair on `bind:group`, so the group rewrite never meets one.
 
 Everything the visitor drops is dropped, from the same reading: `bind:this`, the forty the table
 marks, and `bind:value` on a `<select>` or on a file input, both of which it skips because the

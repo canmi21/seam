@@ -44,7 +44,6 @@ this order, one commit each:
 
 | construct | what Svelte does, and where | what ours does |
 | --- | --- | --- |
-| `bind:value={get, set}` | `shared/element.js` reads `get()` on the server | the value is that call, an expression |
 | `<select defaultValue>` | the same path as `value` in `RegularElement.js` | the same choice hole |
 | `bind:innerHTML` with children | `RegularElement.js:179`: the body only when the binding is falsy | two outcomes, an if |
 | `<svelte:boundary pending={p}>` | `SvelteBoundary.js`: an attribute and a `{#snippet pending()}` are one thing | the attribute's snippet is the pending body |

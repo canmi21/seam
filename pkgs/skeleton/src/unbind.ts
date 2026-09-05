@@ -41,14 +41,12 @@ export function unbound(source: string): string {
 			const tag = typeof inside['name'] === 'string' ? inside['name'] : '';
 			const onElement = inside['type'] === 'RegularElement' || inside['type'] === 'SvelteElement';
 
-			// A get/set pair. The server calls the getter and writes what it returns, which is a
-			// rewrite this has not been taught.
-			if (isNode(node['expression']) && node['expression']['type'] === 'SequenceExpression') {
-				refuse(
-					`\`bind:${name}\` with a getter and a setter is not handled yet: the server calls ` +
-						'the getter and writes what it returns',
-				);
-			}
+			// A get/set pair. `element.js` writes `b.call(expression.expressions[0])` where the
+			// value goes, and `component.js` a getter that returns the same call, so the value is
+			// the getter called and the setter is never run while bytes are written. Svelte refuses
+			// the pair on `bind:group` itself, so that rewrite below never meets one.
+			const pair =
+				isNode(node['expression']) && node['expression']['type'] === 'SequenceExpression';
 
 			// A select's `bind:value` is not dropped: the visitor skips it as an attribute, but the
 			// renderer still reads it as what the options compare themselves against, so it is
@@ -57,7 +55,14 @@ export function unbound(source: string): string {
 				name === 'this' ||
 				OMITTED_IN_SSR.has(name) ||
 				(onElement && name === 'value' && fileInput(inside));
-			const expression = value === null ? '' : source.slice(value[0], value[1]);
+			let expression = value === null ? '' : source.slice(value[0], value[1]);
+			if (pair && isNode(node['expression'])) {
+				const [getter] = Array.isArray(node['expression']['expressions'])
+					? node['expression']['expressions']
+					: [];
+				const at = span(getter);
+				expression = at === null ? '' : `(${source.slice(at[0], at[1])})()`;
+			}
 
 			if (dropped) {
 				if (at !== null) edits.push([at[0], at[1], '']);

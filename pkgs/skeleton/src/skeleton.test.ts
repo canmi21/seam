@@ -1404,6 +1404,21 @@ const accepted: Case[] = [
 			{ d: 'E', rows: [], pairs: [] },
 		],
 	},
+	{
+		// `element.js` writes `b.call(expression.expressions[0])` where the value goes and
+		// `component.js` a getter returning the same call: the getter, called, and the setter never
+		// run while bytes are written.
+		name: 'a binding with a getter and a setter',
+		source:
+			'<script>let { data } = $props(); let v = $state(data.a); const get = () => data.b;</script>' +
+			'<input bind:value={() => data.a, (x) => v = x} />' +
+			'<input type="checkbox" bind:checked={get, () => {}} />' +
+			'<textarea bind:value={() => data.a, () => {}}></textarea>',
+		data: [
+			{ a: 'r', b: true },
+			{ a: '<&', b: false },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
