@@ -1285,6 +1285,16 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A name written in a type position is not a read, and a substitution written there is not
+		// TypeScript: `T[k as keyof typeof T]` expanded `T` inside the `typeof` and stopped parsing.
+		name: 'a substitution beside a type',
+		source:
+			'<script lang="ts">let { data }: { data: { k: string } } = $props();' +
+			" const T = { a: 'A', b: 'B' } as const; const v = T[data.k as keyof typeof T];" +
+			'</script><p>{v}</p>',
+		data: [{ k: 'a' }, { k: 'b' }],
+	},
+	{
 		// The key is the client's. Svelte's server never evaluates it and writes the fragment between
 		// two empty comments, which are not a block, so the body is walked as if the key were not
 		// there. Holding a block and a value, because that is what the fragment may hold.
@@ -1349,13 +1359,14 @@ const refused: Case[] = [
 		source: `${PROPS}<p class={data.a} class:on={data.f}>x</p>`,
 	},
 	{
-		// The same, chosen by a value the request decides: which component is a structure, and one
-		// picked per request is not enumerable.
+		// The same, chosen by a value the request decides through a table: which component is a
+		// structure, and one looked up per request is not enumerable. A `?:` would be, the way one
+		// handed to a package is, and stops the walk to ask instead.
 		name: 'a dynamic component chosen by the request',
 		beside: { Ay2: '<i>A</i>', Bee2: '<b>B</b>' },
 		source:
 			"<script>import Ay2 from './Ay2.svelte'; import Bee2 from './Bee2.svelte'; let { data } = $props();" +
-			' const Pick = $derived(data.f ? Ay2 : Bee2);</script><Pick />',
+			' const ICONS = { a: Ay2, b: Bee2 }; const Pick = $derived(ICONS[data.k]);</script><Pick />',
 		says: 'chooses a component',
 	},
 	{

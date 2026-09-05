@@ -167,6 +167,13 @@ whichever was read last. press does this with paraglide's messages, `import * as
 `import { m }` in another, which are the same functions through two bindings; the sample copy is
 normalised to one form, and press itself is told.
 
+**A type is not a read.** `T[p as keyof typeof T]` reads `p` and `T`, and names `T` a second time
+in a position only the type checker looks at. Substitution wrote the object literal there too,
+and `keyof typeof ({ ... })` is not TypeScript, so the expression stopped parsing and a component
+that chose an icon by it was refused as choosing per request. The scan that finds what an
+expression reads, and the one that finds the fixed paths in it, now step through the wrappers --
+`as`, `satisfies`, `!` -- to the expression inside and into no other TypeScript node.
+
 **Every derivation is JavaScript by the time it is evaluated.** A component written with `<script
 lang="ts">` writes its expressions with annotations and `as` in them, and the walk copies them as
 written, because a derivation is the author's source recorded rather than rewritten. Svelte strips

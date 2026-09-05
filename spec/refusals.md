@@ -1640,6 +1640,14 @@ question, so a choice between choices comes out as a tree. It is `settle` in `pk
 first draft enumerated every ternary in an opaque prop, which turned link cards and the language
 switcher away for a choice between two strings that had always compiled.
 
+
+**And not one whose test the request does not decide.** `code === preferred ? Compass :
+markFor(current)` with `code` fixed is a choice Svelte can make in the render, and it was being
+enumerated anyway: one structure per constant choice, the second the first again, on every route
+that carries the switcher. A ternary is enumerated when its test varies with the request; one
+that does not is left to Svelte the way any inert expression is, and only what is inside its
+branches is looked at.
+
 ### Where the branch goes, because a component call has no anchor
 
 A `class:` decision is joined where its attribute sits, because lowering can find the attribute in

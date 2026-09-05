@@ -118,6 +118,16 @@ export function reads(
 		return;
 	}
 
+	// A type is not a read. `x as keyof typeof T` reads `x` and names `T` in a position that
+	// only the type checker looks at -- and a substitution written there is not TypeScript at
+	// all, which is how `SUMMARY_PROVIDERS[p as keyof typeof SUMMARY_PROVIDERS]` came to expand
+	// into `typeof ({ ... })` and stop parsing. The wrappers keep their expression; a type
+	// annotation, argument or parameter keeps nothing.
+	if (typeof type === 'string' && type.startsWith('TS')) {
+		if (WRAPS.has(type)) reads(node['expression'], scope, visit);
+		return;
+	}
+
 	for (const value of Object.values(node)) {
 		if (Array.isArray(value)) {
 			for (const child of value) reads(child, scope, visit);
@@ -126,6 +136,15 @@ export function reads(
 		}
 	}
 }
+
+/** The TypeScript nodes that wrap an expression, as against the ones that are types. */
+const WRAPS: ReadonlySet<string> = new Set([
+	'TSAsExpression',
+	'TSSatisfiesExpression',
+	'TSNonNullExpression',
+	'TSTypeAssertion',
+	'TSInstantiationExpression',
+]);
 
 /**
  * Every member chain of plain names in an expression, with where it sits and what it spells.
@@ -147,6 +166,12 @@ export function chains(
 		return;
 	}
 	if (!isNode(node)) return;
+	// A type is not a chain either. See `reads`.
+	const type = node['type'];
+	if (typeof type === 'string' && type.startsWith('TS')) {
+		if (WRAPS.has(type)) chains(node['expression'], visit);
+		return;
+	}
 
 	if (node['type'] === 'MemberExpression') {
 		const rest: string[] = [];

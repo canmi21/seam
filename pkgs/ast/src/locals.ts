@@ -498,12 +498,17 @@ function conditional(node: unknown, dynamic: ReadonlySet<string>): Spans | null 
 	if (!isNode(node)) return null;
 	const type = node['type'];
 	if (type === 'ArrowFunctionExpression' || type === 'FunctionExpression') return null;
-	if (type === 'ConditionalExpression') {
-		if (!chooses(node, dynamic)) return null;
-		const spans = [node, node['test'], node['consequent'], node['alternate']].map(where);
-		const [whole, test, consequent, alternate] = spans;
-		if (whole && test && consequent && alternate) return [whole, test, consequent, alternate];
-		return null;
+	if (type === 'ConditionalExpression' && chooses(node, dynamic)) {
+		// A test the request does not decide is a value the render can evaluate, so the whole
+		// ternary is left to Svelte the way any inert expression is, and only what is inside its
+		// branches is looked at. Enumerating it cost a structure per constant choice -- press's
+		// switcher had one on every route -- and the second structure was the first again.
+		if (varies(node['test'], dynamic)) {
+			const spans = [node, node['test'], node['consequent'], node['alternate']].map(where);
+			const [whole, test, consequent, alternate] = spans;
+			if (whole && test && consequent && alternate) return [whole, test, consequent, alternate];
+			return null;
+		}
 	}
 	for (const value of Object.values(node)) {
 		const found = conditional(value, dynamic);
@@ -518,12 +523,17 @@ function chooses(node: Node, dynamic: ReadonlySet<string>): boolean {
 		if (!isNode(branch)) return false;
 		if (branch['type'] === 'ConditionalExpression') return chooses(branch, dynamic);
 		if (isLiteral(branch)) return false;
-		let varies = false;
-		reads(branch, new Set(), (at) => {
-			if (typeof at['name'] === 'string' && dynamic.has(at['name'])) varies = true;
-		});
-		return !varies;
+		return !varies(branch, dynamic);
 	});
+}
+
+/** Whether an expression reads a name the request decides. */
+function varies(node: unknown, dynamic: ReadonlySet<string>): boolean {
+	let found = false;
+	reads(node, new Set(), (at) => {
+		if (typeof at['name'] === 'string' && dynamic.has(at['name'])) found = true;
+	});
+	return found;
 }
 
 /**

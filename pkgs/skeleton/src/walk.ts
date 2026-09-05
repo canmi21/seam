@@ -1053,13 +1053,19 @@ function collect(node: unknown, walk: Walk): void {
 				if (whole !== null) {
 					const at: [number, number] = [whole[0] + 1, whole[0] + 1 + tag.length];
 					const written = expand({ type: 'Identifier', name: tag, start: at[0], end: at[1] });
-					if (mentions(written, dynamic)) {
+					// A `?:` in it chooses which component, the way one handed to a package chooses
+					// what is handed, and is enumerated the same way: the walk stops and asks, and the
+					// build renders once per branch. What the taken branch leaves has to be inert.
+					const held = settle(written, site.decided, dynamic);
+					if (held.undecided !== null) throw new Undecided(held.undecided);
+					if (mentions(held.text, dynamic)) {
 						refuse(
 							`\`<${tag}>\` chooses a component from a value the request decides, which is not ` +
-								'decided: a structure is enumerated, and this one is not enumerable',
+								'decided: a structure is enumerated, and this one is not enumerable. It stands ' +
+								`for \`${held.text.replace(/\s+/g, ' ').slice(0, 200)}\``,
 						);
 					}
-					edits.push([at[0], at[1], `svelte:component this={${written}}`]);
+					edits.push([at[0], at[1], `svelte:component this={${held.text}}`]);
 					const close = `</${tag}>`;
 					if (source.endsWith(close, whole[1])) {
 						edits.push([whole[1] - close.length, whole[1], '</svelte:component>']);
