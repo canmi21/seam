@@ -1284,18 +1284,18 @@ function collect(node: unknown, walk: Walk): void {
 					bound.set(id['name'], `(${value})`);
 					continue;
 				}
-				for (const [name, access] of destructure(id as never)) {
-					bound.set(name, `(${value})${access}`);
-				}
-				const all = new Set<string>();
-				namesIn(id, all);
-				const missing = [...all].filter((name) => !bound.has(name));
-				if (missing.length > 0) {
-					refuse(
-						`a \`{@const}\` binds ${missing.map((name) => `\`${name}\``).join(', ')} through a ` +
-							'default or a rest, which is neither a member nor an index of what it was ' +
-							'declared to be, so there is no way in to write down',
-					);
+				// Taken apart the way a snippet's parameter is: a member or an index per name, a
+				// default as the choice JavaScript makes, and a rest or a nesting refused by name. A
+				// default may read an earlier const, so it is expanded against what those bound.
+				const within: Locals['rewrite'] = (child, more) =>
+					expand(child, more === undefined ? bound : new Map([...bound, ...more]));
+				for (const [name, reached] of takenApart(
+					id as AstNode,
+					`(${value})`,
+					within,
+					() => 'a `{@const}`',
+				)) {
+					bound.set(name, reached);
 				}
 			}
 

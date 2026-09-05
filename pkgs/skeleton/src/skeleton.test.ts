@@ -1573,6 +1573,21 @@ const accepted: Case[] = [
 		fixed: { 'data.k': '"zz"' },
 		data: [{ k: 'zz', x: '2' }],
 	},
+	{
+		// `ConstTag.js` is one visitor for every shape: a destructuring, a default inside it, one
+		// const reading another, one reading two parameters, and one inside an each inside the
+		// snippet, all scoped to the block they sit in.
+		name: 'const shapes inside a snippet with parameters',
+		source:
+			`${PROPS}{#snippet row(v, n = 1)}{@const { a, b = 'd' } = v}{@const sum = a.length + n}` +
+			'{@const [first] = a}<i>{a}{b}{sum}{first}</i>' +
+			'{#each v.xs as x}{@const y = x + n}<u>{y}</u>{/each}{/snippet}' +
+			'{@render row(data.v)}{@render row(data.w, 2)}',
+		data: [
+			{ v: { a: 'ab', xs: [1, 2] }, w: { a: 'c', b: 'B', xs: [] } },
+			{ v: { a: '', xs: [] }, w: { a: 'x<', b: null, xs: [3] } },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.

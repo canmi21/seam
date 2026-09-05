@@ -355,8 +355,11 @@ time, which is the whole reason this stage exists.
 Svelte's server compiles `{@const x = e}` to `const x = e` in the block it sits in, so it is a
 declaration whose scope is that block rather than the script. It substitutes like any other: the
 name stands for its initialiser wherever the block's markup reads it, chained where one const reads
-another, and taken apart where it destructures -- the same function a destructured declaration
-uses. A default or a rest has no way in and is refused by name.
+another, and taken apart where it destructures -- the same function a snippet's parameter uses,
+so a default inside the pattern is the choice JavaScript makes, `(v.b === undefined ? 'd' : v.b)`,
+expanded against what the earlier consts bound. A rest or a nesting has no way in and is refused
+by name. Measured inside a snippet with parameters: a destructuring, a default in it, a const
+reading another and reading two parameters, and one inside an each inside the snippet.
 
 The render is handed something in the initialiser's place, for the reason a declaration reading a
 prop already is: by then every read of it is a marker, and evaluating it would reach for data the

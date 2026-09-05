@@ -39,12 +39,14 @@ are both decided per structure, and a page's title beating its layout's in Svelt
 rather than the framework's. Needs no routing: the wrapper the oracle already builds gives the
 order.
 
-**Small, each a mechanism that exists used once more.** These are the ones being taken now, in
-this order, one commit each:
-
-| construct | what Svelte does, and where | what ours does |
-| --- | --- | --- |
-| `{@const}` in a snippet with parameters, more shapes | `ConstTag.js` is one visitor for all of them | unmeasured; measure, then take what fails |
+**The small ones are done.** Thirteen constructs, each a mechanism that already existed used once
+more, each read out of the visitor that writes it, measured with Node, written, checked and
+committed on its own: an each pattern's default, a getter binding, a select's `defaultValue`, a
+content binding with children, a boundary's snippets by attribute, extra render arguments, a
+class expression beside a directive, directives and mixed text beside a spread, a spread on
+`<svelte:element>`, `{@attach}`, a component chosen through a table, an each over a `Map` or a
+`Set`, and `{@const}` shapes inside a parameterised snippet. Each is recorded where its rule is,
+in [refusals.md](refusals.md) or [derivation.md](derivation.md).
 
 **Recursion in structure.** `<svelte:self>` is `build_inline_component(node, analysis.name)` in
 `SvelteSelf.js`, a call to the component itself, and a snippet rendering itself is the same call.
