@@ -750,15 +750,17 @@ const accepted: Case[] = [
 		// name resolved at compile time and threw `ReferenceError` at request time. Nothing in the
 		// compile said so, because the render never evaluates a derivation.
 		name: 'a child that calls a function it imported itself',
+		// Named `Calls` on purpose: another case has a `Calls` too, and staging each case in its own
+		// directory is what lets both exist. Renaming this one is how the collision was first dodged.
 		beside: {
-			Shouts:
-				"<script>import { shout } from './shout-helper.ts'; let { word } = $props();</script>" +
+			Calls:
+				"<script>import { shout } from './helper.ts'; let { word } = $props();</script>" +
 				'<b>{shout(word)}</b>',
 		},
-		alongside: { 'shout-helper.ts': 'export const shout = (v) => String(v).toUpperCase() + "!";' },
+		alongside: { 'helper.ts': 'export const shout = (v) => String(v).toUpperCase() + "!";' },
 		source:
-			"<script>import Shouts from './Shouts.svelte'; let { data } = $props();</script>" +
-			'<Shouts word={data.a} />',
+			"<script>import Calls from './Calls.svelte'; let { data } = $props();</script>" +
+			'<Calls word={data.a} />',
 		data: [{ a: 'x' }, { a: '<&' }],
 	},
 	{
@@ -1239,6 +1241,11 @@ const refused: Case[] = [
 	},
 ];
 
+/** Where one case's files go: its own directory under the staging root, named for the case. */
+function staged(at: string): string {
+	return resolve(staging, at);
+}
+
 /** Compiles one case, and says either what it produced or why it was turned away. */
 async function attempt(
 	one: Case,
@@ -1250,12 +1257,18 @@ async function attempt(
 	carried?: string;
 	refusal?: string;
 }> {
-	const file = resolve(staging, `${at}.svelte`);
+	// A directory of its own per case. The siblings a case writes are named by the case, and two
+	// cases naming a sibling alike in one directory made the later one overwrite the earlier --
+	// silently, and read as an oracle rendering the wrong component. Three times before it was
+	// found; the third was a `Calls.svelte` in two cases.
+	const dir = staged(at);
+	mkdirSync(dir, { recursive: true });
+	const file = resolve(dir, 'entry.svelte');
 	for (const [name, source] of Object.entries(one.beside ?? {})) {
-		writeFileSync(resolve(staging, `${name}.svelte`), source);
+		writeFileSync(resolve(dir, `${name}.svelte`), source);
 	}
 	for (const [name, source] of Object.entries(one.alongside ?? {})) {
-		writeFileSync(resolve(staging, name), source);
+		writeFileSync(resolve(dir, name), source);
 	}
 	writeFileSync(file, one.source);
 	try {
@@ -1308,8 +1321,9 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 		const { ir, derivations, carried, refusal } = await attempt(one, `ok-${at}`);
 		expect(refusal, 'it was refused instead, so the surface has moved').toBeUndefined();
 
-		const file = resolve(staging, `ok-${at}.svelte`);
-		const out = resolve(staging, `ok-${at}.js`);
+		const dir = staged(`ok-${at}`);
+		const file = resolve(dir, 'entry.svelte');
+		const out = resolve(dir, 'entry.js');
 		// The same `rootDir` the compiler used. Svelte hashes the filename, relative to it, into a
 		// head anchor and into a scoped class, so an oracle rooted elsewhere renders a different
 		// component. See spec/build.md.
@@ -1324,11 +1338,11 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 		// only the entry: a child of a child imports its own.
 		const siblings = Object.entries(one.beside ?? {}).map(([name, source]) => ({
 			name,
-			at: resolve(staging, `${name}.js`),
+			at: resolve(dir, `${name}.js`),
 			code: compile(source, {
 				generate: 'server',
 				name,
-				filename: resolve(staging, `${name}.svelte`),
+				filename: resolve(dir, `${name}.svelte`),
 				rootDir: staging,
 			}).js.code,
 		}));
