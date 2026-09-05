@@ -159,7 +159,10 @@ export async function prepare(
 		source,
 		markup,
 		skeleton: rendered,
-		carried: await carry(entry, [...carriedBy([entry, ...rendered.entered]), ...helpers(rendered)]),
+		carried: await carry(entry, [
+			...carriedBy([entry, ...rendered.entered.map((one) => resolve(root, one))]),
+			...helpers(rendered),
+		]),
 	};
 }
 

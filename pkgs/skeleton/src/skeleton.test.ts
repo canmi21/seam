@@ -1282,7 +1282,7 @@ async function attempt(
 			// Gathered by the function the build gathers with, over the same files, so what the
 			// check runs is what a page runs rather than a second arrangement of the same parts.
 			carried: await carry(file, [
-				...carriedBy([file, ...rendered.entered]),
+				...carriedBy([file, ...rendered.entered.map((one) => resolve(staging, one))]),
 				...(rendered.holes.some((hole) => hole.spread === true)
 					? [{ local: 'attributes', from: 'svelte/internal/server', kind: 'named' } as const]
 					: []),

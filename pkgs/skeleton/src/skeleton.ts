@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { basename, resolve as resolvePath } from 'node:path';
+import { basename, relative, resolve as resolvePath } from 'node:path';
 import { parse } from 'svelte/compiler';
 import { resolved } from 'ast';
 import { partial } from './compose.ts';
@@ -204,7 +204,9 @@ export async function skeleton(
 		holes: baseline.holes,
 		blocks: baseline.blocks,
 		// One entry per file rather than per call site: two calls of one component carry the same
-		// imports, and what is wanted here is which modules the bundle has to reach.
-		entered: [...new Set(baseline.copies.map((copy) => copy.file))],
+		// imports, and what is wanted here is which modules the bundle has to reach. Relative to the
+		// root, because this is written into a fixture two machines have to agree on, and an
+		// absolute path says which machine built it.
+		entered: [...new Set(baseline.copies.map((copy) => relative(root, copy.file)))],
 	};
 }

@@ -151,7 +151,7 @@ export interface Skeleton {
 	holes: Hole[];
 	blocks: Block[];
 	/**
-	 * Every component the walk went inside, as absolute paths.
+	 * Every component the walk went inside, as paths relative to the root the render was given.
 	 *
 	 * A child the walk entered has its own expressions become derivations in the entry's artifact,
 	 * so what those expressions call has to be in the entry's carried bundle -- and the list of
