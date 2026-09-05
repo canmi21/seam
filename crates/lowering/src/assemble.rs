@@ -184,6 +184,16 @@ impl Assembler<'_> {
 						.find('"')
 						.ok_or_else(|| format!("attribute `{name}` is never closed"))?
 						+ value_from;
+					// A hole that is the whole attribute: `attr_class(...)` writes the space, the
+					// name and the value, or nothing, so the run from the space to the closing quote
+					// is one raw value.
+					if self.skeleton.holes.get(index).is_some_and(|hole| hole.whole) {
+						let (expression, _, files) = self.hole(index)?;
+						let path = self.path(&expression, &files)?;
+						out.push(ir::Node::Slot { path, escape: ir::Escape::Raw, fresh: false });
+						at = close + 1;
+						continue;
+					}
 					// A decision owns the whole attribute, including the space before its name and
 					// the scoping hash Svelte appended inside it, because each outcome already holds
 					// what Svelte would have written -- up to and including writing nothing at all.

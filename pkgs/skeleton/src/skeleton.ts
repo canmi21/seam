@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { basename, relative, resolve as resolvePath } from 'node:path';
 import { parse } from 'svelte/compiler';
-import { resolved } from 'ast';
+import { type Carried, resolved } from 'ast';
 import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
 import { type AstNode, titles } from './node.ts';
@@ -306,6 +306,37 @@ export function expressionsOf(rendered: Skeleton): { expression: string; files: 
 		for (const expression of [block.expression, ...(block.tests ?? [])]) {
 			found.push({ expression, files });
 		}
+	}
+	return found;
+}
+
+/**
+ * Svelte's own functions a component's expressions call, which the author did not import.
+ *
+ * `attributes` writes the whole of an element's attributes from an object, which is what a `{...}`
+ * needs and what cannot be enumerated at compile time; `attr_class` writes the whole of a class
+ * attribute beside a `class:` directive; `clsx` is what the analysis wraps a class value in when it
+ * may be an array or an object. Each goes in the carried bundle beside the author's own imports, so
+ * both backends run **Svelte's implementation** rather than agreeing about a rule: nothing here
+ * reproduces the merging, the escaping, the boolean names, the `defaultValue` mapping on an input
+ * or the case rules for a namespaced element. `attributes` measured at 17 kB bundled, with its only
+ * host references optionally chained off `globalThis`, so an evaluator with no host reads them as
+ * undefined rather than failing. See spec/refusals.md.
+ *
+ * Here rather than in the compiler so that the check gathers with the function the build gathers
+ * with, over the same holes.
+ */
+export function helpers(rendered: Skeleton): Carried[] {
+	const found: Carried[] = [];
+	const from = 'svelte/internal/server';
+	if (rendered.holes.some((one) => one.spread === true)) {
+		found.push({ local: 'attributes', from, kind: 'named' });
+	}
+	if (rendered.holes.some((one) => one.whole === true)) {
+		found.push({ local: 'attr_class', from, kind: 'named' });
+	}
+	if (rendered.holes.some((one) => one.expression.includes('clsx('))) {
+		found.push({ local: 'clsx', from, kind: 'named' });
 	}
 	return found;
 }

@@ -28,7 +28,7 @@ import {
 	type Run,
 	type Structure,
 } from './variants.ts';
-import { expressionsOf, skeleton, type Skeleton, Undecided } from 'skeleton';
+import { expressionsOf, helpers, skeleton, type Skeleton, Undecided } from 'skeleton';
 
 /**
  * One route: the URL it answers at, and the component the document is rendered from.
@@ -101,22 +101,6 @@ export interface Report {
 	files: string[];
 	/** How many expressions this component has to have evaluated per request. */
 	derivations: number;
-}
-
-/**
- * Svelte's own functions a component's expressions call, which the author did not import.
- *
- * `attributes` writes the whole of an element's attributes from an object, which is what a `{...}`
- * needs and what cannot be enumerated at compile time. It goes in the carried bundle beside the
- * author's own imports, so both backends run **Svelte's implementation** rather than agreeing
- * about a rule: nothing here reproduces the merging, the escaping, the boolean names, the
- * `defaultValue` mapping on an input or the case rules for a namespaced element. Measured at 17 kB
- * bundled, with its only host references optionally chained off `globalThis`, so an evaluator with
- * no host reads them as undefined rather than failing. See spec/refusals.md.
- */
-function helpers(skeleton: Skeleton): Carried[] {
-	if (!skeleton.holes.some((one) => one.spread === true)) return [];
-	return [{ local: 'attributes', from: 'svelte/internal/server', kind: 'named' }];
 }
 
 /** The id of a file, which is also where its artifacts sit under the output directory. */

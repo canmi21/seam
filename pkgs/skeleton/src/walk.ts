@@ -14,7 +14,14 @@ import {
 	readsOf,
 	settle,
 } from 'ast';
-import { classes, type PendingChoice, type PendingSpread, spread, styles } from './attributes.ts';
+import {
+	classes,
+	clsxed,
+	type PendingChoice,
+	type PendingSpread,
+	spread,
+	styles,
+} from './attributes.ts';
 import {
 	hands,
 	identity,
@@ -1330,7 +1337,7 @@ function collect(node: unknown, walk: Walk): void {
 			// inside its outcomes. The hash is read off the render, where the marker stands as the
 			// whole value. See `outcomes()`.
 			if (walk.classValue === true) {
-				holes.push({ index, expression: written, raw: false });
+				holes.push({ index, expression: clsxed(node['expression'], () => written), raw: false });
 				const choice = holes.length;
 				const test = `(${written}) == null || '' + (${written}) === ''`;
 				holes.push({

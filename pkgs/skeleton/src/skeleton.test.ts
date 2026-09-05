@@ -26,7 +26,7 @@ import { carriedBy, carry } from 'carry';
 import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject } from 'injector';
 import { lower } from 'lowering';
-import { expressionsOf, skeleton } from './skeleton.ts';
+import { expressionsOf, helpers, skeleton } from './skeleton.ts';
 
 // Its own directory: `skeleton()` stages Svelte's compiled output in `../.build` and removes it
 // when it is done, which would take this with it halfway through a case.
@@ -1469,6 +1469,37 @@ const accepted: Case[] = [
 			{ a: '<', b: null },
 		],
 	},
+	{
+		// `build_attr_class`: `$.attr_class($.clsx(value), hash, { on: t })`, one call whose result
+		// is the attribute or nothing, and a falsy directive removes its name from the value. The
+		// call is Svelte's own, carried, with the hash read off the render.
+		name: 'class: beside a class attribute that is an expression',
+		source:
+			`${PROPS}<b class={data.c} class:on={data.t}>x</b>` +
+			'<i class={[data.c, "k"]} class:on={data.t} class:off={!data.t}>y</i>' +
+			'<u class="a {data.c}" class:on={data.t}>z</u>' +
+			'<em class={data.c} class:on={data.t}>w</em>' +
+			'<style>b { color: red } i { color: blue }</style>',
+		data: [
+			{ c: 'on p', t: true },
+			{ c: 'on p', t: false },
+			{ c: null, t: false },
+			{ c: 'q', t: true },
+		],
+	},
+	{
+		// `class={[...]}` and `class={{...}}` go through `clsx` in Svelte's own output, and so does
+		// a bare name, which may hold either.
+		name: 'a class that is an array or an object',
+		source:
+			`${PROPS}<b class={[data.c, 'k', data.t && 'on']}>x</b><i class={{ on: data.t, off: !data.t }}>y</i>` +
+			'<u class={data.c}>z</u><style>b { color: red } i { color: blue }</style>',
+		data: [
+			{ c: 'p', t: true },
+			{ c: ['q', 'r'], t: false },
+			{ c: null, t: false },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
@@ -1484,12 +1515,6 @@ const refused: Case[] = [
 			`${PROPS}<table><tbody>{#each data.rows as r}<tr class="x"><td>{r}</td></tr>{/each}` +
 			'<tr class="y"><td>last</td></tr></tbody></table><style>.x + .y { color: red }</style>',
 		says: 'scoping class',
-	},
-	{
-		// A directive removes its own name from the class it was given, so which bytes exist is
-		// decided by a string that only exists per request. See spec/refusals.md.
-		name: 'class: beside a class attribute that is an expression',
-		source: `${PROPS}<p class={data.a} class:on={data.f}>x</p>`,
 	},
 	{
 		// The same, chosen by a value the request decides through a table: which component is a
@@ -1636,15 +1661,7 @@ async function attempt(
 			// check runs is what a page runs rather than a second arrangement of the same parts.
 			carried: await carry(
 				file,
-				new Map([
-					...carriedBy(staging, expressionsOf(rendered)),
-					[
-						'*',
-						rendered.holes.some((hole) => hole.spread === true)
-							? [{ local: 'attributes', from: 'svelte/internal/server', kind: 'named' } as const]
-							: [],
-					],
-				]),
+				new Map([...carriedBy(staging, expressionsOf(rendered)), ['*', helpers(rendered)]]),
 			),
 		};
 	} catch (error) {

@@ -242,6 +242,19 @@ export async function outcomes(
 					'none of it, so there is nothing here to choose between',
 			);
 		}
+		// The value is the request's, so nothing is enumerated: the hole is Svelte's own call with
+		// the hash the render showed, and the directives as the tests they are.
+		if (one.kind === 'expression') {
+			const hole = holes[one.index];
+			if (hole === undefined) continue;
+			const directives = one.names
+				.map((name, at) => `${JSON.stringify(name)}: (${String(one.tests[at])})`)
+				.join(', ');
+			hole.expression =
+				`attr_class(${String(one.written)}, ${hash === undefined ? 'undefined' : JSON.stringify(hash)}, ` +
+				`{ ${directives} })`;
+			continue;
+		}
 		const table: string[] = [];
 		if (one.kind === 'value') {
 			// `to_class` in `internal/shared/attributes.js`: the value and the hash with a space

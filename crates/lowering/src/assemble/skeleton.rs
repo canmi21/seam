@@ -36,6 +36,12 @@ pub struct Hole {
 	/// the request, so what is written is one finished run and it is already escaped.
 	#[serde(default)]
 	pub spread: bool,
+	/// The whole of one attribute rather than its value: the space, the name and the value, or
+	/// nothing. A class written as an expression beside a `class:` directive is `attr_class(value,
+	/// hash, directives)`, one call whose result is that attribute or the empty string, and it is
+	/// carried the way `attributes` is. See `spec/refusals.md`.
+	#[serde(default)]
+	pub whole: bool,
 	/// The anchor of a `$props.id()`, whose value the runtime counts out. `expression` is then
 	/// the name the id is bound under. See `pkgs/skeleton/src/fresh.ts`.
 	#[serde(default)]

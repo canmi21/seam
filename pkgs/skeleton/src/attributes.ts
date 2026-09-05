@@ -42,9 +42,15 @@ export interface PendingChoice {
 	 * writes the value and the hash with a space between, or the hash alone when the value is
 	 * empty, which is a decision on the value with the value inside one of its outcomes.
 	 */
-	kind: 'class' | 'style' | 'value';
+	kind: 'class' | 'style' | 'value' | 'expression';
 	/** For `value`: the hole standing for the class's value, which the non-empty outcome holds. */
 	value?: number;
+	/**
+	 * For `expression`: the class's value as one expression, with `clsx` around it where Svelte's
+	 * analysis puts one. The hole's expression is `attr_class` of it, the hash and the directives,
+	 * written once the render has said what the hash is.
+	 */
+	written?: string;
 	names: string[];
 	/** The attribute as written, or the empty string where there was none. */
 	base: string;
@@ -237,30 +243,36 @@ export function classes(
 		(one) => isNode(one) && one['type'] === 'Attribute' && one['name'] === 'class',
 	);
 	let base = '';
+	let written: string | undefined;
 	if (isNode(attribute)) {
 		const value = attribute['value'];
 		const parts = value === true ? [] : Array.isArray(value) ? value : [value];
-		if (!parts.every((part) => isNode(part) && part['type'] === 'Text')) {
-			refuse(
-				'`class:` beside a `class` whose value is an expression is not handled yet: a falsy ' +
-					'directive removes its own name from that value, so which bytes exist is decided by a ' +
-					'string that only exists per request. Writing the whole class as one expression, ' +
-					'`class={...}` with no directive beside it, is a substitution, and that is handled',
-			);
+		if (parts.every((part) => isNode(part) && part['type'] === 'Text')) {
+			base = parts.map((part) => String((part as AstNode)['data'] ?? '')).join('');
+		} else {
+			// A value the request writes: `build_attr_class` hands it to `to_class` with the hash and
+			// the directives, and a falsy directive removes its own name from it, so the outcome is
+			// a string that exists per request. The call is Svelte's own, carried, with the value as
+			// `build_attribute_value` builds it: one expression through `clsx` where the analysis
+			// says it needs one, or a template literal where text stands beside it.
+			const [only] = parts;
+			written =
+				parts.length === 1 && isNode(only) && only['type'] === 'ExpressionTag'
+					? clsxed(only['expression'], expand)
+					: joined(parts, expand);
 		}
-		base = parts.map((part) => String((part as AstNode)['data'] ?? '')).join('');
 	}
 
 	const index = holes.length;
 	const tests = directives.map((one) => expand(one['expression']));
-	holes.push({ index, expression: '', raw: false, choice: { tests, outcomes: [] } });
-	pending.push({
-		index,
-		tests,
-		kind: 'class',
-		names: directives.map((one) => String(one['name'])),
-		base,
-	});
+	const names = directives.map((one) => String(one['name']));
+	if (written === undefined) {
+		holes.push({ index, expression: '', raw: false, choice: { tests, outcomes: [] } });
+		pending.push({ index, tests, kind: 'class', names, base });
+	} else {
+		holes.push({ index, expression: '', raw: true, whole: true });
+		pending.push({ index, tests, kind: 'expression', names, base, written });
+	}
 
 	// The marker is appended to the class rather than put in place of it, and the directives stay
 	// where they are. Both matter, and neither was obvious: whether Svelte scopes an element is
@@ -278,7 +290,11 @@ export function classes(
 	}
 	const marker = sentinel(index);
 	const at = span(attribute);
-	if (at !== null) {
+	if (at !== null && written !== undefined) {
+		// As one expression the analysis cannot read, so the element stays scoped as the author's
+		// expression left it, and the hash follows the marker the way it follows the value.
+		edits.push([at[0], at[1], `class={(0, ${JSON.stringify(marker)})}`]);
+	} else if (at !== null) {
 		edits.push([at[0], at[1], `class="${base === '' ? marker : `${base} ${marker}`}"`]);
 	} else {
 		// Where Svelte's own invented one goes, which is after every attribute that was written.
@@ -308,6 +324,20 @@ export function classes(
  *
  * @returns the attributes this took charge of, which the caller must not walk again.
  */
+/**
+ * A class value as one expression, through `clsx` where Svelte puts one.
+ *
+ * `2-analyze/visitors/Attribute.js`: `class={x}` needs `clsx` to resolve arrays and objects unless
+ * the expression is a literal, a template or a binary expression, which can only be a string.
+ */
+export function clsxed(expression: unknown, expand: Locals['rewrite']): string {
+	const type = isNode(expression) ? expression['type'] : undefined;
+	const written = `(${expand(expression)})`;
+	if (type === 'Literal' || type === 'TemplateLiteral' || type === 'BinaryExpression')
+		return written;
+	return `clsx(${written})`;
+}
+
 /**
  * Text and expressions joined the way `build_attribute_value` joins them: a template literal, with
  * `$.stringify` around each expression -- a string as it is, null and undefined as nothing,

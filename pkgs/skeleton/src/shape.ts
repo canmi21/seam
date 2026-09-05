@@ -50,6 +50,14 @@ export interface Hole {
 	 */
 	spread?: true;
 	/**
+	 * The whole of one attribute rather than its value. A class written as an expression beside a
+	 * `class:` directive is `attr_class(value, hash, directives)`, one call whose result is the
+	 * attribute -- space, name and value -- or nothing, carried the way `attributes` is. The
+	 * expression is finished after the render, which is where the hash comes from. See
+	 * `outcomes()`.
+	 */
+	whole?: true;
+	/**
 	 * Allowed not to come back, because it was planted in markup a component does not render.
 	 *
 	 * Set only on positive evidence, never on absence: the same render is made a second time with

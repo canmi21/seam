@@ -1692,12 +1692,22 @@ is no longer selected, the render carried no hash, and there was none to read. S
 false, which leaves the analysis seeing what it would have seen and the hash as the whole of what
 follows the marker.
 
-### What is still refused
+### `class={expr}` beside a directive is Svelte's own call, carried
 
-`class={expr}` beside a directive. The falsy branch removes the directive's name from that value,
-so which bytes exist is decided by a string that only exists per request. Writing the whole class
-as one expression, with no directive beside it, is a substitution and has always worked -- which is
-what nearly every library does anyway, per the count in [ir.md](ir.md).
+It used to be refused here: the falsy branch removes the directive's name from that value, so which
+bytes exist is decided by a string that only exists per request. That is true, and it is not a
+reason to enumerate. `build_attr_class` compiles the element to `$.attr_class($.clsx(value), hash,
+{ on: t })`, one call whose result is the whole attribute -- space, name and value -- or the empty
+string, and `attr_class`, `clsx` and `to_class` are pure functions in `internal/shared/attributes.js`.
+So the hole is that call, with the value as `build_attribute_value` builds it (through `clsx` where
+`2-analyze/visitors/Attribute.js` says a value needs one, which is anything but a literal, a template
+or a binary expression; a template literal where text stands beside it), the hash read off the
+render the way a `class:` decision reads it, and the directives as the tests they are. The hole
+owns the whole attribute, which is one more thing the assembler knows about a marker landing in one
+(`whole` on the hole), and the two functions go in the carried bundle beside `attributes`, so both
+backends run Svelte's implementation of the removal rule rather than agreeing about one. The same
+`clsx` now wraps a class written as one expression with no directive beside it, which used to write
+an array as its `toString`.
 
 ## A `?:` handed to a package chooses what is handed, and is enumerated
 
