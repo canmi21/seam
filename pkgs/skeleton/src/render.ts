@@ -3,7 +3,7 @@ import { realpathSync } from 'node:fs';
 import { compile } from 'svelte/compiler';
 import { resolveBare } from 'ast';
 import type { Rendered } from './shape.ts';
-import { ID_PREFIX, sentinel } from './sentinel.ts';
+import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, sentinel } from './sentinel.ts';
 import type { Copy } from './walk.ts';
 
 /**
@@ -90,6 +90,7 @@ export async function renderRewritten(
 		if (held !== undefined) return held;
 		const out = resolvePath(staging, `${basename(from, '.svelte')}-${generation}-${written++}.js`);
 		emitted.set(from, out);
+		if (code.includes(`${HEAD_OPEN}(`) || code.includes(`${HEAD_CLOSE}(`)) code = mirroring(code);
 		// Either quote. Svelte keeps the one the author wrote, so a component whose imports are
 		// double-quoted -- which is most of what a package ships -- had its relative specifiers
 		// left alone here and its neighbours looked for beside the staged file rather than beside
@@ -171,6 +172,34 @@ function real(path: string): string {
 	} catch {
 		return path;
 	}
+}
+
+/**
+ * The compiled component with the calls that stand a block in the head stream given the renderer.
+ *
+ * The walk writes `__seam_open(n)` in a `{@const}` at the start of each branch of the block and
+ * `__seam_close(n)` in an expression tag beside its stamp, so that the head carries anchors for the
+ * block where the body carries Svelte's own; see `mirrored()` in walk.ts. Both need the renderer
+ * the component was handed, which is a local of the compiled function and not something markup
+ * can name, so they are given it here. The open remembers itself so that the close can write an
+ * empty pair for a branch that ran no open: an if without an `{:else}` has no branch to hold one,
+ * and the render made with it not taken still has to hold the block.
+ */
+function mirroring(code: string): string {
+	const helpers =
+		'const __seam_opened = new Set();\n' +
+		`function ${HEAD_OPEN}($$renderer, block) { __seam_opened.add(block); ` +
+		"$$renderer.head((head) => head.push('<!--[-->')); }\n" +
+		`function ${HEAD_CLOSE}($$renderer, block) { const opened = __seam_opened.delete(block); ` +
+		"$$renderer.head((head) => head.push((opened ? '' : '<!--[-->') + '<!--]-->%%b' + String(block) + '%%')); " +
+		"return ''; }\n";
+	// Functions rather than strings, since `$$` in a replacement string is one `$`.
+	return (
+		helpers +
+		code
+			.replaceAll(`${HEAD_OPEN}(`, () => `${HEAD_OPEN}($$renderer, `)
+			.replaceAll(`${HEAD_CLOSE}(`, () => `${HEAD_CLOSE}($$renderer, `)
+	);
 }
 
 /** The call Svelte's server transform writes for `$props.id()`, first in the component's body. */

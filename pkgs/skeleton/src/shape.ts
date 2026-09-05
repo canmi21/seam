@@ -146,6 +146,14 @@ export interface Block {
 	counter?: string | null;
 	/** True when the if has an else, which decides whether its alternate holds anything. */
 	alternate: boolean;
+	/**
+	 * The body block this one stands in the head stream for. A headed component entered inside an
+	 * if or an each writes its head block where the body runs, once per branch taken or per item,
+	 * so the block exists in both streams; this is its head half. Bare, because the anchors the
+	 * render writes for it are the walk's own, and rendered once: its alternates are the body
+	 * half's. See `mirrored()` in walk.ts.
+	 */
+	mirrors?: number;
 	/** The files its expression and tests were written across, as a hole's. See `Hole.files`. */
 	files?: string[];
 	/**

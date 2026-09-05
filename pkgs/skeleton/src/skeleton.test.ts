@@ -1796,21 +1796,80 @@ const accepted: Case[] = [
 			{ tree: { label: '&', children: [] } },
 		],
 	},
-];
-
-// Each one is a gap rather than a boundary, and the message has to say which.
-const refused: Case[] = [
 	{
-		// `$.head` runs once per iteration, so the child writes one head block per item and the
-		// each would have to stand in the head stream too. It does not yet; the bytes used to come
-		// out one block short. See spec/roadmap.md.
+		// `$.head` runs where the component does, so a headed child inside an each writes one head
+		// block per item and one inside an if writes one per branch taken, and the head is a flat
+		// run of head blocks with nothing around the ones a block produced. The walk stands the
+		// block in the head stream as well: a `{@const}` at the start of each branch opens it and
+		// an expression tag beside the stamp closes it, neither touching the body's bytes. The head
+		// IR then carries the each and the if the body does. The last item's title wins, as the
+		// last head block executed. See `mirrored()` in walk.ts and spec/ir.md.
 		name: 'a component with a head inside an each',
+		beside: {
+			Kid: '<script>let { t } = $props();</script><svelte:head><meta name="k" content={t} /><title>K {t}</title></svelte:head>k{t}',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<svelte:head><title>A</title></svelte:head>\n{#each data.xs as x}\n\tx{x}<Kid t={x} />\n{/each}\n' +
+			'{#each data.ys as y}<p>{y}</p>{:else}<Kid t="none" />{/each}<p>{data.a}</p>',
+		data: [
+			{ xs: [1, 2], ys: ['q'], a: 'v' },
+			{ xs: [], ys: [], a: 'w' },
+			{ xs: ['<'], ys: [], a: '' },
+		],
+	},
+	{
+		// The same for an if: one head block on the branch that holds the child and none on the
+		// others, through an `{:else if}` chain and an if with no else, whose render not taken has
+		// to hold the block all the same.
+		name: 'a component with a head inside a branch',
 		beside: {
 			Kid: '<script>let { t } = $props();</script><svelte:head><meta name="k" content={t} /></svelte:head><i>k</i>',
 		},
 		source:
 			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
-			'{#each data.xs as x}<Kid t={x} />{/each}',
+			'<p>a</p>\n{#if data.g}<Kid t="g" />{:else if data.h}<Kid t="h" />{:else}<b>n</b>{/if}\n' +
+			'{#if data.g}<Kid t={data.t} />{/if}\n<p>b</p>',
+		data: [
+			{ g: true, h: false, t: 'T' },
+			{ g: false, h: true, t: 'T' },
+			{ g: false, h: false, t: 'T' },
+		],
+	},
+	{
+		// Two blocks deep, in a table: the inner if stands in the head inside the outer each, and
+		// the close rides inside the `<template>` the stamp needs where text is refused.
+		name: 'a component with a head two blocks deep in a table',
+		beside: {
+			Kid: '<script>let { t } = $props();</script><svelte:head><meta name="k" content={t} /></svelte:head><i>k</i>',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<table><tbody>{#each data.rows as r}<tr><td>{#if r.on}<Kid t={r.t} />{/if}<Kid t="row" /></td></tr>{/each}</tbody></table>',
+		data: [
+			{
+				rows: [
+					{ on: true, t: 'a' },
+					{ on: false, t: 'b' },
+				],
+			},
+			{ rows: [] },
+		],
+	},
+];
+
+// Each one is a gap rather than a boundary, and the message has to say which.
+const refused: Case[] = [
+	{
+		// A `{@const}` opens the block in the head at the start of a branch, and the pending branch
+		// of an await is the one place Svelte does not allow one. See `mirrored()` in walk.ts.
+		name: 'a component with a head inside an await',
+		beside: {
+			Kid: '<script>let { t } = $props();</script><svelte:head><meta name="k" content={t} /></svelte:head><i>k</i>',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'{#await data.p}<Kid t="w" />{:then v}<b>{v}</b>{/await}',
 		says: 'head stream',
 	},
 	{
@@ -2068,9 +2127,12 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 		// which stayed invisible for as long as every accepted case here happened to have none.
 		const derive = compileDerivations(derivations ?? [], carried ?? '');
 		for (const data of one.data ?? []) {
-			expect(inject(ir as Parameters<typeof inject>[0], derive(data)).body).toBe(
-				render(mod.default, { props: { data } as never }).body,
-			);
+			// Both streams. The head used to go uncompared, and a headed component inside a body
+			// block compiled to a head that held its block whichever branch the request took.
+			const ours = inject(ir as Parameters<typeof inject>[0], derive(data));
+			const theirs = render(mod.default, { props: { data } as never });
+			expect(ours.body).toBe(theirs.body);
+			expect(ours.head).toBe(theirs.head);
 		}
 	});
 });

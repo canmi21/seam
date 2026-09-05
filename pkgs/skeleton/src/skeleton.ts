@@ -179,6 +179,8 @@ export async function skeleton(
 	const alternates: Record<string, Rendered> = {};
 	for (const block of baseline.blocks) {
 		if (block.absent === true) continue;
+		// A block standing in the head stream is the body block it mirrors, rendered once; see below.
+		if (block.mirrors !== undefined) continue;
 		// An each with an `{:else}` has one other shape, the empty list, and it is keyed the way
 		// an if's else is: `-1`, which is the branch the walk puts the fallback's blocks within.
 		if (block.kind === 'each' && !block.alternate) continue;
@@ -205,6 +207,18 @@ export async function skeleton(
 			// The ids of the components the walk did not enter are numbered by this render, so they
 			// are read back out of it rather than held in the one list every render shares.
 			alternates[`${String(block.index)}.${String(branch)}`] = anchored(other);
+		}
+	}
+
+	// A block standing in the head stream as well as the body is one if or one each, so the render
+	// made with a branch of the body half taken is the render made with that branch of the head
+	// half, and the assembler reads it under either index. See `mirrored()` in walk.ts.
+	for (const block of baseline.blocks) {
+		if (block.mirrors === undefined) continue;
+		for (const [key, other] of Object.entries(alternates)) {
+			const dot = key.indexOf('.');
+			if (Number(key.slice(0, dot)) !== block.mirrors) continue;
+			alternates[`${String(block.index)}${key.slice(dot)}`] = other;
 		}
 	}
 

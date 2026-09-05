@@ -30,11 +30,15 @@ spread with an object the request hands it whole, whose keys nobody can list. Th
 noted in [pipeline.md](pipeline.md) -- a marker outside a function's domain -- now applies only to
 such a component.
 
-**The title rule is done.** It is Svelte's own and it was derivable; [ir.md](ir.md) has it. What it
-found beside it: **a component with a `<svelte:head>` inside an `{#each}`** is refused now, where it
-used to compile one head block short. `$.head` runs once per iteration, so the each has to stand
-in the head stream as well as in the body, and the walk numbers a block in one stream. Ready, not
-done, and small.
+**The title rule is done.** It is Svelte's own and it was derivable; [ir.md](ir.md) has it.
+
+**A body block a head sits inside stands in the head stream: done.** A headed component inside an
+`{#each}` used to be refused and one inside an `{#if}` used to compile wrong, its head block in
+the head whichever branch the request took -- and the surface checks compared the body alone, so
+nothing said so. Both streams are compared now, the block is mirrored into the head, and
+[refusals.md](refusals.md) has how. Two shapes stay refused for want of a case: a head inside an
+`{#await}`, whose pending branch a `{@const}` cannot open, and a head inside a recursive fragment,
+whose call the head IR does not carry.
 
 **The small ones are done.** Thirteen constructs, each a mechanism that already existed used once
 more, each read out of the visitor that writes it, measured with Node, written, checked and

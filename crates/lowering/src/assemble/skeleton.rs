@@ -122,6 +122,12 @@ pub struct Block {
 	/// is already among its branches.
 	#[serde(default)]
 	pub alternate: bool,
+	/// The body block this one stands in the head stream for, where a headed component was
+	/// entered inside an if or an each: the same block, bare, read from the head with the body
+	/// half's renders under its own index. Nothing here needs it beyond declaring the shape; see
+	/// `mirrored()` in `pkgs/skeleton/src/walk.ts`.
+	#[serde(default)]
+	pub mirrors: Option<usize>,
 	/// The files its expression and tests were written across, as a hole's. See `Hole::files`.
 	#[serde(default)]
 	pub files: Vec<String>,

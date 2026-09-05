@@ -382,9 +382,17 @@ node and no hydration, so nothing about the stand-in reaches it.
 
 The `title` field beside `body` and `head` stays for the one case the render still decides: a
 title written by a component the walk did not enter goes through Svelte's channel and comes out
-after the head, and it is the winner as Svelte decided it over everything in that render. A
-headed component inside an each is refused, because `$.head` runs once per iteration and the each
-does not yet stand in the head stream; see [roadmap.md](roadmap.md).
+after the head, and it is the winner as Svelte decided it over everything in that render.
+
+**A body block a head sits inside stands in the head stream too.** `$.head` runs where the
+component does, so a headed component inside an `{#if}` writes its head block on the branch that
+holds it and none on the others, and one inside an `{#each}` writes one per item -- and the head
+Svelte returns is a flat run of head blocks with nothing around the ones a block produced. So the
+head IR carries the same `if` or `each` the body does, with the child's head block as its body,
+and the runtime decides and repeats it there as it does below. How the render is made to write
+anchors for it without touching the body's bytes is in [refusals.md](refusals.md). A head inside
+an `{#await}` or inside a recursive fragment is refused for now; [roadmap.md](roadmap.md) has
+both.
 
 ## What is not in it
 

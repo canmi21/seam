@@ -69,14 +69,46 @@ export function elementCarrier(parent: string | null): boolean {
 	return parent !== null && REFUSES_TEXT.has(parent);
 }
 
-export function carrier(index: number, parent: string | null): string {
+export function carrier(index: number, parent: string | null, close = ''): string {
 	const mark = stamp(index);
 	// A text or element child makes a select *rich*, which closes the tag with `<!>` -- a real
 	// change in the bytes. An `<option>` is what it already expects, and its value is the marker,
 	// so it can never be the one the select has selected.
-	if (parent === 'select' || parent === 'optgroup') return `<option value="${mark}"></option>`;
-	if (parent !== null && REFUSES_TEXT.has(parent)) return `<template>${mark}</template>`;
-	return mark;
+	// The close of a block standing in the head stream rides inside the carrier, where it is text
+	// the carrier already allows: as the option's content, or ahead of the stamp in the template.
+	// Written in the open it would be text where text is refused. See `headCloses()`.
+	if (parent === 'select' || parent === 'optgroup')
+		return `<option value="${mark}">${close}</option>`;
+	if (parent !== null && REFUSES_TEXT.has(parent)) return `<template>${close}${mark}</template>`;
+	return `${close}${mark}`;
+}
+
+/**
+ * The two calls the walk writes around a body block that has to stand in the head stream as well,
+ * which `renderRewritten` gives the renderer to. See `mirrored()` in walk.ts.
+ */
+export const HEAD_OPEN = '__seam_open';
+export const HEAD_CLOSE = '__seam_close';
+
+/**
+ * What opens a block in the head: a `{@const}` at the start of a branch. `clean_nodes` hoists a
+ * const tag out of its fragment before it reads what the fragment starts with or whether it holds
+ * one component alone, and the server transform runs it in the branch's init, so it opens the
+ * block in the head before anything in the branch writes there and changes nothing in the body.
+ */
+export function headOpens(index: number): string {
+	return `{@const __seam_o${String(index)} = ${HEAD_OPEN}(${String(index)})}`;
+}
+
+/**
+ * What closes it: an expression tag beside the block's stamp, evaluated when the bytes after the
+ * block are pushed, which is after everything in the block has run. The call returns the empty
+ * string, so it writes nothing to the body, and the stamp's text keeps the whitespace after it
+ * what it was: a text node after an expression tag keeps its leading whitespace as written, and
+ * the stamp has none.
+ */
+export function headCloses(index: number): string {
+	return `{${HEAD_CLOSE}(${String(index)})}`;
 }
 
 /**

@@ -239,8 +239,9 @@ fn the_title_is_taken_out_of_the_head_rather_than_left_in_it() {
 	);
 }
 
-/// The split is Svelte's own line, `content.head + get_title()`, so anything else appearing after
-/// the last head block means that line changed and the reading is no longer sound.
+/// The split is Svelte's own line, `content.head + get_title()`, so a head ending in anything but
+/// a head block, a title or the stamp of a block the walk stands in the head means that line
+/// changed and the reading is no longer sound.
 #[test]
 fn bytes_after_the_head_blocks_that_are_not_a_title_are_refused() {
 	let skeleton: Skeleton = serde_json::from_str(
@@ -250,7 +251,7 @@ fn bytes_after_the_head_blocks_that_are_not_a_title_are_refused() {
 	)
 	.expect("a skeleton");
 	let error = assemble("c", &skeleton).expect_err("that is not a title");
-	assert!(error.contains("not a title"), "{error}");
+	assert!(error.contains("neither a head block nor a stamp"), "{error}");
 }
 
 /// The written pass walks the markup, so it refuses a node it does not know. This pass reads a

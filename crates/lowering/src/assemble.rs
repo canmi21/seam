@@ -401,8 +401,12 @@ impl Assembler<'_> {
 				self.locals.truncate(depth);
 				walked?;
 				let each = ir::Node::Each { source, item, index: counter, binds, body: body.finish() };
+				// The opening anchor is Svelte's where the block is in the body, and the walk's own
+				// where the block stands in the head, which the bytes do not carry. See `Block::bare`.
 				if !block.alternate {
-					out.write(&html[span.from..span.content]);
+					if !block.bare {
+						out.write(&html[span.from..span.content]);
+					}
 					out.push(each);
 					return Ok(());
 				}
@@ -419,7 +423,9 @@ impl Assembler<'_> {
 					&block.files,
 				)?;
 				let mut some = Out::default();
-				some.write(&html[span.from..span.content]);
+				if !block.bare {
+					some.write(&html[span.from..span.content]);
+				}
 				some.push(each);
 				let key = format!("{index}.-1");
 				let rendered = self
@@ -433,7 +439,9 @@ impl Assembler<'_> {
 				};
 				let mut none = Out::default();
 				let at = self.locate(other, index)?;
-				none.write(&other[at.from..at.content]);
+				if !block.bare {
+					none.write(&other[at.from..at.content]);
+				}
 				self.region(other, at.content, at.until, &mut none)?;
 				out.push(ir::Node::If {
 					branches: vec![
@@ -632,21 +640,31 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 	})
 }
 
-/// Splits the rendered head into the head blocks and the title, at the close of the last block.
+/// Splits the rendered head into the head blocks and the title, at the title's own element.
 ///
-/// `head()` writes `<!--hash-->`, the content, then an empty comment, and `#close_render` appends
-/// `get_title()` after every one of those. So the split is that line of Svelte's rather than a
-/// position worked out here, and the title is checked to be a whole element so that a release
-/// which appends something else is a failure rather than a silent misreading.
+/// `#close_render` appends `get_title()` after every head block, and `TitleElement.js` writes it
+/// as `<title>`, the content escaped, `</title>`, so a head ending in the closing tag holds its
+/// title from the last `<title>` on and nothing else there can open one. It used to split at the
+/// last empty comment, which is what closes a head block; a block the walk stands in the head
+/// stream closes with `<!--]-->` and its stamp instead, and a render made with such an if not
+/// taken holds those and no head block at all. What is left is checked to end the way a head
+/// block or a stamp does, so a release appending something else is a failure rather than a silent
+/// misreading.
 fn split_off_title(head: &str) -> Result<(&str, &str)> {
 	if head.is_empty() {
 		return Ok(("", ""));
 	}
-	let close = head.rfind(EMPTY).ok_or_else(|| "a rendered head with no block close".to_owned())?
-		+ EMPTY.len();
-	let (blocks, title) = head.split_at(close);
-	if !title.is_empty() && !(title.starts_with("<title>") && title.ends_with("</title>")) {
-		return Err(format!("the head carries `{title}` after its blocks, which is not a title"));
+	let (blocks, title) = if head.ends_with("</title>") {
+		let at = head
+			.rfind("<title>")
+			.ok_or_else(|| "a rendered head closing a title it never opened".to_owned())?;
+		head.split_at(at)
+	} else {
+		(head, "")
+	};
+	if !(blocks.is_empty() || blocks.ends_with(EMPTY) || blocks.ends_with("%%")) {
+		let tail = &blocks[blocks.len().saturating_sub(40)..];
+		return Err(format!("the head ends with `{tail}`, which is neither a head block nor a stamp"));
 	}
 	Ok((blocks, title))
 }

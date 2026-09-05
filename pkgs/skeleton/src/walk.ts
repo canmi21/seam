@@ -54,7 +54,7 @@ import {
 	span,
 } from './node.ts';
 import { OMITTED_IN_SSR } from './omitted.ts';
-import { carrier, elementCarrier, sentinel } from './sentinel.ts';
+import { carrier, elementCarrier, headCloses, headOpens, sentinel } from './sentinel.ts';
 import type { Block, Hole, Stream } from './shape.ts';
 import { inlined, type Snippet, snippetsIn, supplied } from './snippets.ts';
 import { RAW_TEXT_ELEMENTS, VALID_TAG_NAME, VOID_ELEMENTS } from './tags.ts';
@@ -193,6 +193,13 @@ export interface Site {
 	 * crash and never the refusal that led to it. These are kept so that failure can say both.
 	 */
 	missed: { file: string; reason: string }[];
+	/**
+	 * Body blocks a `<svelte:head>` was walked inside, across every file entered, which have to
+	 * stand in the head stream as well: `$.head` runs where the component does, so an if decides
+	 * and an each repeats the child's head block the way they decide and repeat its body. Each
+	 * block reads this once its body is walked. See `mirrored()`.
+	 */
+	headed: Set<number>;
 	/**
 	 * Markup this component was handed by its caller, by the name it arrives under.
 	 *
@@ -1546,7 +1553,7 @@ function leaves(expression: string, walk: Walk): string | null {
  * Measured: two `<tr>`s related by `+`, with a block between them, both lost it. No carrier avoids
  * it there, so the combination is named rather than compiled wrong. See `carrier()`.
  */
-function stamps(walk: Walk, index: number): string {
+function stamps(walk: Walk, index: number, close = ''): string {
 	if (walk.siblings && elementCarrier(walk.parent)) {
 		refuse(
 			`this block sits directly inside \`<${String(walk.parent)}>\`, where the marker saying which ` +
@@ -1556,7 +1563,98 @@ function stamps(walk: Walk, index: number): string {
 				'a cell of its own, or relating those two elements without a sibling combinator, avoids it',
 		);
 	}
-	return carrier(index, walk.parent);
+	return carrier(index, walk.parent, close);
+}
+
+/**
+ * Stands a body block in the head stream as well, where a `<svelte:head>` was walked inside it.
+ *
+ * `$.head` runs where the component does -- once per branch taken, once per item -- so the head
+ * holds one head block for every time the body ran the child, and an each that repeats the
+ * child's body repeats its head block. The bytes hold no anchor for that: the head is a flat run
+ * of head blocks, each a hash anchor, its content and an empty comment, and Svelte writes nothing
+ * around the ones a block produced. So the render writes something. A `{@const}` at the start of
+ * each branch opens the block in the head, and an expression tag beside the stamp closes it; see
+ * `headOpens()` and `headCloses()` for why neither touches the body's bytes. Measured against
+ * Svelte for a text-first each, an if holding one component alone, whitespace on both sides, an
+ * `{:else if}` chain, an each with a fallback, and the carriers a table and a select need.
+ *
+ * The head half is a block of its own, bare -- the anchors are ours and go from the bytes -- and
+ * it borrows the body half's alternates: both are the one if or each, and the render made with a
+ * branch of one taken is the render made with that branch of the other. The assembler then reads
+ * it as it reads any block in the head, and the head IR carries the if or the each the body does.
+ */
+function mirrored(walk: Walk, block: number, closer: number, opens: (number | null)[]): void {
+	const { blocks, edits } = walk;
+	const body = blocks[block];
+	const held = edits[closer];
+	if (body === undefined || held === undefined) return;
+	const index = blocks.length;
+	blocks.push({
+		...body,
+		index,
+		stream: 'head',
+		within: [...(body.within ?? [])],
+		bare: true,
+		mirrors: block,
+	});
+	// A branch that holds nothing gets no open: the close writes the empty pair on its own. An if
+	// without an `{:else}` has no branch to hold one at all, and is the same case.
+	for (const at of opens) {
+		if (at !== null) edits.push([at, at, headOpens(index)]);
+	}
+	edits[closer] = [held[0], held[1], stamps(walk, block, headCloses(index))];
+}
+
+/**
+ * The run of titles and whitespace one title sits in, from the whitespace before its first title
+ * to the whitespace after its last, and whether any whitespace is in it outside the titles. What
+ * `clean_nodes` hoists is every title in the fragment, so what a run leaves is decided by the run.
+ */
+function titleRun(
+	source: string,
+	from: number,
+	to: number,
+): { from: number; to: number; spaced: boolean } {
+	let start = from;
+	for (;;) {
+		if (!source.endsWith('</title>', start)) break;
+		// From inside the closing tag, or the search finds the title this run started from.
+		const open = source.lastIndexOf('<title', start - '</title>'.length);
+		if (open < 0) break;
+		start = open;
+		while (start > 0 && /\s/.test(source[start - 1] ?? '')) start -= 1;
+	}
+	let end = to;
+	for (;;) {
+		if (!source.startsWith('<title', end)) break;
+		const close = source.indexOf('</title>', end);
+		if (close < 0) break;
+		end = close + '</title>'.length;
+		while (end < source.length && /\s/.test(source[end] ?? '')) end += 1;
+	}
+	const outside = source.slice(start, end).replace(/<title[\s\S]*?<\/title>/g, '');
+	return { from: start, to: end, spaced: /\s/.test(outside) };
+}
+
+/** Just past the `}` that closes a block's opening tag, given the span of what it ends with. */
+function afterTag(source: string, ends: [number, number] | null): number | null {
+	if (ends === null) return null;
+	const close = source.indexOf('}', ends[1]);
+	return close < 0 ? null : close + 1;
+}
+
+/**
+ * Just past an `{:else}`, found from the first node it holds, or null where it holds nothing. The
+ * search runs back from that node rather than forward from the block's start, because the branch
+ * before it may hold an if with an else of its own.
+ */
+function afterElse(source: string, fragment: AstNode): number | null {
+	const nodes = Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	const first = span(nodes[0]);
+	if (first === null) return null;
+	const at = source.lastIndexOf('{:else', first[0]);
+	return afterTag(source, at < 0 ? null : [at, at]);
 }
 
 function collect(node: unknown, walk: Walk): void {
@@ -1668,6 +1766,13 @@ function collect(node: unknown, walk: Walk): void {
 
 		case 'SvelteHead': {
 			// The other stream. Everything under it renders into the head rather than the body.
+			// And written where the component runs: inside a body block, once per branch taken or
+			// per item. Every if and each this sits inside has to stand in the head stream as well,
+			// and is told so here, to read once its body is walked. A dynamic element is not one:
+			// it decides nothing about what is inside it. See `mirrored()`.
+			for (const [index] of within) {
+				if (blocks[index]?.kind !== 'element') site.headed.add(index);
+			}
 			// A head block holding a title opens with a stand-in that says so, because which title
 			// wins is decided per head block: `$.head` is hoisted ahead of its fragment, so the last
 			// head block executed compares later under `set_title`, and inside one block the first
@@ -1806,23 +1911,30 @@ function collect(node: unknown, walk: Walk): void {
 					edits.push([whole[0] + 1, whole[0] + 1 + 'title'.length, `seam-title-${role}`]);
 					edits.push([whole[1] - close.length, whole[1], `</seam-title-${role}>`]);
 					// A title is hoisted out of its fragment by `clean_nodes`, so the whitespace around
-					// it is whitespace around nothing: trimmed where it opens or closes the fragment,
-					// one space where two neighbours remain. The stand-in stays in the fragment, so
-					// the whitespace is written as that: gone, or one space after the stand-in.
+					// it is whitespace around nothing: a run of titles and the whitespace among them
+					// leaves one text node of whitespace, or nothing where there was none, and that is
+					// trimmed where it opens or closes the fragment and one space where two neighbours
+					// remain. The stand-ins stay in the fragment, so the whitespace is written as
+					// that: gone, or one space after the last stand-in of the run. Two titles with
+					// nothing between them used to get a space, which Svelte never wrote.
 					let from = whole[0];
 					while (from > 0 && /\s/.test(source[from - 1] ?? '')) from -= 1;
 					let to = whole[1];
 					while (to < source.length && /\s/.test(source[to] ?? '')) to += 1;
-					const before = source.slice(0, from);
-					const after = source.slice(to);
+					const run = titleRun(source, from, to);
+					const before = source.slice(0, run.from);
+					const after = source.slice(run.to);
 					const opens = /(<svelte:head[^>]*>|\{[#:][^}]*\})$/.test(before);
 					const closes = /^(<\/svelte:head>|\{[/:])/.test(after);
-					const between = !opens && !closes && from > 0 && to < source.length;
-					// The head's own edit already took the whitespace after its opening tag.
-					const opened = /<svelte:head[^>]*>$/.test(before);
-					if (from < whole[0] && !opened) edits.push([from, whole[0], '']);
-					if (to > whole[1]) edits.push([whole[1], to, between ? ' ' : '']);
-					else if (between) edits.push([whole[1], whole[1], ' ']);
+					const between = !opens && !closes && run.from > 0 && run.to < source.length;
+					// The head's own edit already took the whitespace after its opening tag, and the
+					// title before this one took the whitespace between them.
+					const already = /(<svelte:head[^>]*>|<\/title>)$/.test(source.slice(0, from));
+					if (from < whole[0] && !already) edits.push([from, whole[0], '']);
+					const last = !source.startsWith('<title', to);
+					const left = last && between && run.spaced ? ' ' : '';
+					if (to > whole[1]) edits.push([whole[1], to, left]);
+					else if (left !== '') edits.push([whole[1], whole[1], left]);
 				}
 			}
 			// A tag decided per request. Svelte's `element()` writes `<!---->`, then the tag and its
@@ -2196,6 +2308,15 @@ function collect(node: unknown, walk: Walk): void {
 				within.push([index, 0]);
 				collect(declaration['body'], { ...walk, dynamic: new Set([...dynamic, ...params]) });
 				within.pop();
+				// A fragment is called per level of data, so a head inside it would have the fragment
+				// stand in the head stream too, and the head IR has no call. Nobody has written it.
+				if (site.headed.has(index)) {
+					refuse(
+						`the snippet \`${String(name)}\` renders itself and a component inside it writes a ` +
+							'`<svelte:head>`, which is not handled yet: the fragment would have to stand in ' +
+							'the head stream',
+					);
+				}
 				return;
 			}
 
@@ -2307,6 +2428,15 @@ function collect(node: unknown, walk: Walk): void {
 			}
 			// The catch branch is left as written and never walked: the server never writes it, so
 			// nothing planted there would come back.
+			// A head inside it would have the block stand in the head stream, and its pending branch
+			// is the one place a `{@const}` cannot open one from. Nobody has written it.
+			if (site.headed.has(index)) {
+				refuse(
+					'a component writing a `<svelte:head>` inside an `{#await}` block is not handled ' +
+						'yet: the block would have to stand in the head stream, and `{@const}` is not ' +
+						'allowed at the start of the pending branch',
+				);
+			}
 			return;
 		}
 
@@ -2421,6 +2551,7 @@ function collect(node: unknown, walk: Walk): void {
 
 			// Which block just closed, written where the render puts it and nowhere else.
 			const whole = span(node);
+			const closer = edits.length;
 			if (whole !== null) edits.push([whole[1], whole[1], stamps(walk, index)]);
 
 			// Only the first branch is in the baseline render, so only its blocks are numbered where
@@ -2435,6 +2566,14 @@ function collect(node: unknown, walk: Walk): void {
 				within.push([index, -1]);
 				collect(otherwise, branches);
 				within.pop();
+			}
+			// A head was walked inside it, so the block stands in the head stream too, opened at
+			// the start of every branch that holds anything.
+			if (site.headed.has(index)) {
+				mirrored(walk, index, closer, [
+					...chain.map((one) => afterTag(source, span(one['test']))),
+					...(isNode(otherwise) ? [afterElse(source, otherwise)] : []),
+				]);
 			}
 			return;
 		}
@@ -2541,6 +2680,7 @@ function collect(node: unknown, walk: Walk): void {
 			edits.push([at[0], at[1], taken(index, 0) ? `[${element}]` : '[]']);
 			// Which block just closed, written where the render puts it and nowhere else.
 			const whole = span(node);
+			const closer = edits.length;
 			if (whole !== null) edits.push([whole[1], whole[1], stamps(walk, index)]);
 			// What the block binds is decided per item, so an expression reading it is a marker
 			// even when nothing else in it reaches the payload.
@@ -2559,6 +2699,15 @@ function collect(node: unknown, walk: Walk): void {
 				within.push([index, -1]);
 				step(fallback);
 				within.pop();
+			}
+			// A head was walked inside it, so the block stands in the head stream too: opened per
+			// item, after the whole of the opening tag, and in the fallback where there is one.
+			if (site.headed.has(index)) {
+				const tag: [number, number] = [at[0], Math.max(at[1], context?.[1] ?? 0, key?.[1] ?? 0)];
+				mirrored(walk, index, closer, [
+					afterTag(source, tag),
+					...(isNode(fallback) ? [afterElse(source, fallback)] : []),
+				]);
 			}
 			return;
 		}
@@ -2729,23 +2878,12 @@ function descend(
 		spreads: walk.site.spreads.length,
 	};
 
+	// Whether the child writes a head, which decides what a failure to enter it means below.
+	let headed = false;
 	try {
 		const raw = inlined(unbound(readFileSync(file, 'utf8')));
 		const ahead = parse(raw, { modern: true }) as unknown as AstNode;
-		// `$.head` runs once per iteration, so a headed child inside an each writes one head block
-		// per item, and the each would have to stand in the head stream as well as the body. It
-		// does not yet, and the bytes came out one block short rather than refused; measured. See
-		// spec/roadmap.md.
-		if (
-			contains(ahead['fragment'], 'SvelteHead') &&
-			walk.within.some(([index]) => walk.blocks[index]?.kind === 'each')
-		) {
-			refuse(
-				`<${tag} /> writes a \`<svelte:head>\` and sits inside an each block, which would put ` +
-					'one head block per item in the head, and the each does not yet stand in the head ' +
-					'stream',
-			);
-		}
+		headed = contains(ahead['fragment'], 'SvelteHead');
 		// Its number now, not when the tag is renamed: the walk below takes copies of its own, so
 		// counting then gave a nested pair of the same component one name twice.
 		const ordinal = walk.site.copies.length;
@@ -2915,6 +3053,7 @@ function descend(
 				given: hands(walk, nodes),
 				payload: walk.site.payload,
 				missed: walk.site.missed,
+				headed: walk.site.headed,
 				handed: walk.site.handed,
 				spreads: walk.site.spreads,
 				copy,
@@ -2935,6 +3074,14 @@ function descend(
 			const last = span(written[written.length - 1]);
 			if (first !== null && last !== null) {
 				const index = walk.blocks.findIndex((one) => one.fragment?.name === recursion);
+				// The fragment is called per level of data, so a head inside it would have it stand
+				// in the head stream too, and the head IR has no call. Nobody has written it.
+				if (walk.site.headed.has(index)) {
+					refuse(
+						`<${tag} /> renders itself and a component inside it writes a \`<svelte:head>\`, ` +
+							'which is not handled yet: the fragment would have to stand in the head stream',
+					);
+				}
 				inner.push([first[0], first[0], '{#if true}']);
 				inner.push([last[1], last[1], `{/if}${stamps(walk, index)}`]);
 			}
@@ -3003,9 +3150,18 @@ function descend(
 		// The walk asking for a second render is not the walk failing, and it is answered above.
 		if (error instanceof Undecided) throw error;
 		if (String((error as Error).message).includes('is part of a cycle')) throw error;
-		// Left to Svelte, the child would render one head block where a request renders one per
-		// item, and nothing downstream could tell. So this one is the author's to see.
-		if (String((error as Error).message).includes('stand in the head stream')) throw error;
+		// Left to Svelte, a child writing a head inside a block would render one head block where a
+		// request renders one per branch or per item, and nothing downstream could tell. So this
+		// one is the author's to see, with why the walk could not enter -- and so is a block found
+		// deeper that cannot stand in the head stream, which says so itself.
+		const reason = String((error as Error).message);
+		if (reason.includes('stand in the head stream')) throw error;
+		if (headed && walk.within.length > 0) {
+			refuse(
+				`<${tag} /> writes a \`<svelte:head>\` inside a block, so the block has to stand in the ` +
+					`head stream, and the walk could not enter it: ${reason.replace(/\. See spec\/refusals\.md$/, '')}`,
+			);
+		}
 		walk.site.missed.push({ file, reason: String((error as Error).message) });
 		return false;
 	}
@@ -3087,6 +3243,7 @@ export function rewrite(
 			given: new Map(),
 			payload,
 			missed,
+			headed: new Set(),
 			handed,
 			spreads,
 			copy: null,

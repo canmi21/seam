@@ -699,6 +699,65 @@ left to the render: the home route enters fourteen files where it entered five, 
 thirty-six, among them `bits-ui`'s menu, trigger, floating layer, portal and dialog and both of
 `@tanstack`'s providers.
 
+### A block a head sits inside stands in the head stream, and how the render is made to say so
+
+A headed component inside an `{#each}` was refused, and the reason given was right: `$.head` runs
+where the component does, so an each around a headed child writes one head block per item, and the
+walk numbered its block in the body stream alone. What the reason left out was that the same holds
+for an `{#if}`: a headed child inside one writes its head block on the branch that holds it, and
+the compiled head held that block whichever branch the request took. **The surface checks compared
+the body and never the head**, so a title rule measured against Svelte in four cases passed with
+the head wrong in two of them. Both streams are compared now, and that comparison found the two
+cases below.
+
+The block has to exist in the head IR as the `if` or the `each` it is, and the assembler reads
+blocks off anchors the render wrote. Svelte writes none for these: the head is a flat run of
+`<!--hash-->`, content, `<!---->`, one per head block, with nothing said about the block that
+produced them. So the render is made to write them, and the whole question is how to write into
+the head from inside a block without changing the body's bytes. Four ways were measured before one
+held. A stand-in component in the body writes `<!---->` after itself wherever it is not alone in a
+block, which `shared/component.js` does for hydration. An expression tag at the start of a branch
+changes what the branch starts with, and `is_text_first` and `is_standalone` in `clean_nodes` both
+read that, so an each body starting with text lost its leading empty comment and an if holding one
+component alone gained one. Text anywhere near the block's edges collapses whitespace differently
+beside an expression tag than beside an element. And nothing in Svelte's own output runs after a
+block's body: the closing anchor is a string in a template.
+
+**What held is a `{@const}` to open and an expression tag beside the stamp to close.** `clean_nodes`
+hoists a const tag out of its fragment before it reads what the fragment starts with or whether it
+holds one component alone, and the server transform runs it in the branch's init; so
+`{@const __seam_o7 = __seam_open(7)}` at the start of every branch runs before anything in the
+branch writes to the head, and changes nothing in the body. The close is `{__seam_close(7)}`
+written just after the block, ahead of the stamp that already sits there: an expression tag is
+evaluated when the bytes after the block are pushed, which is after everything in the block has
+run; it writes nothing, because the call returns the empty string; and the text after it keeps its
+leading whitespace as written, which is what the stamp has none of, so the collapsing that follows
+is what it was. Inside a table the close rides inside the `<template>` the stamp needs, and inside
+a `<select>` as the content of the `<option>`, both of which were already text the carrier allows.
+Both calls need the renderer, which the compiled function holds as a local nothing in markup can
+name, so `renderRewritten` gives it to them after compiling, and gives the module the two
+functions: the open pushes `<!--[-->` into the head, the close pushes `<!--]-->` and the block's
+stamp -- and the empty pair where no open ran, because an if with no `{:else}` has no branch to
+hold one and the render made with it not taken has to hold the block all the same. Measured
+against Svelte, body bytes identical, for a text-first each, an if holding one component alone,
+whitespace on both sides, an `{:else if}` chain, an each with a fallback, and both carriers.
+
+What the assembler sees is then a block in the head stream like any other, found by its stamp,
+with two differences it already knew how to read: it is bare, the way a content binding's if is,
+because the anchors are ours and go from the bytes; and it is a second block for the one if or
+each, so it borrows the body half's renders under its own index rather than being rendered again.
+Two shapes stay refused, each saying so: a head inside an `{#await}`, whose pending branch is the
+one place Svelte does not allow a `{@const}`, and a head inside a recursive fragment, whose call
+the head IR does not carry.
+
+**The same comparison found a title bug.** Two titles written with nothing between them came out
+with a space between, because the whitespace rule around a hoisted title wrote one space wherever
+the title had neighbours on both sides, whether or not there had been whitespace to collapse. What
+`clean_nodes` leaves is decided by the run: every title in a fragment is hoisted, so a run of
+titles and the whitespace among them leaves one whitespace text node where there was any and
+nothing where there was none, trimmed at the fragment's edges and one space between neighbours.
+The walk now reads the run.
+
 ## A component that renders none of what it was given, which is a portal
 
 This gates all eight of press's routes, and reading what actually happens changed what it is.
