@@ -1325,9 +1325,16 @@ the failed snippet in place of the children and every marker planted in them wou
 back, which the hole check reports. So there is no block. The anchor pair is copied out as bytes
 the way a package component's own anchors are, and what is inside is walked as anything else.
 The failed snippet is cut from the rendered source, since a snippet with a parameter that nothing
-renders is otherwise a refusal about a body nobody writes. `pending={p}` and `failed={p}` as
-attributes stay refused: Svelte chooses at request time between the snippet and the children by
-whether `p` is nullish, and a name handed that way would have to be seen rendered.
+renders is otherwise a refusal about a body nobody writes. `pending={p}` and `failed={f}` as
+attributes are the tag form written differently, and are written back to it before the walk
+reads the file: `SvelteBoundary.js` calls a `pending` attribute between the same `<!--[!-->` and
+`<!--]-->` as the snippet block, and puts `failed` into the props of `$$renderer.boundary`, which
+writes nothing for it. So a `pending` naming a snippet the file declares with no parameters is
+copied inside the tag as `{#snippet pending()}`, and `failed` goes from the tag, with its
+declaration when nothing else renders it. What stays refused is a `pending` that is not such a
+name -- a prop, say: Svelte's scope cannot prove it defined and writes `if (p) { pending } else {
+children }`, a choice per request over a snippet that arrived as a value, which is the same
+refusal as a `{@render}` of one.
 
 ## Six small ones, each read out of the visitor that writes it
 

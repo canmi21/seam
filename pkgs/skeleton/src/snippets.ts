@@ -178,7 +178,8 @@ export function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = f
  *
  * Done to the source before any other pass reads it, so nothing downstream knows about it.
  */
-export function inlined(source: string): string {
+export function inlined(given: string): string {
+	const source = boundaries(given);
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
 	const snippets = new Map<string, Snippet>();
 	snippetsIn(ast['fragment'], snippets);
@@ -256,4 +257,116 @@ export function inlined(source: string): string {
 	}
 
 	return apply(source, edits);
+}
+
+/**
+ * A boundary's `pending` and `failed` handed as attributes, written the way the tag form is.
+ *
+ * `SvelteBoundary.js` reads both the same way once it has them: `pending={p}` calls `p` between
+ * `<!--[!-->` and `<!--]-->` and writes none of the children, exactly as `{#snippet pending()}`
+ * inside the tag does, and `failed` goes into the props of `$$renderer.boundary`, which writes
+ * nothing for it during a render that does not throw. So a `pending` naming a snippet this file
+ * declares with no parameters becomes that snippet, copied inside the tag, and a `failed` goes
+ * from the tag; the walk then sees the shape it already takes.
+ *
+ * What stays refused is a `pending` that is not such a name. Svelte's scope cannot then prove it
+ * defined and writes `if (p) { pending } else { children }`, a choice per request over a snippet
+ * that arrived as a value -- the same refusal as a `{@render}` of a snippet from a prop.
+ */
+function boundaries(source: string): string {
+	if (!source.includes('<svelte:boundary')) return source;
+	const ast = parse(source, { modern: true }) as unknown as AstNode;
+	const snippets = new Map<string, Snippet>();
+	snippetsIn(ast['fragment'], snippets);
+
+	const declarations = new Map<string, AstNode>();
+	const found: AstNode[] = [];
+	const find = (node: unknown): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) find(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		if (node['type'] === 'SnippetBlock') {
+			const id = node['expression'];
+			if (isNode(id) && typeof id['name'] === 'string') declarations.set(id['name'], node);
+		}
+		if (node['type'] === 'SvelteBoundary') found.push(node);
+		for (const value of Object.values(node)) find(value);
+	};
+	find(ast['fragment']);
+	if (found.length === 0) return source;
+
+	/** The text between `{#snippet name()}` and `{/snippet}` of a declaration. */
+	const bodyOf = (block: AstNode): string | null => {
+		const at = span(block);
+		const id = span(block['expression']);
+		if (at === null || id === null) return null;
+		const text = source.slice(at[0], at[1]);
+		const open = text.indexOf('}', id[1] - at[0]);
+		const close = text.lastIndexOf('{/snippet}');
+		if (open < 0 || close < 0 || close <= open) return null;
+		return text.slice(open + 1, close);
+	};
+
+	const edits: [number, number, string][] = [];
+	const cut = new Set<string>();
+	for (const boundary of found) {
+		const attributes = Array.isArray(boundary['attributes']) ? boundary['attributes'] : [];
+		let after = span(boundary)?.[0] ?? 0;
+		for (const attribute of attributes) {
+			const where = span(attribute);
+			if (where !== null) after = Math.max(after, where[1]);
+		}
+		const opening = source.indexOf('>', after);
+		for (const attribute of attributes) {
+			if (!isNode(attribute) || attribute['type'] !== 'Attribute') continue;
+			const name = attribute['name'];
+			if (name !== 'pending' && name !== 'failed') continue;
+			const where = span(attribute);
+			if (where === null) continue;
+			const value = attribute['value'];
+			const [only] = Array.isArray(value) ? value : [value];
+			const expression =
+				isNode(only) && only['type'] === 'ExpressionTag' ? only['expression'] : null;
+			const named =
+				isNode(expression) &&
+				expression['type'] === 'Identifier' &&
+				typeof expression['name'] === 'string'
+					? expression['name']
+					: null;
+			const declared = named === null ? undefined : declarations.get(named);
+			if (name === 'failed') {
+				// Never written, so it goes; and a declaration nothing else renders would be a
+				// refusal about a body nobody writes.
+				edits.push([where[0], where[1], '']);
+				if (named !== null && declared !== undefined && (snippets.get(named)?.renders ?? 0) === 0) {
+					cut.add(named);
+				}
+				continue;
+			}
+			const body = declared === undefined ? null : bodyOf(declared);
+			if (
+				named === null ||
+				declared === undefined ||
+				body === null ||
+				snippets.get(named)?.parameters !== 0
+			) {
+				refuse(
+					'`<svelte:boundary pending={...}>` given anything but a snippet this file declares ' +
+						'with no parameters is not handled yet: Svelte then chooses per request between the ' +
+						'snippet and the children by whether the value is nullish, which is a snippet ' +
+						'arriving as a value',
+				);
+			}
+			edits.push([where[0], where[1], '']);
+			if (opening >= 0)
+				edits.push([opening + 1, opening + 1, `{#snippet pending()}${body}{/snippet}`]);
+		}
+	}
+	for (const name of cut) {
+		const at = span(declarations.get(name));
+		if (at !== null) edits.push([at[0], at[1], '']);
+	}
+	return edits.length === 0 ? source : apply(source, edits);
 }

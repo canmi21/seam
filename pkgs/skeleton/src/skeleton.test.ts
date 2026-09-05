@@ -1448,6 +1448,17 @@ const accepted: Case[] = [
 			{ h: 0, t: 0, a: 'C', f: true },
 		],
 	},
+	{
+		// `SvelteBoundary.js` reads a `pending` attribute naming a declared snippet the way it reads
+		// the tag form, and `failed` goes into the boundary's props, which write nothing.
+		name: 'a boundary given its snippets by attribute',
+		source:
+			`${PROPS}{#snippet p()}<i>{data.a}</i>{/snippet}{#snippet f(e)}<b>{e}</b>{/snippet}` +
+			'<svelte:boundary pending={p} failed={f}><p>{data.a}</p></svelte:boundary>' +
+			'<svelte:boundary failed={f}><p>{data.a}</p></svelte:boundary>' +
+			'<svelte:boundary pending={p}><p>x</p></svelte:boundary>',
+		data: [{ a: 'A' }, { a: '<' }],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
@@ -1482,13 +1493,13 @@ const refused: Case[] = [
 		says: 'chooses a component',
 	},
 	{
-		// A snippet handed by attribute is chosen at request time: Svelte renders the children when
-		// the value is nullish and the snippet otherwise. One written inside the tag is not.
-		name: 'a boundary given its pending snippet by attribute',
+		// Svelte's scope cannot prove a prop defined, so it writes `if (p) { pending } else {
+		// children }`: a choice per request over a snippet that arrived as a value.
+		name: 'a boundary given its pending snippet from a prop',
 		source:
-			`${PROPS}{#snippet p()}<i>w</i>{/snippet}` +
+			'<script>let { data, p } = $props();</script>' +
 			'<svelte:boundary pending={p}><p>{data.a}</p></svelte:boundary>',
-		says: 'attribute',
+		says: 'nullish',
 	},
 	{
 		// Fewer arguments than parameters is a call like any other, the rest being `undefined`;

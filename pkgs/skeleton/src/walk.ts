@@ -1779,21 +1779,8 @@ function collect(node: unknown, walk: Walk): void {
 			// the hole check would say so. So there is no block here. The anchors are a pair the
 			// assembler copies as bytes, the way it copies a package component's own, and what is
 			// inside them is walked as anything else is. See spec/refusals.md.
-			const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
-			for (const attribute of attributes) {
-				// A snippet handed by attribute is decided at request time -- `pending={p}` renders the
-				// children when `p` is nullish -- and a name this walk would have to see rendered.
-				if (
-					isNode(attribute) &&
-					(attribute['name'] === 'pending' || attribute['name'] === 'failed')
-				) {
-					refuse(
-						`\`<svelte:boundary ${String(attribute['name'])}={...}>\` is not handled yet: a snippet ` +
-							'handed as an attribute is chosen at request time, where one written inside the ' +
-							'tag is not',
-					);
-				}
-			}
+			// `pending={p}` and `failed={f}` were written as the tag form before this walk read the
+			// file, or refused there. See `boundaries()` in snippets.ts.
 			const fragment = node['fragment'];
 			const children =
 				isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
