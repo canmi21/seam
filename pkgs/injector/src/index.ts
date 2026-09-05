@@ -85,10 +85,12 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): s
 				break;
 			}
 			case 'each': {
-				// A source that is not an array renders nothing, matching what Svelte's
-				// ensure_array_like does with undefined.
-				const source = settle(resolve(scopes, node.source), scopes);
-				if (!Array.isArray(source)) break;
+				// What `ensure_array_like` decides: nothing for a source that is nothing, the
+				// source itself where it has a length, and `Array.from` of anything else -- a `Map`,
+				// a `Set`, an iterator -- which the payload can carry, since devalue does.
+				const held = settle(resolve(scopes, node.source), scopes);
+				const source = arrayLike(held);
+				if (source === null) break;
 				// The counter is bound beside the item rather than reached through it, which is what
 				// Svelte's server does: it is the `for` loop's own variable.
 				for (const [at, item] of source.entries()) {
@@ -108,6 +110,22 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): s
 		}
 	}
 	return out;
+}
+
+/**
+ * Svelte's `ensure_array_like`, read out of `internal/server/index.js`: a falsy source is an
+ * empty list, one with a `length` is itself, and anything else goes through `Array.from`. Null is
+ * returned for nothing to iterate, which is what the caller writes nothing for.
+ */
+function arrayLike(source: unknown): readonly unknown[] | null {
+	if (!source) return null;
+	if (typeof source === 'object' && 'length' in source) {
+		return Array.isArray(source) ? source : Array.from(source as ArrayLike<unknown>);
+	}
+	if (typeof source === 'object' && Symbol.iterator in source) {
+		return Array.from(source as Iterable<unknown>);
+	}
+	return null;
 }
 
 /**

@@ -382,9 +382,12 @@ impl Assembler<'_> {
 				// an if around the each, with the opening anchor inside the branch it belongs to,
 				// and the fallback read from the render made with an empty list the way an else is
 				// read from the render made with its if not taken. The test is what
-				// `ensure_array_like` decides: nothing, or nothing array-like, is an empty list.
-				let test =
-					self.path(&format!("(({})?.length ?? 0) !== 0", block.expression), &block.files)?;
+				// `ensure_array_like` decides: nothing is an empty list, one with a length is itself,
+				// and a `Map` or a `Set` goes through `Array.from`, so its size is its length.
+				let test = self.path(
+					&format!("((({0})?.length ?? ({0})?.size) ?? 0) !== 0", block.expression),
+					&block.files,
+				)?;
 				let mut some = Out::default();
 				some.write(&html[span.from..span.content]);
 				some.push(each);

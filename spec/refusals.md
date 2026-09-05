@@ -1298,8 +1298,11 @@ so the anchor that opens the block differs by which shape was taken, which is ex
 its branch marker inside the branch. The fallback is rendered from an empty list -- one more
 render, keyed `-1` among the alternates as an else is -- and the lowering writes the block as
 Svelte wrote it: an `if` around the `each`, with the opening anchor inside the first branch and
-the fallback, marker and all, as the else. The test is what `ensure_array_like` decides,
-`((xs)?.length ?? 0) !== 0`, so `undefined` is an empty list there as it is in Svelte. The
+the fallback, marker and all, as the else. The test is what `ensure_array_like` decides: nothing
+is an empty list, a source with a length is itself, and anything else -- a `Map`, a `Set`, which
+devalue carries and the payload can hold -- goes through `Array.from`, so the test is
+`(((xs)?.length ?? (xs)?.size) ?? 0) !== 0` and the injector iterates what `Array.from` would
+have made. `undefined` is an empty list there as it is in Svelte. The
 fallback is markup like any other, and its blocks are numbered within the each's else the way an
 else's are within its if. Measured on a full list, an empty one, nothing at all, nested inside a
 branch and with a branch inside it.

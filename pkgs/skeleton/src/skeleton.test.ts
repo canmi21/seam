@@ -1530,6 +1530,26 @@ const accepted: Case[] = [
 			{ tag: 'p', r: { class: 'q' }, t: false },
 		],
 	},
+	{
+		// `ensure_array_like`: a source with a length is itself, and anything else goes through
+		// `Array.from`, which is what a `Map` or a `Set` in the payload meets. The fallback turns on
+		// the converted list's length, so a size is a length there.
+		name: 'an each over a Map or a Set',
+		source:
+			`${PROPS}{#each data.m as [k, v]}<b>{k}{v}</b>{:else}none{/each}` +
+			'{#each data.s as x, i}<u>{i}{x}</u>{/each}',
+		data: [
+			{
+				m: new Map([
+					['x', 1],
+					['y', 2],
+				]),
+				s: new Set(['p', 'q']),
+			},
+			{ m: new Map(), s: new Set() },
+			{ m: [['z', 3]], s: undefined },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
