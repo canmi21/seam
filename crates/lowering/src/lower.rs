@@ -231,9 +231,11 @@ struct Context<'a> {
 
 /// Collected as lowering walks, because an expression that is not a path becomes a field on the
 /// payload rather than an error.
-#[derive(Default)]
 struct Derivations {
 	list: Vec<ir::Derivation>,
+	/// The entry's file, which is where every expression this pass carries was written: it
+	/// refuses a scoped derivation and never enters a child's expressions, so there is one file.
+	file: String,
 }
 
 impl Derivations {
@@ -266,7 +268,7 @@ impl Derivations {
 			scope: captured,
 			// The written-bytes pass still refuses this above, so it never marks one.
 			scoped: false,
-			files: Vec::new(),
+			files: vec![self.file.clone()],
 		});
 		Ok(name)
 	}
@@ -501,7 +503,7 @@ pub fn lower(bundle: &markup::Bundle) -> Result<ir::Compiled> {
 	};
 	let ctx = Context { bundle, module, stack: vec![bundle.entry.clone()] };
 	let scope = Scope { props: None, locals: Vec::new() };
-	let mut derivations = Derivations::default();
+	let mut derivations = Derivations { list: Vec::new(), file: format!("{}.svelte", bundle.entry) };
 
 	let mut builder = Builder::default();
 	// Svelte wraps every component render in this pair, and only the outermost one: a child is
