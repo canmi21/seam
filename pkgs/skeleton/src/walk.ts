@@ -54,7 +54,7 @@ import {
 	span,
 } from './node.ts';
 import { OMITTED_IN_SSR } from './omitted.ts';
-import { carrier, elementCarrier, headCloses, headOpens, sentinel } from './sentinel.ts';
+import { carrier, elementCarrier, headCloses, headOpens, marks, sentinel } from './sentinel.ts';
 import type { Block, Hole, Stream } from './shape.ts';
 import { inlined, type Snippet, snippetsIn, supplied } from './snippets.ts';
 import { RAW_TEXT_ELEMENTS, VALID_TAG_NAME, VOID_ELEMENTS } from './tags.ts';
@@ -200,6 +200,12 @@ export interface Site {
 	 * block reads this once its body is walked. See `mirrored()`.
 	 */
 	headed: Set<number>;
+	/**
+	 * The components a file entered as a fragment on the way here became, by file: a tag naming
+	 * one of them, met again while it is still being walked, is a call of its fragment rather than
+	 * a render that would not end. Shared by every file of the walk. See `reachesItself()`.
+	 */
+	callable: Map<string, string>;
 	/**
 	 * Markup this component was handed by its caller, by the name it arrives under.
 	 *
@@ -1070,9 +1076,17 @@ function propBinds(
  * the render writes what it writes around a component call, and the hole carries what the runtime
  * binds the fragment's props to.
  */
-function selfCall(node: AstNode, walk: Walk, tag: string, fragment: string): void {
-	const ast = parse(walk.source, { modern: true }) as unknown as AstNode;
-	const declares = propsOf(ast, walk.source);
+function selfCall(
+	node: AstNode,
+	walk: Walk,
+	tag: string,
+	fragment: string,
+	/** The source of the component called, which is this file's unless the cycle is longer. */
+	source = walk.source,
+	dynamic?: { expression: [number, number] | null },
+): void {
+	const ast = parse(source, { modern: true }) as unknown as AstNode;
+	const declares = propsOf(ast, source);
 	if (declares === null)
 		refuse(`<${tag} /> renders itself and this compiler cannot read its props`);
 	const bindings = new Map<string, string>();
@@ -1119,14 +1133,64 @@ function selfCall(node: AstNode, walk: Walk, tag: string, fragment: string): voi
 		call: { fragment, binds: propBinds(declares, bindings) },
 	});
 	const ordinal = walk.site.copies.length;
-	// The marker stands beside the tag, for the reason `standIn` gives: a component whose fragment
-	// opens with text gets `<!---->` written ahead of it. The copy renders nothing, and the call
-	// writes after itself what a component call writes after any.
+	// The copy writes the marker itself, from its script, which runs where the call renders; its
+	// fragment holds nothing, so the call is to the markup around it what the original was. See
+	// `marks()`.
 	const at = resolvePath(dirname(walk.site.file), `__seam-call-${String(index)}.svelte`);
-	walk.site.copies.push({ file: walk.site.file, at, source: '', within: [...walk.within] });
-	const where = span(node);
-	if (where !== null) walk.edits.push([where[0], where[0], sentinel(index)]);
-	rename(walk, node, tag, at, ordinal);
+	walk.site.copies.push({
+		file: walk.site.file,
+		at,
+		source: `<script>${marks(index)};</script>`,
+		within: [...walk.within],
+	});
+	rename(walk, node, tag, at, ordinal, dynamic);
+}
+
+/**
+ * Whether a component's imports lead back to its own file: it renders itself one or more
+ * components removed, `A` rendering `B` rendering `A`, which is the shape `importsItself` reads
+ * one level up. Every component on such a cycle is entered as a fragment, so that whichever of
+ * them the walk meets again while it is on the stack is a call. Each file's `.svelte` imports
+ * are read once for the process: a package's tree is asked this for every component in it, and
+ * the files do not change under a compile.
+ */
+const IMPORTS_OF: Map<string, string[]> = new Map();
+
+function reachesItself(file: string, raw: string): boolean {
+	const edges = (from: string, source?: string): string[] => {
+		const held = IMPORTS_OF.get(from);
+		if (held !== undefined) return held;
+		let text = source;
+		if (text === undefined) {
+			try {
+				text = readFileSync(from, 'utf8');
+			} catch {
+				text = '';
+			}
+		}
+		const found: string[] = [];
+		for (const one of importedBy(text).values()) {
+			let target: string | null = null;
+			if (one.from.startsWith('.')) {
+				if (one.from.endsWith('.svelte')) target = resolvePath(dirname(from), one.from);
+			} else if (one.kind !== 'namespace') {
+				const name = one.kind === 'default' ? 'default' : (one.exported ?? one.local);
+				target = componentOf(one.from, [name], from);
+			}
+			if (target !== null && target.endsWith('.svelte')) found.push(target);
+		}
+		IMPORTS_OF.set(from, found);
+		return found;
+	};
+	const seen = new Set<string>();
+	const pending = edges(file, raw).slice();
+	for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+		if (next === file) return true;
+		if (seen.has(next)) continue;
+		seen.add(next);
+		pending.push(...edges(next));
+	}
+	return false;
 }
 
 /**
@@ -1152,43 +1216,38 @@ function recurses(one: Snippet): boolean {
 }
 
 /** The names a fragment's parameters bind, one plain name each; a pattern is refused. */
-function parameterNamesOf(parameters: readonly unknown[], what: string): string[] {
-	return parameters.map((parameter) => {
-		const target =
-			isNode(parameter) && parameter['type'] === 'AssignmentPattern'
-				? parameter['left']
-				: parameter;
-		if (!isNode(target) || target['type'] !== 'Identifier' || typeof target['name'] !== 'string') {
-			refuse(
-				`the snippet \`${what}\` renders itself and takes a parameter that is a pattern, which ` +
-					'is not handled yet: a fragment binds its parameters by name',
-			);
-		}
-		return target['name'];
-	});
-}
 
 /**
  * What a call binds each parameter to: the argument as written, `undefined` where none is, and
  * the default where the parameter has one and the argument is `undefined`, as JavaScript does.
  */
-function argumentBinds(
+function parameterBinds(
 	parameters: readonly unknown[],
 	args: readonly unknown[],
 	expand: Locals['rewrite'],
+	what: () => string,
 ): [string, string][] {
-	return parameters.map((parameter, at): [string, string] => {
-		const pattern = isNode(parameter) && parameter['type'] === 'AssignmentPattern';
-		const target = pattern ? parameter['left'] : parameter;
-		const name = isNode(target) && typeof target['name'] === 'string' ? target['name'] : '';
+	const found: [string, string][] = [];
+	for (const [at, parameter] of parameters.entries()) {
+		if (!isNode(parameter)) refuse(`${what()} takes a parameter this compiler cannot read`);
+		// An argument not written is `undefined`, which is what the function receives and what a
+		// default answers to; a default on the parameter itself wraps whatever the pattern inside
+		// then takes apart.
 		const given = at < args.length ? `(${expand(args[at])})` : 'undefined';
-		if (!pattern) return [name, given];
-		const fallback = `(${expand(parameter['right'])})`;
-		return [
-			name,
-			given === 'undefined' ? fallback : `(${given} === undefined ? ${fallback} : ${given})`,
-		];
-	});
+		const defaulted = parameter['type'] === 'AssignmentPattern';
+		const target = defaulted ? parameter['left'] : parameter;
+		let argument = given;
+		if (defaulted) {
+			const fallback = `(${expand(parameter['right'])})`;
+			argument =
+				given === 'undefined' ? fallback : `(${given} === undefined ? ${fallback} : ${given})`;
+		}
+		if (!isNode(target)) refuse(`${what()} takes a parameter this compiler cannot read`);
+		for (const [name, reached] of takenApart(target, argument, expand, what)) {
+			found.push([name, reached]);
+		}
+	}
+	return found;
 }
 
 /**
@@ -1204,13 +1263,16 @@ function standIn(
 ): void {
 	const index = walk.holes.length;
 	walk.holes.push({ index, expression: '', raw: true, call: { fragment, binds } });
-	// The marker stands beside the render tag rather than inside the stand-in's body: a snippet
-	// whose fragment opens with text gets `<!---->` written ahead of it, `is_text_first` in
-	// `Fragment.js`, and the original wrote no such thing. The stand-in renders nothing, and the
-	// render tag writes after itself what it writes after any.
+	// The stand-in writes the marker itself, from a `{@const}` in its init, so its fragment holds
+	// nothing and the render tag stays what the original was to the markup around it: alone in
+	// its block or not, and first in it or not. See `marks()`.
 	const name = `__seam_call_${String(index)}`;
-	walk.edits.push([at[0], at[1], `${sentinel(index)}{@render ${name}()}`]);
-	walk.edits.push([walk.source.length, walk.source.length, `\n{#snippet ${name}()}{/snippet}`]);
+	walk.edits.push([at[0], at[1], `{@render ${name}()}`]);
+	walk.edits.push([
+		walk.source.length,
+		walk.source.length,
+		`\n{#snippet ${name}()}{@const __seam_m${String(index)} = ${marks(index)}}{/snippet}`,
+	]);
 }
 
 /** Whether markup holds a node of this type anywhere inside it. */
@@ -1756,8 +1818,8 @@ function collect(node: unknown, walk: Walk): void {
 			// with the component itself, and the walk entered the component as a fragment.
 			if (site.fragment === undefined) {
 				refuse(
-					'`<svelte:self>` in a component the walk did not enter as one rendering itself is ' +
-						'not handled yet: the entry cannot be its own fragment',
+					'`<svelte:self>` in a component the walk did not enter as one rendering itself, ' +
+						'which cannot happen: the walk reads for it before entering',
 				);
 			}
 			selfCall(node, walk, 'SeamSelf', site.fragment);
@@ -2256,8 +2318,12 @@ function collect(node: unknown, walk: Walk): void {
 					? declaration['parameters']
 					: [];
 				const args = isNode(call) && Array.isArray(call['arguments']) ? call['arguments'] : [];
-				const params = parameterNamesOf(parameters, String(name));
-				const binds = argumentBinds(parameters, args, expand);
+				// A parameter that is a pattern binds the names inside it, each reached from the
+				// argument the way a destructured declaration is, and those names are what the
+				// fragment takes: the runtime binds names, and a pattern is so many names.
+				const what = (): string => `the snippet \`${String(name)}\``;
+				const binds = parameterBinds(parameters, args, expand, what);
+				const params = binds.map(([each]) => each);
 				const whole = span(node);
 				const declared = span(declaration);
 				if (whole === null || declared === null) return;
@@ -2287,10 +2353,23 @@ function collect(node: unknown, walk: Walk): void {
 				site.fragments.set(String(name), fragment);
 				if (opensWithText(declaration['body'])) blocks[index]!.fragment!.textFirst = true;
 				// The arguments are written out: the body's expressions are markers, and a parameter
-				// that destructures needs something to come apart from.
+				// that destructures needs something to come apart from. What it comes apart from is
+				// empty, so a default inside the pattern would be evaluated, against data the render
+				// is not given; the runtime takes the default per call, so the render takes nothing.
 				for (const [at, argument] of args.entries()) {
 					const where = span(argument);
 					if (where !== null) edits.push([where[0], where[1], one.holds[at] ?? 'null']);
+				}
+				for (const parameter of parameters) {
+					const pattern =
+						isNode(parameter) && parameter['type'] === 'AssignmentPattern'
+							? parameter['left']
+							: parameter;
+					if (!isNode(pattern) || pattern['type'] === 'Identifier') continue;
+					for (const [, , otherwise] of defaults(pattern)) {
+						const where = span(otherwise);
+						if (where !== null) edits.push([where[0], where[1], 'undefined']);
+					}
 				}
 				const after =
 					parameters.length > 0
@@ -2754,9 +2833,13 @@ function descend(
 	if (file === null) return false;
 	if (walk.site.stack.includes(file)) {
 		// A component rendering itself, entered as the fragment it is: this call is a call of that
-		// fragment, standing in for a render that would otherwise not end. See spec/ir.md.
-		if (walk.site.fragment !== undefined && file === walk.site.file) {
-			selfCall(node, walk, tag, walk.site.fragment);
+		// fragment, standing in for a render that would otherwise not end. Its own file, or one up
+		// the stack that renders this one -- every component on a cycle was entered as a fragment,
+		// because `reachesItself` read the cycle before the walk went in. See spec/ir.md.
+		const fragment = walk.site.callable.get(file);
+		if (fragment !== undefined) {
+			const source = file === walk.site.file ? walk.source : readFileSync(file, 'utf8');
+			selfCall(node, walk, tag, fragment, source, dynamic);
 			return true;
 		}
 		refuse(
@@ -2909,9 +2992,12 @@ function descend(
 		// a bare block for the assembler to find, and the call inside it is a call of the fragment.
 		// Its head could not be wrapped in a block and a rest gathers per call, so neither is taken.
 		const recursion =
-			contains(ahead['fragment'], 'SvelteSelf') || importsItself(raw, file)
+			contains(ahead['fragment'], 'SvelteSelf') ||
+			importsItself(raw, file) ||
+			reachesItself(file, raw)
 				? `__f${String(walk.blocks.length)}`
 				: null;
+		if (recursion !== null) walk.site.callable.set(file, recursion);
 		if (recursion !== null && contains(ahead['fragment'], 'SvelteHead')) {
 			refuse(`<${tag} /> renders itself and writes a \`<svelte:head>\`, which is not handled yet`);
 		}
@@ -3054,6 +3140,7 @@ function descend(
 				payload: walk.site.payload,
 				missed: walk.site.missed,
 				headed: walk.site.headed,
+				callable: walk.site.callable,
 				handed: walk.site.handed,
 				spreads: walk.site.spreads,
 				copy,
@@ -3212,7 +3299,46 @@ export function rewrite(
 	const missed: { file: string; reason: string }[] = [];
 	const handed: Handed[] = [];
 	const spreads: PendingSpread[] = [];
+	const headed = new Set<number>();
+	const callable = new Map<string, string>();
 	if (fresh !== null) holes.push({ index: 0, expression: fresh, raw: false, fresh: true });
+	// The entry rendering itself through `<svelte:self>` is a fragment the way a child is, walked
+	// the way `descend()` walks one: its props are the parameters, and what the first call binds
+	// them to is the payload's own paths, since the entry's props are the payload. Its body is
+	// wrapped as a bare block below, once walked, for the assembler to find.
+	const recursion = contains(ast['fragment'], 'SvelteSelf') ? `__f${String(blocks.length)}` : null;
+	if (recursion !== null) {
+		if (declares === null) {
+			refuse(
+				'the entry renders itself through `<svelte:self>` and this compiler cannot read its props',
+			);
+		}
+		if (contains(ast['fragment'], 'SvelteHead')) {
+			refuse('the entry renders itself and writes a `<svelte:head>`, which is not handled yet');
+		}
+		if (declares.some((one) => one.rest === true)) {
+			refuse('the entry renders itself and gathers a rest, which is not handled yet');
+		}
+		blocks.push({
+			index: blocks.length,
+			kind: 'if',
+			stream: 'body',
+			expression: 'true',
+			tests: ['true'],
+			item: null,
+			counter: null,
+			alternate: false,
+			within: [],
+			bare: true,
+			fragment: {
+				name: recursion,
+				params: declares.map((one) => one.local),
+				binds: propBinds(declares, new Map(declares.map((one) => [one.prop, one.prop]))),
+				...(opensWithText(ast['fragment']) ? { textFirst: true as const } : {}),
+			},
+		});
+		callable.set(file, recursion);
+	}
 	collect(ast['fragment'], {
 		source,
 		holes,
@@ -3225,7 +3351,7 @@ export function rewrite(
 		runeOf: declared.rune,
 		snippets,
 		pending,
-		within: [],
+		within: recursion === null ? [] : [[0, 0]],
 		site: {
 			file,
 			root,
@@ -3239,11 +3365,13 @@ export function rewrite(
 			told,
 			mute,
 			runes: runesOf(importsOf(source)),
+			...(recursion === null ? {} : { fragment: recursion }),
 			fragments: new Map(),
 			given: new Map(),
 			payload,
 			missed,
-			headed: new Set(),
+			headed,
+			callable,
 			handed,
 			spreads,
 			copy: null,
@@ -3256,6 +3384,30 @@ export function rewrite(
 		parent: null,
 		siblings: relatesSiblings(ast),
 	});
+	if (recursion !== null) {
+		// The body as a bare block, once the walk has been through it and everything it marked
+		// is where it is: the whitespace at either end is trimmed either way, so the block wraps
+		// what is written. See `descend()`.
+		const nodes =
+			isNode(ast['fragment']) && Array.isArray(ast['fragment']['nodes'])
+				? ast['fragment']['nodes']
+				: [];
+		const written = nodes.filter(
+			(one) => isNode(one) && !(one['type'] === 'Text' && /^\s*$/.test(String(one['data'] ?? ''))),
+		);
+		const first = span(written[0]);
+		const last = span(written[written.length - 1]);
+		if (first !== null && last !== null) {
+			if (headed.has(0)) {
+				refuse(
+					'the entry renders itself and a component inside it writes a `<svelte:head>`, which ' +
+						'is not handled yet: the fragment would have to stand in the head stream',
+				);
+			}
+			edits.push([first[0], first[0], '{#if true}']);
+			edits.push([last[1], last[1], `{/if}${carrier(0, null)}`]);
+		}
+	}
 	withPrelude(source, ast, prelude, edits);
 	withAsks(ast, asks, wants, edits);
 	withFresh(ast, fresh, declared.ids, edits);

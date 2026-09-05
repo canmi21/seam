@@ -1797,6 +1797,55 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A parameter that is a pattern binds the names inside it, each reached from the argument
+		// the way a destructured declaration is, and a default inside the pattern is taken per
+		// call by the runtime -- the render is handed an empty object and takes nothing from it.
+		name: 'a snippet that renders itself and takes a pattern',
+		source:
+			`${PROPS}<ul>{@render row(data.tree)}</ul>` +
+			'{#snippet row({ label, children = [] })}<li>{label}{#each children as child}<ul>{@render row(child)}</ul>{/each}</li>{/snippet}',
+		data: [
+			{
+				tree: {
+					label: 'a',
+					children: [{ label: 'b' }, { label: 'c', children: [{ label: 'd' }] }],
+				},
+			},
+			{ tree: { label: '<' } },
+		],
+	},
+	{
+		// The entry itself, whose props are the payload: the first call binds them to the payload's
+		// own paths, and every `<svelte:self>` inside binds them to what it passes.
+		name: 'an entry that renders itself with svelte:self',
+		source: `${PROPS}<li>{data.label}{#each data.children ?? [] as child}<ul><svelte:self data={child} /></ul>{/each}</li>`,
+		data: [{ label: 'a', children: [{ label: 'b', children: [{ label: 'c' }] }] }, { label: '&' }],
+	},
+	{
+		// A cycle through a second component: `Tree` renders `Branch` renders `Tree`. Both are on
+		// the cycle, read off their imports before the walk goes in, so both are entered as
+		// fragments, and `Tree` met again inside `Branch` is a call of the fragment it became.
+		name: 'a cycle through a second component',
+		beside: {
+			Tree:
+				"<script>import Branch from './Branch.svelte'; let { node } = $props();</script>" +
+				'<li>{node.label}{#if node.children}<Branch items={node.children} />{/if}</li>',
+			Branch:
+				"<script>import Tree from './Tree.svelte'; let { items } = $props();</script>" +
+				'<ul>{#each items as item}<Tree node={item} />{/each}</ul>',
+		},
+		source: `<script>import Tree from './Tree.svelte'; let { data } = $props();</script><ul><Tree node={data.tree} /></ul>`,
+		data: [
+			{
+				tree: {
+					label: 'a',
+					children: [{ label: 'b' }, { label: 'c', children: [{ label: 'd' }] }],
+				},
+			},
+			{ tree: { label: 'only' } },
+		],
+	},
+	{
 		// `$.head` runs where the component does, so a headed child inside an each writes one head
 		// block per item and one inside an if writes one per branch taken, and the head is a flat
 		// run of head blocks with nothing around the ones a block produced. The walk stands the

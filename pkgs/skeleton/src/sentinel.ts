@@ -84,11 +84,28 @@ export function carrier(index: number, parent: string | null, close = ''): strin
 }
 
 /**
- * The two calls the walk writes around a body block that has to stand in the head stream as well,
- * which `renderRewritten` gives the renderer to. See `mirrored()` in walk.ts.
+ * The calls the walk writes into markup for the render to run against the renderer, which
+ * `renderRewritten` gives them: two around a body block that has to stand in the head stream as
+ * well, see `mirrored()` in walk.ts, and one that writes a marker into the body from inside a
+ * stand-in, see `marks()`.
  */
 export const HEAD_OPEN = '__seam_open';
 export const HEAD_CLOSE = '__seam_close';
+export const MARK = '__seam_mark';
+
+/**
+ * A marker written by a stand-in from its own script or init rather than as text beside it.
+ *
+ * A call of a fragment stands in the render as an empty snippet rendered or an empty copy called,
+ * and the hole's marker has to land where it renders. Text beside it changes the bytes: a marker
+ * first in an each body is what `is_text_first` writes `<!---->` ahead of, and a marker beside a
+ * component or a render tag alone in its block is what stops `is_standalone`, after which the
+ * call writes `<!---->` after itself. Measured both. Pushed by the stand-in itself, the marker
+ * lands at the same position and the markup around the call is what it was.
+ */
+export function marks(index: number): string {
+	return `${MARK}(${JSON.stringify(sentinel(index))})`;
+}
 
 /**
  * What opens a block in the head: a `{@const}` at the start of a branch. `clean_nodes` hoists a

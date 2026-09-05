@@ -225,17 +225,29 @@ the body of a recursive component has to hold no `<svelte:head>`, which cannot s
 one that does is left to the render. A rest gathered per call is left to the render as well.
 
 **How the calls get their bytes.** Every call but the first renders a stand-in in place -- an
-empty snippet rendered, an empty copy called -- with the hole's marker written beside it as text,
-so that Svelte writes around the render tag or the component call exactly what it writes around
-the original, and the assembler reads the marker as the `call`. The marker stands beside rather
-than inside because a stand-in whose own fragment opened with text would get the `<!---->` above.
-Measured against Svelte's own recursion for the three spellings, a body opening with text, a
-parameter default (`depth = 0`, taken where the argument is `undefined` as JavaScript takes it)
-and a second call from outside. `pkgs/skeleton/src/walk.ts`, `standIn` and `selfCall`.
+empty snippet rendered, an empty copy called -- and the stand-in writes the hole's marker itself,
+from a `{@const}` in the snippet's init or from the copy's script, both of which run where the
+call renders and hold nothing in the fragment. So Svelte writes around the render tag or the
+component call exactly what it writes around the original, and the assembler reads the marker as
+the `call`. The marker used to stand beside the stand-in as text, which held until a call stood
+alone in an each: text first in the body is what `is_text_first` writes `<!---->` ahead of, and a
+second node beside the call is what stops `is_standalone`, after which the call writes `<!---->`
+after itself. Measured against Svelte's own recursion for the three spellings, a body opening with
+text, a parameter default (`depth = 0`, taken where the argument is `undefined` as JavaScript
+takes it), a second call from outside, and a call alone in an each. `pkgs/skeleton/src/walk.ts`,
+`standIn` and `selfCall`; `marks()` in `sentinel.ts`.
 
-Not taken: a recursive snippet whose parameter is a pattern, a `<svelte:self>` in the entry, and
-a cycle through a second component (`A` renders `B` renders `A`), which is the same shape one
-level up and waits for a case.
+**The three shapes that waited for a case are taken.** A recursive snippet whose parameter is a
+pattern binds the names inside it, each reached from the argument the way a destructured
+declaration is, and those names are the fragment's parameters; a default inside the pattern is
+the runtime's per call, and the render, handed an empty object, is given `undefined` in its place.
+The entry rendering itself through `<svelte:self>` is the fragment the way a child is, its props
+the parameters and the payload's own paths what the first call binds them to. A cycle through a
+second component -- `A` renders `B` renders `A` -- is read off the imports before the walk goes
+in, `reachesItself`, so every component on the cycle is entered as a fragment and whichever of
+them is met again while still on the stack is a call of the fragment it became. Still refused,
+each saying so: a head or a rest inside any fragment, and a pattern parameter with a default on
+the pattern itself.
 
 ## The anchors come from Svelte, not from us
 

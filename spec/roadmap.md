@@ -51,8 +51,11 @@ in [refusals.md](refusals.md) or [derivation.md](derivation.md).
 
 **Recursion in structure is done.** A snippet or component that renders itself is a fragment the
 runtime calls, with `call` nodes where it is entered; [ir.md](ir.md) has the node and how the body
-gets its region. Not taken, and waiting for a case: a pattern as a recursive snippet's parameter,
-`<svelte:self>` in the entry, and a cycle through a second component.
+gets its region. The three shapes that waited for a case are in: a pattern as a recursive
+snippet's parameter, `<svelte:self>` in the entry, and a cycle through a second component. Taking
+them found that a call standing alone in an each changed the bytes around it, and the stand-in
+now writes its marker itself. What stays refused inside a fragment is a head, a rest, and a
+pattern parameter defaulted whole.
 
 **Close, not build.** [ir.md](ir.md) asks whether hydration needs an empty text node to exist
 where a value is empty. The bytes are Svelte's own server bytes, byte for byte, and hydration is
