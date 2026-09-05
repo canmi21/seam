@@ -284,10 +284,11 @@ form -- the rule that artifacts are data is about the half a backend reads.
 Only the second is real work. The first is why `path` is in the entry today, and the third is a
 consequence of the first two rather than a decision of its own.
 
-**Several hydration roots on one page is the shape that would need more.** Astro's islands are
-separate roots with a payload each, and Svelte hydrates one root against one payload. It is not
-refused and not planned; it is recorded here because it is the only multi-component shape that the
-current artifact could not express.
+**Several hydration roots on one page is out of scope.** Astro's islands are separate roots with a
+payload each, and Svelte hydrates one root against one payload. The line in
+[roadmap.md](roadmap.md) -- after hydration the page is one standard Svelte SPA -- decides it: the
+artifact is one root, and this is recorded because it is the only multi-component shape the
+artifact does not express, so that nobody reads the absence as an omission.
 
 ## The document shell
 

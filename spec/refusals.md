@@ -764,6 +764,25 @@ An `{#await}` is opened differently: its pending branch is the one place Svelte 
 `{@const}`, so the open goes around the awaited expression, `__seam_open(n, value)` returning the
 value, which runs once before either branch and so opens both.
 
+**Legacy mode was measured before it was rewritten, and split three ways.** The plan was one
+pre-pass turning Svelte 4's spellings into runes and letting the walk know one shape. Measured
+against Svelte's server output for each: `export let n; export let label = 'x'` renders byte for
+byte what `let { n, label = 'x' } = $props()` renders, so it is rewritten before anything reads
+the file (`runed()` in `legacy.ts`) and every pass after knows one shape of prop. `$store` renders
+the same bytes in legacy and runes mode, so it is not a legacy question at all but a store read,
+listed on its own. And `<slot>` with a fallback and a named slot filled with `let:` does **not**
+render what the snippet spelling renders: `$.slot` writes `<!--[-->` and `<!--]-->` around the
+filling and around the fallback, and `<i slot="side">` keeps its attribute, where `{@render}` and
+a `{#snippet}` write neither. A rewrite there would compile a component to bytes Svelte never
+sends, so slots stay refused in the walk and wait to be read out of `SlotElement.js` as a block
+of their own. `$:` runs on the server as a plain statement, and the one that assigns from request
+data is the per-request script already decided against.
+
+**Async Svelte is refused by decision.** `{await p}` in markup used to become a hole, and Svelte
+would then have refused the render for want of `experimental.async`. The walk now turns an
+`AwaitExpression` in markup or at the top of the script away by name: a value awaited per request
+while the bytes are written is the load stage's, and [roadmap.md](roadmap.md) has the line.
+
 **A fragment that writes a head is two fragments.** A recursive component with a `<svelte:head>`
 writes one head block per level, so the head IR carries the call the body does: the fragment's
 block is mirrored into the head like any block, its head half named after the body's with the same

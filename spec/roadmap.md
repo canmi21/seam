@@ -66,6 +66,16 @@ body writes.
 where a value is empty. The bytes are Svelte's own server bytes, byte for byte, and hydration is
 Svelte's client against them. The question is Svelte's and is answered by the oracle.
 
+**A prop written as `export let` is done.** Svelte 4's spelling, which Svelte 5 still compiles;
+measured byte for byte against `$props()` with the same defaults, so the file is rewritten to
+that before anything reads it (`runed()` in `legacy.ts`). `export const` and `export function`
+are readonly exports and are refused by name.
+
+**A store read in markup.** `{$s}` is refused today as a name the data does not carry, in runes
+mode as much as in legacy. It renders the same bytes in both, and `$s` is `get(s)` from
+`svelte/store`, a pure read of a value the script made -- a substitution like any other where the
+store is built from props. Ready, not done, and small; waits for a component that reads one.
+
 ## Decided, and not built
 
 **A script that substitution cannot reach, reading the request.** A name reassigned or an object
@@ -76,18 +86,32 @@ name. Where the statements read nothing the request decides, the render already 
 the walk bakes the result (`wants` in `walk.ts`). Zero in press. [derivation.md](derivation.md)
 holds the reasons and the three questions that would have to be answered if the line were moved.
 
+**Async Svelte.** `await` in markup or at the top of a script, and the async server render that
+goes with it, await a real promise per request while the bytes are written. That is loading data,
+the load stage's by definition, and it is refused by decision: the walk turns an `AwaitExpression`
+away by name, since Svelte itself compiles one only under `experimental.async`. Non-async SSR
+writes the pending branch and awaits nothing, which is what `{#await}` compiles to here and is
+kept.
+
+**Several hydration roots on one page.** Out of scope by the line at the top of this file: after
+hydration the page is one Svelte SPA, and Svelte hydrates one root against one payload. Astro's
+islands are a different arrangement, and [build.md](build.md) records that this artifact does not
+express it and is not going to.
+
 ## Not yet the time
 
-**Legacy mode.** `<slot>`, `let:`, `<svelte:fragment>`, `export let`, `$:` and `$store`. Svelte 5
-still compiles them (`SlotElement.js`, `LabeledStatement.js`) and each is a snippet, a prop or an
-expression in a different spelling. Deprecated upstream and absent from runes-mode libraries.
-Taken when a real component needs one, with the snippet machinery.
+**Slots.** `<slot>`, `let:` and `<svelte:fragment>`, the legacy spelling of snippets. The plan
+was to rewrite them to snippets the way `export let` is rewritten to `$props()`, and it was
+measured before it was written: **the bytes differ**. `$.slot` in `internal/server/index.js`
+writes `<!--[-->` and `<!--]-->` around what fills a slot and around its fallback, where a
+`{@render}` writes none, and an element with `slot="x"` keeps the attribute in the output. So a
+slot is a block of its own in the walk, read out of `SlotElement.js`, with the fallback as an
+alternate and `let:` as its parameters -- the snippet machinery's shape with different anchors.
+Deprecated upstream and absent from runes-mode libraries; taken when a real component needs it.
 
-**Async Svelte.** `await` in markup and async SSR await real promises per request, which is
-loading data. Non-async SSR writes the pending branch, which is what `{#await}` compiles to here.
-
-**Several hydration roots on one page.** Recorded in [build.md](build.md) as neither refused nor
-planned.
+`$:` is not a legacy question: on the server it is a plain statement run once, and one that
+assigns a declared name from request data is the per-request script decided against above.
+`$store` is not one either; see the store item under **ready**.
 
 ## Blocked, and on what
 

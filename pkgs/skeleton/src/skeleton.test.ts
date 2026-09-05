@@ -1902,6 +1902,22 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// Svelte 4's spelling of a prop, which Svelte 5 still compiles. Measured byte for byte
+		// against `$props()` with the same defaults, so the file is rewritten to that before
+		// anything reads it. See `runed()` in legacy.ts.
+		name: 'a child written with export let',
+		beside: {
+			Kid: "<script>export let n; export let label = 'x', flag = false;</script><p>{label}{n * 2}{#if flag}!{/if}</p>",
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid n={data.n} /><Kid n={data.n} label="y" flag={data.f} />',
+		data: [
+			{ n: 3, f: true },
+			{ n: 0, f: false },
+		],
+	},
+	{
 		// `$.head` runs where the component does, so a headed child inside an each writes one head
 		// block per item and one inside an if writes one per branch taken, and the head is a flat
 		// run of head blocks with nothing around the ones a block produced. The walk stands the
@@ -1978,6 +1994,13 @@ const accepted: Case[] = [
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// Async Svelte awaits a real promise per request while the bytes are written, which is
+		// loading data: the load stage's, by definition. See spec/roadmap.md.
+		name: 'an await in markup',
+		source: `${PROPS}<p>{await data.p}</p>`,
+		says: 'async Svelte',
+	},
 	{
 		// A fragment's head is read off its own component before the body is walked, because the
 		// calls inside the body are written then. One a component inside the body writes is found

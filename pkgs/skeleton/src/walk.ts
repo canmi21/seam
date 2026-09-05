@@ -67,6 +67,7 @@ import {
 import type { Block, Hole, Stream } from './shape.ts';
 import { inlined, type Snippet, snippetsIn, supplied } from './snippets.ts';
 import { RAW_TEXT_ELEMENTS, VALID_TAG_NAME, VOID_ELEMENTS } from './tags.ts';
+import { runed } from './legacy.ts';
 import { unbound } from './unbind.ts';
 
 /**
@@ -1317,6 +1318,37 @@ function standIn(
 		`\n{#snippet ${name}()}{@const __seam_m${String(index)} = ${marks(index)}}` +
 			`${head === null ? '' : `{@const __seam_h${String(head)} = ${marksHead(head)}}`}{/snippet}`,
 	]);
+}
+
+/**
+ * Refuses `await` in markup, which is async Svelte: a promise awaited per request while the bytes
+ * are written, which is loading data, and the one thing this line gives up by definition. Svelte
+ * itself compiles it only under `experimental.async`; `{#await}` is not this, since a synchronous
+ * render writes its pending branch and awaits nothing. See spec/roadmap.md.
+ */
+function awaitless(ast: AstNode, what: string): void {
+	// An `await` inside a function is that function's, run when something calls it -- a handler,
+	// a load -- and not the render's. Only one the render itself would await is async Svelte.
+	const outside = (node: unknown): boolean => {
+		if (Array.isArray(node)) return node.some(outside);
+		if (!isNode(node)) return false;
+		if (node['type'] === 'AwaitExpression') return true;
+		if (
+			node['type'] === 'FunctionExpression' ||
+			node['type'] === 'ArrowFunctionExpression' ||
+			node['type'] === 'FunctionDeclaration'
+		) {
+			return false;
+		}
+		return Object.values(node).some(outside);
+	};
+	if (outside(ast['fragment']) || outside(ast['instance'])) {
+		refuse(
+			`${what} awaits in its markup or at the top of its script, which is async Svelte: a ` +
+				'value loaded per request while the bytes are written, which is the load stage and not ' +
+				"this compiler's to render",
+		);
+	}
 }
 
 /** Whether markup holds a node of this type anywhere inside it. */
@@ -3174,9 +3206,10 @@ function descend(
 	// Whether the child writes a head, which decides what a failure to enter it means below.
 	let headed = false;
 	try {
-		const raw = inlined(unbound(readFileSync(file, 'utf8')));
+		const raw = inlined(unbound(runed(readFileSync(file, 'utf8'))));
 		const ahead = parse(raw, { modern: true }) as unknown as AstNode;
 		headed = contains(ahead['fragment'], 'SvelteHead');
+		awaitless(ahead, `<${tag} />`);
 		// Its number now, not when the tag is renamed: the walk below takes copies of its own, so
 		// counting then gave a nested pair of the same component one name twice.
 		const ordinal = walk.site.copies.length;
@@ -3464,6 +3497,8 @@ function descend(
 		// deeper that cannot stand in the head stream, which says so itself.
 		const reason = String((error as Error).message);
 		if (reason.includes('stand in the head stream')) throw error;
+		// Left to Svelte, an `await` in markup would not compile at all: it is the author's to see.
+		if (reason.includes('async Svelte')) throw error;
 		if (headed && walk.within.length > 0) {
 			refuse(
 				`<${tag} /> writes a \`<svelte:head>\` inside a block, so the block has to stand in the ` +
@@ -3495,6 +3530,7 @@ export function rewrite(
 	mute: ReadonlySet<string> = new Set(),
 ): Rewritten {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
+	awaitless(ast, 'the entry');
 	const holes: Hole[] = [];
 	const blocks: Block[] = [];
 	const edits: [number, number, string][] = [];
