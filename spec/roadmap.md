@@ -37,9 +37,9 @@ component the walk could not enter for a reason it names.
 `{#each}` used to be refused and one inside an `{#if}` used to compile wrong, its head block in
 the head whichever branch the request took -- and the surface checks compared the body alone, so
 nothing said so. Both streams are compared now, the block is mirrored into the head, and
-[refusals.md](refusals.md) has how. Two shapes stay refused for want of a case: a head inside an
-`{#await}`, whose pending branch a `{@const}` cannot open, and a head inside a recursive fragment,
-whose call the head IR does not carry.
+[refusals.md](refusals.md) has how. An `{#await}` stands in the head too, opened around its
+expression since its pending branch is the one place a `{@const}` cannot go. What stays refused is
+a head inside a recursive fragment, whose call the head IR does not carry.
 
 **The small ones are done.** Thirteen constructs, each a mechanism that already existed used once
 more, each read out of the visitor that writes it, measured with Node, written, checked and

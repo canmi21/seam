@@ -1919,6 +1919,19 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// An await is an if to every pass after the walk, and stands in the head the same way; its
+		// pending branch is the one place Svelte allows no `{@const}`, so the open goes around the
+		// awaited expression, which runs once before either branch. See `headOpensWith()`.
+		name: 'a component with a head inside an await',
+		beside: {
+			Kid: '<script>let { t } = $props();</script><svelte:head><meta name="k" content={t} /></svelte:head><i>k</i>',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'{#await data.p}<Kid t="w" />{:then v}<b>{v}</b><Kid t={v} />{/await}',
+		data: [{ p: Promise.resolve('x') }, { p: 'done' }],
+	},
+	{
 		// Two blocks deep, in a table: the inner if stands in the head inside the outer each, and
 		// the close rides inside the `<template>` the stamp needs where text is refused.
 		name: 'a component with a head two blocks deep in a table',
@@ -1942,18 +1955,6 @@ const accepted: Case[] = [
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
-	{
-		// A `{@const}` opens the block in the head at the start of a branch, and the pending branch
-		// of an await is the one place Svelte does not allow one. See `mirrored()` in walk.ts.
-		name: 'a component with a head inside an await',
-		beside: {
-			Kid: '<script>let { t } = $props();</script><svelte:head><meta name="k" content={t} /></svelte:head><i>k</i>',
-		},
-		source:
-			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
-			'{#await data.p}<Kid t="w" />{:then v}<b>{v}</b>{/await}',
-		says: 'head stream',
-	},
 	{
 		// Inside a table the stamp has to be an element, because text is refused there, and an
 		// element is the sibling the case above is about. No carrier avoids it -- text and an

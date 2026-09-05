@@ -179,10 +179,11 @@ function real(path: string): string {
 /**
  * The compiled component with the calls the walk wrote into its markup given the renderer.
  *
- * Three of them. `__seam_open(n)` in a `{@const}` at the start of each branch of a block and
- * `__seam_close(n)` in an expression tag beside its stamp stand the block in the head stream, so
- * that the head carries anchors for it where the body carries Svelte's own; see `mirrored()` in
- * walk.ts. `__seam_mark(marker)` in a stand-in's script or init writes a call's marker into the
+ * Three of them. `__seam_open(n)` in a `{@const}` at the start of each branch of a block -- or
+ * around the block's own expression, `__seam_open(n, value)`, where a branch cannot hold a const --
+ * and `__seam_close(n)` in an expression tag beside its stamp stand the block in the head stream,
+ * so that the head carries anchors for it where the body carries Svelte's own; see `mirrored()`
+ * in walk.ts. `__seam_mark(marker)` in a stand-in's script or init writes a call's marker into the
  * body where the stand-in renders; see `marks()` in sentinel.ts. All need the renderer the
  * component was handed, which is a local of the compiled function and not something markup can
  * name, so they are given it here. The open remembers itself so that the close can write an empty
@@ -192,8 +193,8 @@ function real(path: string): string {
 function handed(code: string): string {
 	const helpers =
 		'const __seam_opened = new Set();\n' +
-		`function ${HEAD_OPEN}($$renderer, block) { __seam_opened.add(block); ` +
-		"$$renderer.head((head) => head.push('<!--[-->')); }\n" +
+		`function ${HEAD_OPEN}($$renderer, block, value) { __seam_opened.add(block); ` +
+		"$$renderer.head((head) => head.push('<!--[-->')); return value; }\n" +
 		`function ${HEAD_CLOSE}($$renderer, block) { const opened = __seam_opened.delete(block); ` +
 		"$$renderer.head((head) => head.push((opened ? '' : '<!--[-->') + '<!--]-->%%b' + String(block) + '%%')); " +
 		"return ''; }\n" +

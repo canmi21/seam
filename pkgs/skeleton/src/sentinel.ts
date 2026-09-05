@@ -118,6 +118,17 @@ export function headOpens(index: number): string {
 }
 
 /**
+ * What opens a block whose branches cannot hold a `{@const}`: the block's own expression, passed
+ * through the open and returned by it. `{#await}` is the case -- its pending branch is the one
+ * place Svelte does not allow a const tag -- and the expression is evaluated once, before either
+ * branch runs, which is exactly when the open has to happen. Both branches are then opened by
+ * the one call, so the close never has to write the empty pair for either.
+ */
+export function headOpensWith(index: number, value: string): string {
+	return `${HEAD_OPEN}(${String(index)}, ${value})`;
+}
+
+/**
  * What closes it: an expression tag beside the block's stamp, evaluated when the bytes after the
  * block are pushed, which is after everything in the block has run. The call returns the empty
  * string, so it writes nothing to the body, and the stamp's text keeps the whitespace after it

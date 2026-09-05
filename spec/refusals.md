@@ -760,9 +760,10 @@ What the assembler sees is then a block in the head stream like any other, found
 with two differences it already knew how to read: it is bare, the way a content binding's if is,
 because the anchors are ours and go from the bytes; and it is a second block for the one if or
 each, so it borrows the body half's renders under its own index rather than being rendered again.
-Two shapes stay refused, each saying so: a head inside an `{#await}`, whose pending branch is the
-one place Svelte does not allow a `{@const}`, and a head inside a recursive fragment, whose call
-the head IR does not carry.
+An `{#await}` is opened differently: its pending branch is the one place Svelte does not allow a
+`{@const}`, so the open goes around the awaited expression, `__seam_open(n, value)` returning the
+value, which runs once before either branch and so opens both. What stays refused, saying so, is a
+head inside a recursive fragment, whose call the head IR does not carry.
 
 **The same comparison found a title bug.** Two titles written with nothing between them came out
 with a space between, because the whitespace rule around a hoisted title wrote one space wherever

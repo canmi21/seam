@@ -54,7 +54,15 @@ import {
 	span,
 } from './node.ts';
 import { OMITTED_IN_SSR } from './omitted.ts';
-import { carrier, elementCarrier, headCloses, headOpens, marks, sentinel } from './sentinel.ts';
+import {
+	carrier,
+	elementCarrier,
+	headCloses,
+	headOpens,
+	headOpensWith,
+	marks,
+	sentinel,
+} from './sentinel.ts';
 import type { Block, Hole, Stream } from './shape.ts';
 import { inlined, type Snippet, snippetsIn, supplied } from './snippets.ts';
 import { RAW_TEXT_ELEMENTS, VALID_TAG_NAME, VOID_ELEMENTS } from './tags.ts';
@@ -1646,11 +1654,11 @@ function stamps(walk: Walk, index: number, close = ''): string {
  * branch of one taken is the render made with that branch of the other. The assembler then reads
  * it as it reads any block in the head, and the head IR carries the if or the each the body does.
  */
-function mirrored(walk: Walk, block: number, closer: number, opens: (number | null)[]): void {
+function mirrored(walk: Walk, block: number, closer: number, opens: (number | null)[]): number {
 	const { blocks, edits } = walk;
 	const body = blocks[block];
 	const held = edits[closer];
-	if (body === undefined || held === undefined) return;
+	if (body === undefined || held === undefined) return -1;
 	const index = blocks.length;
 	blocks.push({
 		...body,
@@ -1666,6 +1674,7 @@ function mirrored(walk: Walk, block: number, closer: number, opens: (number | nu
 		if (at !== null) edits.push([at, at, headOpens(index)]);
 	}
 	edits[closer] = [held[0], held[1], stamps(walk, block, headCloses(index))];
+	return index;
 }
 
 /**
@@ -2483,8 +2492,11 @@ function collect(node: unknown, walk: Walk): void {
 			});
 			const kind = isNode(value) ? value['type'] : undefined;
 			const holds = kind === 'ObjectPattern' ? '{}' : kind === 'ArrayPattern' ? '[]' : 'null';
-			edits.push([at[0], at[1], taken(index, 0) ? 'Promise.resolve()' : holds]);
+			const awaited = taken(index, 0) ? 'Promise.resolve()' : holds;
+			const opening = edits.length;
+			edits.push([at[0], at[1], awaited]);
 			// Which block just closed, written where the render puts it and nowhere else.
+			const closer = edits.length;
 			edits.push([whole[1], whole[1], stamps(walk, index)]);
 
 			if (isNode(waiting)) {
@@ -2507,14 +2519,12 @@ function collect(node: unknown, walk: Walk): void {
 			}
 			// The catch branch is left as written and never walked: the server never writes it, so
 			// nothing planted there would come back.
-			// A head inside it would have the block stand in the head stream, and its pending branch
-			// is the one place a `{@const}` cannot open one from. Nobody has written it.
+			// A head inside it has the block stand in the head stream. Its pending branch is the one
+			// place a `{@const}` is not allowed, so the open goes around the expression instead,
+			// which runs once before either branch: both are opened by it. See `headOpensWith()`.
 			if (site.headed.has(index)) {
-				refuse(
-					'a component writing a `<svelte:head>` inside an `{#await}` block is not handled ' +
-						'yet: the block would have to stand in the head stream, and `{@const}` is not ' +
-						'allowed at the start of the pending branch',
-				);
+				const mirror = mirrored(walk, index, closer, []);
+				edits[opening] = [at[0], at[1], headOpensWith(mirror, awaited)];
 			}
 			return;
 		}
