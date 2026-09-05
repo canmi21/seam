@@ -335,7 +335,7 @@ impl Assembler<'_> {
 					.item
 					.clone()
 					.ok_or_else(|| "an each block without an iteration variable".to_owned())?;
-				let index = block.counter.clone();
+				let counter = block.counter.clone();
 				let binds = block.binds.clone();
 				// The body is walked with what the block binds in scope, so a derivation inside it
 				// can be told from a path: one is computed once, the other resolved per item. A
@@ -349,15 +349,50 @@ impl Assembler<'_> {
 						self.locals.push(name.clone());
 					}
 				}
-				if let Some(counter) = index.clone() {
-					self.locals.push(counter);
+				if let Some(name) = counter.clone() {
+					self.locals.push(name);
 				}
 				let mut body = Out::default();
 				let walked = self.region(html, span.content, span.until, &mut body);
 				self.locals.truncate(depth);
 				walked?;
-				out.write(&html[span.from..span.content]);
-				out.push(ir::Node::Each { source, item, index, binds, body: body.finish() });
+				let each = ir::Node::Each { source, item, index: counter, binds, body: body.finish() };
+				if !block.alternate {
+					out.write(&html[span.from..span.content]);
+					out.push(each);
+					return Ok(());
+				}
+
+				// An each with an `{:else}` is what Svelte's own server writes it as: `if
+				// (each_array.length !== 0) { <!--[--> items } else { <!--[!--> fallback }`. So it is
+				// an if around the each, with the opening anchor inside the branch it belongs to,
+				// and the fallback read from the render made with an empty list the way an else is
+				// read from the render made with its if not taken. The test is what
+				// `ensure_array_like` decides: nothing, or nothing array-like, is an empty list.
+				let test = self.path(&format!("(({})?.length ?? 0) !== 0", block.expression))?;
+				let mut some = Out::default();
+				some.write(&html[span.from..span.content]);
+				some.push(each);
+				let key = format!("{index}.-1");
+				let rendered = self
+					.skeleton
+					.alternates
+					.get(&key)
+					.ok_or_else(|| format!("no render was made with the each block {index} empty"))?;
+				let other = match self.stream {
+					Stream::Body => rendered.body.as_str(),
+					Stream::Head => split_off_title(&rendered.head)?.0,
+				};
+				let mut none = Out::default();
+				let at = self.locate(other, index)?;
+				none.write(&other[at.from..at.content]);
+				self.region(other, at.content, at.until, &mut none)?;
+				out.push(ir::Node::If {
+					branches: vec![
+						ir::Branch { test: Some(test), body: some.finish() },
+						ir::Branch { test: None, body: none.finish() },
+					],
+				});
 				Ok(())
 			}
 			Kind::If => {

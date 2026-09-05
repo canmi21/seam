@@ -152,8 +152,12 @@ export async function skeleton(
 	// keeps this one reachable.
 	const alternates: Record<string, Rendered> = {};
 	for (const block of baseline.blocks) {
-		if (block.kind !== 'if' || block.absent === true) continue;
-		const wanted = [...(block.tests ?? []).keys()].slice(1);
+		if (block.absent === true) continue;
+		// An each with an `{:else}` has one other shape, the empty list, and it is keyed the way
+		// an if's else is: `-1`, which is the branch the walk puts the fallback's blocks within.
+		if (block.kind === 'each' && !block.alternate) continue;
+		if (block.kind !== 'if' && block.kind !== 'each') continue;
+		const wanted = block.kind === 'each' ? [] : [...(block.tests ?? []).keys()].slice(1);
 		// The else always gets a render, with or without a `{:else}` written: Svelte opens the
 		// branch either way and an empty one is still the bytes for an if that is not taken.
 		for (const branch of [...wanted, -1]) {

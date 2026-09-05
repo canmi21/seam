@@ -69,7 +69,10 @@ uses none of the three leaves `head` and `title` empty.
   source binds none. **A key is not here at all**: Svelte's server transform never mentions one,
   and a keyed each renders byte for byte what an unkeyed one renders -- measured, on a full list
   and an empty one. A key exists for the client's reconciliation, and the client compiles from the
-  source, where it still is.
+  source, where it still is. **An `{:else}` is not here either**: an each with one is lowered as
+  an `if` around the `each`, testing whether the list has anything in it, with the fallback as
+  the else -- which is the shape Svelte's own server output has, and it needs no node of its own.
+  See [refusals.md](refusals.md).
 - **`attr`** -- one attribute of the element being opened, written between the static chunk
   that opens the tag and the one that closes it. It carries `parts`, which are `static` and
   `slot` nodes, and it is the only node that can decide to write nothing at all.

@@ -84,7 +84,7 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 
 | | |
 | --- | --- |
-| `{#await}`, `{#key}`, an `{:else}` on an each | measured, trivial, unwritten |
+| `{#await}` | measured, trivial, unwritten |
 | a snippet rendered twice, or a parameter with a default | the body would have to stand in two places, or a name has no way in from the argument |
 | `{@render}` of a snippet from a prop | composition in the other direction; see below |
 | an expression over what an each binds | computed once against the payload; per-item is not decided |
@@ -1274,6 +1274,33 @@ reads. Two separate things would make it needed, and they are not the same event
    day every wrapper's `{...restProps}` stops being something Svelte resolves for us and becomes
    something this compiler has to write, and the node stops being optional. That is when it is
    required rather than possible.
+
+## `{#key}` is the client's, and an each's `{:else}` is a second shape
+
+Both were "measured, trivial, unwritten" in the table above, and both are written now. Read out
+of `3-transform/server/visitors/KeyBlock.js` and `EachBlock.js` rather than inferred.
+
+**A key block writes no block.** The server transform never evaluates the key: it writes
+`<!---->`, the fragment, `<!---->`, and an empty comment is what the assembler already steps over
+as a component boundary or a leading text marker. So the body is walked as if the key were not
+there, because on the server it is not; the key exists for the client's reconciliation, which
+compiles from the source, where it still is. Measured holding a value and a block.
+
+**An each with an `{:else}` is two shapes, the way an if is.** Svelte's server writes
+
+```js
+if (each_array.length !== 0) { push('<!--[-->'); for (...) { ... } } else { push('<!--[!-->'); fallback }
+```
+
+so the anchor that opens the block differs by which shape was taken, which is exactly an if with
+its branch marker inside the branch. The fallback is rendered from an empty list -- one more
+render, keyed `-1` among the alternates as an else is -- and the lowering writes the block as
+Svelte wrote it: an `if` around the `each`, with the opening anchor inside the first branch and
+the fallback, marker and all, as the else. The test is what `ensure_array_like` decides,
+`((xs)?.length ?? 0) !== 0`, so `undefined` is an empty list there as it is in Svelte. The
+fallback is markup like any other, and its blocks are numbered within the each's else the way an
+else's are within its if. Measured on a full list, an empty one, nothing at all, nested inside a
+branch and with a branch inside it.
 
 ## `{@render}`, where the count of five was measuring the scan rather than the compiler
 

@@ -90,6 +90,11 @@ pub struct Block {
 	/// render. It leaves the order counted against, or every ordinal after it shifts.
 	#[serde(default)]
 	pub absent: bool,
+	/// True where an each has an `{:else}`, which is a second shape rendered from an empty list
+	/// and keyed `-1` among the alternates the way an if's else is. Unused for an if, whose else
+	/// is already among its branches.
+	#[serde(default)]
+	pub alternate: bool,
 }
 
 /// Both of the streams one render produced.

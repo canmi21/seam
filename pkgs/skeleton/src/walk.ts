@@ -305,7 +305,6 @@ const REFUSED: Record<string, string> = {
 	AwaitBlock:
 		'`{#await}` is not handled yet. A synchronous render always takes its pending branch, which ' +
 		'is measured and small',
-	KeyBlock: '`{#key}` is not handled yet. Its only effect is on the client, and it is measured',
 	SvelteBoundary: '`<svelte:boundary>` is not handled yet',
 	SvelteFragment: '`<svelte:fragment>` is not handled yet',
 	SvelteSelf: '`<svelte:self>` is not handled yet: composition does not yet follow a cycle',
@@ -1005,6 +1004,15 @@ function collect(node: unknown, walk: Walk): void {
 			return;
 		}
 
+		case 'KeyBlock': {
+			// The key is the client's: it says when to recreate the fragment, and the server's
+			// transform never evaluates it. `KeyBlock.js` writes `<!---->`, the fragment, `<!---->`,
+			// which is no block at all -- an empty comment is what the assembler steps over -- so the
+			// body is walked as if the key were not there, because on the server it is not.
+			step(node['fragment']);
+			return;
+		}
+
 		case 'IfBlock': {
 			// The whole `{:else if}` chain, because Svelte's server writes it as one block: the
 			// transform flattens it and numbers the marker per branch rather than nesting a second
@@ -1057,21 +1065,13 @@ function collect(node: unknown, walk: Walk): void {
 		}
 
 		case 'EachBlock': {
-			// Three fields the protocol has no use for yet, and each of them changes the bytes. The
-			// written-bytes pass refused all three; this one inherited none of the refusals and
-			// silently rendered an each without its index and an empty each without its `{:else}`.
-			if (node['fallback'] !== null && node['fallback'] !== undefined) {
-				refuse(
-					'`{:else}` on an each block is not handled yet: the baseline render iterates one ' +
-						'element, so the branch for an empty list never appears in it',
-				);
-			}
 			// A key is not carried, because Svelte's own server transform never mentions one: a
 			// keyed each renders byte for byte what an unkeyed one renders, measured. It belongs to
 			// the client, which compiles from the source and keeps it.
 			const at = span(node['expression']);
 			const pattern = node['context'];
 			const context = span(pattern);
+			const fallback = node['fallback'];
 			if (at === null) return;
 
 			// A destructuring context binds names rather than the element, and Svelte's server takes
@@ -1110,10 +1110,14 @@ function collect(node: unknown, walk: Walk): void {
 				item: context === null ? null : source.slice(context[0], context[1]),
 				...(binds === undefined ? {} : { binds }),
 				counter: typeof node['index'] === 'string' ? node['index'] : null,
-				alternate: false,
+				alternate: fallback !== null && fallback !== undefined,
 			});
 			// One element, because the body's own expressions are sentinels and read nothing from it.
-			edits.push([at[0], at[1], `[${element}]`]);
+			// An each with an `{:else}` is two shapes the way an if is: Svelte's server writes
+			// `<!--[-->` and the items for a list with something in it, and `<!--[!-->` and the
+			// fallback for one with nothing, so the fallback gets a render of its own, from an empty
+			// list, the way an else does. See spec/refusals.md.
+			edits.push([at[0], at[1], taken(index, 0) ? `[${element}]` : '[]']);
 			// Which block just closed, written where the render puts it and nowhere else.
 			const whole = span(node);
 			if (whole !== null) edits.push([whole[1], whole[1], stamps(walk, index)]);
@@ -1122,7 +1126,14 @@ function collect(node: unknown, walk: Walk): void {
 			const inside = new Set(dynamic);
 			namesIn(pattern, inside);
 			if (typeof node['index'] === 'string') inside.add(node['index']);
+			within.push([index, 0]);
 			collect(node['body'], { ...walk, dynamic: inside });
+			within.pop();
+			if (isNode(fallback)) {
+				within.push([index, -1]);
+				step(fallback);
+				within.pop();
+			}
 			return;
 		}
 

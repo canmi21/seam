@@ -547,14 +547,15 @@ const accepted: Case[] = [
 		// keeps this from refusing what already worked. What it appended has to go back too: the
 		// group it recorded on the way in outlived the holes it was measured against, so a
 		// component the walk never entered was still asked whether its markup came back, over
-		// indices that by then belonged to somebody else. `{#key}` is the refusal here because it
-		// writes no anchors, so what is left is the rollback and nothing else.
+		// indices that by then belonged to somebody else. A name assigned after it is declared is
+		// the refusal here because it writes no anchors, so what is left is the rollback and
+		// nothing else.
 		name: 'a descent that stops takes its records back with it',
 		beside: {
 			Shed: '<script>let { children, ...rest } = $props();</script><div>{@render children()}</div>',
 			Stops:
-				"<script>import Shed from './Shed.svelte'; let { v } = $props();</script>" +
-				'<Shed><b>{v}</b></Shed>{#key v}<i>k</i>{/key}',
+				"<script>import Shed from './Shed.svelte'; let { v } = $props(); let k = 1; k = 2;</script>" +
+				'<Shed><b>{v}</b></Shed><i>{k}</i>',
 		},
 		source:
 			"<script>import Stops from './Stops.svelte'; let { data } = $props();</script>" +
@@ -1113,6 +1114,48 @@ const accepted: Case[] = [
 			'<svelte:window /><svelte:body /><div use:act onclick={() => {}}>{data.a}</div>{@debug data}',
 		data: [{ a: 'v' }],
 	},
+	{
+		// The key is the client's. Svelte's server never evaluates it and writes the fragment between
+		// two empty comments, which are not a block, so the body is walked as if the key were not
+		// there. Holding a block and a value, because that is what the fragment may hold.
+		name: 'a key block',
+		source: `${PROPS}{#key data.k}<p>{data.a}</p>{#if data.f}<b>y</b>{/if}{/key}`,
+		data: [
+			{ k: 1, a: 'x', f: true },
+			{ k: 2, a: '<&', f: false },
+		],
+	},
+	{
+		// Two shapes, the way an if is two: `<!--[-->` and the items for a list with something in
+		// it, `<!--[!-->` and the fallback for one with nothing. The fallback is read from a render
+		// made with an empty list, and it is markup like any other, so it holds a value and a
+		// block of its own here. Every payload the shape turns on: a full list, an empty one, and
+		// nothing at all, which `ensure_array_like` reads as empty. See spec/refusals.md.
+		name: 'an each with an else',
+		source:
+			`${PROPS}{#each data.xs as x}<i>{x}</i>{:else}<p>{data.none}</p>` +
+			'{#if data.f}<b>f</b>{/if}{/each}<u>{data.after}</u>',
+		data: [
+			{ xs: ['a', 'b'], none: 'n', f: true, after: 'z' },
+			{ xs: [], none: '<&', f: true, after: 'z' },
+			{ xs: [], none: 'n', f: false, after: 'z' },
+			{ none: 'n', f: true, after: 'z' },
+		],
+	},
+	{
+		// The fallback inside a branch, and a branch inside the fallback, since the fallback's
+		// blocks are numbered within the each the way an else's are within its if.
+		name: 'an each with an else, nested both ways',
+		source:
+			`${PROPS}{#if data.f}{#each data.xs as x}<i>{x}</i>{:else}` +
+			'{#each data.ys as y}<s>{y}</s>{:else}<p>none</p>{/each}{/each}{/if}',
+		data: [
+			{ f: true, xs: ['a'], ys: [] },
+			{ f: true, xs: [], ys: ['b', 'c'] },
+			{ f: true, xs: [], ys: [] },
+			{ f: false, xs: [], ys: [] },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
@@ -1143,7 +1186,6 @@ const refused: Case[] = [
 
 	{ name: 'svelte:boundary', source: `${PROPS}<svelte:boundary><p>{data.a}</p></svelte:boundary>` },
 	{ name: 'await block', source: `${PROPS}{#await data.p}<p>w</p>{:then v}<p>{v}</p>{/await}` },
-	{ name: 'key block', source: `${PROPS}{#key data.k}<p>{data.a}</p>{/key}` },
 	{
 		name: 'a snippet parameter with a default',
 		source: `${PROPS}{#snippet r({ a = 1 })}<p>{a}</p>{/snippet}{@render r(data.o)}`,
@@ -1233,10 +1275,6 @@ const refused: Case[] = [
 		// its own `{@render}` had just put in the table -- and looked declared. See spec/refusals.md.
 		name: 'a render of children, which is a snippet from a prop',
 		source: `${PROPS}<div>{@render children()}</div>`,
-	},
-	{
-		name: 'else on an each',
-		source: `${PROPS}{#each data.xs as x}<p>{x}</p>{:else}<p>none</p>{/each}`,
 	},
 	{
 		// Substitution replaces a name with the expression it was declared to be, so an assignment
