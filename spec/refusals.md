@@ -84,7 +84,6 @@ A list nobody runs is a claim. The check is the list, and this file keeps only t
 
 | | |
 | --- | --- |
-| `{#await}` | measured, trivial, unwritten |
 | a snippet rendered twice, or a parameter with a default | the body would have to stand in two places, or a name has no way in from the argument |
 | `{@render}` of a snippet from a prop | composition in the other direction; see below |
 | an expression over what an each binds | computed once against the payload; per-item is not decided |
@@ -1301,6 +1300,42 @@ the fallback, marker and all, as the else. The test is what `ensure_array_like` 
 fallback is markup like any other, and its blocks are numbered within the each's else the way an
 else's are within its if. Measured on a full list, an empty one, nothing at all, nested inside a
 branch and with a branch inside it.
+
+## `{#await}` is an if whose test is whether the value is a promise, and a boundary is no block
+
+**`{#await}`.** Read out of `internal/server/index.js`, where `$.await` is eleven lines: a
+promise writes `<!--[-->` and the pending branch, without waiting, and swallows the rejection;
+anything else writes `<!--[!-->` and the then branch with the value handed to it; the catch
+branch is never written, because nothing is awaited and so nothing rejects. Two branches decided
+by one test -- `typeof value?.then === 'function'`, which is Svelte's `is_promise` -- so every
+pass after the walk meets an if, and the anchors are bytes read off the render whichever they
+are. Nothing in the rendered source is rewritten but the expression: the block stays an await so
+Svelte writes its own anchors, and the expression becomes `Promise.resolve()` for the render that
+holds the pending branch and something the pattern can take apart for the render that holds the
+then branch, whose value is unused because every expression in it is a marker already. The value
+substitutes the way a snippet's parameter does, destructuring and all, with a default or a rest
+refused by the same rule.
+
+The payload is data and holds no promise, so on a payload path the then branch is what a request
+gets. A derivation may return one -- `Promise.resolve(data.a)` is measured -- and then the
+pending branch is written, which is exactly what Svelte's own server writes for it. An earlier
+draft of this section considered rewriting the block as an `{#if}` and reading the anchors from
+that; measured, an if opens with `<!--[0-->` and `<!--[-1-->` where an await opens with
+`<!--[-->` and `<!--[!-->`, so the bytes would have been wrong and the hydrating client would
+have found a block it did not expect.
+
+**`<svelte:boundary>`.** Read out of `3-transform/server/visitors/SvelteBoundary.js`. On the
+server a boundary is one shape and not a decision: `<!--[-->`, its children, `<!--]-->` -- or,
+given a `pending` snippet, `<!--[!-->`, that snippet's body, `<!--]-->` and none of the children,
+because a synchronous render is pending by definition. The `failed` snippet is never written:
+nothing throws during a render this compiler accepts, and if something did, Svelte would write
+the failed snippet in place of the children and every marker planted in them would fail to come
+back, which the hole check reports. So there is no block. The anchor pair is copied out as bytes
+the way a package component's own anchors are, and what is inside is walked as anything else.
+The failed snippet is cut from the rendered source, since a snippet with a parameter that nothing
+renders is otherwise a refusal about a body nobody writes. `pending={p}` and `failed={p}` as
+attributes stay refused: Svelte chooses at request time between the snippet and the children by
+whether `p` is nullish, and a name handed that way would have to be seen rendered.
 
 ## `{@render}`, where the count of five was measuring the scan rather than the compiler
 

@@ -277,6 +277,19 @@ function markup(
 		return;
 	}
 
+	if (type === 'AwaitBlock') {
+		// The then branch binds the value and the catch branch the error, each for its own body.
+		report(node['expression'], source, scope, into, carried);
+		markup(node['pending'], source, scope, into, carried);
+		const resolved = new Set(scope);
+		bound(node['value'], resolved);
+		markup(node['then'], source, resolved, into, carried);
+		const rejected = new Set(scope);
+		bound(node['error'], rejected);
+		markup(node['catch'], source, rejected, into, carried);
+		return;
+	}
+
 	for (const value of Object.values(node)) {
 		if (Array.isArray(value)) {
 			for (const child of value) markup(child, source, scope, into, carried);

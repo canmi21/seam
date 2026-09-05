@@ -1115,6 +1115,58 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// What `$.await` writes for a value that is not a promise: `<!--[!-->` and the then branch,
+		// with the value bound to it. The catch branch is never written on the server, so it is
+		// dropped whole, holding a marker nothing binds. Every form the block takes: pending, then
+		// and catch; the compact then; the compact catch; a destructured value; an each inside the
+		// then and the whole inside a branch. See spec/refusals.md.
+		name: 'an await over a value',
+		source:
+			`${PROPS}{#await data.p}<p>w</p>{:then v}<p>{v}</p>{:catch e}<u>{e}</u>{/await}` +
+			'{#await data.o then { a, b }}<b>{a}{b}</b>{/await}' +
+			'{#await data.p catch e}<u>{e}</u>{/await}' +
+			'{#if data.f}{#await data.xs then list}{#each list as x}<i>{x}</i>{/each}{/await}{/if}',
+		data: [
+			{ p: 'x', o: { a: 1, b: 2 }, f: true, xs: ['q', 'r'] },
+			{ p: '<&', o: { a: '', b: null }, f: false, xs: [] },
+		],
+	},
+	{
+		// A derivation that returns a promise, which is the one way a request can bring one: the
+		// payload is data. Svelte's server does not wait: it writes `<!--[-->` and the pending
+		// branch, and so does this, because the test is what `$.await` tests.
+		name: 'an await over a promise',
+		source:
+			'<script>let { data } = $props(); const p = Promise.resolve(data.a);</script>' +
+			'{#await p}<p>{data.w}</p>{:then v}<p>{v}</p>{/await}',
+		data: [{ a: 'x', w: 'waiting' }],
+	},
+	{
+		// On the server a boundary writes `<!--[-->`, its children, `<!--]-->`. The failed snippet
+		// is never written, and the error handler never runs.
+		name: 'a boundary',
+		source:
+			'<script>let { data } = $props(); function f() {}</script>' +
+			'<svelte:boundary onerror={f}><p>{data.a}</p>{#if data.f}<b>y</b>{/if}' +
+			'{#snippet failed(e)}<i>{e}</i>{/snippet}</svelte:boundary>',
+		data: [
+			{ a: 'x', f: true },
+			{ a: '<&', f: false },
+		],
+	},
+	{
+		// Given a pending snippet, a synchronous render is pending by definition: Svelte writes
+		// `<!--[!-->`, the snippet's body, `<!--]-->`, and none of the children.
+		name: 'a boundary with a pending snippet',
+		source:
+			`${PROPS}<svelte:boundary><p>{data.a}</p>{#snippet pending()}<i>{data.b}</i>` +
+			'{#if data.f}<u>u</u>{/if}{/snippet}{#snippet failed(e)}<s>{e}</s>{/snippet}</svelte:boundary>',
+		data: [
+			{ a: 'x', b: 'y', f: true },
+			{ a: 'x', b: '<&', f: false },
+		],
+	},
+	{
 		// The key is the client's. Svelte's server never evaluates it and writes the fragment between
 		// two empty comments, which are not a block, so the body is walked as if the key were not
 		// there. Holding a block and a value, because that is what the fragment may hold.
@@ -1184,8 +1236,15 @@ const refused: Case[] = [
 		source: `${PROPS}<p style:width="{data.a}px">x</p>`,
 	},
 
-	{ name: 'svelte:boundary', source: `${PROPS}<svelte:boundary><p>{data.a}</p></svelte:boundary>` },
-	{ name: 'await block', source: `${PROPS}{#await data.p}<p>w</p>{:then v}<p>{v}</p>{/await}` },
+	{
+		// A snippet handed by attribute is chosen at request time: Svelte renders the children when
+		// the value is nullish and the snippet otherwise. One written inside the tag is not.
+		name: 'a boundary given its pending snippet by attribute',
+		source:
+			`${PROPS}{#snippet p()}<i>w</i>{/snippet}` +
+			'<svelte:boundary pending={p}><p>{data.a}</p></svelte:boundary>',
+		says: 'attribute',
+	},
 	{
 		name: 'a snippet parameter with a default',
 		source: `${PROPS}{#snippet r({ a = 1 })}<p>{a}</p>{/snippet}{@render r(data.o)}`,

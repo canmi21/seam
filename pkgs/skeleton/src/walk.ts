@@ -302,10 +302,6 @@ const INERT = new Set([
  * A refusal that says only that something is wrong has failed.
  */
 const REFUSED: Record<string, string> = {
-	AwaitBlock:
-		'`{#await}` is not handled yet. A synchronous render always takes its pending branch, which ' +
-		'is measured and small',
-	SvelteBoundary: '`<svelte:boundary>` is not handled yet',
 	SvelteFragment: '`<svelte:fragment>` is not handled yet',
 	SvelteSelf: '`<svelte:self>` is not handled yet: composition does not yet follow a cycle',
 	SvelteComponent: '`<svelte:component>` chooses a component from a value, which is not decided',
@@ -401,6 +397,13 @@ function handedTo(
 		found.set(child, under(slotOf(child) ?? 'children', at));
 	}
 	return found;
+}
+
+/** Whether a node is a `{#snippet}` declared under the given name. */
+function snippetNamed(child: unknown, name: string): child is AstNode {
+	if (!isNode(child) || child['type'] !== 'SnippetBlock') return false;
+	const id = child['expression'];
+	return isNode(id) && id['name'] === name;
 }
 
 /** Every name a snippet's parameters bind. */
@@ -1001,6 +1004,131 @@ function collect(node: unknown, walk: Walk): void {
 			const inner: Locals['rewrite'] = (child, more) =>
 				expand(child, more === undefined ? bound : new Map([...bound, ...more]));
 			collect(declaration['body'], { ...walk, expand: inner });
+			return;
+		}
+
+		case 'AwaitBlock': {
+			// What `$.await` does, read out of `internal/server/index.js`: a promise writes `<!--[-->`
+			// and the pending branch, without waiting; anything else writes `<!--[!-->` and the then
+			// branch with the value bound to it; the catch branch is never written, because nothing
+			// is awaited and so nothing rejects. Two branches decided by one test, which is an if to
+			// every pass after this one -- the anchors are bytes read off the render, whichever they
+			// are. The block stays an await in the rendered source so Svelte writes its own anchors,
+			// and only the expression is swapped: a promise for the render that holds the pending
+			// branch, and something the pattern can take apart for the one that holds the then
+			// branch, whose value is unused because every expression in it is a marker already. The
+			// payload is data and holds no promise, but a derivation may return one, and then the
+			// pending branch is what Svelte's own server would have written. See spec/refusals.md.
+			const whole = span(node);
+			const at = span(node['expression']);
+			if (whole === null || at === null) return;
+			const value = node['value'];
+			const waiting = node['pending'];
+			const then = node['then'];
+
+			const index = blocks.length;
+			const expression = expand(node['expression']);
+			const test = `typeof (${expression})?.then === 'function'`;
+			blocks.push({
+				index,
+				kind: 'if',
+				stream,
+				expression: test,
+				tests: [test],
+				item: null,
+				counter: null,
+				alternate: true,
+				within: [...within],
+			});
+			const kind = isNode(value) ? value['type'] : undefined;
+			const holds = kind === 'ObjectPattern' ? '{}' : kind === 'ArrayPattern' ? '[]' : 'null';
+			edits.push([at[0], at[1], taken(index, 0) ? 'Promise.resolve()' : holds]);
+			// Which block just closed, written where the render puts it and nowhere else.
+			edits.push([whole[1], whole[1], stamps(walk, index)]);
+
+			if (isNode(waiting)) {
+				within.push([index, 0]);
+				step(waiting);
+				within.pop();
+			}
+			if (isNode(then)) {
+				// The value is the expression itself, resolved: `then_fn(promise)` is called with what
+				// was awaited, which was never a promise on this branch. So it substitutes the way a
+				// snippet's parameter does, with a destructuring reached through the way in.
+				const bound = new Map<string, string>();
+				if (isNode(value)) {
+					const argument = `(${expression})`;
+					if (value['type'] === 'Identifier' && typeof value['name'] === 'string') {
+						bound.set(value['name'], argument);
+					} else {
+						for (const [each, access] of destructure(value as never)) {
+							bound.set(each, `${argument}${access}`);
+						}
+						const all = new Set<string>();
+						namesIn(value, all);
+						const missing = [...all].filter((each) => !bound.has(each));
+						if (missing.length > 0) {
+							refuse(
+								`\`${String(missing[0])}\` comes out of this await's pattern through a default, ` +
+									'a rest or a nesting, which is neither a member nor an index of the value, ' +
+									'so there is no way in to write down',
+							);
+						}
+					}
+				}
+				const inner: Locals['rewrite'] = (child, more) =>
+					expand(child, more === undefined ? bound : new Map([...bound, ...more]));
+				within.push([index, -1]);
+				collect(then, { ...walk, expand: inner });
+				within.pop();
+			}
+			// The catch branch is left as written and never walked: the server never writes it, so
+			// nothing planted there would come back.
+			return;
+		}
+
+		case 'SvelteBoundary': {
+			// Read out of `3-transform/server/visitors/SvelteBoundary.js`. On the server a boundary
+			// is one shape, not a decision: `<!--[-->`, its children, `<!--]-->` -- or, given a
+			// `pending` snippet, `<!--[!-->`, that snippet's body, `<!--]-->` and none of the
+			// children, because a synchronous render is pending by definition. The `failed` snippet
+			// is never written: nothing throws during a render this compiler accepts, and if it did
+			// the hole check would say so. So there is no block here. The anchors are a pair the
+			// assembler copies as bytes, the way it copies a package component's own, and what is
+			// inside them is walked as anything else is. See spec/refusals.md.
+			const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
+			for (const attribute of attributes) {
+				// A snippet handed by attribute is decided at request time -- `pending={p}` renders the
+				// children when `p` is nullish -- and a name this walk would have to see rendered.
+				if (
+					isNode(attribute) &&
+					(attribute['name'] === 'pending' || attribute['name'] === 'failed')
+				) {
+					refuse(
+						`\`<svelte:boundary ${String(attribute['name'])}={...}>\` is not handled yet: a snippet ` +
+							'handed as an attribute is chosen at request time, where one written inside the ' +
+							'tag is not',
+					);
+				}
+			}
+			const fragment = node['fragment'];
+			const children =
+				isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+			const pendingSnippet = children.find((child) => snippetNamed(child, 'pending'));
+			// The failed snippet goes from the rendered source: it is declared with a parameter and
+			// never rendered here, which is a refusal the walk would otherwise raise about a body
+			// nobody writes.
+			for (const child of children) {
+				const at = snippetNamed(child, 'failed') ? span(child) : null;
+				if (at !== null) edits.push([at[0], at[1], '']);
+			}
+			if (pendingSnippet !== undefined) {
+				step(pendingSnippet['body']);
+				return;
+			}
+			for (const child of children) {
+				if (!snippetNamed(child, 'failed')) step(child);
+			}
 			return;
 		}
 
