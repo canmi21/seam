@@ -81,24 +81,34 @@ export function propsOf(
  * becomes `{ locale: { code: 'en' } }`, and every other field of `data` is still absent, which is
  * what keeps a marker the only way to read one.
  */
+/** The property names that reach an object's prototype rather than a field of it. */
+const RESERVED = new Set(['__proto__', 'constructor', 'prototype']);
+
 export function partial(fixed: ReadonlyMap<string, string>, root: string): unknown {
 	let found: Record<string, unknown> | undefined;
 	for (const [path, literal] of fixed) {
 		const names = path.split('.');
 		if (names[0] !== root) continue;
+		// A segment that names the prototype machinery is not a field: on an ordinary object,
+		// `at["__proto__"] ??= {}` leaves the inherited prototype where it is, the walk steps into
+		// `Object.prototype`, and the last assignment writes onto every object in the process while
+		// `found` stays empty. The paths come from the build's own configuration, so nobody hostile
+		// writes one -- but a name that is not a name is refused by name rather than compiled into a
+		// wrong result. Refused rather than built without a prototype, because the refusal is the
+		// shape a static analyser can read and a null-prototype object is not.
+		const reserved = names.find((name) => RESERVED.has(name));
+		if (reserved !== undefined) {
+			throw new Error(
+				`\`${path}\` names \`${reserved}\`, which is the prototype rather than a field of the ` +
+					'payload; a fixed path has to be spelled with the names the data actually carries',
+			);
+		}
 		const value: unknown = JSON.parse(literal);
 		if (names.length === 1) return value;
-		// Built without a prototype, so that a segment spelled `__proto__` is a key like any other
-		// rather than the object's prototype: on an ordinary `{}`, `at[name] ??= {}` leaves the
-		// inherited prototype where it is, the walk steps into `Object.prototype`, and the last
-		// assignment writes onto every object in the process while `found` stays empty. The paths
-		// come from the build's own configuration, so nobody hostile writes one, but a name that
-		// is not a name is a wrong result rather than a refused one, and the render reads props off
-		// this object exactly as it would off one with a prototype.
-		found ??= Object.create(null) as Record<string, unknown>;
+		found ??= {};
 		let at = found;
 		for (const name of names.slice(1, -1)) {
-			at[name] ??= Object.create(null) as Record<string, unknown>;
+			at[name] ??= {};
 			at = at[name] as Record<string, unknown>;
 		}
 		at[names[names.length - 1] as string] = value;
