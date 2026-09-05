@@ -1391,6 +1391,19 @@ const accepted: Case[] = [
 			{ f: false, xs: [], ys: [] },
 		],
 	},
+	{
+		// `let { id = data.d } = each_array[i]` in Svelte's own output: the default is taken when the
+		// member is `undefined` and only then, so `null` is written as nothing. The runtime binds the
+		// member and every read of the name is that choice, made per item.
+		name: 'an each pattern with a default',
+		source:
+			`${PROPS}{#each data.rows as { id = data.d, n = 5 }}<i>{id}-{n}</i>{/each}` +
+			'{#each data.pairs as [k, v = "?"]}<b>{k}{v}</b>{/each}',
+		data: [
+			{ d: 'D', rows: [{}, { id: 2 }, { id: null, n: 0 }], pairs: [['a'], ['b', 'c']] },
+			{ d: 'E', rows: [], pairs: [] },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
@@ -1476,12 +1489,6 @@ const refused: Case[] = [
 		source:
 			"<script>import Feeds from './Feeds.svelte'; let { data } = $props();</script>" +
 			'<Feeds>{#snippet row(n)}<i class={n > 0 ? "up" : "down"}>{data.a}</i>{/snippet}</Feeds>',
-	},
-	{
-		// The same rule a snippet's parameter follows: a default is neither a member nor an index
-		// of the element, so there is no way in to write down.
-		name: 'an each pattern with a default',
-		source: `${PROPS}{#each data.rows as { id = 1 }}<i>{id}</i>{/each}`,
 	},
 	{
 		// The server writes the children only where the value comes out empty, which is a decision

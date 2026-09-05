@@ -1360,9 +1360,15 @@ and a destructured default reaches through the member the same way, which is one
 with an await's pattern. An argument not written is `undefined` too, so `{@render r()}` is a call
 like any other; more arguments than parameters is still refused, being an argument nothing
 receives. A rest or a nesting stays refused: neither is a member nor an index, so it has no way
-in. An each block's pattern is the one place a default is still refused, because there the name
-is bound by the runtime per item rather than substituted, and a default there is an expression
-the runtime would have to evaluate.
+in. An each block's pattern used to be the one place a default was still refused, on the reading
+that the name is bound by the runtime per item and a default is an expression the runtime would
+have to evaluate. It is: `EachBlock.js` writes `let { id = d } = each_array[i]`, so the name is
+the member unless that is `undefined`, and `null` is not defaulted. The runtime binds the member
+the way it binds every destructured name, and every read of the name inside the body is written
+as `(id === undefined ? (d) : id)` -- a derivation over what the block binds, made per item, which
+[derivation.md](derivation.md) settled. The default goes out of the render's source, since the
+render is given nothing it reads and every read in the body is a marker already. A rest or a
+nesting stays refused, as in a snippet.
 
 **`style:` mixing text and an expression.** `build_attribute_value` joins the parts into a
 template literal with `$.stringify` around each expression, which writes nothing for null and

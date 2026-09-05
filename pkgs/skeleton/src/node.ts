@@ -145,6 +145,11 @@ export function namesIn(pattern: unknown, into: Set<string>): void {
 		namesIn(pattern['value'], into);
 		return;
 	}
+	// A default is read, not bound: `{ a = data.d }` binds `a`.
+	if (pattern['type'] === 'AssignmentPattern') {
+		namesIn(pattern['left'], into);
+		return;
+	}
 	for (const value of Object.values(pattern)) namesIn(value, into);
 }
 
