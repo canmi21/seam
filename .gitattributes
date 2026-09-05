@@ -1,6 +1,10 @@
 * text=auto eol=lf
 
-# The v1 tree is kept to be read, not maintained. Left counted, GitHub would describe this
-# repository as the version being replaced. `vendored` rather than `generated`, because nothing
-# produced it: it is authored code that no longer speaks for the project.
-refs/** linguist-vendored=true
+# Source taken from SvelteKit is theirs, and the statistics describe what is written here. GitHub
+# leaves a `vendor/` out by default; said here so that it holds whatever the directory is called.
+# See vendor/README.md.
+vendor/** linguist-vendored=true
+
+# Written by `mise run regenerate` from the `.svelte` beside each, and read by the checks on both
+# sides: a build's output, not authored.
+corpus/cases/*.json linguist-generated=true
