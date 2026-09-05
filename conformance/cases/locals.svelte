@@ -1,1 +1,0 @@
-<script module>export const TAX = 0.2</script><script>let { data } = $props(); const total = data.price * (1 + TAX); const dear = total > 50</script><article><b>{total}</b>{#if dear}<em>dear</em>{:else}<i>cheap</i>{/if}{#each data.tags as t}<span>{t}</span>{/each}</article>

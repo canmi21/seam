@@ -1,5 +1,0 @@
-[
-	{ "label": "over the line", "data": { "price": 100, "tags": ["a", "b"] } },
-	{ "label": "under it", "data": { "price": 10, "tags": [] } },
-	{ "label": "absent price", "data": { "tags": ["x"] } }
-]

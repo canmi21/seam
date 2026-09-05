@@ -1,5 +1,0 @@
-[
-	{ "label": "every part present", "data": { "tone": "warm", "size": "lg" } },
-	{ "label": "parts missing", "data": { "tone": "", "size": null } },
-	{ "label": "characters that escape", "data": { "tone": "a<b", "size": "c&d" } }
-]

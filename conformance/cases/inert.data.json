@@ -1,4 +1,0 @@
-[
-	{ "label": "branch taken", "data": { "v": "x", "f": true } },
-	{ "label": "branch not taken", "data": { "v": "<b>&y", "f": false } }
-]
