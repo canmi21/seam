@@ -9,9 +9,10 @@ other way of writing Svelte is in scope, and a construct is refused only for as 
 written it, never because it is the wrong way to write Svelte. [refusals.md](refusals.md) says what
 a refusal means; this file says what is still refused and why each is where it is.
 
-Nothing here is SeamJS. Routing, the layout chain, the load stage and where request context sits
-are the meta-framework's, and this protocol is not yet the equivalent of SvelteKit. What is listed
-under **blocked** is blocked on that, and nothing else.
+Nothing here is the framework layer. Routing, the layout chain, the load stage and where request
+context sits are the meta-framework's, and this protocol is not yet the equivalent of SvelteKit;
+[framework.md](framework.md) is where that layer is taken from Kit. What is listed under
+**blocked** is blocked on that, and nothing else.
 
 Every item below was read out of Svelte 5.57's source before it was written down, and the file
 that decides it is named. That is the order of work for each: read the transform and the runtime,
@@ -90,12 +91,16 @@ planned.
 
 ## Blocked, and on what
 
+Both of these are the framework layer's, and [framework.md](framework.md) now says how each is
+taken: Kit's own routing and manifest, vendored, and Kit's generated root as the compiler's entry.
+
 **The root is a layout chain around a page.** `children` at the entry, context an ancestor sets
 (press's `QueryClient` from its layout), a snippet that arrived as a prop at the entry: three
 spellings of "the root has no caller". The mechanism exists -- the oracle wraps the page in its
-layouts and compiles that -- and what is missing is the map from a route to its layouts, which is
-SeamJS.
+layouts and compiles that -- and the map from a route to its layouts is `create_manifest_data`'s,
+with `write_root`'s root as the entry. Waits on `pkgs/routes` growing the manifest, which is the
+first step in framework.md's order of work.
 
-**Where request context sits.** `$.now`, `$.tz`, `$.locale` are named in
-[derivation.md](derivation.md) and [payload.md](payload.md) leaves their place in the payload to
-the load stage. SeamJS.
+**Where request context sits.** In the root's props, `params` and `page`, filled by the load
+stage; [payload.md](payload.md) has it. `$.now`, `$.tz` and `$.locale` are whatever the load stage
+puts there. Waits on the same step.

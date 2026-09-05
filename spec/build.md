@@ -198,14 +198,22 @@ entries: [
 
 **The URL is the author's, not the compiler's.** It was briefly the component's id, by way of a
 development server that served each artifact at `/<id>`, and that is a routing convention invented
-by an implementation detail rather than decided. Routing -- what finds the entries, whether a
-directory layout implies them, how a parameter is spelled -- is still not decided; naming the URL
-is what stops the compiler from deciding it by accident. See [refusals.md](refusals.md) for the
-difference between what is deferred and what is refused.
+by an implementation detail rather than decided. Naming the URL is what stops the compiler from
+deciding it by accident.
 
-**The root component is one field both halves read.** Today it is the entry's own component. The
-compiler renders it to produce the IR, and the plugin generates a hydration entry that mounts it,
-and the two agree because they read the same field rather than because somebody kept them in step.
+**What finds the entries is SvelteKit's routing, taken whole.** The pair above stays the compiler's
+interface, and the framework layer produces the pairs: `src/routes` read by Kit's own
+`create_manifest_data` into routes and their layout chains, a route id spelled as Kit spells it --
+`[param]`, `[...rest]`, `[[optional]]`, `(group)` -- and matched by Kit's own `find_route`. Nothing
+about routing is invented here; see [framework.md](framework.md) and `pkgs/routes`.
+
+**The root component is one field both halves read, and it is the generated root.** The compiler
+renders it to produce the IR, and the plugin generates a hydration entry that mounts it, and the
+two agree because they read the same field rather than because somebody kept them in step. For a
+route the field is the root Kit's `write_root` generates -- the page nested in its layouts, taking
+`data_0` .. `data_n`, `params` and `form` -- so that the layout chain is one walk and one IR, which
+is what [payload.md](payload.md) describes the payload against. The shell's two placeholders are
+unchanged.
 
 That is the same rule as one artifact and two readers, moved to the two halves of a build. It
 matters because the halves are produced by different things -- the IR by a WebAssembly pass, the
