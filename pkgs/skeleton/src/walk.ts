@@ -215,6 +215,8 @@ export interface Walk {
 	taken: (block: number, branch: number) => boolean;
 	stream: Stream;
 	expand: Locals['rewrite'];
+	/** The rune a declared name was written with, which decides whether a tag naming it is dynamic. */
+	runeOf: Locals['rune'];
 	/** Every snippet this component declares, by name, with how many parameters it takes. */
 	snippets: ReadonlyMap<string, Snippet>;
 	pending: PendingChoice[];
@@ -1036,6 +1038,34 @@ function collect(node: unknown, walk: Walk): void {
 			if (given && descend(node, walk)) {
 				return;
 			}
+			// A tag naming a declaration written with a rune, which Svelte's analysis reads as a
+			// dynamic component: `metadata.dynamic` in `2-analyze/visitors/Component.js` is set for
+			// a binding whose kind is not `normal`, and the server then writes `<!--[-->` and
+			// `<!--]-->` around what it renders, or `<!--[!--><!--]-->` for a value that is nothing.
+			// The declaration reads props, so the render has been handed a literal for it, and the
+			// tag rendered nothing where a request renders an icon. `<svelte:component this={...}>`
+			// goes through the same `build_inline_component`, dynamic, so the tag is rewritten to
+			// that with the expression expanded -- what the name stands for, with every fixed path
+			// a literal -- for Svelte to evaluate. One that reaches the request is a component chosen
+			// per request, which is not decided. See spec/refusals.md.
+			if (type === 'Component' && !tag.includes('.') && walk.runeOf(tag) !== undefined) {
+				const whole = span(node);
+				if (whole !== null) {
+					const at: [number, number] = [whole[0] + 1, whole[0] + 1 + tag.length];
+					const written = expand({ type: 'Identifier', name: tag, start: at[0], end: at[1] });
+					if (mentions(written, dynamic)) {
+						refuse(
+							`\`<${tag}>\` chooses a component from a value the request decides, which is not ` +
+								'decided: a structure is enumerated, and this one is not enumerable',
+						);
+					}
+					edits.push([at[0], at[1], `svelte:component this={${written}}`]);
+					const close = `</${tag}>`;
+					if (source.endsWith(close, whole[1])) {
+						edits.push([whole[1] - close.length, whole[1], '</svelte:component>']);
+					}
+				}
+			}
 
 			if (Array.isArray(attributes)) {
 				for (const attr of attributes) {
@@ -1670,6 +1700,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 			edits: inner,
 			expand: (child, extra) =>
 				declared.rewrite(child, new Map([...bound, ...(extra ?? new Map())])),
+			runeOf: declared.rune,
 			snippets,
 			siblings: relatesSiblings(ast),
 			dynamic: fresh === null ? walk.dynamic : new Set([...walk.dynamic, fresh]),
@@ -1792,6 +1823,7 @@ export function rewrite(
 		taken,
 		stream: 'body',
 		expand: declared.rewrite,
+		runeOf: declared.rune,
 		snippets,
 		pending,
 		within: [],

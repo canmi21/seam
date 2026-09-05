@@ -26,6 +26,12 @@ export interface Declared {
 	/** What a render is handed in its place, which has to be destructurable when it was. */
 	holds: 'value' | 'callable' | 'object' | 'array';
 	/**
+	 * The rune the declaration was written with, where it was: `$state`, `$derived`. Svelte's
+	 * analysis reads a component tag naming such a declaration as dynamic and writes anchors
+	 * around it, which a tag naming a plain `const` does not get. See `walk.ts`.
+	 */
+	rune?: string;
+	/**
 	 * What the name expands to, where that is not a span of the source.
 	 *
 	 * `let t;` and `let t = $state()` declare a name with nothing written for its value, and
@@ -182,12 +188,12 @@ function declared(
 							continue;
 						}
 						if (id['type'] === 'Identifier' && typeof id['name'] === 'string') {
-							record(id['name'], argument, { access: reach });
+							record(id['name'], argument, { access: reach, rune });
 							continue;
 						}
 						const holds = id['type'] === 'ArrayPattern' ? 'array' : 'object';
 						for (const [name, into] of destructure(id)) {
-							record(name, argument, { access: `${reach}${into}`, holds });
+							record(name, argument, { access: `${reach}${into}`, holds, rune });
 						}
 						continue;
 					}
@@ -235,6 +241,8 @@ const EMPTY: Record<Declared['holds'], string> = {
 export interface Locals {
 	/** Whether the scripts declare this name. */
 	has: (name: string) => boolean;
+	/** The rune a declaration was written with, or undefined for a plain one or no declaration. */
+	rune: (name: string) => string | undefined;
 	/**
 	 * An expression's source with every declared name replaced by what it was declared to be.
 	 *
@@ -690,6 +698,7 @@ export function locals(
 
 	return {
 		has: (name) => found.has(name),
+		rune: (name) => found.get(name)?.rune,
 		rewrite: (node, extra) => slice(node, new Set(), extra),
 		// By span rather than by name: one destructuring declares several names and is one place
 		// in the source, and writing over it twice would take the file apart.

@@ -1397,6 +1397,53 @@ the whole of that attribute and replaces it with nothing or ` selected=""`. The 
 render to be known. `defaultValue` on a select, and an option whose own value is mixed content,
 stay refused by name.
 
+## A byte oracle over press's own payloads, and what it found first
+
+Every measurement above asked whether a route *compiles*. None asked whether the bytes are
+right, because nothing had a payload to inject: the load functions depend on the site's virtual
+modules and on Kit, and the stubs hold nothing. The dev server has it. SvelteKit exposes each
+route's data at `<path>/__data.json`, devalue-encoded, and decoding it gives the `data` a request
+would bring. So the oracle is: fetch the payload, compile the route through the same pipeline the
+build uses, inject, and compare against Svelte's own server render of the same route entry given
+the same data. press itself is never touched; its output is read.
+
+**Five of seven routes are byte-identical**, one of them 346 KB long. What stood between the
+compile and the first comparison was six things, each invisible to a compile that never
+evaluates a derivation, and each recorded where it belongs: the `file:` specifier a sample maps a
+workspace library to, which esbuild cannot resolve; the TypeScript a `lang="ts"` component writes
+its expressions with, which `new Function` cannot read; what gets carried, which was gathered from
+the markup's names and was wrong both ways; a path rooted at an imported constant, which resolved
+against the payload; a prop left for Svelte to evaluate, written with a name the render had
+neutralised; and a dynamic component named by a `$derived`, below. See
+[derivation.md](derivation.md) for the first four.
+
+**A component tag naming a rune declaration is a dynamic component.** `metadata.dynamic` in
+`2-analyze/visitors/Component.js` is set for a binding whose kind is not `normal`, and the server
+then writes `<!--[-->` and `<!--]-->` around what it renders, or `<!--[!--><!--]-->` when the
+value is nothing. press's language switcher picks its trigger's icon that way, `const CurrentMark
+= $derived(code === preferred ? Compass : markFor(current))`. The declaration reads a prop, so the
+render had been handed a literal for it, and the tag rendered nothing where a request renders an
+icon: ten bytes short on every route that carries the switcher. `<svelte:component this={...}>`
+goes through the same `build_inline_component`, dynamic, so the tag is rewritten to that with the
+expression expanded -- what the name stands for, with every fixed path a literal -- for Svelte to
+evaluate. A tag naming a plain `const` is not dynamic and is not rewritten. One whose expression
+reaches the request is a component chosen per request, which is a structure that is not
+enumerable, and is refused by name; the article route's switcher is that, being given the
+article's own language, and declaring `data.meta.lang` a domain is what would enumerate it.
+
+**What the two routes that do not compare yet are waiting on** is one thing: a derivation that
+calls into a package which needs a component's context. The home page's newsletter and support
+blocks read `createEngagementQuery().data?.subscriber_count ?? 0`, and that is a derivation to
+this compiler, evaluated per request by `new Function`, where `useQueryClient()` finds no context
+and throws -- and before it can throw, bundling it pulls `@tanstack/svelte-query` into esbuild,
+which has no loader for the `.svelte` files it ships. The expression reads nothing the request
+decides. It is client state whose server value is the same every request, which the render
+computes correctly inside the layout's provider, and which is therefore bytes rather than a
+derivation: the same rule a prop handed to a package already follows, applied to an expression
+in markup. An earlier attempt at exactly that rule was measured and narrowed, above, because
+components compiled one at a time threw without the context a route brings; a route is the unit
+now. Not taken here, because it reverses a decision that was measured.
+
 ## `{@render}`, where the count of five was measuring the scan rather than the compiler
 
 Five components were held by *`{@render}` of a snippet this component does not declare*. Every one

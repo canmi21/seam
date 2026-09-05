@@ -1266,6 +1266,25 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '<&' }],
 	},
 	{
+		// A tag naming a `$derived`, which Svelte's analysis reads as a dynamic component and
+		// writes anchors around. The declaration reads a fixed path, so the render was handed a
+		// literal for it and rendered nothing; the tag is rewritten to `<svelte:component>` with
+		// the expression expanded, which is the same dynamic call. See spec/refusals.md.
+		name: 'a dynamic component from a derived declaration',
+		beside: {
+			Ay: '<script>let { v } = $props();</script><i>A{v}</i>',
+			Bee: '<script>let { v } = $props();</script><b>B{v}</b>',
+		},
+		source:
+			"<script>import Ay from './Ay.svelte'; import Bee from './Bee.svelte'; let { data } = $props();" +
+			" const Pick = $derived(data.k === 'a' ? Ay : Bee);</script><Pick v={data.x} /><p>{data.x}</p>",
+		fixed: { 'data.k': '"a"' },
+		data: [
+			{ k: 'a', x: '1' },
+			{ k: 'a', x: '<&' },
+		],
+	},
+	{
 		// The key is the client's. Svelte's server never evaluates it and writes the fragment between
 		// two empty comments, which are not a block, so the body is walked as if the key were not
 		// there. Holding a block and a value, because that is what the fragment may hold.
@@ -1328,6 +1347,16 @@ const refused: Case[] = [
 		// decided by a string that only exists per request. See spec/refusals.md.
 		name: 'class: beside a class attribute that is an expression',
 		source: `${PROPS}<p class={data.a} class:on={data.f}>x</p>`,
+	},
+	{
+		// The same, chosen by a value the request decides: which component is a structure, and one
+		// picked per request is not enumerable.
+		name: 'a dynamic component chosen by the request',
+		beside: { Ay2: '<i>A</i>', Bee2: '<b>B</b>' },
+		source:
+			"<script>import Ay2 from './Ay2.svelte'; import Bee2 from './Bee2.svelte'; let { data } = $props();" +
+			' const Pick = $derived(data.f ? Ay2 : Bee2);</script><Pick />',
+		says: 'chooses a component',
 	},
 	{
 		// A snippet handed by attribute is chosen at request time: Svelte renders the children when
