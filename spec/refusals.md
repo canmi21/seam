@@ -74,8 +74,8 @@ message that does not mention `$.now` has told them their code is wrong and noth
 
 ## The list lives in a check, not in this file
 
-**What is refused today is `pkgs/skeleton/conformance/run.ts`**, which compiles each construct and
-records whether it was turned away. This file used to carry the list instead, and the list was
+**What is refused today is `pkgs/skeleton/src/skeleton.test.ts`**, which compiles each construct
+and records whether it was turned away. This file used to carry the list instead, and the list was
 maintained by recollection. Measured against the compiler, it was wrong in both directions at
 once: it called an each block with a key and `{:else}` on an each unwritten when both compiled,
 and it did not mention `{@const}`, which compiled and rendered the wrong bytes.

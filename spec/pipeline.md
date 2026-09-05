@@ -84,6 +84,18 @@ is a real cost, since every backend then carries it, and a small one: writing at
 object, or a tag name from a string, is concatenation and a list of void elements. It is an HTML
 fact rather than a Svelte one, which is the same ground on which the boolean rule was let in.
 
+**A marker is outside every function's domain, and that is a risk the render carries.** A
+component the walk does not enter is rendered with a marker where a request value would be, and
+whatever it computes from that value it computes from a string no request sends. Where the result
+is written it does not matter: the bytes are a hole and the runtime writes the real one. Where the
+result decides structure inside that component it does: press's language name went through
+`sourceLanguageName(marker, code)`, the marker was not a language tag, and the render took the
+function's fallback branch, one no request reaches. Nothing in the bytes says so, which is what
+makes it a risk rather than a refusal. What bounds it is that a component left to Svelte is given
+the request's values only as markers, so a structure that depends on one is either declared as a
+domain by the build and rendered per value, or is wrong for the values the domain would have held.
+The byte oracle over real payloads is what finds the second, and it is why the oracle exists.
+
 ## Enumerate the structures, not the values
 
 The table above is written in terms of outcomes, and that word has to be pinned down, because the
