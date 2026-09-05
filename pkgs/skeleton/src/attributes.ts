@@ -36,8 +36,15 @@ export const CHOICES = 16;
 export interface PendingChoice {
 	index: number;
 	tests: string[];
-	/** `class` for a class attribute's directives, `style` for a style attribute's. */
-	kind: 'class' | 'style';
+	/**
+	 * `class` for a class attribute's directives, `style` for a style attribute's, and `value`
+	 * for a class written as one expression on an element the stylesheet scopes: `to_class`
+	 * writes the value and the hash with a space between, or the hash alone when the value is
+	 * empty, which is a decision on the value with the value inside one of its outcomes.
+	 */
+	kind: 'class' | 'style' | 'value';
+	/** For `value`: the hole standing for the class's value, which the non-empty outcome holds. */
+	value?: number;
 	names: string[];
 	/** The attribute as written, or the empty string where there was none. */
 	base: string;

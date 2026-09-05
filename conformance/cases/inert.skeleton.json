@@ -11,7 +11,8 @@
 		{
 			"index": 0,
 			"expression": "data.v",
-			"raw": false
+			"raw": false,
+			"files": ["inert.svelte"]
 		}
 	],
 	"blocks": [
@@ -24,8 +25,10 @@
 			"item": null,
 			"counter": null,
 			"alternate": false,
-			"within": []
+			"within": [],
+			"files": ["inert.svelte"]
 		}
 	],
-	"entered": []
+	"entered": [],
+	"payload": ["data"]
 }

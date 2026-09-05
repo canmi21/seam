@@ -1407,8 +1407,8 @@ would bring. So the oracle is: fetch the payload, compile the route through the 
 build uses, inject, and compare against Svelte's own server render of the same route entry given
 the same data. press itself is never touched; its output is read.
 
-**Five of seven routes are byte-identical**, one of them 346 KB long. What stood between the
-compile and the first comparison was six things, each invisible to a compile that never
+**Five of seven routes were byte-identical after six fixes**, one of them 346 KB long. What
+stood between the compile and the first comparison was six things, each invisible to a compile that never
 evaluates a derivation, and each recorded where it belongs: the `file:` specifier a sample maps a
 workspace library to, which esbuild cannot resolve; the TypeScript a `lang="ts"` component writes
 its expressions with, which `new Function` cannot read; what gets carried, which was gathered from
@@ -1431,18 +1431,67 @@ reaches the request is a component chosen per request, which is a structure that
 enumerable, and is refused by name; the article route's switcher is that, being given the
 article's own language, and declaring `data.meta.lang` a domain is what would enumerate it.
 
-**What the two routes that do not compare yet are waiting on** is one thing: a derivation that
-calls into a package which needs a component's context. The home page's newsletter and support
-blocks read `createEngagementQuery().data?.subscriber_count ?? 0`, and that is a derivation to
-this compiler, evaluated per request by `new Function`, where `useQueryClient()` finds no context
-and throws -- and before it can throw, bundling it pulls `@tanstack/svelte-query` into esbuild,
-which has no loader for the `.svelte` files it ships. The expression reads nothing the request
-decides. It is client state whose server value is the same every request, which the render
-computes correctly inside the layout's provider, and which is therefore bytes rather than a
-derivation: the same rule a prop handed to a package already follows, applied to an expression
-in markup. An earlier attempt at exactly that rule was measured and narrowed, above, because
-components compiled one at a time threw without the context a route brings; a route is the unit
-now. Not taken here, because it reverses a decision that was measured.
+**A value the request does not decide is bytes, and the render is where it is computed.** The
+home page's newsletter block reads `createEngagementQuery().data?.subscriber_count ?? 0`, and
+the walk planted a hole for it because it was not a literal. A hole is a derivation, and a
+derivation is a value asked for per request; asking for this one meant evaluating it outside a
+render, which is impossible by construction. Read out of the package and out of Svelte:
+`createBaseQuery.svelte.js` is a runes module, legal only once Svelte's compiler has been over
+it, which esbuild has not; `useQueryClient()` is `getContext()`, and `get_or_init_context_map`
+in `internal/shared/context.js` throws `lifecycle_outside_component` when `ssr_context` is null,
+which it is anywhere but inside `render()`. Kit renders it because the whole tree runs inside
+`render()` under the layout's provider, with Vite's plugin compiling the module. So does this
+compiler's own render, and it computes what Kit computes: `enabled: browser` is false on the
+server, the query never runs, `data` is `undefined`, the count is `0`, the same on every request.
+Which is the whole point: an expression that reads nothing the request decides is not a value
+the runtime resolves, it is structure, and it is baked. So the walk writes such an expression out
+for Svelte to evaluate and plants nothing, the rule a prop handed to a package already followed.
+An earlier attempt at this rule was narrowed, above, because components compiled one at a time
+threw without the context a route brings; a route is the unit now, and that reason is gone.
+Anything ambient in such an expression, a clock or a random, is refused before it by `resolved`.
+What is still a hole is exactly what varies: a payload path, a name a block binds, an id the
+runtime counts.
+
+**Written as the author wrote it, where the walk bound nothing in it.** The expansion of a name
+is its initialiser, and the render runs the author's script whole: `const u = new URL(x);
+u.searchParams.set('q', y)` holds the query at render time and the expansion of `u` does not --
+press's home page lost `?q=` from a link that way. So the render is given the author's own text
+wherever the expansion through what the walk bound -- a snippet's parameters, an argument's way
+in -- is the same as the expansion without, and the expansion only where it is not.
+
+**A block the request does not decide is decided once, by the render.** An `{#if}` whose every
+test reads nothing the request decides is bytes too: the branch it takes, between anchors the
+assembler copies as it copies a package's own. The walk is not told which branch the first time
+through, so it asks -- a statement at the end of the instance script reports the test's value --
+and every render of that pass, the baseline and each alternate, has its say, so a component in a
+branch the baseline does not take answers too. Then the walk runs again told, walks only the
+branch taken, and plants no block. A test no render answered is not asked again and is walked
+as the decision it was, which the runtime makes. Under a test not yet answered, nothing is handed
+to the render to evaluate and nothing further is asked: the render of that pass forces a branch
+to hold it, and `tip.stat.lang` under `{#if tip}` throws where `tip` is state with no value.
+
+**An each the request does not decide is iterated per request all the same**, so the runtime has
+to hold its source -- as the value, never as the computation. press's subscriber counter takes
+its digits from that query. The render is asked for the value as JSON, and the literal stands
+where the expression stood, so the runtime iterates data. **A prop the request does not decide is
+bound the same way** where the render can say: to the render's value as JSON rather than to the
+expansion, which is what carried the query above through a component. A value is answered only
+where it is data -- a string, a number, a boolean, null, arrays and plain objects of those; a
+`URL` or a `Date` would round-trip as a string and come back a different thing, and for those
+the expansion stays.
+
+**Two more things the same oracle found beside these.** A class written as an expression on an
+element the stylesheet could match: Svelte scopes the element when it cannot read what the class
+could be -- `gather_possible_values` in `2-analyze/css/utils.js` reads a literal, a ternary, a
+logical and an array, and gives up on anything else -- and a marker or a constant written there
+is a literal it can read, so the hash went missing. Whatever is written into a class value is
+wrapped as `(0, ...)`, a sequence, which evaluates to the same thing and cannot be read, as the
+author's own expression could not be. And `to_class` writes the value and the hash with a space
+between, the hash alone for an empty value, and nothing for neither, so a class that is one
+expression on a scoped element is a decision with the value inside its non-empty outcome, the
+way a `class:` is one with the hash inside its outcomes. The other: an each's key goes from the
+render, because Svelte's server never reads one and the placeholder the render iterates is what
+`(tile.stat.lang)` was evaluated against.
 
 ## `{@render}`, where the count of five was measuring the scan rather than the compiler
 

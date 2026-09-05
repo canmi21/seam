@@ -6,27 +6,32 @@
 		{
 			"index": 0,
 			"expression": "i",
-			"raw": false
+			"raw": false,
+			"files": ["keyed.svelte"]
 		},
 		{
 			"index": 1,
 			"expression": "row.name",
-			"raw": false
+			"raw": false,
+			"files": ["keyed.svelte"]
 		},
 		{
 			"index": 2,
 			"expression": "i",
-			"raw": false
+			"raw": false,
+			"files": ["keyed.svelte"]
 		},
 		{
 			"index": 3,
 			"expression": "j",
-			"raw": false
+			"raw": false,
+			"files": ["keyed.svelte"]
 		},
 		{
 			"index": 4,
 			"expression": "tag",
-			"raw": false
+			"raw": false,
+			"files": ["keyed.svelte"]
 		}
 	],
 	"blocks": [
@@ -38,18 +43,21 @@
 			"expression": "data.rows",
 			"item": "row",
 			"counter": "i",
-			"alternate": false
+			"alternate": false,
+			"files": ["keyed.svelte"]
 		},
 		{
 			"index": 1,
 			"kind": "each",
-			"within": [],
+			"within": [[0, 0]],
 			"stream": "body",
 			"expression": "row.tags",
 			"item": "tag",
 			"counter": "j",
-			"alternate": false
+			"alternate": false,
+			"files": ["keyed.svelte"]
 		}
 	],
-	"entered": []
+	"entered": [],
+	"payload": ["data"]
 }

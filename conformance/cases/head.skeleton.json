@@ -6,19 +6,23 @@
 		{
 			"index": 0,
 			"expression": "data.note",
-			"raw": false
+			"raw": false,
+			"files": ["head.svelte"]
 		},
 		{
 			"index": 1,
 			"expression": "data.name",
-			"raw": false
+			"raw": false,
+			"files": ["head.svelte"]
 		},
 		{
 			"index": 2,
 			"expression": "data.name",
-			"raw": false
+			"raw": false,
+			"files": ["head.svelte"]
 		}
 	],
 	"blocks": [],
-	"entered": []
+	"entered": [],
+	"payload": ["data"]
 }

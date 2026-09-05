@@ -166,7 +166,7 @@ describe.each(files)('%s', (file) => {
 		const source = readFileSync(resolve(cases, file), 'utf8');
 		const derive = compileDerivations(
 			compiled.derivations,
-			await carry(resolve(cases, file), bindings(source).carried),
+			await carry(resolve(cases, file), new Map([[file, bindings(source).carried]])),
 		);
 
 		// What the server does, in the order it does it. The raw values go through a parser before

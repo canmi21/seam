@@ -159,13 +159,31 @@ for `.svelte`. So the skeleton hands over every expression it planted -- each ho
 decision's tests, each block's source and tests -- and an import is carried when one of them
 reads it. That is the same set the evaluator will look up, by construction.
 
-Two consequences worth stating. A specifier is resolved against the file that wrote it, since two
-components in different directories spell `./helper.ts` differently and the bundle is written from
-one place. And **one name means one module**: derivations are evaluated in a single scope, so two
-components carrying the same local name for different modules is refused rather than settled by
-whichever was read last. press does this with paraglide's messages, `import * as m` in one file and
-`import { m }` in another, which are the same functions through two bindings; the sample copy is
-normalised to one form, and press itself is told.
+**And a name means what the file that wrote it imported.** Derivations were evaluated in one
+scope per route, so two components carrying one local name for different modules was refused --
+and press does exactly that with paraglide's messages, `import * as m` in one file and `import {
+m }` in another, which JavaScript allows because each module has its own scope. So does this,
+now. Every hole and block records the files its expression was written across, innermost first:
+the component it sits in, then each caller up to the entry. The chain rather than the one file
+because substitution moves a prop's expression from the call site into the child's, so a child's
+expression reads names the caller bound. The bundle exports one object per file holding that
+file's imports under the names the file wrote, and the evaluator opens the chain as nested
+scopes, the entry outermost, the component the expression sits in shadowing its callers, the
+data innermost of all. The rendered copy gets the same treatment: what a substituted expression
+reads of the caller's imports is imported into the copy, its specifier resolved against the
+caller and written relative to the child, because a copy resolves its own from where its
+original sits. A name the child binds to the same module is its own; to another is a collision
+JavaScript would not have had, and is refused by name.
+
+A specifier is resolved against the file that wrote it, since two components in different
+directories spell `./helper.ts` differently and the bundle is written from one place.
+
+**A path is a path only where it is rooted.** `URLS.external.fonts` spells like one and is not:
+`URLS` is a constant a file imported, and resolving it against the payload found nothing and
+dropped the attribute. The skeleton carries the payload's keys, and the lowering keeps a path as a
+path only when its first name is one of them, a name a block binds, or an id the runtime makes;
+anything else, `undefined` and `true` included, is an expression the evaluator computes in the
+scope of the files that wrote it.
 
 **A type is not a read.** `T[p as keyof typeof T]` reads `p` and `T`, and names `T` a second time
 in a position only the type checker looks at. Substitution wrote the object literal there too,

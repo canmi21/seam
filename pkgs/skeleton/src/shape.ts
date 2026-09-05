@@ -30,6 +30,18 @@ export interface Hole {
 	/** Set when the hole is a decision rather than a substitution. */
 	choice?: Choice;
 	/**
+	 * The files the expression was written across, innermost first: the component it sits in,
+	 * then each caller up to the entry, relative to the root.
+	 *
+	 * A name in the expression resolves in the first of these that imports it. Substitution moves
+	 * a prop's expression from the call site into the child's, so a child's expression may read
+	 * the caller's imports; giving the evaluator the chain, innermost shadowing the rest, is what
+	 * lets each file keep its own bindings -- and what lets two files import one module under one
+	 * name two ways, which JavaScript allows and a single route-wide scope did not. See
+	 * spec/derivation.md.
+	 */
+	files?: string[];
+	/**
 	 * The whole of an element's attributes, written by `$.attributes` at request time.
 	 *
 	 * A spread's keys arrive with the request, so which attributes exist cannot be enumerated and
@@ -120,6 +132,8 @@ export interface Block {
 	counter?: string | null;
 	/** True when the if has an else, which decides whether its alternate holds anything. */
 	alternate: boolean;
+	/** The files its expression and tests were written across, as a hole's. See `Hole.files`. */
+	files?: string[];
 	/**
 	 * Numbered by the walk and written by nothing, because it sits in markup a component does not
 	 * render. It leaves the order the assembler counts against, or every ordinal after it shifts.
@@ -148,6 +162,12 @@ export interface Skeleton {
 	 * Both streams, because the if may be in either.
 	 */
 	alternates: Record<string, Rendered>;
+	/**
+	 * The names the entry's `$props()` destructures, which are the payload's keys, or null where
+	 * the walk could not read them. What tells a path from an expression that merely spells like
+	 * one: `URLS.external.fonts` is rooted at a constant a file imported, not at the payload.
+	 */
+	payload: string[] | null;
 	holes: Hole[];
 	blocks: Block[];
 	/**

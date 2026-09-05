@@ -11,7 +11,8 @@
 		{
 			"index": 0,
 			"expression": "x",
-			"raw": false
+			"raw": false,
+			"files": ["fragments.svelte"]
 		}
 	],
 	"blocks": [
@@ -23,7 +24,8 @@
 			"expression": "data.xs",
 			"item": "x",
 			"counter": null,
-			"alternate": false
+			"alternate": false,
+			"files": ["fragments.svelte"]
 		},
 		{
 			"index": 1,
@@ -34,8 +36,10 @@
 			"item": null,
 			"counter": null,
 			"alternate": false,
-			"within": []
+			"within": [],
+			"files": ["fragments.svelte"]
 		}
 	],
-	"entered": []
+	"entered": [],
+	"payload": ["data"]
 }

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { type Carried, importsOf } from 'ast';
+import { type Carried, importsOf, readsOf } from 'ast';
 
 /**
  * What the expressions of this route call, gathered from every file whose expressions became
@@ -22,35 +22,38 @@ import { type Carried, importsOf } from 'ast';
  * of the expressions the skeleton actually planted, and an import is carried when one of them is
  * it. Measured on press's home route, both ways.
  *
- * **One name means one module.** Derivations evaluate in a single scope, so two components that
- * carry the same local name for different modules cannot both be right, and that is said rather
- * than resolved by whichever was read last. See spec/derivation.md.
+ * **Grouped by file, because a name means what the file that wrote it imported.** A derivation
+ * is evaluated with the imports of each file its expression was written across, innermost
+ * first, which is JavaScript's own rule with substitution accounted for. Two files importing one
+ * module under one name two ways is then what it is in JavaScript: fine. See spec/derivation.md.
  */
-export function carriedBy(files: readonly string[], reads: ReadonlySet<string>): Carried[] {
-	const found = new Map<string, Carried>();
-	for (const file of files) {
-		for (const [local, one] of importsOf(readFileSync(file, 'utf8'))) {
-			// A component is composed at compile time and never a value an expression calls.
-			if (!reads.has(local) || one.from.endsWith('.svelte')) continue;
-			const from = one.from.startsWith('.') ? resolve(dirname(file), one.from) : one.from;
-			const now: Carried = { ...one, from };
-			const held = found.get(local);
-			if (held === undefined) {
-				found.set(local, now);
-				continue;
-			}
-			const same =
-				held.from === now.from &&
-				held.kind === now.kind &&
-				(held.exported ?? held.local) === (now.exported ?? now.local);
-			if (!same) {
-				throw new Error(
-					`two components on this route carry \`${local}\`, from \`${held.from}\` and ` +
-						`\`${now.from}\`. A derivation is evaluated in one scope, so the name cannot mean ` +
-						'both; rename one of them. See spec/derivation.md',
-				);
-			}
+export function carriedBy(
+	root: string,
+	expressions: readonly { expression: string; files: readonly string[] }[],
+): Map<string, Carried[]> {
+	// What each file's expressions read, with an expression counted for every file on its chain:
+	// a name it reads is taken from the first of them that imports it, and which that is only
+	// the imports say.
+	const reads = new Map<string, Set<string>>();
+	for (const one of expressions) {
+		const names = readsOf([one.expression]);
+		for (const file of one.files) {
+			const held = reads.get(file) ?? new Set<string>();
+			for (const name of names) held.add(name);
+			reads.set(file, held);
 		}
 	}
-	return [...found.values()];
+	const found = new Map<string, Carried[]>();
+	for (const [file, names] of reads) {
+		const at = resolve(root, file);
+		const carried: Carried[] = [];
+		for (const [local, one] of importsOf(readFileSync(at, 'utf8'))) {
+			// A component is composed at compile time and never a value an expression calls.
+			if (!names.has(local) || one.from.endsWith('.svelte')) continue;
+			const from = one.from.startsWith('.') ? resolve(dirname(at), one.from) : one.from;
+			carried.push({ ...one, from });
+		}
+		if (carried.length > 0) found.set(file, carried);
+	}
+	return found;
 }

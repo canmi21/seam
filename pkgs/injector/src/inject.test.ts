@@ -77,7 +77,7 @@ describe.each(files)('%s', (file) => {
 		const source = readFileSync(resolve(cases, file), 'utf8');
 		const derive = compileDerivations(
 			compiled.derivations,
-			await carry(resolve(cases, file), bindings(source).carried),
+			await carry(resolve(cases, file), new Map([[file, bindings(source).carried]])),
 		);
 		const mod = (await import(
 			pathToFileURL(compileTree(resolve(cases, file), new Map())).href

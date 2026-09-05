@@ -22,7 +22,6 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readsOf } from 'ast';
 import { carriedBy, carry } from 'carry';
 import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject } from 'injector';
@@ -1295,6 +1294,62 @@ const accepted: Case[] = [
 		data: [{ k: 'a' }, { k: 'b' }],
 	},
 	{
+		// A value the request does not decide is bytes, computed by the render: a declaration
+		// calling an import with nothing from the payload, a `$state` with no value, and a message
+		// under a fixed locale. None of these is a hole, so none is asked for per request -- which
+		// is what press's newsletter count needed, being client state whose server value is fixed
+		// by construction and whose library cannot run outside a render. See spec/refusals.md.
+		name: 'a value the request does not decide',
+		alongside: {
+			'count.ts': 'export const count = () => 3; export const greet = (l) => `hi-${l}`;',
+		},
+		source:
+			"<script>import { count, greet } from './count.ts'; let { data } = $props();" +
+			' const n = count(); let open = $state(); const msg = greet(data.locale);</script>' +
+			'<p>{n}</p><i>{open}</i><b>{msg}</b><u title={n}>{data.a}</u>',
+		fixed: { 'data.locale': '"en"' },
+		data: [
+			{ locale: 'en', a: 'x' },
+			{ locale: 'en', a: '<&' },
+		],
+	},
+	{
+		// A block whose every test the request does not decide is decided once, by the render,
+		// and is bytes: the walk asks, the render answers, the walk runs again told, and the
+		// branch taken is walked between anchors the assembler copies. A hole inside it is still a
+		// hole. Both branches, so that the answer is read rather than assumed.
+		name: 'an if the request does not decide',
+		alongside: { 'flag.ts': 'export const flag = () => true;' },
+		source:
+			"<script>import { flag } from './flag.ts'; let { data } = $props(); let open = $state(false);" +
+			' const n = flag();</script>{#if open}<b>o</b>{:else if n}<i>{data.a}</i>{:else}<u>u</u>{/if}' +
+			'{#if !n}<s>s</s>{/if}',
+		data: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
+		// An each whose source the request does not decide is iterated per request all the same,
+		// so the runtime holds the source -- as the value the render computed, written as JSON,
+		// never as the computation. The body's holes are per item as always.
+		name: 'an each the request does not decide',
+		alongside: { 'digits.ts': "export const digits = () => [{ d: '1' }, { d: '2' }];" },
+		source:
+			"<script>import { digits } from './digits.ts'; let { data } = $props(); const list = digits();" +
+			'</script>{#each list as { d }, i}<i>{d}{i}{data.a}</i>{/each}',
+		data: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
+		// A class written as an expression, on an element the stylesheet could match. Svelte scopes
+		// the element when it cannot read what the class could be, and appends the hash; a marker
+		// or a constant written there is a literal it can read, and the hash went missing. What is
+		// written into a class value is shielded from the analysis. See `Walk.classValue`.
+		name: 'a class expression on a styled element',
+		source:
+			`${PROPS}<script>const fixed = 'k'</script>`.replace('</script><script>', '; ') +
+			'<p class={data.a}>x</p><i class={fixed}>y</i><b class="{data.a} z">w</b>' +
+			'<style>.on { color: red } .k { color: blue }</style>',
+		data: [{ a: 'on' }, { a: 'off' }, { a: '' }],
+	},
+	{
 		// The key is the client's. Svelte's server never evaluates it and writes the fragment between
 		// two empty comments, which are not a block, so the body is walked as if the key were not
 		// there. Holding a block and a value, because that is what the fragment may hold.
@@ -1529,15 +1584,18 @@ async function attempt(
 			derivations: compiled.derivations as Derivation[],
 			// Gathered by the function the build gathers with, over the same files, so what the
 			// check runs is what a page runs rather than a second arrangement of the same parts.
-			carried: await carry(file, [
-				...carriedBy(
-					[file, ...rendered.entered.map((one) => resolve(staging, one))],
-					readsOf(expressionsOf(rendered)),
-				),
-				...(rendered.holes.some((hole) => hole.spread === true)
-					? [{ local: 'attributes', from: 'svelte/internal/server', kind: 'named' } as const]
-					: []),
-			]),
+			carried: await carry(
+				file,
+				new Map([
+					...carriedBy(staging, expressionsOf(rendered)),
+					[
+						'*',
+						rendered.holes.some((hole) => hole.spread === true)
+							? [{ local: 'attributes', from: 'svelte/internal/server', kind: 'named' } as const]
+							: [],
+					],
+				]),
+			),
 		};
 	} catch (error) {
 		return { refusal: (error as Error).message };

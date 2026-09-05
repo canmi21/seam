@@ -266,6 +266,7 @@ impl Derivations {
 			scope: captured,
 			// The written-bytes pass still refuses this above, so it never marks one.
 			scoped: false,
+			files: Vec::new(),
 		});
 		Ok(name)
 	}

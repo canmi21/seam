@@ -6,24 +6,29 @@
 		{
 			"index": 0,
 			"expression": "((data.badge).tone)",
-			"raw": false
+			"raw": false,
+			"files": ["declared.svelte"]
 		},
 		{
 			"index": 1,
 			"expression": "(function shout(v) { return String(v).toUpperCase() })(((data.badge).label))",
-			"raw": false
+			"raw": false,
+			"files": ["declared.svelte"]
 		},
 		{
 			"index": 2,
 			"expression": "((data.tags)[0])",
-			"raw": false
+			"raw": false,
+			"files": ["declared.svelte"]
 		},
 		{
 			"index": 3,
 			"expression": "new (class Money { constructor(n) { this.n = n } get shown() { return `$${this.n}` } })(data.price).shown",
-			"raw": false
+			"raw": false,
+			"files": ["declared.svelte"]
 		}
 	],
 	"blocks": [],
-	"entered": []
+	"entered": [],
+	"payload": ["data"]
 }

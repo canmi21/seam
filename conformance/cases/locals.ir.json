@@ -74,12 +74,14 @@
 		{
 			"name": "__d0",
 			"expression": "(data.price * (1 + (0.2)))",
-			"scope": null
+			"scope": null,
+			"files": ["locals.svelte"]
 		},
 		{
 			"name": "__d1",
 			"expression": "((data.price * (1 + (0.2))) > 50)",
-			"scope": null
+			"scope": null,
+			"files": ["locals.svelte"]
 		}
 	]
 }

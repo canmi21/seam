@@ -6,14 +6,17 @@
 		{
 			"index": 0,
 			"expression": "cn('card', data.tone, [data.size, ['fixed']])",
-			"raw": false
+			"raw": false,
+			"files": ["carried.svelte"]
 		},
 		{
 			"index": 1,
 			"expression": "cn(data.tone)",
-			"raw": false
+			"raw": false,
+			"files": ["carried.svelte"]
 		}
 	],
 	"blocks": [],
-	"entered": []
+	"entered": [],
+	"payload": ["data"]
 }

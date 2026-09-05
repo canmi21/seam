@@ -57,22 +57,26 @@
 		{
 			"name": "__d0",
 			"expression": "((data.badge).tone)",
-			"scope": null
+			"scope": null,
+			"files": ["declared.svelte"]
 		},
 		{
 			"name": "__d1",
 			"expression": "(function shout(v) { return String(v).toUpperCase() })(((data.badge).label))",
-			"scope": null
+			"scope": null,
+			"files": ["declared.svelte"]
 		},
 		{
 			"name": "__d2",
 			"expression": "((data.tags)[0])",
-			"scope": null
+			"scope": null,
+			"files": ["declared.svelte"]
 		},
 		{
 			"name": "__d3",
 			"expression": "new (class Money { constructor(n) { this.n = n } get shown() { return `$${this.n}` } })(data.price).shown",
-			"scope": null
+			"scope": null,
+			"files": ["declared.svelte"]
 		}
 	]
 }

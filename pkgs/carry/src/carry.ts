@@ -23,10 +23,28 @@ const NAME = '__carried';
  * Returns an empty string when the component carries nothing, so a page that needs no bundle
  * ships none rather than shipping an empty one.
  */
-export async function carry(file: string, names: readonly Carried[]): Promise<string> {
-	if (names.length === 0) return '';
+export async function carry(
+	file: string,
+	groups: ReadonlyMap<string, readonly Carried[]>,
+): Promise<string> {
+	if ([...groups.values()].every((names) => names.length === 0)) return '';
 	const entry = resolve(file);
-	const source = names.map(restate).join('\n');
+	// One import per name per file, under an alias no file wrote, and one object per file holding
+	// them under the names the file wrote: `files["src/a.svelte"].m`. The evaluator opens a file's
+	// object as a scope, so an expression reads `m` and gets that file's `m`.
+	const lines: string[] = [];
+	const objects: string[] = [];
+	for (const [at, [group, names]] of [...groups].entries()) {
+		const fields: string[] = [];
+		for (const [n, one] of names.entries()) {
+			const alias = `__c${String(at)}_${String(n)}`;
+			lines.push(restate(one, alias));
+			fields.push(`${JSON.stringify(one.local)}: ${alias}`);
+		}
+		objects.push(`${JSON.stringify(group)}: { ${fields.join(', ')} }`);
+	}
+	lines.push(`export const files = { ${objects.join(', ')} };`);
+	const source = lines.join('\n');
 
 	const result = await build({
 		stdin: { contents: source, resolveDir: dirname(entry), loader: 'ts', sourcefile: 'carried.ts' },
@@ -47,18 +65,19 @@ export async function carry(file: string, names: readonly Carried[]): Promise<st
 }
 
 /**
- * The import written again as an export, which is how the entry asks for one name.
+ * The import written again under an alias, in the form it was written in.
  *
  * The three forms are not interchangeable: a default export is not a named one, and a namespace
- * is neither. Writing them all as named exports is a mistake that only shows up on a module
+ * is neither. Writing them all as named imports is a mistake that only shows up on a module
  * whose shape happens to differ, which is the kind that reaches a page rather than a test.
  */
-function restate(one: Carried): string {
+function restate(one: Carried, alias: string): string {
 	// Node resolves a `file:` URL as a specifier and esbuild does not, so it is handed the path.
 	const from = JSON.stringify(one.from.startsWith('file:') ? fileURLToPath(one.from) : one.from);
-	if (one.kind === 'namespace') return `export * as ${one.local} from ${from};`;
-	if (one.kind === 'default') return `export { default as ${one.local} } from ${from};`;
+	if (one.kind === 'namespace') return `import * as ${alias} from ${from};`;
+	if (one.kind === 'default') return `import ${alias} from ${from};`;
 	const exported = one.exported ?? one.local;
-	const alias = exported === one.local ? one.local : `${exported} as ${one.local}`;
-	return `export { ${alias} } from ${from};`;
+	// An export may be named by a string, which is how paraglide spells `"language.switcher"`.
+	const name = /^[A-Za-z_$][\w$]*$/.test(exported) ? exported : JSON.stringify(exported);
+	return `import { ${name} as ${alias} } from ${from};`;
 }

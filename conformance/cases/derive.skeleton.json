@@ -15,7 +15,8 @@
 		{
 			"index": 0,
 			"expression": "data.name.toUpperCase()",
-			"raw": false
+			"raw": false,
+			"files": ["derive.svelte"]
 		}
 	],
 	"blocks": [
@@ -28,7 +29,8 @@
 			"item": null,
 			"counter": null,
 			"alternate": true,
-			"within": []
+			"within": [],
+			"files": ["derive.svelte"]
 		},
 		{
 			"index": 1,
@@ -39,8 +41,10 @@
 			"item": null,
 			"counter": null,
 			"alternate": false,
-			"within": []
+			"within": [],
+			"files": ["derive.svelte"]
 		}
 	],
-	"entered": []
+	"entered": [],
+	"payload": ["data"]
 }

@@ -58,6 +58,10 @@ export async function skeleton(
 	 * the first it is not told about, and the build calls this once per branch. See spec/refusals.md.
 	 */
 	decided: ReadonlyMap<string, boolean> = new Map(),
+	/** What the render answered when asked for a value, by expression, as JSON. See `Site.wants`. */
+	told: ReadonlyMap<string, string> = new Map(),
+	/** Asks no render answered, which are not asked again. See `Site.mute`. */
+	mute: ReadonlySet<string> = new Set(),
 ): Promise<Skeleton> {
 	await shippable();
 	const file = resolvePath(entryFile);
@@ -99,6 +103,8 @@ export async function skeleton(
 		false,
 		fixed,
 		decided,
+		told,
+		mute,
 	);
 
 	// After the walk, not before it. Every name has to come from somewhere -- this pass renders
@@ -122,6 +128,9 @@ export async function skeleton(
 			if (held !== undefined) given[name] = held;
 		}
 	}
+	// What the render is asked to decide is read back after it, below.
+	const asked = globalThis as unknown as Record<string, Record<string, unknown> | undefined>;
+	asked['__seam_asked'] = {};
 	const rendered = await renderRewritten(
 		file,
 		baseline.rewritten,
@@ -144,7 +153,18 @@ export async function skeleton(
 	filled(baseline, file, root);
 
 	// Before the alternates, because an if in markup nobody renders needs none of them.
-	await probed(baseline, source, file, root, [rendered.body, rendered.head], fixed, given, decided);
+	await probed(
+		baseline,
+		source,
+		file,
+		root,
+		[rendered.body, rendered.head],
+		fixed,
+		given,
+		decided,
+		told,
+		mute,
+	);
 
 	// One more render per branch the baseline does not hold, keyed the way Svelte numbers them:
 	// `1`, `2` for each `{:else if}`, and `-1` for the else, which is what it writes into the
@@ -166,7 +186,7 @@ export async function skeleton(
 			const forced = new Map(block.within ?? []);
 			const chosen = (index: number, at: number) =>
 				index === block.index ? at === branch : at === (forced.get(index) ?? 0);
-			const flipped = rewrite(source, chosen, file, root, false, fixed, decided);
+			const flipped = rewrite(source, chosen, file, root, false, fixed, decided, told, mute);
 			const other = await renderRewritten(
 				file,
 				flipped.rewritten,
@@ -201,6 +221,30 @@ export async function skeleton(
 		...Object.values(alternates).flatMap((one) => [one.body, one.head]),
 	]);
 
+	// A test or a value the request does not decide was asked of the render, and the walk runs
+	// again told. Every render so far -- the baseline and each alternate -- has had its say, so a
+	// component in a branch the baseline does not take has answered too. One nothing rendered is
+	// not asked again: it is walked as the decision it was, which the runtime makes.
+	if (baseline.asks.length > 0 || baseline.wants.length > 0) {
+		const answers = asked['__seam_asked'] ?? {};
+		const settled = new Map(decided);
+		const values = new Map(told);
+		const muted = new Set(mute);
+		for (const test of baseline.asks) {
+			const value = answers[test];
+			if (value === undefined) muted.add(test);
+			else settled.set(test, value === true);
+		}
+		for (const want of baseline.wants) {
+			const value = answers[want];
+			// `JSON.stringify` of something it cannot write, a function or a symbol, is undefined:
+			// a value the runtime could not hold as a value, so the expression stays what it was.
+			if (typeof value !== 'string') muted.add(want);
+			else values.set(want, value);
+		}
+		return skeleton(file, root, fixed, settled, values, muted);
+	}
+
 	return {
 		html,
 		head,
@@ -212,21 +256,27 @@ export async function skeleton(
 		// root, because this is written into a fixture two machines have to agree on, and an
 		// absolute path says which machine built it.
 		entered: [...new Set(baseline.copies.map((copy) => relative(root, copy.file)))],
+		payload: baseline.payload,
 	};
 }
 
 /**
- * Every expression the compiled component will evaluate: each hole's, each decision's tests, and
- * each block's source and tests. What they read is what has to be carried. See `carriedBy()`.
+ * Every expression the compiled component will evaluate, with the files it was written across:
+ * each hole's, each decision's tests, and each block's source and tests. What they read, in
+ * which file, is what has to be carried. See `carriedBy()`.
  */
-export function expressionsOf(rendered: Skeleton): string[] {
-	const found: string[] = [];
+export function expressionsOf(rendered: Skeleton): { expression: string; files: string[] }[] {
+	const found: { expression: string; files: string[] }[] = [];
 	for (const hole of rendered.holes) {
-		found.push(hole.expression);
-		if (hole.choice !== undefined) found.push(...hole.choice.tests);
+		const files = hole.files ?? [];
+		found.push({ expression: hole.expression, files });
+		for (const test of hole.choice?.tests ?? []) found.push({ expression: test, files });
 	}
 	for (const block of rendered.blocks) {
-		found.push(block.expression, ...(block.tests ?? []));
+		const files = block.files ?? [];
+		for (const expression of [block.expression, ...(block.tests ?? [])]) {
+			found.push({ expression, files });
+		}
 	}
 	return found;
 }

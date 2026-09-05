@@ -123,6 +123,11 @@ pub struct Derivation {
 	/// a consequence of what its inputs are, not a rule about it. See `spec/derivation.md`.
 	#[serde(skip_serializing_if = "std::ops::Not::not")]
 	pub scoped: bool,
+	/// The files the expression was written across, innermost first, which is where each name in
+	/// it resolves: the evaluator gives it the imports of each of these, the innermost shadowing
+	/// the rest. Empty for an expression written by the compiler itself. See `spec/derivation.md`.
+	#[serde(skip_serializing_if = "Vec::is_empty")]
+	pub files: Vec<String>,
 }
 
 /// What the compiler emits. The IR is what the injector walks; the derivations are consumed by

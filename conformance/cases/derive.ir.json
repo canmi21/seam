@@ -77,17 +77,20 @@
 		{
 			"name": "__d0",
 			"expression": "data.price > 10",
-			"scope": null
+			"scope": null,
+			"files": ["derive.svelte"]
 		},
 		{
 			"name": "__d1",
 			"expression": "data.name.toUpperCase()",
-			"scope": null
+			"scope": null,
+			"files": ["derive.svelte"]
 		},
 		{
 			"name": "__d2",
 			"expression": "data.tags.length === 0",
-			"scope": null
+			"scope": null,
+			"files": ["derive.svelte"]
 		}
 	]
 }

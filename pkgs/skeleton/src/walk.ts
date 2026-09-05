@@ -1,7 +1,18 @@
 import { readFileSync } from 'node:fs';
-import { basename, dirname, resolve as resolvePath } from 'node:path';
+import { basename, dirname, relative, resolve as resolvePath } from 'node:path';
 import { parse } from 'svelte/compiler';
-import { apply, constant, destructure, type Locals, locals, mentions, settle } from 'ast';
+import {
+	apply,
+	type Carried,
+	constant,
+	destructure,
+	importsOf as importedBy,
+	type Locals,
+	locals,
+	mentions,
+	readsOf,
+	settle,
+} from 'ast';
 import { classes, type PendingChoice, type PendingSpread, spread, styles } from './attributes.ts';
 import {
 	hands,
@@ -69,6 +80,10 @@ export interface Copy {
 	 * render puts the hole's marker where Svelte's helper would have put the id. See `render.ts`.
 	 */
 	fresh?: number;
+	/** The tests this copy asks the render to decide. See `Site.asks`. */
+	asks?: [key: string, code: string][];
+	/** The values this copy asks the render for. See `Site.wants`. */
+	wants?: [key: string, code: string][];
 }
 
 /** One component's children, and the holes and blocks the walk put inside them. */
@@ -118,6 +133,25 @@ export interface Site {
 	stack: string[];
 	/** Imports the rewritten source needs that the author did not write: one per copy taken. */
 	prelude: string[];
+	/**
+	 * Tests the request does not decide and this walk was not told the answer to, which the
+	 * render is asked: a statement at the end of the instance script reports each one's value,
+	 * and the walk runs again told. See `spec/refusals.md`.
+	 */
+	asks: [key: string, code: string][];
+	/**
+	 * Expressions the request does not decide that the runtime still has to hold -- an each's
+	 * source, iterated per request -- which the render is asked for as a JSON literal, so that
+	 * the runtime iterates the value and never computes it. See `Site.asks`.
+	 */
+	wants: [key: string, code: string][];
+	/** The answers to `wants` this walk was told, by expression, as JSON. */
+	told: ReadonlyMap<string, string>;
+	/**
+	 * Asks no render answered: markup nothing rendered, a branch nobody took. Not asked again,
+	 * and walked as a decision the runtime makes, which is what they were before.
+	 */
+	mute: ReadonlySet<string>;
 	/**
 	 * Why a component was left to Svelte, one line each.
 	 *
@@ -215,6 +249,15 @@ export interface Walk {
 	taken: (block: number, branch: number) => boolean;
 	stream: Stream;
 	expand: Locals['rewrite'];
+	/**
+	 * The same expansion without what the walk bound on the way in -- a snippet's parameters, an
+	 * argument's way in -- which is what tells an expression the render can evaluate as written
+	 * from one it cannot. Where the two agree, the author's own text is what the render is given,
+	 * because the render runs the author's script whole: `const u = new URL(x);
+	 * u.searchParams.set('q', y)` holds the query at render time, and the expansion of `u` does
+	 * not. See `spec/refusals.md`.
+	 */
+	plain: Locals['rewrite'];
 	/** The rune a declared name was written with, which decides whether a tag naming it is dynamic. */
 	runeOf: Locals['rune'];
 	/** Every snippet this component declares, by name, with how many parameters it takes. */
@@ -257,6 +300,35 @@ export interface Walk {
 	 */
 	selecting?: { value: string; multiple: boolean };
 	/**
+	 * True while walking an element's attributes, as against a component's props. Only an
+	 * element is scoped by the stylesheet, which is what `classValue` is for.
+	 */
+	scoping?: boolean;
+	/**
+	 * True while walking the value of an element's `class` attribute.
+	 *
+	 * Whether Svelte scopes an element is decided by whether a selector in the `<style>` could
+	 * match it, and for a `class` written as an expression that is decided by what the expression
+	 * could evaluate to: `gather_possible_values` in `2-analyze/css/utils.js` reads a literal, a
+	 * ternary, a logical and an array, and gives up on anything else, which is then a class that
+	 * could be anything and an element that is scoped. So a marker, which is a literal, or a
+	 * constant written back in place of `className`, told the analysis the class was known and
+	 * matched nothing, and the scoping hash went missing from the render. Anything written into
+	 * a class value is wrapped as `(0, ...)`, a sequence, which evaluates to the same thing and
+	 * which the analysis cannot read -- as the author's own expression could not be read.
+	 */
+	classValue?: boolean;
+	/** True while walking any part of an element's `class` attribute, which is shielded. */
+	inClass?: boolean;
+	/**
+	 * True while walking the branches of a block whose test the request does not decide and the
+	 * render has not yet been asked about. The render this pass makes forces a branch to hold
+	 * it, so nothing inside may be handed to the render to evaluate -- `tip.stat.lang` under
+	 * `{#if tip}` throws where `tip` is state with no value -- and nothing inside is asked, since
+	 * the next pass walks only the branch taken. Everything inside is a hole this pass, as it was.
+	 */
+	asking?: boolean;
+	/**
 	 * True while walking a prop of a component the walk could not enter.
 	 *
 	 * The value is going somewhere this pass cannot read, so what stands for it has to survive
@@ -279,6 +351,12 @@ export interface Rewritten {
 	spreads: PendingSpread[];
 	holes: Hole[];
 	blocks: Block[];
+	/** The payload's keys, which the entry's `$props()` names, or null where it could not be read. */
+	payload: string[] | null;
+	/** Tests the render is asked to decide, by their expanded text. See `Site.asks`. */
+	asks: string[];
+	/** Values the render is asked for, by their expanded text. See `Site.wants`. */
+	wants: string[];
 	/** Class decisions whose outcomes the render has still to supply the hash for. */
 	pending: PendingChoice[];
 	/** The hole standing for the entry's own `$props.id()` anchor, where it declares one. */
@@ -486,7 +564,7 @@ function takenApart(
 function expanded(
 	attr: AstNode,
 	source: string,
-	expand: Locals['rewrite'],
+	walk: Walk,
 	edits: [number, number, string][],
 ): void {
 	const name = typeof attr['name'] === 'string' ? attr['name'] : '';
@@ -498,7 +576,11 @@ function expanded(
 	for (const part of Array.isArray(value) ? value : [value]) {
 		if (!isNode(part) || part['type'] !== 'ExpressionTag') continue;
 		const where = span(part['expression']);
-		if (where !== null) edits.push([where[0], where[1], expand(part['expression'])]);
+		if (where === null) continue;
+		// The author's own text where the walk bound nothing in it, so that the render runs the
+		// author's script whole. See `asWritten`.
+		const written = walk.expand(part['expression']);
+		edits.push([where[0], where[1], asWritten(part['expression'], written, walk)]);
 	}
 }
 
@@ -675,11 +757,82 @@ function contents(
 	skipped.add(binding);
 }
 
+/**
+ * The names an expression may read whose value this walk does not hold: what the request
+ * decides, and what a component supplies to a snippet it was passed, which is decided by the
+ * component. Neither can be written out for the render to evaluate.
+ */
+function unknown(walk: Walk): ReadonlySet<string> {
+	if (walk.handed === undefined || walk.handed.size === 0) return walk.dynamic;
+	return new Set([...walk.dynamic, ...walk.handed]);
+}
+
+/**
+ * Appends a statement per test to the end of the instance script that reports the test's value
+ * to the render's caller, so that a decision the request does not make is made once. At the end
+ * rather than the top, because a declaration below is not yet in scope at the top.
+ */
+function withAsks(
+	ast: AstNode,
+	asks: readonly [key: string, code: string][],
+	wants: readonly [key: string, code: string][],
+	edits: [number, number, string][],
+): void {
+	if (asks.length === 0 && wants.length === 0) return;
+	// Opened with a semicolon: the statement above may end without one, and a line starting
+	// with `(` would continue it as a call.
+	const lines = [
+		...asks.map(
+			([key, code]) =>
+				`;(globalThis.__seam_asked ??= {})[${JSON.stringify(key)}] = Boolean(${code});`,
+		),
+		// A value is answered only where it is data: a string, a number, a boolean, null, and
+		// arrays and plain objects of those. A `URL` or a `Date` would round-trip as a string and
+		// come back a different thing, so it is not answered and the expression stays.
+		...wants.map(
+			([key, code]) =>
+				`;(globalThis.__seam_asked ??= {})[${JSON.stringify(key)}] = ((v) => { const ok = (x) => ` +
+				`x === null || ['string', 'number', 'boolean'].includes(typeof x) || (Array.isArray(x) ` +
+				`? x.every(ok) : typeof x === 'object' && Object.getPrototypeOf(x) === Object.prototype ` +
+				`&& Object.values(x).every(ok)); return ok(v) ? JSON.stringify(v) : undefined; })(${code});`,
+		),
+	];
+	const instance = ast['instance'];
+	const content = isNode(instance) ? instance['content'] : undefined;
+	const at = isNode(content) ? content['end'] : undefined;
+	if (typeof at === 'number') {
+		edits.push([at, at, `\n${lines.join('\n')}\n`]);
+		return;
+	}
+	edits.push([0, 0, `<script>\n${lines.join('\n')}\n</script>\n`]);
+}
+
+/** An import written again, in the form it was written in: named, default, or the module. */
+function restated(one: Carried): string {
+	const from = JSON.stringify(one.from);
+	if (one.kind === 'namespace') return `import * as ${one.local} from ${from};`;
+	if (one.kind === 'default') return `import ${one.local} from ${from};`;
+	const exported = one.exported ?? one.local;
+	return exported === one.local
+		? `import { ${one.local} } from ${from};`
+		: `import { ${exported} as ${one.local} } from ${from};`;
+}
+
 /** Whether a node is a `{#snippet}` declared under the given name. */
 function snippetNamed(child: unknown, name: string): child is AstNode {
 	if (!isNode(child) || child['type'] !== 'SnippetBlock') return false;
 	const id = child['expression'];
 	return isNode(id) && id['name'] === name;
+}
+
+/**
+ * What the render is given for an expression the request does not decide: the author's own
+ * text where nothing the walk bound is in it, and the expansion otherwise. See `Walk.plain`.
+ */
+function asWritten(node: unknown, written: string, walk: Walk): string {
+	const at = span(node);
+	if (at === null) return written;
+	return walk.plain(node) === written ? walk.source.slice(at[0], at[1]) : written;
 }
 
 /** Every name a snippet's parameters bind. */
@@ -957,8 +1110,30 @@ function collect(node: unknown, walk: Walk): void {
 			// form rather than left as it was: what it expanded from may have been a name, and the
 			// declaration that name came from has been neutralised for the render.
 			const written = expand(node['expression']);
+			// Inside a class value nothing written here may be readable by the analysis. See
+			// `Walk.classValue`.
+			const shielded = (text: string): string => (walk.inClass === true ? `(0, ${text})` : text);
 			if (constant(written)) {
-				edits.push([at[0], at[1], written]);
+				edits.push([at[0], at[1], shielded(written)]);
+				return;
+			}
+			// A value the request does not decide is the same bytes every request, and the render
+			// is where it is computed: inside the layout's providers, with every declaration and
+			// fixed path it reads written out as what it stands for. So it is written out expanded
+			// for Svelte to evaluate, the same rule a prop handed to a package already follows, and
+			// no hole stands for it. Planting one made it a derivation, which is a value asked for
+			// per request -- and press's newsletter count is `createQuery(...).data ?? 0`, whose
+			// server value is fixed by construction and whose evaluation outside a render is
+			// impossible by construction: `getContext` outside `render()` has no context to read.
+			// Anything ambient in it -- a clock, a random -- is refused before this by `resolved`.
+			// See spec/refusals.md.
+			if (
+				site.payload !== null &&
+				walk.opaque !== true &&
+				walk.asking !== true &&
+				!mentions(written, unknown(walk))
+			) {
+				edits.push([at[0], at[1], shielded(asWritten(node['expression'], written, walk))]);
 				return;
 			}
 			// A value going to a component the walk could not enter, which has to survive being used
@@ -968,11 +1143,38 @@ function collect(node: unknown, walk: Walk): void {
 				return;
 			}
 			const index = holes.length;
+			// The whole of a class on an element the stylesheet may scope. `to_class` writes the
+			// value and the hash with a space between, the hash alone for an empty value, and
+			// nothing for neither, so which bytes exist is decided by the value: a decision with
+			// the value inside its non-empty outcome, the way a `class:` is one with the hash
+			// inside its outcomes. The hash is read off the render, where the marker stands as the
+			// whole value. See `outcomes()`.
+			if (walk.classValue === true) {
+				holes.push({ index, expression: written, raw: false });
+				const choice = holes.length;
+				const test = `(${written}) == null || '' + (${written}) === ''`;
+				holes.push({
+					index: choice,
+					expression: '',
+					raw: false,
+					choice: { tests: [test], outcomes: [] },
+				});
+				walk.pending.push({
+					index: choice,
+					tests: [test],
+					kind: 'value',
+					names: [],
+					base: '',
+					value: index,
+				});
+				edits.push([at[0], at[1], shielded(JSON.stringify(sentinel(choice)))]);
+				return;
+			}
 			// Where the value lands, and therefore how it is escaped, is read off the render rather
 			// than guessed here. A prop passed to a component may end up in text or in an attribute,
 			// and only the component knows which.
 			holes.push({ index, expression: written, raw: type === 'HtmlTag' });
-			edits.push([at[0], at[1], JSON.stringify(sentinel(index))]);
+			edits.push([at[0], at[1], shielded(JSON.stringify(sentinel(index)))]);
 			return;
 		}
 
@@ -1089,11 +1291,11 @@ function collect(node: unknown, walk: Walk): void {
 					// on press's language switcher, given `code={locale}` with `locale` neutralised:
 					// the render computed the trigger's label from nothing and baked it in.
 					if (given && site.payload !== null && inert(attr, expand, dynamic)) {
-						expanded(attr, source, expand, edits);
+						expanded(attr, source, walk, edits);
 						continue;
 					}
 					const before = holes.length;
-					collect(attr, { ...walk, opaque: given });
+					collect(attr, { ...walk, opaque: given, scoping: !given });
 					if (!given || !isNode(attr)) continue;
 					const prop = typeof attr['name'] === 'string' ? attr['name'] : '';
 					for (const one of holes.slice(before)) one.given = `\`<${tag}>\` as \`${prop}\``;
@@ -1168,7 +1370,11 @@ function collect(node: unknown, walk: Walk): void {
 			// the same bytes, measured -- and it leaves the marker somewhere the parser accepts.
 			const at = span(node);
 			if (at !== null && source[at[0]] === '{') edits.push([at[0], at[0], `${name}=`]);
-			for (const part of parts) step(part);
+			// Only where the expression is the whole of the value: text beside it makes the value a
+			// template, which is never empty, and the shape below assumes one expression.
+			const inClass = name === 'class' && walk.scoping === true;
+			const classValue = inClass && parts.length === 1;
+			for (const part of parts) collect(part, { ...walk, inClass, classValue });
 			return;
 		}
 
@@ -1447,8 +1653,40 @@ function collect(node: unknown, walk: Walk): void {
 			}
 			const last = chain[chain.length - 1];
 			const otherwise = last?.['alternate'];
-			const index = blocks.length;
 			const tests = chain.map((one) => expand(one['test']));
+
+			// A block whose every test the request does not decide is decided once, by the render,
+			// and is bytes: the branch it takes, between anchors the assembler copies as it copies
+			// a package's own. Nothing in it is asked for per request -- which is what press's
+			// newsletter needed, its branches turning on client state a library computes inside a
+			// render and nowhere else. The walk is not told the answer the first time through, so
+			// it asks: the render reports the value and the walk runs again told. Until then the
+			// block is walked as a decision so that the render it is asked of can be made.
+			let branches: Walk = walk;
+			if (
+				site.payload !== null &&
+				walk.asking !== true &&
+				tests.every((test) => !mentions(test, unknown(walk)) && !site.mute.has(test))
+			) {
+				const answers = tests.map((test) => site.decided.get(test));
+				if (answers.every((one) => one !== undefined)) {
+					const chosen = answers.findIndex((one) => one === true);
+					for (const [branch, one] of chain.entries()) {
+						const at = span(one['test']);
+						if (at !== null) edits.push([at[0], at[1], branch === chosen ? 'true' : 'false']);
+					}
+					if (chosen >= 0) step(chain[chosen]?.['consequent']);
+					else if (isNode(otherwise)) step(otherwise);
+					return;
+				}
+				for (const [at, test] of tests.entries()) {
+					if (answers[at] !== undefined || site.asks.some(([key]) => key === test)) continue;
+					site.asks.push([test, asWritten(chain[at]?.['test'], test, walk)]);
+				}
+				branches = { ...walk, asking: true };
+			}
+
+			const index = blocks.length;
 			blocks.push({
 				index,
 				kind: 'if',
@@ -1475,12 +1713,12 @@ function collect(node: unknown, walk: Walk): void {
 			// a render nobody counts, which is the two lists coming apart. See spec/refusals.md.
 			for (const [branch, one] of chain.entries()) {
 				within.push([index, branch]);
-				step(one['consequent']);
+				collect(one['consequent'], branches);
 				within.pop();
 			}
 			if (isNode(otherwise)) {
 				within.push([index, -1]);
-				step(otherwise);
+				collect(otherwise, branches);
 				within.pop();
 			}
 			return;
@@ -1522,18 +1760,48 @@ function collect(node: unknown, walk: Walk): void {
 				}
 			}
 
+			// A source the request does not decide is iterated per request all the same, so the
+			// runtime has to hold it -- as the value, never as the computation: press's counter
+			// takes its digits from a query a library computes inside a render and nowhere else.
+			// The render is asked for the value as JSON, and the walk runs again told, with the
+			// literal where the expression was. See spec/refusals.md.
+			let written = expand(node['expression']);
+			if (
+				site.payload !== null &&
+				walk.asking !== true &&
+				!mentions(written, unknown(walk)) &&
+				!site.mute.has(written)
+			) {
+				const held = site.told.get(written);
+				if (held === undefined) {
+					if (!site.wants.some(([key]) => key === written)) {
+						site.wants.push([written, asWritten(node['expression'], written, walk)]);
+					}
+				} else {
+					written = held;
+				}
+			}
 			const index = blocks.length;
 			blocks.push({
 				index,
 				kind: 'each',
 				within: [...within],
 				stream,
-				expression: expand(node['expression']),
+				expression: written,
 				item: context === null ? null : source.slice(context[0], context[1]),
 				...(binds === undefined ? {} : { binds }),
 				counter: typeof node['index'] === 'string' ? node['index'] : null,
 				alternate: fallback !== null && fallback !== undefined,
 			});
+			// The key goes from the render: Svelte's server never reads one, and the one element the
+			// render iterates is a placeholder the key would be evaluated against -- `(tile.stat.lang)`
+			// on `{}` threw inside Svelte's own output.
+			const key = span(node['key']);
+			if (key !== null) {
+				const open = source.lastIndexOf('(', key[0]);
+				const close = source.indexOf(')', key[1]);
+				if (open >= 0 && close >= 0) edits.push([open, close + 1, '']);
+			}
 			// One element, because the body's own expressions are sentinels and read nothing from it.
 			// An each with an `{:else}` is two shapes the way an if is: Svelte's server writes
 			// `<!--[-->` and the items for a list with something in it, and `<!--[!-->` and the
@@ -1638,7 +1906,45 @@ function descend(node: AstNode, walk: Walk): boolean {
 		}
 		const [only] = parts;
 		if (parts.length !== 1 || !isNode(only) || only['type'] !== 'ExpressionTag') return false;
-		bindings.set(name, `(${walk.expand(only['expression'])})`);
+		const grown = walk.expand(only['expression']);
+		const written = `(${grown})`;
+		// A prop the request does not decide is bound to what the render computes for it rather
+		// than to its expansion, where the render can say: the caller's script runs whole in the
+		// render, so `const u = new URL(x); u.searchParams.set('q', y)` holds the query there and
+		// the expansion of `u` does not. The render is asked, as it is asked for an each's source,
+		// and answers with JSON where the value is data; anything else stays the expansion.
+		if (walk.site.payload !== null && walk.asking !== true && !mentions(grown, unknown(walk))) {
+			const held = walk.site.told.get(written);
+			if (held !== undefined) {
+				bindings.set(name, held);
+				continue;
+			}
+			if (!walk.site.wants.some(([key]) => key === written)) {
+				walk.site.wants.push([written, `(${asWritten(only['expression'], grown, walk)})`]);
+			}
+		}
+		bindings.set(name, written);
+	}
+
+	// The caller's imports its expressions read, which the child's copy has to import too. A
+	// prop's expression is expanded in the caller's scope and substituted into the child's, so
+	// the child's rendered source and its derivations both read names the caller bound:
+	// `href={URLS.site}` handed down is `URLS` inside the child, and the child never imported it.
+	// A copy resolves its relative imports from where its original sits, so the caller's
+	// specifier is resolved against the caller and written relative to the child. A name the
+	// child binds itself to the same module is its own; to another is a collision that
+	// JavaScript would not have had, and is said.
+	const brought: Carried[] = [];
+	const read = readsOf(bindings.values());
+	for (const [local, one] of importedBy(walk.source)) {
+		if (!read.has(local)) continue;
+		if (!one.from.startsWith('.')) {
+			brought.push(one);
+			continue;
+		}
+		const target = resolvePath(dirname(walk.site.file), one.from);
+		const moved = relative(dirname(file), target);
+		brought.push({ ...one, from: moved.startsWith('.') ? moved : `./${moved}` });
 	}
 
 	// Where to roll back to. Everything below appends to lists the caller owns.
@@ -1672,6 +1978,23 @@ function descend(node: AstNode, walk: Walk): boolean {
 
 		const ast = ahead;
 		const prelude: string[] = [];
+		// The child's own: a test asked inside it is answered by a statement in its script, not in
+		// whichever copy happened to finish next.
+		const asks: [string, string][] = [];
+		const wants: [string, string][] = [];
+		const own = importsOf(raw);
+		for (const one of brought) {
+			const already = own[one.local];
+			if (already === one.from) continue;
+			if (already !== undefined) {
+				refuse(
+					`\`${one.local}\` is imported by both ${basename(walk.site.file)} and ${basename(file)} ` +
+						'from different modules, and a value handed from the first is read by the second ' +
+						'under that name, which cannot mean both; rename one of them',
+				);
+			}
+			prelude.push(restated(one));
+		}
 		const snippets = new Map<string, Snippet>();
 		snippetsIn(ast['fragment'], snippets);
 
@@ -1706,6 +2029,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 			edits: inner,
 			expand: (child, extra) =>
 				declared.rewrite(child, new Map([...bound, ...(extra ?? new Map())])),
+			plain: (child, extra) => declared.rewrite(child, extra),
 			runeOf: declared.rune,
 			snippets,
 			siblings: relatesSiblings(ast),
@@ -1718,6 +2042,10 @@ function descend(node: AstNode, walk: Walk): boolean {
 				copies: walk.site.copies,
 				stack: [...walk.site.stack, file],
 				prelude,
+				asks,
+				wants,
+				told: walk.site.told,
+				mute: walk.site.mute,
 				given: hands(walk, nodes),
 				payload: walk.site.payload,
 				missed: walk.site.missed,
@@ -1730,6 +2058,9 @@ function descend(node: AstNode, walk: Walk): boolean {
 			},
 		});
 		withPrelude(raw, ast, prelude, inner);
+		withAsks(ast, asks, wants, inner);
+		copy.asks = asks;
+		copy.wants = wants;
 		copy.source = apply(raw, inner);
 
 		// The values stay where they were written and are handed to the render as nothing. The
@@ -1765,6 +2096,15 @@ function descend(node: AstNode, walk: Walk): boolean {
 		// The parent imports this call site's copy rather than the file, which is two edits: the
 		// tag's name where it opens and where it closes, and one import beside the others.
 		rename(walk, node, tag, at, ordinal);
+
+		// Every hole and block this child planted and no deeper child has claimed is written
+		// across this file and its callers, innermost first. The deeper ones finished first, so
+		// what is unclaimed here is this component's own.
+		const chain = [file, ...walk.site.stack.toReversed()].map((one) =>
+			relative(walk.site.root, one),
+		);
+		for (const hole of walk.holes.slice(mark.holes)) hole.files ??= chain;
+		for (const block of walk.blocks.slice(mark.blocks)) block.files ??= chain;
 		return true;
 	} catch (error) {
 		// Rolled back, and the component is rendered by Svelte the way it was before this tried.
@@ -1795,6 +2135,8 @@ export function rewrite(
 	probing = false,
 	fixed: ReadonlyMap<string, string> = new Map(),
 	decided: ReadonlyMap<string, boolean> = new Map(),
+	told: ReadonlyMap<string, string> = new Map(),
+	mute: ReadonlySet<string> = new Set(),
 ): Rewritten {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
 	const holes: Hole[] = [];
@@ -1815,6 +2157,8 @@ export function rewrite(
 	snippetsIn(ast['fragment'], snippets);
 	const copies: Copy[] = [];
 	const prelude: string[] = [];
+	const asks: [string, string][] = [];
+	const wants: [string, string][] = [];
 	const declares = propsOf(ast, source);
 	const payload = declares === null ? null : new Set(declares.map((one) => one.local));
 	const missed: { file: string; reason: string }[] = [];
@@ -1829,6 +2173,7 @@ export function rewrite(
 		taken,
 		stream: 'body',
 		expand: declared.rewrite,
+		plain: declared.rewrite,
 		runeOf: declared.rune,
 		snippets,
 		pending,
@@ -1840,6 +2185,10 @@ export function rewrite(
 			copies,
 			stack: [file],
 			prelude,
+			asks,
+			wants,
+			told,
+			mute,
 			given: new Map(),
 			payload,
 			missed,
@@ -1856,6 +2205,10 @@ export function rewrite(
 		siblings: relatesSiblings(ast),
 	});
 	withPrelude(source, ast, prelude, edits);
+	withAsks(ast, asks, wants, edits);
+	const own = [relative(root, file)];
+	for (const hole of holes) hole.files ??= own;
+	for (const block of blocks) block.files ??= own;
 
 	return {
 		rewritten: apply(source, edits),
@@ -1866,6 +2219,13 @@ export function rewrite(
 		missed,
 		handed,
 		spreads,
+		payload: payload === null ? null : [...payload],
+		// The entry's own and every surviving copy's: a copy rolled back takes its asks with it,
+		// and a test only a discarded render would have answered is not one to wait on.
+		asks: [...new Set([...asks, ...copies.flatMap((copy) => copy.asks ?? [])].map(([key]) => key))],
+		wants: [
+			...new Set([...wants, ...copies.flatMap((copy) => copy.wants ?? [])].map(([key]) => key)),
+		],
 		...(fresh === null ? {} : { fresh: 0 }),
 	};
 }

@@ -6,9 +6,11 @@
 		{
 			"index": 0,
 			"expression": "((data.a))",
-			"raw": false
+			"raw": false,
+			"files": ["parts/badge.svelte", "roottext.svelte"]
 		}
 	],
 	"blocks": [],
-	"entered": ["parts/badge.svelte"]
+	"entered": ["parts/badge.svelte"],
+	"payload": ["data"]
 }

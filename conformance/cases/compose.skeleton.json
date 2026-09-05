@@ -11,27 +11,32 @@
 		{
 			"index": 0,
 			"expression": "((data.name))",
-			"raw": false
+			"raw": false,
+			"files": ["parts/badge.svelte", "compose.svelte"]
 		},
 		{
 			"index": 1,
 			"expression": "((data.tone))",
-			"raw": false
+			"raw": false,
+			"files": ["parts/badge.svelte", "compose.svelte"]
 		},
 		{
 			"index": 2,
 			"expression": "data.note",
-			"raw": false
+			"raw": false,
+			"files": ["compose.svelte"]
 		},
 		{
 			"index": 3,
 			"expression": "((data.name))",
-			"raw": false
+			"raw": false,
+			"files": ["parts/badge.svelte", "compose.svelte"]
 		},
 		{
 			"index": 4,
 			"expression": "((t))",
-			"raw": false
+			"raw": false,
+			"files": ["parts/badge.svelte", "compose.svelte"]
 		}
 	],
 	"blocks": [
@@ -44,7 +49,8 @@
 			"item": null,
 			"counter": null,
 			"alternate": false,
-			"within": []
+			"within": [],
+			"files": ["compose.svelte"]
 		},
 		{
 			"index": 1,
@@ -54,8 +60,10 @@
 			"expression": "data.tags",
 			"item": "t",
 			"counter": null,
-			"alternate": false
+			"alternate": false,
+			"files": ["compose.svelte"]
 		}
 	],
-	"entered": ["parts/badge.svelte"]
+	"entered": ["parts/badge.svelte"],
+	"payload": ["data"]
 }

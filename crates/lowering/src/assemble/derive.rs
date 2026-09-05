@@ -110,12 +110,12 @@ fn reads(source: &str) -> Vec<String> {
 impl Assembler<'_> {
 	/// A path stays a path; anything else becomes a field on the payload. Composition is Svelte's
 	/// here, so there is never a prop scope to carry.
-	pub(super) fn path(&mut self, expression: &str) -> Result<String> {
+	pub(super) fn path(&mut self, expression: &str, files: &[String]) -> Result<String> {
 		let trimmed = expression.trim();
 		// The parentheses substitution wraps it in decide nothing about what it is, so they come
 		// off for the question and stay on for the answer: a derivation is recorded as written.
 		let inner = bare(trimmed);
-		if is_path(inner) {
+		if is_path(inner) && self.rooted(inner) {
 			return Ok(inner.to_owned());
 		}
 		// An expression reading a name an each block binds is computed where it is used rather than
@@ -131,18 +131,35 @@ impl Assembler<'_> {
 			expression: trimmed.to_owned(),
 			scope: None,
 			scoped,
+			files: files.to_vec(),
 		});
 		Ok(name)
 	}
 
+	/// Whether a path's first name is something the injector's scope holds: a payload key, a
+	/// name a block binds, or an id the runtime makes. `URLS.external.fonts` spells a path and is
+	/// not one -- `URLS` is a constant a file imported -- and resolving it against the payload
+	/// found nothing. Where the walk could not read the payload's keys, every path is taken as one.
+	fn rooted(&self, path: &str) -> bool {
+		let root = path.split('.').next().unwrap_or(path);
+		match &self.skeleton.payload {
+			None => true,
+			Some(payload) => {
+				payload.iter().any(|one| one == root)
+					|| self.locals.iter().any(|one| one == root)
+					|| self.fresh.iter().any(|one| one == root)
+			}
+		}
+	}
+
 	/// The hole at `index` where it is a decision, consumed like any other hole when it is one.
-	pub(super) fn choice(&mut self, index: usize) -> Result<Option<Choice>> {
+	pub(super) fn choice(&mut self, index: usize) -> Result<Option<(Choice, Vec<String>)>> {
 		let hole = self
 			.skeleton
 			.holes
 			.get(index)
 			.ok_or_else(|| format!("the render carries a sentinel {index} with no hole"))?;
-		let found = hole.choice.clone();
+		let found = hole.choice.clone().map(|choice| (choice, hole.files.clone()));
 		if found.is_some() {
 			self.consumed[index] += 1;
 		}
@@ -154,10 +171,10 @@ impl Assembler<'_> {
 	/// Nested rather than one branch per combination, because a branch carries one test and a
 	/// combination is a conjunction of them. Each test is resolved once, before the tree is built,
 	/// so an expression among them becomes one derivation rather than one per path through it.
-	pub(super) fn decide(&mut self, choice: &Choice) -> Result<Vec<ir::Node>> {
+	pub(super) fn decide(&mut self, choice: &Choice, files: &[String]) -> Result<Vec<ir::Node>> {
 		let mut tests = Vec::with_capacity(choice.tests.len());
 		for test in &choice.tests {
-			tests.push(self.path(test)?);
+			tests.push(self.path(test, files)?);
 		}
 		let wanted = 1usize << tests.len();
 		if choice.outcomes.len() != wanted {
@@ -188,8 +205,8 @@ impl Assembler<'_> {
 				return Err("an id marker landed inside an enumerated attribute".to_owned());
 			};
 			out.write(&outcome[at..start]);
-			let (expression, _) = self.hole(index)?;
-			let path = self.path(&expression)?;
+			let (expression, _, files) = self.hole(index)?;
+			let path = self.path(&expression, &files)?;
 			out.push(ir::Node::Slot { path, escape: ir::Escape::Attr, fresh: false });
 			at = end;
 		}
@@ -201,13 +218,13 @@ impl Assembler<'_> {
 	/// only evidence the compiler has, so a sentinel that never comes back in it is content that
 	/// Svelte put somewhere this pass does not look, and emitting the rest as if nothing were
 	/// missing is the worst available outcome.
-	pub(super) fn hole(&mut self, index: usize) -> Result<(String, bool)> {
+	pub(super) fn hole(&mut self, index: usize) -> Result<(String, bool, Vec<String>)> {
 		let hole = self
 			.skeleton
 			.holes
 			.get(index)
 			.ok_or_else(|| format!("the render carries a sentinel {index} with no hole"))?;
-		let found = (hole.expression.clone(), hole.raw);
+		let found = (hole.expression.clone(), hole.raw, hole.files.clone());
 		self.consumed[index] += 1;
 		Ok(found)
 	}

@@ -39,12 +39,14 @@
 		{
 			"name": "__d0",
 			"expression": "cn('card', data.tone, [data.size, ['fixed']])",
-			"scope": null
+			"scope": null,
+			"files": ["carried.svelte"]
 		},
 		{
 			"name": "__d1",
 			"expression": "cn(data.tone)",
-			"scope": null
+			"scope": null,
+			"files": ["carried.svelte"]
 		}
 	]
 }

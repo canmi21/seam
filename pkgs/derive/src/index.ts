@@ -15,6 +15,12 @@ export interface Derivation {
 	 * it at the point of use, where the loop variable exists. See spec/derivation.md.
 	 */
 	scoped?: boolean;
+	/**
+	 * The files the expression was written across, innermost first. Each name in it resolves in
+	 * the first of these that imports it, so the evaluator opens their imports as scopes, the
+	 * innermost shadowing the rest. Absent for an expression the compiler wrote itself.
+	 */
+	files?: string[];
 }
 
 /**
@@ -27,20 +33,27 @@ export interface Derivation {
  * the expression stay unrewritten. A function built this way is sloppy mode, so `with` is legal,
  * where a module is always strict and would not take it at all.
  *
- * Two scopes, nested. The outer one holds what the component imported, which is the same for
- * every request; the inner one holds the data, which is not. Nesting them rather than merging
- * them is what stops a payload key from shadowing a carried function, or the reverse.
+ * Nested scopes. The outer ones hold what each file the expression was written across imported,
+ * which is the same for every request, the innermost file shadowing its callers; the inner one
+ * holds the data, which is not. Nesting rather than merging is what keeps a payload key from
+ * shadowing a carried function, or the reverse, and what lets each file keep its own bindings.
  */
 function build(
 	expression: string,
-	carried: Record<string, unknown>,
+	files: Record<string, Record<string, unknown>>,
+	chain: readonly string[],
 ): (bindings: Record<string, unknown>) => unknown {
+	// The shared helpers outermost, then each file of the chain from the entry inward, so the
+	// component the expression sits in shadows its callers, and the data innermost of all.
+	const scopes = ['*', ...chain.toReversed()].map((file) => files[file] ?? {});
+	const opened = scopes.map((_, at) => `with ($files[${String(at)}]) {`).join(' ');
+	const closed = '}'.repeat(scopes.length);
 	// eslint-disable-next-line no-new-func
 	const make = new Function(
-		'$carried',
-		`with ($carried) { return ($scope) => { with ($scope) { return (${expression}); } }; }`,
-	) as (carried: Record<string, unknown>) => (bindings: Record<string, unknown>) => unknown;
-	return make(carried);
+		'$files',
+		`${opened} return ($scope) => { with ($scope) { return (${expression}); } }; ${closed}`,
+	) as (files: Record<string, unknown>[]) => (bindings: Record<string, unknown>) => unknown;
+	return make(scopes);
 }
 
 /**
@@ -74,21 +87,17 @@ export interface Derived {
 }
 
 export function compile(derivations: readonly Derivation[], carried = ''): Derived {
-	const imported = evaluate(carried);
+	const files = (evaluate(carried)['files'] ?? {}) as Record<string, Record<string, unknown>>;
 	const compiled = derivations.map((derivation) => ({
 		name: derivation.name,
 		scope: derivation.scope,
 		scoped: derivation.scoped,
-		evaluate: build(derivation.expression, imported),
+		evaluate: build(derivation.expression, files, derivation.files ?? []),
 		source: derivation.expression,
 	}));
 
 	return (data) => {
-		// What the component imported sits under the data, so a path rooted at an import -- a
-		// constant read as `URLS.external.fonts`, which the lowering keeps as a path because it
-		// is one -- resolves the way a derivation reading the same name does. The data is spread
-		// last for the same reason the two `with` scopes nest: a payload key shadows an import.
-		const out: Scope = { ...imported, data };
+		const out: Scope = { data };
 		if (compiled.length === 0) return out;
 		for (const derivation of compiled) {
 			const bindings = (): Record<string, unknown> =>

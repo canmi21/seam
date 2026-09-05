@@ -15,12 +15,14 @@
 		{
 			"index": 0,
 			"expression": "l",
-			"raw": false
+			"raw": false,
+			"files": ["headblock.svelte"]
 		},
 		{
 			"index": 1,
 			"expression": "data.name",
-			"raw": false
+			"raw": false,
+			"files": ["headblock.svelte"]
 		}
 	],
 	"blocks": [
@@ -33,7 +35,8 @@
 			"item": null,
 			"counter": null,
 			"alternate": true,
-			"within": []
+			"within": [],
+			"files": ["headblock.svelte"]
 		},
 		{
 			"index": 1,
@@ -43,7 +46,8 @@
 			"expression": "data.links",
 			"item": "l",
 			"counter": null,
-			"alternate": false
+			"alternate": false,
+			"files": ["headblock.svelte"]
 		},
 		{
 			"index": 2,
@@ -54,8 +58,10 @@
 			"item": null,
 			"counter": null,
 			"alternate": false,
-			"within": []
+			"within": [],
+			"files": ["headblock.svelte"]
 		}
 	],
-	"entered": []
+	"entered": [],
+	"payload": ["data"]
 }

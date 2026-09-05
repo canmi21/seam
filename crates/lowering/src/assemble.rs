@@ -145,7 +145,7 @@ impl Assembler<'_> {
 			// allocated so that the child's own expressions can read it by name.
 			if self.skeleton.holes.get(index).is_some_and(|hole| hole.fresh) {
 				out.write(&html[at..start]);
-				let (expression, _) = self.hole(index)?;
+				let (expression, _, _) = self.hole(index)?;
 				out.push(ir::Node::Slot { path: expression, escape: ir::Escape::Content, fresh: true });
 				at = end;
 				continue;
@@ -153,9 +153,9 @@ impl Assembler<'_> {
 			match landing(html, start, anchor)? {
 				Landing::Content => {
 					out.write(&html[at..start]);
-					let (expression, raw) = self.hole(index)?;
+					let (expression, raw, files) = self.hole(index)?;
 					let escape = if raw { ir::Escape::Raw } else { ir::Escape::Content };
-					let path = self.path(&expression)?;
+					let path = self.path(&expression, &files)?;
 					out.push(ir::Node::Slot { path, escape, fresh: false });
 					at = end;
 				}
@@ -164,8 +164,8 @@ impl Assembler<'_> {
 					// A spread takes the run rather than an attribute in it: everything from the
 					// space before the first name to the `>` that closes the tag is one value.
 					if self.skeleton.holes.get(index).is_some_and(|hole| hole.spread) {
-						let (expression, _) = self.hole(index)?;
-						let path = self.path(&expression)?;
+						let (expression, _, files) = self.hole(index)?;
+						let path = self.path(&expression, &files)?;
 						out.push(ir::Node::Slot { path, escape: ir::Escape::Raw, fresh: false });
 						at = closes(html, opens_at, until)
 							.ok_or_else(|| "an element whose attributes are spread is never closed".to_owned())?;
@@ -185,8 +185,8 @@ impl Assembler<'_> {
 					// A decision owns the whole attribute, including the space before its name and
 					// the scoping hash Svelte appended inside it, because each outcome already holds
 					// what Svelte would have written -- up to and including writing nothing at all.
-					if let Some(choice) = self.choice(index)? {
-						for node in self.decide(&choice)? {
+					if let Some((choice, files)) = self.choice(index)? {
+						for node in self.decide(&choice, &files)? {
 							out.push(node);
 						}
 					} else {
@@ -213,8 +213,8 @@ impl Assembler<'_> {
 					fresh: anchor,
 				}),
 				Mark::Hole(index) => {
-					let (expression, _) = self.hole(index)?;
-					let path = self.path(&expression)?;
+					let (expression, _, files) = self.hole(index)?;
+					let path = self.path(&expression, &files)?;
 					parts.push(ir::Node::Slot { path, escape: ir::Escape::Attr, fresh: false });
 				}
 			}
@@ -255,10 +255,11 @@ impl Assembler<'_> {
 		let expression = block.expression.clone();
 		let [written, not_void, not_raw] = <[String; 3]>::try_from(tests)
 			.map_err(|_| "a dynamic element without its three tests".to_owned())?;
-		let tag = self.path(&expression)?;
-		let written = self.path(&written)?;
-		let not_void = self.path(&not_void)?;
-		let not_raw = self.path(&not_raw)?;
+		let files = block.files.clone();
+		let tag = self.path(&expression, &files)?;
+		let written = self.path(&written, &files)?;
+		let not_void = self.path(&not_void, &files)?;
+		let not_raw = self.path(&not_raw, &files)?;
 
 		// The attributes are read as a region so that a value in them lands the way any other
 		// attribute's does, anchored at the `<` the stand-in opened.
@@ -330,7 +331,7 @@ impl Assembler<'_> {
 					.to_owned(),
 			),
 			Kind::Each => {
-				let source = self.path(&block.expression.clone())?;
+				let source = self.path(&block.expression.clone(), &block.files)?;
 				let item = block
 					.item
 					.clone()
@@ -369,7 +370,8 @@ impl Assembler<'_> {
 				// and the fallback read from the render made with an empty list the way an else is
 				// read from the render made with its if not taken. The test is what
 				// `ensure_array_like` decides: nothing, or nothing array-like, is an empty list.
-				let test = self.path(&format!("(({})?.length ?? 0) !== 0", block.expression))?;
+				let test =
+					self.path(&format!("(({})?.length ?? 0) !== 0", block.expression), &block.files)?;
 				let mut some = Out::default();
 				some.write(&html[span.from..span.content]);
 				some.push(each);
@@ -402,7 +404,7 @@ impl Assembler<'_> {
 					if block.tests.is_empty() { vec![block.expression.clone()] } else { block.tests.clone() };
 				let mut paths = Vec::with_capacity(tests.len());
 				for test in &tests {
-					paths.push(self.path(test)?);
+					paths.push(self.path(test, &block.files)?);
 				}
 
 				let mut branches = Vec::with_capacity(paths.len() + 1);

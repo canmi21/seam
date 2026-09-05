@@ -21,6 +21,12 @@ pub struct Hole {
 	/// absence here is all this pass can see on its own.
 	#[serde(default)]
 	pub given: Option<String>,
+	/// The files the expression was written across, innermost first: the component it sits in,
+	/// then each caller up to the entry, relative to the root. A name in it resolves in the first
+	/// of these that imports it, which is how a prop expression substituted from a call site
+	/// keeps the caller's imports. See `spec/derivation.md`.
+	#[serde(default)]
+	pub files: Vec<String>,
 	/// Allowed not to come back. Set by the render pass, and only on positive evidence that the
 	/// component holding this markup writes none of it -- never on the value simply being missing,
 	/// which is also what a compiler that has stopped working looks like. See `spec/refusals.md`.
@@ -95,6 +101,9 @@ pub struct Block {
 	/// is already among its branches.
 	#[serde(default)]
 	pub alternate: bool,
+	/// The files its expression and tests were written across, as a hole's. See `Hole::files`.
+	#[serde(default)]
+	pub files: Vec<String>,
 }
 
 /// Both of the streams one render produced.
@@ -118,6 +127,12 @@ pub struct Skeleton {
 	pub alternates: BTreeMap<String, Rendered>,
 	pub holes: Vec<Hole>,
 	pub blocks: Vec<Block>,
+	/// The names the entry's `$props()` destructures, which are the payload's keys, or `None`
+	/// where the walk could not read them. A path is only a path when it is rooted at one of
+	/// these, at a name a block binds, or at an id the runtime makes; anything else -- a constant
+	/// a file imported, `undefined`, `true` -- is an expression to evaluate.
+	#[serde(default)]
+	pub payload: Option<Vec<String>>,
 }
 
 pub type Result<T> = std::result::Result<T, String>;

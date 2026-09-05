@@ -129,6 +129,8 @@ export async function probed(
 	fixed: ReadonlyMap<string, string> = new Map(),
 	given: Record<string, unknown> = {},
 	decided: ReadonlyMap<string, boolean> = new Map(),
+	told: ReadonlyMap<string, string> = new Map(),
+	mute: ReadonlySet<string> = new Set(),
 ): Promise<void> {
 	if (baseline.handed.length === 0) return;
 	const second = rewrite(
@@ -139,6 +141,8 @@ export async function probed(
 		true,
 		fixed,
 		decided,
+		told,
+		mute,
 	);
 	let seen: string;
 	try {
@@ -239,7 +243,16 @@ export async function outcomes(
 			);
 		}
 		const table: string[] = [];
-		if (one.kind === 'class') {
+		if (one.kind === 'value') {
+			// `to_class` in `internal/shared/attributes.js`: the value and the hash with a space
+			// between, the hash alone when the value is empty, and nothing at all when there is
+			// neither. The test is true when the value is empty, which is the second outcome.
+			const value = one.value === undefined ? '' : sentinel(one.value);
+			table.push(
+				` class="${value}${hash === undefined ? '' : ` ${hash}`}"`,
+				hash === undefined ? '' : ` class="${hash}"`,
+			);
+		} else if (one.kind === 'class') {
 			for (let bits = 0; bits < 1 << one.names.length; bits++) {
 				const directives: Record<string, boolean> = {};
 				for (const [at, name] of one.names.entries()) directives[name] = ((bits >> at) & 1) === 1;
