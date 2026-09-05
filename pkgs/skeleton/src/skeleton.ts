@@ -7,7 +7,7 @@ import { anchored } from './fresh.ts';
 import { type AstNode, titles } from './node.ts';
 import { renderRewritten, shippable } from './render.ts';
 import { dead, filled, outcomes, probed } from './resolve.ts';
-import type { Rendered, Skeleton } from './shape.ts';
+import type { Block, Rendered, Skeleton } from './shape.ts';
 import { inlined } from './snippets.ts';
 import { unbound } from './unbind.ts';
 import { rewrite } from './walk.ts';
@@ -149,22 +149,40 @@ export async function skeleton(
 				`would bring. What stopped the walk:\n${why}`,
 		);
 	});
-	// The rest of each spread's call, which only the compiled output has.
-	filled(baseline, file, root);
+	// A test or a value the request does not decide was asked of the render, and this pass exists
+	// to answer it: the walk runs again told, and everything below that reads the bytes -- the
+	// probe, the dead holes, the class outcomes -- reads the bytes of that run rather than these.
+	// So an asking pass renders what can answer and nothing else. The baseline has had its say
+	// above, and an alternate has one only where a component the baseline does not render asks
+	// something: a copy inside a branch the baseline does not take. A route with sixty blocks that
+	// asks three times used to render every alternate three times over, and nearly all of the
+	// article's eight minutes was that.
+	const asking = baseline.asks.length > 0 || baseline.wants.length > 0;
+	const answering = (block: Block, branch: number): boolean =>
+		baseline.copies.some(
+			(copy) =>
+				((copy.asks?.length ?? 0) > 0 || (copy.wants?.length ?? 0) > 0) &&
+				(copy.within ?? []).some(([index, at]) => index === block.index && at === branch),
+		);
 
-	// Before the alternates, because an if in markup nobody renders needs none of them.
-	await probed(
-		baseline,
-		source,
-		file,
-		root,
-		[rendered.body, rendered.head],
-		fixed,
-		given,
-		decided,
-		told,
-		mute,
-	);
+	if (!asking) {
+		// The rest of each spread's call, which only the compiled output has.
+		filled(baseline, file, root);
+
+		// Before the alternates, because an if in markup nobody renders needs none of them.
+		await probed(
+			baseline,
+			source,
+			file,
+			root,
+			[rendered.body, rendered.head],
+			fixed,
+			given,
+			decided,
+			told,
+			mute,
+		);
+	}
 
 	// One more render per branch the baseline does not hold, keyed the way Svelte numbers them:
 	// `1`, `2` for each `{:else if}`, and `-1` for the else, which is what it writes into the
@@ -181,6 +199,7 @@ export async function skeleton(
 		// The else always gets a render, with or without a `{:else}` written: Svelte opens the
 		// branch either way and an empty one is still the bytes for an if that is not taken.
 		for (const branch of [...wanted, -1]) {
+			if (asking && !answering(block, branch)) continue;
 			// The ancestors go back on the branch that makes this block exist, or the render would
 			// not hold it and there would be nothing to read.
 			const forced = new Map(block.within ?? []);
@@ -200,40 +219,23 @@ export async function skeleton(
 			alternates[`${String(block.index)}.${String(branch)}`] = anchored(other);
 		}
 	}
-	// An id written by a component the walk did not enter is a marker rather than a hole, because
-	// Svelte numbers them per render. See `anchored`.
-	const { body: html, head } = anchored(rendered);
 
-	const everywhere = [
-		html,
-		head,
-		...Object.values(alternates).flatMap((one) => [one.body, one.head]),
-	];
-
-	// After the alternates, because a value that comes back in one of them is not missing at all.
-	await dead(baseline, file, root, given, rendered, everywhere);
-
-	// After every render rather than after the first: an element inside an if appears in the
-	// alternate and not in the baseline, and the hash has to be read wherever the marker landed.
-	await outcomes(baseline.holes, baseline.pending, [
-		html,
-		head,
-		...Object.values(alternates).flatMap((one) => [one.body, one.head]),
-	]);
-
-	// A test or a value the request does not decide was asked of the render, and the walk runs
-	// again told. Every render so far -- the baseline and each alternate -- has had its say, so a
-	// component in a branch the baseline does not take has answered too. One nothing rendered is
-	// not asked again: it is walked as the decision it was, which the runtime makes.
-	if (baseline.asks.length > 0 || baseline.wants.length > 0) {
+	// Every render this pass makes has had its say -- the baseline and each alternate that could
+	// answer -- so a component in a branch the baseline does not take has answered too. One
+	// nothing rendered is not asked again: it is walked as the decision it was, which the runtime
+	// makes.
+	if (asking) {
 		if (process.env['SEAM_TRACE'] !== undefined) {
 			console.error(
 				`[seam] ${basename(file)}: asked ${String(baseline.asks.length)} tests and ` +
 					`${String(baseline.wants.length)} values (told ${String(told.size)}, decided ` +
-					`${String(decided.size)}, mute ${String(mute.size)}, blocks ${String(baseline.blocks.length)})`,
+					`${String(decided.size)}, mute ${String(mute.size)}, blocks ${String(baseline.blocks.length)}, ` +
+					`alternates ${String(Object.keys(alternates).length)})`,
 			);
 			for (const want of baseline.wants) {
-				console.error(`[seam]   want ${want.replace(/\s+/g, ' ').slice(0, 160)} -> told ${String(told.has(want))}`);
+				console.error(
+					`[seam]   want ${want.replace(/\s+/g, ' ').slice(0, 160)} -> told ${String(told.has(want))}`,
+				);
 			}
 		}
 		const answers = asked['__seam_asked'] ?? {};
@@ -254,6 +256,23 @@ export async function skeleton(
 		}
 		return skeleton(file, root, fixed, settled, values, muted);
 	}
+
+	// An id written by a component the walk did not enter is a marker rather than a hole, because
+	// Svelte numbers them per render. See `anchored`.
+	const { body: html, head } = anchored(rendered);
+
+	const everywhere = [
+		html,
+		head,
+		...Object.values(alternates).flatMap((one) => [one.body, one.head]),
+	];
+
+	// After the alternates, because a value that comes back in one of them is not missing at all.
+	await dead(baseline, file, root, given, rendered, everywhere);
+
+	// After every render rather than after the first: an element inside an if appears in the
+	// alternate and not in the baseline, and the hash has to be read wherever the marker landed.
+	await outcomes(baseline.holes, baseline.pending, everywhere);
 
 	return {
 		html,

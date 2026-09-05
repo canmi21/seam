@@ -1501,11 +1501,20 @@ cannot stand for is that it names something or is a function; `(undefined).entri
 what state with no value expands to, names nothing and is a value like a literal, and the
 ternary around it is the runtime's.
 
-**With the article at 238 KB byte-identical, all seven of press's routes are.** Its compile is
-eight minutes, of which nearly all is renders: each pass renders the baseline and one alternate
-per block, and a route with sixty blocks that asks three times renders two hundred times per
-structure. The alternates a pass makes are the same as the last pass's for every block whose
-branches hold nothing asked, and caching them across passes is the obvious next cut.
+**With the article at 238 KB byte-identical, all seven of press's routes are.** Its compile was
+eight minutes, of which nearly all was renders: each pass rendered the baseline and one alternate
+per block, and a route with ninety blocks that asks three times rendered every alternate three
+times over. The first thought was to cache them across passes, and it does not work: once a test
+is answered the block it decided is folded into bytes, every block after it is renumbered, and no
+alternate of the earlier pass is the alternate of the next. What is true instead is that **an
+asking pass needs an alternate only where the alternate can answer**. The baseline has run every
+script the taken branches hold; what it has not run is a component inside a branch it does not
+take, and that component's asks are answered by that branch's alternate and nowhere else. So a
+copy records the branches its call site sits within, an asking pass renders the alternates that
+hold an asking copy and skips the rest, and the probe, the dead holes and the class outcomes wait
+for the pass that is told everything, whose bytes are the ones they read. The article's three
+passes went from ninety alternates each to eight, one and one, and the compile from 438 to 126
+seconds, byte-identical still.
 
 **Two more things the same oracle found beside these.** A class written as an expression on an
 element the stylesheet could match: Svelte scopes the element when it cannot read what the class

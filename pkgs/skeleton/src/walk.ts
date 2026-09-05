@@ -85,6 +85,12 @@ export interface Copy {
 	asks?: [key: string, code: string][];
 	/** The values this copy asks the render for. See `Site.wants`. */
 	wants?: [key: string, code: string][];
+	/**
+	 * The branches this copy's call site sits inside, outermost first. A copy inside a branch the
+	 * baseline does not take renders only in that branch's alternate, so what it asks is answered
+	 * only there; the pass that asks makes that alternate and no other. See `skeleton()`.
+	 */
+	within?: [number, number][];
 }
 
 /** One component's children, and the holes and blocks the walk put inside them. */
@@ -2089,7 +2095,7 @@ function descend(node: AstNode, walk: Walk): boolean {
 			dirname(walk.site.file),
 			`__seam-${basename(file, '.svelte')}-${String(walk.site.copies.length)}.svelte`,
 		);
-		const copy: Copy = { file, at, source: '' };
+		const copy: Copy = { file, at, source: '', within: [...walk.within] };
 		walk.site.copies.push(copy);
 
 		// The anchor's hole comes before every hole the child plants, which is where Svelte writes
