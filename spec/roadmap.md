@@ -44,7 +44,6 @@ this order, one commit each:
 
 | construct | what Svelte does, and where | what ours does |
 | --- | --- | --- |
-| `{@render s(a, b)}` with one parameter | `RenderTag.js` passes the arguments through; JavaScript drops the extra | accepted; the refusal was ours |
 | `class={expr}` beside `class:` | `to_class(value, hash, directives)` in `internal/shared/attributes.js` | carry `to_class` as `attributes` is carried, one hole |
 | `class:`/`style:` beside `{...}` | the third and fourth arguments of `$.attributes` | read from the compiled call, as the hash already is |
 | `a="x{y}"` beside `{...}` | one template literal in the object | the same literal |

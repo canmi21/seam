@@ -1601,13 +1601,9 @@ function collect(node: unknown, walk: Walk): void {
 				refuse(`the snippet \`${named}\` takes parameters and is never rendered`);
 			}
 			// Fewer arguments than parameters is a function call: the rest are `undefined`, and a
-			// default is what answers to that. More is an argument nothing receives.
-			if (one.args.length > parameters.length) {
-				refuse(
-					`the snippet \`${named}\` takes ${String(parameters.length)} parameter(s) and is ` +
-						`rendered with ${String(one.args.length)}`,
-				);
-			}
+			// default is what answers to that. More is a function call too: `RenderTag.js` passes
+			// every argument through and JavaScript drops the ones nothing receives, so they are
+			// written out with the rest at the call and bind nothing.
 			return;
 		}
 

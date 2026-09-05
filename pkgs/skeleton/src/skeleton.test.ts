@@ -1459,6 +1459,16 @@ const accepted: Case[] = [
 			'<svelte:boundary pending={p}><p>x</p></svelte:boundary>',
 		data: [{ a: 'A' }, { a: '<' }],
 	},
+	{
+		// `RenderTag.js` passes every argument through, and JavaScript drops the ones nothing
+		// receives, so the extra binds nothing and is written out like the rest.
+		name: 'a snippet rendered with more arguments than it takes',
+		source: `${PROPS}{#snippet r(a)}<p>{a}</p>{/snippet}{@render r(data.a, data.b)}`,
+		data: [
+			{ a: 'A', b: 'B' },
+			{ a: '<', b: null },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
@@ -1500,12 +1510,6 @@ const refused: Case[] = [
 			'<script>let { data, p } = $props();</script>' +
 			'<svelte:boundary pending={p}><p>{data.a}</p></svelte:boundary>',
 		says: 'nullish',
-	},
-	{
-		// Fewer arguments than parameters is a call like any other, the rest being `undefined`;
-		// more is an argument nothing receives.
-		name: 'a snippet rendered with more arguments than it takes',
-		source: `${PROPS}{#snippet r(a)}<p>{a}</p>{/snippet}{@render r(data.a, data.b)}`,
 	},
 	{
 		// Written inside a component's tag, so it is a prop that component receives. The child calls

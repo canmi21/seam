@@ -1378,9 +1378,9 @@ so there the choice is one escaped expression between the value and that text.
 `undefined` and only then. So `{#snippet r(v = 1)}` binds `v` to `(arg === undefined ? 1 : arg)`,
 and a destructured default reaches through the member the same way, which is one function shared
 with an await's pattern. An argument not written is `undefined` too, so `{@render r()}` is a call
-like any other; more arguments than parameters is still refused, being an argument nothing
-receives. A rest or a nesting stays refused: neither is a member nor an index, so it has no way
-in. An each block's pattern used to be the one place a default was still refused, on the reading
+like any other, and so is one with more arguments than parameters: `RenderTag.js` passes every
+argument through, JavaScript drops the ones nothing receives, and they bind nothing. A rest or a
+nesting stays refused: neither is a member nor an index, so it has no way in. An each block's pattern used to be the one place a default was still refused, on the reading
 that the name is bound by the runtime per item and a default is an expression the runtime would
 have to evaluate. It is: `EachBlock.js` writes `let { id = d } = each_array[i]`, so the name is
 the member unless that is `undefined`, and `null` is not defaulted. The runtime binds the member
