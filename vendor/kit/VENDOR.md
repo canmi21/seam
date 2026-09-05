@@ -55,6 +55,8 @@ implementation were replaced, one package changes.
   with the client project left out, and two files excluded: `src/version.spec.js`, which reads a
   script upstream keeps beside the package, and `src/core/sync/write_types/index.spec.js`, which
   drives the TypeScript compiler API and was written against a major behind the one installed here.
+  Running it writes `.svelte-kit` directories into two fixtures, which the repository's
+  `.gitignore` keeps out; the one under `core/adapt/fixtures/basic` is upstream's and tracked.
 - `tsc -p vendor/kit` checks the source under upstream's own compiler options, kept in
   `tsconfig.json` here. At the pinned tag it reports 44 errors, all of them the installed
   TypeScript being a major ahead of upstream's -- `write_types` calling a compiler API that moved,

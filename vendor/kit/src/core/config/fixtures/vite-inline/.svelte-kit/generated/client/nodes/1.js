@@ -1,1 +1,0 @@
-export { default as component } from "../../../../../../../../runtime/components/svelte-5/error.svelte";
