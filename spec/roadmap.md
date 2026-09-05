@@ -58,13 +58,17 @@ on a decision about the IR node**, which [ir.md](ir.md)'s linear form can be dec
 where a value is empty. The bytes are Svelte's own server bytes, byte for byte, and hydration is
 Svelte's client against them. The question is Svelte's and is answered by the oracle.
 
-## Not yet the time
+## Decided, and not built
 
 **A script that substitution cannot reach, reading the request.** A name reassigned or an object
 mutated after its declaration, where the statements read request data, is a program per request.
-That is the one thing this line gives up, by definition. Where the statements read nothing the
-request decides, the render already evaluates them and the walk bakes the result (`wants` in
-`walk.ts`). Zero in press. [derivation.md](derivation.md) names the condition for reopening it.
+That is the one thing this line gives up, by definition, and it stays refused by decision rather
+than by omission: building it would be carrying SSR's per-request rendering back in under another
+name. Where the statements read nothing the request decides, the render already evaluates them and
+the walk bakes the result (`wants` in `walk.ts`). Zero in press. [derivation.md](derivation.md)
+holds the reasons and the three questions that would have to be answered if the line were moved.
+
+## Not yet the time
 
 **Legacy mode.** `<slot>`, `let:`, `<svelte:fragment>`, `export let`, `$:` and `$store`. Svelte 5
 still compiles them (`SlotElement.js`, `LabeledStatement.js`) and each is a snippet, a prop or an
