@@ -245,9 +245,10 @@ The entry rendering itself through `<svelte:self>` is the fragment the way a chi
 the parameters and the payload's own paths what the first call binds them to. A cycle through a
 second component -- `A` renders `B` renders `A` -- is read off the imports before the walk goes
 in, `reachesItself`, so every component on the cycle is entered as a fragment and whichever of
-them is met again while still on the stack is a call of the fragment it became. Still refused,
-each saying so: a head or a rest inside any fragment, and a pattern parameter with a default on
-the pattern itself.
+them is met again while still on the stack is a call of the fragment it became. A pattern
+defaulted whole, `({ a } = {})`, is the default wrapping the argument and the pattern taking that
+apart, measured with the first call handed nothing. Still refused, each saying so: a head or a
+rest inside any fragment.
 
 ## The anchors come from Svelte, not from us
 

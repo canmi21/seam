@@ -55,8 +55,7 @@ runtime calls, with `call` nodes where it is entered; [ir.md](ir.md) has the nod
 gets its region. The three shapes that waited for a case are in: a pattern as a recursive
 snippet's parameter, `<svelte:self>` in the entry, and a cycle through a second component. Taking
 them found that a call standing alone in an each changed the bytes around it, and the stand-in
-now writes its marker itself. What stays refused inside a fragment is a head, a rest, and a
-pattern parameter defaulted whole.
+now writes its marker itself. What stays refused inside a fragment is a head and a rest.
 
 **Close, not build.** [ir.md](ir.md) asks whether hydration needs an empty text node to exist
 where a value is empty. The bytes are Svelte's own server bytes, byte for byte, and hydration is

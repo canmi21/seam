@@ -1815,6 +1815,19 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// The pattern defaulted whole, `({ ... } = {})`: the default wraps the argument first, taken
+		// where it is `undefined`, and the pattern inside then takes that apart. The first call is
+		// handed nothing, so the default is what it destructures.
+		name: 'a snippet that renders itself and takes a pattern defaulted whole',
+		source:
+			`${PROPS}<ul>{@render row(data.tree)}</ul>` +
+			'{#snippet row({ label = "root", children = [] } = {})}<li>{label}{#each children as child}<ul>{@render row(child)}</ul>{/each}</li>{/snippet}',
+		data: [
+			{ tree: { label: 'a', children: [{ label: 'b' }, { children: [{ label: 'd' }] }] } },
+			{},
+		],
+	},
+	{
 		// The entry itself, whose props are the payload: the first call binds them to the payload's
 		// own paths, and every `<svelte:self>` inside binds them to what it passes.
 		name: 'an entry that renders itself with svelte:self',
