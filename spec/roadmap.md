@@ -38,8 +38,10 @@ component the walk could not enter for a reason it names.
 the head whichever branch the request took -- and the surface checks compared the body alone, so
 nothing said so. Both streams are compared now, the block is mirrored into the head, and
 [refusals.md](refusals.md) has how. An `{#await}` stands in the head too, opened around its
-expression since its pending branch is the one place a `{@const}` cannot go. What stays refused is
-a head inside a recursive fragment, whose call the head IR does not carry.
+expression since its pending branch is the one place a `{@const}` cannot go. A recursive component
+that writes a head stands in it as a fragment of its own, called per level. What stays refused is
+a head that reaches a fragment from a component inside its body, found after the calls were
+written; [refusals.md](refusals.md) has the shape it waits on.
 
 **The small ones are done.** Thirteen constructs, each a mechanism that already existed used once
 more, each read out of the visitor that writes it, measured with Node, written, checked and
@@ -55,7 +57,9 @@ runtime calls, with `call` nodes where it is entered; [ir.md](ir.md) has the nod
 gets its region. The three shapes that waited for a case are in: a pattern as a recursive
 snippet's parameter, `<svelte:self>` in the entry, and a cycle through a second component. Taking
 them found that a call standing alone in an each changed the bytes around it, and the stand-in
-now writes its marker itself. What stays refused inside a fragment is a head and a rest.
+now writes its marker itself. A rest is a parameter bound per call, and a component's own head
+has the fragment stand in the head stream; what stays refused is a head a component inside the
+body writes.
 
 **Close, not build.** [ir.md](ir.md) asks whether hydration needs an empty text node to exist
 where a value is empty. The bytes are Svelte's own server bytes, byte for byte, and hydration is

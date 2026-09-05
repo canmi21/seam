@@ -1828,6 +1828,29 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A fragment that writes a head stands in the head stream too, its head half a fragment of
+		// its own that every call of it calls, so the head holds one block per level and the deepest
+		// last level's title wins as the last head block executed. And a rest is a parameter bound
+		// per call to what the call wrote and the pattern did not name.
+		name: 'a component that renders itself with a head and a rest',
+		beside: {
+			Tree:
+				"<script>import Tree from './Tree.svelte'; let { node, ...rest } = $props();</script>" +
+				'<svelte:head><meta name="n" content={node.label} /><title>T {node.label}</title></svelte:head>' +
+				'<li {...rest}>{node.label}{#each node.children ?? [] as child}<ul><Tree node={child} title={child.label} /></ul>{/each}</li>',
+		},
+		source: `<script>import Tree from './Tree.svelte'; let { data } = $props();</script><ul><Tree node={data.tree} class="root" /></ul>`,
+		data: [
+			{
+				tree: {
+					label: 'a',
+					children: [{ label: 'b' }, { label: 'c', children: [{ label: 'd' }] }],
+				},
+			},
+			{ tree: { label: '<&' } },
+		],
+	},
+	{
 		// The entry itself, whose props are the payload: the first call binds them to the payload's
 		// own paths, and every `<svelte:self>` inside binds them to what it passes.
 		name: 'an entry that renders itself with svelte:self',
@@ -1955,6 +1978,19 @@ const accepted: Case[] = [
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// A fragment's head is read off its own component before the body is walked, because the
+		// calls inside the body are written then. One a component inside the body writes is found
+		// after. See `headedFragment()` in walk.ts.
+		name: 'a snippet that renders itself around a headed component',
+		beside: {
+			Kid: '<script>let { t } = $props();</script><svelte:head><meta name="k" content={t} /></svelte:head><i>{t}</i>',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script><ul>{@render row(data.tree)}</ul>" +
+			'{#snippet row(node)}<li><Kid t={node.label} />{#each node.children ?? [] as child}<ul>{@render row(child)}</ul>{/each}</li>{/snippet}',
+		says: 'head stream',
+	},
 	{
 		// Inside a table the stamp has to be an element, because text is refused there, and an
 		// element is the sibling the case above is about. No carrier avoids it -- text and an

@@ -3,7 +3,7 @@ import { realpathSync } from 'node:fs';
 import { compile } from 'svelte/compiler';
 import { resolveBare } from 'ast';
 import type { Rendered } from './shape.ts';
-import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, sentinel } from './sentinel.ts';
+import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel } from './sentinel.ts';
 import type { Copy } from './walk.ts';
 
 /**
@@ -90,7 +90,7 @@ export async function renderRewritten(
 		if (held !== undefined) return held;
 		const out = resolvePath(staging, `${basename(from, '.svelte')}-${generation}-${written++}.js`);
 		emitted.set(from, out);
-		if ([HEAD_OPEN, HEAD_CLOSE, MARK].some((call) => code.includes(`${call}(`))) {
+		if ([HEAD_OPEN, HEAD_CLOSE, MARK, MARK_HEAD].some((call) => code.includes(`${call}(`))) {
 			code = handed(code);
 		}
 		// Either quote. Svelte keeps the one the author wrote, so a component whose imports are
@@ -184,24 +184,28 @@ function real(path: string): string {
  * and `__seam_close(n)` in an expression tag beside its stamp stand the block in the head stream,
  * so that the head carries anchors for it where the body carries Svelte's own; see `mirrored()`
  * in walk.ts. `__seam_mark(marker)` in a stand-in's script or init writes a call's marker into the
- * body where the stand-in renders; see `marks()` in sentinel.ts. All need the renderer the
+ * body where the stand-in renders, and `__seam_mark_head(marker)` writes one into the head for a
+ * fragment that writes a head; see `marks()` and `marksHead()` in sentinel.ts. All need the renderer the
  * component was handed, which is a local of the compiled function and not something markup can
  * name, so they are given it here. The open remembers itself so that the close can write an empty
  * pair for a branch that ran no open: an if without an `{:else}` has no branch to hold one, and
- * the render made with it not taken still has to hold the block.
+ * the render made with it not taken still has to hold the block. It opens once per block however
+ * often it is called, so a fragment opened from its script -- ahead of the head Svelte hoists --
+ * and again from the `{@const}` in its body writes one anchor.
  */
 function handed(code: string): string {
 	const helpers =
 		'const __seam_opened = new Set();\n' +
-		`function ${HEAD_OPEN}($$renderer, block, value) { __seam_opened.add(block); ` +
-		"$$renderer.head((head) => head.push('<!--[-->')); return value; }\n" +
+		`function ${HEAD_OPEN}($$renderer, block, value) { if (__seam_opened.has(block)) return value; ` +
+		"__seam_opened.add(block); $$renderer.head((head) => head.push('<!--[-->')); return value; }\n" +
 		`function ${HEAD_CLOSE}($$renderer, block) { const opened = __seam_opened.delete(block); ` +
 		"$$renderer.head((head) => head.push((opened ? '' : '<!--[-->') + '<!--]-->%%b' + String(block) + '%%')); " +
 		"return ''; }\n" +
-		`function ${MARK}($$renderer, marker) { $$renderer.push(marker); }\n`;
+		`function ${MARK}($$renderer, marker) { $$renderer.push(marker); }\n` +
+		`function ${MARK_HEAD}($$renderer, marker) { $$renderer.head((head) => head.push(marker)); }\n`;
 	// Functions rather than strings, since `$$` in a replacement string is one `$`.
 	let given = code;
-	for (const call of [HEAD_OPEN, HEAD_CLOSE, MARK]) {
+	for (const call of [HEAD_OPEN, HEAD_CLOSE, MARK, MARK_HEAD]) {
 		given = given.replaceAll(`${call}(`, () => `${call}($$renderer, `);
 	}
 	return helpers + given;

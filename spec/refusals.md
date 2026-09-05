@@ -762,8 +762,28 @@ because the anchors are ours and go from the bytes; and it is a second block for
 each, so it borrows the body half's renders under its own index rather than being rendered again.
 An `{#await}` is opened differently: its pending branch is the one place Svelte does not allow a
 `{@const}`, so the open goes around the awaited expression, `__seam_open(n, value)` returning the
-value, which runs once before either branch and so opens both. What stays refused, saying so, is a
-head inside a recursive fragment, whose call the head IR does not carry.
+value, which runs once before either branch and so opens both.
+
+**A fragment that writes a head is two fragments.** A recursive component with a `<svelte:head>`
+writes one head block per level, so the head IR carries the call the body does: the fragment's
+block is mirrored into the head like any block, its head half named after the body's with the same
+parameters, and every stand-in for a call writes a second marker into the head stream -- from the
+copy's script or the snippet's init, as it writes the body's -- read as a call of the head half. The
+call sits inside whatever blocks the body's call does, so those stand in the head too, marked the
+way a walked `<svelte:head>` marks them. Two things had to be read off Svelte for it. `clean_nodes`
+hoists the head ahead of the body, so the `{@const}` inside the bare block opens too late for it;
+the open is also written at the end of the script, and opens once per block however often it is
+called. And the bare `{#if true}` cannot hold the head, since a `<svelte:head>` may not sit in a
+block, so the block wraps everything but the hoisted elements -- and one written between the rest
+is asked to move first or last, which is the same component to Svelte. Measured with a title per
+level, the deepest last level's winning as the last head block executed.
+
+Whether the fragment writes a head is read off its own component before the body is walked,
+because the calls inside the body are written while it is walked and have to know. **A head that
+reaches the fragment from a component inside its body is found after that, and is refused**,
+saying so. Taking it means writing the calls' head markers late: the copies' sources and the
+blocks around the calls would have to stay open until the whole walk is done, which is a change
+in when every copy is finalised, and waits for a case.
 
 **The same comparison found a title bug.** Two titles written with nothing between them came out
 with a space between, because the whitespace rule around a hoisted title wrote one space wherever

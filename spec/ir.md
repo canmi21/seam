@@ -247,8 +247,11 @@ second component -- `A` renders `B` renders `A` -- is read off the imports befor
 in, `reachesItself`, so every component on the cycle is entered as a fragment and whichever of
 them is met again while still on the stack is a call of the fragment it became. A pattern
 defaulted whole, `({ a } = {})`, is the default wrapping the argument and the pattern taking that
-apart, measured with the first call handed nothing. Still refused, each saying so: a head or a
-rest inside any fragment.
+apart, measured with the first call handed nothing. A rest is a parameter like the others, bound
+per call to what the call wrote and the pattern did not name. A fragment whose component writes a
+head is two fragments, a head half beside the body's, called from the head stream wherever the
+body's is called; [refusals.md](refusals.md) has how the render is made to write its anchors.
+Still refused, saying so: a head that reaches a fragment from a component inside its body.
 
 ## The anchors come from Svelte, not from us
 

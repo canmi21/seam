@@ -61,6 +61,7 @@ import {
 	headOpens,
 	headOpensWith,
 	marks,
+	marksHead,
 	sentinel,
 } from './sentinel.ts';
 import type { Block, Hole, Stream } from './shape.ts';
@@ -214,6 +215,12 @@ export interface Site {
 	 * a render that would not end. Shared by every file of the walk. See `reachesItself()`.
 	 */
 	callable: Map<string, string>;
+	/**
+	 * The fragments whose component writes a `<svelte:head>`, by name, known before the body is
+	 * walked: a call of one writes a marker into the head as well as the body, and stands in the
+	 * head stream what it sits inside. Shared by every file of the walk. See `headedFragment()`.
+	 */
+	headedFragments: Set<string>;
 	/**
 	 * Markup this component was handed by its caller, by the name it arrives under.
 	 *
@@ -1067,10 +1074,19 @@ function importsItself(raw: string, file: string): boolean {
  * own default where the caller leaves it out or passes `undefined`, as JavaScript does.
  */
 function propBinds(
-	declares: readonly { local: string; prop: string; fallback: string }[],
+	declares: readonly { local: string; prop: string; fallback: string; rest?: true }[],
 	bindings: ReadonlyMap<string, string>,
 ): [string, string][] {
+	const named = new Set(declares.filter((one) => one.rest !== true).map((one) => one.prop));
 	return declares.map((one): [string, string] => {
+		// A rest gathers per call what the call wrote and the pattern did not name, as `descend()`
+		// gathers one for a component entered once; here it is a parameter bound to that object.
+		if (one.rest === true) {
+			const others = [...bindings]
+				.filter(([prop]) => !named.has(prop))
+				.map(([prop, value]) => `${JSON.stringify(prop)}: ${value}`);
+			return [one.local, `({ ${others.join(', ')} })`];
+		}
 		const given = bindings.get(one.prop);
 		if (given === undefined) return [one.local, one.fallback];
 		if (one.fallback === 'undefined') return [one.local, given];
@@ -1134,24 +1150,42 @@ function selfCall(
 		bindings.set(name, `(${walk.expand(only['expression'])})`);
 	}
 	const index = walk.holes.length;
-	walk.holes.push({
-		index,
-		expression: '',
-		raw: true,
-		call: { fragment, binds: propBinds(declares, bindings) },
-	});
+	const binds = propBinds(declares, bindings);
+	walk.holes.push({ index, expression: '', raw: true, call: { fragment, binds } });
 	const ordinal = walk.site.copies.length;
 	// The copy writes the marker itself, from its script, which runs where the call renders; its
 	// fragment holds nothing, so the call is to the markup around it what the original was. See
 	// `marks()`.
 	const at = resolvePath(dirname(walk.site.file), `__seam-call-${String(index)}.svelte`);
+	const head = callsHead(walk, fragment, binds);
 	walk.site.copies.push({
 		file: walk.site.file,
 		at,
-		source: `<script>${marks(index)};</script>`,
+		source: `<script>${marks(index)};${head === null ? '' : `${marksHead(head)};`}</script>`,
 		within: [...walk.within],
 	});
 	rename(walk, node, tag, at, ordinal, dynamic);
+}
+
+/**
+ * The second hole a call of a headed fragment gets: a call of the fragment's head half, whose
+ * marker the stand-in writes into the head stream as it writes the body's into the body. The call
+ * writes a head where it sits, so every block it sits inside stands in the head stream too, as one
+ * a `<svelte:head>` was walked inside does. Null for a fragment that writes none.
+ */
+function callsHead(walk: Walk, fragment: string, binds: [string, string][]): number | null {
+	if (!walk.site.headedFragments.has(fragment)) return null;
+	const head = walk.holes.length;
+	walk.holes.push({
+		index: head,
+		expression: '',
+		raw: true,
+		call: { fragment: `${fragment}h`, binds },
+	});
+	for (const [index] of walk.within) {
+		if (walk.blocks[index]?.kind !== 'element') walk.site.headed.add(index);
+	}
+	return head;
 }
 
 /**
@@ -1276,10 +1310,12 @@ function standIn(
 	// its block or not, and first in it or not. See `marks()`.
 	const name = `__seam_call_${String(index)}`;
 	walk.edits.push([at[0], at[1], `{@render ${name}()}`]);
+	const head = callsHead(walk, fragment, binds);
 	walk.edits.push([
 		walk.source.length,
 		walk.source.length,
-		`\n{#snippet ${name}()}{@const __seam_m${String(index)} = ${marks(index)}}{/snippet}`,
+		`\n{#snippet ${name}()}{@const __seam_m${String(index)} = ${marks(index)}}` +
+			`${head === null ? '' : `{@const __seam_h${String(head)} = ${marksHead(head)}}`}{/snippet}`,
 	]);
 }
 
@@ -1654,8 +1690,15 @@ function stamps(walk: Walk, index: number, close = ''): string {
  * branch of one taken is the render made with that branch of the other. The assembler then reads
  * it as it reads any block in the head, and the head IR carries the if or the each the body does.
  */
-function mirrored(walk: Walk, block: number, closer: number, opens: (number | null)[]): number {
-	const { blocks, edits } = walk;
+function mirrored(
+	walk: Walk,
+	block: number,
+	closer: number,
+	opens: (number | null)[],
+	/** The edits of the file the block sits in, which is the walk's own unless a child's. */
+	edits = walk.edits,
+): number {
+	const { blocks } = walk;
 	const body = blocks[block];
 	const held = edits[closer];
 	if (body === undefined || held === undefined) return -1;
@@ -1667,14 +1710,110 @@ function mirrored(walk: Walk, block: number, closer: number, opens: (number | nu
 		within: [...(body.within ?? [])],
 		bare: true,
 		mirrors: block,
+		// A fragment's head half is a fragment of its own, named after the body's, with the same
+		// parameters and the same first binds; a call inside it is a call of the head half. It
+		// opens with no text, so nothing is written back ahead of it.
+		...(body.fragment === undefined
+			? {}
+			: {
+					fragment: {
+						name: `${body.fragment.name}h`,
+						params: body.fragment.params,
+						binds: body.fragment.binds,
+					},
+				}),
 	});
 	// A branch that holds nothing gets no open: the close writes the empty pair on its own. An if
 	// without an `{:else}` has no branch to hold one at all, and is the same case.
 	for (const at of opens) {
 		if (at !== null) edits.push([at, at, headOpens(index)]);
 	}
-	edits[closer] = [held[0], held[1], stamps(walk, block, headCloses(index))];
+	// Whatever the edit carried ahead of the stamp stays: a fragment's closes its bare block first.
+	const ahead = held[2].slice(0, held[2].length - stamps(walk, block).length);
+	edits[closer] = [held[0], held[1], `${ahead}${stamps(walk, block, headCloses(index))}`];
 	return index;
+}
+
+/**
+ * The nodes of a fragment's root that the bare block wraps: what is written, whitespace at either
+ * end aside, and none of what `clean_nodes` hoists out of the fragment -- a `<svelte:head>` and the
+ * other meta elements, which cannot sit inside a block and render the same wherever they sit. One
+ * written between the rest would have to be moved, and the edits inside it moved with it, so it
+ * is asked to be first or last instead.
+ */
+function wrapped(
+	nodes: readonly unknown[],
+	what: () => string,
+): [first: [number, number], last: [number, number]] | null {
+	const hoisted = new Set([
+		'SvelteHead',
+		'SvelteWindow',
+		'SvelteBody',
+		'SvelteDocument',
+		'SvelteOptions',
+	]);
+	const written = nodes.filter(
+		(one) =>
+			isNode(one) &&
+			!hoisted.has(String(one['type'])) &&
+			!(one['type'] === 'Text' && /^\s*$/.test(String(one['data'] ?? ''))),
+	);
+	const first = span(written[0]);
+	const last = span(written[written.length - 1]);
+	if (first === null || last === null) return null;
+	for (const one of nodes) {
+		if (!isNode(one) || !hoisted.has(String(one['type']))) continue;
+		const at = span(one);
+		if (at !== null && at[0] > first[0] && at[0] < last[1]) {
+			refuse(
+				`${what()} renders itself and writes its \`<${String(one['name'] ?? one['type'])}>\` between ` +
+					'the markup, which the block around the body cannot hold: writing it first or last ' +
+					'in the file is the same component, since Svelte hoists it either way',
+			);
+		}
+	}
+	return [first, last];
+}
+
+/**
+ * Stands a fragment in the head stream as well, where its component writes a `<svelte:head>`.
+ *
+ * The fragment is called per level of data, so its head block repeats per level the way its body
+ * does, and the head IR has to carry the call: the body's block is mirrored as any block is, its
+ * head half named after it, and every call of it writes a second marker into the head, read as a
+ * call of the head half -- `callsHead()`, which is why the fragment has to be known headed before
+ * its body is walked, where the calls are met. The open goes in two places and writes once: a
+ * `{@const}` inside the bare `{#if true}` around the body, and a statement at the end of the
+ * script, because `clean_nodes` hoists the head ahead of the body and the block has to be open
+ * before it runs. Measured against Svelte's own recursion with a head per level and a title, the
+ * deepest last level's winning as the last head block executed.
+ *
+ * A head that reaches the fragment from a component inside its body is refused: it is found only
+ * once the body is walked, after the calls inside it were written without a head marker.
+ */
+function headedFragment(
+	walk: Walk,
+	block: number,
+	edits: [number, number, string][],
+	opener: number,
+	closer: number,
+	ast: AstNode,
+): number {
+	const opened = edits[opener];
+	if (opened === undefined) return -1;
+	const mirror = mirrored(walk, block, closer, [], edits);
+	edits[opener] = [opened[0], opened[1], `${opened[2]}${headOpens(mirror)}`];
+	appended(ast, [`;${headOpensWith(mirror, 'undefined')};`], edits);
+	return mirror;
+}
+
+/** The refusal for a head found inside a fragment's body once the calls in it were written. */
+function headFoundLate(what: string): never {
+	return refuse(
+		`${what} renders itself and a component inside it writes a \`<svelte:head>\`, which is not ` +
+			'handled yet: the fragment would have to stand in the head stream, and that is known only ' +
+			'once its body is walked, after the calls inside it were written',
+	);
 }
 
 /**
@@ -2396,15 +2535,9 @@ function collect(node: unknown, walk: Walk): void {
 				within.push([index, 0]);
 				collect(declaration['body'], { ...walk, dynamic: new Set([...dynamic, ...params]) });
 				within.pop();
-				// A fragment is called per level of data, so a head inside it would have the fragment
-				// stand in the head stream too, and the head IR has no call. Nobody has written it.
-				if (site.headed.has(index)) {
-					refuse(
-						`the snippet \`${String(name)}\` renders itself and a component inside it writes a ` +
-							'`<svelte:head>`, which is not handled yet: the fragment would have to stand in ' +
-							'the head stream',
-					);
-				}
+				// A snippet writes no head of its own, so one found inside it came from a component,
+				// after the calls were written. See `headedFragment()`.
+				if (site.headed.has(index)) headFoundLate(`the snippet \`${String(name)}\``);
 				return;
 			}
 
@@ -3076,12 +3209,10 @@ function descend(
 				? `__f${String(walk.blocks.length)}`
 				: null;
 		if (recursion !== null) walk.site.callable.set(file, recursion);
-		if (recursion !== null && contains(ahead['fragment'], 'SvelteHead')) {
-			refuse(`<${tag} /> renders itself and writes a \`<svelte:head>\`, which is not handled yet`);
-		}
-		if (recursion !== null && declares.some((one) => one.rest === true)) {
-			refuse(`<${tag} /> renders itself and gathers a rest, which is not handled yet`);
-		}
+		// Whether the fragment writes a head is read here, before its body -- and the calls inside
+		// it -- are walked. See `headedFragment()`.
+		const headedSelf = recursion !== null && contains(ahead['fragment'], 'SvelteHead');
+		if (headedSelf && recursion !== null) walk.site.headedFragments.add(recursion);
 		const held =
 			recursion === null ? rebased(walk.site.fixed, declares, bindings) : new Map<string, string>();
 		const params = declares.map((one) => one.local);
@@ -3193,10 +3324,13 @@ function descend(
 			walk.holes.push({ index: copy.fresh, expression: fresh, raw: false, fresh: true });
 		}
 
+		// The fragment's block encloses everything the body walks, so a head met inside marks it.
+		const fragmentAt = walk.blocks.findIndex((one) => one.fragment?.name === recursion);
 		collect(ast['fragment'], {
 			...walk,
 			source: raw,
 			edits: inner,
+			within: recursion === null ? walk.within : [...walk.within, [fragmentAt, 0]],
 			expand: (child, extra) =>
 				declared.rewrite(child, new Map([...bound, ...(extra ?? new Map())])),
 			plain: (child, extra) => declared.rewrite(child, extra),
@@ -3225,6 +3359,7 @@ function descend(
 				missed: walk.site.missed,
 				headed: walk.site.headed,
 				callable: walk.site.callable,
+				headedFragments: walk.site.headedFragments,
 				handed: walk.site.handed,
 				spreads: walk.site.spreads,
 				copy,
@@ -3237,24 +3372,21 @@ function descend(
 		// the fragment's block is, with the stamp that names it where the render puts it.
 		if (recursion !== null) {
 			const root = ast['fragment'];
-			const written = (isNode(root) && Array.isArray(root['nodes']) ? root['nodes'] : []).filter(
-				(one) =>
-					isNode(one) && !(one['type'] === 'Text' && /^\s*$/.test(String(one['data'] ?? ''))),
+			const ends = wrapped(
+				isNode(root) && Array.isArray(root['nodes']) ? root['nodes'] : [],
+				() => `<${tag} />`,
 			);
-			const first = span(written[0]);
-			const last = span(written[written.length - 1]);
-			if (first !== null && last !== null) {
+			if (ends !== null) {
+				const [first, last] = ends;
 				const index = walk.blocks.findIndex((one) => one.fragment?.name === recursion);
-				// The fragment is called per level of data, so a head inside it would have it stand
-				// in the head stream too, and the head IR has no call. Nobody has written it.
-				if (walk.site.headed.has(index)) {
-					refuse(
-						`<${tag} /> renders itself and a component inside it writes a \`<svelte:head>\`, ` +
-							'which is not handled yet: the fragment would have to stand in the head stream',
-					);
-				}
+				const opener = inner.length;
 				inner.push([first[0], first[0], '{#if true}']);
+				const closer = inner.length;
 				inner.push([last[1], last[1], `{/if}${stamps(walk, index)}`]);
+				// The component's own head has the fragment stand in the head stream too; one a
+				// child inside wrote is found too late. See `headedFragment()`.
+				if (headedSelf) headedFragment(walk, index, inner, opener, closer, ast);
+				else if (walk.site.headed.has(index)) headFoundLate(`<${tag} />`);
 			}
 		}
 		withPrelude(raw, ast, prelude, inner);
@@ -3390,23 +3522,20 @@ export function rewrite(
 	const spreads: PendingSpread[] = [];
 	const headed = new Set<number>();
 	const callable = new Map<string, string>();
+	const headedFragments = new Set<string>();
 	if (fresh !== null) holes.push({ index: 0, expression: fresh, raw: false, fresh: true });
 	// The entry rendering itself through `<svelte:self>` is a fragment the way a child is, walked
 	// the way `descend()` walks one: its props are the parameters, and what the first call binds
 	// them to is the payload's own paths, since the entry's props are the payload. Its body is
 	// wrapped as a bare block below, once walked, for the assembler to find.
 	const recursion = contains(ast['fragment'], 'SvelteSelf') ? `__f${String(blocks.length)}` : null;
+	const headedEntry = recursion !== null && contains(ast['fragment'], 'SvelteHead');
+	if (recursion !== null && headedEntry) headedFragments.add(recursion);
 	if (recursion !== null) {
 		if (declares === null) {
 			refuse(
 				'the entry renders itself through `<svelte:self>` and this compiler cannot read its props',
 			);
-		}
-		if (contains(ast['fragment'], 'SvelteHead')) {
-			refuse('the entry renders itself and writes a `<svelte:head>`, which is not handled yet');
-		}
-		if (declares.some((one) => one.rest === true)) {
-			refuse('the entry renders itself and gathers a rest, which is not handled yet');
 		}
 		blocks.push({
 			index: blocks.length,
@@ -3428,7 +3557,7 @@ export function rewrite(
 		});
 		callable.set(file, recursion);
 	}
-	collect(ast['fragment'], {
+	const walk: Walk = {
 		source,
 		holes,
 		edits,
@@ -3461,6 +3590,7 @@ export function rewrite(
 			missed,
 			headed,
 			callable,
+			headedFragments,
 			handed,
 			spreads,
 			copy: null,
@@ -3472,7 +3602,8 @@ export function rewrite(
 		fresh: fresh === null ? [] : [fresh],
 		parent: null,
 		siblings: relatesSiblings(ast),
-	});
+	};
+	collect(ast['fragment'], walk);
 	if (recursion !== null) {
 		// The body as a bare block, once the walk has been through it and everything it marked
 		// is where it is: the whitespace at either end is trimmed either way, so the block wraps
@@ -3481,20 +3612,15 @@ export function rewrite(
 			isNode(ast['fragment']) && Array.isArray(ast['fragment']['nodes'])
 				? ast['fragment']['nodes']
 				: [];
-		const written = nodes.filter(
-			(one) => isNode(one) && !(one['type'] === 'Text' && /^\s*$/.test(String(one['data'] ?? ''))),
-		);
-		const first = span(written[0]);
-		const last = span(written[written.length - 1]);
-		if (first !== null && last !== null) {
-			if (headed.has(0)) {
-				refuse(
-					'the entry renders itself and a component inside it writes a `<svelte:head>`, which ' +
-						'is not handled yet: the fragment would have to stand in the head stream',
-				);
-			}
+		const ends = wrapped(nodes, () => 'the entry');
+		if (ends !== null) {
+			const [first, last] = ends;
+			const opener = edits.length;
 			edits.push([first[0], first[0], '{#if true}']);
+			const closer = edits.length;
 			edits.push([last[1], last[1], `{/if}${carrier(0, null)}`]);
+			if (headedEntry) headedFragment(walk, 0, edits, opener, closer, ast);
+			else if (headed.has(0)) headFoundLate('the entry');
 		}
 	}
 	withPrelude(source, ast, prelude, edits);

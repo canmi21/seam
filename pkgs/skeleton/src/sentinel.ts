@@ -92,6 +92,7 @@ export function carrier(index: number, parent: string | null, close = ''): strin
 export const HEAD_OPEN = '__seam_open';
 export const HEAD_CLOSE = '__seam_close';
 export const MARK = '__seam_mark';
+export const MARK_HEAD = '__seam_mark_head';
 
 /**
  * A marker written by a stand-in from its own script or init rather than as text beside it.
@@ -105,6 +106,15 @@ export const MARK = '__seam_mark';
  */
 export function marks(index: number): string {
 	return `${MARK}(${JSON.stringify(sentinel(index))})`;
+}
+
+/**
+ * The same marker written into the head stream, for a call of a fragment that writes a head: the
+ * body's call is met where the stand-in renders, and the head's where its head blocks would have
+ * gone, which is where a head renderer pushed at that moment lands. See `mirrored()` in walk.ts.
+ */
+export function marksHead(index: number): string {
+	return `${MARK_HEAD}(${JSON.stringify(sentinel(index))})`;
 }
 
 /**
