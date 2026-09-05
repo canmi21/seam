@@ -410,10 +410,6 @@ const REFUSED: Record<string, string> = {
 		'this `bind:` is one the server writes, and the value has nowhere to be planted: `bind:` ' +
 		'takes a name rather than an expression, so a marker cannot stand where the value goes. The ' +
 		'bindings that write nothing are handled',
-	StyleDirective:
-		'`style:` is not handled yet. Its value is written, but the declaration is dropped when the ' +
-		'value is nullish, so it is a substitution inside a decision and waits on the same mechanism ' +
-		'as `class:`',
 	LetDirective: '`let:` is not handled yet. It belongs with slots, and neither is written',
 	AttachTag: '`{@attach}` is not handled yet. It runs on the client and writes no bytes',
 };

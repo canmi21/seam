@@ -278,9 +278,10 @@ against each other on every case, and they agree field for field. It has a limit
 first Svelte release that moves an anchor will break it and leave the render pass working, and
 that failure is the signal to delete it rather than a defect to fix.
 
-What the render pass does not take yet: a block inside an else, which is numbered but never
-appears in the baseline render where every if is taken, so the render and the block list would
-stop lining up. It is refused rather than mis-assembled.
+A block inside an else used to be refused here, because it is numbered but never appears in the
+baseline render where every if is taken. It is taken now: each block records the branches it sits
+within, and the render made for one of its own branches forces those ancestors back onto the
+branch that makes it exist. See `within` in `pkgs/skeleton/src/walk.ts`.
 
 ## The client is held to the same oracle as the bytes
 

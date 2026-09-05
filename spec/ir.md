@@ -396,42 +396,27 @@ Recorded rather than decided, because guessing now would be worse than deciding 
   the class in that stylesheet, since neither half can be wrong alone. It used to compile without
   either: the class went into the bytes, the stylesheet reached no artifact, and the page rendered
   unstyled with an exit status of zero.
-- **`translate={true}`.** Svelte maps it to `translate="yes"` through a table of value
-  replacements that today holds only this one name. Ours wrote no attribute at all, which is worse
-  than the `"true"` this entry used to predict. The same reasoning as the boolean attributes
-  applies and the fix is the same shape; it is left until a second entry makes the table worth
-  carrying. **It is refused rather than written wrong**, and only when the value is not plain
-  text, since a literal `translate="no"` never reaches the table.
-- **`class:` and `style:` directives.** Deferred on what they are worth rather than blocked on
-  anything. Both are decision positions over two outcomes, so the mechanism is the one the blocks
-  already use, and the IR needs no new node: an `if` inside an element's node list can hold the
-  whole `attr`, which covers the attribute disappearing as well. What is missing is a way to find
-  an element in a render, since an attribute has no anchor the way a block does, and inventing one
-  is the cost.
-
-  The cost is not worth paying yet, and that was measured rather than felt. Across 1107 `.svelte`
-  files in eleven published libraries, `class:` appears in 215 and `style:` in 59 -- but 205 and
-  35 of those are one Svelte 4 era library. Excluding it, 10 files in 814 use `class:` and 24 use
-  `style:`, and 22 of the 24 are a charting library, where a per-frame `style:opacity` is what the
-  directive is for.
-
-  What the rest of them write instead is `class={cn(...)}`, a call producing a string. That is a
-  substitution and the pipeline already takes it. What it waits on is unrelated to this entry:
-  see **Imported functions** in [derivation.md](derivation.md).
-
-  Reproducing the rules instead was considered. `to_class` is short but carries a branch that
-  *removes* a name from a static class when the directive is false, and `to_style` is a CSS
-  parser that strips comments, tracks quoting and deduplicates by property. That parser runs only
-  when one element carries both a static `style` and a `style:` directive, which happened zero
-  times in the 1107 files.
+- **`translate={true}`.** *Settled.* Svelte maps it through a table of value replacements, and
+  the injector carries that table: `true` is written `"yes"` and `false` `"no"`, because
+  `translate="false"` would mean yes. It used to be refused when the value was not plain text,
+  waiting on a second entry to make the table worth carrying; the table is two lines, and a
+  refusal was the more expensive of the two. See [refusals.md](refusals.md).
+- **`class:` and `style:` directives.** *Settled.* Both are decision positions over outcomes, and
+  both are enumerated: `class:` over which names are present, `style:` over which declarations
+  are, with the value written inside the outcome. The way an element is found in a render, which
+  this entry called the cost, is a marker riding in an attribute of its own, written last, that the
+  decision owns. Nothing of `to_class` or `to_style` is reproduced: each outcome's bytes are
+  Svelte's own. See [refusals.md](refusals.md).
 - **Empty values.** `{data.name}` with an empty string produced `<h1></h1>` in Svelte's SSR, with
   no text node. Whether hydration requires one to exist is not yet known, and it decides whether a
   `slot` must always emit something.
-- **Per-item derivation.** A derivation is a function of the payload, computed once, so an
-  expression inside an each block is refused. What such an expression needs is a value per
-  iteration, which is a different mechanism rather than a larger version of this one. See
-  [derivation.md](derivation.md).
-- **Snippets and children.** A component given a body is refused; `{@render}` is untouched.
+- **Per-item derivation.** *Settled* in [derivation.md](derivation.md): a derivation reading a
+  name an each block binds is called per item, at the point of use, rather than once per request.
+- **Snippets and children.** *Settled.* The walk descends into a child and carries the markup it
+  was given, so a component with a body is entered rather than refused, and a `{@render}` of a
+  snippet declared beside it is inlined. What stays refused is in [refusals.md](refusals.md): a
+  render of a snippet that arrived as a prop, and a passed snippet that reads a parameter as a
+  value where the component writes it.
 - **A title inside a block, and more than one title.** Both need a rule for which title wins,
   which is stated here rather than taken from Svelte, whose own rule is not derivable. Overriding
   across a route and its layout is the same question one level up, and depends on routing.

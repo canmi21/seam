@@ -1235,42 +1235,25 @@ is the same request-time evaluation the protocol already does for a derivation, 
 runtime, and it is strictly less than SvelteKit does -- which runs that same function per request
 along with the whole component tree.
 
-### Neither half is blocked. Both are unbuilt, and here is what each is waiting for
+### Both halves are built, and by one mechanism rather than the two this section priced
 
-**Nothing is refused here for want of a mechanism.** Saying "not yet" without saying when is a way
-of not deciding, so both halves get a condition that can be checked rather than felt.
+The line above drew between a choice of object literals and a name arriving with the request, and
+priced them separately: the first as `class:`'s enumeration, the second as a runtime node writing
+attributes from an object. Neither was built that way. What was built is the section above this
+one -- **the marker stands for the element's whole attribute run, and the expression behind it is
+Svelte's own `$.attributes` call**, the object rebuilt from the source and every other argument
+read verbatim from what Svelte compiled. That call walks the object's keys per request, so it does
+not care whether the object is a choice of literals, a name, or `{ ...data.attrs, id: 'i' }`; the
+enumerable half was never a separate case once the run is one expression.
 
-**The enumerable half** -- `{...cond ? { ... } : { ... }}` on an element -- needs no new machinery
-at all. It is the decision `class:` already compiles: call `$.attributes` once per outcome and keep
-the strings. It is not built because **the one place it appears is refused before it is reached**.
-press's home route writes it inside `{#each links as link}` beside
-`link.href.startsWith('/') ? ... : ...`, and lowering stops on that first:
+What waited on the per-item derivation was the each around press's home-route spread, and that
+is settled in [derivation.md](derivation.md). What waited on the walk descending into a child is
+composition, which is built, and every wrapper's `{...restProps}` is now this compiler's to write
+rather than Svelte's to resolve. Both conditions came due, and the cost was the one measured
+above: `attributes` and what it reaches, in the derivation bundle both backends run.
 
-```
-`link.href.startsWith("/") ? link.label : "x"` is computed once against the payload but reads
-`link`, which an each block binds per item
-```
-
-So building it today would move nothing. **It is built when the per-item derivation is** -- the
-open item in [derivation.md](derivation.md), and concretely `path()` in
-`crates/lowering/src/assemble.rs`, which today refuses an expression reading a name an each binds.
-Whichever of the two lands second unblocks the route; there is no other order.
-
-**The unenumerable half** -- `{...data.attrs}`, keys arriving with the request -- is not built
-because **no code needs it**. Not in press, and not in the 4157 files press installs, because a
-library's `{...restProps}` is resolved by the call site and the call site is markup this compiler
-reads. Two separate things would make it needed, and they are not the same event:
-
-1. **An author writes an element spread whose object comes from the payload, in a route.** That
-   needs nothing else finished. `attributes` goes into the derivation bundle -- 2.3 kB, measured --
-   and the IR gains a node that writes attributes from a path. It can be built the week it appears.
-2. **The walk descends into a child.** Concretely: when `collect()` in
-   `pkgs/skeleton/src/skeleton.ts` walks the component a `Component` node names, instead of leaving
-   that subtree to Svelte's render, and lowering resolves the child's props through
-   `Derivation.scope`, which `crates/lowering/src/ir.rs` already carries for exactly this. On that
-   day every wrapper's `{...restProps}` stops being something Svelte resolves for us and becomes
-   something this compiler has to write, and the node stops being optional. That is when it is
-   required rather than possible.
+What stays refused beside it is listed where the mechanism is: a `class:` or `style:` directive on
+the same element, an attribute mixing text with an expression, and `{...}` on a `<svelte:element>`.
 
 ## `{#key}` is the client's, and an each's `{:else}` is a second shape
 
