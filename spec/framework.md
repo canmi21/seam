@@ -71,8 +71,20 @@ that moved under the installed TypeScript. None is refused. Each is taken when a
 
 ## The order of work
 
-1. `pkgs/routes`: route ids, then the manifest from `src/routes`, then the generated root. This
-   is what [roadmap.md](roadmap.md) had blocked as the layout chain, and press's real root.
+1. **Done.** `pkgs/routes`: route ids, the manifest from `src/routes` through Kit's own
+   `create_manifest_data` under Kit's own validator, and one generated root per route. The root
+   is written under `.svelte-kit/seam/routes/<id>/+root.svelte` in the shape `write_root`
+   generates -- the branch's components as dynamic components, so that the `<!--[-->` and
+   `<!--]-->` Kit's `{@const Pyramid_l}` writes around each are written here too, the pyramid
+   sized to Kit's `max_depth` with its `filter(Boolean)` arithmetic kept, the announcer's `{#if}`
+   after it -- and only the branch that renders holds a component, since the other is walked by
+   the pass that asks the render and would refuse a layout met without its children. Held byte
+   for byte against Kit's root rendered with Kit's props, and on press every route compiles from
+   it and matches. The compiler's command line finds routes when given none.
 2. `respond` and `render` with the render replaced, one route served end to end from the Node
-   server, `__data.json` included.
+   server, `__data.json` included. The load stage lives here, and with it `page`.
 3. The client runtime, whole, so that navigation after hydration is Kit's.
+
+A comparison against Kit's dev server does not close: it compiles with `hmr`, under which
+`is_standalone` in `clean_nodes` is never true and a `<!---->` follows every component a
+production build leaves alone. The comparison that has to match is a production Kit build's.

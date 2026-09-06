@@ -1,5 +1,7 @@
 import { basename, dirname, resolve as resolvePath } from 'node:path';
-import { realpathSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
 import { compile } from 'svelte/compiler';
 import { resolveBare } from 'ast';
 import type { Rendered } from './shape.ts';
@@ -70,7 +72,7 @@ export async function renderRewritten(
 	fresh?: number,
 ): Promise<Rendered> {
 	const { mkdirSync, readFileSync: read, rmSync, writeFileSync } = await import('node:fs');
-	const { fileURLToPath, pathToFileURL } = await import('node:url');
+	const { fileURLToPath } = await import('node:url');
 	const { render } = await import('svelte/server');
 
 	const here = dirname(fileURLToPath(import.meta.url));
@@ -106,7 +108,18 @@ export async function renderRewritten(
 			// component's own tree would be a second set of module state. Everything else a
 			// component imports by a bare name is resolved from where the component sits, because
 			// the staged file sits nowhere near its `node_modules`.
-			if (specifier === 'svelte' || specifier.startsWith('svelte/')) continue;
+			// The one exception is `svelte` itself, which is named by its server entry: its root
+			// export has a `browser` variant, and a host that resolves the staged file under that
+			// condition -- vitest does, for the hydration check -- would hand a component's
+			// `setContext` the client's, which then finds no component to run in.
+			if (specifier === 'svelte') {
+				code = code.replaceAll(
+					`${quote}svelte${quote}`,
+					JSON.stringify(pathToFileURL(svelteServer()).href),
+				);
+				continue;
+			}
+			if (specifier.startsWith('svelte/')) continue;
 			const target = specifier.startsWith('.')
 				? resolvePath(dirname(origin), specifier)
 				: resolveBare(specifier, origin);
@@ -165,6 +178,21 @@ export async function renderRewritten(
 	} finally {
 		rmSync(staging, { recursive: true, force: true });
 	}
+}
+
+/**
+ * The file Svelte's root export resolves to on a server: the `default` condition of `.` in its
+ * `package.json`, read rather than spelled, so a release that moves the file moves this with it.
+ */
+function svelteServer(): string {
+	const at = createRequire(import.meta.url).resolve('svelte/package.json');
+	const { exports } = JSON.parse(readFileSync(at, 'utf8')) as {
+		exports: Record<string, string | Record<string, string>>;
+	};
+	const root = exports['.'];
+	const entry = typeof root === 'string' ? root : root?.['default'];
+	if (entry === undefined) throw new Error("svelte's package.json has no default export for `.`");
+	return resolvePath(dirname(at), entry);
 }
 
 /** The path with every link followed, or the path itself where there is nothing to follow. */

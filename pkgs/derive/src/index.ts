@@ -74,16 +74,17 @@ function evaluate(script: string): Record<string, unknown> {
 }
 
 /**
- * Takes what the load stage produced and returns the scope injection walks: that value under the
- * one name the protocol gives it, and the derived fields beside it.
+ * Takes the entry's props as the load stage filled them and returns the scope injection walks:
+ * those props, and the derived fields beside them.
  *
- * The two are one level apart rather than mixed, which is the point. A derived field is the
- * compiler's, not the author's, and putting it beside `data` rather than among its keys is what
- * makes a collision impossible and keeps it off the wire, where only `data` goes. See
- * spec/payload.md.
+ * The props are the scope's top level because the IR's paths are written in the entry's own
+ * names: `data.title` for a page compiled alone, `data_2.title`, `params.slug` and `form` for a
+ * route's generated root, which takes one `data_n` per node of its branch. A derived field is the
+ * compiler's, not the author's, and sits beside the props under a name no prop has, which keeps
+ * it off the wire, where only the props go. See spec/payload.md.
  */
 export interface Derived {
-	(data: unknown): Scope;
+	(props: Scope): Scope;
 }
 
 export function compile(derivations: readonly Derivation[], carried = ''): Derived {
@@ -96,8 +97,8 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 		source: derivation.expression,
 	}));
 
-	return (data) => {
-		const out: Scope = { data };
+	return (props) => {
+		const out: Scope = { ...props };
 		if (compiled.length === 0) return out;
 		for (const derivation of compiled) {
 			const bindings = (): Record<string, unknown> =>

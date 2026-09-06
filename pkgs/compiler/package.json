@@ -11,9 +11,11 @@
 		"derive": "workspace:*",
 		"injector": "workspace:*",
 		"lowering": "workspace:*",
+		"routes": "workspace:*",
 		"skeleton": "workspace:*"
 	},
 	"devDependencies": {
+		"carry": "workspace:*",
 		"svelte": "^5.57.0"
 	}
 }

@@ -53,7 +53,7 @@ async function handle(
 		// Two things, one level apart. The scope injection walks holds the data and the derived
 		// fields beside it; the wire carries the data alone. Both come from the same object, which
 		// is what makes the bytes and the payload agree about a raw value.
-		const scope = route.derive(clean);
+		const scope = route.derive({ data: clean });
 		const { body, head } = inject(route.ir, scope);
 		const html = wrap(options.shell, body, clean, head + route.head);
 		response.writeHead(200, {

@@ -204,7 +204,8 @@ deciding it by accident.
 **What finds the entries is SvelteKit's routing, taken whole.** The pair above stays the compiler's
 interface, and the framework layer produces the pairs: `src/routes` read by Kit's own
 `create_manifest_data` into routes and their layout chains, a route id spelled as Kit spells it --
-`[param]`, `[...rest]`, `[[optional]]`, `(group)` -- and matched by Kit's own `find_route`. Nothing
+`[param]`, `[...rest]`, `[[optional]]`, `(group)` -- and matched by Kit's own `find_route`. The
+command line, given a root and no pairs, does exactly that, and its path is the route id. Nothing
 about routing is invented here; see [framework.md](framework.md) and `pkgs/routes`.
 
 **The root component is one field both halves read, and it is the generated root.** The compiler

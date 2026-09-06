@@ -2478,8 +2478,14 @@ function collect(node: unknown, walk: Walk): void {
 
 			const one = name === null ? undefined : snippets.get(name);
 			if (one === undefined || !one.declared) {
+				if (process.env['SEAM_TRACE'] !== undefined) {
+					console.error(
+						`[seam] render of ${String(name)} in ${site.file}: given ${JSON.stringify([...site.given.keys()])}, stack ${site.stack.map((one) => basename(one)).join(' > ')}`,
+					);
+				}
 				refuse(
-					'`{@render}` of a snippet this component does not declare is not handled yet: the ' +
+					`\`{@render ${String(name)}()}\` in ${basename(site.file)} of a snippet this component ` +
+						'does not declare is not handled yet: the ' +
 						'snippet comes from the call site, which is composition in the other direction',
 				);
 			}
@@ -3496,16 +3502,23 @@ function descend(
 		// one is the author's to see, with why the walk could not enter -- and so is a block found
 		// deeper that cannot stand in the head stream, which says so itself.
 		const reason = String((error as Error).message);
-		if (reason.includes('stand in the head stream')) throw error;
+		// Nothing in the pass that asks the render is final: a branch the request never takes is
+		// walked in it too, and a refusal inside one is about markup that never renders.
+		if (walk.asking !== true && reason.includes('stand in the head stream')) throw error;
 		// Left to Svelte, an `await` in markup would not compile at all: it is the author's to see.
-		if (reason.includes('async Svelte')) throw error;
-		if (headed && walk.within.length > 0) {
+		if (walk.asking !== true && reason.includes('async Svelte')) throw error;
+		if (walk.asking !== true && headed && walk.within.length > 0) {
 			refuse(
 				`<${tag} /> writes a \`<svelte:head>\` inside a block, so the block has to stand in the ` +
 					`head stream, and the walk could not enter it: ${reason.replace(/\. See spec\/refusals\.md$/, '')}`,
 			);
 		}
-		walk.site.missed.push({ file, reason: String((error as Error).message) });
+		if (process.env['SEAM_TRACE'] !== undefined) {
+			console.error(
+				`[seam] could not enter ${basename(file)}: ${reason.replace(/\s+/g, ' ').slice(0, 240)}`,
+			);
+		}
+		walk.site.missed.push({ file, reason });
 		return false;
 	}
 }

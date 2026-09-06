@@ -2271,7 +2271,7 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 		for (const data of one.data ?? []) {
 			// Both streams. The head used to go uncompared, and a headed component inside a body
 			// block compiled to a head that held its block whichever branch the request took.
-			const ours = inject(ir as Parameters<typeof inject>[0], derive(data));
+			const ours = inject(ir as Parameters<typeof inject>[0], derive({ data }));
 			const theirs = render(mod.default, { props: { data } as never });
 			expect(ours.body).toBe(theirs.body);
 			expect(ours.head).toBe(theirs.head);

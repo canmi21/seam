@@ -7,5 +7,8 @@
 	},
 	"dependencies": {
 		"@sveltejs/kit": "workspace:*"
+	},
+	"devDependencies": {
+		"svelte": "^5.57.0"
 	}
 }

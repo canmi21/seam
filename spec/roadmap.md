@@ -115,16 +115,17 @@ assigns a declared name from request data is the per-request script decided agai
 
 ## Blocked, and on what
 
-Both of these are the framework layer's, and [framework.md](framework.md) now says how each is
-taken: Kit's own routing and manifest, vendored, and Kit's generated root as the compiler's entry.
+Nothing, now. The two that were are the framework layer's first step, done: see
+[framework.md](framework.md).
 
-**The root is a layout chain around a page.** `children` at the entry, context an ancestor sets
-(press's `QueryClient` from its layout), a snippet that arrived as a prop at the entry: three
-spellings of "the root has no caller". The mechanism exists -- the oracle wraps the page in its
-layouts and compiles that -- and the map from a route to its layouts is `create_manifest_data`'s,
-with `write_root`'s root as the entry. Waits on `pkgs/routes` growing the manifest, which is the
-first step in framework.md's order of work.
+**The root is a layout chain around a page: done.** `pkgs/routes` reads `src/routes` with Kit's
+own `create_manifest_data`, generates one root per route in the shape Kit's `write_root` generates
+-- the page nested in its layouts as dynamic components, sized to the project's depth, measured
+byte for byte against Kit's root rendered with the props Kit gives it -- and the compiler takes
+that root as the entry, with `data_0` .. `data_n`, `params` and `form` as its payload. On press
+every route compiles from its real root, layout and all, and matches Svelte's render of it; the
+context press's layout sets reaches the page because the two are one walk.
 
-**Where request context sits.** In the root's props, `params` and `page`, filled by the load
-stage; [payload.md](payload.md) has it. `$.now`, `$.tz` and `$.locale` are whatever the load stage
-puts there. Waits on the same step.
+**Where request context sits: settled in shape.** In the root's props, `params` and `form` today
+and `page` with them once the load stage exists; a derivation reads them as props and never
+reaches for the request. What remains is the load stage itself, framework.md's second step.

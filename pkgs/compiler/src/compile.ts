@@ -16,7 +16,7 @@
  */
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
-import { bundle, type Bundle, type Carried } from 'ast';
+import { bundle, type Bundle } from 'ast';
 import { carriedBy, carry } from 'carry';
 import { lower } from 'lowering';
 import {
