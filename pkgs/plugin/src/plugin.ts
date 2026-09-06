@@ -16,9 +16,11 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { createRequire } from 'node:module';
-import type { Plugin } from 'vite';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import type { Plugin, ResolvedConfig } from 'vite';
 import { compile } from 'compiler';
 import { configured, entries } from 'routes';
+import { configureRender } from 'skeleton';
 
 /** The id Kit's generated root resolves to in the server build, marked as a module no file backs. */
 const ROOT = '\0seam:root';
@@ -29,6 +31,7 @@ const ARTIFACTS = 'seam';
 export function seam(): Plugin {
 	let root = '';
 	let active = false;
+	let config: ResolvedConfig | undefined;
 	/** Kit's `outDir`, where its generated root sits and where the artifacts are written. */
 	let outDir = '';
 	/** Each artifact's reference in the bundle, by its name under the artifacts directory. */
@@ -39,24 +42,50 @@ export function seam(): Plugin {
 		// The generated root has to be caught before Vite resolves the relative import to a file.
 		enforce: 'pre',
 
-		async configResolved(config) {
-			root = config.root;
+		async configResolved(resolved) {
+			config = resolved;
+			root = resolved.root;
 			// Kit's server build, and only that: the client build Kit starts afterwards loads the
 			// config file again with `build.ssr` unset, and `vite dev` renders with Kit's own root.
-			active = config.command === 'build' && config.build.ssr === true;
+			active = resolved.command === 'build' && resolved.build.ssr === true;
 			if (!active) return;
 			outDir = resolve(root, (await configured(root)).kit.outDir);
 		},
 
 		async buildStart() {
-			if (!active) return;
+			if (!active || config === undefined) return;
 			const found = await entries(root);
 			const out = resolve(outDir, ARTIFACTS);
-			await compile({
+			// The render loads its staged copies through a Vite server made from the project's own
+			// config, so that what a component imports resolves as the project's build resolves it:
+			// `$lib`, `$app/*`, a virtual module of the project's plugins, `svelte` by condition.
+			// Production mode and no HMR, since Svelte's `hmr` compile option changes the bytes.
+			const vite = await projectVite(root);
+			const loader = await vite.createServer({
 				root,
-				entries: found.map((one) => ({ path: one.path, component: one.component })),
-				out,
+				configFile: config.configFile,
+				mode: 'production',
+				appType: 'custom',
+				logLevel: 'silent',
+				server: { middlewareMode: true, hmr: false, watch: null },
+				optimizeDeps: { noDiscovery: true },
 			});
+			configureRender({
+				import: (url) => loader.ssrLoadModule(fileURLToPath(url)),
+				module: (specifier) => loader.ssrLoadModule(specifier),
+				staging: resolve(out, 'staged'),
+				bundler: true,
+			});
+			try {
+				await compile({
+					root,
+					entries: found.map((one) => ({ path: one.path, component: one.component })),
+					out,
+				});
+			} finally {
+				configureRender(null);
+				await loader.close();
+			}
 			// Into the server output as assets, so that whatever an adapter copies the program with,
 			// it copies these too; the program reaches each by the URL the bundler gives it, which is
 			// right wherever the chunk that reads it lands. An artifact is named by its route's id,
@@ -144,4 +173,23 @@ export default {
 	},
 };
 `;
+}
+
+/** The project's own Vite, which is the one its config and plugins were written against. */
+async function projectVite(root: string): Promise<typeof import('vite')> {
+	const manifest = createRequire(resolve(root, 'package.json')).resolve('vite/package.json');
+	const { exports } = JSON.parse(readFileSync(manifest, 'utf8')) as {
+		exports: Record<string, { import?: string | { default?: string } } | string>;
+	};
+	const entry = exports['.'];
+	const target =
+		typeof entry === 'string'
+			? entry
+			: typeof entry?.import === 'string'
+				? entry.import
+				: entry?.import?.default;
+	if (target === undefined) throw new Error(`${manifest} has no import entry for '.'`);
+	return (await import(
+		pathToFileURL(resolve(dirname(manifest), target)).href
+	)) as typeof import('vite');
 }

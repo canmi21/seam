@@ -135,6 +135,9 @@ importers:
       routes:
         specifier: workspace:*
         version: link:../routes
+      skeleton:
+        specifier: workspace:*
+        version: link:../skeleton
       svelte:
         specifier: ^5.57.0
         version: 5.57.0

@@ -113,7 +113,13 @@ that moved under the installed TypeScript. None is refused. Each is taken when a
    the URLs the bundler gives them so an adapter carries them with the program; and Kit's
    generated `root.js` is resolved to a module that renders a page from its artifact --
    `inject(ir, derive(props))` where Kit called `root.render(props)`, with the shape
-   `asClassComponent(Root).render` returns. Everything around the call is Kit's: `respond`, the
+   `asClassComponent(Root).render` returns. The compile-time render itself loads its staged copies
+   through a Vite server made from the project's own config, in production mode with HMR off, so
+   what a component imports resolves as the project's build resolves it -- `$lib`, `$app/*`, a
+   virtual module of the project's plugins, `svelte` by condition, one copy of it shared with the
+   renderer -- and nothing is stubbed. Outside a build the render loads through Node as before,
+   with `svelte` named by its server entry and every bare name rewritten to its file. Everything
+   around the call is Kit's: `respond`, the
    `load` functions, `__data.json`, the data script, the head, the error page. Held by building one
    project twice, with and without the plugin, and asking both built servers for the same pages:
    the responses are the same bytes, document and all, the `__data.json` and the 404 included.

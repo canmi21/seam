@@ -18,17 +18,21 @@ const files: Record<string, string> = {
 	'package.json': '{ "name": "sample", "private": true, "type": "module" }',
 	'svelte.config.js':
 		"export default { kit: { outDir: process.env.SEAM_OUT, alias: { $parts: 'src/parts' } } };",
+	// A virtual module of the project's own, the shape press's site config takes: nothing on disk
+	// answers it, so the render has to resolve it the way the project's build does.
 	'vite.config.js':
 		"import { sveltekit } from '@sveltejs/kit/vite';\n" +
 		`import { seam } from ${JSON.stringify(pathToFileURL(plugin).href)};\n` +
-		"export default { logLevel: 'silent', plugins: [sveltekit(), ...(process.env.SEAM ? [seam()] : [])] };",
+		"const site = { name: 'virtual-site', resolveId(id) { return id === 'virtual:site' ? '\\0virtual:site' : null; }, " +
+		"load(id) { return id === '\\0virtual:site' ? 'export const site = { name: \"Sample <site>\" };' : null; } };\n" +
+		"export default { logLevel: 'silent', plugins: [sveltekit(), site, ...(process.env.SEAM ? [seam()] : [])] };",
 	'src/app.html':
 		'<!doctype html><html lang="en"><head>%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>',
-	'src/routes/+layout.server.js': "export function load() { return { site: 'Sample <site>' }; }",
+	'src/routes/+layout.server.js': "export function load() { return { tagline: 'a sample' }; }",
 	'src/routes/+layout.svelte':
-		"<script>import { page } from '$app/state'; import Nav from '$parts/nav.svelte'; let { children, data } = $props();</script>" +
+		"<script>import { page } from '$app/state'; import { dev } from '$app/environment'; import { site } from 'virtual:site'; import Nav from '$parts/nav.svelte'; let { children, data } = $props();</script>" +
 		'<svelte:head><link rel="canonical" href={`https://sample.test${page.url.pathname}`} /></svelte:head>' +
-		'<header>{data.site}</header><Nav /><main>{@render children()}</main>',
+		'<header>{site.name}: {data.tagline}{dev ? " (dev)" : ""}</header><Nav /><main>{@render children()}</main>',
 	'src/parts/nav.svelte':
 		"<script>import { page } from '$app/state';</script><nav class:home={page.url.pathname === '/'}>{page.route.id}</nav>",
 	'src/routes/+page.server.js':

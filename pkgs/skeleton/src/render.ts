@@ -1,8 +1,7 @@
 import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
-import { compile } from 'svelte/compiler';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { APP_STATE, resolveBare } from 'ast';
 import type { Rendered } from './shape.ts';
 import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel } from './sentinel.ts';
@@ -35,9 +34,49 @@ import type { Copy } from './walk.ts';
  */
 let checked = false;
 
+/**
+ * What loads the staged modules and what resolves their imports.
+ *
+ * Node, by default: the copies are staged inside this package, `svelte` is named by its server
+ * entry so the render and the components share one copy of it, and every bare specifier is
+ * rewritten to the file it names, since Node knows no aliases and no plugin. Inside a Vite build
+ * the plugin gives a bundler instead: the copies are staged inside the project, loaded through
+ * Vite's own SSR loader, and what Node could not resolve -- `svelte` by condition, `$app/*`, a
+ * virtual module of the project's own plugins -- is left as written for Vite to resolve, the way
+ * the project's own build resolves it. Svelte itself comes from the host in both cases, so that
+ * the renderer and the components are one module.
+ */
+export interface Host {
+	/** Loads a module by its `file:` URL, and anything it imports. */
+	import: (url: string) => Promise<unknown>;
+	/** Resolves a bare specifier the way the components' own build would; `svelte/server` is one. */
+	module: (specifier: string) => Promise<unknown>;
+	/** Where the staged copies are written, under a directory per render. */
+	staging: string;
+	/** Whether the host resolves what Node cannot, so that nothing is rewritten for it. */
+	bundler: boolean;
+}
+
+const NODE: Host = {
+	import: (url) => import(url),
+	module: (specifier) => import(specifier),
+	staging: resolvePath(dirname(fileURLToPath(import.meta.url)), '../.build'),
+	bundler: false,
+};
+
+let host: Host = NODE;
+
+/** Renders through the given host from now on, or through Node again when given null. */
+export function configureRender(given: Host | null): void {
+	host = given ?? NODE;
+	checked = false;
+}
+
 export async function shippable(): Promise<void> {
 	if (checked) return;
-	const { html } = await import('svelte/internal/server');
+	const { html } = (await host.module(
+		'svelte/internal/server',
+	)) as typeof import('svelte/internal/server');
 	const open = html('x');
 	if (open !== '<!---->x<!---->') {
 		throw new Error(
@@ -72,15 +111,16 @@ export async function renderRewritten(
 	fresh?: number,
 ): Promise<Rendered> {
 	const { mkdirSync, readFileSync: read, rmSync, writeFileSync } = await import('node:fs');
-	const { fileURLToPath } = await import('node:url');
-	const { render } = await import('svelte/server');
+	// The host's Svelte, which is the components' too.
+	const { render } = (await host.module('svelte/server')) as typeof import('svelte/server');
+	const { compile } = (await host.module('svelte/compiler')) as typeof import('svelte/compiler');
 
 	const here = dirname(fileURLToPath(import.meta.url));
 	// A directory of its own per render, and only that one is removed. It used to be one shared
 	// directory emptied in a `finally`, which is fine for one caller and a race for two: the
 	// checks drive this from several files at once and each was deleting the other's modules.
 	generation += 1;
-	const staging = resolvePath(here, `../.build/${process.pid}-${generation}`);
+	const staging = resolvePath(host.staging, `${process.pid}-${generation}`);
 	mkdirSync(staging, { recursive: true });
 	let written = 0;
 
@@ -113,17 +153,19 @@ export async function renderRewritten(
 			// condition -- vitest does, for the hydration check -- would hand a component's
 			// `setContext` the client's, which then finds no component to run in.
 			if (specifier === 'svelte') {
+				if (host.bundler) continue;
 				code = code.replaceAll(
 					`${quote}svelte${quote}`,
 					JSON.stringify(pathToFileURL(svelteServer()).href),
 				);
 				continue;
 			}
-			// Kit's `$app/state`, which its plugin provides and nothing here has: the module beside
-			// this file reads `page` out of the component context as Kit's server module does. The
-			// walk bound every read of it already, so a render reaches this only through an import
+			// Kit's `$app/state`, which its plugin provides and Node has not: the module beside this
+			// file reads `page` out of the component context as Kit's server module does. The walk
+			// bound every read of it already, so a render reaches this only through an import
 			// something else kept alive. See `stateImports()` in `ast`.
 			if (specifier === APP_STATE) {
+				if (host.bundler) continue;
 				code = code.replaceAll(
 					`${quote}${specifier}${quote}`,
 					JSON.stringify(pathToFileURL(resolvePath(here, 'app-state.ts')).href),
@@ -179,7 +221,7 @@ export async function renderRewritten(
 			rootDir: root,
 		}).js.code;
 		const entry = emit(file, fresh === undefined ? compiled : anchoring(compiled, fresh), file);
-		const mod = (await import(pathToFileURL(entry).href)) as { default: unknown };
+		const mod = (await host.import(pathToFileURL(entry).href)) as { default: unknown };
 		// The prefix is what makes a `$props.id()` anchor readable after the render. See `fresh.ts`.
 		const { body, head } = render(mod.default as never, {
 			props: props as never,

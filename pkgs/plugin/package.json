@@ -11,6 +11,7 @@
 		"derive": "workspace:*",
 		"injector": "workspace:*",
 		"routes": "workspace:*",
+		"skeleton": "workspace:*",
 		"svelte": "^5.57.0"
 	},
 	"devDependencies": {
