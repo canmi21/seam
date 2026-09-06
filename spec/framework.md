@@ -85,6 +85,16 @@ that moved under the installed TypeScript. None is refused. Each is taken when a
    server, `__data.json` included. The load stage lives here, and with it `page`.
 3. The client runtime, whole, so that navigation after hydration is Kit's.
 
+The order is the Node server's. A second backend -- the Rust server [build.md](build.md) is
+written for -- takes the framework layer after it exists once, and nothing in it starts before
+then; that is decided, not deferred by accident.
+
+## The comparison that counts
+
 A comparison against Kit's dev server does not close: it compiles with `hmr`, under which
 `is_standalone` in `clean_nodes` is never true and a `<!---->` follows every component a
-production build leaves alone. The comparison that has to match is a production Kit build's.
+production build leaves alone. The comparison that has to match is a production Kit build's:
+`.svelte-kit/output/server` after `vite build`, its `Server` given the same request and answering
+from the same `load` functions, before any adapter has touched it. The sample is built from a copy
+of it in a temporary directory, never in place -- the sample is not the subject, and a build writes
+into the project it builds.
