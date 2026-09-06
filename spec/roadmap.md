@@ -124,7 +124,10 @@ own `create_manifest_data`, generates one root per route in the shape Kit's `wri
 byte for byte against Kit's root rendered with the props Kit gives it -- and the compiler takes
 that root as the entry, with `data_0` .. `data_n`, `params` and `form` as its payload. On press
 every route compiles from its real root, layout and all, and matches Svelte's render of it; the
-context press's layout sets reaches the page because the two are one walk.
+context press's layout sets reaches the page because the two are one walk. Held against Kit
+itself too: the body a production build of press answers a request with, from its own `load`
+functions, is byte for byte what the compiled root injected with that request's data gives, on
+every route. The line at the top of this file is measured, not claimed.
 
 **Where request context sits: settled in shape.** In the root's props, `params` and `form` today
 and `page` with them once the load stage exists; a derivation reads them as props and never
