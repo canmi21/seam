@@ -151,7 +151,7 @@ describe('a route is compiled from its generated root', () => {
 		for (const page of payloads) {
 			// Kit's data down the branch: each node's own load merged onto its parents'.
 			const site = { site: 'site' };
-			const props: Record<string, unknown> = { form: null, params };
+			const props: Record<string, unknown> = { form: null };
 			entry.page.branch.forEach((_, at) => {
 				props[`data_${String(at)}`] = at === 0 ? site : { ...site, ...page };
 			});

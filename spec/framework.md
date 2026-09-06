@@ -28,7 +28,7 @@ the one package that imports the vendor by name. How it is upgraded and what is 
 | --- | --- | --- |
 | `utils/routing.js` | route ids to patterns and parameters, `find_route`, `resolve_route` | `pkgs/routes` |
 | `core/sync/create_manifest_data/` | `src/routes` to routes, nodes, layouts and errors; `sort_routes`; conflicts | the map from a route to its layouts |
-| `core/sync/write_root.js` | the root component nesting a page in its layouts, `data_0..n`, `params`, `form` as props | the compiler's entry per route, see [payload.md](payload.md) |
+| `core/sync/write_root.js` | the root component nesting a page in its layouts, `data_0..n`, `page`, `form` as props | the compiler's entry per route, see [payload.md](payload.md) |
 | `utils/url.js`, `runtime/pathname.js` | path normalising, `__data.json` suffixes | the wire's spelling |
 | `runtime/server/page/serialize_data.js`, `data_serializer.js`, `utils/escape.js` | devalue into `<script>` | byte for byte, since the client reads it |
 | `runtime/server/data/` | the `__data.json` endpoint | client navigation's data |
@@ -63,8 +63,8 @@ needs a bundler's help, and it is where the plugin form of the compiler comes in
 `render_response` builds one `page` object per request -- `url`, `params`, `route`, `status`,
 `error`, `data`, `form`, `state` -- hands it to the root as a prop and puts the same object in the
 component context, where `$app/state`'s server module reads it. The compiler keeps both halves:
-the generated root takes `page` as a prop, so it is a name of the payload beside `data_0` .. `data_n`,
-`params` and `form`, and the walk binds a component's `import { page } from '$app/state'` to that
+the generated root takes `page` as a prop, so it is a name of the payload beside `data_0` .. `data_n`
+and `form`, passes `page.params` on as each level's `params` as Kit's root does, and the walk binds a component's `import { page } from '$app/state'` to that
 prop whichever level imports it, so `page.url.pathname` in a component is the path `page.url.pathname`
 in the IR and a `$derived` over it is a derivation over the payload. Nothing is carried from the
 module: `navigating` and `updated` are written out as what a server holds, and the compiler's own
@@ -107,9 +107,24 @@ that moved under the installed TypeScript. None is refused. Each is taken when a
    the pass that asks the render and would refuse a layout met without its children. Held byte
    for byte against Kit's root rendered with Kit's props, and on press every route compiles from
    it and matches. The compiler's command line finds routes when given none.
-2. `respond` and `render` with the render replaced, one route served end to end from the Node
-   server, `__data.json` included. The load stage lives here, and with it `page`.
-3. The client runtime, whole, so that navigation after hydration is Kit's.
+2. **Done.** The plugin, `seam()` beside `sveltekit()` in the project's Vite config. Kit's `vite
+   build` runs its server build first and the plugin takes part in that one only: when it starts,
+   the routes are compiled and the artifacts emitted into the server output as assets, reached by
+   the URLs the bundler gives them so an adapter carries them with the program; and Kit's
+   generated `root.js` is resolved to a module that renders a page from its artifact --
+   `inject(ir, derive(props))` where Kit called `root.render(props)`, with the shape
+   `asClassComponent(Root).render` returns. Everything around the call is Kit's: `respond`, the
+   `load` functions, `__data.json`, the data script, the head, the error page. Held by building one
+   project twice, with and without the plugin, and asking both built servers for the same pages:
+   the responses are the same bytes, document and all, the `__data.json` and the 404 included.
+   What is left inside this step, each named rather than implied: the error page is still Kit's
+   render, since `+error.svelte` is not a route the compiler is given; the raw-value normalisation
+   of [refusals.md](refusals.md) is not on this path yet, because it has to sit where the `load`
+   results are before Kit serialises them, and applying it to the bytes alone would make the
+   disagreement it exists to prevent; and `vite dev` renders with Kit's own root, since the plugin
+   is a no-op outside the server build.
+3. The client runtime is Kit's build, untouched, and hydrates against bytes that are Kit's byte
+   for byte. What is owed is the check in a real browser; see [build.md](build.md).
 
 The order is the Node server's. A second backend -- the Rust server [build.md](build.md) is
 written for -- takes the framework layer after it exists once, and nothing in it starts before

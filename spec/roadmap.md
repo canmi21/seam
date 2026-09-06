@@ -122,13 +122,14 @@ Nothing, now. The two that were are the framework layer's first step, done: see
 own `create_manifest_data`, generates one root per route in the shape Kit's `write_root` generates
 -- the page nested in its layouts as dynamic components, sized to the project's depth, measured
 byte for byte against Kit's root rendered with the props Kit gives it -- and the compiler takes
-that root as the entry, with `data_0` .. `data_n`, `params` and `form` as its payload. On press
+that root as the entry, with `data_0` .. `data_n`, `page` and `form` as its payload. On press
 every route compiles from its real root, layout and all, and matches Svelte's render of it; the
 context press's layout sets reaches the page because the two are one walk. Held against Kit
 itself too: the body a production build of press answers a request with, from its own `load`
 functions, is byte for byte what the compiled root injected with that request's data gives, on
 every route. The line at the top of this file is measured, not claimed.
 
-**Where request context sits: settled in shape.** In the root's props, `params` and `form` today
-and `page` with them once the load stage exists; a derivation reads them as props and never
-reaches for the request. What remains is the load stage itself, framework.md's second step.
+**Where request context sits: settled, and served.** In the root's props, the `page` Kit builds
+per request and `form`, with `params` passed down as `page.params` the way Kit's root passes it; a
+derivation reads them as props and never reaches for the request. The load stage is Kit's own,
+running inside Kit's own server with only the render replaced: framework.md's second step, done.

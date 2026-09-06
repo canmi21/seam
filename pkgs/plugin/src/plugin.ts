@@ -1,172 +1,147 @@
 /**
- * The compiler, as a Vite plugin.
+ * The compiler, as a Vite plugin beside SvelteKit's.
  *
- * The bundler is not a thing worth maintaining a copy of, and the client half of what is produced
- * here is an ordinary bundle of ordinary JavaScript. Two of the three frameworks surveyed are
- * plugins and the third's CLI buys nothing that is needed here. See spec/build.md.
+ * Kit's `vite build` runs the server build first and starts the client build from inside it, and
+ * this plugin changes one thing in the first and nothing in the second: the root component Kit's
+ * server renders a page with. Kit's generated `root.js` is resolved to a module of this plugin's
+ * that renders from the compiled artifacts instead -- `inject(ir, derive(props))` where Kit would
+ * have called `root.render(props)` -- and everything around that call is Kit's own: routing, the
+ * `load` functions, the data script, the head, the client that hydrates against the bytes. See
+ * spec/framework.md.
  *
- * The build has two halves and they meet twice. Vite builds the client, which is what gives the
- * assets their hashed names; then this runs the compiler, which writes the server artifacts and
- * the manifest that names those assets. They also meet in `rootDir`: Svelte hashes a component's
- * filename into a head anchor and into a scoped class, and a client rooted differently from the
- * server would look for a head block that is not there.
+ * The artifacts are compiled when the server build starts and written into its output beside the
+ * program, as files the program reads rather than code bundled into it, because a backend that is
+ * not Node reads the same files. See spec/build.md.
  */
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { compile as compileSvelte } from 'svelte/compiler';
-import type { Plugin, UserConfig } from 'vite';
-import { compile, type Entry } from 'compiler';
-import { announce } from './enforced.ts';
-import { componentOf, idFor, isEntry, source } from './entry.ts';
+import { readdirSync, readFileSync } from 'node:fs';
+import { dirname, relative, resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import type { Plugin } from 'vite';
+import { compile } from 'compiler';
+import { configured, entries } from 'routes';
 
-export interface Options {
-	/**
-	 * The routes. Routing does not exist, so they are named rather than found: a URL and the
-	 * component the document is rendered from. See spec/build.md.
-	 */
-	entries: readonly Entry[];
-	/** Where the build lands. Relative to Vite's root. */
-	out?: string;
-	/** The document shell, with its two placeholders. Relative to Vite's root. */
-	shell?: string;
-}
+/** The id Kit's generated root resolves to in the server build, marked as a module no file backs. */
+const ROOT = '\0seam:root';
 
-/** A component's stylesheet, kept between compiling it and being asked for it. */
-const STYLE = '?style.css';
+/** Where the compiled artifacts sit inside the server output, and so beside the built program. */
+const ARTIFACTS = 'seam';
 
-export function seam(options: Options): Plugin {
+export function seam(): Plugin {
 	let root = '';
-	let out = '';
-	let base = '/';
-	const styles = new Map<string, string>();
+	let active = false;
+	/** Kit's `outDir`, where its generated root sits and where the artifacts are written. */
+	let outDir = '';
+	/** Each artifact's reference in the bundle, by its name under the artifacts directory. */
+	const emitted = new Map<string, string>();
 
 	return {
 		name: 'compile-time-rendering',
+		// The generated root has to be caught before Vite resolves the relative import to a file.
+		enforce: 'pre',
 
-		config(given: UserConfig) {
-			const at = resolve(given.root ?? process.cwd(), options.out ?? 'dist');
-			return {
-				build: {
-					outDir: resolve(at, 'client'),
-					manifest: true,
-					rollupOptions: {
-						// Named, so the chunk each route produces can be found in the manifest without
-						// guessing at how the bundler spelled it. One per route, all virtual: a route's
-						// component travels in the id, so nothing is looked up twice.
-						input: Object.fromEntries(
-							options.entries.map((one) => [
-								nameOf(one.component),
-								idFor(resolve(given.root ?? process.cwd(), one.component)),
-							]),
-						),
-					},
-				},
-			};
-		},
-
-		configResolved(config) {
+		async configResolved(config) {
 			root = config.root;
-			base = config.base;
-			out = resolve(root, options.out ?? 'dist');
-			announce(config.inlineConfig, config as unknown as UserConfig);
+			// Kit's server build, and only that: the client build Kit starts afterwards loads the
+			// config file again with `build.ssr` unset, and `vite dev` renders with Kit's own root.
+			active = config.command === 'build' && config.build.ssr === true;
+			if (!active) return;
+			outDir = resolve(root, (await configured(root)).kit.outDir);
 		},
 
-		resolveId(id) {
-			if (isEntry(id)) return `\0${id}`;
-			if (componentOf(id) !== null) return id;
-			return id.endsWith(STYLE) ? id : null;
+		async buildStart() {
+			if (!active) return;
+			const found = await entries(root);
+			const out = resolve(outDir, ARTIFACTS);
+			await compile({
+				root,
+				entries: found.map((one) => ({ path: one.path, component: one.component })),
+				out,
+			});
+			// Into the server output as assets, so that whatever an adapter copies the program with,
+			// it copies these too; the program reaches each by the URL the bundler gives it, which is
+			// right wherever the chunk that reads it lands. An artifact is named by its route's id,
+			// which has directories in it.
+			const server = resolve(out, 'server');
+			for (const file of readdirSync(server, { recursive: true, withFileTypes: true })) {
+				if (!file.isFile()) continue;
+				const at = resolve(file.parentPath, file.name);
+				const name = relative(server, at).split('\\').join('/');
+				emitted.set(
+					name,
+					this.emitFile({
+						type: 'asset',
+						fileName: `${ARTIFACTS}/${name}`,
+						source: readFileSync(at),
+					}),
+				);
+			}
+		},
+
+		resolveId(source, importer) {
+			if (!active || importer === undefined || !source.endsWith('/root.js')) return null;
+			const at = resolve(dirname(importer), source);
+			return at === resolve(outDir, 'generated/root.js') ? ROOT : null;
 		},
 
 		load(id) {
-			const component = componentOf(id);
-			if (component !== null) return source(component);
-			return styles.get(id) ?? null;
-		},
-
-		transform(code, id) {
-			// A virtual id is not a file, and one of them ends in `.svelte` because the component it
-			// hydrates is named in it. Compiling the generated entry as a component is what that
-			// oversight did, and the build emitted nothing with no error to say why.
-			if (id.startsWith('\0') || !id.endsWith('.svelte')) return null;
-			// `rootDir` rather than a rewritten filename: it is what Svelte relativises against
-			// before hashing, and the server half passes the same thing. See spec/build.md.
-			const compiled = compileSvelte(code, {
-				generate: 'client',
-				filename: id,
-				rootDir: root,
-				dev: false,
-			});
-			if (compiled.css === null) return { code: compiled.js.code, map: compiled.js.map };
-
-			// Handed back to Vite as a module the component imports, which is how it reaches the
-			// bundle's stylesheet rather than being injected by the component at runtime.
-			const style = `${id}${STYLE}`;
-			styles.set(style, compiled.css.code);
-			return {
-				code: `${compiled.js.code}\nimport ${JSON.stringify(style)};`,
-				map: compiled.js.map,
-			};
-		},
-
-		// After the client half is on disk, because that is what gives the assets their names.
-		async closeBundle() {
-			const client = resolve(out, 'client');
-			const manifest = JSON.parse(
-				readFileSync(resolve(client, '.vite/manifest.json'), 'utf8'),
-			) as Record<string, Chunk>;
-
-			// Looked up by the name the entry was given rather than by its id. Vite writes the
-			// manifest's keys relative to the root, which turns a virtual id into a path with `../`
-			// in front of it, and matching on that would be matching on how a directory happened to
-			// be nested.
-			const named = new Map<string, Chunk>();
-			for (const chunk of Object.values(manifest)) {
-				if (chunk.isEntry === true && chunk.name !== undefined) named.set(chunk.name, chunk);
-			}
-
-			// The tags are written here rather than composed by a server, and they are handed to the
-			// compiler rather than written over its manifest afterwards: one thing writes the file.
-			const assets: Record<string, string> = {};
-			for (const one of options.entries) {
-				const chunk = named.get(nameOf(one.component));
-				if (chunk !== undefined) assets[one.path] = tags(base, chunk);
-			}
-
-			await compile({
-				root,
-				entries: options.entries,
-				out,
-				shell: resolve(root, options.shell ?? 'app.html'),
-				assets,
-			});
+			if (id !== ROOT) return null;
+			return dispatcher(resolve(outDir, 'generated/root.svelte'), emitted);
 		},
 	};
 }
 
-/** A chunk name for a route, which is what the bundler puts in the output filename. */
-function nameOf(component: string): string {
-	return component
-		.replace(/\.svelte$/, '')
-		.replace(/[^a-zA-Z0-9]+/g, '-')
-		.replace(/^-|-$/g, '');
+/**
+ * The module that stands where Kit's generated root stood: `render(props, options)` with the
+ * shape `asClassComponent(Root).render` has, since that is what Kit's `render_response` calls.
+ *
+ * A page route renders from its artifact, read beside the program. What has no artifact is
+ * rendered by Kit's root as before: today that is the error page, which is not compiled yet -- an
+ * `+error.svelte` is not a route -- and nothing else, since a route that does not compile fails the
+ * build rather than reaching here. See spec/framework.md.
+ */
+function dispatcher(rootComponent: string, emitted: ReadonlyMap<string, string>): string {
+	const here = createRequire(import.meta.url);
+	// By path rather than by name: the module is compiled inside the project's build, where this
+	// repository's package names mean nothing.
+	const injector = here.resolve('injector');
+	const derive = here.resolve('derive');
+	// The bundler writes each reference as the asset's URL relative to the chunk it ends up in.
+	const files = [...emitted]
+		.map(([name, ref]) => `${JSON.stringify(name)}: import.meta.ROLLUP_FILE_URL_${ref}`)
+		.join(', ');
+	return `
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { asClassComponent } from 'svelte/legacy';
+import Root from ${JSON.stringify(rootComponent)};
+import { inject } from ${JSON.stringify(injector)};
+import { compile as derivations } from ${JSON.stringify(derive)};
+
+const kit = asClassComponent(Root);
+const files = { ${files} };
+const read = (name) => readFileSync(fileURLToPath(files[name]), 'utf8');
+const manifest = JSON.parse(read('manifest.json'));
+
+// Parsed once per route, on its first request rather than at startup.
+const compiled = new Map();
+function artifact(entry) {
+	let held = compiled.get(entry.id);
+	if (held === undefined) {
+		const { ir, derivations: list } = JSON.parse(read(entry.ir));
+		held = { ir, derive: derivations(list, entry.carried === null ? '' : read(entry.carried)) };
+		compiled.set(entry.id, held);
+	}
+	return held;
 }
 
-/** The part of Vite's manifest entry this reads. */
-interface Chunk {
-	file: string;
-	name?: string;
-	isEntry?: boolean;
-	css?: string[];
-	imports?: string[];
-}
-
-/** What one route's document has to load, as the string a server concatenates. */
-function tags(base: string, chunk: Chunk): string {
-	const href = (file: string): string => `${base.endsWith('/') ? base : `${base}/`}${file}`;
-	const parts = [
-		...(chunk.imports ?? []).map((one) => `<link rel="modulepreload" href="${href(one)}">`),
-		...(chunk.css ?? []).map((one) => `<link rel="stylesheet" href="${href(one)}">`),
-		`<script type="module" src="${href(chunk.file)}"></script>`,
-	];
-	return parts.join('');
+export default {
+	render(props, options) {
+		const entry = props.error === undefined ? manifest.routes[props.page?.route?.id] : undefined;
+		if (entry === undefined) return kit.render(props, options);
+		const { ir, derive } = artifact(entry);
+		const { body, head } = inject(ir, derive(props));
+		return { head, html: body, css: { code: '', map: null } };
+	},
+};
+`;
 }

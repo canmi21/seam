@@ -266,24 +266,18 @@ is a hydration failure. The root component being one field is what holds it shut
 
 ## The client half
 
-**One hydration entry per route, generated as a virtual module.** It imports the route's root
-component, reads the payload, and calls `hydrate`. Nothing is staged on disk; a plugin that
-generates a module is what a virtual module is for, and SvelteKit's build is made of them.
+**The client half is SvelteKit's, untouched.** Kit's `vite build` runs its server build first and
+starts its client build from inside it; the plugin here takes part in the first and is a no-op in
+the second, so the client bundle, the hydration entry, the router, `__data.json` navigation and
+`$app/*` are Kit's own build of Kit's own code, hydrating against bytes that are Kit's byte for
+byte. There is no hydration entry of this project's to generate and no router to wait on. The
+earlier arrangement -- one generated entry per route mounting the root against a `data-payload`
+script, served by a Node server of this project's -- is retired with it; see
+[framework.md](framework.md) for what the plugin does instead.
 
-It is not a router and does not know the other routes. A router needs a map from URL to component
-with a deferred import for each, which is code and belongs on the client where code is the native
-form -- the rule that artifacts are data is about the half a backend reads.
-
-**What the router waits on, written down so that it is not rediscovered:**
-
-| | |
-| --- | --- |
-| the URL of every route | **done** once entries carry a path, which is why the pair above is worth having now |
-| a payload for a route the browser navigates to | the load stage, which [derivation.md](derivation.md) puts outside this protocol and which is not designed |
-| the extra anchor pair | a rebuild, once the root component becomes a dynamic one |
-
-Only the second is real work. The first is why `path` is in the entry today, and the third is a
-consequence of the first two rather than a decision of its own.
+What is not yet held by a check is that the browser hydrates without a repair. The check that held
+it ran this project's own server in a real browser and went with that server; the one that replaces
+it drives the Kit build the plugin test already makes, and is owed.
 
 **Several hydration roots on one page is out of scope.** Astro's islands are separate roots with a
 payload each, and Svelte hydrates one root against one payload. The line in

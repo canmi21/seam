@@ -175,7 +175,7 @@ describe("the generated root renders what Kit's root renders", () => {
 		const oursMod = (await import(
 			pathToFileURL(resolve(project, ours.component.replace(/\.svelte$/, '.js'))).href
 		)) as { default: never };
-		const mine = render(oursMod.default, { props: { form: null, params, ...data } as never });
+		const mine = render(oursMod.default, { props: { form: null, page, ...data } as never });
 		expect(mine.body).toBe(theirs.body);
 		expect(mine.head).toBe(theirs.head);
 	});

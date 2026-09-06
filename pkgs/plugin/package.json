@@ -6,11 +6,15 @@
 		".": "./src/index.ts"
 	},
 	"dependencies": {
+		"@sveltejs/kit": "workspace:*",
 		"compiler": "workspace:*",
-		"devalue": "5.9.2",
+		"derive": "workspace:*",
+		"injector": "workspace:*",
+		"routes": "workspace:*",
 		"svelte": "^5.57.0"
 	},
 	"devDependencies": {
+		"@sveltejs/vite-plugin-svelte": "^7.3.0",
 		"vite": "^8.2.2"
 	},
 	"peerDependencies": {

@@ -48,19 +48,6 @@ description = "Run SvelteKit's own checks over the vendored source, upstream's N
 dir = "vendor/kit"
 run = "pnpm exec vitest run --config vitest.config.ts"
 
-[tasks.build]
-description = "Compile the corpus routes into dist/, which is the artifact a server reads"
-# The lowering module is not committed, so the step that needs it builds it.
-depends = ["wasm"]
-# A URL and a component for each route. Routing does not exist, so they are named rather than
-# found, and this is what the plugin's configuration will do; see spec/build.md.
-run = "node pkgs/compiler/src/main.ts corpus/cases dist pkgs/server/app.html /=product.svelte /carried=carried.svelte /head=head.svelte"
-
-[tasks.dev]
-description = "Serve what the compiler wrote: `build`, then `dev`, then open http://localhost:5100"
-depends = ["build"]
-run = "node pkgs/server/src/main.ts"
-
 [tasks.wasm]
 description = "Build the lowering pass as one WebAssembly file the compiler can call"
 # Skipped by mise when the module is newer than every source it is built from, which is what
@@ -85,12 +72,6 @@ run = [
 	"node corpus/generate.ts",
 	"node crates/devalue/fixtures/generate.ts",
 ]
-
-[tasks.e2e]
-description = "The two claims a DOM implementation cannot settle, in a real browser"
-# Not part of `verify`: it needs a browser on the machine, and it is one step rather than the
-# suite. It uses the Chrome that is installed rather than downloading one. See spec/build.md.
-run = "NODE_ENV=production pnpm exec vitest run --config vitest.e2e.config.ts"
 
 [tasks.verify]
 description = "Everything a change has to pass"

@@ -4,8 +4,8 @@
  * Each root is written under Kit's output directory, `.svelte-kit/seam/routes/<id>/+root.svelte`,
  * so that it has a place on disk for the walk to read and its imports of the route's components
  * are ordinary relative imports. The entry's path is the route id, which is what a server has
- * once `find_route` has run; its payload is the root's props, `data_0` .. `data_n`, `params` and
- * `form`. See spec/build.md and spec/payload.md.
+ * once `find_route` has run; its payload is the root's props, `data_0` .. `data_n`, `page` and
+ * `form`, which are what Kit's `render_response` hands its root. See spec/build.md and spec/payload.md.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';

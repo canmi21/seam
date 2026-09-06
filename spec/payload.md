@@ -55,19 +55,21 @@ fields are computed on the way to injection and are not serialized.**
 **The shape is Kit's, in two layers.** A page is one component among several: its layouts sit
 around it, and each of them has a `load` of its own. Kit's wire is therefore not one `data` but one
 per node of the branch, `__data.json` carrying a `nodes` array with a `data` in each, devalue
-encoded, and its generated root component takes them as `data_0` .. `data_n` beside `params` and
-`form` and hands each layout and the page its own layer as `data`. That root is what the compiler
-compiles -- the entry of a route is the root `write_root` generates for it, see
-[framework.md](framework.md) -- so the compiler's payload is the root's props: `data_0` .. `data_n`,
-`params`, `form`. Inside the page `data.title` is still `data.title`; the walk substitutes the
-root's prop into it and the IR path comes out as `data_2.title`, and the injector's top scope is
-the object the runtime builds from the nodes, `{ data_0, ..., data_n, params, form }`. The
-principle above holds at both layers: each component reads one prop named `data`, and nothing but
-the author's data crosses the wire.
+encoded, and its generated root component takes them as `data_0` .. `data_n` beside `page` and
+`form` and hands each layout and the page its own layer as `data`, with `page.params` as its
+`params`. That root is what the compiler compiles -- the entry of a route is the root `write_root`
+generates for it, see [framework.md](framework.md) -- so the compiler's payload is the root's props,
+which are what Kit's `render_response` hands its root: `data_0` .. `data_n`, `page`, `form`.
+Inside the page `data.title` is still `data.title` and `params.slug` is `params.slug`; the walk
+substitutes the root's prop into each and the IR paths come out as `data_2.title` and
+`page.params.slug`, and the injector's top scope is the object the runtime builds from the nodes
+and the request, `{ data_0, ..., data_n, page, form }`. The principle above holds at both layers:
+each component reads one prop named `data`, and nothing but the author's data crosses the wire.
 
-This also settles where request context sits. `params`, and the `page` a component reads from
-`$app/state`, are the root's props and the runtime's, filled by the load stage from the request;
-a derivation reads them as it reads any prop, and never reaches for the request itself. The names
+This also settles where request context sits. The `page` a component reads from `$app/state`, and
+the `params` it takes as a prop, are the root's props and the runtime's, filled by the load stage
+from the request; a derivation reads them as it reads any prop, and never reaches for the request
+itself. The names
 `$.now`, `$.tz` and `$.locale` that [derivation.md](derivation.md) reserved are whatever the load
 stage puts in those props.
 

@@ -7,7 +7,6 @@ dist/
 *.wasm
 
 # Built by hand for now; the CLI will own this later.
-pkgs/server/static/client.js
 
 # Never commit one, even by accident.
 .env
