@@ -46,6 +46,19 @@ the one package that imports the vendor by name. How it is upgraded and what is 
 | `core/sync/write_server.js`, `write_client_manifest.js` | the manifests | the server one points at IR and derivation bundles |
 | `exports/vite/index.js` | the plugin form, the client build, the dev server, the virtual modules | the server build is the compiler's pipeline |
 
+**The project's configuration is read as Kit reads it.** `svelte.config.js` is imported and put
+through Kit's own validator, with every file path resolved against the project rather than the
+process, since a compile is not run from the project it compiles. What the compiler takes from it
+is what Kit's plugin gives Vite: `$lib` and each of `kit.alias` as prefix aliases, applied before
+a specifier is resolved -- in the walk, where a component imports a component by one; in the
+render, where the staged copy imports what it imports; and in the bundle of what expressions call.
+The extension is completed the way Vite completes it, in its order, and once it is, the file decides
+what the import is and the specifier does not: `$lib/reads.svelte` is how a bundler is asked for
+the runes module `reads.svelte.ts`, so whether an import is a component, a runes module or a
+module to carry is read off the resolved path everywhere the question is asked. A module Node loads
+for a render is not rewritten, because Node knows no aliases; that is the one place the render still
+needs a bundler's help, and it is where the plugin form of the compiler comes in.
+
 **`page` is a prop of the root, and `$app/state` is how a component reads it.** Kit's
 `render_response` builds one `page` object per request -- `url`, `params`, `route`, `status`,
 `error`, `data`, `form`, `state` -- hands it to the root as a prop and puts the same object in the

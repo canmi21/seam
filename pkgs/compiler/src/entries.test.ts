@@ -46,7 +46,7 @@ const files: Record<string, string> = {
 	// The request's `page`, read from `$app/state` two levels below the root that holds it, in
 	// markup and through a `$derived`; and the two constants of the module beside it.
 	'src/routes/about/+page.svelte':
-		"<script>import { page, navigating, updated } from '$app/state'; import Where from '../../lib/where.svelte'; const here = $derived(page.url.pathname);</script>" +
+		"<script>import { page, navigating, updated } from '$app/state'; import Where from '$lib/where.svelte'; const here = $derived(page.url.pathname);</script>" +
 		'<a href={here}>{page.url.pathname}</a><Where />{navigating.from ?? "still"}{updated.current}',
 	'src/lib/where.svelte':
 		"<script>import { page as current } from '$app/state';</script><code>{current.route.id} {current.status} {current.data.title}</code>",
@@ -81,6 +81,11 @@ function compiled(dir: string): void {
 			rootDir: project,
 		})
 			.js.code.replace(/from '(\.[^']*)\.svelte'/g, "from '$1.js'")
+			// `$lib` is Kit's alias, which the compiler resolves itself and Node does not.
+			.replace(/from '\$lib\/([^']*)\.svelte'/g, (_, rest: string) => {
+				const target = resolve(project, 'src/lib', `${rest}.js`);
+				return `from ${JSON.stringify(pathToFileURL(target).href)}`;
+			})
 			.replace(/from 'svelte'/g, `from ${JSON.stringify(pathToFileURL(server).href)}`)
 			// Kit's plugin provides `$app/state`; the reference render is given what the compiler's
 			// render is given, which reads `page` out of the context the way Kit's module does.
@@ -118,7 +123,7 @@ describe('a route is compiled from its generated root', () => {
 		],
 		['/about', [{ title: 'About' }, { title: '<us>' }], {}],
 	])('%s', async (id, payloads, params) => {
-		const found = entries(project);
+		const found = await entries(project);
 		const entry = found.find((one) => one.path === id);
 		if (entry === undefined) throw new Error(`no root for ${id}`);
 		const runs = await structures({ path: entry.path, component: entry.component }, project);

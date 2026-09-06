@@ -13,7 +13,7 @@ import { readable, writable } from 'svelte/store';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import create_manifest_data from '@sveltejs/kit/src/core/sync/create_manifest_data/index.js';
 import { write_root } from '@sveltejs/kit/src/core/sync/write_root.js';
-import { configured, entries, rootFile, routes } from './index.ts';
+import { aliases, configured, entries, rootFile, routes } from './index.ts';
 
 // Inside the package rather than under the system's temporary directory: the compiled components
 // import `svelte` by its bare name, which Node resolves from here and from nowhere else, and one
@@ -34,6 +34,10 @@ const files: Record<string, string> = {
 		'<script>let { data, params } = $props();</script><article>{params.slug}: {data.body}</article>',
 	'src/routes/(marketing)/about/+page.svelte': '<p>about</p>',
 	'src/routes/api/+server.js': 'export function GET() { return new Response("x"); }',
+	// The project's own configuration, read as Kit reads it: an alias with and without `/*`, and a
+	// file path the author moved, all relative to the project rather than to whoever compiles it.
+	'svelte.config.js':
+		"export default { kit: { alias: { $parts: 'src/parts', '$data/*': 'data/*' }, files: { assets: 'public' } } };",
 };
 
 /** Compiles every `.svelte` under a directory to a `.js` beside it that Node can import. */
@@ -71,8 +75,8 @@ beforeAll(() => {
 afterAll(() => rmSync(project, { recursive: true, force: true }));
 
 describe('the routes are read the way Kit reads them', () => {
-	it('finds every page, its branch and the depth', () => {
-		const found = routes(project);
+	it('finds every page, its branch and the depth', async () => {
+		const found = await routes(project);
 		// Two layouts down the blog route, and Kit's `filter(Boolean)` not counting node 0.
 		expect(found.depth).toBe(2);
 		expect(found.pages.map((one) => one.id).toSorted()).toEqual([
@@ -94,6 +98,19 @@ describe('the routes are read the way Kit reads them', () => {
 	});
 });
 
+describe("the configuration is the project's, resolved against it", () => {
+	it('reads svelte.config.js and spells every path absolute', async () => {
+		const config = await configured(project);
+		expect(config.kit.files.assets).toBe(resolve(project, 'public'));
+		expect(config.kit.files.routes).toBe(resolve(project, 'src/routes'));
+		expect(await aliases(project)).toEqual({
+			$lib: resolve(project, 'src/lib'),
+			$parts: resolve(project, 'src/parts'),
+			$data: resolve(project, 'data'),
+		});
+	});
+});
+
 describe("the generated root renders what Kit's root renders", () => {
 	it.each([
 		['/', { data_0: { site: 'S' }, data_1: { site: 'S', title: 'Home <&>' } }, {}],
@@ -101,12 +118,12 @@ describe("the generated root renders what Kit's root renders", () => {
 		['/(marketing)/about', { data_0: { site: 'M' }, data_1: { site: 'M' } }, {}],
 	])('%s', async (id, data, params) => {
 		const cwd = project;
-		const config = configured(cwd);
+		const config = await configured(cwd);
 		const manifest = create_manifest_data({ config, cwd });
 		const kitOut = resolve(project, '.svelte-kit/kit');
 		mkdirSync(kitOut, { recursive: true });
 		write_root(manifest, config, kitOut);
-		const found = entries(project);
+		const found = await entries(project);
 		compiled(project);
 
 		const route = manifest.routes.find((one) => one.id === id);

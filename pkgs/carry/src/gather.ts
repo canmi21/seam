@@ -57,12 +57,12 @@ export function carriedBy(
 			// A component is composed at compile time and never a value an expression calls. Kit's
 			// `$app/state` is bound by the walk -- `page` to the payload's, the rest to constants --
 			// and an expression that still names it reads the payload, not the module.
-			if (!names.has(local) || one.from.endsWith('.svelte') || one.from === APP_STATE) continue;
+			if (!names.has(local) || one.from === APP_STATE) continue;
 			// Resolved from where the file sits, a bare name too: a package's component imports its
-			// own dependencies, which are beside the package and not beside the bundle's entry.
-			const from = one.from.startsWith('.')
-				? resolve(dirname(at), one.from)
-				: (resolveBare(one.from, at) ?? one.from);
+			// own dependencies, which are beside the package and not beside the bundle's entry. The
+			// file decides whether it is a component: `x.svelte` completes to `x.svelte.ts` as well.
+			const from = resolveBare(one.from, at) ?? one.from;
+			if (from.endsWith('.svelte')) continue;
 			carried.push({ ...one, from });
 		}
 		if (carried.length > 0) found.set(file, carried);

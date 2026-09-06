@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve } from 'node:path';
 import { resolved } from './resolved.ts';
 import type { Bundle, Module } from './markup.ts';
+import { resolveBare } from './packages.ts';
 import { reduce } from './reduce.ts';
 
 // Resolution is Node's problem, not lowering's: which file a specifier names is a question
@@ -37,7 +38,7 @@ export function bundle(entryFile: string, projectRoot: string): Bundle {
 		// Before anything is read out of the markup, every name in it has to come from somewhere.
 		// A local variable and a payload key are indistinguishable by shape, so without this a
 		// component compiles and renders an empty string where the value should be.
-		resolved(source, relative(root, file));
+		resolved(source, relative(root, file), file);
 
 		const module = reduce(source);
 		const targets: Record<string, string> = {};
@@ -45,7 +46,13 @@ export function bundle(entryFile: string, projectRoot: string): Bundle {
 			// Only a component can be composed. Everything else the file imports stays in the
 			// map unresolved, so lowering sees the name it could not follow rather than nothing.
 			if (!specifier.endsWith('.svelte')) continue;
-			const target = resolve(dirname(file), specifier);
+			// A relative path from beside the file, or an alias a bundler would have applied. The
+			// file decides, not the specifier: `x.svelte` is how a bundler is asked for `x.svelte.ts`,
+			// a runes module, once the extension is completed.
+			const target = specifier.startsWith('.')
+				? resolve(dirname(file), specifier)
+				: resolveBare(specifier, file);
+			if (target === null || !target.endsWith('.svelte')) continue;
 			targets[local] = idOf(root, target);
 			pending.push(target);
 		}

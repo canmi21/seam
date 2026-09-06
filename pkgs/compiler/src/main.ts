@@ -19,7 +19,7 @@ if (root === undefined || out === undefined || shell === undefined) {
 // at `/<id>` without anybody deciding it should. Where none are named, the convention is Kit's.
 const entries: Entry[] =
 	pairs.length === 0
-		? found(root).map((one) => ({ path: one.path, component: one.component }))
+		? (await found(root)).map((one) => ({ path: one.path, component: one.component }))
 		: pairs.map((pair) => {
 				const at = pair.indexOf('=');
 				if (at < 1) {

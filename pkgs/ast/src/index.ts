@@ -25,4 +25,4 @@ export type { Bundle, MarkupAttr, MarkupNode, Module } from './markup.ts';
 export { reduce } from './reduce.ts';
 export { resolved } from './resolved.ts';
 export { APP_STATE, destructure, reads, STATE_ON_SERVER, stateImports } from './scope.ts';
-export { componentOf, resolveBare } from './packages.ts';
+export { componentOf, configureAliases, currentAliases, resolveBare } from './packages.ts';

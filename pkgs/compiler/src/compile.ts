@@ -16,9 +16,10 @@
  */
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
-import { bundle, type Bundle } from 'ast';
+import { bundle, configureAliases, type Bundle } from 'ast';
 import { carriedBy, carry } from 'carry';
 import { lower } from 'lowering';
+import { aliases } from 'routes';
 import {
 	combinations,
 	type Decided,
@@ -163,6 +164,8 @@ export async function prepare(
  * follow and the same order every build.
  */
 export async function structures(entry: Entry, root: string): Promise<(Prepared & Run)[]> {
+	// What `$lib` and the project's own aliases stand for, as Kit's plugin would have told Vite.
+	configureAliases(await aliases(root));
 	const queue: Run[] = combinations(entry.enumerate ?? {}).map((fixed) => ({
 		fixed,
 		decided: new Map(),

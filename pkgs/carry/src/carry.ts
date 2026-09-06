@@ -12,7 +12,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
-import { type Carried, resolveBare } from 'ast';
+import { type Carried, currentAliases, resolveBare } from 'ast';
 
 /** An immediately invoked bundle assigning to one name, which `derive` reads back out. */
 const NAME = '__carried';
@@ -59,6 +59,8 @@ export async function carry(
 		// map. A neutral platform resolves nothing of that on its own.
 		conditions: ['svelte', 'import', 'module', 'default'],
 		mainFields: ['svelte', 'module', 'main'],
+		// `$lib` and the project's own, which a module the expressions call may import by.
+		alias: { ...currentAliases() },
 		target: 'es2022',
 		write: false,
 		logLevel: 'silent',

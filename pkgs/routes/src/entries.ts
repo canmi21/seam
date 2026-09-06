@@ -26,9 +26,9 @@ export function rootFile(id: string): string {
 }
 
 /** Writes every route's root and says where each is. */
-export function entries(projectRoot: string): Found[] {
+export async function entries(projectRoot: string): Promise<Found[]> {
 	const at = resolve(projectRoot);
-	const found = routes(at);
+	const found = await routes(at);
 	return found.pages.map((page) => {
 		const file = resolve(at, rootFile(page.id));
 		const branch = page.branch.map((one) => {

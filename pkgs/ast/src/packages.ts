@@ -73,16 +73,70 @@ function target(value: unknown, star: string | null): string | null {
 }
 
 /**
+ * The prefix aliases a bundler applies before it resolves anything: `$lib` to `src/lib`, and a
+ * project's own under `kit.alias`. Set once per compile from the project's configuration, by the
+ * one package that reads it; empty, nothing is aliased.
+ */
+let aliases: readonly [find: string, replacement: string][] = [];
+
+export function configureAliases(map: Readonly<Record<string, string>>): void {
+	// Longest first, so `$lib/server` wins over `$lib` where both are declared.
+	aliases = Object.entries(map).toSorted((a, b) => b[0].length - a[0].length);
+}
+
+/** What is configured, for a bundler that has to be told the same. */
+export function currentAliases(): Readonly<Record<string, string>> {
+	return Object.fromEntries(aliases);
+}
+
+/** The path an aliased specifier stands for, or null where no alias matches it. */
+function aliased(specifier: string): string | null {
+	for (const [find, replacement] of aliases) {
+		if (specifier === find) return replacement;
+		if (specifier.startsWith(`${find}/`)) return replacement + specifier.slice(find.length);
+	}
+	return null;
+}
+
+// Vite's `resolve.extensions`, in its order, then the index files; a component is written with
+// its extension, so `.svelte` is not among them.
+const EXTENSIONS = ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'];
+
+/** A path as a file, the way a bundler completes one written without its extension. */
+function withExtension(path: string): string | null {
+	const file = (candidate: string): boolean => {
+		try {
+			return statSync(candidate).isFile();
+		} catch {
+			return false;
+		}
+	};
+	if (file(path)) return path;
+	for (const ext of EXTENSIONS) if (file(path + ext)) return path + ext;
+	for (const ext of EXTENSIONS) {
+		const index = resolvePath(path, `index${ext}`);
+		if (file(index)) return index;
+	}
+	return null;
+}
+
+/**
  * A bare specifier as the file it names, resolved the way a Svelte-aware bundler resolves it:
  * through the package's `exports` under the `svelte` condition first, and where a package has no
  * map, through its `svelte`, `module` and `main` fields or the subpath as a file. A relative or
  * absolute specifier comes back resolved against `from`. Null where nothing is found.
  */
 export function resolveBare(specifier: string, from: string): string | null {
+	const alias = aliased(specifier);
+	if (alias !== null) return withExtension(alias);
 	const named = split(specifier);
 	if (named === null) {
 		if (specifier.startsWith('file:')) return fileURLToPath(specifier);
-		return resolvePath(dirname(from), specifier);
+		// Completed as a bundler completes it -- `./x.svelte` may be the runes module `x.svelte.ts`
+		// -- and left as written where nothing is found, for a caller asking about a file that is
+		// not there yet.
+		const plain = resolvePath(dirname(from), specifier);
+		return withExtension(plain) ?? plain;
 	}
 	const [name, subpath] = named;
 	const dir = packageDir(name, from);

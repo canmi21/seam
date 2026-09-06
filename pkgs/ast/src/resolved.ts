@@ -13,10 +13,11 @@ import { bindings } from './bindings.ts';
  * Throws when the source reads a name it cannot get a value for.
  *
  * `where` names the file in whatever way the caller can already say it, since the caller knows
- * whether it is holding a path relative to a project root or an entry.
+ * whether it is holding a path relative to a project root or an entry. `file` is its absolute
+ * path where the caller has one, so that what its imports name can be resolved.
  */
-export function resolved(source: string, where: string): void {
-	const loose = bindings(source).unresolved;
+export function resolved(source: string, where: string, file?: string): void {
+	const loose = bindings(source, file).unresolved;
 	if (loose.length === 0) return;
 
 	// One line per name rather than per occurrence, and the expression only where it says more

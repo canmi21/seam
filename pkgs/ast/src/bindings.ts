@@ -1,5 +1,6 @@
 import { parse } from 'svelte/compiler';
 import { locals } from './locals.ts';
+import { resolveBare } from './packages.ts';
 import { APP_STATE, bound, free, isNode, type Node, requested } from './scope.ts';
 
 /**
@@ -83,6 +84,20 @@ interface Context {
 	known: ReadonlyMap<string, Carried>;
 	used: Set<string>;
 	declares: (name: string) => boolean;
+	/** The component's own path, for resolving what its imports name; unknown for bare source. */
+	file?: string;
+}
+
+/**
+ * Whether an import is a component, which is composed at compile time and never a value here.
+ * The file decides, not the specifier: `x.svelte` is how a bundler is asked for the runes module
+ * `x.svelte.ts` once it completes the extension. Without a file to resolve from, the suffix has
+ * to do.
+ */
+function componentImport(from: string, file: string | undefined): boolean {
+	if (!from.endsWith('.svelte')) return false;
+	if (file === undefined) return true;
+	return (resolveBare(from, file) ?? from).endsWith('.svelte');
 }
 
 const KINDS: Record<string, Carried['kind']> = {
@@ -153,7 +168,8 @@ function report(
 		if (carried?.known.get(name)?.from === APP_STATE) continue;
 		// An imported name is legal and gets bundled rather than looked up in the data. A
 		// component is not one of these: it is composed at compile time and never a value here.
-		if (carried?.known.get(name)?.from.endsWith('.svelte') === false) {
+		const held = carried?.known.get(name);
+		if (carried !== undefined && held !== undefined && !componentImport(held.from, carried.file)) {
 			carried.used.add(name);
 			continue;
 		}
@@ -361,7 +377,7 @@ export function readsOf(expressions: Iterable<string>): Set<string> {
 	return names;
 }
 
-export function bindings(source: string): Bindings {
+export function bindings(source: string, file?: string): Bindings {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const found: Unresolved[] = [];
 	const declares = locals(source);
@@ -369,6 +385,7 @@ export function bindings(source: string): Bindings {
 		known: imported(ast['instance']),
 		used: new Set<string>(),
 		declares: declares.has,
+		...(file === undefined ? {} : { file }),
 	};
 	// A snippet's own name, and the names its parameters bind, are the component's rather than the
 	// payload's. See spec/refusals.md.

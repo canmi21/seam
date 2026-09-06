@@ -15,6 +15,7 @@ import {
 	componentOf,
 	objectEntries,
 	reads as readsIn,
+	resolveBare,
 	settle,
 	STATE_ON_SERVER,
 	stateImports,
@@ -1410,10 +1411,13 @@ function settled(expression: string, walk: Walk): string {
 }
 
 /** The locals a file imports from a runes module, which Svelte compiles and nothing else runs. */
-function runesOf(imports: Record<string, string>): Set<string> {
+function runesOf(imports: Record<string, string>, file: string): Set<string> {
 	const found = new Set<string>();
 	for (const [local, from] of Object.entries(imports)) {
-		if (/\.svelte\.(?:ts|js)$/.test(from)) found.add(local);
+		// The file decides, not the specifier: a bundler is asked for `x.svelte` and completes it
+		// to `x.svelte.ts`, and `$lib` stands in front of either.
+		const target = resolveBare(from, file) ?? from;
+		if (/\.svelte\.(?:ts|js)$/.test(target)) found.add(local);
 	}
 	return found;
 }
@@ -3341,7 +3345,7 @@ function descend(
 		const asks: [string, string][] = [];
 		const wants: [string, string][] = [];
 		const own = importsOf(raw);
-		for (const name of runesOf(own)) walk.site.runes.add(name);
+		for (const name of runesOf(own, file)) walk.site.runes.add(name);
 		for (const one of brought) {
 			const already = own[one.local];
 			if (already === one.from) continue;
@@ -3657,7 +3661,7 @@ export function rewrite(
 			wants,
 			told,
 			mute,
-			runes: runesOf(importsOf(source)),
+			runes: runesOf(importsOf(source), file),
 			...(recursion === null ? {} : { fragment: recursion }),
 			fragments: new Map(),
 			given: new Map(),

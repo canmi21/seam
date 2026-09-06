@@ -38,6 +38,6 @@ export function written(id: string, params: Record<string, string | undefined>):
 
 export { find_route as found };
 
-export { configured, type Page, type Routes, routes } from './manifest.ts';
+export { aliases, configured, type Page, type Routes, routes } from './manifest.ts';
 export { root } from './root.ts';
 export { entries, type Found, rootFile } from './entries.ts';

@@ -100,7 +100,7 @@ export async function skeleton(
 	// parameters. Checking names first reports the name and hides the construct, which points the
 	// author at the wrong thing. The walk above refuses the construct, so what reaches here is a
 	// name in markup the compiler does understand.
-	resolved(source, basename(file));
+	resolved(source, basename(file), file);
 	// A render that fails is nearly always a component the walk could not enter and Svelte then
 	// rendered without the data it needed. The author was shown that crash and never the refusal
 	// behind it, so both are said here, the refusals first.
