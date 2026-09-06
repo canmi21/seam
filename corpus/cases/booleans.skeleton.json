@@ -1,5 +1,5 @@
 {
-	"html": "<!--[--><input disabled=\"%%s0%%\" readonly=\"%%s1%%\"/><input type=\"checkbox\" checked=\"%%s2%%\"/><div hidden=\"%%s3%%\" data-x=\"%%s4%%\"></div><div class=\"%%s5%%\" style=\"%%s6%%\"></div><!--]-->",
+	"html": "<!--[--><input disabled=\"%%s0%%\" readonly=\"%%s1%%\"/><input type=\"checkbox\" checked=\"%%s2%%\"/><div hidden=\"%%s3%%\" data-x=\"%%s4%%\"></div><div class=\"%%s6%%\" style=\"%%s7%%\"></div><!--]-->",
 	"head": "",
 	"alternates": {},
 	"holes": [
@@ -35,12 +35,23 @@
 		},
 		{
 			"index": 5,
-			"expression": "data.k",
+			"expression": "clsx((data.k))",
 			"raw": false,
-			"files": ["booleans.svelte"]
+			"files": ["booleans.svelte"],
+			"safe": true
 		},
 		{
 			"index": 6,
+			"expression": "",
+			"raw": false,
+			"choice": {
+				"tests": ["(data.k) == null || '' + (data.k) === ''"],
+				"outcomes": [" class=\"%%s5%%\"", ""]
+			},
+			"files": ["booleans.svelte"]
+		},
+		{
+			"index": 7,
 			"expression": "data.s",
 			"raw": false,
 			"files": ["booleans.svelte"]

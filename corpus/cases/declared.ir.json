@@ -13,7 +13,7 @@
 				"parts": [
 					{
 						"t": "slot",
-						"path": "__d0",
+						"path": "data.badge.tone",
 						"escape": "attr"
 					}
 				]
@@ -24,7 +24,7 @@
 			},
 			{
 				"t": "slot",
-				"path": "__d1",
+				"path": "__d0",
 				"escape": "content"
 			},
 			{
@@ -33,7 +33,7 @@
 			},
 			{
 				"t": "slot",
-				"path": "__d2",
+				"path": "__d1",
 				"escape": "content"
 			},
 			{
@@ -42,7 +42,7 @@
 			},
 			{
 				"t": "slot",
-				"path": "__d3",
+				"path": "__d2",
 				"escape": "content"
 			},
 			{
@@ -56,24 +56,18 @@
 	"derivations": [
 		{
 			"name": "__d0",
-			"expression": "((data.badge).tone)",
-			"scope": null,
-			"files": ["declared.svelte"]
-		},
-		{
-			"name": "__d1",
 			"expression": "(function shout(v) { return String(v).toUpperCase() })(((data.badge).label))",
 			"scope": null,
 			"files": ["declared.svelte"]
 		},
 		{
-			"name": "__d2",
+			"name": "__d1",
 			"expression": "((data.tags)[0])",
 			"scope": null,
 			"files": ["declared.svelte"]
 		},
 		{
-			"name": "__d3",
+			"name": "__d2",
 			"expression": "new (class Money { constructor(n) { this.n = n } get shown() { return `$${this.n}` } })(data.price).shown",
 			"scope": null,
 			"files": ["declared.svelte"]

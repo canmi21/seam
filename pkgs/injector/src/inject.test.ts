@@ -7,9 +7,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile as compileSvelte } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, describe, expect, it } from 'vitest';
-import { bindings } from 'ast';
-import { carry } from 'carry';
+import { carriedBy, carry } from 'carry';
 import { compile as compileDerivations, type Derivation } from 'derive';
+import { expressionsOf, helpers } from 'skeleton';
 import { inject } from './index.ts';
 import type { ComponentIR } from './ir.ts';
 
@@ -74,10 +74,17 @@ describe.each(files)('%s', (file) => {
 		// Built here rather than committed. It is an artifact of the compiler and nobody reads one
 		// in a diff, and a generated file the formatter then rewrites is a fight between two tasks
 		// that only ever produces noise.
-		const source = readFileSync(resolve(cases, file), 'utf8');
+		// Gathered the way `prepare` gathers it: what the skeleton's expressions read, file by
+		// file, and Svelte's own helpers under `*`, which a class decision calls.
+		const skeleton = JSON.parse(
+			readFileSync(resolve(cases, `${name}.skeleton.json`), 'utf8'),
+		) as Parameters<typeof expressionsOf>[0];
 		const derive = compileDerivations(
 			compiled.derivations,
-			await carry(resolve(cases, file), new Map([[file, bindings(source).carried]])),
+			await carry(
+				resolve(cases, file),
+				new Map([...carriedBy(cases, expressionsOf(skeleton)), ['*', helpers(skeleton)]]),
+			),
 		);
 		const mod = (await import(
 			pathToFileURL(compileTree(resolve(cases, file), new Map())).href
@@ -85,7 +92,7 @@ describe.each(files)('%s', (file) => {
 
 		// Both streams, because the injector produces both and comparing one proves half.
 		const expected = render(mod.default, { props: { data } as never });
-		const actual = inject(compiled.ir, derive(data));
+		const actual = inject(compiled.ir, derive({ data }));
 		expect(actual.body).toBe(expected.body);
 		expect(actual.head).toBe(expected.head);
 	});

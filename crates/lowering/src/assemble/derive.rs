@@ -118,6 +118,12 @@ impl Assembler<'_> {
 		if is_path(inner) && self.rooted(inner) {
 			return Ok(inner.to_owned());
 		}
+		// A path substitution has wrapped on the way in, `((data_0)).site`: the parentheses say
+		// nothing about a bare name, and the root's props reach a layout's `data` this way.
+		let unwrapped = unparenthesised(inner);
+		if is_path(&unwrapped) && self.rooted(&unwrapped) {
+			return Ok(unwrapped);
+		}
 		// An expression reading a name an each block binds is computed where it is used rather than
 		// once before injection, because that name only exists inside the loop. It is the same pure
 		// function either way; what changes is how often it is called, and that follows from what
@@ -327,6 +333,35 @@ fn bare(source: &str) -> &str {
 			_ => return trimmed,
 		}
 	}
+}
+
+/// The expression with the parentheses around names taken out, where it holds nothing but names,
+/// dots and such parentheses -- `((a)).b` is `a.b`. A parenthesis that follows a name or another
+/// closing one is a call, `a.f()`, and an expression holding one is left as it was, since there
+/// the parentheses mean something; so is anything with an operator in it.
+pub(crate) fn unparenthesised(source: &str) -> String {
+	let mut previous: Option<char> = None;
+	for c in source.chars() {
+		let plain = c.is_ascii_alphanumeric()
+			|| c == '_'
+			|| c == '$'
+			|| c == '.'
+			|| c == '('
+			|| c == ')'
+			|| c.is_whitespace();
+		if !plain {
+			return source.to_owned();
+		}
+		if c == '('
+			&& previous.is_some_and(|p| p.is_ascii_alphanumeric() || p == '_' || p == '$' || p == ')')
+		{
+			return source.to_owned();
+		}
+		if !c.is_whitespace() {
+			previous = Some(c);
+		}
+	}
+	source.chars().filter(|c| *c != '(' && *c != ')' && !c.is_whitespace()).collect()
 }
 
 fn is_path(source: &str) -> bool {

@@ -12,7 +12,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
-import type { Carried } from 'ast';
+import { type Carried, resolveBare } from 'ast';
 
 /** An immediately invoked bundle assigning to one name, which `derive` reads back out. */
 const NAME = '__carried';
@@ -38,7 +38,7 @@ export async function carry(
 		const fields: string[] = [];
 		for (const [n, one] of names.entries()) {
 			const alias = `__c${String(at)}_${String(n)}`;
-			lines.push(restate(one, alias));
+			lines.push(restate(svelted(one), alias));
 			fields.push(`${JSON.stringify(one.local)}: ${alias}`);
 		}
 		objects.push(`${JSON.stringify(group)}: { ${fields.join(', ')} }`);
@@ -76,6 +76,17 @@ export async function carry(
  * is neither. Writing them all as named imports is a mistake that only shows up on a module
  * whose shape happens to differ, which is the kind that reaches a page rather than a test.
  */
+/**
+ * Svelte's own helpers, named by where this compiler's Svelte sits rather than resolved from the
+ * entry: the entry may be a generated root or a corpus case with no `node_modules` above it, and
+ * there is one copy of Svelte in a compile, this package's. See `helpers()` in skeleton.
+ */
+function svelted(one: Carried): Carried {
+	if (one.from !== 'svelte' && !one.from.startsWith('svelte/')) return one;
+	const at = resolveBare(one.from, fileURLToPath(import.meta.url));
+	return at === null ? one : { ...one, from: at };
+}
+
 function restate(one: Carried, alias: string): string {
 	// Node resolves a `file:` URL as a specifier and esbuild does not, so it is handed the path.
 	const from = JSON.stringify(one.from.startsWith('file:') ? fileURLToPath(one.from) : one.from);

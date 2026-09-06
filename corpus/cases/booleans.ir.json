@@ -79,14 +79,29 @@
 				"s": "></div><div"
 			},
 			{
-				"t": "attr",
-				"name": "class",
-				"presence": "nonempty",
-				"parts": [
+				"t": "if",
+				"branches": [
 					{
-						"t": "slot",
-						"path": "data.k",
-						"escape": "attr"
+						"test": "__d0",
+						"body": []
+					},
+					{
+						"test": null,
+						"body": [
+							{
+								"t": "static",
+								"s": " class=\""
+							},
+							{
+								"t": "slot",
+								"path": "__d1",
+								"escape": "attr"
+							},
+							{
+								"t": "static",
+								"s": "\""
+							}
+						]
 					}
 				]
 			},
@@ -110,5 +125,18 @@
 		"head": [],
 		"title": []
 	},
-	"derivations": []
+	"derivations": [
+		{
+			"name": "__d0",
+			"expression": "(data.k) == null || '' + (data.k) === ''",
+			"scope": null,
+			"files": ["booleans.svelte"]
+		},
+		{
+			"name": "__d1",
+			"expression": "clsx((data.k))",
+			"scope": null,
+			"files": ["booleans.svelte"]
+		}
+	]
 }

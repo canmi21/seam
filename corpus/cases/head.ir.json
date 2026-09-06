@@ -19,7 +19,16 @@
 		"head": [
 			{
 				"t": "static",
-				"s": "<!--70ymtm--><meta name=\"description\""
+				"s": "<!--70ymtm-->"
+			},
+			{
+				"t": "title",
+				"role": "open",
+				"body": []
+			},
+			{
+				"t": "static",
+				"s": "<meta name=\"description\""
 			},
 			{
 				"t": "attr",
@@ -35,24 +44,25 @@
 			},
 			{
 				"t": "static",
-				"s": "/><!---->"
+				"s": "/>"
+			},
+			{
+				"t": "title",
+				"role": "top",
+				"body": [
+					{
+						"t": "slot",
+						"path": "data.name",
+						"escape": "content"
+					}
+				]
+			},
+			{
+				"t": "static",
+				"s": "<!---->"
 			}
 		],
-		"title": [
-			{
-				"t": "static",
-				"s": "<title>"
-			},
-			{
-				"t": "slot",
-				"path": "data.name",
-				"escape": "content"
-			},
-			{
-				"t": "static",
-				"s": "</title>"
-			}
-		]
+		"title": []
 	},
 	"derivations": []
 }

@@ -7,14 +7,29 @@
 				"s": "<!--[--><div"
 			},
 			{
-				"t": "attr",
-				"name": "class",
-				"presence": "nonempty",
-				"parts": [
+				"t": "if",
+				"branches": [
 					{
-						"t": "slot",
-						"path": "__d0",
-						"escape": "attr"
+						"test": "__d0",
+						"body": []
+					},
+					{
+						"test": null,
+						"body": [
+							{
+								"t": "static",
+								"s": " class=\""
+							},
+							{
+								"t": "slot",
+								"path": "__d1",
+								"escape": "attr"
+							},
+							{
+								"t": "static",
+								"s": "\""
+							}
+						]
 					}
 				]
 			},
@@ -24,7 +39,7 @@
 			},
 			{
 				"t": "slot",
-				"path": "__d1",
+				"path": "__d2",
 				"escape": "content"
 			},
 			{
@@ -38,12 +53,18 @@
 	"derivations": [
 		{
 			"name": "__d0",
-			"expression": "cn('card', data.tone, [data.size, ['fixed']])",
+			"expression": "(cn('card', data.tone, [data.size, ['fixed']])) == null || '' + (cn('card', data.tone, [data.size, ['fixed']])) === ''",
 			"scope": null,
 			"files": ["carried.svelte"]
 		},
 		{
 			"name": "__d1",
+			"expression": "clsx((cn('card', data.tone, [data.size, ['fixed']])))",
+			"scope": null,
+			"files": ["carried.svelte"]
+		},
+		{
+			"name": "__d2",
 			"expression": "cn(data.tone)",
 			"scope": null,
 			"files": ["carried.svelte"]

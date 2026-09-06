@@ -1,6 +1,6 @@
 {
 	"html": "<!--[--><div>%%s2%%</div><!--]-->",
-	"head": "<!--70ymtm--><meta name=\"description\" content=\"%%s0%%\"/><!----><title>%%s1%%</title>",
+	"head": "<!--70ymtm--><seam-title-open></seam-title-open><meta name=\"description\" content=\"%%s0%%\"/><seam-title-top>%%s1%%</seam-title-top><!---->",
 	"alternates": {},
 	"holes": [
 		{

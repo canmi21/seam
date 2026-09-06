@@ -50,6 +50,9 @@ importers:
       ast:
         specifier: workspace:*
         version: link:../ast
+      svelte:
+        specifier: ^5.57.0
+        version: 5.57.0
     devDependencies:
       esbuild:
         specifier: ^0.27.0
@@ -72,6 +75,9 @@ importers:
       lowering:
         specifier: workspace:*
         version: link:../lowering
+      routes:
+        specifier: workspace:*
+        version: link:../routes
       skeleton:
         specifier: workspace:*
         version: link:../skeleton
@@ -97,6 +103,9 @@ importers:
       derive:
         specifier: workspace:*
         version: link:../derive
+      skeleton:
+        specifier: workspace:*
+        version: link:../skeleton
       svelte:
         specifier: ^5.57.0
         version: 5.57.0
@@ -133,6 +142,10 @@ importers:
       '@sveltejs/kit':
         specifier: workspace:*
         version: link:../../vendor/kit
+    devDependencies:
+      svelte:
+        specifier: ^5.57.0
+        version: 5.57.0
 
   pkgs/server:
     dependencies:
@@ -164,6 +177,9 @@ importers:
       plugin:
         specifier: workspace:*
         version: link:../plugin
+      skeleton:
+        specifier: workspace:*
+        version: link:../skeleton
       svelte:
         specifier: ^5.57.0
         version: 5.57.0

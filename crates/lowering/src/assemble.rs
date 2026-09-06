@@ -9,6 +9,7 @@ mod derive;
 mod scan;
 mod skeleton;
 
+pub(crate) use derive::unparenthesised;
 pub use skeleton::{Block, Choice, Hole, Kind, Rendered, Result, Skeleton, Stream};
 
 use scan::{

@@ -129,13 +129,16 @@ fn slot(
 	mode: ir::Escape,
 ) -> Result<()> {
 	// Not a path, so it becomes one: the expression moves to a derived field and the slot reads
-	// that field. The protocol still only ever tests and interpolates paths.
-	if !is_path(source.trim()) {
+	// that field. The protocol still only ever tests and interpolates paths. Parentheses around
+	// names are a substitution's and decide nothing, so they come off first, as the assembler
+	// takes them off.
+	let plain = crate::assemble::unparenthesised(source.trim());
+	if !is_path(&plain) {
 		let name = derivations.add(scope, source)?;
 		builder.push(ir::Node::Slot { path: name, escape: mode, fresh: false });
 		return Ok(());
 	}
-	match resolve(scope, source)? {
+	match resolve(scope, &plain)? {
 		Binding::Path(path) => builder.push(ir::Node::Slot { path, escape: mode, fresh: false }),
 		Binding::Literal(text) => builder.write(&escape(&text, mode)),
 	}
@@ -193,6 +196,15 @@ fn attribute(
 	name: &str,
 	parts: &[markup::Node],
 ) -> Result<()> {
+	// A class with an expression in it is a decision, not a substitution: the render pass reads
+	// what `attr_class` writes for it -- the value with the scoping hash, the hash alone, or no
+	// attribute at all -- and this pass never learned that shape. Refused rather than written as
+	// a value, so the two passes are not held against each other where only one has an answer.
+	if name == "class" && parts.iter().any(|part| matches!(part, markup::Node::Expr { .. })) {
+		return Err(
+			"a `class` with an expression is a decision the written pass does not know".to_owned(),
+		);
+	}
 	let mut inner = Builder::default();
 	for part in parts {
 		match part {

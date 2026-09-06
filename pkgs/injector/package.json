@@ -9,6 +9,7 @@
 		"ast": "workspace:*",
 		"carry": "workspace:*",
 		"derive": "workspace:*",
+		"skeleton": "workspace:*",
 		"svelte": "^5.57.0"
 	}
 }

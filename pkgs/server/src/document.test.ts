@@ -25,11 +25,11 @@ import { JSDOM } from 'jsdom';
 import { compile as compileSvelte } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { bindings } from 'ast';
-import { carry } from 'carry';
+import { carriedBy, carry } from 'carry';
 import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject, type ComponentIR } from 'injector';
 import { normalized, rawPaths } from 'normalize';
+import { expressionsOf, helpers } from 'skeleton';
 import { wrap } from './document.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -163,10 +163,17 @@ describe.each(files)('%s', (file) => {
 	}[];
 
 	it.each(payloads.map((one) => [one.label, one.data] as const))('%s', async (_label, data) => {
-		const source = readFileSync(resolve(cases, file), 'utf8');
+		// Gathered the way `prepare` gathers it: what the skeleton's expressions read, file by
+		// file, and Svelte's own helpers under `*`, which a class decision calls.
+		const skeleton = JSON.parse(
+			readFileSync(resolve(cases, `${name}.skeleton.json`), 'utf8'),
+		) as Parameters<typeof expressionsOf>[0];
 		const derive = compileDerivations(
 			compiled.derivations,
-			await carry(resolve(cases, file), new Map([[file, bindings(source).carried]])),
+			await carry(
+				resolve(cases, file),
+				new Map([...carriedBy(cases, expressionsOf(skeleton)), ['*', helpers(skeleton)]]),
+			),
 		);
 
 		// What the server does, in the order it does it. The raw values go through a parser before
@@ -181,7 +188,7 @@ describe.each(files)('%s', (file) => {
 			pathToFileURL(compileTree(resolve(cases, file), 'server', new Map())).href
 		)) as { default: Parameters<typeof render>[0] };
 
-		const ours = inject(compiled.ir, derive(clean));
+		const ours = inject(compiled.ir, derive({ data: clean }));
 		const theirs = render(server.default, { props: { data: clean } as never });
 
 		const mine = hydrated(wrap(shell, ours.body, clean, ours.head), client.default);

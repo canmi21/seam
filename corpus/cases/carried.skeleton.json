@@ -1,16 +1,29 @@
 {
-	"html": "<!--[--><div class=\"%%s0%%\"><b>%%s1%%</b></div><!--]-->",
+	"html": "<!--[--><div class=\"%%s1%%\"><b>%%s2%%</b></div><!--]-->",
 	"head": "",
 	"alternates": {},
 	"holes": [
 		{
 			"index": 0,
-			"expression": "cn('card', data.tone, [data.size, ['fixed']])",
+			"expression": "clsx((cn('card', data.tone, [data.size, ['fixed']])))",
 			"raw": false,
-			"files": ["carried.svelte"]
+			"files": ["carried.svelte"],
+			"safe": true
 		},
 		{
 			"index": 1,
+			"expression": "",
+			"raw": false,
+			"choice": {
+				"tests": [
+					"(cn('card', data.tone, [data.size, ['fixed']])) == null || '' + (cn('card', data.tone, [data.size, ['fixed']])) === ''"
+				],
+				"outcomes": [" class=\"%%s0%%\"", ""]
+			},
+			"files": ["carried.svelte"]
+		},
+		{
+			"index": 2,
 			"expression": "cn(data.tone)",
 			"raw": false,
 			"files": ["carried.svelte"]
