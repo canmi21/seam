@@ -2002,6 +2002,13 @@ const refused: Case[] = [
 		says: 'async Svelte',
 	},
 	{
+		// The entry's `page` from `$app/state` is the payload's `page`, under that name: a child's
+		// rename is bound at its call, and the entry has no call to bind it at. See spec/framework.md.
+		name: 'page imported under another name in the entry',
+		source: `<script>import { page as here } from '$app/state'; ${PROPS.slice('<script>'.length)}<a href={here.url.pathname}>{data.t}</a>`,
+		says: 'payload',
+	},
+	{
 		// A fragment's head is read off its own component before the body is walked, because the
 		// calls inside the body are written then. One a component inside the body writes is found
 		// after. See `headedFragment()` in walk.ts.

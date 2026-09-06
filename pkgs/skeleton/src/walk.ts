@@ -16,6 +16,8 @@ import {
 	objectEntries,
 	reads as readsIn,
 	settle,
+	STATE_ON_SERVER,
+	stateImports,
 	tabled,
 } from 'ast';
 import {
@@ -3289,6 +3291,13 @@ function descend(
 						: `(${given} === undefined ? (${one.fallback}) : ${given})`,
 			);
 		}
+		// What the child imports from Kit's `$app/state`, bound the way its server module reads it:
+		// `page` is the request's one object, which the root takes as its prop of that name, so the
+		// child's `page` is the root's whichever level this is; the other two hold what a server
+		// holds while it writes. Nothing is carried from the module. See spec/framework.md.
+		for (const [local, exported] of stateImports(ahead['instance'])) {
+			bound.set(local, exported === 'page' ? 'page' : (STATE_ON_SERVER[exported] ?? local));
+		}
 
 		// The child's declarations, with what each prop is bound to, so that one reading a prop the
 		// caller gave a constant is left for the render to evaluate rather than neutralised.
@@ -3565,7 +3574,24 @@ export function rewrite(
 	const asks: [string, string][] = [];
 	const wants: [string, string][] = [];
 	const declares = propsOf(ast, source);
-	const payload = declares === null ? null : new Set(declares.map((one) => one.local));
+	// The entry's `page` from `$app/state` is the payload's `page`, under that name and no other:
+	// a child's rename is bound at its call, and the entry has no call to bind it at.
+	const state = stateImports(ast['instance']);
+	for (const [local, exported] of state) {
+		if (exported === 'page' && local !== 'page') {
+			refuse(
+				`\`import { page as ${local} }\` from $app/state in the entry: the entry's \`page\` is ` +
+					"the payload's and arrives under its own name. See spec/refusals.md",
+			);
+		}
+	}
+	const payload =
+		declares === null
+			? null
+			: new Set([
+					...declares.map((one) => one.local),
+					...[...state].filter(([, exported]) => exported === 'page').map(([local]) => local),
+				]);
 	const missed: { file: string; reason: string }[] = [];
 	const handed: Handed[] = [];
 	const spreads: PendingSpread[] = [];

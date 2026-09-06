@@ -14,7 +14,7 @@ import { compile as compileDerivations } from 'derive';
 import { inject } from 'injector';
 import { lower } from 'lowering';
 import { entries } from 'routes';
-import { expressionsOf, helpers } from 'skeleton';
+import { appStateModule as appState, expressionsOf, helpers } from 'skeleton';
 import { joined, type Structure } from './variants.ts';
 import { structures } from './compile.ts';
 
@@ -43,7 +43,28 @@ const files: Record<string, string> = {
 		'<script>let { children } = $props();</script><section class="blog">{@render children()}</section>',
 	'src/routes/blog/[slug]/+page.svelte':
 		'<script>let { data, params } = $props();</script><article>{params.slug}: {data.body}</article>{#if data.draft}<em>draft</em>{/if}',
+	// The request's `page`, read from `$app/state` two levels below the root that holds it, in
+	// markup and through a `$derived`; and the two constants of the module beside it.
+	'src/routes/about/+page.svelte':
+		"<script>import { page, navigating, updated } from '$app/state'; import Where from '../../lib/where.svelte'; const here = $derived(page.url.pathname);</script>" +
+		'<a href={here}>{page.url.pathname}</a><Where />{navigating.from ?? "still"}{updated.current}',
+	'src/lib/where.svelte':
+		"<script>import { page as current } from '$app/state';</script><code>{current.route.id} {current.status} {current.data.title}</code>",
 };
+
+/** The `page` Kit's `render_response` builds for a request, in the shape `$app/state` reads. */
+function pageOf(id: string, url: string, params: Record<string, string>, data: unknown) {
+	return {
+		error: null,
+		params,
+		route: { id },
+		status: 200,
+		url: new URL(url),
+		data,
+		form: null,
+		state: {},
+	};
+}
 
 function compiled(dir: string): void {
 	for (const name of readdirSync(dir, { withFileTypes: true })) {
@@ -60,7 +81,10 @@ function compiled(dir: string): void {
 			rootDir: project,
 		})
 			.js.code.replace(/from '(\.[^']*)\.svelte'/g, "from '$1.js'")
-			.replace(/from 'svelte'/g, `from ${JSON.stringify(pathToFileURL(server).href)}`);
+			.replace(/from 'svelte'/g, `from ${JSON.stringify(pathToFileURL(server).href)}`)
+			// Kit's plugin provides `$app/state`; the reference render is given what the compiler's
+			// render is given, which reads `page` out of the context the way Kit's module does.
+			.replace(/from '\$app\/state'/g, `from ${JSON.stringify(pathToFileURL(appState).href)}`);
 		writeFileSync(at.replace(/\.svelte$/, '.js'), code);
 	}
 }
@@ -92,6 +116,7 @@ describe('a route is compiled from its generated root', () => {
 			],
 			{ slug: 'x' },
 		],
+		['/about', [{ title: 'About' }, { title: '<us>' }], {}],
 	])('%s', async (id, payloads, params) => {
 		const found = entries(project);
 		const entry = found.find((one) => one.path === id);
@@ -125,8 +150,14 @@ describe('a route is compiled from its generated root', () => {
 			entry.page.branch.forEach((_, at) => {
 				props[`data_${String(at)}`] = at === 0 ? site : { ...site, ...page };
 			});
+			props['page'] = pageOf(id, `http://localhost${id}`, params, { ...site, ...page });
 			const ours = inject(structure.ir, derive(props));
-			const theirs = render(mod.default, { props: props as never });
+			// Kit hands the root `page` as a prop and the same object to `$app/state` through the
+			// context, under `__request__`; both are given here as `render_response` gives them.
+			const theirs = render(mod.default, {
+				props: props as never,
+				context: new Map([['__request__', { page: props['page'] }]]),
+			});
 			expect(ours.body).toBe(theirs.body);
 			expect(ours.head).toBe(theirs.head);
 		}

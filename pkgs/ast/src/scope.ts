@@ -283,3 +283,59 @@ export function props(instance: unknown): Set<string> {
 	}
 	return found;
 }
+
+/** Kit's module a component reads the request's `page` from. */
+export const APP_STATE = '$app/state';
+
+/**
+ * What the two constants of `$app/state` hold on a server, spelled as Kit's server module spells
+ * them: nothing is navigating and nothing has updated while the bytes are written.
+ */
+export const STATE_ON_SERVER: Readonly<Record<string, string>> = {
+	navigating:
+		'({ from: null, to: null, type: null, willUnload: null, delta: null, complete: null })',
+	updated: '({ current: false })',
+};
+
+/**
+ * What the instance script imports from `$app/state`, by the local name, with the export each is.
+ *
+ * `page` is the request's: Kit's server module reads it out of the component context, where
+ * `render_response` put the one object it built for the request, and the root component takes the
+ * same object as a prop. So a component reading `page` reads the payload, whichever level of the
+ * tree it sits at, and the walk binds it to the root's prop of that name. See spec/framework.md.
+ */
+export function stateImports(instance: unknown): Map<string, string> {
+	const found = new Map<string, string>();
+	if (!isNode(instance)) return found;
+	const content = instance['content'];
+	if (!isNode(content)) return found;
+	const body = content['body'];
+	if (!Array.isArray(body)) return found;
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
+		const from = statement['source'];
+		if (!isNode(from) || from['value'] !== APP_STATE) continue;
+		for (const specifier of Array.isArray(statement['specifiers']) ? statement['specifiers'] : []) {
+			if (!isNode(specifier) || specifier['type'] !== 'ImportSpecifier') continue;
+			const local = specifier['local'];
+			const imported = specifier['imported'];
+			if (!isNode(local) || typeof local['name'] !== 'string') continue;
+			if (!isNode(imported) || typeof imported['name'] !== 'string') continue;
+			found.set(local['name'], imported['name']);
+		}
+	}
+	return found;
+}
+
+/**
+ * The names the request decides in a component: what its `$props()` destructures, and the `page`
+ * it imports from `$app/state`, which is a prop of the root by another route.
+ */
+export function requested(instance: unknown): Set<string> {
+	const found = props(instance);
+	for (const [local, exported] of stateImports(instance)) {
+		if (exported === 'page') found.add(local);
+	}
+	return found;
+}

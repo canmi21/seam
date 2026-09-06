@@ -46,6 +46,19 @@ the one package that imports the vendor by name. How it is upgraded and what is 
 | `core/sync/write_server.js`, `write_client_manifest.js` | the manifests | the server one points at IR and derivation bundles |
 | `exports/vite/index.js` | the plugin form, the client build, the dev server, the virtual modules | the server build is the compiler's pipeline |
 
+**`page` is a prop of the root, and `$app/state` is how a component reads it.** Kit's
+`render_response` builds one `page` object per request -- `url`, `params`, `route`, `status`,
+`error`, `data`, `form`, `state` -- hands it to the root as a prop and puts the same object in the
+component context, where `$app/state`'s server module reads it. The compiler keeps both halves:
+the generated root takes `page` as a prop, so it is a name of the payload beside `data_0` .. `data_n`,
+`params` and `form`, and the walk binds a component's `import { page } from '$app/state'` to that
+prop whichever level imports it, so `page.url.pathname` in a component is the path `page.url.pathname`
+in the IR and a `$derived` over it is a derivation over the payload. Nothing is carried from the
+module: `navigating` and `updated` are written out as what a server holds, and the compiler's own
+stand-in for the module is what a render is pointed at where an import survives. The one shape
+refused is the entry importing `page` under another name, since a rename is bound at a call and the
+entry has none. A backend fills `page` the way Kit does, from the request and the route it matched.
+
 **The load stage is Kit's `load`, and outside the protocol.** [derivation.md](derivation.md) puts
 where data comes from outside the protocol; here that is `+page.server.js` and `+layout.server.js`
 running per request in the Node server, per node down the branch, exactly as Kit runs them. A

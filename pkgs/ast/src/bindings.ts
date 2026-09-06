@@ -1,6 +1,6 @@
 import { parse } from 'svelte/compiler';
 import { locals } from './locals.ts';
-import { bound, free, isNode, type Node, props } from './scope.ts';
+import { APP_STATE, bound, free, isNode, type Node, requested } from './scope.ts';
 
 /**
  * Where every name in the markup comes from.
@@ -148,6 +148,9 @@ function report(
 
 	for (const name of names) {
 		if (GLOBALS.has(name)) continue;
+		// A name from `$app/state` is neither bundled nor looked up: `page` is the payload's and
+		// the other two are written out as what a server holds. See `stateImports()`.
+		if (carried?.known.get(name)?.from === APP_STATE) continue;
 		// An imported name is legal and gets bundled rather than looked up in the data. A
 		// component is not one of these: it is composed at compile time and never a value here.
 		if (carried?.known.get(name)?.from.endsWith('.svelte') === false) {
@@ -369,7 +372,7 @@ export function bindings(source: string): Bindings {
 	};
 	// A snippet's own name, and the names its parameters bind, are the component's rather than the
 	// payload's. See spec/refusals.md.
-	const scope = new Set(props(ast['instance']));
+	const scope = new Set(requested(ast['instance']));
 	snippetNames(ast['fragment'], scope);
 	markup(ast['fragment'], source, scope, found, carried);
 	const used = [...carried.used]

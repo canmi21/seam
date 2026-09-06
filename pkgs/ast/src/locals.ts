@@ -1,6 +1,6 @@
 import { parse } from 'svelte/compiler';
 import { type Edit, type Neutral, apply } from './edits.ts';
-import { chains, destructure, free, isNode, type Node, props, reads } from './scope.ts';
+import { chains, destructure, free, isNode, type Node, reads, requested } from './scope.ts';
 
 /**
  * What a component's scripts declare, as source to be substituted into whatever reads it.
@@ -816,7 +816,7 @@ export function locals(
 	dynamic?: ReadonlySet<string>,
 ): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
-	const carried = props(ast['instance']);
+	const carried = requested(ast['instance']);
 	const found = declared(ast, source, carried, fresh) as Map<string, Declared & { node: Node }>;
 
 	// Refused rather than substituted wrongly. Two of these compiled and wrote the wrong bytes with

@@ -66,6 +66,17 @@ describe('an import is carried in the form it was written', () => {
 			.join(',');
 		expect(carried).toBe(expected);
 	});
+
+	// Kit's `$app/state` is the one module nothing is carried from: `page` is the request's and a
+	// name of the payload, and the other two are written out as what a server holds.
+	it('neither carries nor questions what comes from $app/state', () => {
+		const source =
+			"<script>import { page, navigating as nav } from '$app/state'; const here = $derived(page.url.pathname)</script>" +
+			'<a href={here}>{page.data.title}</a>{nav.from ?? "still"}';
+		const found = bindings(source);
+		expect(found.carried).toEqual([]);
+		expect(found.unresolved).toEqual([]);
+	});
 });
 
 describe('rewriting a source file', () => {

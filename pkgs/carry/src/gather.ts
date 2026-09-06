@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { type Carried, importsOf, readsOf, resolveBare } from 'ast';
+import { APP_STATE, importsOf, readsOf, resolveBare, type Carried } from 'ast';
 
 /**
  * What the expressions of this route call, gathered from every file whose expressions became
@@ -54,8 +54,10 @@ export function carriedBy(
 		const at = resolve(root, file);
 		const carried: Carried[] = [];
 		for (const [local, one] of importsOf(readFileSync(at, 'utf8'))) {
-			// A component is composed at compile time and never a value an expression calls.
-			if (!names.has(local) || one.from.endsWith('.svelte')) continue;
+			// A component is composed at compile time and never a value an expression calls. Kit's
+			// `$app/state` is bound by the walk -- `page` to the payload's, the rest to constants --
+			// and an expression that still names it reads the payload, not the module.
+			if (!names.has(local) || one.from.endsWith('.svelte') || one.from === APP_STATE) continue;
 			// Resolved from where the file sits, a bare name too: a package's component imports its
 			// own dependencies, which are beside the package and not beside the bundle's entry.
 			const from = one.from.startsWith('.')

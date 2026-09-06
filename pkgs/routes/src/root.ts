@@ -9,8 +9,9 @@
  * so the compiler compiles the same shape: each `constructors[l]` is this route's component at
  * that level, imported, and each `{#if constructors[l + 1]}` is `true` where the branch goes on
  * and `false` where it ends, which Svelte writes as the same `<!--[0-->` and `<!--[-1-->` Kit's
- * root writes with the real array. `bind:this`, `stores` and `page` are the client's and the
- * request's; what the render reads of them is `page.params`, which is a prop here. Measured byte
+ * root writes with the real array. `bind:this` and `stores` are the client's; `page` is the
+ * request's one object and a prop here as it is there, read by components through `$app/state`,
+ * and what Kit's root reads of it in markup is `page.params`, which is the prop `params`. Measured byte
  * for byte against Kit's own generated root rendered with the props Kit gives it; see the check
  * beside this file. What is not reproduced is the announcer's markup after hydration, which is
  * the client's.
@@ -41,7 +42,9 @@ export function root(branch: readonly string[], depth: number): string {
 	}
 	const levels = [...Array(depth + 1).keys()];
 	const imports = branch.map((file, at) => `import Node_${String(at)} from '${file}';`);
-	const props = ['form', 'params', ...levels.map((l) => `data_${String(l)} = null`)];
+	// `page` is taken as Kit's root takes it, the one object the request builds: no level's tag
+	// passes it on, and a component reads it through `$app/state`, which the walk binds to this prop.
+	const props = ['form', 'params', 'page', ...levels.map((l) => `data_${String(l)} = null`)];
 
 	// Kit's pyramid, innermost first: the deepest level is a lone component, and every level above
 	// it asks whether a level follows. Here the answer is known per route.

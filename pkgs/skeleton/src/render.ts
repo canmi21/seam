@@ -3,7 +3,7 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { compile } from 'svelte/compiler';
-import { resolveBare } from 'ast';
+import { APP_STATE, resolveBare } from 'ast';
 import type { Rendered } from './shape.ts';
 import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel } from './sentinel.ts';
 import type { Copy } from './walk.ts';
@@ -119,6 +119,17 @@ export async function renderRewritten(
 				);
 				continue;
 			}
+			// Kit's `$app/state`, which its plugin provides and nothing here has: the module beside
+			// this file reads `page` out of the component context as Kit's server module does. The
+			// walk bound every read of it already, so a render reaches this only through an import
+			// something else kept alive. See `stateImports()` in `ast`.
+			if (specifier === APP_STATE) {
+				code = code.replaceAll(
+					`${quote}${specifier}${quote}`,
+					JSON.stringify(pathToFileURL(resolvePath(here, 'app-state.ts')).href),
+				);
+				continue;
+			}
 			if (specifier.startsWith('svelte/')) continue;
 			const target = specifier.startsWith('.')
 				? resolvePath(dirname(origin), specifier)
@@ -184,7 +195,7 @@ export async function renderRewritten(
  * The file Svelte's root export resolves to on a server: the `default` condition of `.` in its
  * `package.json`, read rather than spelled, so a release that moves the file moves this with it.
  */
-function svelteServer(): string {
+export function svelteServer(): string {
 	const at = createRequire(import.meta.url).resolve('svelte/package.json');
 	const { exports } = JSON.parse(readFileSync(at, 'utf8')) as {
 		exports: Record<string, string | Record<string, string>>;
