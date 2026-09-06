@@ -154,7 +154,7 @@ markup's own identifiers were the list once, and press's home route showed it wr
 directions. `const src = imgsrc(...)` read as `{src}` is a derivation calling `imgsrc`, which the
 markup never names, so the bundle held nothing and the first derivation stopped at a name that was
 not defined. And `<Provider client={queryClient}>` names a package the render evaluates and no
-derivation ever calls; bundling it pulled a component library into esbuild, which has no loader
+derivation ever calls; bundling it pulled a component library into the bundler, which then had no loader
 for `.svelte`. So the skeleton hands over every expression it planted -- each hole's, each
 decision's tests, each block's source and tests -- and an import is carried when one of them
 reads it. That is the same set the evaluator will look up, by construction.

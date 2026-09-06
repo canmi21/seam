@@ -120,15 +120,27 @@ that moved under the installed TypeScript. None is refused. Each is taken when a
    renderer -- and nothing is stubbed. Outside a build the render loads through Node as before,
    with `svelte` named by its server entry and every bare name rewritten to its file. Everything
    around the call is Kit's: `respond`, the
-   `load` functions, `__data.json`, the data script, the head, the error page. Held by building one
-   project twice, with and without the plugin, and asking both built servers for the same pages:
-   the responses are the same bytes, document and all, the `__data.json` and the 404 included.
-   What is left inside this step, each named rather than implied: the error page is still Kit's
-   render, since `+error.svelte` is not a route the compiler is given; the raw-value normalisation
-   of [refusals.md](refusals.md) is not on this path yet, because it has to sit where the `load`
-   results are before Kit serialises them, and applying it to the bytes alone would make the
-   disagreement it exists to prevent; and `vite dev` renders with Kit's own root, since the plugin
-   is a no-op outside the server build.
+   `load` functions, `__data.json`, the data script, the head, the error page. What a derivation
+   calls is bundled by the project's Vite too, one build per route with everything inlined and
+   Kit's plugins kept out of it, since they would make it Kit's server build; what they provide
+   under `$app/*` is given as what a derivation reads of it at request time, in `pkgs/plugin/src/app`.
+   Outside a build the bundler is rolldown, which is Vite's own. Held by building one project
+   twice, with and without the plugin, and asking both built servers for the same pages: the
+   responses are the same bytes, document and all, the `__data.json`, the 404 and a load that
+   throws included. Held on press the same way, from a copy in a temporary directory: nine
+   responses, the seven routes with an article among them, a `__data.json` and a 404, identical
+   but for the version name Kit hashes into its client entries at each build. A field whose domain
+   the build declares, [build.md](build.md), is the plugin's `enumerate` option, by route id; press
+   declares its locale that way, and what makes the declaration necessary rather than an
+   optimisation is a derivation that both varies with the request and reaches into a component
+   library's context, which no evaluator outside a render can run -- declared, it is a structure
+   and is baked, and undeclared it fails at request time, which is the one place a refusal is not
+   yet compile-time. What is left inside this step, each named rather than implied: the error page
+   is still Kit's render, under the route's own id when its `load` throws, since `+error.svelte` is
+   not a route the compiler is given; the raw-value normalisation of [refusals.md](refusals.md) is
+   not on this path yet, because it has to sit where the `load` results are before Kit serialises
+   them, and applying it to the bytes alone would make the disagreement it exists to prevent; and
+   `vite dev` renders with Kit's own root, since the plugin is a no-op outside the server build.
 3. The client runtime is Kit's build, untouched, and hydrates against bytes that are Kit's byte
    for byte. What is owed is the check in a real browser; see [build.md](build.md).
 

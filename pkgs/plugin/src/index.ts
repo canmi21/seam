@@ -1,1 +1,1 @@
-export { seam } from './plugin.ts';
+export { type Options, seam } from './plugin.ts';

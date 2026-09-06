@@ -231,7 +231,8 @@ compiler can see neither the branch nor the domain.
 **That domain is a build input, for the same reason the URL is.** The compiler cannot know that a
 locale has nine values, and working it out by inspecting whatever library happens to read it would
 be this project guessing at somebody else's code again. So it is declared beside the entry, the
-compiler renders once per value, and every one of those renders is kept.
+compiler renders once per value, and every one of those renders is kept. In the plugin's argument
+it is `enumerate`, keyed by route id, the paths and the values each takes.
 
 What is not settled here is how the results are stored -- one artifact carrying an `n`-way branch,
 or `n` artifacts the server picks between. Both are the same compilation with the branch resolved

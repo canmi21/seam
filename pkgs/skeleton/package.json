@@ -10,9 +10,10 @@
 		"svelte": "^5.57.0"
 	},
 	"devDependencies": {
+		"carry": "workspace:*",
 		"derive": "workspace:*",
 		"injector": "workspace:*",
 		"lowering": "workspace:*",
-		"carry": "workspace:*"
+		"rolldown": "1.2.6"
 	}
 }

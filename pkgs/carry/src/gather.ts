@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { APP_STATE, importsOf, readsOf, resolveBare, type Carried } from 'ast';
 
 /**
@@ -18,7 +18,7 @@ import { APP_STATE, importsOf, readsOf, resolveBare, type Carried } from 'ast';
  * the list once, and they were wrong in both directions: `const src = imgsrc(...)` read as `{src}`
  * is a derivation calling `imgsrc` that the markup never names, and `<Provider client={q}>` names
  * a package the render evaluates and no derivation ever calls -- bundling it pulled a component
- * library into esbuild, which has no loader for `.svelte`. So the caller hands over the free names
+ * library into the bundler, which had no loader for `.svelte`. So the caller hands over the free names
  * of the expressions the skeleton actually planted, and an import is carried when one of them is
  * it. Measured on press's home route, both ways.
  *

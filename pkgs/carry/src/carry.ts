@@ -1,21 +1,69 @@
-/**
- * The code a component's expressions call, compiled to one script with nothing left to import.
- *
- * A derivation may call a function the author imported, and the evaluator that runs derivations
- * has no module system to resolve it with -- that is the promise made about what a backend which
- * is not Node has to carry. Bundling is what keeps it: there is nothing to resolve at request
- * time because nothing is imported at request time.
- *
- * It is bundled, not analysed. See spec/derivation.md, where a purity check over library code was
- * measured against the two functions the question exists for and abandoned.
- */
-import { dirname, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
+import { stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
+import { type Plugin, rolldown } from 'rolldown';
+import { compile, compileModule } from 'svelte/compiler';
 import { type Carried, currentAliases, resolveBare } from 'ast';
 
 /** An immediately invoked bundle assigning to one name, which `derive` reads back out. */
 const NAME = '__carried';
+
+/** The entry the bundle is made from, which no file backs: the restated imports, as a module. */
+const ENTRY = '\0seam:carried';
+
+/**
+ * What resolves and bundles the carried modules into one ES module with nothing left to import.
+ *
+ * rolldown from here by default, resolving the way a Svelte-aware bundler resolves and knowing the
+ * project's aliases, with a component a package ships compiled where it sits; inside a Vite build
+ * the plugin gives the project's own Vite instead, so that a virtual module of the project's
+ * plugins and `$app/*` resolve as the project's build resolves them. Either way the result is
+ * wrapped into the script the evaluator takes, which is not the bundler's business.
+ */
+export type Bundler = (entry: string, source: string) => Promise<string>;
+
+let bundler: Bundler | null = null;
+
+/** Bundles through the given bundler from now on, or through rolldown again when given null. */
+export function configureCarry(given: Bundler | null): void {
+	bundler = given;
+}
+
+/** The entry as a module the bundler can load, since it was never written anywhere. */
+function entryOf(source: string): Plugin {
+	return {
+		name: 'seam:carried-entry',
+		resolveId: (id) => (id === ENTRY ? ENTRY : null),
+		load: (id) => (id === ENTRY ? source : null),
+	};
+}
+
+/**
+ * A component and a runes module compiled on the way in, as the server compiles them. A module the
+ * expressions call may re-export a component beside the function they want -- a query library
+ * ships its provider component that way -- and a bundler has no loader for one of its own.
+ */
+function svelted(): Plugin {
+	return {
+		name: 'seam:svelte',
+		load(id) {
+			if (id.endsWith('.svelte')) {
+				return compile(readFileSync(id, 'utf8'), {
+					generate: 'server',
+					name: basename(id, '.svelte'),
+					filename: id,
+				}).js.code;
+			}
+			if (/\.svelte\.(?:js|ts)$/.test(id)) {
+				const text = readFileSync(id, 'utf8');
+				const source = id.endsWith('.ts') ? stripTypeScriptTypes(text) : text;
+				return compileModule(source, { generate: 'server', filename: id }).js.code;
+			}
+			return null;
+		},
+	};
+}
 
 /**
  * Bundles the named imports of a component into a script that defines `__carried`.
@@ -38,7 +86,9 @@ export async function carry(
 		const fields: string[] = [];
 		for (const [n, one] of names.entries()) {
 			const alias = `__c${String(at)}_${String(n)}`;
-			lines.push(restate(svelted(one), alias));
+			// Svelte's own modules are named by file for the default bundler, which would otherwise
+			// take a copy from wherever the component sits; a bundler the project gave resolves them.
+			lines.push(restate(bundler === null ? ownSvelte(one) : one, alias));
 			fields.push(`${JSON.stringify(one.local)}: ${alias}`);
 		}
 		objects.push(`${JSON.stringify(group)}: { ${fields.join(', ')} }`);
@@ -46,29 +96,35 @@ export async function carry(
 	lines.push(`export const files = { ${objects.join(', ')} };`);
 	const source = lines.join('\n');
 
-	const result = await build({
-		stdin: { contents: source, resolveDir: dirname(entry), loader: 'ts', sourcefile: 'carried.ts' },
-		bundle: true,
-		// An IIFE assigning to one name rather than a module, because the evaluator has no module
-		// loader and `new Function` can return the value the assignment produced.
-		format: 'iife',
-		globalName: NAME,
-		platform: 'neutral',
+	// Resolved and joined by the project's bundler where there is one, then wrapped here: what comes
+	// back imports nothing, so wrapping it is a format change and not a resolution.
+	const contents = bundler === null ? source : await bundler(entry, source);
+	const bundle = await rolldown({
+		input: ENTRY,
+		cwd: dirname(entry),
 		// Resolved the way a Svelte-aware bundler resolves: the `svelte` condition first, then the
 		// ESM ones, and the `svelte`, `module` and `main` fields for a package without an `exports`
-		// map. A neutral platform resolves nothing of that on its own.
-		conditions: ['svelte', 'import', 'module', 'default'],
-		mainFields: ['svelte', 'module', 'main'],
-		// `$lib` and the project's own, which a module the expressions call may import by.
-		alias: { ...currentAliases() },
-		target: 'es2022',
-		write: false,
+		// map. A neutral platform resolves nothing of that on its own. `$lib` and the project's own
+		// aliases, which a module the expressions call may import by.
+		platform: 'neutral',
+		resolve: {
+			conditionNames: ['svelte', 'import', 'module', 'default'],
+			mainFields: ['svelte', 'module', 'main'],
+			alias: { ...currentAliases() },
+		},
+		plugins: [entryOf(contents), svelted()],
 		logLevel: 'silent',
 	});
-
-	const [output] = result.outputFiles ?? [];
-	if (output === undefined) throw new Error(`nothing came out of bundling ${file}`);
-	return output.text;
+	try {
+		// An IIFE assigning to one name rather than a module, because the evaluator has no module
+		// loader and `new Function` can return the value the assignment produced.
+		const { output } = await bundle.generate({ format: 'iife', name: NAME, minify: false });
+		const [chunk] = output;
+		if (chunk === undefined) throw new Error(`nothing came out of bundling ${file}`);
+		return chunk.code;
+	} finally {
+		await bundle.close();
+	}
 }
 
 /**
@@ -83,14 +139,14 @@ export async function carry(
  * entry: the entry may be a generated root or a corpus case with no `node_modules` above it, and
  * there is one copy of Svelte in a compile, this package's. See `helpers()` in skeleton.
  */
-function svelted(one: Carried): Carried {
+function ownSvelte(one: Carried): Carried {
 	if (one.from !== 'svelte' && !one.from.startsWith('svelte/')) return one;
 	const at = resolveBare(one.from, fileURLToPath(import.meta.url));
 	return at === null ? one : { ...one, from: at };
 }
 
 function restate(one: Carried, alias: string): string {
-	// Node resolves a `file:` URL as a specifier and esbuild does not, so it is handed the path.
+	// Node resolves a `file:` URL as a specifier and a bundler does not, so it is handed the path.
 	const from = JSON.stringify(one.from.startsWith('file:') ? fileURLToPath(one.from) : one.from);
 	if (one.kind === 'namespace') return `import * as ${alias} from ${from};`;
 	if (one.kind === 'default') return `import ${alias} from ${from};`;

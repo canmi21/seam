@@ -135,6 +135,19 @@ export async function renderRewritten(
 		if ([HEAD_OPEN, HEAD_CLOSE, MARK, MARK_HEAD].some((call) => code.includes(`${call}(`))) {
 			code = handed(code);
 		}
+		// An import for its effect alone, `import './app.css'`, which a component has for its
+		// stylesheet. Relative to the source and not to the staged copy, so it is pointed at the
+		// file; under Node, which cannot load a stylesheet, it goes, as a bundler's build would
+		// have taken it out of the server half anyway.
+		code = code.replace(
+			/^[ \t]*import\s+(['"])(\.[^'"]+)\1;?[ \t]*\r?\n/gm,
+			(whole: string, _quote: string, specifier: string) => {
+				const target = resolveBare(specifier, origin);
+				if (target === null) return whole;
+				if (!host.bundler && /\.(?:css|scss|sass|less|styl|pcss)$/.test(target)) return '';
+				return `import ${JSON.stringify(pathToFileURL(real(target)).href)};\n`;
+			},
+		);
 		// Either quote. Svelte keeps the one the author wrote, so a component whose imports are
 		// double-quoted -- which is most of what a package ships -- had its relative specifiers
 		// left alone here and its neighbours looked for beside the staged file rather than beside
@@ -173,9 +186,9 @@ export async function renderRewritten(
 				continue;
 			}
 			if (specifier.startsWith('svelte/')) continue;
-			const target = specifier.startsWith('.')
-				? resolvePath(dirname(origin), specifier)
-				: resolveBare(specifier, origin);
+			// A relative path is completed too: a bundler resolves `./index` and `./x.svelte` as
+			// `./index.ts` and `./x.svelte.ts`, and so does `resolveBare`.
+			const target = resolveBare(specifier, origin);
 			if (target === null) continue;
 			// A copy resolves its own relative imports from where its original sits, not from the
 			// name it was staged under. A module reached by a bare name is left where it really is,

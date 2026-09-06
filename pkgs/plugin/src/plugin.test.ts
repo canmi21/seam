@@ -30,9 +30,13 @@ const files: Record<string, string> = {
 		'<!doctype html><html lang="en"><head>%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>',
 	'src/routes/+layout.server.js': "export function load() { return { tagline: 'a sample' }; }",
 	'src/routes/+layout.svelte':
-		"<script>import { page } from '$app/state'; import { dev } from '$app/environment'; import { site } from 'virtual:site'; import Nav from '$parts/nav.svelte'; let { children, data } = $props();</script>" +
+		"<script>import { page } from '$app/state'; import { dev } from '$app/environment'; import { site } from 'virtual:site'; import { shout } from '$lib/shout.ts'; import Nav from '$parts/nav.svelte'; let { children, data } = $props();</script>" +
 		'<svelte:head><link rel="canonical" href={`https://sample.test${page.url.pathname}`} /></svelte:head>' +
-		'<header>{site.name}: {data.tagline}{dev ? " (dev)" : ""}</header><Nav /><main>{@render children()}</main>',
+		'<header>{site.name}: {data.tagline}{dev ? " (dev)" : ""}</header><p>{shout(data.tagline)}</p><Nav /><main>{@render children()}</main>',
+	// Carried: a function a derivation calls, reaching a virtual module, which only the project's
+	// own bundler can resolve.
+	'src/lib/shout.ts':
+		"import { site } from 'virtual:site';\nexport const shout = (s) => `${site.name}: ${s}`.toUpperCase();",
 	'src/parts/nav.svelte':
 		"<script>import { page } from '$app/state';</script><nav class:home={page.url.pathname === '/'}>{page.route.id}</nav>",
 	'src/routes/+page.server.js':
@@ -40,13 +44,23 @@ const files: Record<string, string> = {
 	'src/routes/+page.svelte':
 		'<script>let { data } = $props();</script><svelte:head><title>{data.title}</title></svelte:head>' +
 		'<h1>{data.title}</h1><ul>{#each data.items as item}<li>{item}</li>{/each}</ul>',
+	'src/routes/+error.svelte':
+		"<script>import { page } from '$app/state';</script><h1>{page.status}: {page.error?.message}</h1>",
+	// A load that throws under a matched route renders the error page under that route's id.
 	'src/routes/blog/[slug]/+page.server.js':
-		"export function load({ params }) { return { body: `post ${params.slug}`, draft: params.slug.startsWith('d') }; }",
+		"import { error } from '@sveltejs/kit';\nexport function load({ params }) { if (params.slug === 'gone') error(404, 'no such post'); return { body: `post ${params.slug}`, draft: params.slug.startsWith('d') }; }",
 	'src/routes/blog/[slug]/+page.svelte':
 		'<script>let { data, params } = $props();</script><article>{params.slug}: {data.body}</article>{#if data.draft}<em>draft</em>{/if}',
 };
 
-const URLS = ['/', '/blog/hello', '/blog/draft', '/blog/hello/__data.json', '/missing'];
+const URLS = [
+	'/',
+	'/blog/hello',
+	'/blog/draft',
+	'/blog/gone',
+	'/blog/hello/__data.json',
+	'/missing',
+];
 
 /** Builds the project into Kit's output under `outDir`, with or without the plugin. */
 async function built(outDir: string, withSeam: boolean): Promise<Record<string, string>> {

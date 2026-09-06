@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import { stripTypeScriptTypes } from 'node:module';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { build } from 'esbuild';
+import { rolldown } from 'rolldown';
 import { compile, compileModule } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -2229,44 +2229,39 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 		// the `svelte` condition -- is compiled where it sits and its runes modules with it, and
 		// Svelte's own runtime stays external so the render runs one copy of it.
 		writeFileSync(out, code);
-		const bundled = await build({
-			entryPoints: [out],
-			bundle: true,
-			write: false,
-			format: 'esm',
+		const bundle = await rolldown({
+			input: out,
 			platform: 'node',
-			conditions: ['svelte', 'import', 'default'],
-			external: ['svelte', 'svelte/*'],
+			resolve: { conditionNames: ['svelte', 'import', 'default'] },
+			external: [/^svelte(?:\/|$)/],
 			logLevel: 'silent',
 			plugins: [
 				{
 					name: 'svelte',
-					setup(api) {
-						api.onLoad({ filter: /\.svelte$/ }, (args) => ({
-							contents: compile(readFileSync(args.path, 'utf8'), {
+					load(id) {
+						if (/\.svelte$/.test(id)) {
+							return compile(readFileSync(id, 'utf8'), {
 								generate: 'server',
-								name: basename(args.path, '.svelte'),
-								filename: args.path,
+								name: basename(id, '.svelte'),
+								filename: id,
 								rootDir: staging,
-							}).js.code,
-							loader: 'js',
-						}));
-						api.onLoad({ filter: /\.svelte\.(js|ts)$/ }, (args) => {
-							const text = readFileSync(args.path, 'utf8');
-							const source = args.path.endsWith('.ts') ? stripTypeScriptTypes(text) : text;
-							return {
-								contents: compileModule(source, { generate: 'server', filename: args.path }).js
-									.code,
-								loader: 'js',
-							};
-						});
+							}).js.code;
+						}
+						if (/\.svelte\.(?:js|ts)$/.test(id)) {
+							const text = readFileSync(id, 'utf8');
+							const source = id.endsWith('.ts') ? stripTypeScriptTypes(text) : text;
+							return compileModule(source, { generate: 'server', filename: id }).js.code;
+						}
+						return null;
 					},
 				},
 			],
 		});
-		const [output] = bundled.outputFiles;
-		if (output === undefined) throw new Error('nothing came out of bundling the oracle');
-		writeFileSync(out, output.text);
+		const { output } = await bundle.generate({ format: 'es' });
+		await bundle.close();
+		const [chunk] = output;
+		if (chunk === undefined) throw new Error('nothing came out of bundling the oracle');
+		writeFileSync(out, chunk.code);
 		const mod = (await import(pathToFileURL(out).href)) as {
 			default: Parameters<typeof render>[0];
 		};

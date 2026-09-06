@@ -1643,7 +1643,7 @@ the same data. press itself is never touched; its output is read.
 346 KB and one 238 KB long. Five were after the first six fixes. What
 stood between the compile and the first comparison was six things, each invisible to a compile that never
 evaluates a derivation, and each recorded where it belongs: the `file:` specifier a sample maps a
-workspace library to, which esbuild cannot resolve; the TypeScript a `lang="ts"` component writes
+workspace library to, which the bundler could not resolve; the TypeScript a `lang="ts"` component writes
 its expressions with, which `new Function` cannot read; what gets carried, which was gathered from
 the markup's names and was wrong both ways; a path rooted at an imported constant, which resolved
 against the payload; a prop left for Svelte to evaluate, written with a name the render had
@@ -1681,7 +1681,7 @@ the walk planted a hole for it because it was not a literal. A hole is a derivat
 derivation is a value asked for per request; asking for this one meant evaluating it outside a
 render, which is impossible by construction. Read out of the package and out of Svelte:
 `createBaseQuery.svelte.js` is a runes module, legal only once Svelte's compiler has been over
-it, which esbuild has not; `useQueryClient()` is `getContext()`, and `get_or_init_context_map`
+it, which a bundler has not; `useQueryClient()` is `getContext()`, and `get_or_init_context_map`
 in `internal/shared/context.js` throws `lifecycle_outside_component` when `ssr_context` is null,
 which it is anywhere but inside `render()`. Kit renders it because the whole tree runs inside
 `render()` under the layout's provider, with Vite's plugin compiling the module. So does this
