@@ -14,6 +14,8 @@ import {
 	readsOf,
 	componentOf,
 	objectEntries,
+	parsed,
+	parsedComponent,
 	reads as readsIn,
 	resolveBare,
 	settle,
@@ -981,7 +983,7 @@ function componentFile(tag: string, walk: Walk): string | null {
 function unimported(text: string): string {
 	let ast: AstNode;
 	try {
-		ast = parse(text, { modern: true }) as unknown as AstNode;
+		ast = parsedComponent(text) as unknown as AstNode;
 	} catch {
 		return text;
 	}
@@ -1113,7 +1115,7 @@ function selfCall(
 	source = walk.source,
 	dynamic?: { expression: [number, number] | null },
 ): void {
-	const ast = parse(source, { modern: true }) as unknown as AstNode;
+	const ast = parsedComponent(source) as unknown as AstNode;
 	const declares = propsOf(ast, source);
 	if (declares === null)
 		refuse(`<${tag} /> renders itself and this compiler cannot read its props`);
@@ -1646,9 +1648,8 @@ function stands(expression: string, walk: Walk): string {
  * which plants one marker for the whole and reports it if it does not come back.
  */
 function leaves(expression: string, walk: Walk): string | null {
-	const ast = parse(`<script lang="ts"></script>{${expression}}`, {
-		modern: true,
-	}) as unknown as AstNode;
+	// The shared, memoised parse in `ast`: the same wrapper, and read here rather than written.
+	const ast = parsed(expression) as unknown as AstNode;
 	const offset = '<script lang="ts"></script>{'.length;
 	const fragment = ast['fragment'];
 	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
@@ -3555,7 +3556,7 @@ export function rewrite(
 	told: ReadonlyMap<string, string> = new Map(),
 	mute: ReadonlySet<string> = new Set(),
 ): Rewritten {
-	const ast = parse(source, { modern: true }) as unknown as AstNode;
+	const ast = parsedComponent(source) as unknown as AstNode;
 	awaitless(ast, 'the entry');
 	const holes: Hole[] = [];
 	const blocks: Block[] = [];

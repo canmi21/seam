@@ -1,5 +1,5 @@
 import { parse } from 'svelte/compiler';
-import { locals } from './locals.ts';
+import { locals, parsed } from './locals.ts';
 import { resolveBare } from './packages.ts';
 import { APP_STATE, bound, free, isNode, type Node, requested } from './scope.ts';
 
@@ -364,9 +364,8 @@ export function readsOf(expressions: Iterable<string>): Set<string> {
 		if (expression.trim() === '') continue;
 		let tag: Node;
 		try {
-			tag = parse(`<script lang="ts"></script>{${expression}}`, {
-				modern: true,
-			}) as unknown as Node;
+			// The shared, memoised parse: the same wrapper, and read-only here as everywhere.
+			tag = parsed(expression);
 		} catch {
 			continue;
 		}

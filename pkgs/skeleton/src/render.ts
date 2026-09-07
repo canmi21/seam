@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { APP_STATE, resolveBare } from 'ast';
 import type { Rendered } from './shape.ts';
 import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel } from './sentinel.ts';
+import { timed, timedSync } from './timing.ts';
 import type { Copy } from './walk.ts';
 
 /**
@@ -95,6 +96,47 @@ export async function shippable(): Promise<void> {
 // would otherwise be the same module: the second configuration would silently return the first.
 let generation = 0;
 
+/**
+ * What Svelte's compiler has already produced in this process, by everything it was given.
+ *
+ * A render forces one block onto one branch and leaves every other block where it was, so the
+ * source the walk rewrote is identical between the baseline and nearly every alternate, for
+ * nearly every component in the route's graph. Compiling all of them again per render was one
+ * Svelte compile per component per render -- a route with ninety blocks and a hundred components
+ * compiled nine thousand times what it could compile once. `compile` is a pure function of these
+ * arguments, so the code is keyed by them. See spec/pipeline.md.
+ *
+ * The key holds the source rather than the file, so a copy the walk rewrote differently is a
+ * different entry and nothing is served a stale compile. What bounds the map is the number of
+ * distinct rewrites, which is the number of components times the branches that reach them, and
+ * not the number of renders.
+ */
+const compiled = new Map<string, string>();
+
+/**
+ * Svelte's server codegen, run once per distinct set of arguments rather than once per render.
+ *
+ * The compiler is handed in rather than imported: it is the host's, so that the renderer and the
+ * components are one copy of Svelte.
+ */
+function codegen(
+	svelte: typeof import('svelte/compiler'),
+	source: string,
+	name: string,
+	filename: string,
+	root: string,
+): string {
+	const key = JSON.stringify([source, name, filename, root]);
+	const held = compiled.get(key);
+	if (held !== undefined) return held;
+	const code = timedSync('    codegen (svelte compile)', () => {
+		const { js } = svelte.compile(source, { generate: 'server', name, filename, rootDir: root });
+		return js.code;
+	});
+	compiled.set(key, code);
+	return code;
+}
+
 export async function renderRewritten(
 	file: string,
 	source: string,
@@ -113,7 +155,7 @@ export async function renderRewritten(
 	const { mkdirSync, readFileSync: read, rmSync, writeFileSync } = await import('node:fs');
 	// The host's Svelte, which is the components' too.
 	const { render } = (await host.module('svelte/server')) as typeof import('svelte/server');
-	const { compile } = (await host.module('svelte/compiler')) as typeof import('svelte/compiler');
+	const svelte = (await host.module('svelte/compiler')) as typeof import('svelte/compiler');
 
 	const here = dirname(fileURLToPath(import.meta.url));
 	// A directory of its own per render, and only that one is removed. It used to be one shared
@@ -217,29 +259,26 @@ export async function renderRewritten(
 	function compileFile(target: string): string {
 		const copy = staged.get(target);
 		const from = copy?.file ?? target;
-		const code = compile(copy?.source ?? read(target, 'utf8'), {
-			generate: 'server',
-			name: basename(from, '.svelte'),
-			filename: from,
-			rootDir: root,
-		}).js.code;
+		const code = codegen(
+			svelte,
+			copy?.source ?? read(target, 'utf8'),
+			basename(from, '.svelte'),
+			from,
+			root,
+		);
 		return copy?.fresh === undefined ? code : anchoring(code, copy.fresh);
 	}
 
 	try {
-		const compiled = compile(source, {
-			generate: 'server',
-			name: 'Entry',
-			filename: file,
-			rootDir: root,
-		}).js.code;
-		const entry = emit(file, fresh === undefined ? compiled : anchoring(compiled, fresh), file);
-		const mod = (await host.import(pathToFileURL(entry).href)) as { default: unknown };
+		const code = codegen(svelte, source, 'Entry', file, root);
+		const entry = emit(file, fresh === undefined ? code : anchoring(code, fresh), file);
+		const mod = (await timed('    load (host import)', () =>
+			host.import(pathToFileURL(entry).href),
+		)) as { default: unknown };
 		// The prefix is what makes a `$props.id()` anchor readable after the render. See `fresh.ts`.
-		const { body, head } = render(mod.default as never, {
-			props: props as never,
-			idPrefix: ID_PREFIX,
-		});
+		const { body, head } = timedSync('    render call (svelte/server)', () =>
+			render(mod.default as never, { props: props as never, idPrefix: ID_PREFIX }),
+		);
 		return { body, head };
 	} finally {
 		rmSync(staging, { recursive: true, force: true });

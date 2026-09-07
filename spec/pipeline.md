@@ -174,6 +174,11 @@ nothing is a bug report; a page in the wrong language for one reader is not. The
 promise the build makes, and where the data breaks it the artifact has no structure to offer and
 says so by having none.
 
+**What a declared domain costs the compile is not yet bounded**, and it bears on the size of the
+example above: a route is compiled once per combination, and the memory a compile holds grows with
+every render it makes. Nine locales is the shape this file is written for and is not currently
+reachable; see [build.md](build.md).
+
 The saving is not only the request-time work. A value carried to the runtime drags its dependencies
 into the derivation bundle with it: a locale evaluated per request means every message module it
 reaches is bundled, which for one real project is a 628KB directory with an 80KB runtime in it.

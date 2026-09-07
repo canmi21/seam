@@ -359,6 +359,75 @@ It is the same rule as the root component: one field that both halves read, so t
 apart without somebody changing the field. With it, `<style>` stops being refused once there is a
 client build to emit a stylesheet.
 
+## What a compile costs, and what it remembers
+
+The cost of a compile is not guessable from the outside, and this is written down because it was
+guessed at twice and wrongly both times. A reading of the trace said the alternate renders were
+the cost; measured, a route with ninety-three blocks renders eight of them and most passes render
+none. A second reading said the nested Vite build for the derivation bundle was minutes each; it
+is two seconds for the whole compile. A CPU sample settled neither, because `sample` cannot
+symbolise V8's JIT frames and every JavaScript frame came back as `???`.
+
+**So the stages time themselves, and `SEAM_TIME` prints what they took.** The stages nest -- a
+walk and a render inside `skeleton`, a codegen and a module load inside a render -- and a stage's
+share of its parent is what the report is read for rather than a total. Measured on press's seven
+routes, before any of the memory below was addressed:
+
+```
+skeleton (walk + renders)   425.1s    17 calls
+  walk (rewrite)            376.2s   499 calls
+  render (svelte SSR)        40.7s   494 calls
+    load (host import)       31.4s   514 calls
+    codegen                   1.0s   390 calls
+    render call               0.0s   514 calls
+carry (derivation bundle)      2.2s    12 calls
+lower (wasm)                   0.1s     1 call
+```
+
+Two things in that table are worth stating as facts rather than numbers. **The render itself is
+free**: `render()` over a whole route is unmeasurable, and what the render stage costs is loading
+the modules it just staged. And **the walk is the compile**, at 88%, because it runs once per
+render and a route renders hundreds of times.
+
+**A pure function asked hundreds of times for one answer is remembered by its inputs.** Four
+were: an expression parsed as the component it would be the whole of, a whole component parsed,
+Svelte's server codegen, and the derivation bundle. Each is keyed by everything it was given --
+the source rather than the file, so a copy the walk rewrote differently is a different entry and
+nothing is served a stale answer -- and each map is bounded by the number of distinct sources a
+compile meets rather than by the number of renders, which is the whole of why it works. The walk
+went to 221 seconds and the server build to nine and a half minutes, from a build that used to
+die in V8's garbage collector after nineteen.
+
+**The trees are handed out shared, and that is sound rather than lucky.** Nothing writes into an
+AST here: what the walk produces is a list of `[start, end, text]` edits against the source, and
+every other reader only reads. A pass that ever needs to rewrite a node has to copy it first, and
+the day one does, this is the rule it breaks.
+
+## The memory a compile holds, which is not yet bounded
+
+**Recorded rather than solved.** A compile of press holds eight to nine gigabytes, and none of
+the remembering above is where it goes -- the caches were measured against it and moved it by
+nothing.
+
+Where it goes is the one mechanism a render cannot do without. `import()` caches by URL, so two
+renders of one component would be the same module and the second render's configuration would
+silently return the first's; the copies are therefore staged under a fresh name per render. Both
+hosts then keep every one of them: Node's ESM registry has no eviction at all, and Vite's SSR
+module cache is never invalidated here. So the modules of every render ever made are retained for
+the life of the process, and the staging directory being deleted afterwards frees the files and
+not the memory.
+
+Two consequences are already measured. A declared domain multiplies it, because a route is
+compiled once per combination: four values crashed Node in V8's collector at nineteen minutes,
+where one value completed. And [pipeline.md](pipeline.md) describes enumerating a locale over nine
+values, which on this curve does not finish -- so the model that file sets out is not currently
+reachable at the size it is written for.
+
+What bounds it is not another cache. It is a render's heap dying with the thing that made it: a
+render is a pure function from a source and a payload to bytes, and a worker that renders one
+route and exits takes every module it loaded with it. Vite can also invalidate what it holds,
+which Node cannot, so the two hosts do not have the same fix available. Neither is built.
+
 ## Packaging is about the program, not the artifacts
 
 The backend is a program, and a program gets bundled. The distinction is exact:

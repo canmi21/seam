@@ -29,7 +29,16 @@ import {
 	type Run,
 	type Structure,
 } from './variants.ts';
-import { expressionsOf, helpers, skeleton, type Skeleton, Undecided } from 'skeleton';
+import {
+	expressionsOf,
+	helpers,
+	skeleton,
+	type Skeleton,
+	timed,
+	timedSync,
+	timings,
+	Undecided,
+} from 'skeleton';
 
 /**
  * One route: the URL it answers at, and the component the document is rendered from.
@@ -134,19 +143,23 @@ export async function prepare(
 	// refuses markup nobody taught the compiler; `bundle` refuses a name nothing binds. An
 	// unsupported construct usually binds names of its own, so resolving names first reports the
 	// name and hides the construct that bound it.
-	const rendered = await skeleton(entry, root, fixed, decided);
+	const rendered = await timed('skeleton (walk + renders)', () =>
+		skeleton(entry, root, fixed, decided),
+	);
 	// Run for its refusals as much as for its result: it is the pass that says every name resolves,
 	// over the whole tree the entry reaches rather than over the entry alone.
-	const markup = bundle(entry, root);
+	const markup = timedSync('bundle (name resolution)', () => bundle(entry, root));
 	return {
 		id: idOf(resolve(root), entry),
 		file: entry,
 		source,
 		markup,
 		skeleton: rendered,
-		carried: await carry(
-			entry,
-			new Map([...carriedBy(root, expressionsOf(rendered)), ['*', helpers(rendered)]]),
+		carried: await timed('carry (derivation bundle)', () =>
+			carry(
+				entry,
+				new Map([...carriedBy(root, expressionsOf(rendered)), ['*', helpers(rendered)]]),
+			),
 		),
 	};
 }
@@ -249,7 +262,9 @@ export async function compile(options: Options): Promise<Report[]> {
 		}
 	}
 
-	const lowered = lower(prepared.map((one) => [one.id, JSON.stringify(one.skeleton)] as const));
+	const lowered = timedSync('lower (wasm)', () =>
+		lower(prepared.map((one) => [one.id, JSON.stringify(one.skeleton)] as const)),
+	);
 	for (const [at, one] of lowered.entries()) {
 		if (one !== undefined && 'error' in one) refusals.push(`${one.name}: ${one.error}`);
 		else if (one === undefined) refusals.push(`${prepared[at]?.id ?? '?'}: nothing came back`);
@@ -334,6 +349,13 @@ export async function compile(options: Options): Promise<Report[]> {
 		resolve(server, 'manifest.json'),
 		`${JSON.stringify({ expressions, routes }, null, '\t')}\n`,
 	);
+	// Where the time went, when asked for: a compile nests a walk inside a render inside a stage,
+	// and which of them costs what has to be measured rather than reasoned about. See spec/build.md.
+	if (process.env['SEAM_TIME'] !== undefined) {
+		const report = timings();
+		if (report !== '') console.error(`[seam] where the time went:\n${report}`);
+	}
+
 	return reports;
 }
 

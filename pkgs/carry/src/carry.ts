@@ -25,9 +25,24 @@ export type Bundler = (entry: string, source: string) => Promise<string>;
 
 let bundler: Bundler | null = null;
 
+/**
+ * What has already been bundled in this configuration, by the module the bundler is handed.
+ *
+ * A bundle is a pure function of that module and of how specifiers resolve, and one route's
+ * structures nearly always hand over the same one: what a structure changes is which branch the
+ * bytes came from, not which functions the expressions call. Bundling it once per structure was
+ * the largest cost in a compile -- press has seven routes and made one nested Vite build per
+ * structure, each of which reruns the project's whole plugin chain, at one to two minutes each.
+ * See spec/build.md.
+ */
+const bundled = new Map<string, string>();
+
 /** Bundles through the given bundler from now on, or through rolldown again when given null. */
 export function configureCarry(given: Bundler | null): void {
 	bundler = given;
+	// A bundle made by one bundler is not a bundle made by another, and the checks drive this
+	// from several configurations in one process.
+	bundled.clear();
 }
 
 /** The entry as a module the bundler can load, since it was never written anywhere. */
@@ -96,6 +111,12 @@ export async function carry(
 	lines.push(`export const files = { ${objects.join(', ')} };`);
 	const source = lines.join('\n');
 
+	// The aliases are in the key because they decide what a specifier resolves to, and the entry
+	// because resolution is relative to it. Everything else the result depends on is in `source`.
+	const key = JSON.stringify([entry, source, currentAliases()]);
+	const held = bundled.get(key);
+	if (held !== undefined) return held;
+
 	// Resolved and joined by the project's bundler where there is one, then wrapped here: what comes
 	// back imports nothing, so wrapping it is a format change and not a resolution.
 	const contents = bundler === null ? source : await bundler(entry, source);
@@ -121,6 +142,7 @@ export async function carry(
 		const { output } = await bundle.generate({ format: 'iife', name: NAME, minify: false });
 		const [chunk] = output;
 		if (chunk === undefined) throw new Error(`nothing came out of bundling ${file}`);
+		bundled.set(key, chunk.code);
 		return chunk.code;
 	} finally {
 		await bundle.close();

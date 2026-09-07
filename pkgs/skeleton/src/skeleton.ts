@@ -3,6 +3,7 @@ import { basename, relative, resolve as resolvePath } from 'node:path';
 import { type Carried, resolved } from 'ast';
 import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
+import { timed, timedSync } from './timing.ts';
 import { renderRewritten, shippable } from './render.ts';
 import { dead, filled, outcomes, probed } from './resolve.ts';
 import type { Block, Rendered, Skeleton } from './shape.ts';
@@ -81,16 +82,8 @@ export async function skeleton(
 
 	// The first branch of every if, and every each with one item. An if with no `{:else if}` has
 	// only that branch, so this is what "everything taken" used to mean.
-	const baseline = rewrite(
-		source,
-		(_block, branch) => branch === 0,
-		file,
-		root,
-		false,
-		fixed,
-		decided,
-		told,
-		mute,
+	const baseline = timedSync('  walk (rewrite)', () =>
+		rewrite(source, (_block, branch) => branch === 0, file, root, false, fixed, decided, told, mute),
 	);
 
 	// After the walk, not before it. Every name has to come from somewhere -- this pass renders
@@ -120,13 +113,8 @@ export async function skeleton(
 	if (process.env['SEAM_TRACE_SOURCE'] !== undefined) {
 		console.error(`[seam] entry ${basename(file)} rewritten:\n${baseline.rewritten}\n`);
 	}
-	const rendered = await renderRewritten(
-		file,
-		baseline.rewritten,
-		root,
-		baseline.copies,
-		given,
-		baseline.fresh,
+	const rendered = await timed('  render (svelte SSR)', () =>
+		renderRewritten(file, baseline.rewritten, root, baseline.copies, given, baseline.fresh),
 	).catch((error: unknown) => {
 		const why = baseline.missed
 			.map((one) => `  ${basename(one.file)}: ${one.reason.replace(/\s+/g, ' ')}`)
@@ -196,14 +184,11 @@ export async function skeleton(
 			const forced = new Map(block.within ?? []);
 			const chosen = (index: number, at: number) =>
 				index === block.index ? at === branch : at === (forced.get(index) ?? 0);
-			const flipped = rewrite(source, chosen, file, root, false, fixed, decided, told, mute);
-			const other = await renderRewritten(
-				file,
-				flipped.rewritten,
-				root,
-				flipped.copies,
-				given,
-				flipped.fresh,
+			const flipped = timedSync('  walk (rewrite)', () =>
+				rewrite(source, chosen, file, root, false, fixed, decided, told, mute),
+			);
+			const other = await timed('  render (svelte SSR)', () =>
+				renderRewritten(file, flipped.rewritten, root, flipped.copies, given, flipped.fresh),
 			);
 			// The ids of the components the walk did not enter are numbered by this render, so they
 			// are read back out of it rather than held in the one list every render shares.

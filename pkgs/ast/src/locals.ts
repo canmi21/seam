@@ -326,11 +326,69 @@ function assigned(block: unknown, names: ReadonlySet<string>): Set<string> {
  * reaches the payload", which is the safe answer and the wrong one here, and a value that was the
  * same every request got a marker planted in it and was handed to a package as a string.
  */
-function parsed(expression: string): Node {
-	return parse(`<script lang="ts"></script>{${expression}}`, {
-		modern: true,
-	}) as unknown as Node;
+export function parsed(expression: string): Node {
+	const held = trees.get(expression);
+	if (held !== undefined) {
+		if (held instanceof Error) throw held;
+		return held;
+	}
+	try {
+		const tree = parse(`<script lang="ts"></script>{${expression}}`, {
+			modern: true,
+		}) as unknown as Node;
+		trees.set(expression, tree);
+		return tree;
+	} catch (error) {
+		// The failure is cached too, because the callers all catch one and an expression that does
+		// not parse is asked about as often as one that does.
+		trees.set(expression, error as Error);
+		throw error;
+	}
 }
+
+/**
+ * Every expression this process has parsed, by its source.
+ *
+ * Parsing is where a compile spent its time: measured on one real application, the walk was 88% of
+ * a 425-second compile, and a walk asks these questions of every expression it meets -- what it
+ * reads, whether it mentions the payload, what path it is. The walk runs once per render and a
+ * route renders hundreds of times, so one expression was parsed hundreds of times into the same
+ * tree. Svelte's parser builds a whole component AST for each one, since an expression is read as
+ * the component it would be the whole of.
+ *
+ * The tree is handed out shared, which is sound because every caller here only reads it -- none
+ * writes to a node. The map is bounded by the number of distinct expressions a compile produces,
+ * not by the number of walks, which is the whole point. See spec/build.md.
+ */
+const trees = new Map<string, Node | Error>();
+
+/**
+ * A whole component, parsed, by its source.
+ *
+ * The same memo one level up. A walk parses the entry and every component it enters, and it runs
+ * once per render -- so a route with a hundred components and five hundred renders parsed fifty
+ * thousand components into a few hundred distinct trees. The walk writes nothing into an AST: what
+ * it produces is a list of `[start, end, text]` edits against the source, which is why the tree can
+ * be handed out shared. The map is bounded by the number of distinct component sources a compile
+ * meets, which is the project's files and the packages it enters. See spec/build.md.
+ */
+export function parsedComponent(source: string): Node {
+	const held = sources.get(source);
+	if (held !== undefined) {
+		if (held instanceof Error) throw held;
+		return held;
+	}
+	try {
+		const tree = parse(source, { modern: true }) as unknown as Node;
+		sources.set(source, tree);
+		return tree;
+	} catch (error) {
+		sources.set(source, error as Error);
+		throw error;
+	}
+}
+
+const sources = new Map<string, Node | Error>();
 
 /**
  * A lookup in an object literal, `({ a: A, b: B })[key]`, written as the choice it is:

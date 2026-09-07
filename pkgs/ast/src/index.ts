@@ -14,6 +14,8 @@ export {
 	literalOf,
 	type Locals,
 	locals,
+	parsed,
+	parsedComponent,
 	mentions,
 	onlyWithin,
 	pathOf,

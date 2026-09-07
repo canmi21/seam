@@ -14,4 +14,7 @@ export {
  */
 export { configureRender, type Host } from './render.ts';
 
+/** What a compile spent where, printed by the compiler when `SEAM_TIME` is set. */
+export { forgetTimings, timed, timedSync, timings } from './timing.ts';
+
 export const appStateModule: string = fileURLToPath(new URL('./app-state.ts', import.meta.url));
