@@ -12,7 +12,7 @@ export {
  * Where the render's `$app/state` sits, for a check that renders a reference with the same
  * module: Kit's plugin provides the real one, and nothing outside a Vite build has it.
  */
-export { configureRender, type Host } from './render.ts';
+export { configureRender, type Host, rememberedCodegen } from './render.ts';
 
 /** What a compile spent where, printed by the compiler when `SEAM_TIME` is set. */
 export { forgetTimings, timed, timedSync, timings } from './timing.ts';

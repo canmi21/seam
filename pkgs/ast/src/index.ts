@@ -16,6 +16,7 @@ export {
 	locals,
 	parsed,
 	parsedComponent,
+	remembered,
 	mentions,
 	onlyWithin,
 	pathOf,

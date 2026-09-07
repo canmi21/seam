@@ -16,8 +16,8 @@
  */
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
-import { bundle, configureAliases, type Bundle } from 'ast';
-import { carriedBy, carry } from 'carry';
+import { bundle, configureAliases, remembered, type Bundle } from 'ast';
+import { carriedBy, carry, rememberedBundles } from 'carry';
 import { lower } from 'lowering';
 import { aliases } from 'routes';
 import {
@@ -37,6 +37,7 @@ import {
 	timed,
 	timedSync,
 	timings,
+	rememberedCodegen,
 	Undecided,
 } from 'skeleton';
 
@@ -354,6 +355,16 @@ export async function compile(options: Options): Promise<Report[]> {
 	if (process.env['SEAM_TIME'] !== undefined) {
 		const report = timings();
 		if (report !== '') console.error(`[seam] where the time went:\n${report}`);
+		// What the memos hold, beside what the process holds: a memo is memory traded for time, and
+		// the trade is only visible with both numbers. See spec/build.md.
+		const { expressions, components } = remembered();
+		const heap = process.memoryUsage();
+		console.error(
+			`[seam] what it remembered: ${String(expressions)} expression tree(s), ` +
+				`${String(components)} component tree(s), ${String(rememberedCodegen())} compile(s), ` +
+				`${String(rememberedBundles())} bundle(s); heap ${String(Math.round(heap.heapUsed / 1e6))}MB ` +
+				`of ${String(Math.round(heap.rss / 1e6))}MB resident`,
+		);
 	}
 
 	return reports;

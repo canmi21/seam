@@ -124,6 +124,11 @@ let generation = 0;
  */
 const compiled = new Map<string, string>();
 
+/** How many compiles the memo above holds. */
+export function rememberedCodegen(): number {
+	return compiled.size;
+}
+
 /**
  * Svelte's server codegen, run once per distinct set of arguments rather than once per render.
  *

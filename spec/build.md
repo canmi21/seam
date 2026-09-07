@@ -432,9 +432,28 @@ Node cannot forget, so the capability is optional by construction.
 
 Measured, against the same compile with the same caches: the peak went from about 9.2GB to 7.3GB,
 the curve stopped climbing monotonically and fell back to 6.4GB, and the compile took the same
-time, so the invalidation is free. **It is not the whole of the retention**, and where the rest
-sits is not yet known -- Vite holds evaluated modules in more than one place, and the caches above
-hold a tree per distinct expression, which nothing has yet measured the size of.
+time, so the invalidation is free. **It is not the whole of the retention**, and the rest was
+measured by turning the memos off rather than reasoned about.
+
+**A memo is memory traded for time, and each trade is priced separately.** The two that hold trees
+were switched off together and then one at a time, on a machine with nothing else on it:
+
+| | walk | live heap |
+| --- | --- | --- |
+| neither | 372.6s | 2785MB |
+| an expression's tree | 259.5s | 3828MB |
+| and a whole component's | ~232s | 5751MB |
+
+So an expression's tree buys 113 seconds for a gigabyte and a whole component's buys 27 more for
+nearly two. **The second is refused**: a compile that cannot run in CI is worse than one that takes
+ten per cent longer, and the reason it looked worth taking -- that a walk parses a route's hundred
+components once per render, fifty thousand times over -- turned out to be true and not to be where
+the time was. The measurement is kept beside the function, so that the same intuition does not add
+it back.
+
+What that leaves is about 2.8GB of live heap that is the compile itself, under a resident 6.3GB
+that barely moves between the three rows: the difference is heap V8 has grown and not returned,
+which is churn rather than retention, and which tracks the limit the process was given.
 
 What would bound the rest is a render's heap dying with the thing that made it: a render is a pure
 function from a source and a payload to bytes, and a worker that compiles one route and exits

@@ -177,3 +177,8 @@ function restate(one: Carried, alias: string): string {
 	const name = /^[A-Za-z_$][\w$]*$/.test(exported) ? exported : JSON.stringify(exported);
 	return `import { ${name} as ${alias} } from ${from};`;
 }
+
+/** How many bundles the memo above holds. */
+export function rememberedBundles(): number {
+	return bundled.size;
+}

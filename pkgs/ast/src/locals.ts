@@ -327,6 +327,9 @@ function assigned(block: unknown, names: ReadonlySet<string>): Set<string> {
  * same every request got a marker planted in it and was handed to a package as a string.
  */
 export function parsed(expression: string): Node {
+	if (process.env['SEAM_NO_MEMO'] !== undefined) {
+		return parse(`<script lang="ts"></script>{${expression}}`, { modern: true }) as unknown as Node;
+	}
 	const held = trees.get(expression);
 	if (held !== undefined) {
 		if (held instanceof Error) throw held;
@@ -365,30 +368,18 @@ const trees = new Map<string, Node | Error>();
 /**
  * A whole component, parsed, by its source.
  *
- * The same memo one level up. A walk parses the entry and every component it enters, and it runs
- * once per render -- so a route with a hundred components and five hundred renders parsed fifty
- * thousand components into a few hundred distinct trees. The walk writes nothing into an AST: what
- * it produces is a list of `[start, end, text]` edits against the source, which is why the tree can
- * be handed out shared. The map is bounded by the number of distinct component sources a compile
- * meets, which is the project's files and the packages it enters. See spec/build.md.
+ * **Not memoised, and that is the measurement rather than an omission.** Remembering these was
+ * tried, on the reading that a walk parses the entry and everything it enters once per render and
+ * so parses a route's hundred components fifty thousand times. It bought twelve seconds of a
+ * two-hundred-and-thirty-second walk -- five per cent -- and held three hundred and eighty-one
+ * whole-component trees, which measured as the larger part of three gigabytes of live heap. A
+ * compile that cannot run in CI is worse than one that takes five per cent longer, so the trade is
+ * refused here and taken one level down, where an expression's tree is small and the saving is
+ * forty per cent. See spec/build.md.
  */
 export function parsedComponent(source: string): Node {
-	const held = sources.get(source);
-	if (held !== undefined) {
-		if (held instanceof Error) throw held;
-		return held;
-	}
-	try {
-		const tree = parse(source, { modern: true }) as unknown as Node;
-		sources.set(source, tree);
-		return tree;
-	} catch (error) {
-		sources.set(source, error as Error);
-		throw error;
-	}
+	return parse(source, { modern: true }) as unknown as Node;
 }
-
-const sources = new Map<string, Node | Error>();
 
 /**
  * A lookup in an object literal, `({ a: A, b: B })[key]`, written as the choice it is:
@@ -1016,4 +1007,9 @@ export function locals(
 			).values(),
 		],
 	};
+}
+
+/** How many trees the two memos above hold, which is what a compile trades memory for. */
+export function remembered(): { expressions: number; components: number } {
+	return { expressions: trees.size, components: 0 };
 }
