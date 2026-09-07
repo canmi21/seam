@@ -2239,7 +2239,7 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 				{
 					name: 'svelte',
 					load(id) {
-						if (/\.svelte$/.test(id)) {
+						if (id.endsWith('.svelte')) {
 							return compile(readFileSync(id, 'utf8'), {
 								generate: 'server',
 								name: basename(id, '.svelte'),
