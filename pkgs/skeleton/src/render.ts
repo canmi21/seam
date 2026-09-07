@@ -56,6 +56,17 @@ export interface Host {
 	staging: string;
 	/** Whether the host resolves what Node cannot, so that nothing is rewritten for it. */
 	bundler: boolean;
+	/**
+	 * Drops what the host holds for the named files, which a render's copies are as soon as it ends.
+	 *
+	 * A render stages its copies under names no other render uses, because `import()` caches by URL
+	 * and two renders of one component would otherwise be the same module. The other half of that is
+	 * that the host then holds every one of them for ever, and a route renders hundreds of times. A
+	 * host that can forget a module says so here; Node cannot, and leaves this undefined. Only the
+	 * copies are named, never what the project itself imports, so the project stays loaded once.
+	 * See spec/build.md.
+	 */
+	forget?: (files: readonly string[]) => void;
 }
 
 const NODE: Host = {
@@ -281,6 +292,8 @@ export async function renderRewritten(
 		);
 		return { body, head };
 	} finally {
+		// Before the files go, since a host may want to look one up by its path.
+		host.forget?.([...emitted.values()]);
 		rmSync(staging, { recursive: true, force: true });
 	}
 }

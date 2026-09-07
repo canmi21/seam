@@ -423,10 +423,24 @@ where one value completed. And [pipeline.md](pipeline.md) describes enumerating 
 values, which on this curve does not finish -- so the model that file sets out is not currently
 reachable at the size it is written for.
 
-What bounds it is not another cache. It is a render's heap dying with the thing that made it: a
-render is a pure function from a source and a payload to bytes, and a worker that renders one
-route and exits takes every module it loaded with it. Vite can also invalidate what it holds,
-which Node cannot, so the two hosts do not have the same fix available. Neither is built.
+**Half of it is a host forgetting, and that half is built.** A host says whether it can drop a
+module, and Vite's can: the SSR module graph is told about exactly the copies a render staged --
+never about what the project itself imports, or the project would be transformed again per render
+-- and Node's host leaves it undefined, because its ESM registry has no eviction at all. That the
+two hosts differ here is not an omission to tidy up: the fresh name per render exists *because*
+Node cannot forget, so the capability is optional by construction.
+
+Measured, against the same compile with the same caches: the peak went from about 9.2GB to 7.3GB,
+the curve stopped climbing monotonically and fell back to 6.4GB, and the compile took the same
+time, so the invalidation is free. **It is not the whole of the retention**, and where the rest
+sits is not yet known -- Vite holds evaluated modules in more than one place, and the caches above
+hold a tree per distinct expression, which nothing has yet measured the size of.
+
+What would bound the rest is a render's heap dying with the thing that made it: a render is a pure
+function from a source and a payload to bytes, and a worker that compiles one route and exits
+takes every module it loaded with it. That is the fix that works for both hosts, and it has to be
+serial to be worth having -- seven workers each with a Vite server of its own would raise the peak
+rather than lower it, trading the memory for a parallelism nobody asked for. Not built.
 
 ## Packaging is about the program, not the artifacts
 

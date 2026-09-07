@@ -147,6 +147,17 @@ export function seam(options: Options = {}): Plugin {
 				module: (specifier) => loader.ssrLoadModule(specifier),
 				staging: resolve(out, 'staged'),
 				bundler: true,
+				// Vite can drop a module and Node cannot, which is the whole difference between the
+				// two hosts here: the copies a render stages are named for that render alone and are
+				// dead the moment it ends, so the graph is told about exactly those and about nothing
+				// the project itself imports. Without it the SSR graph holds every copy of every
+				// render for the life of the build. See spec/build.md.
+				forget: (files) => {
+					const graph = loader.environments.ssr.moduleGraph;
+					for (const file of files) {
+						for (const held of graph.getModulesByFile(file) ?? []) graph.invalidateModule(held);
+					}
+				},
 			});
 			// What a derivation calls is bundled by the project's Vite as well, one build per route,
 			// with everything inlined: the evaluator has no module system. Kit's plugins stay out of
