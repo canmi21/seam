@@ -8,16 +8,26 @@ the same kind of thing for all of them.
 
 **In principle every way of writing Svelte has to compile.** There is no question of whether a
 construct *deserves* to be refused, and a refusal is never a judgement that somebody wrote
-something the wrong way. Every entry in this file is a gap in the work, and the work is finished
-when the file has nothing left in it.
+something the wrong way. Nearly every entry in this file is a gap in the work, and the work is
+finished when the file has nothing left in it but the exception below.
+
+**Two kinds of refusal are recorded here and only one of them empties out.** A gap is a construct
+nobody has written yet, and it leaves when somebody writes it. A refusal by decision is not a gap
+and no amount of work moves it, because it is the scope line said from the inside -- the exception
+the next paragraph names, and what follows from it. [roadmap.md](roadmap.md) keeps the two in
+separate sections, a gap under **ready, and not done** or **not yet the time** and a decision
+under **decided, and not built**, so that neither is ever read as the other. Reading a decision as
+unfinished work is how "a subset of Svelte" comes to sound like a permanent boundary, and reading
+a gap as a decision is how it comes to sound like one that was chosen.
 
 **The reason is structural rather than aspirational.** This compiler is arranged the way SvelteKit
 is; what changed is *when* the render happens. So anything SvelteKit serves should be portable to
 compile-time rendering, with one exception that is a definition rather than a limit: an application
 that genuinely needs arbitrary code executed per request, against something only that request
 knows. Everything else -- an article, a form, an admin screen, a dashboard -- is in scope.
-Interaction is not the line. A dashboard that filters, sorts and opens dialogs is a page whose
-bytes are fixed and whose behaviour is the client's, which is exactly what the client half is for.
+Interaction is not the scope line. A dashboard that filters, sorts and opens dialogs is a page
+whose bytes are fixed and whose behaviour is the client's, which is exactly what the client half
+is for.
 
 **So a refusal is a research task with a known method.** Read Svelte's source, and SvelteKit's,
 find what they do with the construct at request time, and move that to compile time. Nearly every
@@ -80,15 +90,31 @@ maintained by recollection. Measured against the compiler, it was wrong in both 
 once: it called an each block with a key and `{:else}` on an each unwritten when both compiled,
 and it did not mention `{@const}`, which compiled and rendered the wrong bytes.
 
+**It went stale a second time, and in the same direction.** Four of the five rows the table used
+to hold compile today -- a snippet rendered more than once, a spread on an element, an expression
+over what an each binds, and both of the two that were called undecided -- and the table said
+otherwise for as long as nobody read it against the check. A table that lags the work always lags
+it the same way, by listing as refused what has since been taken, because that is the only
+direction the work moves. So the rows below are a reading of `refused` in the check rather than a
+list kept beside it, and a row that disagrees with the check is the row that is wrong.
+
 A list nobody runs is a claim. The check is the list, and this file keeps only the reasoning:
 
-| | |
-| --- | --- |
-| a snippet rendered twice | the body would have to stand in two places |
-| `{@render}` of a snippet from a prop | composition in the other direction; see below |
-| an expression over what an each binds | computed once against the payload; per-item is not decided |
-| `{...spread}` on an element | an unenumerable decision; see below |
-| per-item derivation, which of two titles wins | not decided |
+| | | |
+| --- | --- | --- |
+| `{@render}` of a snippet that arrived as a prop, `children` included | the body was written at the call site, which is composition in the other direction | gap |
+| a snippet passed to a component with parameters, and one the component supplies a value to | the child calls it, with what is not visible from where the snippet was written; one with no parameters has nothing to decide and compiles | gap |
+| a boundary whose pending snippet is a prop | Svelte cannot prove the prop defined, so it writes a choice per request over a snippet that arrived as a value | gap |
+| a value a child transforms, and one it takes and never writes | the bytes hold what the child computed from the prop rather than the prop, and rendering again with another value in its place is what says so | gap |
+| a component the request chooses | a structure, and this one is not enumerable | gap |
+| a head reached from a component inside a body, and a fragment that renders itself around one | the head stream has no call there | gap |
+| a block inside a table whose stylesheet relates siblings | the stamp that says which block closed cannot be text there, and the scoping class reads siblings | gap |
+| `page` imported under another name in the entry | a rename is bound at a call, and the entry has none | gap |
+| a name assigned or an object mutated after it is declared, where the statements read the request | substitution maps a name to one expression, and a program is not an expression | **decision** |
+| `await` in markup or at the top of a script | async Svelte awaits a promise per request while the bytes are written, which is the load stage's | **decision** |
+
+The last column is the split at the top of this file: a gap leaves when somebody writes it, a
+decision does not. [roadmap.md](roadmap.md) sorts the same items by what each waits on.
 
 **So "a subset of Svelte" is a statement about how far the work has got, not about where a line
 was drawn.** The subset grows, and the README should say that rather than implying a boundary
@@ -97,8 +123,9 @@ nobody has found.
 ## What is still refused is ranked in one place, by what it waits on
 
 [roadmap.md](roadmap.md) holds every construct still refused, sorted three ways: ready and not
-done, not yet the time, and blocked on the meta-framework. The line it sorts by is the one at the
-top of this file, stated once more there so that it can be checked against each item: before
+done, not yet the time, and blocked on the meta-framework. The line it sorts by is the scope line,
+which is the one at the top of this file and is stated once more there so that it can be checked
+against each item: before
 hydration the page is what SvelteKit's SSR would serve, after it a standard Svelte SPA, and the
 only thing given up is rendering the UI per request. The reasoning behind each refusal stays in
 this file; the ranking and the dependencies are there.
@@ -781,7 +808,7 @@ data is the per-request script already decided against.
 **Async Svelte is refused by decision.** `{await p}` in markup used to become a hole, and Svelte
 would then have refused the render for want of `experimental.async`. The walk now turns an
 `AwaitExpression` in markup or at the top of the script away by name: a value awaited per request
-while the bytes are written is the load stage's, and [roadmap.md](roadmap.md) has the line.
+while the bytes are written is the load stage's, and [roadmap.md](roadmap.md) has the scope line.
 
 **A fragment that writes a head is two fragments.** A recursive component with a `<svelte:head>`
 writes one head block per level, so the head IR carries the call the body does: the fragment's

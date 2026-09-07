@@ -1,9 +1,10 @@
 # The framework layer
 
-[roadmap.md](roadmap.md) draws the line: Seam is the protocol -- derive, inject, the IR and what a
-component may do -- and everything that makes a page out of a project is the framework around it.
-This file is that layer. It is SvelteKit with one step moved: the arrangement is Kit's, the code
-is Kit's wherever the code does not render, and the render is the compiler's.
+[roadmap.md](roadmap.md) draws two lines, and this file is one side of the second of them, the
+layer line: the protocol is derive, inject, the IR and what a component may do, and everything
+that makes a page out of a project is the framework around it. This file is that framework. It is
+SvelteKit with one step moved: the arrangement is Kit's, the code is Kit's wherever the code does
+not render, and the render is the compiler's.
 
 ## What SvelteKit is, seen from here
 

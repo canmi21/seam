@@ -1,5 +1,12 @@
 # What is left, and what each item waits on
 
+**Two different boundaries run through this specification and they are not the same boundary.**
+The first decides whether a thing is in scope at all; the second decides which half of the work it
+belongs to. Both have been called "the line", which is why they are named here and referred to by
+name everywhere else.
+
+## The scope line: what compile-time rendering is for
+
 The line that decides what belongs here is one sentence. **Before hydration the page is an MPA
 and has to be what SvelteKit's SSR would have served; after hydration it is a standard Svelte SPA
 and there is nothing to decide.** CTR differs from SSR in one thing only: the UI is rendered at
@@ -9,10 +16,17 @@ other way of writing Svelte is in scope, and a construct is refused only for as 
 written it, never because it is the wrong way to write Svelte. [refusals.md](refusals.md) says what
 a refusal means; this file says what is still refused and why each is where it is.
 
+## The layer line: protocol, and the framework around it
+
 Nothing here is the framework layer. Routing, the layout chain, the load stage and where request
 context sits are the meta-framework's, and this protocol is not yet the equivalent of SvelteKit;
 [framework.md](framework.md) is where that layer is taken from Kit. What is listed under
 **blocked** is blocked on that, and nothing else.
+
+The two are independent, which is the reason for naming them apart. A construct can be in scope by
+the scope line and still not be this protocol's by the layer line: the load stage is exactly that,
+kept whole and Kit's. So "not here" and "not at all" are different answers, and an item's section
+below says which one it got.
 
 Every item below was read out of Svelte 5.57's source before it was written down, and the file
 that decides it is named. That is the order of work for each: read the transform and the runtime,
@@ -80,11 +94,13 @@ store is built from props. Ready, not done, and small; waits for a component tha
 
 **A script that substitution cannot reach, reading the request.** A name reassigned or an object
 mutated after its declaration, where the statements read request data, is a program per request.
-That is the one thing this line gives up, by definition, and it stays refused by decision rather
-than by omission: building it would be carrying SSR's per-request rendering back in under another
-name. Where the statements read nothing the request decides, the render already evaluates them and
-the walk bakes the result (`wants` in `walk.ts`). Zero in press. [derivation.md](derivation.md)
-holds the reasons and the three questions that would have to be answered if the line were moved.
+That is the one thing the scope line gives up, by definition, and it stays refused by decision
+rather than by omission: building it would be carrying SSR's per-request rendering back in under
+another name. Where the statements read nothing the request decides, the render already evaluates
+them and the walk bakes the result (`wants` in `walk.ts`). Zero in press.
+[derivation.md](derivation.md)
+holds the reasons and the three questions that would have to be answered if the scope line were
+moved.
 
 **Async Svelte.** `await` in markup or at the top of a script, and the async server render that
 goes with it, await a real promise per request while the bytes are written. That is loading data,
@@ -93,7 +109,7 @@ away by name, since Svelte itself compiles one only under `experimental.async`. 
 writes the pending branch and awaits nothing, which is what `{#await}` compiles to here and is
 kept.
 
-**Several hydration roots on one page.** Out of scope by the line at the top of this file: after
+**Several hydration roots on one page.** Out of scope by the scope line: after
 hydration the page is one Svelte SPA, and Svelte hydrates one root against one payload. Astro's
 islands are a different arrangement, and [build.md](build.md) records that this artifact does not
 express it and is not going to.
@@ -127,7 +143,7 @@ every route compiles from its real root, layout and all, and matches Svelte's re
 context press's layout sets reaches the page because the two are one walk. Held against Kit
 itself too: the body a production build of press answers a request with, from its own `load`
 functions, is byte for byte what the compiled root injected with that request's data gives, on
-every route. The line at the top of this file is measured, not claimed.
+every route. The scope line at the top of this file is measured, not claimed.
 
 **Where request context sits: settled, and served.** In the root's props, the `page` Kit builds
 per request and `form`, with `params` passed down as `page.params` the way Kit's root passes it; a

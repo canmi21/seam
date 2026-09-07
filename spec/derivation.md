@@ -445,13 +445,13 @@ budget, and that is a deployment choice rather than a rule here.
   arrive with the request. That is a program run per request, which is the one thing CTR gives up
   by definition: the UI is rendered at compile time, and a component whose bytes can only be known
   by executing its script against the request is SSR's to render, not this protocol's. See
-  [roadmap.md](roadmap.md) for the line, stated once.
+  [roadmap.md](roadmap.md) for the scope line, stated once.
 
   The measurement that made the decision cheap still stands. Across 4323 real components, 15
   assign to a declared name outside a function, and **not one of them is refused by that alone**
   -- every one is also turned away by a spread, a binding or something else -- and press has none.
 
-  **If the line were ever moved**, three questions would have to be answered rather than one:
+  **If the scope line were ever moved**, three questions would have to be answered rather than one:
   `<script module>` runs once where an instance script runs per render, so a preamble that merged
   them would rebuild module state per request; the script's imports are a superset of the names
   `carry` bundles today, which follow expressions only; and a backend needs a JavaScript engine
