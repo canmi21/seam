@@ -2154,6 +2154,19 @@ const accepted: Case[] = [
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
 	{
+		// `renderer.select` in `internal/server/renderer.js` destructures `{ value, defaultValue }`
+		// off the **merged** attributes, writes neither, and compares every option against
+		// `value === undefined ? defaultValue : value`. Taking them off the tag is what stops Svelte
+		// doing that comparison a second time, and a spread's copy cannot be taken off without
+		// rewriting the object. Left half-removed it marked twice: measured on
+		// `<select {...{ defaultValue: 'b' }} defaultValue="a">`, which selected both options.
+		name: 'a spread on a `<select>`, which carries the value the options compare against',
+		says: '`<select>`',
+		source:
+			`${PROPS}<select {...{ defaultValue: 'b' }} defaultValue="a">` +
+			'<option value="a">A</option><option value="b">B</option></select>',
+	},
+	{
 		// The other side of it. `$.bind_props` assigns the child's value up where the caller passed
 		// `undefined` and the caller's props object has a setter for the key, and
 		// `transform-server.js` then renders the caller's whole template again from a fresh renderer

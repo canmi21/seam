@@ -875,6 +875,21 @@ function selection(
 	if (tag === 'select') {
 		// `renderer.select()` takes both off the attributes, writes neither, and compares the
 		// options against `value === undefined ? defaultValue : value`.
+		// A spread can carry either of them, and `renderer.select` reads them off the *merged*
+		// attributes -- so a `defaultValue` inside a spread decides the comparison exactly as a
+		// written one does, and a later attribute of the same name replaces it. Taking them off the
+		// tag is what stops Svelte's own `select()` from doing the comparison twice, and a spread's
+		// copy cannot be taken off without rewriting the object it sits in. So it is refused rather
+		// than half-removed: measured, `<select {...{ defaultValue: 'b' }} defaultValue="a">` marked
+		// both options, ours from the attribute and Svelte's own from what was left in the spread.
+		const listed = Array.isArray(node['attributes']) ? node['attributes'] : [];
+		if (listed.some((one) => isNode(one) && one['type'] === 'SpreadAttribute')) {
+			refuse(
+				'`{...spread}` on a `<select>` is not handled yet: `renderer.select` reads `value` and ' +
+					'`defaultValue` off the merged attributes and writes neither, and taking them out of ' +
+					'a spread means rewriting the object. See spec/refusals.md',
+			);
+		}
 		const value = attributeOf(node, 'value');
 		const fallback = attributeOf(node, 'defaultvalue');
 		if (value === undefined && fallback === undefined) return undefined;

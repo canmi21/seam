@@ -66,7 +66,7 @@ other way, `component-binding-parent-supercedes-child-c`, and it is counted belo
 | | | |
 | --- | --- | --- |
 | 4 | **a component `bind:` the server writes back** | Half done: the caller no longer keeps the first pass silently. See below. |
-| 5 | **a later attribute has to beat a spread's, and `value` has to reach a child's `<option>`** | `{...{ defaultValue: 'b' }} defaultValue="a"` marks both options; `bind:value {...props}` takes the binding rather than the spread; `<select value>` does not reach an `<option>` a component renders. One rule about order, one about where the select pass looks. |
+| 1 | ~~a later attribute has to beat a spread's, and `value` has to reach a child's `<option>`~~ | Four of the five were three different things. See below. |
 | 6 | **a name that holds client state is read as though the server had it** | `$state` mutated by an effect or a callback, a reactive block that runs again, an each key compared by identity. The server writes the value before any of that, and these say we write a different one. Each needs reading on its own; they are one group only in that none is markup. |
 | 3 | **entry props the walk cannot name** | a key that is a string literal -- `const { 'kebab-case': x } = $props()` -- and a rest, `...others`, which for the entry is the payload's other keys. `propsOf` returns null for the first and leaves the second unfilled. |
 | 2 | **a quoted attribute holding one expression is passed as text** | `<Widget baz='{40 + x}' />` passes `"42"` where Svelte passes `42`. Quotes around a single tag do not make it text. |
@@ -159,6 +159,29 @@ render" -- and left to the render is exactly the wrong first pass this is about.
 Four samples left, and they are the two halves not built: reading a child through a
 `<svelte:component>`, and the caller that binds a **local**, where whether it is `undefined` is
 known at compile time and the fixed point is a compile-time render rather than a refusal.
+
+### The select row was three things, and only one of them was about `<select>`
+
+`renderer.select` in `internal/server/renderer.js` destructures `{ value, defaultValue }` off the
+**merged** attributes, writes neither, and sets `select_value = value === undefined ? defaultValue
+: value` on a child renderer scope, which every `<option>` under it reads -- including one a
+component renders, since the scope is the renderer's rather than the markup's.
+
+**Three were a spread on the `<select>`, and are refused.** Taking `value` and `defaultValue` off
+the tag is what stops Svelte doing the comparison a second time, and a spread's copy cannot be
+taken off without rewriting the object it sits in. Half-removed, both comparisons ran:
+`<select {...{ defaultValue: 'b' }} defaultValue="a">` marked option `a` from the attribute and
+option `b` from what was left in the spread. Merging the spread's keys in attribute order and
+rewriting the object is the work; refusing is where it stands.
+
+**One was `bind:` after all** -- `bind-and-spread-precedence` -- and half of it is done: a
+binding's prop is pushed last now, as `push_prop(..., true)` does. What is left is inside the
+child, which takes a rest and spreads it onto an element.
+
+**One is not a `<select>` problem.** `select-value-component` puts its `<option>` in a component
+whose script is `let props = $props()` -- an identifier rather than a pattern, which `propsOf`
+cannot read -- and whose body is `{@render props.children?.()}`. It is blocked behind a render of
+a snippet that arrived as a prop, which is its own row in [refusals.md](refusals.md).
 
 ## Newly refused, found by the same run
 
