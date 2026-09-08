@@ -65,7 +65,7 @@ other way, `component-binding-parent-supercedes-child-c`, and it is counted belo
 
 | | | |
 | --- | --- | --- |
-| 8 | **a component `bind:` the server writes back** | Read out, half built. See below. |
+| 4 | **a component `bind:` the server writes back** | Half done: the caller no longer keeps the first pass silently. See below. |
 | 5 | **a later attribute has to beat a spread's, and `value` has to reach a child's `<option>`** | `{...{ defaultValue: 'b' }} defaultValue="a"` marks both options; `bind:value {...props}` takes the binding rather than the spread; `<select value>` does not reach an `<option>` a component renders. One rule about order, one about where the select pass looks. |
 | 6 | **a name that holds client state is read as though the server had it** | `$state` mutated by an effect or a callback, a reactive block that runs again, an each key compared by identity. The server writes the value before any of that, and these say we write a different one. Each needs reading on its own; they are one group only in that none is markup. |
 | 3 | **entry props the walk cannot name** | a key that is a string literal -- `const { 'kebab-case': x } = $props()` -- and a rest, `...others`, which for the entry is the payload's other keys. `propsOf` returns null for the first and leaves the second unfilled. |
@@ -130,24 +130,35 @@ no `$.bind_props` call at all and the propagation disappeared. It now writes
 with a default, without one, and for several props at once. There is a check that asks Svelte for
 both and compares.
 
-**On its own that changes nothing**, and the suite says so: 1125 identical before and after. The
-setter it needs never exists, because `unbind.ts` rewrites the parent's `bind:x={e}` to `x={e}` on
-the strength of a claim that reads "only the getter runs while the bytes are written" -- which
-`transform-server.js` shows is false. That claim is the other half, and taking it out is the work
-that remains.
+That alone changed nothing and the suite said so -- 1125 identical before and after -- because the
+setter it needs never existed: `unbind.ts` rewrote the parent's `bind:x={e}` to `x={e}` on the
+strength of a claim reading "only the getter runs while the bytes are written", which
+`transform-server.js` shows is false. **That claim is gone.** A component's binding is left as
+written, `descend()` reads both halves of it, and the caller's tag is written out as the plain
+attribute once the child has been read -- which is where the setter turns out not to be needed.
 
-**What that work has to decide, which the samples split cleanly.** Propagation fires only where
-the parent passed `undefined`, so:
+**What decides it is the child's declaration, and it is readable.** `bind_props` skips a value that
+is `undefined`, and a prop the child assigns after declaring is refused where it is declared, so
+**only a default can travel**:
 
-- The child's bound prop has **no default** and is not assigned at the top level (which is refused
-  already): nothing can propagate, and the binding compiles as it does today.
-- The parent binds a **local** -- `component-binding-aliased` is `let bar;`, `blowback-d` is a
-  `const` object -- so whether it is `undefined` is known at compile time, and the fixed point is
-  a compile-time render. These are compilable and are the reason not to refuse the row wholesale.
-- The parent binds a **prop** -- `component-binding` is `export let x` then `<Foo bind:x/>` -- and
-  whether the child's default flows up depends on whether the request sent `x`. That is a decision
-  a marker cannot stand in, so it is a structure to enumerate or a refusal, and not something to
-  bake.
+- The child's bound prop has **no default**: nothing can come back, and the binding is its getter,
+  which is a value. Compiles, and there is a case for it.
+- The child's bound prop **has one**: refused. Whether it travels is `initial_value === undefined`,
+  which is the request's answer wherever the caller binds one of its own props -- `<Foo bind:x/>`
+  in a component whose `x` is a prop writes the child's default for a request that sent nothing and
+  the request's value for one that did. Two structures, not a value a marker can stand for.
+- A child the walk **could not enter** is one whose declarations it has not read, so nothing is
+  refused there and the binding is written as the plain attribute it always was. Both answers are
+  in the corpus -- `component-binding-private-state` binds a child whose `x` is a local rather than
+  a prop and `dynamic-component-bindings-recreated` one whose prop has no default, so neither sends
+  anything back; `parent-supercedes-child-c` binds one that does, and is still wrong.
+
+The refusal is thrown past `descend`'s catch, which otherwise turns a refusal into "left to the
+render" -- and left to the render is exactly the wrong first pass this is about.
+
+Four samples left, and they are the two halves not built: reading a child through a
+`<svelte:component>`, and the caller that binds a **local**, where whether it is `undefined` is
+known at compile time and the fixed point is a compile-time render rather than a refusal.
 
 ## Newly refused, found by the same run
 

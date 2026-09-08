@@ -1767,6 +1767,22 @@ function asWritten(node: unknown, written: string, walk: Walk): string {
 	return written;
 }
 
+/**
+ * The getter half of a `bind:`, as source text: what the child is handed for the prop.
+ *
+ * `shared/component.js` writes `get x() { return <expression> }`, and for the two-function form
+ * `bind:x={(get, set)}` the getter is called, which is what `element.js` writes there too.
+ */
+function getterOf(node: AstNode, source: string): unknown {
+	const expression = node['expression'];
+	if (!isNode(expression) || expression['type'] !== 'SequenceExpression') return expression;
+	const [getter] = Array.isArray(expression['expressions']) ? expression['expressions'] : [];
+	const at = span(getter);
+	return at === null
+		? expression
+		: { type: 'Identifier', name: `(${source.slice(at[0], at[1])})()`, start: at[0], end: at[1] };
+}
+
 /** Every name a snippet's parameters bind. */
 function parameterNames(parameters: readonly unknown[]): Set<string> {
 	const names = new Set<string>();
@@ -2564,6 +2580,39 @@ function collect(node: unknown, walk: Walk): void {
 					// the render computed the trigger's label from nothing and baked it in.
 					if (given && site.payload !== null && inert(attr, expand, dynamic)) {
 						expanded(attr, source, walk, edits);
+						continue;
+					}
+					// A `bind:` on a component the walk could not enter -- one it entered returned
+					// above. `unbind.ts` leaves it as written so `descend` can read both halves, and
+					// there is no child here to read: what the child would send back is unknowable,
+					// so the setter cannot be reasoned about and the binding is written as the plain
+					// attribute it used to be rewritten to. That is the getter, which is what the
+					// bytes hold, and it is what this compiler did before the setter was understood.
+					//
+					// Not refused, though it could be. Whether anything comes back is the child's to
+					// say -- `bind_props` sends a prop up only where the child declares it with a
+					// default -- and a child this walk could not enter is one whose declarations it
+					// has not read. Both answers are in the corpus: `component-binding-private-state`
+					// binds a child whose `x` is a local rather than a prop, and
+					// `dynamic-component-bindings-recreated` one whose prop has no default, so neither
+					// sends anything back and both were already right; `parent-supercedes-child-c`
+					// binds one that does, and stays wrong. Reading the child through a
+					// `<svelte:component>` is what would tell them apart. See spec/roadmap.md.
+					if (given && isNode(attr) && attr['type'] === 'BindDirective') {
+						const name = typeof attr['name'] === 'string' ? attr['name'] : '';
+						const whole = span(attr);
+						if (whole !== null) {
+							// The getter, written as the attribute it used to be rewritten to, with a
+							// marker standing in it where the request decides the value -- which is what
+							// `collect` would have done had `unbind.ts` written the attribute itself.
+							const before = holes.length;
+							edits.push([
+								whole[0],
+								whole[1],
+								`${name}={${stands(expand(getterOf(attr, source)), walk)}}`,
+							]);
+							for (const one of holes.slice(before)) one.given = `\`<${tag}>\` as \`${name}\``;
+						}
 						continue;
 					}
 					const before = holes.length;
@@ -3387,6 +3436,8 @@ function descend(
 	// null: it is never called while the bytes are written, and leaving it unbound would make the
 	// child read a name nothing binds.
 	const bindings = new Map<string, string>();
+	/** The props the call site binds, whose value the child may send back. See below. */
+	const boundProps = new Set<string>();
 	// The props whose caller expression varies with nothing the request decides. The render is
 	// handed these as written, so the child's script gets what Svelte's own render would give it:
 	// a query client to set as context, a store, a function -- values that are not data and could
@@ -3416,6 +3467,17 @@ function descend(
 				bindings.set(key, key.startsWith('on') && key.length > 2 ? 'null' : `(${value})`);
 				order.push({ name: key });
 			}
+			continue;
+		}
+		// A `bind:` on a component, left as written by `unbind.ts` because it is a getter and a
+		// setter rather than an attribute. The getter is what the child is given, and is read the
+		// way the attribute would have been; the setter is what `bound` is collected for, checked
+		// against the child's own declaration once that is in hand below.
+		if (isNode(one) && one['type'] === 'BindDirective') {
+			const name = typeof one['name'] === 'string' ? one['name'] : '';
+			order.push({ name });
+			boundProps.add(name);
+			bindings.set(name, `(${walk.expand(getterOf(one, walk.source))})`);
 			continue;
 		}
 		if (!isNode(one) || one['type'] !== 'Attribute') return false;
@@ -3527,6 +3589,30 @@ function descend(
 		const declares = propsOf(ahead, raw);
 		if (declares === null) return rolled(walk, mark);
 		if (order.some((part) => 'spread' in part)) merged(order, declares, bindings);
+
+		// What the child sends back up, which is the half of a binding that is not an attribute.
+		// `bind_props` in `internal/server` assigns a prop back to the caller where the caller
+		// passed `undefined` and its props object has a setter for the key, and the caller then
+		// renders again -- so a child's default becomes the caller's value. Only a default can do
+		// it: a prop the child assigns after declaring is refused where it is declared, and one
+		// with nothing to send stays `undefined`, which `bind_props` skips.
+		//
+		// Refused rather than rendered, because whether it fires is `initial_value === undefined`
+		// and that is the request's answer wherever the bound expression is the request's: `<Foo
+		// bind:x/>` in a component whose own `x` is a prop writes the child's default for a request
+		// that sent nothing and the request's value for one that did, which is two structures and
+		// not a value a marker can stand for. Where the caller binds a local it is decidable and
+		// this is stricter than it needs to be; spec/roadmap.md has that half.
+		for (const one of declares) {
+			if (!boundProps.has(one.prop) || one.fallback === 'undefined') continue;
+			refuse(
+				`\`bind:${one.prop}\` on <${tag}> is a binding the child sends back: it declares ` +
+					`\`${one.prop}\` with a default, and Svelte's server assigns that default up to the ` +
+					'caller where the caller passed nothing, then renders the caller again with it. ' +
+					'Whether that happens is decided by the value the request brings, which is a ' +
+					'structure rather than a value. See spec/refusals.md',
+			);
+		}
 
 		// A component that renders itself -- through `<svelte:self>` or an import of its own file --
 		// is a fragment the runtime calls, and is walked as one: its props are names bound per
@@ -3752,6 +3838,21 @@ function descend(
 			if ('spread' in part && part.at !== null) walk.edits.push([part.at[0], part.at[1], '']);
 		}
 		for (const one of attributes) {
+			// A `bind:` is written out as the plain attribute it used to be rewritten to. The setter
+			// is not needed here: a child that could send something back was refused above, so what
+			// is left is a binding whose getter is the whole of it, and the caller's tag has to be
+			// something Svelte can evaluate like any other prop.
+			if (isNode(one) && one['type'] === 'BindDirective') {
+				const name = typeof one['name'] === 'string' ? one['name'] : '';
+				const local = declares.find((each) => each.prop === name)?.local;
+				const known = local === undefined ? undefined : partial(held, local);
+				const whole = span(one);
+				if (whole !== null && !(known === undefined && inertProps.has(name))) {
+					const placed = known === undefined ? 'null' : JSON.stringify(known);
+					walk.edits.push([whole[0], whole[1], `${name}={${placed}}`]);
+				}
+				continue;
+			}
 			if (!isNode(one) || one['type'] !== 'Attribute') continue;
 			const value = one['value'];
 			const parts = value === true ? [] : Array.isArray(value) ? value : [value];
@@ -3808,6 +3909,10 @@ function descend(
 		if (walk.asking !== true && reason.includes('stand in the head stream')) throw error;
 		// Left to Svelte, an `await` in markup would not compile at all: it is the author's to see.
 		if (walk.asking !== true && reason.includes('async Svelte')) throw error;
+		// Left to Svelte, a binding the child sends back writes the caller's markup a second time
+		// and this compiler would keep the first pass, which is bytes nobody asked for rather than
+		// a component it could not read. So it is the author's to see too.
+		if (walk.asking !== true && reason.includes('a binding the child sends back')) throw error;
 		if (walk.asking !== true && headed && walk.within.length > 0) {
 			refuse(
 				`<${tag} /> writes a \`<svelte:head>\` inside a block, so the block has to stand in the ` +

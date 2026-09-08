@@ -2127,10 +2127,35 @@ const accepted: Case[] = [
 			'{/each}</ul>',
 		data: [{ items: [{ name: 'a' }, { kids: [{ name: 'b' }] }] }, { items: [] }],
 	},
+	{
+		// A component `bind:` is a getter and a setter, and the setter only ever sends something back
+		// where the child declares the prop with a default -- `bind_props` skips `undefined`. This
+		// child has none, so nothing comes back and the binding is the getter, which is the value.
+		name: 'a component `bind:` the child sends nothing back through',
+		beside: { Kid: '<script>export let v;</script><b>{v}</b>' },
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid bind:v={data.a} /><i>{data.a}</i>',
+		data: [{ a: 'x' }, { a: '' }],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// The other side of it. `$.bind_props` assigns the child's value up where the caller passed
+		// `undefined` and the caller's props object has a setter for the key, and
+		// `transform-server.js` then renders the caller's whole template again from a fresh renderer
+		// copy. Whether that happens turns on whether the request sent the value, so it is a
+		// structure rather than something a marker can stand for. It used to compile, keep the first
+		// pass and say nothing.
+		name: 'a component `bind:` the child sends a default back through',
+		says: 'sends back',
+		beside: { Kid: '<script>export let v = "d";</script><b>{v}</b>' },
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid bind:v={data.a} /><i>{data.a}</i>',
+	},
 	{
 		// A marker may stand where a value is written and never where it decides which bytes exist.
 		// The child cannot be entered -- `<slot>` -- so the value goes to it as a marker, and the

@@ -18,6 +18,15 @@ import { OMITTED_IN_SSR } from './omitted.ts';
  * The ones that are not an attribute are refused here, each saying what it is rather than what it
  * is not. Everything the visitor drops is dropped: `bind:this`, the forty the table marks
  * `omit_in_ssr`, and `bind:value` on a `<select>` or a file input.
+ *
+ * **A component's binding is not rewritten, and the sentence above used to say it was.** On a
+ * component the pair is a getter and a setter and the setter *does* run: the child ends its render
+ * with `$.bind_props`, which assigns a value back where the caller passed `undefined` and the
+ * caller's props object has a setter for that key, and `transform-server.js` wraps a binding
+ * caller's whole template in `do { ... } while (!$$settled)` so it renders again with what came
+ * up. Written as a plain attribute there is no setter, so none of that happened and the bytes were
+ * a render short. It is left here and read by `descend()` in walk.ts, which is where the child's
+ * own declaration is in hand.
  */
 export const unbound: (given: string) => string = bySource((source) => {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
@@ -97,9 +106,14 @@ export const unbound: (given: string) => string = bySource((source) => {
 						: `(${expression}) === (${own})`;
 					edits.push([at[0], at[1], `checked={${test}}`]);
 				}
-			} else if (at !== null && value !== null) {
+			} else if (onElement && at !== null && value !== null) {
 				edits.push([at[0], at[1], `${name}={${expression}}`]);
 			}
+			// A component's binding is left as it was written, and the walk reads it. Rewriting it to
+			// a plain attribute was this file's own claim that only the getter runs, which
+			// `transform-server.js` says otherwise: the setter assigns back and clears `$$settled`,
+			// and the parent's whole template renders again from a fresh renderer copy until it
+			// settles. Dropping the setter dropped that, silently. See `descend()` in walk.ts.
 		}
 
 		for (const one of Object.values(node)) walk(one, inside);
