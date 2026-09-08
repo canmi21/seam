@@ -329,14 +329,29 @@ express it and is not going to.
 
 ## Not yet the time
 
-**Slots.** `<slot>`, `let:` and `<svelte:fragment>`, the legacy spelling of snippets. The plan
-was to rewrite them to snippets the way `export let` is rewritten to `$props()`, and it was
-measured before it was written: **the bytes differ**. `$.slot` in `internal/server/index.js`
-writes `<!--[-->` and `<!--]-->` around what fills a slot and around its fallback, where a
-`{@render}` writes none, and an element with `slot="x"` keeps the attribute in the output. So a
-slot is a block of its own in the walk, read out of `SlotElement.js`, with the fallback as an
-alternate and `let:` as its parameters -- the snippet machinery's shape with different anchors.
-Deprecated upstream and absent from runes-mode libraries; taken when a real component needs it.
+**Slots: done.** `<slot>`, `let:` and `<svelte:fragment>`. The plan had been to rewrite them into
+snippets, and the note here said the bytes differ so a slot would need a block of its own with the
+fallback as an alternate. It needed neither, and the reason is the same one that makes composition
+work at all: **the caller's tag still holds its children**, so the copy the walk renders is handed
+them exactly as the original would have been, and Svelte's own `$.slot` writes the anchors, picks
+the fill or the fallback, and passes the props. What the walk had to do was stop refusing and walk
+whichever of the two actually renders, in the scope it was written in.
+
+Three rules, each read out of `SlotElement.js` and `build_inline_component`:
+
+- The caller's children are grouped by a literal `slot="x"`, everything else to the default group,
+  which `hands()` now does the way `handedTo()` already did for the probe.
+- A `<svelte:fragment>` writes nothing of its own; it carries a `slot=` and its `let:` directives.
+- A `let:` name is bound by the slot rather than read from the caller's scope, so it shadows a
+  declaration of the same name there -- and it reads **the expression the `<slot>` passed under
+  that prop**, expanded in the child's scope. That last part is what makes
+  `<slot {thing}/>` inside an `{#each}` bind per iteration: bound to itself instead, the compile
+  time render's one iteration was baked and every row wrote the same value.
+
+The family went from 71 refusals to 8. What is left is a `let:` taking a pattern apart, a spread on
+a `<slot>` (both refused by name, since the props a `let:` pairs against cannot then be listed),
+and three that compile and are wrong: a named slot with a `let:`, a spread on the component, and a
+component that renders itself through one.
 
 `$:` is not a legacy question: on the server it is a plain statement run once, and one that
 assigns a declared name from request data is the per-request script decided against above.

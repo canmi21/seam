@@ -153,6 +153,18 @@ export interface Given {
 	edits: [number, number, string][];
 	snippets: ReadonlyMap<string, Snippet>;
 	site: Site;
+	/**
+	 * Names `let:` binds on this group, which the component supplies when it renders the slot.
+	 *
+	 * `build_inline_component` gives each slot function a second parameter, an object pattern built
+	 * from the group's `let:` directives, and `$.slot` calls it with the props written on the
+	 * `<slot>`. So the caller's markup reads names whose values the child decides, and what it
+	 * reads them as is the expression the `<slot>` passed under that prop: `let:thing={x}` over
+	 * `<slot {thing}/>` inside an each makes `x` the each's item, per iteration.
+	 *
+	 * Keyed by the slot's prop name, valued by the name the caller bound it to.
+	 */
+	handed: ReadonlyMap<string, string>;
 }
 
 /**
@@ -595,6 +607,10 @@ const INERT = new Set([
 	// nothing on the server calls it, and an element's is not visited at all.
 	'AttachTag',
 	'DebugTag',
+	// Read where the caller's markup is grouped, not where it is written: a `let:` names what the
+	// component supplies to the slot it belongs to, and `hands()` collects it. `build_inline_component`
+	// puts it in the slot function's parameter and writes nothing for it here. See `Given.handed`.
+	'LetDirective',
 ]);
 
 /**
@@ -605,13 +621,10 @@ const INERT = new Set([
  * A refusal that says only that something is wrong has failed.
  */
 const REFUSED: Record<string, string> = {
-	SvelteFragment: '`<svelte:fragment>` is not handled yet',
-	SlotElement: '`<slot>` is not handled yet. Snippets replaced it, and neither is written',
 	BindDirective:
 		'this `bind:` is one the server writes, and the value has nowhere to be planted: `bind:` ' +
 		'takes a name rather than an expression, so a marker cannot stand where the value goes. The ' +
 		'bindings that write nothing are handled',
-	LetDirective: '`let:` is not handled yet. It belongs with slots, and neither is written',
 };
 
 /**
@@ -1886,6 +1899,19 @@ function reading(child: AstNode): string | null {
 }
 
 /** The slot a child is written into, told by a literal `slot="x"` the way Svelte tells. */
+/** A literal attribute's text, or null where it is absent or not written as text. */
+function attributeText(node: AstNode, name: string): string | null {
+	for (const one of Array.isArray(node['attributes']) ? node['attributes'] : []) {
+		if (!isNode(one) || one['type'] !== 'Attribute' || one['name'] !== name) continue;
+		const parts = Array.isArray(one['value']) ? one['value'] : [one['value']];
+		const [only] = parts;
+		if (isNode(only) && only['type'] === 'Text' && typeof only['data'] === 'string') {
+			return only['data'];
+		}
+	}
+	return null;
+}
+
 function slotOf(node: AstNode): string | null {
 	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
 	for (const one of attributes) {
@@ -2378,6 +2404,77 @@ function collect(node: unknown, walk: Walk): void {
 
 		case 'Text':
 			return;
+
+		case 'SvelteFragment': {
+			// A wrapper that writes nothing of its own: it exists to carry a `slot=` and its `let:`
+			// directives, which the caller's grouping already read. Its children are the group.
+			step(node['fragment']);
+			return;
+		}
+
+		case 'SlotElement': {
+			// `SlotElement.js` writes `block_open`, `$.slot(...)`, `block_close`, and `$.slot` calls
+			// what the caller put under this name in `$$slots` or, where the caller put nothing, the
+			// element's own children as the fallback. Both anchors and the call stay in the source
+			// for Svelte to render -- the caller's tag still holds its children, so the copy is
+			// handed them exactly as the original would have been. What is walked here is whichever
+			// of the two actually renders, in the scope it was written in.
+			// A spread on the `<slot>` is merged into the props it passes -- `SlotElement.js` writes
+			// `$.spread_props` -- and what each `let:` name then reads is a key of an object nobody
+			// here can list. Refused rather than paired against the written attributes alone.
+			if (
+				(Array.isArray(node['attributes']) ? node['attributes'] : []).some(
+					(one) => isNode(one) && one['type'] === 'SpreadAttribute',
+				)
+			) {
+				refuse(
+					'`{...spread}` on a `<slot>` is merged into what it passes, and a `let:` reading one ' +
+						'of those names cannot be paired with the attribute it came from. See spec/refusals.md',
+				);
+			}
+			const named = attributeText(node, 'name') ?? 'children';
+			const handed = site.given.get(named);
+			if (handed === undefined) {
+				// The fallback, which is this component's own markup in this component's scope.
+				step(node['fragment']);
+				return;
+			}
+			// A `let:` name is bound by the slot, not read from the caller's scope, so it shadows a
+			// declaration of the same name there: `<Counter let:count>{count}</Counter>` writes what
+			// the child supplies even where the caller has a `count` of its own. Bound to itself, so
+			// the expansion leaves the name alone -- and nothing stands for it, because the render
+			// has the real value: the caller's tag still holds this markup and Svelte passes the
+			// slot props to it, so what the component supplies is the component's own bytes.
+			// Each `let:` name reads what the `<slot>` passed under that prop, expanded here in this
+			// component's scope -- so an each's item stays the each's item and is bound per
+			// iteration rather than baked at whatever the compile-time render happened to hold.
+			const shadow = new Map<string, string>();
+			for (const [prop, local] of handed.handed) {
+				const passed = (Array.isArray(node['attributes']) ? node['attributes'] : []).find(
+					(one): one is AstNode =>
+						isNode(one) && one['type'] === 'Attribute' && one['name'] === prop,
+				);
+				// A prop the slot does not pass is `undefined`, which is what the pattern destructures
+				// from an object without it.
+				const written = passed === undefined ? null : valueExpression(passed, source, expand);
+				shadow.set(local, written ?? 'undefined');
+			}
+			for (const child of handed.nodes) {
+				collect(child, {
+					...walk,
+					source: handed.source,
+					edits: handed.edits,
+					expand:
+						shadow.size === 0
+							? handed.expand
+							: (one, extra) =>
+									handed.expand(one, extra === undefined ? shadow : new Map([...shadow, ...extra])),
+					snippets: handed.snippets,
+					site: handed.site,
+				});
+			}
+			return;
+		}
 
 		case 'SvelteSelf': {
 			// A call of the fragment this component is: `SvelteSelf.js` is `build_inline_component`
@@ -3545,7 +3642,6 @@ function descend(
 	// caller does not choose. Only the markup that becomes `children` is followed.
 	if (nodes.some((one) => isNode(one) && one['type'] === 'SnippetBlock')) return false;
 	// `let:` puts the markup in `$$slots` instead, on a different path through the visitor.
-	if (attributes.some((one) => isNode(one) && one['type'] === 'LetDirective')) return false;
 
 	// What the call site passes, as expressions in the caller's own terms. A handler is bound to
 	// null: it is never called while the bytes are written, and leaving it unbound would make the
@@ -3590,6 +3686,10 @@ function descend(
 		// setter rather than an attribute. The getter is what the child is given, and is read the
 		// way the attribute would have been; the setter is what `bound` is collected for, checked
 		// against the child's own declaration once that is in hand below.
+		// Not a prop: `let:` names what the component supplies to a slot, which `hands()` read off
+		// the tag when it grouped the caller's markup. `build_inline_component` puts it in the slot
+		// function's parameter and passes nothing for it.
+		if (isNode(one) && one['type'] === 'LetDirective') continue;
 		if (isNode(one) && one['type'] === 'BindDirective') {
 			const name = typeof one['name'] === 'string' ? one['name'] : '';
 			boundProps.add(name);
@@ -3943,7 +4043,7 @@ function descend(
 				runes: walk.site.runes,
 				...(recursion === null ? {} : { fragment: recursion }),
 				fragments: new Map(),
-				given: hands(walk, nodes),
+				given: hands(walk, nodes, node),
 				payload: walk.site.payload,
 				missed: walk.site.missed,
 				headed: walk.site.headed,

@@ -363,6 +363,42 @@ function markup(
  * an each block's item. It is collected before the walk rather than during it, because a render
  * tag may be written above the snippet it names.
  */
+/** Every name a `let:` binds, anywhere in the markup. See `hands()` in pkgs/skeleton. */
+function lets(node: unknown, into: Set<string>): void {
+	if (Array.isArray(node)) {
+		for (const one of node) lets(one, into);
+		return;
+	}
+	if (!isNode(node)) return;
+	if (node['type'] === 'LetDirective') {
+		// `let:x` binds `x`; `let:x={y}` binds `y`; an object or array expression is a pattern.
+		if (!isNode(node['expression'])) {
+			if (typeof node['name'] === 'string') into.add(node['name']);
+		} else {
+			names(node['expression'], into);
+		}
+		return;
+	}
+	for (const one of Object.values(node)) lets(one, into);
+}
+
+/** Every identifier in a `let:` value, which is a binding pattern where it is one. */
+function names(node: unknown, into: Set<string>): void {
+	if (Array.isArray(node)) {
+		for (const one of node) names(one, into);
+		return;
+	}
+	if (!isNode(node)) return;
+	if (node['type'] === 'Identifier' && typeof node['name'] === 'string') {
+		into.add(node['name']);
+		return;
+	}
+	for (const [key, value] of Object.entries(node)) {
+		if (key === 'key') continue;
+		names(value, into);
+	}
+}
+
 function snippetNames(node: unknown, into: Set<string>): void {
 	if (Array.isArray(node)) {
 		for (const one of node) snippetNames(one, into);
@@ -422,9 +458,15 @@ export function bindings(source: string, file?: string): Bindings {
 		declares: declares.has,
 		...(file === undefined ? {} : { file }),
 	};
+	// A `let:` name is bound by the slot it is written on and supplied by the component that
+	// renders it, so it is the component's rather than the payload's -- the same position a
+	// snippet's parameter is in. Collected for the file rather than per element, since resolution
+	// asks only whether a name has somewhere to come from.
+	const letNames = new Set<string>();
+	lets(ast['fragment'], letNames);
 	// A snippet's own name, and the names its parameters bind, are the component's rather than the
 	// payload's. See spec/refusals.md.
-	const scope = new Set(requested(ast['instance']));
+	const scope = new Set([...requested(ast['instance']), ...letNames]);
 	snippetNames(ast['fragment'], scope);
 	markup(ast['fragment'], source, scope, found, carried);
 	const used = [...carried.used]

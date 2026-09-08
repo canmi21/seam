@@ -382,29 +382,90 @@ export function identity(file: string, at: number): string {
 }
 
 /**
- * What the caller hands the child: its markup, under the name Svelte gives it.
+ * What the caller hands the child: its markup, grouped the way `build_inline_component` groups it.
  *
- * `children`, and only that. Svelte builds it as an arrow function and passes it under that name
- * unless the caller wrote a `children` prop of its own, in which case the markup goes to
- * `$$slots` and this is not it.
+ * A child carrying a literal `slot="x"` goes to the group `x`, everything else to the default one
+ * -- which is `children` here, the name `{@render children()}` reads and the name a `<slot>` with
+ * no `name` looks up. Svelte passes the default group as the `children` prop and the named ones as
+ * `$$slots`, and `$.slot` reaches both.
+ *
+ * Each group also carries the names `let:` binds on it: the directives written on the component's
+ * own tag belong to the default group, and those on a child with `slot="x"` to that one. Their
+ * values are the component's, supplied when it renders the slot. See `Given.handed`.
  */
-export function hands(walk: Walk, nodes: readonly unknown[]): ReadonlyMap<string, Given> {
+export function hands(
+	walk: Walk,
+	nodes: readonly unknown[],
+	tag?: AstNode,
+): ReadonlyMap<string, Given> {
 	if (nodes.length === 0) return new Map();
-	const here = new Map<string, Snippet>();
-	snippetsIn(nodes, here);
-	return new Map([
-		[
-			'children',
-			{
-				source: walk.source,
-				nodes: [...nodes],
-				expand: walk.expand,
-				edits: walk.edits,
-				snippets: here,
-				site: walk.site,
-			},
-		],
-	]);
+	const grouped = new Map<string, unknown[]>();
+	const lets = new Map<string, Map<string, string>>();
+	const bind = (name: string, node: AstNode): void => {
+		const held = lets.get(name) ?? new Map<string, string>();
+		for (const one of Array.isArray(node['attributes']) ? node['attributes'] : []) {
+			if (!isNode(one) || one['type'] !== 'LetDirective') continue;
+			const prop = typeof one['name'] === 'string' ? one['name'] : '';
+			if (prop === '') continue;
+			// `let:x` binds `x` to the slot prop `x`; `let:x={y}` binds `y` to the slot prop `x`.
+			// `build_inline_component` writes the same pair into the slot function's parameter,
+			// `{ x: y }`, so what the caller reads is what the component passed under that name.
+			if (!isNode(one['expression'])) {
+				held.set(prop, prop);
+				continue;
+			}
+			const to = one['expression'];
+			if (to['type'] !== 'Identifier' || typeof to['name'] !== 'string') {
+				refuse(
+					`\`let:${prop}\` takes a pattern apart, and what each name in it reaches is not ` +
+						'something this compiler follows through a slot yet. Bind the whole value and ' +
+						'read into it. See spec/refusals.md',
+				);
+			}
+			held.set(prop, to['name']);
+		}
+		lets.set(name, held);
+	};
+	if (tag !== undefined) bind('children', tag);
+	for (const child of nodes) {
+		const named = isNode(child) ? (slotName(child) ?? 'children') : 'children';
+		const held = grouped.get(named) ?? [];
+		held.push(child);
+		grouped.set(named, held);
+		if (isNode(child) && named !== 'children') bind(named, child);
+		// A `<svelte:fragment>` with no `slot=` carries `let:` for the default group.
+		if (isNode(child) && named === 'children' && child['type'] === 'SvelteFragment') {
+			bind('children', child);
+		}
+	}
+	const found = new Map<string, Given>();
+	for (const [named, held] of grouped) {
+		const here = new Map<string, Snippet>();
+		snippetsIn(held, here);
+		found.set(named, {
+			source: walk.source,
+			nodes: held,
+			expand: walk.expand,
+			edits: walk.edits,
+			snippets: here,
+			site: walk.site,
+			handed: lets.get(named) ?? new Map<string, string>(),
+		});
+	}
+	return found;
+}
+
+/** A literal `slot="x"` on a child, which is what puts it in that group. */
+function slotName(node: AstNode): string | null {
+	for (const one of Array.isArray(node['attributes']) ? node['attributes'] : []) {
+		if (!isNode(one) || one['type'] !== 'Attribute' || one['name'] !== 'slot') continue;
+		const parts = Array.isArray(one['value']) ? one['value'] : [one['value']];
+		const [only] = parts;
+		if (isNode(only) && only['type'] === 'Text' && typeof only['data'] === 'string') {
+			return only['data'];
+		}
+	}
+	return null;
 }
 
 /**

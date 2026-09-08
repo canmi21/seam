@@ -2323,6 +2323,46 @@ const accepted: Case[] = [
 			'<p>{$own}</p><i>{$held}</i><b>{$own + 1}</b><u>{data.a}</u>',
 		data: [{ a: 'x' }, { a: '' }],
 	},
+	{
+		// `SlotElement.js` writes `block_open`, `$.slot(...)`, `block_close`, and `$.slot` calls what
+		// the caller put under this name in `$$slots` or, where the caller put nothing, the element's
+		// own children as the fallback. Both stay in the source for Svelte to render -- the caller's
+		// tag still holds its children, so the copy is handed them as the original would have been.
+		// What the walk does is walk whichever of the two renders, in the scope it was written in.
+		//
+		// A `let:` name is bound by the slot rather than read from the caller's scope, so it shadows
+		// a declaration of the same name there: `count` below is the child's, not the caller's.
+		name: 'a `<slot>`, a named one, a fallback and a `let:`',
+		beside: {
+			Card:
+				'<script>let { data } = $props(); const count = 3;</script>' +
+				'<article><slot name="head">fallback head</slot>' +
+				'<slot {count} />' +
+				'<slot name="foot">fallback foot</slot></article>',
+		},
+		source:
+			"<script>import Card from './Card.svelte'; let { data } = $props(); const count = 'outer';" +
+			'</script><Card {data} let:count>' +
+			'<h1 slot="head">{data.a}</h1>' +
+			'<p>{count}/{data.a}</p>' +
+			'</Card><i>{count}</i>',
+		data: [{ a: 'x' }, { a: '' }],
+	},
+	{
+		// A wrapper that writes nothing of its own: it carries a `slot=` and its `let:` directives,
+		// and its children are the group.
+		name: 'a `<svelte:fragment>` filling a named slot',
+		beside: {
+			Card:
+				'<script>const rows = [1, 2];</script>' +
+				'<article><slot name="body" {rows}>none</slot></article>',
+		},
+		source:
+			"<script>import Card from './Card.svelte'; let { data } = $props();</script>" +
+			'<Card><svelte:fragment slot="body" let:rows><b>{rows.length}</b><i>{data.a}</i>' +
+			'</svelte:fragment></Card>',
+		data: [{ a: 'x' }, { a: '' }],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
@@ -2416,10 +2456,12 @@ const refused: Case[] = [
 		// Measured on `runtime-legacy/component-yield-nested-if`, which passed this way.
 		name: 'a value a child the walk cannot enter branches on',
 		says: 'did not come back',
-		beside: { Gate: '<script>let { on } = $props();</script>{#if on}<slot></slot>{/if}' },
+		// The child is one the walk cannot enter -- its `$props()` is bound to a name rather than a
+		// pattern, so `propsOf` cannot read it -- and it branches on what it was handed.
+		beside: { Gate: '<script>let props = $props();</script>{#if props.on}<b>shown</b>{/if}' },
 		source:
 			"<script>import Gate from './Gate.svelte'; let { data } = $props();</script>" +
-			'<Gate on={data.on}>shown</Gate>',
+			'<Gate on={data.on} />',
 	},
 	{
 		// Async Svelte awaits a real promise per request while the bytes are written, which is
