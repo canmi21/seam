@@ -9,3 +9,7 @@ reached through one package, that lint and format leave it alone -- is the works
 | entry | upstream | reached through |
 | --- | --- | --- |
 | [`kit/`](kit/VENDOR.md) | SvelteKit, `packages/kit` at `@sveltejs/kit@2.70.2` | `pkgs/routes`; see [spec/framework.md](../spec/framework.md) |
+| [`svelte/`](svelte/VENDOR.md) | Svelte's test samples, `packages/svelte/tests` at `svelte@5.57.0` | `pkgs/suite`; see [spec/suite.md](../spec/suite.md) |
+
+`svelte/` is fixtures rather than code: nothing imports it, and it is read off the disk by the
+one task that runs it.
