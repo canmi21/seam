@@ -1808,6 +1808,36 @@ function templated(text: string): string {
 	return text.replaceAll('\\', '\\\\').replaceAll('`', '\\`').replaceAll('${', '\\${');
 }
 
+/**
+ * The names a component exports readonly: `export const`, `export function`, `export class`.
+ *
+ * Not props -- a caller cannot pass one -- but `analysis.exports` puts them in the object
+ * `$.bind_props` is given, so a caller that binds one gets the child's value back. See `descend`.
+ */
+function exportedBy(ast: AstNode): string[] {
+	const instance = ast['instance'];
+	const content = isNode(instance) ? instance['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	const found: string[] = [];
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'ExportNamedDeclaration') continue;
+		const declaration = statement['declaration'];
+		if (!isNode(declaration)) continue;
+		const id = declaration['id'];
+		if (isNode(id) && typeof id['name'] === 'string') {
+			found.push(id['name']);
+			continue;
+		}
+		for (const one of Array.isArray(declaration['declarations'])
+			? declaration['declarations']
+			: []) {
+			const held = isNode(one) ? one['id'] : undefined;
+			if (isNode(held) && typeof held['name'] === 'string') found.push(held['name']);
+		}
+	}
+	return found;
+}
+
 /** Every name a snippet's parameters bind. */
 function parameterNames(parameters: readonly unknown[]): Set<string> {
 	const names = new Set<string>();
@@ -3683,6 +3713,18 @@ function descend(
 		// that sent nothing and the request's value for one that did, which is two structures and
 		// not a value a marker can stand for. Where the caller binds a local it is decidable and
 		// this is stricter than it needs to be; spec/roadmap.md has that half.
+		// A readonly export travels too. `transform-server.js` passes `analysis.exports` to
+		// `$.bind_props` beside the bindable props, so `export const x = 42` in the child reaches a
+		// caller that binds `x` exactly as a prop's default would -- and it is not in `propsOf`,
+		// which reads `$props()`. `legacy.ts` leaves the keyword in place so this can be read.
+		for (const name of exportedBy(ahead)) {
+			if (!boundProps.has(name)) continue;
+			refuse(
+				`\`bind:${name}\` on <${tag}> is a binding the child sends back: \`${name}\` is a ` +
+					'readonly export, which `bind_props` assigns up to the caller where the caller ' +
+					'passed nothing, and the caller then renders again with it. See spec/refusals.md',
+			);
+		}
 		for (const one of declares) {
 			if (!boundProps.has(one.prop) || one.fallback === 'undefined') continue;
 			refuse(

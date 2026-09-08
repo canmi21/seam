@@ -37,16 +37,30 @@ export const runed: (given: string) => string = bySource((source) => {
 		const declaration = statement['declaration'];
 		const at = span(statement);
 		if (at === null) continue;
+		// A readonly export -- `export const`, `export function`, `export class` -- which is not a
+		// prop: a caller cannot pass one, and it reaches a caller only through `bind:this`. The
+		// declaration is an ordinary one and the markup reads it like any other name, so what has to
+		// go is the keyword rather than the component. It used to be refused outright, which turned
+		// away every component that happened to export a helper beside its props.
+		//
+		// They are in `analysis.exports`, which `transform-server.js` passes to `$.bind_props`
+		// alongside the bindable props, so a caller that binds one does get it back. That is the
+		// `bind:` question and is refused where the walk can see it; nothing here writes it.
+		const kind = isNode(declaration) ? declaration['type'] : '';
+		const held = isNode(declaration) ? declaration['kind'] : undefined;
+		const readonly =
+			kind === 'FunctionDeclaration' ||
+			kind === 'ClassDeclaration' ||
+			(kind === 'VariableDeclaration' && held !== 'let' && held !== 'var');
+		// Left exactly as written: `export const`, `export function` and `export class` are legal in
+		// runes mode, so the rewrite has nothing to do to them, and leaving them keeps the one thing
+		// that says they are exports -- which `descend()` reads when a caller binds one.
+		if (readonly) continue;
 		if (!isNode(declaration) || declaration['type'] !== 'VariableDeclaration') {
 			refuse(
-				'`export` of something other than a `let` in a component script is a readonly export, ' +
-					'which a render never writes and this compiler does not follow',
-			);
-		}
-		if (declaration['kind'] === 'const') {
-			refuse(
-				'`export const` in a component script is a readonly export, which a render never ' +
-					'writes and this compiler does not follow',
+				'`export` of something other than a declaration in a component script is not a prop ' +
+					'this compiler can name: a prop is `export let`, and a renaming export is not ' +
+					'written yet. See spec/refusals.md',
 			);
 		}
 		for (const one of Array.isArray(declaration['declarations'])

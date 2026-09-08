@@ -2258,10 +2258,37 @@ const accepted: Case[] = [
 			{ xs: [], a: '', h: '' },
 		],
 	},
+	{
+		// A readonly export is not a prop -- a caller cannot pass one, and it reaches a caller only
+		// through `bind:this` -- and it is legal in runes mode, so the legacy rewrite has nothing to
+		// do to it. It used to refuse the whole component, which turned away every one that happened
+		// to export a helper beside its props.
+		name: 'a component exporting a helper beside its props',
+		beside: {
+			Kid:
+				'<script>export let p; export const KIND = "k"; export function twice(n) { return n * 2 }' +
+				' export class Held {}</script><b>{p}{KIND}{twice(2)}</b>',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid p={data.a} />',
+		data: [{ a: 'x' }, { a: '' }],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// `transform-server.js` passes `analysis.exports` to `$.bind_props` beside the bindable
+		// props, so a readonly export reaches a caller that binds it exactly as a prop's default
+		// would, and the caller then renders again with it.
+		name: 'a component `bind:` to a readonly export',
+		says: 'readonly export',
+		beside: { Kid: '<script>export const v = 42;</script><b>{v}</b>' },
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid bind:v /><i>{data.a}</i>',
+	},
 	{
 		// A path may hold it -- the injector splits on dots and looks the segment up -- but every
 		// expression this compiler writes is JavaScript, where `kebab-case` is a subtraction. So it

@@ -183,6 +183,30 @@ whose script is `let props = $props()` -- an identifier rather than a pattern, w
 cannot read -- and whose body is `{@render props.children?.()}`. It is blocked behind a render of
 a snippet that arrived as a prop, which is its own row in [refusals.md](refusals.md).
 
+### The legacy rewrite changes the file's mode, and that is the largest item left
+
+`runed()` turns `export let` into `let { ... } = $props()` so every pass below it knows one shape
+of prop. `$props()` puts the file in **runes mode**, and `analysis.runes` is not a detail about
+props -- it is a flag the rest of the compiler reads. Three divergences measured, one class:
+
+- **63 refusals are Svelte's own errors**, raised against a file the author wrote as valid legacy
+  Svelte: `beforeUpdate` and `afterUpdate` are refused in runes mode, `$:` is not allowed, a store
+  read is `$state is not defined`, `bind:value={entry}` on an each argument is rejected outright.
+  None of these is a construct this compiler turned away; every one is a mode it imposed.
+- **A namespaced component gains anchors.** `2-analyze/visitors/Component.js` sets
+  `metadata.dynamic = analysis.runes && ...`, so `<Components.Foo />` is dynamic in runes mode and
+  not in legacy, and the server writes `<!--[-->` and `<!--]-->` around a dynamic one. Measured
+  both ways on the same tag.
+- **`legacy.ts` says the rewrite is byte for byte**, and it is -- for the props. The claim was
+  measured against `$props()` with the same defaults and holds; what it does not cover is
+  everything else `analysis.runes` decides.
+
+**The fix is that the walk reads `export let` rather than rewriting it away**, leaving the render
+Svelte's own render of the author's component. Measured as not a small edit: removing `runed()`
+with nothing in its place takes the corpus from 20 differences to 208, because `propsOf` cannot
+read `export let` at all and every legacy entry loses its payload. `propsOf` and `locals` learning
+the spelling is the work.
+
 ## Newly refused, found by the same run
 
 Constructs the walk had never met, each a gap. `DeclarationTag` -- `{const x = 0}` and
