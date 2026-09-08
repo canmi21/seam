@@ -76,3 +76,12 @@ run = [
 [tasks.verify]
 description = "Everything a change has to pass"
 depends = ["check", "check-rust", "lint", "lint-rust", "test", "test-rust"]
+
+[tasks.suite]
+description = "Svelte's own 2388 samples, compiled here and held against Svelte's own render"
+# Not in `verify`, and spec/suite.md says why: it cannot pass yet, and a check that cannot pass
+# stops being read. It joins the gate when the count that differs reaches zero.
+depends = ["wasm"]
+# The same reason `test` sets it: Svelte's development runtime writes a hash into the anchor that
+# opens a `{@html}` block, so a compile under it renders bytes no server ships.
+run = "NODE_ENV=production node pkgs/suite/src/run.ts"

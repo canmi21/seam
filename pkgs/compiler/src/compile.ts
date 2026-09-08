@@ -106,7 +106,7 @@ export interface Options {
  * A name is kept once per file: two structures of one route read the same import from the same
  * file, and a bundler asked for it twice writes it twice.
  */
-function merged(all: readonly Map<string, Carried[]>[]): Map<string, Carried[]> {
+export function merged(all: readonly Map<string, Carried[]>[]): Map<string, Carried[]> {
 	const found = new Map<string, Map<string, Carried>>();
 	for (const one of all) {
 		for (const [file, names] of one) {

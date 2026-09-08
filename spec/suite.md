@@ -36,9 +36,10 @@ are in because they found most of what was wrong: of the 115 samples that compil
 wrong bytes, 97 are theirs. A test written for a client still renders on a server, and the render
 is the thing being checked.
 
-**A sample that renders to nothing is not evidence.** 33 of the 988 identical results in the two
-runtime suites have a body of 20 bytes or fewer, which is `<!--[--><!--]-->` and nothing else.
-They are counted separately for that reason, and the suite reports them apart.
+**A sample that renders to nothing is not evidence.** 38 of the 1052 agreements have a body of 20
+bytes or fewer, which is `<!--[--><!--]-->` and nothing else -- 34 of them in the two runtime
+suites, which were written to be driven by a client. They are agreements and they say nothing
+about the compiler, so the suite gives them a column of their own rather than folding them in.
 
 ## What a sample comes out as
 
@@ -77,18 +78,19 @@ and the two figures beside it are the count that differs and the count refused a
 
 ## What it said the first time it ran, at `svelte@5.57.0`
 
-| suite | samples | identical | differs | refused | skipped |
-| --- | --- | --- | --- | --- | --- |
-| `server-side-rendering` | 131 | 59 | 18 | 38 | 16 |
-| `runtime-runes` | 1048 | 474 | 18 | 274 | 282 |
-| `runtime-legacy` | 1209 | 514 | 79 | 350 | 265 |
-| | **2388** | **1047** | **115** | **662** | **563** |
+| suite | samples | identical | empty | differs | refused | skipped |
+| --- | --- | --- | --- | --- | --- | --- |
+| `server-side-rendering` | 131 | 55 | 4 | 18 | 38 | 16 |
+| `runtime-runes` | 1048 | 463 | 15 | 18 | 274 | 278 |
+| `runtime-legacy` | 1209 | 496 | 19 | 79 | 350 | 264 |
+| | **2388** | **1014** | **38** | **115** | **662** | **558** |
 
 One sample in `runtime-legacy` failed inside the oracle rather than inside either side, and is
-counted apart.
+counted apart. The whole run takes eleven seconds, which is worth saying because it is the
+argument against ever sampling it: there is no reason to run part of this.
 
 Read against the denominator above, on the `server-side-rendering` suite alone -- 131 samples, 16
-upstream skips, 17 async, 2 that ask a boundary to catch a throw -- 59 of 96 are identical.
+upstream skips, 17 async, 2 that ask a boundary to catch a throw -- **59 of 96**.
 
 ## Bytes before capability, and why that ordering is not obvious
 
@@ -146,4 +148,9 @@ that point, ranked by [roadmap.md](roadmap.md), and the file has nothing left to
 
 The corpus is vendored rather than fetched, at one tag, under the workspace's arrangement for
 vendored source: see [`vendor/svelte/VENDOR.md`](../vendor/svelte/VENDOR.md). It is 2.0 MB of text
-across 5730 files, most of them under 500 bytes.
+across 5730 files, most of them under 500 bytes -- `du` says 22 MB, which is the filesystem
+allocating a 4 KB block per file and not a reason to take fewer of them.
+
+The runner is `pkgs/suite`. It does not call `compile()`: that batches lowering across a whole
+project and writes artifacts, and this compiles one component at a time and compares in memory.
+The steps are its steps, which is what keeps the two from drifting into two compilers.

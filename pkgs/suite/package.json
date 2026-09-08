@@ -1,0 +1,19 @@
+{
+	"name": "suite",
+	"private": true,
+	"type": "module",
+	"exports": {
+		".": "./src/run.ts"
+	},
+	"dependencies": {
+		"carry": "workspace:*",
+		"compiler": "workspace:*",
+		"derive": "workspace:*",
+		"injector": "workspace:*",
+		"lowering": "workspace:*",
+		"svelte": "^5.57.0"
+	},
+	"devDependencies": {
+		"rolldown": "1.2.6"
+	}
+}

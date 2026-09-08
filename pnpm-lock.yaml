@@ -187,6 +187,31 @@ importers:
         specifier: 1.2.6
         version: 1.2.6
 
+  pkgs/suite:
+    dependencies:
+      carry:
+        specifier: workspace:*
+        version: link:../carry
+      compiler:
+        specifier: workspace:*
+        version: link:../compiler
+      derive:
+        specifier: workspace:*
+        version: link:../derive
+      injector:
+        specifier: workspace:*
+        version: link:../injector
+      lowering:
+        specifier: workspace:*
+        version: link:../lowering
+      svelte:
+        specifier: ^5.57.0
+        version: 5.57.0
+    devDependencies:
+      rolldown:
+        specifier: 1.2.6
+        version: 1.2.6
+
   vendor/kit:
     dependencies:
       '@standard-schema/spec':
