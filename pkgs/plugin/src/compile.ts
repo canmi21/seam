@@ -14,11 +14,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { Plugin, ViteDevServer } from 'vite';
+import type { Plugin } from 'vite';
 import { type Bundler, configureCarry } from 'carry';
 import { compile } from 'compiler';
 import { aliases, configured, entries } from 'routes';
-import { configureRender } from 'skeleton';
+import { configureRender, forgetStaging } from 'skeleton';
 
 /** The plugin's name, and the prefix of its helpers'. */
 export const NAME = 'compile-time-rendering';
@@ -83,35 +83,10 @@ export async function compileRoutes({
 		module: (specifier) => loader.ssrLoadModule(specifier),
 		staging: resolve(out, 'staged'),
 		bundler: true,
-		// Vite can drop a module and Node cannot, which is the whole difference between the
-		// two hosts here: the copies a render stages are named for that render alone and are
-		// dead the moment it ends, so the graphs are told about exactly those and about
-		// nothing the project itself imports. Without it they hold every copy of every render
-		// for the life of the build. See spec/build.md.
-		//
-		// **Two graphs, and only one of them holds the memory.** The server's
-		// `moduleGraph` holds what a module was transformed into; the runner's
-		// `evaluatedModules` holds what it evaluated to -- its code and its exports, which
-		// is the component's whole closure graph. `ssrLoadModule` evaluates through a
-		// runner of the server's own, so that is the one to tell, and telling only the
-		// first is what left the compile holding two thirds of its heap in modules no
-		// render would ask for again.
-		forget: (files) => {
-			const graph = loader.environments.ssr.moduleGraph;
-			for (const file of files) {
-				for (const held of graph.getModulesByFile(file) ?? []) graph.invalidateModule(held);
-			}
-			for (const evaluated of evaluatedGraphs(loader)) {
-				for (const file of files) {
-					for (const node of evaluated.getModulesByFile(file) ?? []) {
-						evaluated.invalidateModule(node);
-						evaluated.idToModuleMap.delete(node.id);
-						evaluated.urlToIdModuleMap.delete(node.url);
-					}
-					evaluated.fileToModulesMap.delete(file);
-				}
-			}
-		},
+		// The staged copies are named for what is in them and shared between renders, so nothing is
+		// invalidated here: two renders that stage the same copy want the same module, and telling
+		// the host to drop it would only have it transformed and evaluated again. See `onDisk` in
+		// render.ts, and spec/build.md.
 	});
 	// What a derivation calls is bundled by the project's Vite as well, one build per route,
 	// with everything inlined: the evaluator has no module system. Kit's plugins stay out of
@@ -171,60 +146,11 @@ export async function compileRoutes({
 			out,
 		});
 	} finally {
+		forgetStaging();
 		configureRender(null);
 		configureCarry(null);
 		await loader.close();
 	}
-}
-
-/**
- * A module runner's graph of what it has evaluated: the node holds the module's code and exports.
- *
- * Typed here rather than imported, because it is reached off the server rather than handed over.
- * The fields are `EvaluatedModules`' own, and a Vite that renames one drops out of `evaluatedGraphs`
- * below as a runner with nothing to forget, which costs memory rather than correctness.
- */
-interface Evaluated {
-	getModulesByFile: (file: string) => Set<{ id: string; url: string }> | undefined;
-	invalidateModule: (node: unknown) => void;
-	idToModuleMap: Map<string, unknown>;
-	urlToIdModuleMap: Map<string, unknown>;
-	fileToModulesMap: Map<string, unknown>;
-}
-
-/** Whether the object has the shape above, asked of what a Vite hands back rather than assumed. */
-function isEvaluated(given: unknown): given is Evaluated {
-	if (typeof given !== 'object' || given === null) return false;
-	const one = given as Record<string, unknown>;
-	return (
-		typeof one['getModulesByFile'] === 'function' &&
-		typeof one['invalidateModule'] === 'function' &&
-		one['idToModuleMap'] instanceof Map &&
-		one['urlToIdModuleMap'] instanceof Map &&
-		one['fileToModulesMap'] instanceof Map
-	);
-}
-
-/**
- * Every runner graph a staged module may have been evaluated into, which is more than one.
- *
- * `ssrLoadModule` evaluates through a runner the server makes for itself and keeps under
- * `_ssrCompatModuleRunner`; a runnable environment carries one of its own as `runner`. Both are
- * asked, because which of them holds a module is Vite's decision and not this plugin's, and a
- * runner that is not there is one fewer graph rather than an error.
- */
-function evaluatedGraphs(loader: ViteDevServer): Evaluated[] {
-	const runners = [
-		(loader as unknown as Record<string, unknown>)['_ssrCompatModuleRunner'],
-		(loader.environments['ssr'] as unknown as Record<string, unknown> | undefined)?.['runner'],
-	];
-	const found: Evaluated[] = [];
-	for (const runner of runners) {
-		if (typeof runner !== 'object' || runner === null) continue;
-		const graph = (runner as Record<string, unknown>)['evaluatedModules'];
-		if (isEvaluated(graph) && !found.includes(graph)) found.push(graph);
-	}
-	return found;
 }
 
 /** A config's plugins as one flat list: an entry may be a plugin, a list, a promise, or nothing. */

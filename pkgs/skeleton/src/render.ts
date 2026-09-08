@@ -1,5 +1,6 @@
 import { basename, dirname, resolve as resolvePath } from 'node:path';
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync, realpathSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { APP_STATE, resolveBare } from 'ast';
@@ -52,21 +53,10 @@ export interface Host {
 	import: (url: string) => Promise<unknown>;
 	/** Resolves a bare specifier the way the components' own build would; `svelte/server` is one. */
 	module: (specifier: string) => Promise<unknown>;
-	/** Where the staged copies are written, under a directory per render. */
+	/** Where the staged copies are written, under a directory per process. */
 	staging: string;
 	/** Whether the host resolves what Node cannot, so that nothing is rewritten for it. */
 	bundler: boolean;
-	/**
-	 * Drops what the host holds for the named files, which a render's copies are as soon as it ends.
-	 *
-	 * A render stages its copies under names no other render uses, because `import()` caches by URL
-	 * and two renders of one component would otherwise be the same module. The other half of that is
-	 * that the host then holds every one of them for ever, and a route renders hundreds of times. A
-	 * host that can forget a module says so here; Node cannot, and leaves this undefined. Only the
-	 * copies are named, never what the project itself imports, so the project stays loaded once.
-	 * See spec/build.md.
-	 */
-	forget?: (files: readonly string[]) => void;
 }
 
 const NODE: Host = {
@@ -82,6 +72,23 @@ let host: Host = NODE;
 export function configureRender(given: Host | null): void {
 	host = given ?? NODE;
 	checked = false;
+}
+
+/**
+ * The staged copies removed, for a caller that is done rendering.
+ *
+ * They outlive a render on purpose -- see `onDisk` -- so somebody has to say when the last one has
+ * happened. The host is not told: a module it has loaded from one of these stays loaded, which is
+ * the whole arrangement, and the files are what is being tidied rather than the memory.
+ */
+export function forgetStaging(): void {
+	rmSync(resolvePath(host.staging, String(process.pid)), { recursive: true, force: true });
+	onDisk.clear();
+}
+
+/** How many staged copies this process holds, which is what the sharing is measured by. */
+export function rememberedStaging(): number {
+	return onDisk.size;
 }
 
 export async function shippable(): Promise<void> {
@@ -103,9 +110,24 @@ export async function shippable(): Promise<void> {
 // Staged inside this package, because Svelte's output imports 'svelte/internal/server' and that
 // only resolves from a directory where svelte is a dependency. Specifiers are rewritten to
 // absolute URLs, so the modules can live anywhere once they are written.
-// Bumped per render, because import() caches by URL and two renders of the same component
-// would otherwise be the same module: the second configuration would silently return the first.
-let generation = 0;
+/**
+ * The staged copies already written, by path, for the life of the process.
+ *
+ * A staged file is named for what is in it, so a name is a promise about content: the same copy of
+ * the same component, staged again by another render, is the same file and the host already has it
+ * loaded. Which is the point -- a route renders hundreds of times and stages a hundred copies each
+ * time, and nearly every one of them is byte for byte what the render before it staged.
+ *
+ * This is what a name per render was avoiding, and it avoided it by giving up the sharing as well:
+ * `import()` caches by URL, so two renders of one component under one name would have been the
+ * same module and the second's configuration would silently have returned the first's. Under a
+ * content name there is no second configuration -- two renders share a module exactly when they
+ * would have written the same program. See spec/build.md.
+ */
+const onDisk = new Set<string>();
+
+/** Names handed to files in a cycle, which cannot be named for their content. See `emit`. */
+let cycles = 0;
 
 /**
  * What Svelte's compiler has already produced in this process, by everything it was given.
@@ -168,28 +190,44 @@ export async function renderRewritten(
 	/** The hole standing for the entry's own `$props.id()` anchor, where it declares one. */
 	fresh?: number,
 ): Promise<Rendered> {
-	const { mkdirSync, readFileSync: read, rmSync, writeFileSync } = await import('node:fs');
+	const { mkdirSync, readFileSync: read, writeFileSync } = await import('node:fs');
 	// The host's Svelte, which is the components' too.
 	const { render } = (await host.module('svelte/server')) as typeof import('svelte/server');
 	const svelte = (await host.module('svelte/compiler')) as typeof import('svelte/compiler');
 
 	const here = dirname(fileURLToPath(import.meta.url));
-	// A directory of its own per render, and only that one is removed. It used to be one shared
-	// directory emptied in a `finally`, which is fine for one caller and a race for two: the
-	// checks drive this from several files at once and each was deleting the other's modules.
-	generation += 1;
-	const staging = resolvePath(host.staging, `${process.pid}-${generation}`);
+	// A directory per process rather than per render: what a render stages outlives it, being
+	// named for its content and reused by the renders that would have written it again. The pid
+	// keeps two processes apart, which the checks need -- they drive this from several files at
+	// once and a shared directory made each delete the other's modules.
+	const staging = resolvePath(host.staging, String(process.pid));
 	mkdirSync(staging, { recursive: true });
-	let written = 0;
 
 	// One staged file per source, however many times it is imported, which is also what ends the
 	// walk of a component that imports itself.
 	const emitted = new Map<string, string>();
+	/**
+	 * The files this render is part way through writing, and the name each was forced to take.
+	 *
+	 * A name is a hash of the finished file, which is only known once its imports have been
+	 * rewritten to the names of the files they point at -- so a file is named after its children,
+	 * and after everything they reach. A cycle has no such order: re-entering a file still being
+	 * written means its name is about to appear inside itself. That one is given a name of its own
+	 * instead, shared with no render, and so is everything that imports it, since the name goes
+	 * into their bytes. Empty string means in progress and not yet forced.
+	 */
+	const opened = new Map<string, string>();
 	function emit(from: string, code: string, origin: string): string {
 		const held = emitted.get(from);
 		if (held !== undefined) return held;
-		const out = resolvePath(staging, `${basename(from, '.svelte')}-${generation}-${written++}.js`);
-		emitted.set(from, out);
+		const forced = opened.get(from);
+		if (forced !== undefined) {
+			if (forced !== '') return forced;
+			const own = resolvePath(staging, `${basename(from, '.svelte')}-${String(cycles++)}.js`);
+			opened.set(from, own);
+			return own;
+		}
+		opened.set(from, '');
 		if ([HEAD_OPEN, HEAD_CLOSE, MARK, MARK_HEAD].some((call) => code.includes(`${call}(`))) {
 			code = handed(code);
 		}
@@ -263,7 +301,24 @@ export async function renderRewritten(
 				JSON.stringify(pathToFileURL(replacement).href),
 			);
 		}
-		writeFileSync(out, code);
+		// Named now that it is finished, and for what is in it: two renders that would have written
+		// the same file write one, and the host has it loaded already. The name covers everything
+		// this file reaches, because what it reaches is in its imports and its imports are in these
+		// bytes. See `onDisk`.
+		const own = opened.get(from) ?? '';
+		opened.delete(from);
+		const out =
+			own === ''
+				? resolvePath(
+						staging,
+						`${basename(from, '.svelte')}-${createHash('sha256').update(code).digest('hex').slice(0, 16)}.js`,
+					)
+				: own;
+		emitted.set(from, out);
+		if (!onDisk.has(out)) {
+			onDisk.add(out);
+			writeFileSync(out, code);
+		}
 		return out;
 	}
 
@@ -297,9 +352,9 @@ export async function renderRewritten(
 		);
 		return { body, head };
 	} finally {
-		// Before the files go, since a host may want to look one up by its path.
-		host.forget?.([...emitted.values()]);
-		rmSync(staging, { recursive: true, force: true });
+		// The staged files stay: the next render is nearly all the same copies, and deleting them
+		// would only make it write and transform and evaluate them again. `forgetStaging()` is what
+		// takes them away, once nothing is going to render again.
 	}
 }
 

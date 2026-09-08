@@ -468,9 +468,32 @@ holds what a module was transformed into; the runner's `evaluatedModules` holds 
 to -- the module's code and its exports, which is the component's whole closure graph -- and
 `ssrLoadModule` evaluates through a runner the server keeps for itself. Invalidating the first
 frees a transform and leaves the evaluation, which is the larger half and the reason the peak fell
-by two gigabytes rather than by six. Both are told now, and a runner that is not there is one
-fewer graph rather than an error, since which of them holds a module is Vite's decision. Measured
-on one route: **live heap 2563MB to 1435MB, and the compile took the same time.**
+by two gigabytes rather than by six. Telling both took the live heap of one route from 2563MB to
+1435MB at the same wall time.
+
+**Forgetting is the wrong half of the question, though, and a staged copy is now named for what is
+in it.** The fresh name per render existed because `import()` caches by URL and two renders of one
+component under one name would have been the same module, the second's configuration silently
+answered by the first's. Under a name that is a hash of the finished file there is no second
+configuration: two renders share a module exactly when they would have written the same program,
+and they nearly always would -- an alternate render differs from the baseline in one block, and a
+route stages a hundred copies per render. Measured on press, 207 renders staged **824 distinct
+files** rather than fourteen thousand, so the module a render asks for is nearly always one the
+host has already transformed and evaluated. Nothing is invalidated any more; the files go when
+the compile does, in `forgetStaging()`.
+
+**A file is named after its children, which is what makes the name honest.** The hash is of the
+finished bytes, taken once the imports have been rewritten to the names of the files they point
+at, so it covers everything the file reaches. Named from the bytes Svelte produced instead --
+which was tried, and which the checks caught -- a parent whose own code is unchanged while a child
+inside it flipped a branch keeps the name it had, is skipped as already written, and goes on
+pointing at the child from the render before: the alternate then rendered the baseline's bytes. A
+cycle has no such order, since re-entering a file still being written means its name is about to
+appear inside itself; that file is given a name of its own, shared with no render, and so is
+everything that imports it.
+
+Measured over press, against the same compile: **`load (host import)` 15.1s to 5.6s, the compile
+29.4s to 17.7s, and the child's peak 3.27GB to 2.19GB.**
 
 **A memo is memory traded for time, and each trade is priced separately.** The two that hold trees
 were switched off together and then one at a time, on a machine with nothing else on it:

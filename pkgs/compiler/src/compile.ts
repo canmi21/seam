@@ -38,6 +38,7 @@ import {
 	timedSync,
 	timings,
 	rememberedCodegen,
+	rememberedStaging,
 	Undecided,
 } from 'skeleton';
 
@@ -363,6 +364,7 @@ export async function compile(options: Options): Promise<Report[]> {
 			`[seam] what it remembered: ${String(expressions)} expression tree(s), ` +
 				`${String(components)} component tree(s), ${String(rememberedSources())} source answer(s), ` +
 				`${String(rememberedCodegen())} compile(s), ` +
+				`${String(rememberedStaging())} staged copy/copies, ` +
 				`${String(rememberedBundles())} bundle(s); heap ${String(Math.round(heap.heapUsed / 1e6))}MB ` +
 				`of ${String(Math.round(heap.rss / 1e6))}MB resident`,
 		);
