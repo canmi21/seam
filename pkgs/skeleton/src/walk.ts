@@ -22,7 +22,7 @@ import {
 	settle,
 	STATE_ON_SERVER,
 	stateImports,
-	tabled,
+	unfolded,
 } from 'ast';
 import {
 	classes,
@@ -1483,18 +1483,13 @@ const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 /**
  * The component an expression chooses, settled. A `?:` in it chooses which component, the way one
  * handed to a package chooses what is handed, and is enumerated the same way: the walk stops and
- * asks, and the build renders once per branch. A lookup in a table of components -- `T[data.k]`
- * with `T` an object literal -- is the same choice with its domain in the table's keys, and is
- * written as the chain of `?:` it is before being settled. What the taken branch leaves has to be
- * inert; one that still reaches the request is a component chosen per request, which is not
- * enumerable and is refused.
+ * asks, and the build renders once per branch. A lookup in a table of components, and what is read
+ * off either, is the same choice with its domain in the source -- unfolded by `settled`, which
+ * every expression goes through. What the taken branch leaves has to be inert; one that still
+ * reaches the request is a component chosen per request, which is not enumerable and is refused.
  */
 function choosing(written: string, tag: string, walk: Walk): string {
-	let chosen = settled(written, walk);
-	if (mentions(chosen, walk.dynamic)) {
-		const table = tabled(chosen);
-		if (table !== null) chosen = settled(table, walk);
-	}
+	const chosen = settled(written, walk);
 	if (mentions(chosen, walk.dynamic)) {
 		refuse(
 			`\`<${tag}>\` chooses a component from a value the request decides, which is not ` +
@@ -1506,7 +1501,17 @@ function choosing(written: string, tag: string, walk: Walk): string {
 }
 
 function settled(expression: string, walk: Walk): string {
-	const held = settle(expression, walk.site.decided, walk.dynamic, new Set(walk.fresh));
+	// Unfolded first, because a choice the source holds the domain of is not written as a `?:` at
+	// the top of the expression: a table lookup is a member access, and a read off a ternary is
+	// one too. `settle` looks for a ternary and would find neither, so the domain that was in the
+	// source goes unseen -- and what is left reaches components in a derivation, which is a value
+	// asked for per request and has nowhere to get them. See `unfolded`.
+	const held = settle(
+		unfolded(expression) ?? expression,
+		walk.site.decided,
+		walk.dynamic,
+		new Set(walk.fresh),
+	);
 	if (held.undecided === null) return held.text;
 	// A name a block binds is decided per item, and a decision over it cannot be enumerated for
 	// the page: the derivation the branch would test has no item to read.
@@ -2020,19 +2025,8 @@ function afterElse(source: string, fragment: AstNode): number | null {
 }
 
 function collect(node: unknown, walk: Walk): void {
-	const {
-		blocks,
-		dynamic,
-		edits,
-		expand,
-		holes,
-		pending,
-		site,
-		snippets,
-		source,
-		stream,
-		within,
-	} = walk;
+	const { blocks, dynamic, edits, expand, holes, pending, site, snippets, source, stream, within } =
+		walk;
 	if (!isNode(node)) return;
 	const type = node['type'];
 	if (typeof type !== 'string') {

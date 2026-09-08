@@ -153,7 +153,7 @@ export function reads(
 }
 
 /** The TypeScript nodes that wrap an expression, as against the ones that are types. */
-const WRAPS: ReadonlySet<string> = new Set([
+export const WRAPS: ReadonlySet<string> = new Set([
 	'TSAsExpression',
 	'TSSatisfiesExpression',
 	'TSNonNullExpression',

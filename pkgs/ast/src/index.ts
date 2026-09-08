@@ -22,7 +22,7 @@ export {
 	pathOf,
 	objectEntries,
 	settle,
-	tabled,
+	unfolded,
 } from './locals.ts';
 export type { Bundle, MarkupAttr, MarkupNode, Module } from './markup.ts';
 export { bySource, rememberedSources } from './memo.ts';

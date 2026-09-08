@@ -46,43 +46,60 @@ const CHOOSING =
 	' const pick = $derived(data.n === 0 ? none : data.n === 1 ? one : many);</script>' +
 	'<Say say={pick} /><p>{data.title}</p>';
 
+// A table of components where the entry holds the component beside what is written next to it, so
+// the tag reads one field off the lookup. The domain is still the table's keys; the access is part
+// of the choice rather than something left outside it. press's article chooses its summary
+// provider's icon this way.
+const AY = '<i>A</i>';
+const BEE = '<b>B</b>';
+const TABLE =
+	"<script>import Ay from './ay.svelte'; import Bee from './bee.svelte'; let { data } = $props();" +
+	" const ICONS = { a: { icon: Ay, name: 'Ay' }, b: { icon: Bee, name: 'Bee' } };" +
+	' const found = $derived(data.k ? ICONS[data.k] : undefined);' +
+	' const Pick = $derived(found?.icon);</script>' +
+	'<Pick /><span>{found?.name}</span><p>{data.title}</p>';
+
 beforeAll(() => {
 	mkdirSync(staging, { recursive: true });
 	writeFileSync(resolve(staging, 'greet.svelte'), CHILD);
 	writeFileSync(resolve(staging, 'page.svelte'), PAGE);
 	writeFileSync(resolve(staging, 'say.svelte'), CALLER);
 	writeFileSync(resolve(staging, 'choosing.svelte'), CHOOSING);
+	writeFileSync(resolve(staging, 'ay.svelte'), AY);
+	writeFileSync(resolve(staging, 'bee.svelte'), BEE);
+	writeFileSync(resolve(staging, 'table.svelte'), TABLE);
 });
 afterAll(() => rmSync(staging, { recursive: true, force: true }));
 
-/** Svelte's own render of a page importing one child, which is the bytes every structure owes. */
+/** Svelte's own render of a page and the children it imports, which every structure owes. */
 async function oracle(
 	page: [name: string, source: string],
-	child: [name: string, source: string],
+	children: [name: string, source: string][],
 	data: unknown,
 ): Promise<string> {
 	const tag = String(Math.random()).slice(2);
 	const out = resolve(staging, `oracle-${tag}.js`);
-	const compiled = resolve(staging, `${child[0]}-${tag}.js`);
 	const named = (name: string): string => name[0]?.toUpperCase() + name.slice(1);
-	writeFileSync(
-		compiled,
-		svelte(child[1], {
-			generate: 'server',
-			name: named(child[0]),
-			filename: resolve(staging, `${child[0]}.svelte`),
-			rootDir: staging,
-		}).js.code,
-	);
-	writeFileSync(
-		out,
-		svelte(page[1], {
-			generate: 'server',
-			name: named(page[0]),
-			filename: resolve(staging, `${page[0]}.svelte`),
-			rootDir: staging,
-		}).js.code.replace(`'./${child[0]}.svelte'`, JSON.stringify(pathToFileURL(compiled).href)),
-	);
+	let code = svelte(page[1], {
+		generate: 'server',
+		name: named(page[0]),
+		filename: resolve(staging, `${page[0]}.svelte`),
+		rootDir: staging,
+	}).js.code;
+	for (const child of children) {
+		const compiled = resolve(staging, `${child[0]}-${tag}.js`);
+		writeFileSync(
+			compiled,
+			svelte(child[1], {
+				generate: 'server',
+				name: named(child[0]),
+				filename: resolve(staging, `${child[0]}.svelte`),
+				rootDir: staging,
+			}).js.code,
+		);
+		code = code.replace(`'./${child[0]}.svelte'`, JSON.stringify(pathToFileURL(compiled).href));
+	}
+	writeFileSync(out, code);
 	const mod = (await import(pathToFileURL(out).href)) as { default: unknown };
 	return render(mod.default as never, { props: { data } as never }).body;
 }
@@ -120,7 +137,7 @@ describe('a route compiled once per value of a declared domain', () => {
 		for (const code of LOCALES) {
 			const data = { locale: { code }, title: '<&', tags: ['x', 'y'] };
 			expect(inject(structure.ir, derive({ data })).body, `locale ${code}`).toBe(
-				await oracle(['page', PAGE], ['greet', CHILD], data),
+				await oracle(['page', PAGE], [['greet', CHILD]], data),
 			);
 		}
 
@@ -160,7 +177,42 @@ describe('a `?:` in a value handed to a component the walk cannot enter', () => 
 		for (const n of [0, 1, 2]) {
 			const data = { n, title: `t${String(n)}` };
 			expect(inject(structure.ir, derive({ data })).body, `n ${String(n)}`).toBe(
-				await oracle(['choosing', CHOOSING], ['say', CALLER], data),
+				await oracle(['choosing', CHOOSING], [['say', CALLER]], data),
+			);
+		}
+	});
+});
+
+describe('a component chosen through a table, read off the entry', () => {
+	it('is compiled once per key, and each renders what Svelte renders', async () => {
+		const runs = await structures({ path: '/', component: 'table.svelte' }, staging);
+		const lowered = lower(runs.map((one) => [one.id, JSON.stringify(one.skeleton)] as const));
+		for (const one of lowered) {
+			expect(one !== undefined && 'error' in one ? one.error : undefined).toBeUndefined();
+		}
+		const structure = joined(
+			'table',
+			runs.map((one, at) => ({
+				fixed: one.fixed,
+				decided: one.decided,
+				compiled: lowered[at] as unknown as Structure,
+			})),
+		);
+
+		const derive = deriving(structure.derivations, '');
+		// Both keys, a key the table lacks, and a falsy one that never reaches the lookup: the
+		// arm for a missing key is what `<svelte:component>` writes `<!--[!--><!--]-->` for.
+		for (const k of ['a', 'b', 'zz', '']) {
+			const data = { k, title: `t-${k}` };
+			expect(inject(structure.ir, derive({ data })).body, `k ${JSON.stringify(k)}`).toBe(
+				await oracle(
+					['table', TABLE],
+					[
+						['ay', AY],
+						['bee', BEE],
+					],
+					data,
+				),
 			);
 		}
 	});

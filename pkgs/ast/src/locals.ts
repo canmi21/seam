@@ -1,6 +1,6 @@
 import { parse } from 'svelte/compiler';
 import { type Edit, type Neutral, apply } from './edits.ts';
-import { chains, destructure, free, isNode, type Node, reads, requested } from './scope.ts';
+import { chains, destructure, free, isNode, type Node, reads, requested, WRAPS } from './scope.ts';
 
 /**
  * What a component's scripts declare, as source to be substituted into whatever reads it.
@@ -431,23 +431,132 @@ export function objectEntries(expression: string): [key: string, value: string][
 	return found;
 }
 
-export function tabled(expression: string): string | null {
+/**
+ * An expression with the TypeScript written around it taken off.
+ *
+ * `{ a: Ay } as const` is a `TSAsExpression` holding the object, and `k as keyof typeof T` is one
+ * holding the name. Neither changes what the expression is at runtime, and reading the wrapper as
+ * the thing made a table that press writes `as const` look like no table at all -- so the domain
+ * its keys hold went unseen and the choice was refused as one nobody could enumerate.
+ */
+function bare(node: unknown): Node | null {
+	let found = node;
+	while (isNode(found) && typeof found['type'] === 'string' && WRAPS.has(found['type'])) {
+		found = found['expression'];
+	}
+	return isNode(found) ? found : null;
+}
+
+/**
+ * The expression inside a tag, with an optional chain unwrapped, or null where it will not parse.
+ *
+ * Parsed as markup because that is the one parser this project has, and an expression is a whole
+ * component's worth of source to it.
+ */
+function only(expression: string): { whole: Node; wrapped: string } | null {
 	const wrapped = `<script lang="ts"></script>{${expression}}`;
 	let ast: Node;
 	try {
-		ast = parse(wrapped, { modern: true }) as unknown as Node;
+		// The same memo `settle` reads from: an expression is parsed once a compile however many
+		// passes ask about it, and the walk asks about a great many. See `parsed`.
+		ast = parsed(expression);
 	} catch {
 		return null;
 	}
 	const fragment = ast['fragment'];
 	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
 	const tag = nodes.find((one) => isNode(one) && one['type'] === 'ExpressionTag');
-	const node = isNode(tag) ? tag['expression'] : undefined;
-	if (!isNode(node) || node['type'] !== 'MemberExpression' || node['computed'] !== true)
-		return null;
-	const object = node['object'];
-	const property = node['property'];
-	if (!isNode(object) || object['type'] !== 'ObjectExpression' || !isNode(property)) return null;
+	const outer = isNode(tag) ? tag['expression'] : undefined;
+	// `?.` anywhere in a chain wraps the whole of it, so the chain itself is what to read, and the
+	// TypeScript written around either is not part of the expression.
+	const inner = bare(outer);
+	const whole = inner?.['type'] === 'ChainExpression' ? bare(inner['expression']) : inner;
+	return whole === null ? null : { whole, wrapped };
+}
+
+/**
+ * What an expression reads off whatever it is read from, and the thing underneath.
+ *
+ * `short` is whether the first access away from that thing short-circuits, which decides the value
+ * where there is nothing to read from: `a?.b.c` is undefined where `a` is, and `a.b?.c` throws.
+ *
+ * The accesses are rebuilt from the tree rather than sliced out of the source, because the source
+ * may put what they are read from in parentheses of its own -- `(T[k])?.icon` -- and a slice taken
+ * from where that ends would carry the closing one with it.
+ */
+function peel(whole: Node): { node: Node; read: string; short: boolean } {
+	let node: Node = whole;
+	const reads: { name: string; optional: boolean }[] = [];
+	for (;;) {
+		if (node['type'] !== 'MemberExpression' || node['computed'] === true) break;
+		const named = node['property'];
+		const inner = node['object'];
+		if (!isNode(named) || named['type'] !== 'Identifier' || typeof named['name'] !== 'string')
+			break;
+		if (!isNode(inner)) break;
+		reads.unshift({ name: named['name'], optional: node['optional'] === true });
+		node = inner;
+	}
+	const read = reads.map((one) => `${one.optional ? '?.' : '.'}${one.name}`).join('');
+	return { node, read, short: reads[0]?.optional === true };
+}
+
+/**
+ * A `?:` with what is read off it pushed into both branches, as the three pieces.
+ *
+ * **A read off a choice is part of the choice.** `(summary ? T[summary.provider] : undefined)?.icon`
+ * picks a component, and until the read is inside the branches the expression is a member access
+ * over a ternary rather than a ternary -- so `settle` looks at a value where a choice is written
+ * and nothing asks the render which branch is taken. Distributing it is exact: the test is
+ * evaluated once either way, and each branch keeps whatever the read would have done to it.
+ *
+ * Given back in pieces rather than joined, because each branch is unfolded again before it is.
+ */
+function distributed(
+	expression: string,
+): { test: string; yes: string; no: string; read: string } | null {
+	const found = only(expression);
+	if (found === null) return null;
+	const { node, read } = peel(found.whole);
+	if (node['type'] !== 'ConditionalExpression') return null;
+	const slice = (part: unknown): string | null => {
+		if (!isNode(part)) return null;
+		const { start, end } = part;
+		return typeof start === 'number' && typeof end === 'number'
+			? found.wrapped.slice(start, end)
+			: null;
+	};
+	const test = slice(node['test']);
+	const yes = slice(node['consequent']);
+	const no = slice(node['alternate']);
+	if (test === null || yes === null || no === null) return null;
+	return { test, yes: `(${yes})${read}`, no: `(${no})${read}`, read };
+}
+
+/**
+ * A lookup in a table of components, as the chain of `?:` it is, or null where it is not one.
+ *
+ * `T[k]` with `T` an object literal chooses among the table's own keys, so its domain is in the
+ * source and the choice is enumerable: it is written out as `k === "a" ? (Ay) : k === "b" ? (Bee)
+ * : undefined`, and settled the way any structural ternary is.
+ *
+ * **What is read off the entry is part of the lookup.** `T[k].icon` and `T[k]?.icon` pick a
+ * component out of an entry holding more than one thing, which is what a table of icons beside
+ * their names is; the access goes into each arm and the domain is still the table's keys.
+ *
+ * The arm for a key the table lacks keeps whatever the access would have done to `undefined`: an
+ * optional one short-circuits and is `undefined`, and a plain one throws, which is what the
+ * expression as written does and is not this function's to soften.
+ */
+function tabled(expression: string): string | null {
+	const found = only(expression);
+	if (found === null) return null;
+	const { wrapped } = found;
+	const { node, read, short } = peel(found.whole);
+	if (node['type'] !== 'MemberExpression' || node['computed'] !== true) return null;
+	const object = bare(node['object']);
+	const property = bare(node['property']);
+	if (object === null || object['type'] !== 'ObjectExpression' || property === null) return null;
 	const slice = (part: Node): string | null => {
 		const { start, end } = part;
 		return typeof start === 'number' && typeof end === 'number' ? wrapped.slice(start, end) : null;
@@ -467,10 +576,46 @@ export function tabled(expression: string): string | null {
 		else return null;
 		const chosen = slice(value);
 		if (chosen === null) return null;
-		arms.push(`(${key}) === ${JSON.stringify(text)} ? (${chosen})`);
+		arms.push(`(${key}) === ${JSON.stringify(text)} ? (${chosen})${read}`);
 	}
 	if (arms.length === 0) return null;
-	return `(${arms.join(' : ')} : undefined)`;
+	const missing = read === '' || short ? 'undefined' : `(undefined)${read}`;
+	return `(${arms.join(' : ')} : ${missing})`;
+}
+
+/** How deep a choice is unfolded before it is left as written, which nothing measured comes near. */
+const DEEP = 8;
+
+/**
+ * The expression written as the choice it is, or null where it holds none to unfold.
+ *
+ * Two rewrites, applied inside out until neither has anything left to say. A table lookup becomes
+ * the chain of `?:` its keys make; a read off a `?:` goes inside both branches, and each branch is
+ * unfolded again.
+ *
+ * **Neither is enough alone, and the order is the whole of it.** press's article writes
+ * `(summary ? T[summary.provider] : undefined)?.icon`. Expand the table first and there is no table
+ * to see, because the top of the expression is a member access. Push the read in first and the
+ * branch still reads the request, so `chooses` finds nothing it can enumerate. Inside out, the
+ * branch the render takes is a lookup and the lookup's keys are the domain -- which was in the
+ * source the whole time.
+ */
+export function unfolded(expression: string): string | null {
+	let changed = false;
+	const fold = (text: string, depth: number): string => {
+		if (depth > DEEP) return text;
+		const table = tabled(text);
+		if (table !== null) {
+			changed = true;
+			return table;
+		}
+		const spread = distributed(text);
+		if (spread === null) return text;
+		if (spread.read !== '') changed = true;
+		return `((${spread.test}) ? (${fold(spread.yes, depth + 1)}) : (${fold(spread.no, depth + 1)}))`;
+	};
+	const rewritten = fold(expression, 0);
+	return changed ? rewritten : null;
 }
 
 /**
