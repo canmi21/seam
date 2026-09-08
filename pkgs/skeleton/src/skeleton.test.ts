@@ -2170,6 +2170,23 @@ const accepted: Case[] = [
 			{ a: 0, n: 0 },
 		],
 	},
+	{
+		// Where an element carries a `class:` or a `style:` and no attribute of that name,
+		// `2-analyze/index.js` appends one: `create_attribute('class', ...)` when it is scoped or
+		// has a class directive, then `create_attribute('style', ...)` when it has a style one. Both
+		// land after every written attribute, and class is appended first whichever order the
+		// directives were written in. Here both are inserts at that one offset, and the one pushed
+		// later comes out first, so the two passes run the other way round.
+		name: 'a `class:` and a `style:` with no attribute of either name',
+		source:
+			`${PROPS}<p style:color={data.c} class:on={data.on}>a</p>` +
+			'<p class:on={data.on} style:color={data.c} id="x">b</p>' +
+			'<p style="margin:0" class:on={data.on}>c</p>',
+		data: [
+			{ c: 'red', on: true },
+			{ c: '', on: false },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.

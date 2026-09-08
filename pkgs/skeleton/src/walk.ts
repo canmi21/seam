@@ -2539,9 +2539,15 @@ function collect(node: unknown, walk: Walk): void {
 				site.copy,
 				(text) => site.payload !== null && !varies(text, walk),
 			);
-			const handled = spreads.size > 0 ? spreads : classes(node, holes, edits, expand, pending);
+			// `style:` before `class:`, which puts the class first in the output. Where an element
+			// carries a directive and no attribute of that name, `2-analyze/index.js` appends one --
+			// `create_attribute('class', ...)` when it is scoped or has a `class:`, then
+			// `create_attribute('style', ...)` when it has a `style:` -- so both land after every
+			// written attribute, class first. Here both are inserts at that one offset, and `apply`
+			// sorts descending and writes back to front, so the one pushed *later* comes out first.
 			const styled =
 				spreads.size > 0 ? spreads : styles(source, node, holes, edits, expand, pending);
+			const handled = spreads.size > 0 ? spreads : classes(node, holes, edits, expand, pending);
 			const given = type === 'Component' || type === 'SvelteComponent';
 			const tag = typeof node['name'] === 'string' ? node['name'] : '';
 
