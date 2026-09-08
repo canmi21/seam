@@ -94,6 +94,15 @@ function declared(
 	source: string,
 	names: ReadonlySet<string>,
 	fresh: string | null,
+	/**
+	 * Names the payload carries, which are declarations here and values there.
+	 *
+	 * `export let x = 1` is Svelte 4's spelling of a prop, and it reaches this pass as an ordinary
+	 * declaration -- so `x` would be substituted by `1`, or by `undefined` where it has no
+	 * initialiser, instead of standing for what the request brought. Given for the entry, whose
+	 * props are the payload; a child's are bound at its call site and arrive as `bound`.
+	 */
+	props: ReadonlySet<string> = new Set(),
 ): Map<string, Declared> {
 	const found = new Map<string, Declared>();
 
@@ -145,11 +154,16 @@ function declared(
 			const declarations = Array.isArray(declaration['declarations'])
 				? declaration['declarations']
 				: [];
+
 			for (const one of declarations) {
 				if (!isNode(one)) continue;
 				const id = one['id'];
 				const init = one['init'];
 				if (!isNode(id)) continue;
+				// A prop, not a declaration: the name stands for what the request brought, and its
+				// initialiser is the default, which the artifact applies over the payload's key. By
+				// name rather than by statement, since `let a, b; export { a }` declares one of each.
+				if (typeof id['name'] === 'string' && props.has(id['name'])) continue;
 				// Nothing written for the value. Svelte writes `void 0` there, so the name holds
 				// `undefined` while the bytes are written, which is a value like any other rather
 				// than a name the markup may not read.
@@ -1029,10 +1043,15 @@ export function locals(
 	bound?: ReadonlyMap<string, string>,
 	/** The names the request decides in the caller's scope, which is what `bound` may mention. */
 	dynamic?: ReadonlySet<string>,
+	/** The entry's own props, which are the payload rather than declarations. See `declared`. */
+	props: ReadonlySet<string> = new Set(),
 ): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const carried = requested(ast['instance']);
-	const found = declared(ast, source, carried, fresh) as Map<string, Declared & { node: Node }>;
+	const found = declared(ast, source, carried, fresh, props) as Map<
+		string,
+		Declared & { node: Node }
+	>;
 
 	// Refused rather than substituted wrongly. Two of these compiled and wrote the wrong bytes with
 	// nothing to say so, which is the shape this compiler keeps finding: a model narrower than its

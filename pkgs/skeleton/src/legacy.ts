@@ -3,7 +3,23 @@ import { apply, bySource } from 'ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 
 /**
- * A legacy-mode prop, written the way runes mode writes it.
+ * A legacy-mode prop, written the way runes mode writes it -- for a **child**, and no longer for
+ * the entry.
+ *
+ * **`$props()` puts the file in runes mode, and `analysis.runes` decides more than how props are
+ * declared.** Measured: `2-analyze/visitors/Component.js` gates `metadata.dynamic` on it, so a
+ * namespaced tag is a dynamic component in runes mode and not in legacy, and the server writes
+ * `<!--[-->` and `<!--]-->` around a dynamic one; `LabeledStatement.js` collects `$:` into
+ * `legacy_reactive_statements` and orders them topologically only in legacy; and 63 of the corpus's
+ * refusals are Svelte's own errors against files the author wrote as valid legacy Svelte --
+ * `beforeUpdate` in runes mode, `bind:` to an each argument, a store read as `$state is not
+ * defined`. None of those is a construct this compiler turned away.
+ *
+ * So the entry is read where it is written: `propsOf` takes `export let` and `export { a as b }`
+ * as props, and `locals` is told which names those are so it leaves them free rather than
+ * substituting their initialisers. A child still comes through here, because taking the rewrite
+ * off children as well was measured and is worse -- 1163 identical against 1155 -- and why is not
+ * yet read out. See spec/roadmap.md.
  *
  * `export let n; export let label = 'x'` declares props in Svelte 4's spelling, and Svelte 5 still
  * compiles it. Measured: the server output of a component written that way is byte for byte the

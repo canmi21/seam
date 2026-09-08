@@ -4078,7 +4078,17 @@ export function rewrite(
 	const pending: PendingChoice[] = [];
 	// The entry's own id, where it declares one, named apart from every copy's. See `descend()`.
 	const fresh = identified(ast) ? '__i0' : null;
-	const declared = locals(source, fixed, fresh);
+	// Before `locals`, because the entry's props are the payload and have to be kept out of the
+	// declarations: `export let x = 1` reaches that pass as an ordinary one. See `declared` there.
+	const entryProps = propsOf(ast, source);
+	const declared = locals(
+		source,
+		fixed,
+		fresh,
+		undefined,
+		undefined,
+		new Set((entryProps ?? []).filter((one) => one.rest !== true).map((one) => one.local)),
+	);
 
 	// A render is given no data, so a declaration reading a prop would evaluate against nothing
 	// and crash inside Svelte's own renderer. It has already been substituted into every
@@ -4093,7 +4103,7 @@ export function rewrite(
 	const prelude: string[] = [];
 	const asks: [string, string][] = [];
 	const wants: [string, string][] = [];
-	const declares = propsOf(ast, source);
+	const declares = entryProps;
 	// The entry's `page` from `$app/state` is the payload's `page`, under that name and no other:
 	// a child's rename is bound at its call, and the entry has no call to bind it at.
 	const state = stateImports(ast['instance']);

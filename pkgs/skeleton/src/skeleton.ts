@@ -7,7 +7,6 @@ import { timed, timedSync } from './timing.ts';
 import { renderRewritten, shippable } from './render.ts';
 import { dead, filled, outcomes, probed } from './resolve.ts';
 import type { Block, Rendered, Skeleton } from './shape.ts';
-import { runed } from './legacy.ts';
 import { inlined } from './snippets.ts';
 import { unbound } from './unbind.ts';
 import { rechosen, rewrite } from './walk.ts';
@@ -67,7 +66,7 @@ export async function skeleton(
 	const file = resolvePath(entryFile);
 	// Before anything reads it: a snippet rendered more than once becomes one copy per call, which
 	// is what the render does with it anyway and what leaves every pass below the case it knows.
-	const source = inlined(unbound(runed(readFileSync(file, 'utf8'))));
+	const source = inlined(unbound(readFileSync(file, 'utf8')));
 
 	if (process.env['SEAM_TRACE_SOURCE'] !== undefined) {
 		console.error(`[seam] entry ${basename(file)} as walked:\n${source}\n`);

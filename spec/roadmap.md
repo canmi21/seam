@@ -202,10 +202,21 @@ props -- it is a flag the rest of the compiler reads. Three divergences measured
   everything else `analysis.runes` decides.
 
 **The fix is that the walk reads `export let` rather than rewriting it away**, leaving the render
-Svelte's own render of the author's component. Measured as not a small edit: removing `runed()`
-with nothing in its place takes the corpus from 20 differences to 208, because `propsOf` cannot
-read `export let` at all and every legacy entry loses its payload. `propsOf` and `locals` learning
-the spelling is the work.
+Svelte's own render of the author's component. Removing `runed()` with nothing in its place takes
+the corpus from 20 differences to 208, because `propsOf` cannot read `export let` at all and every
+legacy entry loses its payload; the work is `propsOf` and `locals` learning the spelling.
+
+**Done for the entry.** `propsOf` reads `export let` and both export-list spellings --
+`export { a }` and `export { a as b }`, whose exported name is the prop and whose local is what
+the markup uses -- and `locals` is told which names those are so it leaves them free instead of
+substituting their initialisers, by name rather than by statement, since `let a, b; export { a }`
+declares one of each. Seven more agree, seven fewer are refused, and `component-namespaced` is
+right because the entry keeps the mode its author wrote.
+
+**Not done for a child**, and the measurement is the reason rather than the design: taking the
+rewrite off children as well gives 1155 identical against 1163, and why has not been read out.
+`component-binding-aliased` waits on it -- a child whose prop is `export { foo as bar }` -- and so
+do the 63 refusals, which are mostly children.
 
 ## Newly refused, found by the same run
 

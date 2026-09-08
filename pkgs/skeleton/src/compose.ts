@@ -1,6 +1,6 @@
 import { basename } from 'node:path';
 import { literalOf, type Locals, mentions, pathOf, reduce } from 'ast';
-import { type AstNode, isNode, span } from './node.ts';
+import { type AstNode, isNode, refuse, span } from './node.ts';
 import { type Snippet, snippetsIn } from './snippets.ts';
 import type { Given, Walk } from './walk.ts';
 
@@ -36,6 +36,54 @@ export function propsOf(
 	const found: { local: string; prop: string; fallback: string; at?: unknown; rest?: true }[] = [];
 
 	for (const statement of body) {
+		// `export let` is Svelte 4's spelling of a prop and Svelte 5 still compiles it. Read here
+		// rather than rewritten into `$props()`, because `$props()` puts the file in runes mode and
+		// `analysis.runes` decides far more than how props are declared. See spec/roadmap.md.
+		if (isNode(statement) && statement['type'] === 'ExportNamedDeclaration') {
+			const held = statement['declaration'];
+			const kind = isNode(held) ? held['kind'] : undefined;
+			// `export { a, b as c }` with no declaration of its own: the other legacy spelling, and
+			// the only one that can give a prop a name the local does not have. Svelte's
+			// `analysis.exports` carries the pair, and `prop_alias` is what the exported name is.
+			// The default is the local's own initialiser, wherever it was declared.
+			if (!isNode(held)) {
+				for (const one of Array.isArray(statement['specifiers']) ? statement['specifiers'] : []) {
+					if (!isNode(one)) continue;
+					const from = one['local'];
+					const to = one['exported'];
+					if (!isNode(from) || typeof from['name'] !== 'string') continue;
+					if (!isNode(to) || typeof to['name'] !== 'string') continue;
+					const init = initialiserOf(body, from['name']);
+					const at = span(init);
+					found.push({
+						local: from['name'],
+						prop: to['name'],
+						fallback: at === null ? 'undefined' : source.slice(at[0], at[1]),
+						...(isNode(init) ? { at: init } : {}),
+					});
+				}
+				continue;
+			}
+			if (held['type'] !== 'VariableDeclaration') continue;
+			// `export const`, `export function` and `export class` are readonly exports rather than
+			// props: a caller cannot pass one. See `exportedBy` in walk.ts.
+			if (kind !== 'let' && kind !== 'var') continue;
+			for (const one of Array.isArray(held['declarations']) ? held['declarations'] : []) {
+				if (!isNode(one)) continue;
+				const id = one['id'];
+				if (!isNode(id) || id['type'] !== 'Identifier' || typeof id['name'] !== 'string') {
+					refuse('`export let` of a pattern is not a prop this compiler can name');
+				}
+				const init = span(one['init']);
+				found.push({
+					local: id['name'],
+					prop: id['name'],
+					fallback: init === null ? 'undefined' : source.slice(init[0], init[1]),
+					...(isNode(one['init']) ? { at: one['init'] } : {}),
+				});
+			}
+			continue;
+		}
 		if (!isNode(statement) || statement['type'] !== 'VariableDeclaration') continue;
 		const declarations = Array.isArray(statement['declarations']) ? statement['declarations'] : [];
 		for (const one of declarations) {
@@ -101,6 +149,19 @@ export function propsOf(
 		}
 	}
 	return found;
+}
+
+/** What a `let` or `var` in this body declares the given name to be, or null. See `propsOf`. */
+function initialiserOf(body: readonly unknown[], name: string): unknown {
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'VariableDeclaration') continue;
+		if (statement['kind'] !== 'let' && statement['kind'] !== 'var') continue;
+		for (const one of Array.isArray(statement['declarations']) ? statement['declarations'] : []) {
+			const id = isNode(one) ? one['id'] : undefined;
+			if (isNode(id) && id['name'] === name) return one['init'];
+		}
+	}
+	return null;
 }
 
 /**

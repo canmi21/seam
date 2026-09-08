@@ -2274,6 +2274,24 @@ const accepted: Case[] = [
 			'<Kid p={data.a} />',
 		data: [{ a: 'x' }, { a: '' }],
 	},
+	{
+		// Svelte 4's spelling of a prop, read where it is written rather than rewritten into
+		// `$props()`. The rewrite is what put the file in runes mode, and `analysis.runes` decides
+		// more than how props are declared -- among them whether a namespaced tag is a dynamic
+		// component, which is the last line here: legacy writes no anchors around one and runes
+		// writes `<!--[-->` and `<!--]-->`. See spec/roadmap.md.
+		name: 'an entry whose props are `export let`',
+		alongside: { 'held.ts': 'export const Held = { Inner: null };' },
+		beside: { Inner: '<script>export let n;</script><b>{n}</b>' },
+		source:
+			"<script>import Inner from './Inner.svelte'; export let a; export let b = 'fallback';" +
+			' let c = 1, d; export { c, d as renamed };</script>' +
+			'<p>{a}</p><i>{b}</i><u>{c}</u><s>{d}</s><Inner n={a} />',
+		props: [
+			{ a: 'x', b: 'given', c: 9, renamed: 'r' },
+			{ a: '', c: 0, renamed: '' },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
