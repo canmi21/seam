@@ -105,14 +105,17 @@ prints.
 
 ## The six that were found the first time, and the shape of the rest
 
-**78 of the 115 are one thing: a default on the entry's own props is dropped.**
+The counts in the table above are the first run's. The first of these six is fixed, which took it
+to 1125 identical, 42 differing and 624 refused; [roadmap.md](roadmap.md) records what moved.
+
+**78 of the 115 were one thing: a default on the entry's own props was dropped.**
 
 ```svelte
 <script>let { foo = 42 } = $props();</script><p>{foo}</p>
 ```
 
-compiles to a bare read of `foo` off the payload. Svelte writes `42` where the payload has no
-`foo`; this writes nothing. A *child's* default is right, because the render bakes it in and the
+compiled to a bare read of `foo` off the payload. Svelte writes `42` where the payload has no
+`foo`; this wrote nothing. A *child's* default is right, because the render bakes it in and the
 walk takes the bytes -- so the fault is in exactly the one component whose props become payload
 paths. It is not spread evenly: 64 of `runtime-legacy`'s 79, 13 of the SSR suite's 18, and 1 of
 `runtime-runes`'s 18.

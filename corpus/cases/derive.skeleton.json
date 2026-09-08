@@ -45,6 +45,7 @@
 			"files": ["derive.svelte"]
 		}
 	],
+	"defaults": [],
 	"entered": [],
 	"payload": ["data"]
 }

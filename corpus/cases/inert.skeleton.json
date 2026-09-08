@@ -29,6 +29,7 @@
 			"files": ["inert.svelte"]
 		}
 	],
+	"defaults": [],
 	"entered": [],
 	"payload": ["data"]
 }

@@ -543,6 +543,8 @@ export interface Rewritten {
 	blocks: Block[];
 	/** The payload's keys, which the entry's `$props()` names, or null where it could not be read. */
 	payload: string[] | null;
+	/** A default on one of those keys, as the derivation that decides it. See `Skeleton.defaults`. */
+	defaults: { name: string; expression: string; files: string[] }[];
 	/** Tests the render is asked to decide, by their expanded text. See `Site.asks`. */
 	asks: string[];
 	/** Values the render is asked for, by their expanded text. See `Site.wants`. */
@@ -3788,6 +3790,47 @@ export function rewrite(
 					...declares.map((one) => one.local),
 					...[...state].filter(([, exported]) => exported === 'page').map(([local]) => local),
 				]);
+	/**
+	 * A default on the entry's own props, which nothing else was applying.
+	 *
+	 * A child's default is applied where its call site binds the prop -- `propBinds`, and this is
+	 * the same rule. The entry has no call site: its props are the payload, so the default stands
+	 * over the payload's key and is computed once, before anything reads it. See `Skeleton.defaults`
+	 * for what rewriting the reads instead cost, and spec/derivation.md.
+	 *
+	 * **On `undefined` and on nothing else.** `$props()` destructures the props object, so Svelte's
+	 * default fires exactly where a JavaScript destructuring default does; `??` would fire on null
+	 * too and write the default over a value the request sent.
+	 *
+	 * **`typeof`, not `=== undefined`, and the difference is the whole case this handles.** A
+	 * derivation reads its scope through `with`, which binds a name only where the scope says it
+	 * has one -- so a prop the request did not send is not a name at all, and `foo === undefined`
+	 * is a ReferenceError on exactly the payload the default exists for. `typeof` reads an unbound
+	 * name without throwing, and answers `'undefined'` for a key that is absent and for one that is
+	 * present holding `undefined`, which is the two cases a destructuring default fires on.
+	 * `propBinds` writes the plain comparison because a child's prop is bound to an expression at
+	 * its call site and is always there to evaluate.
+	 *
+	 * A rest is left out: `...rest` gathers what the pattern did not name, and for the entry that
+	 * is a question about the payload's other keys rather than a default.
+	 *
+	 * press cannot reach the bug this fixes -- Kit's root receives `data_0 .. data_n`, `page` and
+	 * `form` on every request -- and it does reach this code, since that root declares each
+	 * `data_n = null`. See spec/suite.md.
+	 */
+	const propDefaults = (declares ?? [])
+		.filter((one) => one.rest !== true && one.fallback !== 'undefined')
+		.map((one) => ({
+			name: one.local,
+			// Expanded, like every other expression the walk records. A default is the author's own
+			// source and may call what only its file has -- `export let foo = get()`, or a function
+			// the script below it declares -- and a derivation is evaluated with the carried bundle
+			// in scope rather than with the component's body.
+			expression: `typeof ${one.local} === 'undefined' ? (${
+				one.at === undefined ? one.fallback : declared.rewrite(one.at)
+			}) : ${one.local}`,
+			files: [relative(root, file)],
+		}));
 	const missed: { file: string; reason: string }[] = [];
 	const handed: Handed[] = [];
 	const spreads: PendingSpread[] = [];
@@ -3919,6 +3962,7 @@ export function rewrite(
 		handed,
 		spreads,
 		payload: payload === null ? null : [...payload],
+		defaults: propDefaults,
 		// The entry's own and every surviving copy's: a copy rolled back takes its asks with it,
 		// and a test only a discarded render would have answered is not one to wait on.
 		asks: [...new Set([...asks, ...copies.flatMap((copy) => copy.asks ?? [])].map(([key]) => key))],

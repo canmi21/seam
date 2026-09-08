@@ -11,6 +11,7 @@
 	},
 	"devDependencies": {
 		"carry": "workspace:*",
+		"compiler": "workspace:*",
 		"derive": "workspace:*",
 		"injector": "workspace:*",
 		"lowering": "workspace:*",

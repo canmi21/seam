@@ -58,6 +58,7 @@
 			"files": ["keyed.svelte"]
 		}
 	],
+	"defaults": [],
 	"entered": [],
 	"payload": ["data"]
 }

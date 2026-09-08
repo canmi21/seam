@@ -40,11 +40,20 @@ Svelte's, which nothing said. [suite.md](suite.md) has the measurement and why t
 not the obvious one; these are the six read off their output the first time Svelte's own samples
 were run, and 32 more are unattributed.
 
-**A default on the entry's own props is dropped.** 78 of the 115 differences. `let { foo = 42 } =
-$props()` on the component the compile starts from becomes a bare read of `foo` off the payload,
-so a request that does not carry `foo` writes nothing where Svelte writes `42`. A child's default
-is correct -- the render bakes it in -- so this is the one component whose props are payload
-paths. press cannot reach it: Kit's root is handed every prop it declares on every request.
+**A default on the entry's own props was dropped: done.** It was 78 of the 115. The default now
+stands over the payload's key as one derivation computed before anything reads it, which is what
+`$props()` destructuring does and what keeps a read of the prop the path it was. Rewriting each
+read instead was written first and is what `Skeleton.defaults` records against: it is equally
+correct and turned every read of every defaulted prop into a derivation of its own, which on Kit's
+generated root -- `data_0 = null` per level -- is every read on every page.
+
+Three samples moved from writing the wrong bytes to being refused, all of them a default that
+reads a store: that is the store gap under **ready**, met one step earlier than usual, and the
+message it gives is the derivation evaluator's rather than a refusal naming a file. One moved the
+other way, `component-binding-parent-supercedes-child-c`: a `bind:` to a component whose own
+default supersedes the parent's, which used to be refused and now compiles and is wrong. It is a
+`bind:` the server writes, and it is on this list rather than that one because a difference
+outranks a refusal.
 
 **Five more, each its own rule.** `{#each}` over a string renders nothing where Svelte iterates
 the characters; a quoted attribute holding one expression is passed as text where Svelte passes

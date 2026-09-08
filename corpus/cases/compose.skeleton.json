@@ -64,6 +64,7 @@
 			"files": ["compose.svelte"]
 		}
 	],
+	"defaults": [],
 	"entered": ["parts/badge.svelte"],
 	"payload": ["data"]
 }

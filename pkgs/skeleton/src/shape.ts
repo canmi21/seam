@@ -212,6 +212,23 @@ export interface Skeleton {
 	 * one: `URLS.external.fonts` is rooted at a constant a file imported, not at the payload.
 	 */
 	payload: string[] | null;
+	/**
+	 * A default on one of those keys, as the expression that decides the key's value.
+	 *
+	 * `let { foo = 42 } = $props()` on the entry: a request that does not carry `foo` gets 42, the
+	 * way a destructuring default does, and one that carries it gets what it carried. A child's
+	 * default is applied where its call site binds the prop -- `propBinds` in `walk.ts` -- and the
+	 * entry has no call site, its props being the payload itself.
+	 *
+	 * **It stands over the key rather than over each read of it.** Rewriting the reads was tried
+	 * and is what this field exists instead of: `data_0.title` became
+	 * `(typeof data_0 === 'undefined' ? null : data_0).title`, which is no longer a path, so every
+	 * read of every prop with a default turned into a derivation of its own -- and Kit's generated
+	 * root declares `data_0 = null` for each level of the route, so that was every read on every
+	 * page. Here it is one derivation per prop, computed before anything reads it, and a read of it
+	 * stays the path it was. See spec/derivation.md.
+	 */
+	defaults: { name: string; expression: string; files: string[] }[];
 	holes: Hole[];
 	blocks: Block[];
 	/**

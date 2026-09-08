@@ -153,6 +153,7 @@ async function ours(
 			decided: one.decided,
 			compiled: lowered[at] as unknown as Parameters<typeof joined>[1][number]['compiled'],
 		})),
+		first.skeleton.defaults,
 	);
 	// One bundle over what every structure of it calls, which is what a route gets.
 	const carried = await carry(first.file, merged(runs.map((one) => one.names)));

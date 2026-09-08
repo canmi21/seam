@@ -126,12 +126,34 @@ function renamed(nodes: readonly Node[], by: ReadonlyMap<string, string>): Node[
 export function joined(
 	component: string,
 	runs: readonly (Run & { compiled: Structure })[],
+	/**
+	 * A default on one of the entry's props, as `Skeleton.defaults` records it: one derivation per
+	 * prop, named for the prop and computed before anything reads it, so `data_0.title` stays the
+	 * path it is and reads the defaulted value. Every run of one entry declares the same props, so
+	 * these are the entry's rather than any run's and are written once.
+	 *
+	 * **Their names are the payload's own and are never renamed.** `renamed()` moves a derivation
+	 * by matching a slot's whole path against its name, and a path rooted at a prop -- `data_0.a`
+	 * -- is not that string, so a rename would leave every read of it pointing at the raw prop
+	 * while the guarded value sat under another name. They are kept out of the rename map for that
+	 * reason, which is safe because a prop's name cannot collide with a `__v` the compiler makes.
+	 */
+	defaults: readonly { name: string; expression: string; files: string[] }[] = [],
 ): Structure {
 	const [only] = runs;
 	if (only === undefined) throw new Error('a component compiled to no structures at all');
-	if (runs.length === 1) return only.compiled;
+	// Over the payload's own keys, which is what `scope: null` says, because a prop's default may
+	// read anything else the entry has in scope -- another prop, a constant its file imported.
+	const given: Derivation[] = defaults.map((one) => ({ ...one, scope: null }));
+	// First, so that a derivation reading a prop reads the default rather than what the request
+	// left out: `derive()` applies them in order into the scope the next one reads.
+	if (runs.length === 1) {
+		return given.length === 0
+			? only.compiled
+			: { ...only.compiled, derivations: [...given, ...only.compiled.derivations] };
+	}
 
-	const derivations: Derivation[] = [];
+	const derivations: Derivation[] = [...given];
 	const body: Branch[] = [];
 	const head: Branch[] = [];
 	const title: Branch[] = [];

@@ -40,6 +40,7 @@
 			"files": ["fragments.svelte"]
 		}
 	],
+	"defaults": [],
 	"entered": [],
 	"payload": ["data"]
 }

@@ -29,11 +29,11 @@ import type { Given, Walk } from './walk.ts';
 export function propsOf(
 	ast: AstNode,
 	source: string,
-): { local: string; prop: string; fallback: string; rest?: true }[] | null {
+): { local: string; prop: string; fallback: string; at?: unknown; rest?: true }[] | null {
 	const instance = ast['instance'];
 	const content = isNode(instance) ? instance['content'] : undefined;
 	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
-	const found: { local: string; prop: string; fallback: string; rest?: true }[] = [];
+	const found: { local: string; prop: string; fallback: string; at?: unknown; rest?: true }[] = [];
 
 	for (const statement of body) {
 		if (!isNode(statement) || statement['type'] !== 'VariableDeclaration') continue;
@@ -69,6 +69,10 @@ export function propsOf(
 				const right = span(given);
 				if (!isNode(left) || typeof left['name'] !== 'string' || right === null) return null;
 				let fallback = source.slice(right[0], right[1]);
+				// The node it was sliced from, so a caller that has to read it in the component's own
+				// scope can expand it rather than take the text as written. The entry's does: a
+				// default may call a function the script declares, which no bundle carries.
+				let at: unknown = given;
 				const called = isNode(given) ? given['callee'] : undefined;
 				if (
 					isNode(given) &&
@@ -77,10 +81,11 @@ export function propsOf(
 					called['name'] === '$bindable'
 				) {
 					const [initial] = Array.isArray(given['arguments']) ? given['arguments'] : [];
-					const at = span(initial);
-					fallback = at === null ? 'undefined' : source.slice(at[0], at[1]);
+					const inner = span(initial);
+					fallback = inner === null ? 'undefined' : source.slice(inner[0], inner[1]);
+					at = inner === null ? undefined : initial;
 				}
-				found.push({ local: left['name'], prop: key['name'], fallback });
+				found.push({ local: left['name'], prop: key['name'], fallback, at });
 			}
 		}
 	}

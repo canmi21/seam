@@ -25,6 +25,7 @@ import { compile, compileModule } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { carriedBy, carry } from 'carry';
+import { joined } from 'compiler';
 import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject } from 'injector';
 import { lower } from 'lowering';
@@ -43,6 +44,15 @@ interface Case {
 	 * if needs both branches: a construct only has to be wrong on the payload nobody tried.
 	 */
 	data?: unknown[];
+	/**
+	 * Whole props objects, where the case is about a prop that is not `data`.
+	 *
+	 * `data` above is the usual shape and covers the payload a route has. A default on one of the
+	 * entry's own props needs the other half as well -- the request that leaves the prop out and the
+	 * one that sends it -- and neither is expressible as a value of `data`, since `data` is always
+	 * passed. Given, these are the payloads instead of `data`'s.
+	 */
+	props?: Record<string, unknown>[];
 	/** Sibling files the case imports, by name without the extension. Composition needs two. */
 	beside?: Record<string, string>;
 	/** Sibling files that are not components, written as named. What a derivation may call. */
@@ -2038,6 +2048,56 @@ const accepted: Case[] = [
 			{ rows: [] },
 		],
 	},
+	{
+		// A default on the entry's own props. A child's is applied where the call site binds the prop;
+		// the entry has no call site, its props being the payload, and until this was written the
+		// default was dropped and a request that left the prop out wrote nothing where Svelte writes
+		// the default. Both payloads, because the one that sends the prop is what says the default
+		// does not also overwrite it. See spec/suite.md.
+		name: "a default on the entry's own props",
+		source:
+			'<script>let { data, label = "none", n = 41 } = $props();</script>' +
+			'<p>{label}</p><b>{n + 1}</b><i>{data.a}</i>',
+		props: [
+			{ data: { a: 'x' } },
+			{ data: { a: 'x' }, label: 'given', n: 1 },
+			{ data: { a: 'x' }, label: undefined, n: undefined },
+			{ data: { a: 'x' }, label: null, n: 0 },
+		],
+	},
+	{
+		// The default is the author's own source and is expanded like every other expression: it may
+		// call what only its own file has. Taken as written it reached the derivation evaluator,
+		// which has the carried bundle in scope and not the component's body.
+		name: "a default on the entry's props that calls the file's own function",
+		alongside: { 'tax.ts': 'export const RATE = 0.2;' },
+		source:
+			"<script>import { RATE } from './tax.ts'; let { data, rate = base() + RATE } = $props();" +
+			' function base() { return 1 }</script><p>{rate}</p><i>{data.a}</i>',
+		props: [{ data: { a: 'x' } }, { data: { a: 'x' }, rate: 9 }],
+	},
+	{
+		// `$bindable` marks a prop a parent may write and may only appear inside `$props()`, so what
+		// stands for the default elsewhere is its argument. The entry has no parent to bind it.
+		name: "a `$bindable` default on the entry's own props",
+		source:
+			'<script>let { data, open = $bindable(true) } = $props();</script>' +
+			'<p>{open ? "open" : "shut"}</p><i>{data.a}</i>',
+		props: [{ data: { a: 'x' } }, { data: { a: 'x' }, open: false }],
+	},
+	{
+		// The shape Kit's generated root has, which is why this had to stay a path: `data_0 = null`
+		// per level of the route. Rewriting each read into a guard was tried and turned every read
+		// of every prop on every page into a derivation. See `Skeleton.defaults`.
+		name: 'a default on a prop the markup reads fields off, which stays a path',
+		source:
+			'<script>let { form, page, data_0 = null } = $props();</script>' +
+			'<h1>{data_0.title}</h1><p>{data_0.body}</p><a href={page.url}>{form}</a>',
+		props: [
+			{ form: 'f', page: { url: '/p' }, data_0: { title: 'T', body: 'B' } },
+			{ form: 'f', page: { url: '/p' }, data_0: { title: 'T', body: 'B' }, extra: 1 },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
@@ -2214,9 +2274,17 @@ async function attempt(
 	writeFileSync(file, one.source);
 	try {
 		const rendered = await skeleton(file, staging, new Map(Object.entries(one.fixed ?? {})));
-		const compiled = lower([[one.name, JSON.stringify(rendered)]])[0];
-		if (compiled === undefined) return { refusal: 'nothing came back from lowering' };
-		if ('error' in compiled) return { refusal: compiled.error };
+		const lowered = lower([[one.name, JSON.stringify(rendered)]])[0];
+		if (lowered === undefined) return { refusal: 'nothing came back from lowering' };
+		if ('error' in lowered) return { refusal: lowered.error };
+		// Through `joined`, which is what a build goes through even for a component with one
+		// structure: it is where the entry's prop defaults become derivations, and skipping it here
+		// meant the check and the build compiled the same component two ways.
+		const compiled = joined(
+			one.name,
+			[{ fixed: new Map(), decided: new Map(), compiled: lowered as never }],
+			rendered.defaults,
+		);
 		return {
 			ir: compiled.ir as Parameters<typeof inject>[0],
 			derivations: compiled.derivations as Derivation[],
@@ -2252,6 +2320,38 @@ it('renders the same bytes from any working directory', async () => {
 		expect(await skeleton(file, staging)).toEqual(here);
 	} finally {
 		process.chdir(before);
+	}
+});
+
+// A default stands over the payload's key, not over each read of it, and this is the difference
+// measured. Rewriting the reads is correct and was written first: `data_0.title` became
+// `(typeof data_0 === 'undefined' ? null : data_0).title`, which is no longer a path, so every read
+// of every prop with a default became a derivation -- and Kit's generated root declares
+// `data_0 = null` per level of the route, so that was every read on every page of a real site. The
+// bytes agree either way, which is why this asks the artifact rather than the output.
+it('a default leaves a read of the prop a path, and costs one derivation', async () => {
+	const source =
+		'<script>let { form, page, data_0 = null } = $props();</script>' +
+		'<h1>{data_0.title}</h1><p>{data_0.body}</p><a href={page.url}>{data_0.tag}</a>';
+	const dir = staged('paths');
+	mkdirSync(dir, { recursive: true });
+	const file = resolve(dir, 'entry.svelte');
+	writeFileSync(file, source);
+
+	const rendered = await skeleton(file, staging);
+	const lowered = lower([['paths', JSON.stringify(rendered)]])[0];
+	if (lowered === undefined || 'error' in lowered) throw new Error('it did not compile');
+	const compiled = joined(
+		'paths',
+		[{ fixed: new Map(), decided: new Map(), compiled: lowered as never }],
+		rendered.defaults,
+	);
+
+	// One per prop with a default, however many times the markup reads it.
+	expect(compiled.derivations.map((one) => one.name)).toEqual(['data_0']);
+	const text = JSON.stringify(compiled.ir);
+	for (const path of ['data_0.title', 'data_0.body', 'data_0.tag', 'page.url']) {
+		expect(text, `\`${path}\` stopped being a path`).toContain(`"path":"${path}"`);
 	}
 });
 
@@ -2318,11 +2418,12 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 		// undefined, so an accepted case that produced one rendered empty and matched nothing --
 		// which stayed invisible for as long as every accepted case here happened to have none.
 		const derive = compileDerivations(derivations ?? [], carried ?? '');
-		for (const data of one.data ?? []) {
+		const payloads = one.props ?? (one.data ?? []).map((data) => ({ data }));
+		for (const props of payloads) {
 			// Both streams. The head used to go uncompared, and a headed component inside a body
 			// block compiled to a head that held its block whichever branch the request took.
-			const ours = inject(ir as Parameters<typeof inject>[0], derive({ data }));
-			const theirs = render(mod.default, { props: { data } as never });
+			const ours = inject(ir as Parameters<typeof inject>[0], derive(props));
+			const theirs = render(mod.default, { props: props as never });
 			expect(ours.body).toBe(theirs.body);
 			expect(ours.head).toBe(theirs.head);
 		}

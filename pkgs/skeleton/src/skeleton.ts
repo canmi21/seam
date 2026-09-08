@@ -83,7 +83,17 @@ export async function skeleton(
 	// The first branch of every if, and every each with one item. An if with no `{:else if}` has
 	// only that branch, so this is what "everything taken" used to mean.
 	const baseline = timedSync('  walk (rewrite)', () =>
-		rewrite(source, (_block, branch) => branch === 0, file, root, false, fixed, decided, told, mute),
+		rewrite(
+			source,
+			(_block, branch) => branch === 0,
+			file,
+			root,
+			false,
+			fixed,
+			decided,
+			told,
+			mute,
+		),
 	);
 
 	// After the walk, not before it. Every name has to come from somewhere -- this pass renders
@@ -279,6 +289,7 @@ export async function skeleton(
 		alternates,
 		holes: baseline.holes,
 		blocks: baseline.blocks,
+		defaults: baseline.defaults,
 		// One entry per file rather than per call site: two calls of one component carry the same
 		// imports, and what is wanted here is which modules the bundle has to reach. Relative to the
 		// root, because this is written into a fixture two machines have to agree on, and an
@@ -307,6 +318,13 @@ export function expressionsOf(rendered: Skeleton): { expression: string; files: 
 			found.push({ expression, files });
 		}
 		for (const [, expression] of block.fragment?.binds ?? []) found.push({ expression, files });
+	}
+	// A default on one of the entry's props is a derivation like any other and may call anything
+	// the entry's file has in scope -- `export let foo = get()`, a store read. It is not a hole, so
+	// it would be gathered from nowhere, and the bundle would come out without what it calls: the
+	// artifact compiled and the derivation threw at request time. See `Skeleton.defaults`.
+	for (const one of rendered.defaults) {
+		found.push({ expression: one.expression, files: one.files });
 	}
 	return found;
 }

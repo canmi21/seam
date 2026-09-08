@@ -46,6 +46,7 @@
 			"files": ["locals.svelte"]
 		}
 	],
+	"defaults": [],
 	"entered": [],
 	"payload": ["data"]
 }

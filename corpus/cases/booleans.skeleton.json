@@ -58,6 +58,7 @@
 		}
 	],
 	"blocks": [],
+	"defaults": [],
 	"entered": [],
 	"payload": ["data"]
 }

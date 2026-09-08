@@ -11,6 +11,7 @@
 		}
 	],
 	"blocks": [],
+	"defaults": [],
 	"entered": ["parts/badge.svelte"],
 	"payload": ["data"]
 }

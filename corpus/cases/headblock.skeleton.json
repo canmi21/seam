@@ -62,6 +62,7 @@
 			"files": ["headblock.svelte"]
 		}
 	],
+	"defaults": [],
 	"entered": [],
 	"payload": ["data"]
 }
