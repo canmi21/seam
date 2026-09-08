@@ -492,11 +492,30 @@ What that leaves is about 2.8GB of live heap that is the compile itself, under a
 that barely moves between the three rows: the difference is heap V8 has grown and not returned,
 which is churn rather than retention, and which tracks the limit the process was given.
 
-What would bound the rest is a render's heap dying with the thing that made it: a render is a pure
-function from a source and a payload to bytes, and a worker that compiles one route and exits
-takes every module it loaded with it. That is the fix that works for both hosts, and it has to be
-serial to be worth having -- seven workers each with a Vite server of its own would raise the peak
-rather than lower it, trading the memory for a parallelism nobody asked for. Not built.
+What bounds the rest is the compile's heap dying with the thing that made it, and **it is the whole
+compile rather than one route**. Measured after a full collection at the end of a compile of press:
+**945MB still referenced, and 2.4GB that V8 had grown and would not return** -- RSS went from
+3400MB to 3389MB while the live heap halved, so nothing was handed back to the operating system.
+Clearing what is held only makes it collectable; it does not give it back.
+
+**So the compile runs in a process of its own that exits.** It could, because it already was one in
+every way but the last: what it produces are files under `<outDir>/seam`, which `buildStart` reads
+off the disk, and nothing of it crosses into the build in memory -- `compile()`'s return value was
+discarded where it was called. What crosses the boundary now is one JSON argument and an exit code,
+its streams are the build's own so a refusal still appears where it did, and the child says
+`process.exit` rather than waiting: a Vite server keeps handles its `close()` does not release.
+See `apart.ts`.
+
+**What that fixed was not only the compile.** The bundling that follows used to start from the
+compile's floor and stayed there, and rolldown at 9.7GB is rolldown collecting rather than
+bundling. Measured over a whole press build, `vite-plugin-sveltekit-compile writeBundle` went from
+**372.4 seconds to 5.7**, and the build from minutes to **42.1 seconds** of which 32 are the
+compile. The parent now peaks at 525MB while the compile runs and the child at 3.2GB, and the
+child's 3.2GB is gone before a single module is bundled.
+
+A worker per route, which an earlier draft of this section wanted, is a different trade and is
+still not built: the compile shares its memos and its Vite across routes, so seven of them would
+raise the peak rather than lower it.
 
 ## Packaging is about the program, not the artifacts
 
