@@ -167,8 +167,20 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): s
  */
 function arrayLike(source: unknown): readonly unknown[] | null {
 	if (!source) return null;
-	if (typeof source === 'object' && 'length' in source) {
-		return Array.isArray(source) ? source : Array.from(source as ArrayLike<unknown>);
+	// `.length !== undefined` on the value itself, not on an object -- a **string** has one, and
+	// the loop that follows is `array[i]` for `i < array.length`, so a string iterates its
+	// characters. Asking `typeof source === 'object'` first missed that and wrote nothing.
+	const length = (source as { length?: unknown }).length;
+	if (length !== undefined) {
+		if (Array.isArray(source)) return source;
+		// Read by index rather than through `Array.from`, because the loop is an index loop: a
+		// string holding an astral character has a `length` of two and `s[0]` is half of it, where
+		// `Array.from` would give one whole character and one fewer iteration.
+		const held: unknown[] = [];
+		for (let at = 0; at < (length as number); at += 1) {
+			held.push((source as Record<number, unknown>)[at]);
+		}
+		return held;
 	}
 	if (typeof source === 'object' && Symbol.iterator in source) {
 		return Array.from(source as Iterable<unknown>);

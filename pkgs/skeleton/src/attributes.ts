@@ -469,7 +469,20 @@ export function styles(
 			continue;
 		}
 
-		const only = parts === null ? one['expression'] : parts.length === 1 ? parts[0] : undefined;
+		// The shorthand's value is the variable of that name: `build_attr_style` writes
+		// `b.id(directive.name)` where a written value would have been built. The name sits just
+		// past `style:` in the source, which is where an expansion of it has to be read from.
+		const shorthand = span(one);
+		const named =
+			parts !== null || shorthand === null
+				? undefined
+				: {
+						type: 'Identifier',
+						name: raw,
+						start: shorthand[0] + 'style:'.length,
+						end: shorthand[0] + 'style:'.length + raw.length,
+					};
+		const only = parts === null ? named : parts.length === 1 ? parts[0] : undefined;
 		const inner = parts === null ? only : isNode(only) ? only['expression'] : undefined;
 		// Text beside an expression is one value: `build_attribute_value` joins the parts into a
 		// template literal with each expression through `$.stringify`, which writes nothing for

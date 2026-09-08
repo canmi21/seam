@@ -2212,6 +2212,33 @@ const accepted: Case[] = [
 			{ t: '', xs: [] },
 		],
 	},
+	{
+		// `ensure_array_like` asks the value for a `length` and hands back the value itself where it
+		// has one, and the loop that follows reads `array[i]` for `i < array.length`. So a **string**
+		// iterates its characters, and so does any array-like. Asking whether the source was an
+		// object first missed both and wrote nothing.
+		name: 'an each over a string and over an array-like',
+		source:
+			`${PROPS}<ul>{#each data.t as c}<li>{c}</li>{/each}</ul>` +
+			'<ol>{#each data.like as x}<li>{x}</li>{/each}</ol>',
+		data: [
+			{ t: 'foo', like: { length: 2, 0: 'a', 1: 'b' } },
+			{ t: '', like: { length: 0 } },
+		],
+	},
+	{
+		// `build_attr_style` writes `b.id(directive.name)` where a written value would have been
+		// built, so `style:color` is the variable `color`. The name sits just past `style:` in the
+		// source, which is where an expansion of it is read from.
+		name: 'a `style:` in its shorthand form',
+		source:
+			'<script>let { data } = $props(); const color = data.c; const width = data.w;</script>' +
+			'<p style:color style:width>a</p><i style:color="green">b</i>',
+		data: [
+			{ c: 'red', w: '2px' },
+			{ c: '', w: null },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
