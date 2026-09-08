@@ -17,12 +17,26 @@ written in that package rather than in these files.
 | `test/mocks/` | `packages/kit/test/mocks`, the stand-ins the specs use for Kit's virtual modules |
 | `LICENSE` | the repository's, MIT |
 | `*.upstream.*` | `package.json`, `tsconfig.json` and `kit.vitest.config.js` as upstream ships them, for reading |
+| `.gitignore` | `packages/kit/.gitignore`, the one file taken for effect rather than for reading |
 
 Taken by cloning the tag into a temporary directory, dropping its `.git`, and copying the files
 in. The version control here is jj, which has no submodules, and a submodule would in any case
 put the code one indirection away from the checks that read it. The directory layout under `src/`
 is upstream's, unchanged, so that `git diff <old tag>..<new tag> -- packages/kit/src` applies to
 it as a patch.
+
+**Upstream's own `.gitignore` comes with it, and here it is in force.** It sits at `packages/kit/`
+there and at `vendor/kit/` here, which is the same layer, so its anchored patterns land on the
+right paths without being rewritten. One line is the reason it is taken:
+
+    !/src/core/adapt/fixtures/*/.svelte-kit
+
+Upstream ignores `.svelte-kit` everywhere and then re-includes those three, because the adapter
+specs read a built one as a fixture. Without that line here the directories are output to anything
+that asks version control what they are, and `mise run clean` asks exactly that -- so a fixture
+upstream committed on purpose would be swept as rubbish the next time one was copied in. The file
+is upstream's and is not edited, like everything else under `src/`; it is only the one whose
+purpose is to change behaviour rather than to be read beside it.
 
 ## Why the JavaScript is kept as JavaScript
 
@@ -75,7 +89,8 @@ the framework layer takes, adjusts and leaves is decided in `spec/framework.md`,
 ## Upgrading
 
 1. Clone the new tag into a temporary directory, as above.
-2. Replace `src/`, `types/` and `test/mocks/` with the new tag's, and the `*.upstream.*` files.
+2. Replace `src/`, `types/`, `test/mocks/`, `.gitignore` and the `*.upstream.*` files with the new
+   tag's.
 3. Update the tag and commit in the table above, and the counts under **What is checked** after
    running both checks.
 4. Read `git diff <old tag>..<new tag> -- packages/kit/src` for the files `pkgs/routes` and
