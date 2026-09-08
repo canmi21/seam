@@ -5,7 +5,8 @@ Seam is being rebuilt. The protocol stays, the compiler in front of it does not.
 Compile-time rendering for Svelte: a component is rendered once, at build time, into an IR a
 server fills per request, and the bytes are what SvelteKit's server render would have sent. The
 framework around it is SvelteKit with that one step moved; Kit's source sits under `vendor/kit`
-as it is written. The rules are in `spec/`, what is left in `spec/roadmap.md`.
+as it is written. The rules are in `spec/`, what is left in `spec/roadmap.md`, and what has to pass before
+any of it is finished in `spec/conformance.md`.
 
 The previous version lives whole on the
 [`observation`](https://github.com/canmi21/seam/tree/observation) branch, including the Go and

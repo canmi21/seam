@@ -92,6 +92,13 @@ argument against ever sampling it: there is no reason to run part of this.
 Read against the denominator above, on the `server-side-rendering` suite alone -- 131 samples, 16
 upstream skips, 17 async, 2 that ask a boundary to catch a throw -- **59 of 96**.
 
+## This is the first of three, and the order matters
+
+[conformance.md](conformance.md) puts this suite in its place: it is stage one of three, and it
+says what "all of them" means once the skips and the refusals by decision come out -- 1628 of the
+2388 -- and why neither SvelteKit's own test apps nor a real application should be measured until
+this one is finished. What follows here is the rule that decides the order of work inside it.
+
 ## Bytes before capability, and why that ordering is not obvious
 
 **A difference outranks a refusal, however many refusals there are.** 662 refusals against 115

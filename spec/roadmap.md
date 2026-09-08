@@ -33,6 +33,12 @@ that decides it is named. That is the order of work for each: read the transform
 form the rule, measure it with Node against Svelte's own output, then write ours, then the check
 that holds the two together. See the workspace's `spec/agent-protocol.md`.
 
+## Where this file sits
+
+This is the list of what is left, ranked. The order the work is *proved* in is
+[conformance.md](conformance.md): Svelte's own samples, then SvelteKit's own test apps, then an
+application written for Kit and moved. Everything below belongs to the first of those.
+
 ## Wrong bytes, which is not a refusal and outranks everything below
 
 A refusal stops a build and names a file. What follows here compiled and wrote bytes that are not
