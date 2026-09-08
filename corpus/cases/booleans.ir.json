@@ -134,7 +134,7 @@
 		},
 		{
 			"name": "__d1",
-			"expression": "clsx((data.k))",
+			"expression": "$$clsx((data.k))",
 			"scope": null,
 			"files": ["booleans.svelte"]
 		}

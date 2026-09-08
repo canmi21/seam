@@ -5,7 +5,7 @@
 	"holes": [
 		{
 			"index": 0,
-			"expression": "clsx((cn('card', data.tone, [data.size, ['fixed']])))",
+			"expression": "$$clsx((cn('card', data.tone, [data.size, ['fixed']])))",
 			"raw": false,
 			"files": ["carried.svelte"],
 			"safe": true

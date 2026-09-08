@@ -60,7 +60,7 @@ export function filled(baseline: Rewritten, file: string, root: string): void {
 		if (one.styles !== undefined) rest[2] = one.styles;
 		const hole = baseline.holes[one.index];
 		if (hole !== undefined) {
-			hole.expression = `attributes(${[one.object, ...rest].join(', ')})`;
+			hole.expression = `$$attributes(${[one.object, ...rest].join(', ')})`;
 		}
 	}
 }
@@ -265,7 +265,7 @@ export async function outcomes(
 				.map((name, at) => `${JSON.stringify(name)}: (${String(one.tests[at])})`)
 				.join(', ');
 			hole.expression =
-				`attr_class(${String(one.written)}, ${hash === undefined ? 'undefined' : JSON.stringify(hash)}, ` +
+				`$$attr_class(${String(one.written)}, ${hash === undefined ? 'undefined' : JSON.stringify(hash)}, ` +
 				`{ ${directives} })`;
 			continue;
 		}

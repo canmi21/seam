@@ -35,7 +35,7 @@
 		},
 		{
 			"index": 5,
-			"expression": "clsx((data.k))",
+			"expression": "$$clsx((data.k))",
 			"raw": false,
 			"files": ["booleans.svelte"],
 			"safe": true

@@ -347,19 +347,24 @@ export function expressionsOf(rendered: Skeleton): { expression: string; files: 
 export function helpers(rendered: Skeleton): Carried[] {
 	const found: Carried[] = [];
 	const from = 'svelte/internal/server';
+	// Under a `$$` name, which nothing the author writes can shadow: Svelte reserves the prefix, so
+	// `$$props`, `$$slots` and these are the only names that carry it. Svelte's own output calls
+	// them through `$.`, and ours had them bare -- so a component with `export let attributes`, which
+	// is an ordinary thing to call a prop, put an object where the helper's name was and the
+	// derivation called it. Measured on `class-with-spread`.
 	if (rendered.holes.some((one) => one.spread === true)) {
-		found.push({ local: 'attributes', from, kind: 'named' });
+		found.push({ local: '$$attributes', from, kind: 'named', exported: 'attributes' });
 	}
 	if (rendered.holes.some((one) => one.whole === true)) {
-		found.push({ local: 'attr_class', from, kind: 'named' });
+		found.push({ local: '$$attr_class', from, kind: 'named', exported: 'attr_class' });
 	}
-	if (rendered.holes.some((one) => one.expression.includes('clsx('))) {
-		found.push({ local: 'clsx', from, kind: 'named' });
+	if (rendered.holes.some((one) => one.expression.includes('$$clsx('))) {
+		found.push({ local: '$$clsx', from, kind: 'named', exported: 'clsx' });
 	}
 	// What `build_attribute_value` puts around every expression in a template: `stringify` is
 	// Svelte's, not a rule reproduced here, so nullish comes out empty rather than as "undefined".
-	if (rendered.holes.some((one) => one.expression.includes('stringify('))) {
-		found.push({ local: 'stringify', from, kind: 'named' });
+	if (rendered.holes.some((one) => one.expression.includes('$$stringify('))) {
+		found.push({ local: '$$stringify', from, kind: 'named', exported: 'stringify' });
 	}
 	return found;
 }

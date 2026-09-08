@@ -144,7 +144,7 @@ export function joined(
 	if (only === undefined) throw new Error('a component compiled to no structures at all');
 	// Over the payload's own keys, which is what `scope: null` says, because a prop's default may
 	// read anything else the entry has in scope -- another prop, a constant its file imported.
-	const given: Derivation[] = defaults.map((one) => ({ ...one, scope: null }));
+	const given: Derivation[] = defaults.map((one) => ({ ...one, scope: null, prop: true }));
 	// First, so that a derivation reading a prop reads the default rather than what the request
 	// left out: `derive()` applies them in order into the scope the next one reads.
 	if (runs.length === 1) {

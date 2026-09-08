@@ -3737,7 +3737,7 @@ function descend(
 			const pieces = parts.map((part) =>
 				(part as AstNode)['type'] === 'Text'
 					? templated(String((part as AstNode)['data'] ?? ''))
-					: `\${stringify(${walk.expand((part as AstNode)['expression'])})}`,
+					: `\${$$stringify(${walk.expand((part as AstNode)['expression'])})}`,
 			);
 			const grown = `\`${pieces.join('')}\``;
 			if (walk.site.payload !== null && !varies(grown, walk)) inertProps.add(name);

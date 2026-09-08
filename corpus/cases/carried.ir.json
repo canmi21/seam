@@ -59,7 +59,7 @@
 		},
 		{
 			"name": "__d1",
-			"expression": "clsx((cn('card', data.tone, [data.size, ['fixed']])))",
+			"expression": "$$clsx((cn('card', data.tone, [data.size, ['fixed']])))",
 			"scope": null,
 			"files": ["carried.svelte"]
 		},

@@ -489,3 +489,31 @@ budget, and that is a deployment choice rather than a rule here.
   carrying them is settled -- see [payload.md](payload.md), which means they can hold real values
   rather than numbers the author has to reconstitute. Where they sit within the data, and whether
   the load stage must supply them, is not decided.
+
+## A derivation is computed when it is read, and not before
+
+**A derivation is a pure expression, so *when* it is computed cannot change what it is. Whether it
+is computed at all can.** They used to be evaluated up front, all of them, as the payload was
+built. `{#if boxes.length === 2}{@const box2 = boxes[1]}` is a derivation that only makes sense
+inside its branch -- Svelte evaluates a `{@const}` in the branch's own init -- and computing it for
+a request that took another branch threw. The artifact had already been written by then, so the
+refusal arrived per request rather than at the build, which is the one thing
+[refusals.md](refusals.md) says a refusal must not do.
+
+Each is a getter on the scope now, computed once on first read. A route also stops paying for the
+branches it did not take, which on a page joined out of several structures is most of them.
+
+**A prop's default is the exception and is marked `prop`.** It stands *over* a payload key rather
+than beside it -- `typeof x === 'undefined' ? ... : x` under the name `x` -- so it has to be
+computed in order, while the name still holds what the request brought; as a lazy read it would
+resolve `x` to itself and recurse. Asking instead whether the key is already there does not work:
+the request omitting it is exactly when the default matters.
+
+## The helpers are carried under a name nothing can shadow
+
+`attributes`, `attr_class`, `clsx` and `stringify` are Svelte's own, carried into the bundle so
+that both backends run its implementation rather than agreeing about a rule. Svelte's own output
+calls them through `$.`; ours had them bare, and a component with `export let attributes` -- an
+ordinary name for a prop -- put an object where the helper's name was, so the derivation called it.
+They are carried under `$$attributes` and the rest, which nothing the author writes can shadow
+because Svelte reserves the `$$` prefix for its own.

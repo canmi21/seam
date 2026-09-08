@@ -2363,6 +2363,33 @@ const accepted: Case[] = [
 			'</svelte:fragment></Card>',
 		data: [{ a: 'x' }, { a: '' }],
 	},
+	{
+		// A `{@const}` only makes sense inside its branch, and Svelte evaluates one in the branch's
+		// own init. Computed up front it threw for every request that took another branch -- and the
+		// artifact had already been written, so the refusal arrived per request rather than at the
+		// build. A derivation is a pure expression, so *when* it is computed cannot change what it
+		// is; whether it is computed at all can.
+		name: 'a `{@const}` in a branch the request does not take',
+		source:
+			`${PROPS}{#if data.xs.length === 2}{@const second = data.xs[1]}<p>{second.w}</p>` +
+			'{:else if data.xs.length === 1}{@const first = data.xs[0]}<i>{first.w}</i>' +
+			'{:else}<b>none</b>{/if}',
+		data: [{ xs: [{ w: 1 }, { w: 2 }] }, { xs: [{ w: 3 }] }, { xs: [] }],
+	},
+	{
+		// Svelte calls its own helpers through `$.`; ours had them bare, so a component with a prop
+		// called `attributes` -- an ordinary name for one -- put an object where the helper's name
+		// was and the derivation called it. They are carried under a `$$` name now, which nothing
+		// the author writes can shadow because Svelte reserves the prefix.
+		name: 'a prop named after one of the helpers a spread calls',
+		source:
+			'<script>export let attributes = {}; export let myClass;</script>' +
+			'<div class={myClass} {...attributes}></div>',
+		props: [
+			{ myClass: 'a', attributes: { id: 'x', title: 't' } },
+			{ myClass: '', attributes: {} },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.

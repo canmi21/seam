@@ -395,7 +395,7 @@ export function clsxed(expression: unknown, expand: Locals['rewrite']): string {
 	const written = `(${expand(expression)})`;
 	if (type === 'Literal' || type === 'TemplateLiteral' || type === 'BinaryExpression')
 		return written;
-	return `clsx(${written})`;
+	return `$$clsx(${written})`;
 }
 
 /**

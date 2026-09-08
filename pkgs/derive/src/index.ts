@@ -16,6 +16,15 @@ export interface Derivation {
 	 */
 	scoped?: boolean;
 	/**
+	 * A derivation that stands over a payload key rather than beside it: a prop's default, which is
+	 * `typeof x === 'undefined' ? ... : x` under the name `x`.
+	 *
+	 * Computed in order, while the name still holds what the request brought, because as a lazy
+	 * read it would resolve `x` to itself. Which is not the same as asking whether the key is there:
+	 * the request omitting it is exactly when the default matters.
+	 */
+	prop?: boolean;
+	/**
 	 * The files the expression was written across, innermost first. Each name in it resolves in
 	 * the first of these that imports it, so the evaluator opens their imports as scopes, the
 	 * innermost shadowing the rest. Absent for an expression the compiler wrote itself.
@@ -124,6 +133,7 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 		name: derivation.name,
 		scope: derivation.scope,
 		scoped: derivation.scoped,
+		prop: derivation.prop,
 		evaluate: build(derivation.expression, files, derivation.files ?? []),
 		source: derivation.expression,
 	}));
@@ -156,11 +166,40 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 				out[derivation.name] = Object.assign(held, { [SCOPED]: true });
 				continue;
 			}
-			try {
-				out[derivation.name] = derivation.evaluate(bindings());
-			} catch (error) {
-				throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
+			// A prop's default stands over the payload's key and is computed in order. See
+			// `Derivation.prop`.
+			if (derivation.prop === true) {
+				try {
+					out[derivation.name] = derivation.evaluate(bindings());
+				} catch (error) {
+					throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
+				}
+				continue;
 			}
+			// Everything else is computed when it is read, once, and not before. A derivation is a pure expression, so
+			// when it is computed cannot change what it is -- and whether it is computed at all can:
+			// `{#if boxes.length === 2}{@const box2 = boxes[1]}` is a derivation that only makes
+			// sense inside its branch, and Svelte evaluates a `{@const}` in the branch's own init.
+			// Evaluated up front it threw for every request that took another branch, and the
+			// artifact had already been written, so the refusal arrived per request rather than at
+			// the build. It also stops a route paying for the derivations of the branches it did not
+			// take, which is most of them on a page joined out of several structures.
+			let held: unknown;
+			let done = false;
+			Object.defineProperty(out, derivation.name, {
+				configurable: true,
+				enumerable: true,
+				get: () => {
+					if (done) return held;
+					try {
+						held = derivation.evaluate(bindings());
+					} catch (error) {
+						throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
+					}
+					done = true;
+					return held;
+				},
+			});
 		}
 		return out;
 	};
