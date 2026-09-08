@@ -1160,7 +1160,13 @@ function unimported(text: string): string {
 	const used = new Set<string>();
 	const mark = (node: unknown): void => {
 		readsIn(node, new Set(), (at) => {
-			if (typeof at['name'] === 'string') used.add(at['name']);
+			if (typeof at['name'] !== 'string') return;
+			used.add(at['name']);
+			// `$x` is a subscription to the store `x`, so it is a use of `x` -- and the only one an
+			// imported store may have. Without this the import was dropped as unused and Svelte then
+			// refused the read: "`$held` is an illegal variable name", which is what
+			// `2-analyze/index.js` raises for a `$` reference whose store nothing declares.
+			if (at['name'].startsWith('$') && at['name'].length > 1) used.add(at['name'].slice(1));
 		});
 	};
 	// A default inside a pattern is read too -- `let { onOpenChange = noop } = $props()` reads
@@ -1680,8 +1686,15 @@ function varies(expression: string, walk: Walk): boolean {
  * component. Neither can be written out for the render to evaluate.
  */
 function unknown(walk: Walk): ReadonlySet<string> {
-	if (walk.handed === undefined || walk.handed.size === 0) return walk.dynamic;
-	return new Set([...walk.dynamic, ...walk.handed]);
+	// `$x` reads the store `x`, so a subscription to one the request brings is one of these: what
+	// `store_get` is handed decides the value, and this walk does not hold it. Without the pair the
+	// read looked like a name of its own that nothing decided, so it was written out for the render
+	// -- which has no store there and wrote nothing. See `stands`, which refuses it.
+	const subscribed = [...walk.dynamic].map((one) => `$${one}`);
+	if (walk.handed === undefined || walk.handed.size === 0) {
+		return new Set([...walk.dynamic, ...subscribed]);
+	}
+	return new Set([...walk.dynamic, ...subscribed, ...walk.handed]);
 }
 
 /**
@@ -1905,7 +1918,28 @@ function slotOf(node: AstNode): string | null {
  * the component reads off it are still there. What is left gets one marker, and is reported if it
  * does not come back.
  */
+/**
+ * Refuses a subscription to a store the request brings.
+ *
+ * `$x` is `store_get($$store_subs ??= {}, '$x', x)` and reads whatever `x` holds while the bytes
+ * are written, so the store itself has to be there -- and a store is an object with a `subscribe`
+ * function, which is not something a payload can carry: devalue serialises data. Handed a marker
+ * instead, `store_get` reads nothing, and the derivation that stood for it failed at injection
+ * rather than at build. Where `x` is the component's own the read decides nothing per request, and
+ * the render evaluates Svelte's own call. See spec/derivation.md.
+ */
+function subscribing(expression: string, walk: Walk): void {
+	const subscribed = new Set([...walk.dynamic].map((one) => `$${one}`));
+	if (subscribed.size === 0 || !mentions(expression, subscribed)) return;
+	refuse(
+		'a `$store` subscription over a value the request brings is not handled: a store is an ' +
+			'object with a `subscribe` function and the payload carries data. Read the value in the ' +
+			'load stage and put that in the data. See spec/derivation.md',
+	);
+}
+
 function stands(expression: string, walk: Walk): string {
+	subscribing(expression, walk);
 	const held = settle(expression, walk.site.decided, walk.dynamic, new Set(walk.fresh));
 	if (held.undecided !== null) {
 		// A name a block binds is decided per item, and a decision over it cannot be enumerated for
@@ -2395,6 +2429,7 @@ function collect(node: unknown, walk: Walk): void {
 			// form rather than left as it was: what it expanded from may have been a name, and the
 			// declaration that name came from has been neutralised for the render.
 			const written = settled(expand(node['expression']), walk);
+			subscribing(written, walk);
 			// Inside a class value, what is written has to be exactly as readable to Svelte's CSS
 			// analysis as what the author wrote -- no less and no more. So the author's own
 			// expression stays, in the branch that is never taken. See `Walk.classValue`.

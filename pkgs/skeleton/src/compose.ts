@@ -59,13 +59,22 @@ export function propsOf(
 					const to = one['exported'];
 					if (!isNode(from) || typeof from['name'] !== 'string') continue;
 					if (!isNode(to) || typeof to['name'] !== 'string') continue;
-					const init = initialiserOf(body, from['name']);
-					const at = span(init);
+					const how = declaredAs(body, from['name']);
+					// Not a prop: a readonly export, which `exportedBy` in walk.ts reads instead.
+					if (how === null || how.kind === 'readonly') continue;
+					if (how.kind === 'pattern') {
+						refuse(
+							`\`export { ${from['name']} }\` names something a pattern binds, whose value is ` +
+								"not an initialiser this compiler can read as the prop's default. Declare it " +
+								'on its own. See spec/refusals.md',
+						);
+					}
+					const at = span(how.init);
 					found.push({
 						local: from['name'],
 						prop: to['name'],
 						fallback: at === null ? 'undefined' : source.slice(at[0], at[1]),
-						...(isNode(init) ? { at: init } : {}),
+						...(isNode(how.init) ? { at: how.init } : {}),
 					});
 				}
 				continue;
@@ -189,17 +198,52 @@ function usesRunes(body: readonly unknown[]): boolean {
 	return found;
 }
 
-/** What a `let` or `var` in this body declares the given name to be, or null. See `propsOf`. */
-function initialiserOf(body: readonly unknown[], name: string): unknown {
+/**
+ * How a name is declared in this body, for a specifier in an `export { ... }`.
+ *
+ * Only a `let` or a `var` bound to a plain name is a prop: `export { x }` over a `const` is a
+ * readonly export, which `analysis.exports` carries to `bind_props` rather than declaring as a
+ * bindable prop, and one over a destructuring binds a name whose value comes out of a pattern,
+ * which is not an initialiser this can name.
+ */
+function declaredAs(
+	body: readonly unknown[],
+	name: string,
+): { kind: 'prop'; init: unknown } | { kind: 'readonly' } | { kind: 'pattern' } | null {
 	for (const statement of body) {
 		if (!isNode(statement) || statement['type'] !== 'VariableDeclaration') continue;
-		if (statement['kind'] !== 'let' && statement['kind'] !== 'var') continue;
+		const writable = statement['kind'] === 'let' || statement['kind'] === 'var';
 		for (const one of Array.isArray(statement['declarations']) ? statement['declarations'] : []) {
 			const id = isNode(one) ? one['id'] : undefined;
-			if (isNode(id) && id['name'] === name) return one['init'];
+			if (!isNode(id)) continue;
+			if (id['name'] === name) {
+				if (!writable) return { kind: 'readonly' };
+				return { kind: 'prop', init: one['init'] };
+			}
+			// A name the pattern binds rather than the declarator's own.
+			const names = new Set<string>();
+			namesOf(id, names);
+			if (names.has(name)) return writable ? { kind: 'pattern' } : { kind: 'readonly' };
 		}
 	}
 	return null;
+}
+
+/** Every name a binding pattern binds. */
+function namesOf(node: unknown, into: Set<string>): void {
+	if (Array.isArray(node)) {
+		for (const one of node) namesOf(one, into);
+		return;
+	}
+	if (!isNode(node)) return;
+	if (node['type'] === 'Identifier' && typeof node['name'] === 'string') {
+		into.add(node['name']);
+		return;
+	}
+	for (const [key, value] of Object.entries(node)) {
+		if (key === 'key' || key === 'init') continue;
+		namesOf(value, into);
+	}
 }
 
 /**

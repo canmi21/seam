@@ -2307,10 +2307,42 @@ const accepted: Case[] = [
 			{ a: '', b: 0 },
 		],
 	},
+	{
+		// `$x` is a subscription to the store `x`: `build_getter` writes
+		// `$.store_get($$store_subs ??= {}, '$x', x)`, which subscribes, takes the value and
+		// memoises it for the render. So it resolves exactly where `x` resolves, and where `x` is the
+		// component's own the read decides nothing per request and the render evaluates it.
+		name: 'a store the component made, read in markup',
+		alongside: {
+			'shop.ts':
+				"import { readable } from 'svelte/store'; export const held = readable('imported');",
+		},
+		source:
+			"<script>import { writable } from 'svelte/store'; import { held } from './shop.ts';" +
+			' let { data } = $props(); const own = writable(1);</script>' +
+			'<p>{$own}</p><i>{$held}</i><b>{$own + 1}</b><u>{data.a}</u>',
+		data: [{ a: 'x' }, { a: '' }],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// The store itself would have to be in the payload, and a store is an object with a
+		// `subscribe` function where the payload carries data. `store_get` handed a marker reads
+		// nothing, so this used to be written out for the render and came back empty.
+		name: 'a `$store` over a value the request brings',
+		says: '`$store` subscription',
+		source: '<script>export let s;</script><p>{$s}</p>',
+	},
+	{
+		// `export { x }` is a prop only where `x` is a plain `let` or `var`: over a `const` it is a
+		// readonly export, and over a destructuring it binds a name whose value comes out of a
+		// pattern rather than from an initialiser this can read as the default.
+		name: 'an `export { }` naming something a pattern binds',
+		says: 'a pattern binds',
+		source: '<script>let { a, b } = { a: 1, b: 2 }; export { a };</script><p>{a}{b}</p>',
+	},
 	{
 		// The legacy spelling of the whole props object. Svelte binds it from the component's own
 		// `$$props`; nothing here can, for the reason a rest cannot -- a derivation reads its scope

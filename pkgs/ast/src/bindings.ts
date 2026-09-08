@@ -148,6 +148,20 @@ function clientOnly(name: unknown): boolean {
 	return /^on[A-Z:a-z]/.test(name) && name.length > 2;
 }
 
+/**
+ * The runes, which are `$`-prefixed and are not stores. `is_rune` in Svelte's own analysis is the
+ * same list, and a reference to one is what puts a file in runes mode rather than a subscription.
+ */
+const RUNES: ReadonlySet<string> = new Set([
+	'$state',
+	'$derived',
+	'$props',
+	'$bindable',
+	'$effect',
+	'$inspect',
+	'$host',
+]);
+
 function report(
 	expression: unknown,
 	source: string,
@@ -164,6 +178,22 @@ function report(
 
 	for (const name of names) {
 		if (GLOBALS.has(name)) continue;
+		// `$x` is a subscription to the store `x`, and it resolves exactly where `x` does.
+		// `2-analyze/index.js` declares a `store_sub` binding for a `$`-prefixed reference whose
+		// name is not a rune and whose `x` is declared in the module or instance scope, and errors
+		// where it is not; `build_getter` in the server transform then writes
+		// `$.store_get($$store_subs ??= {}, '$x', x)`, which subscribes, takes the value and
+		// memoises it for the render. So the store itself is what has to resolve, and it is the
+		// store that gets bundled where it was imported. See spec/derivation.md.
+		if (name.startsWith('$') && name.length > 1 && !RUNES.has(name)) {
+			const store = name.slice(1);
+			const imported = carried?.known.get(store);
+			if (carried !== undefined && imported !== undefined) {
+				carried.used.add(store);
+				continue;
+			}
+			if (carried?.declares(store) === true) continue;
+		}
 		// A name from `$app/state` is neither bundled nor looked up: `page` is the payload's and
 		// the other two are written out as what a server holds. See `stateImports()`.
 		if (carried?.known.get(name)?.from === APP_STATE) continue;

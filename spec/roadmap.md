@@ -287,10 +287,21 @@ measured byte for byte against `$props()` with the same defaults, so the file is
 that before anything reads it (`runed()` in `legacy.ts`). `export const` and `export function`
 are readonly exports and are refused by name.
 
-**A store read in markup.** `{$s}` is refused today as a name the data does not carry, in runes
-mode as much as in legacy. It renders the same bytes in both, and `$s` is `get(s)` from
-`svelte/store`, a pure read of a value the script made -- a substitution like any other where the
-store is built from props. Ready, not done, and small; waits for a component that reads one.
+**A store read in markup: done.** `$x` is a subscription to the store `x`, and it resolves exactly
+where `x` does -- `2-analyze/index.js` declares a `store_sub` binding for a `$`-prefixed reference
+that is not a rune and whose store is declared, and `build_getter` writes
+`$.store_get($$store_subs ??= {}, '$x', x)`, which subscribes, takes the value and memoises it for
+the render. Where the store is the component's own the read decides nothing per request, so it is
+inert and the render evaluates Svelte's own call; 32 of the corpus's samples were waiting on that
+and nothing else.
+
+Two things had to go with it. `$x` is the only use an imported store may have, and the pass that
+drops unused imports counted it as a use of `$x` rather than of `x`, so the import went and Svelte
+refused the read as an illegal variable name. And a store the **request** brings is refused: a
+store is an object with a `subscribe` function where the payload carries data, so `store_get` handed
+a marker reads nothing -- which used to fail at injection rather than at build, with
+`deriving \`$b\` failed`. Three are left, each its own shape: a store write inside an exported
+function, a store deciding a `<svelte:element>` tag, and one still failing in a derivation.
 
 ## Decided, and not built
 
