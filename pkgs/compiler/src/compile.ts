@@ -338,7 +338,11 @@ export async function compile(options: Options): Promise<Report[]> {
 		const files: string[] = [];
 
 		const irFile = `${one.id}.json`;
-		write(resolve(server, irFile), `${JSON.stringify(compiled, null, '\t')}\n`);
+		// Compact. It was indented, which is worth having in a fixture somebody reads and is worth
+		// nothing in an artifact a server parses: on press's article the tabs were 7.2 MB of a
+		// 16.5 MB file, and every byte of it is shipped, read and parsed once per process. The
+		// fixtures under `corpus/` are written by their own generator and stay readable.
+		write(resolve(server, irFile), `${JSON.stringify(compiled)}\n`);
 		files.push(irFile);
 
 		// Nothing rather than an empty file, so a page that carries nothing ships nothing. It is

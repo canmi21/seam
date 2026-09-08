@@ -137,13 +137,32 @@ export function joined(
 	const title: Branch[] = [];
 	const fragments: Record<string, Node[]> = {};
 
+	// One entry per distinct derivation, however many runs wrote it. A derivation is a pure
+	// expression over the payload, so two runs that wrote the same one -- the same expression, the
+	// same scope, scoped or not, over the same files -- compute the same value and can be the one
+	// entry. **Most of them are the same one.** press's article joins fifty-four structures and
+	// wrote 13,224 derivations between them, of which 286 are distinct: `('still') === 'restoring'`
+	// alone appeared 216 times. Every one of them is evaluated once per request, so this is the
+	// bytes and the work both.
+	const shared = new Map<string, string>();
+	const key = (one: Derivation): string =>
+		JSON.stringify([one.expression, one.scope, one.scoped === true, one.files ?? null]);
+
 	for (const [at, run] of runs.entries()) {
 		// A derivation is named for its position among its own component's, so several components'
-		// collide by construction. Each run's are moved out of the way rather than renumbered, so
-		// the name still says which run it came from when something has to be read by hand.
-		const by = new Map(
-			run.compiled.derivations.map((one) => [one.name, `__v${String(at)}${one.name.slice(2)}`]),
-		);
+		// collide by construction. Each run's is pointed at the shared entry its content names.
+		const by = new Map<string, string>();
+		for (const one of run.compiled.derivations) {
+			const held = shared.get(key(one));
+			if (held !== undefined) {
+				by.set(one.name, held);
+				continue;
+			}
+			const name = `__v${String(derivations.length)}`;
+			shared.set(key(one), name);
+			by.set(one.name, name);
+			derivations.push({ ...one, name });
+		}
 		// A fragment is named for its position among its own component's too, so each run's are
 		// moved the same way, and the calls that name them with them.
 		for (const name of Object.keys(run.compiled.ir.fragments ?? {})) {
@@ -152,10 +171,6 @@ export function joined(
 		for (const [name, nodes] of Object.entries(run.compiled.ir.fragments ?? {})) {
 			fragments[by.get(name) ?? name] = renamed(nodes, by);
 		}
-		for (const one of run.compiled.derivations) {
-			derivations.push({ ...one, name: by.get(one.name) ?? one.name });
-		}
-
 		// Tested against the values it was compiled for, which is a derivation like any other: the
 		// IR tests a path's truth and never an expression, so the comparison is computed before it
 		// is tested.
