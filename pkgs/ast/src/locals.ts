@@ -448,30 +448,13 @@ function bare(node: unknown): Node | null {
 }
 
 /**
- * The expression inside a tag, with an optional chain unwrapped, or null where it will not parse.
- *
- * Parsed as markup because that is the one parser this project has, and an expression is a whole
- * component's worth of source to it.
+ * Where a node sits in the expression it was parsed from, with the wrapper's offset taken off.
  */
-function only(expression: string): { whole: Node; wrapped: string } | null {
-	const wrapped = `<script lang="ts"></script>{${expression}}`;
-	let ast: Node;
-	try {
-		// The same memo `settle` reads from: an expression is parsed once a compile however many
-		// passes ask about it, and the walk asks about a great many. See `parsed`.
-		ast = parsed(expression);
-	} catch {
-		return null;
-	}
-	const fragment = ast['fragment'];
-	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
-	const tag = nodes.find((one) => isNode(one) && one['type'] === 'ExpressionTag');
-	const outer = isNode(tag) ? tag['expression'] : undefined;
-	// `?.` anywhere in a chain wraps the whole of it, so the chain itself is what to read, and the
-	// TypeScript written around either is not part of the expression.
-	const inner = bare(outer);
-	const whole = inner?.['type'] === 'ChainExpression' ? bare(inner['expression']) : inner;
-	return whole === null ? null : { whole, wrapped };
+function spanOf(node: Node): [number, number] | null {
+	const { start, end } = node;
+	return typeof start === 'number' && typeof end === 'number'
+		? [start - WRAPPED, end - WRAPPED]
+		: null;
 }
 
 /**
@@ -490,10 +473,10 @@ function peel(whole: Node): { node: Node; read: string; short: boolean } {
 	for (;;) {
 		if (node['type'] !== 'MemberExpression' || node['computed'] === true) break;
 		const named = node['property'];
-		const inner = node['object'];
+		const inner = bare(node['object']);
 		if (!isNode(named) || named['type'] !== 'Identifier' || typeof named['name'] !== 'string')
 			break;
-		if (!isNode(inner)) break;
+		if (inner === null) break;
 		reads.unshift({ name: named['name'], optional: node['optional'] === true });
 		node = inner;
 	}
@@ -502,35 +485,27 @@ function peel(whole: Node): { node: Node; read: string; short: boolean } {
 }
 
 /**
- * A `?:` with what is read off it pushed into both branches, as the three pieces.
+ * A `?:` with what is read off it pushed into both branches, or null where that is not what it is.
  *
  * **A read off a choice is part of the choice.** `(summary ? T[summary.provider] : undefined)?.icon`
  * picks a component, and until the read is inside the branches the expression is a member access
  * over a ternary rather than a ternary -- so `settle` looks at a value where a choice is written
  * and nothing asks the render which branch is taken. Distributing it is exact: the test is
  * evaluated once either way, and each branch keeps whatever the read would have done to it.
- *
- * Given back in pieces rather than joined, because each branch is unfolded again before it is.
  */
-function distributed(
-	expression: string,
-): { test: string; yes: string; no: string; read: string } | null {
-	const found = only(expression);
-	if (found === null) return null;
-	const { node, read } = peel(found.whole);
-	if (node['type'] !== 'ConditionalExpression') return null;
+function distributed(whole: Node, source: string): string | null {
+	const { node, read } = peel(whole);
+	if (read === '' || node['type'] !== 'ConditionalExpression') return null;
 	const slice = (part: unknown): string | null => {
 		if (!isNode(part)) return null;
-		const { start, end } = part;
-		return typeof start === 'number' && typeof end === 'number'
-			? found.wrapped.slice(start, end)
-			: null;
+		const at = spanOf(part);
+		return at === null ? null : source.slice(at[0], at[1]);
 	};
 	const test = slice(node['test']);
 	const yes = slice(node['consequent']);
 	const no = slice(node['alternate']);
 	if (test === null || yes === null || no === null) return null;
-	return { test, yes: `(${yes})${read}`, no: `(${no})${read}`, read };
+	return `((${test}) ? (${yes})${read} : (${no})${read})`;
 }
 
 /**
@@ -548,18 +523,15 @@ function distributed(
  * optional one short-circuits and is `undefined`, and a plain one throws, which is what the
  * expression as written does and is not this function's to soften.
  */
-function tabled(expression: string): string | null {
-	const found = only(expression);
-	if (found === null) return null;
-	const { wrapped } = found;
-	const { node, read, short } = peel(found.whole);
+function tabled(whole: Node, source: string): string | null {
+	const { node, read, short } = peel(whole);
 	if (node['type'] !== 'MemberExpression' || node['computed'] !== true) return null;
 	const object = bare(node['object']);
 	const property = bare(node['property']);
 	if (object === null || object['type'] !== 'ObjectExpression' || property === null) return null;
 	const slice = (part: Node): string | null => {
-		const { start, end } = part;
-		return typeof start === 'number' && typeof end === 'number' ? wrapped.slice(start, end) : null;
+		const at = spanOf(part);
+		return at === null ? null : source.slice(at[0], at[1]);
 	};
 	const key = slice(property);
 	if (key === null) return null;
@@ -583,39 +555,88 @@ function tabled(expression: string): string | null {
 	return `(${arms.join(' : ')} : ${missing})`;
 }
 
-/** How deep a choice is unfolded before it is left as written, which nothing measured comes near. */
-const DEEP = 8;
+/** What is being called, where a rewrite of it would take the call away from its receiver. */
+const CALLED: Readonly<Record<string, string>> = {
+	CallExpression: 'callee',
+	NewExpression: 'callee',
+	TaggedTemplateExpression: 'tag',
+};
 
 /**
- * The expression written as the choice it is, or null where it holds none to unfold.
+ * The first choice written anywhere in an expression, as where it sits and what it becomes.
  *
- * Two rewrites, applied inside out until neither has anything left to say. A table lookup becomes
- * the chain of `?:` its keys make; a read off a `?:` goes inside both branches, and each branch is
- * unfolded again.
+ * **Anywhere, not at the top.** A guard is written `{#if Icon && provider}`, and the choice is
+ * inside one side of the `&&`; read only at the top, the expression is a logical operator and
+ * nothing looks further. Outermost first, so the rewrite is the largest one available there.
  *
- * **Neither is enough alone, and the order is the whole of it.** press's article writes
+ * **Never what is being called.** Both rewrites move a read off the thing it is read from, and a
+ * read that is then called is a method: `(a ?? []).slice(5)` and `(a === undefined ? [].slice :
+ * a.slice)(5)` are not the same call, because the second has lost what it was called on. So the
+ * callee itself is passed over, and what is inside it is not -- a choice deeper in stays attached
+ * to whatever it becomes. press's article found this, its footnotes calling `slice` on a default.
+ */
+function choiceIn(text: string): { at: [number, number]; text: string } | null {
+	let ast: Node;
+	try {
+		ast = parsed(text);
+	} catch {
+		return null;
+	}
+	let found: { at: [number, number]; text: string } | null = null;
+	const visit = (node: unknown, called: boolean): void => {
+		if (found !== null) return;
+		if (Array.isArray(node)) {
+			for (const one of node) visit(one, false);
+			return;
+		}
+		if (!isNode(node)) return;
+		// A chain and what it holds cover the same characters, so either span replaces both.
+		const whole = bare(node['type'] === 'ChainExpression' ? node['expression'] : node);
+		const at = spanOf(node);
+		if (!called && whole !== null && at !== null) {
+			const rewritten = tabled(whole, text) ?? distributed(whole, text);
+			if (rewritten !== null) {
+				found = { at, text: rewritten };
+				return;
+			}
+		}
+		const receiver = typeof node['type'] === 'string' ? CALLED[node['type']] : undefined;
+		for (const [name, one] of Object.entries(node)) visit(one, name === receiver);
+	};
+	visit(ast['fragment'], false);
+	return found;
+}
+
+/**
+ * How many rewrites one expression is given before it is left as written, which is a bound on a
+ * loop rather than a limit anybody should meet: press's article takes four.
+ */
+const DEEP = 32;
+
+/**
+ * The expression written as the choices it holds, or null where it holds none.
+ *
+ * Two rewrites, applied to the innermost thing each fits until neither fits anywhere. A table
+ * lookup becomes the chain of `?:` its keys make; a read off a `?:` goes inside both branches, and
+ * what that leaves is a rewrite again.
+ *
+ * **Neither is enough alone, and the order falls out of repeating them.** press's article writes
  * `(summary ? T[summary.provider] : undefined)?.icon`. Expand the table first and there is no table
  * to see, because the top of the expression is a member access. Push the read in first and the
- * branch still reads the request, so `chooses` finds nothing it can enumerate. Inside out, the
- * branch the render takes is a lookup and the lookup's keys are the domain -- which was in the
- * source the whole time.
+ * branch still reads the request, so `chooses` finds nothing it can enumerate. Repeated, the branch
+ * the render takes is a lookup and the lookup's keys are the domain -- which was in the source the
+ * whole time.
  */
 export function unfolded(expression: string): string | null {
+	let text = expression;
 	let changed = false;
-	const fold = (text: string, depth: number): string => {
-		if (depth > DEEP) return text;
-		const table = tabled(text);
-		if (table !== null) {
-			changed = true;
-			return table;
-		}
-		const spread = distributed(text);
-		if (spread === null) return text;
-		if (spread.read !== '') changed = true;
-		return `((${spread.test}) ? (${fold(spread.yes, depth + 1)}) : (${fold(spread.no, depth + 1)}))`;
-	};
-	const rewritten = fold(expression, 0);
-	return changed ? rewritten : null;
+	for (let round = 0; round < DEEP; round += 1) {
+		const found = choiceIn(text);
+		if (found === null) break;
+		text = apply(text, [[found.at[0], found.at[1], found.text]]);
+		changed = true;
+	}
+	return changed ? text : null;
 }
 
 /**

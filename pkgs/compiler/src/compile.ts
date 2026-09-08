@@ -16,7 +16,14 @@
  */
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
-import { bundle, configureAliases, remembered, rememberedSources, type Bundle } from 'ast';
+import {
+	bundle,
+	type Carried,
+	configureAliases,
+	remembered,
+	rememberedSources,
+	type Bundle,
+} from 'ast';
 import { carriedBy, carry, rememberedBundles } from 'carry';
 import { lower } from 'lowering';
 import { aliases } from 'routes';
@@ -93,6 +100,26 @@ export interface Options {
 	assets?: Readonly<Record<string, string>>;
 }
 
+/**
+ * Every structure's carried names as one map, which is what a route's single bundle is built from.
+ *
+ * A name is kept once per file: two structures of one route read the same import from the same
+ * file, and a bundler asked for it twice writes it twice.
+ */
+function merged(all: readonly Map<string, Carried[]>[]): Map<string, Carried[]> {
+	const found = new Map<string, Map<string, Carried>>();
+	for (const one of all) {
+		for (const [file, names] of one) {
+			const held = found.get(file) ?? new Map<string, Carried>();
+			for (const name of names) {
+				held.set(`${name.local}\u0000${name.from}\u0000${name.kind}`, name);
+			}
+			found.set(file, held);
+		}
+	}
+	return new Map([...found].map(([file, names]) => [file, [...names.values()]]));
+}
+
 /** What one component produced before anything was written down. */
 export interface Prepared {
 	/** The component's id, which is its path relative to the root without the extension. */
@@ -102,8 +129,16 @@ export interface Prepared {
 	/** Every component the entry reaches, with names resolved. Not an artifact; a check. */
 	markup: Bundle;
 	skeleton: Skeleton;
-	/** The code the component's expressions call, bundled. Empty when it carries nothing. */
-	carried: string;
+	/**
+	 * What this structure's expressions call, by the file that wrote each name.
+	 *
+	 * The names rather than the bundle, because **a route has one bundle and several structures**.
+	 * Bundling per structure and shipping the first one's is a bundle that answers for a page the
+	 * server may never be asked for: press's article calls `contentLanguageHref` in the structure
+	 * where a translation exists and in no other, and the shipped bundle was the structure where
+	 * one does not -- `ReferenceError` at request time, on a page that compiled.
+	 */
+	names: Map<string, Carried[]>;
 }
 
 /** One line per artifact written, so a caller can say what it did without guessing. */
@@ -157,12 +192,7 @@ export async function prepare(
 		source,
 		markup,
 		skeleton: rendered,
-		carried: await timed('carry (derivation bundle)', () =>
-			carry(
-				entry,
-				new Map([...carriedBy(root, expressionsOf(rendered)), ['*', helpers(rendered)]]),
-			),
-		),
+		names: new Map([...carriedBy(root, expressionsOf(rendered)), ['*', helpers(rendered)]]),
 	};
 }
 
@@ -300,8 +330,11 @@ export async function compile(options: Options): Promise<Report[]> {
 			decided: each.decided,
 			compiled: lowered[at + index] as unknown as Structure,
 		}));
+		const together = merged(prepared.slice(at, at + one.of).map((each) => each.names));
 		at += one.of;
 		const compiled = joined(one.id, runs);
+		// One route, one bundle, over what every structure of it calls. See `Prepared.names`.
+		const carried = await timed('carry (derivation bundle)', () => carry(one.file, together));
 		const files: string[] = [];
 
 		const irFile = `${one.id}.json`;
@@ -313,9 +346,9 @@ export async function compile(options: Options): Promise<Report[]> {
 		// and hands it to its own evaluator, so bundling it into one backend's program would make
 		// the two read code that arrived by different routes. See spec/build.md.
 		let carriedFile: string | null = null;
-		if (one.carried !== '') {
+		if (carried !== '') {
 			carriedFile = `${one.id}.js`;
-			write(resolve(server, carriedFile), one.carried);
+			write(resolve(server, carriedFile), carried);
 			files.push(carriedFile);
 		}
 

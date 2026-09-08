@@ -93,3 +93,25 @@ describe('an expression holding no choice to unfold', () => {
 		}
 	});
 });
+
+describe('a read that is then called', () => {
+	// Both rewrites move a read off the thing it is read from, and a read that is then called is a
+	// method: taking `slice` off the array and calling it alone loses what it was called on.
+	// press's article found this, its footnotes calling `slice` on a default.
+	it('is left attached to what it is called on', () => {
+		expect(unfolded('(d.k ? [1, 2, 3] : []).slice(1)')).toBeNull();
+		expect(unfolded(`(d.k ? ${TABLE} : {})[d.k](1)`)).toBeNull();
+		expect(unfolded('(d.k ? [1, 2, 3] : [])?.slice(1)')).toBeNull();
+	});
+
+	// A choice deeper inside the callee is still a choice: rewriting it keeps the call attached to
+	// whatever it becomes.
+	it('does not hide a choice further in', () => {
+		const written = `((d.k ? ${TABLE}[d.k] : undefined)?.name).slice(1)`;
+		const rewritten = unfolded(written);
+		expect(rewritten).toContain('(d.k) === "a" ?');
+		for (const k of KEYS) {
+			expect(ran(rewritten as string, k), `k ${JSON.stringify(k)}`).toBe(ran(written, k));
+		}
+	});
+});

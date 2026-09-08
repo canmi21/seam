@@ -5,7 +5,7 @@
  * the one Svelte renders for that value**, which only an oracle can say -- so every value is
  * injected and compared against a real render with the matching payload.
  */
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile as svelte } from 'svelte/compiler';
@@ -15,7 +15,7 @@ import { compile as deriving } from 'derive';
 import { inject } from 'injector';
 import { lower } from 'lowering';
 import { combinations, joined, type Structure } from './variants.ts';
-import { prepare, structures } from './compile.ts';
+import { compile as compileRoutes, prepare, structures } from './compile.ts';
 
 const staging = resolve(dirname(fileURLToPath(import.meta.url)), '../.build-variants');
 
@@ -57,7 +57,22 @@ const TABLE =
 	" const ICONS = { a: { icon: Ay, name: 'Ay' }, b: { icon: Bee, name: 'Bee' } };" +
 	' const found = $derived(data.k ? ICONS[data.k] : undefined);' +
 	' const Pick = $derived(found?.icon);</script>' +
-	'<Pick /><span>{found?.name}</span><p>{data.title}</p>';
+	// Guarded, and the guard is what makes the read inside it safe -- which is how press writes
+	// it. Where the table lacks the key the test is two constants and the branch is never taken,
+	// but a render made to ask what the test is worth takes it and reads `found.name` off nothing.
+	'{#if Pick && found}<Pick /><span>{found.name}</span>{/if}<p>{data.title}</p>';
+
+// A helper only one structure calls. The block's test is a constant once the locale is fixed, so
+// the walk enters the child in that structure and in no other -- and only there does the child's
+// `{shout(t)}` become a derivation. The domain puts that structure last, because a bundle built
+// from the first one would otherwise hold the name by luck.
+const SHOUT = 'export const shout = (s) => `${s}!`;';
+const LOUD =
+	"<script>import { shout } from './shout.ts'; let { t } = $props();</script><b>{shout(t)}</b>";
+const ONESIDED =
+	"<script>import Loud from './loud.svelte'; let { data } = $props();</script>" +
+	"{#if data.locale.code === 'en'}<Loud t={data.title} />{/if}<p>{data.title}</p>";
+const SPOKEN = ['fr', 'de', 'en'];
 
 beforeAll(() => {
 	mkdirSync(staging, { recursive: true });
@@ -68,6 +83,9 @@ beforeAll(() => {
 	writeFileSync(resolve(staging, 'ay.svelte'), AY);
 	writeFileSync(resolve(staging, 'bee.svelte'), BEE);
 	writeFileSync(resolve(staging, 'table.svelte'), TABLE);
+	writeFileSync(resolve(staging, 'shout.ts'), SHOUT);
+	writeFileSync(resolve(staging, 'loud.svelte'), LOUD);
+	writeFileSync(resolve(staging, 'onesided.svelte'), ONESIDED);
 });
 afterAll(() => rmSync(staging, { recursive: true, force: true }));
 
@@ -215,5 +233,29 @@ describe('a component chosen through a table, read off the entry', () => {
 				),
 			);
 		}
+	});
+});
+
+describe("a route's carried bundle", () => {
+	// One route, several structures, one bundle. Built from the first structure's names it answers
+	// for a page the server may never be asked for: press's article called `contentLanguageHref`
+	// in the structure where a translation exists and in no other, compiled clean, and threw
+	// `ReferenceError` at request time on the page it did ship. See `Prepared.names`.
+	it('holds what every structure of it calls, not what the first one does', async () => {
+		const out = resolve(staging, 'out-carried');
+		rmSync(out, { recursive: true, force: true });
+		await compileRoutes({
+			root: staging,
+			out,
+			entries: [
+				{
+					path: '/',
+					component: 'onesided.svelte',
+					enumerate: { 'data.locale.code': SPOKEN },
+				},
+			],
+		});
+		const carried = readFileSync(resolve(out, 'server/onesided.js'), 'utf8');
+		expect(carried, 'the helper one structure calls').toContain('shout');
 	});
 });
