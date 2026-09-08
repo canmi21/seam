@@ -506,6 +506,20 @@ its streams are the build's own so a refusal still appears where it did, and the
 `process.exit` rather than waiting: a Vite server keeps handles its `close()` does not release.
 See `apart.ts`.
 
+**And it runs once, which it did not.** `vite build` resolves the config more than once with
+`build.ssr` set -- twice for Kit alone, three times with an adapter that builds again -- and each
+resolution is a plugin of its own, asking for the same artifacts from the same sources. They came
+out identical every time, so two of the three compiles were the whole thing run for nothing: on
+press that was ninety seconds and three heaps of three gigabytes each.
+
+**What says it already happened is a file, because nothing in memory is shared between the
+resolutions that ask.** Vite loads a config file by bundling it and evaluating it **in a realm of
+its own**: measured, the same pid reports a different `globalThis` each time, and a value hung off
+`process` -- which carries that pid into the realm -- is not seen from the other either. So the
+stamp goes beside the artifacts, holding what the compile was told and which run wrote it, the run
+being the pid and the process's start to the second. The filesystem is how the compile already
+talks to the build around it.
+
 **What that fixed was not only the compile.** The bundling that follows used to start from the
 compile's floor and stayed there, and rolldown at 9.7GB is rolldown collecting rather than
 bundling. Measured over a whole press build, `vite-plugin-sveltekit-compile writeBundle` went from

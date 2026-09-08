@@ -13,7 +13,7 @@
  * program, as files the program reads rather than code bundled into it, because a backend that is
  * not Node reads the same files. See spec/build.md.
  */
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
@@ -24,6 +24,29 @@ import { ARTIFACTS, type Compiling, NAME } from './compile.ts';
 
 /** The id Kit's generated root resolves to in the server build, marked as a module no file backs. */
 const ROOT = '\0seam:root';
+
+/**
+ * What this build has already compiled, written beside the artifacts. See `compileRoutes`.
+ *
+ * A file, because nothing in memory is shared between the resolutions that ask. Vite loads a
+ * config file by bundling it and evaluating it **in a realm of its own**, and neither a
+ * module-level value, nor one hung off `globalThis`, nor one hung off `process` -- which carries
+ * the same pid into that realm and is a copy all the same -- is seen from both. The filesystem is
+ * how the compile already talks to the build around it, so this goes there too.
+ */
+const STAMP = 'compiled.json';
+
+/**
+ * This build run, as two realms of one process would both name it.
+ *
+ * `pid` alone is reused between builds and would let a later one read an earlier one's stamp and
+ * skip a compile its sources had changed under, so the process's start goes in beside it, to the
+ * second -- `uptime()` is read at different moments in the two realms and agrees only that far.
+ */
+function run(): string {
+	const started = Math.round((Date.now() - process.uptime() * 1000) / 1000);
+	return `${String(process.pid)}:${String(started)}`;
+}
 
 export interface Options {
 	/**
@@ -121,6 +144,14 @@ export function seam(options: Options = {}): Plugin {
 		// compile run for nothing. Keyed by what the compile is told, so a build that genuinely
 		// asks for something else still gets it, and held for the process because a build is
 		// one-shot: `active` is false under `serve`, and `--watch` resolves the config once.
+		const key = JSON.stringify(given);
+		const stamp = resolve(outDir, ARTIFACTS, STAMP);
+		try {
+			const held = JSON.parse(readFileSync(stamp, 'utf8')) as { run: string; key: string };
+			if (held.run === run() && held.key === key) return;
+		} catch {
+			// No stamp, or one this build did not write. Either way there is a compile to run.
+		}
 		const child = fileURLToPath(new URL('./apart.ts', import.meta.url));
 		// Its streams are this process's: what the compile prints -- a refusal, a warning about a
 		// route with a hundred structures, the timings -- is for whoever is watching the build, and
@@ -138,6 +169,8 @@ export function seam(options: Options = {}): Plugin {
 					: `the compile was killed by ${ran.signal}`,
 			);
 		}
+		// After it succeeded, so a failed compile is not remembered as a compile that happened.
+		writeFileSync(stamp, `${JSON.stringify({ run: run(), key })}\n`);
 	}
 }
 
