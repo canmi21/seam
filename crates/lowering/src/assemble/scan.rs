@@ -116,8 +116,15 @@ pub(super) fn id_name(name: usize) -> String {
 /// sits in -- `carrier()` in `pkgs/skeleton/src/sentinel.ts`, which has the measurement. Here they
 /// are simply all read.
 ///
-/// Returns the index and where the stamp ends.
-pub(super) fn stamped(html: &str, at: usize) -> Option<(usize, usize)> {
+/// Returns the index, where the stamp begins and where it ends.
+///
+/// It begins at `at` or after the whitespace that follows it: a stamp is written in front of the
+/// text the author wrote rather than at the block, where being at the block would change what
+/// Svelte does with that text's leading whitespace. See `stamping()` in `pkgs/skeleton/src/walk.ts`.
+/// The whitespace between is the author's and stays; only the stamp goes.
+pub(super) fn stamped(html: &str, at: usize) -> Option<(usize, usize, usize)> {
+	let skipped = html.get(at..)?.len() - html.get(at..)?.trim_start().len();
+	let at = at + skipped;
 	let rest = html.get(at..)?;
 	// Three carriers, because what the stamp may be is decided by the element it sits in --
 	// `carrier()` in `pkgs/skeleton/src/sentinel.ts` chooses, and this reads whichever came back.
@@ -139,7 +146,7 @@ pub(super) fn stamped(html: &str, at: usize) -> Option<(usize, usize)> {
 	if !digits.get(end + 2..)?.starts_with(close) {
 		return None;
 	}
-	Some((index, at + opened + 3 + end + 2 + close.len()))
+	Some((index, at, at + opened + 3 + end + 2 + close.len()))
 }
 
 /// The stand-in a dynamic element was rendered under, and the parts of what it wrote.

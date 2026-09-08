@@ -55,6 +55,16 @@ const REFUSES_TEXT = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'colgrou
  * | anything ordinary, the root, `<pre>`, `<option>` | same | **differs** under `+` or `~` | refused |
  * | `<table>` and its parts | refused | same | refused |
  * | `<select>`, `<optgroup>` | makes it rich | makes it rich | same |
+ * | inside `<svg>`, and `<datalist>` -- `tight` | **differs** | same | refused |
+ *
+ * **`tight` is where a whitespace-only text node is removed rather than collapsed.** `clean_nodes`
+ * calls it `can_remove_entirely`: the svg namespace outside a `<text>`, and a handful of elements
+ * whose children are rows or options. A stamp there is text where Svelte had nothing, and the
+ * whitespace beside it survives as a space -- press's language chart is nine hundred blocks inside
+ * one `<svg>`, and that space was two hundred and ninety-nine bytes of every response carrying it.
+ * So the carrier there is an element, and it is asked for only where the stamp would otherwise
+ * stand alone: a stamp written in front of text the author wrote is not a whitespace-only node in
+ * the first place, and stays text. See `stamps()` in walk.ts.
  *
  * So text wherever text is allowed, and an element only where it is the one thing that works. A
  * `<template>` in a table part keeps the sibling problem, which no carrier there avoids: text and
@@ -65,11 +75,11 @@ const REFUSES_TEXT = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'colgrou
  * is in the compile-time render and in no artifact. What matters is only that its presence changes
  * nothing else in that render. See spec/refusals.md.
  */
-export function elementCarrier(parent: string | null): boolean {
-	return parent !== null && REFUSES_TEXT.has(parent);
+export function elementCarrier(parent: string | null, tight = false): boolean {
+	return tight || (parent !== null && REFUSES_TEXT.has(parent));
 }
 
-export function carrier(index: number, parent: string | null, close = ''): string {
+export function carrier(index: number, parent: string | null, close = '', tight = false): string {
 	const mark = stamp(index);
 	// A text or element child makes a select *rich*, which closes the tag with `<!>` -- a real
 	// change in the bytes. An `<option>` is what it already expects, and its value is the marker,
@@ -79,7 +89,7 @@ export function carrier(index: number, parent: string | null, close = ''): strin
 	// Written in the open it would be text where text is refused. See `headCloses()`.
 	if (parent === 'select' || parent === 'optgroup')
 		return `<option value="${mark}">${close}</option>`;
-	if (parent !== null && REFUSES_TEXT.has(parent)) return `<template>${close}${mark}</template>`;
+	if (elementCarrier(parent, tight)) return `<template>${close}${mark}</template>`;
 	return `${close}${mark}`;
 }
 

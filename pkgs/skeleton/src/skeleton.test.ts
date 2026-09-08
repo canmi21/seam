@@ -1494,6 +1494,52 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A stamp is text, and text is not neutral everywhere. `clean_nodes` collapses whitespace
+		// between a block and a text node to one space and keeps whitespace inside a text node as
+		// written, so a stamp at the block turned ` tail` into a newline and a tab; and inside an
+		// `<svg>` a whitespace-only node is removed entirely, so a stamp there left a space where
+		// Svelte had none. press's language chart is the second -- nine hundred blocks in one
+		// `<svg>`, two hundred and ninety-nine spaces a response. Every shape that can follow a
+		// block, in both namespaces. See `stamping()` and `carrier()`.
+		name: 'a block and whatever follows it',
+		source:
+			`${PROPS}<div>{#if data.f}a{/if}\n\ttail</div>` +
+			'<div>{#if data.f}a{/if}\n\t<b>x</b></div>' +
+			'<div>{#if data.f}a{/if}\n\t{#if data.f}b{/if}</div>' +
+			'<div>{#if data.f}a{/if}\n\t</div>' +
+			'<div>{#each data.xs as x}<b>{x}</b>{/each}\n\t<i>y</i></div>' +
+			'<svg><g>{#if data.f}<text>a</text>{/if}\n\t{#if data.f}<rect />{/if}</g></svg>' +
+			'<svg><g>{#if data.f}<text>a</text>{/if}\n\t<rect /></g></svg>' +
+			'<svg><text>{#if data.f}a{/if}\n\ttail</text></svg>' +
+			'<svg><foreignObject>{#if data.f}<b>a</b>{/if}\n\t<i>x</i></foreignObject></svg>',
+		data: [
+			{ f: true, xs: ['p'] },
+			{ f: false, xs: [] },
+		],
+	},
+	{
+		// Whether an element is scoped is decided by what its class could be, and
+		// `gather_possible_values` reads a literal, a ternary, a logical and an array. A class the
+		// walk hid from it was scoped where Svelte leaves it alone -- press writes
+		// `class="truncate {tone === 'dark' ? 'text-black' : 'text-white'}"`, matching neither of
+		// this stylesheet's rules, and that one class was every differing byte of two hundred and
+		// sixty-seven of its responses. Here the readable shapes sit beside the ones the analysis
+		// gives up on, so the scoping of each is Svelte's own.
+		name: 'a class the css analysis can read',
+		source:
+			'<script>let { data } = $props(); const ell = (v) => String(v).toUpperCase();</script>' +
+			`<b class="t {data.f ? 'p' : 'q'}">x</b>` +
+			"<i class=\"t {data.f ? 'on' : 'q'}\">y</i>" +
+			'<u class="t {data.f && \'q\'}">z</u>' +
+			'<em class="t {data.c}">w</em>' +
+			'<span class="t {ell(data.c)}">v</span>' +
+			'<style>.on { color: red } .card { color: blue }</style>',
+		data: [
+			{ f: true, c: 'on' },
+			{ f: false, c: 'q' },
+		],
+	},
+	{
 		// `class={[...]}` and `class={{...}}` go through `clsx` in Svelte's own output, and so does
 		// a bare name, which may hold either.
 		name: 'a class that is an array or an object',

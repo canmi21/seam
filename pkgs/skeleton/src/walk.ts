@@ -423,6 +423,13 @@ export interface Walk {
 	 */
 	parent: string | null;
 	/**
+	 * Whether a whitespace-only text node here is removed rather than collapsed to one space, which
+	 * is `can_remove_entirely` in `clean_nodes`: inside an `<svg>` and outside a `<text>`, and in a
+	 * handful of elements whose children are rows or options. A stamp standing alone there has to
+	 * be an element, or the whitespace beside it survives where Svelte had none. See `carrier()`.
+	 */
+	tight: boolean;
+	/**
 	 * Whether this file's stylesheet relates siblings, which decides whether a stamp that has to be
 	 * an element may be written at all. See `stamps()`.
 	 */
@@ -456,9 +463,20 @@ export interface Walk {
 	 * ternary, a logical and an array, and gives up on anything else, which is then a class that
 	 * could be anything and an element that is scoped. So a marker, which is a literal, or a
 	 * constant written back in place of `className`, told the analysis the class was known and
-	 * matched nothing, and the scoping hash went missing from the render. Anything written into
-	 * a class value is wrapped as `(0, ...)`, a sequence, which evaluates to the same thing and
-	 * which the analysis cannot read -- as the author's own expression could not be read.
+	 * matched nothing, and the scoping hash went missing from the render.
+	 *
+	 * It was wrapped as `(0, ...)`, a sequence the analysis cannot read at all. **That is right
+	 * only where the author's own expression could not be read either.** A class written as a
+	 * ternary of literals is one it reads: it gathers both, finds no selector matching either, and
+	 * does not scope -- so hiding them scoped an element Svelte leaves alone. press writes
+	 * `class="truncate {tone === 'dark' ? 'text-black' : 'text-white'}"`, and that one class was
+	 * every differing byte of two hundred and sixty-seven of its responses.
+	 *
+	 * So what is written goes in the taken branch of a ternary and the author's expression stays
+	 * in the other: the analysis reads the author's possible values exactly as it would have, plus
+	 * a marker that matches no selector, and gives up on the author's where it always did. The
+	 * branch is never evaluated -- the test is `1` -- so what it names need not hold anything.
+	 * Measured over both stylesheets that can matter, against every shape the analysis reads.
 	 */
 	classValue?: boolean;
 	/** True while walking any part of an element's `class` attribute, which is shielded. */
@@ -1039,7 +1057,8 @@ function contents(
 		`{#if true}${sentinel(hole)}{:else}`,
 		`{#if false}${sentinel(hole)}{:else}`,
 	);
-	edits.push([end, end, `{/if}${stamps({ ...walk, parent: tag }, index)}`]);
+	const [from, to, text] = stamped({ ...walk, parent: tag }, index, walk.source, end);
+	edits.push([from, to, `{/if}${text}`]);
 	// The children are the else, and the caller walks them within it.
 	return index;
 }
@@ -1816,8 +1835,48 @@ function leaves(expression: string, walk: Walk): string | null {
  * Measured: two `<tr>`s related by `+`, with a block between them, both lost it. No carrier avoids
  * it there, so the combination is named rather than compiled wrong. See `carrier()`.
  */
-function stamps(walk: Walk, index: number, close = ''): string {
-	if (walk.siblings && elementCarrier(walk.parent)) {
+/**
+ * Where a block's stamp goes: in front of the text that follows it, or right after the block.
+ *
+ * A stamp is text, and prefixing the author's text node changes what Svelte does with that node's
+ * leading whitespace -- `clean_nodes` collapses whitespace between a block and a text node to one
+ * space, and keeps whitespace *inside* a text node as written, so a stamp at the block turned
+ * ` tail` into `\n\ttail`. Written in front of the first character the author wrote, the leading
+ * whitespace is still leading and the node is the one Svelte would have had.
+ *
+ * Nothing to stand in front of -- what follows is an element, a tag, or the end -- and the stamp
+ * goes at the block, where it is the whole of a node of its own. Measured against Svelte for text,
+ * an element, a block and the end of a fragment, in both namespaces.
+ */
+function stamping(source: string, end: number): number {
+	let at = end;
+	while (at < source.length && /\s/.test(source[at] ?? '')) at += 1;
+	const next = source[at];
+	// `<` opens an element and `{` a tag or a block; anything else is the author's own text.
+	return next === undefined || next === '<' || next === '{' ? end : at;
+}
+
+/**
+ * The stamp for a block, written where `stamping` puts it, refused where writing one would change
+ * the bytes.
+ */
+function stamped(
+	walk: Walk,
+	index: number,
+	source: string,
+	end: number,
+	close = '',
+): [number, number, string] {
+	const at = stamping(source, end);
+	// In front of the author's text the stamp is part of a node that is not whitespace-only, so
+	// the parent's whitespace rule never applies to it and text carries it wherever text is legal.
+	const mark = stamps(walk, index, close, at > end);
+	return [end, at, `${source.slice(end, at)}${mark}`];
+}
+
+function stamps(walk: Walk, index: number, close = '', beside = false): string {
+	const tight = walk.tight && !beside;
+	if (walk.siblings && elementCarrier(walk.parent, tight)) {
 		refuse(
 			`this block sits directly inside \`<${String(walk.parent)}>\`, where the marker saying which ` +
 				'block closed has to be an element because text is not writable there -- and this ' +
@@ -1826,7 +1885,7 @@ function stamps(walk: Walk, index: number, close = ''): string {
 				'a cell of its own, or relating those two elements without a sibling combinator, avoids it',
 		);
 	}
-	return carrier(index, walk.parent, close);
+	return carrier(index, walk.parent, close, tight);
 }
 
 /**
@@ -2156,9 +2215,11 @@ function collect(node: unknown, walk: Walk): void {
 			// form rather than left as it was: what it expanded from may have been a name, and the
 			// declaration that name came from has been neutralised for the render.
 			const written = settled(expand(node['expression']), walk);
-			// Inside a class value nothing written here may be readable by the analysis. See
-			// `Walk.classValue`.
-			const shielded = (text: string): string => (walk.inClass === true ? `(0, ${text})` : text);
+			// Inside a class value, what is written has to be exactly as readable to Svelte's CSS
+			// analysis as what the author wrote -- no less and no more. So the author's own
+			// expression stays, in the branch that is never taken. See `Walk.classValue`.
+			const shielded = (text: string): string =>
+				walk.inClass === true ? `(1 ? ${text} : (${source.slice(at[0], at[1])}))` : text;
 			if (constant(written)) {
 				edits.push([at[0], at[1], shielded(written)]);
 				return;
@@ -2427,6 +2488,18 @@ function collect(node: unknown, walk: Walk): void {
 			// stamp is carried. A component is not one: what it does with the markup, and where it
 			// puts it, is the child's business.
 			const encloses = type === 'RegularElement' ? tag : null;
+			// `can_remove_entirely` in `clean_nodes`: the svg namespace outside a `<text>`, which a
+			// `<foreignObject>` leaves, and `<datalist>` beside the elements `carrier()` already
+			// knows by name. It decides what carries a stamp written under this element, and
+			// nothing else. See `Walk.tight`.
+			const tight =
+				type !== 'RegularElement'
+					? walk.tight
+					: tag === 'svg'
+						? true
+						: tag === 'foreignObject' || tag === 'text'
+							? false
+							: tag === 'datalist' || walk.tight;
 
 			// Markup handed to a component the walk could not enter, in the groups Svelte splits it
 			// into. Each group's range is kept so that a second render can say whether the component
@@ -2436,7 +2509,7 @@ function collect(node: unknown, walk: Walk): void {
 			if (!given || inside.length === 0) {
 				// A content binding's children are the else of the bare if it planted.
 				if (bare !== undefined) within.push([bare, -1]);
-				collect(fragment, { ...walk, parent: encloses, selecting });
+				collect(fragment, { ...walk, parent: encloses, tight, selecting });
 				if (bare !== undefined) within.pop();
 				return;
 			}
@@ -2459,7 +2532,7 @@ function collect(node: unknown, walk: Walk): void {
 					edits.push([group.at, group.at, group.probe]);
 				}
 				const from: [number, number] = [holes.length, blocks.length];
-				collect(child, { ...walk, parent: encloses });
+				collect(child, { ...walk, parent: encloses, tight });
 				if (group === undefined) continue;
 				const one: Handed = {
 					probe: group.probe,
@@ -2682,7 +2755,8 @@ function collect(node: unknown, walk: Walk): void {
 					);
 				}
 				edits.push([open, open, '{#if true}']);
-				edits.push([close, close, `{/if}${stamps(walk, index)}`]);
+				const [from, to, text] = stamped(walk, index, source, close);
+				edits.push([from, to, `{/if}${text}`]);
 				within.push([index, 0]);
 				collect(declaration['body'], { ...walk, dynamic: new Set([...dynamic, ...params]) });
 				within.pop();
@@ -2779,7 +2853,7 @@ function collect(node: unknown, walk: Walk): void {
 			const opening = chose(walk, edits, at[0], at[1], index, 0, 'Promise.resolve()', holds);
 			// Which block just closed, written where the render puts it and nowhere else.
 			const closer = edits.length;
-			edits.push([whole[1], whole[1], stamps(walk, index)]);
+			edits.push(stamped(walk, index, source, whole[1]));
 
 			if (isNode(waiting)) {
 				within.push([index, 0]);
@@ -2923,7 +2997,7 @@ function collect(node: unknown, walk: Walk): void {
 			// Which block just closed, written where the render puts it and nowhere else.
 			const whole = span(node);
 			const closer = edits.length;
-			if (whole !== null) edits.push([whole[1], whole[1], stamps(walk, index)]);
+			if (whole !== null) edits.push(stamped(walk, index, source, whole[1]));
 
 			// Only the first branch is in the baseline render, so only its blocks are numbered where
 			// the assembler counts them. A block in any other branch is numbered here and appears in
@@ -3052,7 +3126,7 @@ function collect(node: unknown, walk: Walk): void {
 			// Which block just closed, written where the render puts it and nowhere else.
 			const whole = span(node);
 			const closer = edits.length;
-			if (whole !== null) edits.push([whole[1], whole[1], stamps(walk, index)]);
+			if (whole !== null) edits.push(stamped(walk, index, source, whole[1]));
 			// What the block binds is decided per item, so an expression reading it is a marker
 			// even when nothing else in it reaches the payload.
 			const inside = new Set(dynamic);
@@ -3540,7 +3614,8 @@ function descend(
 				const opener = inner.length;
 				inner.push([first[0], first[0], '{#if true}']);
 				const closer = inner.length;
-				inner.push([last[1], last[1], `{/if}${stamps(walk, index)}`]);
+				const [from, to, text] = stamped(walk, index, raw, last[1]);
+				inner.push([from, to, `{/if}${text}`]);
 				// The component's own head has the fragment stand in the head stream too; one a
 				// child inside wrote is found too late. See `headedFragment()`.
 				if (headedSelf) headedFragment(walk, index, inner, opener, closer, ast);
@@ -3788,6 +3863,7 @@ export function rewrite(
 		dynamic: payload ?? new Set(),
 		fresh: fresh === null ? [] : [fresh],
 		parent: null,
+		tight: false,
 		siblings: relatesSiblings(ast),
 	};
 	collect(ast['fragment'], walk);

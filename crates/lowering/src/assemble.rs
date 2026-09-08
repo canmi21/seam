@@ -130,7 +130,7 @@ impl Assembler<'_> {
 				// because markup handed to that component renders inside it and those blocks are
 				// ours. Stepping over the whole span instead would lose them; treating the close as
 				// text would end this region at the first one.
-				let Some((index, after)) = stamped(html, span.to) else {
+				let Some((index, from, after)) = stamped(html, span.to) else {
 					out.write(&html[span.from..span.content]);
 					self.region(html, span.content, span.until, out)?;
 					out.write(&html[span.until..span.to]);
@@ -138,8 +138,12 @@ impl Assembler<'_> {
 					continue;
 				};
 				self.block(html, &span, index, out)?;
+				// Up to the stamp rather than up to the block's close: what sits between them is the
+				// author's own whitespace, which the stamp was written in front of.
 				if !self.bare(index) {
-					out.write(&html[span.until..span.to]);
+					out.write(&html[span.until..from]);
+				} else if from > span.to {
+					out.write(&html[span.to..from]);
 				}
 				at = after;
 				continue;
@@ -560,7 +564,7 @@ impl Assembler<'_> {
 		fn walk(html: &str, from: usize, until: usize, want: usize) -> Option<Span> {
 			let mut at = from;
 			while let Some(span) = next_block(html, at, until) {
-				if stamped(html, span.to).is_some_and(|(found, _)| found == want) {
+				if stamped(html, span.to).is_some_and(|(found, _, _)| found == want) {
 					return Some(span);
 				}
 				if let Some(found) = walk(html, span.content, span.until, want) {
