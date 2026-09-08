@@ -949,7 +949,7 @@ function contents(
 	edits: [number, number, string][],
 	skipped: Set<unknown>,
 ): number | undefined {
-	const { source, expand, blocks, within, taken, stream } = walk;
+	const { source, expand, blocks, within, stream } = walk;
 	const tag = typeof node['name'] === 'string' ? node['name'] : '';
 	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
 	const binding = attributes.find(
@@ -2031,7 +2031,6 @@ function collect(node: unknown, walk: Walk): void {
 		snippets,
 		source,
 		stream,
-		taken,
 		within,
 	} = walk;
 	if (!isNode(node)) return;
