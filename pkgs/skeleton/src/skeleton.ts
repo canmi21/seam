@@ -357,5 +357,10 @@ export function helpers(rendered: Skeleton): Carried[] {
 	if (rendered.holes.some((one) => one.expression.includes('clsx('))) {
 		found.push({ local: 'clsx', from, kind: 'named' });
 	}
+	// What `build_attribute_value` puts around every expression in a template: `stringify` is
+	// Svelte's, not a rule reproduced here, so nullish comes out empty rather than as "undefined".
+	if (rendered.holes.some((one) => one.expression.includes('stringify('))) {
+		found.push({ local: 'stringify', from, kind: 'named' });
+	}
 	return found;
 }

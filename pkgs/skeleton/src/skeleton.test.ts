@@ -2149,6 +2149,27 @@ const accepted: Case[] = [
 			"<Kid bind:v={data.a} {...{ v: 'spread' }} />",
 		data: [{ a: 'bound' }],
 	},
+	{
+		// `build_attribute_value` returns the expression itself when the value is one chunk -- quotes
+		// or no quotes, `value.length === 1` is the whole test -- so `n='{1 + 1}'` hands a *number*
+		// down. Several chunks become a template, each expression through `$.stringify`, and the
+		// text raw because a component's is not escaped. The walk used to leave the whole component
+		// to the render over one mixed value, and the child then got a string where Svelte gives a
+		// number: `component-data-dynamic`, in both corpora.
+		name: 'a component given a quoted expression and a mixed value',
+		beside: {
+			Kid:
+				'<script>export let n; export let s; export let e;</script>' +
+				'<p>{n} {typeof n}</p><p>{s}</p><p>{e}|{typeof e}</p>',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid n=\'{40 + data.n}\' s="a {data.a} b" e="x{data.missing}y" />',
+		data: [
+			{ a: 'mid', n: 2 },
+			{ a: 0, n: 0 },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.

@@ -1798,6 +1798,16 @@ function getterOf(node: AstNode, source: string): unknown {
 		: { type: 'Identifier', name: `(${source.slice(at[0], at[1])})()`, start: at[0], end: at[1] };
 }
 
+/**
+ * Text put inside a template literal, escaped the way `sanitize_template_string` escapes it.
+ *
+ * A backslash, a backtick and the two characters that open an interpolation are the whole of it:
+ * everything else, newlines included, is written as it stands.
+ */
+function templated(text: string): string {
+	return text.replaceAll('\\', '\\\\').replaceAll('`', '\\`').replaceAll('${', '\\${');
+}
+
 /** Every name a snippet's parameters bind. */
 function parameterNames(parameters: readonly unknown[]): Set<string> {
 	const names = new Set<string>();
@@ -3518,6 +3528,32 @@ function descend(
 			continue;
 		}
 		const [only] = parts;
+		// Text and an expression together, which `build_attribute_value` writes as a template: the
+		// text goes in raw -- for a component it is not escaped -- and each expression that is not
+		// statically known goes in through `$.stringify`, which is `typeof v === 'string' ? v : v ==
+		// null ? '' : v + ''`. A value the analysis proves a defined string skips the call, which
+		// makes no difference to what comes out, so every one of them goes through it here.
+		//
+		// The whole component used to be left to the render over one of these, and that is what
+		// `component-data-dynamic` was: `qux='this is a {compound} string'` beside
+		// `baz='{40 + x}'`, and the second is a *number* -- `value.length === 1` returns the
+		// expression itself, quotes or no quotes -- so the child got a string and printed one.
+		if (
+			parts.length > 1 &&
+			parts.every(
+				(part) => isNode(part) && (part['type'] === 'Text' || part['type'] === 'ExpressionTag'),
+			)
+		) {
+			const pieces = parts.map((part) =>
+				(part as AstNode)['type'] === 'Text'
+					? templated(String((part as AstNode)['data'] ?? ''))
+					: `\${stringify(${walk.expand((part as AstNode)['expression'])})}`,
+			);
+			const grown = `\`${pieces.join('')}\``;
+			if (walk.site.payload !== null && !varies(grown, walk)) inertProps.add(name);
+			bindings.set(name, grown);
+			continue;
+		}
 		if (parts.length !== 1 || !isNode(only) || only['type'] !== 'ExpressionTag') return false;
 		const grown = walk.expand(only['expression']);
 		const written = `(${grown})`;
