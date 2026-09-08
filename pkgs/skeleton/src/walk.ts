@@ -3438,6 +3438,8 @@ function descend(
 	const bindings = new Map<string, string>();
 	/** The props the call site binds, whose value the child may send back. See below. */
 	const boundProps = new Set<string>();
+	/** A binding's getter, kept until every attribute and spread has been placed. See below. */
+	const delayed: [string, string][] = [];
 	// The props whose caller expression varies with nothing the request decides. The render is
 	// handed these as written, so the child's script gets what Svelte's own render would give it:
 	// a query client to set as context, a store, a function -- values that are not data and could
@@ -3475,9 +3477,12 @@ function descend(
 		// against the child's own declaration once that is in hand below.
 		if (isNode(one) && one['type'] === 'BindDirective') {
 			const name = typeof one['name'] === 'string' ? one['name'] : '';
-			order.push({ name });
 			boundProps.add(name);
-			bindings.set(name, `(${walk.expand(getterOf(one, walk.source))})`);
+			// Held back rather than placed here. `shared/component.js` pushes a binding's getter and
+			// setter with `push_prop(..., true)`, whose comment says why: "Delay prop pushes so
+			// bindings come at the end, to avoid spreads overwriting them." So a spread written
+			// after a binding does not win, and both the merge order and the map have to say so.
+			delayed.push([name, `(${walk.expand(getterOf(one, walk.source))})`]);
 			continue;
 		}
 		if (!isNode(one) || one['type'] !== 'Attribute') return false;
@@ -3526,6 +3531,12 @@ function descend(
 			}
 		}
 		bindings.set(name, written);
+	}
+
+	// Last, which is where Svelte pushes them.
+	for (const [name, value] of delayed) {
+		order.push({ name });
+		bindings.set(name, value);
 	}
 
 	// The caller's imports its expressions read, which the child's copy has to import too. A

@@ -2138,6 +2138,17 @@ const accepted: Case[] = [
 			'<Kid bind:v={data.a} /><i>{data.a}</i>',
 		data: [{ a: 'x' }, { a: '' }],
 	},
+	{
+		// `shared/component.js` pushes a binding's getter and setter with `push_prop(..., true)`,
+		// whose comment says why: "Delay prop pushes so bindings come at the end, to avoid spreads
+		// overwriting them." So a spread written after a binding does not win.
+		name: 'a component `bind:` a later spread does not overwrite',
+		beside: { Kid: '<script>export let v;</script><b>{v}</b>' },
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			"<Kid bind:v={data.a} {...{ v: 'spread' }} />",
+		data: [{ a: 'bound' }],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
