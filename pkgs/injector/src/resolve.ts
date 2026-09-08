@@ -1,9 +1,5 @@
 export type Scope = Record<string, unknown>;
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null;
-}
-
 // Innermost scope first, so an `each` binding shadows an outer name the way a reader expects.
 export function resolve(scopes: readonly Scope[], path: string): unknown {
 	const [head, ...rest] = path.split('.');
@@ -21,9 +17,14 @@ export function resolve(scopes: readonly Scope[], path: string): unknown {
 	}
 	if (!found) return undefined;
 
+	// A property read, which is what the author wrote. It used to stop at anything that was not an
+	// object, so `{data.title.length}` -- a path whose last step reads a string's own property --
+	// resolved to nothing while Svelte wrote the number. A path is a member chain rooted at a name
+	// the payload carries, and nothing in it says which steps land on data and which on a string,
+	// an array or a number; JavaScript's own answer is the one the expression had.
 	for (const key of rest) {
-		if (!isRecord(value)) return undefined;
-		value = value[key];
+		if (value === null || value === undefined) return undefined;
+		value = (value as Record<string, unknown>)[key];
 	}
 	return value;
 }

@@ -2187,10 +2187,52 @@ const accepted: Case[] = [
 			{ c: '', on: false },
 		],
 	},
+	{
+		// The payload's keys are the props, not the names the entry destructured them into. They are
+		// the same word in nearly every component, which is why reading `bar` as the path `bar` --
+		// when the request carries `foo` -- went unnoticed. The substitution's replacement is a bare
+		// name, so a read of it stays a path rather than becoming a derivation.
+		name: 'an entry prop read under another name',
+		source:
+			'<script>let { data, foo: bar } = $props();</script><p>{bar}</p><i>{bar.length}</i>' +
+			'<b>{data.a}</b>',
+		props: [
+			{ data: { a: 'x' }, foo: 'given' },
+			{ data: { a: 'x' }, foo: '' },
+		],
+	},
+	{
+		// A path is a member chain rooted at a name the payload carries, and nothing in it says which
+		// steps land on data and which on a string, an array or a number. Resolution used to stop at
+		// anything that was not an object, so this wrote nothing where Svelte writes the number.
+		name: 'a path whose last step reads a string or an array',
+		source: `${PROPS}<p>{data.t.length}</p><i>{data.xs.length}</i><b>{data.xs[0]}</b>`,
+		data: [
+			{ t: 'abc', xs: ['q', 'r'] },
+			{ t: '', xs: [] },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// A path may hold it -- the injector splits on dots and looks the segment up -- but every
+		// expression this compiler writes is JavaScript, where `kebab-case` is a subtraction. So it
+		// is refused rather than turned into a path that works until something derives from it.
+		name: 'an entry prop whose name is not an identifier',
+		says: 'not an identifier',
+		source: "<script>let { data, 'kebab-case': k } = $props();</script><p>{k}</p><b>{data.a}</b>",
+	},
+	{
+		// Every key the request brought that the pattern did not name, and a derivation reads its
+		// scope through `with`, which binds the keys and not the object -- so there is nothing to
+		// gather them from. It used to read as a path of its own and write nothing.
+		name: "a rest in the entry's props",
+		says: 'rest in the entry',
+		source:
+			'<script>let { data, ...others } = $props();</script><p>{others.bar}</p><b>{data.a}</b>',
+	},
 	{
 		// `renderer.select` in `internal/server/renderer.js` destructures `{ value, defaultValue }`
 		// off the **merged** attributes, writes neither, and compares every option against

@@ -55,9 +55,20 @@ export function propsOf(
 				if (!isNode(property) || property['type'] !== 'Property') return null;
 				const key = property['key'];
 				const value = property['value'];
-				if (!isNode(key) || typeof key['name'] !== 'string' || !isNode(value)) return null;
+				// A key is an identifier or a string, and a prop whose name is not an identifier can
+				// only be written as one: `const { 'kebab-case': x } = $props()`. `property.computed`
+				// is a key nobody can read at compile time and is left null.
+				const named =
+					isNode(key) && property['computed'] !== true
+						? typeof key['name'] === 'string'
+							? key['name']
+							: key['type'] === 'Literal' && typeof key['value'] === 'string'
+								? key['value']
+								: null
+						: null;
+				if (named === null || !isNode(value)) return null;
 				if (value['type'] === 'Identifier' && typeof value['name'] === 'string') {
-					found.push({ local: value['name'], prop: key['name'], fallback: 'undefined' });
+					found.push({ local: value['name'], prop: named, fallback: 'undefined' });
 					continue;
 				}
 				// `p = 1`, which is the default, and it is the only other shape this reads. A
@@ -85,7 +96,7 @@ export function propsOf(
 					fallback = inner === null ? 'undefined' : source.slice(inner[0], inner[1]);
 					at = inner === null ? undefined : initial;
 				}
-				found.push({ local: left['name'], prop: key['name'], fallback, at });
+				found.push({ local: left['name'], prop: named, fallback, at });
 			}
 		}
 	}

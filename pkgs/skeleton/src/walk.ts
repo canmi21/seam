@@ -4051,13 +4051,53 @@ export function rewrite(
 			);
 		}
 	}
+	// The payload's keys are the **props**, not the names the entry destructured them into:
+	// `let { foo: bar } = $props()` reads the request's `foo` and calls it `bar`, so `bar` in the
+	// markup is the path `foo`. They are the same word in nearly every component, which is why this
+	// went unnoticed.
 	const payload =
 		declares === null
 			? null
 			: new Set([
-					...declares.map((one) => one.local),
+					...declares.map((one) => (one.rest === true ? one.local : one.prop)),
 					...[...state].filter(([, exported]) => exported === 'page').map(([local]) => local),
 				]);
+	// A prop whose name is not an identifier can only be written as a string --
+	// `let { 'kebab-case': x } = $props()` -- and then nothing can read it: a path may hold it,
+	// since the injector splits a path on dots and looks the segment up, but every expression this
+	// compiler writes is JavaScript, where `kebab-case` is a subtraction. So it is refused rather
+	// than turned into a path that works until something derives from it.
+	const unnameable = (declares ?? []).find(
+		(one) => one.rest !== true && !/^[A-Za-z_$][\w$]*$/.test(one.prop),
+	);
+	if (unnameable !== undefined) {
+		refuse(
+			`\`${unnameable.prop}\` is a prop whose name is not an identifier, so nothing can read it ` +
+				'as an expression: a path may hold it, and every derivation this compiler writes is ' +
+				'JavaScript. Give it a name that is one. See spec/refusals.md',
+		);
+	}
+	// A rest on the entry is every key the request brought that the pattern did not name, and there
+	// is no name for the payload itself to build one from: a derivation reads its scope through
+	// `with`, which binds the keys and not the object. Left alone it read as a path of its own --
+	// `others.bar` against a payload whose `bar` is at the top -- and wrote nothing.
+	if ((declares ?? []).some((one) => one.rest === true)) {
+		refuse(
+			"a rest in the entry's `$props()` is every key the request brought that the pattern did " +
+				'not name, and nothing here can name the payload itself to gather them. Name the props ' +
+				'the markup reads. See spec/refusals.md',
+		);
+	}
+	/**
+	 * A prop read under a name that is not the request's for it, which is a substitution like any
+	 * other -- and one whose replacement is a bare name, so a read of it stays a path rather than
+	 * becoming a derivation.
+	 */
+	const renamed = new Map(
+		(declares ?? [])
+			.filter((one) => one.rest !== true && one.local !== one.prop)
+			.map((one): [string, string] => [one.local, one.prop]),
+	);
 	/**
 	 * A default on the entry's own props, which nothing else was applying.
 	 *
@@ -4089,14 +4129,14 @@ export function rewrite(
 	const propDefaults = (declares ?? [])
 		.filter((one) => one.rest !== true && one.fallback !== 'undefined')
 		.map((one) => ({
-			name: one.local,
+			name: one.prop,
 			// Expanded, like every other expression the walk records. A default is the author's own
 			// source and may call what only its file has -- `export let foo = get()`, or a function
 			// the script below it declares -- and a derivation is evaluated with the carried bundle
 			// in scope rather than with the component's body.
-			expression: `typeof ${one.local} === 'undefined' ? (${
+			expression: `typeof ${one.prop} === 'undefined' ? (${
 				one.at === undefined ? one.fallback : declared.rewrite(one.at)
-			}) : ${one.local}`,
+			}) : ${one.prop}`,
 			files: [relative(root, file)],
 		}));
 	const missed: { file: string; reason: string }[] = [];
@@ -4146,7 +4186,10 @@ export function rewrite(
 		blocks,
 		taken,
 		stream: 'body',
-		expand: declared.rewrite,
+		expand:
+			renamed.size === 0
+				? declared.rewrite
+				: (node, extra) => declared.rewrite(node, new Map([...renamed, ...(extra ?? new Map())])),
 		plain: declared.rewrite,
 		runeOf: declared.rune,
 		snippets,
