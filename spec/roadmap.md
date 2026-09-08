@@ -42,9 +42,11 @@ application written for Kit and moved. Everything below belongs to the first of 
 ## Wrong bytes, which is not a refusal and outranks everything below
 
 A refusal stops a build and names a file. What follows here compiled and wrote bytes that are not
-Svelte's, which nothing said. [suite.md](suite.md) has the measurement and why this ordering is
-not the obvious one; these are the six read off their output the first time Svelte's own samples
-were run, and 32 more are unattributed.
+Svelte's, which nothing said. [suite.md](suite.md) has the measurement and
+[conformance.md](conformance.md) why this ordering is not the obvious one. There were 115; the
+first entry below took it to 42, and all 42 are read out here rather than counted -- the suite
+prints the first byte the two renders disagree on, which is what made reading them a morning
+instead of a project.
 
 **A default on the entry's own props was dropped: done.** It was 78 of the 115. The default now
 stands over the payload's key as one derivation computed before anything reads it, which is what
@@ -56,16 +58,31 @@ generated root -- `data_0 = null` per level -- is every read on every page.
 Three samples moved from writing the wrong bytes to being refused, all of them a default that
 reads a store: that is the store gap under **ready**, met one step earlier than usual, and the
 message it gives is the derivation evaluator's rather than a refusal naming a file. One moved the
-other way, `component-binding-parent-supercedes-child-c`: a `bind:` to a component whose own
-default supersedes the parent's, which used to be refused and now compiles and is wrong. It is a
-`bind:` the server writes, and it is on this list rather than that one because a difference
-outranks a refusal.
+other way, `component-binding-parent-supercedes-child-c`, and it is counted below.
 
-**Five more, each its own rule.** `{#each}` over a string renders nothing where Svelte iterates
-the characters; a quoted attribute holding one expression is passed as text where Svelte passes
-the value; an attribute written after a spread does not override the spread's; `<select value>`
-does not reach an `<option>` a child component renders; a namespaced `<Components.Foo />` is given
-a block anchor pair Svelte does not write.
+### The 42 that remain, by cause
+
+| | | |
+| --- | --- | --- |
+| 8 | **a component `bind:` the server writes back** | `<Foo bind:x/>` where the child declares `x` with a default, or writes it: Svelte's server render sends the child's value back up and the parent's markup holds it. An element `bind:` the server writes is refused by name; a component's compiles and drops the writeback. The largest group, and the one that closes most samples per rule. |
+| 5 | **a later attribute has to beat a spread's, and `value` has to reach a child's `<option>`** | `{...{ defaultValue: 'b' }} defaultValue="a"` marks both options; `bind:value {...props}` takes the binding rather than the spread; `<select value>` does not reach an `<option>` a component renders. One rule about order, one about where the select pass looks. |
+| 6 | **a name that holds client state is read as though the server had it** | `$state` mutated by an effect or a callback, a reactive block that runs again, an each key compared by identity. The server writes the value before any of that, and these say we write a different one. Each needs reading on its own; they are one group only in that none is markup. |
+| 3 | **entry props the walk cannot name** | a key that is a string literal -- `const { 'kebab-case': x } = $props()` -- and a rest, `...others`, which for the entry is the payload's other keys. `propsOf` returns null for the first and leaves the second unfilled. |
+| 2 | **a quoted attribute holding one expression is passed as text** | `<Widget baz='{40 + x}' />` passes `"42"` where Svelte passes `42`. Quotes around a single tag do not make it text. |
+| 2 | **`{#each}` over a string** | Svelte iterates the characters; this renders nothing. A `Map` and a `Set` were taken and a string was not. |
+| 2 | **`style:` in its shorthand form** | `<p style:color>` reads the local `color`; the attribute is not written at all. |
+| 2 | **a doubled space after a block** | `<!--]-->  1` where Svelte writes `<!--]--> 1`. The stamp's whitespace rule, one case short. |
+| 2 | **a default with a side effect is evaluated a different number of times** | a snippet parameter default that increments a counter, a child's defaults evaluated lazily. The value is right and the count of evaluations is not, which the bytes show because the counter is rendered. |
+| 2 | **Svelte writes a snippet that was never rendered** | `snippet-children-without-render-tag`: children given with no `{@render}` reach the output as the function's own source. Whether that is worth reproducing is a question rather than a gap. |
+| 3 | **the wrong branch, or a missing anchor** | `<!--[0-->` where Svelte writes `<!--[-1-->`, twice, and one `<!---->` short. Blocks, and the most alarming of these groups: it is the assembler rather than a construct. |
+| 1 | **a namespaced component** | `<Components.Foo />` gets a block anchor pair Svelte does not write. |
+| 1 | **attribute order beside a directive** | `style` before `class` where Svelte writes `class` before `style`. |
+| 1 | **a prop default a global shadows** | `export let Math = { min: ... }`. The guard is `typeof Math === 'undefined'`, and a global of that name makes it false, so the default never fires. `typeof` is what lets the guard read a key the payload lacks; it cannot tell that from a global. |
+| 2 | **two of their own** | an `<option disabled>` on the wrong item, and a `--css-var` custom property that is not written. |
+
+**The three anchor cases are the ones to read first** even though they are not the largest group.
+Every other row is a construct the compiler does not handle; those three are the compiler handling
+one and getting it wrong, which is the failure this whole arrangement exists to catch.
 
 ## Newly refused, found by the same run
 

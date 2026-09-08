@@ -263,9 +263,30 @@ async function attempt(suite: string, name: string): Promise<Result> {
 		return { suite, name, outcome: 'oracle', why: firstLine(error) };
 	}
 
-	if (mine.body !== svelte.body) return { suite, name, outcome: 'differs', why: 'body' };
-	if (mine.head !== svelte.head) return { suite, name, outcome: 'differs', why: 'head' };
+	if (mine.body !== svelte.body) {
+		return { suite, name, outcome: 'differs', why: divergence('body', mine.body, svelte.body) };
+	}
+	if (mine.head !== svelte.head) {
+		return { suite, name, outcome: 'differs', why: divergence('head', mine.head, svelte.head) };
+	}
 	return { suite, name, outcome: svelte.body.length <= EMPTY ? 'empty' : 'identical' };
+}
+
+/**
+ * Where two renders part, as the bytes around it from both sides.
+ *
+ * The name of a differing sample says nothing about why it differs, and forty of them are read one
+ * at a time to be grouped into causes -- which was a second tool until it was this. Anchored at the
+ * first byte that disagrees rather than at a whole-string diff: what is wanted is the construct,
+ * and the construct is at the seam.
+ */
+function divergence(stream: string, mine: string, theirs: string): string {
+	let at = 0;
+	while (at < mine.length && at < theirs.length && mine[at] === theirs[at]) at += 1;
+	const from = Math.max(0, at - 40);
+	const show = (text: string): string =>
+		JSON.stringify(text.slice(from, at + 60)).replaceAll('\\n', ' ');
+	return `${stream} at ${String(at)}\n      ours   ${show(mine)}\n      svelte ${show(theirs)}`;
 }
 
 function firstLine(error: unknown): string {

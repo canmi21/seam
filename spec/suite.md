@@ -142,8 +142,11 @@ Five more were read off their output:
 | `<select value>` over a child's options | the `<option>` a component renders is not reached, so nothing is marked selected. |
 | a namespaced component | `<Components.Foo />` gets a block anchor pair around it that Svelte does not write. |
 
-**The remaining 32 are not attributed.** Naming them here before they are read would be the
-recollection this file exists to replace.
+**All of them are attributed now**, and [roadmap.md](roadmap.md) holds the reading: fifteen causes
+across the 42 that remain, the largest a component `bind:` whose writeback the server performs and
+this does not. Reading them was a morning rather than a project because the suite prints the first
+byte the two renders disagree on beside each name -- a list of forty sample names is not something
+anybody acts on.
 
 ## Why it is red, and where it is run
 
