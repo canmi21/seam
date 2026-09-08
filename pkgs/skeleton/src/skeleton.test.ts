@@ -1508,6 +1508,7 @@ const accepted: Case[] = [
 			'<div>{#if data.f}a{/if}\n\t{#if data.f}b{/if}</div>' +
 			'<div>{#if data.f}a{/if}\n\t</div>' +
 			'<div>{#each data.xs as x}<b>{x}</b>{/each}\n\t<i>y</i></div>' +
+			'<div>{#each data.xs as x}{x}{/each}\n\ttail</div>' +
 			'<svg><g>{#if data.f}<text>a</text>{/if}\n\t{#if data.f}<rect />{/if}</g></svg>' +
 			'<svg><g>{#if data.f}<text>a</text>\n\t{#if data.f}<rect />{/if}\n{/if}</g></svg>' +
 			'<svg><g>{#if data.f}<text>a</text>{/if}\n\t<rect /></g></svg>' +
