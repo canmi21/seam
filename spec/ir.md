@@ -215,6 +215,20 @@ first time from outside included. The runtime binds each parameter to the value 
 scope of its own, and walks the body; a `call` inside the body is met again with the next value,
 and ends where the data does.
 
+**A fragment is also where a node that several branches hold is kept.** A route with a declared
+domain, or one whose walk met a choice it had to ask about, is compiled once per structure and the
+structures are joined under an if -- and the branches are the same page compiled against different
+values, so most of what they hold is the same. Measured on press's article, which joins fifty-four:
+the bodies hold thirty-odd nodes each and ninety distinct ones between them, 4.29 MB of nodes that
+are 0.67 MB of distinct nodes. So a node written the same way in more than one branch is held once
+in `fragments` and called from each, and a node only one branch holds stays where it is, since a
+call plus a fragment is bigger than the node.
+
+Such a call is marked `shared`, and that is what says it **adds no scope of its own**. A frame is
+what a fragment with parameters needs; one here would capture what a `fresh` slot writes into the
+innermost scope for the reads of it further along, and the reads would find nothing once the call
+returned. Measured: `id="bits-s1"` became `id="bits-"` on every page carrying a menu.
+
 **How the body gets its region.** A component call has no boundary in the bytes, so the walk
 gives the body one: it wraps the body in `{#if true}` in the render, marked `bare` so the anchors
 the render carries stay out of the bytes, and the assembler finds the region by the block's stamp
@@ -490,3 +504,17 @@ Recorded rather than decided, because guessing now would be worse than deciding 
 - **A linear form.** A flat opcode buffer walks faster and deserializes cheaper than a nested
   tree. The tree comes first because it can be written by hand, which the first milestone needs.
   Any linear form must be a lowering of it, not a replacement.
+
+## One bundle a route, where one a build would do
+
+The code a route's expressions call is bundled per route. Measured on press: seven bundles, 2.0 MB
+between them, and six of the seven share more than seven thousand nine hundred lines -- the same
+message tables, the same helpers -- while the largest wholly contains one of the others. A bundle a
+build rather than a bundle a route would be most of that back.
+
+**This is recorded rather than designed.** What a bundle holds is decided by what the expressions
+of that route read, and one bundle for every route means naming every route's imports at once,
+which is a different question from the one `carriedBy` answers today. Whether the artifacts should
+then name a bundle they share, or whether a build should emit one file every route loads, is the
+same deployment question the rest of this file defers: it is a change to what a backend reads, and
+it waits on nothing else being decided. See [build.md](build.md).

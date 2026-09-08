@@ -64,6 +64,18 @@ export type Node =
 			t: 'call';
 			fragment: string;
 			binds: [name: string, path: string][];
+			/**
+			 * A call that is not a call of the author's: a node written the same way in more than
+			 * one branch of a joined route, held once and named from each. It walks the body **in
+			 * the scope the call sits in**, adding no frame of its own.
+			 *
+			 * The frame is what a fragment with parameters needs and what this one must not have.
+			 * A `fresh` slot writes the id it counted into the innermost scope, for the reads of it
+			 * further along; a frame makes that the call's own, and it goes when the call returns.
+			 * Measured on press: `id="bits-s1"` became `id="bits-"` on every page carrying a menu.
+			 * See `joined()` in `pkgs/compiler/src/variants.ts` and spec/ir.md.
+			 */
+			shared?: true;
 	  }
 	| {
 			t: 'attr';

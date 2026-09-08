@@ -79,6 +79,13 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): s
 				const body = fresh.fragments[node.fragment];
 				if (body === undefined)
 					throw new Error(`a call of a fragment the IR does not hold: ${node.fragment}`);
+				// A shared node is held once and named from every branch that holds it; it binds
+				// nothing and takes no frame, so what it writes into the innermost scope -- an id it
+				// counted, for the reads of it further along -- lands where it would have.
+				if (node.shared === true) {
+					out += walk(body, scopes, fresh);
+					break;
+				}
 				const bound: Scope = {};
 				for (const [name, path] of node.binds) bound[name] = settle(resolve(scopes, path), scopes);
 				out += walk(body, [...scopes, bound], fresh);

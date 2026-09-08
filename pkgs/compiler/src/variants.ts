@@ -183,6 +183,43 @@ export function joined(
 		title.push({ test, body: renamed(run.compiled.ir.title, by) });
 	}
 
+	// A node written the same way in more than one branch is one node. The branches of a joined
+	// route are the same page compiled against different values, so most of what they hold is the
+	// same page: press's article joins fifty-four of them, whose bodies hold thirty-odd top-level
+	// nodes each and ninety distinct ones between them -- 4.29 MB of nodes that are 0.67 MB of
+	// distinct nodes. A branch that is the only one holding a node keeps it, since a call plus a
+	// fragment is bigger than the node.
+	//
+	// **A call inherits the scope it sits in**, adding a frame of its own for what it binds, so a
+	// hoisted node reads what it read where it was written -- an each's item, a scoped derivation,
+	// a title's place in the order -- and binds nothing. See `case 'call'` in `pkgs/injector`.
+	//
+	// It is marked `shared`, which is what says it takes no frame of its own. A frame is for a
+	// fragment with parameters, and one here would capture what a `fresh` slot writes into the
+	// innermost scope for the reads of it further along -- measured: `id="bits-s1"` became
+	// `id="bits-"` on every page carrying a menu.
+	const seen = new Map<string, number>();
+	for (const branch of [...body, ...head, ...title]) {
+		for (const node of branch.body) {
+			const text = JSON.stringify(node);
+			seen.set(text, (seen.get(text) ?? 0) + 1);
+		}
+	}
+	const held = new Map<string, string>();
+	const hoisted = (nodes: readonly Node[]): Node[] =>
+		nodes.map((node): Node => {
+			const text = JSON.stringify(node);
+			if ((seen.get(text) ?? 0) < 2) return node;
+			let name = held.get(text);
+			if (name === undefined) {
+				name = `__f${String(held.size)}`;
+				held.set(text, name);
+				fragments[name] = [node];
+			}
+			return { t: 'call', fragment: name, binds: [], shared: true };
+		});
+	for (const branch of [...body, ...head, ...title]) branch.body = hoisted(branch.body);
+
 	const ir: ComponentIR = {
 		component,
 		body: [{ t: 'if', branches: body }],
