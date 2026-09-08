@@ -1971,16 +1971,28 @@ function leaves(expression: string, walk: Walk): string | null {
  * ` tail` into `\n\ttail`. Written in front of the first character the author wrote, the leading
  * whitespace is still leading and the node is the one Svelte would have had.
  *
- * Nothing to stand in front of -- what follows is an element, a tag, or the end -- and the stamp
- * goes at the block, where it is the whole of a node of its own. Measured against Svelte for text,
- * an element, a block and the end of a fragment, in both namespaces.
+ * Nothing to stand in front of -- what follows is an element, a block, one of the other tags, or
+ * the end -- and the stamp goes at the block, where it is the whole of a node of its own. Measured
+ * against Svelte for text, an element, a block and the end of a fragment, in both namespaces.
+ *
+ * **An `{expression}` counts as text here, and it was the one shape not measured.** `clean_nodes`
+ * asks `next?.type !== 'ExpressionTag'` before collapsing a text node's *trailing* whitespace, so
+ * an expression tag holds the whitespace in front of it as written where a block or an element
+ * collapses it to one space. A stamp written at the block turned that node from whitespace into
+ * `stamp` plus whitespace: no longer leading, so nothing collapsed, and `{/each}\n\n{value}` kept
+ * both newlines where Svelte writes one space. In front of the tag the whitespace is leading
+ * again, and it collapses the way it would have.
  */
 function stamping(source: string, end: number): number {
 	let at = end;
 	while (at < source.length && /\s/.test(source[at] ?? '')) at += 1;
 	const next = source[at];
-	// `<` opens an element and `{` a tag or a block; anything else is the author's own text.
-	return next === undefined || next === '<' || next === '{' ? end : at;
+	if (next === undefined || next === '<') return end;
+	// `{` opens a tag or a block, and only `{expression}` is the one `clean_nodes` treats as text:
+	// `#` and `:` and `/` are a block, `@` is `{@html}`, `{@render}` or `{@const}`, and none of
+	// those is an `ExpressionTag`.
+	if (next === '{') return '#:/@'.includes(source[at + 1] ?? '') ? end : at;
+	return at;
 }
 
 /**

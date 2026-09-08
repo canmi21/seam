@@ -2239,6 +2239,25 @@ const accepted: Case[] = [
 			{ c: '', w: null },
 		],
 	},
+	{
+		// `clean_nodes` asks `next?.type !== 'ExpressionTag'` before collapsing a text node's trailing
+		// whitespace, so an expression tag holds the whitespace in front of it as written where a
+		// block or an element collapses it to one space. A stamp written at the block turned that
+		// node from whitespace into a stamp plus whitespace -- no longer leading, so nothing
+		// collapsed. Every shape that can follow a block, since the placement turns on which.
+		name: 'whatever follows a block, and the whitespace between',
+		source:
+			`${PROPS}<div>{#each data.xs as x}<i>{x}</i>{/each}\n\n{data.a}</div>` +
+			'<div>{#each data.xs as x}<i>{x}</i>{/each}\n\ntail</div>' +
+			'<div>{#each data.xs as x}<i>{x}</i>{/each}\n\n<b>e</b></div>' +
+			'<div>{#each data.xs as x}<i>{x}</i>{/each}\n\n{#if data.a}<u>y</u>{/if}</div>' +
+			'<div>{#each data.xs as x}<i>{x}</i>{/each}\n\n{@html data.h}</div>' +
+			'<div>{#each data.xs as x}<i>{x}</i>{/each}\n\n</div>',
+		data: [
+			{ xs: ['p'], a: 'A', h: '<em>h</em>' },
+			{ xs: [], a: '', h: '' },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
