@@ -74,6 +74,37 @@ function evaluate(script: string): Record<string, unknown> {
 }
 
 /**
+ * The scope stack as one object to read through, rather than one flattened into a copy.
+ *
+ * It was `Object.assign({}, ...scopes)`, and that was the whole of a response. A scoped derivation
+ * is evaluated once for every item it stands in, and the scope it is given is the route's --
+ * holding every derivation the artifact carries, which for a route joined out of several
+ * structures is all of theirs. Measured on press's article: 13,224 derivations, 10,692 of them
+ * scoped, and injecting one page took **1133ms of a 1180ms response**, nearly all of it copying
+ * the same thirteen thousand keys over and over.
+ *
+ * The expressions read their scope through `with`, which asks an object what it has and what it
+ * holds -- so an object that answers by looking down the stack is the same scope without the copy.
+ * Innermost last, which is the order `Object.assign` gave it, so an each binding still shadows an
+ * outer name; and own properties only, which is what `Object.assign` copied -- reading through the
+ * prototype would make `toString` a name in scope.
+ */
+function stacked(scopes: readonly Scope[]): Record<string, unknown> {
+	const [only] = scopes;
+	if (scopes.length === 1 && only !== undefined) return only;
+	return new Proxy(Object.create(null) as Record<string, unknown>, {
+		has: (_, key) => scopes.some((one) => Object.hasOwn(one, key)),
+		get: (_, key) => {
+			for (let at = scopes.length - 1; at >= 0; at -= 1) {
+				const one = scopes[at];
+				if (one !== undefined && Object.hasOwn(one, key)) return one[key as string];
+			}
+			return undefined;
+		},
+	});
+}
+
+/**
  * Takes the entry's props as the load stage filled them and returns the scope injection walks:
  * those props, and the derived fields beside them.
  *
@@ -117,7 +148,7 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 			if (derivation.scoped === true) {
 				const held = (scopes: readonly Scope[]): unknown => {
 					try {
-						return derivation.evaluate(Object.assign({}, ...scopes) as Record<string, unknown>);
+						return derivation.evaluate(stacked(scopes));
 					} catch (error) {
 						throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
 					}
