@@ -120,6 +120,13 @@ decision does not. [roadmap.md](roadmap.md) sorts the same items by what each wa
 was drawn.** The subset grows, and the README should say that rather than implying a boundary
 nobody has found.
 
+**The check is still ours, and that is its remaining blind spot.** Every case in it was written
+here, so it measures what somebody thought to write; a construct nobody here has met is absent
+from the accepted list and from the refused one alike. `DeclarationTag` was exactly that -- it is
+in Svelte's public AST union and was in neither `REFUSED` nor the walk's switch until a corpus
+somebody else chose ran into it. So the check is joined by Svelte's own 2388 samples, compared
+against the same oracle: [suite.md](suite.md) has what that is and what it said.
+
 ## What is still refused is ranked in one place, by what it waits on
 
 [roadmap.md](roadmap.md) holds every construct still refused, sorted three ways: ready and not
@@ -136,6 +143,11 @@ The refusal surface says what is turned away. It does not say what that costs, a
 that is how a compiler comes to spend its effort on the wrong refusal. So the same rules were run
 statically over every `.svelte` file on this machine -- 4323 of them, a real application and the
 dependency tree it installs.
+
+This section and the one after it rank what to work on by how much of the installed world each
+refusal blocks. That is a different question from how much of *Svelte* compiles, which is
+[suite.md](suite.md)'s, and the two disagree on what matters: a construct nothing installed
+happens to use still has to compile.
 
 **44 of the 4323 would be refused for nothing: 1.0%.** What stops the rest, most common first:
 

@@ -33,6 +33,35 @@ that decides it is named. That is the order of work for each: read the transform
 form the rule, measure it with Node against Svelte's own output, then write ours, then the check
 that holds the two together. See the workspace's `spec/agent-protocol.md`.
 
+## Wrong bytes, which is not a refusal and outranks everything below
+
+A refusal stops a build and names a file. What follows here compiled and wrote bytes that are not
+Svelte's, which nothing said. [suite.md](suite.md) has the measurement and why this ordering is
+not the obvious one; these are the six read off their output the first time Svelte's own samples
+were run, and 32 more are unattributed.
+
+**A default on the entry's own props is dropped.** 78 of the 115 differences. `let { foo = 42 } =
+$props()` on the component the compile starts from becomes a bare read of `foo` off the payload,
+so a request that does not carry `foo` writes nothing where Svelte writes `42`. A child's default
+is correct -- the render bakes it in -- so this is the one component whose props are payload
+paths. press cannot reach it: Kit's root is handed every prop it declares on every request.
+
+**Five more, each its own rule.** `{#each}` over a string renders nothing where Svelte iterates
+the characters; a quoted attribute holding one expression is passed as text where Svelte passes
+the value; an attribute written after a spread does not override the spread's; `<select value>`
+does not reach an `<option>` a child component renders; a namespaced `<Components.Foo />` is given
+a block anchor pair Svelte does not write.
+
+## Newly refused, found by the same run
+
+Constructs the walk had never met, each a gap. `DeclarationTag` -- `{const x = 0}` and
+`{let x = $derived(...)}` -- is in Svelte's public AST union and was in neither the switch nor
+`REFUSED`, so it reached the default arm. `css: 'injected'` puts the stylesheet in the head, which
+the head assembly does not recognise as either a block or a stamp. `$state.eager` is a rune
+nothing reads. And a `<svelte:boundary>` whose body throws is caught by Svelte and rendered as
+`failed`; here the throw escapes the compile -- which is a decision where the throw depends on the
+request and a gap where it does not, and the two have not been told apart yet.
+
 ## Ready, and not done
 
 **The walk enters a package's component.** Done; [refusals.md](refusals.md) has what it took --
