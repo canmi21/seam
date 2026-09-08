@@ -74,7 +74,6 @@ import {
 import type { Block, Hole, Stream } from './shape.ts';
 import { inlined, type Snippet, snippetsIn, supplied } from './snippets.ts';
 import { RAW_TEXT_ELEMENTS, VALID_TAG_NAME, VOID_ELEMENTS } from './tags.ts';
-import { runed } from './legacy.ts';
 import { unbound } from './unbind.ts';
 
 /**
@@ -1822,7 +1821,15 @@ function exportedBy(ast: AstNode): string[] {
 	for (const statement of body) {
 		if (!isNode(statement) || statement['type'] !== 'ExportNamedDeclaration') continue;
 		const declaration = statement['declaration'];
+		// `export let` and `export { a }` over a `let` are **props**, not readonly exports, and
+		// `propsOf` has them. Only `const`, `function` and `class` are readonly, which is what
+		// `bind_props` receives from `analysis.exports` beside the bindable props rather than as
+		// one of them.
 		if (!isNode(declaration)) continue;
+		const kind = declaration['kind'];
+		if (declaration['type'] === 'VariableDeclaration' && (kind === 'let' || kind === 'var')) {
+			continue;
+		}
 		const id = declaration['id'];
 		if (isNode(id) && typeof id['name'] === 'string') {
 			found.push(id['name']);
@@ -3676,7 +3683,7 @@ function descend(
 	// Whether the child writes a head, which decides what a failure to enter it means below.
 	let headed = false;
 	try {
-		const raw = inlined(unbound(runed(readFileSync(file, 'utf8'))));
+		const raw = inlined(unbound(readFileSync(file, 'utf8')));
 		const ahead = parse(raw, { modern: true }) as unknown as AstNode;
 		headed = contains(ahead['fragment'], 'SvelteHead');
 		awaitless(ahead, `<${tag} />`);
@@ -3716,7 +3723,7 @@ function descend(
 		// A readonly export travels too. `transform-server.js` passes `analysis.exports` to
 		// `$.bind_props` beside the bindable props, so `export const x = 42` in the child reaches a
 		// caller that binds `x` exactly as a prop's default would -- and it is not in `propsOf`,
-		// which reads `$props()`. `legacy.ts` leaves the keyword in place so this can be read.
+		// which reads `$props()` and the two legacy spellings of a prop, and not these.
 		for (const name of exportedBy(ahead)) {
 			if (!boundProps.has(name)) continue;
 			refuse(
@@ -4139,6 +4146,18 @@ export function rewrite(
 			`\`${unnameable.prop}\` is a prop whose name is not an identifier, so nothing can read it ` +
 				'as an expression: a path may hold it, and every derivation this compiler writes is ' +
 				'JavaScript. Give it a name that is one. See spec/refusals.md',
+		);
+	}
+	// `$$props` and `$$restProps` are the legacy spelling of the whole props object and of what a
+	// declared prop left over, and Svelte binds both from `$$props` in the component's own scope.
+	// Nothing here does: a derivation reads its scope through `with`, which binds the payload's keys
+	// and not the object, which is the same reason a rest is refused below. Reachable only since
+	// the entry stopped being rewritten into runes mode, where the names do not exist at all.
+	if (/\$\$(?:rest)?[Pp]rops\b/.test(source)) {
+		refuse(
+			'`$$props` and `$$restProps` are the whole of what a caller passed, and nothing here can ' +
+				'name the payload itself to build one. Name the props the markup reads. ' +
+				'See spec/refusals.md',
 		);
 	}
 	// A rest on the entry is every key the request brought that the pattern did not name, and there

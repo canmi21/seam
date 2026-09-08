@@ -34,12 +34,18 @@ export function propsOf(
 	const content = isNode(instance) ? instance['content'] : undefined;
 	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
 	const found: { local: string; prop: string; fallback: string; at?: unknown; rest?: true }[] = [];
+	// `export let` and `export { a }` are props **in legacy mode only**. In runes mode `export let`
+	// is an error and `export { a }` is a readonly export of whatever the name holds -- a `$state`,
+	// say -- which `analysis.exports` carries to `bind_props` beside the bindable props rather than
+	// as one of them. Read the way `2-analyze/index.js` reads it: a file is runes where anything in
+	// its scripts references a rune, and legacy otherwise.
+	const legacy = !usesRunes(body);
 
 	for (const statement of body) {
 		// `export let` is Svelte 4's spelling of a prop and Svelte 5 still compiles it. Read here
 		// rather than rewritten into `$props()`, because `$props()` puts the file in runes mode and
 		// `analysis.runes` decides far more than how props are declared. See spec/roadmap.md.
-		if (isNode(statement) && statement['type'] === 'ExportNamedDeclaration') {
+		if (legacy && isNode(statement) && statement['type'] === 'ExportNamedDeclaration') {
 			const held = statement['declaration'];
 			const kind = isNode(held) ? held['kind'] : undefined;
 			// `export { a, b as c }` with no declaration of its own: the other legacy spelling, and
@@ -148,6 +154,38 @@ export function propsOf(
 			}
 		}
 	}
+	return found;
+}
+
+/** The runes, by the name a script references. `analysis.runes` is true where any of them is. */
+const RUNES: ReadonlySet<string> = new Set([
+	'$state',
+	'$derived',
+	'$props',
+	'$bindable',
+	'$effect',
+	'$inspect',
+	'$host',
+]);
+
+/** Whether anything in these statements references a rune, which is what puts a file in runes mode. */
+function usesRunes(body: readonly unknown[]): boolean {
+	let found = false;
+	const look = (node: unknown): void => {
+		if (found) return;
+		if (Array.isArray(node)) {
+			for (const one of node) look(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		if (node['type'] === 'Identifier' && typeof node['name'] === 'string') {
+			// `$state.raw` and the rest are a member off the rune's own name, so the root is enough.
+			if (RUNES.has(node['name'])) found = true;
+			return;
+		}
+		for (const one of Object.values(node)) look(one);
+	};
+	look(body);
 	return found;
 }
 

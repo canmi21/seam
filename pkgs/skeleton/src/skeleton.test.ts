@@ -29,7 +29,6 @@ import { joined } from 'compiler';
 import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject } from 'injector';
 import { lower } from 'lowering';
-import { runed } from './legacy.ts';
 import { expressionsOf, helpers, skeleton } from './skeleton.ts';
 
 // Its own directory: `skeleton()` stages Svelte's compiled output in `../.build` and removes it
@@ -1963,7 +1962,6 @@ const accepted: Case[] = [
 	{
 		// Svelte 4's spelling of a prop, which Svelte 5 still compiles. Measured byte for byte
 		// against `$props()` with the same defaults, so the file is rewritten to that before
-		// anything reads it. See `runed()` in legacy.ts.
 		name: 'a child written with export let',
 		beside: {
 			Kid: "<script>export let n; export let label = 'x', flag = false;</script><p>{label}{n * 2}{#if flag}!{/if}</p>",
@@ -2292,10 +2290,36 @@ const accepted: Case[] = [
 			{ a: '', c: 0, renamed: '' },
 		],
 	},
+	{
+		// A child whose props are `export let`, entered and bound at its call site the way a runes
+		// child is. Its defaults are Svelte's own, since nothing rewrites them any more.
+		name: 'a child whose props are `export let`',
+		beside: {
+			Kid:
+				'<script>export let p; export let q = 7; let r = 1; export { r as renamed };</script>' +
+				'<b>{p}</b><i>{q}</i><u>{r}</u>',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid p={data.a} renamed={data.b} />',
+		data: [
+			{ a: 'x', b: 'y' },
+			{ a: '', b: 0 },
+		],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// The legacy spelling of the whole props object. Svelte binds it from the component's own
+		// `$$props`; nothing here can, for the reason a rest cannot -- a derivation reads its scope
+		// through `with`, which binds the payload's keys and not the object. Reachable only since
+		// the entry stopped being rewritten into runes mode, where the name does not exist.
+		name: 'a spread of `$$props`',
+		says: '$$props',
+		source: '<script>export let a;</script><p>{a}</p><b>{JSON.stringify($$props)}</b>',
+	},
 	{
 		// `transform-server.js` passes `analysis.exports` to `$.bind_props` beside the bindable
 		// props, so a readonly export reaches a caller that binds it exactly as a prop's default
@@ -2583,38 +2607,6 @@ it('renders the same bytes from any working directory', async () => {
 		expect(await skeleton(file, staging)).toEqual(here);
 	} finally {
 		process.chdir(before);
-	}
-});
-
-// `export let` is a bindable prop and `let { x } = $props()` is not, which is the whole of what
-// the legacy rewrite has to preserve here. `transform-server.js` ends a component with
-// `$.bind_props($$props, { ... })` over its `bindable_prop` declarations, and `internal/server`'s
-// `bind_props` assigns each back to the parent where the parent passed `undefined` and its props
-// object has a setter for that key -- which is what a parent's `bind:` writes. Rewriting to a
-// plain destructuring dropped the call, and with it every propagation of a child's default.
-//
-// Asked of Svelte's own output rather than of the text: the two sources have to compile to the
-// same call, with a default and without.
-it('the legacy rewrite keeps a prop bindable, which is what propagates a default upward', () => {
-	const call = (source: string): string | null => {
-		const code = compile(source, {
-			generate: 'server',
-			name: 'C',
-			filename: resolve(staging, 'bindable.svelte'),
-			rootDir: staging,
-		}).js.code;
-		return /\$\.bind_props\([^;]*\)/.exec(code)?.[0] ?? null;
-	};
-	for (const declared of [
-		'export let x;',
-		'export let x = 1;',
-		'export let x; export let y = 2;',
-	]) {
-		const legacy = `<script>${declared}</script><p>{typeof x}</p>`;
-		expect(call(legacy), `\`${declared}\` is bindable and has to stay so`).not.toBeNull();
-		expect(call(runed(legacy)), `\`${declared}\` lost its propagation in the rewrite`).toBe(
-			call(legacy),
-		);
 	}
 });
 

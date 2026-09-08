@@ -206,17 +206,24 @@ Svelte's own render of the author's component. Removing `runed()` with nothing i
 the corpus from 20 differences to 208, because `propsOf` cannot read `export let` at all and every
 legacy entry loses its payload; the work is `propsOf` and `locals` learning the spelling.
 
-**Done for the entry.** `propsOf` reads `export let` and both export-list spellings --
-`export { a }` and `export { a as b }`, whose exported name is the prop and whose local is what
-the markup uses -- and `locals` is told which names those are so it leaves them free instead of
-substituting their initialisers, by name rather than by statement, since `let a, b; export { a }`
-declares one of each. Seven more agree, seven fewer are refused, and `component-namespaced` is
-right because the entry keeps the mode its author wrote.
+**Done, and `runed()` is gone.** `propsOf` reads `export let` and both export-list spellings --
+`export { a }` and `export { a as b }`, whose exported name is the prop and whose local is what the
+markup uses, the default being the local's own initialiser wherever it was declared. `locals` is
+told which names those are so it leaves them free instead of substituting their initialisers, by
+name rather than by statement, since `let a, b; export { a }` declares one of each. Every
+component now keeps the mode its author wrote, and `component-namespaced` is right.
 
-**Not done for a child**, and the measurement is the reason rather than the design: taking the
-rewrite off children as well gives 1155 identical against 1163, and why has not been read out.
-`component-binding-aliased` waits on it -- a child whose prop is `export { foo as bar }` -- and so
-do the 63 refusals, which are mostly children.
+**The export forms are props in legacy mode only.** In runes mode `export let` is an error and
+`export { a }` is a readonly export of whatever the name holds -- `export { count }` over a
+`let count = $state(0)` is exactly that -- so `propsOf` asks first whether anything in the scripts
+references a rune, which is how `2-analyze/index.js` decides. Taking that for a prop substituted
+`$state(0)` into the markup and Svelte refused the result.
+
+**Taking the rewrite off children looked like a loss and was a bug of ours.** It measured 1155
+identical against 1163, which read as a reason not to do it; the cause was `exportedBy` reporting
+every `ExportNamedDeclaration` as a readonly export, so a child's plain `export let` prop was one
+and every `bind:` to it was refused. Only `const`, `function` and `class` are readonly. With that
+fixed the same change is a gain.
 
 ## Newly refused, found by the same run
 
