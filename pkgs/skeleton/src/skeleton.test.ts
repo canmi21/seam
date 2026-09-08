@@ -1873,6 +1873,48 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// Every way in a pattern has that is not a member, read out of Svelte's own `_extract_paths`:
+		// a key written as a literal or computed is an index, a nesting is one way in after another,
+		// and a rest is a call -- `exclude_from_object` for an object, `to_array().slice()` for an
+		// array. A computed key reads a name the same pattern bound before it, which is the order
+		// JavaScript binds one in. The pattern stays in the render over a placeholder, so nothing in
+		// it may evaluate: the nestings become names and the computed keys `undefined`.
+		name: 'a const and a snippet parameter taken apart every way a pattern offers',
+		source:
+			`${PROPS}{#snippet row({ 'a-b': ab, [ab ?? 'k']: picked, n: { deep }, xs: [first, ...more], ...rest })}` +
+			'{@const { 0: zero, [zero]: byZero, q: { r }, ...left } = rest}' +
+			'{@const [head, ...[next, ...tail]] = more}' +
+			'<i>{ab}|{picked}|{deep}|{first}|{more.join(",")}|{JSON.stringify(rest)}</i>' +
+			'<u>{zero}|{byZero}|{r}|{JSON.stringify(left)}|{head}|{next}|{tail.length}</u>{/snippet}' +
+			'{@render row(data.v)}',
+		data: [
+			{
+				v: {
+					'a-b': 'k',
+					k: 'picked',
+					n: { deep: 'D' },
+					xs: [1, 2, 3, 4],
+					0: 'q',
+					q: { r: 'R' },
+					z: '<',
+				},
+			},
+			{ v: { 'a-b': 'z', n: {}, xs: [], q: {} } },
+		],
+	},
+	{
+		// The same ways in where an await binds them. The then branch is the one the server writes,
+		// its value the expression itself, so a rest there is the same call over it.
+		name: 'an await whose value is taken apart every way a pattern offers',
+		source:
+			`${PROPS}{#await data.v then { 'a-b': ab, [ab ?? 'k']: picked, n: { deep }, ...rest }}` +
+			'<i>{ab}|{picked}|{deep}|{JSON.stringify(rest)}</i>{/await}',
+		data: [
+			{ v: { 'a-b': 'k', k: 'P', n: { deep: 'D' }, z: 1 } },
+			{ v: { 'a-b': '<', n: {}, y: 'y' } },
+		],
+	},
+	{
 		// The pattern defaulted whole, `({ ... } = {})`: the default wraps the argument first, taken
 		// where it is `undefined`, and the pattern inside then takes that apart. The first call is
 		// handed nothing, so the default is what it destructures.

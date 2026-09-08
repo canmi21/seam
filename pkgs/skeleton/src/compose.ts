@@ -340,6 +340,34 @@ export function rebased(
 }
 
 /**
+ * Whether an expansion names one of Svelte's own functions this compiler carries.
+ *
+ * They are reached under a `$$` name, which nothing an author writes can shadow. Svelte's own
+ * compiler refuses that name in markup -- a leading `$` is a store subscription there, and
+ * `$$exclude_from_object` came back as "is an illegal variable name" -- so an expansion naming one
+ * is never handed back for Svelte to evaluate, however little of the request it reads. It stays a
+ * marker, and the derivation calls the function where the carried bundle has it.
+ */
+export const CARRIED = [
+	'attr_class',
+	'attributes',
+	'clsx',
+	'exclude_from_object',
+	'stringify',
+	'to_array',
+] as const;
+
+/**
+ * By name rather than by the prefix: `$$props`, `$$restProps` and `$$slots` wear it too, and those
+ * are Svelte's own, written by the render rather than carried. See `helpers()` in `skeleton.ts`.
+ */
+const CARRIES = new RegExp(`(?:^|[^$\\w.])\\$\\$(?:${CARRIED.join('|')})\\b`);
+
+export function carries(text: string): boolean {
+	return CARRIES.test(text);
+}
+
+/**
  * Whether a prop's value is the same every request, so that nothing has to stand in for it.
  *
  * Only asked of a component the walk did not enter. Inside one, an expression is walked and its
@@ -359,7 +387,8 @@ export function inert(
 		if (!isNode(part)) return false;
 		if (part['type'] === 'Text') return true;
 		if (part['type'] !== 'ExpressionTag') return false;
-		return !mentions(expand(part['expression']), dynamic);
+		const text = expand(part['expression']);
+		return !carries(text) && !mentions(text, dynamic);
 	});
 }
 

@@ -357,13 +357,62 @@ declaration whose scope is that block rather than the script. It substitutes lik
 name stands for its initialiser wherever the block's markup reads it, chained where one const reads
 another, and taken apart where it destructures -- the same function a snippet's parameter uses,
 so a default inside the pattern is the choice JavaScript makes, `(v.b === undefined ? 'd' : v.b)`,
-expanded against what the earlier consts bound. A rest or a nesting has no way in and is refused
-by name. Measured inside a snippet with parameters: a destructuring, a default in it, a const
-reading another and reading two parameters, and one inside an each inside the snippet.
+expanded against what the earlier consts bound. Measured inside a snippet with parameters: a
+destructuring, a default in it, a const reading another and reading two parameters, and one inside
+an each inside the snippet.
 
 The render is handed something in the initialiser's place, for the reason a declaration reading a
 prop already is: by then every read of it is a marker, and evaluating it would reach for data the
 render is not given. What stands in has to come apart the way the name does.
+
+## Every way in a pattern has, where the markup binds one
+
+`{#snippet}`'s parameter, `{@const}` and `{#await}`'s value all bind names by taking a value apart,
+and all three go through one function. What it writes for each name is read forward out of Svelte's
+own `_extract_paths` in `compiler/utils/ast.js`, which answers the same question for the client
+transform:
+
+| written | the way in |
+| ------------------------- | -------------------------------------------------- |
+| `{ a }` | `(v).a` |
+| `{ 'a-b': c }`, `{ 0: c }` | `(v)['a-b']`, `(v)[0]` -- a literal key is an index |
+| `{ [k]: c }` | `(v)[k]`, with `k` expanded where it stands |
+| `{ a: { b } }` | `((v).a).b` -- one way in written after another |
+| `{ a, ...rest }` | `$$exclude_from_object((v), ["a"])` |
+| `[a, ...rest]` | `$$to_array((v)).slice(1)` |
+| `{ a = d }` | `((v).a === undefined ? (d) : (v).a)` |
+
+There is a way in to every name a pattern binds. **It is not always a member**, and the rule this
+replaces -- a rest or a nesting is neither a member nor an index, so it has no way in to write down
+-- was a description of the shape of the answer mistaken for an answer. The two calls are Svelte's
+own, carried the way `attributes` is, so the key emptying, the symbol handling and the iterable
+handling are upstream's rather than reproduced here.
+
+A computed key is expanded against what the pattern has bound before it: JavaScript binds a pattern
+left to right, and `{ length, [length - 1]: last }` reads the one from the other.
+
+**A declaration in the script still takes only a member or an index.** `const { a, ...rest } = t`
+there is reported by name, and the entry under Open below is that gap. The difference is where the
+value comes from: a markup binding takes it apart from an expression this pass writes and holds,
+and a declaration takes it apart from an initialiser another pass substitutes by span.
+
+### The pattern the render sees
+
+The pattern stays in the source the compiler renders, taking apart the placeholder that stands in
+for the value, and by then every read of what it binds is a marker. So nothing in it may evaluate:
+a default's value and a computed key become `undefined`, and a nested pattern becomes a name.
+`{ a: { b } }` over `{}` destructures `undefined` and throws inside Svelte's own output, which is
+the placeholder failing rather than anything the author wrote. The name carries `$$`, which Svelte
+reserves, and the position it stands at, which no two nestings in one file share.
+
+### A carried name is never handed back to the render
+
+An expression reading nothing the request decides is written back into the markup for Svelte to
+evaluate, which is what keeps those bytes upstream's. One naming a carried function cannot be:
+Svelte's compiler refuses a `$`-prefixed variable in markup outright -- `$$exclude_from_object` came
+back as "is an illegal variable name" -- so such an expression stays a marker and the derivation
+calls the function where the carried bundle has it. Tested by name rather than by the prefix, since
+`$$props`, `$$restProps` and `$$slots` wear it too and those are the render's own to evaluate.
 
 ## Substitution maps a name to an expression, and a program is not an expression
 

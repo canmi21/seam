@@ -358,13 +358,30 @@ export function helpers(rendered: Skeleton): Carried[] {
 	if (rendered.holes.some((one) => one.whole === true)) {
 		found.push({ local: '$$attr_class', from, kind: 'named', exported: 'attr_class' });
 	}
-	if (rendered.holes.some((one) => one.expression.includes('$$clsx('))) {
+	// Over every expression rather than the holes alone: a name a pattern binds is reached inside a
+	// block's own expression and inside a fragment call's bindings as readily as inside a hole.
+	const written = expressionsOf(rendered).map((one) => one.expression);
+	if (written.some((one) => one.includes('$$clsx('))) {
 		found.push({ local: '$$clsx', from, kind: 'named', exported: 'clsx' });
 	}
 	// What `build_attribute_value` puts around every expression in a template: `stringify` is
 	// Svelte's, not a rule reproduced here, so nullish comes out empty rather than as "undefined".
-	if (rendered.holes.some((one) => one.expression.includes('$$stringify('))) {
+	if (written.some((one) => one.includes('$$stringify('))) {
 		found.push({ local: '$$stringify', from, kind: 'named', exported: 'stringify' });
+	}
+	// The two ways in a destructuring has that are not a member: what a rest gathers out of an
+	// object, and the array a rest slices. Svelte's own, so the symbol keys and the iterable
+	// handling are upstream's. See `takenApart()` in `walk.ts`.
+	if (written.some((one) => one.includes('$$exclude_from_object('))) {
+		found.push({
+			local: '$$exclude_from_object',
+			from,
+			kind: 'named',
+			exported: 'exclude_from_object',
+		});
+	}
+	if (written.some((one) => one.includes('$$to_array('))) {
+		found.push({ local: '$$to_array', from, kind: 'named', exported: 'to_array' });
 	}
 	return found;
 }

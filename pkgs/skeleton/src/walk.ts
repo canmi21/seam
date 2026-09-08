@@ -33,6 +33,7 @@ import {
 	styles,
 } from './attributes.ts';
 import {
+	carries,
 	hands,
 	identity,
 	importsOf,
@@ -745,10 +746,17 @@ function defaults(pattern: AstNode): [name: string, access: string, fallback: As
 /**
  * What a parameter binds, each name as the expression that reaches it from the argument.
  *
- * The same substitution a destructured declaration gets, with the way in written after the
- * argument, and a default written the way JavaScript reads one: taken when the value is
- * `undefined` and only then. A rest or a nesting is neither a member nor an index, so it has no
- * way in and is refused by name -- here rather than three passes later as an unresolved name.
+ * The way in, read forward out of Svelte's own `_extract_paths` in `compiler/utils/ast.js`, which
+ * is the client transform's answer to the same question. There is a way in to every name a pattern
+ * binds, and it is not always a member: a key written `[expr]` or as a literal is an index, a
+ * nesting is one way in written after another, and a rest is a call --
+ * `exclude_from_object(value, keys)` for an object, `to_array(value).slice(n)` for an array. Both
+ * are Svelte's own, carried the way `attributes` is, so the emptying rule and the symbol handling
+ * are upstream's rather than reproduced here.
+ *
+ * A default is written the way JavaScript reads one: taken when the value is `undefined` and only
+ * then. A computed key is expanded against what the pattern has bound so far, because JavaScript
+ * binds a pattern left to right and `{ length, [length - 1]: last }` reads the one from the other.
  */
 function takenApart(
 	pattern: AstNode,
@@ -757,62 +765,117 @@ function takenApart(
 	what: () => string,
 ): Map<string, string> {
 	const bound = new Map<string, string>();
+	// Bound so far, so a computed key reaches a name written before it in the same pattern.
+	const write = (node: unknown): string => expand(node, bound);
 	const withDefault = (reached: string, fallback: unknown): string =>
-		`(${reached} === undefined ? (${expand(fallback)}) : ${reached})`;
+		`(${reached} === undefined ? (${write(fallback)}) : ${reached})`;
 	const one = (target: unknown, reached: string): void => {
 		if (!isNode(target)) return;
-		if (target['type'] === 'Identifier' && typeof target['name'] === 'string') {
+		const type = target['type'];
+		if (type === 'Identifier' && typeof target['name'] === 'string') {
 			bound.set(target['name'], reached);
 			return;
 		}
-		if (target['type'] === 'AssignmentPattern') {
+		if (type === 'AssignmentPattern') {
 			one(target['left'], withDefault(reached, target['right']));
+			return;
 		}
+		if (type === 'ObjectPattern') {
+			// The keys a rest leaves out are every key the pattern names, in the order Svelte writes
+			// them: a plain name as itself, a literal as its value read as a string, and a computed
+			// key as `String(...)` of the expression, which evaluates it a second time.
+			const taken: string[] = [];
+			for (const property of Array.isArray(target['properties']) ? target['properties'] : []) {
+				if (!isNode(property)) continue;
+				if (property['type'] === 'RestElement') {
+					one(property['argument'], `$$exclude_from_object(${reached}, [${taken.join(', ')}])`);
+					continue;
+				}
+				if (property['type'] !== 'Property') continue;
+				const key = property['key'];
+				if (!isNode(key)) refuse(`${what()} has a key this compiler cannot read`);
+				const computed = property['computed'] === true;
+				const literal = key['type'] === 'Literal';
+				if (!computed && key['type'] === 'Identifier' && typeof key['name'] === 'string') {
+					taken.push(JSON.stringify(key['name']));
+					one(property['value'], `${reached}.${key['name']}`);
+					continue;
+				}
+				taken.push(literal ? JSON.stringify(String(key['value'])) : `String(${write(key)})`);
+				one(property['value'], `${reached}[${write(key)}]`);
+			}
+			return;
+		}
+		if (type === 'ArrayPattern') {
+			for (const [at, element] of (Array.isArray(target['elements'])
+				? target['elements']
+				: []
+			).entries()) {
+				if (!isNode(element)) continue;
+				if (element['type'] === 'RestElement') {
+					one(element['argument'], `$$to_array(${reached}).slice(${String(at)})`);
+					continue;
+				}
+				one(element, `${reached}[${String(at)}]`);
+			}
+			return;
+		}
+		refuse(`${what()} destructures in a way this compiler cannot read: a ${String(type)}`);
 	};
-	if (pattern['type'] === 'ObjectPattern') {
-		for (const property of Array.isArray(pattern['properties']) ? pattern['properties'] : []) {
-			if (!isNode(property) || property['type'] !== 'Property') continue;
-			const key = property['key'];
-			if (property['computed'] === true || !isNode(key) || typeof key['name'] !== 'string')
-				continue;
-			one(property['value'], `${argument}.${key['name']}`);
-		}
-	} else if (pattern['type'] === 'ArrayPattern') {
-		for (const [at, element] of (Array.isArray(pattern['elements'])
-			? pattern['elements']
-			: []
-		).entries()) {
-			one(element, `${argument}[${String(at)}]`);
-		}
-	} else {
-		one(pattern, argument);
-	}
-	// The names the pattern binds, and not the ones a default reads: `{ a = data.d }` binds `a`.
-	const all = new Set<string>();
-	const binding = (target: unknown): void => {
-		if (!isNode(target)) return;
-		if (target['type'] === 'Identifier' && typeof target['name'] === 'string')
-			all.add(target['name']);
-		else if (target['type'] === 'AssignmentPattern') binding(target['left']);
-		else if (target['type'] === 'RestElement') binding(target['argument']);
-		else if (target['type'] === 'Property') binding(target['value']);
-		else if (target['type'] === 'ObjectPattern') {
-			for (const part of Array.isArray(target['properties']) ? target['properties'] : [])
-				binding(part);
-		} else if (target['type'] === 'ArrayPattern') {
-			for (const part of Array.isArray(target['elements']) ? target['elements'] : []) binding(part);
-		}
-	};
-	binding(pattern);
-	const missing = [...all].filter((each) => !bound.has(each));
-	if (missing.length > 0) {
-		refuse(
-			`${what()} binds ${missing.map((each) => `\`${each}\``).join(', ')} through a rest or ` +
-				'a nesting, which is neither a member nor an index of the argument, so there is no way ' +
-				'in to write down',
-		);
-	}
+	one(pattern, argument);
 	return bound;
+}
+
+/**
+ * Writes over everything in a pattern the render would evaluate, leaving one that binds the same
+ * names from a placeholder without reaching for anything.
+ *
+ * The render takes the pattern apart from `{}` or `[]` and every read of what it binds is a marker
+ * already, so nothing the pattern computes is wanted -- and each of these throws or reaches for
+ * data the render is not given. A default's value and a computed key become `undefined`; a nested
+ * pattern becomes a name, because `{ a: { b } }` over `{}` destructures `undefined` and throws,
+ * which is Svelte's own output failing on a placeholder nobody wrote. The name carries `$$`, which
+ * Svelte reserves and no author can collide with, and the position it stands at, which no two
+ * nestings in one file share.
+ */
+function neutralise(pattern: unknown, edits: [number, number, string][], top = true): void {
+	if (!isNode(pattern)) return;
+	const type = pattern['type'];
+	const at = span(pattern);
+	if (!top && (type === 'ObjectPattern' || type === 'ArrayPattern')) {
+		if (at !== null) edits.push([at[0], at[1], `$$p${String(at[0])}`]);
+		return;
+	}
+	if (type === 'AssignmentPattern') {
+		const where = span(pattern['right']);
+		if (where !== null) edits.push([where[0], where[1], 'undefined']);
+		neutralise(pattern['left'], edits, top);
+		return;
+	}
+	if (type === 'RestElement') {
+		neutralise(pattern['argument'], edits, false);
+		return;
+	}
+	if (type === 'ObjectPattern') {
+		for (const property of Array.isArray(pattern['properties']) ? pattern['properties'] : []) {
+			if (!isNode(property)) continue;
+			if (property['type'] === 'RestElement') {
+				neutralise(property, edits, false);
+				continue;
+			}
+			if (property['computed'] === true) {
+				const where = span(property['key']);
+				if (where !== null) edits.push([where[0], where[1], 'undefined']);
+			}
+			neutralise(property['value'], edits, false);
+		}
+		return;
+	}
+	if (type === 'ArrayPattern') {
+		for (const element of Array.isArray(pattern['elements']) ? pattern['elements'] : []) {
+			neutralise(element, edits, false);
+		}
+	}
 }
 
 /** Writes each expression of an attribute back out in its expanded form, for Svelte to evaluate. */
@@ -1688,6 +1751,9 @@ function runesOf(imports: Record<string, string>, file: string): Set<string> {
  * does not decide. See `onlyWithin`.
  */
 function varies(expression: string, walk: Walk): boolean {
+	// One of Svelte's own functions this compiler carries is not a name the render can be handed:
+	// Svelte's compiler refuses a `$`-prefixed variable in markup outright. See `carries()`.
+	if (carries(expression)) return true;
 	const names = unknown(walk);
 	if (!mentions(expression, names)) return false;
 	return !onlyWithin(expression, names, walk.site.runes);
@@ -1986,7 +2052,7 @@ function stands(expression: string, walk: Walk): string {
 		throw new Undecided(held.undecided);
 	}
 	const text = held.text;
-	if (walk.site.payload !== null && !mentions(text, walk.dynamic)) return text;
+	if (walk.site.payload !== null && !carries(text) && !mentions(text, walk.dynamic)) return text;
 	const apart = leaves(text, walk);
 	if (apart !== null) return apart;
 	const index = walk.holes.length;
@@ -2373,6 +2439,10 @@ function collect(node: unknown, walk: Walk): void {
 				// reach for data the render is not given. What stands in has to come apart the way
 				// the name does.
 				if (at !== null) edits.push([at[0], at[1], holdsFor(id)]);
+				// The pattern stays for the render, taking the placeholder apart, so nothing in it may
+				// evaluate: `{@const { [`${a}-x`]: { b } } = f()}` reads `a` and destructures a member
+				// of `{}`, and both are gone before the render sees it.
+				neutralise(id, edits);
 
 				if (isNode(id) && id['type'] === 'Identifier' && typeof id['name'] === 'string') {
 					bound.set(id['name'], `(${value})`);
@@ -3101,15 +3171,14 @@ function collect(node: unknown, walk: Walk): void {
 					if (where !== null) edits.push([where[0], where[1], one.holds[at] ?? 'null']);
 				}
 				for (const parameter of parameters) {
-					const pattern =
+					// The parameter's own default is left alone: the runtime takes it per call, and the
+					// render is handed something the pattern accepts. What is inside it is not.
+					neutralise(
 						isNode(parameter) && parameter['type'] === 'AssignmentPattern'
 							? parameter['left']
-							: parameter;
-					if (!isNode(pattern) || pattern['type'] === 'Identifier') continue;
-					for (const [, , otherwise] of defaults(pattern)) {
-						const where = span(otherwise);
-						if (where !== null) edits.push([where[0], where[1], 'undefined']);
-					}
+							: parameter,
+						edits,
+					);
 				}
 				const after =
 					parameters.length > 0
@@ -3155,6 +3224,13 @@ function collect(node: unknown, walk: Walk): void {
 			const bound = new Map<string, string>();
 			for (const [index, parameter] of parameters.entries()) {
 				if (!isNode(parameter)) refuse('a `{#snippet}` parameter this compiler cannot read');
+				// The pattern stays for the render, over what the call was replaced by, so nothing in
+				// it may evaluate. The parameter's own default is left alone for the reason the
+				// fragment half gives.
+				neutralise(
+					parameter['type'] === 'AssignmentPattern' ? parameter['left'] : parameter,
+					edits,
+				);
 				// An argument not written is `undefined`, which is what the function receives and
 				// what a default answers to.
 				const argument = index < one.args.length ? expand(one.args[index]) : 'undefined';
@@ -3232,6 +3308,7 @@ function collect(node: unknown, walk: Walk): void {
 				// The value is the expression itself, resolved: `then_fn(promise)` is called with what
 				// was awaited, which was never a promise on this branch. So it substitutes the way a
 				// snippet's parameter does, with a destructuring reached through the way in.
+				if (isNode(value)) neutralise(value, edits);
 				const bound = isNode(value)
 					? takenApart(value, `(${expression})`, expand, () => 'this await')
 					: new Map<string, string>();

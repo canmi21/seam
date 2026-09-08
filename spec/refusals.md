@@ -481,9 +481,10 @@ Two shapes are refused and the reasons are different:
 **A parameter is the argument, substituted.** `{#snippet row(v)}` takes its value from the
 `{@render}` that calls it, and there is exactly one of those, so `v` stands for that argument
 wherever the body reads it -- in a slot, in a branch's test, as an each block's source. A
-destructured parameter is the same substitution a destructured declaration gets, with the way in
-written after the argument, which is why the two share one function. A default or a rest is neither
-a member nor an index, so it has no way in and is refused by name.
+destructured parameter is taken apart the way a `{@const}` and an `{#await}`'s value are, one
+function for the three of them, and every way a pattern binds a name has a way in written for it --
+a literal or computed key, a nesting, a default, a rest. See
+[derivation.md](derivation.md).
 
 The render is handed something in the argument's place rather than the argument itself, because
 the value is unused by then -- every expression in the body is already a marker -- and evaluating
