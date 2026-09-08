@@ -2103,6 +2103,20 @@ const accepted: Case[] = [
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
 	{
+		// A marker may stand where a value is written and never where it decides which bytes exist.
+		// The child cannot be entered -- `<slot>` -- so the value goes to it as a marker, and the
+		// child branches on it. Every marker is a non-empty string, so the branch was taken, the
+		// whole component came back as static bytes with no block in it, and nothing said so. It
+		// agreed with Svelte for as long as the payload made that branch the right one.
+		// Measured on `runtime-legacy/component-yield-nested-if`, which passed this way.
+		name: 'a value a child the walk cannot enter branches on',
+		says: 'did not come back',
+		beside: { Gate: '<script>let { on } = $props();</script>{#if on}<slot></slot>{/if}' },
+		source:
+			"<script>import Gate from './Gate.svelte'; let { data } = $props();</script>" +
+			'<Gate on={data.on}>shown</Gate>',
+	},
+	{
 		// Async Svelte awaits a real promise per request while the bytes are written, which is
 		// loading data: the load stage's, by definition. See spec/roadmap.md.
 		name: 'an await in markup',

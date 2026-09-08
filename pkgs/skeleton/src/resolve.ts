@@ -380,25 +380,53 @@ async function unwritten(
 	seen: { body: string; head: string },
 	holes: readonly Hole[],
 ): Promise<boolean> {
-	const swap = (text: string): string =>
-		holes.reduce((held, hole) => held.replaceAll(sentinel(hole.index), other(hole.index)), text);
-	try {
-		const again = await renderRewritten(
-			file,
-			swap(baseline.rewritten),
-			root,
-			baseline.copies.map((copy) => ({ ...copy, source: swap(copy.source) })),
-			given,
-			baseline.fresh,
-		);
-		return again.body === seen.body && again.head === seen.head;
-	} catch {
-		// Nothing is known, so nothing is relaxed and the value is reported as before.
-		return false;
+	// Both, and the value has to survive both. See `OTHERS`.
+	for (const instead of OTHERS) {
+		const swap = (text: string): string =>
+			holes.reduce(
+				(held, hole) => held.replaceAll(sentinel(hole.index), instead(hole.index)),
+				text,
+			);
+		try {
+			const again = await renderRewritten(
+				file,
+				swap(baseline.rewritten),
+				root,
+				baseline.copies.map((copy) => ({ ...copy, source: swap(copy.source) })),
+				given,
+				baseline.fresh,
+			);
+			if (again.body !== seen.body || again.head !== seen.head) return false;
+		} catch {
+			// Nothing is known, so nothing is relaxed and the value is reported as before.
+			return false;
+		}
 	}
+	return true;
 }
 
-/** A value in the same shape as a sentinel and different from it in every way that could be read. */
-function other(index: number): string {
-	return `%%z${String(index)}z%%`;
-}
+/**
+ * The values put in a marker's place to ask whether anything downstream reads it.
+ *
+ * **Two, because one of them could only ever answer half the question.** It used to be the first
+ * of these alone -- a marker of the same shape, non-empty, different only in its characters -- and
+ * that asks whether the component *writes* the value. It cannot ask whether the component
+ * *decides* on it, because two non-empty strings are the same truth: `{#if visible}` inside a
+ * component the walk could not enter takes the same branch for both, the bytes come out the same,
+ * and the marker is declared never written when it in fact chose which bytes exist.
+ *
+ * That is [spec/refusals.md](../../../spec/refusals.md)'s one invariant read backwards. A marker
+ * may stand where a value is written and never where it decides which bytes exist, and this is the
+ * check that says which of the two a place is. Measured: `runtime-legacy/transition-js-slot` and
+ * `component-nested-deeper` compiled to one static node holding the taken branch, with no hole and
+ * no block, and nothing anywhere said so.
+ *
+ * The second is the empty string, which differs from a marker in its truthiness, its length and
+ * what it is as a number, and is still a string -- so a component that writes it writes different
+ * bytes, and one that branches on it takes the other branch. A value that survives both is one
+ * nothing downstream read.
+ */
+const OTHERS: readonly ((index: number) => string)[] = [
+	(index) => `%%z${String(index)}z%%`,
+	() => '',
+];
