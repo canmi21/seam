@@ -429,6 +429,8 @@ export interface Walk {
 	 * be an element, or the whitespace beside it survives where Svelte had none. See `carrier()`.
 	 */
 	tight: boolean;
+	/** Whether the walk is in the svg namespace, which decides which element may carry a stamp. */
+	svg: boolean;
 	/**
 	 * Whether this file's stylesheet relates siblings, which decides whether a stamp that has to be
 	 * an element may be written at all. See `stamps()`.
@@ -1885,7 +1887,7 @@ function stamps(walk: Walk, index: number, close = '', beside = false): string {
 				'a cell of its own, or relating those two elements without a sibling combinator, avoids it',
 		);
 	}
-	return carrier(index, walk.parent, close, tight);
+	return carrier(index, walk.parent, close, tight, tight && walk.svg);
 }
 
 /**
@@ -2492,6 +2494,14 @@ function collect(node: unknown, walk: Walk): void {
 			// `<foreignObject>` leaves, and `<datalist>` beside the elements `carrier()` already
 			// knows by name. It decides what carries a stamp written under this element, and
 			// nothing else. See `Walk.tight`.
+			const svg =
+				type !== 'RegularElement'
+					? walk.svg
+					: tag === 'svg'
+						? true
+						: tag === 'foreignObject'
+							? false
+							: walk.svg;
 			const tight =
 				type !== 'RegularElement'
 					? walk.tight
@@ -2509,7 +2519,7 @@ function collect(node: unknown, walk: Walk): void {
 			if (!given || inside.length === 0) {
 				// A content binding's children are the else of the bare if it planted.
 				if (bare !== undefined) within.push([bare, -1]);
-				collect(fragment, { ...walk, parent: encloses, tight, selecting });
+				collect(fragment, { ...walk, parent: encloses, tight, svg, selecting });
 				if (bare !== undefined) within.pop();
 				return;
 			}
@@ -2532,7 +2542,7 @@ function collect(node: unknown, walk: Walk): void {
 					edits.push([group.at, group.at, group.probe]);
 				}
 				const from: [number, number] = [holes.length, blocks.length];
-				collect(child, { ...walk, parent: encloses, tight });
+				collect(child, { ...walk, parent: encloses, tight, svg });
 				if (group === undefined) continue;
 				const one: Handed = {
 					probe: group.probe,
@@ -3864,6 +3874,7 @@ export function rewrite(
 		fresh: fresh === null ? [] : [fresh],
 		parent: null,
 		tight: false,
+		svg: false,
 		siblings: relatesSiblings(ast),
 	};
 	collect(ast['fragment'], walk);

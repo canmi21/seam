@@ -135,6 +135,11 @@ pub(super) fn stamped(html: &str, at: usize) -> Option<(usize, usize, usize)> {
 	let (body, close, opened) = if let Some(after) = rest.strip_prefix("<template") {
 		let end = after.find('>')? + 1;
 		(after.get(end..)?, "</template>", "<template".len() + end)
+	} else if let Some(after) = rest.strip_prefix("<desc") {
+		// Svg's own, which is what a stamp inside one has to be carried by: any other element in a
+		// block's fragment makes `infer_namespace` call the whole fragment html.
+		let end = after.find('>')? + 1;
+		(after.get(end..)?, "</desc>", "<desc".len() + end)
 	} else if let Some(after) = rest.strip_prefix("<option value=\"") {
 		(after, "\"></option>", "<option value=\"".len())
 	} else {

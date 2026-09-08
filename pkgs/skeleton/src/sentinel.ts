@@ -55,7 +55,8 @@ const REFUSES_TEXT = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'colgrou
  * | anything ordinary, the root, `<pre>`, `<option>` | same | **differs** under `+` or `~` | refused |
  * | `<table>` and its parts | refused | same | refused |
  * | `<select>`, `<optgroup>` | makes it rich | makes it rich | same |
- * | inside `<svg>`, and `<datalist>` -- `tight` | **differs** | same | refused |
+ * | `<datalist>` -- `tight` | **differs** | same | refused |
+ * | inside `<svg>` -- `tight` | **differs** | **differs** beside a nested block | refused, `<desc>` is same |
  *
  * **`tight` is where a whitespace-only text node is removed rather than collapsed.** `clean_nodes`
  * calls it `can_remove_entirely`: the svg namespace outside a `<text>`, and a handful of elements
@@ -79,7 +80,13 @@ export function elementCarrier(parent: string | null, tight = false): boolean {
 	return tight || (parent !== null && REFUSES_TEXT.has(parent));
 }
 
-export function carrier(index: number, parent: string | null, close = '', tight = false): string {
+export function carrier(
+	index: number,
+	parent: string | null,
+	close = '',
+	tight = false,
+	svg = false,
+): string {
 	const mark = stamp(index);
 	// A text or element child makes a select *rich*, which closes the tag with `<!>` -- a real
 	// change in the bytes. An `<option>` is what it already expects, and its value is the marker,
@@ -89,6 +96,13 @@ export function carrier(index: number, parent: string | null, close = '', tight 
 	// Written in the open it would be text where text is refused. See `headCloses()`.
 	if (parent === 'select' || parent === 'optgroup')
 		return `<option value="${mark}">${close}</option>`;
+	// Inside an svg the carrier has to be an svg element. `infer_namespace` reads the nodes of the
+	// fragment it is cleaning and **returns `html` at the first element that is neither svg nor
+	// mathml**, so a `<template>` among the children of a block turns that whole fragment html --
+	// and `can_remove_entirely`, which is what the element carrier was for, is then false. `<desc>`
+	// is svg's own, takes text, and draws nothing. Measured: a `<template>` beside a nested block
+	// is what press's language chart met.
+	if (svg) return `<desc>${close}${mark}</desc>`;
 	if (elementCarrier(parent, tight)) return `<template>${close}${mark}</template>`;
 	return `${close}${mark}`;
 }
