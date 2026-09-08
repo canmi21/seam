@@ -29,6 +29,7 @@ import { joined } from 'compiler';
 import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject } from 'injector';
 import { lower } from 'lowering';
+import { runed } from './legacy.ts';
 import { expressionsOf, helpers, skeleton } from './skeleton.ts';
 
 // Its own directory: `skeleton()` stages Svelte's compiled output in `../.build` and removes it
@@ -2362,6 +2363,38 @@ it('renders the same bytes from any working directory', async () => {
 		expect(await skeleton(file, staging)).toEqual(here);
 	} finally {
 		process.chdir(before);
+	}
+});
+
+// `export let` is a bindable prop and `let { x } = $props()` is not, which is the whole of what
+// the legacy rewrite has to preserve here. `transform-server.js` ends a component with
+// `$.bind_props($$props, { ... })` over its `bindable_prop` declarations, and `internal/server`'s
+// `bind_props` assigns each back to the parent where the parent passed `undefined` and its props
+// object has a setter for that key -- which is what a parent's `bind:` writes. Rewriting to a
+// plain destructuring dropped the call, and with it every propagation of a child's default.
+//
+// Asked of Svelte's own output rather than of the text: the two sources have to compile to the
+// same call, with a default and without.
+it('the legacy rewrite keeps a prop bindable, which is what propagates a default upward', () => {
+	const call = (source: string): string | null => {
+		const code = compile(source, {
+			generate: 'server',
+			name: 'C',
+			filename: resolve(staging, 'bindable.svelte'),
+			rootDir: staging,
+		}).js.code;
+		return /\$\.bind_props\([^;]*\)/.exec(code)?.[0] ?? null;
+	};
+	for (const declared of [
+		'export let x;',
+		'export let x = 1;',
+		'export let x; export let y = 2;',
+	]) {
+		const legacy = `<script>${declared}</script><p>{typeof x}</p>`;
+		expect(call(legacy), `\`${declared}\` is bindable and has to stay so`).not.toBeNull();
+		expect(call(runed(legacy)), `\`${declared}\` lost its propagation in the rewrite`).toBe(
+			call(legacy),
+		);
 	}
 });
 

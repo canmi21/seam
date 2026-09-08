@@ -65,7 +65,7 @@ other way, `component-binding-parent-supercedes-child-c`, and it is counted belo
 
 | | | |
 | --- | --- | --- |
-| 8 | **a component `bind:` the server writes back** | `<Foo bind:x/>` where the child declares `x` with a default, or writes it: Svelte's server render sends the child's value back up and the parent's markup holds it. An element `bind:` the server writes is refused by name; a component's compiles and drops the writeback. The largest group, and the one that closes most samples per rule. |
+| 8 | **a component `bind:` the server writes back** | Read out, half built. See below. |
 | 5 | **a later attribute has to beat a spread's, and `value` has to reach a child's `<option>`** | `{...{ defaultValue: 'b' }} defaultValue="a"` marks both options; `bind:value {...props}` takes the binding rather than the spread; `<select value>` does not reach an `<option>` a component renders. One rule about order, one about where the select pass looks. |
 | 6 | **a name that holds client state is read as though the server had it** | `$state` mutated by an effect or a callback, a reactive block that runs again, an each key compared by identity. The server writes the value before any of that, and these say we write a different one. Each needs reading on its own; they are one group only in that none is markup. |
 | 3 | **entry props the walk cannot name** | a key that is a string literal -- `const { 'kebab-case': x } = $props()` -- and a rest, `...others`, which for the entry is the payload's other keys. `propsOf` returns null for the first and leaves the second unfilled. |
@@ -104,6 +104,50 @@ so it qualified and the anchor went missing, once per level of a recursion. The 
 itself now, where the fragment is one Svelte reads the flag for -- which is every block's, and not
 an element's or a `<title>`'s, because `RegularElement.js` and `TitleElement.js` take `trimmed` off
 `clean_nodes` and call `process_children` without going through `Fragment.js` at all.
+
+### A component `bind:`, which is a fixed point the server iterates
+
+The largest of the rows above, and the mechanism is Svelte's, read rather than inferred:
+
+1. Any `bind:x` on a component, `x` not `this`, sets `analysis.uses_component_bindings` on the
+   **parent** (`2-analyze/visitors/shared/component.js`).
+2. That wraps the parent's whole template in `do { $$settled = true; ... } while (!$$settled)`,
+   with `$$renderer.subsume` taking the last pass (`transform-server.js`).
+3. The binding becomes `get x() { ... }` and `set x($$value) { expr = $$value; $$settled = false }`
+   in the child's props, both pushed last so a spread cannot overwrite them
+   (`3-transform/server/visitors/shared/component.js`).
+4. The child ends its render with `$.bind_props($$props, { ...its bindable props })`, and
+   `bind_props` in `internal/server` assigns each back **where the parent passed `undefined` and
+   the parent's props object has a setter for that key**. So a child's default flows up into the
+   parent, and the parent renders again with it.
+5. Which props are in that object is `binding.kind === 'bindable_prop'`: in legacy mode every
+   `export let`, in runes mode only a `$bindable()` one.
+
+**Step 5 is where this compiler lost it, and it was our own rewrite.** `runed()` turns
+`export let x = 1` into `let { x = 1 } = $props()`, which is a plain prop, so the child compiled to
+no `$.bind_props` call at all and the propagation disappeared. It now writes
+`let { x = $bindable(1) } = $props()`, which produces the same call Svelte's own output has --
+with a default, without one, and for several props at once. There is a check that asks Svelte for
+both and compares.
+
+**On its own that changes nothing**, and the suite says so: 1125 identical before and after. The
+setter it needs never exists, because `unbind.ts` rewrites the parent's `bind:x={e}` to `x={e}` on
+the strength of a claim that reads "only the getter runs while the bytes are written" -- which
+`transform-server.js` shows is false. That claim is the other half, and taking it out is the work
+that remains.
+
+**What that work has to decide, which the samples split cleanly.** Propagation fires only where
+the parent passed `undefined`, so:
+
+- The child's bound prop has **no default** and is not assigned at the top level (which is refused
+  already): nothing can propagate, and the binding compiles as it does today.
+- The parent binds a **local** -- `component-binding-aliased` is `let bar;`, `blowback-d` is a
+  `const` object -- so whether it is `undefined` is known at compile time, and the fixed point is
+  a compile-time render. These are compilable and are the reason not to refuse the row wholesale.
+- The parent binds a **prop** -- `component-binding` is `export let x` then `<Foo bind:x/>` -- and
+  whether the child's default flows up depends on whether the request sent `x`. That is a decision
+  a marker cannot stand in, so it is a structure to enumerate or a refusal, and not something to
+  bake.
 
 ## Newly refused, found by the same run
 

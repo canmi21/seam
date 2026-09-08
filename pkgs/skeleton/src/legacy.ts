@@ -58,7 +58,18 @@ export const runed: (given: string) => string = bySource((source) => {
 				refuse('`export let` of a pattern is not a prop this compiler can name');
 			}
 			const init = span(one['init']);
-			props.push(init === null ? id['name'] : `${id['name']} = ${source.slice(init[0], init[1])}`);
+			// `$bindable`, because `export let` is one. `transform-server.js` ends a component with
+			// `$.bind_props($$props, { ... })` over its `bindable_prop` declarations, and
+			// `internal/server`'s `bind_props` assigns each back to the parent where the parent
+			// passed `undefined` and its props object has a setter for the key -- which is what a
+			// parent's `bind:` writes. In legacy mode every `export let` is a `bindable_prop`; in
+			// runes mode only a `$bindable()` one is. So the plain rewrite silently dropped the
+			// propagation, and this restores it: measured, `export let x` and
+			// `let { x = $bindable() } = $props()` produce the same `$.bind_props` call, with a
+			// default and without, and a child nobody binds is unaffected because the check for a
+			// setter fails.
+			const held = init === null ? '' : source.slice(init[0], init[1]);
+			props.push(`${id['name']} = $bindable(${held})`);
 		}
 		first ??= at[0];
 		edits.push([at[0], at[1], '']);
