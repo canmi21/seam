@@ -69,6 +69,7 @@ import {
 	marks,
 	marksHead,
 	sentinel,
+	writes,
 } from './sentinel.ts';
 import type { Block, Hole, Stream } from './shape.ts';
 import { inlined, type Snippet, snippetsIn, supplied } from './snippets.ts';
@@ -436,6 +437,26 @@ export interface Walk {
 	 * an element may be written at all. See `stamps()`.
 	 */
 	siblings: boolean;
+	/**
+	 * The one node the enclosing fragment holds, where it holds one. Compared by identity, so a
+	 * walk carrying it past the fragment it was read for matches nothing. See `onlyChild`.
+	 */
+	alone: unknown;
+	/**
+	 * Whether the fragment about to be walked is one Svelte reads `is_standalone` for.
+	 *
+	 * `clean_nodes` computes the flag for every fragment, but only `Fragment.js` puts it on the
+	 * state the visitors read. Two visitors take `{ hoisted, trimmed }` off `clean_nodes` and call
+	 * `process_children` themselves -- `RegularElement.js` and `TitleElement.js` -- so what their
+	 * children see is the enclosing fragment's value, and inside an element that is always false:
+	 * the flag needs the fragment's one trimmed node to be a `Component`, and the node the walk
+	 * came through to get inside an element is the element. Every block visits its fragment, so an
+	 * `{#if}`, an `{#each}`, a `{#key}`, a `{#snippet}`, an `{#await}`, a boundary and a
+	 * component's own children all get a fresh flag of their own.
+	 *
+	 * So this is false only under an element or a `<title>`. See `selfCall`.
+	 */
+	standalone: boolean;
 	/**
 	 * Names an enclosing passed snippet's parameters bind, which the component supplies.
 	 *
@@ -1246,6 +1267,20 @@ function selfCall(
 	/** The source of the component called, which is this file's unless the cycle is longer. */
 	source = walk.source,
 	dynamic?: { expression: [number, number] | null },
+	/**
+	 * Set for `<svelte:self>`, which Svelte anchors differently from a component naming its own
+	 * file even though the two render the same thing.
+	 *
+	 * `is_standalone` in `3-transform/utils.js` is `trimmed.length === 1` and the one node being a
+	 * `RenderTag` or a **`Component`** -- and `<svelte:self>` is a `SvelteSelf`, so it never
+	 * qualifies. A fragment holding one of those alone therefore gets the `<!---->` that
+	 * `shared/component.js` pushes after a component, where a fragment holding one ordinary
+	 * component alone does not. The stand-in this writes is a component tag, so Svelte reads it as
+	 * standalone and drops the anchor the original had. Measured on
+	 * `runtime-legacy/nested-transition-detach-if-false`, one `<!---->` short at one level of a
+	 * recursion. See spec/ir.md.
+	 */
+	itself = false,
 ): void {
 	const ast = parsedComponent(source) as unknown as AstNode;
 	const declares = propsOf(ast, source);
@@ -1296,7 +1331,19 @@ function selfCall(
 	// `marks()`.
 	const at = resolvePath(dirname(walk.site.file), `__seam-call-${String(index)}.svelte`);
 	const head = callsHead(walk, fragment, binds);
-	const stand = `<script>${marks(index)};${head === null ? '' : `${marksHead(head)};`}</script>`;
+	// The anchor the original had and the stand-in would not, pushed from inside so that it lands
+	// where Svelte would have pushed it: at the end of what the component wrote. Only where the
+	// stand-in is the one node in its fragment, since anywhere else Svelte writes it for us, and
+	// not where a `--custom` property is set, which is the other thing that suppresses it.
+	const anchored =
+		itself &&
+		walk.alone === node &&
+		!(Array.isArray(node['attributes']) ? node['attributes'] : []).some(
+			(one) => isNode(one) && String(one['name'] ?? '').startsWith('--'),
+		);
+	const stand =
+		`<script>${marks(index)};${head === null ? '' : `${marksHead(head)};`}` +
+		`${anchored ? `${writes('<!---->')};` : ''}</script>`;
 	// Written rather than rewritten, so it has no edits and no render changes it. See `rechosen`.
 	walk.site.copies.push({
 		file: walk.site.file,
@@ -1387,6 +1434,41 @@ function opensWithText(fragment: unknown): boolean {
 		(one) => isNode(one) && !(one['type'] === 'Text' && /^\s*$/.test(String(one['data'] ?? ''))),
 	);
 	return isNode(first) && (first['type'] === 'Text' || first['type'] === 'ExpressionTag');
+}
+
+/**
+ * The one node a fragment holds, where it holds one, which is what `is_standalone` turns on.
+ *
+ * Read out of `clean_nodes` in `3-transform/utils.js`: a comment goes, a `{@const}`, a
+ * `{#snippet}`, a `<svelte:head>`, a `<title>` and the window-ish elements are hoisted out, and
+ * whitespace-only text is dropped from either end. What is left is `trimmed`, and a fragment whose
+ * `trimmed` is one component or one static render tag lets Svelte use the parent block's anchor
+ * rather than writing one after the child. See `selfCall`.
+ */
+const HOISTED: ReadonlySet<string> = new Set([
+	'ConstTag',
+	'DeclarationTag',
+	'DebugTag',
+	'SvelteBody',
+	'SvelteWindow',
+	'SvelteDocument',
+	'SvelteHead',
+	'TitleElement',
+	'SnippetBlock',
+]);
+
+function onlyChild(fragment: unknown): unknown {
+	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	const regular = nodes.filter(
+		(one) => isNode(one) && one['type'] !== 'Comment' && !HOISTED.has(String(one['type'])),
+	);
+	const blank = (one: unknown): boolean =>
+		isNode(one) && one['type'] === 'Text' && !/\S/.test(String(one['data'] ?? ''));
+	let from = 0;
+	let to = regular.length;
+	while (from < to && blank(regular[from])) from += 1;
+	while (to > from && blank(regular[to - 1])) to -= 1;
+	return to - from === 1 ? regular[from] : null;
 }
 
 /** Whether a snippet renders itself: one of its `{@render}` calls sits inside its own body. */
@@ -2120,8 +2202,12 @@ function collect(node: unknown, walk: Walk): void {
 			const consts = nodes.filter(
 				(child) => isNode(child) && child['type'] === 'ConstTag',
 			) as AstNode[];
+			// Which node the fragment holds alone, for the children of this fragment and no deeper.
+			// Reset to true for them, so a block inside an element is standalone again. See
+			// `onlyChild` and `Walk.standalone`.
+			const alone = walk.standalone ? onlyChild(node) : null;
 			if (consts.length === 0) {
-				for (const child of nodes) step(child);
+				for (const child of nodes) collect(child, { ...walk, alone, standalone: true });
 				return;
 			}
 
@@ -2161,7 +2247,7 @@ function collect(node: unknown, walk: Walk): void {
 				expand(child, more === undefined ? bound : new Map([...bound, ...more]));
 			for (const child of nodes) {
 				if (isNode(child) && child['type'] === 'ConstTag') continue;
-				collect(child, { ...walk, expand: inner });
+				collect(child, { ...walk, expand: inner, alone, standalone: true });
 			}
 			return;
 		}
@@ -2178,7 +2264,7 @@ function collect(node: unknown, walk: Walk): void {
 						'which cannot happen: the walk reads for it before entering',
 				);
 			}
-			selfCall(node, walk, 'SeamSelf', site.fragment);
+			selfCall(node, walk, 'SeamSelf', site.fragment, undefined, undefined, true);
 			return;
 		}
 
@@ -2521,7 +2607,16 @@ function collect(node: unknown, walk: Walk): void {
 			if (!given || inside.length === 0) {
 				// A content binding's children are the else of the bare if it planted.
 				if (bare !== undefined) within.push([bare, -1]);
-				collect(fragment, { ...walk, parent: encloses, tight, svg, selecting });
+				collect(fragment, {
+					...walk,
+					parent: encloses,
+					tight,
+					svg,
+					selecting,
+					// `RegularElement.js` does not go through `Fragment.js`, so its children read the
+					// enclosing flag rather than one of their own. A component's children do.
+					standalone: type === 'Component' || type === 'SvelteComponent',
+				});
 				if (bare !== undefined) within.pop();
 				return;
 			}
@@ -3919,6 +4014,8 @@ export function rewrite(
 		tight: false,
 		svg: false,
 		siblings: relatesSiblings(ast),
+		alone: null,
+		standalone: true,
 	};
 	collect(ast['fragment'], walk);
 	if (recursion !== null) {

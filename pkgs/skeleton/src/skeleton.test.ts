@@ -2098,6 +2098,34 @@ const accepted: Case[] = [
 			{ form: 'f', page: { url: '/p' }, data_0: { title: 'T', body: 'B' }, extra: 1 },
 		],
 	},
+	{
+		// `is_standalone` in `3-transform/utils.js` needs the fragment's one trimmed node to be a
+		// `Component`, and `<svelte:self>` is a `SvelteSelf` -- so Svelte writes the `<!---->` that
+		// `shared/component.js` pushes after a component, where one ordinary component alone in the
+		// same place gets none. The stand-in the walk writes is a component tag, so it was read as
+		// standalone and the anchor went missing, one per level of the recursion.
+		name: 'a `<svelte:self>` alone in a block, which anchors unlike a component',
+		source:
+			'<script>let { data } = $props();</script><ul>{#each data.items as item}' +
+			'{#if item.kids}<svelte:self data={{ items: item.kids }} />{:else}<li>{item.name}</li>{/if}' +
+			'{/each}</ul>',
+		data: [
+			{ items: [{ name: 'a' }, { kids: [{ name: 'b' }, { kids: [{ name: 'c' }] }] }] },
+			{ items: [] },
+		],
+	},
+	{
+		// The other side of the same rule, and the one that says the fix is not a blanket anchor:
+		// `RegularElement.js` never goes through `Fragment.js`, so its children read the enclosing
+		// flag, which inside an element is always false -- Svelte writes the anchor here by itself
+		// and a second one would be ours. Measured on `runtime-legacy/self-reference-tree`.
+		name: 'a `<svelte:self>` alone inside an element, where Svelte writes the anchor itself',
+		source:
+			'<script>let { data } = $props();</script><ul>{#each data.items as item}' +
+			'<li>{#if item.kids}<svelte:self data={{ items: item.kids }} />{:else}{item.name}{/if}</li>' +
+			'{/each}</ul>',
+		data: [{ items: [{ name: 'a' }, { kids: [{ name: 'b' }] }] }, { items: [] }],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.

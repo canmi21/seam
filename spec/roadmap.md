@@ -44,7 +44,8 @@ application written for Kit and moved. Everything below belongs to the first of 
 A refusal stops a build and names a file. What follows here compiled and wrote bytes that are not
 Svelte's, which nothing said. [suite.md](suite.md) has the measurement and
 [conformance.md](conformance.md) why this ordering is not the obvious one. There were 115; the
-first entry below took it to 42, and all 42 are read out here rather than counted -- the suite
+first entry below took it to 42 and the anchor row to 39, and all of them are read out here rather
+than counted -- the suite
 prints the first byte the two renders disagree on, which is what made reading them a morning
 instead of a project.
 
@@ -74,15 +75,35 @@ other way, `component-binding-parent-supercedes-child-c`, and it is counted belo
 | 2 | **a doubled space after a block** | `<!--]-->  1` where Svelte writes `<!--]--> 1`. The stamp's whitespace rule, one case short. |
 | 2 | **a default with a side effect is evaluated a different number of times** | a snippet parameter default that increments a counter, a child's defaults evaluated lazily. The value is right and the count of evaluations is not, which the bytes show because the counter is rendered. |
 | 2 | **Svelte writes a snippet that was never rendered** | `snippet-children-without-render-tag`: children given with no `{@render}` reach the output as the function's own source. Whether that is worth reproducing is a question rather than a gap. |
-| 3 | **the wrong branch, or a missing anchor** | `<!--[0-->` where Svelte writes `<!--[-1-->`, twice, and one `<!---->` short. Blocks, and the most alarming of these groups: it is the assembler rather than a construct. |
+| ~~3~~ | ~~**the wrong branch, or a missing anchor**~~ | Done, and it was two faults rather than one. See below. |
 | 1 | **a namespaced component** | `<Components.Foo />` gets a block anchor pair Svelte does not write. |
 | 1 | **attribute order beside a directive** | `style` before `class` where Svelte writes `class` before `style`. |
 | 1 | **a prop default a global shadows** | `export let Math = { min: ... }`. The guard is `typeof Math === 'undefined'`, and a global of that name makes it false, so the default never fires. `typeof` is what lets the guard read a key the payload lacks; it cannot tell that from a global. |
 | 2 | **two of their own** | an `<option disabled>` on the wrong item, and a `--css-var` custom property that is not written. |
 
-**The three anchor cases are the ones to read first** even though they are not the largest group.
-Every other row is a construct the compiler does not handle; those three are the compiler handling
-one and getting it wrong, which is the failure this whole arrangement exists to catch.
+**The three anchor cases were read first** even though they were not the largest group. Every
+other row is a construct the compiler does not handle; those three were the compiler handling one
+and getting it wrong, which is the failure this whole arrangement exists to catch. They were two
+faults:
+
+**Two were a marker standing where a value decides.** `{#if visible}` inside a component the walk
+could not enter -- `<slot>` stopped it -- with `visible` handed in as a marker. Every marker is a
+non-empty string, so the branch was taken and the whole component came back as static bytes with
+no block and no hole. What let that through was `dead()`, whose probe put a second marker in the
+value's place and asked whether the bytes changed: that asks whether the component *writes* the
+value and cannot ask whether it *decides* on it, two non-empty strings being the same truth. The
+probe now also puts the empty string there, which differs in truthiness, in length and as a
+number. Both are refused now, and a third sample that had been passing --
+`component-yield-nested-if` -- was a false pass the same probe had been relaxing.
+
+**One was `<svelte:self>`, which Svelte anchors unlike a component.** `is_standalone` in
+`3-transform/utils.js` wants the fragment's one trimmed node to be a `Component`, and
+`<svelte:self>` is a `SvelteSelf`, so it never qualifies and always gets the `<!---->` that
+`shared/component.js` pushes after a component. The stand-in the walk writes is a component tag,
+so it qualified and the anchor went missing, once per level of a recursion. The stand-in writes it
+itself now, where the fragment is one Svelte reads the flag for -- which is every block's, and not
+an element's or a `<title>`'s, because `RegularElement.js` and `TitleElement.js` take `trimmed` off
+`clean_nodes` and call `process_children` without going through `Fragment.js` at all.
 
 ## Newly refused, found by the same run
 

@@ -133,6 +133,17 @@ export function marks(index: number): string {
 }
 
 /**
+ * Bytes a stand-in writes at its own position, which is not a marker and is not replaced.
+ *
+ * For the one thing a stand-in has to reproduce and cannot be given: an anchor Svelte writes after
+ * the tag the stand-in replaced but not after the stand-in, because the two are different node
+ * types to `is_standalone`. See `selfCall` in walk.ts.
+ */
+export function writes(text: string): string {
+	return `${MARK}(${JSON.stringify(text)})`;
+}
+
+/**
  * The same marker written into the head stream, for a call of a fragment that writes a head: the
  * body's call is met where the stand-in renders, and the head's where its head blocks would have
  * gone, which is where a head renderer pushed at that moment lands. See `mirrored()` in walk.ts.
