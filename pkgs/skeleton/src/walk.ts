@@ -6,6 +6,7 @@ import {
 	type Carried,
 	constant,
 	destructure,
+	type Edit,
 	importsOf as importedBy,
 	type Locals,
 	locals,
@@ -102,6 +103,10 @@ export interface Copy {
 	file: string;
 	at: string;
 	source: string;
+	/** What `source` was made from, kept so another render's choices can be applied to it. */
+	raw: string;
+	/** The edits that made it, kept for the same reason. See `rechosen`. */
+	inner: Edit[];
 	/**
 	 * The hole standing for this component's `$props.id()` anchor, where it declares one. The
 	 * render puts the hole's marker where Svelte's helper would have put the id. See `render.ts`.
@@ -263,6 +268,13 @@ export interface Site {
 	/** The copy this walk is rewriting, or null for the entry. */
 	copy: Copy | null;
 	/**
+	 * Every edit whose text this walk's branch choices decided, the entry's and every copy's.
+	 *
+	 * Shared by every file of the walk, so that one list re-materialises the whole render. See
+	 * `Choice` and `rechosen`.
+	 */
+	choices: Choice[];
+	/**
 	 * True while making that second render: the markup is replaced rather than walked, so nothing
 	 * is planted in it and what comes back says only whether the component writes it.
 	 */
@@ -287,6 +299,71 @@ export interface Site {
 	 * terms already, so a child needs no rebasing of it. See `Undecided`, and spec/refusals.md.
 	 */
 	decided: ReadonlyMap<string, boolean>;
+}
+
+/**
+ * The one edit a branch choice decides, written for this render and recorded for the others.
+ *
+ * Every consultation of `taken` goes through here, which is what makes the list of choices the
+ * complete difference between one render's rewrite and another's. See `Choice`.
+ */
+function chose(
+	walk: Walk,
+	edits: Edit[],
+	from: number,
+	to: number,
+	block: number,
+	branch: number,
+	taken: string,
+	untaken: string,
+): Choice {
+	const at = edits.length;
+	edits.push([from, to, walk.taken(block, branch) ? taken : untaken]);
+	const one: Choice = { edits, at, block, branch, taken, untaken };
+	walk.site.choices.push(one);
+	return one;
+}
+
+/**
+ * A choice with both of its texts wrapped, for a caller that learns what wraps them afterwards.
+ *
+ * An `{#await}` whose body writes a head is the one of these: whether the block stands in the head
+ * stream is known once its body has been walked, and what opens it goes around the expression the
+ * choice already wrote. Wrapping both texts rather than the written one keeps the choice a choice.
+ */
+function rewrapped(walk: Walk, one: Choice, wrap: (text: string) => string): void {
+	one.taken = wrap(one.taken);
+	one.untaken = wrap(one.untaken);
+	const edit = one.edits[one.at];
+	if (edit !== undefined) edit[2] = walk.taken(one.block, one.branch) ? one.taken : one.untaken;
+}
+
+/**
+ * The same walk, re-materialised for a render that takes different branches.
+ *
+ * A walk is a list of edits against a source, and `taken` decides the text of a handful of them
+ * and nothing else -- not which components are entered, not where a hole goes, not what a block is
+ * numbered. So an alternate render needs the choices set the other way and the edits applied
+ * again, which is a string splice per file rather than a walk of the route. On one route of press
+ * that is 137 walks of a hundred components down to three. See `Choice`, and spec/build.md.
+ */
+export function rechosen(
+	made: Rewritten,
+	taken: (block: number, branch: number) => boolean,
+): Rewritten {
+	for (const one of made.choices) {
+		const edit = one.edits[one.at];
+		if (edit !== undefined) edit[2] = taken(one.block, one.branch) ? one.taken : one.untaken;
+	}
+	return {
+		...made,
+		rewritten: unimported(apply(made.source, made.edits)),
+		// A copy of each copy rather than the copy: the walk this came from keeps its own bytes,
+		// and the alternates are made from it one after another.
+		copies: made.copies.map((copy) =>
+			copy.inner.length === 0 ? copy : { ...copy, source: unimported(apply(copy.raw, copy.inner)) },
+		),
+	};
 }
 
 /**
@@ -405,8 +482,35 @@ export interface Walk {
 	opaque?: boolean;
 }
 
+/**
+ * An edit whose text is the only thing a render's branch choice decides.
+ *
+ * The walk asks `taken` in exactly four places and each of them writes one of two constants:
+ * `true` or `false` for an if's test, a resolved promise or a placeholder for an `{#await}`, one
+ * element or none for an each, and the same pair inside the `{#if}` a content binding opens. Every
+ * other thing a walk produces -- the holes, the blocks, the copies, every span -- is the same for
+ * every branch, because `collect()` goes into all of them whatever `taken` says. That is what lets
+ * a route be walked once per structure and re-materialised per render. See `rechosen`.
+ */
+export interface Choice {
+	/** The edits this one sits in: the entry's own, or one copy's. */
+	edits: Edit[];
+	at: number;
+	block: number;
+	branch: number;
+	/** The text where the render takes this branch, and where it does not. */
+	taken: string;
+	untaken: string;
+}
+
 export interface Rewritten {
 	rewritten: string;
+	/** What `rewritten` was made from, kept so another render's choices can be applied to it. */
+	source: string;
+	/** The edits that made it, kept for the same reason. See `rechosen`. */
+	edits: Edit[];
+	/** Every edit whose text a branch choice decides, the entry's and every copy's. */
+	choices: Choice[];
 	/** Every child walked into, as the source the render has to stage in its place. */
 	copies: Copy[];
 	/** Every child left to Svelte instead, and why the walk stopped. */
@@ -925,11 +1029,16 @@ function contents(
 		refuse(
 			`an element with \`bind:${String(binding['name'])}\` this compiler cannot read the end of`,
 		);
-	edits.push([
+	chose(
+		walk,
+		edits,
 		close + 1,
 		close + 1,
-		`{#if ${taken(index, 0) ? 'true' : 'false'}}${sentinel(hole)}{:else}`,
-	]);
+		index,
+		0,
+		`{#if true}${sentinel(hole)}{:else}`,
+		`{#if false}${sentinel(hole)}{:else}`,
+	);
 	edits.push([end, end, `{/if}${stamps({ ...walk, parent: tag }, index)}`]);
 	// The children are the else, and the caller walks them within it.
 	return index;
@@ -1164,10 +1273,14 @@ function selfCall(
 	// `marks()`.
 	const at = resolvePath(dirname(walk.site.file), `__seam-call-${String(index)}.svelte`);
 	const head = callsHead(walk, fragment, binds);
+	const stand = `<script>${marks(index)};${head === null ? '' : `${marksHead(head)};`}</script>`;
+	// Written rather than rewritten, so it has no edits and no render changes it. See `rechosen`.
 	walk.site.copies.push({
 		file: walk.site.file,
 		at,
-		source: `<script>${marks(index)};${head === null ? '' : `${marksHead(head)};`}</script>`,
+		source: stand,
+		raw: stand,
+		inner: [],
 		within: [...walk.within],
 	});
 	rename(walk, node, tag, at, ordinal, dynamic);
@@ -2670,9 +2783,7 @@ function collect(node: unknown, walk: Walk): void {
 			});
 			const kind = isNode(value) ? value['type'] : undefined;
 			const holds = kind === 'ObjectPattern' ? '{}' : kind === 'ArrayPattern' ? '[]' : 'null';
-			const awaited = taken(index, 0) ? 'Promise.resolve()' : holds;
-			const opening = edits.length;
-			edits.push([at[0], at[1], awaited]);
+			const opening = chose(walk, edits, at[0], at[1], index, 0, 'Promise.resolve()', holds);
 			// Which block just closed, written where the render puts it and nowhere else.
 			const closer = edits.length;
 			edits.push([whole[1], whole[1], stamps(walk, index)]);
@@ -2702,7 +2813,7 @@ function collect(node: unknown, walk: Walk): void {
 			// which runs once before either branch: both are opened by it. See `headOpensWith()`.
 			if (site.headed.has(index)) {
 				const mirror = mirrored(walk, index, closer, []);
-				edits[opening] = [at[0], at[1], headOpensWith(mirror, awaited)];
+				rewrapped(walk, opening, (text) => headOpensWith(mirror, text));
 			}
 			return;
 		}
@@ -2813,7 +2924,7 @@ function collect(node: unknown, walk: Walk): void {
 
 			for (const [branch, one] of chain.entries()) {
 				const at = span(one['test']);
-				if (at !== null) edits.push([at[0], at[1], taken(index, branch) ? 'true' : 'false']);
+				if (at !== null) chose(walk, edits, at[0], at[1], index, branch, 'true', 'false');
 			}
 
 			// Which block just closed, written where the render puts it and nowhere else.
@@ -2944,7 +3055,7 @@ function collect(node: unknown, walk: Walk): void {
 			// `<!--[-->` and the items for a list with something in it, and `<!--[!-->` and the
 			// fallback for one with nothing, so the fallback gets a render of its own, from an empty
 			// list, the way an else does. See spec/refusals.md.
-			edits.push([at[0], at[1], taken(index, 0) ? `[${element}]` : '[]']);
+			chose(walk, edits, at[0], at[1], index, 0, `[${element}]`, '[]');
 			// Which block just closed, written where the render puts it and nowhere else.
 			const whole = span(node);
 			const closer = edits.length;
@@ -3367,7 +3478,7 @@ function descend(
 			dirname(walk.site.file),
 			`__seam-${basename(file, '.svelte')}-${String(walk.site.copies.length)}.svelte`,
 		);
-		const copy: Copy = { file, at, source: '', within: [...walk.within] };
+		const copy: Copy = { file, at, source: '', raw, inner, within: [...walk.within] };
 		walk.site.copies.push(copy);
 
 		// The anchor's hole comes before every hole the child plants, which is where Svelte writes
@@ -3398,6 +3509,7 @@ function descend(
 				imports: importsOf(raw),
 				carried: importedBy(raw),
 				copies: walk.site.copies,
+				choices: walk.site.choices,
 				stack: [...walk.site.stack, file],
 				prelude,
 				asks,
@@ -3575,6 +3687,7 @@ export function rewrite(
 	const snippets = new Map<string, Snippet>();
 	snippetsIn(ast['fragment'], snippets);
 	const copies: Copy[] = [];
+	const choices: Choice[] = [];
 	const prelude: string[] = [];
 	const asks: [string, string][] = [];
 	const wants: [string, string][] = [];
@@ -3656,6 +3769,7 @@ export function rewrite(
 			imports: importsOf(source),
 			carried: importedBy(source),
 			copies,
+			choices,
 			stack: [file],
 			prelude,
 			asks,
@@ -3712,6 +3826,11 @@ export function rewrite(
 
 	return {
 		rewritten: unimported(apply(source, edits)),
+		// Kept beside the bytes they made, so a render that takes other branches is the same walk
+		// with a handful of edits written the other way. See `rechosen`.
+		source,
+		edits,
+		choices,
 		holes,
 		blocks,
 		pending,

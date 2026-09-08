@@ -10,7 +10,7 @@ import type { Block, Rendered, Skeleton } from './shape.ts';
 import { runed } from './legacy.ts';
 import { inlined } from './snippets.ts';
 import { unbound } from './unbind.ts';
-import { rewrite } from './walk.ts';
+import { rechosen, rewrite } from './walk.ts';
 
 export { Undecided } from './walk.ts';
 
@@ -184,9 +184,11 @@ export async function skeleton(
 			const forced = new Map(block.within ?? []);
 			const chosen = (index: number, at: number) =>
 				index === block.index ? at === branch : at === (forced.get(index) ?? 0);
-			const flipped = timedSync('  walk (rewrite)', () =>
-				rewrite(source, chosen, file, root, false, fixed, decided, told, mute),
-			);
+			// The baseline's walk, with its branch choices written the other way. Nothing about a
+			// walk depends on which branch a render takes except the text of a handful of edits --
+			// `collect()` goes into every branch whatever it is told -- so an alternate is that walk
+			// re-applied rather than the route walked again. See `rechosen()` in walk.ts.
+			const flipped = timedSync('  rechoose (branch edits)', () => rechosen(baseline, chosen));
 			const other = await timed('  render (svelte SSR)', () =>
 				renderRewritten(file, flipped.rewritten, root, flipped.copies, given, flipped.fresh),
 			);

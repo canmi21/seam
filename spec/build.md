@@ -414,6 +414,18 @@ which is the whole difference between these and the one below. Measured on the s
 parses went to **23,657 over 115MB**, the walk from 78.2 to 22.7 seconds, and the route from 96.8
 to 40.3. The IR is byte for byte what it was, which is the check that matters.
 
+**And the walk itself runs once per structure rather than once per render.** `taken` is consulted
+in four places and each writes one of two constants -- `true` or `false` for an if's test, a
+resolved promise or a placeholder for an `{#await}`, one element or none for an each, and the same
+pair inside the `{#if}` a content binding opens. Everything else a walk produces is the same for
+every branch, because `collect()` goes into every branch whatever it is told; the assembler
+already relies on that, since it reads an alternate by the block index the baseline gave it. So an
+alternate is the baseline's edits with a handful of texts written the other way and applied again,
+which is a string splice per file. `rechosen()` in walk.ts does it, and `chose()` is the one place
+that asks `taken`, which is what makes the list of choices the complete difference between two
+renders. Measured over press's seven routes: **208 walks in 24.8s became 36 walks in 3.2s and 172
+re-applications in 4.8s**, and the artifacts are byte identical on every route.
+
 **The trees are handed out shared, and that is sound rather than lucky.** Nothing writes into an
 AST here: what the walk produces is a list of `[start, end, text]` edits against the source, and
 every other reader only reads. A pass that ever needs to rewrite a node has to copy it first, and
