@@ -5,7 +5,6 @@ import {
 	apply,
 	type Carried,
 	constant,
-	destructure,
 	type Edit,
 	importsOf as importedBy,
 	type Locals,
@@ -705,40 +704,6 @@ function handedTo(
 		const at = span(child)?.[0];
 		if (at === undefined) continue;
 		found.set(child, under(slotOf(child) ?? 'children', at));
-	}
-	return found;
-}
-
-/**
- * The names an each block's pattern binds with a default: each with how it is reached from the
- * element and the default's node. Only a name written directly with one -- `{ id = 1 }`, `[a = 1]`
- * -- because a nested pattern has no member to reach the name through, and stays refused.
- */
-function defaults(pattern: AstNode): [name: string, access: string, fallback: AstNode][] {
-	const found: [string, string, AstNode][] = [];
-	const one = (target: unknown, access: string): void => {
-		if (!isNode(target) || target['type'] !== 'AssignmentPattern') return;
-		const left = target['left'];
-		const right = target['right'];
-		if (!isNode(left) || left['type'] !== 'Identifier' || typeof left['name'] !== 'string') return;
-		if (!isNode(right)) return;
-		found.push([left['name'], access, right]);
-	};
-	if (pattern['type'] === 'ObjectPattern') {
-		for (const property of Array.isArray(pattern['properties']) ? pattern['properties'] : []) {
-			if (!isNode(property) || property['type'] !== 'Property') continue;
-			const key = property['key'];
-			if (property['computed'] === true || !isNode(key) || typeof key['name'] !== 'string')
-				continue;
-			one(property['value'], `.${key['name']}`);
-		}
-	} else if (pattern['type'] === 'ArrayPattern') {
-		for (const [at, element] of (Array.isArray(pattern['elements'])
-			? pattern['elements']
-			: []
-		).entries()) {
-			one(element, `[${String(at)}]`);
-		}
 	}
 	return found;
 }
@@ -3486,36 +3451,29 @@ function collect(node: unknown, walk: Walk): void {
 			const destructured = kind === 'ObjectPattern' || kind === 'ArrayPattern';
 			const element = kind === 'ObjectPattern' ? '{}' : kind === 'ArrayPattern' ? '[]' : '0';
 
-			let binds: [string, string][] | undefined;
-			// A default in the pattern is JavaScript's, read out of `EachBlock.js`: the server writes
-			// `let { id = d } = each_array[i]`, so the name is the member when that is not
-			// `undefined` and the default when it is, and `null` is not defaulted. The runtime binds
-			// the member, as it does every destructured name, and every read of the name inside the
-			// body is written as that choice -- a derivation over what the block binds, made per
-			// item, which is what a derivation reading an each's name already is.
-			const defaulted = new Map<string, string>();
+			const index = blocks.length;
+			// A destructuring binds names out of the element rather than the element, and the block
+			// binds the element under a name of its own: `$$` is Svelte's reserved prefix, so no
+			// author's name is shadowed, and the block's number is on it, so no two of them collide
+			// where one each sits inside another. Each name the pattern binds is then an expression
+			// over that one, taken apart the way a snippet's parameter is -- so a member stays a
+			// path the injector resolves per item, and everything else is a derivation over the
+			// binding, which is what a derivation reading an each's name already is.
+			const held = `$$item${String(index)}`;
+			const apart = new Map<string, string>();
 			if (destructured && isNode(pattern)) {
-				binds = destructure(pattern);
-				for (const [name, access, otherwise] of defaults(pattern)) {
-					binds.push([name, access]);
-					defaulted.set(name, `(${name} === undefined ? (${expand(otherwise)}) : ${name})`);
-					// The render is not given what the default reads, and every read in the body is
-					// a marker already, so the render takes nothing from it.
-					const where = span(otherwise);
-					if (where !== null) edits.push([where[0], where[1], 'undefined']);
-				}
-				// The same rule a snippet's parameter follows: a rest or a nesting is neither a member
-				// nor an index of the element, so there is no way in to write down.
-				const bound = new Set<string>();
-				namesIn(pattern, bound);
-				const reached = new Set(binds.map(([name]) => name));
-				const missing = [...bound].filter((name) => !reached.has(name));
-				if (missing.length > 0) {
-					refuse(
-						`\`${String(missing[0])}\` comes out of this each block's pattern through a ` +
-							'rest or a nesting, which is neither a member nor an index of the element, so ' +
-							'there is no way in to write down',
-					);
+				// The pattern stays in the render, over the one element it iterates, so nothing in it
+				// may evaluate. A default is JavaScript's, read out of `EachBlock.js`: the server
+				// writes `let { id = d } = each_array[i]`, so the name is the member where that is not
+				// `undefined` and the default where it is, and `null` is not defaulted.
+				neutralise(pattern, edits);
+				for (const [name, reached] of takenApart(
+					pattern,
+					held,
+					expand,
+					() => "this each block's pattern",
+				)) {
+					apart.set(name, reached);
 				}
 			}
 
@@ -3541,15 +3499,13 @@ function collect(node: unknown, walk: Walk): void {
 					written = held;
 				}
 			}
-			const index = blocks.length;
 			blocks.push({
 				index,
 				kind: 'each',
 				within: [...within],
 				stream,
 				expression: written,
-				item: context === null ? null : source.slice(context[0], context[1]),
-				...(binds === undefined ? {} : { binds }),
+				item: destructured ? held : context === null ? null : source.slice(context[0], context[1]),
 				counter: typeof node['index'] === 'string' ? node['index'] : null,
 				alternate: fallback !== null && fallback !== undefined,
 			});
@@ -3576,12 +3532,13 @@ function collect(node: unknown, walk: Walk): void {
 			// even when nothing else in it reaches the payload.
 			const inside = new Set(dynamic);
 			namesIn(pattern, inside);
+			inside.add(held);
 			if (typeof node['index'] === 'string') inside.add(node['index']);
 			const body: Locals['rewrite'] =
-				defaulted.size === 0
+				apart.size === 0
 					? expand
 					: (child, more) =>
-							expand(child, more === undefined ? defaulted : new Map([...defaulted, ...more]));
+							expand(child, more === undefined ? apart : new Map([...apart, ...more]));
 			within.push([index, 0]);
 			collect(node['body'], { ...walk, dynamic: inside, expand: body });
 			within.pop();

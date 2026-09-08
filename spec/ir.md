@@ -66,7 +66,10 @@ uses none of the three leaves `head` and `title` empty.
   which is the else.
 - **`each`** -- a source path, the name bound to each item, an optional `index`, and a body.
   `index` is the name the source binds to the counter, and it is absent rather than null when the
-  source binds none. **A key is not here at all**: Svelte's server transform never mentions one,
+  source binds none. **A destructuring context is not a name here**: `{#each m as [k, v]}` binds
+  two and neither is the item, so the skeleton binds the item under a name of its own and every
+  name the pattern binds is an expression over that one, which leaves this node one shape.
+  See [derivation.md](derivation.md). **A key is not here at all**: Svelte's server transform never mentions one,
   and a keyed each renders byte for byte what an unkeyed one renders -- measured, on a full list
   and an empty one. A key exists for the client's reconciliation, and the client compiles from the
   source, where it still is. **An `{:else}` is not here either**: an each with one is lowered as

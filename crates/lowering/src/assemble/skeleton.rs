@@ -93,11 +93,10 @@ pub struct Block {
 	/// marker it opens each branch with, rather than nesting a second pair of anchors.
 	#[serde(default)]
 	pub tests: Vec<String>,
+	/// The name an each block binds its element under, which a destructuring context is not: the
+	/// skeleton binds the element under a name of its own and every name the pattern binds is an
+	/// expression over it.
 	pub item: Option<String>,
-	/// What a destructuring context binds, as name and how it is reached from one element. Empty
-	/// where the context is an ordinary name.
-	#[serde(default)]
-	pub binds: Vec<(String, String)>,
 	/// The name an each block binds to its counter, where it names one. The IR calls it `index`;
 	/// here that name is the block's own ordinal.
 	#[serde(default)]

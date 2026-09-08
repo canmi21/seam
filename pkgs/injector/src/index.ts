@@ -142,14 +142,7 @@ function walk(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): s
 				// The counter is bound beside the item rather than reached through it, which is what
 				// Svelte's server does: it is the `for` loop's own variable.
 				for (const [at, item] of source.entries()) {
-					// A destructuring binds names taken out of the element rather than the element
-					// itself, which is what Svelte's `let [k, v] = each_array[i]` does.
-					const bound: Scope = {};
-					if (node.binds === undefined || node.binds.length === 0) {
-						bound[node.item] = item;
-					} else {
-						for (const [name, access] of node.binds) bound[name] = reach(item, access);
-					}
+					const bound: Scope = { [node.item]: item };
 					if (node.index != null) bound[node.index] = at;
 					out += walk(node.body, [...scopes, bound], fresh);
 				}
@@ -204,19 +197,6 @@ function title(nodes: readonly Node[], scopes: readonly Scope[], fresh: Fresh): 
 export interface Injected {
 	body: string;
 	head: string;
-}
-
-/**
- * One step into a value, the way a destructuring pattern reaches a name: `.key` or `[0]`.
- *
- * Written here rather than passed through `resolve`, which splits a dotted path and has no notion
- * of an index. What arrives is one access produced by `destructure`, never a chain.
- */
-function reach(value: unknown, access: string): unknown {
-	if (typeof value !== 'object' || value === null) return undefined;
-	const index = /^\[(\d+)\]$/.exec(access);
-	if (index?.[1] !== undefined) return (value as Record<string, unknown>)[index[1]];
-	return (value as Record<string, unknown>)[access.slice(1)];
 }
 
 export function inject(ir: ComponentIR, data: Scope): Injected {

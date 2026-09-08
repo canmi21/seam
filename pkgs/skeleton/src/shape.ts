@@ -128,17 +128,14 @@ export interface Block {
 	 * corrupt anything: the block simply does not appear, and the assembler says so.
 	 */
 	within?: [block: number, branch: number][];
-	/** The name an each binds, or the pattern it binds through, as written. */
-	item: string | null;
 	/**
-	 * What a destructuring context binds, as pairs of name and how it is reached from one element.
+	 * The name an each binds its element under.
 	 *
-	 * `{#each Object.entries(m) as [k, v]}` binds two names and neither is the element. Svelte's
-	 * server writes `let [k, v] = each_array[i]`, so the element has to come apart the way the
-	 * pattern says -- and the render, which iterates one placeholder, has to hand it something that
-	 * can. Absent for the ordinary case, where `item` is a name.
+	 * A pattern is not one of these: `{#each Object.entries(m) as [k, v]}` binds two names and
+	 * neither is the element, so the block binds the element under a name of its own and each name
+	 * the pattern binds is an expression over it. See `takenApart()` in `walk.ts`.
 	 */
-	binds?: [name: string, access: string][];
+	item: string | null;
 	/**
 	 * The name an each binds to its counter, where it names one. The IR calls this `index`, which
 	 * this field cannot: `index` here is the block's own ordinal, and the two collided once.

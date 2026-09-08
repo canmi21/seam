@@ -385,19 +385,10 @@ impl Assembler<'_> {
 					.clone()
 					.ok_or_else(|| "an each block without an iteration variable".to_owned())?;
 				let counter = block.counter.clone();
-				let binds = block.binds.clone();
 				// The body is walked with what the block binds in scope, so a derivation inside it
-				// can be told from a path: one is computed once, the other resolved per item. A
-				// destructuring binds names rather than the element, and it is those names an
-				// expression could reach for, so they are what goes in scope.
+				// can be told from a path: one is computed once, the other resolved per item.
 				let depth = self.locals.len();
-				if binds.is_empty() {
-					self.locals.push(item.clone());
-				} else {
-					for (name, _) in &binds {
-						self.locals.push(name.clone());
-					}
-				}
+				self.locals.push(item.clone());
 				if let Some(name) = counter.clone() {
 					self.locals.push(name);
 				}
@@ -405,7 +396,7 @@ impl Assembler<'_> {
 				let walked = self.region(html, span.content, span.until, &mut body);
 				self.locals.truncate(depth);
 				walked?;
-				let each = ir::Node::Each { source, item, index: counter, binds, body: body.finish() };
+				let each = ir::Node::Each { source, item, index: counter, body: body.finish() };
 				// The opening anchor is Svelte's where the block is in the body, and the walk's own
 				// where the block stands in the head, which the bytes do not carry. See `Block::bare`.
 				if !block.alternate {

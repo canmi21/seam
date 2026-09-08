@@ -422,7 +422,6 @@ fn nodes(
 					source: from,
 					item: item.clone(),
 					index: at.clone(),
-					binds: Vec::new(),
 					body: inner.finish(),
 				});
 				builder.write("<!--]-->");

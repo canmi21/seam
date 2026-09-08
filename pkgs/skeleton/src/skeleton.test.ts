@@ -259,6 +259,25 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// The block binds the element under a name of its own and every name the pattern binds is an
+		// expression over it: a member stays a path the injector resolves per item, and a literal
+		// key, a computed key, a nesting and a rest are each a derivation over the binding. A
+		// computed key reads what the same pattern bound before it, which is JavaScript's own order.
+		name: 'an each over a pattern taken apart every way one offers',
+		source:
+			`${PROPS}{#each data.rows as { 'a-b': ab, [ab ?? 'k']: picked, n: { deep }, xs: [head, ...more], ...rest }, i}` +
+			'<p>{i}:{ab}|{picked}|{deep}|{head}|{more.length}|{JSON.stringify(rest)}</p>{/each}',
+		data: [
+			{ rows: [] },
+			{
+				rows: [
+					{ 'a-b': 'k', k: 'P', n: { deep: 'D' }, xs: [1, 2, 3], z: '<' },
+					{ 'a-b': 'z', n: {}, xs: [] },
+				],
+			},
+		],
+	},
+	{
 		name: 'an each over an object pattern, with an index',
 		source: `${PROPS}{#each data.rows as { id, label }, at}<i>{at}:{id}:{label}</i>{/each}`,
 		data: [

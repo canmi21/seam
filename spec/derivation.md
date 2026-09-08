@@ -367,8 +367,8 @@ render is not given. What stands in has to come apart the way the name does.
 
 ## Every way in a pattern has, where the markup binds one
 
-`{#snippet}`'s parameter, `{@const}` and `{#await}`'s value all bind names by taking a value apart,
-and all three go through one function. What it writes for each name is read forward out of Svelte's
+`{#snippet}`'s parameter, `{@const}`, `{#await}`'s value and `{#each}`'s context all bind names by
+taking a value apart, and all four go through one function. What it writes for each name is read forward out of Svelte's
 own `_extract_paths` in `compiler/utils/ast.js`, which answers the same question for the client
 transform:
 
@@ -390,6 +390,15 @@ handling are upstream's rather than reproduced here.
 
 A computed key is expanded against what the pattern has bound before it: JavaScript binds a pattern
 left to right, and `{ length, [length - 1]: last }` reads the one from the other.
+
+An each block's context is the one of the four whose value is not an expression this pass holds: it
+is the element, bound per item by the runtime. So the block binds the element under a name of its
+own -- `$$item` and the block's number, `$$` being Svelte's reserved prefix and the number keeping
+two nested blocks apart -- and every name the pattern binds is an expression over that one. A
+member of it is still a path the injector resolves per item, and costs what binding the name
+directly used to; everything else is a derivation over the binding, which is what a derivation
+reading an each's name already is. The IR node is one shape either way, which is what
+[ir.md](ir.md) records.
 
 **A declaration in the script still takes only a member or an index.** `const { a, ...rest } = t`
 there is reported by name, and the entry under Open below is that gap. The difference is where the

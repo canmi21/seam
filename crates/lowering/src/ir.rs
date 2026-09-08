@@ -43,16 +43,15 @@ pub enum Node {
 	},
 	Each {
 		source: String,
+		/// The name the block binds its element under. A destructuring context is not one of
+		/// these: the skeleton binds the element under a name of its own and every name the
+		/// pattern binds is an expression over it. See `spec/ir.md`.
 		item: String,
 		/// The name bound to the iteration counter, where the source names one. Svelte's server
 		/// makes it the loop variable and nothing else; a key is not here because its server
 		/// transform never mentions one. See `spec/ir.md`.
 		#[serde(skip_serializing_if = "Option::is_none")]
 		index: Option<String>,
-		/// What a destructuring context binds, as name and how it is reached from one element.
-		/// Absent where the context is a name, which is the ordinary case. See `spec/ir.md`.
-		#[serde(skip_serializing_if = "Vec::is_empty")]
-		binds: Vec<(String, String)>,
 		body: Vec<Node>,
 	},
 	/// A `<title>` the head stream met where Svelte executed it, or the start of a head block that
