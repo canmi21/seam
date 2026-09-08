@@ -44,57 +44,48 @@ Three of the outcomes are not failures and saying so once is what keeps the targ
 **Upstream's own skips are out.** 558 samples whose `_config.js` says `skip`, or a `mode` without
 `sync`, or an `error` the sample exists to produce. Not our judgement.
 
-**A refusal by decision is out.** 202 samples: 158 that await in markup or at the top of a script,
-which is async Svelte and the load stage's by the scope line, and 44 that assign a name or mutate
+**A refusal by decision is out.** 220 samples: 157 that await in markup or at the top of a script,
+which is async Svelte and the load stage's by the scope line, and 63 that assign a name or mutate
 an object after declaring it where the statements read the request, which is a program per request.
-[roadmap.md](roadmap.md) holds both and neither moves.
+[roadmap.md](roadmap.md) holds both and neither moves. The count moves as work lands, and upward:
+a sample that used to be refused for a gap earlier in the walk reaches one of these instead.
 
 **Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
 
-So the target is: **of the 1628 samples that are in, every one is byte-identical to Svelte's own
+So the target is: **of the 1610 samples that are in, every one is byte-identical to Svelte's own
 render.** Nothing differing, nothing refused as a gap.
 
 ### Where it stands
 
 ```
                         samples  identical  empty  differs  refused  skipped
-server-side-rendering       131         70      4        5       36       16
-runtime-runes              1048        464     15       18      273      278
-runtime-legacy             1209        591     19       19      315      264
-total                      2388       1125     38       42      624      558
+server-side-rendering       131         72      3        1       39       16
+runtime-runes              1048        490     15        9      256      278
+runtime-legacy             1209        722     21       12      189      264
+total                      2388       1284     39       22      484      558
 ```
 
-Against the target: **1163 of 1628**, with 42 differing and 422 refused as gaps. One sample fails
+Against the target: **1323 of 1610**, with 22 differing and 264 refused as gaps. One sample fails
 inside the oracle rather than inside either side and is counted apart.
 
 ### What is left, in the order it should be taken
 
-**The 42 that differ come first, whatever the refusals say.** A refusal stopped a build and named
-a file; a difference shipped bytes nobody asked for. Five of them are read out and named in
-[roadmap.md](roadmap.md); 32 are unattributed, which is a reading job rather than a compiler job
-and is the next thing.
+**The 22 that differ come first, whatever the refusals say.** A refusal stopped a build and named
+a file; a difference shipped bytes nobody asked for. [roadmap.md](roadmap.md) reads them out by
+cause and ranks them.
 
-**122 refusals name no specification file, and that is a defect rather than a gap.**
+**24 refusals name no specification file, and that is a defect rather than a gap.**
 [refusals.md](refusals.md) requires a refusal to say where the question lives, and these say
-something else instead. They are three different things wearing one label:
-
-- **25 are `deriving ... failed`,** which happens when the artifact is injected rather than when
-  it is built. [refusals.md](refusals.md) says every refusal is a compile-time error, and these
-  are not: a real build writes the artifact and the server throws per request. The suite catches
-  them only because it injects.
-- **Around 30 are Svelte's own compiler errors, caused by our own rewrite.** `runed()` turns
-  `export let` into `$props()`, which puts the file in runes mode -- and a legacy component with
-  `beforeUpdate`, `afterUpdate` or `$:` beside its props is then refused by Svelte, not by us.
-  Measured on `runtime-legacy/before-render-prevents-loop`. Neither of those two runs on the
-  server, so the bytes are not in question; the rewrite is.
-- **The rest are internal errors escaping,** `$state is not defined` and
-  `Cannot read properties of undefined` among them, each of which is a place the compiler met
-  something it did not name.
+`deriving ... failed` instead, which happens when the artifact is injected rather than when it is
+built: a real build writes the artifact and the server throws per request, the suite catching it
+only because it injects. Each is its own cause -- a store read, a function inlined whole, a
+`getAllContexts()` outside a render -- and reading them is what turns one label into entries that
+can be ranked. Beside them are the internal errors still escaping, `$state is not defined` among
+them, each a place the compiler met something it did not name.
 
 Fixing these does not by itself move the count. It is worth doing early anyway, because a refusal
-that names nothing cannot be ranked, and 122 unrankable refusals is a fifth of the list the next
-year of work is chosen from.
+that names nothing cannot be ranked.
 
 ### When it is done
 
