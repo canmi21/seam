@@ -451,6 +451,15 @@ the curve stopped climbing monotonically and fell back to 6.4GB, and the compile
 time, so the invalidation is free. **It is not the whole of the retention**, and the rest was
 measured by turning the memos off rather than reasoned about.
 
+**Because a Vite holds two graphs and only one of them was told.** The server's `moduleGraph`
+holds what a module was transformed into; the runner's `evaluatedModules` holds what it evaluated
+to -- the module's code and its exports, which is the component's whole closure graph -- and
+`ssrLoadModule` evaluates through a runner the server keeps for itself. Invalidating the first
+frees a transform and leaves the evaluation, which is the larger half and the reason the peak fell
+by two gigabytes rather than by six. Both are told now, and a runner that is not there is one
+fewer graph rather than an error, since which of them holds a module is Vite's decision. Measured
+on one route: **live heap 2563MB to 1435MB, and the compile took the same time.**
+
 **A memo is memory traded for time, and each trade is priced separately.** The two that hold trees
 were switched off together and then one at a time, on a machine with nothing else on it:
 
