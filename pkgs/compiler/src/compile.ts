@@ -16,7 +16,7 @@
  */
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve, sep } from 'node:path';
-import { bundle, configureAliases, remembered, type Bundle } from 'ast';
+import { bundle, configureAliases, remembered, rememberedSources, type Bundle } from 'ast';
 import { carriedBy, carry, rememberedBundles } from 'carry';
 import { lower } from 'lowering';
 import { aliases } from 'routes';
@@ -361,7 +361,8 @@ export async function compile(options: Options): Promise<Report[]> {
 		const heap = process.memoryUsage();
 		console.error(
 			`[seam] what it remembered: ${String(expressions)} expression tree(s), ` +
-				`${String(components)} component tree(s), ${String(rememberedCodegen())} compile(s), ` +
+				`${String(components)} component tree(s), ${String(rememberedSources())} source answer(s), ` +
+				`${String(rememberedCodegen())} compile(s), ` +
 				`${String(rememberedBundles())} bundle(s); heap ${String(Math.round(heap.heapUsed / 1e6))}MB ` +
 				`of ${String(Math.round(heap.rss / 1e6))}MB resident`,
 		);

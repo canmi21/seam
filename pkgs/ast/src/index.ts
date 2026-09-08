@@ -25,6 +25,7 @@ export {
 	tabled,
 } from './locals.ts';
 export type { Bundle, MarkupAttr, MarkupNode, Module } from './markup.ts';
+export { bySource, rememberedSources } from './memo.ts';
 export { reduce } from './reduce.ts';
 export { resolved } from './resolved.ts';
 export { APP_STATE, destructure, reads, STATE_ON_SERVER, stateImports } from './scope.ts';

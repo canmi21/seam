@@ -398,6 +398,22 @@ compile meets rather than by the number of renders, which is the whole of why it
 went to 221 seconds and the server build to nine and a half minutes, from a build that used to
 die in V8's garbage collector after nineteen.
 
+**Counting the parses said the memos had covered one call in eleven.** A counter around Svelte's
+parser, over one route of press: **107,424 calls over 1,461 distinct sources, 561MB of text**. The
+walk is 88% of a compile and parsing is half of the walk, and `descend()` parses each component it
+enters eleven times per call site -- `runed`, `unbound` and `inlined` rewrite it, `importsOf` and
+`reduce` read its imports, `locals` reads its declarations, `statements` reads a module it reaches,
+and the walk parses it once more for itself. Remembering the whole component's tree, which is the
+memo refused below, removed one of the eleven, which is why it measured at five per cent.
+
+**So every pure pass over a source is remembered by that source, and most of them hand back no
+tree at all.** `bySource` in `ast/memo.ts` holds what `runed`, `unbound`, `inlined`, `importsOf`,
+`reduce` and a module's statements answered: a string, a record of names, a list. Bounded by the
+distinct sources a compile meets, and each entry the size of its answer rather than of a tree,
+which is the whole difference between these and the one below. Measured on the same route: the
+parses went to **23,657 over 115MB**, the walk from 78.2 to 22.7 seconds, and the route from 96.8
+to 40.3. The IR is byte for byte what it was, which is the check that matters.
+
 **The trees are handed out shared, and that is sound rather than lucky.** Nothing writes into an
 AST here: what the walk produces is a list of `[start, end, text]` edits against the source, and
 every other reader only reads. A pass that ever needs to rewrite a node has to copy it first, and

@@ -1,5 +1,6 @@
 import { parse } from 'svelte/compiler';
 import { locals, parsed } from './locals.ts';
+import { bySource } from './memo.ts';
 import { resolveBare } from './packages.ts';
 import { APP_STATE, bound, free, isNode, type Node, requested } from './scope.ts';
 
@@ -345,11 +346,16 @@ function snippetNames(node: unknown, into: Set<string>): void {
 	for (const value of Object.values(node)) snippetNames(value, into);
 }
 
-/** Every name the component's instance script imports, by local name. See `carriedBy()`. */
-export function importsOf(source: string): Map<string, Carried> {
+/**
+ * Every name the component's instance script imports, by local name. See `carriedBy()`.
+ *
+ * The most-asked question in a compile, by a distance: 21,702 of one route's parses were this one.
+ * Remembered by source, and the map is handed out shared -- nothing writes into it. See `bySource`.
+ */
+export const importsOf: (source: string) => Map<string, Carried> = bySource((source) => {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	return imported(ast['instance']);
-}
+});
 
 /**
  * Every free name the given expressions read, which is what the evaluator will look up.

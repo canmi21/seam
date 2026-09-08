@@ -1,5 +1,5 @@
 import { parse } from 'svelte/compiler';
-import { apply } from 'ast';
+import { apply, bySource } from 'ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 
 /**
@@ -23,7 +23,7 @@ import { type AstNode, isNode, refuse, span } from './node.ts';
  * which is the per-request script spec/derivation.md decided against; and `<slot>` writes anchors
  * `{@render}` does not, so it is not a spelling and stays refused in the walk. See spec/roadmap.md.
  */
-export function runed(source: string): string {
+export const runed: (given: string) => string = bySource((source) => {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
 	const instance = ast['instance'];
 	const content = isNode(instance) ? instance['content'] : undefined;
@@ -66,4 +66,4 @@ export function runed(source: string): string {
 	if (first === null) return source;
 	edits.push([first, first, `let { ${props.join(', ')} } = $props();`]);
 	return apply(source, edits);
-}
+});

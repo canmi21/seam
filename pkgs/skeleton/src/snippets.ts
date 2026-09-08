@@ -1,5 +1,5 @@
 import { parse } from 'svelte/compiler';
-import { apply } from 'ast';
+import { apply, bySource } from 'ast';
 import { type AstNode, called, isNode, namesIn, refuse, renders, span } from './node.ts';
 
 /**
@@ -183,7 +183,7 @@ export function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = f
  *
  * Done to the source before any other pass reads it, so nothing downstream knows about it.
  */
-export function inlined(given: string): string {
+export const inlined: (given: string) => string = bySource((given) => {
 	const source = boundaries(given);
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
 	const snippets = new Map<string, Snippet>();
@@ -260,7 +260,7 @@ export function inlined(given: string): string {
 	}
 
 	return apply(source, edits);
-}
+});
 
 /**
  * A boundary's `pending` and `failed` handed as attributes, written the way the tag form is.

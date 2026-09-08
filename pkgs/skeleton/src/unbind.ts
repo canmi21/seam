@@ -1,5 +1,5 @@
 import { parse } from 'svelte/compiler';
-import { apply } from 'ast';
+import { apply, bySource } from 'ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { OMITTED_IN_SSR } from './omitted.ts';
 
@@ -19,7 +19,7 @@ import { OMITTED_IN_SSR } from './omitted.ts';
  * is not. Everything the visitor drops is dropped: `bind:this`, the forty the table marks
  * `omit_in_ssr`, and `bind:value` on a `<select>` or a file input.
  */
-export function unbound(source: string): string {
+export const unbound: (given: string) => string = bySource((source) => {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
 	const edits: [number, number, string][] = [];
 
@@ -107,7 +107,7 @@ export function unbound(source: string): string {
 	walk(ast['fragment'], null);
 
 	return edits.length === 0 ? source : apply(source, edits);
-}
+});
 
 /** Svelte's `CONTENT_EDITABLE_BINDINGS`, which the server writes as content rather than markup. */
 const CONTENT_BINDINGS: ReadonlySet<string> = new Set(['textContent', 'innerText']);

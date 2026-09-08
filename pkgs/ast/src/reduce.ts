@@ -1,5 +1,6 @@
 import { parse } from 'svelte/compiler';
 import { type Locals, locals } from './locals.ts';
+import { bySource } from './memo.ts';
 import type { MarkupAttr, MarkupNode, Module } from './markup.ts';
 
 // Svelte's AST is typed against its own internal shapes, which change between releases and
@@ -148,8 +149,14 @@ function imports(instance: unknown): Record<string, string> {
 	return found;
 }
 
-export function reduce(source: string): Module {
+/**
+ * The markup and the imports of one component, remembered by source.
+ *
+ * `expand` above is set for the walk that follows it in the same call and read nowhere else, so a
+ * remembered answer skips both together. See `bySource`.
+ */
+export const reduce: (source: string) => Module = bySource((source) => {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
 	expand = locals(source).rewrite;
 	return { markup: children(source, ast['fragment']), imports: imports(ast['instance']) };
-}
+});

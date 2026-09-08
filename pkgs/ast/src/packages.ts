@@ -12,6 +12,7 @@ import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'svelte/compiler';
+import { bySource } from './memo.ts';
 import { isNode, type Node } from './scope.ts';
 
 /** The conditions a Svelte-aware bundler resolves an `exports` map under, in the order it tries. */
@@ -207,14 +208,14 @@ function real(path: string): string {
 	}
 }
 
-/** The statements of a JavaScript module, read with the parser Svelte reads a script with. */
-function statements(file: string): Node[] | null {
-	let code: string;
-	try {
-		code = readFileSync(file, 'utf8');
-	} catch {
-		return null;
-	}
+/**
+ * The statements of a JavaScript module, read with the parser Svelte reads a script with.
+ *
+ * Remembered by the code rather than by the path, which is the rule the memos keep everywhere: a
+ * file that changed is different characters and so a different entry, and the same barrel reached
+ * through two names is one. The read stays, being the cheap half. See `bySource`.
+ */
+const parsedModule = bySource((code): Node[] | null => {
 	try {
 		const ast = parse(`<script>${code}</script>`, { modern: true }) as unknown as Node;
 		const instance = ast['instance'];
@@ -224,6 +225,16 @@ function statements(file: string): Node[] | null {
 	} catch {
 		return null;
 	}
+});
+
+function statements(file: string): Node[] | null {
+	let code: string;
+	try {
+		code = readFileSync(file, 'utf8');
+	} catch {
+		return null;
+	}
+	return parsedModule(code);
 }
 
 function nameOf(node: unknown): string | null {
