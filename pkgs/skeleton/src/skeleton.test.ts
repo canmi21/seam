@@ -2293,6 +2293,20 @@ const accepted: Case[] = [
 		data: [{ a: 'bound' }],
 	},
 	{
+		// The same where the spread's keys are the request's, so the merge is a fold and the render
+		// has to agree with it. The binding was written back where it stood, ahead of the spread,
+		// and Svelte's own render then let the spread win: `bar` where Svelte wrote `foo`.
+		name: 'a component `bind:` a spread whose keys nobody can list does not overwrite',
+		beside: { Kid: '<script>export let v;</script><b>{v}</b>' },
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props(); let v = 'foo';</script>" +
+			'<Kid bind:v {...data.rest} /><i>{data.k}</i>',
+		data: [
+			{ rest: { v: 'bar' }, k: '1' },
+			{ rest: {}, k: '<' },
+		],
+	},
+	{
 		// `build_attribute_value` returns the expression itself when the value is one chunk -- quotes
 		// or no quotes, `value.length === 1` is the whole test -- so `n='{1 + 1}'` hands a *number*
 		// down. Several chunks become a template, each expression through `$.stringify`, and the

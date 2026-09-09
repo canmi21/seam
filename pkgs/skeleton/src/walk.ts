@@ -4297,7 +4297,16 @@ function descend(
 				const whole = span(one);
 				if (whole !== null && !(known === undefined && inertProps.has(name))) {
 					const placed = known === undefined ? 'null' : JSON.stringify(known);
-					walk.edits.push([whole[0], whole[1], `${name}={${placed}}`]);
+					// Written last, not where it stood. `push_prop(..., true)` delays a binding's
+					// pair so it comes after the spreads -- "to avoid spreads overwriting them" --
+					// and the fold this walk makes says so, so the render has to say so too.
+					// `<Button bind:value {...props} />` with `value` in the spread wrote the
+					// spread's where Svelte wrote the binding's.
+					walk.edits.push([whole[0], whole[1], '']);
+					const shut = closing(walk.source, node);
+					// Before the slash of a self-closing tag, which is part of how it closes.
+					const close = walk.source[shut - 1] === '/' ? shut - 1 : shut;
+					walk.edits.push([close, close, ` ${name}={${placed}} `]);
 				}
 				continue;
 			}
