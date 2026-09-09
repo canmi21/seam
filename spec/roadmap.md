@@ -453,14 +453,34 @@ right depends on how much a false pass costs, which is the question `dead()` alr
 in the other direction.
 
 **A component chosen from a request value, 6.** `<svelte:component this={x}>` where `x` is decided
-per request. A structure per candidate is the shape, and the decision is where the candidate set
-comes from and what happens when it cannot be closed. An open set is a compile that does not
-terminate, so this cannot be started without the rule that bounds it.
+per request. What bounds the candidate set was the open question, and the payload answers it: a
+component is a function, the wire is devalue, and devalue serialises data. **So the payload cannot
+carry a component**, and the only value `this` can take that renders anything is the one the source
+already names -- a prop's default, or an import. The set is bounded to one candidate and nothing,
+which is why this is not the open enumeration it was written up as.
 
-**A store the request brings, 6.** A store is an object with a `subscribe` function where the
-payload carries data, so a marker handed to `store_get` reads nothing. The decision is not how to
-build it but where it belongs: this may already be excluded by the scope line, in which case these
-six move to **decided, and not built** and stop being gaps.
+The shape is an `{#if}`, and Svelte says so. `<svelte:component this={X}>` compiles on the server
+to
+
+```js
+if (X) { push('<!--[-->'); X($$renderer, {}); push('<!--]-->') }
+else   { push('<!--[!-->'); push('<!--]-->') }
+```
+
+a block with two branches, the alternate writing nothing. The compiler has that mechanism.
+
+**What it wants is the block's anchors, and they are not the `{#if}` ones.** An `{#if}` writes
+`<!--[0-->` and `<!--[-1-->`; this writes `<!--[-->` and `<!--[!-->`, which are `BLOCK_OPEN` and
+`BLOCK_OPEN_ELSE`. So it cannot be reached by rewriting the tag into an `{#if}` before the walk --
+measured, the two forms differ by those bytes. The block has to be made in the IR with the render's
+own anchors, the way a block the walk stands in the head stream already copies its pair.
+
+**A store the request brings: decided, and moved.** The question was where it belongs, and the
+answer is the scope line. `$x` reads whatever `x` holds while the bytes are written, so the store
+itself would have to be in the payload; the wire is devalue, which serialises data, and a store is
+an object with a `subscribe` function. A function is not data. Reading the value in the load stage
+and putting *that* in the data is the same page, which is what the refusal already tells the author.
+The six are counted under **decided** in [conformance.md](conformance.md) now, not as gaps.
 
 **`createRawSnippet`, 5.** Abandoned, and recorded here so it is not derived again. Reproducing it
 means standing in for Svelte's renderer contract -- a snippet that is handed a renderer and pushes

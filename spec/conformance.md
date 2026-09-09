@@ -44,12 +44,21 @@ Three of the outcomes are not failures and saying so once is what keeps the targ
 **Upstream's own skips are out.** 558 samples whose `_config.js` says `skip`, or a `mode` without
 `sync`, or an `error` the sample exists to produce. Not our judgement.
 
-**A refusal by decision is out.** 260 samples: 184 that await in markup or at the top of a script,
-which is async Svelte and the load stage's by the scope line, and 76 whose script changes a value
-the markup reads while the bytes are written -- assigned after being declared, or changed by a
-function this render calls -- which is a program per request. [roadmap.md](roadmap.md) holds both
-and neither moves. The count moves as work lands, and upward: a sample that used to be refused for
-a gap earlier in the walk reaches one of these instead.
+**A refusal by decision is out.** 269 samples, in four shapes the scope line settles:
+
+- **184 await** in markup or at the top of a script, which is async Svelte and the load stage's.
+- **76 change a value** the markup reads while the bytes are written -- assigned after being
+  declared, or changed by a function this render calls -- which is a program per request.
+- **6 subscribe to a store the request brings.** `$x` reads whatever `x` holds while the bytes are
+  written, so the store itself would have to be in the payload, and a store is an object with a
+  `subscribe` function. The wire is devalue, which serialises data; a function is not data. Reading
+  the value in the load stage and putting *that* in the data is the same page.
+- **3 read a value that is not the same twice**, `Math.random` and `Symbol()`, which a compile-time
+  render freezes into bytes every request would then share.
+
+[roadmap.md](roadmap.md) holds all four and none of them moves. The count moves as work lands, and
+upward: a sample that used to be refused for a gap earlier in the walk reaches one of these
+instead.
 
 **Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
@@ -61,15 +70,15 @@ render.** Nothing differing, nothing refused as a gap.
 
 ```
                         samples  identical  empty  differs  refused  skipped
-server-side-rendering       131         82      3        0       30       16
-runtime-runes              1048        535     15        1      218      278
-runtime-legacy             1209        811     21        0      112      264
-total                      2388       1428     39        1      360      558
+server-side-rendering       131         84      3        0       28       16
+runtime-runes              1048        542     15        1      212      278
+runtime-legacy             1209        822     22        0      101      264
+total                      2388       1448     40        1      339      558
 ```
 
-Against the target: **1467 of 1570**, with one differing and 100 refused as gaps. Two samples fail
+Against the target: **1488 of 1561**, with one differing and 70 refused as gaps. Two samples fail
 inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
-has to answer them in [roadmap.md](roadmap.md): of the 76 that needed nobody, 59 are done.
+has to answer them in [roadmap.md](roadmap.md).
 
 ### What is left, in the order it should be taken
 
