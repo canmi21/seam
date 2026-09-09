@@ -61,6 +61,30 @@ reads a store: that is the store gap under **ready**, met one step earlier than 
 message it gives is the derivation evaluator's rather than a refusal naming a file. One moved the
 other way, `component-binding-parent-supercedes-child-c`, and it is counted below.
 
+### Shared mutable state a function reaches, which no sample covers and nothing refuses
+
+Found by probe rather than by the suite, and it is the worst shape there is: it compiles, nothing
+is refused, and the bytes are wrong.
+
+```svelte
+const log = [];
+function next(x) { log.push(x); return x; }
+{#each rows as row}<p>{next(row)}|{log.length}</p>{/each}
+```
+
+`log` is a declaration, so every read of it is substituted by its initialiser -- `([]).length` --
+and a fresh empty array is what each read evaluates. Svelte's server evaluates the declaration
+once and the function mutates that one array. Ours wrote `1|0`, `2|0` where Svelte wrote `1|1`,
+`2|2`.
+
+The existing rule reads the wrong place. A name assigned after being declared, or an object
+mutated after being declared, is refused where those statements are the script's own; a mutation
+inside a function body reached from markup is neither, and there is no sample in Svelte's corpus
+that writes one. **Substituting a name by its initialiser is only sound where the value is not
+shared**, and "shared" has to mean reachable from anything the markup calls, not visible at the
+top level. Ranked here rather than under the refusals because a difference ships and a refusal
+does not.
+
 ### The 42 that remain, by cause
 
 | | | |
