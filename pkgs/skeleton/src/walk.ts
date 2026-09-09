@@ -2124,26 +2124,6 @@ function folded(node: unknown): unknown {
 	return null;
 }
 
-/** An expression with the parentheses substitution wraps it in taken off, where they wrap it all. */
-function bare(text: string): string {
-	let held = text.trim();
-	while (held.startsWith('(') && held.endsWith(')')) {
-		let depth = 0;
-		let wraps = true;
-		for (const [at, c] of [...held].entries()) {
-			if (c === '(') depth += 1;
-			else if (c === ')') depth -= 1;
-			if (depth === 0 && at < held.length - 1) {
-				wraps = false;
-				break;
-			}
-		}
-		if (!wraps) break;
-		held = held.slice(1, -1).trim();
-	}
-	return held;
-}
-
 /** The runes, which exist at compile time and nowhere else. */
 const RUNE = /(?:^|[^\w$.])\$(?:state|derived|props|effect|bindable|inspect|host)\b/;
 

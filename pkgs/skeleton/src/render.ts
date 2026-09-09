@@ -187,6 +187,7 @@ function codegen(
 					`${basename(filename)} awaits in its markup or at the top of its script, which is ` +
 						'async Svelte: a value loaded per request while the bytes are written, which is ' +
 						"the load stage and not this compiler's to render",
+					{ cause: error },
 				);
 			}
 			throw error;
