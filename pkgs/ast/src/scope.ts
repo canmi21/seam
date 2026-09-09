@@ -262,14 +262,6 @@ export function free(node: unknown, scope: ReadonlySet<string>, into: Set<string
 }
 
 /**
- * How a destructured name is reached from the value it was taken out of.
- *
- * Exported because a snippet's parameter is destructured the same way a declaration is, and the
- * value it comes apart from is the argument at the `{@render}` that calls it rather than an
- * initialiser. A default or a rest is left out: neither is a member nor an index, so there is no
- * way in to write down. See spec/derivation.md.
- */
-/**
  * Whether a markup node declares rather than writes: `{@const}`, and `{const}`/`{let}`.
  *
  * `clean_nodes` in `3-transform/utils.js` lifts both out of a fragment's nodes into `hoisted`, and

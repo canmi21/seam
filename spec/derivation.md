@@ -670,6 +670,13 @@ at two reads makes two different symbols. It is reported wherever it is found, a
 the markup reaches are followed to find it -- see the section on a substituted value reading the
 same twice.
 
+**A name read only under `typeof` needs no binding at all.** `typeof x` on a name nothing declares
+is defined behaviour and reads the same everywhere: `"undefined"`. It is how a file asks whether a
+global exists, Svelte compiles it unchanged, and the render evaluates the same expression, so the
+bytes agree. Only where every read of the name is guarded that way -- `{typeof b} {b}` still has to
+resolve, and the count of the other reads is deliberately loose, a member's property name and an
+object key landing in it too. Being counted means being reported, which is the safe direction.
+
 `console` is on it. It reads the same everywhere -- `undefined` -- and what it does instead of
 returning is not bytes; both the render and the artifact call it, so a line is written twice, which
 is a log rather than a difference in what is served. Eight of Svelte's samples log from markup and

@@ -1473,6 +1473,17 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// `typeof x` on a name nothing binds is defined behaviour and reads the same everywhere:
+		// `"undefined"`. It is how a file asks whether a global exists, Svelte compiles it unchanged,
+		// and the render evaluates the same expression. Only where every read is guarded that way --
+		// the second here has to resolve, and does, from the pattern beside it.
+		name: 'a name read only under `typeof`',
+		source:
+			'<script>const held = { b: { c: 1 } }; const { b: { c } } = held;' +
+			' let { data } = $props();</script><p>{typeof b}|{typeof c}|{c}|{data.a}</p>',
+		data: [{ a: 'v' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
@@ -2944,6 +2955,12 @@ const accepted: Case[] = [
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// And a name read both ways still has to come from somewhere.
+		name: 'a name read under `typeof` and beside it',
+		says: 'the data does not carry',
+		source: `${PROPS}<p>{typeof mystery}{mystery}</p>`,
+	},
 	{
 		// And refused where the string is the request's, which is the half a marker cannot stand in.
 		name: 'a `style:` beside a `style` the request decides',

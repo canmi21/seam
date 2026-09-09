@@ -198,6 +198,44 @@ const RUNES: ReadonlySet<string> = new Set([
 	'$host',
 ]);
 
+/**
+ * The names an expression reads only as the argument of `typeof`, which need no binding.
+ *
+ * Every other mention counts, and the count is deliberately loose: a member's property name and an
+ * object key land in it too, which can only keep a name out of this set. Being kept out means being
+ * reported, which is the safe direction.
+ */
+function onlyTypeof(node: unknown): Set<string> {
+	const under = new Set<string>();
+	const other = new Set<string>();
+	const step = (one: unknown): void => {
+		if (Array.isArray(one)) {
+			for (const each of one) step(each);
+			return;
+		}
+		if (!isNode(one)) return;
+		if (one['type'] === 'UnaryExpression' && one['operator'] === 'typeof') {
+			const argument = one['argument'];
+			if (
+				isNode(argument) &&
+				argument['type'] === 'Identifier' &&
+				typeof argument['name'] === 'string'
+			) {
+				under.add(argument['name']);
+				return;
+			}
+		}
+		if (one['type'] === 'Identifier' && typeof one['name'] === 'string') {
+			other.add(one['name']);
+			return;
+		}
+		for (const value of Object.values(one)) step(value);
+	};
+	step(node);
+	for (const name of other) under.delete(name);
+	return under;
+}
+
 function report(
 	expression: unknown,
 	source: string,
@@ -212,8 +250,14 @@ function report(
 	const { start, end } = expression;
 	const text = typeof start === 'number' && typeof end === 'number' ? source.slice(start, end) : '';
 
+	const guarded = onlyTypeof(expression);
 	for (const name of names) {
 		if (GLOBALS.has(name)) continue;
+		// `typeof x` on a name nothing binds is defined behaviour and reads the same everywhere:
+		// `"undefined"`. It is how a file asks whether a global exists, and Svelte compiles it
+		// unchanged, so the render evaluates the same expression and writes the same bytes. Only
+		// where every read of the name is guarded that way -- `{typeof b} {b}` still has to resolve.
+		if (guarded.has(name)) continue;
 		// A rune is compiled away by Svelte and resolves nowhere at run time, which is why it is not
 		// a name the data has to carry: `CallExpression.js` answers each one where it stands --
 		// `$effect.tracking()` is `false`, `$effect.pending()` is `0` -- and `locals.ts` writes those
