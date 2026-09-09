@@ -58,7 +58,13 @@
 			"files": ["keyed.svelte"]
 		}
 	],
-	"defaults": [],
+	"defaults": [
+		{
+			"name": "data",
+			"expression": "undefined",
+			"files": ["keyed.svelte"]
+		}
+	],
 	"entered": [],
 	"payload": ["data"]
 }

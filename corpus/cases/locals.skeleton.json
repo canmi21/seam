@@ -46,7 +46,13 @@
 			"files": ["locals.svelte"]
 		}
 	],
-	"defaults": [],
+	"defaults": [
+		{
+			"name": "data",
+			"expression": "undefined",
+			"files": ["locals.svelte"]
+		}
+	],
 	"entered": [],
 	"payload": ["data"]
 }

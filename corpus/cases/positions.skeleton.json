@@ -17,7 +17,13 @@
 		}
 	],
 	"blocks": [],
-	"defaults": [],
+	"defaults": [
+		{
+			"name": "data",
+			"expression": "undefined",
+			"files": ["positions.svelte"]
+		}
+	],
 	"entered": ["parts/badge.svelte"],
 	"payload": ["data"]
 }

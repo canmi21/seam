@@ -29,7 +29,13 @@
 		}
 	],
 	"blocks": [],
-	"defaults": [],
+	"defaults": [
+		{
+			"name": "data",
+			"expression": "undefined",
+			"files": ["declared.svelte"]
+		}
+	],
 	"entered": [],
 	"payload": ["data"]
 }

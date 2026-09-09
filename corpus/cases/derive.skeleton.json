@@ -45,7 +45,13 @@
 			"files": ["derive.svelte"]
 		}
 	],
-	"defaults": [],
+	"defaults": [
+		{
+			"name": "data",
+			"expression": "undefined",
+			"files": ["derive.svelte"]
+		}
+	],
 	"entered": [],
 	"payload": ["data"]
 }

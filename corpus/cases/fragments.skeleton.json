@@ -40,7 +40,13 @@
 			"files": ["fragments.svelte"]
 		}
 	],
-	"defaults": [],
+	"defaults": [
+		{
+			"name": "data",
+			"expression": "undefined",
+			"files": ["fragments.svelte"]
+		}
+	],
 	"entered": [],
 	"payload": ["data"]
 }

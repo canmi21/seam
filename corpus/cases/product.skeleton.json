@@ -46,7 +46,13 @@
 			"files": ["product.svelte"]
 		}
 	],
-	"defaults": [],
+	"defaults": [
+		{
+			"name": "data",
+			"expression": "undefined",
+			"files": ["product.svelte"]
+		}
+	],
 	"entered": [],
 	"payload": ["data"]
 }

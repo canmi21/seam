@@ -29,7 +29,13 @@
 			"files": ["inert.svelte"]
 		}
 	],
-	"defaults": [],
+	"defaults": [
+		{
+			"name": "data",
+			"expression": "undefined",
+			"files": ["inert.svelte"]
+		}
+	],
 	"entered": [],
 	"payload": ["data"]
 }

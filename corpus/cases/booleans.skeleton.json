@@ -58,7 +58,13 @@
 		}
 	],
 	"blocks": [],
-	"defaults": [],
+	"defaults": [
+		{
+			"name": "data",
+			"expression": "undefined",
+			"files": ["booleans.svelte"]
+		}
+	],
 	"entered": [],
 	"payload": ["data"]
 }

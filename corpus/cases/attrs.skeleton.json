@@ -23,7 +23,13 @@
 		}
 	],
 	"blocks": [],
-	"defaults": [],
+	"defaults": [
+		{
+			"name": "data",
+			"expression": "undefined",
+			"files": ["attrs.svelte"]
+		}
+	],
 	"entered": [],
 	"payload": ["data"]
 }

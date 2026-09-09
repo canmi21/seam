@@ -62,7 +62,13 @@
 			"files": ["headblock.svelte"]
 		}
 	],
-	"defaults": [],
+	"defaults": [
+		{
+			"name": "data",
+			"expression": "undefined",
+			"files": ["headblock.svelte"]
+		}
+	],
 	"entered": [],
 	"payload": ["data"]
 }

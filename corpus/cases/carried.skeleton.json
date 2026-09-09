@@ -30,7 +30,13 @@
 		}
 	],
 	"blocks": [],
-	"defaults": [],
+	"defaults": [
+		{
+			"name": "data",
+			"expression": "undefined",
+			"files": ["carried.svelte"]
+		}
+	],
 	"entered": [],
 	"payload": ["data"]
 }

@@ -64,7 +64,13 @@
 			"files": ["compose.svelte"]
 		}
 	],
-	"defaults": [],
+	"defaults": [
+		{
+			"name": "data",
+			"expression": "undefined",
+			"files": ["compose.svelte"]
+		}
+	],
 	"entered": ["parts/badge.svelte"],
 	"payload": ["data"]
 }
