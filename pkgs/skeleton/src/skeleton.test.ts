@@ -3842,6 +3842,18 @@ const refused: Case[] = [
 			' const first = tick();</script><p>{data.a}{first}|{seen.length}</p>',
 	},
 	{
+		// The language's own iterators call what they are handed before they return, whatever the
+		// receiver is. `then`, `setTimeout` and `addEventListener` are the other side, which is why
+		// this is a list rather than a rule -- and a `$:` written with one was a mutation nothing
+		// here could see.
+		name: 'a `$:` that mutates through an iterator',
+		says: 'changed by a function this render calls',
+		source:
+			'<script>export let a; const keys = ["x"]; let held = {};' +
+			' $: keys.forEach((key) => { held[key] = 1; });</script>' +
+			'<p>{JSON.stringify(held)}|{a}</p>',
+	},
+	{
 		// A getter is run by a property read, which is not something the reader wrote as a call, and
 		// this pass writes a declaration's initialiser out at every read. So a getter that changes
 		// something is a function this render calls, and the walk into it stops where a plain

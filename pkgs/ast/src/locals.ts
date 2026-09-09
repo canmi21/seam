@@ -788,6 +788,31 @@ function reactive(
 const CALLS = new Set(['run', 'untrack']);
 
 /**
+ * The language's own methods that call what they are handed before they return, by name.
+ *
+ * The same kind of list as `CALLS` and for the same reason: nothing in the shape of a member call
+ * says whether the function is run now or later, and `then`, `setTimeout` and `addEventListener`
+ * are the other side. These are ECMAScript's, and every one of them is synchronous whatever the
+ * receiver is -- `$: keys.forEach((key) => { object[key] = [] })` is a mutation nothing here could
+ * see without them.
+ */
+const ITERATORS: ReadonlySet<string> = new Set([
+	'every',
+	'filter',
+	'find',
+	'findIndex',
+	'findLast',
+	'findLastIndex',
+	'flatMap',
+	'forEach',
+	'map',
+	'reduce',
+	'reduceRight',
+	'some',
+	'sort',
+]);
+
+/**
  * What the server answers a rune call with, read out of `3-transform/server/visitors/
  * CallExpression.js`.
  *
@@ -885,7 +910,21 @@ function running(node: unknown, at: (one: Node) => void): void {
 			// `addEventListener` or any of the others reached through a member. What a member call
 			// does with a function is the member's, and this pass does not know it.
 			const callee = one['callee'];
-			if (isNode(callee) && callee['type'] === 'Identifier' && CALLS.has(String(callee['name']))) {
+			const named =
+				isNode(callee) && callee['type'] === 'Identifier' ? String(callee['name']) : null;
+			// A member whose name is one of the language's own synchronous iterators. `then`,
+			// `setTimeout` and `addEventListener` are the other side and are why this is a list
+			// rather than a rule -- but `xs.forEach(fn)` calls `fn` before it returns, whatever `xs`
+			// is, and a `$:` written that way was a mutation nothing here could see.
+			const method =
+				isNode(callee) &&
+				callee['type'] === 'MemberExpression' &&
+				callee['computed'] !== true &&
+				isNode(callee['property']) &&
+				callee['property']['type'] === 'Identifier'
+					? String(callee['property']['name'])
+					: null;
+			if ((named !== null && CALLS.has(named)) || (method !== null && ITERATORS.has(method))) {
 				for (const argument of Array.isArray(one['arguments']) ? one['arguments'] : []) {
 					if (!isNode(argument) || !FUNCTIONS.has(String(argument['type']))) continue;
 					step(argument['params']);

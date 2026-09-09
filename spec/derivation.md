@@ -556,6 +556,18 @@ stands over the payload's key *under a name*, and a name is the one thing this p
 `GIVEN` holds what the request brought, before any default was applied. So the substitution is the
 choice JavaScript makes, `(GIVEN["kebab-case"] === undefined ? d : GIVEN["kebab-case"])`.
 
+## The language's own iterators call what they are handed
+
+`CALLS` is a list rather than a rule -- nothing in the shape of a call says whether the function is
+run now or later, and `run` and `untrack` are the two Svelte itself calls synchronously. A member
+call has the same question and the same answer: `then`, `setTimeout` and `addEventListener` do not
+run it while the bytes are written, and `forEach`, `map`, `filter`, `reduce`, `sort` and the rest of
+ECMAScript's iterators do, whatever the receiver is.
+
+So a `$:` written as `keys.forEach((key) => { object[key] = [] })` is a mutation this pass can see,
+where before it was one it could not -- and the sample it was hiding in reported the derivation
+evaluator's failure instead of the scope line's answer.
+
 ## A getter is a function this render calls
 
 `running()` stops at a function boundary, because what a function does is decided by whoever calls
