@@ -499,6 +499,18 @@ holding a value came out with their contents swapped, silently. Refused rather t
 numbered around, because there is nothing to escape into -- the bytes are the protocol, and a
 component writing the protocol's own shape is a collision to name.
 
+**A `{@render}`'s callee is an expression, not always a name.** `{@render state.value()}` and
+`{@render (show ? foo : bar)()}` both name a snippet through a value. The callee is settled the way
+a `<svelte:component this={...}>` is -- the same substitution, the same `settle` -- and what is left
+after it is folded: a ternary whose test has become a literal, and a read off an object literal.
+Both are arithmetic rather than a decision the request makes, which is why they are folded here and
+not in `settle`.
+
+Where it reaches a snippet the file declares, that is the one rendered, and the callee is written
+out as its name so the render calls it too: the expression it was reads a declaration the render is
+handed nothing for. Where it reaches anything else the refusal below says so, including a callee
+that reads the request -- which is a snippet chosen per request and a different question.
+
 **A runes module is compiled by whoever loads it, and there are two loaders.** `$state`, `$derived`
 and the rest are compiled away by Svelte and exist nowhere at run time, so a `.svelte.js` or
 `.svelte.ts` cannot be loaded as it is written: `export let obj = $state({})` is

@@ -2060,6 +2060,90 @@ function varies(expression: string, walk: Walk): boolean {
 	return true;
 }
 
+/**
+ * The name an expression settles to, where it settles to one.
+ *
+ * `settle` decides a path whose value the build fixed; this is the arithmetic left after it, and it
+ * is only ever asked of a `{@render}`'s callee. Two shapes reach a snippet through a value:
+ * `{@render (show ? foo : bar)()}`, where the test has already become a literal, and
+ * `{@render state.value()}` over `$state({ value: counter })`, where the object literal is what
+ * substitution left. Both are folded here rather than in `settle`, which is about the request
+ * deciding a path and not about reducing an expression.
+ */
+function reaches(text: string): string | null {
+	let ast: Node;
+	try {
+		ast = parsed(text) as unknown as Node;
+	} catch {
+		return null;
+	}
+	const fragment = (ast as unknown as AstNode)['fragment'];
+	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	const [only] = nodes;
+	if (!isNode(only) || only['type'] !== 'ExpressionTag') return null;
+	const held = folded(only['expression']);
+	if (!isNode(held) || held['type'] !== 'Identifier') return null;
+	return typeof held['name'] === 'string' ? held['name'] : null;
+}
+
+/** The node an expression reduces to: a taken branch, a read off an object literal, or itself. */
+function folded(node: unknown): unknown {
+	if (!isNode(node)) return null;
+	const type = node['type'];
+	if (type === 'ConditionalExpression') {
+		const test = node['test'];
+		if (!isNode(test) || test['type'] !== 'Literal') return null;
+		return folded(node[test['value'] === true || test['value'] ? 'consequent' : 'alternate']);
+	}
+	if (type !== 'MemberExpression') return node;
+	const object = folded(node['object']);
+	if (!isNode(object) || object['type'] !== 'ObjectExpression') return null;
+	const property = node['property'];
+	const wanted = !isNode(property)
+		? null
+		: node['computed'] === true
+			? property['type'] === 'Literal'
+				? String(property['value'])
+				: null
+			: typeof property['name'] === 'string'
+				? property['name']
+				: null;
+	if (wanted === null) return null;
+	for (const each of Array.isArray(object['properties']) ? object['properties'] : []) {
+		if (!isNode(each) || each['type'] !== 'Property' || each['computed'] === true) continue;
+		const key = each['key'];
+		if (!isNode(key)) continue;
+		const named =
+			key['type'] === 'Literal'
+				? String(key['value'])
+				: typeof key['name'] === 'string'
+					? key['name']
+					: null;
+		if (named === wanted) return folded(each['value']);
+	}
+	return null;
+}
+
+/** An expression with the parentheses substitution wraps it in taken off, where they wrap it all. */
+function bare(text: string): string {
+	let held = text.trim();
+	while (held.startsWith('(') && held.endsWith(')')) {
+		let depth = 0;
+		let wraps = true;
+		for (const [at, c] of [...held].entries()) {
+			if (c === '(') depth += 1;
+			else if (c === ')') depth -= 1;
+			if (depth === 0 && at < held.length - 1) {
+				wraps = false;
+				break;
+			}
+		}
+		if (!wraps) break;
+		held = held.slice(1, -1).trim();
+	}
+	return held;
+}
+
 /** The runes, which exist at compile time and nowhere else. */
 const RUNE = /(?:^|[^\w$.])\$(?:state|derived|props|effect|bindable|inspect|host)\b/;
 
@@ -3423,7 +3507,31 @@ function collect(node: unknown, walk: Walk): void {
 
 		case 'RenderTag': {
 			const call = called(node['expression']);
-			const name = renders(node);
+			// The callee is an expression, not always a name: `{@render state.value()}` and
+			// `{@render (show ? foo : bar)()}` both name a snippet through one. It is settled the way
+			// a `<svelte:component this={...}>` is -- the same `choosing()`, over the same
+			// substitution -- and where it settles to a snippet this file declares, that is the
+			// snippet rendered. The callee is written out as the name it settled to, so the render
+			// calls it too: the expression it was reads a declaration the render is handed nothing
+			// for.
+			let name = renders(node);
+			if (name === null || snippets.get(name)?.declared !== true) {
+				const callee = isNode(call) ? call['callee'] : undefined;
+				// Settled, not chosen: what does not settle to a snippet this file declares is left to
+				// the refusal below, which says what it is. A callee that reads the request is one of
+				// those rather than a component chosen per request.
+				let settledName: string | null = null;
+				try {
+					settledName = isNode(callee) ? reaches(settled(expand(callee), walk)) : null;
+				} catch {
+					settledName = null;
+				}
+				if (settledName !== null && snippets.get(settledName)?.declared === true) {
+					const where = span(callee);
+					if (where !== null) edits.push([where[0], where[1], settledName]);
+					name = settledName;
+				}
+			}
 
 			// Markup the caller wrote inside this component's tag. Walked here, where the child
 			// renders it, in the scope it was written in.

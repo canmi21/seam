@@ -2497,6 +2497,20 @@ const accepted: Case[] = [
 		data: [{ n: 3 }, { n: 0 }],
 	},
 	{
+		// A `{@render}`'s callee is an expression, not always a name. It is settled the way a
+		// `<svelte:component this={...}>` is, and what substitution leaves is then folded: a ternary
+		// whose test has become a literal, and a read off an object literal. Where that reaches a
+		// snippet this file declares, that is the one rendered, and the callee is written out as its
+		// name so the render calls it too.
+		name: 'a render whose callee reaches a snippet through a value',
+		source:
+			'<script>let { data } = $props(); const held = { one: first };' +
+			' const which = true ? second : first;</script>' +
+			'{@render held.one()}{@render which()}<p>{data.a}</p>' +
+			'{#snippet first()}<b>1</b>{/snippet}{#snippet second()}<i>2</i>{/snippet}',
+		data: [{ a: 'x' }, { a: '<' }],
+	},
+	{
 		// `LabeledStatement.js` collects a `$:` and `transform-server.js` puts it at the end of the
 		// instance body in topological order, declaring `let x` for the name it assigns. So it is a
 		// declaration whose initialiser is the right-hand side, and one reading another chains the
