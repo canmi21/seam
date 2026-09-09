@@ -2497,6 +2497,21 @@ const accepted: Case[] = [
 		data: [{ n: 3 }, { n: 0 }],
 	},
 	{
+		// `$state` and the rest are compiled away by Svelte and exist nowhere at run time, so a
+		// `.svelte.js` cannot be loaded as it is written. The carried bundle compiled one on the way
+		// in and the compile-time render did not, which left Node importing `export let obj =
+		// $state({})` and answering `$state is not defined` -- seven of Svelte's samples. The rule
+		// is one function both loaders call.
+		name: 'an entry importing a runes module',
+		alongside: {
+			'held.svelte.js': 'export let obj = $state({ a: 1, b: 2 });\n',
+		},
+		source:
+			"<script>import { obj } from './held.svelte.js'; let { data } = $props();</script>" +
+			'<p>{Object.values(obj)}</p><p>{data.n}</p>',
+		data: [{ n: 2 }, { n: 21 }],
+	},
+	{
 		// `$foo` is a subscription to the store `foo`, which Svelte compiles to
 		// `store_get($$store_subs, '$foo', foo)`. Where `foo` is a declaration this pass substitutes,
 		// the read is the store's value -- `get` from `svelte/store`, which subscribes, takes it and

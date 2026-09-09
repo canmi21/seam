@@ -3,7 +3,7 @@ import { readFileSync, realpathSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { APP_STATE, resolveBare } from 'ast';
+import { APP_STATE, resolveBare, RUNES_MODULE, runesModule } from 'ast';
 import type { Rendered } from './shape.ts';
 import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel } from './sentinel.ts';
 import { timed, timedSync } from './timing.ts';
@@ -293,9 +293,15 @@ export async function renderRewritten(
 			// copy made was not found by the other. What Node cannot load on its own -- a `.svelte`
 			// a package re-exports, a runes module -- is the host's loader's or bundler's to compile,
 			// as it is for the project's own; only the `.svelte` this pass rewrote is compiled here.
+			// A runes module is the exception to leaving a module where it is: `$state` and the rest
+			// are compiled away by Svelte and exist nowhere at run time, so Node loading one as
+			// written answers `$state is not defined`. It is compiled and emitted once, keyed by its
+			// real path, so the render still holds one instance of it. See `runesModule` in `ast`.
 			const replacement = target.endsWith('.svelte')
 				? emit(target, compileFile(target), staged.get(target)?.file ?? target)
-				: real(target);
+				: RUNES_MODULE.test(target)
+					? emit(target, runesModule(target, read(target, 'utf8')), target)
+					: real(target);
 			code = code.replaceAll(
 				`${quote}${specifier}${quote}`,
 				JSON.stringify(pathToFileURL(replacement).href),

@@ -499,6 +499,18 @@ holding a value came out with their contents swapped, silently. Refused rather t
 numbered around, because there is nothing to escape into -- the bytes are the protocol, and a
 component writing the protocol's own shape is a collision to name.
 
+**A runes module is compiled by whoever loads it, and there are two loaders.** `$state`, `$derived`
+and the rest are compiled away by Svelte and exist nowhere at run time, so a `.svelte.js` or
+`.svelte.ts` cannot be loaded as it is written: `export let obj = $state({})` is
+`$state is not defined` to any runtime. Svelte's own rule is the filename, and `compileModule` is
+what the server applies.
+
+The carried bundle compiled one on the way in and the compile-time render did not, which left Node
+importing the source -- seven of Svelte's samples. Both call one function now, in `ast`, because a
+module compiled one way in one place and another way in the other is two modules. It is also the
+one exception to leaving a module where it is: the render emits a compiled copy, once, keyed by the
+module's real path, so the render still holds a single instance of it.
+
 **Two things that cannot survive the trip out of `render()`.** Once an expression is a marker it
 is a derivation, evaluated where no component is being rendered:
 

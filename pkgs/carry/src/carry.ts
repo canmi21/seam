@@ -1,10 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
-import { stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { type Plugin, rolldown } from 'rolldown';
-import { compile, compileModule } from 'svelte/compiler';
-import { type Carried, currentAliases, resolveBare } from 'ast';
+import { compile } from 'svelte/compiler';
+import { type Carried, currentAliases, resolveBare, RUNES_MODULE, runesModule } from 'ast';
 
 /** An immediately invoked bundle assigning to one name, which `derive` reads back out. */
 const NAME = '__carried';
@@ -70,11 +69,7 @@ function svelted(): Plugin {
 					filename: id,
 				}).js.code;
 			}
-			if (/\.svelte\.(?:js|ts)$/.test(id)) {
-				const text = readFileSync(id, 'utf8');
-				const source = id.endsWith('.ts') ? stripTypeScriptTypes(text) : text;
-				return compileModule(source, { generate: 'server', filename: id }).js.code;
-			}
+			if (RUNES_MODULE.test(id)) return runesModule(id, readFileSync(id, 'utf8'));
 			return null;
 		},
 	};
