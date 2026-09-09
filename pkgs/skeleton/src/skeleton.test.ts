@@ -2290,6 +2290,16 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }],
 	},
 	{
+		// A `$:` that reads the name it assigns reads what that name held before the statement ran,
+		// and `transform-server.js` unshifts `let max;` above the instance body for every
+		// `legacy_reactive` binding a `$:` assigns -- so on the one pass the server makes that is
+		// `undefined`. Left as the name it resolved nowhere per request.
+		name: 'a `$:` that reads the name it assigns',
+		source:
+			'<script>export let num = 1; $: max = Math.max(num, max || 0);</script><p>{num} / {max}</p>',
+		props: [{}, { num: 5 }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request

@@ -1861,7 +1861,22 @@ export function locals(
 		}
 		reads(node, new Set(), (at, shorthand) => {
 			const name = at['name'];
-			if (typeof name !== 'string' || open.has(name)) return;
+			if (typeof name !== 'string') return;
+			if (open.has(name)) {
+				// A name standing in for itself. For an ordinary declaration that is the author's cycle
+				// and the name is left for the pass that resolves names to report. For a `$:` it is
+				// Svelte's own answer and it is `undefined`: `transform-server.js` collects each
+				// `legacy_reactive` binding the statement assigns and unshifts `let max;` above the
+				// instance body, so `$: max = Math.max(num, max || 0)` reads nothing on the one pass
+				// the server makes. Left as the name it resolved nowhere per request.
+				if (found.get(name)?.reactive !== true) return;
+				const from = at['start'];
+				const to = at['end'];
+				if (typeof from !== 'number' || typeof to !== 'number') return;
+				if (taken.has(from)) return;
+				edits.push([from, to, shorthand === true ? `${name}: undefined` : 'undefined']);
+				return;
+			}
 			// Inside a rune call already written out as a constant, where nothing is left to name.
 			if (typeof at['start'] === 'number' && written(at['start'])) return;
 			// A name bound by something other than a script, which the caller knows about and this

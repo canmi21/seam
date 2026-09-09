@@ -519,6 +519,17 @@ back as "is an illegal variable name" -- so such an expression stays a marker an
 calls the function where the carried bundle has it. Tested by name rather than by the prefix, since
 `$$props`, `$$restProps` and `$$slots` wear it too and those are the render's own to evaluate.
 
+## A `$:` that reads the name it assigns reads `undefined`
+
+`$: max = Math.max(num, max || 0)` reads the value `max` held before the statement ran.
+`transform-server.js` collects every `legacy_reactive` binding a `$:` assigns and unshifts
+`let max;` above the instance body, so on the one pass the server makes that value is `undefined`.
+
+Substituting a name by its expression cannot substitute a name inside its own expression, and what
+was left there was the bare name, which resolves nowhere per request. For an ordinary declaration
+that is the author's cycle and leaving the name is right, because the pass that resolves names then
+reports it. For a `$:` it is Svelte's own answer and the answer is `undefined`.
+
 ## A prop whose name is not an identifier is read off the payload object
 
 `let { 'kebab-case': k } = $props()` names a key no expression can read by name, where
