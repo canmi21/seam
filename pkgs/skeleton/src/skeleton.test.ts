@@ -2408,6 +2408,20 @@ const accepted: Case[] = [
 		props: [{ a: 'x' }, { a: '<&' }],
 	},
 	{
+		// `renderer.option` compares against the **rendered body** where the option writes no `value`
+		// of its own, and a body holding a `{@render}` is bytes the render writes and nothing here
+		// can name. The comparison is then the render's to make: nothing varies with the request, so
+		// the bytes it writes are the bytes every request gets -- and leaving it to the render means
+		// leaving both names on the tag, since `select()` reads them off the merged attributes.
+		name: 'a `<select value>` whose options compare against a rendered body',
+		source:
+			'<script>let { data } = $props();</script>' +
+			'<select value="dog"><option>{@render one("cat")}</option>' +
+			'<option>{@render two("dog")}</option></select><p>{data.a}</p>' +
+			'{#snippet one(v)}{v}{/snippet}{#snippet two(v)}{v}{/snippet}',
+		data: [{ a: 'x' }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request

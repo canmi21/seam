@@ -687,6 +687,17 @@ from the enclosing `<slot name="foo" {thing}/>` -- in its own attributes and in 
 `Inner`'s own `<slot />` passes nothing for it. Binding it twice wrote `undefined` into the
 children.
 
+**An `<option>`'s implicit value is the rendered body, and where the walk cannot read one the
+render makes the comparison.** `renderer.option(attrs, body, ...)` compares `body` against the
+select's value where the option writes no `value` of its own, so a body holding a `{@render}` is
+bytes the render writes and nothing here can name. Where the select's value varies with nothing the
+request decides, the bytes the render writes are the bytes every request gets -- so the tag is left
+alone, both names on it, and Svelte compares once. Taking one off and not the other is what makes
+`select()` compare twice, which is why leaving it means leaving all of it.
+
+Only where nothing varies. Where the value is the request's, the option is refused by name as
+before: the render's answer would be one request's.
+
 **A boolean attribute on an `<option>` is a decision, not a substitution.** `is_option_special` in
 `RegularElement.js` is the name alone, with no `<select>` around it required, so every `<option>`
 goes through `renderer.option` and its attributes are written by `attributes()` rather than folded

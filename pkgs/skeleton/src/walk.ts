@@ -1081,6 +1081,39 @@ const BOOLEAN = new Set([
  * gets a boolean `selected` decided by the comparison, as a hole planted where the renderer
  * writes it: last, before the `>`. Returns what the children walk under.
  */
+/**
+ * Whether some `<option>` under this `<select>` writes no `value` and holds a body this walk cannot
+ * read as one value.
+ *
+ * `renderer.option` compares against the rendered body where the attribute is absent, and the walk
+ * can read that body only where it is text, or one expression. A `{@render}` in it is bytes the
+ * render writes and nothing here can name.
+ */
+function unreadable(node: AstNode): boolean {
+	let found = false;
+	const step = (one: unknown): void => {
+		if (found) return;
+		if (Array.isArray(one)) {
+			for (const each of one) step(each);
+			return;
+		}
+		if (!isNode(one)) return;
+		if (one['name'] === 'option' && one['type'] === 'RegularElement') {
+			if (attributeOf(one, 'value') === undefined) {
+				const fragment = one['fragment'];
+				const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+				const [only] = nodes;
+				const single = nodes.length === 1 && isNode(only) && only['type'] === 'ExpressionTag';
+				const text = nodes.every((child) => isNode(child) && child['type'] === 'Text');
+				if (!single && !text) found = true;
+			}
+		}
+		for (const value of Object.values(one)) step(value);
+	};
+	step(node['fragment']);
+	return found;
+}
+
 function selection(
 	node: AstNode,
 	source: string,
@@ -1091,6 +1124,8 @@ function selection(
 	skipped: Set<unknown>,
 	/** Keys the spread pass must leave out of the object it builds, lowercased. */
 	dropped: Set<string>,
+	/** Whether a value is the same every request, so the render's own comparison is every one's. */
+	inert: (text: string) => boolean,
 ): Walk['selecting'] {
 	const tag = node['name'];
 	if (tag === 'select') {
@@ -1113,6 +1148,8 @@ function selection(
 		// two passes writing over the same span is an error. So the names go into `dropped` and the
 		// edits are that pass's; without a spread they are this one's.
 		const spreading = listed.some((one) => isNode(one) && one['type'] === 'SpreadAttribute');
+		/** Kept until the tag is known to be one this walk models, since taking it off is an edit. */
+		const taken: AstNode[] = [];
 		const each = (attribute: AstNode): string => {
 			const written = valueExpression(attribute, source, expand);
 			if (written === null) {
@@ -1121,11 +1158,7 @@ function selection(
 						'compare against the joined string',
 				);
 			}
-			if (!spreading) {
-				const at = span(attribute);
-				if (at !== null) edits.push([at[0], at[1], '']);
-			}
-			skipped.add(attribute);
+			taken.push(attribute);
 			return written;
 		};
 		let chosen: string | undefined;
@@ -1155,16 +1188,31 @@ function selection(
 			else if (name === 'defaultvalue') held = each(one);
 		}
 		if (chosen === undefined && held === undefined) return undefined;
-		if (spreading) {
-			dropped.add('value');
-			dropped.add('defaultvalue');
-		}
 		const written =
 			chosen === undefined
 				? String(held)
 				: held === undefined
 					? chosen
 					: `(${chosen} === undefined ? ${held} : ${chosen})`;
+		// `renderer.option` compares against the **rendered body** where the option writes no `value`
+		// of its own, and a body this walk cannot read as one value is a body it cannot compare. The
+		// comparison is the render's to make in that case: nothing here varies with the request, so
+		// the bytes the render writes are the bytes every request gets, and the way to leave it to
+		// the render is to leave the tag alone -- both names have to stay on it, or `select()` sees
+		// neither. Only where nothing varies; where the value is the request's the option is refused
+		// by name as before.
+		if (inert(written) && unreadable(node)) return undefined;
+		for (const attribute of taken) {
+			if (!spreading) {
+				const at = span(attribute);
+				if (at !== null) edits.push([at[0], at[1], '']);
+			}
+			skipped.add(attribute);
+		}
+		if (spreading) {
+			dropped.add('value');
+			dropped.add('defaultvalue');
+		}
 		return { value: written, multiple: attributeOf(node, 'multiple') !== undefined };
 	}
 	if (tag !== 'option') return selecting;
@@ -3920,7 +3968,17 @@ function collect(node: unknown, walk: Walk): void {
 				const dropped = new Set<string>();
 				const selecting =
 					type === 'RegularElement'
-						? selection(node, source, expand, holes, edits, walk.selecting, skipped, dropped)
+						? selection(
+								node,
+								source,
+								expand,
+								holes,
+								edits,
+								walk.selecting,
+								skipped,
+								dropped,
+								(text) => (site.payload !== null ? !varies(text, walk) : true),
+							)
 						: walk.selecting;
 				const bare =
 					type === 'RegularElement' ? contents(node, walk, holes, edits, skipped) : undefined;
