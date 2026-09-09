@@ -2971,6 +2971,21 @@ const accepted: Case[] = [
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
 	{
+		// A component's `<script module>` is module state too, reached by a named import of the
+		// component. The render mutates its own instance of that module and would bake whatever it
+		// left behind; the artifact's instance is a different one, per request. One render cannot
+		// show it -- the oracle renders once and agrees -- which is why this is a refusal and not a
+		// byte comparison.
+		name: 'a name a component`s module script changes',
+		says: 'a module binding something in that module changes',
+		beside: {
+			Held: '<script module>export let n = 0; export function bump() { n += 1 }</script><i>h</i>',
+		},
+		source:
+			"<script>import { n, bump } from './Held.svelte'; let { data } = $props(); bump();" +
+			'</script><p>{n}|{data.a}</p>',
+	},
+	{
 		// And a name read both ways still has to come from somewhere.
 		name: 'a name read under `typeof` and beside it',
 		says: 'the data does not carry',

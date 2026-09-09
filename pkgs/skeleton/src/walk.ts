@@ -2007,7 +2007,10 @@ function changedBy(file: string): ReadonlySet<string> {
 	}
 	let ast: AstNode;
 	try {
-		ast = parse(`<script module lang="ts">${source}</script>`, {
+		// A component's `<script module>` is module state too, reached by a named import of the
+		// component. Its source is already markup, so it is parsed as what it is rather than
+		// wrapped; everything else is a module and is wrapped to be read the same way.
+		ast = parse(file.endsWith('.svelte') ? source : `<script module lang="ts">${source}</script>`, {
 			modern: true,
 		}) as unknown as AstNode;
 	} catch {
@@ -2062,7 +2065,10 @@ function changedBy(file: string): ReadonlySet<string> {
 function unstable(walk: Walk): ReadonlySet<string> {
 	const found = new Set<string>();
 	for (const [local, one] of walk.site.carried) {
-		if (!one.from.startsWith('.') || one.from.endsWith('.svelte')) continue;
+		if (!one.from.startsWith('.')) continue;
+		// Only the default import of a component is the component; a named one is its module
+		// script, whose state changes the same way any module's does.
+		if (one.from.endsWith('.svelte') && one.kind === 'default') continue;
 		const at = resolvePath(dirname(walk.site.file), one.from);
 		const exported = one.kind === 'named' ? (one.exported ?? one.local) : null;
 		if (exported === null) continue;

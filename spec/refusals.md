@@ -871,6 +871,13 @@ prop it decided is bound inside the child and evaluated there it would read the 
 is not given. Measured with the spread before and after an attribute, a key present as
 `undefined`, a missing key taking the default, and a null object. `merged()` in `walk.ts`.
 
+**A component's `<script module>` is module state, and a named import reaches it.** The check that
+refuses a binding its own module changes skipped every `.svelte` import, which is the same half
+condition again: a named import of a component is its module script, whose state changes the way
+any module's does. The render mutates its own instance and would bake what it left behind, while
+the artifact's instance is a different one, per request. **One render cannot show it** -- the
+oracle renders once and agrees -- so it is a refusal proved by its message rather than by bytes.
+
 **Only the default import of a component is the component.** Svelte compiles a component to a
 module whose `default` export is the component and whose `<script module>` exports are its named
 exports, so `import { foo } from './Foo.svelte'` is a value like any other: carried into the
