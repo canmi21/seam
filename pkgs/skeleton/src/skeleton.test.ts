@@ -1356,6 +1356,15 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }, { a: '<&' }],
 	},
 	{
+		// `EachBlock.js` writes the `for` loop whether or not there is a context, and only skips
+		// `let <context> = each_array[i]` where there is none. So a block with no `as` runs the same
+		// number of times and binds nothing, and the item is the block's own name -- the IR's `each`
+		// binds a name per iteration and has no shape for binding none.
+		name: 'an each block with no `as`, with and without a counter',
+		source: `${PROPS}{#each data.xs}<i>x</i>{/each}{#each data.xs, n}<b>{n}</b>{/each}`,
+		data: [{ xs: ['a', 'b'] }, { xs: [] }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.

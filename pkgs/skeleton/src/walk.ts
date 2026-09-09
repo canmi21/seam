@@ -4140,7 +4140,11 @@ function collect(node: unknown, walk: Walk): void {
 				within: [...within],
 				stream,
 				expression: written,
-				item: destructured ? held : context === null ? null : source.slice(context[0], context[1]),
+				// A block with no `as` still binds: `EachBlock.js` writes the `for` loop either way and
+				// only skips `let <context> = each_array[i]` where there is no context to bind. So the
+				// item is the block's own name, which nothing reads, rather than nothing at all --
+				// the IR's `each` binds a name per iteration and has no shape for binding none.
+				item: destructured || context === null ? held : source.slice(context[0], context[1]),
 				counter: typeof node['index'] === 'string' ? node['index'] : null,
 				alternate: fallback !== null && fallback !== undefined,
 			});

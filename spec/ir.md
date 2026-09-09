@@ -66,7 +66,10 @@ uses none of the three leaves `head` and `title` empty.
   which is the else.
 - **`each`** -- a source path, the name bound to each item, an optional `index`, and a body.
   `index` is the name the source binds to the counter, and it is absent rather than null when the
-  source binds none. **A destructuring context is not a name here**: `{#each m as [k, v]}` binds
+  source binds none. **The item is always a name**, including where `{#each xs}` binds none:
+  `EachBlock.js` writes the `for` loop either way and only skips `let <context> = each_array[i]`
+  when there is no context, so the block runs the same number of times and the name is the block's
+  own, which nothing reads. **A destructuring context is not a name here**: `{#each m as [k, v]}` binds
   two and neither is the item, so the skeleton binds the item under a name of its own and every
   name the pattern binds is an expression over that one, which leaves this node one shape.
   See [derivation.md](derivation.md). **A key is not here at all**: Svelte's server transform never mentions one,
