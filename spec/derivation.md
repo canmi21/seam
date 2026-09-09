@@ -519,6 +519,17 @@ back as "is an illegal variable name" -- so such an expression stays a marker an
 calls the function where the carried bundle has it. Tested by name rather than by the prefix, since
 `$$props`, `$$restProps` and `$$slots` wear it too and those are the render's own to evaluate.
 
+## A prop whose name is not an identifier is read off the payload object
+
+`let { 'kebab-case': k } = $props()` names a key no expression can read by name, where
+`kebab-case` is a subtraction. The payload object can, and `GIVEN` names it, so the read is a
+member of that object rather than a name in scope.
+
+**The default is folded into that read rather than left to the prop derivation.** A prop's default
+stands over the payload's key *under a name*, and a name is the one thing this prop has not got;
+`GIVEN` holds what the request brought, before any default was applied. So the substitution is the
+choice JavaScript makes, `(GIVEN["kebab-case"] === undefined ? d : GIVEN["kebab-case"])`.
+
 ## A rest on the entry is gathered from the payload itself
 
 `let { a, ...others } = $props()` on the entry: `others` is every key the request brought that the

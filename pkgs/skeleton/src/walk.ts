@@ -5807,21 +5807,6 @@ export function rewrite(
 						.map((one) => (one.rest === true ? one.local : one.prop)),
 					...[...state].filter(([, exported]) => exported === 'page').map(([local]) => local),
 				]);
-	// A prop whose name is not an identifier can only be written as a string --
-	// `let { 'kebab-case': x } = $props()` -- and then nothing can read it: a path may hold it,
-	// since the injector splits a path on dots and looks the segment up, but every expression this
-	// compiler writes is JavaScript, where `kebab-case` is a subtraction. So it is refused rather
-	// than turned into a path that works until something derives from it.
-	const unnameable = (declares ?? []).find(
-		(one) => one.rest !== true && one.whole !== true && !/^[A-Za-z_$][\w$]*$/.test(one.prop),
-	);
-	if (unnameable !== undefined) {
-		refuse(
-			`\`${unnameable.prop}\` is a prop whose name is not an identifier, so nothing can read it ` +
-				'as an expression: a path may hold it, and every derivation this compiler writes is ' +
-				'JavaScript. Give it a name that is one. See spec/refusals.md',
-		);
-	}
 	/**
 	 * A prop read under a name that is not the request's for it, which is a substitution like any
 	 * other -- and one whose replacement is a bare name, so a read of it stays a path rather than
@@ -5841,6 +5826,21 @@ export function rewrite(
 	// `$$slots` and `$$events` are excluded with the named props, and only where there is a rest:
 	// `3-transform/server/visitors/VariableDeclaration.js` splices them into the object pattern
 	// ahead of the rest element for exactly that reason, and leaves a pattern without one alone.
+	// A prop whose name is not an identifier can only be written as a string --
+	// `let { 'kebab-case': x } = $props()` -- and no expression can read it by that name, where
+	// `kebab-case` is a subtraction. The payload object can, and `GIVEN` names it, so the read is a
+	// member of that object rather than a name in scope.
+	//
+	// The default is folded in here rather than left to the prop derivation, which stands over the
+	// payload's key **under a name**, and a name is the one thing this prop has not got. `GIVEN`
+	// holds what the request brought, before any default was applied.
+	for (const one of declares ?? []) {
+		if (one.rest === true || one.whole === true) continue;
+		if (/^[A-Za-z_$][\w$]*$/.test(one.prop)) continue;
+		const at = `${GIVEN}[${JSON.stringify(one.prop)}]`;
+		const held = one.at === undefined ? null : declared.rewrite(one.at);
+		renamed.set(one.local, held === null ? at : `(${at} === undefined ? (${held}) : ${at})`);
+	}
 	const rest = (declares ?? []).find((one) => one.rest === true);
 	if (rest !== undefined) {
 		const named = (declares ?? [])

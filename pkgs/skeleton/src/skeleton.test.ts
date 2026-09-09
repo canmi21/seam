@@ -2267,6 +2267,20 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A prop whose name is not an identifier can only be written as a string, and no expression
+		// can read it by that name -- `kebab-case` is a subtraction. The payload object can, and
+		// `GIVEN` names it. The default is folded in here rather than left to the prop derivation,
+		// which stands over the payload's key under a name, and a name is what this prop has not got.
+		name: 'an entry prop whose name is not an identifier',
+		source:
+			"<script>let { data, 'kebab-case': k, 'a-b': ab = 'd' } = $props();</script>" +
+			'<p>{k}|{ab}</p><b>{data.a}</b>',
+		props: [
+			{ data: { a: 'x' }, 'kebab-case': 'v', 'a-b': 'g' },
+			{ data: { a: '<&' }, 'kebab-case': '<&' },
+		],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request
@@ -3359,14 +3373,6 @@ const refused: Case[] = [
 		name: 'an `export { }` naming something a pattern binds',
 		says: 'a pattern binds',
 		source: '<script>let { a, b } = { a: 1, b: 2 }; export { a };</script><p>{a}{b}</p>',
-	},
-	{
-		// A path may hold it -- the injector splits on dots and looks the segment up -- but every
-		// expression this compiler writes is JavaScript, where `kebab-case` is a subtraction. So it
-		// is refused rather than turned into a path that works until something derives from it.
-		name: 'an entry prop whose name is not an identifier',
-		says: 'not an identifier',
-		source: "<script>let { data, 'kebab-case': k } = $props();</script><p>{k}</p><b>{data.a}</b>",
 	},
 	{
 		// A `<select>` carrying a spread goes through `renderer.select` rather than `$.attributes`,
