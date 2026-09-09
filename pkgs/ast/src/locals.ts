@@ -243,6 +243,8 @@ function declared(
 	 * props are the payload; a child's are bound at its call site and arrive as `bound`.
 	 */
 	props: ReadonlySet<string> = new Set(),
+	/** Whether this is the entry, whose props object is the payload bound under `GIVEN`. */
+	entry = false,
 ): Map<string, Declared> {
 	const found = new Map<string, Declared>();
 
@@ -320,6 +322,18 @@ function declared(
 				// disproves in a line. See spec/derivation.md.
 				if (init['type'] === 'CallExpression') {
 					const rune = runeCalled(init['callee']);
+					// `let props = $props()` binds the whole object a caller passed rather than
+					// destructuring it. `transform-server.js` writes `$$sanitized_props =
+					// sanitize_props($$props)` and that is what the call returns, so for the entry it is
+					// the payload, bound under `GIVEN` the way a bare `$$props` read already is. A
+					// child's is a different object -- what its call site passed -- and stays unrecorded,
+					// which reports the name where it is read.
+					if (rune === '$props' && entry && id['type'] === 'Identifier') {
+						if (typeof id['name'] === 'string') {
+							record(id['name'], id, { literal: `(${GIVEN})`, reads: true, holds: '{}' });
+						}
+						continue;
+					}
 					// The id Svelte's server writes into a `<!--$id-->` anchor and the client reads back
 					// from it. Not a value this pass can substitute: it is decided per instance when the
 					// bytes are written, so the name stands for a binding the runtime makes there, and
@@ -1660,7 +1674,7 @@ export function locals(
 ): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const carried = requested(ast['instance']);
-	const found = declared(ast, source, carried, fresh, props) as Map<
+	const found = declared(ast, source, carried, fresh, props, bound === undefined) as Map<
 		string,
 		Declared & { node: Node }
 	>;
@@ -1898,11 +1912,13 @@ export function locals(
 					.filter((one) => one.reads)
 					.map((one): [string, Neutral] => {
 						const text = one.literal ?? slice(one.node, new Set([one.name]), bound);
-						const settled = !mentions(text, dynamic ?? carried) ? text : one.holds;
+						// `GIVEN` is the payload object, which the render is not given any more than it
+						// is given a payload name. A declaration standing for it is neutralised for the
+						// same reason one reading a prop is, and Svelte refuses a `$$` name outright.
+						const held = new Set([...(dynamic ?? carried), GIVEN]);
+						const settled = !mentions(text, held) ? text : one.holds;
 						if (process.env['SEAM_TRACE'] !== undefined && settled !== text) {
-							const mentioned = [...(dynamic ?? carried)].filter((each) =>
-								mentions(text, new Set([each])),
-							);
+							const mentioned = [...held].filter((each) => mentions(text, new Set([each])));
 							console.error(
 								`[seam] neutralised \`${one.name}\` mentioning ${mentioned.join(', ') || '(unparsable)'}: ` +
 									text.replace(/\s+/g, ' ').slice(0, 240),

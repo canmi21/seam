@@ -687,6 +687,22 @@ returning is not bytes; both the render and the artifact call it, so a line is w
 is a log rather than a difference in what is served. Eight of Svelte's samples log from markup and
 were refused for reading a name the data does not carry.
 
+## `$props()` bound to a name is the payload itself
+
+`let { a, b } = $props()` destructures the object a caller passed and each name is a payload path.
+`let props = $props()` binds the object, and `transform-server.js` says what that object is:
+`$$sanitized_props = sanitize_props($$props)`, which is what the call returns. For the entry that
+is the payload, bound under `GIVEN` -- the same object a bare `$$props` read already stands for.
+
+The render keeps the call as written, because Svelte compiles it to that same expression and a
+render given no props gets an empty object. What is neutralised is the declaration, for the reason
+one reading a prop is: `GIVEN` is not a name the render has, and Svelte refuses a `$$` name
+outright. So it joins the set of names that decide whether a declaration is handed something
+harmless.
+
+**A child's is a different object.** What its call site passed is bound prop by prop, so a child
+binding `$props()` to a name stays unrecorded and the name is reported where it is read.
+
 ## A store read is the store's value, where the store is a declaration
 
 `$foo` is a subscription: Svelte compiles it to `store_get($$store_subs, '$foo', foo)`, which

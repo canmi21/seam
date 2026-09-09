@@ -1499,6 +1499,16 @@ const accepted: Case[] = [
 		data: [{ n: 3 }],
 	},
 	{
+		// `$props()` bound to a name rather than destructured binds the whole object a caller passed.
+		// `transform-server.js` writes `$$sanitized_props = sanitize_props($$props)` and that is what
+		// the call returns, so for the entry it is the payload -- the same object a bare `$$props`
+		// read already stands for. The render keeps the call as written and is given nothing, so the
+		// declaration is neutralised there the way one reading a prop is.
+		name: 'the entry binding `$props()` to a name',
+		source: '<script>let props = $props();</script><p>{props.a}|{props.n ?? 0}</p>',
+		props: [{ a: 'v', n: 3 }, { a: '<&' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
