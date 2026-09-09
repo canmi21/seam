@@ -353,6 +353,7 @@ export const CARRIED = [
 	'attributes',
 	'clsx',
 	'exclude_from_object',
+	'get_store',
 	'stringify',
 	'to_array',
 ] as const;

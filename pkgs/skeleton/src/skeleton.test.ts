@@ -2497,6 +2497,20 @@ const accepted: Case[] = [
 		data: [{ n: 3 }, { n: 0 }],
 	},
 	{
+		// `$foo` is a subscription to the store `foo`, which Svelte compiles to
+		// `store_get($$store_subs, '$foo', foo)`. Where `foo` is a declaration this pass substitutes,
+		// the read is the store's value -- `get` from `svelte/store`, which subscribes, takes it and
+		// unsubscribes, Svelte's own holding the subscription until a teardown a derivation has not
+		// got. It used to reach the evaluator as the bare name and throw `$foo is not defined` per
+		// request.
+		name: 'a store read where the store is a declaration',
+		source:
+			"<script>import { writable } from 'svelte/store'; let { data } = $props();" +
+			" const n = writable(42); const t = writable('x');</script>" +
+			'<p>{$n}</p><p class:on={$n > 1}>{$t}{data.a}</p>',
+		data: [{ a: '1' }, { a: '<' }],
+	},
+	{
 		// A `--x` on a component is not a prop: `build_inline_component` collects it into
 		// `custom_css_props` and `$.css_props` writes it into a wrapper's `style`, escaped the way
 		// an attribute is. It takes a marker like any other value written into the bytes, where it

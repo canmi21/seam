@@ -293,7 +293,12 @@ export interface Locals {
  * refusing it would refuse the ordinary way an event handler is written. A function the markup
  * *calls* does run, and that is `losing()` below.
  */
-function assigned(block: unknown, names: ReadonlySet<string>): Set<string> {
+function assigned(
+	block: unknown,
+	names: ReadonlySet<string>,
+	/** Report the store behind a `$x` target rather than the name written. See `locals()`. */
+	stores = false,
+): Set<string> {
 	const found = new Set<string>();
 
 	/** The name an assignment target names, whether it is `x`, `x.a` or `x[0]`. */
@@ -301,7 +306,9 @@ function assigned(block: unknown, names: ReadonlySet<string>): Set<string> {
 		let at = target;
 		while (isNode(at) && at['type'] === 'MemberExpression') at = at['object'];
 		if (!isNode(at) || at['type'] !== 'Identifier') return null;
-		return typeof at['name'] === 'string' ? at['name'] : null;
+		const name = typeof at['name'] === 'string' ? at['name'] : null;
+		if (!stores || name === null || !name.startsWith('$')) return name;
+		return name.slice(1);
 	};
 
 	const walk = (node: unknown): void => {
@@ -319,8 +326,31 @@ function assigned(block: unknown, names: ReadonlySet<string>): Set<string> {
 			return;
 		}
 		if (type === 'AssignmentExpression' || type === 'UpdateExpression') {
-			const name = rootOf(node[type === 'UpdateExpression' ? 'argument' : 'left']);
-			if (name !== null && names.has(name)) found.add(name);
+			// Every name the target binds, not only its root: `[$a, $b] = c` and `({ x: $a } = c)`
+			// assign through a pattern, and each name in one is a target of its own. Only for the
+			// store scan: the refusal above is the surface it already had, and widening what counts
+			// as an assignment there refuses components that were rendering correctly.
+			const targets: unknown[] = [];
+			const spread = (one: unknown): void => {
+				if (Array.isArray(one)) {
+					for (const each of one) spread(each);
+					return;
+				}
+				if (!isNode(one)) return;
+				const held = one['type'];
+				if (held === 'Identifier' || held === 'MemberExpression') {
+					targets.push(one);
+					return;
+				}
+				for (const value of Object.values(one)) spread(value);
+			};
+			const held = node[type === 'UpdateExpression' ? 'argument' : 'left'];
+			if (stores) spread(held);
+			else targets.push(held);
+			for (const target of targets) {
+				const name = rootOf(target);
+				if (name !== null && names.has(name)) found.add(name);
+			}
 		}
 		for (const value of Object.values(node)) walk(value);
 	};
@@ -512,6 +542,9 @@ function reactive(
  * shape of a call says which. Anything not here is left alone, and that is the hole.
  */
 const CALLS = new Set(['run', 'untrack']);
+
+/** Svelte's own `$$`-prefixed names, which are not a subscription to a store called `$props`. */
+const RESERVED = new Set(['$$props', '$$restProps', '$$slots']);
 
 /** The three shapes a function is written in, whose body does not run where it is written. */
 const FUNCTIONS = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
@@ -1407,6 +1440,16 @@ export function locals(
 	}
 	losing(ast, found as Map<string, Declared & { node: Node; free: Set<string> }>, names);
 
+	// Stores the script itself writes: `$count += 1` sets the store before the template runs, so
+	// the value the markup reads is the one those statements left. The render runs the script and
+	// has it; a derivation does not, and reading the store fresh would give what it was declared
+	// with. So a subscription to one of these is left as written, for the render, which is what it
+	// was before the read below was expanded at all.
+	const settled = new Set([
+		...assigned(ast['module'], names, true),
+		...assigned(ast['instance'], names, true),
+	]);
+
 	const expanded = new Map<string, string>();
 
 	function slice(
@@ -1446,7 +1489,23 @@ export function locals(
 			// that calls it. It wins over a script declaration of the same name, being the inner
 			// scope.
 			const given = extra?.get(name);
-			if (given === undefined && !found.has(name)) return;
+			// `$foo` is a subscription to the store `foo`, which Svelte compiles to
+			// `store_get($$store_subs, '$foo', foo)`. Where `foo` is a declaration this pass can
+			// substitute, the read is the store's value: `get` from `svelte/store`, which subscribes,
+			// takes the value and unsubscribes -- Svelte's own `store_get` keeps the subscription
+			// until the render tears down, and a derivation has no teardown to hang it on. Where
+			// `foo` is what the request brought, `subscribing()` refuses it instead.
+			const store = name.startsWith('$') && !RESERVED.has(name) ? name.slice(1) : null;
+			if (given === undefined && !found.has(name)) {
+				if (store === null || !found.has(store) || settled.has(store)) return;
+				const from = at['start'];
+				const to = at['end'];
+				if (typeof from !== 'number' || typeof to !== 'number') return;
+				if (taken.has(from)) return;
+				const read = `($$get_store(${expand(store, open, extra)}))`;
+				edits.push([from, to, shorthand === true ? `${name}: ${read}` : read]);
+				return;
+			}
 			const from = at['start'];
 			const to = at['end'];
 			if (typeof from !== 'number' || typeof to !== 'number') return;

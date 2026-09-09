@@ -386,5 +386,11 @@ export function helpers(rendered: Skeleton): Carried[] {
 	if (written.some((one) => one.includes('$$to_array('))) {
 		found.push({ local: '$$to_array', from, kind: 'named', exported: 'to_array' });
 	}
+	// `$foo` is a subscription to the store `foo`. `get` subscribes, takes the value and
+	// unsubscribes, which is the one-shot read a derivation needs: Svelte's own `store_get` holds
+	// the subscription until the render tears down, and there is no teardown here.
+	if (written.some((one) => one.includes('$$get_store('))) {
+		found.push({ local: '$$get_store', from: 'svelte/store', kind: 'named', exported: 'get' });
+	}
 	return found;
 }

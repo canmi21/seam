@@ -486,6 +486,23 @@ expression -- `items.includes(item)` is one derivation with the array literal in
 nothing to share, and the array is built again. Holding a declaration rather than substituting it
 is what closes that, and it is the open item under Substitution below.
 
+## A store read is the store's value, where the store is a declaration
+
+`$foo` is a subscription: Svelte compiles it to `store_get($$store_subs, '$foo', foo)`, which
+subscribes, keeps the value, and unsubscribes when the render tears down. Where `foo` is a
+declaration this pass substitutes, the read is that value -- `get` from `svelte/store`, carried like
+the other helpers, which subscribes, takes the value and unsubscribes at once. Svelte's own is not
+usable here: it hangs the subscription on a teardown a derivation has not got.
+
+Where `foo` is what the request brought, this does not apply and the subscription stays refused: a
+store is an object with a `subscribe` function and the payload carries data.
+
+**And where the script itself writes the store, the read is left as written.** `$count += 1` in the
+instance script sets the store before the template runs, so the value the markup reads is the one
+those statements left. The render runs the script and has it; a derivation does not, and would read
+what the store was declared with. So the expansion is made only for a store nothing in the script
+assigns to -- which is what the render was already answering correctly.
+
 ## A name is only its initialiser while nothing changes what it holds
 
 `transform-server.js` puts the instance script's statements at the top of the component function
