@@ -21,7 +21,22 @@ function idOf(root: string, file: string): string {
  * entries in different directories would each name a shared component differently, so the same
  * file would appear twice under two ids and never merge. See spec/build.md.
  */
-export function bundle(entryFile: string, projectRoot: string): Bundle {
+export function bundle(
+	entryFile: string,
+	projectRoot: string,
+	/**
+	 * Files whose names the caller has already resolved, by root-relative path, and which are not
+	 * asked again here.
+	 *
+	 * The entry is one: `skeleton()` checks it against the source the walk read, with the branches
+	 * the walk folded away blanked out -- markup no request reaches, where a name that resolves
+	 * nowhere reaches no bytes either. This pass reads the file from disk, and the walk's source is
+	 * not the file: `unbound` and `inlined` rewrite it before the walk sees it, so an offset from
+	 * one does not name the same characters in the other. Asking once, where the offsets are the
+	 * walk's, is what keeps the two from disagreeing. See spec/derivation.md.
+	 */
+	checked: ReadonlySet<string> = new Set(),
+): Bundle {
 	const entry = resolve(entryFile);
 	const root = resolve(projectRoot);
 	const components: Record<string, Module> = {};
@@ -38,7 +53,8 @@ export function bundle(entryFile: string, projectRoot: string): Bundle {
 		// Before anything is read out of the markup, every name in it has to come from somewhere.
 		// A local variable and a payload key are indistinguishable by shape, so without this a
 		// component compiles and renders an empty string where the value should be.
-		resolved(source, relative(root, file), file);
+		const at = relative(root, file);
+		if (!checked.has(at)) resolved(source, at, file);
 
 		const module = reduce(source);
 		const targets: Record<string, string> = {};

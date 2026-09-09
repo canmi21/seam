@@ -194,6 +194,17 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '<&' }],
 	},
 	{
+		// The name check is owed a name that would have reached the bytes as nothing. A branch behind
+		// a test the request does not decide reaches no bytes at all, so a name that resolves nowhere
+		// inside one is not a name the data has to carry -- Svelte compiles such a branch and never
+		// runs it, and never asks about the name either.
+		name: 'a name read only where nothing renders',
+		source:
+			'<script>let { data } = $props(); let hidden = $state(false);</script>' +
+			'{#if hidden}<p>{nowhere}</p>{/if}<p>{data.a}</p>',
+		data: [{ a: 'x' }],
+	},
+	{
 		name: 'a block inside an else-if branch',
 		source: `${PROPS}{#if data.f}<p>a</p>{:else if data.g}{#if data.h}<p>b</p>{/if}{/if}`,
 		data: [

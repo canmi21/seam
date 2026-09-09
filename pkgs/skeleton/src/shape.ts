@@ -229,6 +229,15 @@ export interface Skeleton {
 	holes: Hole[];
 	blocks: Block[];
 	/**
+	 * The markup no request reaches, by path relative to the root, as spans of that file's source.
+	 *
+	 * A branch behind a test the request does not decide, and which the answer excludes, is dead
+	 * for every request rather than only for one render -- so the name check is asked about the
+	 * source with those spans blanked. Lowering ignores it; it is here because `bundle()` runs that
+	 * check over the whole tree and needs what the walk found. Absent where there is none.
+	 */
+	dead?: Record<string, [number, number][]>;
+	/**
 	 * Every component the walk went inside, as paths relative to the root the render was given.
 	 *
 	 * A child the walk entered has its own expressions become derivations in the entry's artifact,

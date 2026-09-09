@@ -573,6 +573,19 @@ with no argument holds -- `3-transform/server/visitors/VariableDeclaration.js` w
 anchors, not whether there is a block: the tests are written out as `true` and `false` and Svelte
 writes the same anchors it would have written for any other `{#if}`.
 
+**A name read only there is not a name the data has to carry.** The check that every name resolves
+exists because a local and a payload key look the same, so a name nothing binds renders as an empty
+string and says nothing. A folded branch renders nothing at all, so there is no byte for the name
+to be wrong in -- and Svelte, which compiles the branch and never runs it, never asks about the
+name either. The walk records what it folded, by file, and the check reads the source with those
+spans blanked, every other offset where it was.
+
+**It is asked once, and where the offsets are the walk's.** `bundle()` runs the same check over the
+whole tree the entry reaches, and it reads each file from disk -- which is not the source the walk
+read, since `unbound` and `inlined` rewrite it first. An offset from one does not name the same
+characters in the other, and blanking by them turned `</label>` into `<` and stopped the parser. So
+the entry is checked where the walk is and is not asked again there.
+
 ## One derivation per expression, not per read of it
 
 A declaration is written out wherever the markup reads it, so `{#each items as item}` and the

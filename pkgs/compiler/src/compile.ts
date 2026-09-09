@@ -185,7 +185,9 @@ export async function prepare(
 	);
 	// Run for its refusals as much as for its result: it is the pass that says every name resolves,
 	// over the whole tree the entry reaches rather than over the entry alone.
-	const markup = timedSync('bundle (name resolution)', () => bundle(entry, root));
+	const markup = timedSync('bundle (name resolution)', () =>
+		bundle(entry, root, new Set([relative(resolve(root), entry)])),
+	);
 	return {
 		id: idOf(resolve(root), entry),
 		file: entry,

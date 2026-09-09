@@ -120,7 +120,12 @@ export async function skeleton(
 	// parameters. Checking names first reports the name and hides the construct, which points the
 	// author at the wrong thing. The walk above refuses the construct, so what reaches here is a
 	// name in markup the compiler does understand.
-	resolved(source, basename(file), file);
+	// The markup the walk folded away is blanked first, keeping every other offset where it was.
+	// A branch behind a test the request does not decide, and which the answer excludes, is dead
+	// for every request rather than only for this render -- and what the check owes an author is a
+	// name that would have reached the bytes as nothing. There are no bytes there. Svelte compiles
+	// such a branch and never runs it, so a name in one is not a name it asks about either.
+	resolved(blanked(source, baseline.dead.get(relative(root, file)) ?? []), basename(file), file);
 	// A render that fails is nearly always a component the walk could not enter and Svelte then
 	// rendered without the data it needed. The author was shown that crash and never the refusal
 	// behind it, so both are said here, the refusals first.
@@ -313,6 +318,10 @@ export async function skeleton(
 		// absolute path says which machine built it.
 		entered: [...new Set(baseline.copies.map((copy) => relative(root, copy.file)))],
 		payload: baseline.payload,
+		// Left out where there is none, which is nearly every component: this is recorded in the
+		// corpus and a key holding an empty object is churn in every fixture for the sake of the few
+		// that have one.
+		...(baseline.dead.size === 0 ? {} : { dead: Object.fromEntries(baseline.dead) }),
 	};
 }
 
@@ -362,6 +371,16 @@ export function expressionsOf(rendered: Skeleton): { expression: string; files: 
  * Here rather than in the compiler so that the check gathers with the function the build gathers
  * with, over the same holes.
  */
+/** The source with a span replaced by spaces, so every offset outside it is where it was. */
+function blanked(source: string, spans: readonly [number, number][]): string {
+	if (spans.length === 0) return source;
+	let held = source;
+	for (const [from, to] of spans) {
+		held = held.slice(0, from) + ' '.repeat(to - from) + held.slice(to);
+	}
+	return held;
+}
+
 export function helpers(rendered: Skeleton): Carried[] {
 	const found: Carried[] = [];
 	const from = 'svelte/internal/server';

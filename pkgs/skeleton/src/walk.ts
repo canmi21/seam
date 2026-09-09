@@ -496,6 +496,16 @@ export interface Walk {
 	/** Every snippet this component declares, by name, with how many parameters it takes. */
 	snippets: ReadonlyMap<string, Snippet>;
 	pending: PendingChoice[];
+	/**
+	 * The markup the walk folded away, by root-relative path: what no request reaches.
+	 *
+	 * Only a branch behind a test the request does not decide, so it is dead for every request and
+	 * not only for this render. What the name check owes an author is a name that would have gone
+	 * into the bytes as nothing; there are no bytes here. Shared by reference across the walk, the
+	 * way the copies and the choices are, so a component entered anywhere records under its own
+	 * name. See `resolved()` in the ast package.
+	 */
+	dead: Map<string, [number, number][]>;
 	within: [number, number][];
 	site: Site;
 	/** What the request decides, in the scope the call site sits in. */
@@ -639,6 +649,8 @@ export interface Rewritten {
 	source: string;
 	/** The edits that made it, kept for the same reason. See `rechosen`. */
 	edits: Edit[];
+	/** The markup no request reaches, by root-relative path. See `Walk.dead`. */
+	dead: Map<string, [number, number][]>;
 	/** Every edit whose text a branch choice decides, the entry's and every copy's. */
 	choices: Choice[];
 	/** What a component `bind:` settles a name to, found on this pass. See `Site.sends`. */
@@ -2084,6 +2096,7 @@ function constantly(test: string): boolean | undefined {
  * what is decided here is which branch is inside them, not whether there is a block.
  */
 function oneBranch(
+	walk: Walk,
 	chain: readonly AstNode[],
 	chosen: number,
 	otherwise: unknown,
@@ -2093,9 +2106,25 @@ function oneBranch(
 	for (const [branch, one] of chain.entries()) {
 		const at = span(one['test']);
 		if (at !== null) edits.push([at[0], at[1], branch === chosen ? 'true' : 'false']);
+		if (branch !== chosen) buried(walk, one['consequent']);
 	}
 	if (chosen >= 0) step(chain[chosen]?.['consequent']);
 	else if (isNode(otherwise)) step(otherwise);
+	if (chosen >= 0) buried(walk, otherwise);
+}
+
+/** A fragment nothing renders, recorded by the span its own nodes cover. */
+function buried(walk: Walk, fragment: unknown): void {
+	if (!isNode(fragment)) return;
+	const nodes = Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	const spans = nodes.map((one) => span(one)).filter((one) => one !== null);
+	const [first] = spans;
+	const last = spans[spans.length - 1];
+	if (first === undefined || last === undefined) return;
+	const key = relative(walk.site.root, walk.site.file);
+	const held = walk.dead.get(key);
+	if (held === undefined) walk.dead.set(key, [[first[0], last[1]]]);
+	else held.push([first[0], last[1]]);
 }
 
 function settled(expression: string, walk: Walk): string {
@@ -4453,7 +4482,7 @@ function collect(node: unknown, walk: Walk): void {
 			// here is what keeps the walk out of a branch that is never written. See `constantly()`.
 			const constants = tests.map((one) => constantly(one));
 			if (constants.every((one) => one !== undefined)) {
-				oneBranch(chain, constants.indexOf(true), otherwise, edits, step);
+				oneBranch(walk, chain, constants.indexOf(true), otherwise, edits, step);
 				return;
 			}
 
@@ -4472,7 +4501,7 @@ function collect(node: unknown, walk: Walk): void {
 			) {
 				const answers = tests.map((test) => site.decided.get(test));
 				if (answers.every((one) => one !== undefined)) {
-					oneBranch(chain, answers.indexOf(true), otherwise, edits, step);
+					oneBranch(walk, chain, answers.indexOf(true), otherwise, edits, step);
 					return;
 				}
 				for (const [at, test] of tests.entries()) {
@@ -5333,6 +5362,7 @@ function descend(
 			...walk,
 			source: raw,
 			edits: inner,
+
 			within: recursion === null ? walk.within : [...walk.within, [fragmentAt, 0]],
 			expand: (child, extra) =>
 				declared.rewrite(child, new Map([...bound, ...(extra ?? new Map())]), walk.sent),
@@ -5699,6 +5729,8 @@ export function rewrite(
 	);
 	/** Filled by the walk, read by the defaults below, which is why they are built after it. */
 	const stood = new Set<string>();
+	/** The markup no request reaches, by file, for the name check to leave alone. */
+	const dead = new Map<string, [number, number][]>();
 	const missed: { file: string; reason: string }[] = [];
 	const handed: Handed[] = [];
 	const spreads: PendingSpread[] = [];
@@ -5757,6 +5789,7 @@ export function rewrite(
 		sent,
 		snippets,
 		pending,
+		dead,
 		within: recursion === null ? [] : [[0, 0]],
 		site: {
 			file,
@@ -5896,6 +5929,7 @@ export function rewrite(
 		source,
 		edits,
 		choices,
+		dead,
 		sends,
 		holes,
 		blocks,
