@@ -1313,6 +1313,36 @@ const accepted: Case[] = [
 		data: [{ xs: [1, 2, 3] }],
 	},
 	{
+		// Destructuring uses the iterator protocol -- Svelte's server writes plain JavaScript and lets
+		// the engine do it -- so reading `value[0]` is the same answer for an array and no answer at
+		// all for anything else. Red without `to_array`: a `Set` wrote nothing where Svelte writes
+		// its two members, silently, which is the shape this exists to stop. The count is the one
+		// `_extract_paths` passes, and it caps an unbounded iterable rather than exhausting it.
+		name: 'an array pattern over something that is not an array',
+		source: '<script>let { data } = $props(); let [a, b] = data.src;</script><p>{a}-{b}</p>',
+		data: [{ src: new Set(['p', 'q']) }],
+	},
+	{
+		// `_extract_paths` in `compiler/utils/ast.js` answers the same question for the client, and a
+		// rest is the one way in that wraps the value rather than following it:
+		// `exclude_from_object(v, keys)` over every key the pattern named. That is why what a name
+		// reaches its value by is a template rather than a suffix.
+		name: 'a rest in a declaration gathers what the pattern did not name',
+		source:
+			'<script>let { data } = $props(); const { a, ...rest } = data.o;</script>' +
+			'<p>{a}|{JSON.stringify(rest)}</p>',
+		data: [{ o: { a: 1, b: 2, c: 3 } }],
+	},
+	{
+		// A nesting is one way in after another, and the two kinds alternate: a member, then the
+		// iterator, then a member again.
+		name: 'a nested pattern in a declaration',
+		source:
+			'<script>let { data } = $props(); const { o: { x }, xs: [, second] } = data;</script>' +
+			'<p>{x}|{second}</p>',
+		data: [{ o: { x: 'v' }, xs: ['a', 'b'] }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
@@ -2784,6 +2814,17 @@ const accepted: Case[] = [
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// A declaration is substituted at every read, so a value that is not the same twice is a
+		// different value at each of them. `Math.random` was already refused where the markup wrote
+		// it; this is the same rule reaching the declaration the markup read, and `Symbol()` is the
+		// shape that found it -- two reads, two symbols, and `false` where Svelte writes `true`.
+		name: 'a declaration the markup reaches holding a value that is not the same twice',
+		source:
+			'<script>let { data } = $props(); const s = Symbol(); const o = { [s]: data.a };</script>' +
+			'<p>{s in o}</p>',
+		says: 'the same twice',
+	},
 	{
 		// The store itself would have to be in the payload, and a store is an object with a
 		// `subscribe` function where the payload carries data. `store_get` handed a marker reads

@@ -418,6 +418,46 @@ replaces -- a rest or a nesting is neither a member nor an index, so it has no w
 own, carried the way `attributes` is, so the key emptying, the symbol handling and the iterable
 handling are upstream's rather than reproduced here.
 
+### A script's own pattern is the same question, answered twice
+
+A declaration in a script binds names the same way, and it was answered separately and worse: a
+member for a plain key, an **index** for an array, and nothing at all for a nesting, a rest or a
+default. Two of those three are now the table above.
+
+The index was not a smaller answer but a wrong one. Destructuring uses the iterator protocol, and
+`let [a, b] = src` over a `Set` wrote nothing where Svelte writes its two members -- silently,
+because the suite has no sample of that shape. `$$to_array` is the same call the markup's patterns
+already made, with **the count `_extract_paths` passes** where the pattern has no rest: it caps an
+unbounded iterable rather than exhausting it, and `let [one, two] = infinite()` is a declaration a
+real component writes. What that count costs is a primitive: `to_array` reaches the capped branch
+through `Symbol.iterator in value`, which throws on a string, so `let [a, b] = 'hi'` is a build
+error naming the call rather than bytes. Svelte's own server destructures it, so this is a gap.
+
+**What a name reaches its value by is a template, not a suffix.** A member follows the value and
+`exclude_from_object` wraps it, and a pattern may alternate the two -- `[{ a, ...r }]` is a wrap
+inside an index inside a wrap -- so the record holds an expression with the initialiser's place
+marked in it. It is written unparenthesised where the declaration named the value directly, because
+`export (function f() {})` is not JavaScript.
+
+**A default and a computed key stay out.** Both are expressions in the declaration's own scope, and
+the template is raw source that nothing expands names inside, so a default reading another
+declaration would reach a name the artifact does not carry. The markup's patterns can write them
+because they are given the expansion; this one is not, and reporting the name is the honest answer.
+
+**What the render is handed has to come apart at every level.** `{}` is enough for `{ a }` and not
+for `{ o: { x } }`, whose second level then destructures `undefined` and throws. The stand-in is
+built from the pattern instead: an object per object, an array per array, `null` at the leaves.
+
+### A substituted value has to read the same twice
+
+A declaration is substituted at every read, so a value that is not the same twice is a different
+value at each of them. `Math.random` was already refused where the markup wrote it. What nothing
+looked at was the declaration behind a name the markup read: `const s = Symbol()` beside `s in obj`
+made two symbols and wrote `false` where Svelte writes `true`, which is bytes rather than a
+refusal. The declarations the markup reaches are followed now, transitively, and checked for the
+same thing -- only for that, never for a name it cannot resolve, since a script may say whatever it
+likes as long as what it leaves behind reads the same twice.
+
 A computed key is expanded against what the pattern has bound before it: JavaScript binds a pattern
 left to right, and `{ length, [length - 1]: last }` reads the one from the other.
 

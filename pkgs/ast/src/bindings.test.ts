@@ -36,9 +36,18 @@ describe('a declared name is substituted into the expression that reads it', () 
 			'((data.t).a)',
 		],
 		[
+			// Through `to_array` and not by index: destructuring uses the iterator protocol, and the
+			// count is the one `_extract_paths` passes, which caps an unbounded iterable.
 			'an array destructuring',
 			'<script>let { data } = $props(); const [x] = data.t</script><b>{x}</b>',
-			'((data.t)[0])',
+			'($$to_array((data.t), 1)[0])',
+		],
+		[
+			// A rest wraps the value rather than following it, which is why what a name reaches its
+			// value by is a template rather than a suffix.
+			'a rest in an object pattern',
+			'<script>let { data } = $props(); const { a, ...rest } = data.t</script><b>{rest}</b>',
+			'($$exclude_from_object((data.t), ["a"]))',
 		],
 	];
 

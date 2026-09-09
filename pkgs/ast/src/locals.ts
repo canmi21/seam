@@ -1,6 +1,18 @@
 import { parse } from 'svelte/compiler';
 import { type Edit, type Neutral, apply } from './edits.ts';
-import { chains, destructure, free, isNode, type Node, reads, requested, WRAPS } from './scope.ts';
+import {
+	chains,
+	destructure,
+	free,
+	emptyFor,
+	INIT,
+	isNode,
+	type Node,
+	reads,
+	requested,
+	within,
+	WRAPS,
+} from './scope.ts';
 import { GIVEN } from './runes.ts';
 
 /**
@@ -21,11 +33,19 @@ export interface Declared {
 	at: [number, number];
 	/** Whether it reads a prop, which decides whether a render with no data can hold it. */
 	reads: boolean;
-	/** What follows the initialiser to reach this name: `.a` out of an object, `[0]` out of an
-	 * array, and nothing at all when the declaration named it directly. */
-	access: string;
-	/** What a render is handed in its place, which has to be destructurable when it was. */
-	holds: 'value' | 'callable' | 'object' | 'array';
+	/**
+	 * The expression that reaches this name from the initialiser, as a template over `INIT`: `INIT`
+	 * itself where the declaration named it directly, `INIT.a` out of an object, and a call around
+	 * it where a rest gathers what the pattern did not name. A template rather than a suffix
+	 * because `exclude_from_object` and `to_array` wrap the value rather than follow it, and a
+	 * pattern may alternate the two.
+	 */
+	reach: string;
+	/**
+	 * What a render is handed in its place, as source: `null` for a plain declaration, and a value
+	 * shaped like the pattern where it destructured, at every level. See `emptyFor`.
+	 */
+	holds: string;
 	/**
 	 * The rune the declaration was written with, where it was: `$state`, `$derived`. Svelte's
 	 * analysis reads a component tag naming such a declaration as dynamic and writes anchors
@@ -207,8 +227,8 @@ function declared(
 			node,
 			free: reading,
 			reads: [...reading].some((one) => names.has(one)),
-			access: '',
-			holds: 'value',
+			reach: INIT,
+			holds: 'null',
 			...extra,
 		} as Declared & { node: Node; free: Set<string> });
 	};
@@ -234,7 +254,7 @@ function declared(
 			if (kind === 'FunctionDeclaration' || kind === 'ClassDeclaration') {
 				const id = declaration['id'];
 				if (isNode(id) && typeof id['name'] === 'string') {
-					record(id['name'], declaration, { holds: 'callable', reads: false });
+					record(id['name'], declaration, { reads: false });
 				}
 				continue;
 			}
@@ -283,9 +303,9 @@ function declared(
 						continue;
 					}
 					if (rune !== null) {
-						const reach = SUBSTITUTED[rune];
+						const suffix = SUBSTITUTED[rune];
 						const argument = Array.isArray(init['arguments']) ? init['arguments'][0] : undefined;
-						if (reach === undefined) continue;
+						if (suffix === undefined) continue;
 						// A rune called with nothing is the same `void 0`, and reaching into it is not
 						// a step to take: there is nothing there to reach through.
 						if (!isNode(argument)) {
@@ -295,12 +315,12 @@ function declared(
 							continue;
 						}
 						if (id['type'] === 'Identifier' && typeof id['name'] === 'string') {
-							record(id['name'], argument, { access: reach, rune });
+							record(id['name'], argument, { reach: `${INIT}${suffix}`, rune });
 							continue;
 						}
-						const holds = id['type'] === 'ArrayPattern' ? 'array' : 'object';
+						const holds = emptyFor(id);
 						for (const [name, into] of destructure(id)) {
-							record(name, argument, { access: `${reach}${into}`, holds, rune });
+							record(name, argument, { reach: within(into, `(${INIT}${suffix})`), holds, rune });
 						}
 						continue;
 					}
@@ -309,12 +329,12 @@ function declared(
 					record(id['name'], init, {});
 					continue;
 				}
-				// A destructuring is the same substitution with the way in written after it, so
-				// `a` out of `{ a }` expands to `(init).a`. A default or a rest is neither a
-				// member nor an index, and is left out, which reports the name rather than
-				// guessing at it.
-				const holds = id['type'] === 'ArrayPattern' ? 'array' : 'object';
-				for (const [name, access] of destructure(id)) record(name, init, { access, holds });
+				// A destructuring is the same substitution with the way in written around it, so
+				// `a` out of `{ a }` expands to `(init).a` and a rest to the call that gathers what
+				// the pattern did not name. A default and a computed key are left out, which reports
+				// the name rather than guessing at it: see `destructure`.
+				const holds = emptyFor(id);
+				for (const [name, reach] of destructure(id)) record(name, init, { reach, holds });
 			}
 		}
 	}
@@ -357,13 +377,6 @@ function declared(
 	}
 	return found;
 }
-
-const EMPTY: Record<Declared['holds'], string> = {
-	value: 'null',
-	callable: 'null',
-	object: '{}',
-	array: '[]',
-};
 
 export interface Locals {
 	/** Whether the scripts declare this name. */
@@ -1785,7 +1798,11 @@ export function locals(
 		const body = slice(one.node, inner, extra);
 		// Parenthesised because what follows it is a member access, and because a function or a
 		// class only reads as an expression that way.
-		const written = one.access === '' ? body : `(${body})${one.access}`;
+		// Parenthesised only where something reaches into it: what follows is a member access, and a
+		// function or a class only reads as an expression that way. Where the declaration named the
+		// value directly the source stands as written, because a `function f() {}` wrapped in
+		// parentheses is no longer a declaration and `export (function f() {})` is not JavaScript.
+		const written = one.reach === INIT ? body : within(one.reach, `(${body})`);
 		// A name declared to be one of the bound paths holds that path's value in this render.
 		const path = fixed.size === 0 ? null : pathOf(written);
 		const text = (path === null ? undefined : fixed.get(path)) ?? written;
@@ -1822,9 +1839,8 @@ export function locals(
 				[...found.values()]
 					.filter((one) => one.reads)
 					.map((one): [string, Neutral] => {
-						const text = one.access === '' ? expand(one.name, new Set(), bound) : null;
-						const settled =
-							text !== null && !mentions(text, dynamic ?? carried) ? text : EMPTY[one.holds];
+						const text = one.reach === INIT ? expand(one.name, new Set(), bound) : null;
+						const settled = text !== null && !mentions(text, dynamic ?? carried) ? text : one.holds;
 						if (process.env['SEAM_TRACE'] !== undefined && text !== null && settled !== text) {
 							const mentioned = [...(dynamic ?? carried)].filter((each) =>
 								mentions(text, new Set([each])),

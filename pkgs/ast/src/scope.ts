@@ -316,28 +316,140 @@ export function declaredBy(node: unknown): [unknown, unknown][] {
 	return found;
 }
 
-export function destructure(pattern: Node): [string, string][] {
-	const found: [string, string][] = [];
-	if (pattern['type'] === 'ObjectPattern') {
+/**
+ * Where the initialiser goes in the expression a destructured name reaches its value by. It stands
+ * for the initialiser already parenthesised, so a template may follow it with a member or wrap it
+ * in a call and neither has to know what the other did.
+ */
+export const INIT = '$$init$$';
+
+/** One template with another put where its initialiser goes. */
+export function within(template: string, inner: string): string {
+	return template.split(INIT).join(inner);
+}
+
+/**
+ * Every name a declaration's pattern binds, and the expression that reaches each one, written as a
+ * template over `INIT`.
+ *
+ * Read forward out of `_extract_paths` in `compiler/utils/ast.js`, which answers the same question
+ * for the client transform: a key is a member, a nesting is one way in after another, an object's
+ * rest is `exclude_from_object(v, keys)` over every key the pattern named, and an array's rest is
+ * `to_array(v).slice(n)`.
+ *
+ * **An array is read through `to_array` and not by index.** Destructuring uses the iterator
+ * protocol -- Svelte's server writes plain JavaScript and lets the engine do it -- and `value[0]`
+ * is the same answer for an array and no answer at all for anything else. `let [a, b] = src` over a
+ * `Set` wrote nothing where Svelte wrote its two members, silently, which is what this is here to
+ * stop. The count `_extract_paths` passes is left off, for the reason `takenApart` in `walk.ts`
+ * gives: it caps an unbounded iterator through a `Symbol.iterator in value` test that throws on a
+ * primitive.
+ *
+ * **A default and a computed key are left out**, which reports the name rather than guessing at it.
+ * Both are expressions in the declaration's own scope and this template is raw source: nothing
+ * expands a name inside it, so a default reading another declaration would reach a name the
+ * artifact does not carry. `takenApart` can write them because it is given the expansion.
+ */
+/**
+ * What a render is handed in place of an initialiser it cannot evaluate, shaped so the pattern
+ * still comes apart at every level.
+ *
+ * `{}` is enough for `{ a }` and not for `{ o: { x } }`: the second level then destructures
+ * `undefined` and the render throws where it used to be handed a value. A rest gathers nothing
+ * from what this builds, which is what it should gather from a value nobody has.
+ */
+export function emptyFor(pattern: unknown): string {
+	if (!isNode(pattern)) return 'null';
+	const type = pattern['type'];
+	if (type === 'AssignmentPattern') return emptyFor(pattern['left']);
+	if (type === 'RestElement') return emptyFor(pattern['argument']);
+	if (type === 'ObjectPattern') {
+		const parts: string[] = [];
 		for (const property of Array.isArray(pattern['properties']) ? pattern['properties'] : []) {
 			if (!isNode(property) || property['type'] !== 'Property') continue;
+			if (property['computed'] === true) continue;
 			const key = property['key'];
-			const value = property['value'];
-			if (!isNode(key) || !isNode(value) || value['type'] !== 'Identifier') continue;
-			const from = property['computed'] === true ? undefined : key['name'];
-			if (typeof from !== 'string' || typeof value['name'] !== 'string') continue;
-			found.push([value['name'], `.${from}`]);
+			if (!isNode(key)) continue;
+			const name =
+				key['type'] === 'Identifier' && typeof key['name'] === 'string'
+					? key['name']
+					: key['type'] === 'Literal'
+						? String(key['value'])
+						: null;
+			if (name === null) continue;
+			parts.push(`${JSON.stringify(name)}: ${emptyFor(property['value'])}`);
 		}
-		return found;
+		return `{ ${parts.join(', ')} }`;
 	}
-	if (pattern['type'] === 'ArrayPattern') {
-		const elements = Array.isArray(pattern['elements']) ? pattern['elements'] : [];
-		for (const [at, element] of elements.entries()) {
-			if (!isNode(element) || element['type'] !== 'Identifier') continue;
-			if (typeof element['name'] !== 'string') continue;
-			found.push([element['name'], `[${at}]`]);
+	if (type === 'ArrayPattern') {
+		const parts: string[] = [];
+		for (const element of Array.isArray(pattern['elements']) ? pattern['elements'] : []) {
+			if (isNode(element) && element['type'] === 'RestElement') break;
+			parts.push(emptyFor(element));
 		}
+		return `[${parts.join(', ')}]`;
 	}
+	return 'null';
+}
+
+export function destructure(pattern: Node): [string, string][] {
+	const found: [string, string][] = [];
+	const one = (target: unknown, reached: string): void => {
+		if (!isNode(target)) return;
+		const type = target['type'];
+		if (type === 'Identifier' && typeof target['name'] === 'string') {
+			found.push([target['name'], reached]);
+			return;
+		}
+		if (type === 'ObjectPattern') {
+			// The keys a rest leaves out, in the order Svelte writes them: a plain name as itself and
+			// a literal as its value read as a string.
+			const taken: string[] = [];
+			for (const property of Array.isArray(target['properties']) ? target['properties'] : []) {
+				if (!isNode(property)) continue;
+				if (property['type'] === 'RestElement') {
+					one(property['argument'], `$$exclude_from_object(${reached}, [${taken.join(', ')}])`);
+					continue;
+				}
+				if (property['type'] !== 'Property') continue;
+				const key = property['key'];
+				if (!isNode(key) || property['computed'] === true) return;
+				if (key['type'] === 'Identifier' && typeof key['name'] === 'string') {
+					taken.push(JSON.stringify(key['name']));
+					one(property['value'], `${reached}.${key['name']}`);
+					continue;
+				}
+				if (key['type'] !== 'Literal') return;
+				taken.push(JSON.stringify(String(key['value'])));
+				one(property['value'], `${reached}[${JSON.stringify(String(key['value']))}]`);
+			}
+			return;
+		}
+		if (type === 'ArrayPattern') {
+			const elements = Array.isArray(target['elements']) ? target['elements'] : [];
+			// The count `_extract_paths` passes, and what it is for: `to_array` caps an unbounded
+			// iterable at `n` rather than exhausting it, and `let [one, two] = infinite()` is a
+			// declaration a real component writes. It is passed only where the pattern has no rest,
+			// which is the same test `_extract_paths` makes -- a rest wants everything, so there is
+			// no count to cap at.
+			const rest = elements.some((one) => isNode(one) && one['type'] === 'RestElement');
+			const listed = rest
+				? `$$to_array(${reached})`
+				: `$$to_array(${reached}, ${String(elements.length)})`;
+			for (const [at, element] of elements.entries()) {
+				if (!isNode(element)) continue;
+				if (element['type'] === 'RestElement') {
+					one(element['argument'], `${listed}.slice(${String(at)})`);
+					continue;
+				}
+				one(element, `${listed}[${String(at)}]`);
+			}
+			return;
+		}
+		// An `AssignmentPattern` lands here, and so does anything else: the name goes unrecorded and
+		// the pass that resolves names reports it rather than this pass guessing at it.
+	};
+	one(pattern, INIT);
 	return found;
 }
 

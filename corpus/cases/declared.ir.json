@@ -62,7 +62,7 @@
 		},
 		{
 			"name": "__d1",
-			"expression": "((data.tags)[0])",
+			"expression": "($$to_array((data.tags), 1)[0])",
 			"scope": null,
 			"files": ["declared.svelte"]
 		},

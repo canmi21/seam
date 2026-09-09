@@ -40,11 +40,9 @@ describe('a name that cannot resolve is refused, by name', () => {
 		],
 		['a clock', '<script>let { data } = $props()</script><b>{Date.now()}</b>', 'Date'],
 		[
-			'a rest element, which is neither a member nor an index',
-			'<script>let { data } = $props(); const { a, ...rest } = data.t</script><b>{rest}</b>',
-			'rest',
-		],
-		[
+			// A default is an expression in the declaration's own scope, and what a name reaches its
+			// value by is raw source that nothing expands names inside. So it is left out, which
+			// reports the name rather than guessing at it. See `destructure`.
 			'a default inside a pattern',
 			'<script>let { data } = $props(); const { a = 1 } = data.t</script><b>{a}</b>',
 			'a',

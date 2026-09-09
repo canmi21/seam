@@ -17,7 +17,7 @@
 		},
 		{
 			"index": 2,
-			"expression": "((data.tags)[0])",
+			"expression": "($$to_array((data.tags), 1)[0])",
 			"raw": false,
 			"files": ["declared.svelte"]
 		},

@@ -66,6 +66,17 @@ const AMBIENT_MEMBERS: Record<string, ReadonlySet<string>> = {
 	Math: new Set(['random']),
 };
 
+/**
+ * Globals whose call does not return the same value twice, so substituting one duplicates it.
+ *
+ * `Symbol()` is the one that found this: `const s = Symbol()` beside `s in obj` substituted the
+ * call at both reads, made two different symbols, and wrote `false` where Svelte wrote `true`. It
+ * is `Math.random` again in a shape a member test cannot see -- a bare call rather than a member.
+ * `Symbol.for` is interned and is not one of these, which is why the test is on the callee being
+ * the bare name.
+ */
+const AMBIENT_CALLS: ReadonlySet<string> = new Set(['Symbol']);
+
 export interface Unresolved {
 	name: string;
 	/** The expression it was written in, so the report says where to look. */
@@ -98,6 +109,8 @@ interface Context {
 	known: ReadonlyMap<string, Carried>;
 	used: Set<string>;
 	declares: (name: string) => boolean;
+	/** Declared names the markup reads, so what they expanded into can be checked as well. */
+	read: Set<string>;
 	/** The component's own path, for resolving what its imports name; unknown for bare source. */
 	file?: string;
 }
@@ -224,17 +237,51 @@ function report(
 		}
 		// A name the scripts declare is substituted rather than looked up, so by the time an
 		// expression reaches the compiler it is gone. What is checked is what it expanded into.
-		if (carried?.declares(name) === true) continue;
+		if (carried?.declares(name) === true) {
+			carried.read.add(name);
+			continue;
+		}
 		into.push({ name, expression: text, reason: 'unknown' });
 	}
 
-	// A global on the list can still hold something that is not: `Math` is fine and
-	// `Math.random` is a clock by another name.
+	ambient(expression, text, into);
+}
+
+/**
+ * The names in one expression that do not read the same twice, reported wherever it is found.
+ *
+ * A global on the list can still hold something that is not: `Math` is fine and `Math.random` is a
+ * clock by another name. A bare call is the other shape, `Symbol()`.
+ */
+function ambient(expression: unknown, text: string, into: Unresolved[]): void {
 	walkMembers(expression, (object, property) => {
 		if (AMBIENT_MEMBERS[object]?.has(property) === true) {
 			into.push({ name: `${object}.${property}`, expression: text, reason: 'ambient' });
 		}
 	});
+	walkCalls(expression, (name) => {
+		if (AMBIENT_CALLS.has(name)) {
+			into.push({ name: `${name}()`, expression: text, reason: 'ambient' });
+		}
+	});
+}
+
+/** Every call whose callee is a bare name, by that name. */
+function walkCalls(node: unknown, found: (name: string) => void): void {
+	if (!isNode(node)) return;
+	if (node['type'] === 'CallExpression' || node['type'] === 'NewExpression') {
+		const callee = node['callee'];
+		if (isNode(callee) && callee['type'] === 'Identifier' && typeof callee['name'] === 'string') {
+			found(callee['name']);
+		}
+	}
+	for (const value of Object.values(node)) {
+		if (Array.isArray(value)) {
+			for (const one of value) walkCalls(one, found);
+		} else {
+			walkCalls(value, found);
+		}
+	}
 }
 
 function walkMembers(node: unknown, found: (object: string, property: string) => void): void {
@@ -472,6 +519,53 @@ export function readsOf(expressions: Iterable<string>): Set<string> {
 	return names;
 }
 
+/**
+ * The declarations the markup reaches, checked for a value that does not read the same twice.
+ *
+ * A declaration is substituted rather than looked up, so what the markup reads is what its
+ * initialiser expanded into, and nothing looked there. `const s = Symbol()` beside `s in obj` made
+ * two different symbols and wrote `false` where Svelte wrote `true`.
+ *
+ * Followed transitively, because the initialiser that holds the call may be three declarations away
+ * from the name the markup wrote. Only the ambient check runs here, never the unknown one: a script
+ * may name whatever it likes as long as the value it leaves behind reads the same twice.
+ */
+function reached(ast: Node, source: string, from: ReadonlySet<string>, into: Unresolved[]): void {
+	if (from.size === 0) return;
+	const inits = new Map<string, unknown>();
+	for (const block of [ast['instance'], ast['module']]) {
+		const content = isNode(block) ? block['content'] : undefined;
+		const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+		for (const statement of body) {
+			if (!isNode(statement)) continue;
+			const declaration =
+				statement['type'] === 'ExportNamedDeclaration' ? statement['declaration'] : statement;
+			if (!isNode(declaration) || declaration['type'] !== 'VariableDeclaration') continue;
+			const declarations = declaration['declarations'];
+			if (!Array.isArray(declarations)) continue;
+			for (const one of declarations) {
+				if (!isNode(one)) continue;
+				const names = new Set<string>();
+				bound(one['id'], names);
+				for (const name of names) inits.set(name, one['init']);
+			}
+		}
+	}
+	const seen = new Set<string>();
+	const pending = [...from];
+	while (pending.length > 0) {
+		const name = pending.pop();
+		if (name === undefined || seen.has(name)) continue;
+		seen.add(name);
+		const init = inits.get(name);
+		if (init === undefined) continue;
+		ambient(init, name, into);
+		const names = new Set<string>();
+		free(init, new Set(), names);
+		for (const next of names) if (inits.has(next)) pending.push(next);
+	}
+}
+
 export function bindings(source: string, file?: string): Bindings {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const found: Unresolved[] = [];
@@ -480,6 +574,7 @@ export function bindings(source: string, file?: string): Bindings {
 		known: imported(ast['instance']),
 		used: new Set<string>(),
 		declares: declares.has,
+		read: new Set<string>(),
 		...(file === undefined ? {} : { file }),
 	};
 	// A `let:` name is bound by the slot it is written on and supplied by the component that
@@ -493,6 +588,7 @@ export function bindings(source: string, file?: string): Bindings {
 	const scope = new Set([...requested(ast['instance']), ...letNames]);
 	snippetNames(ast['fragment'], scope);
 	markup(ast['fragment'], source, scope, found, carried);
+	reached(ast, source, carried.read, found);
 	const used = [...carried.used]
 		.toSorted()
 		.map((name) => carried.known.get(name))

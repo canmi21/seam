@@ -37,7 +37,7 @@
 							"body": [
 								{
 									"k": "expr",
-									"src": "((data.tags)[0])"
+									"src": "($$to_array((data.tags), 1)[0])"
 								}
 							]
 						},
