@@ -3883,6 +3883,24 @@ function collect(node: unknown, walk: Walk): void {
 
 			const one = name === null ? undefined : snippets.get(name);
 			if (one === undefined || !one.declared) {
+				// A snippet is a value. `RenderTag.js` visits the callee as an expression and calls it
+				// with the renderer, so `{@render foo(1)}` is `foo($$renderer, 1)` and `foo` may be
+				// anything: a store read, an import from another component's module script, a prop's
+				// default. Where nothing in the call is the request's, the render evaluates it and
+				// writes the bytes the walk would otherwise have had to reproduce, so it is left to
+				// the render -- the same answer an inert spread already gets.
+				//
+				// A bare name that resolves nowhere is not one of those: `{@render children()}` with
+				// no `children` in scope reached Svelte's renderer and failed there with `children is
+				// not a function`, which is the author's mistake reported in the wrong place.
+				const callee = isNode(call) ? call['callee'] : undefined;
+				const bare =
+					isNode(callee) && callee['type'] === 'Identifier' && typeof callee['name'] === 'string'
+						? callee['name']
+						: null;
+				const known = bare === null || site.carried.has(bare) || expand(callee) !== bare;
+				const called = isNode(call) ? expand(call) : null;
+				if (called !== null && known && site.payload !== null && !varies(called, walk)) return;
 				if (process.env['SEAM_TRACE'] !== undefined) {
 					console.error(
 						`[seam] render of ${String(name)} in ${site.file}: given ${JSON.stringify([...site.given.keys()])}, stack ${site.stack.map((one) => basename(one)).join(' > ')}`,

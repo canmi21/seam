@@ -933,6 +933,20 @@ writes an object with no hole in it. Where the run *does* hold a value the reque
 nowhere to plant the marker, since a select with a spread goes through `renderer.select` and not
 through `$.attributes`, and that is refused too.
 
+**A snippet is a value, and a `{@render}` of one nothing here declares can still be the render's.**
+`RenderTag.js` visits the callee as an expression and calls it with the renderer -- `{@render
+foo(1)}` is `foo($$renderer, 1)` -- so the callee may be anything that evaluates to a snippet
+function: a store read, an import from another component's `<script module>`, a prop's default.
+Where nothing in the call is the request's, the render evaluates it and writes the bytes the walk
+would otherwise have had to reproduce, so it is left to the render. That is the answer an inert
+spread already gets, and it covers `createRawSnippet` too, which the walk was never going to
+reproduce.
+
+A bare name that resolves nowhere is not one of those. `{@render children()}` with no `children` in
+scope reached Svelte's renderer and failed there with `children is not a function`, which is the
+author's mistake reported in the wrong place, so the callee has to resolve somewhere before this
+applies.
+
 **A child's `$$props`, `$$restProps` and `$$slots` are the object its call site passed.**
 `transform-server.js` binds each of them over that object: `$$props` is `sanitize_props($$props)`,
 `$$restProps` is `rest_props($$sanitized_props, [named])`, `$$slots` is `sanitize_slots($$props)`.

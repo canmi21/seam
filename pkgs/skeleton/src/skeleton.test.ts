@@ -1644,6 +1644,21 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// A snippet is a value. `RenderTag.js` visits the callee as an expression and calls it with
+		// the renderer -- `{@render foo(1)}` is `foo($$renderer, 1)` -- so the callee may be anything
+		// that evaluates to one: a store read, an import from another component's module script.
+		// Where nothing in the call is the request's, the render evaluates it and writes the bytes
+		// the walk would otherwise have had to reproduce, which is the answer an inert spread gets.
+		name: 'a `{@render}` of a snippet this file does not declare, over nothing the request decides',
+		beside: {
+			Kid: '<script module>export { hi }</script>{#snippet hi(n)}<b>hi {n}</b>{/snippet}',
+		},
+		source:
+			"<script>import { hi } from './Kid.svelte'; let { data } = $props();</script>" +
+			'{@render hi(2)}<p>{data.a}</p>',
+		data: [{ a: 'v' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
