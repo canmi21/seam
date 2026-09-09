@@ -389,9 +389,14 @@ function losing(
 	// What the markup reads, through the declarations it reaches: reading `a` writes out `a`'s
 	// initialiser, so whatever that names is read too.
 	const read = closure(named, (one) => one.free);
-	// What the render runs: called in the markup, or called by something the markup writes out.
+	// What the render runs: called by the instance script's own statements, which Svelte puts
+	// ahead of the template; called in the markup; or called by something the markup writes out.
+	// `let promise; ... new_promise()` is the first of those -- a statement assigning through a
+	// call rather than directly, which is the rule one level in.
+	const instance = isNode(ast['instance']) ? (ast['instance'] as Node)['content'] : undefined;
 	const ran = closure(
 		[
+			...calling(isNode(instance) ? instance['body'] : undefined, names, false),
 			...calling(fragment, names, false),
 			...[...read].flatMap((one) => [...calling(found.get(one)?.node, names, false)]),
 		],

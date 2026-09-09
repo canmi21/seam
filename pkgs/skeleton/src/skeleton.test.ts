@@ -2761,6 +2761,16 @@ const refused: Case[] = [
 			'{#each data.rows as row}<p>{next(row)}|{log.length}</p>{/each}',
 	},
 	{
+		// And through the script's own statements, which Svelte puts ahead of the template: a
+		// statement assigning through a call is the rule that refuses a direct one, one level in.
+		// `let promise; new_promise()` left `{#await promise}` taking the wrong branch.
+		name: 'a value changed by a function the script itself calls',
+		says: 'changed by a function this render calls',
+		source:
+			'<script>let { data } = $props(); let seen = 0;' +
+			' function bump() { seen += 1 } bump();</script><p>{data.a}{seen}</p>',
+	},
+	{
 		// The same through a declaration rather than the markup: reading `first` writes `tick()` out
 		// where the render evaluates it, so the call is made and what it changes is lost.
 		name: 'a value changed by a function a declaration the markup reads calls',

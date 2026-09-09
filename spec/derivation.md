@@ -496,8 +496,11 @@ about destructuring or blocks; the same script with `{#each rows as row}<p>{next
 **Both halves have to hold**, and that is what keeps the rule off the ordinary component:
 
 - *Something the render runs changes it.* What the render runs is the closure of calls: a name
-  called in the markup, and a name called inside a declaration the markup reads, since reading one
-  writes its initialiser out where the render evaluates it. **Reading a function is not running
+  called by the instance script's own statements, which Svelte puts ahead of the template; a name
+  called in the markup; and a name called inside a declaration the markup reads, since reading one
+  writes its initialiser out where the render evaluates it. The first is the rule that refuses a
+  direct assignment, one level in -- `let promise; ... new_promise()` left `{#await promise}`
+  taking the branch a resolved value takes. **Reading a function is not running
   it** -- `onclick={go}` and `on:change={() => handler(bar)}` both name a call and make none -- and
   the walk stops at every function it meets except the one it is asking about, so an arrow returned
   from a called function is not counted either.
