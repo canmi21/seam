@@ -124,8 +124,15 @@ export function supplied(node: AstNode): ReadonlySet<string> | null {
  * index, so where it comes back is not where it was written.
  */
 export function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = false): void {
-	const sites = { unresolved: false, named: new Set<string>() };
+	const sites = { unresolved: false, named: new Set<string>(), rendered: new Set<string>() };
 	collecting(node, into, inside, sites);
+	// A render tag naming something this file does not declare as a snippet resolves only where the
+	// binding is an import or a prop, which `is_resolved_snippet` reads off Svelte's scope and this
+	// does not have. Svelte's own answer for what it cannot tell is that the site is unresolved, so
+	// that is the answer here too: it links more snippets, which only relaxes.
+	for (const named of sites.rendered) {
+		if (into.get(named)?.declared !== true) sites.unresolved = true;
+	}
 	// A site that names no particular declaration renders any of them, which is what
 	// `analysis.snippets` on an unresolved renderer says. A name a component tag was handed renders
 	// that one. Either way the snippet is not one nobody renders. See `Snippet.maybe`.
@@ -139,7 +146,7 @@ function collecting(
 	node: unknown,
 	into: Map<string, Snippet>,
 	inside: boolean,
-	sites: { unresolved: boolean; named: Set<string> },
+	sites: { unresolved: boolean; named: Set<string>; rendered: Set<string> },
 ): void {
 	if (Array.isArray(node)) {
 		for (const one of node) collecting(one, into, inside, sites);
@@ -184,7 +191,10 @@ function collecting(
 		// here declares -- a `$derived` holding one of two snippets is that. Svelte then links the
 		// site to every snippet in the component, and so does this. See `Snippet.maybe`.
 		if (name === null) sites.unresolved = true;
-		else sites.named.add(name);
+		else {
+			sites.named.add(name);
+			sites.rendered.add(name);
+		}
 		if (call !== null && name !== null) {
 			const one = into.get(name) ?? {
 				declared: false,

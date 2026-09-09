@@ -2072,6 +2072,17 @@ position of the expression reaches. Unlike a `<svelte:component>` there is no bl
 is no other outcome: `RenderTag.js` emits `snippet($$renderer, ...)`, a plain call, so a value that
 is not a function throws rather than rendering nothing.
 
+**A site Svelte cannot resolve links to every snippet, and so does this.**
+`is_resolved_snippet` reads the binding: an import, a prop or a `{#snippet}` resolves, and anything
+else does not. This compiler has no scope to read a binding's kind off, so what it cannot tell it
+calls unresolved -- which is Svelte's own answer for what *it* cannot tell, and which only links
+more snippets. A render tag naming something the file does not declare as a snippet is that.
+
+**The parameters come apart from this call's arguments**, not from the ones recorded against the
+name written at the tag. A callee that settled names a different snippet, and the record it settled
+to holds the calls of its own name -- none, where nothing calls it by name. `{@render snippet({
+count })}` over a `$derived` of two snippets is that, and the parameter came apart from `undefined`.
+
 **The settled name is written as `(0, name)`, and that is not decoration.**
 `2-analyze/visitors/RenderTag.js` sets `metadata.dynamic = binding?.kind !== 'normal'`, and
 `is_standalone` in `3-transform/utils.js` wants a render tag that is *not* dynamic before it lets
@@ -2079,6 +2090,10 @@ the parent block's anchor stand for the tag's own. Every callee this walk settle
 a prop, a member expression, anything but a plain reference to a declared snippet -- so writing the
 name bare made the tag static and dropped the `<!---->` Svelte writes after it. `(0, name)` is not
 an identifier, so no binding is looked up and the tag stays what it was. Measured.
+
+**Only where the tag was dynamic**, which is `binding?.kind !== 'normal'` again. A callee that is a
+plain script declaration is `normal`, so the tag is static and the parent block's anchor stands for
+it -- wrapping that one wrote a `<!---->` Svelte does not.
 
 **A function the source names stands for `true` in the derivation scope.** A component and a
 snippet are both functions, and the scope a derivation reads is data. Where the walk followed a

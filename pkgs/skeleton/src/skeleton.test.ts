@@ -2382,6 +2382,19 @@ const accepted: Case[] = [
 		props: [{ a: 'x' }],
 	},
 	{
+		// A callee that settled names a different snippet than the one written at the tag, and the
+		// record it settled to holds the calls of *its* name -- none, where nothing calls it by name.
+		// So the parameters come apart from this call's arguments rather than from the ones recorded
+		// against the name written there, which was `undefined`.
+		name: 'a snippet reached through a declaration, called with arguments',
+		source:
+			'<script>let { data } = $props(); const first = true;' +
+			' const held = first ? one : two;</script>' +
+			'{#snippet one({ n })}<p>one {n}</p>{/snippet}{#snippet two({ n })}<p>two {n}</p>{/snippet}' +
+			'{@render held({ n: data.a })}',
+		data: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request

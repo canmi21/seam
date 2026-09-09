@@ -1990,9 +1990,14 @@ function unwrapped(text: string): string {
  * the settled name bare made the tag static and dropped the `<!---->` Svelte writes after it.
  * `(0, name)` is not an identifier, so the binding is not looked up and the tag stays dynamic;
  * the call is the same call. Measured.
+ *
+ * **Only where the tag was dynamic.** A callee that is a plain script declaration is `normal`, so
+ * the tag is static and the parent block's anchor stands for it -- wrapping that one wrote a
+ * `<!---->` Svelte does not. A prop, an import, a rune declaration and anything that is not an
+ * identifier are the other side.
  */
-function stillDynamic(name: string): string {
-	return `(0, ${name})`;
+function stillDynamic(name: string, dynamic: boolean): string {
+	return dynamic ? `(0, ${name})` : name;
 }
 
 /** Whether a local name is a component: the default import of a `.svelte` file. See `Carried`. */
@@ -4270,9 +4275,25 @@ function collect(node: unknown, walk: Walk): void {
 				} catch {
 					settledName = null;
 				}
+				// `2-analyze/visitors/RenderTag.js` sets `metadata.dynamic = binding?.kind !== 'normal'`,
+				// so a callee that is a plain script declaration leaves the tag static. Everything
+				// else -- a prop, an import, a rune declaration, anything that is not an identifier --
+				// leaves it dynamic.
+				const bare =
+					isNode(callee) && callee['type'] === 'Identifier' && typeof callee['name'] === 'string'
+						? callee['name']
+						: null;
+				const moving =
+					bare === null ||
+					site.carried.has(bare) ||
+					walk.runeOf(bare) !== undefined ||
+					dynamic.has(bare) ||
+					expand(callee) === bare;
 				if (settledName !== null && snippets.get(settledName)?.declared === true) {
 					const where = span(callee);
-					if (where !== null) edits.push([where[0], where[1], stillDynamic(settledName)]);
+					if (where !== null) {
+						edits.push([where[0], where[1], stillDynamic(settledName, moving)]);
+					}
 					name = settledName;
 				} else {
 					// A callee the request decides can only be the snippet the source names: the payload
@@ -4290,7 +4311,7 @@ function collect(node: unknown, walk: Walk): void {
 					const where = only === null ? null : span(callee);
 					if (only !== null && where !== null) {
 						for (const held of through) site.stood.add(held);
-						edits.push([where[0], where[1], stillDynamic(only)]);
+						edits.push([where[0], where[1], stillDynamic(only, moving)]);
 						name = only;
 					}
 				}
@@ -4501,6 +4522,7 @@ function collect(node: unknown, walk: Walk): void {
 			// every expression in the body being a marker already, and evaluating one would reach
 			// for data the render is not given.
 			const parameters = Array.isArray(declaration['parameters']) ? declaration['parameters'] : [];
+			const given = isNode(call) && Array.isArray(call['arguments']) ? call['arguments'] : [];
 			const bound = new Map<string, string>();
 			for (const [index, parameter] of parameters.entries()) {
 				if (!isNode(parameter)) refuse('a `{#snippet}` parameter this compiler cannot read');
@@ -4512,8 +4534,12 @@ function collect(node: unknown, walk: Walk): void {
 					edits,
 				);
 				// An argument not written is `undefined`, which is what the function receives and
-				// what a default answers to.
-				const argument = index < one.args.length ? expand(one.args[index]) : 'undefined';
+				// what a default answers to. This call's arguments, not the ones recorded against the
+				// name written at the tag: a callee that settled names a different snippet, and the
+				// record it settled to holds the calls of *its* name -- none, where nothing calls it
+				// by name. `{@render snippet({ count })}` over a `$derived` of two snippets is that,
+				// and the parameter came apart from `undefined`.
+				const argument = index < given.length ? expand(given[index]) : 'undefined';
 				for (const [each, reached] of takenApart(
 					parameter,
 					`(${argument})`,
@@ -4524,7 +4550,6 @@ function collect(node: unknown, walk: Walk): void {
 				}
 			}
 
-			const given = isNode(call) && Array.isArray(call['arguments']) ? call['arguments'] : [];
 			for (const [index, argument] of given.entries()) {
 				const at = span(argument);
 				if (at !== null) edits.push([at[0], at[1], one.holds[index] ?? 'null']);
