@@ -871,6 +871,15 @@ prop it decided is bound inside the child and evaluated there it would read the 
 is not given. Measured with the spread before and after an attribute, a key present as
 `undefined`, a missing key taking the default, and a null object. `merged()` in `walk.ts`.
 
+**A group is one span, and a component may render it from more than one `<slot>`.** A group handed
+to a component is a span of the caller's source, and walking it rewrites that span. Rendering it
+twice -- `<slot key="a"/><slot key="b"/>`, with different props each time, which is the only reason
+to -- wants two rewrites of the same characters, and the two are not the same text. It reached
+`apply` as "two edits cover 103..108", which names offsets rather than a question. It is a fragment
+called once per slot, the way a recursive component's body is, and until that is written the walk
+says so and leaves the component to Svelte -- which renders it right, so the bytes are there either
+way.
+
 **A component's `<script module>` is module state, and a named import reaches it.** The check that
 refuses a binding its own module changes skipped every `.svelte` import, which is the same half
 condition again: a named import of a component is its module script, whose state changes the way

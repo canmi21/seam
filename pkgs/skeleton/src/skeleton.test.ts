@@ -1509,6 +1509,19 @@ const accepted: Case[] = [
 		props: [{ a: 'v', n: 3 }, { a: '<&' }],
 	},
 	{
+		// A group is one span of the caller's source and walking it rewrites that span. A component
+		// rendering the same group from a second `<slot>` -- with different props, which is the only
+		// reason to -- wants a second rewrite of the same characters. It used to reach `apply` as
+		// `two edits cover 103..108`, which names offsets rather than a question; now the walk says
+		// what it is and leaves the component to Svelte, which renders it right.
+		name: 'markup a component renders from two slots',
+		beside: { Twice: '<slot key="a" /><slot key="b" />' },
+		source:
+			"<script>import Twice from './Twice.svelte'; let { data } = $props();</script>" +
+			'<p>{data.a}</p><Twice let:key><b>{key}</b></Twice>',
+		data: [{ a: 'v' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.

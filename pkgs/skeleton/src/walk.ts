@@ -172,6 +172,14 @@ export interface Given {
 	handed: ReadonlyMap<string, string>;
 	/** Whether the caller's file is in legacy mode, which decides whether its `{@const}`s sort. */
 	legacy: boolean;
+	/**
+	 * Which `<slot>` walked this group, where one has. A component may render one group from more
+	 * than one `<slot>` -- `<slot key="a"/><slot key="b"/>` renders the caller's markup twice, with
+	 * different props each time -- and the group is one span of the caller's source. Two walks then
+	 * write two different rewrites over it, which `apply` reports as one place recorded twice: an
+	 * error naming offsets rather than a question. See `descend`.
+	 */
+	walked?: string;
 }
 
 /**
@@ -3127,6 +3135,21 @@ function collect(node: unknown, walk: Walk): void {
 			// `RenderTag` and `Component` and a `SvelteSelf` is neither, so Svelte writes the anchor
 			// for it and the stand-in that replaces it -- a Component, and alone -- would not.
 			const only = onlyChild({ nodes: handed.nodes });
+			// A group is one span of the caller's source and a walk of it rewrites that span. A
+			// component rendering the same group from a second `<slot>` -- with different props, which
+			// is the only reason to -- wants a second rewrite of the same characters, and the two are
+			// not the same text. It is a fragment the runtime calls twice, the way a recursive
+			// component's body is, and until it is one this says so rather than letting `apply`
+			// report offsets.
+			if (handed.walked !== undefined) {
+				refuse(
+					`the markup handed to this component under \`${named}\` is rendered by more than one ` +
+						`\`<slot>\`, so one span of the caller's source would be rewritten two ways -- once ` +
+						'per slot, with the props each passes. It is a fragment called once per slot, the ' +
+						"way a recursive component's body is, which the walk does not write yet",
+				);
+			}
+			handed.walked = named;
 			// Through `held` rather than one node at a time: the group is a fragment of the caller's
 			// and Svelte cleans it the same way, so a `{@const}` in it is hoisted and binds for its
 			// siblings. Walked flat, every one of them reached the arm that refuses what the walk has
