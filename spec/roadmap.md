@@ -500,10 +500,10 @@ down.
 against the item above about the render's module instances not being the artifact's, and the
 decision is the same one: what a module-scope binding means when there are two module graphs.
 
-### The 33 that remain, and what closed the rest
+### The 31 that remain, and what closed the rest
 
-Of the twenty-five ranked as needing nobody, twelve are green and the others each turned out to
-want one thing more. Six rules closed them and each is written where it lives:
+Of the twenty-five ranked as needing nobody, fourteen are green and the others each turned out to
+want one thing more. Seven rules closed them and each is written where it lives:
 
 - **A test the source has already decided is folded before the walk goes into either branch**, and
   a name read only in the branch that is dropped is not a name the data has to carry. A chain is
@@ -528,11 +528,13 @@ is the by-decision rule wearing the derivation evaluator's message. The rule ask
 changed name is read *by name* in the markup, and none of these is. [conformance.md](conformance.md)
 counts them where they belong.
 
-**Four more are one feature**, and it is the one the roadmap already named: a snippet written at a
-call site and rendered by the component with arguments of its own -- `snippet-prop-explicit`,
-`snippet-prop-implicit`, `snippets-as-slots`, `snippet-reactive-args`. `descend` turns away a tag
-holding a `{#snippet}` outright. The machinery is there in the fragment a recursive snippet becomes;
-what is missing is that fragment spanning two files.
+**Two of the four snippet cases are built and two are not.** A `{#snippet}` written **inside** a
+component's tag is a group of the caller's now, its body what the component renders and its
+parameters bound to the arguments the component calls it with. What is left is a snippet written at
+the **top level** and handed over by name -- `<Kid {foo} />`. It is the same group, and the reading
+is the same, but the declaration is still walked where it stands: which of the two paths it takes
+depends on whether the child can be entered, and that is not known when the declaration is met.
+`snippet-reactive-args` waits on the same thing, its `?:` between two of them.
 
 **The last five each want one reading that is not yet done.** `const-tag-component` needs the
 literal the render is handed for a prop it models to survive a member read. `bindings-before-onmount`
