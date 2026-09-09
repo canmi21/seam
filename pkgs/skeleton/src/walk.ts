@@ -981,7 +981,6 @@ function selection(
 	edits: [number, number, string][],
 	selecting: Walk['selecting'],
 	skipped: Set<unknown>,
-	walk: Walk,
 ): Walk['selecting'] {
 	const tag = node['name'];
 	if (tag === 'select') {
@@ -2885,7 +2884,7 @@ function collect(node: unknown, walk: Walk): void {
 			const skipped = new Set<unknown>();
 			const selecting =
 				type === 'RegularElement'
-					? selection(node, source, expand, holes, edits, walk.selecting, skipped, walk)
+					? selection(node, source, expand, holes, edits, walk.selecting, skipped)
 					: walk.selecting;
 			const bare =
 				type === 'RegularElement' ? contents(node, walk, holes, edits, skipped) : undefined;

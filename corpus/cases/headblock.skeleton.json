@@ -14,7 +14,7 @@
 	"holes": [
 		{
 			"index": 0,
-			"expression": "l",
+			"expression": "(l)",
 			"raw": false,
 			"files": ["headblock.svelte"]
 		},

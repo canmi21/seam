@@ -51,6 +51,9 @@ impl Out {
 struct Assembler<'a> {
 	skeleton: &'a Skeleton,
 	derivations: Vec<ir::Derivation>,
+	/// The name each expression already has one under, so a text read twice is one derivation and
+	/// one value. See `Assembler::path`.
+	derived: BTreeMap<(String, Vec<String>, bool), String>,
 	/// How many times each hole came back in the render. Checked once at the end.
 	consumed: Vec<usize>,
 	/// The stream being walked. A block is numbered across the whole source but appears in one
@@ -587,6 +590,7 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 	let mut assembler = Assembler {
 		skeleton,
 		derivations: Vec::new(),
+		derived: BTreeMap::new(),
 		consumed: vec![0; skeleton.holes.len()],
 		stream: Stream::Body,
 		locals: Vec::new(),

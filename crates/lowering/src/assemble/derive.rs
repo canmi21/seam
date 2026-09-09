@@ -131,7 +131,21 @@ impl Assembler<'_> {
 		let read = reads(trimmed);
 		let scoped =
 			self.locals.iter().chain(self.fresh.iter()).any(|one| read.iter().any(|name| name == one));
+		// One derivation per expression, not per read of it. A declaration is written out wherever
+		// the markup reads it, so `{#each items as item}` and the `{items}` handed to a child are
+		// the same text twice -- and evaluated twice they are two arrays, whose elements are not
+		// each other's: `items.includes(item)` came out false where Svelte's own render, which
+		// evaluates the declaration once, says true. Sharing the name shares the value, since a
+		// derivation is computed once per request and held.
+		//
+		// Keyed by everything that decides what it evaluates to: the text, the file chain each
+		// name in it resolves through, and whether it is computed here or where it is used.
+		let key = (trimmed.to_owned(), files.to_vec(), scoped);
+		if let Some(held) = self.derived.get(&key) {
+			return Ok(held.clone());
+		}
 		let name = format!("__d{}", self.derivations.len());
+		self.derived.insert(key, name.clone());
 		self.derivations.push(ir::Derivation {
 			name: name.clone(),
 			expression: trimmed.to_owned(),

@@ -34,7 +34,7 @@
 		},
 		{
 			"index": 4,
-			"expression": "((t))",
+			"expression": "(((t)))",
 			"raw": false,
 			"files": ["parts/badge.svelte", "compose.svelte"]
 		}

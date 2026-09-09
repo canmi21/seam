@@ -16,7 +16,7 @@
 		},
 		{
 			"index": 1,
-			"expression": "t",
+			"expression": "(t)",
 			"raw": false,
 			"files": ["locals.svelte"]
 		}

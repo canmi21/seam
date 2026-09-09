@@ -10,7 +10,7 @@
 	"holes": [
 		{
 			"index": 0,
-			"expression": "x",
+			"expression": "(x)",
 			"raw": false,
 			"files": ["fragments.svelte"]
 		}

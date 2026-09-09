@@ -460,6 +460,24 @@ said `object`, and the default was never taken. Svelte wrote `potato`; this wrot
 The expression is the default alone now, and the test is on the property, made by the evaluator
 that applies it. See `Derivation.prop`.
 
+## One derivation per expression, not per read of it
+
+A declaration is written out wherever the markup reads it, so `{#each items as item}` and the
+`{items}` handed to a child are the same text twice. Evaluated twice they are two arrays, and the
+elements of one are not the elements of the other: `items.includes(item)` came out false where
+Svelte's own render, which evaluates the declaration once, says true.
+
+The assembler gives one name to each expression it has already seen, keyed by everything that
+decides what it evaluates to -- the text, the file chain each name in it resolves through, and
+whether it is computed here or where it is used. Sharing the name shares the value, since a
+derivation is computed once per request and held. It is also smaller: a route joined out of several
+structures writes the same expression once for every place it was read.
+
+**It is not the whole of the identity question.** Where the declaration is read inside a larger
+expression -- `items.includes(item)` is one derivation with the array literal inside it -- there is
+nothing to share, and the array is built again. Holding a declaration rather than substituting it
+is what closes that, and it is the open item under Substitution below.
+
 ## A name is only its initialiser while nothing changes what it holds
 
 `transform-server.js` puts the instance script's statements at the top of the component function
