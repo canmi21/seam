@@ -168,8 +168,29 @@ function codegen(
 	const held = compiled.get(key);
 	if (held !== undefined) return held;
 	const code = timedSync('    codegen (svelte compile)', () => {
-		const { js } = svelte.compile(source, { generate: 'server', name, filename, rootDir: root });
-		return js.code;
+		try {
+			const { js } = svelte.compile(source, { generate: 'server', name, filename, rootDir: root });
+			return js.code;
+		} catch (error) {
+			// Async Svelte, found by Svelte's own analysis rather than by ours. The walk checks every
+			// component it enters, and the render compiles some it never entered -- a child under a
+			// `<svelte:boundary>` with a `pending` snippet is never walked, because the server writes
+			// the pending body and none of the children, and it is still compiled. Reported in this
+			// compiler's words so it is one refusal by decision rather than upstream's error in the
+			// gap list. See spec/conformance.md.
+			if (
+				typeof error === 'object' &&
+				error !== null &&
+				(error as { code?: unknown }).code === 'experimental_async'
+			) {
+				throw new Error(
+					`${basename(filename)} awaits in its markup or at the top of its script, which is ` +
+						'async Svelte: a value loaded per request while the bytes are written, which is ' +
+						"the load stage and not this compiler's to render",
+				);
+			}
+			throw error;
+		}
 	});
 	compiled.set(key, code);
 	return code;

@@ -4707,6 +4707,12 @@ function descend(
 		if (walk.asking !== true && reason.includes('a module binding something in that module')) {
 			throw error;
 		}
+		// Async Svelte is out of scope by the scope line rather than a component this walk could not
+		// read, so leaving it to the render is not the answer it is for a gap -- and the render does
+		// not take it either: Svelte's own compiler answers `Cannot use \`await\` in deriveds and
+		// template expressions`, which is upstream's words for our decision and puts 25 samples in
+		// the gap list they do not belong in. See spec/conformance.md.
+		if (walk.asking !== true && reason.includes('which is async Svelte')) throw error;
 		if (walk.asking !== true && headed && walk.within.length > 0) {
 			refuse(
 				`<${tag} /> writes a \`<svelte:head>\` inside a block, so the block has to stand in the ` +
