@@ -41,9 +41,15 @@ const GLOBALS = new Set([
 	'NaN',
 	'Number',
 	'Object',
+	// Deterministic wherever it is given something: `Date.parse(s)`, `new Date(s)` and
+	// `x instanceof Date` read the same everywhere. `Date.now()` and a `Date` built from nothing
+	// are a clock, and both are below.
+	'Date',
+	'Promise',
 	'RegExp',
 	'Set',
 	'String',
+	'structuredClone',
 	'URL',
 	'URLSearchParams',
 	// It reads the same everywhere -- `undefined` -- and what it does instead of returning is not
@@ -64,6 +70,7 @@ const GLOBALS = new Set([
 /** Members of an allowed global that are not themselves deterministic. */
 const AMBIENT_MEMBERS: Record<string, ReadonlySet<string>> = {
 	Math: new Set(['random']),
+	Date: new Set(['now']),
 };
 
 /**
@@ -76,6 +83,9 @@ const AMBIENT_MEMBERS: Record<string, ReadonlySet<string>> = {
  * the bare name.
  */
 const AMBIENT_CALLS: ReadonlySet<string> = new Set(['Symbol']);
+
+/** Globals whose call reads a clock when it is given nothing, and a value when it is given one. */
+const AMBIENT_EMPTY: ReadonlySet<string> = new Set(['Date']);
 
 export interface Unresolved {
 	name: string;
@@ -259,20 +269,21 @@ function ambient(expression: unknown, text: string, into: Unresolved[]): void {
 			into.push({ name: `${object}.${property}`, expression: text, reason: 'ambient' });
 		}
 	});
-	walkCalls(expression, (name) => {
-		if (AMBIENT_CALLS.has(name)) {
+	walkCalls(expression, (name, empty) => {
+		if (AMBIENT_CALLS.has(name) || (empty && AMBIENT_EMPTY.has(name))) {
 			into.push({ name: `${name}()`, expression: text, reason: 'ambient' });
 		}
 	});
 }
 
-/** Every call whose callee is a bare name, by that name. */
-function walkCalls(node: unknown, found: (name: string) => void): void {
+/** Every call whose callee is a bare name, by that name and whether it was given nothing. */
+function walkCalls(node: unknown, found: (name: string, empty: boolean) => void): void {
 	if (!isNode(node)) return;
 	if (node['type'] === 'CallExpression' || node['type'] === 'NewExpression') {
 		const callee = node['callee'];
+		const args = node['arguments'];
 		if (isNode(callee) && callee['type'] === 'Identifier' && typeof callee['name'] === 'string') {
-			found(callee['name']);
+			found(callee['name'], Array.isArray(args) && args.length === 0);
 		}
 	}
 	for (const value of Object.values(node)) {

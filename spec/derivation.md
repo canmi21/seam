@@ -659,6 +659,17 @@ A short list, in `bindings.ts`: names that resolve to the same value everywhere,
 using one cannot make the server and the browser disagree. Anything that reads a clock, a locale or
 an environment is not on it, and `Math.random` is named apart from `Math`.
 
+**A name can be on the list and one of its uses off it.** `Date` reads the same everywhere wherever
+it is given something -- `Date.parse(s)`, `new Date(s)`, `x instanceof Date` -- and is a clock when
+it is given nothing. So the name is a global, `Date.now` is named apart from it the way
+`Math.random` is, and a `Date` built from no arguments is named apart too. `Promise` and
+`structuredClone` need no such split.
+
+`Symbol()` is the other shape: not a clock but not the same value twice either, so substituting it
+at two reads makes two different symbols. It is reported wherever it is found, and the declarations
+the markup reaches are followed to find it -- see the section on a substituted value reading the
+same twice.
+
 `console` is on it. It reads the same everywhere -- `undefined` -- and what it does instead of
 returning is not bytes; both the render and the artifact call it, so a line is written twice, which
 is a log rather than a difference in what is served. Eight of Svelte's samples log from markup and

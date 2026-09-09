@@ -38,7 +38,15 @@ describe('a name that cannot resolve is refused, by name', () => {
 			'<script>let { data } = $props()</script><b>{helpers[data.k](data.v)}</b>',
 			'helpers',
 		],
-		['a clock', '<script>let { data } = $props()</script><b>{Date.now()}</b>', 'Date'],
+		// `Date` itself is deterministic wherever it is given something -- `Date.parse(s)`,
+		// `new Date(s)`, `x instanceof Date` -- so it is a global. What is not is the clock: the
+		// `now` member, and a `Date` built from nothing.
+		['a clock', '<script>let { data } = $props()</script><b>{Date.now()}</b>', 'Date.now'],
+		[
+			'a clock built from nothing',
+			'<script>let { data } = $props()</script><b>{new Date().getTime()}</b>',
+			'Date()',
+		],
 		[
 			// A default is an expression in the declaration's own scope, and what a name reaches its
 			// value by is raw source that nothing expands names inside. So it is left out, which
