@@ -439,6 +439,61 @@ back as "is an illegal variable name" -- so such an expression stays a marker an
 calls the function where the carried bundle has it. Tested by name rather than by the prefix, since
 `$$props`, `$$restProps` and `$$slots` wear it too and those are the render's own to evaluate.
 
+## A name is only its initialiser while nothing changes what it holds
+
+`transform-server.js` puts the instance script's statements at the top of the component function
+and the template after them, so a declaration is evaluated **once** and every reference is that one
+binding -- a function written beside it closes over the same value. Substitution writes the
+initialiser at each read instead, which is the same answer only where evaluating it again is.
+
+Two rules stand on that, and for a long time only the first did:
+
+**Assigned after being declared.** `let x = 1; x = 2` and `const o = { a: 1 }; o.a = 2`, in the
+script's own statements. Both compiled and wrote the wrong bytes before they were refused.
+
+**Changed by a function this render calls.** The first rule's exemption said a function body does
+not run while the bytes are written, and that is true of a handler and false of anything the markup
+calls:
+
+```svelte
+const log = [];
+function next(x) { log.push(x); return x; }
+{#each rows as row}<p>{next(row)}|{log.length}</p>{/each}
+```
+
+`log` expands to `([])` at every read, so each read builds its own array and the pushes go nowhere:
+`1|0`, `2|0` against Svelte's `1|1`, `2|2`. Nothing said so, which is what made it worse than a
+refusal. It was found by probe -- no sample in Svelte's corpus writes the shape -- and it is not
+about destructuring or blocks; the same script with `{#each rows as row}<p>{next(row)}|{log.length}
+</p>{/each}` and no pattern anywhere diverges the same way.
+
+**Both halves have to hold**, and that is what keeps the rule off the ordinary component:
+
+- *Something the render runs changes it.* What the render runs is the closure of calls: a name
+  called in the markup, and a name called inside a declaration the markup reads, since reading one
+  writes its initialiser out where the render evaluates it. **Reading a function is not running
+  it** -- `onclick={go}` and `on:change={() => handler(bar)}` both name a call and make none -- and
+  the walk stops at every function it meets except the one it is asking about, so an arrow returned
+  from a called function is not counted either.
+- *The markup reads it, by a route that does not pass through the function doing the changing.* A
+  function reading back what it just wrote is one evaluation and holds:
+  `export function compute() { return value.toUpperCase() }` with `{compute()}` is the whole of
+  `value`'s life.
+
+An assignment says what the new value is; a method call does not, and `log.push(x)` changes the
+array all the same, so a callee reaching a declared name through a member counts too. That half is
+the conservative one -- `xs.map(f)` changes nothing and is in it -- with one exception that is not
+a guess: a name standing for `undefined` has no value to change, so `let button = $state()` with
+`button?.click()` is left alone.
+
+Across Svelte's 2388 samples the rule refuses two, both of them already failing, and moves none
+that were passing. What it does not see is a function handed to something else that calls it --
+`xs.map(fmt)` -- and that is the hole left in it.
+
+The fix rather than the refusal is to stop substituting such a name and bind it once per request,
+which the derivation machinery could hold since a derivation is already evaluated once and cached.
+That is a change to what substitution is, not a patch to this rule, and it is not made here.
+
 ## Substitution maps a name to an expression, and a program is not an expression
 
 Every name the markup reads becomes one self-contained expression. `const t = data.a + 1` becomes

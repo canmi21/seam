@@ -2694,6 +2694,28 @@ const refused: Case[] = [
 		source: '<script>let { data } = $props(); const o = { a: 1 }; o.a = 2</script><p>{o.a}</p>',
 	},
 	{
+		// The same fault one level in, and it used to compile: the instance script runs once and a
+		// function beside it closes over that one binding, while substitution gives every read its
+		// own copy of the initialiser. Measured against Svelte before it was refused, `1|0` and
+		// `2|0` where Svelte wrote `1|1` and `2|2`.
+		name: 'a value changed by a function the markup calls',
+		says: 'changed by a function this render calls',
+		source:
+			'<script>let { data } = $props(); const log = [];' +
+			' function next(x) { log.push(x); return x; }</script>' +
+			'{#each data.rows as row}<p>{next(row)}|{log.length}</p>{/each}',
+	},
+	{
+		// The same through a declaration rather than the markup: reading `first` writes `tick()` out
+		// where the render evaluates it, so the call is made and what it changes is lost.
+		name: 'a value changed by a function a declaration the markup reads calls',
+		says: 'changed by a function this render calls',
+		source:
+			'<script>let { data } = $props(); const seen = [];' +
+			' function tick() { seen.push(1); return seen.length; }' +
+			' const first = tick();</script><p>{data.a}{first}|{seen.length}</p>',
+	},
+	{
 		// The other reading of a marker that does not come back, and the one that is a fault: the
 		// component wrote something it computed from the value rather than the value. Rendering
 		// again with a different one in its place changes the bytes, which is what says so -- and

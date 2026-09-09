@@ -61,10 +61,11 @@ reads a store: that is the store gap under **ready**, met one step earlier than 
 message it gives is the derivation evaluator's rather than a refusal naming a file. One moved the
 other way, `component-binding-parent-supercedes-child-c`, and it is counted below.
 
-### Shared mutable state a function reaches, which no sample covers and nothing refuses
+### Shared mutable state a function reaches: refused now, and not yet held
 
-Found by probe rather than by the suite, and it is the worst shape there is: it compiles, nothing
-is refused, and the bytes are wrong.
+Found by probe rather than by the suite, and it was the worst shape there is: it compiled, nothing
+was refused, and the bytes were wrong. It is a refusal now, which is where it stops being ranked
+under wrong bytes and starts being ranked as a gap -- what is still missing is holding it.
 
 ```svelte
 const log = [];
@@ -77,13 +78,17 @@ and a fresh empty array is what each read evaluates. Svelte's server evaluates t
 once and the function mutates that one array. Ours wrote `1|0`, `2|0` where Svelte wrote `1|1`,
 `2|2`.
 
-The existing rule reads the wrong place. A name assigned after being declared, or an object
+The rule that let it through read the wrong place. A name assigned after being declared, or an object
 mutated after being declared, is refused where those statements are the script's own; a mutation
 inside a function body reached from markup is neither, and there is no sample in Svelte's corpus
 that writes one. **Substituting a name by its initialiser is only sound where the value is not
 shared**, and "shared" has to mean reachable from anything the markup calls, not visible at the
-top level. Ranked here rather than under the refusals because a difference ships and a refusal
-does not.
+top level. [derivation.md](derivation.md) has the rule that closes it and the two halves that keep
+it off the ordinary component.
+
+**Holding it, rather than refusing it, is the open half.** A name whose value is shared has to be
+bound once per request rather than written out per read, which the derivation machinery could do --
+a derivation is already evaluated once and cached. That is a change to what substitution is.
 
 ### The 42 that remain, by cause
 

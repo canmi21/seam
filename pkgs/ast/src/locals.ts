@@ -288,9 +288,10 @@ export interface Locals {
  * and it broke it silently: `let x = 1; x = 2` rendered `1` where Svelte renders `2`, and so did
  * `const o = { a: 1 }; o.a = 2`. See spec/derivation.md.
  *
- * **Function bodies are not walked.** A handler that assigns to a name does not run during a
+ * **Function bodies are not walked here.** A handler that assigns to a name does not run during a
  * render, so `let n = 0; function buy() { n += 1 }` still holds `0` when the bytes are written, and
- * refusing it would refuse the ordinary way an event handler is written.
+ * refusing it would refuse the ordinary way an event handler is written. A function the markup
+ * *calls* does run, and that is `losing()` below.
  */
 function assigned(block: unknown, names: ReadonlySet<string>): Set<string> {
 	const found = new Set<string>();
@@ -328,6 +329,233 @@ function assigned(block: unknown, names: ReadonlySet<string>): Set<string> {
 	const content = block['content'];
 	if (isNode(content)) walk(content['body']);
 	return found;
+}
+
+/**
+ * Refuses a declaration whose value is changed by something the render actually runs.
+ *
+ * `transform-server.js` puts the instance script's statements at the top of the component function
+ * and the template after them, so a declaration is evaluated **once** and every reference is that
+ * one binding -- a function beside it closes over the same value. Substitution replaces a name by
+ * its initialiser at each read, which is the same answer only where evaluating it again is. A
+ * change makes it a different answer, and the change is invisible either way:
+ *
+ * ```svelte
+ * const log = [];
+ * function next(x) { log.push(x); return x; }
+ * {#each rows as row}<p>{next(row)}|{log.length}</p>{/each}
+ * ```
+ *
+ * `log` expands to `([])` at every read, so each read builds its own empty array and the pushes go
+ * nowhere. Measured: `1|0`, `2|0` against Svelte's `1|1`, `2|2`. Nothing said so, which is what
+ * makes it worse than a refusal.
+ *
+ * **Both halves have to hold**, which is what keeps this off the ordinary component. A name is
+ * lost only where something the render runs changes it *and* the markup reads it. `let n = 0;
+ * function buy() { n += 1 }` with `{n}` and `on:click={buy}` is neither: the handler is named and
+ * not called, so the render never runs it and `0` is what Svelte writes too.
+ *
+ * What the render runs is the closure of calls: every name called in the markup, and every name
+ * called inside a declaration the markup reads, since reading one writes its initialiser out where
+ * the render evaluates it. A function handed to something else that calls it -- `xs.map(fmt)` --
+ * is not seen, and is the hole left here.
+ */
+function losing(
+	ast: Node,
+	found: Map<string, Declared & { node: Node; free: Set<string> }>,
+	names: Set<string>,
+): void {
+	const fragment = ast['fragment'];
+	const closure = (
+		seed: Iterable<string>,
+		next: (one: Declared & { node: Node; free: Set<string> }) => Iterable<string>,
+		avoid?: string,
+	): Set<string> => {
+		const out = new Set<string>();
+		const queue = [...seed];
+		while (queue.length > 0) {
+			const one = queue.pop() as string;
+			if (out.has(one) || one === avoid) continue;
+			out.add(one);
+			const held = found.get(one);
+			if (held !== undefined) queue.push(...next(held));
+		}
+		return out;
+	};
+
+	const mentioned = new Set<string>();
+	free(fragment, new Set(), mentioned);
+	const named = [...mentioned].filter((one) => names.has(one));
+	// What the markup reads, through the declarations it reaches: reading `a` writes out `a`'s
+	// initialiser, so whatever that names is read too.
+	const read = closure(named, (one) => one.free);
+	// What the render runs: called in the markup, or called by something the markup writes out.
+	const ran = closure(
+		[
+			...calling(fragment, names, false),
+			...[...read].flatMap((one) => [...calling(found.get(one)?.node, names, false)]),
+		],
+		(one) => calling(one.node, names, true),
+	);
+
+	const lost = new Set<string>();
+	for (const name of ran) {
+		const held = found.get(name);
+		if (held === undefined) continue;
+		const { written, called } = changing(held.node, names);
+		// A method call changes the value it is called on, and a name standing for `undefined` has
+		// no value to change: the call throws, or written `?.` does nothing. `let button = $state()`
+		// with `button?.click()` is the shape, and `bind:this` is the client's either way.
+		const changed = new Set([
+			...written,
+			...[...called].filter((one) => found.get(one)?.literal !== 'undefined'),
+		]);
+		if (changed.size === 0) continue;
+		// Read by a route that does not pass through the function doing the changing. One that only
+		// goes through it is that function reading back what it just wrote, which is one evaluation
+		// and holds: `export function compute() { return value.toUpperCase() }` with `{compute()}`
+		// is the whole of `value`'s life.
+		const elsewhere = closure(named, (one) => one.free, name);
+		for (const target of changed) if (elsewhere.has(target)) lost.add(target);
+	}
+	if (lost.size === 0) return;
+	const list = [...lost].map((one) => `\`${one}\``).join(', ');
+	throw new Error(
+		`${list} ${lost.size > 1 ? 'are' : 'is'} changed by a function this render calls, and the ` +
+			'markup reads a name by the expression it was declared to be -- so every read evaluates ' +
+			'that expression again and the change is made to a value nothing else holds. Compute the ' +
+			'value in one expression, or move what changes it out of the render. See ' +
+			'spec/derivation.md',
+	);
+}
+
+/** The three shapes a function is written in, whose body does not run where it is written. */
+const FUNCTIONS = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
+
+/**
+ * Walks the part of a node the render runs, which is not all of it.
+ *
+ * A function written inside an expression does not run where it is written: `on:change={() =>
+ * handler(bar)}` names a call and makes none, and `factory` returning `{ onclick: () => { v = 1 } }`
+ * assigns nothing while the bytes are written. So the walk stops at every function it meets --
+ * except the one it was given, whose body is the thing being asked about.
+ */
+function running(node: unknown, at: (one: Node) => void): void {
+	const step = (one: unknown): void => {
+		if (Array.isArray(one)) {
+			for (const each of one) step(each);
+			return;
+		}
+		if (!isNode(one)) return;
+		if (FUNCTIONS.has(String(one['type']))) return;
+		at(one);
+		for (const value of Object.values(one)) step(value);
+	};
+	if (isNode(node) && FUNCTIONS.has(String(node['type']))) {
+		step(node['params']);
+		step(node['body']);
+		return;
+	}
+	step(node);
+}
+
+/**
+ * The declared names a node calls, each written where the render would run it.
+ *
+ * A callee only: `on:click={buy}` names the function and does not run it, which is the ordinary
+ * way a handler is written, while `{buy()}` runs it where the bytes are written. A method call is
+ * not one of these -- `a.b()` runs `b`, which is not a name this file declares.
+ *
+ * `run` says which question is being asked of the node: whether the render runs its body, which is
+ * true of a function something calls and false of one something merely reads.
+ */
+function calling(node: unknown, names: ReadonlySet<string>, run: boolean): Set<string> {
+	const found = new Set<string>();
+	// Reading a name writes its initialiser out; where that is a function, writing it out runs
+	// nothing. `onclick={go}` and `const go = () => f()` both name `f` and neither calls it.
+	if (!run && isNode(node) && FUNCTIONS.has(String(node['type']))) return found;
+	running(node, (one) => {
+		if (one['type'] !== 'CallExpression' && one['type'] !== 'NewExpression') return;
+		const callee = one['callee'];
+		if (!isNode(callee) || callee['type'] !== 'Identifier') return;
+		if (typeof callee['name'] === 'string' && names.has(callee['name'])) found.add(callee['name']);
+	});
+	return found;
+}
+
+/** Every name a function body declares for itself, which shadows the script's. */
+function shadows(node: unknown): Set<string> {
+	const found = new Set<string>();
+	const take = (target: unknown): void => {
+		if (Array.isArray(target)) {
+			for (const one of target) take(one);
+			return;
+		}
+		if (!isNode(target)) return;
+		if (target['type'] === 'Identifier' && typeof target['name'] === 'string') {
+			found.add(target['name']);
+			return;
+		}
+		for (const value of Object.values(target)) take(value);
+	};
+	const walk = (one: unknown): void => {
+		if (Array.isArray(one)) {
+			for (const each of one) walk(each);
+			return;
+		}
+		if (!isNode(one)) return;
+		const type = one['type'];
+		if (type === 'VariableDeclarator') take(one['id']);
+		if (type === 'FunctionDeclaration' || type === 'ClassDeclaration') take(one['id']);
+		if (
+			type === 'FunctionDeclaration' ||
+			type === 'FunctionExpression' ||
+			type === 'ArrowFunctionExpression'
+		) {
+			take(one['params']);
+		}
+		for (const value of Object.values(one)) walk(value);
+	};
+	walk(node);
+	return found;
+}
+
+/**
+ * The declared names a body may change the value of, rather than read.
+ *
+ * Three shapes, in two kinds. An assignment and an update say what the new value is. A method call
+ * does not -- `log.push(x)` is not an assignment and changes the array all the same -- so a callee
+ * reaching a declared name through a member is counted too, and counted apart, because it is the
+ * conservative half: `xs.map(f)` changes nothing and is in it. Names the body declares for itself
+ * are skipped, since those shadow and are not the script's.
+ */
+function changing(
+	node: unknown,
+	names: ReadonlySet<string>,
+): { written: Set<string>; called: Set<string> } {
+	const written = new Set<string>();
+	const called = new Set<string>();
+	const mine = shadows(node);
+	const rootOf = (target: unknown): string | null => {
+		let at = target;
+		while (isNode(at) && at['type'] === 'MemberExpression') at = at['object'];
+		if (!isNode(at) || at['type'] !== 'Identifier') return null;
+		return typeof at['name'] === 'string' ? at['name'] : null;
+	};
+	const hit = (into: Set<string>, target: unknown): void => {
+		const name = rootOf(target);
+		if (name !== null && names.has(name) && !mine.has(name)) into.add(name);
+	};
+	running(node, (one) => {
+		const type = one['type'];
+		if (type === 'AssignmentExpression') hit(written, one['left']);
+		if (type === 'UpdateExpression') hit(written, one['argument']);
+		if (type === 'CallExpression') {
+			const callee = one['callee'];
+			if (isNode(callee) && callee['type'] === 'MemberExpression') hit(called, callee['object']);
+		}
+	});
+	return { written, called };
 }
 
 /**
@@ -1067,6 +1295,8 @@ export function locals(
 				'which does not run while the bytes are written. See spec/derivation.md',
 		);
 	}
+	losing(ast, found as Map<string, Declared & { node: Node; free: Set<string> }>, names);
+
 	const expanded = new Map<string, string>();
 
 	function slice(
