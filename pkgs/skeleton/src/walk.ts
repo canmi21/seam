@@ -1006,29 +1006,30 @@ function selection(
 	edits: [number, number, string][],
 	selecting: Walk['selecting'],
 	skipped: Set<unknown>,
+	/** Keys the spread pass must leave out of the object it builds, lowercased. */
+	dropped: Set<string>,
 ): Walk['selecting'] {
 	const tag = node['name'];
 	if (tag === 'select') {
 		// `renderer.select()` takes both off the attributes, writes neither, and compares the
 		// options against `value === undefined ? defaultValue : value`.
-		// A spread can carry either of them, and `renderer.select` reads them off the *merged*
-		// attributes -- so a `defaultValue` inside a spread decides the comparison exactly as a
-		// written one does, and a later attribute of the same name replaces it. Taking them off the
-		// tag is what stops Svelte's own `select()` from doing the comparison twice, and a spread's
-		// copy cannot be taken off without rewriting the object it sits in. So it is refused rather
-		// than half-removed: measured, `<select {...{ defaultValue: 'b' }} defaultValue="a">` marked
-		// both options, ours from the attribute and Svelte's own from what was left in the spread.
+		//
+		// A spread carries either of them exactly as a written attribute does, because the renderer
+		// reads them off the **merged** attributes. So the tag is read in source order and the last
+		// of each name wins, which is what building one object out of the parts does -- and both
+		// have to come off the tag, or Svelte's own `select()` does the comparison a second time
+		// over what was left. Measured before either was: `<select {...{ defaultValue: 'b' }}
+		// defaultValue="a">` marked both options, ours from the attribute and Svelte's own from the
+		// spread.
+		//
+		// Taking one out of a spread means rewriting the object, which is only possible where its
+		// keys can be listed. Where they cannot, the value is the request's and so is the option
+		// that carries it, and that is refused by name.
 		const listed = Array.isArray(node['attributes']) ? node['attributes'] : [];
-		if (listed.some((one) => isNode(one) && one['type'] === 'SpreadAttribute')) {
-			refuse(
-				'`{...spread}` on a `<select>` is not handled yet: `renderer.select` reads `value` and ' +
-					'`defaultValue` off the merged attributes and writes neither, and taking them out of ' +
-					'a spread means rewriting the object. See spec/refusals.md',
-			);
-		}
-		const value = attributeOf(node, 'value');
-		const fallback = attributeOf(node, 'defaultvalue');
-		if (value === undefined && fallback === undefined) return undefined;
+		// Where a spread is on the tag, the spread pass rewrites the whole run of attributes and
+		// two passes writing over the same span is an error. So the names go into `dropped` and the
+		// edits are that pass's; without a spread they are this one's.
+		const spreading = listed.some((one) => isNode(one) && one['type'] === 'SpreadAttribute');
 		const each = (attribute: AstNode): string => {
 			const written = valueExpression(attribute, source, expand);
 			if (written === null) {
@@ -1037,13 +1038,44 @@ function selection(
 						'compare against the joined string',
 				);
 			}
-			const at = span(attribute);
-			if (at !== null) edits.push([at[0], at[1], '']);
+			if (!spreading) {
+				const at = span(attribute);
+				if (at !== null) edits.push([at[0], at[1], '']);
+			}
 			skipped.add(attribute);
 			return written;
 		};
-		const chosen = value === undefined ? undefined : each(value);
-		const held = fallback === undefined ? undefined : each(fallback);
+		let chosen: string | undefined;
+		let held: string | undefined;
+		for (const one of listed) {
+			if (!isNode(one)) continue;
+			if (one['type'] === 'SpreadAttribute') {
+				const grown = expand(one['expression']);
+				const entries = objectEntries(grown);
+				if (entries === null) {
+					refuse(
+						'`{...spread}` on a `<select>` whose keys cannot be listed is not handled yet: ' +
+							'`renderer.select` reads `value` and `defaultValue` off the merged attributes ' +
+							'and writes neither, and taking them out means rewriting the object',
+					);
+				}
+				for (const [key, value] of entries) {
+					const name = key.toLowerCase();
+					if (name === 'value') chosen = `(${value})`;
+					else if (name === 'defaultvalue') held = `(${value})`;
+				}
+				continue;
+			}
+			if (one['type'] !== 'Attribute' || typeof one['name'] !== 'string') continue;
+			const name = one['name'].toLowerCase();
+			if (name === 'value') chosen = each(one);
+			else if (name === 'defaultvalue') held = each(one);
+		}
+		if (chosen === undefined && held === undefined) return undefined;
+		if (spreading) {
+			dropped.add('value');
+			dropped.add('defaultvalue');
+		}
 		const written =
 			chosen === undefined
 				? String(held)
@@ -3298,9 +3330,10 @@ function collect(node: unknown, walk: Walk): void {
 			// The three shapes a `<select>` and an `<option>` add, and `bind:innerHTML`, each a value
 			// the render cannot show where it lands. See `selection()` and `contents()`.
 			const skipped = new Set<unknown>();
+			const dropped = new Set<string>();
 			const selecting =
 				type === 'RegularElement'
-					? selection(node, source, expand, holes, edits, walk.selecting, skipped)
+					? selection(node, source, expand, holes, edits, walk.selecting, skipped, dropped)
 					: walk.selecting;
 			const bare =
 				type === 'RegularElement' ? contents(node, walk, holes, edits, skipped) : undefined;
@@ -3317,6 +3350,8 @@ function collect(node: unknown, walk: Walk): void {
 				site.spreads,
 				site.copy,
 				(text) => site.payload !== null && !varies(text, walk),
+				skipped,
+				dropped,
 			);
 			// `style:` before `class:`, which puts the class first in the output. Where an element
 			// carries a directive and no attribute of that name, `2-analyze/index.js` appends one --

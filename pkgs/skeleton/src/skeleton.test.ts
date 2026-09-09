@@ -1365,6 +1365,24 @@ const accepted: Case[] = [
 		data: [{ xs: ['a', 'b'] }, { xs: [] }],
 	},
 	{
+		// `renderer.select` in `internal/server/renderer.js` destructures `{ value, defaultValue }`
+		// off the **merged** attributes, writes neither, and compares every option against
+		// `value === undefined ? defaultValue : value`. A spread carries either of them exactly as a
+		// written attribute does, so the tag is read in source order and the last of each name wins.
+		// Both have to come off, or Svelte does the comparison a second time over what was left:
+		// measured on `<select {...{ defaultValue: 'b' }} defaultValue="a">`, which selected both
+		// options when only the attribute was taken.
+		name: 'a spread on a `<select>` carrying the value the options compare against',
+		source:
+			`${PROPS}<p>{data.a}</p><select {...{ defaultValue: 'b' }}>` +
+			'<option value="a">A</option><option value="b">B</option></select>' +
+			`<select {...{ defaultValue: 'b' }} defaultValue="a">` +
+			'<option value="a">A</option><option value="b">B</option></select>' +
+			`<select {...{ value: 'b', defaultValue: 'a' }}>` +
+			'<option value="a">A</option><option value="b">B</option></select>',
+		data: [{ a: 'x' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
@@ -2903,17 +2921,23 @@ const refused: Case[] = [
 			'<script>let { data, ...others } = $props();</script><p>{others.bar}</p><b>{data.a}</b>',
 	},
 	{
-		// `renderer.select` in `internal/server/renderer.js` destructures `{ value, defaultValue }`
-		// off the **merged** attributes, writes neither, and compares every option against
-		// `value === undefined ? defaultValue : value`. Taking them off the tag is what stops Svelte
-		// doing that comparison a second time, and a spread's copy cannot be taken off without
-		// rewriting the object. Left half-removed it marked twice: measured on
-		// `<select {...{ defaultValue: 'b' }} defaultValue="a">`, which selected both options.
-		name: 'a spread on a `<select>`, which carries the value the options compare against',
-		says: '`<select>`',
+		// A `<select>` carrying a spread goes through `renderer.select` rather than `$.attributes`,
+		// so the run of attributes has no call for a marker to ride in. Where the spread holds a
+		// value the request decides there is nowhere to put it, and it is refused rather than
+		// planted into a call Svelte did not compile.
+		name: 'a spread on a `<select>` holding a value the request decides',
+		says: 'Svelte compiled no call',
 		source:
-			`${PROPS}<select {...{ defaultValue: 'b' }} defaultValue="a">` +
-			'<option value="a">A</option><option value="b">B</option></select>',
+			`${PROPS}<select {...{ value: data.v, 'data-x': data.a }} defaultValue="a">` +
+			'<option value="a">A</option></select>',
+	},
+	{
+		// The keys of a spread on a `<select>` are only listable where it is written out. Where they
+		// are not, the value the options compare against is the request's and so is the option that
+		// carries it, and nothing can take it off the tag.
+		name: 'a spread on a `<select>` whose keys cannot be listed',
+		says: 'whose keys cannot be listed',
+		source: `${PROPS}<select {...data.r}><option value="a">A</option></select>`,
 	},
 	{
 		// The other side of it. `$.bind_props` assigns the child's value up where the caller passed

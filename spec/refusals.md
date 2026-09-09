@@ -871,6 +871,20 @@ prop it decided is bound inside the child and evaluated there it would read the 
 is not given. Measured with the spread before and after an attribute, a key present as
 `undefined`, a missing key taking the default, and a null object. `merged()` in `walk.ts`.
 
+**A `<select>`'s `value` comes off the merged attributes, spread and all.** `renderer.select`
+destructures `{ value, defaultValue, ...select_attrs }`, writes neither, and puts
+`value === undefined ? defaultValue : value` on the renderer the options read. A spread carries
+either of them exactly as a written attribute does, so the tag is read in source order and the last
+of each name wins. Both have to come off, or Svelte compares the options a second time over what was
+left: measured on `<select {...{ defaultValue: 'b' }} defaultValue="a">`, which marked both options
+when only the attribute was taken. Taking one out of a spread means rewriting the object, so the
+keys have to be listable, and a spread whose keys are the request's is refused. The rewrite is the
+spread pass's rather than the select pass's, because two passes writing over one span is an error --
+and it happens even where nothing in the run is the request's, which is the one place that pass
+writes an object with no hole in it. Where the run *does* hold a value the request decides there is
+nowhere to plant the marker, since a select with a spread goes through `renderer.select` and not
+through `$.attributes`, and that is refused too.
+
 **A spread on a component the walk could not enter is written into the tag.** The two paragraphs
 above are about a spread the walk carries into the child. Where it cannot go in -- the child's
 `$props()` is a name rather than a pattern, say -- the component tag stays and the render writes it,

@@ -1,4 +1,4 @@
-import type { Locals } from 'ast';
+import { type Locals, objectEntries } from 'ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { sentinel } from './sentinel.ts';
 import type { Hole } from './shape.ts';
@@ -151,6 +151,14 @@ export function spread(
 	copy: Copy | null,
 	/** Whether an expression varies with nothing the request decides, so the render evaluates it. */
 	inert: (expression: string) => boolean,
+	/** Attributes another pass took charge of, which are not this object's to write. */
+	skipped: ReadonlySet<unknown>,
+	/**
+	 * Keys to leave out of the object, lowercased. A `<select>`'s `value` and `defaultValue` are
+	 * the only ones: `renderer.select` reads them off the merged attributes and writes neither, so
+	 * leaving one in a spread has Svelte compare the options a second time. See `selection()`.
+	 */
+	drop: ReadonlySet<string>,
 ): ReadonlySet<unknown> {
 	const empty: ReadonlySet<unknown> = new Set();
 	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
@@ -176,7 +184,24 @@ export function spread(
 	for (const one of attributes) {
 		if (!isNode(one)) return empty;
 		if (one['type'] === 'SpreadAttribute') {
-			parts.push(`...(${expand(one['expression'])})`);
+			const grown = expand(one['expression']);
+			if (drop.size === 0) {
+				parts.push(`...(${grown})`);
+				continue;
+			}
+			// Written out key by key so the dropped ones can be left behind. Only reached where the
+			// keys are listable, which `selection()` has already required of the same spread.
+			const entries = objectEntries(grown);
+			if (entries === null) {
+				refuse(
+					'`{...spread}` on a `<select>` whose keys cannot be listed is not handled yet: ' +
+						'`renderer.select` reads `value` and `defaultValue` off the merged attributes',
+				);
+			}
+			for (const [key, value] of entries) {
+				if (drop.has(key.toLowerCase())) continue;
+				parts.push(`${JSON.stringify(key)}: (${value})`);
+			}
 			continue;
 		}
 		if (one['type'] === 'ClassDirective') {
@@ -212,6 +237,9 @@ export function spread(
 			);
 		}
 		const name = typeof one['name'] === 'string' ? one['name'] : '';
+		// Another pass took charge of it -- a `<select>`'s `value`, which is not an attribute at all
+		// once `renderer.select` has read it.
+		if (skipped.has(one) || drop.has(name.toLowerCase())) continue;
 		const key = JSON.stringify(name);
 		const value = one['value'];
 		// An event handler is in the object and skipped by name when the attributes are written, so
@@ -246,7 +274,19 @@ export function spread(
 	// once the caller's values are constants. Left as written, and every attribute with it, so
 	// that the state a package computes them from is Svelte's to run and never a derivation's.
 	const object = `{ ${parts.join(', ')} }`;
-	if (inert(object) && classed.every(inert) && styled.every(inert)) return new Set(attributes);
+	if (inert(object) && classed.every(inert) && styled.every(inert)) {
+		// Left as written, unless a key had to come out of it. A `<select>`'s `value` is that case:
+		// nothing in the run is the request's, but leaving the key where it was has `renderer.select`
+		// compare the options a second time. Written back as the same attributes in the same order,
+		// minus the ones the caller took charge of, and still with no hole.
+		if (drop.size === 0) return new Set(attributes);
+		const from = span(attributes[0]);
+		const to = span(attributes[attributes.length - 1]);
+		if (from !== null && to !== null) {
+			edits.push([from[0], to[1], [`{...${object}}`, ...directives].join(' ')]);
+		}
+		return new Set(attributes);
+	}
 
 	const index = holes.length;
 	// Filled in after the render, which is where the rest of the call comes from.
