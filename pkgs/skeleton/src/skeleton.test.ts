@@ -2300,6 +2300,17 @@ const accepted: Case[] = [
 		props: [{}, { num: 5 }],
 	},
 	{
+		// The end of the instance script is not the end of the instance body: `transform-server.js`
+		// pushes every `$:` statement onto the body after it has visited everything else, so a
+		// statement written below one in the source runs above it in the output. The ask read `rows`
+		// before `$: rows = ...` had assigned it. Labelled, the ask is a reactive statement too.
+		name: 'a test the render answers over a `$:` declaration',
+		source:
+			'<script>export let a; $: rows = [1, 2];</script>' +
+			'{#if rows.length > 1}<p>many</p>{:else}<p>one</p>{/if}<p>{a}</p>',
+		props: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request

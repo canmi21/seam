@@ -2548,6 +2548,12 @@ function unknown(walk: Walk): ReadonlySet<string> {
  * Appends a statement per test to the end of the instance script that reports the test's value
  * to the render's caller, so that a decision the request does not make is made once. At the end
  * rather than the top, because a declaration below is not yet in scope at the top.
+ *
+ * **And labelled `$:` in legacy mode, because the end of the script is not the end of the body.**
+ * `transform-server.js` pushes every `$:` statement onto the instance body after it has visited
+ * everything else, so a statement written below one in the source runs above it in the output --
+ * and `$: items = [...]` left `items` undefined where the ask read it. Labelled, the ask is a
+ * reactive statement too, and `analysis.reactive_statements` keeps them in dependency order.
  */
 function withAsks(
 	ast: AstNode,
@@ -2556,25 +2562,44 @@ function withAsks(
 	edits: [number, number, string][],
 ): void {
 	if (asks.length === 0 && wants.length === 0) return;
+	// Only where the script writes one, which is the only thing that moves: a file with no `$:` has
+	// nothing appended after the ask, and a file that has one is legacy by construction, since
+	// `2-analyze/index.js` refuses the label in runes mode. Asking `legacyMode` instead disagreed
+	// with Svelte over a file whose only rune is in its markup, and wrote a `$:` into a runes file.
+	const after = reactive(ast) ? '$: ' : '';
 	// Opened with a semicolon: the statement above may end without one, and a line starting
 	// with `(` would continue it as a call.
 	const lines = [
 		...asks.map(
 			([key, code]) =>
-				`;(globalThis.__seam_asked ??= {})[${JSON.stringify(key)}] = Boolean(${code});`,
+				`;${after}(globalThis.__seam_asked ??= {})[${JSON.stringify(key)}] = Boolean(${code});`,
 		),
 		// A value is answered only where it is data: a string, a number, a boolean, null, and
 		// arrays and plain objects of those. A `URL` or a `Date` would round-trip as a string and
 		// come back a different thing, so it is not answered and the expression stays.
 		...wants.map(
 			([key, code]) =>
-				`;(globalThis.__seam_asked ??= {})[${JSON.stringify(key)}] = ((v) => { const ok = (x) => ` +
+				`;${after}(globalThis.__seam_asked ??= {})[${JSON.stringify(key)}] = ((v) => { const ok = (x) => ` +
 				`x === null || ['string', 'number', 'boolean'].includes(typeof x) || (Array.isArray(x) ` +
 				`? x.every(ok) : typeof x === 'object' && Object.getPrototypeOf(x) === Object.prototype ` +
 				`&& Object.values(x).every(ok)); return ok(v) ? JSON.stringify(v) : undefined; })(${code});`,
 		),
 	];
 	appended(ast, lines, edits);
+}
+
+/** Whether the instance script writes a `$:` statement, which the server transform moves. */
+function reactive(ast: AstNode): boolean {
+	const instance = ast['instance'];
+	const content = isNode(instance) ? instance['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	return body.some(
+		(one) =>
+			isNode(one) &&
+			one['type'] === 'LabeledStatement' &&
+			isNode(one['label']) &&
+			one['label']['name'] === '$',
+	);
 }
 
 /** Statements added at the end of the instance script, or in one made for them. */

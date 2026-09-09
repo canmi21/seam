@@ -519,6 +519,21 @@ back as "is an illegal variable name" -- so such an expression stays a marker an
 calls the function where the carried bundle has it. Tested by name rather than by the prefix, since
 `$$props`, `$$restProps` and `$$slots` wear it too and those are the render's own to evaluate.
 
+## The end of the instance script is not the end of the instance body
+
+A test the render answers is written as a statement at the end of the instance script, so that
+every declaration above it is in scope. `transform-server.js` then pushes every `$:` statement onto
+the instance body **after** it has visited everything else, so a statement written below one in the
+source runs above it in the output -- and `$: items = [...]` left `items` undefined where the ask
+read it.
+
+So the ask is labelled `$:` too, and `analysis.reactive_statements` keeps them in dependency order.
+Only where the script writes one, which is the only thing that moves: a file with no `$:` has
+nothing appended after the ask, and a file that has one is legacy by construction, since
+`2-analyze/index.js` refuses the label in runes mode. Asking whether the file is legacy instead
+disagreed with Svelte over a file whose only rune is in its markup, and wrote a `$:` into a runes
+file.
+
 ## A `$:` that reads the name it assigns reads `undefined`
 
 `$: max = Math.max(num, max || 0)` reads the value `max` held before the statement ran.
