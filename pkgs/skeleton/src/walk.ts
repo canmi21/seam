@@ -3,6 +3,7 @@ import { basename, dirname, relative, resolve as resolvePath } from 'node:path';
 import { parse } from 'svelte/compiler';
 import {
 	apply,
+	AT_REQUEST,
 	type Carried,
 	constant,
 	type Edit,
@@ -2410,6 +2411,14 @@ function unstable(walk: Walk): ReadonlySet<string> {
 /** Whether an expression reads a context, which is a channel this walk does not follow. */
 const READS_CONTEXT = /\bget(?:All)?Contexts?\b/;
 
+/**
+ * A read of one of the names the server holds and the build has not, by the word.
+ *
+ * Not a member of something else: `a.process` is somebody's own property, and `$process` is a
+ * store. The shape is `carries()`'s, which asks the same kind of question of Svelte's helpers.
+ */
+const SERVER_HELD = new RegExp(`(?:^|[^$\\w.])(?:${[...AT_REQUEST].join('|')})\\b`);
+
 function varies(
 	expression: string,
 	walk: Walk,
@@ -2426,6 +2435,17 @@ function varies(
 	// One of Svelte's own functions this compiler carries is not a name the render can be handed:
 	// Svelte's compiler refuses a `$`-prefixed variable in markup outright. See `carries()`.
 	if (!written && carries(expression)) return true;
+	// A name the server holds and the build has not -- `process.env`. Svelte reads it inside
+	// `render()`, once per request, and a derivation is read once per request too, so the two
+	// agree. Handed to the compile-time render instead it would read the build machine's value and
+	// write that into the bytes, which is the one answer neither of them gives.
+	//
+	// Tested by the word rather than through `unknown()`, which is what `carries` does and for the
+	// same reason: `mentions` reports an expression it cannot parse as mentioning everything, so a
+	// set that is never empty made every unreadable expression vary. A class field written
+	// `$derived(...)` is one of those, and it took a sample that has nothing to do with the
+	// environment. See `AT_REQUEST`.
+	if (SERVER_HELD.test(expression)) return true;
 	// A subscription to a store the request brings. Asked here rather than only where a value is
 	// handed to a component the walk could not enter: `{#if $condition}` over a prop declared
 	// `writable(true)` is the same unknowable and reached the evaluator as a bare `$condition`.

@@ -2342,6 +2342,18 @@ const accepted: Case[] = [
 		props: [{ a: 'x' }, { a: '<&' }],
 	},
 	{
+		// A name the server holds and the build has not. Svelte reads it inside `render()`, once per
+		// request, and a derivation is read once per request too, so the two agree -- what does not
+		// agree is an expression judged inert and handed back to the compile-time render, which
+		// would read the build machine's value and write it into the bytes.
+		name: 'a read of the environment the server has and the build has not',
+		beside: { Plainer: '<script>export let text;</script><i>{text}</i>' },
+		source:
+			"<script>import Plainer from './Plainer.svelte'; export let a;</script>" +
+			'<p>{process.env.SEAM_TEST_VAR}</p><Plainer text={process.env.SEAM_TEST_VAR} /><b>{a}</b>',
+		props: [{ a: 'x' }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request

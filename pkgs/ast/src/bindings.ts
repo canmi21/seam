@@ -67,6 +67,30 @@ const GLOBALS = new Set([
 	'undefined',
 ]);
 
+/**
+ * Names whose value the **server** has and the **build** has not, which is a third answer.
+ *
+ * `GLOBALS` above is the list of names that read the same everywhere, and the ambient members
+ * below are the ones that do not read the same twice. `process.env.TMP_VAR` is neither: it reads
+ * the same twice within one server and differently on the machine that built the artifact. Svelte
+ * compiles it to a read evaluated inside `render()`, once per request, and a derivation is read
+ * once per request too -- so the two agree. What does not agree is an expression judged inert and
+ * handed back to the compile-time render, which would read the build machine's value and write it
+ * into the bytes. So it resolves here, and `unknown()` in the skeleton keeps it off that path.
+ *
+ * Svelte itself has no list to read forward from: its `globals` table in `phases/scope.js` is for
+ * folding a keypath at compile time and says nothing about which names are legal. The category is
+ * this compiler's, and the scope line is what decides it -- a value the build does not hold is a
+ * value the request brings, whatever channel it comes down. See spec/derivation.md.
+ *
+ * **`globalThis` is not one of these, and measuring said so.** The object is the same object on
+ * both machines; it is a *property* of it that differs, and the test here is on the root name, so
+ * listing it made every expression that names it vary -- which took a sample that had nothing to
+ * do with the environment. `process` is listed because there is no read of it that the build and
+ * the server agree on.
+ */
+export const AT_REQUEST: ReadonlySet<string> = new Set(['process']);
+
 /** Members of an allowed global that are not themselves deterministic. */
 const AMBIENT_MEMBERS: Record<string, ReadonlySet<string>> = {
 	Math: new Set(['random']),
@@ -257,6 +281,9 @@ function report(
 	const guarded = onlyTypeof(expression);
 	for (const name of names) {
 		if (GLOBALS.has(name)) continue;
+		// A name the server holds and the build does not. It resolves; what it must not do is reach
+		// the compile-time render, which `unknown()` in the skeleton sees to. See `AT_REQUEST`.
+		if (AT_REQUEST.has(name)) continue;
 		// `typeof x` on a name nothing binds is defined behaviour and reads the same everywhere:
 		// `"undefined"`. It is how a file asks whether a global exists, and Svelte compiles it
 		// unchanged, so the render evaluates the same expression and writes the same bytes. Only

@@ -556,6 +556,37 @@ stands over the payload's key *under a name*, and a name is the one thing this p
 `GIVEN` holds what the request brought, before any default was applied. So the substitution is the
 choice JavaScript makes, `(GIVEN["kebab-case"] === undefined ? d : GIVEN["kebab-case"])`.
 
+## A name the server holds and the build has not
+
+There were two answers about a bare global and there are three. `GLOBALS` in the ast package lists
+the names that **read the same everywhere**, and beside it the ambient members are the ones that
+**do not read the same twice** -- `Math.random`, `Date.now`. `process.env.TMP_VAR` is neither: it
+reads the same twice within one server, and differently on the machine that built the artifact.
+
+Svelte compiles it to a read evaluated inside `render()`, once per request. A derivation is read
+once per request too, so the two agree. **What does not agree is the third path**: an expression
+that varies with nothing the request decides is handed back to the compile-time render, and that
+render is the build. It would read the build machine's environment and write it into the bytes,
+which is the one answer neither Svelte nor this compiler gives. So the name resolves, and it always
+varies, which keeps it a derivation wherever it is read.
+
+**Svelte has no list to read forward from here.** Its `globals` table in `phases/scope.js` is for
+folding a keypath at compile time and says nothing about which names are legal; an undeclared name
+is a reference the runtime resolves, and that is all. The category is this compiler's, and the
+scope line is what decides it: a value the build does not hold is a value the request brings,
+whatever channel it comes down.
+
+**`globalThis` is not one of them, and measuring said so.** The object is the same object on both
+machines; it is a property of it that differs, and the test is on the root name -- so listing it
+made every expression naming it vary, which took a sample that has nothing to do with the
+environment. `process` is listed because there is no read of it the build and the server agree on.
+
+**Tested by the word, not through the set of names the request decides.** `mentions` reports an
+expression it cannot parse as mentioning everything, on the grounds that an unreadable expression
+is not a reason to write bytes -- so a set that is never empty made every unreadable expression
+vary. A class field written `$derived(...)` is one of those. The test is `carries()`'s shape
+instead, which asks the same kind of question of Svelte's own helpers.
+
 ## A rest on the entry is gathered from the payload itself
 
 `let { a, ...others } = $props()` on the entry: `others` is every key the request brought that the
