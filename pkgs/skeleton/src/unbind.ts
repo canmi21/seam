@@ -91,7 +91,7 @@ export const unbound: (given: string) => string = bySource((source) => {
 					refuse(`\`bind:${name}\` on an element this compiler cannot read the tag of`);
 				}
 				if (at !== null) edits.push([at[0], at[1], '']);
-				edits.push([opened, opened, `{${expression}}`]);
+				edits.push([opened.from, opened.to, `${opened.before}{${expression}}${opened.after}`]);
 			} else if (onElement && name === 'group') {
 				// What `element.js` writes for a group: `checked`, computed from the bound value together
 				// with the element's own `value` -- `includes` for a checkbox, `===` for a radio -- and
@@ -131,8 +131,16 @@ function isContent(name: string, tag: string): boolean {
 	return CONTENT_BINDINGS.has(name) || (name === 'value' && tag === 'textarea');
 }
 
-/** Where an element's opening tag ends, or null for one written self-closing. */
-function opening(source: string, node: AstNode): number | null {
+/**
+ * Where the element's content begins, and what has to go around it to put content there.
+ *
+ * A self-closing tag has no content, and `<textarea />` and `<textarea></textarea>` compile to the
+ * same thing -- measured -- so the pair is written out around the value rather than refused.
+ */
+function opening(
+	source: string,
+	node: AstNode,
+): { from: number; to: number; before: string; after: string } | null {
 	const at = span(node);
 	if (at === null) return null;
 	let last = at[0];
@@ -141,8 +149,11 @@ function opening(source: string, node: AstNode): number | null {
 		if (where !== null) last = Math.max(last, where[1]);
 	}
 	const close = source.indexOf('>', last);
-	if (close < 0 || source[close - 1] === '/') return null;
-	return close + 1;
+	if (close < 0) return null;
+	if (source[close - 1] !== '/') return { from: close + 1, to: close + 1, before: '', after: '' };
+	const tag = typeof node['name'] === 'string' ? node['name'] : '';
+	if (tag === '') return null;
+	return { from: close - 1, to: close + 1, before: '>', after: `</${tag}>` };
 }
 
 function hasChildren(node: AstNode): boolean {

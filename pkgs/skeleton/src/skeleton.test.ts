@@ -2281,6 +2281,15 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A self-closing element has no content to write the bound value into, and `<textarea />` and
+		// `<textarea></textarea>` compile to the same thing -- measured -- so the pair is written out
+		// around it rather than refused.
+		name: 'a `bind:value` on a self-closed `<textarea>`',
+		source:
+			'<script>let { data } = $props(); let held = "a<b";</script><textarea bind:value={held} /><p>{data.a}</p>',
+		data: [{ a: 'x' }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request
