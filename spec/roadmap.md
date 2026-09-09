@@ -388,7 +388,8 @@ consequence rather than the cause. Where a message is upstream's and the sample 
 the fault is in what was handed to it.
 
 Sorted that way the gaps were **76 mechanical**, **68 waiting on a decision**, **15 where the
-compile-time render threw and nobody has told the reasons apart**, and one refused correctly.
+compile-time render threw and nobody has told the reasons apart**, and one refused correctly. Of
+those fifteen, eight turned out to throw inside Svelte's own render too.
 
 ### The 76 that needed nobody: 59 done
 
@@ -499,38 +500,39 @@ down.
 against the item above about the render's module instances not being the artifact's, and the
 decision is the same one: what a module-scope binding means when there are two module graphs.
 
-### The 15 where the render threw, and nobody has told them apart
+### The 7 where the render threw, and what told the other eight apart
 
-The compile-time render runs the instance script with nothing the request brings. These fifteen
-threw while it did. Some are the sample throwing on purpose -- the error-boundary samples exist to
-be caught -- and some are neutralisation not reaching far enough, which is a fault. **Nothing here
-distinguishes the two, and until something does, the count is not evidence of anything.** Each has
-to be read against its source, after which most should leave this list for one of the two above.
+The compile-time render runs the instance script with nothing the request brings. Fifteen threw
+while it did, and the question was which of them were the sample throwing on purpose and which were
+neutralisation not reaching far enough. **Nothing in the list distinguished the two, so the count
+was not evidence of anything** -- and what settled it was not reading them one at a time. It was
+asking Svelte's own render the same question. Eight of the fifteen throw there too, so the throw is
+the sample's rather than ours; [conformance.md](conformance.md) counts them apart now, and
+[suite.md](suite.md) has the rule.
 
 | sample | what escaped |
 | --- | --- |
-| `server-side-rendering/boundary-error-failed-prop` | you are not supposed to see this message |
-| `server-side-rendering/boundary-error-with-onerror` | you are not supposed to see this message |
-| `runtime-runes/error-boundary-26` | undefined |
-| `runtime-runes/error-boundary-27` | undefined |
 | `runtime-runes/error-recovery` | NonExistent is not defined |
 | `runtime-runes/effect-order-6` | Cannot read properties of undefined, reading 'boolean' |
 | `runtime-runes/effect-order-7` | Cannot read properties of undefined, reading 'boolean' |
-| `runtime-runes/snippet-slot-let-error` | Svelte's `invalid_default_snippet` |
-| `runtime-runes/snippet-slot-let-renamed-children-error` | Svelte's `invalid_default_snippet` |
-| `runtime-runes/state-snapshot` | `structuredClone` and a name inside `JSON.stringify` |
 | `runtime-legacy/await-mutate-array` | Promise.resolve(...).filter is not a function |
 | `runtime-legacy/binding-indirect-fn` | Cannot read properties of undefined, reading 'filter' |
 | `runtime-legacy/component-namespace` | LazyWidget.Tooltip is not a function |
 | `runtime-legacy/context-api` | Cannot destructure 'registerTab' of `getContext(...)` |
-| `runtime-legacy/reactive-values-no-implicit-member-expression` | document is not defined |
 
-Four of them name a shape rather than a crash and are worth reading first. The two boundary samples
-say the compile reached a branch Svelte's own render never reaches, which is the same fault class as
-a marker standing where a value decides. `context-api` is context that a component sets and a
-descendant destructures, which the context item above already owns. And `component-namespace` is
-`<Components.Foo />`, listed among the wrong-bytes rows above as a missing anchor pair, so it is one
-construct appearing twice under two different failures.
+**Three of the seven are one cause.** `error-recovery`, `effect-order-6` and `effect-order-7` each
+put an expression inside a branch that nothing renders -- `{#if object}` over a `$state()` holding
+`undefined`, and `object.boolean` inside it. The test is a constant once the walk has substituted
+it, so the branch is dead and Svelte never evaluates what is in it; this walks every branch, which
+is what makes a block re-materialisable per render, and evaluated it. Folding a test that is
+already a literal is what closes them, and `await-mutate-array` is the same shape one construct
+along: the `{#await}` writes its pending branch and the then branch's expressions were evaluated
+against the promise.
+
+`context-api` is context that a component sets and a descendant destructures, which the context
+item above already owns. `component-namespace` is `<Components.Foo />` over a module script's
+export, which is the module-graph item. `binding-indirect-fn` is a `$:` declaration substituted
+into `items.filter(fn)` and is its own fault.
 
 ## Ready, and not done
 

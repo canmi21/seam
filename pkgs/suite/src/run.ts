@@ -76,14 +76,23 @@ const EMPTY = 20;
 /**
  * What upstream's own `_config.js` says about a sample, read rather than judged.
  *
- * A sample is skipped here only where upstream skips it: `skip` outright, a `mode` that does not
- * include `sync`, an `error` the sample is written to produce, or output it loads precompiled.
- * Nothing else is skipped, because a skip nobody upstream asked for is a number made to look
- * better. `props` is what both sides are handed.
+ * A sample is skipped here only where upstream skips it: `skip` outright, a `mode` upstream does
+ * not run on the server, an `error` the sample is written to produce, or output it loads
+ * precompiled. Nothing else is skipped, because a skip nobody upstream asked for is a number made
+ * to look better. `props` is what both sides are handed.
+ *
+ * **`mode` is a list of the modes upstream runs the sample in, and `skip_mode` a list of the ones
+ * it leaves out.** The modes are `client`, `hydrate`, `server`, `async` and `async-server`; the
+ * one this suite is, is `server`. This used to read `mode` for `sync`, which is not a mode any
+ * sample names, so the test was true wherever `mode` was written at all and every sample carrying
+ * one was skipped -- twenty of them server tests upstream runs, `head-payload-validation` among
+ * them, saying `mode: ['server']` in as many words. A condition that cannot be false does not
+ * fail; it makes the denominator smaller and says nothing.
  */
 interface Config {
 	skip?: boolean;
 	mode?: string[];
+	skip_mode?: string[];
 	error?: unknown;
 	load_compiled?: boolean;
 	props?: Record<string, unknown>;
@@ -238,21 +247,24 @@ async function attempt(suite: string, name: string): Promise<Result> {
 			? `its config will not evaluate: ${config.broken}`
 			: config.skip === true
 				? 'upstream skips it'
-				: Array.isArray(config.mode) && !config.mode.includes('sync')
-					? 'upstream runs it only in async mode'
-					: config.error !== undefined
-						? 'upstream expects it to error'
-						: config.load_compiled === true
-							? 'upstream loads its output precompiled'
-							: null;
+				: Array.isArray(config.mode) && !config.mode.includes('server')
+					? `upstream runs it only in ${config.mode.join(', ')} mode`
+					: Array.isArray(config.skip_mode) && config.skip_mode.includes('server')
+						? 'upstream skips it in server mode'
+						: config.error !== undefined
+							? 'upstream expects it to error'
+							: config.load_compiled === true
+								? 'upstream loads its output precompiled'
+								: null;
 	if (why !== null) return { suite, name, outcome: 'skipped', why };
 
 	const props = config.props ?? {};
-	let mine: { body: string; head: string };
+	let mine: { body: string; head: string } | null = null;
+	let refusal: string | null = null;
 	try {
 		mine = await ours(dir, props);
 	} catch (error) {
-		return { suite, name, outcome: 'refused', why: firstLine(error) };
+		refusal = firstLine(error);
 	}
 	let svelte: { body: string; head: string };
 	try {
@@ -260,7 +272,38 @@ async function attempt(suite: string, name: string): Promise<Result> {
 	} catch (error) {
 		// Neither side's answer: the oracle could not be built or run. Reported apart so it is never
 		// read as agreement, and never as a refusal either.
-		return { suite, name, outcome: 'oracle', why: firstLine(error) };
+		//
+		// **Asked even where this compiler already refused.** It used to be asked second and only
+		// where we had an answer, which made every sample the oracle cannot render our gap: fifteen
+		// of them, a quarter of what was being ranked as work. A boundary whose body throws needs
+		// the `transformError` upstream's harness passes and this one does not; `$: document.title`
+		// needs a DOM; two samples exist to raise upstream's own error. None of those is a
+		// difference between the two renders, because there is only one render.
+		//
+		// **Except where the oracle's refusal is this harness's own.** Upstream compiles the runtime
+		// suites with `experimental.async` on and this one does not, so Svelte's compiler turns away
+		// every async sample -- and that is not the oracle failing, it is a question this harness did
+		// not ask. The flag is process-global and irreversible once set, so passing it would make
+		// every later sample's render depend on the order samples ran in. The sample stays ours to
+		// answer, and what we answer is the scope line: async Svelte is the load stage's. See
+		// spec/roadmap.md.
+		const text = String((error as Error).message);
+		if (!/experimental\.async/.test(text) || mine !== null) {
+			return { suite, name, outcome: 'oracle', why: firstLine(error) };
+		}
+		// Which samples are async Svelte is upstream's compiler to say, not a message match here.
+		// Two of them this compiler turns away earlier for a reason of its own -- a boundary given
+		// its pending snippet as a value -- and were ranked as gaps on the strength of that message
+		// while being out of scope whatever the message said. Both facts are reported.
+		const said = refusal ?? 'it failed and said nothing';
+		const why = said.includes('async Svelte')
+			? said
+			: `upstream builds it with \`experimental.async\`, so it is async Svelte and the load ` +
+				`stage's. This compiler turned it away earlier and for another reason: ${said}`;
+		return { suite, name, outcome: 'refused', why };
+	}
+	if (mine === null) {
+		return { suite, name, outcome: 'refused', why: refusal ?? 'it failed and said nothing' };
 	}
 
 	if (mine.body !== svelte.body) {
@@ -289,9 +332,23 @@ function divergence(stream: string, mine: string, theirs: string): string {
 	return `${stream} at ${String(at)}\n      ours   ${show(mine)}\n      svelte ${show(theirs)}`;
 }
 
+/**
+ * The first line of an error that says something.
+ *
+ * A bundler's message opens with a banner -- `Build failed with 1 error:` -- and the cause is
+ * lines below it, so taking the first line reported twenty-seven samples under one label that
+ * names no cause. The banner is skipped and the colour codes a terminal writer put in are taken
+ * out, which is what makes the line readable in a file.
+ */
 function firstLine(error: unknown): string {
-	const [line] = String((error as Error).message).split('\n');
-	return line ?? 'it failed and said nothing';
+	// eslint-disable-next-line no-control-regex
+	const text = String((error as Error).message).replaceAll(/\u001B\[[0-9;]*m/g, '');
+	for (const line of text.split('\n')) {
+		const held = line.trim();
+		if (held === '' || /^Build failed with \d+ error/.test(held)) continue;
+		return held;
+	}
+	return 'it failed and said nothing';
 }
 
 function samplesOf(suite: string): string[] {

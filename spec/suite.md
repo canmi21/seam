@@ -51,15 +51,54 @@ so. Everything else announces itself.
 **refused** -- the compiler turned it away and named a specification file. A gap or a decision;
 [refusals.md](refusals.md) says which, and [roadmap.md](roadmap.md) ranks the gaps.
 
-**skipped** -- upstream's own `_config.js` says so: `skip: true`, `mode` without `sync`, or an
-`error` the sample is written to produce. Not our judgement, and never used to make a number look
-better. A sample skipped here is skipped by the people who wrote it.
+**oracle** -- neither side answered, because Svelte's own render could not be built or run here.
+There is nothing to be identical to, so the sample is not a pass, not a difference and not a
+refusal.
+
+**skipped** -- upstream's own `_config.js` says so: `skip: true`, a `mode` upstream does not run on
+the server, a `skip_mode` that names `server`, or an `error` the sample is written to produce. Not
+our judgement, and never used to make a number look better. A sample skipped here is skipped by the
+people who wrote it.
+
+### The oracle is asked even where this compiler refused
+
+It used to be asked second and only where we had bytes of our own, so every sample Svelte cannot
+render here was reported as our gap: fifteen of them, a quarter of what was being ranked as work. A
+`<svelte:boundary>` whose body throws needs the `transformError` upstream's harness passes and this
+one does not. `$: document.title = 'foo'` needs a DOM. Two samples exist to raise upstream's own
+error, and one reads a global upstream's harness sets before rendering. None of those is a
+difference between two renders, because there is only one render.
+
+**With one exception, and it is this harness's own.** Upstream compiles the runtime suites with
+`experimental.async` on and this one does not, so Svelte's compiler turns away every async sample.
+That is not the oracle failing; it is a question this harness did not ask. The flag is
+process-global and irreversible once set, so passing it would make every later sample's render
+depend on the order the samples ran in. Those samples stay ours to answer, and what we answer is
+the scope line.
+
+**Which is also how membership of that class is decided.** A sample the oracle cannot build without
+`experimental.async` is async Svelte, whatever this compiler's own message says -- two of them were
+turned away earlier for a reason of their own and were being ranked as gaps on the strength of that
+message while being out of scope either way. Upstream's compiler says which samples those are; a
+message match here does not.
+
+### `mode` names the modes upstream runs, and `sync` is not one of them
+
+The skip rule read `mode` for `sync`. No sample in the corpus names that mode -- they are `client`,
+`hydrate`, `server`, `async` and `async-server` -- so the test was true wherever `mode` was written
+at all, and every sample carrying one was skipped. Twenty of those are server tests upstream runs,
+`head-payload-validation` saying `mode: ['server']` in as many words. **A condition that cannot be
+false does not fail. It makes the denominator smaller and says nothing**, which is the same shape
+as counting a gap out because the compiler announces it.
 
 ## The denominator, said once
 
 A percentage over 2388 is meaningless, because two of the four outcomes are not failures.
 
-**Upstream's skips are out.** 563 of them.
+**Upstream's skips are out.** 553 of them.
+
+**A sample the oracle cannot render is out.** 17. There is nothing to compare against, so counting
+it either way is a claim about a comparison nobody made.
 
 **A refusal by decision is out, and it is the scope line rather than an excuse.** Async Svelte is
 the whole of it in practice: `await` in markup or at the top of a script awaits a promise per
@@ -71,7 +110,7 @@ nobody has done, and hiding it behind the same word as a decision is exactly the
 **Everything else is in.** So the number this file tracks is
 
 ```
-identical / (samples - upstream's skips - refusals by decision)
+identical / (samples - upstream's skips - oracle failures - refusals by decision)
 ```
 
 and the two figures beside it are the count that differs and the count refused as a gap.
@@ -95,8 +134,9 @@ upstream skips, 17 async, 2 that ask a boundary to catch a throw -- **59 of 96**
 ## This is the first of three, and the order matters
 
 [conformance.md](conformance.md) puts this suite in its place: it is stage one of three, and it
-says what "all of them" means once the skips and the refusals by decision come out -- 1602 of the
-2388 -- and why neither SvelteKit's own test apps nor a real application should be measured until
+says what "all of them" means once the skips, the oracle's own failures and the refusals by
+decision come out -- 1544 of the 2388 -- and why neither SvelteKit's own test apps nor a real
+application should be measured until
 this one is finished. What follows here is the rule that decides the order of work inside it.
 
 ## Bytes before capability, and why that ordering is not obvious

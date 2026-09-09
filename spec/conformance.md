@@ -41,14 +41,23 @@ neither gates anything. A compiler that is fast and writes the wrong bytes has n
 
 Three of the outcomes are not failures and saying so once is what keeps the target honest.
 
-**Upstream's own skips are out.** 558 samples whose `_config.js` says `skip`, or a `mode` without
-`sync`, or an `error` the sample exists to produce. Not our judgement.
+**Upstream's own skips are out.** 553 samples whose `_config.js` says `skip`, or a `mode` upstream
+does not run on the server, or a `skip_mode` naming `server`, or an `error` the sample exists to
+produce. Not our judgement.
 
-**A refusal by decision is out.** 272 samples, in four shapes the scope line settles:
+**A sample Svelte's own render cannot produce bytes for is out.** 17. The oracle is asked even
+where this compiler refused, so a sample nobody can render is not counted as our gap -- fifteen of
+them were, a quarter of what was being ranked as work. [suite.md](suite.md) has the rule and the
+one exception to it.
 
-- **184 await** in markup or at the top of a script, which is async Svelte and the load stage's.
-- **77 change a value** the markup reads while the bytes are written -- assigned after being
-  declared, or changed by a function this render calls -- which is a program per request.
+**A refusal by decision is out.** 274 samples, in four shapes the scope line settles:
+
+- **183 await** in markup or at the top of a script, which is async Svelte and the load stage's.
+  Which samples those are is upstream's compiler to say: one that will not build without
+  `experimental.async` is async Svelte whatever this compiler's own message says.
+- **79 change a value** the markup reads while the bytes are written -- assigned after being
+  declared, changed by a function this render calls, or written into `$$props`, which is the same
+  thing about the object a caller passed -- which is a program per request.
 - **8 want a function off the wire.** The payload carries data and no function, deliberately: see
   [payload.md](payload.md). Six subscribe to a store the request brings, `$x` reading whatever `x`
   holds while the bytes are written, so the store itself would have to be in the payload -- and a
@@ -65,20 +74,20 @@ instead.
 **Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
 
-So the target is: **of the 1558 samples that are in, every one is byte-identical to Svelte's own
+So the target is: **of the 1544 samples that are in, every one is byte-identical to Svelte's own
 render.** Nothing differing, nothing refused as a gap.
 
 ### Where it stands
 
 ```
-                        samples  identical  empty  differs  refused  skipped
-server-side-rendering       131         84      4        0       27       16
-runtime-runes              1048        542     15        1      211      278
-runtime-legacy             1209        825     21        0       98      264
-total                      2388       1451     40        1      336      558
+                        samples  identical  empty  differs  refused  skipped  oracle
+server-side-rendering       131         84      4        0       21       16       6
+runtime-runes              1048        551     16        1      203      268       9
+runtime-legacy             1209        821     20        0       97      269       2
+total                      2388       1456     40        1      321      553      17
 ```
 
-Against the target: **1491 of 1558**, with one differing and 64 refused as gaps. Two samples fail
+Against the target: **1496 of 1544**, with one differing and 47 refused as gaps. Seventeen fail
 inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
 has to answer them in [roadmap.md](roadmap.md).
 
@@ -97,7 +106,8 @@ built: a real build writes the artifact and the server throws per request, the s
 only because it injects. Each is its own cause -- a store read, a function inlined whole, a
 `getAllContexts()` outside a render -- and reading them is what turns one label into entries that
 can be ranked. Beside them are the internal errors still escaping, each a place the compiler met
-something it did not name; [roadmap.md](roadmap.md) lists the fifteen that are left.
+something it did not name; [roadmap.md](roadmap.md) lists the seven that are left, and how asking
+the oracle told the other eight apart.
 
 ### When it is done
 
