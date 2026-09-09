@@ -259,6 +259,28 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// An array pattern destructures by the iterator protocol, which is what Svelte's server
+		// leaves to the engine. Reading the element by index is the same answer for an array and no
+		// answer at all for a `Set`, so it goes through `to_array`: arrays unchanged, everything
+		// else through `Array.from`. Without the count `_extract_paths` passes, whose branch tests
+		// `Symbol.iterator in value` and throws on a primitive -- `{@const [first] = 'ab'}`
+		// destructures on the server.
+		name: 'an each over an array pattern whose elements are iterable but not arrays',
+		source: `${PROPS}{#each data.rows as [a, b]}<p>{a}-{b}</p>{/each}`,
+		data: [
+			{ rows: [] },
+			{
+				rows: [
+					new Set(['x', 'y']),
+					new Map([
+						['p', 1],
+						['q', 2],
+					]),
+				],
+			},
+		],
+	},
+	{
 		// The block binds the element under a name of its own and every name the pattern binds is an
 		// expression over it: a member stays a path the injector resolves per item, and a literal
 		// key, a computed key, a nesting and a rest are each a derivation over the binding. A

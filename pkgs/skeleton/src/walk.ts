@@ -772,16 +772,29 @@ function takenApart(
 			return;
 		}
 		if (type === 'ArrayPattern') {
-			for (const [at, element] of (Array.isArray(target['elements'])
-				? target['elements']
-				: []
-			).entries()) {
+			// Through `to_array` and not by index. An array pattern destructures by the iterator
+			// protocol -- Svelte's server writes `let [a, b] = each_array[i]` and lets the engine do
+			// it -- and reading `value[0]` instead is the same answer for an array and no answer at
+			// all for anything else: measured, `{#each rows as [a, b]}` over a list of sets wrote
+			// `-` where Svelte wrote `x-y`.
+			//
+			// **Without the count `_extract_paths` passes.** That is the client transform's answer to
+			// this question and it is one step away from the server's: `to_array(value, n)` caps an
+			// unbounded iterator at `n`, and it reaches that branch through `Symbol.iterator in
+			// value`, which throws on a primitive. `{@const [first] = 'ab'}` destructures on the
+			// server and threw here. So the call is made the way the branch below it behaves --
+			// arrays unchanged, everything else through `Array.from` -- which is the engine's answer
+			// for every source but an endless one, and an endless one is not a thing a render ends
+			// on either way.
+			const elements = Array.isArray(target['elements']) ? target['elements'] : [];
+			const listed = `$$to_array(${reached})`;
+			for (const [at, element] of elements.entries()) {
 				if (!isNode(element)) continue;
 				if (element['type'] === 'RestElement') {
-					one(element['argument'], `$$to_array(${reached}).slice(${String(at)})`);
+					one(element['argument'], `${listed}.slice(${String(at)})`);
 					continue;
 				}
-				one(element, `${reached}[${String(at)}]`);
+				one(element, `${listed}[${String(at)}]`);
 			}
 			return;
 		}

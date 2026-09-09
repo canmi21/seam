@@ -379,6 +379,7 @@ transform:
 | `{ [k]: c }` | `(v)[k]`, with `k` expanded where it stands |
 | `{ a: { b } }` | `((v).a).b` -- one way in written after another |
 | `{ a, ...rest }` | `$$exclude_from_object((v), ["a"])` |
+| `[a, b]` | `$$to_array((v))[0]`, `$$to_array((v))[1]` |
 | `[a, ...rest]` | `$$to_array((v)).slice(1)` |
 | `{ a = d }` | `((v).a === undefined ? (d) : (v).a)` |
 
@@ -390,6 +391,21 @@ handling are upstream's rather than reproduced here.
 
 A computed key is expanded against what the pattern has bound before it: JavaScript binds a pattern
 left to right, and `{ length, [length - 1]: last }` reads the one from the other.
+
+**An array pattern goes through `to_array` and never by index**, because it destructures by the
+iterator protocol -- the server writes `let [a, b] = each_array[i]` and lets the engine do it.
+Reading `(v)[0]` is the same answer for an array and no answer at all for anything else:
+`{#each rows as [a, b]}` over a list of sets wrote `-` where Svelte wrote `x-y`. This is the one
+place where `_extract_paths` is followed only partway. It passes a count -- `to_array(value, n)`,
+`n` being the element count where no rest follows -- which caps an unbounded iterator, and reaches
+that branch through `Symbol.iterator in value`, which throws on a primitive: `{@const [first] =
+'ab'}` destructures on the server and threw here. The call is made without it, so the behaviour is
+the branch below -- arrays unchanged, everything else through `Array.from` -- which is the engine's
+answer for every source but an endless one, and a render does not end on an endless one either way.
+
+The cost is that an array pattern's names are derivations rather than paths, one call per name per
+item. An object pattern's stay paths, `$$item0.a` resolving per item as binding the name directly
+used to, and an object pattern is what an each destructures nearly always.
 
 An each block's context is the one of the four whose value is not an expression this pass holds: it
 is the element, bound per item by the runtime. So the block binds the element under a name of its
