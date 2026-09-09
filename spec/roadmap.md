@@ -500,10 +500,11 @@ down.
 against the item above about the render's module instances not being the artifact's, and the
 decision is the same one: what a module-scope binding means when there are two module graphs.
 
-### The 30 that remain, and what closed the rest
+### The 25 that remain, and what closed the rest
 
-Of the twenty-five ranked as needing nobody, fifteen are green and the others each turned out to
-want one thing more. Eight rules closed them and each is written where it lives:
+Of the twenty-five ranked as needing nobody, nineteen are green, one turned out to be a decision
+rather than a gap, and five want one thing more. The rules that closed them are each written where
+they live:
 
 - **A test the source has already decided is folded before the walk goes into either branch**, and
   a name read only in the branch that is dropped is not a name the data has to carry. A chain is
