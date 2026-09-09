@@ -500,6 +500,51 @@ down.
 against the item above about the render's module instances not being the artifact's, and the
 decision is the same one: what a module-scope binding means when there are two module graphs.
 
+### The 33 that remain, and what closed the rest
+
+Of the twenty-five ranked as needing nobody, twelve are green and the others each turned out to
+want one thing more. Six rules closed them and each is written where it lives:
+
+- **A test the source has already decided is folded before the walk goes into either branch**, and
+  a name read only in the branch that is dropped is not a name the data has to carry. A chain is
+  decided by its first not-false test, and its tests are asked one at a time in source order.
+  [derivation.md](derivation.md).
+- **A `{@render}`'s callee the request decides is the snippet the source names**, written `(0, x)`
+  so the tag stays the dynamic one it was. [refusals.md](refusals.md).
+- **Markup handed to a component hoists its `{@const}`s**, and a `let:` may take a pattern apart --
+  spelled as an expression, which is how Svelte spells one. [refusals.md](refusals.md).
+- **A `this` settled to nothing is bytes**: `build_inline_component` builds the props inside the
+  `if`. [refusals.md](refusals.md).
+- **The payload object is nameable**, so a rest in the entry's `$props()` and a prop whose name is
+  not an identifier are both read off it. [derivation.md](derivation.md).
+- **The end of the instance script is not the end of the instance body**, so a test the render
+  answers is labelled `$:` where the script writes one; and a `$:` that reads the name it assigns
+  reads `undefined`. [derivation.md](derivation.md).
+
+**Four of the thirteen left were never mechanical.** `block-expression-member-access`,
+`spread-component-side-effects`, `destructure-state-iterable` and `binding-input-group-each-8` each
+change a value while the bytes are written -- through a getter, a spread, or a generator -- which
+is the by-decision rule wearing the derivation evaluator's message. The rule asks whether the
+changed name is read *by name* in the markup, and none of these is. [conformance.md](conformance.md)
+counts them where they belong.
+
+**Four more are one feature**, and it is the one the roadmap already named: a snippet written at a
+call site and rendered by the component with arguments of its own -- `snippet-prop-explicit`,
+`snippet-prop-implicit`, `snippets-as-slots`, `snippet-reactive-args`. `descend` turns away a tag
+holding a `{#snippet}` outright. The machinery is there in the fragment a recursive snippet becomes;
+what is missing is that fragment spanning two files.
+
+**The last five each want one reading that is not yet done.** `const-tag-component` needs the
+literal the render is handed for a prop it models to survive a member read. `bindings-before-onmount`
+needs "the caller's markup never reads this name", which is a reachability question rather than a
+mention. `select-value-implicit-value-complex` needs an `<option>`'s implicit value read off the
+render rather than off the source. `await-mutate-array` and
+`if-block-compound-outro-no-dependencies` both need a test folded where there is no payload to ask
+against. And `globals-accessible-directly-process` is a decision after all: the rule that would let
+a derivation read `process.env` is that a server's globals are the same at build and at request,
+which is true of the *value* and not of when it is read -- an expression judged inert is handed to
+the render, which bakes the build's environment.
+
 ### The 7 where the render threw, and what told the other eight apart
 
 The compile-time render runs the instance script with nothing the request brings. Fifteen threw

@@ -55,9 +55,13 @@ one exception to it.
 - **183 await** in markup or at the top of a script, which is async Svelte and the load stage's.
   Which samples those are is upstream's compiler to say: one that will not build without
   `experimental.async` is async Svelte whatever this compiler's own message says.
-- **79 change a value** the markup reads while the bytes are written -- assigned after being
+- **78 change a value** the markup reads while the bytes are written -- assigned after being
   declared, changed by a function this render calls, or written into `$$props`, which is the same
-  thing about the object a caller passed -- which is a program per request.
+  thing about the object a caller passed -- which is a program per request. Four more belong here
+  and wear the derivation evaluator's message instead, because the rule asks whether the changed
+  name is read *by name* in the markup and these are read through a getter, a spread or a
+  generator: `block-expression-member-access`, `spread-component-side-effects`,
+  `destructure-state-iterable`, `binding-input-group-each-8`.
 - **8 want a function off the wire.** The payload carries data and no function, deliberately: see
   [payload.md](payload.md). Six subscribe to a store the request brings, `$x` reading whatever `x`
   holds while the bytes are written, so the store itself would have to be in the payload -- and a
@@ -82,12 +86,12 @@ render.** Nothing differing, nothing refused as a gap.
 ```
                         samples  identical  empty  differs  refused  skipped  oracle
 server-side-rendering       131         84      4        0       21       16       6
-runtime-runes              1048        551     16        1      203      268       9
-runtime-legacy             1209        821     20        0       97      269       2
-total                      2388       1456     40        1      321      553      17
+runtime-runes              1048        558     16        1      196      268       9
+runtime-legacy             1209        828     20        0       90      269       2
+total                      2388       1470     40        1      307      553      17
 ```
 
-Against the target: **1496 of 1544**, with one differing and 47 refused as gaps. Seventeen fail
+Against the target: **1510 of 1544**, with one differing and 33 refused as gaps. Seventeen fail
 inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
 has to answer them in [roadmap.md](roadmap.md).
 
