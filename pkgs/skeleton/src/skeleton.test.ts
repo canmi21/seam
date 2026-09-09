@@ -217,6 +217,16 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }],
 	},
 	{
+		// A test the request does not decide is answered by a render and the walk runs again told, so
+		// the branch the answer excludes is folded on that second pass. Checking the names on the
+		// first reported one that lives in markup no request reaches, a pass before the walk knew it.
+		name: 'a name in a branch the render has yet to fold away',
+		source:
+			'<script>let { data } = $props(); const xs = [1, 2];</script>' +
+			'{#if xs.length > 1}<p>yes</p>{:else}<p>{nowhere}</p>{/if}<p>{data.a}</p>',
+		data: [{ a: 'x' }],
+	},
+	{
 		name: 'a block inside an else-if branch',
 		source: `${PROPS}{#if data.f}<p>a</p>{:else if data.g}{#if data.h}<p>b</p>{/if}{/if}`,
 		data: [

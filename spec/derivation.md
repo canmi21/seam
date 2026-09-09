@@ -580,6 +580,11 @@ to be wrong in -- and Svelte, which compiles the branch and never runs it, never
 name either. The walk records what it folded, by file, and the check reads the source with those
 spans blanked, every other offset where it was.
 
+**And on the pass that is kept.** A test the request does not decide is answered by a render and
+the walk runs again told, so the branch the answer excludes is folded on that second pass and not
+on the first. Checking the names on the first reported one that lives in markup no request reaches,
+a pass before the walk knew it.
+
 **A chain is decided as soon as its first not-false test is answered.** `{#if a}{:else if b}` is
 two tests Svelte evaluates in order until one is true, so `b` is reached only where `a` was false.
 Waiting for every answer before folding kept the block a decision -- and the ask for a test is

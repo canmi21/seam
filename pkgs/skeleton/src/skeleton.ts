@@ -125,7 +125,14 @@ export async function skeleton(
 	// for every request rather than only for this render -- and what the check owes an author is a
 	// name that would have reached the bytes as nothing. There are no bytes there. Svelte compiles
 	// such a branch and never runs it, so a name in one is not a name it asks about either.
-	resolved(blanked(source, baseline.dead.get(relative(root, file)) ?? []), basename(file), file);
+	//
+	// **And on the pass that is kept.** A test the request does not decide is answered by a render
+	// and the walk runs again told, so the branch the answer excludes is folded on that second pass
+	// and not on this one. Asking here reported a name that lives in markup no request reaches, one
+	// pass before the walk knew that.
+	if (baseline.asks.length === 0 && baseline.wants.length === 0) {
+		resolved(blanked(source, baseline.dead.get(relative(root, file)) ?? []), basename(file), file);
+	}
 	// A render that fails is nearly always a component the walk could not enter and Svelte then
 	// rendered without the data it needed. The author was shown that crash and never the refusal
 	// behind it, so both are said here, the refusals first.
