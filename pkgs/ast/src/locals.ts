@@ -1502,7 +1502,12 @@ export function locals(
 				const to = at['end'];
 				if (typeof from !== 'number' || typeof to !== 'number') return;
 				if (taken.has(from)) return;
-				const read = `($$get_store(${expand(store, open, extra)}))`;
+				// What the caller bound it to first, the way the branch below reads a name: a child's
+				// `export let items;` is a declaration holding `undefined` here and a prop bound at
+				// the call site there, and reading the declaration gave `$$get_store(undefined)`.
+				const inner = extra?.get(store) ?? expand(store, open, extra);
+				if (inner === 'undefined') return;
+				const read = `($$get_store(${inner}))`;
 				edits.push([from, to, shorthand === true ? `${name}: ${read}` : read]);
 				return;
 			}

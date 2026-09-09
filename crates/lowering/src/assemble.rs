@@ -40,6 +40,31 @@ impl Out {
 		self.nodes.push(node);
 	}
 
+	/// The first marker this pass planted that is still in what it wrote, if any. See `assemble`.
+	fn planted(&self) -> Option<String> {
+		let mut found = None;
+		let mut look = |text: &str| {
+			if found.is_some() {
+				return;
+			}
+			for open in ["%%s", "%%b", "%%h"] {
+				if let Some(at) = text.find(open) {
+					let rest = &text[at..];
+					let end = rest[open.len()..].find("%%").map_or(rest.len(), |n| at + open.len() + n + 2);
+					found = Some(text[at..end].to_owned());
+					return;
+				}
+			}
+		};
+		for node in &self.nodes {
+			if let ir::Node::Static { s } = node {
+				look(s);
+			}
+		}
+		look(&self.buffer);
+		found
+	}
+
 	fn finish(mut self) -> Vec<ir::Node> {
 		if !self.buffer.is_empty() {
 			self.nodes.push(ir::Node::Static { s: self.buffer });
@@ -627,6 +652,21 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 		assembler.region(title_bytes, 0, title_bytes.len(), &mut title)?;
 	}
 	assembler.placed()?;
+	// Nothing this pass planted may reach the bytes. A stamp names a block for the assembler and a
+	// sentinel stands for a value; either one left in a static run means a block was not recognised
+	// where it closed, and the artifact would ship the marker itself. Measured on a recursive
+	// component whose body is one `{#each}`: the bare block wrapping the body and the each end at
+	// the same place, their stamps land together, and only the first is read -- the each was never
+	// assembled and `%%b1%%` stayed in the output. See `spec/ir.md`.
+	for (stream, nodes) in [("body", &out), ("head", &head), ("title", &title)] {
+		if let Some(found) = nodes.planted() {
+			return Err(format!(
+				"`{found}` is left in the {stream} this pass assembled. A block or a value was not \
+				 recognised where the render put it, and the artifact would write the marker out. \
+				 See spec/ir.md"
+			));
+		}
+	}
 
 	Ok(ir::Compiled {
 		ir: ir::ComponentIR {

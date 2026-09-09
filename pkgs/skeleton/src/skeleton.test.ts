@@ -2858,6 +2858,18 @@ const refused: Case[] = [
 		source: `${PROPS}<p>%%s0%% here</p><p>{data.a}</p>`,
 	},
 	{
+		// Nothing this pass plants may reach the bytes. A component rendering itself whose body is
+		// one block is where it showed: the bare block wrapping the body and the each end at the
+		// same place, so their stamps land together and only the first is read -- the each was
+		// never assembled and its stamp stayed in the output, which the artifact would have
+		// written out.
+		name: 'a marker left in what the pass assembled',
+		says: 'is left in the body this pass assembled',
+		source:
+			`${PROPS}{#each data.tree as item}<div>{item.id}` +
+			'{#if item.sub}<svelte:self data={{ tree: item.sub }} />{/if}</div>{/each}',
+	},
+	{
 		// The render's module instances are not the artifact's. An expression the walk judges inert
 		// is handed back for Svelte to evaluate in the render, which imports the module afresh; a
 		// derivation evaluates in the carried bundle, which imported it once. Where the module holds

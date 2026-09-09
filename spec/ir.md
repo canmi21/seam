@@ -316,6 +316,21 @@ Written as a field constraint rather than a convention because the failure mode 
 IR that accepts one comparison grows an expression evaluator, and an expression evaluator in the
 runtime is a JavaScript runtime in the backend by another name. That is the thing being removed.
 
+## Nothing this pass plants may reach the bytes
+
+A stamp names a block for the assembler and a sentinel stands for a value. Both are written into
+the render and both are meant to be consumed by reading them back out of it; either one left in a
+static run means a block was not recognised where the render put it, and the artifact would write
+the marker itself into a response.
+
+It is checked at the end of assembly, over the body, the head and the title. Found on a component
+rendering itself whose body is one `{#each}`: the bare block the walk wraps a fragment's body in
+and the each end at the same place, so their stamps land together and only the first is read. The
+each was never assembled and `%%b1%%` stayed in the output.
+
+The check names the marker; what it does not yet do is tell the two causes apart, and the
+recursive-body case is in [roadmap.md](roadmap.md).
+
 ## Scope
 
 `each` binds `item` for the extent of its body, and `index` beside it rather than through it,
