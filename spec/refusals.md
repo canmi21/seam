@@ -492,6 +492,13 @@ it would reach for data the render is not given. What it is handed has to be des
 the parameter destructures: `{}` or `[]` rather than `null`, which is the same rule a declaration
 that reads a prop already has.
 
+**A `<svelte:component>` that settles to one import is entered like any other tag.** It was not,
+and for a reason with nothing to do with dynamic components: `expand` puts parentheses around every
+name it substitutes, so a `this` settling to one import came back as `(Foo)` and the identifier
+test read it as an expression. The tag was written out for Svelte, the child never entered, and a
+`bind:` on it had no declaration to read -- which is how `bind:x` over a child declaring `x` with a
+default shipped an empty string instead of naming a file.
+
 **A spread on a `<slot>` is folded rather than refused.** `SlotElement.js` builds
 `$.spread_props([{ ...named }, ...spreads])` -- every written attribute in one object first and then
 the spreads, which is not the order they were written in, so a spread wins over a name beside it

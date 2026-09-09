@@ -2782,6 +2782,19 @@ const refused: Case[] = [
 		source: '<script>let { data } = $props(); const o = { a: 1 }; o.a = 2</script><p>{o.a}</p>',
 	},
 	{
+		// A `<svelte:component>` whose `this` settles to one import is entered, and the child's own
+		// declarations are then read: `bind:x` over a prop the child declares with a default is a
+		// binding it sends back. `expand` puts parentheses around every name it substitutes, so the
+		// settled `this` came back as `(Foo)` and the identifier test read it as an expression --
+		// the tag was written out for Svelte and the child never entered.
+		name: 'a bind on a dynamic component that settles to one import',
+		says: 'a binding the child sends back',
+		beside: { Foo: "<script>export let x = 'yes';</script><p>{x}</p>" },
+		source:
+			"<script>import Foo from './Foo.svelte'; let { data } = $props(); let x;</script>" +
+			'<svelte:component this={Foo} bind:x /><p>{x}{data.k}</p>',
+	},
+	{
 		// A prop is not a declaration, and the rule is the same: Svelte runs the instance script
 		// before the template, so `options` holds `bar` while the bytes are written, where the
 		// substitution stands for the payload's key and wrote `foo`.

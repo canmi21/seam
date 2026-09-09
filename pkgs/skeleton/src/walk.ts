@@ -2739,6 +2739,28 @@ function collect(node: unknown, walk: Walk): void {
 			// A dynamic component the walk settles to one import is that component, and is entered
 			// as one where it can be -- the render keeps the dynamic call, and so the anchors. Where
 			// it cannot, the settled expression is written for Svelte to evaluate, as before.
+			// Parentheses wrapping the whole of it say nothing about what it is. `expand` puts a pair
+			// around every name it substitutes, so a `this` that settles to one import comes back as
+			// `(Foo)` and the identifier test read it as an expression: the tag was written out for
+			// Svelte and the child never entered, which left `bind:x` with no declaration to read.
+			const unwrapped = (text: string): string => {
+				let held = text.trim();
+				while (held.startsWith('(') && held.endsWith(')')) {
+					let depth = 0;
+					let wraps = true;
+					for (const [at, c] of [...held].entries()) {
+						if (c === '(') depth += 1;
+						else if (c === ')') depth -= 1;
+						if (depth === 0 && at < held.length - 1) {
+							wraps = false;
+							break;
+						}
+					}
+					if (!wraps) break;
+					held = held.slice(1, -1).trim();
+				}
+				return held;
+			};
 			let settledTag: {
 				name: string;
 				expression: [number, number] | null;
@@ -2751,8 +2773,8 @@ function collect(node: unknown, walk: Walk): void {
 				const written = (): void => {
 					edits.push([where[0], where[1], chosen]);
 				};
-				if (IDENTIFIER.test(chosen) && site.carried.has(chosen)) {
-					settledTag = { name: chosen, expression: where, written };
+				if (IDENTIFIER.test(unwrapped(chosen)) && site.carried.has(unwrapped(chosen))) {
+					settledTag = { name: unwrapped(chosen), expression: where, written };
 				} else {
 					written();
 				}
@@ -2911,8 +2933,8 @@ function collect(node: unknown, walk: Walk): void {
 							edits.push([whole[1] - close.length, whole[1], '</svelte:component>']);
 						}
 					};
-					if (IDENTIFIER.test(chosen) && site.carried.has(chosen)) {
-						settledTag = { name: chosen, expression: null, written: rewritten };
+					if (IDENTIFIER.test(unwrapped(chosen)) && site.carried.has(unwrapped(chosen))) {
+						settledTag = { name: unwrapped(chosen), expression: null, written: rewritten };
 					} else {
 						rewritten();
 					}
