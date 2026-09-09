@@ -2483,6 +2483,18 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '' }],
 	},
 	{
+		// A `--x` on a component is not a prop: `build_inline_component` collects it into
+		// `custom_css_props` and `$.css_props` writes it into a wrapper's `style`, escaped the way
+		// an attribute is. It takes a marker like any other value written into the bytes, where it
+		// was being neutralised to `null` and dropped.
+		name: 'a custom property handed to a component',
+		beside: { Kid: '<div>hi</div><style>div { background: var(--color) }</style>' },
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid --color={data.c} />',
+		data: [{ c: 'red' }, { c: '" onload="alert(1)' }],
+	},
+	{
 		// `SlotElement.js` builds `$.spread_props([{ ...named }, ...spreads])` -- every written
 		// attribute in one object first and then the spreads, which is not the order they were
 		// written in, so a spread wins over a name beside it however they were arranged. Each

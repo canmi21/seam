@@ -902,6 +902,29 @@ function attributeOf(node: AstNode, name: string): AstNode | undefined {
 	);
 }
 
+/** Whether a fragment writes a name out as a value: `{children}`, not `{@render children()}`. */
+function reads(ast: AstNode, name: string): boolean {
+	let found = false;
+	const step = (one: unknown): void => {
+		if (found) return;
+		if (Array.isArray(one)) {
+			for (const each of one) step(each);
+			return;
+		}
+		if (!isNode(one)) return;
+		if (one['type'] === 'ExpressionTag') {
+			const held = one['expression'];
+			if (isNode(held) && held['type'] === 'Identifier' && held['name'] === name) {
+				found = true;
+				return;
+			}
+		}
+		for (const value of Object.values(one)) step(value);
+	};
+	step(ast['fragment']);
+	return found;
+}
+
 /**
  * Svelte's `DOM_BOOLEAN_ATTRIBUTES`, which `crates/lowering/src/attributes.rs` carries for the
  * runtime and this file needs for the one element whose attributes the render cannot show.
@@ -4043,6 +4066,22 @@ function descend(
 		// `$.bind_props` beside the bindable props, so `export const x = 42` in the child reaches a
 		// caller that binds `x` exactly as a prop's default would -- and it is not in `propsOf`,
 		// which reads `$props()` and the two legacy spellings of a prop, and not these.
+		// `{children}` rather than `{@render children()}`: the prop holds the function Svelte compiled
+		// the caller's markup into, and an expression tag writes its value, so what lands in the
+		// bytes is that function's own source -- `($$renderer) => { $$renderer.push(...) }`, escaped.
+		// That is Svelte's compiled output written out as text, which nothing here can stand for:
+		// the marker would have to be the source of a function this compiler never produces.
+		if (
+			nodes.length > 0 &&
+			declares.some((one) => one.prop === 'children') &&
+			reads(ahead, 'children')
+		) {
+			refuse(
+				`<${tag} /> reads \`children\` as a value rather than rendering it, and Svelte writes ` +
+					"the function it compiled the caller's markup into -- its own source, escaped, into " +
+					'the bytes. Write `{@render children()}`. See spec/refusals.md',
+			);
+		}
 		for (const name of exportedBy(ahead)) {
 			if (!boundProps.has(name)) continue;
 			refuse(
@@ -4314,6 +4353,23 @@ function descend(
 			const value = one['value'];
 			const parts = value === true ? [] : Array.isArray(value) ? value : [value];
 			const whole = span(one);
+			// A `--x` is not a prop. `build_inline_component` collects it into `custom_css_props` and
+			// `$.css_props` writes `<svelte-css-wrapper style="display: contents; ${styles}">`, where
+			// `style_object_to_string` escapes each value the way an attribute is escaped. So the
+			// value is written into the bytes and takes a marker, where it was being neutralised to
+			// `null` and dropped: measured on `css-vars-escape`, whose whole point is the escaping.
+			//
+			// What stays open is the presence half: that helper drops a key whose value is null or
+			// the empty string, and a marker is neither, so a request that sends nothing gets
+			// `--color: ;` where Svelte writes no declaration at all. See spec/roadmap.md.
+			if (typeof one['name'] === 'string' && one['name'].startsWith('--')) {
+				const [only] = parts;
+				if (whole === null || parts.length !== 1 || !isNode(only)) continue;
+				if (only['type'] !== 'ExpressionTag') continue;
+				const written = stands(walk.expand(only['expression']), walk);
+				walk.edits.push([whole[0], whole[1], `${one['name']}={${written}}`]);
+				continue;
+			}
 			// `{p}` is `p={p}`, and the short form's braces hold a bare name and nothing else, so
 			// the whole attribute is written out rather than its value replaced. The same thing a
 			// marker planted in one costs, met again.

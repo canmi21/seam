@@ -492,6 +492,19 @@ it would reach for data the render is not given. What it is handed has to be des
 the parameter destructures: `{}` or `[]` rather than `null`, which is the same rule a declaration
 that reads a prop already has.
 
+**`{children}` read as a value rather than rendered is not something a marker can stand for.** The
+prop holds the function Svelte compiled the caller's markup into, and an expression tag writes its
+value -- so what lands in the bytes is that function's own source, escaped. Reproducing it would
+mean producing Svelte's compiled output as text. The walk stays out of such a child, which leaves
+the whole component to Svelte and is right wherever nothing in it varies.
+
+**A `--x` on a component is a value written into the bytes.** `build_inline_component` collects it
+into `custom_css_props` and `$.css_props` writes
+`<svelte-css-wrapper style="display: contents; ${styles}">`, where `style_object_to_string` escapes
+each value the way an attribute is escaped. So it takes a marker, where it used to be neutralised
+to `null` and dropped. What stays open is the presence half: that helper drops a key whose value is
+null or the empty string, and a marker is neither.
+
 **A `<svelte:component>` that settles to one import is entered like any other tag.** It was not,
 and for a reason with nothing to do with dynamic components: `expand` puts parentheses around every
 name it substitutes, so a `this` settling to one import came back as `(Foo)` and the identifier
