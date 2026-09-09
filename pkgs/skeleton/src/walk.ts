@@ -4759,6 +4759,14 @@ function descend(
 		}
 		for (const one of declares) {
 			if (!boundProps.has(one.prop) || one.fallback === 'undefined') continue;
+			// `bind_props` reads the child's `bindable_prop` bindings and its readonly exports, and
+			// nothing else. In legacy mode every `export let` is one; in runes mode only a
+			// `$bindable()` is, and Svelte's own comment beside the call says the rest have "no
+			// effect in runes mode other than throwing an error". So a `bind:` on a runes prop with
+			// a plain default sends nothing back and there is nothing here to refuse -- measured on
+			// a child declaring `let { x = 42 } = $props()`, whose caller wrote nothing either side
+			// of the tag where a bindable one writes 42.
+			if (one.bindable !== true) continue;
 			refuse(
 				`\`bind:${one.prop}\` on <${tag}> is a binding the child sends back: it declares ` +
 					`\`${one.prop}\` with a default, and Svelte's server assigns that default up to the ` +

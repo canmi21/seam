@@ -29,11 +29,24 @@ import type { Given, Walk } from './walk.ts';
 export function propsOf(
 	ast: AstNode,
 	source: string,
-): { local: string; prop: string; fallback: string; at?: unknown; rest?: true }[] | null {
+):
+	| { local: string; prop: string; fallback: string; at?: unknown; rest?: true; bindable?: true }[]
+	| null {
 	const instance = ast['instance'];
 	const content = isNode(instance) ? instance['content'] : undefined;
 	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
-	const found: { local: string; prop: string; fallback: string; at?: unknown; rest?: true }[] = [];
+	// `bindable` is what `bind_props` looks for: `binding.kind === 'bindable_prop'`. In legacy mode
+	// every `export let` is one; in runes mode only a `$bindable()` is, and Svelte's own comment
+	// beside the call says the rest have "no effect in runes mode other than throwing an error".
+	// So a `bind:` on a runes prop with a plain default sends nothing back at all -- measured.
+	const found: {
+		local: string;
+		prop: string;
+		fallback: string;
+		at?: unknown;
+		rest?: true;
+		bindable?: true;
+	}[] = [];
 	// `export let` and `export { a }` are props **in legacy mode only**. In runes mode `export let`
 	// is an error and `export { a }` is a readonly export of whatever the name holds -- a `$state`,
 	// say -- which `analysis.exports` carries to `bind_props` beside the bindable props rather than
@@ -74,6 +87,7 @@ export function propsOf(
 						local: from['name'],
 						prop: to['name'],
 						fallback: at === null ? 'undefined' : source.slice(at[0], at[1]),
+						bindable: true,
 						...(isNode(how.init) ? { at: how.init } : {}),
 					});
 				}
@@ -94,6 +108,7 @@ export function propsOf(
 					local: id['name'],
 					prop: id['name'],
 					fallback: init === null ? 'undefined' : source.slice(init[0], init[1]),
+					bindable: true,
 					...(isNode(one['init']) ? { at: one['init'] } : {}),
 				});
 			}
@@ -147,6 +162,7 @@ export function propsOf(
 				// scope can expand it rather than take the text as written. The entry's does: a
 				// default may call a function the script declares, which no bundle carries.
 				let at: unknown = given;
+				let bindable = false;
 				const called = isNode(given) ? given['callee'] : undefined;
 				if (
 					isNode(given) &&
@@ -158,8 +174,15 @@ export function propsOf(
 					const inner = span(initial);
 					fallback = inner === null ? 'undefined' : source.slice(inner[0], inner[1]);
 					at = inner === null ? undefined : initial;
+					bindable = true;
 				}
-				found.push({ local: left['name'], prop: named, fallback, at });
+				found.push({
+					local: left['name'],
+					prop: named,
+					fallback,
+					at,
+					...(bindable ? { bindable: true } : {}),
+				});
 			}
 		}
 	}

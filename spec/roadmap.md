@@ -188,32 +188,51 @@ itself now, where the fragment is one Svelte reads the flag for -- which is ever
 an element's or a `<title>`'s, because `RegularElement.js` and `TitleElement.js` take `trimmed` off
 `clean_nodes` and call `process_children` without going through `Fragment.js` at all.
 
-### A component `bind:` is a ternary, not a second render
+### A component `bind:` is expressible, and here is the reading that says so
 
-Read forward, the mechanism is below. What it took to see the answer was measuring the wrong one.
+Two guesses were made about this before the source was read to the bottom, and both were measured
+and wrong. What follows is what `bind_props`, `transform-server.js` and three probes actually say.
 
-**It is not "leave it to Svelte's render".** The render does run the `do { ... } while (!$$settled)`
-loop and `subsume` does keep the settled pass, so the bytes it writes are right. But the caller's
-name is substituted from the walk's own model rather than read back out of those bytes, so
-`let bar; <Widget bind:bar/> {bar}` wrote nothing where Svelte wrote the child's `42`. Measured on
-two samples, both silent.
+**What fires.** `bind_props(props_parent, props_now)` assigns up only where the caller's value is
+`undefined`, the child's is not, and the caller's props object has a setter for the key. The
+assignment is monotone: `undefined` becomes a value and never goes back, so the loop settles.
 
-**It is not two structures either.** That was the second guess and it is more than is needed. After
-the iteration the caller's name holds
+**What is in `props_now`.** `transform-server.js` builds it from the child's `bindable_prop`
+bindings and its `analysis.exports`, and nothing else. In legacy mode every `export let` is
+bindable; in runes mode only a `$bindable()` is, and Svelte's own comment beside the call says the
+rest have "no effect in runes mode other than throwing an error". **A `bind:` on a runes prop with
+a plain default sends nothing back at all**, which was refused here and is not refused any more.
+
+**What re-renders.** Only `template.body` is wrapped in the `do { ... } while (!$$settled)`; the
+instance script sits above it and runs once. Measured: `let x; const y = 'y:' + x;` beside
+`<Child bind:x/>` renders `before=42 after=42 y=y:undefined`. So the settled value belongs to the
+**template's** reads of the name, and every declaration computed from it keeps the value it had
+before the child sent anything.
+
+**So it is a value, not a structure and not a second render.** For the template's reads, the
+settled name is
 
 ```
 expr === undefined ? <what the child sends> : expr
 ```
 
-which is one ternary per bound prop. A ternary is a value, and a value the request decides is what
-a marker already stands for. Where the name goes on to decide a branch the existing choice
-machinery takes it from there, which is the same path any request-decided value already has.
+one ternary per bound prop, chaining where one binding decides whether another component renders.
+A ternary is a value, and a value the request decides is what a marker already stands for; where
+the name goes on to decide a branch, the choice machinery takes it from there as it does for any
+request-decided value. Nothing here needs the UI run per request, which is the only thing the scope
+line gives up.
 
-**What it waits on is where the rebinding goes.** Svelte re-renders the *whole* parent template, so
-the settled value holds for reads written above the tag as well as below it, and the walk meets the
-tag half way through. It wants a pass over the template before the walk starts: find every `bind:`
-on a component, read what that child sends back -- a prop's default, or a readonly export's value
--- and bind the caller's name to the ternary for the whole file. Sixteen samples.
+**What it waits on, precisely.** Two things, neither of them the IR. Svelte re-renders the whole
+template, so the settled value holds above the tag as well as below it and the walk meets the tag
+half way through: it wants a pass over the template before the walk starts. And one name then has
+two values -- the settled one for a template read, the pre-settled one inside a declaration's
+initialiser -- which the expansion has to keep apart. Fifteen samples.
+
+**Neither of the guesses, recorded so they are not made again.** Leaving the component to Svelte
+does not work: the render settles correctly, but the caller's name is substituted from the walk's
+own model rather than read back out of those bytes, and two samples wrote nothing where Svelte
+wrote `42`. Enumerating two structures works and is more than is needed, since the fixed point has
+a closed form.
 
 ### The mechanism, read rather than inferred
 

@@ -1555,6 +1555,20 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// `bind_props` reads the child's `bindable_prop` bindings and its readonly exports and nothing
+		// else. In runes mode only a `$bindable()` is one, and Svelte's own comment beside the call
+		// says the rest have "no effect in runes mode other than throwing an error". So a `bind:` on
+		// a runes prop with a plain default sends nothing back, and there is nothing to refuse:
+		// measured against a bindable child, whose caller writes the default either side of the tag
+		// where this one writes nothing.
+		name: 'a `bind:` on a runes prop that is not `$bindable`',
+		beside: { Kid: '<script>let { x = 42 } = $props();</script><i>{x}</i>' },
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props(); let x;</script>" +
+			'<p>before={x}</p><Kid bind:x /><p>after={x}|{data.a}</p>',
+		data: [{ a: 'v' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
