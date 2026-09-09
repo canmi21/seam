@@ -2539,19 +2539,6 @@ function collect(node: unknown, walk: Walk): void {
 			// for Svelte to render -- the caller's tag still holds its children, so the copy is
 			// handed them exactly as the original would have been. What is walked here is whichever
 			// of the two actually renders, in the scope it was written in.
-			// A spread on the `<slot>` is merged into the props it passes -- `SlotElement.js` writes
-			// `$.spread_props` -- and what each `let:` name then reads is a key of an object nobody
-			// here can list. Refused rather than paired against the written attributes alone.
-			if (
-				(Array.isArray(node['attributes']) ? node['attributes'] : []).some(
-					(one) => isNode(one) && one['type'] === 'SpreadAttribute',
-				)
-			) {
-				refuse(
-					'`{...spread}` on a `<slot>` is merged into what it passes, and a `let:` reading one ' +
-						'of those names cannot be paired with the attribute it came from. See spec/refusals.md',
-				);
-			}
 			const named = attributeText(node, 'name') ?? 'children';
 			const handed = site.given.get(named);
 			if (handed === undefined) {
@@ -2568,17 +2555,40 @@ function collect(node: unknown, walk: Walk): void {
 			// Each `let:` name reads what the `<slot>` passed under that prop, expanded here in this
 			// component's scope -- so an each's item stays the each's item and is bound per
 			// iteration rather than baked at whatever the compile-time render happened to hold.
-			const shadow = new Map<string, string>();
-			for (const [prop, local] of handed.handed) {
-				const passed = (Array.isArray(node['attributes']) ? node['attributes'] : []).find(
-					(one): one is AstNode =>
-						isNode(one) && one['type'] === 'Attribute' && one['name'] === prop,
-				);
-				// A prop the slot does not pass is `undefined`, which is what the pattern destructures
-				// from an object without it.
-				const written = passed === undefined ? null : valueExpression(passed, source, expand);
-				shadow.set(local, written ?? 'undefined');
+			// A spread on the `<slot>` is merged into what it passes: `SlotElement.js` builds
+			// `$.spread_props([{ ...named }, ...spreads])` -- **every written attribute in one object
+			// first, then the spreads in source order**, which is not the order they were written in
+			// and means a spread wins over a name beside it however they were arranged. So each
+			// `let:` name is the fold that merge leaves for it, the same one a component's props go
+			// through, over an object whose keys are the request's.
+			const passed = new Map<string, string>();
+			const order: ({ name: string } | { spread: string })[] = [];
+			const spreads: { spread: string }[] = [];
+			for (const one of Array.isArray(node['attributes']) ? node['attributes'] : []) {
+				if (!isNode(one)) continue;
+				if (one['type'] === 'SpreadAttribute') {
+					spreads.push({ spread: `(${expand(one['expression'])})` });
+					continue;
+				}
+				if (one['type'] !== 'Attribute' || typeof one['name'] !== 'string') continue;
+				if (one['name'] === 'name' || one['name'] === 'slot') continue;
+				const written = valueExpression(one, source, expand);
+				passed.set(one['name'], written ?? 'undefined');
+				order.push({ name: one['name'] });
 			}
+			order.push(...spreads);
+			// By the prop's own name here, which `merged` folds over, and only then read out under
+			// the local the `let:` bound it to. A prop the slot does not pass is `undefined`, which
+			// is what a pattern destructures from an object without it.
+			merged(
+				order,
+				[...handed.handed].map(([prop]) => ({ local: prop, prop, fallback: 'undefined' })),
+				passed,
+			);
+			// Only the names the `let:` bound, under the locals it bound them to: the rest are this
+			// component's own attribute names and shadowing the caller with them would be wrong.
+			const shadow = new Map<string, string>();
+			for (const [prop, local] of handed.handed) shadow.set(local, passed.get(prop) ?? 'undefined');
 			for (const child of handed.nodes) {
 				collect(child, {
 					...walk,

@@ -455,7 +455,12 @@ export function hands(
 		}
 		lets.set(name, held);
 	};
-	if (tag !== undefined) bind('children', tag);
+	// A component carrying `slot=` is a named slot inside another one, and its `let:` scope is that
+	// slot's rather than its own: `slot_scope_applies_to_itself` in `build_inline_component` says
+	// so, and the directives are then left out of `lets.default`. `<Inner slot="foo" let:thing={d}>`
+	// reads `d` from the enclosing `<slot name="foo" {thing}/>`, in its own attributes and in its
+	// children, and `Inner`'s own `<slot />` passes nothing for it.
+	if (tag !== undefined && slotName(tag) === null) bind('children', tag);
 	for (const child of nodes) {
 		const named = isNode(child) ? (slotName(child) ?? 'children') : 'children';
 		const held = grouped.get(named) ?? [];

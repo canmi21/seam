@@ -492,6 +492,19 @@ it would reach for data the render is not given. What it is handed has to be des
 the parameter destructures: `{}` or `[]` rather than `null`, which is the same rule a declaration
 that reads a prop already has.
 
+**A spread on a `<slot>` is folded rather than refused.** `SlotElement.js` builds
+`$.spread_props([{ ...named }, ...spreads])` -- every written attribute in one object first and then
+the spreads, which is not the order they were written in, so a spread wins over a name beside it
+however the two were arranged. Each `let:` name is the fold that merge leaves for it, the same one
+a component's props already go through, over an object whose keys are the request's.
+
+**A component carrying `slot=` is a named slot inside another one, and its `let:` scope is that
+slot's rather than its own.** `slot_scope_applies_to_itself` in `build_inline_component` says so
+and leaves the directives out of `lets.default`. So `<Inner slot="foo" let:thing={d}>` reads `d`
+from the enclosing `<slot name="foo" {thing}/>` -- in its own attributes and in its children -- and
+`Inner`'s own `<slot />` passes nothing for it. Binding it twice wrote `undefined` into the
+children.
+
 **A boolean attribute on an `<option>` is a decision, not a substitution.** `is_option_special` in
 `RegularElement.js` is the name alone, with no `<select>` around it required, so every `<option>`
 goes through `renderer.option` and its attributes are written by `attributes()` rather than folded

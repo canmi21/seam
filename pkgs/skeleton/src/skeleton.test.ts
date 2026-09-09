@@ -2469,6 +2469,32 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '' }],
 	},
 	{
+		// `SlotElement.js` builds `$.spread_props([{ ...named }, ...spreads])` -- every written
+		// attribute in one object first and then the spreads, which is not the order they were
+		// written in, so a spread wins over a name beside it however they were arranged. Each
+		// `let:` name is the fold that merge leaves for it.
+		//
+		// And a component carrying `slot=` is a named slot inside another one, so its `let:` scope
+		// is that slot's rather than its own: `slot_scope_applies_to_itself`. Its own `<slot />`
+		// passes nothing for the name, and reading it there used to write `undefined`.
+		name: 'a slot with a spread, and a `let:` on a component that is itself a named slot',
+		beside: {
+			Outer: `${PROPS}<div>{#each data.rows as row}<slot name="foo" {row} />{/each}</div>`,
+			Inner: '<script>export let row;</script><span>{row.n}</span><slot />',
+			Spread:
+				'<script>export let obj; export let c;</script><slot c={c} {...obj} d="d" /><slot name="x" />',
+		},
+		source:
+			"<script>import Outer from './Outer.svelte'; import Inner from './Inner.svelte';" +
+			" import Spread from './Spread.svelte'; let { data } = $props();</script>" +
+			'<Outer {data}><Inner slot="foo" let:row={r} row={r}><b>{r.n}</b></Inner></Outer>' +
+			'<Spread obj={data.obj} c={data.c} let:a let:c let:d><i>{a}{c}{d}</i></Spread>',
+		data: [
+			{ rows: [{ n: 1 }, { n: 2 }], obj: { a: 'A', c: 'over' }, c: 'c' },
+			{ rows: [], obj: {}, c: '<' },
+		],
+	},
+	{
 		// `SlotElement.js` writes `block_open`, `$.slot(...)`, `block_close`, and `$.slot` calls what
 		// the caller put under this name in `$$slots` or, where the caller put nothing, the element's
 		// own children as the fallback. Both stay in the source for Svelte to render -- the caller's
