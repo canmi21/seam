@@ -197,6 +197,18 @@ export interface Site {
 	/** The same imports with what each one is -- default, named, the module -- for a package's. */
 	carried: ReadonlyMap<string, Carried>;
 	/**
+	 * What each prop of this file holds when the request sends nothing, by the local's name.
+	 *
+	 * The entry's only. A child's prop is bound to what its call site passed, or to the default
+	 * already where it passed nothing, so the name is gone by the time an expression is read.
+	 */
+	defaults: ReadonlyMap<string, unknown>;
+	/**
+	 * The props whose default the walk followed to a component, which the derivation scope then
+	 * stands `true` for rather than the component itself. See `chosenComponent()`.
+	 */
+	stood: Set<string>;
+	/**
 	 * The fragment this file's copy is the body of, where the component renders itself: a call of
 	 * itself inside it is a call of this fragment. Undefined for a component that does not.
 	 */
@@ -1951,32 +1963,42 @@ function componentImport(local: string, walk: Walk): boolean {
  * not what the expression evaluates to. Two positions naming different components is a choice
  * wider than one candidate and is not one of these.
  */
-function candidateOf(node: unknown, walk: Walk): string | null {
+function candidateOf(node: unknown, walk: Walk, through: Set<string>): string | null {
 	if (!isNode(node)) return null;
 	switch (node['type']) {
 		case 'Identifier': {
 			const name = typeof node['name'] === 'string' ? node['name'] : '';
-			if (!componentImport(name, walk)) return null;
-			// The import, and not a nearer binding of the same name: `{:then { Component }}` beside
+			// The name itself, and not a nearer binding of it: `{:then { Component }}` beside
 			// `import Component from './Component.svelte'` is one name and two things, and the walk
-			// already knows which -- a name something binds is substituted, and an import is left as
-			// written. Measured on `await-with-update-2`, which named the import it had shadowed.
-			return unwrapped(walk.expand(node)) === name ? name : null;
+			// already knows which -- a name something binds is substituted, and a prop or an import
+			// is left as written. Measured on `await-with-update-2`, which named the import it had
+			// shadowed.
+			if (unwrapped(walk.expand(node)) !== name) return null;
+			if (componentImport(name, walk)) return name;
+			// A prop's default is the value the request did not send, and the request cannot send a
+			// component, so a default naming one is the only component this name can hold.
+			const held = walk.site.defaults.get(name);
+			if (held === undefined || through.has(name)) return null;
+			through.add(name);
+			return candidateOf(held, walk, through);
 		}
 		case 'ParenthesizedExpression':
-			return candidateOf(node['expression'], walk);
+			return candidateOf(node['expression'], walk, through);
 		case 'SequenceExpression': {
 			const parts = Array.isArray(node['expressions']) ? node['expressions'] : [];
-			return candidateOf(parts[parts.length - 1], walk);
+			return candidateOf(parts[parts.length - 1], walk, through);
 		}
 		case 'LogicalExpression': {
 			// `&&` is its right side or something falsy, which renders nothing either way.
-			const right = candidateOf(node['right'], walk);
+			const right = candidateOf(node['right'], walk, through);
 			if (node['operator'] === '&&') return right;
-			return agreed(candidateOf(node['left'], walk), right);
+			return agreed(candidateOf(node['left'], walk, through), right);
 		}
 		case 'ConditionalExpression':
-			return agreed(candidateOf(node['consequent'], walk), candidateOf(node['alternate'], walk));
+			return agreed(
+				candidateOf(node['consequent'], walk, through),
+				candidateOf(node['alternate'], walk, through),
+			);
 		default:
 			return null;
 	}
@@ -1987,6 +2009,15 @@ function agreed(left: string | null, right: string | null): string | null {
 	if (left === null) return right;
 	if (right === null) return left;
 	return left === right ? left : null;
+}
+
+/** Every component this file imports, each standing for the one thing a derivation can ask. */
+function componentStands(walk: Walk): Map<string, string> {
+	const stands = new Map<string, string>();
+	for (const [local] of walk.site.carried) {
+		if (componentImport(local, walk)) stands.set(local, 'true');
+	}
+	return stands;
 }
 
 /**
@@ -2005,17 +2036,17 @@ function agreed(left: string | null, right: string | null): string | null {
  */
 function chosenComponent(expression: unknown, walk: Walk): { name: string; test: string } | null {
 	if (!mentions(settled(walk.expand(expression), walk), walk.dynamic)) return null;
-	const name = candidateOf(expression, walk);
+	const through = new Set<string>();
+	const name = candidateOf(expression, walk, through);
 	if (name === null) return null;
+	// A default this followed to a component is one the derivation scope cannot hold, so it stands
+	// there for what a component is worth to a derivation and nothing more: that it exists.
+	for (const one of through) walk.site.stood.add(one);
 	// The test asks whether the value is something, and every component is: a function is truthy.
 	// So each component the expression names stands for `true` in it, which is also what leaves it
 	// evaluable -- `gather()` in the carry package drops a component from the bundle on purpose,
 	// so the name is not there for a derivation to read.
-	const stands = new Map<string, string>();
-	for (const [local] of walk.site.carried) {
-		if (componentImport(local, walk)) stands.set(local, 'true');
-	}
-	return { name, test: settled(walk.expand(expression, stands), walk) };
+	return { name, test: settled(walk.expand(expression, componentStands(walk)), walk) };
 }
 
 function settled(expression: string, walk: Walk): string {
@@ -5267,6 +5298,8 @@ function descend(
 				root: walk.site.root,
 				imports: importsOf(raw),
 				carried: importedBy(raw),
+				defaults: new Map(),
+				stood: walk.site.stood,
 				copies: walk.site.copies,
 				choices: walk.site.choices,
 				stack: [...walk.site.stack, file],
@@ -5604,58 +5637,17 @@ export function rewrite(
 			.map((one): [string, string] => [one.local, one.prop]),
 	);
 	/**
-	 * A default on the entry's own props, which nothing else was applying.
-	 *
-	 * A child's default is applied where its call site binds the prop -- `propBinds`, and this is
-	 * the same rule. The entry has no call site: its props are the payload, so the default stands
-	 * over the payload's key and is computed once, before anything reads it. See `Skeleton.defaults`
-	 * for what rewriting the reads instead cost, and spec/derivation.md.
-	 *
-	 * **On `undefined` and on nothing else.** `$props()` destructures the props object, so Svelte's
-	 * default fires exactly where a JavaScript destructuring default does; `??` would fire on null
-	 * too and write the default over a value the request sent.
-	 *
-	 * **`typeof`, not `=== undefined`, and the difference is the whole case this handles.** A
-	 * derivation reads its scope through `with`, which binds a name only where the scope says it
-	 * has one -- so a prop the request did not send is not a name at all, and `foo === undefined`
-	 * is a ReferenceError on exactly the payload the default exists for. `typeof` reads an unbound
-	 * name without throwing, and answers `'undefined'` for a key that is absent and for one that is
-	 * present holding `undefined`, which is the two cases a destructuring default fires on.
-	 * `propBinds` writes the plain comparison because a child's prop is bound to an expression at
-	 * its call site and is always there to evaluate.
-	 *
-	 * A rest is left out: `...rest` gathers what the pattern did not name, and for the entry that
-	 * is a question about the payload's other keys rather than a default.
-	 *
-	 * press cannot reach the bug this fixes -- Kit's root receives `data_0 .. data_n`, `page` and
-	 * `form` on every request -- and it does reach this code, since that root declares each
-	 * `data_n = null`. See spec/suite.md.
+	 * The same defaults as the AST nodes they were written as, for the walk to read a component out
+	 * of. A prop's default is the value the request did not send, and the request cannot send a
+	 * component, so a default naming one is the only component that name can hold.
 	 */
-	// Every prop the entry declares, not only the ones with a default. `$props()` destructures, so
-	// a key the request does not send is `undefined` -- and a derivation reads its scope through
-	// `with`, which asks the payload whether it has the name and falls through to the globals for
-	// one it has not got. `class:unused` over a prop nobody sent threw `unused is not defined` at
-	// request time, where Svelte writes no class. Standing the name over the payload's key with
-	// `undefined` for its value is what puts it in scope. See `Derivation.prop`.
-	const propDefaults = (declares ?? [])
-		// A `whole` binding names no prop: it is the payload object itself, which the rune branch in
-		// `declared` records. There is no key for a default to stand over.
-		.filter((one) => one.rest !== true && one.whole !== true)
-		.map((one) => ({
-			name: one.prop,
-			// The default alone, without a test around it. `$props()` destructures, so Svelte's own
-			// answer is JavaScript's: the default is taken where the **property** is `undefined`,
-			// which is a question about the payload rather than about what the name resolves to.
-			// Written as `typeof x === 'undefined' ? d : x` it was neither -- `export let Math = {...}`
-			// found the global and never took the default. See `Derivation.prop`.
-			//
-			// Expanded, like every other expression the walk records. A default is the author's own
-			// source and may call what only its file has -- `export let foo = get()`, or a function
-			// the script below it declares -- and a derivation is evaluated with the carried bundle
-			// in scope rather than with the component's body.
-			expression: one.at === undefined ? one.fallback : declared.rewrite(one.at),
-			files: [relative(root, file)],
-		}));
+	const propDefaultNodes = new Map(
+		(declares ?? [])
+			.filter((one) => one.rest !== true && one.whole !== true && one.at !== undefined)
+			.map((one): [string, unknown] => [one.local, one.at]),
+	);
+	/** Filled by the walk, read by the defaults below, which is why they are built after it. */
+	const stood = new Set<string>();
 	const missed: { file: string; reason: string }[] = [];
 	const handed: Handed[] = [];
 	const spreads: PendingSpread[] = [];
@@ -5720,6 +5712,8 @@ export function rewrite(
 			root,
 			imports: importsOf(source),
 			carried: importedBy(source),
+			defaults: propDefaultNodes,
+			stood,
 			copies,
 			choices,
 			stack: [file],
@@ -5757,6 +5751,68 @@ export function rewrite(
 	};
 	contextual(ast, walk);
 	collect(ast['fragment'], walk);
+	/**
+	 * A default on the entry's own props, which nothing else was applying.
+	 *
+	 * A child's default is applied where its call site binds the prop -- `propBinds`, and this is
+	 * the same rule. The entry has no call site: its props are the payload, so the default stands
+	 * over the payload's key and is computed once, before anything reads it. See `Skeleton.defaults`
+	 * for what rewriting the reads instead cost, and spec/derivation.md.
+	 *
+	 * **On `undefined` and on nothing else.** `$props()` destructures the props object, so Svelte's
+	 * default fires exactly where a JavaScript destructuring default does; `??` would fire on null
+	 * too and write the default over a value the request sent.
+	 *
+	 * **`typeof`, not `=== undefined`, and the difference is the whole case this handles.** A
+	 * derivation reads its scope through `with`, which binds a name only where the scope says it
+	 * has one -- so a prop the request did not send is not a name at all, and `foo === undefined`
+	 * is a ReferenceError on exactly the payload the default exists for. `typeof` reads an unbound
+	 * name without throwing, and answers `'undefined'` for a key that is absent and for one that is
+	 * present holding `undefined`, which is the two cases a destructuring default fires on.
+	 * `propBinds` writes the plain comparison because a child's prop is bound to an expression at
+	 * its call site and is always there to evaluate.
+	 *
+	 * A rest is left out: `...rest` gathers what the pattern did not name, and for the entry that
+	 * is a question about the payload's other keys rather than a default.
+	 *
+	 * press cannot reach the bug this fixes -- Kit's root receives `data_0 .. data_n`, `page` and
+	 * `form` on every request -- and it does reach this code, since that root declares each
+	 * `data_n = null`. See spec/suite.md.
+	 */
+	// Every prop the entry declares, not only the ones with a default. `$props()` destructures, so
+	// a key the request does not send is `undefined` -- and a derivation reads its scope through
+	// `with`, which asks the payload whether it has the name and falls through to the globals for
+	// one it has not got. `class:unused` over a prop nobody sent threw `unused is not defined` at
+	// request time, where Svelte writes no class. Standing the name over the payload's key with
+	// `undefined` for its value is what puts it in scope. See `Derivation.prop`.
+	const propDefaults = (declares ?? [])
+		// A `whole` binding names no prop: it is the payload object itself, which the rune branch in
+		// `declared` records. There is no key for a default to stand over.
+		.filter((one) => one.rest !== true && one.whole !== true)
+		.map((one) => ({
+			name: one.prop,
+			// The default alone, without a test around it. `$props()` destructures, so Svelte's own
+			// answer is JavaScript's: the default is taken where the **property** is `undefined`,
+			// which is a question about the payload rather than about what the name resolves to.
+			// Written as `typeof x === 'undefined' ? d : x` it was neither -- `export let Math = {...}`
+			// found the global and never took the default. See `Derivation.prop`.
+			//
+			// Expanded, like every other expression the walk records. A default is the author's own
+			// source and may call what only its file has -- `export let foo = get()`, or a function
+			// the script below it declares -- and a derivation is evaluated with the carried bundle
+			// in scope rather than with the component's body.
+			//
+			// A default the walk followed to a component stands there for what a component is worth
+			// to a derivation and nothing more: that it exists. The scope is data -- the payload
+			// carries no function, and `gather()` in the carry package drops a component from the
+			// bundle on purpose -- so the name is not there to evaluate, and the one construct that
+			// consumes the value asks only whether there is one. See `chosenComponent()`.
+			expression:
+				one.at === undefined
+					? one.fallback
+					: declared.rewrite(one.at, stood.has(one.local) ? componentStands(walk) : undefined),
+			files: [relative(root, file)],
+		}));
 	if (recursion !== null) {
 		// The body as a bare block, once the walk has been through it and everything it marked
 		// is where it is: the whitespace at either end is trimmed either way, so the block wraps

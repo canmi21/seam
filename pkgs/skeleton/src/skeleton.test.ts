@@ -2143,6 +2143,19 @@ const accepted: Case[] = [
 		props: [{ flag: true, n: 2 }, { flag: false, n: 3 }, {}],
 	},
 	{
+		// The candidate through a prop's default rather than out of the expression. A default is the
+		// value the request did not send, and the request cannot send a component, so a default
+		// naming one is the only component that name can hold. The default is then not in the
+		// derivation scope either -- the carried bundle drops a component on purpose -- so it stands
+		// there for the one thing a derivation can ask of a component: that it exists.
+		name: 'a dynamic component the request decides, named by a default',
+		beside: { Eff: '<p>F</p>' },
+		source:
+			"<script>import Eff from './Eff.svelte'; export let x = Eff;</script>" +
+			'<svelte:component this={x} /><p>{x ? "y" : "n"}</p>',
+		props: [{}, { x: null }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request

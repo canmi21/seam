@@ -542,6 +542,15 @@ not send threw `unused is not defined` per request, where Svelte's `$props()` de
 it `undefined` and writes no class. Nine of Svelte's samples were that, and a missing prop is the
 ordinary case rather than an exotic one.
 
+**A default that is a component stands for the one thing a derivation can ask of one.** The scope
+is data: the payload carries no function, and the carried bundle drops a component on purpose, so
+`export let x = Foo` compiled a derivation reading a name that is not there and threw for every
+request -- before anything read it, since a prop's default is computed in order rather than when it
+is read. What the value is worth to a derivation is that it exists, which is what the one construct
+that consumes it asks, so the component stands for `true`. Only where the walk followed that
+default to a component itself, which is a `<svelte:component>` the request decides; anywhere else
+the name is left as written and the refusal stands. See [refusals.md](refusals.md).
+
 ## One derivation per expression, not per read of it
 
 A declaration is written out wherever the markup reads it, so `{#each items as item}` and the
