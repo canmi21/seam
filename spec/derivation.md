@@ -609,9 +609,24 @@ Three shapes are not declarations, and each is left to the rule that already cov
 - **A bare statement.** `$: console.log(x)` writes no bytes and is neutralised for the render, which
   is what it already was.
 
-The statement that declares a name is also the assignment to it, which two rules had to be told
-about: the one that refuses an assignment after a declaration, and the one that refuses a value
-changed by something the render runs. Neither reads a declaration's own initialiser as a change.
+**A pattern on the left declares every name in it.** `transform-server.js` takes
+`extract_identifiers(node.body.expression.left)` and declares each identifier whose binding is
+`legacy_reactive`, so `$: ({ store } = container)` and `$: [x, y] = coords` are declarations of
+what they destructure, and each name reaches the right the way any pattern does. What the render
+is handed in place of the right-hand side has to come apart the way the left does, at every level.
+
+The statement that declares a name is also the assignment to it, which three rules had to be told
+about: the one that refuses an assignment after a declaration, the one that refuses a value changed
+by something the render runs, and the one that leaves a store the script writes to the render.
+None of them reads a declaration's own initialiser as a change. The third was found by the pattern
+case: `$: ({ store } = container)` binds a name rather than setting a store, and read as a write it
+left the whole subscription to the render, which is given no props and wrote nothing.
+
+**What a render is handed in place of an initialiser is the initialiser's own expansion**, not the
+name's. One initialiser stands for every name a destructuring binds and each of those reaches a
+different part of it, so writing one name's value there is wrong; for a declaration that named the
+value directly the two are the same text. That is what lets a destructured declaration be left as
+written where nothing it reads varies, the way a plain one already was.
 
 ## A rune in an expression is written as what the server answers it with
 

@@ -1,6 +1,7 @@
 import { parse } from 'svelte/compiler';
 import { type Edit, type Neutral, apply } from './edits.ts';
 import {
+	bound as namesBound,
 	chains,
 	destructure,
 	free,
@@ -113,8 +114,8 @@ const RUNIC = new Set([
  * `legacy_reactive`. A `$:` that mutates something, or destructures, or is a bare statement, is
  * not a declaration and is left to the rules that already cover it.
  */
-function reactives(block: unknown): { name: string; value: Node }[] {
-	const found: { name: string; value: Node }[] = [];
+function reactives(block: unknown): { name: string; value: Node; reach: string; holds: string }[] {
+	const found: { name: string; value: Node; reach: string; holds: string }[] = [];
 	if (!isNode(block)) return found;
 	const content = block['content'];
 	if (!isNode(content) || !Array.isArray(content['body'])) return found;
@@ -130,13 +131,27 @@ function reactives(block: unknown): { name: string; value: Node }[] {
 		}
 		const left = held['left'];
 		const right = held['right'];
-		if (!isNode(left) || left['type'] !== 'Identifier' || typeof left['name'] !== 'string')
+		if (!isNode(left) || !isNode(right)) continue;
+		// `transform-server.js` takes **every identifier the left binds**, not only a plain name:
+		// `for (const id of extract_identifiers(node.body.expression.left))`, each declared where
+		// its binding is `legacy_reactive`. So `$: ({ store } = container)` and `$: [x, y] = coords`
+		// declare what they destructure, and each name reaches the right the way any pattern does.
+		//
+		// `$: $count = n` writes the store `count` and declares nothing: a subscription's binding is
+		// `store_sub` rather than `legacy_reactive`.
+		if (left['type'] === 'Identifier') {
+			if (typeof left['name'] !== 'string' || left['name'].startsWith('$')) continue;
+			found.push({ name: left['name'], value: right, reach: INIT, holds: 'null' });
 			continue;
-		if (!isNode(right)) continue;
-		// `$: $count = n` writes the store `count`; it declares nothing. `transform-server.js` takes
-		// the identifiers whose binding is `legacy_reactive`, and a subscription's is `store_sub`.
-		if (left['name'].startsWith('$')) continue;
-		found.push({ name: left['name'], value: right });
+		}
+		if (left['type'] !== 'ObjectPattern' && left['type'] !== 'ArrayPattern') continue;
+		// The stand-in replaces the right-hand expression and the left destructures it, so it has to
+		// be shaped like the left at every level.
+		const holds = emptyFor(left);
+		for (const [name, reach] of destructure(left)) {
+			if (name.startsWith('$')) continue;
+			found.push({ name, value: right, reach, holds });
+		}
 	}
 	return found;
 }
@@ -354,7 +369,7 @@ function declared(
 		for (const one of reactives(ast['instance'])) {
 			const name = one.name;
 			if (found.has(name) || props.has(name)) continue;
-			record(name, one.value, { reactive: true });
+			record(name, one.value, { reactive: true, reach: one.reach, holds: one.holds });
 		}
 	}
 
@@ -667,7 +682,13 @@ function reactive(
 		if (!isNode(body)) continue;
 		const held = body['type'] === 'ExpressionStatement' ? body['expression'] : null;
 		const left = isNode(held) && held['type'] === 'AssignmentExpression' ? held['left'] : null;
-		if (isNode(left) && typeof left['name'] === 'string' && declares.has(left['name'])) continue;
+		// Every name the left binds, not only a plain one: `$: ({ store } = container)` declares
+		// `store` the same way `$: doubled = n * 2` declares `doubled`, and that declaration is
+		// neutralised over its initialiser. Writing over the whole statement as well is two edits
+		// on one span.
+		const bound = new Set<string>();
+		if (isNode(left)) namesBound(left, bound);
+		if (bound.size > 0 && [...bound].every((one) => declares.has(one))) continue;
 		const reads = new Set<string>();
 		free(body, new Set(), reads);
 		const wanting = [...reads].some((one) => given.has(one) || found.get(one)?.reads === true);
@@ -1650,9 +1671,13 @@ export function locals(
 	// has it; a derivation does not, and reading the store fresh would give what it was declared
 	// with. So a subscription to one of these is left as written, for the render, which is what it
 	// was before the read below was expanded at all.
+	// A `$:` that declares a name is not one of these. `$: ({ store } = container)` binds `store`
+	// rather than writing to a store the script already had, so `$store` is a subscription the
+	// artifact reads like any other. Read as a write it left the whole read to the render, which
+	// is given no props and wrote nothing.
 	const settled = new Set([
-		...assigned(ast['module'], names, true),
-		...assigned(ast['instance'], names, true),
+		...assigned(ast['module'], names, true, declares),
+		...assigned(ast['instance'], names, true, declares),
 	]);
 
 	const expanded = new Map<string, string>();
@@ -1830,18 +1855,19 @@ export function locals(
 		// entered has each prop bound to the caller's expression, and where that expression varies
 		// with nothing the request decides, the declaration is inert with it and the render
 		// evaluates it as written -- which is what lets a package's component set the context its
-		// children read, from props the caller gave it as constants. A destructuring is not
-		// substituted this way, since one initialiser stands for several names and the expansion
-		// is only ever one of them.
+		// children read, from props the caller gave it as constants. What is written back is the
+		// **initialiser's** own expansion rather than the name's, because one initialiser stands for
+		// every name a destructuring binds and each of those reaches a different part of it. For a
+		// declaration that named the value directly the two are the same text.
 		reading: [
 			...reactive(ast, found, new Set([...carried, ...props, ...(bound?.keys() ?? [])]), declares),
 			...new Map(
 				[...found.values()]
 					.filter((one) => one.reads)
 					.map((one): [string, Neutral] => {
-						const text = one.reach === INIT ? expand(one.name, new Set(), bound) : null;
-						const settled = text !== null && !mentions(text, dynamic ?? carried) ? text : one.holds;
-						if (process.env['SEAM_TRACE'] !== undefined && text !== null && settled !== text) {
+						const text = one.literal ?? slice(one.node, new Set([one.name]), bound);
+						const settled = !mentions(text, dynamic ?? carried) ? text : one.holds;
+						if (process.env['SEAM_TRACE'] !== undefined && settled !== text) {
 							const mentioned = [...(dynamic ?? carried)].filter((each) =>
 								mentions(text, new Set([each])),
 							);

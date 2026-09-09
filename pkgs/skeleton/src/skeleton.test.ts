@@ -1397,6 +1397,27 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// `transform-server.js` declares **every identifier the left binds**, not only a plain name:
+		// `for (const id of extract_identifiers(node.body.expression.left))`, each one whose binding
+		// is `legacy_reactive`. So a `$:` assigning a pattern is a declaration of what it
+		// destructures, and each name reaches the right the way any pattern does.
+		name: 'a `$:` that assigns a pattern declares every name in it',
+		source:
+			'<script>export let data; $: ({ a } = data.o); $: [x, y] = data.xs;</script>' +
+			'<p>{a}|{x}|{y}</p>',
+		data: [{ o: { a: 'v' }, xs: ['p', 'q'] }],
+	},
+	{
+		// The same declaration holding a store. Read as a write to a store the script already had,
+		// the whole subscription was left to the render -- which is given no props and wrote
+		// nothing. A `$:` that binds the name is not a statement that sets the store's value.
+		name: 'a store a `$:` binds by destructuring',
+		source:
+			"<script>import { writable } from 'svelte/store'; export let data;" +
+			" const held = { s: writable('hi') }; $: ({ s } = held);</script><p>{data.a}|{$s}</p>",
+		data: [{ a: 'v' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
