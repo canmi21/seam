@@ -1524,6 +1524,21 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// Every `<option>` goes through `renderer.option` -- `is_option_special` is the name alone --
+		// so its attributes are written by `attributes()`, which writes a boolean one as `name=""`
+		// whatever its value. A marker planted there never comes back, and `disabled=""` landed on
+		// every item of the each. It is a decision, carried the way `selected` is.
+		name: 'a boolean attribute on an option',
+		source:
+			`${PROPS}<select><option value="none">none</option>` +
+			'{#each data.xs as x}<option disabled={data.taken.includes(x)} value={x}>{x}</option>{/each}' +
+			'</select>',
+		data: [
+			{ xs: [1, 2, 3], taken: [2] },
+			{ xs: [], taken: [] },
+		],
+	},
+	{
 		// `renderer.select()` compares the options against `value === undefined ? defaultValue :
 		// value`, and writes neither attribute.
 		name: 'a select with a defaultValue',

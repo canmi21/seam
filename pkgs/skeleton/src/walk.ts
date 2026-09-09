@@ -903,6 +903,41 @@ function attributeOf(node: AstNode, name: string): AstNode | undefined {
 }
 
 /**
+ * Svelte's `DOM_BOOLEAN_ATTRIBUTES`, which `crates/lowering/src/attributes.rs` carries for the
+ * runtime and this file needs for the one element whose attributes the render cannot show.
+ */
+const BOOLEAN = new Set([
+	'allowfullscreen',
+	'async',
+	'autofocus',
+	'autoplay',
+	'checked',
+	'controls',
+	'default',
+	'defer',
+	'disabled',
+	'disablepictureinpicture',
+	'disableremoteplayback',
+	'formnovalidate',
+	'indeterminate',
+	'inert',
+	'ismap',
+	'loop',
+	'multiple',
+	'muted',
+	'nomodule',
+	'novalidate',
+	'open',
+	'playsinline',
+	'readonly',
+	'required',
+	'reversed',
+	'seamless',
+	'selected',
+	'webkitdirectory',
+]);
+
+/**
  * A `<select value>` and the `<option>`s under it, read out of `renderer.js`.
  *
  * The renderer drops the select's `value` and keeps it aside; each option then compares its own
@@ -923,6 +958,7 @@ function selection(
 	edits: [number, number, string][],
 	selecting: Walk['selecting'],
 	skipped: Set<unknown>,
+	walk: Walk,
 ): Walk['selecting'] {
 	const tag = node['name'];
 	if (tag === 'select') {
@@ -969,7 +1005,43 @@ function selection(
 					: `(${chosen} === undefined ? ${held} : ${chosen})`;
 		return { value: written, multiple: attributeOf(node, 'multiple') !== undefined };
 	}
-	if (tag !== 'option' || selecting === undefined) return selecting;
+	if (tag !== 'option') return selecting;
+
+	// Every `<option>` goes through `renderer.option` -- `is_option_special` in `RegularElement.js`
+	// is the name alone, with no `<select>` around it required -- so its attributes are written by
+	// `attributes()` rather than folded into the template. That helper writes a boolean attribute
+	// as `name=""` whatever its value, so a marker planted as one never comes back and the render
+	// showed `disabled=""` on every item of an each. It is a decision, and it takes the shape
+	// `selected` takes below: the marker rides in an attribute of its own, planted where the
+	// boolean one stood so the order the helper writes in is kept, and the decision owns the whole
+	// of that attribute -- the space, the name, the value.
+	for (const attribute of Array.isArray(node['attributes']) ? node['attributes'] : []) {
+		if (!isNode(attribute) || attribute['type'] !== 'Attribute') continue;
+		const name = typeof attribute['name'] === 'string' ? attribute['name'].toLowerCase() : '';
+		if (!BOOLEAN.has(name)) continue;
+		const parts = Array.isArray(attribute['value']) ? attribute['value'] : [attribute['value']];
+		const [only] = parts;
+		// Written as text or as nothing, the helper's answer is the same every request and the
+		// render already shows it.
+		if (parts.length !== 1 || !isNode(only) || only['type'] !== 'ExpressionTag') continue;
+		const where = span(attribute);
+		if (where === null) continue;
+		const index = holes.length;
+		holes.push({
+			index,
+			expression: '',
+			raw: false,
+			choice: { tests: [`!!(${expand(only['expression'])})`], outcomes: ['', ` ${name}=""`] },
+		});
+		edits.push([
+			where[0],
+			where[1],
+			`data-seam-boolean-${String(index)}={${JSON.stringify(sentinel(index))}}`,
+		]);
+		skipped.add(attribute);
+	}
+
+	if (selecting === undefined) return selecting;
 
 	const own = attributeOf(node, 'value');
 	let compared: string | null;
@@ -2750,7 +2822,7 @@ function collect(node: unknown, walk: Walk): void {
 			const skipped = new Set<unknown>();
 			const selecting =
 				type === 'RegularElement'
-					? selection(node, source, expand, holes, edits, walk.selecting, skipped)
+					? selection(node, source, expand, holes, edits, walk.selecting, skipped, walk)
 					: walk.selecting;
 			const bare =
 				type === 'RegularElement' ? contents(node, walk, holes, edits, skipped) : undefined;
@@ -2789,6 +2861,20 @@ function collect(node: unknown, walk: Walk): void {
 			}
 			// Not entered: the dynamic call gets the settled expression after all.
 			if (settledTag !== null) settledTag.written();
+			// `renderer.select` keeps the select's value on `this.local`, which a child renderer
+			// inherits, so an `<option>` written inside a component compares against it exactly as
+			// one written here does. The value has been cut from the render by then -- taking it off
+			// the tag is what stops Svelte doing the comparison a second time -- so a child whose
+			// options this walk cannot see gets no ` selected=""` from anybody. Measured on
+			// `select-value-component`, whose `<Option>` wraps `<option {...props}>`.
+			if (given && walk.selecting !== undefined) {
+				refuse(
+					`<${tag} /> is under a \`<select value>\` and the walk could not enter it. ` +
+						'`renderer.select` keeps the value on the renderer a child inherits, so an ' +
+						'`<option>` inside this component compares against it, and the comparison is ' +
+						'made here rather than by the render. See spec/refusals.md',
+				);
+			}
 			// A tag naming a declaration written with a rune, which Svelte's analysis reads as a
 			// dynamic component: `metadata.dynamic` in `2-analyze/visitors/Component.js` is set for
 			// a binding whose kind is not `normal`, and the server then writes `<!--[-->` and

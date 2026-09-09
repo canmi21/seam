@@ -492,6 +492,23 @@ it would reach for data the render is not given. What it is handed has to be des
 the parameter destructures: `{}` or `[]` rather than `null`, which is the same rule a declaration
 that reads a prop already has.
 
+**A boolean attribute on an `<option>` is a decision, not a substitution.** `is_option_special` in
+`RegularElement.js` is the name alone, with no `<select>` around it required, so every `<option>`
+goes through `renderer.option` and its attributes are written by `attributes()` rather than folded
+into the template. That helper writes a boolean attribute as `name=""` whatever its value, so a
+marker planted as one never comes back: `disabled={taken.includes(a)}` inside an each wrote
+`disabled=""` on every item. The marker rides in an attribute of its own instead, planted where the
+boolean one stood so the order the helper writes in is kept, and the decision owns the whole of
+that attribute -- the same shape ` selected=""` already had.
+
+**A component under a `<select value>` the walk could not enter is refused.** `renderer.select`
+keeps the value on `this.local`, which a child renderer inherits, so an `<option>` written inside a
+component compares against it exactly as one written beside it does. The value is cut from the
+render -- taking it off the tag is what stops Svelte making the comparison a second time -- so a
+child whose options this walk cannot see gets no ` selected=""` from anybody. Measured on
+`select-value-component`, whose `<Option>` wraps `<option {...props}>` and whose `$props()` is an
+identifier the walk cannot read.
+
 **An event listener on a component is stepped over, not a reason to stay out.**
 `build_inline_component`'s attribute loop has an arm for a `let:`, a spread, an attribute, a
 `bind:` and an attachment, and nothing else: an `OnDirective` falls past all of them and
