@@ -1284,7 +1284,12 @@ export function locals(
 	// Refused rather than substituted wrongly. Two of these compiled and wrote the wrong bytes with
 	// nothing to say so, which is the shape this compiler keeps finding: a model narrower than its
 	// input, and no error where they part.
-	const names = new Set(found.keys());
+	// The props too, which are not declarations: `let { options = 'foo' } = $props(); options = 'bar'`
+	// is one statement of the instance script and Svelte runs it before the template, so the name
+	// holds `bar` while the bytes are written. Substituted, it stands for the payload's key and
+	// wrote `foo`. The entry's arrive as `props` and a child's as the names `bound` was given, a
+	// `$props()` destructuring being read by `propsOf` rather than declared here.
+	const names = new Set([...found.keys(), ...props, ...(bound?.keys() ?? [])]);
 	const moved = [...assigned(ast['module'], names), ...assigned(ast['instance'], names)];
 	if (moved.length > 0) {
 		const list = [...new Set(moved)].map((one) => `\`${one}\``).join(', ');

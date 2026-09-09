@@ -470,7 +470,12 @@ initialiser at each read instead, which is the same answer only where evaluating
 Two rules stand on that, and for a long time only the first did:
 
 **Assigned after being declared.** `let x = 1; x = 2` and `const o = { a: 1 }; o.a = 2`, in the
-script's own statements. Both compiled and wrote the wrong bytes before they were refused.
+script's own statements. Both compiled and wrote the wrong bytes before they were refused. **A prop
+is under the same rule**, though it is not a declaration: `let { options = 'foo' } = $props();
+options = 'bar'` is one statement of the instance script and Svelte runs it before the template, so
+the name holds `bar` while the bytes are written where the substitution stood for the payload's key
+and wrote `foo`. The entry's props arrive here as a set of names and a child's as the names its
+call site bound, a `$props()` destructuring being read elsewhere rather than declared.
 
 **Changed by a function this render calls.** The first rule's exemption said a function body does
 not run while the bytes are written, and that is true of a handler and false of anything the markup

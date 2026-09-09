@@ -2714,6 +2714,14 @@ const refused: Case[] = [
 		source: '<script>let { data } = $props(); const o = { a: 1 }; o.a = 2</script><p>{o.a}</p>',
 	},
 	{
+		// A prop is not a declaration, and the rule is the same: Svelte runs the instance script
+		// before the template, so `options` holds `bar` while the bytes are written, where the
+		// substitution stands for the payload's key and wrote `foo`.
+		name: 'a prop assigned after it is destructured',
+		says: 'assigned after being declared',
+		source: "<script>let { options = 'foo' } = $props(); options = 'bar'</script><p>{options}</p>",
+	},
+	{
 		// The same fault one level in, and it used to compile: the instance script runs once and a
 		// function beside it closes over that one binding, while substitution gives every read its
 		// own copy of the initialiser. Measured against Svelte before it was refused, `1|0` and
