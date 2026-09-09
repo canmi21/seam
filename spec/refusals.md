@@ -2014,6 +2014,26 @@ this={...}>` written by the author is the same call and is settled the same way.
 expression reaches the request is a component chosen per request, and the paragraph below says
 what that is.
 
+**A snippet the request chooses has one candidate too, and no second outcome.** The same reading:
+the payload carries data and no function, so a snippet never comes off the wire and the only one a
+`{@render}`'s callee can hold is the one the source names -- a prop's default, or a name a value
+position of the expression reaches. Unlike a `<svelte:component>` there is no block, because there
+is no other outcome: `RenderTag.js` emits `snippet($$renderer, ...)`, a plain call, so a value that
+is not a function throws rather than rendering nothing.
+
+**The settled name is written as `(0, name)`, and that is not decoration.**
+`2-analyze/visitors/RenderTag.js` sets `metadata.dynamic = binding?.kind !== 'normal'`, and
+`is_standalone` in `3-transform/utils.js` wants a render tag that is *not* dynamic before it lets
+the parent block's anchor stand for the tag's own. Every callee this walk settles was dynamic --
+a prop, a member expression, anything but a plain reference to a declared snippet -- so writing the
+name bare made the tag static and dropped the `<!---->` Svelte writes after it. `(0, name)` is not
+an identifier, so no binding is looked up and the tag stays what it was. Measured.
+
+**A function the source names stands for `true` in the derivation scope.** A component and a
+snippet are both functions, and the scope a derivation reads is data. Where the walk followed a
+prop's default to either, the default stands there for the one thing a derivation can ask of a
+function: that it exists. See [derivation.md](derivation.md).
+
 **A component the request chooses has one candidate, because the payload carries no function.**
 This read as an open enumeration and it is not one. [payload.md](payload.md) records the decision:
 the wire is devalue's `stringify`, which serialises data, so a component -- a function -- never

@@ -1964,6 +1964,21 @@ function unwrapped(text: string): string {
 	return held;
 }
 
+/**
+ * A snippet name written so the render tag stays the dynamic one it was.
+ *
+ * `2-analyze/visitors/RenderTag.js` sets `metadata.dynamic = binding?.kind !== 'normal'`, and
+ * `is_standalone` in `3-transform/utils.js` wants a `RenderTag` that is **not** dynamic before it
+ * lets the parent block's anchor stand for the tag's own. A callee this walk settles was dynamic --
+ * a prop, a member expression, anything but a plain reference to a declared snippet -- so writing
+ * the settled name bare made the tag static and dropped the `<!---->` Svelte writes after it.
+ * `(0, name)` is not an identifier, so the binding is not looked up and the tag stays dynamic;
+ * the call is the same call. Measured.
+ */
+function stillDynamic(name: string): string {
+	return `(0, ${name})`;
+}
+
 /** Whether a local name is a component: the default import of a `.svelte` file. See `Carried`. */
 function componentImport(local: string, walk: Walk): boolean {
 	const held = walk.site.carried.get(local);
@@ -1979,8 +1994,15 @@ function componentImport(local: string, walk: Walk): boolean {
  * not what the expression evaluates to. Two positions naming different components is a choice
  * wider than one candidate and is not one of these.
  */
-function candidateOf(node: unknown, walk: Walk, through: Set<string>): string | null {
+function candidateOf(
+	node: unknown,
+	walk: Walk,
+	through: Set<string>,
+	/** What counts as the thing being named: a component this file imports, or a snippet it holds. */
+	names: (held: string) => boolean,
+): string | null {
 	if (!isNode(node)) return null;
+	const again = (child: unknown): string | null => candidateOf(child, walk, through, names);
 	switch (node['type']) {
 		case 'Identifier': {
 			const name = typeof node['name'] === 'string' ? node['name'] : '';
@@ -1990,31 +2012,28 @@ function candidateOf(node: unknown, walk: Walk, through: Set<string>): string | 
 			// is left as written. Measured on `await-with-update-2`, which named the import it had
 			// shadowed.
 			if (unwrapped(walk.expand(node)) !== name) return null;
-			if (componentImport(name, walk)) return name;
+			if (names(name)) return name;
 			// A prop's default is the value the request did not send, and the request cannot send a
-			// component, so a default naming one is the only component this name can hold.
+			// function, so a default naming one is the only function this name can hold.
 			const held = walk.site.defaults.get(name);
 			if (held === undefined || through.has(name)) return null;
 			through.add(name);
-			return candidateOf(held, walk, through);
+			return again(held);
 		}
 		case 'ParenthesizedExpression':
-			return candidateOf(node['expression'], walk, through);
+			return again(node['expression']);
 		case 'SequenceExpression': {
 			const parts = Array.isArray(node['expressions']) ? node['expressions'] : [];
-			return candidateOf(parts[parts.length - 1], walk, through);
+			return again(parts[parts.length - 1]);
 		}
 		case 'LogicalExpression': {
 			// `&&` is its right side or something falsy, which renders nothing either way.
-			const right = candidateOf(node['right'], walk, through);
+			const right = again(node['right']);
 			if (node['operator'] === '&&') return right;
-			return agreed(candidateOf(node['left'], walk, through), right);
+			return agreed(again(node['left']), right);
 		}
 		case 'ConditionalExpression':
-			return agreed(
-				candidateOf(node['consequent'], walk, through),
-				candidateOf(node['alternate'], walk, through),
-			);
+			return agreed(again(node['consequent']), again(node['alternate']));
 		default:
 			return null;
 	}
@@ -2027,11 +2046,21 @@ function agreed(left: string | null, right: string | null): string | null {
 	return left === right ? left : null;
 }
 
-/** Every component this file imports, each standing for the one thing a derivation can ask. */
-function componentStands(walk: Walk): Map<string, string> {
+/**
+ * Every function the source names, each standing for the one thing a derivation can ask of one.
+ *
+ * A component and a snippet are both functions and the derivation scope is data: the payload
+ * carries no function and the carried bundle drops a component on purpose, so neither name is
+ * there to read. What either is worth to a derivation is that it exists, which is what the
+ * constructs that consume them ask. See spec/payload.md.
+ */
+function standsFor(walk: Walk): Map<string, string> {
 	const stands = new Map<string, string>();
 	for (const [local] of walk.site.carried) {
 		if (componentImport(local, walk)) stands.set(local, 'true');
+	}
+	for (const [named, one] of walk.snippets) {
+		if (one.declared) stands.set(named, 'true');
 	}
 	return stands;
 }
@@ -2053,7 +2082,7 @@ function componentStands(walk: Walk): Map<string, string> {
 function chosenComponent(expression: unknown, walk: Walk): { name: string; test: string } | null {
 	if (!mentions(settled(walk.expand(expression), walk), walk.dynamic)) return null;
 	const through = new Set<string>();
-	const name = candidateOf(expression, walk, through);
+	const name = candidateOf(expression, walk, through, (held) => componentImport(held, walk));
 	if (name === null) return null;
 	// A default this followed to a component is one the derivation scope cannot hold, so it stands
 	// there for what a component is worth to a derivation and nothing more: that it exists.
@@ -2062,7 +2091,7 @@ function chosenComponent(expression: unknown, walk: Walk): { name: string; test:
 	// So each component the expression names stands for `true` in it, which is also what leaves it
 	// evaluable -- `gather()` in the carry package drops a component from the bundle on purpose,
 	// so the name is not there for a derivation to read.
-	return { name, test: settled(walk.expand(expression, componentStands(walk)), walk) };
+	return { name, test: settled(walk.expand(expression, standsFor(walk)), walk) };
 }
 
 /**
@@ -4116,8 +4145,27 @@ function collect(node: unknown, walk: Walk): void {
 				}
 				if (settledName !== null && snippets.get(settledName)?.declared === true) {
 					const where = span(callee);
-					if (where !== null) edits.push([where[0], where[1], settledName]);
+					if (where !== null) edits.push([where[0], where[1], stillDynamic(settledName)]);
 					name = settledName;
+				} else {
+					// A callee the request decides can only be the snippet the source names: the payload
+					// carries data and no function, so a snippet never comes off the wire. Unlike a
+					// `<svelte:component>` there is no second outcome to write a block for --
+					// `RenderTag.js` emits `snippet($$renderer, ...)`, a plain call, so a value that is
+					// not a function throws rather than rendering nothing. See spec/payload.md.
+					const through = new Set<string>();
+					const only = candidateOf(
+						callee,
+						walk,
+						through,
+						(held) => snippets.get(held)?.declared === true,
+					);
+					const where = only === null ? null : span(callee);
+					if (only !== null && where !== null) {
+						for (const held of through) site.stood.add(held);
+						edits.push([where[0], where[1], stillDynamic(only)]);
+						name = only;
+					}
 				}
 			}
 
@@ -5920,7 +5968,7 @@ export function rewrite(
 			expression:
 				one.at === undefined
 					? one.fallback
-					: declared.rewrite(one.at, stood.has(one.local) ? componentStands(walk) : undefined),
+					: declared.rewrite(one.at, stood.has(one.local) ? standsFor(walk) : undefined),
 			files: [relative(root, file)],
 		}));
 	if (recursion !== null) {

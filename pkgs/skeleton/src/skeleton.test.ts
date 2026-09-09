@@ -2202,6 +2202,19 @@ const accepted: Case[] = [
 		props: [{}, { x: null }],
 	},
 	{
+		// A `{@render}` whose callee the request decides can only be the snippet the source names:
+		// the payload carries data and no function. Unlike a `<svelte:component>` there is no second
+		// outcome to write a block for -- `RenderTag.js` emits `snippet($$renderer, ...)`, a plain
+		// call, so a value that is not a function throws rather than rendering nothing. The name is
+		// written as `(0, name)` so the tag stays the dynamic one it was: `is_standalone` wants a
+		// render tag that is not dynamic, and a bare name made it one and dropped an anchor.
+		name: 'a snippet the request decides, named by a default',
+		source:
+			'<script>let { data, kids = mine } = $props();</script>' +
+			'{@render kids()}{#snippet mine()}<p>m</p>{/snippet}<p>{data.a}</p>',
+		data: [{ a: 'x' }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request
