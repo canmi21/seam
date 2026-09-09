@@ -1522,6 +1522,16 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// `<svelte:element this="svg">` is a quoted literal, so its span sits inside the quotes: the
+		// text there is the tag itself rather than an expression naming it, and the stand-in the
+		// render is given has to replace the quotes too. Read as an expression it became the
+		// identifier `svg`; written inside the quotes it made `this=""seam-el0""`, which Svelte
+		// will not parse.
+		name: 'a `<svelte:element>` whose tag is written as a quoted literal',
+		source: `${PROPS}<svelte:element this="span">{data.a}</svelte:element>`,
+		data: [{ a: 'v' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.

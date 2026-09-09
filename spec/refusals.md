@@ -871,6 +871,12 @@ prop it decided is bound inside the child and evaluated there it would read the 
 is not given. Measured with the spread before and after an attribute, a key present as
 `undefined`, a missing key taking the default, and a null object. `merged()` in `walk.ts`.
 
+**A `<svelte:element>` tag written as a quoted literal is a string, not an expression.** Its span
+sits inside the quotes, so the text there is the tag itself. Expanded as an expression it became a
+bare identifier the derivation could not resolve, and the stand-in the render is given -- a quoted
+string -- written into the same span made `this=""seam-el0""`, which Svelte will not parse. The
+quotes belong to the value, so they go with it both ways.
+
 **A group is one span, and a component may render it from more than one `<slot>`.** A group handed
 to a component is a span of the caller's source, and walking it rewrites that span. Rendering it
 twice -- `<slot key="a"/><slot key="b"/>`, with different props each time, which is the only reason

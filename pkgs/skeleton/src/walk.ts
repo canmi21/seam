@@ -3395,7 +3395,19 @@ function collect(node: unknown, walk: Walk): void {
 				const where = span(node['tag']);
 				if (where === null) return;
 				const index = blocks.length;
-				const tag = expand(node['tag']);
+				// `this="svg"` is a quoted literal, so the span sits inside the quotes and the text
+				// there is the tag itself rather than an expression naming it. Expanded as one it
+				// became the identifier `svg`, which the derivation could not resolve.
+				const held = node['tag'];
+				const quote = source[where[0] - 1];
+				const literal =
+					isNode(held) &&
+					(held['type'] === 'Text' || held['type'] === 'Literal') &&
+					(quote === '"' || quote === "'") &&
+					source[where[1]] === quote;
+				const tag = literal
+					? JSON.stringify(source.slice(where[0], where[1]))
+					: expand(node['tag']);
 				blocks.push({
 					index,
 					kind: 'element',
@@ -3414,7 +3426,11 @@ function collect(node: unknown, walk: Walk): void {
 					alternate: false,
 				});
 				// Valid, never void and never raw text, so the render always writes the full shape.
-				edits.push([where[0], where[1], JSON.stringify(`seam-el${String(index)}`)]);
+				// `this={expr}` gives a span inside the braces, where a JSON string is what belongs.
+				// `this="svg"` gives one inside the quotes, and writing a quoted string there makes
+				// `this=""seam-el0""` -- markup Svelte will not parse. So the quotes go with it.
+				const quoted = literal ? ([where[0] - 1, where[1] + 1] as [number, number]) : where;
+				edits.push([quoted[0], quoted[1], JSON.stringify(`seam-el${String(index)}`)]);
 			}
 			const attributes = node['attributes'];
 			// The three shapes a `<select>` and an `<option>` add, and `bind:innerHTML`, each a value
