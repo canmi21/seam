@@ -2835,6 +2835,29 @@ const refused: Case[] = [
 			'<svelte:component this={Foo} bind:x /><p>{x}{data.k}</p>',
 	},
 	{
+		// The whole pass plants a marker, renders, and reads it out of the bytes. A component
+		// writing that shape as literal markup puts something in the output nothing can tell from
+		// a marker: measured, a `<p>` holding the text and a `<p>` holding a value came out with
+		// their contents swapped, and nothing said so.
+		name: 'markup that writes the shape of a marker',
+		says: 'literal markup',
+		source: `${PROPS}<p>%%s0%% here</p><p>{data.a}</p>`,
+	},
+	{
+		// `setContext(k, v)` runs while the bytes are written and a descendant's `getContext(k)`
+		// reads it. Neither name is one the request decides, so the read looks inert and was handed
+		// to the render -- which holds the literal standing in for the value, not the request's.
+		// It rendered empty where Svelte wrote the value, with nothing to say so.
+		name: 'a context read where the context was set from a prop',
+		says: 'a context read where a `setContext`',
+		beside: {
+			Kid: "<script>import { getContext } from 'svelte'; const held = getContext('k');</script><b>{held.v}</b>",
+		},
+		source:
+			"<script>import { setContext } from 'svelte'; import Kid from './Kid.svelte';" +
+			" let { data } = $props(); setContext('k', { v: data.v });</script><Kid />",
+	},
+	{
 		// A prop is not a declaration, and the rule is the same: Svelte runs the instance script
 		// before the template, so `options` holds `bar` while the bytes are written, where the
 		// substitution stands for the payload's key and wrote `foo`.

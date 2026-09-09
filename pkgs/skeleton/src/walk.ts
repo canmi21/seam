@@ -68,6 +68,7 @@ import {
 	headOpensWith,
 	marks,
 	marksHead,
+	collides,
 	sentinel,
 	writes,
 } from './sentinel.ts';
@@ -211,6 +212,17 @@ export interface Site {
 	 * A call into one with a request-decided argument is decided by the render. See `varies()`.
 	 */
 	runes: Set<string>;
+	/**
+	 * Context keys a `setContext` in this walk was given a value the request decides, across every
+	 * file walked. Shared, because a parent sets what a child reads and the parent is walked first.
+	 *
+	 * `getContext` is not a name the request decides, so an expression reading one looks inert and
+	 * is written back for the render to evaluate -- against the neutralised value the parent's
+	 * `setContext` was handed there. Measured: `setContext('k', { v })` over a prop, with the child
+	 * writing `{held.v}`, rendered empty where Svelte wrote the value. `'*'` where the key itself
+	 * is not a literal. See `varies()`.
+	 */
+	contexts: Set<string>;
 	/**
 	 * Asks no render answered: markup nothing rendered, a branch nobody took. Not asked again,
 	 * and walked as a decision the runtime makes, which is what they were before.
@@ -1822,10 +1834,77 @@ function runesOf(imports: Record<string, string>, file: string): Set<string> {
  * whatever its key -- so the render is asked, the way it is asked about anything the request
  * does not decide. See `onlyWithin`.
  */
+/**
+ * Records the context keys this file sets from a value the request decides.
+ *
+ * `setContext(k, v)` runs while the bytes are written and stores `v` where a descendant's
+ * `getContext(k)` reads it. Neither name is one the request decides, so an expression reading a
+ * context looks inert and is handed to the render -- which has the neutralised value, not the
+ * request's. Walked before the file's markup is, so a parent's keys are known by the time a child
+ * reads one.
+ */
+function contextual(ast: AstNode, walk: Walk): void {
+	const local = new Set(
+		Object.entries(importsOf(walk.source))
+			.filter(([, from]) => from === 'svelte')
+			.map(([name]) => name),
+	);
+	const step = (one: unknown): void => {
+		if (Array.isArray(one)) {
+			for (const each of one) step(each);
+			return;
+		}
+		if (!isNode(one)) return;
+		if (one['type'] === 'CallExpression') {
+			const callee = one['callee'];
+			const name = isNode(callee) && typeof callee['name'] === 'string' ? callee['name'] : '';
+			if (name === 'setContext' && local.has(name)) {
+				const args = Array.isArray(one['arguments']) ? one['arguments'] : [];
+				const [key, value] = args;
+				let written = '';
+				try {
+					written = value === undefined ? '' : walk.expand(value);
+				} catch {
+					written = '';
+				}
+				if (written !== '' && varies(written, walk)) {
+					const literal =
+						isNode(key) && key['type'] === 'Literal' && typeof key['value'] === 'string'
+							? key['value']
+							: null;
+					walk.site.contexts.add(literal ?? '*');
+				}
+			}
+		}
+		for (const value of Object.values(one)) step(value);
+	};
+	for (const block of [ast['module'], ast['instance']]) {
+		if (!isNode(block)) continue;
+		const content = block['content'];
+		if (isNode(content)) step(content['body']);
+	}
+}
+
+/** Whether an expression reads a context, which is a channel this walk does not follow. */
+const READS_CONTEXT = /\bget(?:All)?Contexts?\b/;
+
 function varies(expression: string, walk: Walk): boolean {
 	// One of Svelte's own functions this compiler carries is not a name the render can be handed:
 	// Svelte's compiler refuses a `$`-prefixed variable in markup outright. See `carries()`.
 	if (carries(expression)) return true;
+	// A context read where something in this walk set one from a value the request decides. Neither
+	// `getContext` nor the key is a name the request decides, so this would be handed to the render
+	// -- which holds the neutralised value the `setContext` was given there. Refused rather than
+	// made a marker: a derivation is evaluated outside `render()`, where there is no context to
+	// read. See `Site.contexts`.
+	if (walk.site.contexts.size > 0 && READS_CONTEXT.test(expression)) {
+		refuse(
+			'a context read where a `setContext` in this render was given a value the request ' +
+				'decides. The value reaches the reader through a channel this compiler does not ' +
+				'follow, and evaluating the read outside `render()` has no context to read from. ' +
+				'Hand the value down as a prop. See spec/refusals.md',
+		);
+	}
 	const names = unknown(walk);
 	if (!mentions(expression, names)) return false;
 	return !onlyWithin(expression, names, walk.site.runes);
@@ -4033,6 +4112,8 @@ function descend(
 	let headed = false;
 	try {
 		const raw = inlined(unbound(readFileSync(file, 'utf8')));
+		const clash = collides(raw, basename(file));
+		if (clash !== null) refuse(clash);
 		const ahead = parse(raw, { modern: true }) as unknown as AstNode;
 		headed = contains(ahead['fragment'], 'SvelteHead');
 		awaitless(ahead, `<${tag} />`);
@@ -4244,7 +4325,7 @@ function descend(
 
 		// The fragment's block encloses everything the body walks, so a head met inside marks it.
 		const fragmentAt = walk.blocks.findIndex((one) => one.fragment?.name === recursion);
-		collect(ast['fragment'], {
+		const child: Walk = {
 			...walk,
 			source: raw,
 			edits: inner,
@@ -4271,6 +4352,7 @@ function descend(
 				told: walk.site.told,
 				mute: walk.site.mute,
 				runes: walk.site.runes,
+				contexts: walk.site.contexts,
 				...(recursion === null ? {} : { fragment: recursion }),
 				fragments: new Map(),
 				given: hands(walk, nodes, node),
@@ -4286,7 +4368,9 @@ function descend(
 				fixed: held,
 				decided: walk.site.decided,
 			},
-		});
+		};
+		contextual(ast, child);
+		collect(ast['fragment'], child);
 		// The body as the fragment: everything the root fragment writes, wrapped as the bare block
 		// the fragment's block is, with the stamp that names it where the render puts it.
 		if (recursion !== null) {
@@ -4433,6 +4517,12 @@ function descend(
 		// and this compiler would keep the first pass, which is bytes nobody asked for rather than
 		// a component it could not read. So it is the author's to see too.
 		if (walk.asking !== true && reason.includes('a binding the child sends back')) throw error;
+		// Left to Svelte, a context read is evaluated in the render -- where the `setContext` above
+		// it was handed the literal standing in for a request value, so the child bakes that. The
+		// refusal has to reach the author rather than turn into a component rendered as it was.
+		if (walk.asking !== true && reason.includes('a context read where a `setContext`')) {
+			throw error;
+		}
 		if (walk.asking !== true && headed && walk.within.length > 0) {
 			refuse(
 				`<${tag} /> writes a \`<svelte:head>\` inside a block, so the block has to stand in the ` +
@@ -4687,6 +4777,7 @@ export function rewrite(
 			told,
 			mute,
 			runes: runesOf(importsOf(source), file),
+			contexts: new Set<string>(),
 			...(recursion === null ? {} : { fragment: recursion }),
 			fragments: new Map(),
 			given: new Map(),
@@ -4711,6 +4802,7 @@ export function rewrite(
 		alone: null,
 		standalone: true,
 	};
+	contextual(ast, walk);
 	collect(ast['fragment'], walk);
 	if (recursion !== null) {
 		// The body as a bare block, once the walk has been through it and everything it marked

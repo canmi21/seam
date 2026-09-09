@@ -492,6 +492,25 @@ it would reach for data the render is not given. What it is handed has to be des
 the parameter destructures: `{}` or `[]` rather than `null`, which is the same rule a declaration
 that reads a prop already has.
 
+**Markup that writes the shape of a marker.** The pass plants `%%s0%%`, renders, and reads it out
+of the bytes. A component writing that text as literal markup puts something in the output nothing
+can tell from a marker, and the assembler takes it: measured, a `<p>` holding the text and a `<p>`
+holding a value came out with their contents swapped, silently. Refused rather than escaped or
+numbered around, because there is nothing to escape into -- the bytes are the protocol, and a
+component writing the protocol's own shape is a collision to name.
+
+**A context read where a `setContext` in this render was given a value the request decides.**
+`setContext(k, v)` runs while the bytes are written and a descendant's `getContext(k)` reads it.
+Neither name is one the request decides, so a read of one looks inert and is handed to the render
+-- which holds the literal standing in for the value, not the request's. `setContext('k', { v })`
+over a prop, with the child writing `{held.v}`, rendered empty where Svelte wrote the value.
+
+Refused rather than made a marker: a derivation is evaluated outside `render()`, where there is no
+context to read from. Refused at the reader rather than at the setter, so the ordinary case stays
+-- a package's component setting a context its children read from values nobody's request decides
+is what lets the walk enter both, and that is measured too. Following the value from the setter to
+the reader, the way a prop is followed, is what would make it work; see [roadmap.md](roadmap.md).
+
 **A slot group is a fragment of the caller's, and `is_standalone` is read for it there.** It was
 inherited from the component the `<slot>` sits in, which is a different fragment. The rule names
 `RenderTag` and `Component`, and a `SvelteSelf` is neither -- so `<svelte:self />` alone in a slot

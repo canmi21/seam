@@ -96,6 +96,28 @@ it off the ordinary component.
 bound once per request rather than written out per read, which the derivation machinery could do --
 a derivation is already evaluated once and cached. That is a change to what substitution is.
 
+### Context carries a value the walk does not follow
+
+Found by probe, and it wrote the wrong bytes with nothing to say so:
+
+```svelte
+setContext('k', { v });          <!-- v is a prop -->
+...
+const held = getContext('k');    <!-- in a child -->
+<b>{held.v}</b>
+```
+
+Neither `getContext` nor the key is a name the request decides, so the read looked inert and was
+handed to the render -- which holds the literal standing in for `v`. It rendered empty where Svelte
+wrote the value. It is refused now, at the reader, and only where something in the same walk set a
+context from a value the request decides; a context set from constants is the ordinary way a
+package's component talks to its children and still works.
+
+**Following it is the work.** The setter's argument is an expression in the setter's scope and the
+reader wants exactly that, which is the substitution a prop already gets -- one `setContext` per
+key in scope makes it exact, and more than one is a decision. It is the one channel between
+components the walk does not follow, and every component library uses it.
+
 ### The 42 that remain, by cause
 
 | | | |

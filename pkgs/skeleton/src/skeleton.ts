@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { collides } from './sentinel.ts';
 import { basename, relative, resolve as resolvePath } from 'node:path';
 import { type Carried, resolved } from 'ast';
 import { partial } from './compose.ts';
@@ -67,6 +68,8 @@ export async function skeleton(
 	// Before anything reads it: a snippet rendered more than once becomes one copy per call, which
 	// is what the render does with it anyway and what leaves every pass below the case it knows.
 	const source = inlined(unbound(readFileSync(file, 'utf8')));
+	const clash = collides(source, basename(file));
+	if (clash !== null) throw new Error(clash);
 
 	if (process.env['SEAM_TRACE_SOURCE'] !== undefined) {
 		console.error(`[seam] entry ${basename(file)} as walked:\n${source}\n`);

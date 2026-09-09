@@ -199,3 +199,25 @@ export const ID_PREFIX = '%%id';
 export function freshId(n: number): string {
 	return `${ID_PREFIX}-s${String(n)}`;
 }
+
+/**
+ * Refuses a file whose own text could be read back as one of these.
+ *
+ * The whole pass works by planting a marker, rendering, and reading it out of the bytes. A
+ * component that writes `%%s0%%` as literal markup puts something in the output that is
+ * indistinguishable from a marker, and the assembler takes it: measured, a `<p>` holding the text
+ * and a `<p>` holding a real value came out with their contents swapped, silently.
+ *
+ * Refused rather than escaped or numbered around, because there is nothing to escape into: the
+ * bytes are the protocol here, and a component writing the protocol's own shape is a collision to
+ * name rather than a case to survive.
+ */
+export function collides(source: string, file: string): string | null {
+	const found = /%%[sb]\d+%%/.exec(source);
+	if (found === null) return null;
+	return (
+		`${file} writes \`${found[0]}\` as literal markup, which is the shape this compiler plants ` +
+		'in the render to read a value back out of the bytes. The two cannot be told apart. See ' +
+		'spec/refusals.md'
+	);
+}
