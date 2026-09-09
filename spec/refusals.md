@@ -616,6 +616,13 @@ The script is read conservatively -- any declaration naming it counts, function 
 because a markup read of that declaration writes its initialiser out and the name goes with it. The
 `bind:` being settled is skipped by its own span, or it would count as a read of itself.
 
+**The literal the render is handed for a modelled prop has to survive being read.** The value is
+never written into the bytes -- the walk has already read it for itself -- so `null` does for
+nearly all of them. It does not where the child reads the name as the object of a member
+expression: `<slot width={box.width}>` on a `null` threw, and what it would have computed is what
+the walk read. An empty object survives and answers `undefined`, which is what a marker would have
+stood for anyway.
+
 **A `<svelte:component>` that settles to one import is entered like any other tag.** It was not,
 and for a reason with nothing to do with dynamic components: `expand` puts parentheses around every
 name it substitutes, so a `this` settling to one import came back as `(Foo)` and the identifier

@@ -5165,6 +5165,38 @@ function merged(
  * is attempted, and everything it touched is rolled back if it stops. Returns whether it took the
  * component over.
  */
+/**
+ * The literal the render is handed for a prop whose value this walk models.
+ *
+ * `null` for nearly all of them: the value is never written into the bytes, so it only has to
+ * survive being evaluated. Where the child reads the name as the object of a member expression it
+ * does not survive -- `<slot width={box.width}>` on a `null` threw, and the value it would have
+ * computed is one the walk had already read for itself. An empty object survives the read and
+ * answers `undefined`, which is what a marker would have stood for anyway.
+ */
+function standsIn(ast: AstNode, local: string | undefined): string {
+	if (local === undefined) return 'null';
+	let member = false;
+	const step = (one: unknown): void => {
+		if (member) return;
+		if (Array.isArray(one)) {
+			for (const each of one) step(each);
+			return;
+		}
+		if (!isNode(one)) return;
+		if (one['type'] === 'MemberExpression') {
+			const object = one['object'];
+			if (isNode(object) && object['type'] === 'Identifier' && object['name'] === local) {
+				member = true;
+				return;
+			}
+		}
+		for (const value of Object.values(one)) step(value);
+	};
+	step(ast['fragment']);
+	return member ? '{}' : 'null';
+}
+
 function descend(
 	node: AstNode,
 	walk: Walk,
@@ -5870,7 +5902,7 @@ function descend(
 				const known = local === undefined ? undefined : partial(held, local);
 				const whole = span(one);
 				if (whole !== null && !(known === undefined && inertProps.has(name))) {
-					const placed = known === undefined ? 'null' : JSON.stringify(known);
+					const placed = known === undefined ? standsIn(ahead, local) : JSON.stringify(known);
 					// Written last, not where it stood. `push_prop(..., true)` delays a binding's
 					// pair so it comes after the spreads -- "to avoid spreads overwriting them" --
 					// and the fold this walk makes says so, so the render has to say so too.
@@ -5914,7 +5946,7 @@ function descend(
 			// Left as written where the value varies with nothing the request decides: Svelte
 			// evaluates the caller's expression and hands the child the value itself.
 			if (known === undefined && inertProps.has(name)) continue;
-			const placed = known === undefined ? 'null' : JSON.stringify(known);
+			const placed = known === undefined ? standsIn(ahead, local) : JSON.stringify(known);
 			if (whole !== null && walk.source[whole[0]] === '{') {
 				walk.edits.push([whole[0], whole[1], `${name}={${placed}}`]);
 				continue;

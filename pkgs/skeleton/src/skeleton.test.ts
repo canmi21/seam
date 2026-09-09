@@ -2422,6 +2422,18 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }],
 	},
 	{
+		// The render is handed a literal for a prop whose value this walk models, and the value is
+		// never written into the bytes -- it only has to survive being evaluated. `null` does not
+		// where the child reads the name as the object of a member expression, and the value it
+		// would have computed is one the walk had already read for itself.
+		name: 'a prop the child reads a member of, handed to the render',
+		beside: { Boxed: '<script>export let box;</script><div><slot width={box.width} /></div>' },
+		source:
+			"<script>import Boxed from './Boxed.svelte'; export let box = { width: 3 };</script>" +
+			'<Boxed {box} let:width><i>{width}</i></Boxed>',
+		props: [{}, { box: { width: 9 } }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request
