@@ -864,6 +864,15 @@ function running(node: unknown, at: (one: Node) => void): void {
 			return;
 		}
 		if (!isNode(one)) return;
+		// A getter is run by a property read, which is not something the reader wrote as a call.
+		// `const obj = { get promise() { return fn() } }` runs `fn` on `obj.promise`, so its body is
+		// walked where a plain function property's is not: what a function property does is decided
+		// by whoever calls it, and nobody here does.
+		if (isNode(one) && one['type'] === 'Property' && one['kind'] === 'get') {
+			const held = one['value'];
+			if (isNode(held)) step(held['body']);
+			return;
+		}
 		if (FUNCTIONS.has(String(one['type']))) return;
 		at(one);
 		// A function written as an argument of a call is run by that call. `run(() => count++)` from

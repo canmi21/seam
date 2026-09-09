@@ -556,6 +556,32 @@ stands over the payload's key *under a name*, and a name is the one thing this p
 `GIVEN` holds what the request brought, before any default was applied. So the substitution is the
 choice JavaScript makes, `(GIVEN["kebab-case"] === undefined ? d : GIVEN["kebab-case"])`.
 
+## A getter is a function this render calls
+
+`running()` stops at a function boundary, because what a function does is decided by whoever calls
+it and nothing here does. A getter is not that: reading the property runs it, and this pass writes
+a declaration's initialiser out at every read -- so `const obj = { get promise() { return fn() } }`
+runs `fn` on `obj.promise` as surely as `fn()` would.
+
+It found this the way these are usually found: an `{#await obj.promise}` was folded once its test
+was answered, and the sample that counts how many times its getters ran went from a refusal nobody
+had read to eight bytes that were not Svelte's. Walking a getter's body puts the name back in what
+the render runs, and the refusal it earns is the one the scope line already gives -- a value the
+render changes while the bytes are written.
+
+## An `{#await}` is a test the render can answer
+
+`await_block` in `internal/server/index.js` branches on `is_promise(promise)`, which is
+`typeof value?.then === 'function'` -- the same words this walk writes for the test. So it is a
+test like an if's: one the request does not decide is the render's to answer, and the answer holds
+for every request rather than for one render. `{#await p}` over a promise the file itself makes
+writes the pending branch always, and the then branch is markup nobody reaches.
+
+**Its branches are walked as a decision while the answer is out**, which is what stops a block
+inside one asking a question of its own. An ask is a statement in the script and runs whatever
+branch the render takes, so `{#each cards.filter(...)}` under a `{:then}` nobody reaches was
+evaluated against the promise itself.
+
 ## A name the server holds and the build has not
 
 There were two answers about a bare global and there are three. `GLOBALS` in the ast package lists

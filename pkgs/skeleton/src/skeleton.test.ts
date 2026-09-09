@@ -2370,6 +2370,18 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '<&' }],
 	},
 	{
+		// `await_block` in `internal/server/index.js` branches on `is_promise(promise)`, which is
+		// `typeof value?.then === 'function'` -- the same words this walk writes. A test the request
+		// does not decide is the render's to answer, the way an if's is, and the answer holds for
+		// every request: `{#await p}` over a promise this file makes writes the pending branch
+		// always, and the then branch is markup nobody reaches.
+		name: 'an `{#await}` over a promise this file makes',
+		source:
+			'<script>export let a; const held = Promise.resolve([1, 2]);</script>' +
+			'{#await held}<p>waiting</p>{:then rows}{#each rows.filter((r) => r > 1) as r}<i>{r}</i>{/each}{/await}<b>{a}</b>',
+		props: [{ a: 'x' }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request
@@ -3776,6 +3788,20 @@ const refused: Case[] = [
 			'<script>let { data } = $props(); const seen = [];' +
 			' function tick() { seen.push(1); return seen.length; }' +
 			' const first = tick();</script><p>{data.a}{first}|{seen.length}</p>',
+	},
+	{
+		// A getter is run by a property read, which is not something the reader wrote as a call, and
+		// this pass writes a declaration's initialiser out at every read. So a getter that changes
+		// something is a function this render calls, and the walk into it stops where a plain
+		// function property's body stops -- what a function property does is decided by whoever
+		// calls it, and nobody here does.
+		name: 'a getter that changes what the markup reads',
+		says: 'changed by a function this render calls',
+		source:
+			'<script>export let a; let seen = 0;' +
+			' function tick() { seen += 1; return seen; }' +
+			' const held = { get now() { return tick(); } };</script>' +
+			'<p>{held.now}|{seen}|{a}</p>',
 	},
 	{
 		// The other reading of a marker that does not come back, and the one that is a fault: the

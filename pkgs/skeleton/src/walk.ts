@@ -4557,10 +4557,61 @@ function collect(node: unknown, walk: Walk): void {
 			const value = node['value'];
 			const waiting = node['pending'];
 			const then = node['then'];
+			let asking = false;
 
-			const index = blocks.length;
 			const expression = expand(node['expression']);
 			const test = `typeof (${expression})?.then === 'function'`;
+			const kind = isNode(value) ? value['type'] : undefined;
+			const holds = kind === 'ObjectPattern' ? '{}' : kind === 'ArrayPattern' ? '[]' : 'null';
+			// The then branch, with the value bound: `then_fn(promise)` is called with what was
+			// awaited, which was never a promise on this branch, so the value substitutes the way a
+			// snippet's parameter does.
+			const resolved = (): Walk => {
+				if (isNode(value)) neutralise(value, edits);
+				const bound = isNode(value)
+					? takenApart(value, `(${expression})`, expand, () => 'this await')
+					: new Map<string, string>();
+				const inner: Locals['rewrite'] = (child, more) =>
+					expand(child, more === undefined ? bound : new Map([...bound, ...more]));
+				return { ...walk, expand: inner };
+			};
+
+			// A test the request does not decide is the render's to answer, the way an if's is, and
+			// the answer holds for every request rather than for this render: `{#await p}` over
+			// `let p = Promise.resolve(...)` writes the pending branch always, and the then branch is
+			// markup nobody reaches. Walked as a decision it was rendered anyway, against the promise
+			// itself, and `cards.filter` on one threw. See spec/derivation.md.
+			if (
+				site.payload !== null &&
+				walk.asking !== true &&
+				!varies(test, walk, true) &&
+				!site.mute.has(test)
+			) {
+				const answer = site.decided.get(test);
+				if (answer === true) {
+					edits.push([at[0], at[1], 'Promise.resolve()']);
+					if (isNode(waiting)) step(waiting);
+					buried(walk, then);
+					return;
+				}
+				if (answer === false) {
+					if (isNode(then)) collect(then, resolved());
+					buried(walk, waiting);
+					return;
+				}
+				// Asked as the author wrote it, since the expansion may name what only this walk holds.
+				if (!site.asks.some(([key]) => key === test)) {
+					const written = `typeof (${source.slice(at[0], at[1])})?.then === 'function'`;
+					site.asks.push([test, written]);
+				}
+				// And the branches are walked as a decision until the answer is in, which is what
+				// stops a block inside one asking a question of its own: an ask is a statement in the
+				// script and runs whatever branch the render takes, so `{#each cards.filter(...)}`
+				// under a `{:then}` nobody reaches was evaluated against the promise.
+				asking = true;
+			}
+
+			const index = blocks.length;
 			blocks.push({
 				index,
 				kind: 'if',
@@ -4572,8 +4623,6 @@ function collect(node: unknown, walk: Walk): void {
 				alternate: true,
 				within: [...within],
 			});
-			const kind = isNode(value) ? value['type'] : undefined;
-			const holds = kind === 'ObjectPattern' ? '{}' : kind === 'ArrayPattern' ? '[]' : 'null';
 			const opening = chose(walk, edits, at[0], at[1], index, 0, 'Promise.resolve()', holds);
 			// Which block just closed, written where the render puts it and nowhere else.
 			const closer = edits.length;
@@ -4581,21 +4630,12 @@ function collect(node: unknown, walk: Walk): void {
 
 			if (isNode(waiting)) {
 				within.push([index, 0]);
-				step(waiting);
+				collect(waiting, asking ? { ...walk, asking: true } : walk);
 				within.pop();
 			}
 			if (isNode(then)) {
-				// The value is the expression itself, resolved: `then_fn(promise)` is called with what
-				// was awaited, which was never a promise on this branch. So it substitutes the way a
-				// snippet's parameter does, with a destructuring reached through the way in.
-				if (isNode(value)) neutralise(value, edits);
-				const bound = isNode(value)
-					? takenApart(value, `(${expression})`, expand, () => 'this await')
-					: new Map<string, string>();
-				const inner: Locals['rewrite'] = (child, more) =>
-					expand(child, more === undefined ? bound : new Map([...bound, ...more]));
 				within.push([index, -1]);
-				collect(then, { ...walk, expand: inner });
+				collect(then, asking ? { ...resolved(), asking: true } : resolved());
 				within.pop();
 			}
 			// The catch branch is left as written and never walked: the server never writes it, so
