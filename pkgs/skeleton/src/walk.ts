@@ -4713,12 +4713,22 @@ function descend(
 		// it: a prop the child assigns after declaring is refused where it is declared, and one
 		// with nothing to send stays `undefined`, which `bind_props` skips.
 		//
-		// Refused rather than rendered, because whether it fires is `initial_value === undefined`
-		// and that is the request's answer wherever the bound expression is the request's: `<Foo
-		// bind:x/>` in a component whose own `x` is a prop writes the child's default for a request
-		// that sent nothing and the request's value for one that did, which is two structures and
-		// not a value a marker can stand for. Where the caller binds a local it is decidable and
-		// this is stricter than it needs to be; spec/roadmap.md has that half.
+		// Whether it fires is `initial_value === undefined`, which is the request's answer wherever
+		// the bound expression is the request's: `<Foo bind:x/>` in a component whose own `x` is a
+		// prop writes the child's default for a request that sent nothing and the request's value
+		// for one that did.
+		//
+		// **Leaving it to the render does not give the settled bytes, which was measured.** Svelte's
+		// own `do { ... } while (!$$settled)` runs there and `subsume` keeps the last pass, but the
+		// caller's name is substituted from this pass's model rather than read back out of those
+		// bytes: `let bar; <Widget bind:bar/> {bar}` wrote nothing where Svelte wrote the child's
+		// `42`. Two samples, both silent.
+		//
+		// **What settles it is a value rather than a structure.** After the iteration the caller's
+		// name holds `expr === undefined ? <what the child sends> : expr`, which is one ternary per
+		// bound prop and no second render at all. What it waits on is where the rebinding goes:
+		// Svelte renders the **whole** parent template again, so it holds for reads written above
+		// the tag as well, and the walk meets the tag half way through. See spec/roadmap.md.
 		// A readonly export travels too. `transform-server.js` passes `analysis.exports` to
 		// `$.bind_props` beside the bindable props, so `export const x = 42` in the child reaches a
 		// caller that binds `x` exactly as a prop's default would -- and it is not in `propsOf`,

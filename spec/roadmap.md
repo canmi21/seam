@@ -188,7 +188,34 @@ itself now, where the fragment is one Svelte reads the flag for -- which is ever
 an element's or a `<title>`'s, because `RegularElement.js` and `TitleElement.js` take `trimmed` off
 `clean_nodes` and call `process_children` without going through `Fragment.js` at all.
 
-### A component `bind:`, which is a fixed point the server iterates
+### A component `bind:` is a ternary, not a second render
+
+Read forward, the mechanism is below. What it took to see the answer was measuring the wrong one.
+
+**It is not "leave it to Svelte's render".** The render does run the `do { ... } while (!$$settled)`
+loop and `subsume` does keep the settled pass, so the bytes it writes are right. But the caller's
+name is substituted from the walk's own model rather than read back out of those bytes, so
+`let bar; <Widget bind:bar/> {bar}` wrote nothing where Svelte wrote the child's `42`. Measured on
+two samples, both silent.
+
+**It is not two structures either.** That was the second guess and it is more than is needed. After
+the iteration the caller's name holds
+
+```
+expr === undefined ? <what the child sends> : expr
+```
+
+which is one ternary per bound prop. A ternary is a value, and a value the request decides is what
+a marker already stands for. Where the name goes on to decide a branch the existing choice
+machinery takes it from there, which is the same path any request-decided value already has.
+
+**What it waits on is where the rebinding goes.** Svelte re-renders the *whole* parent template, so
+the settled value holds for reads written above the tag as well as below it, and the walk meets the
+tag half way through. It wants a pass over the template before the walk starts: find every `bind:`
+on a component, read what that child sends back -- a prop's default, or a readonly export's value
+-- and bind the caller's name to the ternary for the whole file. Sixteen samples.
+
+### The mechanism, read rather than inferred
 
 The largest of the rows above, and the mechanism is Svelte's, read rather than inferred:
 
