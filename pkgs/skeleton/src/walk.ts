@@ -2612,9 +2612,17 @@ function collect(node: unknown, walk: Walk): void {
 			// component's own attribute names and shadowing the caller with them would be wrong.
 			const shadow = new Map<string, string>();
 			for (const [prop, local] of handed.handed) shadow.set(local, passed.get(prop) ?? 'undefined');
+			// The group is a fragment of the caller's and Svelte reads `is_standalone` for it, so the
+			// one node it holds is read here rather than inherited from the component this `<slot>`
+			// sits in. `<svelte:self />` alone in a slot is the case: `is_standalone` names
+			// `RenderTag` and `Component` and a `SvelteSelf` is neither, so Svelte writes the anchor
+			// for it and the stand-in that replaces it -- a Component, and alone -- would not.
+			const only = onlyChild({ nodes: handed.nodes });
 			for (const child of handed.nodes) {
 				collect(child, {
 					...walk,
+					alone: only,
+					standalone: true,
 					source: handed.source,
 					edits: handed.edits,
 					expand:

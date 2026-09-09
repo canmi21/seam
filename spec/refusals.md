@@ -492,6 +492,12 @@ it would reach for data the render is not given. What it is handed has to be des
 the parameter destructures: `{}` or `[]` rather than `null`, which is the same rule a declaration
 that reads a prop already has.
 
+**A slot group is a fragment of the caller's, and `is_standalone` is read for it there.** It was
+inherited from the component the `<slot>` sits in, which is a different fragment. The rule names
+`RenderTag` and `Component`, and a `SvelteSelf` is neither -- so `<svelte:self />` alone in a slot
+gets the anchor Svelte writes for it, while the stand-in that replaces it, a component and alone,
+would not. One anchor per level of a component rendering itself through a slot.
+
 **`{children}` read as a value rather than rendered is not something a marker can stand for.** The
 prop holds the function Svelte compiled the caller's markup into, and an expression tag writes its
 value -- so what lands in the bytes is that function's own source, escaped. Reproducing it would

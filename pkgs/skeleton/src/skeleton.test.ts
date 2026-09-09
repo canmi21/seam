@@ -2483,6 +2483,20 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '' }],
 	},
 	{
+		// A slot group is a fragment of the caller's and Svelte reads `is_standalone` for it, so the
+		// one node it holds is read there rather than inherited from the component the `<slot>`
+		// sits in. `is_standalone` names `RenderTag` and `Component`; a `SvelteSelf` is neither, so
+		// Svelte writes the anchor for one alone in a slot and the stand-in replacing it would not.
+		name: 'a component rendering itself as the one node of a slot',
+		beside: {
+			Down: '<script>export let n;</script>{#if n > 0}<slot n={n - 1} />{/if}',
+		},
+		source:
+			"<script>import Down from './Down.svelte'; let { data } = $props();</script>" +
+			'{data.n}<Down n={data.n} let:n><svelte:self data={{ n }} /></Down>',
+		data: [{ n: 3 }, { n: 0 }],
+	},
+	{
 		// A `--x` on a component is not a prop: `build_inline_component` collects it into
 		// `custom_css_props` and `$.css_props` writes it into a wrapper's `style`, escaped the way
 		// an attribute is. It takes a marker like any other value written into the bytes, where it
