@@ -2228,6 +2228,18 @@ const accepted: Case[] = [
 		data: [{ n: 3 }],
 	},
 	{
+		// `let:thing={{ n }}` is a pattern rather than a name. `build_inline_component` writes it
+		// straight into the slot function's parameter, `{ thing: { n } }`, so each name in it reaches
+		// the slot prop the way a `{@const}`'s pattern reaches into its initialiser -- and
+		// `takenApart`, which is Svelte's own `_extract_paths` read forward, says how.
+		name: 'a `let:` that takes a pattern apart',
+		beside: { Nest: '<script>export let thing;</script><div><slot {thing} /></div>' },
+		source:
+			"<script>import Nest from './Nest.svelte'; let { data } = $props();</script>" +
+			'<Nest thing={data.t} let:thing={{ n }}><span>{n}</span></Nest>',
+		data: [{ t: { n: 'v' } }, { t: { n: '<&' } }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request

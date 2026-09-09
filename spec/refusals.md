@@ -625,6 +625,19 @@ the spreads, which is not the order they were written in, so a spread wins over 
 however the two were arranged. Each `let:` name is the fold that merge leaves for it, the same one
 a component's props already go through, over an object whose keys are the request's.
 
+**A `let:` may take a pattern apart, and Svelte says the pattern is spelled as an expression.**
+`let:box={{ width, height }}` parses as an `ObjectExpression`, and `shared/component.js` rebuilds
+it with `b.object_pattern(expression.properties)` and an `@ts-expect-error` beside it saying so in
+as many words. Only the outermost one is rebuilt there, because the printer turns the rest back
+into source JavaScript reads as a pattern; the walk reads the node, so both spellings are taken at
+every depth. Each name then reaches the slot prop the way a `{@const}`'s pattern reaches into its
+initialiser, which is `takenApart` -- Svelte's own `_extract_paths` read forward.
+
+The pattern is taken out of the render, where it is dead: every name it binds is a marker in the
+rewritten markup by the time the render sees it, and the render is handed nothing for the value the
+pattern would come apart from. Destructuring that threw; binding the whole of it under a name
+nobody reads does not.
+
 **A component carrying `slot=` is a named slot inside another one, and its `let:` scope is that
 slot's rather than its own.** `slot_scope_applies_to_itself` in `build_inline_component` says so
 and leaves the directives out of `lets.default`. So `<Inner slot="foo" let:thing={d}>` reads `d`

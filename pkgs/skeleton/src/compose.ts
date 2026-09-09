@@ -512,9 +512,9 @@ export function hands(
 ): ReadonlyMap<string, Given> {
 	if (nodes.length === 0) return new Map();
 	const grouped = new Map<string, unknown[]>();
-	const lets = new Map<string, Map<string, string>>();
+	const lets = new Map<string, Map<string, string | AstNode>>();
 	const bind = (name: string, node: AstNode): void => {
-		const held = lets.get(name) ?? new Map<string, string>();
+		const held = lets.get(name) ?? new Map<string, string | AstNode>();
 		for (const one of Array.isArray(node['attributes']) ? node['attributes'] : []) {
 			if (!isNode(one) || one['type'] !== 'LetDirective') continue;
 			const prop = typeof one['name'] === 'string' ? one['name'] : '';
@@ -527,14 +527,22 @@ export function hands(
 				continue;
 			}
 			const to = one['expression'];
-			if (to['type'] !== 'Identifier' || typeof to['name'] !== 'string') {
-				refuse(
-					`\`let:${prop}\` takes a pattern apart, and what each name in it reaches is not ` +
-						'something this compiler follows through a slot yet. Bind the whole value and ' +
-						'read into it. See spec/refusals.md',
-				);
+			// A pattern rather than a name: `let:box={{ width, height }}`. `build_inline_component`
+			// writes it straight into the slot function's parameter, `{ box: { width, height } }`, so
+			// each name in it reaches the slot prop the way a `{@const}`'s does -- and `takenApart`,
+			// which is Svelte's own `_extract_paths` read forward, is what says how. Kept as the node
+			// for the walk to take apart against what the `<slot>` passed.
+			if (to['type'] === 'Identifier' && typeof to['name'] === 'string') {
+				held.set(prop, to['name']);
+				continue;
 			}
-			held.set(prop, to['name']);
+			held.set(prop, to);
+			// And taken out of the render, where it is dead: every name it binds is a marker in the
+			// rewritten markup by the time the render sees it, and the render is handed nothing for
+			// the value the pattern would come apart from. Destructuring that threw where binding the
+			// whole of it under a name nobody reads does not.
+			const at = span(to);
+			if (at !== null) walk.edits.push([at[0], at[1], `$$seam_let${String(at[0])}`]);
 		}
 		lets.set(name, held);
 	};
@@ -566,7 +574,7 @@ export function hands(
 			edits: walk.edits,
 			snippets: here,
 			site: walk.site,
-			handed: lets.get(named) ?? new Map<string, string>(),
+			handed: lets.get(named) ?? new Map<string, string | AstNode>(),
 			legacy: walk.legacy,
 		});
 	}

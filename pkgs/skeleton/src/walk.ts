@@ -168,9 +168,10 @@ export interface Given {
 	 * reads them as is the expression the `<slot>` passed under that prop: `let:thing={x}` over
 	 * `<slot {thing}/>` inside an each makes `x` the each's item, per iteration.
 	 *
-	 * Keyed by the slot's prop name, valued by the name the caller bound it to.
+	 * Keyed by the slot's prop name, valued by the name the caller bound it to -- or by the pattern
+	 * it bound, where `let:box={{ width, height }}` binds several names from the one prop.
 	 */
-	handed: ReadonlyMap<string, string>;
+	handed: ReadonlyMap<string, string | AstNode>;
 	/** Whether the caller's file is in legacy mode, which decides whether its `{@const}`s sort. */
 	legacy: boolean;
 	/**
@@ -837,14 +838,19 @@ function takenApart(
 			one(target['left'], withDefault(reached, target['right']));
 			return;
 		}
-		if (type === 'ObjectPattern') {
+		// `let:x={{ a, b }}` parses as an expression and is really a pattern -- Svelte says so in as
+		// many words, `shared/component.js` rebuilding it with `b.object_pattern(expression.properties)`
+		// and an `@ts-expect-error` beside it. Only the outermost one is rebuilt there, because the
+		// printer turns the rest back into source JavaScript reads as a pattern; here the node is
+		// walked, so both spellings are read at every depth.
+		if (type === 'ObjectPattern' || type === 'ObjectExpression') {
 			// The keys a rest leaves out are every key the pattern names, in the order Svelte writes
 			// them: a plain name as itself, a literal as its value read as a string, and a computed
 			// key as `String(...)` of the expression, which evaluates it a second time.
 			const taken: string[] = [];
 			for (const property of Array.isArray(target['properties']) ? target['properties'] : []) {
 				if (!isNode(property)) continue;
-				if (property['type'] === 'RestElement') {
+				if (property['type'] === 'RestElement' || property['type'] === 'SpreadElement') {
 					one(property['argument'], `$$exclude_from_object(${reached}, [${taken.join(', ')}])`);
 					continue;
 				}
@@ -863,7 +869,7 @@ function takenApart(
 			}
 			return;
 		}
-		if (type === 'ArrayPattern') {
+		if (type === 'ArrayPattern' || type === 'ArrayExpression') {
 			// Through `to_array` and not by index. An array pattern destructures by the iterator
 			// protocol -- Svelte's server writes `let [a, b] = each_array[i]` and lets the engine do
 			// it -- and reading `value[0]` instead is the same answer for an array and no answer at
@@ -3484,7 +3490,18 @@ function collect(node: unknown, walk: Walk): void {
 			// Only the names the `let:` bound, under the locals it bound them to: the rest are this
 			// component's own attribute names and shadowing the caller with them would be wrong.
 			const shadow = new Map<string, string>();
-			for (const [prop, local] of handed.handed) shadow.set(local, passed.get(prop) ?? 'undefined');
+			for (const [prop, local] of handed.handed) {
+				const value = passed.get(prop) ?? 'undefined';
+				if (typeof local === 'string') {
+					shadow.set(local, value);
+					continue;
+				}
+				// A pattern binds several names from the one prop, each reached the way a `{@const}`'s
+				// pattern reaches into its initialiser.
+				for (const [name, reached] of takenApart(local, value, expand, () => `\`let:${prop}\``)) {
+					shadow.set(name, reached);
+				}
+			}
 			// The group is a fragment of the caller's and Svelte reads `is_standalone` for it, so the
 			// one node it holds is read here rather than inherited from the component this `<slot>`
 			// sits in. `<svelte:self />` alone in a slot is the case: `is_standalone` names
