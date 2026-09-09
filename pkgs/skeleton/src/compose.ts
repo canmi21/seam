@@ -552,10 +552,32 @@ export function hands(
 	// reads `d` from the enclosing `<slot name="foo" {thing}/>`, in its own attributes and in its
 	// children, and `Inner`'s own `<slot />` passes nothing for it.
 	if (tag !== undefined && slotName(tag) === null) bind('children', tag);
+	/** A snippet written inside the tag, by the name it arrives under. See `Given.parameters`. */
+	const parameters = new Map<string, readonly unknown[]>();
 	for (const child of nodes) {
-		const named = isNode(child) ? (slotName(child) ?? 'children') : 'children';
+		// A `{#snippet x(...)}` inside a component's tag is the prop `x`, which is the modern
+		// spelling of `<svelte:fragment slot="x" let:...>`: `build_inline_component` puts both in
+		// the same place, and `$.slot` reaches a snippet prop the way it reaches a slot. So it is a
+		// group of its own rather than part of the default one, and its parameters are what the
+		// component binds when it renders it.
+		const snippet = isNode(child) && child['type'] === 'SnippetBlock' ? child : null;
+		const under =
+			snippet === null
+				? null
+				: isNode(snippet['expression']) && typeof snippet['expression']['name'] === 'string'
+					? snippet['expression']['name']
+					: null;
+		if (snippet !== null && under !== null) {
+			parameters.set(under, Array.isArray(snippet['parameters']) ? snippet['parameters'] : []);
+		}
+		const named = under ?? (isNode(child) ? (slotName(child) ?? 'children') : 'children');
 		const held = grouped.get(named) ?? [];
-		held.push(child);
+		// The snippet's body, not the block: what the component renders is what is inside it, and
+		// the block itself only names it. A slot group's nodes are already the markup.
+		const body = snippet === null ? null : snippet['body'];
+		const inside = isNode(body) && Array.isArray(body['nodes']) ? body['nodes'] : null;
+		if (inside === null) held.push(child);
+		else held.push(...inside);
 		grouped.set(named, held);
 		if (isNode(child) && named !== 'children') bind(named, child);
 		// A `<svelte:fragment>` with no `slot=` carries `let:` for the default group.
@@ -576,6 +598,7 @@ export function hands(
 			site: walk.site,
 			handed: lets.get(named) ?? new Map<string, string | AstNode>(),
 			legacy: walk.legacy,
+			...(parameters.has(named) ? { parameters: parameters.get(named) } : {}),
 		});
 	}
 	return found;

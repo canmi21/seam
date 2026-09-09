@@ -638,6 +638,24 @@ rewritten markup by the time the render sees it, and the render is handed nothin
 pattern would come apart from. Destructuring that threw; binding the whole of it under a name
 nobody reads does not.
 
+**A `{#snippet}` written inside a component's tag is a group of the caller's like any other.**
+It is the modern spelling of `<svelte:fragment slot="x" let:...>` and `build_inline_component` puts
+both in the same place, so it is grouped under its own name rather than folded into the default
+one. What the component renders is the snippet's **body**, not the block, and the block's
+parameters are bound to the arguments the component calls it with -- a `let:` the other way round,
+the component naming the value and the caller naming the parameter. A group written as plain markup
+has no name to give an argument to and stays refused.
+
+The group is also a prop the child may test, and its value is a function: Svelte passes the slot or
+snippet itself. The scope a child's expressions read is data, so it stands for the one thing a
+derivation can ask of a function, that it exists -- without which `{#if inner}` over a
+`{#snippet inner}` written at the call site read `undefined` and the child rendered the else, which
+is bytes rather than a refusal.
+
+**An argument that is a snippet the component itself declares is refused**, inside the child's
+walk, so the tag rolls back and Svelte renders the component as it did before. The caller's markup
+has no name for it, and the body would read one nothing binds.
+
 **A component carrying `slot=` is a named slot inside another one, and its `let:` scope is that
 slot's rather than its own.** `slot_scope_applies_to_itself` in `build_inline_component` says so
 and leaves the directives out of `lets.default`. So `<Inner slot="foo" let:thing={d}>` reads `d`

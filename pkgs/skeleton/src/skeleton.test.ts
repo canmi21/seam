@@ -2311,6 +2311,24 @@ const accepted: Case[] = [
 		props: [{ a: 'x' }, { a: '<&' }],
 	},
 	{
+		// A `{#snippet x(n)}` written inside a component's tag is the prop `x`, which is the modern
+		// spelling of `<svelte:fragment slot="x" let:...>`: `build_inline_component` puts both in the
+		// same place. So it is a group of its own, its body is what the component renders, and its
+		// parameters are bound to the arguments the component calls it with -- a `let:` the other
+		// way round. The group is also a prop the child may test, and its value is a function, so it
+		// stands for the one thing a derivation can ask of one.
+		name: 'a snippet written at the call site and rendered with the child`s own value',
+		beside: {
+			Kount:
+				'<script>let { foo, other } = $props(); let n = 3;</script>' +
+				'{#if foo}{@render foo(n)}{/if}{#if other}<b>o</b>{/if}',
+		},
+		source:
+			"<script>import Kount from './Kount.svelte'; let { data } = $props();</script>" +
+			'<Kount>{#snippet foo(v)}<p>v={v}|{data.a}</p>{/snippet}</Kount>',
+		data: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request
@@ -3527,18 +3545,21 @@ const refused: Case[] = [
 		// which -- so the live one kept the dead one refused beside it and the message named
 		// whichever came first. Asked one at a time after that, the message names the one that is
 		// actually a fault.
-		// The snippet inside the tag is what keeps the walk out of the child; entered, the same
-		// child compiles, which the accepted case with the same name says.
+		// A child that assigns after declaring is what keeps the walk out of it; entered, the same
+		// child compiles, which the accepted case with the same name says. It used to be a
+		// `{#snippet}` inside the tag, and that stopped being a way out when a snippet written there
+		// became a group like any other -- the second time this case has had to find one, and the
+		// reason to pick a rule that does not move.
 		name: 'one value a child eats and one it never writes',
 		says: '`eaten`',
 		beside: {
 			Eats:
-				'<script>let { eaten, ignored, ...rest } = $props(); const open = false;</script>' +
+				'<script>let { eaten, ignored, ...rest } = $props(); let open = false; open = true;</script>' +
 				'<b>{eaten.toUpperCase()}</b>{#if open}<i>{ignored}</i>{/if}',
 		},
 		source:
 			"<script>import Eats from './Eats.svelte'; let { data } = $props();</script>" +
-			'<Eats ignored={data.b} eaten={data.a}>{#snippet extra()}<u>e</u>{/snippet}</Eats>',
+			'<Eats ignored={data.b} eaten={data.a} />',
 	},
 	{
 		// The other side of what a component may supply. A parameter only ever rendered is markup
@@ -3549,7 +3570,11 @@ const refused: Case[] = [
 		// never calls it compiles, above.
 		name: 'a snippet a component supplies a value to, not markup',
 		says: 'reads one of them as a value',
-		beside: { Feeds: '<script>let { row, ...rest } = $props();</script><p>{@render row?.(1)}</p>' },
+		beside: {
+			Feeds:
+				'<script>let { row, ...rest } = $props(); let n = 1; n = 2;</script>' +
+				'<p>{@render row?.(n)}</p>',
+		},
 		source:
 			"<script>import Feeds from './Feeds.svelte'; let { data } = $props();</script>" +
 			'<Feeds>{#snippet row(n)}<i class={n > 0 ? "up" : "down"}>{data.a}</i>{/snippet}</Feeds>',
@@ -3718,11 +3743,13 @@ const refused: Case[] = [
 		// what keeps the relaxation beside this from covering it.
 		name: 'a value a child is given and transforms',
 		beside: {
-			Chews: '<script>let { tag, ...rest } = $props();</script><i>{tag.toUpperCase()}</i>',
+			Chews:
+				'<script>let { tag, ...rest } = $props(); let n = 1; n = 2;</script>' +
+				'<i>{tag.toUpperCase()}{n}</i>',
 		},
 		source:
 			"<script>import Chews from './Chews.svelte'; let { data } = $props();</script>" +
-			'<Chews tag={data.a}>{#snippet extra()}<u>e</u>{/snippet}</Chews>',
+			'<Chews tag={data.a} />',
 	},
 ];
 

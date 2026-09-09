@@ -176,6 +176,14 @@ export interface Given {
 	/** Whether the caller's file is in legacy mode, which decides whether its `{@const}`s sort. */
 	legacy: boolean;
 	/**
+	 * The parameters of the `{#snippet}` this group is, where it is one.
+	 *
+	 * A snippet written inside a component's tag is a prop the component renders with arguments of
+	 * its own, so the group's nodes are walked with those parameters bound to those arguments --
+	 * which is what a `let:` already does for a slot, spelled the other way round.
+	 */
+	parameters?: readonly unknown[];
+	/**
 	 * Which `<slot>` walked this group, where one has. A component may render one group from more
 	 * than one `<slot>` -- `<slot key="a"/><slot key="b"/>` renders the caller's markup twice, with
 	 * different props each time -- and the group is one span of the caller's source. Two walks then
@@ -4251,18 +4259,47 @@ function collect(node: unknown, walk: Walk): void {
 			const handed = name === null ? undefined : site.given.get(name);
 			if (handed !== undefined) {
 				const given = isNode(call) && Array.isArray(call['arguments']) ? call['arguments'] : [];
-				if (given.length > 0) {
+				// A `{#snippet x(n)}` written inside the tag has names for them, and they are bound the
+				// way a `let:` binds a slot's props -- the other way round, the component naming the
+				// value and the caller naming the parameter. A group written as plain markup has no
+				// name to give an argument to and stays refused.
+				const parameters = handed.parameters;
+				if (given.length > 0 && parameters === undefined) {
 					refuse(
 						`\`{@render ${name}()}\` is called with arguments, and what it renders was written ` +
 							'at the call site, which has no name to give them to',
 					);
 				}
+				// An argument that is a snippet **this component** declares has no name in the caller's
+				// markup: the body would read it where nothing binds it. Refused here, inside the
+				// child's walk, so the tag rolls back and Svelte renders the component as before.
+				if (
+					parameters !== undefined &&
+					given.some((one) =>
+						[...snippets].some(
+							([held, what]) => what.declared && mentions(expand(one), new Set([held])),
+						),
+					)
+				) {
+					refuse(
+						`\`{@render ${String(name)}()}\` passes a snippet this component declares to one ` +
+							"the caller wrote, and the caller's markup has no name for it",
+					);
+				}
+				const bound =
+					parameters === undefined
+						? new Map<string, string>()
+						: new Map(
+								parameterBinds(parameters, given, expand, () => `the snippet \`${String(name)}\``),
+							);
+				const inner: Locals['rewrite'] = (child, more) =>
+					handed.expand(child, more === undefined ? bound : new Map([...bound, ...more]));
 				for (const child of handed.nodes) {
 					collect(child, {
 						...walk,
 						source: handed.source,
 						edits: handed.edits,
-						expand: handed.expand,
+						expand: bound.size === 0 ? handed.expand : inner,
 						snippets: handed.snippets,
 						site: handed.site,
 					});
@@ -4999,9 +5036,10 @@ function descend(
 	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];
 	const fragment = node['fragment'];
 	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
-	// A `{#snippet}` inside the tag arrives under its own name and may take parameters, which the
-	// caller does not choose. Only the markup that becomes `children` is followed.
-	if (nodes.some((one) => isNode(one) && one['type'] === 'SnippetBlock')) return false;
+	// A `{#snippet}` inside the tag arrives under its own name and is a group of the caller's like
+	// any other -- `hands()` reads it that way, and the component renders it with arguments of its
+	// own, which its parameters name. This used to turn the whole tag away.
+
 	// `let:` puts the markup in `$$slots` instead, on a different path through the visitor.
 
 	// What the call site passes, as expressions in the caller's own terms. A handler is bound to
@@ -5362,6 +5400,16 @@ function descend(
 		// three.
 		if (groups.has('children') && declares.some((one) => one.whole === true || one.rest === true)) {
 			return rolled(walk, mark);
+		}
+		// A group the caller filled is a prop of the child's, and its value is a function -- the slot
+		// or snippet Svelte passes. The scope a child's expressions read is data, so it stands for
+		// the one thing a derivation can ask of a function: that it exists. Without it `{#if inner}`
+		// over a `{#snippet inner}` written at the call site read `undefined` and the child rendered
+		// the else, which is bytes rather than a refusal. See `standsFor()`.
+		for (const named of groups.keys()) {
+			if (bindings.has(named)) continue;
+			if (!declares.some((one) => one.prop === named)) continue;
+			bindings.set(named, 'true');
 		}
 		const held =
 			recursion === null ? rebased(walk.site.fixed, declares, bindings) : new Map<string, string>();
