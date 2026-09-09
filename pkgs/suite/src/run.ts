@@ -305,6 +305,45 @@ function count(results: readonly Result[], outcome: Outcome): number {
 	return results.filter((one) => one.outcome === outcome).length;
 }
 
+/**
+ * Runs something with the samples' own writing to the terminal swallowed.
+ *
+ * A sample is a component somebody wrote to exercise Svelte, and several of them log: 127 lines
+ * of `0n`, `1n`, `100`, `undefined` came out of the corpus before the table did, which is the one
+ * thing a run of this is read for. Upstream's output, not a result, so it goes nowhere. Errors
+ * are unaffected: every outcome here is a returned value or a thrown one.
+ */
+async function quietly<T>(what: () => Promise<T>): Promise<T> {
+	const held = { log: console.log, info: console.info, warn: console.warn, debug: console.debug };
+	Object.assign(console, { log: NOTHING, info: NOTHING, warn: NOTHING, debug: NOTHING });
+	try {
+		return await what();
+	} finally {
+		Object.assign(console, held);
+	}
+}
+
+const NOTHING = (): void => undefined;
+
+/** The counts, which is what a run is read for, so it is written last and on its own. */
+function table(results: readonly Result[]): void {
+	const width = Math.max(...SUITES.map((one) => one.length));
+	const row = (name: string, mine: readonly Result[]): string =>
+		`${name.padEnd(width)}  ${String(mine.length).padStart(8)}${String(count(mine, 'identical')).padStart(11)}${String(count(mine, 'empty')).padStart(7)}${String(count(mine, 'differs')).padStart(9)}${String(count(mine, 'refused')).padStart(9)}${String(count(mine, 'skipped')).padStart(9)}${String(count(mine, 'oracle')).padStart(8)}`;
+	console.log(
+		`\n${'suite'.padEnd(width)}  ${'samples'.padStart(8)}${'identical'.padStart(11)}${'empty'.padStart(7)}${'differs'.padStart(9)}${'refused'.padStart(9)}${'skipped'.padStart(9)}${'oracle'.padStart(8)}`,
+	);
+	for (const suite of SUITES) {
+		console.log(
+			row(
+				suite,
+				results.filter((one) => one.suite === suite),
+			),
+		);
+	}
+	console.log(row('total', results));
+}
+
 function list(results: readonly Result[], outcome: Outcome, title: string): void {
 	const found = results.filter((one) => one.outcome === outcome);
 	if (found.length === 0) return;
@@ -328,28 +367,22 @@ symlinkSync(
 	'dir',
 );
 
-const results: Result[] = [];
-for (const suite of SUITES) {
-	for (const name of samplesOf(suite)) results.push(await attempt(suite, name));
-}
+const results: Result[] = await quietly(async () => {
+	const found: Result[] = [];
+	for (const suite of SUITES) {
+		for (const name of samplesOf(suite)) found.push(await attempt(suite, name));
+	}
+	return found;
+});
 
-const width = Math.max(...SUITES.map((one) => one.length));
-console.log(
-	`\n${'suite'.padEnd(width)}  ${'samples'.padStart(8)}${'identical'.padStart(11)}${'empty'.padStart(7)}${'differs'.padStart(9)}${'refused'.padStart(9)}${'skipped'.padStart(9)}${'oracle'.padStart(8)}`,
-);
-for (const suite of SUITES) {
-	const mine = results.filter((one) => one.suite === suite);
-	console.log(
-		`${suite.padEnd(width)}  ${String(mine.length).padStart(8)}${String(count(mine, 'identical')).padStart(11)}${String(count(mine, 'empty')).padStart(7)}${String(count(mine, 'differs')).padStart(9)}${String(count(mine, 'refused')).padStart(9)}${String(count(mine, 'skipped')).padStart(9)}${String(count(mine, 'oracle')).padStart(8)}`,
-	);
+// The lists first and the table last: a terminal shows the end of what a command wrote, and the
+// table is what the run is for. `--table` is the same run with the lists left out.
+if (!process.argv.includes('--table')) {
+	list(results, 'differs', "compiled and wrote bytes that are not Svelte's");
+	list(results, 'oracle', 'neither side answered: the oracle could not be built or run');
+	list(results, 'refused', 'refused, each naming where the question lives');
 }
-console.log(
-	`${'total'.padEnd(width)}  ${String(results.length).padStart(8)}${String(count(results, 'identical')).padStart(11)}${String(count(results, 'empty')).padStart(7)}${String(count(results, 'differs')).padStart(9)}${String(count(results, 'refused')).padStart(9)}${String(count(results, 'skipped')).padStart(9)}${String(count(results, 'oracle')).padStart(8)}`,
-);
-
-list(results, 'differs', "compiled and wrote bytes that are not Svelte's");
-list(results, 'oracle', 'neither side answered: the oracle could not be built or run');
-list(results, 'refused', 'refused, each naming where the question lives');
+table(results);
 
 const differs = count(results, 'differs');
 console.log(

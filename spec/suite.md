@@ -151,8 +151,21 @@ anybody acts on.
 ## Why it is red, and where it is run
 
 The suite fails today and is meant to. It is not part of `verify`: a check that cannot pass stops
-being read, and every commit would carry it. It is `mise run suite`, run on its own, and what it
-prints is the three counts and the two lists.
+being read, and every commit would carry it.
+
+```
+mise run suite              the lists, then the table
+mise run suite -- --table   the table alone
+```
+
+Run from anywhere in the workspace it is `mise run //repos/seam:suite`. It exits non-zero while
+any sample writes bytes that are not Svelte's.
+
+**The table is written last and the samples are silenced while they run.** A sample is a component
+somebody wrote to exercise Svelte and a good number of them log: 127 lines of `0n`, `1n`, `100`,
+`undefined` used to come out of the corpus before the table did, and a terminal shows the end of
+what a command wrote. Upstream's output is not a result of this run, so it goes nowhere; every
+outcome here is a value returned or thrown, so nothing is lost with it.
 
 It becomes part of `verify` when the count that differs reaches zero -- at which point its
 condition changes from "no sample writes the wrong bytes" to "no sample that used to be identical

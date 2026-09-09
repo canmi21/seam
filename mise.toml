@@ -79,6 +79,8 @@ depends = ["check", "check-rust", "lint", "lint-rust", "test", "test-rust"]
 
 [tasks.suite]
 description = "Svelte's own 2388 samples, compiled here and held against Svelte's own render"
+# `mise run suite` writes the lists and then the table; `mise run suite -- --table` writes the
+# table alone. Either way it exits non-zero while any sample writes bytes that are not Svelte's.
 # Not in `verify`, and spec/suite.md says why: it cannot pass yet, and a check that cannot pass
 # stops being read. It joins the gate when the count that differs reaches zero.
 depends = ["wasm"]
