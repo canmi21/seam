@@ -2511,6 +2511,22 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '<' }],
 	},
 	{
+		// A declaration reading a prop is neutralised for the render, which is given no data. The
+		// legacy spellings of a prop were not counted as ones -- `export let` and `export { x as y }`
+		// -- so `export let n; const twice = n.v * 2` kept its initialiser, and the render evaluated
+		// `undefined.v` and threw a `TypeError` naming nothing: the crash the neutralisation exists
+		// to prevent. Found by probe; the corpus shows four of these and they all read as
+		// `Cannot read properties of undefined`.
+		name: 'a declaration computed from a legacy prop',
+		source:
+			'<script>export let n; let m; export { m as q };' +
+			' const twice = n.v * 2; const held = `[${m}]`;</script><p>{twice}{held}</p>',
+		props: [
+			{ n: { v: 21 }, q: 'x' },
+			{ n: { v: 0 }, q: '<' },
+		],
+	},
+	{
 		// `LabeledStatement.js` collects a `$:` and `transform-server.js` puts it at the end of the
 		// instance body in topological order, declaring `let x` for the name it assigns. So it is a
 		// declaration whose initialiser is the right-hand side, and one reading another chains the

@@ -486,6 +486,22 @@ expression -- `items.includes(item)` is one derivation with the array literal in
 nothing to share, and the array is built again. Holding a declaration rather than substituting it
 is what closes that, and it is the open item under Substitution below.
 
+## Which names the request decides, in both spellings of a prop
+
+A declaration reading a prop is neutralised for the render, which is given no data: holding one is
+how a component used to crash inside Svelte's own renderer rather than being refused.
+
+Whether a declaration reads a prop is decided by the list of names the request brings, and that
+list read `$props()` destructuring only. Svelte 4's spellings -- `export let x`, `export var x`,
+`export { x as y }` over a `let` -- were not in it, so `export let n; const twice = n.v * 2` kept
+its initialiser and the render evaluated `undefined.v`: a `TypeError` naming nothing, which is the
+crash the neutralisation exists to prevent. `export const` stays out, being a readonly export that
+`transform-server.js` sends **up** to a caller rather than takes from one.
+
+Found by probe rather than by the corpus, which shows four of these -- they read as
+`Cannot read properties of undefined`, and only where the initialiser dereferences: `n * 2` over a
+missing prop is `NaN` and nothing reads it, so it passed.
+
 ## The payload itself has a name, for the expressions that need the object
 
 `$$props` is the object a component was called with, `$$restProps` what its declared props left of

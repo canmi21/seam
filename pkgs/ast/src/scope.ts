@@ -259,7 +259,15 @@ export function destructure(pattern: Node): [string, string][] {
 	return found;
 }
 
-/** The props the component destructures, which are the names the data has to carry. */
+/**
+ * The props the component takes, which are the names the data has to carry: what `$props()`
+ * destructures, and Svelte 4's `export let` and `export { x as y }`.
+ *
+ * The legacy spellings were missing, and what depends on this is whether a declaration reading one
+ * is neutralised for the render. `export let n; const twice = n.v * 2` was not, so the render --
+ * which is given no props -- evaluated `undefined.v` and threw a `TypeError` naming nothing, which
+ * is the crash the neutralisation exists to prevent.
+ */
 export function props(instance: unknown): Set<string> {
 	const found = new Set<string>();
 	if (!isNode(instance)) return found;
@@ -269,7 +277,32 @@ export function props(instance: unknown): Set<string> {
 	if (!Array.isArray(body)) return found;
 
 	for (const statement of body) {
-		if (!isNode(statement) || statement['type'] !== 'VariableDeclaration') continue;
+		if (!isNode(statement)) continue;
+		// Svelte 4's spelling: `export let x` and `export var x` are props, and `export { x as y }`
+		// makes one of a `let` declared above. `export const` is not -- it is a readonly export,
+		// which `transform-server.js` sends up to a caller rather than takes from one. The names
+		// wanted here are the locals, because that is what an expression in this file reads.
+		if (statement['type'] === 'ExportNamedDeclaration') {
+			const declaration = statement['declaration'];
+			if (
+				isNode(declaration) &&
+				declaration['type'] === 'VariableDeclaration' &&
+				declaration['kind'] !== 'const'
+			) {
+				for (const one of Array.isArray(declaration['declarations'])
+					? declaration['declarations']
+					: []) {
+					if (isNode(one)) bound(one['id'], found);
+				}
+			}
+			for (const one of Array.isArray(statement['specifiers']) ? statement['specifiers'] : []) {
+				if (!isNode(one)) continue;
+				const local = one['local'];
+				if (isNode(local) && typeof local['name'] === 'string') found.add(local['name']);
+			}
+			continue;
+		}
+		if (statement['type'] !== 'VariableDeclaration') continue;
 		const declarations = statement['declarations'];
 		if (!Array.isArray(declarations)) continue;
 		for (const declaration of declarations) {
