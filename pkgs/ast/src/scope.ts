@@ -320,6 +320,20 @@ export function within(template: string, inner: string): string {
 	return template.split(INIT).join(inner);
 }
 
+/** Where an expression in the pattern's own scope goes, by its place in `slots`. */
+export function SLOT(at: number): string {
+	return `$$slot${String(at)}$$`;
+}
+
+/** A name a pattern binds, the expression that reaches it, and the nodes its slots stand for. */
+export interface Destructured {
+	name: string;
+	/** A template over `INIT` and `SLOT(n)`. */
+	reach: string;
+	/** The nodes the slots stand for, which the caller expands as it expands the initialiser. */
+	slots: readonly Node[];
+}
+
 /**
  * Every name a declaration's pattern binds, and the expression that reaches each one, written as a
  * template over `INIT`.
@@ -337,10 +351,11 @@ export function within(template: string, inner: string): string {
  * gives: it caps an unbounded iterator through a `Symbol.iterator in value` test that throws on a
  * primitive.
  *
- * **A default and a computed key are left out**, which reports the name rather than guessing at it.
- * Both are expressions in the declaration's own scope and this template is raw source: nothing
- * expands a name inside it, so a default reading another declaration would reach a name the
- * artifact does not carry. `takenApart` can write them because it is given the expansion.
+ * **A default and a computed key are expressions in the declaration's own scope**, and this template
+ * is raw source that nothing expands names inside. So each goes in a slot: the template carries
+ * `SLOT(n)` where it belongs and `slots[n]` is the node, which the caller expands the way it
+ * expands the initialiser. `takenApart` writes them inline instead, because it is given the
+ * expansion.
  */
 /**
  * What a render is handed in place of an initialiser it cannot evaluate, shaped so the pattern
@@ -384,18 +399,31 @@ export function emptyFor(pattern: unknown): string {
 	return 'null';
 }
 
-export function destructure(pattern: Node): [string, string][] {
-	const found: [string, string][] = [];
+export function destructure(pattern: Node): Destructured[] {
+	const found: Destructured[] = [];
+	const slots: Node[] = [];
+	const slot = (node: unknown): string => {
+		if (!isNode(node)) return 'undefined';
+		slots.push(node);
+		return SLOT(slots.length - 1);
+	};
 	const one = (target: unknown, reached: string): void => {
 		if (!isNode(target)) return;
 		const type = target['type'];
 		if (type === 'Identifier' && typeof target['name'] === 'string') {
-			found.push([target['name'], reached]);
+			found.push({ name: target['name'], reach: reached, slots });
+			return;
+		}
+		// A default is JavaScript's own choice, which `build_fallback` writes the same way: the
+		// member where it is not `undefined`, and the default where it is. `null` is not defaulted.
+		if (type === 'AssignmentPattern') {
+			one(target['left'], `(${reached} === undefined ? (${slot(target['right'])}) : ${reached})`);
 			return;
 		}
 		if (type === 'ObjectPattern') {
-			// The keys a rest leaves out, in the order Svelte writes them: a plain name as itself and
-			// a literal as its value read as a string.
+			// The keys a rest leaves out, in the order Svelte writes them: a plain name as itself, a
+			// literal as its value read as a string, and a computed key as `String(...)` of the
+			// expression, which evaluates it a second time.
 			const taken: string[] = [];
 			for (const property of Array.isArray(target['properties']) ? target['properties'] : []) {
 				if (!isNode(property)) continue;
@@ -405,7 +433,13 @@ export function destructure(pattern: Node): [string, string][] {
 				}
 				if (property['type'] !== 'Property') continue;
 				const key = property['key'];
-				if (!isNode(key) || property['computed'] === true) return;
+				if (!isNode(key)) return;
+				if (property['computed'] === true) {
+					const held = slot(key);
+					taken.push(`String(${held})`);
+					one(property['value'], `${reached}[${held}]`);
+					continue;
+				}
 				if (key['type'] === 'Identifier' && typeof key['name'] === 'string') {
 					taken.push(JSON.stringify(key['name']));
 					one(property['value'], `${reached}.${key['name']}`);
@@ -424,7 +458,7 @@ export function destructure(pattern: Node): [string, string][] {
 			// declaration a real component writes. It is passed only where the pattern has no rest,
 			// which is the same test `_extract_paths` makes -- a rest wants everything, so there is
 			// no count to cap at.
-			const rest = elements.some((one) => isNode(one) && one['type'] === 'RestElement');
+			const rest = elements.some((each) => isNode(each) && each['type'] === 'RestElement');
 			const listed = rest
 				? `$$to_array(${reached})`
 				: `$$to_array(${reached}, ${String(elements.length)})`;
@@ -438,8 +472,8 @@ export function destructure(pattern: Node): [string, string][] {
 			}
 			return;
 		}
-		// An `AssignmentPattern` lands here, and so does anything else: the name goes unrecorded and
-		// the pass that resolves names reports it rather than this pass guessing at it.
+		// Anything else: the name goes unrecorded and the pass that resolves names reports it rather
+		// than this pass guessing at it.
 	};
 	one(pattern, INIT);
 	return found;

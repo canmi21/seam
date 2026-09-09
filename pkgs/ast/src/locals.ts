@@ -7,6 +7,7 @@ import {
 	free,
 	emptyFor,
 	INIT,
+	SLOT,
 	isNode,
 	type Node,
 	reads,
@@ -42,6 +43,12 @@ export interface Declared {
 	 * pattern may alternate the two.
 	 */
 	reach: string;
+	/**
+	 * The nodes the `SLOT(n)` places in `reach` stand for: a default's value, a computed key. They
+	 * are expressions in the declaration's own scope, so they are expanded the way the initialiser
+	 * is rather than written into the template as source.
+	 */
+	slots: readonly Node[];
 	/**
 	 * What a render is handed in its place, as source: `null` for a plain declaration, and a value
 	 * shaped like the pattern where it destructured, at every level. See `emptyFor`.
@@ -114,8 +121,17 @@ const RUNIC = new Set([
  * `legacy_reactive`. A `$:` that mutates something, or destructures, or is a bare statement, is
  * not a declaration and is left to the rules that already cover it.
  */
-function reactives(block: unknown): { name: string; value: Node; reach: string; holds: string }[] {
-	const found: { name: string; value: Node; reach: string; holds: string }[] = [];
+/** A name a `$:` declares, the right-hand side it stands for, and how it reaches into it. */
+interface Reactive {
+	name: string;
+	value: Node;
+	reach: string;
+	slots: readonly Node[];
+	holds: string;
+}
+
+function reactives(block: unknown): Reactive[] {
+	const found: Reactive[] = [];
 	if (!isNode(block)) return found;
 	const content = block['content'];
 	if (!isNode(content) || !Array.isArray(content['body'])) return found;
@@ -141,16 +157,16 @@ function reactives(block: unknown): { name: string; value: Node; reach: string; 
 		// `store_sub` rather than `legacy_reactive`.
 		if (left['type'] === 'Identifier') {
 			if (typeof left['name'] !== 'string' || left['name'].startsWith('$')) continue;
-			found.push({ name: left['name'], value: right, reach: INIT, holds: 'null' });
+			found.push({ name: left['name'], value: right, reach: INIT, holds: 'null', slots: [] });
 			continue;
 		}
 		if (left['type'] !== 'ObjectPattern' && left['type'] !== 'ArrayPattern') continue;
 		// The stand-in replaces the right-hand expression and the left destructures it, so it has to
 		// be shaped like the left at every level.
 		const holds = emptyFor(left);
-		for (const [name, reach] of destructure(left)) {
+		for (const { name, reach, slots } of destructure(left)) {
 			if (name.startsWith('$')) continue;
-			found.push({ name, value: right, reach, holds });
+			found.push({ name, value: right, reach, holds, slots });
 		}
 	}
 	return found;
@@ -243,6 +259,7 @@ function declared(
 			free: reading,
 			reads: [...reading].some((one) => names.has(one)),
 			reach: INIT,
+			slots: [],
 			holds: 'null',
 			...extra,
 		} as Declared & { node: Node; free: Set<string> });
@@ -334,8 +351,13 @@ function declared(
 							continue;
 						}
 						const holds = emptyFor(id);
-						for (const [name, into] of destructure(id)) {
-							record(name, argument, { reach: within(into, `(${INIT}${suffix})`), holds, rune });
+						for (const { name, reach, slots } of destructure(id)) {
+							record(name, argument, {
+								reach: within(reach, `(${INIT}${suffix})`),
+								slots,
+								holds,
+								rune,
+							});
 						}
 						continue;
 					}
@@ -345,11 +367,13 @@ function declared(
 					continue;
 				}
 				// A destructuring is the same substitution with the way in written around it, so
-				// `a` out of `{ a }` expands to `(init).a` and a rest to the call that gathers what
-				// the pattern did not name. A default and a computed key are left out, which reports
-				// the name rather than guessing at it: see `destructure`.
+				// `a` out of `{ a }` expands to `(init).a`, a rest to the call that gathers what the
+				// pattern did not name, and a default to the choice JavaScript makes -- the last in a
+				// slot, since it is an expression in this scope rather than a way into the value.
 				const holds = emptyFor(id);
-				for (const [name, reach] of destructure(id)) record(name, init, { reach, holds });
+				for (const { name, reach, slots } of destructure(id)) {
+					record(name, init, { reach, slots, holds });
+				}
 			}
 		}
 	}
@@ -369,7 +393,12 @@ function declared(
 		for (const one of reactives(ast['instance'])) {
 			const name = one.name;
 			if (found.has(name) || props.has(name)) continue;
-			record(name, one.value, { reactive: true, reach: one.reach, holds: one.holds });
+			record(name, one.value, {
+				reactive: true,
+				reach: one.reach,
+				slots: one.slots,
+				holds: one.holds,
+			});
 		}
 	}
 
@@ -1827,7 +1856,10 @@ export function locals(
 		// function or a class only reads as an expression that way. Where the declaration named the
 		// value directly the source stands as written, because a `function f() {}` wrapped in
 		// parentheses is no longer a declaration and `export (function f() {})` is not JavaScript.
-		const written = one.reach === INIT ? body : within(one.reach, `(${body})`);
+		let written = one.reach === INIT ? body : within(one.reach, `(${body})`);
+		for (const [at, node] of one.slots.entries()) {
+			written = written.split(SLOT(at)).join(`(${slice(node, inner, extra)})`);
+		}
 		// A name declared to be one of the bound paths holds that path's value in this render.
 		const path = fixed.size === 0 ? null : pathOf(written);
 		const text = (path === null ? undefined : fixed.get(path)) ?? written;

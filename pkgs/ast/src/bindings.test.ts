@@ -43,6 +43,15 @@ describe('a declared name is substituted into the expression that reads it', () 
 			'($$to_array((data.t), 1)[0])',
 		],
 		[
+			// A default is an expression in the declaration's own scope rather than a way into the
+			// value, so it goes in a slot the caller expands the way it expands the initialiser --
+			// which is what lets it read another declaration. `build_fallback` writes the same
+			// choice: the member where it is not `undefined`, and the default where it is.
+			'a default inside a pattern',
+			'<script>let { data } = $props(); const n = 7; const { a = n } = data.t</script><b>{a}</b>',
+			'(((data.t).a === undefined ? (((7))) : (data.t).a))',
+		],
+		[
 			// A rest wraps the value rather than following it, which is why what a name reaches its
 			// value by is a template rather than a suffix.
 			'a rest in an object pattern',

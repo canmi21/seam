@@ -439,10 +439,15 @@ inside an index inside a wrap -- so the record holds an expression with the init
 marked in it. It is written unparenthesised where the declaration named the value directly, because
 `export (function f() {})` is not JavaScript.
 
-**A default and a computed key stay out.** Both are expressions in the declaration's own scope, and
-the template is raw source that nothing expands names inside, so a default reading another
-declaration would reach a name the artifact does not carry. The markup's patterns can write them
-because they are given the expansion; this one is not, and reporting the name is the honest answer.
+**A default and a computed key go in a slot.** Both are expressions in the declaration's own scope
+rather than a way into the value, and the template is raw source that nothing expands names inside.
+So the template carries a slot where each belongs and the node beside it, and the caller expands
+that node the way it expands the initialiser -- which is what lets `const { a = n } = t` read the
+`n` declared above it. The markup's patterns write them inline instead, because they are given the
+expansion already. The default is JavaScript's own choice, which `build_fallback` writes the same
+way: the member where it is not `undefined`, and the default where it is, so `null` is not
+defaulted. A computed key is evaluated a second time to name it for a rest, which is what
+`_extract_paths` does.
 
 **What the render is handed has to come apart at every level.** `{}` is enough for `{ a }` and not
 for `{ o: { x } }`, whose second level then destructures `undefined` and throws. The stand-in is
