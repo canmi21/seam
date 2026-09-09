@@ -543,6 +543,48 @@ function reactive(
  */
 const CALLS = new Set(['run', 'untrack']);
 
+/**
+ * What the server answers a rune call with, read out of `3-transform/server/visitors/
+ * CallExpression.js`.
+ *
+ * A rune is compiled away and exists nowhere at run time, so an expression holding one has to be
+ * written as what Svelte writes there. `null` marks the ones that are the argument itself --
+ * `$state(v)`, `$state.raw(v)`, `$state.eager(v)` -- which keep the argument and lose the call.
+ *
+ * The ones not here are the ones that need a helper or a declaration to stand in: `$derived` and
+ * `$state.snapshot` call into Svelte's runtime, and `$props` and `$bindable` are a declaration's
+ * business rather than an expression's.
+ */
+const ANSWERED: Record<string, string | null> = {
+	$effect: 'undefined',
+	'$effect.pre': 'undefined',
+	'$effect.tracking': 'false',
+	'$effect.root': '(() => {})',
+	'$effect.pending': '0',
+	$host: 'undefined',
+	$inspect: 'undefined',
+	'$inspect.trace': 'undefined',
+	$state: null,
+	'$state.raw': null,
+	'$state.eager': null,
+};
+
+/** Every rune call in a node, innermost last, with the rune it names. */
+function answered(node: unknown, at: (one: Node, rune: string) => void): void {
+	const step = (one: unknown): void => {
+		if (Array.isArray(one)) {
+			for (const each of one) step(each);
+			return;
+		}
+		if (!isNode(one)) return;
+		for (const value of Object.values(one)) step(value);
+		if (one['type'] !== 'CallExpression') return;
+		const rune = runeOf(one['callee']);
+		if (rune !== null && rune in ANSWERED) at(one, rune);
+	};
+	step(node);
+}
+
 /** Svelte's own `$$`-prefixed names, which are not a subscription to a store called `$props`. */
 const RESERVED = new Set(['$$props', '$$restProps', '$$slots']);
 
@@ -1466,6 +1508,32 @@ export function locals(
 		// first, and an identifier inside one is left alone afterwards, because two edits over the
 		// same characters is a mistake upstream rather than a case to resolve.
 		const taken = new Set<number>();
+		// A rune call is written as what the server writes there, before anything else looks at the
+		// names inside it: `$effect.tracking()` is `false` and holds no names any more, and
+		// `$state(v)` is `v` and holds all of them. See `ANSWERED`.
+		const gone: [number, number][] = [];
+		answered(node, (one, rune) => {
+			const at = [one['start'], one['end']];
+			if (typeof at[0] !== 'number' || typeof at[1] !== 'number') return;
+			const held = ANSWERED[rune];
+			if (held !== null && held !== undefined) {
+				edits.push([at[0], at[1], held]);
+				gone.push([at[0], at[1]]);
+				return;
+			}
+			// The argument itself, with the call around it taken off so the argument's own names are
+			// still rewritten where they stand.
+			const args = Array.isArray(one['arguments']) ? one['arguments'] : [];
+			const [only] = args;
+			if (!isNode(only) || typeof only['start'] !== 'number' || typeof only['end'] !== 'number') {
+				edits.push([at[0], at[1], 'undefined']);
+				gone.push([at[0], at[1]]);
+				return;
+			}
+			edits.push([at[0], only['start'], '(']);
+			edits.push([only['end'], at[1], ')']);
+		});
+		const written = (from: number): boolean => gone.some(([a, b]) => from >= a && from < b);
 		if (fixed.size > 0) {
 			chains(node, (at, base, rest) => {
 				const name = base['name'];
@@ -1473,6 +1541,7 @@ export function locals(
 				const root = extra?.get(name) ?? (found.has(name) ? expand(name, open, extra) : name);
 				const head = pathOf(root);
 				if (head === null) return false;
+				if (typeof base['start'] === 'number' && written(base['start'])) return false;
 				const literal = fixed.get([head, ...rest].join('.'));
 				if (literal === undefined) return false;
 				const from = base['start'];
@@ -1484,6 +1553,8 @@ export function locals(
 		reads(node, new Set(), (at, shorthand) => {
 			const name = at['name'];
 			if (typeof name !== 'string' || open.has(name)) return;
+			// Inside a rune call already written out as a constant, where nothing is left to name.
+			if (typeof at['start'] === 'number' && written(at['start'])) return;
 			// A name bound by something other than a script, which the caller knows about and this
 			// does not: a snippet's parameter, whose value is the argument at the one `{@render}`
 			// that calls it. It wins over a script declaration of the same name, being the inner

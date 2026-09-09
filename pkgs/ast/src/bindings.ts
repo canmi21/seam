@@ -182,6 +182,11 @@ function report(
 
 	for (const name of names) {
 		if (GLOBALS.has(name)) continue;
+		// A rune is compiled away by Svelte and resolves nowhere at run time, which is why it is not
+		// a name the data has to carry: `CallExpression.js` answers each one where it stands --
+		// `$effect.tracking()` is `false`, `$effect.pending()` is `0` -- and `locals.ts` writes those
+		// answers in. See `answered()`.
+		if (RUNES.has(name)) continue;
 		// `$x` is a subscription to the store `x`, and it resolves exactly where `x` does.
 		// `2-analyze/index.js` declares a `store_sub` binding for a `$`-prefixed reference whose
 		// name is not a rune and whose `x` is declared in the module or instance scope, and errors

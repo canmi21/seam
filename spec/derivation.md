@@ -486,6 +486,31 @@ expression -- `items.includes(item)` is one derivation with the array literal in
 nothing to share, and the array is built again. Holding a declaration rather than substituting it
 is what closes that, and it is the open item under Substitution below.
 
+## A rune in an expression is written as what the server answers it with
+
+A rune is compiled away by Svelte and exists nowhere at run time, so an expression holding one
+cannot be evaluated as it is written. `CallExpression.js` gives each an answer where it stands, and
+they are copied into `ANSWERED` in `locals.ts`:
+
+| written | the server |
+| --------------------- | ----------------------- |
+| `$effect.tracking()` | `false` |
+| `$effect.pending()` | `0` |
+| `$effect.root(f)` | `() => {}` |
+| `$effect(f)`, `$effect.pre(f)`, `$host()`, `$inspect(...)` | `undefined` |
+| `$state(v)`, `$state.raw(v)`, `$state.eager(v)` | `v` |
+
+The last three keep the argument and lose the call, so the names inside it are still rewritten
+where they stand; the rest replace the whole call, and nothing inside one is looked at again.
+
+What is not here needs a helper or a declaration to stand in -- `$derived` and `$state.snapshot`
+call into Svelte's runtime, and `$props` and `$bindable` are a declaration's business. One of those
+left in an expression is refused, in [refusals.md](refusals.md), rather than reaching the evaluator
+as `$derived is not defined`.
+
+**They are not names the data has to carry either.** The pass that resolves every name in markup
+reported `$effect` in `$effect.pending()` as one, which is how they were being found.
+
 ## The globals an expression may read
 
 A short list, in `bindings.ts`: names that resolve to the same value everywhere, so an expression

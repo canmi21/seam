@@ -2497,6 +2497,17 @@ const accepted: Case[] = [
 		data: [{ n: 3 }, { n: 0 }],
 	},
 	{
+		// `CallExpression.js` answers every rune where it stands, and an expression holding one has
+		// to be written as what Svelte writes there: `$effect.tracking()` is `false`,
+		// `$effect.pending()` is `0`, `$effect.root()` a noop, `$state.eager(v)` the argument. They
+		// were read as names the data has to carry.
+		name: 'markup holding the runes the server answers',
+		source:
+			`${PROPS}<p>{$effect.tracking()}{$effect.pending()}{typeof $effect.root(() => {})}</p>` +
+			'<p>{$state.eager(data.a)}</p>',
+		data: [{ a: '1' }, { a: '<' }],
+	},
+	{
 		// `console` reads the same everywhere -- `undefined` -- and what it does instead of returning
 		// is not bytes, so it is one of the names nobody has to think about. Eight of Svelte's
 		// samples log from markup and were refused for reading a name the data does not carry.
@@ -2903,14 +2914,15 @@ const refused: Case[] = [
 			'<b>{getContext(data.k)}</b>',
 	},
 	{
-		// A rune is compiled away by Svelte and is not a function anything can call. One left in an
-		// expression -- a class field written `$state.raw([])`, which is not a declaration this pass
-		// reads -- reached the evaluator as `$state is not defined`.
+		// A rune is compiled away by Svelte and is not a function anything can call. The ones whose
+		// answer the server writes are written out -- `ANSWERED` in `locals.ts` -- and what is left
+		// is the ones that call into Svelte's runtime: `$derived` in a class field is not a
+		// declaration this pass reads, and reached the evaluator as `$derived is not defined`.
 		name: 'a rune left in a value the request decides',
 		says: 'is left in a value the request decides',
 		source:
-			'<script>let { data } = $props(); class T { xs = $state.raw([1]); }' +
-			' const t = new T();</script><p>{t.xs.concat(data.a).join()}</p>',
+			'<script>let { data } = $props(); class T { n = 1; twice = $derived(this.n * 2); }' +
+			' const t = new T();</script><p>{t.twice + data.a}</p>',
 	},
 	{
 		// Svelte catches what a boundary's body throws and writes the `failed` snippet instead, so
