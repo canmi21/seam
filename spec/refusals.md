@@ -612,6 +612,13 @@ test read it as an expression. The tag was written out for Svelte, the child nev
 `bind:` on it had no declaration to read -- which is how `bind:x` over a child declaring `x` with a
 default shipped an empty string instead of naming a file.
 
+**Markup handed to a component is a fragment, and its `{@const}`s hoist like any other's.**
+`clean_nodes` lifts a `{@const}` out of the fragment's nodes, so one written among a component's
+slots binds for all of them and writes no bytes of its own. That loop walks its nodes one at a time
+to keep each group's holes and blocks apart, and without the hoisting each `{@const}` reached the
+arm that refuses what the walk has not been taught. The same fault a `<slot>`'s own group had, one
+construct along.
+
 **A spread on a `<slot>` is folded rather than refused.** `SlotElement.js` builds
 `$.spread_props([{ ...named }, ...spreads])` -- every written attribute in one object first and then
 the spreads, which is not the order they were written in, so a spread wins over a name beside it

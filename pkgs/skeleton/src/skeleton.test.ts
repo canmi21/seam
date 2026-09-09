@@ -2215,6 +2215,19 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }],
 	},
 	{
+		// Markup handed to a component the walk could not enter is a fragment of the caller's, and
+		// `clean_nodes` cleans it the same way: a `{@const}` among it binds for all of it and writes
+		// no bytes of its own. Walked one node at a time to keep each group's holes apart, it reached
+		// the arm that refuses what the walk has not been taught -- the same fault a `<slot>`'s own
+		// group had, one construct along.
+		name: 'a `{@const}` among the markup handed to a component',
+		beside: { Boxy: '<div><slot /></div>' },
+		source:
+			"<script>import Boxy from './Boxy.svelte'; let { data } = $props();</script>" +
+			'<Boxy><p>a</p>{@const twice = data.n * 2}<p>{twice}</p></Boxy>',
+		data: [{ n: 3 }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request

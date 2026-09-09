@@ -3323,12 +3323,30 @@ function sorted(nodes: readonly AstNode[], walk: Walk): readonly AstNode[] {
  * which sent every `{@const}` in a slot to the arm that refuses what the walk has not been taught.
  */
 function held(nodes: readonly unknown[], walk: Walk, alone: unknown): void {
+	const inner = hoisting(nodes, walk);
+	for (const child of nodes) {
+		if (inner !== null && declaring(child)) continue;
+		collect(child, {
+			...walk,
+			...(inner === null ? {} : { expand: inner }),
+			alone,
+			standalone: true,
+		});
+	}
+}
+
+/**
+ * The declarations a fragment hoists, written out, and the substitution its children then read.
+ *
+ * Null where it hoists none, which is most fragments. Split from `held` because the markup handed
+ * to a component the walk could not enter is a fragment too -- Svelte cleans the component's
+ * children the same way -- and that loop walks its nodes one at a time to keep each group's holes
+ * and blocks apart, so it cannot call `held` and needs what `held` built.
+ */
+function hoisting(nodes: readonly unknown[], walk: Walk): Locals['rewrite'] | null {
 	const { edits, expand } = walk;
 	const hoisted = sorted(nodes.filter(declaring) as AstNode[], walk);
-	if (hoisted.length === 0) {
-		for (const child of nodes) collect(child, { ...walk, alone, standalone: true });
-		return;
-	}
+	if (hoisted.length === 0) return null;
 
 	const bound = new Map<string, string>();
 	for (const one of hoisted) {
@@ -3360,12 +3378,7 @@ function held(nodes: readonly unknown[], walk: Walk, alone: unknown): void {
 		}
 	}
 
-	const inner: Locals['rewrite'] = (child, more) =>
-		expand(child, more === undefined ? bound : new Map([...bound, ...more]));
-	for (const child of nodes) {
-		if (declaring(child)) continue;
-		collect(child, { ...walk, expand: inner, alone, standalone: true });
-	}
+	return (child, more) => expand(child, more === undefined ? bound : new Map([...bound, ...more]));
 }
 
 function collect(node: unknown, walk: Walk): void {
@@ -4009,7 +4022,14 @@ function collect(node: unknown, walk: Walk): void {
 				}
 				const groups = handedTo(site.file, tag, inside);
 				const planted = new Set<Group>();
+				// Markup handed to a component is a fragment of the caller's, and `clean_nodes` cleans
+				// it the same way: a `{@const}` written among the slots binds for all of them and
+				// writes no bytes of its own. Walked one by one from here without that, it reached the
+				// arm that refuses what the walk has not been taught -- the same fault a `<slot>`'s
+				// group had, one construct along.
+				const bound = hoisting(inside, walk);
 				for (const child of inside) {
+					if (bound !== null && declaring(child)) continue;
 					const group = groups.get(child);
 					// A literal at the head of the group rather than in place of it. **The probing walk
 					// has to be the same walk**, and replacing the markup made it a different one: it
@@ -4026,7 +4046,13 @@ function collect(node: unknown, walk: Walk): void {
 						edits.push([group.at, group.at, group.probe]);
 					}
 					const from: [number, number] = [holes.length, blocks.length];
-					collect(child, { ...walk, parent: encloses, tight, svg });
+					collect(child, {
+						...walk,
+						...(bound === null ? {} : { expand: bound }),
+						parent: encloses,
+						tight,
+						svg,
+					});
 					if (group === undefined) continue;
 					const one: Handed = {
 						probe: group.probe,
