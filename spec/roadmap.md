@@ -469,11 +469,34 @@ else   { push('<!--[!-->'); push('<!--]-->') }
 
 a block with two branches, the alternate writing nothing. The compiler has that mechanism.
 
-**What it wants is the block's anchors, and they are not the `{#if}` ones.** An `{#if}` writes
+**The anchors are not the `{#if}` ones, and that decides how it is built.** An `{#if}` writes
 `<!--[0-->` and `<!--[-1-->`; this writes `<!--[-->` and `<!--[!-->`, which are `BLOCK_OPEN` and
 `BLOCK_OPEN_ELSE`. So it cannot be reached by rewriting the tag into an `{#if}` before the walk --
-measured, the two forms differ by those bytes. The block has to be made in the IR with the render's
-own anchors, the way a block the walk stands in the head stream already copies its pair.
+measured, the two forms differ by those bytes.
+
+**The tag stays and only `this` is a choice**, which is what `{#await}` already does with its
+expression: the block is pushed as an `if` with `alternate: true`, and `chose()` writes the
+candidate into `this` for the branch that is taken and `null` for the one that is not. Svelte then
+writes its own anchors on both sides, because it is still the same tag. The only structural part is
+`within`, which has to hold `[index, 0]` for the rest of the tag's walk so the holes and blocks the
+attributes and the child's body produce land in the branch -- and the tag's arm in `descend` is
+three hundred lines with several early returns, so that wants a `try`/`finally` rather than a
+matched pair.
+
+**Which candidate, by shape.** Read off the six samples:
+
+| the settled `this` | the candidate |
+| --- | --- |
+| `flag && Widget` | `Widget`, named in the expression -- and the `&&` makes the truthy branch exactly it |
+| `x`, a payload path whose prop declares a default | the default, `Foo` |
+| `((thePromise))`, a payload path with no component in the source | none |
+
+The first two are three of the six. The third is two of them, `await-with-update` and
+`await-with-update-2`, where the component the page renders is the one the request sent: there is
+no candidate and they stay refused, with a message that says which of the two it is rather than
+the one about an unbounded set. The sixth, `dynamic-component-dirty`, is a call that pushes into a
+prop array while the bytes are written, which is the by-decision rule about a value the render
+changes wearing the wrong message.
 
 **A store the request brings: decided, and moved.** The question was where it belongs, and the
 answer is the scope line. `$x` reads whatever `x` holds while the bytes are written, so the store

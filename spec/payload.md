@@ -101,6 +101,20 @@ Next chose plain JSON for `getServerSideProps`, on performance grounds, and the 
 `cannot be serialized as JSON` error produced `superjson` and a pair of compiler plugins to work
 around a decision the framework made for its users. The saving was not worth what it cost them.
 
+**What the payload cannot carry is a function, and that is a decision rather than a limit.** The
+line above is where it is made: `stringify` and `parse` over `uneval`, so the payload is data a
+browser does not execute. devalue carries a `Date`, a `Set`, a `BigInt`; it carries no function,
+and giving it one would mean giving up the thing that line is protecting.
+
+Two refusals follow from it and read the same way. **A store is an object with a `subscribe`
+function**, so a prop that is a store cannot arrive here -- `$x` reads whatever `x` holds while the
+bytes are written, and the load stage reading the value and putting *that* in the data is the same
+page. **A component is a function**, so `<svelte:component this={x}>` over a payload path cannot be
+handed one either: the only component it can be is the one the source already names, which is what
+bounds a candidate set that otherwise had no bound. A request that sends something else for that
+key is sending data where a component is required, which is a page that does not work -- Svelte
+throws there, and an artifact has no correct bytes to reproduce.
+
 **The two sides must run the same devalue.** Its own non-goals include stability of the
 serialization mechanism between versions. This is the same class of coupling as the scoped style
 class taking the filename: two places that must agree exactly, with nothing to warn you.
