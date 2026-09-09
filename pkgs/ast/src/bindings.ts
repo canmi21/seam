@@ -156,9 +156,6 @@ function clientOnly(name: unknown): boolean {
  * The runes, which are `$`-prefixed and are not stores. `is_rune` in Svelte's own analysis is the
  * same list, and a reference to one is what puts a file in runes mode rather than a subscription.
  */
-/** Svelte's own names for the props object, which `transform-server.js` builds from `$$props`. */
-const RESERVED: ReadonlySet<string> = new Set(['$$props', '$$restProps', '$$slots']);
-
 const RUNES: ReadonlySet<string> = new Set([
 	'$state',
 	'$derived',
