@@ -499,6 +499,29 @@ holding a value came out with their contents swapped, silently. Refused rather t
 numbered around, because there is nothing to escape into -- the bytes are the protocol, and a
 component writing the protocol's own shape is a collision to name.
 
+**A read of module state something in that module changes.** The render's module instances are not
+the artifact's: an expression the walk judges inert is handed back for Svelte to evaluate in the
+render, which imports the module afresh, while a derivation evaluates in the carried bundle, which
+imported it once. Where the module holds no state the two agree, and that is what makes handing an
+inert `cn(...)` to the render right. Where it does, they are two states:
+
+```js
+export const seen = [];
+export function mark(x) { seen.push(x); return seen.length; }
+```
+
+`{mark(n)}` is a marker and runs in the bundle; `{seen.length}` looked inert and ran in the render,
+where `mark` was a marker and never ran. Measured: `1:0`, `2:0` against Svelte's `1:1`, `2:2`.
+
+**Refused rather than moved**, because no place in this pipeline is right. A derivation is a pure
+expression computed once per request and held, and `seen.length` is neither pure nor once -- as a
+derivation it gives `1:1`, `2:1` where Svelte gives `1:1`, `2:2`. The number of times an expression
+is evaluated is part of what it means here, and that is the one thing substitution cannot keep.
+
+Only the binding the module changes is refused, not everything imported from it: calling `mark` is
+the ordinary case and stays. Only a relative module, whose source this can read; a package's is a
+hole, in [roadmap.md](roadmap.md).
+
 **A context read where a `setContext` in this render was given a value the request decides.**
 `setContext(k, v)` runs while the bytes are written and a descendant's `getContext(k)` reads it.
 Neither name is one the request decides, so a read of one looks inert and is handed to the render

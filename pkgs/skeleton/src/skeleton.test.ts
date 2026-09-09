@@ -2844,6 +2844,23 @@ const refused: Case[] = [
 		source: `${PROPS}<p>%%s0%% here</p><p>{data.a}</p>`,
 	},
 	{
+		// The render's module instances are not the artifact's. An expression the walk judges inert
+		// is handed back for Svelte to evaluate in the render, which imports the module afresh; a
+		// derivation evaluates in the carried bundle, which imported it once. Where the module holds
+		// no state the two agree; where it does, they are two states -- `{mark(n)}` ran in the
+		// bundle and `{seen.length}` in the render, where `mark` was a marker and never ran: `1:0`,
+		// `2:0` against Svelte's `1:1`, `2:2`.
+		name: 'a read of module state something in that module changes',
+		says: 'a module binding something in that module changes',
+		alongside: {
+			'held.js':
+				'export const seen = [];\nexport function mark(x) { seen.push(x); return seen.length; }\n',
+		},
+		source:
+			"<script>import { mark, seen } from './held.js'; let { data } = $props();</script>" +
+			'{#each data.rows as r}<b>{mark(r)}:{seen.length}</b>{/each}',
+	},
+	{
 		// `setContext(k, v)` runs while the bytes are written and a descendant's `getContext(k)`
 		// reads it. Neither name is one the request decides, so the read looks inert and was handed
 		// to the render -- which holds the literal standing in for the value, not the request's.

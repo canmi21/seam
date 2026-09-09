@@ -96,6 +96,19 @@ it off the ordinary component.
 bound once per request rather than written out per read, which the derivation machinery could do --
 a derivation is already evaluated once and cached. That is a change to what substitution is.
 
+### The render's module instances are not the artifact's
+
+Found by probe, and it wrote the wrong bytes silently. An expression the walk judges inert goes
+back to the render, which imports each module afresh; a derivation evaluates in the carried bundle,
+which imported it once. A module holding no state makes the two the same and that is what the whole
+inert path rests on. A module holding state makes them two.
+
+It is refused now for a **relative** module, whose source can be read, and only for the bindings
+something in that module changes. **A package's module is the hole.** `paraglide`'s language tag, a
+store created at module scope, a client cached in a module -- each is state the render has a second
+copy of, and reading one where the value has to reach the bytes is the same fault. Reading a
+package's source to find out is what closes it, and `carry` already resolves the file.
+
 ### Context carries a value the walk does not follow
 
 Found by probe, and it wrote the wrong bytes with nothing to say so:

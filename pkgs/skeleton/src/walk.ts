@@ -1885,6 +1885,110 @@ function contextual(ast: AstNode, walk: Walk): void {
 	}
 }
 
+/**
+ * The names a module exports that something in it changes, by module path.
+ *
+ * **The render's module instances are not the artifact's.** An expression the walk judges inert is
+ * handed back for Svelte to evaluate in the render, which imports the module afresh; a derivation
+ * evaluates in the carried bundle, which imported it once. Where the module holds no state the two
+ * agree, which is what makes handing an inert `cn(...)` to the render right. Where it does, they
+ * are two states:
+ *
+ * ```js
+ * export const seen = [];
+ * export function mark(x) { seen.push(x); return seen.length; }
+ * ```
+ *
+ * `{mark(n)}` is a marker and runs in the bundle; `{seen.length}` looked inert and ran in the
+ * render, where `mark` was a marker and never ran. Measured: `1:0`, `2:0` against Svelte's `1:1`,
+ * `2:2`.
+ *
+ * Refused rather than moved. A derivation is a pure expression computed once per request and held,
+ * and `seen.length` is neither pure nor once: read per item it would give `1:1`, `2:1` where
+ * Svelte gives `1:1`, `2:2`, so there is no place in this pipeline that is right.
+ *
+ * Only a relative module, whose source this can read. A package's is a hole, named in
+ * spec/roadmap.md.
+ */
+const CHANGED = new Map<string, ReadonlySet<string>>();
+
+function changedBy(file: string): ReadonlySet<string> {
+	const held = CHANGED.get(file);
+	if (held !== undefined) return held;
+	const found = new Set<string>();
+	CHANGED.set(file, found);
+	let source: string;
+	try {
+		source = readFileSync(file, 'utf8');
+	} catch {
+		return found;
+	}
+	let ast: AstNode;
+	try {
+		ast = parse(`<script module lang="ts">${source}</script>`, {
+			modern: true,
+		}) as unknown as AstNode;
+	} catch {
+		return found;
+	}
+	const block = ast['module'];
+	const content = isNode(block) ? block['content'] : undefined;
+	if (!isNode(content) || !Array.isArray(content['body'])) return found;
+	const declared = new Set<string>();
+	for (const statement of content['body']) {
+		const one =
+			isNode(statement) && statement['type'] === 'ExportNamedDeclaration'
+				? statement['declaration']
+				: statement;
+		if (!isNode(one) || one['type'] !== 'VariableDeclaration') continue;
+		for (const each of Array.isArray(one['declarations']) ? one['declarations'] : []) {
+			if (isNode(each)) namesIn(each['id'], declared);
+		}
+	}
+	// Every assignment, update and method call in the file, wherever it is written: a module's
+	// functions are called from the artifact, so a mutation inside one of them happens.
+	const rootOf = (target: unknown): string | null => {
+		let at = target;
+		while (isNode(at) && at['type'] === 'MemberExpression') at = at['object'];
+		return isNode(at) && at['type'] === 'Identifier' && typeof at['name'] === 'string'
+			? at['name']
+			: null;
+	};
+	const hit = (target: unknown): void => {
+		const name = rootOf(target);
+		if (name !== null && declared.has(name)) found.add(name);
+	};
+	const step = (one: unknown): void => {
+		if (Array.isArray(one)) {
+			for (const each of one) step(each);
+			return;
+		}
+		if (!isNode(one)) return;
+		if (one['type'] === 'AssignmentExpression') hit(one['left']);
+		if (one['type'] === 'UpdateExpression') hit(one['argument']);
+		if (one['type'] === 'CallExpression') {
+			const callee = one['callee'];
+			if (isNode(callee) && callee['type'] === 'MemberExpression') hit(callee['object']);
+		}
+		for (const value of Object.values(one)) step(value);
+	};
+	step(content['body']);
+	return found;
+}
+
+/** The local names this file imports that the module they come from changes. */
+function unstable(walk: Walk): ReadonlySet<string> {
+	const found = new Set<string>();
+	for (const [local, one] of walk.site.carried) {
+		if (!one.from.startsWith('.') || one.from.endsWith('.svelte')) continue;
+		const at = resolvePath(dirname(walk.site.file), one.from);
+		const exported = one.kind === 'named' ? (one.exported ?? one.local) : null;
+		if (exported === null) continue;
+		if (changedBy(at).has(exported)) found.add(local);
+	}
+	return found;
+}
+
 /** Whether an expression reads a context, which is a channel this walk does not follow. */
 const READS_CONTEXT = /\bget(?:All)?Contexts?\b/;
 
@@ -1897,6 +2001,21 @@ function varies(expression: string, walk: Walk): boolean {
 	// -- which holds the neutralised value the `setContext` was given there. Refused rather than
 	// made a marker: a derivation is evaluated outside `render()`, where there is no context to
 	// read. See `Site.contexts`.
+	// A module binding something in that module changes. The render imports the module afresh and
+	// the carried bundle imported it once, so an inert read is answered by the wrong one of the two
+	// -- and there is no place in this pipeline that is right, a derivation being pure and held.
+	// See `changedBy()`.
+	const moving = unstable(walk);
+	if (moving.size > 0 && mentions(expression, moving)) {
+		refuse(
+			`a module binding something in that module changes -- ${[...moving]
+				.map((one) => `\`${one}\``)
+				.join(', ')} -- read where the value has to be written into the bytes. The render ` +
+				'imports the module again and the artifact imported it once, so the two hold different ' +
+				'states, and a derivation is a pure expression computed once. Read it in the load ' +
+				'stage and put the value in the data. See spec/refusals.md',
+		);
+	}
 	if (walk.site.contexts.size > 0 && READS_CONTEXT.test(expression)) {
 		refuse(
 			'a context read where a `setContext` in this render was given a value the request ' +
@@ -4521,6 +4640,11 @@ function descend(
 		// it was handed the literal standing in for a request value, so the child bakes that. The
 		// refusal has to reach the author rather than turn into a component rendered as it was.
 		if (walk.asking !== true && reason.includes('a context read where a `setContext`')) {
+			throw error;
+		}
+		// The same: left to Svelte, the read is evaluated against the render's own copy of the
+		// module, which is not the one the artifact calls into. See `changedBy()`.
+		if (walk.asking !== true && reason.includes('a module binding something in that module')) {
 			throw error;
 		}
 		if (walk.asking !== true && headed && walk.within.length > 0) {
