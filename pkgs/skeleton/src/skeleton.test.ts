@@ -1569,6 +1569,25 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// `bind_props` assigns up only where the caller's value is `undefined`, and the assignment is
+		// monotone -- `undefined` becomes a value and never goes back -- so the loop settles and the
+		// settled read is one ternary. `transform-server.js` wraps only `template.body` in it, so
+		// the template's reads see what the child sent and a declaration computed from the name
+		// keeps what it held before. Both shapes here: a readonly export, and a prop with a default
+		// reached through a `<svelte:component>` that settles to one import.
+		name: 'a component `bind:` the child sends back',
+		beside: {
+			Kid: '<script>export const v = 42;</script><b>{v}</b>',
+			Foo: "<script>export let x = 'yes';</script><p>{x}</p>",
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; import Foo from './Foo.svelte';" +
+			' let { data } = $props(); let v; let x; const held = "held:" + x;</script>' +
+			'<p>before={x}</p><Kid bind:v /><svelte:component this={Foo} bind:x />' +
+			'<p>{v}|{x}|{held}|{data.a}</p>',
+		data: [{ a: 'q' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
@@ -3041,6 +3060,19 @@ const accepted: Case[] = [
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
 	{
+		// Which child sends back is the block's answer rather than the file's:
+		// `{#if a}<Foo bind:x/>{:else}<Bar bind:x/>{/if}` settles `x` to one default or the other,
+		// and the read outside the block sees whichever branch ran. One ternary per file cannot say
+		// that, and writing the block's answer as the file's is bytes rather than a refusal --
+		// measured on two samples before this said so.
+		name: 'a component `bind:` written inside a block',
+		says: 'a binding the child sends back',
+		beside: { Kid: "<script>export let x = 'yes';</script><p>{x}</p>" },
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props(); let x;</script>" +
+			'{#if data.f}<Kid bind:x />{/if}<p>{x}</p>',
+	},
+	{
 		// A component's `<script module>` is module state too, reached by a named import of the
 		// component. The render mutates its own instance of that module and would bake whatever it
 		// left behind; the artifact's instance is a different one, per request. One render cannot
@@ -3104,17 +3136,6 @@ const refused: Case[] = [
 		name: 'an `export { }` naming something a pattern binds',
 		says: 'a pattern binds',
 		source: '<script>let { a, b } = { a: 1, b: 2 }; export { a };</script><p>{a}{b}</p>',
-	},
-	{
-		// `transform-server.js` passes `analysis.exports` to `$.bind_props` beside the bindable
-		// props, so a readonly export reaches a caller that binds it exactly as a prop's default
-		// would, and the caller then renders again with it.
-		name: 'a component `bind:` to a readonly export',
-		says: 'readonly export',
-		beside: { Kid: '<script>export const v = 42;</script><b>{v}</b>' },
-		source:
-			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
-			'<Kid bind:v /><i>{data.a}</i>',
 	},
 	{
 		// A path may hold it -- the injector splits on dots and looks the segment up -- but every
@@ -3301,19 +3322,6 @@ const refused: Case[] = [
 	{
 		name: 'an object mutated after it is declared',
 		source: '<script>let { data } = $props(); const o = { a: 1 }; o.a = 2</script><p>{o.a}</p>',
-	},
-	{
-		// A `<svelte:component>` whose `this` settles to one import is entered, and the child's own
-		// declarations are then read: `bind:x` over a prop the child declares with a default is a
-		// binding it sends back. `expand` puts parentheses around every name it substitutes, so the
-		// settled `this` came back as `(Foo)` and the identifier test read it as an expression --
-		// the tag was written out for Svelte and the child never entered.
-		name: 'a bind on a dynamic component that settles to one import',
-		says: 'a binding the child sends back',
-		beside: { Foo: "<script>export let x = 'yes';</script><p>{x}</p>" },
-		source:
-			"<script>import Foo from './Foo.svelte'; let { data } = $props(); let x;</script>" +
-			'<svelte:component this={Foo} bind:x /><p>{x}{data.k}</p>',
 	},
 	{
 		// The whole pass plants a marker, renders, and reads it out of the bytes. A component

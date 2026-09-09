@@ -62,6 +62,14 @@ export async function skeleton(
 	told: ReadonlyMap<string, string> = new Map(),
 	/** Asks no render answered, which are not asked again. See `Site.mute`. */
 	mute: ReadonlySet<string> = new Set(),
+	/**
+	 * What a component `bind:` settles a name to, by the caller's local, found on an earlier pass.
+	 *
+	 * Discovered rather than declared, like `decided`: the walk meets the tag half way through the
+	 * template and Svelte re-renders the whole of it, so the settled value holds above the tag as
+	 * well as below it and the pass that found it cannot use it. See `Site.sends`.
+	 */
+	sent: ReadonlyMap<string, string> = new Map(),
 ): Promise<Skeleton> {
 	await shippable();
 	const file = resolvePath(entryFile);
@@ -95,8 +103,15 @@ export async function skeleton(
 			decided,
 			told,
 			mute,
+			sent,
 		),
 	);
+	// A binding the child sends back settles a name the template reads on either side of the tag,
+	// so the pass that found it walked half the file without it. Walked again told, the way a value
+	// the render was asked for is. Once, because the second pass is given every one of them.
+	if (baseline.sends.size > 0) {
+		return skeleton(file, root, fixed, decided, told, mute, new Map([...sent, ...baseline.sends]));
+	}
 
 	// After the walk, not before it. Every name has to come from somewhere -- this pass renders
 	// rather than reading the markup, so a name nothing binds reaches Svelte's own renderer,
@@ -256,7 +271,7 @@ export async function skeleton(
 			if (typeof value !== 'string') muted.add(want);
 			else values.set(want, value);
 		}
-		return skeleton(file, root, fixed, settled, values, muted);
+		return skeleton(file, root, fixed, settled, values, muted, sent);
 	}
 
 	if (process.env['SEAM_TRACE'] !== undefined) {

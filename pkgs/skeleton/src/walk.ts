@@ -243,6 +243,11 @@ export interface Site {
 	 */
 	mute: ReadonlySet<string>;
 	/**
+	 * What a component `bind:` met on this pass settles a name to, by the caller's local. Empty on
+	 * a pass that was already told them, which is how the walk knows it has settled. See `Walk.sent`.
+	 */
+	sends: Map<string, string>;
+	/**
 	 * Why a component was left to Svelte, one line each.
 	 *
 	 * A walk that stops is rolled back and the component is rendered as it was before, which is
@@ -442,6 +447,17 @@ export interface Walk {
 	/** The rune a declared name was written with, which decides whether a tag naming it is dynamic. */
 	runeOf: Locals['rune'];
 	/**
+	 * What a component `bind:` settles a name to, by the caller's local: `expr === undefined ?
+	 * <what the child sends> : expr`.
+	 *
+	 * Read where the template itself reads the name and never inside a declaration this pass
+	 * expands on the way, because `transform-server.js` wraps only `template.body` in the settling
+	 * loop and the instance script runs once, above it. Collected on one pass and given to the
+	 * next, since Svelte re-renders the whole template and the settled value holds above the tag
+	 * as well as below it. See `Site.sends`.
+	 */
+	sent: ReadonlyMap<string, string>;
+	/**
 	 * Whether this file is in legacy mode, which is the one thing that decides whether a fragment's
 	 * `{@const}`s are put in topological order: `clean_nodes` calls `sort_const_tags` under
 	 * `!state.analysis.runes` and nowhere else. Read the way `2-analyze/index.js` reads it --
@@ -596,6 +612,8 @@ export interface Rewritten {
 	edits: Edit[];
 	/** Every edit whose text a branch choice decides, the entry's and every copy's. */
 	choices: Choice[];
+	/** What a component `bind:` settles a name to, found on this pass. See `Site.sends`. */
+	sends: ReadonlyMap<string, string>;
 	/** Every child walked into, as the source the render has to stage in its place. */
 	copies: Copy[];
 	/** Every child left to Svelte instead, and why the walk stopped. */
@@ -2369,6 +2387,52 @@ function templated(text: string): string {
  * Not props -- a caller cannot pass one -- but `analysis.exports` puts them in the object
  * `$.bind_props` is given, so a caller that binds one gets the child's value back. See `descend`.
  */
+/**
+ * A readonly export's name and the source of what it holds, which is what `bind_props` sends up.
+ *
+ * `analysis.exports` carries the pair and `transform-server.js` puts `b.init(alias ?? name, id)`
+ * into the object, so the value is the declaration's own initialiser read in the child's scope.
+ */
+function exportedValues(ast: AstNode, source: string): [string, string][] {
+	const instance = ast['instance'];
+	const content = isNode(instance) ? instance['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	const held = new Map<string, string>();
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'VariableDeclaration') continue;
+		for (const one of Array.isArray(statement['declarations']) ? statement['declarations'] : []) {
+			if (!isNode(one)) continue;
+			const id = one['id'];
+			const at = span(one['init']);
+			if (!isNode(id) || typeof id['name'] !== 'string' || at === null) continue;
+			held.set(id['name'], source.slice(at[0], at[1]));
+		}
+	}
+	return exportedBy(ast).map((name) => [name, held.get(name) ?? exportedInit(ast, source, name)]);
+}
+
+/** The initialiser of an `export const x = 1`, whose declaration carries the export keyword. */
+function exportedInit(ast: AstNode, source: string, want: string): string {
+	const instance = ast['instance'];
+	const content = isNode(instance) ? instance['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'ExportNamedDeclaration') continue;
+		const declaration = statement['declaration'];
+		if (!isNode(declaration) || declaration['type'] !== 'VariableDeclaration') continue;
+		for (const one of Array.isArray(declaration['declarations'])
+			? declaration['declarations']
+			: []) {
+			if (!isNode(one)) continue;
+			const id = one['id'];
+			const at = span(one['init']);
+			if (!isNode(id) || id['name'] !== want || at === null) continue;
+			return source.slice(at[0], at[1]);
+		}
+	}
+	return 'undefined';
+}
+
 function exportedBy(ast: AstNode): string[] {
 	const instance = ast['instance'];
 	const content = isNode(instance) ? instance['content'] : undefined;
@@ -4506,6 +4570,8 @@ function descend(
 	const boundProps = new Set<string>();
 	/** A binding's getter, kept until every attribute and spread has been placed. See below. */
 	const delayed: [string, string][] = [];
+	/** The name each binding's getter is written as, which is what its setter assigns to. */
+	const boundTo = new Map<string, string>();
 	// The props whose caller expression varies with nothing the request decides. The render is
 	// handed these as written, so the child's script gets what Svelte's own render would give it:
 	// a query client to set as context, a store, a function -- values that are not data and could
@@ -4560,6 +4626,10 @@ function descend(
 			// bindings come at the end, to avoid spreads overwriting them." So a spread written
 			// after a binding does not win, and both the merge order and the map have to say so.
 			delayed.push([name, `(${walk.expand(getterOf(one, walk.source))})`]);
+			// The name as written, which is what the setter assigns to. The expansion beside it is
+			// the value it holds now; the two are different things and `settles` needs both.
+			const where = span(getterOf(one, walk.source));
+			if (where !== null) boundTo.set(name, walk.source.slice(where[0], where[1]));
 			continue;
 		}
 		if (!isNode(one) || one['type'] !== 'Attribute') return false;
@@ -4749,8 +4819,37 @@ function descend(
 					'the bytes. Write `{@render children()}`. See spec/refusals.md',
 			);
 		}
-		for (const name of exportedBy(ahead)) {
+		/**
+		 * Records what a binding settles the caller's name to, or returns false where it cannot.
+		 *
+		 * The value is the child's, so it has to be one the caller can hold without the child's
+		 * scope: a literal. Anything else -- a call, a name the child declares -- is the child's to
+		 * evaluate and there is nothing here to write. The caller's side has to be a plain name,
+		 * because that is what the setter assigns to.
+		 */
+		const settles = (prop: string, value: string): boolean => {
+			// Written inside a block, which child sends back is the block's answer rather than the
+			// file's: `{#if a}<Foo bind:x/>{:else}<Bar bind:x/>{/if}` settles `x` to one default or
+			// the other, and the read outside the block sees whichever branch ran. One name, one
+			// ternary per file, is not enough for that, and writing the block's answer as the file's
+			// is bytes rather than a refusal -- measured, two samples.
+			if (walk.within.length > 0) return false;
+			const held = delayed.find(([bound]) => bound === prop)?.[1];
+			if (held === undefined || !constant(value)) return false;
+			const local = boundTo.get(prop) ?? '';
+			if (!IDENTIFIER.test(local)) return false;
+			// Svelte assigns up only where the caller's value is `undefined`, and the assignment is
+			// monotone -- `undefined` becomes a value and never goes back -- so the settled read is
+			// this and the loop is not something the artifact repeats.
+			walk.site.sends.set(local, `(${held} === undefined ? (${value}) : ${held})`);
+			return true;
+		};
+		for (const [name, value] of exportedValues(ahead, raw)) {
 			if (!boundProps.has(name)) continue;
+			// Already settled on an earlier pass, so the caller's reads hold the ternary and the
+			// child can be entered like any other.
+			if (walk.sent.size > 0) continue;
+			if (settles(name, value)) continue;
 			refuse(
 				`\`bind:${name}\` on <${tag}> is a binding the child sends back: \`${name}\` is a ` +
 					'readonly export, which `bind_props` assigns up to the caller where the caller ' +
@@ -4767,6 +4866,8 @@ function descend(
 			// a child declaring `let { x = 42 } = $props()`, whose caller wrote nothing either side
 			// of the tag where a bindable one writes 42.
 			if (one.bindable !== true) continue;
+			if (walk.sent.size > 0) continue;
+			if (settles(one.prop, one.fallback)) continue;
 			refuse(
 				`\`bind:${one.prop}\` on <${tag}> is a binding the child sends back: it declares ` +
 					`\`${one.prop}\` with a default, and Svelte's server assigns that default up to the ` +
@@ -4918,10 +5019,11 @@ function descend(
 			edits: inner,
 			within: recursion === null ? walk.within : [...walk.within, [fragmentAt, 0]],
 			expand: (child, extra) =>
-				declared.rewrite(child, new Map([...bound, ...(extra ?? new Map())])),
+				declared.rewrite(child, new Map([...bound, ...(extra ?? new Map())]), walk.sent),
 			plain: (child, extra) => declared.rewrite(child, extra),
 			runeOf: declared.rune,
 			legacy: legacyMode(ast),
+			sent: walk.sent,
 			snippets,
 			siblings: relatesSiblings(ast),
 			dynamic: inside,
@@ -4939,6 +5041,7 @@ function descend(
 				wants,
 				told: walk.site.told,
 				mute: walk.site.mute,
+				sends: walk.site.sends,
 				runes: walk.site.runes,
 				contexts: walk.site.contexts,
 				...(recursion === null ? {} : { fragment: recursion }),
@@ -5155,6 +5258,7 @@ export function rewrite(
 	decided: ReadonlyMap<string, boolean> = new Map(),
 	told: ReadonlyMap<string, string> = new Map(),
 	mute: ReadonlySet<string> = new Set(),
+	sent: ReadonlyMap<string, string> = new Map(),
 ): Rewritten {
 	const ast = parsedComponent(source) as unknown as AstNode;
 	awaitless(ast, 'the entry');
@@ -5192,6 +5296,7 @@ export function rewrite(
 	const prelude: string[] = [];
 	const asks: [string, string][] = [];
 	const wants: [string, string][] = [];
+	const sends = new Map<string, string>();
 	const declares = entryProps;
 	// The entry's `page` from `$app/state` is the payload's `page`, under that name and no other:
 	// a child's rename is bound at its call, and the entry has no call to bind it at.
@@ -5350,12 +5455,14 @@ export function rewrite(
 		taken,
 		stream: 'body',
 		expand:
-			renamed.size === 0
+			renamed.size === 0 && sent.size === 0
 				? declared.rewrite
-				: (node, extra) => declared.rewrite(node, new Map([...renamed, ...(extra ?? new Map())])),
+				: (node, extra) =>
+						declared.rewrite(node, new Map([...renamed, ...(extra ?? new Map())]), sent),
 		plain: declared.rewrite,
 		runeOf: declared.rune,
 		legacy: legacyMode(ast),
+		sent,
 		snippets,
 		pending,
 		within: recursion === null ? [] : [[0, 0]],
@@ -5372,6 +5479,7 @@ export function rewrite(
 			wants,
 			told,
 			mute,
+			sends,
 			runes: runesOf(importsOf(source), file),
 			contexts: new Set<string>(),
 			...(recursion === null ? {} : { fragment: recursion }),
@@ -5432,6 +5540,7 @@ export function rewrite(
 		source,
 		edits,
 		choices,
+		sends,
 		holes,
 		blocks,
 		pending,

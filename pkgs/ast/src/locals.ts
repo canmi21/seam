@@ -471,7 +471,18 @@ export interface Locals {
 	 * snippet's parameter is the case it exists for: its value is the argument at the one
 	 * `{@render}` that calls the snippet, which this file cannot see.
 	 */
-	rewrite: (node: unknown, extra?: ReadonlyMap<string, string>) => string;
+	rewrite: (
+		node: unknown,
+		extra?: ReadonlyMap<string, string>,
+		/**
+		 * Names that stand for something **only where the expression itself reads them**, never
+		 * inside a declaration this pass expands on the way. A component `bind:` is what this is
+		 * for: `transform-server.js` wraps only `template.body` in the settling loop, so the
+		 * template's own reads see what the child sent back and a `const y = x * 2` above keeps the
+		 * value `x` had before it. One name, two values, told apart by where the read is.
+		 */
+		sent?: ReadonlyMap<string, string>,
+	) => string;
 	/**
 	 * Where a declaration that reads a prop sits, and what to put there instead. A render is
 	 * given no data, so holding one is how a component used to crash inside Svelte's own renderer
@@ -1763,6 +1774,8 @@ export function locals(
 		node: unknown,
 		open: ReadonlySet<string>,
 		extra?: ReadonlyMap<string, string>,
+		/** Read at this depth only, and never handed to `expand`. See `Locals['rewrite']`. */
+		sent?: ReadonlyMap<string, string>,
 	): string {
 		if (!isNode(node)) return '';
 		const { start, end } = node;
@@ -1824,6 +1837,18 @@ export function locals(
 			// does not: a snippet's parameter, whose value is the argument at the one `{@render}`
 			// that calls it. It wins over a script declaration of the same name, being the inner
 			// scope.
+			// The settled names first: they are the innermost scope of all, being what the template
+			// itself sees. `expand` is never given them, so a declaration reading the same name
+			// reaches the value it had before the child sent anything.
+			const settling = sent?.get(name);
+			if (settling !== undefined) {
+				const from = at['start'];
+				const to = at['end'];
+				if (typeof from !== 'number' || typeof to !== 'number') return;
+				if (taken.has(from)) return;
+				edits.push([from, to, shorthand === true ? `${name}: ${settling}` : settling]);
+				return;
+			}
 			const given = extra?.get(name);
 			// `$foo` is a subscription to the store `foo`, which Svelte compiles to
 			// `store_get($$store_subs, '$foo', foo)`. Where `foo` is a declaration this pass can
@@ -1921,7 +1946,7 @@ export function locals(
 		ids: new Set(
 			[...found.values()].filter((one) => one.rune === '$props.id').map((one) => one.name),
 		),
-		rewrite: (node, extra) => slice(node, new Set(), extra),
+		rewrite: (node, extra, sent) => slice(node, new Set(), extra, sent),
 		// By span rather than by name: one destructuring declares several names and is one place
 		// in the source, and writing over it twice would take the file apart.
 		// A declaration that reads a prop is handed something harmless, because the render is given

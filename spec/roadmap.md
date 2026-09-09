@@ -222,11 +222,19 @@ the name goes on to decide a branch, the choice machinery takes it from there as
 request-decided value. Nothing here needs the UI run per request, which is the only thing the scope
 line gives up.
 
-**What it waits on, precisely.** Two things, neither of them the IR. Svelte re-renders the whole
-template, so the settled value holds above the tag as well as below it and the walk meets the tag
-half way through: it wants a pass over the template before the walk starts. And one name then has
-two values -- the settled one for a template read, the pre-settled one inside a declaration's
-initialiser -- which the expansion has to keep apart. Fifteen samples.
+**Both halves of that are built.** The settled name is a channel of its own, `sent`, read where the
+expression itself reads the name and never inside a declaration this pass expands on the way, so a
+`const y = 'y:' + x` keeps `y:undefined` exactly as Svelte does. And because the walk meets the tag
+half way through a template Svelte re-renders whole, the pass that finds a binding does not use it:
+it records what the binding settles and the walk runs again told, the way it already runs again
+told what the render answered.
+
+**What stays refused is a binding written inside a block.** Which child sends back is then the
+block's answer rather than the file's -- `{#if a}<Foo bind:x/>{:else}<Bar bind:x/>{/if}` settles
+`x` to one default or the other, and the read outside the block sees whichever branch ran. One
+ternary per file cannot say that; the block's test would have to be inside the ternary, which is
+the next step and not this one. Written as the file's answer it is bytes rather than a refusal,
+measured on two samples.
 
 **Neither of the guesses, recorded so they are not made again.** Leaving the component to Svelte
 does not work: the render settles correctly, but the caller's name is substituted from the walk's
