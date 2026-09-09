@@ -13,11 +13,15 @@ import {
 	onlyWithin,
 	readsOf,
 	componentOf,
+	declaredBy,
+	declaring,
 	objectEntries,
 	parsed,
 	parsedComponent,
 	reads as readsIn,
 	resolveBare,
+	runeCalled,
+	runeHolds,
 	settle,
 	STATE_ON_SERVER,
 	stateImports,
@@ -37,6 +41,7 @@ import {
 	identity,
 	importsOf,
 	inert,
+	legacyMode,
 	partial,
 	propsOf,
 	rebased,
@@ -47,7 +52,6 @@ import {
 import {
 	type AstNode,
 	called,
-	declarationOf,
 	elseIf,
 	extent,
 	holdsFor,
@@ -166,6 +170,8 @@ export interface Given {
 	 * Keyed by the slot's prop name, valued by the name the caller bound it to.
 	 */
 	handed: ReadonlyMap<string, string>;
+	/** Whether the caller's file is in legacy mode, which decides whether its `{@const}`s sort. */
+	legacy: boolean;
 }
 
 /**
@@ -427,6 +433,13 @@ export interface Walk {
 	plain: Locals['rewrite'];
 	/** The rune a declared name was written with, which decides whether a tag naming it is dynamic. */
 	runeOf: Locals['rune'];
+	/**
+	 * Whether this file is in legacy mode, which is the one thing that decides whether a fragment's
+	 * `{@const}`s are put in topological order: `clean_nodes` calls `sort_const_tags` under
+	 * `!state.analysis.runes` and nowhere else. Read the way `2-analyze/index.js` reads it --
+	 * `<svelte:options runes={...}>` first, then whether anything in the scripts is a rune.
+	 */
+	legacy: boolean;
 	/** Every snippet this component declares, by name, with how many parameters it takes. */
 	snippets: ReadonlyMap<string, Snippet>;
 	pending: PendingChoice[];
@@ -2757,6 +2770,154 @@ function afterElse(source: string, fragment: AstNode): number | null {
 	return afterTag(source, at < 0 ? null : [at, at]);
 }
 
+/**
+ * What a `{@const}` or a `{const}`/`{let}` binds, with a node it cannot read named rather than
+ * skipped. `declaredBy` is the reading; this is the refusal that belongs to this pass.
+ */
+function declarators(node: AstNode): [unknown, unknown][] {
+	const found = declaredBy(node);
+	if (found.length === 0) refuse('a `{@const}` this compiler cannot read');
+	return found;
+}
+
+/**
+ * What a declaration in markup holds, as source, with a rune's call read through.
+ *
+ * `DeclarationTag.js` pushes the declaration into `init` unchanged, so its initialiser reaches the
+ * same `CallExpression` visitor a script's does and the rune is compiled away the same way: the
+ * value is the rune's first argument, `$derived.by`'s is that argument called, and a rune given
+ * nothing holds `undefined`. See `runeHolds`.
+ */
+function heldValue(
+	init: unknown,
+	expand: Locals['rewrite'],
+	bound: ReadonlyMap<string, string>,
+): string {
+	if (!isNode(init)) return 'undefined';
+	if (init['type'] === 'CallExpression') {
+		const rune = runeCalled(init['callee']);
+		const reach = rune === null ? undefined : runeHolds(rune);
+		if (reach !== undefined) {
+			const argument = Array.isArray(init['arguments']) ? init['arguments'][0] : undefined;
+			if (!isNode(argument)) return 'undefined';
+			return `(${expand(argument, bound)})${reach}`;
+		}
+	}
+	return `(${expand(init, bound)})`;
+}
+
+/**
+ * The declarations a fragment hoists, in the order Svelte binds them.
+ *
+ * `sort_const_tags` in `3-transform/utils.js` puts a fragment's `{@const}`s in topological order and
+ * ahead of everything else, so `{@const a = b}` written above `{@const b = 1}` reads the 1 and a
+ * `{@const}` written below the markup that reads it still binds for it. It runs under
+ * `!state.analysis.runes`, so it is legacy mode's rule alone: in runes mode the order is the source
+ * order, and reading a later one is JavaScript's own temporal dead zone.
+ *
+ * A `{const}`/`{let}` is never sorted -- `sort_const_tags` names `ConstTag` and nothing else, and
+ * `DeclarationTag.js` refuses legacy mode outright, so the two cannot meet in one file.
+ *
+ * A cycle is `const_tag_cycle`, Svelte's own error. This stops rather than looping, and the render
+ * compiles the same source, so Svelte is the one that names it.
+ */
+function sorted(nodes: readonly AstNode[], walk: Walk): readonly AstNode[] {
+	if (!walk.legacy || nodes.length < 2) return nodes;
+	const by = new Map<string, AstNode>();
+	for (const one of nodes) {
+		if (one['type'] !== 'ConstTag') continue;
+		const bound = new Set<string>();
+		for (const [id] of declarators(one)) namesIn(id, bound);
+		for (const name of bound) by.set(name, one);
+	}
+	if (by.size === 0) return nodes;
+
+	const needs = new Map<AstNode, Set<string>>();
+	for (const one of nodes) {
+		if (one['type'] !== 'ConstTag') continue;
+		const found = new Set<string>();
+		for (const [, init] of declarators(one)) {
+			readsIn(init, new Set<string>(), (at) => {
+				const name = at['name'];
+				if (typeof name === 'string' && by.has(name)) found.add(name);
+			});
+		}
+		needs.set(one, found);
+	}
+
+	const out: AstNode[] = [];
+	const seen = new Set<AstNode>();
+	const add = (one: AstNode): void => {
+		if (seen.has(one)) return;
+		seen.add(one);
+		for (const name of needs.get(one) ?? []) {
+			const to = by.get(name);
+			if (to !== undefined && to !== one) add(to);
+		}
+		out.push(one);
+	};
+	for (const one of nodes) if (one['type'] === 'ConstTag') add(one);
+	return [...out, ...nodes.filter((one) => one['type'] !== 'ConstTag')];
+}
+
+/**
+ * A fragment's children, with the declarations it hoists bound for every one of them first.
+ *
+ * `clean_nodes` in `3-transform/utils.js` lifts a `{@const}` and a `{const}`/`{let}` out of the
+ * fragment's nodes into `hoisted`, and `ConstTag.js` and `DeclarationTag.js` push what they declare
+ * into the block's `init`, which is written ahead of the template. So a declaration binds for the
+ * whole fragment however late in it it was written, and it writes no bytes of its own.
+ *
+ * Called for a `<slot>`'s group as well as for a fragment node, because a group is a fragment of
+ * the caller's that Svelte cleans the same way -- its nodes used to be walked one by one from here,
+ * which sent every `{@const}` in a slot to the arm that refuses what the walk has not been taught.
+ */
+function held(nodes: readonly unknown[], walk: Walk, alone: unknown): void {
+	const { edits, expand } = walk;
+	const hoisted = sorted(nodes.filter(declaring) as AstNode[], walk);
+	if (hoisted.length === 0) {
+		for (const child of nodes) collect(child, { ...walk, alone, standalone: true });
+		return;
+	}
+
+	const bound = new Map<string, string>();
+	for (const one of hoisted) {
+		for (const [id, init] of declarators(one)) {
+			// Expanded against what the earlier ones bound, so `{@const b = a + 1}` reaches `a`.
+			const value = heldValue(init, expand, bound);
+			const at = span(init);
+			// The value is unused once every read of it is a marker, and evaluating it would
+			// reach for data the render is not given. What stands in has to come apart the way
+			// the name does.
+			if (at !== null) edits.push([at[0], at[1], holdsFor(id)]);
+			// The pattern stays for the render, taking the placeholder apart, so nothing in it may
+			// evaluate: `{@const { [`${a}-x`]: { b } } = f()}` reads `a` and destructures a member
+			// of `{}`, and both are gone before the render sees it.
+			neutralise(id, edits);
+
+			if (isNode(id) && id['type'] === 'Identifier' && typeof id['name'] === 'string') {
+				bound.set(id['name'], value);
+				continue;
+			}
+			// Taken apart the way a snippet's parameter is: a member or an index per name, a
+			// default as the choice JavaScript makes, and a rest or a nesting refused by name. A
+			// default may read an earlier const, so it is expanded against what those bound.
+			const amid: Locals['rewrite'] = (child, more) =>
+				expand(child, more === undefined ? bound : new Map([...bound, ...more]));
+			for (const [name, reached] of takenApart(id as AstNode, value, amid, () => 'a `{@const}`')) {
+				bound.set(name, reached);
+			}
+		}
+	}
+
+	const inner: Locals['rewrite'] = (child, more) =>
+		expand(child, more === undefined ? bound : new Map([...bound, ...more]));
+	for (const child of nodes) {
+		if (declaring(child)) continue;
+		collect(child, { ...walk, expand: inner, alone, standalone: true });
+	}
+}
+
 function collect(node: unknown, walk: Walk): void {
 	const { blocks, dynamic, edits, expand, holes, pending, site, snippets, source, stream, within } =
 		walk;
@@ -2783,64 +2944,14 @@ function collect(node: unknown, walk: Walk): void {
 
 	switch (type) {
 		case 'Fragment': {
-			const nodes = Array.isArray(node['nodes']) ? node['nodes'] : [];
-			// A `{@const}` is a declaration scoped to the block it sits in, so it binds for its
-			// siblings rather than for anything below. Svelte's server pushes it into that block's
-			// `init` and it writes no bytes of its own. See spec/derivation.md.
-			const consts = nodes.filter(
-				(child) => isNode(child) && child['type'] === 'ConstTag',
-			) as AstNode[];
 			// Which node the fragment holds alone, for the children of this fragment and no deeper.
 			// Reset to true for them, so a block inside an element is standalone again. See
 			// `onlyChild` and `Walk.standalone`.
-			const alone = walk.standalone ? onlyChild(node) : null;
-			if (consts.length === 0) {
-				for (const child of nodes) collect(child, { ...walk, alone, standalone: true });
-				return;
-			}
-
-			const bound = new Map<string, string>();
-			for (const one of consts) {
-				const declared = declarationOf(one);
-				if (declared === null) refuse('a `{@const}` this compiler cannot read');
-				const [id, init] = declared;
-				// Expanded against what the earlier ones bound, so `{@const b = a + 1}` reaches `a`.
-				const value = expand(init, bound);
-				const at = span(init);
-				// The value is unused once every read of it is a marker, and evaluating it would
-				// reach for data the render is not given. What stands in has to come apart the way
-				// the name does.
-				if (at !== null) edits.push([at[0], at[1], holdsFor(id)]);
-				// The pattern stays for the render, taking the placeholder apart, so nothing in it may
-				// evaluate: `{@const { [`${a}-x`]: { b } } = f()}` reads `a` and destructures a member
-				// of `{}`, and both are gone before the render sees it.
-				neutralise(id, edits);
-
-				if (isNode(id) && id['type'] === 'Identifier' && typeof id['name'] === 'string') {
-					bound.set(id['name'], `(${value})`);
-					continue;
-				}
-				// Taken apart the way a snippet's parameter is: a member or an index per name, a
-				// default as the choice JavaScript makes, and a rest or a nesting refused by name. A
-				// default may read an earlier const, so it is expanded against what those bound.
-				const amid: Locals['rewrite'] = (child, more) =>
-					expand(child, more === undefined ? bound : new Map([...bound, ...more]));
-				for (const [name, reached] of takenApart(
-					id as AstNode,
-					`(${value})`,
-					amid,
-					() => 'a `{@const}`',
-				)) {
-					bound.set(name, reached);
-				}
-			}
-
-			const inner: Locals['rewrite'] = (child, more) =>
-				expand(child, more === undefined ? bound : new Map([...bound, ...more]));
-			for (const child of nodes) {
-				if (isNode(child) && child['type'] === 'ConstTag') continue;
-				collect(child, { ...walk, expand: inner, alone, standalone: true });
-			}
+			held(
+				Array.isArray(node['nodes']) ? node['nodes'] : [],
+				walk,
+				walk.standalone ? onlyChild(node) : null,
+			);
 			return;
 		}
 
@@ -2917,11 +3028,14 @@ function collect(node: unknown, walk: Walk): void {
 			// `RenderTag` and `Component` and a `SvelteSelf` is neither, so Svelte writes the anchor
 			// for it and the stand-in that replaces it -- a Component, and alone -- would not.
 			const only = onlyChild({ nodes: handed.nodes });
-			for (const child of handed.nodes) {
-				collect(child, {
+			// Through `held` rather than one node at a time: the group is a fragment of the caller's
+			// and Svelte cleans it the same way, so a `{@const}` in it is hoisted and binds for its
+			// siblings. Walked flat, every one of them reached the arm that refuses what the walk has
+			// not been taught. `legacy` is the caller's, because the markup is.
+			held(
+				handed.nodes,
+				{
 					...walk,
-					alone: only,
-					standalone: true,
 					source: handed.source,
 					edits: handed.edits,
 					expand:
@@ -2931,8 +3045,10 @@ function collect(node: unknown, walk: Walk): void {
 									handed.expand(one, extra === undefined ? shadow : new Map([...shadow, ...extra])),
 					snippets: handed.snippets,
 					site: handed.site,
-				});
-			}
+					legacy: handed.legacy,
+				},
+				only,
+			);
 			return;
 		}
 
@@ -4606,6 +4722,7 @@ function descend(
 				declared.rewrite(child, new Map([...bound, ...(extra ?? new Map())])),
 			plain: (child, extra) => declared.rewrite(child, extra),
 			runeOf: declared.rune,
+			legacy: legacyMode(ast),
 			snippets,
 			siblings: relatesSiblings(ast),
 			dynamic: inside,
@@ -5040,6 +5157,7 @@ export function rewrite(
 				: (node, extra) => declared.rewrite(node, new Map([...renamed, ...(extra ?? new Map())])),
 		plain: declared.rewrite,
 		runeOf: declared.rune,
+		legacy: legacyMode(ast),
 		snippets,
 		pending,
 		within: recursion === null ? [] : [[0, 0]],

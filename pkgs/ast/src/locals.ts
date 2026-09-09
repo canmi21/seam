@@ -125,7 +125,7 @@ function reactives(block: unknown): { name: string; value: Node }[] {
  * The rune a call names, as the dotted keypath Svelte itself builds: `$state`, `$derived.by`,
  * `$props.id`. Null when the callee is not one.
  */
-function runeOf(callee: unknown): string | null {
+export function runeCalled(callee: unknown): string | null {
 	let at = callee;
 	let joined = '';
 	while (isNode(at) && at['type'] === 'MemberExpression') {
@@ -160,6 +160,16 @@ const SUBSTITUTED: Readonly<Record<string, string>> = {
 	$derived: '',
 	'$derived.by': '()',
 };
+
+/**
+ * What follows a rune's first argument to reach the value the declaration holds, or undefined for
+ * a rune that is not a substitution. The same answer a `{let}` in markup needs: `DeclarationTag.js`
+ * pushes the declaration into the block's `init` unchanged, so its initialiser is transformed by
+ * the same `CallExpression` visitor a script's is.
+ */
+export function runeHolds(rune: string): string | undefined {
+	return SUBSTITUTED[rune];
+}
 
 /**
  * What each script declares, in either block, with the initialiser kept as source.
@@ -257,7 +267,7 @@ function declared(
 				// rather than a value the markup can be given, which Svelte's server transform
 				// disproves in a line. See spec/derivation.md.
 				if (init['type'] === 'CallExpression') {
-					const rune = runeOf(init['callee']);
+					const rune = runeCalled(init['callee']);
 					// The id Svelte's server writes into a `<!--$id-->` anchor and the client reads back
 					// from it. Not a value this pass can substitute: it is decided per instance when the
 					// bytes are written, so the name stands for a binding the runtime makes there, and
@@ -704,7 +714,7 @@ function answered(node: unknown, at: (one: Node, rune: string) => void): void {
 		if (!isNode(one)) return;
 		for (const value of Object.values(one)) step(value);
 		if (one['type'] !== 'CallExpression') return;
-		const rune = runeOf(one['callee']);
+		const rune = runeCalled(one['callee']);
 		if (rune !== null && rune in ANSWERED) at(one, rune);
 	};
 	step(node);

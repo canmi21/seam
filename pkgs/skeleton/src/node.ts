@@ -81,16 +81,6 @@ export function elseIf(alternate: unknown): AstNode | null {
 	return only;
 }
 
-/** The id and initialiser of a `{@const}`, or null when it is not the one declaration it must be. */
-export function declarationOf(node: AstNode): [unknown, unknown] | null {
-	const declaration = node['declaration'];
-	if (!isNode(declaration)) return null;
-	const declarations = declaration['declarations'];
-	const one = Array.isArray(declarations) ? declarations[0] : undefined;
-	if (!isNode(one)) return null;
-	return [one['id'], one['init']];
-}
-
 /** What a render is handed in place of a value it cannot compute, shaped so it still comes apart. */
 export function holdsFor(id: unknown): string {
 	if (!isNode(id)) return 'null';

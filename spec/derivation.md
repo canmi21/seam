@@ -350,7 +350,7 @@ structure comes from the AST and from forcing each branch.
 value; a branch needs something it can evaluate to a choice. Neither is a value known at compile
 time, which is the whole reason this stage exists.
 
-## `{@const}` is the same substitution, one scope in
+## `{@const}` and `{let}` are the same substitution, one scope in
 
 Svelte's server compiles `{@const x = e}` to `const x = e` in the block it sits in, so it is a
 declaration whose scope is that block rather than the script. It substitutes like any other: the
@@ -364,6 +364,35 @@ an each inside the snippet.
 The render is handed something in the initialiser's place, for the reason a declaration reading a
 prop already is: by then every read of it is a marker, and evaluating it would reach for data the
 render is not given. What stands in has to come apart the way the name does.
+
+**Where it binds is the whole fragment, not the rest of it.** `clean_nodes` in
+`3-transform/utils.js` lifts every one of these out of the fragment's nodes into `hoisted`, and the
+visitor pushes what it declares into the block's `init`, which is written ahead of the template. So
+a `{@const}` written below the markup that reads it still binds for it. In **legacy mode** a second
+rule follows: `sort_const_tags`, guarded by `!state.analysis.runes`, puts them in topological order,
+so `{@const a = b}` above `{@const b = 1}` reads the 1. In runes mode there is no sort and reading a
+later one is JavaScript's own temporal dead zone, which Svelte raises from the same source. Whether
+a file is legacy is `2-analyze/index.js`'s one line: `<svelte:options runes={...}>` first, then
+whether anything in the scripts is a rune.
+
+A group handed to a component is a fragment of the caller's and Svelte cleans it the same way, so
+the same hoisting holds inside a `<slot>`'s markup.
+
+**`{const}` and `{let}` are the same tag with a wider declaration.** `DeclarationTag.js` pushes the
+whole `VariableDeclaration` into `init` unchanged, so one tag may declare several at once and a
+later one reads what an earlier bound. Because the declaration is pushed rather than rewritten, its
+initialiser reaches the same `CallExpression` visitor a script's does, and a rune is compiled away
+the same way: the value is the rune's first argument, `$derived.by`'s is that argument called, and a
+rune given nothing holds `undefined`. It is runes mode only, which `declaration_tag_no_legacy_mode`
+enforces, so it and the sort above cannot meet in one file.
+
+**A block is a scope, and reaching past one writes the wrong bytes.** Substitution replaces a name
+with what it was declared to be, so it has to stop where something nearer declares the same name.
+Only a function's parameters did. `array.map((item) => { const foo = (i) => i * 2; return foo(item)
+})` beside a `const foo = (i) => i` in the script wrote the script's function into the loop, which
+is a value rather than a refusal -- the sample that found it renders `1,2,3` where Svelte renders
+`3,6,9`. What a block declares now shadows for every statement in it, the ones above the declaration
+included, and a loop's head and a `catch` parameter bind the same way.
 
 ## Every way in a pattern has, where the markup binds one
 

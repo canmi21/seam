@@ -177,6 +177,42 @@ const RUNES: ReadonlySet<string> = new Set([
 	'$host',
 ]);
 
+/**
+ * Whether a component is in legacy mode, which is what `2-analyze/index.js` decides in one line:
+ * `runes_option ?? ... some(is_rune)`. `<svelte:options runes={...}>` is that option and wins over
+ * the scripts, which is the only way a file with no rune in it can still be in runes mode.
+ *
+ * It decides more than one thing, and the two that are read here are far apart: whether
+ * `export let` is a prop, and whether a fragment's `{@const}`s are sorted into topological order.
+ */
+export function legacyMode(ast: AstNode): boolean {
+	for (const one of optionAttributes(ast)) {
+		if (!isNode(one) || one['name'] !== 'runes') continue;
+		const value = one['value'];
+		const held = isNode(value) ? value['expression'] : undefined;
+		// `<svelte:options runes />` with no value is `true`, which the parser writes as `true`
+		// rather than an expression; anything but a literal is not an option Svelte accepts.
+		if (value === true) return false;
+		if (isNode(held) && held['type'] === 'Literal') return held['value'] === false;
+		return false;
+	}
+	const instance = ast['instance'];
+	const module = ast['module'];
+	for (const block of [instance, module]) {
+		const content = isNode(block) ? block['content'] : undefined;
+		const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+		if (usesRunes(body)) return false;
+	}
+	return true;
+}
+
+/** The attributes written on `<svelte:options>`, which the parser lifts onto the root. */
+function optionAttributes(ast: AstNode): readonly unknown[] {
+	const options = ast['options'];
+	if (!isNode(options)) return [];
+	return Array.isArray(options['attributes']) ? options['attributes'] : [];
+}
+
 /** Whether anything in these statements references a rune, which is what puts a file in runes mode. */
 function usesRunes(body: readonly unknown[]): boolean {
 	let found = false;
@@ -489,6 +525,7 @@ export function hands(
 			snippets: here,
 			site: walk.site,
 			handed: lets.get(named) ?? new Map<string, string>(),
+			legacy: walk.legacy,
 		});
 	}
 	return found;

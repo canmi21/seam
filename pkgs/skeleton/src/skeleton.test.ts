@@ -1267,6 +1267,52 @@ const accepted: Case[] = [
 		data: [{ xs: ['a', 'b'] }],
 	},
 	{
+		// A `{@const}` is hoisted out of the fragment by `clean_nodes` and its visitor pushes it into
+		// the block's `init`, ahead of the template, so it binds for the whole fragment however late
+		// in it it was written. In legacy mode `sort_const_tags` then puts them in topological order,
+		// so one may read another written below it. Red without either: `bar` is reported as a name
+		// the data does not carry.
+		name: 'a `{@const}` read above where it is written, in legacy mode',
+		source:
+			'<script>export let data;</script>' +
+			'{#if data.f}<h1>{yoo}|{bar}</h1>{@const foo = bar}{@const yoo = foo + data.a}' +
+			'{@const bar = "w"}{/if}',
+		data: [{ a: 'x', f: true }],
+	},
+	{
+		// `DeclarationTag.js` pushes the whole `VariableDeclaration` into `init`, so one tag may
+		// declare several at once and a later one reads what an earlier bound. Its initialiser
+		// reaches the same `CallExpression` visitor a script's does, so the rune is compiled away
+		// the same way: the value is the rune's first argument. Runes mode only, which
+		// `declaration_tag_no_legacy_mode` enforces.
+		name: 'a `{let}` declaring two at once, each rune read through',
+		source: `${PROPS}{let n = $state(data.n), twice = $derived(n * 2)}<p>{n}:{twice}</p>`,
+		data: [{ n: 3 }],
+	},
+	{
+		// A group handed to a component is a fragment of the caller's and Svelte cleans it the same
+		// way, so a `{@const}` in one is hoisted and binds for its siblings. The group's nodes used
+		// to be walked one at a time, which sent every one of these to the arm that refuses what the
+		// walk has not been taught.
+		name: 'a `{@const}` inside markup handed to a component',
+		beside: { Kid: '<slot name="a" /><slot />' },
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid><svelte:fragment slot="a">{@const t = data.a + "!"}<b>{t}</b></svelte:fragment>' +
+			'{@const u = data.a}<i>{u}</i></Kid>',
+		data: [{ a: 'v' }],
+	},
+	{
+		// A block is a scope, and only a function's parameters used to be one. The substitution
+		// reached past the block's own `f` to the script's and wrote a different function's body,
+		// which is bytes rather than a refusal -- found by a `{@const}` whose initialiser held one.
+		name: 'a declaration inside an expression shadows the script it sits in',
+		source:
+			'<script>let { data } = $props(); const f = (x) => x;</script>' +
+			'<p>{data.xs.map((x) => { const f = (y) => y * 2; return f(x) }).join(",")}</p>',
+		data: [{ xs: [1, 2, 3] }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.

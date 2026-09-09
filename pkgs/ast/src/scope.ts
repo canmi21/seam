@@ -111,6 +111,41 @@ export function reads(
 		return;
 	}
 
+	// A block is a scope. What it declares shadows the same name outside it for every statement in
+	// it, the ones above the declaration included, because `let` and `const` bind for the whole
+	// block and a function declaration is hoisted to the top of it.
+	//
+	// Found by a substitution writing the wrong function body: `array.map((item) => { const bar =
+	// baz; const foo = (item) => item * bar; return foo(item) })` beside a `const foo = (item) =>
+	// item` in the script. Only a function's parameters were scoped, so `foo` in the return reached
+	// past the block's own and the render wrote the script's.
+	if (type === 'BlockStatement' || type === 'StaticBlock') {
+		const body = Array.isArray(node['body']) ? node['body'] : [];
+		const inner = new Set(scope);
+		for (const one of body) declares(one, inner);
+		for (const one of body) reads(one, inner, visit);
+		return;
+	}
+
+	// A loop's head is a scope of its own, holding for the test, the update and the body.
+	if (type === 'ForStatement' || type === 'ForInStatement' || type === 'ForOfStatement') {
+		const inner = new Set(scope);
+		declares(node['init'], inner);
+		declares(node['left'], inner);
+		for (const key of ['init', 'left', 'right', 'test', 'update', 'body']) {
+			reads(node[key], inner, visit);
+		}
+		return;
+	}
+
+	// `catch (e)` binds its parameter for the block it holds and nowhere else.
+	if (type === 'CatchClause') {
+		const inner = new Set(scope);
+		bound(node['param'], inner);
+		reads(node['body'], inner, visit);
+		return;
+	}
+
 	if (type === 'VariableDeclarator') {
 		// The name is introduced here rather than read, but its initialiser is read in the scope
 		// that existed before it.
@@ -234,6 +269,53 @@ export function free(node: unknown, scope: ReadonlySet<string>, into: Set<string
  * initialiser. A default or a rest is left out: neither is a member nor an index, so there is no
  * way in to write down. See spec/derivation.md.
  */
+/**
+ * Whether a markup node declares rather than writes: `{@const}`, and `{const}`/`{let}`.
+ *
+ * `clean_nodes` in `3-transform/utils.js` lifts both out of a fragment's nodes into `hoisted`, and
+ * their visitors push what they declare into the block's `init`, ahead of the template. So neither
+ * writes bytes and both bind for the whole fragment.
+ */
+/** What one statement introduces into the scope of the block it sits in. */
+function declares(statement: unknown, into: Set<string>): void {
+	if (!isNode(statement)) return;
+	const type = statement['type'];
+	if (type === 'VariableDeclaration') {
+		const declarations = statement['declarations'];
+		if (!Array.isArray(declarations)) return;
+		for (const one of declarations) if (isNode(one)) bound(one['id'], into);
+		return;
+	}
+	if (type === 'FunctionDeclaration' || type === 'ClassDeclaration') bound(statement['id'], into);
+}
+
+export function declaring(node: unknown): boolean {
+	if (!isNode(node)) return false;
+	const type = node['type'];
+	return type === 'ConstTag' || type === 'DeclarationTag';
+}
+
+/**
+ * What such a tag binds, as id and initialiser pairs.
+ *
+ * `ConstTag.js` reads `node.declaration.declarations[0]` and the parser gives it exactly one.
+ * `DeclarationTag.js` pushes the whole `VariableDeclaration` through, so it may declare several at
+ * once. Empty where the node is not one this can read, which the caller reports in its own words.
+ */
+export function declaredBy(node: unknown): [unknown, unknown][] {
+	if (!isNode(node)) return [];
+	const declaration = node['declaration'];
+	if (!isNode(declaration)) return [];
+	const declarations = declaration['declarations'];
+	if (!Array.isArray(declarations)) return [];
+	const found: [unknown, unknown][] = [];
+	for (const one of declarations) {
+		if (!isNode(one)) return [];
+		found.push([one['id'], one['init']]);
+	}
+	return found;
+}
+
 export function destructure(pattern: Node): [string, string][] {
 	const found: [string, string][] = [];
 	if (pattern['type'] === 'ObjectPattern') {

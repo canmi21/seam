@@ -2,7 +2,16 @@ import { parse } from 'svelte/compiler';
 import { locals, parsed } from './locals.ts';
 import { bySource } from './memo.ts';
 import { resolveBare } from './packages.ts';
-import { APP_STATE, bound, free, isNode, type Node, requested } from './scope.ts';
+import {
+	APP_STATE,
+	bound,
+	declaredBy,
+	declaring,
+	free,
+	isNode,
+	type Node,
+	requested,
+} from './scope.ts';
 
 /**
  * Where every name in the markup comes from.
@@ -267,23 +276,29 @@ function markup(
 		return;
 	}
 
-	// A `{@const}` binds for the rest of the block it sits in, so a fragment holding one is walked
-	// with those names in scope. Its own initialiser is read in the scope before it, which is what
-	// lets `{@const b = a + 1}` reach an `a` declared above and refuses one that reaches below.
+	// A `{@const}` and a `{const}`/`{let}` are hoisted out of the fragment by `clean_nodes` and
+	// pushed into the block's `init`, ahead of the template, so what they declare is in scope for
+	// the whole fragment however late in it it was written. That is why every name goes into scope
+	// before any initialiser is read here, rather than one tag at a time: `{@const yoo = foo}` above
+	// `{@const foo = 1}` is legal, and in legacy mode `sort_const_tags` is what puts them in the
+	// order that makes it work.
+	//
+	// In runes mode there is no sort, so reading a later one is JavaScript's temporal dead zone --
+	// an error Svelte raises from the same source, which is why this pass does not need to. What it
+	// asks is only whether the data has to carry a name, and a name a sibling declares it does not.
 	if (type === 'Fragment') {
 		const nodes = Array.isArray(node['nodes']) ? node['nodes'] : [];
 		const inner = new Set(scope);
 		for (const child of nodes) {
-			if (!isNode(child) || child['type'] !== 'ConstTag') {
-				markup(child, source, inner, into, carried);
+			if (!declaring(child)) continue;
+			for (const [id] of declaredBy(child)) bound(id, inner);
+		}
+		for (const child of nodes) {
+			if (declaring(child)) {
+				for (const [, init] of declaredBy(child)) report(init, source, inner, into, carried);
 				continue;
 			}
-			const declaration = child['declaration'];
-			const declarations = isNode(declaration) ? declaration['declarations'] : undefined;
-			const one = Array.isArray(declarations) ? declarations[0] : undefined;
-			if (!isNode(one)) continue;
-			report(one['init'], source, inner, into, carried);
-			bound(one['id'], inner);
+			markup(child, source, inner, into, carried);
 		}
 		return;
 	}
