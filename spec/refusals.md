@@ -945,6 +945,15 @@ known by name at the call site and is written out rather than read back off the 
 order `transform-server.js` builds it in -- `export function b() {}` is one of the first, and
 leaving it out put a fourth key in `$$restProps` where Svelte has three.
 
+**`$props()` bound to a name is a different object again.** `VariableDeclaration.js` writes
+`let { $$slots, $$events, ...rest } = $$props` for it, which takes those two out and **keeps**
+`children`; `$$props` is `sanitize_props($$props)`, which takes `children` out instead. Two objects,
+not one. The walk composes slot content rather than passing a function for it, so where the caller
+fills the default slot there is no `children` to put in and a whole binding -- or a rest, which
+gathers the same way -- would be a key short. The walk stops at the tag there and Svelte renders
+the component, which has the function. Measured before it stopped:
+`Object.getOwnPropertyNames(rest)` listed `b` where Svelte lists `b,children`.
+
 **A script that writes into one of them is refused.** The object is rebuilt wherever it is read, so
 a write into it is lost: `$: $$restProps.c = $$restProps.c ?? 'c'` beside `{$$restProps.c}` wrote
 nothing where Svelte wrote `c`. It is the rule that refuses an assignment after a declaration,

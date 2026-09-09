@@ -30,7 +30,16 @@ export function propsOf(
 	ast: AstNode,
 	source: string,
 ):
-	| { local: string; prop: string; fallback: string; at?: unknown; rest?: true; bindable?: true }[]
+	| {
+			local: string;
+			prop: string;
+			fallback: string;
+			at?: unknown;
+			rest?: true;
+			bindable?: true;
+			/** `let props = $props()`: the whole object the call site passed, bound under one name. */
+			whole?: true;
+	  }[]
 	| null {
 	const instance = ast['instance'];
 	const content = isNode(instance) ? instance['content'] : undefined;
@@ -46,6 +55,8 @@ export function propsOf(
 		at?: unknown;
 		rest?: true;
 		bindable?: true;
+		/** `let props = $props()`: the whole object the call site passed, bound under one name. */
+		whole?: true;
 	}[] = [];
 	// `export let` and `export { a }` are props **in legacy mode only**. In runes mode `export let`
 	// is an error and `export { a }` is a readonly export of whatever the name holds -- a `$state`,
@@ -122,6 +133,14 @@ export function propsOf(
 			const callee = isNode(init) ? init['callee'] : undefined;
 			if (!isNode(callee) || callee['name'] !== '$props') continue;
 			const id = one['id'];
+			// `let props = $props()` binds the whole object the call site passed rather than
+			// destructuring it. `transform-server.js` says which object -- `sanitize_props($$props)`
+			// -- and the walk has it: the same one `$$props` is bound to. Not a rest, which gathers
+			// what a pattern did not name; there is no pattern.
+			if (isNode(id) && id['type'] === 'Identifier' && typeof id['name'] === 'string') {
+				found.push({ local: id['name'], prop: '', fallback: '{}', whole: true });
+				continue;
+			}
 			if (!isNode(id) || id['type'] !== 'ObjectPattern') return null;
 			for (const property of Array.isArray(id['properties']) ? id['properties'] : []) {
 				if (isNode(property) && property['type'] === 'RestElement') {

@@ -1349,7 +1349,12 @@ const accepted: Case[] = [
 		// so what stands in has to be one marker per leaf -- the same reading an attribute's object
 		// value already gets.
 		name: 'a spread on a component the walk could not enter',
-		beside: { Gate: '<script>let props = $props();</script><b>{props.a}{props.b}</b>' },
+		// The child is one the walk cannot enter: it assigns a name after declaring it and the markup
+		// reads that name, which is a program per request. `$props()` bound to a name is entered now,
+		// being the object the call site passed, so it is no longer the shape to reach for here.
+		beside: {
+			Gate: '<script>let { a, b } = $props(); let c = a; c = b;</script><b>{c}{a}{b}</b>',
+		},
 		source:
 			"<script>import Gate from './Gate.svelte'; let { data } = $props();</script>" +
 			'<Gate {...{ a: data.a, b: "x" }} />',
@@ -1605,6 +1610,37 @@ const accepted: Case[] = [
 		source:
 			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
 			'<Kid a={data.a} c={3} d="4">x</Kid>',
+		data: [{ a: 'v' }],
+	},
+	{
+		// `$props()` bound to a name is the object the call site passed, so a child that binds it is
+		// entered like any other. `VariableDeclaration.js` says which object: `let { $$slots,
+		// $$events, ...rest } = $$props`, which takes those two out and **keeps** `children`. That
+		// is not the same object as `$$props`, which is `sanitize_props($$props)` and takes
+		// `children` out instead -- so a caller that fills the default slot is refused, the walk
+		// having no function to put there. Here it fills none.
+		name: 'a child binding `$props()` to a name',
+		beside: {
+			Kid: '<script>let props = $props();</script><b>{props.a}|{props.b}</b>',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid a={data.a} b="2" />',
+		data: [{ a: 'v' }, { a: '<&' }],
+	},
+	{
+		// A rest or a whole binding keeps `children` in it, and the walk composes slot content rather
+		// than passing a function for it, so where the caller fills the default slot the object would
+		// be a key short. The walk stops at the tag instead and Svelte renders the component, which
+		// has the function. Measured before it stopped: `Object.getOwnPropertyNames(rest)` listed
+		// `b` where Svelte lists `b,children`.
+		name: 'a child gathering a rest from `$props()` under filled slot content',
+		beside: {
+			Kid: '<script>let { a, ...rest } = $props();</script><i>{a}|{Object.keys(rest).join()}</i>',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid a={data.a} b="2">slot</Kid>',
 		data: [{ a: 'v' }],
 	},
 	{
@@ -3136,7 +3172,9 @@ const refused: Case[] = [
 		// inside: its keys cannot be listed, so no object can stand in it while the bytes are
 		// written. Refused by name rather than written wrong.
 		name: 'a spread on a component the walk could not enter, over a value the request decides',
-		beside: { Gate: '<script>let props = $props();</script><b>{props.a}</b>' },
+		beside: {
+			Gate: '<script>let { a } = $props(); let c = a; c = "s";</script><b>{c}{a}</b>',
+		},
 		source:
 			"<script>import Gate from './Gate.svelte'; let { data } = $props();</script>" +
 			'<Gate {...data.o} />',
@@ -3228,9 +3266,13 @@ const refused: Case[] = [
 		// Measured on `runtime-legacy/component-yield-nested-if`, which passed this way.
 		name: 'a value a child the walk cannot enter branches on',
 		says: 'did not come back',
-		// The child is one the walk cannot enter -- its `$props()` is bound to a name rather than a
-		// pattern, so `propsOf` cannot read it -- and it branches on what it was handed.
-		beside: { Gate: '<script>let props = $props();</script>{#if props.on}<b>shown</b>{/if}' },
+		// The child is one the walk cannot enter -- it assigns a name after declaring it and the
+		// markup reads that name -- and it branches on what it was handed.
+		beside: {
+			Gate:
+				'<script>let { on } = $props(); let t = on; t = !!on;</script>' +
+				'{#if t}<b>shown</b>{/if}',
+		},
 		source:
 			"<script>import Gate from './Gate.svelte'; let { data } = $props();</script>" +
 			'<Gate on={data.on} />',

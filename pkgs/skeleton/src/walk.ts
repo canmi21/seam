@@ -4893,14 +4893,49 @@ function descend(
 		// it -- are walked. See `headedFragment()`.
 		const headedSelf = recursion !== null && contains(ahead['fragment'], 'SvelteHead');
 		if (headedSelf && recursion !== null) walk.site.headedFragments.add(recursion);
+		// The object the call site passed, which is what `$$props` is inside the child: every
+		// attribute and every spread in the order `spread_props` merges them, with the bindings
+		// last for the reason `push_prop(..., true)` gives. `sanitize_props` drops `children` and
+		// `$$slots`, neither of which this carries, so it is left off; which slots the caller filled
+		// is known by name here and is written out rather than read back off the object.
+		const groups = hands(walk, nodes, node);
+		const passing = {
+			object: `{ ${[
+				...order.map((part) =>
+					'spread' in part
+						? `...(${part.spread})`
+						: `${JSON.stringify(part.name)}: ${bindings.get(part.name) ?? 'undefined'}`,
+				),
+				...delayed.map(([name, value]) => `${JSON.stringify(name)}: ${value}`),
+			].join(', ')} }`,
+			slots: [...groups.keys()].map((one) => (one === 'children' ? 'default' : one)),
+		};
+		// `$props()` bound to a name, or gathered into a rest, is the caller's object **with**
+		// `children` in it: `VariableDeclaration.js` writes `let { $$slots, $$events, ...rest } =
+		// $$props`, which takes out those two and keeps the slot function. `$$props` itself is
+		// `sanitize_props($$props)`, which takes out `children` instead -- two objects, not one.
+		// The walk composes slot content rather than passing a function for it, so where the caller
+		// filled the default slot there is no `children` to put in and the object would be short a
+		// key. Measured: `Object.getOwnPropertyNames($props())` listed two names where Svelte lists
+		// three.
+		if (groups.has('children') && declares.some((one) => one.whole === true || one.rest === true)) {
+			return rolled(walk, mark);
+		}
 		const held =
 			recursion === null ? rebased(walk.site.fixed, declares, bindings) : new Map<string, string>();
 		const params = declares.map((one) => one.local);
 		const bound = new Map<string, string>();
-		const named = new Set(declares.filter((one) => one.rest !== true).map((one) => one.prop));
+		const named = new Set(
+			declares.filter((one) => one.rest !== true && one.whole !== true).map((one) => one.prop),
+		);
 		for (const one of declares) {
 			if (recursion !== null) {
 				bound.set(one.local, one.local);
+				continue;
+			}
+			// `let props = $props()` binds the object itself, which is the one `$$props` is bound to.
+			if (one.whole === true) {
+				bound.set(one.local, `(${passing.object})`);
 				continue;
 			}
 			if (one.rest === true) {
@@ -4941,23 +4976,6 @@ function descend(
 		// The child's declarations, with what each prop is bound to, so that one reading a prop the
 		// caller gave a constant is left for the render to evaluate rather than neutralised.
 		const inside = recursion === null ? walk.dynamic : new Set([...walk.dynamic, ...params]);
-		// The object the call site passed, which is what `$$props` is inside the child: every
-		// attribute and every spread in the order `spread_props` merges them, with the bindings
-		// last for the reason `push_prop(..., true)` gives. `sanitize_props` drops `children` and
-		// `$$slots`, neither of which this carries, so it is left off; which slots the caller filled
-		// is known by name here and is written out rather than read back off the object.
-		const groups = hands(walk, nodes, node);
-		const passing = {
-			object: `{ ${[
-				...order.map((part) =>
-					'spread' in part
-						? `...(${part.spread})`
-						: `${JSON.stringify(part.name)}: ${bindings.get(part.name) ?? 'undefined'}`,
-				),
-				...delayed.map(([name, value]) => `${JSON.stringify(name)}: ${value}`),
-			].join(', ')} }`,
-			slots: [...groups.keys()].map((one) => (one === 'children' ? 'default' : one)),
-		};
 		const declared = locals(
 			raw,
 			held,
@@ -4972,7 +4990,10 @@ function descend(
 			// readonly exports first, then the bindable props. `export function b() {}` is one of the
 			// first, and leaving it out put `b` in `$$restProps` where Svelte has three keys and we
 			// wrote four.
-			[...exportedBy(ahead), ...declares.filter((one) => one.rest !== true).map((one) => one.prop)],
+			[
+				...exportedBy(ahead),
+				...declares.filter((one) => one.rest !== true && one.whole !== true).map((one) => one.prop),
+			],
 			passing,
 		);
 		if (recursion !== null) {
@@ -5310,10 +5331,19 @@ export function rewrite(
 		fresh,
 		undefined,
 		undefined,
-		new Set((entryProps ?? []).filter((one) => one.rest !== true).map((one) => one.local)),
+		// `whole` is left out: the entry binding `$props()` to a name binds the payload object, which
+		// the rune branch in `declared` records under `GIVEN`. Naming it here as a prop the payload
+		// carries stopped that branch being reached at all.
+		new Set(
+			(entryProps ?? [])
+				.filter((one) => one.rest !== true && one.whole !== true)
+				.map((one) => one.local),
+		),
 		// The names the caller passes, which is what `$$restProps` leaves out: a prop's own name
 		// rather than the local it was destructured into.
-		(entryProps ?? []).filter((one) => one.rest !== true).map((one) => one.prop),
+		(entryProps ?? [])
+			.filter((one) => one.rest !== true && one.whole !== true)
+			.map((one) => one.prop),
 	);
 
 	// A render is given no data, so a declaration reading a prop would evaluate against nothing
@@ -5350,7 +5380,11 @@ export function rewrite(
 		declares === null
 			? null
 			: new Set([
-					...declares.map((one) => (one.rest === true ? one.local : one.prop)),
+					// A `whole` binding names no key: it is the payload object itself. `GIVEN` is what
+					// reads it, and putting its local here made every read of it the path `''`.
+					...declares
+						.filter((one) => one.whole !== true)
+						.map((one) => (one.rest === true ? one.local : one.prop)),
 					...[...state].filter(([, exported]) => exported === 'page').map(([local]) => local),
 				]);
 	// A prop whose name is not an identifier can only be written as a string --
@@ -5359,7 +5393,7 @@ export function rewrite(
 	// compiler writes is JavaScript, where `kebab-case` is a subtraction. So it is refused rather
 	// than turned into a path that works until something derives from it.
 	const unnameable = (declares ?? []).find(
-		(one) => one.rest !== true && !/^[A-Za-z_$][\w$]*$/.test(one.prop),
+		(one) => one.rest !== true && one.whole !== true && !/^[A-Za-z_$][\w$]*$/.test(one.prop),
 	);
 	if (unnameable !== undefined) {
 		refuse(
@@ -5386,7 +5420,7 @@ export function rewrite(
 	 */
 	const renamed = new Map(
 		(declares ?? [])
-			.filter((one) => one.rest !== true && one.local !== one.prop)
+			.filter((one) => one.rest !== true && one.whole !== true && one.local !== one.prop)
 			.map((one): [string, string] => [one.local, one.prop]),
 	);
 	/**
@@ -5424,7 +5458,9 @@ export function rewrite(
 	// request time, where Svelte writes no class. Standing the name over the payload's key with
 	// `undefined` for its value is what puts it in scope. See `Derivation.prop`.
 	const propDefaults = (declares ?? [])
-		.filter((one) => one.rest !== true)
+		// A `whole` binding names no prop: it is the payload object itself, which the rune branch in
+		// `declared` records. There is no key for a default to stand over.
+		.filter((one) => one.rest !== true && one.whole !== true)
 		.map((one) => ({
 			name: one.prop,
 			// The default alone, without a test around it. `$props()` destructures, so Svelte's own
