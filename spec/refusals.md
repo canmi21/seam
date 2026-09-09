@@ -933,6 +933,20 @@ writes an object with no hole in it. Where the run *does* hold a value the reque
 nowhere to plant the marker, since a select with a spread goes through `renderer.select` and not
 through `$.attributes`, and that is refused too.
 
+**A boundary's `failed` snippet stays in the rendered source.** It used to go, on the grounds that
+`renderer.boundary` writes nothing for it during a render that does not throw. That is true and it
+is not the whole line: **`boundary` rethrows where `props.failed` is missing**, so taking it out
+stopped the boundary catching at all. It is copied inside the tag now, the way `pending` already
+was, renamed to `failed` -- the name `SvelteBoundary.js` looks for in the fragment -- and with its
+parameters kept, since the snippet is called with the error.
+
+That does not make the four samples that throw compile, and the reason is worth writing down. The
+`failed` snippet is written **through `transformError`**, and `Renderer`'s default one rethrows. A
+server passes its own; an artifact holds bytes and has nowhere to put a function that maps an error
+to what the snippet is handed. So the bytes a caught throw writes are a function of a render option
+rather than of the request, which is outside what a payload can carry. The refusal is still the
+author's own error message arriving as a compile failure, which is the wrong words for it.
+
 **A snippet is a value, and a `{@render}` of one nothing here declares can still be the render's.**
 `RenderTag.js` visits the callee as an expression and calls it with the renderer -- `{@render
 foo(1)}` is `foo($$renderer, 1)` -- so the callee may be anything that evaluates to a snippet

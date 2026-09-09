@@ -300,6 +300,15 @@ function boundaries(source: string): string {
 	find(ast['fragment']);
 	if (found.length === 0) return source;
 
+	/** The parameter list of a declaration, `(e)` or `()`, as written. */
+	const paramsOf = (block: AstNode): string | null => {
+		const at = span(block);
+		const id = span(block['expression']);
+		if (at === null || id === null) return null;
+		const close = source.indexOf('}', id[1]);
+		return close < 0 ? null : source.slice(id[1], close);
+	};
+
 	/** The text between `{#snippet name()}` and `{/snippet}` of a declaration. */
 	const bodyOf = (block: AstNode): string | null => {
 		const at = span(block);
@@ -340,12 +349,43 @@ function boundaries(source: string): string {
 					: null;
 			const declared = named === null ? undefined : declarations.get(named);
 			if (name === 'failed') {
-				// Never written, so it goes; and a declaration nothing else renders would be a
-				// refusal about a body nobody writes.
-				edits.push([where[0], where[1], '']);
-				if (named !== null && declared !== undefined && (snippets.get(named)?.renders ?? 0) === 0) {
-					cut.add(named);
+				// **Not "never written".** `renderer.boundary` rethrows where `props.failed` is
+				// missing, so taking it off the tag stopped the boundary catching at all and the
+				// author's own error came back as a compile failure -- four of Svelte's samples.
+				// Copied inside the tag instead, the way `pending` is, and with its parameter kept:
+				// `SvelteBoundary.js` finds a `{#snippet failed}` in the fragment and puts the
+				// function in the props, which is the same place the attribute would have gone.
+				const at = declared === undefined ? null : span(declared);
+				if (named === null || declared === undefined || at === null) {
+					refuse(
+						'`<svelte:boundary failed={...}>` given anything but a snippet this file declares ' +
+							'is not handled yet: `renderer.boundary` calls it with the error it caught, and a ' +
+							'snippet arriving as a value is one this compiler cannot see the body of',
+					);
 				}
+				if ((snippets.get(named)?.renders ?? 0) > 0) {
+					refuse(
+						`\`${named}\` is a boundary's \`failed\` snippet and is rendered elsewhere as well, ` +
+							'so copying it inside the tag would declare the name twice',
+					);
+				}
+				// Renamed to `failed`, which is the name `SvelteBoundary.js` looks for in the fragment,
+				// and with its parameters kept: the snippet is called with the error the boundary
+				// caught. Copied the way `pending` is, since the attribute form and the tag form are
+				// the same thing to that visitor.
+				const body = bodyOf(declared);
+				const parameters = paramsOf(declared);
+				if (body === null || parameters === null) {
+					refuse(
+						'`<svelte:boundary failed={...}>` naming a snippet this compiler cannot read the ' +
+							'body of is not handled yet',
+					);
+				}
+				edits.push([where[0], where[1], '']);
+				if (opening >= 0) {
+					edits.push([opening + 1, opening + 1, `{#snippet failed${parameters}}${body}{/snippet}`]);
+				}
+				cut.add(named);
 				continue;
 			}
 			const body = declared === undefined ? null : bodyOf(declared);

@@ -457,6 +457,8 @@ export interface Walk {
 	 * as well as below it. See `Site.sends`.
 	 */
 	sent: ReadonlyMap<string, string>;
+	/** Whether the walk is inside a `<svelte:boundary>`, whose `failed` snippet is Svelte's to call. */
+	boundary?: true;
 	/**
 	 * Whether this file is in legacy mode, which is the one thing that decides whether a fragment's
 	 * `{@const}`s are put in topological order: `clean_nodes` calls `sort_const_tags` under
@@ -3803,6 +3805,10 @@ function collect(node: unknown, walk: Walk): void {
 			}
 
 			if (parameters.length === 0) return;
+			// A boundary's `failed` is Svelte's to call, with the error it caught, and it stays in the
+			// rendered source for `renderer.boundary` to find. Nothing here renders it, which is what
+			// the refusal below is about, so it is named apart from it.
+			if (named === 'failed' && walk.boundary === true) return;
 			if (one === undefined || one.renders === 0) {
 				// Written inside a component's tag, so it is a prop that component receives: the child
 				// decides when to call it and with what, and neither is visible from here. One with no
@@ -4150,20 +4156,26 @@ function collect(node: unknown, walk: Walk): void {
 			const children =
 				isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
 			const pendingSnippet = children.find((child) => snippetNamed(child, 'pending'));
-			// The failed snippet goes from the rendered source: it is declared with a parameter and
-			// never rendered here, which is a refusal the walk would otherwise raise about a body
-			// nobody writes.
-			for (const child of children) {
-				const at = snippetNamed(child, 'failed') ? span(child) : null;
-				if (at !== null) edits.push([at[0], at[1], '']);
-			}
+			// The failed snippet **stays** in the rendered source. `renderer.boundary` rethrows where
+			// `props.failed` is missing, so taking it out is what let a throw the boundary exists to
+			// catch escape the render -- measured, four of Svelte's samples reported the author's own
+			// error message as a compile failure. It is declared with a parameter and never rendered
+			// here, which the walk refuses about a body nobody writes; that refusal skips it by name
+			// instead, since Svelte is the one that calls it.
+			const failedSnippet = children.find((child) => snippetNamed(child, 'failed'));
 			if (pendingSnippet !== undefined) {
 				step(pendingSnippet['body']);
 				return;
 			}
 			const before = holes.length;
 			for (const child of children) {
-				if (!snippetNamed(child, 'failed')) step(child);
+				if (child === failedSnippet) continue;
+				step(child);
+			}
+			// Walked with the boundary in scope, so the refusal about a snippet nothing renders knows
+			// this one is Svelte's to call.
+			if (failedSnippet !== undefined) {
+				collect(failedSnippet, { ...walk, boundary: true });
 			}
 			// A call over a value the request brings, not any marker. `{data.a}` reads the payload and
 			// cannot throw in the way the snippet is there for, and refusing it would refuse the
