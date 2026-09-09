@@ -2078,6 +2078,11 @@ for `true` in it. That is what every component is, a function being truthy, and 
 leaves the test evaluable: the carried bundle drops a component on purpose, so the name is not
 there for a derivation to read.
 
+**A `this` the source has already settled to nothing is not a choice, it is bytes.**
+`build_inline_component` builds the props object **inside** the `if`, so `<svelte:component
+this={undefined} {...props} />` renders `<!--[!--><!--]-->` and evaluates neither the attributes
+nor the children. A spread whose keys this compiler cannot list never has to be listed there.
+
 **What is given up is a page that cannot work either way.** A request that sends a truthy value
 that is not a component renders nothing: Svelte calls it and throws. There are no bytes to
 reproduce, so the artifact renders the candidate. Where the source names no component at all --

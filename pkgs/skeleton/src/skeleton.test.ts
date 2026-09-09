@@ -2240,6 +2240,18 @@ const accepted: Case[] = [
 		data: [{ t: { n: 'v' } }, { t: { n: '<&' } }],
 	},
 	{
+		// `build_inline_component` builds the props object **inside** the `if`, so a `this` the source
+		// has already settled to nothing renders `<!--[!--><!--]-->` and evaluates neither the
+		// attributes nor the children. A spread whose keys this compiler cannot list never has to be
+		// listed there.
+		name: 'a `<svelte:component>` whose `this` is nothing',
+		source:
+			'<script>let { data, extra } = $props();</script>' +
+			'<svelte:component this={undefined} {...extra}><p>{nowhere}</p></svelte:component>' +
+			'<p>{data.a}</p>',
+		props: [{ data: { a: 'x' }, extra: { k: 1 } }, { data: { a: '<&' } }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request

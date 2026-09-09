@@ -3696,6 +3696,14 @@ function collect(node: unknown, walk: Walk): void {
 				// stays, so Svelte writes the anchors `build_inline_component` writes -- `<!--[-->`
 				// and `<!--[!-->`, which are not the numbered pair an `{#if}` writes -- and only the
 				// expression is swapped. See `chosenComponent()`.
+				// A `this` the source has already settled to nothing renders `<!--[!--><!--]-->` and
+				// nothing else: `build_inline_component` builds the props object **inside** the `if`,
+				// so neither the attributes nor the children are evaluated, and a spread whose keys
+				// this compiler cannot list never has to be listed.
+				if (constantly(settled(expand(node['expression']), walk)) === false) {
+					buried(walk, node['fragment']);
+					return;
+				}
 				const only = chosenComponent(node['expression'], walk);
 				if (only !== null) {
 					const index = blocks.length;
