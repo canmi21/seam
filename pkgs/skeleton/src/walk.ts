@@ -9,6 +9,7 @@ import {
 	importsOf as importedBy,
 	type Locals,
 	locals,
+	literalOf,
 	mentions,
 	onlyWithin,
 	readsOf,
@@ -2050,6 +2051,51 @@ function chosenComponent(expression: unknown, walk: Walk): { name: string; test:
 	// evaluable -- `gather()` in the carry package drops a component from the bundle on purpose,
 	// so the name is not there for a derivation to read.
 	return { name, test: settled(walk.expand(expression, componentStands(walk)), walk) };
+}
+
+/**
+ * Whether a test is decided by the source itself, before anything is rendered or asked.
+ *
+ * A test the request does not decide is answered by the render: the walk asks, and the pass after
+ * it is told. One the substitution has already turned into a constant is not a question at all.
+ * `{#if show}` over `let show = $state(false)` is `{#if false}` by the time the walk reads it, and
+ * the branch is bytes nobody writes.
+ *
+ * **Asking the render instead put the walk inside that branch.** Svelte compiles a dead branch and
+ * never runs it; this walk goes into every branch whatever `taken` says, which is what makes a
+ * block re-materialisable per render -- so the render made to answer the question evaluated what
+ * the source never evaluates. `<NonExistent />` under `{#if false}` and `object.boolean` under
+ * `{#if object}` over a `$state()` holding nothing both threw there, and the sample was reported
+ * as a crash in this compiler. See spec/derivation.md.
+ */
+function constantly(test: string): boolean | undefined {
+	const held = literalOf(test);
+	if (held !== undefined) return Boolean(JSON.parse(held) as unknown);
+	// `undefined` is an identifier and not a literal, and it is what a rune with no argument holds:
+	// `3-transform/server/visitors/VariableDeclaration.js` writes `args[0] ?? void 0` for every
+	// rune but the three that fall through to the CallExpression visitor.
+	return unwrapped(test) === 'undefined' ? false : undefined;
+}
+
+/**
+ * A block whose branch is known: the tests written out as constants, and only that branch walked.
+ *
+ * The block stays in the source, so Svelte writes the anchors it would have written either way --
+ * what is decided here is which branch is inside them, not whether there is a block.
+ */
+function oneBranch(
+	chain: readonly AstNode[],
+	chosen: number,
+	otherwise: unknown,
+	edits: Edit[],
+	step: (child: unknown) => void,
+): void {
+	for (const [branch, one] of chain.entries()) {
+		const at = span(one['test']);
+		if (at !== null) edits.push([at[0], at[1], branch === chosen ? 'true' : 'false']);
+	}
+	if (chosen >= 0) step(chain[chosen]?.['consequent']);
+	else if (isNode(otherwise)) step(otherwise);
 }
 
 function settled(expression: string, walk: Walk): string {
@@ -4403,6 +4449,14 @@ function collect(node: unknown, walk: Walk): void {
 			// decide it, in which case the render does. See `stands`.
 			const tests = chain.map((one) => settled(expand(one['test']), walk));
 
+			// A test the source has already decided is not a question for anybody, and folding it
+			// here is what keeps the walk out of a branch that is never written. See `constantly()`.
+			const constants = tests.map((one) => constantly(one));
+			if (constants.every((one) => one !== undefined)) {
+				oneBranch(chain, constants.indexOf(true), otherwise, edits, step);
+				return;
+			}
+
 			// A block whose every test the request does not decide is decided once, by the render,
 			// and is bytes: the branch it takes, between anchors the assembler copies as it copies
 			// a package's own. Nothing in it is asked for per request -- which is what press's
@@ -4418,13 +4472,7 @@ function collect(node: unknown, walk: Walk): void {
 			) {
 				const answers = tests.map((test) => site.decided.get(test));
 				if (answers.every((one) => one !== undefined)) {
-					const chosen = answers.findIndex((one) => one === true);
-					for (const [branch, one] of chain.entries()) {
-						const at = span(one['test']);
-						if (at !== null) edits.push([at[0], at[1], branch === chosen ? 'true' : 'false']);
-					}
-					if (chosen >= 0) step(chain[chosen]?.['consequent']);
-					else if (isNode(otherwise)) step(otherwise);
+					oneBranch(chain, answers.indexOf(true), otherwise, edits, step);
 					return;
 				}
 				for (const [at, test] of tests.entries()) {

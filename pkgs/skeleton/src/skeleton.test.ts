@@ -181,6 +181,19 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A test the substitution has already turned into a constant, which is not a question for
+		// the render and never was. Svelte compiles a dead branch and never runs it; this walk goes
+		// into every branch whatever it is told, which is what makes a block re-materialisable per
+		// render -- so a branch nothing writes was rendered, and what the source never evaluates
+		// threw there. Folded before the walk goes in.
+		name: 'a branch whose test the source has already decided',
+		source:
+			'<script>let { data } = $props(); let hidden = $state(false); let held = $state();</script>' +
+			'{#if hidden}<p>{held.missing}</p>{/if}{#if held}<p>{held.other}</p>{:else}<i>none</i>{/if}' +
+			'<p>{data.a}</p>',
+		data: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
 		name: 'a block inside an else-if branch',
 		source: `${PROPS}{#if data.f}<p>a</p>{:else if data.g}{#if data.h}<p>b</p>{/if}{/if}`,
 		data: [

@@ -551,6 +551,28 @@ that consumes it asks, so the component stands for `true`. Only where the walk f
 default to a component itself, which is a `<svelte:component>` the request decides; anywhere else
 the name is left as written and the refusal stands. See [refusals.md](refusals.md).
 
+## A test the source has already decided is not a question for the render
+
+A test the request does not decide is answered by the render: the walk asks, the render reports the
+value, and the pass after it is told. A test the substitution has already turned into a constant is
+not a question at all. `{#if show}` over `let show = $state(false)` is `{#if false}` by the time the
+walk reads it, and the branch behind it is bytes nobody writes.
+
+**Asking the render instead put the walk inside that branch.** Svelte compiles a dead branch and
+never runs it. This walk goes into every branch whatever `taken` says, which is what makes a block
+re-materialisable per render rather than walked again -- so the render made to answer the question
+evaluated what the source never evaluates. `<NonExistent />` under `{#if false}`, and
+`object.boolean` under `{#if object}` over a `$state()` holding nothing, both threw there, and each
+was reported as this compiler crashing.
+
+`undefined` counts as one of these and is not a literal: it is an identifier, and it is what a rune
+with no argument holds -- `3-transform/server/visitors/VariableDeclaration.js` writes
+`args[0] ?? void 0` for every rune but the three that fall through to the CallExpression visitor.
+
+**The block stays in the source either way.** What is decided is which branch sits inside the
+anchors, not whether there is a block: the tests are written out as `true` and `false` and Svelte
+writes the same anchors it would have written for any other `{#if}`.
+
 ## One derivation per expression, not per read of it
 
 A declaration is written out wherever the markup reads it, so `{#each items as item}` and the
