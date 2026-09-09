@@ -208,6 +208,11 @@ export function runeCalled(callee: unknown): string | null {
 const SUBSTITUTED: Readonly<Record<string, string>> = {
 	$state: '',
 	'$state.raw': '',
+	// `VariableDeclaration.js` writes `args.length > 0 ? visit(args[0]) : b.void0` for every rune it
+	// does not let through, so a declaration holding a snapshot holds what was snapshotted. In an
+	// expression the same call is `$.snapshot(v)`, which clones; the two visitors differ and this
+	// list is the declaration's.
+	'$state.snapshot': '',
 	$derived: '',
 	'$derived.by': '()',
 };

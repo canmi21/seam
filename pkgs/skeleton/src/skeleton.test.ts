@@ -1544,6 +1544,17 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// A declaration holding a snapshot holds what was snapshotted. `VariableDeclaration.js` writes
+		// `args.length > 0 ? visit(args[0]) : b.void0` for every rune it does not let through, so
+		// there `$state.snapshot(v)` is `v`. In an expression the same call is `$.snapshot(v)`, which
+		// clones -- two visitors, and this is the declaration's.
+		name: 'a declaration holding a `$state.snapshot`',
+		source:
+			'<script>let { data } = $props(); let held = $state({ a: data.a });' +
+			' let taken = $state.snapshot(held);</script><p>{taken.a}</p>',
+		data: [{ a: 'v' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.

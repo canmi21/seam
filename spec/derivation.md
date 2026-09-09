@@ -647,7 +647,9 @@ if (!rune || rune === '$effect.tracking' || rune === '$inspect' || rune === '$ef
 
 Every other rune in a declaration is its first argument, or `void 0` where it has none. So
 `$effect.pending()` holds `0` in an expression and `undefined` in a declaration -- one rule read in
-two places rather than two rules, and the difference is which visitor sees the call.
+two places rather than two rules, and the difference is which visitor sees the call. The same line
+is why `let taken = $state.snapshot(held)` holds `held` itself: in an expression that call is
+`$.snapshot(v)`, which clones, and in a declaration it never reaches that visitor at all.
 
 ## A rune in an expression is written as what the server answers it with
 
