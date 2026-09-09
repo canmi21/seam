@@ -19,13 +19,14 @@ const RESERVED: ReadonlySet<string> = new Set(['$$props', '$$restProps', '$$slot
  * whether it is holding a path relative to a project root or an entry. `file` is its absolute
  * path where the caller has one, so that what its imports name can be resolved.
  */
-export function resolved(source: string, where: string, file?: string, entry = false): void {
+export function resolved(source: string, where: string, file?: string): void {
 	// `$$props`, `$$restProps` and `$$slots` are Svelte's own names for the object a component was
-	// called with. The entry's is the payload, which `locals.ts` writes each of them out over; a
-	// child's is what its call site passed, which nothing builds yet, so there the name stands.
-	const loose = bindings(source, file).unresolved.filter(
-		(one) => !(entry && RESERVED.has(one.name)),
-	);
+	// called with, and never a name the data has to carry. The entry's object is the payload and a
+	// child's is what its call site wrote, both of which `locals.ts` writes each of them out over;
+	// a child the walk does not enter is Svelte's to render, where the names are its own. So there
+	// is nowhere left for one of these to be unresolved, and reporting them refused components that
+	// compile.
+	const loose = bindings(source, file).unresolved.filter((one) => !RESERVED.has(one.name));
 	if (loose.length === 0) return;
 
 	// One line per name rather than per occurrence, and the expression only where it says more

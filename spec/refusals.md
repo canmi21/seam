@@ -933,6 +933,23 @@ writes an object with no hole in it. Where the run *does* hold a value the reque
 nowhere to plant the marker, since a select with a spread goes through `renderer.select` and not
 through `$.attributes`, and that is refused too.
 
+**A child's `$$props`, `$$restProps` and `$$slots` are the object its call site passed.**
+`transform-server.js` binds each of them over that object: `$$props` is `sanitize_props($$props)`,
+`$$restProps` is `rest_props($$sanitized_props, [named])`, `$$slots` is `sanitize_slots($$props)`.
+The entry's object is the payload and has been bound under `GIVEN` for a while; a child's is what
+its call site wrote, which the walk already has as the same object `spread_props` merges -- every
+attribute and every spread in source order, the bindings last. `sanitize_props` drops `children`
+and `$$slots`, neither of which that object carries, so it is left off; which slots were filled is
+known by name at the call site and is written out rather than read back off the object. The list
+`rest_props` leaves out is the readonly exports first and the bindable props after, which is the
+order `transform-server.js` builds it in -- `export function b() {}` is one of the first, and
+leaving it out put a fourth key in `$$restProps` where Svelte has three.
+
+**A script that writes into one of them is refused.** The object is rebuilt wherever it is read, so
+a write into it is lost: `$: $$restProps.c = $$restProps.c ?? 'c'` beside `{$$restProps.c}` wrote
+nothing where Svelte wrote `c`. It is the rule that refuses an assignment after a declaration,
+applied to a name that is not a declaration.
+
 **A directive beside a spread is whatever `build_element_attributes` does with it.** That visitor
 has an arm for a spread, an attribute, a `class:`, a `style:` and an attachment, and nothing else:
 a `use:`, a `transition:`, an `in:`, an `out:`, an `animate:` and an `on:` fall past all of them and

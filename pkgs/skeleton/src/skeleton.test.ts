@@ -1588,6 +1588,26 @@ const accepted: Case[] = [
 		data: [{ a: 'q' }],
 	},
 	{
+		// `transform-server.js` binds `$$props` to `sanitize_props($$props)`, `$$restProps` to
+		// `rest_props($$sanitized_props, [named])` and `$$slots` to `sanitize_slots($$props)`, each
+		// over the object the caller passed. The entry's is the payload; a child's is what its call
+		// site wrote, which the walk has as the same object `spread_props` merges. `sanitize_props`
+		// drops `children` and `$$slots`, neither of which that object carries, and which slots were
+		// filled is known by name here. The list `rest_props` leaves out is the readonly exports
+		// first and the bindable props after, which is the order `transform-server.js` builds it in.
+		name: "a child's `$$props`, `$$restProps` and `$$slots`",
+		beside: {
+			Kid:
+				'<script>export let a; export function b() {} export let c = 1;</script>' +
+				'<p>{JSON.stringify($$props)}|{JSON.stringify($$restProps)}|' +
+				'{$$slots.default ? "d" : "-"}</p><slot />',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid a={data.a} c={3} d="4">x</Kid>',
+		data: [{ a: 'v' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
@@ -3059,6 +3079,18 @@ const accepted: Case[] = [
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// The object a caller passed is rebuilt wherever it is read -- the entry's out of the
+		// payload, a child's out of what its call site wrote -- so a write into it is lost. The
+		// same rule an assignment after a declaration falls under, on a name that is not a
+		// declaration: measured, `$: $$restProps.c = 'c'` beside `{$$restProps.c}` wrote nothing
+		// where Svelte wrote `c`.
+		name: 'a script that writes into the props object',
+		says: 'the object a caller passed is rebuilt',
+		source:
+			"<script>export let a; $: $$restProps.c = $$restProps.c ?? 'c';</script>" +
+			'<p>{a}{$$restProps.c}</p>',
+	},
 	{
 		// Which child sends back is the block's answer rather than the file's:
 		// `{#if a}<Foo bind:x/>{:else}<Bar bind:x/>{/if}` settles `x` to one default or the other,

@@ -4941,7 +4941,40 @@ function descend(
 		// The child's declarations, with what each prop is bound to, so that one reading a prop the
 		// caller gave a constant is left for the render to evaluate rather than neutralised.
 		const inside = recursion === null ? walk.dynamic : new Set([...walk.dynamic, ...params]);
-		const declared = locals(raw, held, fresh, bound, inside);
+		// The object the call site passed, which is what `$$props` is inside the child: every
+		// attribute and every spread in the order `spread_props` merges them, with the bindings
+		// last for the reason `push_prop(..., true)` gives. `sanitize_props` drops `children` and
+		// `$$slots`, neither of which this carries, so it is left off; which slots the caller filled
+		// is known by name here and is written out rather than read back off the object.
+		const groups = hands(walk, nodes, node);
+		const passing = {
+			object: `{ ${[
+				...order.map((part) =>
+					'spread' in part
+						? `...(${part.spread})`
+						: `${JSON.stringify(part.name)}: ${bindings.get(part.name) ?? 'undefined'}`,
+				),
+				...delayed.map(([name, value]) => `${JSON.stringify(name)}: ${value}`),
+			].join(', ')} }`,
+			slots: [...groups.keys()].map((one) => (one === 'children' ? 'default' : one)),
+		};
+		const declared = locals(
+			raw,
+			held,
+			fresh,
+			bound,
+			inside,
+			// Not the sixth: that names props the payload carries, which is the entry's shape. A
+			// child's are bound at its call site and arrive as `bound`, and naming them here stopped
+			// them being recorded as declarations at all.
+			undefined,
+			// The list `rest_props` leaves out, in the order `transform-server.js` builds it: the
+			// readonly exports first, then the bindable props. `export function b() {}` is one of the
+			// first, and leaving it out put `b` in `$$restProps` where Svelte has three keys and we
+			// wrote four.
+			[...exportedBy(ahead), ...declares.filter((one) => one.rest !== true).map((one) => one.prop)],
+			passing,
+		);
 		if (recursion !== null) {
 			walk.blocks.push({
 				index: walk.blocks.length,
@@ -5046,7 +5079,7 @@ function descend(
 				contexts: walk.site.contexts,
 				...(recursion === null ? {} : { fragment: recursion }),
 				fragments: new Map(),
-				given: hands(walk, nodes, node),
+				given: groups,
 				payload: walk.site.payload,
 				missed: walk.site.missed,
 				headed: walk.site.headed,

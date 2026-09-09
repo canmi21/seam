@@ -1716,6 +1716,18 @@ export function locals(
 	 * props, so it is the prop's own name rather than the local it was destructured into.
 	 */
 	passed: readonly string[] = [],
+	/**
+	 * What the call site passed this component, for a child the walk entered: the object as source,
+	 * and the slot names the caller filled.
+	 *
+	 * `transform-server.js` binds `$$props` to `sanitize_props($$props)`, `$$restProps` to
+	 * `rest_props($$sanitized_props, [named])` and `$$slots` to `sanitize_slots($$props)`, each over
+	 * the object the caller passed. The entry's is the payload, bound under `GIVEN`; a child's is
+	 * this. `sanitize_props` drops `children` and `$$slots`, which this object never carries, so it
+	 * is a no-op here; `sanitize_slots` reads which slots were filled, which the caller knows by
+	 * name and this carries as one.
+	 */
+	passing?: { object: string; slots: readonly string[] },
 ): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const carried = requested(ast['instance']);
@@ -1753,6 +1765,25 @@ export function locals(
 		);
 	}
 	losing(ast, found as Map<string, Declared & { node: Node; free: Set<string> }>, names, declares);
+
+	// Svelte's own names for the object a caller passed are rebuilt at every read here -- the
+	// entry's out of the payload, a child's out of what its call site wrote -- so a script that
+	// writes into one has changed a value nothing else holds. `$: $$restProps.c = $$restProps.c ??
+	// 'c'` beside `{$$restProps.c}` wrote nothing where Svelte wrote `c`: the same rule an
+	// assignment after a declaration falls under, on a name that is not a declaration.
+	const written = [
+		...assigned(ast['module'], RESERVED, false, declares),
+		...assigned(ast['instance'], RESERVED, false, declares),
+	];
+	if (written.length > 0) {
+		const list = [...new Set(written)].map((one) => `\`${one}\``).join(', ');
+		throw new Error(
+			`${list} ${written.length > 1 ? 'are' : 'is'} written to, and it is not a value this ` +
+				'compiler holds: the object a caller passed is rebuilt wherever it is read, so a write ' +
+				'into it is lost. Compute the value in one expression, or move the write into a ' +
+				'function, which does not run while the bytes are written. See spec/derivation.md',
+		);
+	}
 
 	// Stores the script itself writes: `$count += 1` sets the store before the template runs, so
 	// the value the markup reads is the one those statements left. The render runs the script and
@@ -1862,18 +1893,25 @@ export function locals(
 			// each is Svelte's own function over the object, and the object is bound under `GIVEN`.
 			// Only for the entry: its object is the payload, bound under `GIVEN`. A child's is what
 			// its call site passed, which is a different object and is refused where it is read.
-			if (bound === undefined && RESERVED.has(name)) {
+			if (RESERVED.has(name) && (bound === undefined || passing !== undefined)) {
 				const from = at['start'];
 				const to = at['end'];
 				if (typeof from !== 'number' || typeof to !== 'number') return;
 				if (taken.has(from)) return;
 				const listed = [...passed].map((one) => JSON.stringify(one)).join(', ');
-				const held =
-					name === '$$props'
-						? `(${GIVEN})`
-						: name === '$$slots'
-							? `($$sanitize_slots(${GIVEN}))`
-							: `($$rest_props($$sanitize_props(${GIVEN}), [${listed}]))`;
+				// A child's object is written out rather than named, and it never carries `children`
+				// or `$$slots`, so `sanitize_props` has nothing to drop and is left off. Which slots
+				// the caller filled is known by name, so `sanitize_slots` is written out too.
+				const object = passing === undefined ? `${GIVEN}` : passing.object;
+				const slots =
+					passing === undefined
+						? `($$sanitize_slots(${GIVEN}))`
+						: `({ ${passing.slots.map((one) => `${JSON.stringify(one)}: true`).join(', ')} })`;
+				const rest =
+					passing === undefined
+						? `($$rest_props($$sanitize_props(${GIVEN}), [${listed}]))`
+						: `($$rest_props(${object}, [${listed}]))`;
+				const held = name === '$$props' ? `(${object})` : name === '$$slots' ? slots : rest;
 				edits.push([from, to, shorthand === true ? `${name}: ${held}` : held]);
 				return;
 			}
