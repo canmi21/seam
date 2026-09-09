@@ -2702,6 +2702,30 @@ function mirrored(
  * written between the rest would have to be moved, and the edits inside it moved with it, so it
  * is asked to be first or last instead.
  */
+/**
+ * Closes the bare block a recursive fragment's body is wrapped in, after everything the walk
+ * already wrote at that point.
+ *
+ * `apply` writes back to front, so among edits that begin at one offset the one pushed **first**
+ * ends up rightmost. The wrapper's close is written after the body is walked, so it was pushed
+ * last and landed to the left of the stamp of a block that ends where the body does: for
+ * `{#if depth > 0}<svelte:self/>{/if}` as the whole of a component, the two stamps came out as
+ * `%%b0%%%%b1%%` and only the first was read. Merged into that edit instead, which is the one
+ * place that says what order the two belong in.
+ *
+ * @returns the index of the edit that closes the block, for `headedFragment`.
+ */
+function closes(edits: [number, number, string][], at: [number, number, string]): number {
+	const held = edits.findIndex(([start]) => start === at[0]);
+	if (held < 0) {
+		edits.push(at);
+		return edits.length - 1;
+	}
+	const one = edits[held] as [number, number, string];
+	edits[held] = [one[0], one[1], `${one[2]}${at[2]}`];
+	return held;
+}
+
 function wrapped(
 	nodes: readonly unknown[],
 	what: () => string,
@@ -4864,9 +4888,8 @@ function descend(
 				const index = walk.blocks.findIndex((one) => one.fragment?.name === recursion);
 				const opener = inner.length;
 				inner.push([first[0], first[0], '{#if true}']);
-				const closer = inner.length;
 				const [from, to, text] = stamped(walk, index, raw, last[1]);
-				inner.push([from, to, `{/if}${text}`]);
+				const closer = closes(inner, [from, to, `{/if}${text}`]);
 				// The component's own head has the fragment stand in the head stream too; one a
 				// child inside wrote is found too late. See `headedFragment()`.
 				if (headedSelf) headedFragment(walk, index, inner, opener, closer, ast);
@@ -5306,8 +5329,7 @@ export function rewrite(
 			const [first, last] = ends;
 			const opener = edits.length;
 			edits.push([first[0], first[0], '{#if true}']);
-			const closer = edits.length;
-			edits.push([last[1], last[1], `{/if}${carrier(0, null)}`]);
+			const closer = closes(edits, [last[1], last[1], `{/if}${carrier(0, null)}`]);
 			if (headedEntry) headedFragment(walk, 0, edits, opener, closer, ast);
 			else if (headed.has(0)) headFoundLate('the entry');
 		}

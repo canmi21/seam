@@ -337,11 +337,16 @@ the marker itself into a response.
 
 It is checked at the end of assembly, over the body, the head and the title. Found on a component
 rendering itself whose body is one `{#each}`: the bare block the walk wraps a fragment's body in
-and the each end at the same place, so their stamps land together and only the first is read. The
-each was never assembled and `%%b1%%` stayed in the output.
+and the each end at the same place, so their stamps landed together and only the first was read.
 
-The check names the marker; what it does not yet do is tell the two causes apart, and the
-recursive-body case is in [roadmap.md](roadmap.md).
+That one is fixed, and the fix is about order rather than about stamps. `apply` writes back to
+front, so among edits beginning at one offset the one pushed **first** ends up rightmost. The
+wrapper's close is written after the body is walked, so it was pushed last and landed to the left
+of the block's stamp -- `%%b0%%%%b1%%` where `%%b1%%%%b0%%` is what the two mean. It is merged into
+the edit already at that offset now, which is the one place that says what order they belong in.
+
+The check stays, because it is the guard rather than the bug: what it does not do is tell the two
+causes apart.
 
 ## Scope
 

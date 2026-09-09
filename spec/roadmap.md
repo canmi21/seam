@@ -96,17 +96,18 @@ it off the ordinary component.
 bound once per request rather than written out per read, which the derivation machinery could do --
 a derivation is already evaluated once and cached. That is a change to what substitution is.
 
-### A recursive component whose body is one block
+### A recursive component whose body is one block: done
 
 The walk wraps a recursive component's body in a bare `{#if true}` so the fragment has anchors to
 be found by, and each block is followed by a stamp naming it. Where the body is a single block --
-`{#each}` filling the whole of it -- the wrapper and the block end at the same place, their stamps
-land together, and the assembler reads only the first: the inner block is never assembled and its
-stamp stays in the output. Three of Svelte's samples are this, and the guard above catches it as a
-marker left in the bytes rather than as bytes shipped.
+`{#each}` filling the whole of it -- the wrapper and the block end at the same place and their
+stamps landed together, the assembler reading only the first. Three of Svelte's samples were this,
+and the guard above caught it as a marker left in the bytes rather than as bytes shipped.
 
-Reading a run of stamps rather than one, or writing the wrapper's somewhere the block's cannot
-reach, is the fix.
+Neither of the two fixes guessed at here was the one. It was about **order**: `apply` writes back
+to front, so among edits beginning at one offset the one pushed first ends up rightmost, and the
+wrapper's close is written after the body is walked. It is merged into the edit already at that
+offset now, which is the one place that says which of the two closes first. See [ir.md](ir.md).
 
 ### The render's module instances are not the artifact's
 

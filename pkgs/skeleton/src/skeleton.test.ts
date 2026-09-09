@@ -1418,6 +1418,20 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// A component rendering itself whose body is one block. The bare block wrapping the body and
+		// the each end at the same place, so their stamps land at one offset -- and `apply` writes
+		// back to front, so among edits beginning there the one pushed first ends up rightmost. The
+		// wrapper's close is written after the body is walked, so it was pushed last and landed to
+		// the left of the each's stamp: `%%b0%%%%b1%%`, of which only the first was read and the
+		// second stayed in the bytes. The guard at the end of assembly caught it; the order is what
+		// fixes it, and the close is merged into the edit that says what that order is.
+		name: 'a component rendering itself whose body is one block',
+		source:
+			`${PROPS}{#each data.tree as item}<div>{item.id}` +
+			'{#if item.sub}<svelte:self data={{ tree: item.sub }} />{/if}</div>{/each}',
+		data: [{ tree: [{ id: 'a', sub: [{ id: 'b' }] }, { id: 'c' }] }, { tree: [] }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
@@ -3145,18 +3159,6 @@ const refused: Case[] = [
 		name: 'markup that writes the shape of a marker',
 		says: 'literal markup',
 		source: `${PROPS}<p>%%s0%% here</p><p>{data.a}</p>`,
-	},
-	{
-		// Nothing this pass plants may reach the bytes. A component rendering itself whose body is
-		// one block is where it showed: the bare block wrapping the body and the each end at the
-		// same place, so their stamps land together and only the first is read -- the each was
-		// never assembled and its stamp stayed in the output, which the artifact would have
-		// written out.
-		name: 'a marker left in what the pass assembled',
-		says: 'is left in the body this pass assembled',
-		source:
-			`${PROPS}{#each data.tree as item}<div>{item.id}` +
-			'{#if item.sub}<svelte:self data={{ tree: item.sub }} />{/if}</div>{/each}',
 	},
 	{
 		// A derivation is evaluated outside `render()`, and `getContext` asks the component being
