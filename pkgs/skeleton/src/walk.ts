@@ -2090,6 +2090,22 @@ function constantly(test: string): boolean | undefined {
 }
 
 /**
+ * Which branch of a chain the answers decide, or null where they do not decide one yet.
+ *
+ * A chain is tests Svelte evaluates in order until one is true, so it is decided as soon as every
+ * test up to and including the first that is not false has an answer: the rest are never reached
+ * and their answers cannot change the branch. Requiring all of them was what kept
+ * `{#if $foo}blah{:else if bar()}` waiting on a test its own first branch makes unreachable.
+ *
+ * `-1` for the else, which is the branch number Svelte writes into the marker that opens it.
+ */
+function reached(answers: readonly (boolean | undefined)[]): number | null {
+	const at = answers.findIndex((one) => one !== false);
+	if (at === -1) return -1;
+	return answers[at] === true ? at : null;
+}
+
+/**
  * A block whose branch is known: the tests written out as constants, and only that branch walked.
  *
  * The block stays in the source, so Svelte writes the anchors it would have written either way --
@@ -4480,9 +4496,9 @@ function collect(node: unknown, walk: Walk): void {
 
 			// A test the source has already decided is not a question for anybody, and folding it
 			// here is what keeps the walk out of a branch that is never written. See `constantly()`.
-			const constants = tests.map((one) => constantly(one));
-			if (constants.every((one) => one !== undefined)) {
-				oneBranch(walk, chain, constants.indexOf(true), otherwise, edits, step);
+			const settledAt = reached(tests.map((one) => constantly(one)));
+			if (settledAt !== null) {
+				oneBranch(walk, chain, settledAt, otherwise, edits, step);
 				return;
 			}
 
@@ -4500,13 +4516,23 @@ function collect(node: unknown, walk: Walk): void {
 				tests.every((test) => !varies(test, walk) && !site.mute.has(test))
 			) {
 				const answers = tests.map((test) => site.decided.get(test));
-				if (answers.every((one) => one !== undefined)) {
-					oneBranch(walk, chain, answers.indexOf(true), otherwise, edits, step);
+				const at = reached(answers);
+				if (at !== null) {
+					oneBranch(walk, chain, at, otherwise, edits, step);
 					return;
 				}
-				for (const [at, test] of tests.entries()) {
-					if (answers[at] !== undefined || site.asks.some(([key]) => key === test)) continue;
-					site.asks.push([test, asWritten(chain[at]?.['test'], test, walk)]);
+				// One test at a time, in source order, and never past one whose answer is not in yet.
+				// A chain is a sequence of tests Svelte evaluates until one is true, so a later test
+				// is only reached where every earlier one was false -- and the ask is written into the
+				// script, where it runs whatever branch the render takes. Asked all at once,
+				// `{#if $foo}blah{:else if bar()}` evaluated `bar()` for a chain whose first test is
+				// true, and `bar` is a name that sample never binds.
+				for (const [index, test] of tests.entries()) {
+					if (answers[index] === false) continue;
+					if (!site.asks.some(([key]) => key === test)) {
+						site.asks.push([test, asWritten(chain[index]?.['test'], test, walk)]);
+					}
+					break;
 				}
 				branches = { ...walk, asking: true };
 			}

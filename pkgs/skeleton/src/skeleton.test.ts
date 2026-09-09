@@ -205,6 +205,18 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }],
 	},
 	{
+		// A chain is tests Svelte evaluates in order until one is true, so a later test is reached
+		// only where every earlier one was false. Waiting for all of them before folding kept the
+		// block a decision, and the ask for the later test is written into the script, where it runs
+		// whatever branch the render takes -- so a test the source never evaluates was evaluated.
+		name: 'a chain decided by its first test, whose later test never runs',
+		source:
+			'<script>let { data } = $props(); const on = true;' +
+			" function boom() { throw new Error('never'); }</script>" +
+			'{#if on}<p>first</p>{:else if boom()}<p>second</p>{/if}<p>{data.a}</p>',
+		data: [{ a: 'x' }],
+	},
+	{
 		name: 'a block inside an else-if branch',
 		source: `${PROPS}{#if data.f}<p>a</p>{:else if data.g}{#if data.h}<p>b</p>{/if}{/if}`,
 		data: [

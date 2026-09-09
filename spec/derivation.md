@@ -580,6 +580,12 @@ to be wrong in -- and Svelte, which compiles the branch and never runs it, never
 name either. The walk records what it folded, by file, and the check reads the source with those
 spans blanked, every other offset where it was.
 
+**A chain is decided as soon as its first not-false test is answered.** `{#if a}{:else if b}` is
+two tests Svelte evaluates in order until one is true, so `b` is reached only where `a` was false.
+Waiting for every answer before folding kept the block a decision -- and the ask for a test is
+written into the script, where it runs whatever branch the render takes, so a test the source never
+evaluates was evaluated. They are asked one at a time in source order for the same reason.
+
 **It is asked once, and where the offsets are the walk's.** `bundle()` runs the same check over the
 whole tree the entry reaches, and it reads each file from disk -- which is not the source the walk
 read, since `unbound` and `inlined` rewrite it first. An offset from one does not name the same
