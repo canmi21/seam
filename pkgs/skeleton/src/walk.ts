@@ -2030,8 +2030,38 @@ function varies(expression: string, walk: Walk): boolean {
 	}
 	const names = unknown(walk);
 	if (!mentions(expression, names)) return false;
-	return !onlyWithin(expression, names, walk.site.runes);
+	const varying = !onlyWithin(expression, names, walk.site.runes);
+	if (!varying) return false;
+	// From here it is a marker, which means a derivation, which means an expression evaluated
+	// outside `render()`. Two things cannot survive that trip, and both were reaching the evaluator
+	// and throwing there rather than naming a file here.
+	//
+	// A context read: `getContext` and `getAllContexts` ask the component being rendered, and there
+	// is none. Handed to the render it is fine, which is the branch above.
+	if (READS_CONTEXT.test(expression)) {
+		refuse(
+			'a context read in a value the request decides. `getContext` asks the component being ' +
+				'rendered and a derivation is evaluated outside one, so the read has nowhere to come ' +
+				'from. Hand the value down as a prop, or read it where nothing the request decides is ' +
+				'in the expression. See spec/refusals.md',
+		);
+	}
+	// A rune: `$state`, `$derived` and the rest are compiled away by Svelte and exist nowhere at
+	// run time. One left in an expression -- a class field written `$state.raw([])`, which is not a
+	// declaration this pass reads -- reached the evaluator as `$state is not defined`.
+	const rune = RUNE.exec(expression);
+	if (rune !== null) {
+		refuse(
+			`\`${rune[0]}\` is left in a value the request decides. A rune is compiled away by Svelte ` +
+				'and is not a function anything can call, so a derivation reading one has nothing to ' +
+				'call. See spec/refusals.md',
+		);
+	}
+	return true;
 }
+
+/** The runes, which exist at compile time and nowhere else. */
+const RUNE = /(?:^|[^\w$.])\$(?:state|derived|props|effect|bindable|inspect|host)\b/;
 
 /**
  * The names an expression may read whose value this walk does not hold: what the request

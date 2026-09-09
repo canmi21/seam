@@ -2870,6 +2870,26 @@ const refused: Case[] = [
 			'{#if item.sub}<svelte:self data={{ tree: item.sub }} />{/if}</div>{/each}',
 	},
 	{
+		// A derivation is evaluated outside `render()`, and `getContext` asks the component being
+		// rendered. Handed to the render the read is fine, which is the ordinary case; as a marker
+		// it has nowhere to come from, and it reached the evaluator and threw there.
+		name: 'a context read in a value the request decides',
+		says: 'a context read in a value the request decides',
+		source:
+			"<script>import { getContext } from 'svelte'; let { data } = $props();</script>" +
+			'<b>{getContext(data.k)}</b>',
+	},
+	{
+		// A rune is compiled away by Svelte and is not a function anything can call. One left in an
+		// expression -- a class field written `$state.raw([])`, which is not a declaration this pass
+		// reads -- reached the evaluator as `$state is not defined`.
+		name: 'a rune left in a value the request decides',
+		says: 'is left in a value the request decides',
+		source:
+			'<script>let { data } = $props(); class T { xs = $state.raw([1]); }' +
+			' const t = new T();</script><p>{t.xs.concat(data.a).join()}</p>',
+	},
+	{
 		// Svelte catches what a boundary's body throws and writes the `failed` snippet instead, so
 		// where the body calls the author's code over a value the request brings, which of the two
 		// shapes reaches the bytes is the request's answer. It threw at injection instead -- a

@@ -499,6 +499,18 @@ holding a value came out with their contents swapped, silently. Refused rather t
 numbered around, because there is nothing to escape into -- the bytes are the protocol, and a
 component writing the protocol's own shape is a collision to name.
 
+**Two things that cannot survive the trip out of `render()`.** Once an expression is a marker it
+is a derivation, evaluated where no component is being rendered:
+
+- **A context read.** `getContext` and `getAllContexts` ask the component being rendered, and there
+  is none. Handed to the render instead it is fine, which is the ordinary case and the branch this
+  does not touch.
+- **A rune.** `$state`, `$derived` and the rest are compiled away by Svelte and exist nowhere at run
+  time. One left in an expression -- a class field written `$state.raw([])`, which is not a
+  declaration this pass reads -- reached the evaluator as `$state is not defined`.
+
+Both threw at injection before, which is a refusal arriving per request rather than at the build.
+
 **A `<svelte:boundary>` with a `failed` snippet whose body calls over a request value.** Svelte
 catches what the body throws and writes that snippet instead of it, so which of the two shapes
 reaches the bytes is the request's answer rather than one shape. It threw at injection instead --
