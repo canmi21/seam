@@ -871,6 +871,14 @@ prop it decided is bound inside the child and evaluated there it would read the 
 is not given. Measured with the spread before and after an attribute, a key present as
 `undefined`, a missing key taking the default, and a null object. `merged()` in `walk.ts`.
 
+**An import is dropped only where nothing mentions it, and a write is a mention.** The pass that
+removes an unused import asks the reader that skips a name written to, which is right everywhere
+else: an assignment holds nothing of the old value and a substitution written over it is not
+JavaScript. But `$count++` inside an exported function is the only mention an imported store may
+have, so the import went and Svelte refused what was left -- "`$count` is an illegal variable
+name", which `2-analyze/index.js` raises for a `$` reference whose store nothing declares. An
+assignment target counts as a mention here, and only here.
+
 **A `<select>`'s `value` comes off the merged attributes, spread and all.** `renderer.select`
 destructures `{ value, defaultValue, ...select_attrs }`, writes neither, and puts
 `value === undefined ? defaultValue : value` on the renderer the options read. A spread carries

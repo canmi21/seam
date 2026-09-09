@@ -1383,6 +1383,20 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }],
 	},
 	{
+		// The pass that drops an unused import asks whether the file still mentions the name, and it
+		// asked through the reader that skips a name written to -- which is right everywhere else and
+		// wrong here. `$count++` is the only mention an imported store may have, so the import went
+		// and Svelte refused the read: "`$count` is an illegal variable name".
+		name: 'an imported store whose only mention is written to',
+		alongside: {
+			'counter.js': "import { writable } from 'svelte/store'; export const count = writable(0);",
+		},
+		source:
+			"<script>import { count } from './counter.js'; let { data } = $props();" +
+			'export function bump() { $count++ }</script><p>{data.a}|{$count}</p>',
+		data: [{ a: 'v' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.

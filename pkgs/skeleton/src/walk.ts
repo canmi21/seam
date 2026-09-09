@@ -1374,6 +1374,30 @@ function unimported(text: string): string {
 			if (at['name'].startsWith('$') && at['name'].length > 1) used.add(at['name'].slice(1));
 		});
 	};
+	// A name written to is not read, which is right everywhere else and wrong here: `$count++` is
+	// the only mention an imported store may have, and dropping the import left Svelte refusing
+	// `$count` as an illegal variable name. What this pass asks is whether the file still mentions
+	// the import at all, so an assignment target counts.
+	const written = (node: unknown): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) written(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		const target =
+			node['type'] === 'AssignmentExpression'
+				? node['left']
+				: node['type'] === 'UpdateExpression'
+					? node['argument']
+					: undefined;
+		if (isNode(target) && target['type'] === 'Identifier' && typeof target['name'] === 'string') {
+			used.add(target['name']);
+			if (target['name'].startsWith('$') && target['name'].length > 1) {
+				used.add(target['name'].slice(1));
+			}
+		}
+		for (const value of Object.values(node)) written(value);
+	};
 	// A default inside a pattern is read too -- `let { onOpenChange = noop } = $props()` reads
 	// `noop` -- and a pattern is where `reads` stops, the names in it being bound rather than read.
 	const defaults = (pattern: unknown): void => {
@@ -1400,6 +1424,7 @@ function unimported(text: string): string {
 		for (const statement of body) {
 			if (!isNode(statement) || statement['type'] === 'ImportDeclaration') continue;
 			mark(statement);
+			written(statement);
 			if (statement['type'] === 'VariableDeclaration') {
 				for (const one of Array.isArray(statement['declarations'])
 					? statement['declarations']
@@ -1410,6 +1435,7 @@ function unimported(text: string): string {
 		}
 	}
 	mark(ast['fragment']);
+	written(ast['fragment']);
 	// A component tag names its import without an identifier node: `<Tree$0>` reads `Tree$0`.
 	const tags = (node: unknown): void => {
 		if (Array.isArray(node)) {
