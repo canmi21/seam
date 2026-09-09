@@ -2497,6 +2497,17 @@ const accepted: Case[] = [
 		data: [{ n: 3 }, { n: 0 }],
 	},
 	{
+		// `LabeledStatement.js` collects a `$:` and `transform-server.js` puts it at the end of the
+		// instance body in topological order, declaring `let x` for the name it assigns. So it is a
+		// declaration whose initialiser is the right-hand side, and one reading another chains the
+		// way two declarations do -- the ordering being what substitution does anyway.
+		name: 'reactive declarations',
+		source:
+			'<script>export let a; let n = 2; $: doubled = a * n; $: label = `is ${doubled}`;' +
+			' $: console.log(label);</script><p>{doubled} {label}</p>',
+		data: [{ a: 3 }, { a: 0 }],
+	},
+	{
 		// `CallExpression.js` answers every rune where it stands, and an expression holding one has
 		// to be written as what Svelte writes there: `$effect.tracking()` is `false`,
 		// `$effect.pending()` is `0`, `$effect.root()` a noop, `$state.eager(v)` the argument. They
@@ -2912,6 +2923,14 @@ const refused: Case[] = [
 		source:
 			"<script>import { getContext } from 'svelte'; let { data } = $props();</script>" +
 			'<b>{getContext(data.k)}</b>',
+	},
+	{
+		// Not a declaration: `$: $count = n` writes the store, and `transform-server.js` declares a
+		// `let` only for a binding whose kind is `legacy_reactive`. Nor is one whose name a `let`
+		// already declares, which stays an assignment after a declaration and stays refused.
+		name: 'a reactive statement that writes a store',
+		says: 'assigned after being declared',
+		source: '<script>export let a; let n = 1; $: n = a * 2;</script><p>{n}</p>',
 	},
 	{
 		// A rune is compiled away by Svelte and is not a function anything can call. The ones whose

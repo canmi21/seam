@@ -32,6 +32,12 @@ export interface Declared {
 	 */
 	rune?: string;
 	/**
+	 * Declared by a `$:` rather than by a declaration, which is a difference one rule cares about:
+	 * the statement that declares it is also an assignment to it, and the rule that refuses an
+	 * assignment after a declaration must not read it as one. See `reactives()`.
+	 */
+	reactive?: true;
+	/**
 	 * What the name expands to, where that is not a span of the source.
 	 *
 	 * `let t;` and `let t = $state()` declare a name with nothing written for its value, and
@@ -40,6 +46,78 @@ export interface Declared {
 	 * is carried here instead.
 	 */
 	literal?: string;
+}
+
+/**
+ * Whether the file is in runes mode, which is the question `LabeledStatement.js` asks before it
+ * treats a `$:` as anything: `2-analyze/index.js` sets `runes` where any reference is a rune, and
+ * in that mode a `$:` is an ordinary label.
+ */
+function runic(ast: Node): boolean {
+	let found = false;
+	const step = (one: unknown): void => {
+		if (found || one === null || one === undefined) return;
+		if (Array.isArray(one)) {
+			for (const each of one) step(each);
+			return;
+		}
+		if (!isNode(one)) return;
+		if (one['type'] === 'Identifier' && typeof one['name'] === 'string') {
+			if (RUNIC.has(one['name'])) found = true;
+			return;
+		}
+		for (const value of Object.values(one)) step(value);
+	};
+	for (const block of [ast['module'], ast['instance']]) {
+		if (isNode(block)) step(block['content']);
+	}
+	return found;
+}
+
+const RUNIC = new Set([
+	'$state',
+	'$derived',
+	'$props',
+	'$bindable',
+	'$effect',
+	'$inspect',
+	'$host',
+]);
+
+/**
+ * The reactive declarations a script makes: `$: name = value`, with the value's node.
+ *
+ * Only an assignment to a plain name, which is the shape `transform-server.js` declares a `let`
+ * for -- it reads `node.body.expression.left` and takes the identifiers whose binding is
+ * `legacy_reactive`. A `$:` that mutates something, or destructures, or is a bare statement, is
+ * not a declaration and is left to the rules that already cover it.
+ */
+function reactives(block: unknown): { name: string; value: Node }[] {
+	const found: { name: string; value: Node }[] = [];
+	if (!isNode(block)) return found;
+	const content = block['content'];
+	if (!isNode(content) || !Array.isArray(content['body'])) return found;
+	for (const statement of content['body']) {
+		if (!isNode(statement) || statement['type'] !== 'LabeledStatement') continue;
+		const label = statement['label'];
+		if (!isNode(label) || label['name'] !== '$') continue;
+		const body = statement['body'];
+		if (!isNode(body) || body['type'] !== 'ExpressionStatement') continue;
+		const held = body['expression'];
+		if (!isNode(held) || held['type'] !== 'AssignmentExpression' || held['operator'] !== '=') {
+			continue;
+		}
+		const left = held['left'];
+		const right = held['right'];
+		if (!isNode(left) || left['type'] !== 'Identifier' || typeof left['name'] !== 'string')
+			continue;
+		if (!isNode(right)) continue;
+		// `$: $count = n` writes the store `count`; it declares nothing. `transform-server.js` takes
+		// the identifiers whose binding is `legacy_reactive`, and a subscription's is `store_sub`.
+		if (left['name'].startsWith('$')) continue;
+		found.push({ name: left['name'], value: right });
+	}
+	return found;
 }
 
 /**
@@ -229,6 +307,26 @@ function declared(
 			}
 		}
 	}
+	// A `$:` that assigns a name nothing else declares is a declaration. `LabeledStatement.js`
+	// collects one and `transform-server.js` puts it at the end of the instance body in topological
+	// order, declaring `let x` above for the name it assigns -- so `$: doubled = n * 2` is `doubled`
+	// standing for `(n * 2)`, and one reading another chains the way two declarations do, the
+	// ordering being what substitution does anyway.
+	//
+	// **Legacy mode only**, which is the mode `LabeledStatement.js` answers in: in runes mode it
+	// calls `context.next()` and the label is an ordinary one.
+	//
+	// The name has to be one nothing else declares. Where a `let x` exists, `$: x = e` is an
+	// assignment to it and the value the markup reads is not the initialiser -- which is the rule
+	// `assigned()` refuses on, and it still does.
+	if (!runic(ast)) {
+		for (const one of reactives(ast['instance'])) {
+			const name = one.name;
+			if (found.has(name) || props.has(name)) continue;
+			record(name, one.value, { reactive: true });
+		}
+	}
+
 	// Reading a prop is transitive. `const b = a.x` where `a` reads one would evaluate against
 	// nothing in a render given no data, and a null dereference is the crash this is here to
 	// prevent, so it is settled to a fixed point rather than one level deep.
@@ -298,6 +396,8 @@ function assigned(
 	names: ReadonlySet<string>,
 	/** Report the store behind a `$x` target rather than the name written. See `locals()`. */
 	stores = false,
+	/** Names a `$:` declares, whose own statement is not an assignment after a declaration. */
+	reactive: ReadonlySet<string> = new Set(),
 ): Set<string> {
 	const found = new Set<string>();
 
@@ -324,6 +424,22 @@ function assigned(
 			type === 'ArrowFunctionExpression'
 		) {
 			return;
+		}
+		// `$: x = e` where `x` is what that statement declares. Its right-hand side is still walked.
+		if (type === 'LabeledStatement' && isNode(node['label']) && node['label']['name'] === '$') {
+			const body = node['body'];
+			const held =
+				isNode(body) && body['type'] === 'ExpressionStatement' ? body['expression'] : null;
+			const left = isNode(held) && held['type'] === 'AssignmentExpression' ? held['left'] : null;
+			if (
+				isNode(left) &&
+				left['type'] === 'Identifier' &&
+				typeof left['name'] === 'string' &&
+				reactive.has(left['name'])
+			) {
+				walk(isNode(held) ? held['right'] : null);
+				return;
+			}
 		}
 		if (type === 'AssignmentExpression' || type === 'UpdateExpression') {
 			// Every name the target binds, not only its root: `[$a, $b] = c` and `({ x: $a } = c)`
@@ -394,6 +510,8 @@ function losing(
 	ast: Node,
 	found: Map<string, Declared & { node: Node; free: Set<string> }>,
 	names: Set<string>,
+	/** Names a `$:` declares. Its statement is the declaration, not a change to one. */
+	declares: ReadonlySet<string>,
 ): void {
 	const fragment = ast['fragment'];
 	const closure = (
@@ -455,7 +573,7 @@ function losing(
 		// `xs.push(1)`, which the rule above never caught either.
 		const { written } = changing(body, names, new Set());
 		const read = closure(named, (one) => one.free);
-		for (const target of written) if (read.has(target)) lost.add(target);
+		for (const target of written) if (read.has(target) && !declares.has(target)) lost.add(target);
 	}
 	for (const name of ran) {
 		const held = found.get(name);
@@ -508,6 +626,9 @@ function reactive(
 	 * entry's own, and a child's, which its call site bound and the render is handed a literal
 	 * for. */
 	given: ReadonlySet<string>,
+	/** Names a `$:` declares. One of those is neutralised as the declaration it is, over its
+	 * initialiser, and writing over the whole statement too would be two edits on one span. */
+	declares: ReadonlySet<string>,
 ): [at: [number, number], text: string][] {
 	const out: [[number, number], string][] = [];
 	const instance = ast['instance'];
@@ -520,6 +641,9 @@ function reactive(
 		if (!isNode(label) || label['name'] !== '$') continue;
 		const body = statement['body'];
 		if (!isNode(body)) continue;
+		const held = body['type'] === 'ExpressionStatement' ? body['expression'] : null;
+		const left = isNode(held) && held['type'] === 'AssignmentExpression' ? held['left'] : null;
+		if (isNode(left) && typeof left['name'] === 'string' && declares.has(left['name'])) continue;
 		const reads = new Set<string>();
 		free(body, new Set(), reads);
 		const wanting = [...reads].some((one) => given.has(one) || found.get(one)?.reads === true);
@@ -1470,7 +1594,16 @@ export function locals(
 	// wrote `foo`. The entry's arrive as `props` and a child's as the names `bound` was given, a
 	// `$props()` destructuring being read by `propsOf` rather than declared here.
 	const names = new Set([...found.keys(), ...props, ...(bound?.keys() ?? [])]);
-	const moved = [...assigned(ast['module'], names), ...assigned(ast['instance'], names)];
+	// A `$:` that declares a name is also the assignment to it, and reading that as an assignment
+	// after a declaration would refuse every reactive declaration there is. Where a `let x` exists
+	// beside it the name is not recorded as reactive, and the refusal stands.
+	const declares = new Set(
+		[...found.values()].filter((one) => one.reactive === true).map((one) => one.name),
+	);
+	const moved = [
+		...assigned(ast['module'], names, false, declares),
+		...assigned(ast['instance'], names, false, declares),
+	];
 	if (moved.length > 0) {
 		const list = [...new Set(moved)].map((one) => `\`${one}\``).join(', ');
 		throw new Error(
@@ -1480,7 +1613,7 @@ export function locals(
 				'which does not run while the bytes are written. See spec/derivation.md',
 		);
 	}
-	losing(ast, found as Map<string, Declared & { node: Node; free: Set<string> }>, names);
+	losing(ast, found as Map<string, Declared & { node: Node; free: Set<string> }>, names, declares);
 
 	// Stores the script itself writes: `$count += 1` sets the store before the template runs, so
 	// the value the markup reads is the one those statements left. The render runs the script and
@@ -1646,7 +1779,7 @@ export function locals(
 		// substituted this way, since one initialiser stands for several names and the expansion
 		// is only ever one of them.
 		reading: [
-			...reactive(ast, found, new Set([...carried, ...props, ...(bound?.keys() ?? [])])),
+			...reactive(ast, found, new Set([...carried, ...props, ...(bound?.keys() ?? [])]), declares),
 			...new Map(
 				[...found.values()]
 					.filter((one) => one.reads)

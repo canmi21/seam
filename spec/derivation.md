@@ -486,6 +486,30 @@ expression -- `items.includes(item)` is one derivation with the array literal in
 nothing to share, and the array is built again. Holding a declaration rather than substituting it
 is what closes that, and it is the open item under Substitution below.
 
+## A `$:` that assigns a name is a declaration
+
+`LabeledStatement.js` collects a `$:` and `transform-server.js` puts it at the end of the instance
+body in **topological order**, declaring `let x` above for the name it assigns. So `$: doubled = n
+* 2` is a declaration whose initialiser is the right-hand side, and it substitutes like any other:
+one reading another chains the way two declarations do, the ordering being what substitution does
+anyway.
+
+**Legacy mode only**, which is the mode `LabeledStatement.js` answers in -- in runes mode it calls
+`context.next()` and the label is an ordinary one, which Svelte's own analysis then refuses.
+
+Three shapes are not declarations, and each is left to the rule that already covers it:
+
+- **A name a `let` already declares.** `let n = 1; $: n = a * 2` is an assignment to that `let`, and
+  the value the markup reads is not the initialiser: refused, as an assignment after a declaration.
+- **A store write.** `$: $count = n` sets the store. `transform-server.js` declares a `let` only for
+  a binding whose kind is `legacy_reactive`, and a subscription's is `store_sub`.
+- **A bare statement.** `$: console.log(x)` writes no bytes and is neutralised for the render, which
+  is what it already was.
+
+The statement that declares a name is also the assignment to it, which two rules had to be told
+about: the one that refuses an assignment after a declaration, and the one that refuses a value
+changed by something the render runs. Neither reads a declaration's own initialiser as a change.
+
 ## A rune in an expression is written as what the server answers it with
 
 A rune is compiled away by Svelte and exists nowhere at run time, so an expression holding one
