@@ -1238,12 +1238,33 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
-		// A key is not carried at all: Svelte's server transform never mentions one, and a keyed each
-		// renders byte for byte what an unkeyed one renders. The counter is bound beside the item,
-		// which is what the `for` loop it compiles to does. See spec/ir.md.
+		// A key is not carried into the IR at all: Svelte's server transform never mentions one --
+		// `EachBlock.js` visits the expression, the context, the index, the body and the fallback --
+		// and a keyed each renders byte for byte what an unkeyed one renders. The counter is bound
+		// beside the item, which is what the `for` loop it compiles to does. See spec/ir.md.
 		name: 'an each with a key and an index',
 		source: `${PROPS}{#each data.xs as x, n (x)}<i>{n}:{x}</i>{/each}`,
 		data: [{ xs: ['a', 'b'] }, { xs: [] }],
+	},
+	{
+		// The key leaves the render and the block stays keyed. An `animate:` element must be the
+		// only child of a **keyed** each and `2-analyze/visitors/shared/element.js` asks
+		// `parent.key` for exactly that, so unkeying the render's copy failed Svelte's own analysis
+		// with `animation_missing_key`. Red without the literal the key is replaced by: Svelte
+		// refuses to compile what the walk hands it. See spec/refusals.md.
+		name: 'a keyed each whose only child animates',
+		source:
+			'<script>let { data } = $props(); function flip() { return { duration: 0 } }</script>' +
+			'{#each data.xs as x (x)}<i animate:flip>{x}</i>{/each}',
+		data: [{ xs: ['a', 'b'] }, { xs: [] }],
+	},
+	{
+		// The expression is replaced and the parentheses around it are not. Cutting from the `(`
+		// before the key to the `)` after it takes the wrong pair where the key holds parentheses of
+		// its own, and the render's copy was then invalid JavaScript.
+		name: 'a key that holds parentheses of its own',
+		source: `${PROPS}{#each data.xs as x ((() => x)())}<i>{x}</i>{/each}`,
+		data: [{ xs: ['a', 'b'] }],
 	},
 	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing

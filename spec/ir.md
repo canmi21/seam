@@ -71,8 +71,17 @@ uses none of the three leaves `head` and `title` empty.
   name the pattern binds is an expression over that one, which leaves this node one shape.
   See [derivation.md](derivation.md). **A key is not here at all**: Svelte's server transform never mentions one,
   and a keyed each renders byte for byte what an unkeyed one renders -- measured, on a full list
-  and an empty one. A key exists for the client's reconciliation, and the client compiles from the
-  source, where it still is. **An `{:else}` is not here either**: an each with one is lowered as
+  and an empty one. `EachBlock.js` visits the expression, the context, the index, the body and the
+  fallback, and not `node.key`. A key exists for the client's reconciliation, and the client
+  compiles from the source, where it still is -- **and the render's copy stays keyed**, its
+  expression replaced by a literal rather than the whole `(...)` removed. The expression has to go,
+  because the render iterates one placeholder item the key would be evaluated against; the key
+  cannot, because a keyed each is not the same markup as an unkeyed one. An `animate:` element must
+  be the only child of a keyed each and `2-analyze/visitors/shared/element.js` asks `parent.key` for
+  exactly that, so unkeying the copy made Svelte refuse to compile it, with `animation_missing_key`
+  -- upstream's own message on upstream's own samples, which is the shape that says the fault is in
+  what was handed to it. Replacing the expression rather than the parentheses also stops a key
+  holding parentheses of its own from having the wrong pair cut out. **An `{:else}` is not here either**: an each with one is lowered as
   an `if` around the `each`, testing whether the list has anything in it, with the fallback as
   the else -- which is the shape Svelte's own server output has, and it needs no node of its own.
   See [refusals.md](refusals.md).

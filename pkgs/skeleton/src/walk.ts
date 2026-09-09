@@ -4028,15 +4028,20 @@ function collect(node: unknown, walk: Walk): void {
 				counter: typeof node['index'] === 'string' ? node['index'] : null,
 				alternate: fallback !== null && fallback !== undefined,
 			});
-			// The key goes from the render: Svelte's server never reads one, and the one element the
-			// render iterates is a placeholder the key would be evaluated against -- `(tile.stat.lang)`
-			// on `{}` threw inside Svelte's own output.
+			// The key's expression goes from the render and the key itself stays. Svelte's server
+			// never reads a key -- `EachBlock.js` visits the expression, the context, the index, the
+			// body and the fallback, and not `node.key` -- so what it holds cannot reach the bytes;
+			// but the one element the render iterates is a placeholder the key would be evaluated
+			// against, and `(tile.stat.lang)` on `{}` threw inside Svelte's own output.
+			//
+			// Removing the whole `(...)` unkeyed the block, which is not the same markup. An
+			// `animate:` element must be the only child of a **keyed** each, and
+			// `2-analyze/visitors/shared/element.js` asks `parent.key` for exactly that, so the
+			// render's copy failed Svelte's own analysis with `animation_missing_key` -- upstream's
+			// message, on upstream's own sample, which cannot be upstream's fault. A literal keeps
+			// the block keyed, reads nothing, and cannot throw.
 			const key = span(node['key']);
-			if (key !== null) {
-				const open = source.lastIndexOf('(', key[0]);
-				const close = source.indexOf(')', key[1]);
-				if (open >= 0 && close >= 0) edits.push([open, close + 1, '']);
-			}
+			if (key !== null) edits.push([key[0], key[1], '0']);
 			// One element, because the body's own expressions are sentinels and read nothing from it.
 			// An each with an `{:else}` is two shapes the way an if is: Svelte's server writes
 			// `<!--[-->` and the items for a list with something in it, and `<!--[!-->` and the
