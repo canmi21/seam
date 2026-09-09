@@ -27,6 +27,12 @@ export interface Derivation {
 	 *
 	 * Computed in order, while the names around it still hold what the request brought, since one
 	 * default may read another prop.
+	 *
+	 * **Every prop the entry declares has one, default or not.** The one with no default holds
+	 * `undefined`, and its whole job is that the name is in scope: an expression reads its scope
+	 * through `with`, which falls through to the globals for a key the payload has not got, and
+	 * `class:unused` over a prop nobody sent threw `unused is not defined` per request where Svelte
+	 * writes no class.
 	 */
 	prop?: boolean;
 	/**
@@ -139,7 +145,14 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 		scope: derivation.scope,
 		scoped: derivation.scoped,
 		prop: derivation.prop,
-		evaluate: build(derivation.expression, files, derivation.files ?? []),
+		// A prop with no default stands over the payload's key to put the name in scope and holds
+		// nothing, so there is no expression to compile: `with` asks the payload whether it has the
+		// name, and a key the request did not send has to answer yes and `undefined` rather than
+		// falling through to the globals. See `Derivation.prop`.
+		evaluate:
+			derivation.prop === true && derivation.expression === 'undefined'
+				? (): unknown => undefined
+				: build(derivation.expression, files, derivation.files ?? []),
 		source: derivation.expression,
 	}));
 

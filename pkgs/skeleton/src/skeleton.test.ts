@@ -3051,8 +3051,11 @@ it('a default leaves a read of the prop a path, and costs one derivation', async
 		rendered.defaults,
 	);
 
-	// One per prop with a default, however many times the markup reads it.
-	expect(compiled.derivations.map((one) => one.name)).toEqual(['data_0']);
+	// One per prop, however many times the markup reads it: the one with a default holds it, and
+	// the rest stand over their key holding `undefined`, which is what puts the name in scope for
+	// a request that did not send it. Only the first compiles an expression.
+	expect(compiled.derivations.map((one) => one.name)).toEqual(['form', 'page', 'data_0']);
+	expect(compiled.derivations.filter((one) => one.expression !== 'undefined')).toHaveLength(1);
 	const text = JSON.stringify(compiled.ir);
 	for (const path of ['data_0.title', 'data_0.body', 'data_0.tag', 'page.url']) {
 		expect(text, `\`${path}\` stopped being a path`).toContain(`"path":"${path}"`);

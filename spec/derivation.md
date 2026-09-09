@@ -460,6 +460,14 @@ said `object`, and the default was never taken. Svelte wrote `potato`; this wrot
 The expression is the default alone now, and the test is on the property, made by the evaluator
 that applies it. See `Derivation.prop`.
 
+**Every prop the entry declares stands over its key, default or not.** The one with no default
+holds `undefined` and compiles no expression; its whole job is that the name is in scope. An
+expression reads its scope through `with`, which asks the payload whether it has the name and falls
+through to the globals for a key it has not got -- so `class:unused` over a prop the request did
+not send threw `unused is not defined` per request, where Svelte's `$props()` destructuring makes
+it `undefined` and writes no class. Nine of Svelte's samples were that, and a missing prop is the
+ordinary case rather than an exotic one.
+
 ## One derivation per expression, not per read of it
 
 A declaration is written out wherever the markup reads it, so `{#each items as item}` and the

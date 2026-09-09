@@ -4814,8 +4814,14 @@ export function rewrite(
 	 * `form` on every request -- and it does reach this code, since that root declares each
 	 * `data_n = null`. See spec/suite.md.
 	 */
+	// Every prop the entry declares, not only the ones with a default. `$props()` destructures, so
+	// a key the request does not send is `undefined` -- and a derivation reads its scope through
+	// `with`, which asks the payload whether it has the name and falls through to the globals for
+	// one it has not got. `class:unused` over a prop nobody sent threw `unused is not defined` at
+	// request time, where Svelte writes no class. Standing the name over the payload's key with
+	// `undefined` for its value is what puts it in scope. See `Derivation.prop`.
 	const propDefaults = (declares ?? [])
-		.filter((one) => one.rest !== true && one.fallback !== 'undefined')
+		.filter((one) => one.rest !== true)
 		.map((one) => ({
 			name: one.prop,
 			// The default alone, without a test around it. `$props()` destructures, so Svelte's own
