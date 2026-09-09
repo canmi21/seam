@@ -203,9 +203,13 @@ export function inject(ir: ComponentIR, data: Scope): Injected {
 	const scopes = [data];
 	// One counter per response, starting where Svelte's does.
 	const fresh: Fresh = { next: 1, block: 0, fragments: ir.fragments ?? {} };
-	// The title goes after the head blocks, which is where Svelte's own renderer appends it.
+	// The title goes after the head blocks and the injected stylesheets after the title, which is
+	// the order `#close_render` builds them in.
 	return {
 		body: walk(ir.body, scopes, fresh),
-		head: walk(ir.head, scopes, fresh) + title(ir.title, scopes, fresh),
+		head:
+			walk(ir.head, scopes, fresh) +
+			title(ir.title, scopes, fresh) +
+			walk(ir.styles ?? [], scopes, fresh),
 	};
 }

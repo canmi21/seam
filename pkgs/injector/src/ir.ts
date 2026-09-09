@@ -100,6 +100,13 @@ export interface ComponentIR {
 	 * instead. See spec/ir.md.
 	 */
 	title: Node[];
+	/**
+	 * The stylesheets `css: 'injected'` puts in the head. `#close_render` builds the head as the
+	 * blocks, then the title, then one `<style id="...">` per stylesheet, so these are constant
+	 * bytes sitting after both of the others -- which is why they are a stream of their own rather
+	 * than part of either. Absent where the component injects none.
+	 */
+	styles?: Node[];
 	/** The bodies `call` nodes walk, by name. Absent where the component has none. */
 	fragments?: Record<string, Node[]>;
 }

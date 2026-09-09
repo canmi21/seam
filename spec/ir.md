@@ -29,7 +29,7 @@ them the class of bug where the extractor and the injector disagree about what a
 ## Node kinds
 
 Five, and the tree bottoms out in strings. `body` and `head` are the two streams Svelte renders
-and the two the injector produces; `title` is the channel it keeps beside them. A component that
+and the two the injector produces; `title` and `styles` are channels it keeps beside them. A component that
 uses none of the three leaves `head` and `title` empty.
 
 ```json
@@ -406,7 +406,18 @@ It reads as an element and behaves as nothing of the sort. Svelte keeps it out o
 ```js
 // internal/server/renderer.js, #close_render
 let head = content.head + renderer.global.get_title();
+for (const { hash, code } of renderer.global.css) {
+	head += `<style id="${hash}">${code}</style>`;
+}
 ```
+
+**Three parts, and the third is `styles`.** `css: 'injected'` puts a component's stylesheet in the
+head, and that line appends one after the title. They are constant bytes -- the hash and the code
+come out of the compile -- and they sit after both of the others, so they are a stream of their own
+rather than part of either. The head the injector writes is the blocks, then the title, then these.
+The split is on `<style id="svelte-`, the id Svelte writes, rather than on `<style` alone: an
+author may put a `<style>` in a `<svelte:head>` of their own, and where a component has no title
+the two would otherwise be indistinguishable.
 
 `head()` writes `<!--hash-->`, its content, then an empty comment. Every head block ends that way,
 and the title is appended after all of them, so **the last empty comment is where the head ends

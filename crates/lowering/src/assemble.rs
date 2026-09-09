@@ -637,7 +637,7 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 	// of its own and appends it after the lot -- so the last empty comment is where the head ends
 	// and the title begins. Both are assembled after the body, because blocks are numbered in
 	// source order and counted as they are met, which lines up only while the head holds none.
-	let (head_bytes, title_bytes) = split_off_title(&skeleton.head)?;
+	let (head_bytes, title_bytes, style_bytes) = split_head(&skeleton.head)?;
 
 	assembler.stream = Stream::Head;
 	let mut head = Out::default();
@@ -674,6 +674,11 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 			body: out.finish(),
 			head: head.finish(),
 			title: title.finish(),
+			styles: if style_bytes.is_empty() {
+				Vec::new()
+			} else {
+				vec![ir::Node::Static { s: style_bytes.to_owned() }]
+			},
 			fragments: assembler.fragments,
 		},
 		derivations: assembler.derivations,
@@ -691,8 +696,39 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 /// block or a stamp does, so a release appending something else is a failure rather than a silent
 /// misreading.
 fn split_off_title(head: &str) -> Result<(&str, &str)> {
+	Ok((split_head(head)?.0, split_head(head)?.1))
+}
+
+/// The stylesheet `css: 'injected'` puts in the head, peeled off the end.
+///
+/// `#close_render` builds the head as `content.head + get_title()` and **then** appends
+/// `<style id="${hash}">${code}</style>` for every stylesheet in `renderer.global.css`. So the
+/// styles are a suffix of constant bytes sitting after the title, which is why they are their own
+/// stream rather than part of either: the head blocks come first, the title after them, and these
+/// after that.
+///
+/// Matched on `<style id="svelte-`, which is the id Svelte writes, rather than on `<style` alone:
+/// an author may write a `<style>` inside a `<svelte:head>` of their own, and where there is no
+/// title the two would otherwise be indistinguishable.
+fn split_off_styles(head: &str) -> (&str, &str) {
+	const OPENS: &str = "<style id=\"svelte-";
+	let mut at = head.len();
+	loop {
+		let rest = &head[..at];
+		if !rest.ends_with("</style>") {
+			break;
+		}
+		let Some(open) = rest.rfind(OPENS) else { break };
+		at = open;
+	}
+	head.split_at(at)
+}
+
+/// The rendered head as its three parts: the blocks, the title, and the injected stylesheets.
+fn split_head(head: &str) -> Result<(&str, &str, &str)> {
+	let (head, styles) = split_off_styles(head);
 	if head.is_empty() {
-		return Ok(("", ""));
+		return Ok(("", "", styles));
 	}
 	let (blocks, title) = if head.ends_with("</title>") {
 		let at = head
@@ -706,5 +742,5 @@ fn split_off_title(head: &str) -> Result<(&str, &str)> {
 		let tail = &blocks[blocks.len().saturating_sub(40)..];
 		return Err(format!("the head ends with `{tail}`, which is neither a head block nor a stamp"));
 	}
-	Ok((blocks, title))
+	Ok((blocks, title, styles))
 }

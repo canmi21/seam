@@ -538,6 +538,7 @@ pub fn lower(bundle: &markup::Bundle) -> Result<ir::Compiled> {
 			body: builder.finish(),
 			head: Vec::new(),
 			title: Vec::new(),
+			styles: Vec::new(),
 			fragments: BTreeMap::new(),
 		},
 		derivations: derivations.list,

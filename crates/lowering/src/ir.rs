@@ -113,6 +113,10 @@ pub struct ComponentIR {
 	/// The title, which is a channel rather than markup. Walking it gives either nothing or a
 	/// whole `<title>` element, and the result belongs after the head. See `spec/ir.md`.
 	pub title: Vec<Node>,
+	/// The stylesheets `css: 'injected'` puts in the head, which `#close_render` appends after the
+	/// title. Constant bytes, and their own stream because they sit after both of the others.
+	#[serde(default, skip_serializing_if = "Vec::is_empty")]
+	pub styles: Vec<Node>,
 	/// The bodies `Call` nodes walk, by name: one per recursive snippet or component, its
 	/// parameters being locals inside it. Absent where the component has none.
 	#[serde(skip_serializing_if = "BTreeMap::is_empty")]
