@@ -1343,6 +1343,19 @@ const accepted: Case[] = [
 		data: [{ o: { x: 'v' }, xs: ['a', 'b'] }],
 	},
 	{
+		// `build_inline_component` merges a spread with `$.spread_props` in source order, so a
+		// component the walk could not enter still needs the object itself, with the request's
+		// values standing in it. A marker is a string and spreading a string spreads its characters,
+		// so what stands in has to be one marker per leaf -- the same reading an attribute's object
+		// value already gets.
+		name: 'a spread on a component the walk could not enter',
+		beside: { Gate: '<script>let props = $props();</script><b>{props.a}{props.b}</b>' },
+		source:
+			"<script>import Gate from './Gate.svelte'; let { data } = $props();</script>" +
+			'<Gate {...{ a: data.a, b: "x" }} />',
+		data: [{ a: 'v' }, { a: '<&' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
@@ -2814,6 +2827,17 @@ const accepted: Case[] = [
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// Where the object itself is what the request decides there is nothing to put a marker
+		// inside: its keys cannot be listed, so no object can stand in it while the bytes are
+		// written. Refused by name rather than written wrong.
+		name: 'a spread on a component the walk could not enter, over a value the request decides',
+		beside: { Gate: '<script>let props = $props();</script><b>{props.a}</b>' },
+		source:
+			"<script>import Gate from './Gate.svelte'; let { data } = $props();</script>" +
+			'<Gate {...data.o} />',
+		says: 'its keys cannot be listed',
+	},
 	{
 		// A declaration is substituted at every read, so a value that is not the same twice is a
 		// different value at each of them. `Math.random` was already refused where the markup wrote

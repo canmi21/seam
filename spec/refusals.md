@@ -871,6 +871,17 @@ prop it decided is bound inside the child and evaluated there it would read the 
 is not given. Measured with the spread before and after an attribute, a key present as
 `undefined`, a missing key taking the default, and a null object. `merged()` in `walk.ts`.
 
+**A spread on a component the walk could not enter is written into the tag.** The two paragraphs
+above are about a spread the walk carries into the child. Where it cannot go in -- the child's
+`$props()` is a name rather than a pattern, say -- the component tag stays and the render writes it,
+so the spread has to stay too, with the request's values standing in it. It used to reach the arm
+that refuses what the walk has never met, which was the whole of what was missing: a spread on an
+element was taught long ago and one on a component was not. What stands in has to be one marker per
+leaf and never one for the object, because a marker is a string and spreading a string spreads its
+characters; that is the same reading an attribute's object value already gets. Where the object
+itself is what the request decides, its keys cannot be listed, nothing can stand inside it, and it
+is refused by name.
+
 **A declaration reading a prop is neutralised only where the prop varies.** The render is given no
 data, so a declaration reading a prop used to be handed something harmless whatever the prop was
 bound to. A package's component builds its context from its props -- `MenuRootState.create({

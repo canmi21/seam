@@ -4199,6 +4199,32 @@ function collect(node: unknown, walk: Walk): void {
 			return;
 		}
 
+		// A spread on a component the walk could not enter. Its keys are the child's props, and
+		// `build_inline_component` merges it with `$.spread_props` in source order, so what the
+		// render needs is the object itself with the request's values standing in it.
+		//
+		// A marker is a string and spreading a string spreads its characters, so the object has to
+		// be one whose leaves can each hold one. `leaves` is the same reading an attribute's object
+		// value already gets. Where the object itself is what the request decides there is nothing
+		// to put a marker inside, and that is refused by name rather than written wrong.
+		case 'SpreadAttribute': {
+			const whole = span(node);
+			if (whole === null) return;
+			const grown = expand(node['expression']);
+			subscribing(grown, walk);
+			const varying = site.payload !== null && (carries(grown) || mentions(grown, walk.dynamic));
+			const text = varying ? leaves(grown, walk) : grown;
+			if (text === null) {
+				refuse(
+					`\`{...${grown.slice(0, 40)}}\` is a spread on a component the walk could not enter, ` +
+						'over a value the request decides: its keys cannot be listed, so nothing can stand ' +
+						'in the object while the bytes are written',
+				);
+			}
+			edits.push([whole[0], whole[1], `{...${text}}`]);
+			return;
+		}
+
 		default:
 			refuse(
 				`\`${source.slice(...(span(node) ?? [0, 0])).slice(0, 60)}\` is a ${type}, which the ` +
