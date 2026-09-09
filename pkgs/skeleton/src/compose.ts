@@ -354,6 +354,10 @@ export const CARRIED = [
 	'clsx',
 	'exclude_from_object',
 	'get_store',
+	'given',
+	'rest_props',
+	'sanitize_props',
+	'sanitize_slots',
 	'stringify',
 	'to_array',
 ] as const;

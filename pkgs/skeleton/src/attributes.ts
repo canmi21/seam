@@ -90,7 +90,33 @@ export interface PendingSpread {
 	classes?: string;
 	/** The style directives, the fourth argument, the same way. */
 	styles?: string;
+	/** The element is one Svelte appends the load and error capture attributes to. See `LOAD_ERROR`. */
+	capture?: true;
 }
+
+/**
+ * The elements Svelte writes ` onload="this.__e=event" onerror="this.__e=event"` after, where the
+ * element carries a spread, a `use:` or one of those handlers.
+ *
+ * `LOAD_ERROR_ELEMENTS` in `svelte/src/utils.js`, read through `is_load_error_element`: the two
+ * literals are pushed after every attribute in `shared/element.js`. It is a fact about which
+ * elements fire those events rather than anything about Svelte, which is what makes carrying the
+ * list here affordable -- the same reason `attributes.rs` carries the boolean attribute names.
+ *
+ * The spread replaces the whole attribute run with one call, so what the template appended after it
+ * is inside what the marker stands for and has to be written back with it.
+ */
+const LOAD_ERROR = new Set([
+	'body',
+	'embed',
+	'iframe',
+	'img',
+	'link',
+	'object',
+	'script',
+	'style',
+	'track',
+]);
 
 /** The attribute name a spread's marker is written under, which nothing else could produce. */
 export function probe(index: number): string {
@@ -229,6 +255,7 @@ export function spread(
 		index,
 		object,
 		copy,
+		...(LOAD_ERROR.has(String(node['name'])) ? { capture: true as const } : {}),
 		...(classed.length === 0 ? {} : { classes: `{ ${classed.join(', ')} }` }),
 		...(styled.length === 0 ? {} : { styles: `{ ${styled.join(', ')} }` }),
 	});

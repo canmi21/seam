@@ -9,6 +9,9 @@
  */
 import { bindings } from './bindings.ts';
 
+/** Svelte's own names for the props object, which `transform-server.js` builds from `$$props`. */
+const RESERVED: ReadonlySet<string> = new Set(['$$props', '$$restProps', '$$slots']);
+
 /**
  * Throws when the source reads a name it cannot get a value for.
  *
@@ -16,8 +19,13 @@ import { bindings } from './bindings.ts';
  * whether it is holding a path relative to a project root or an entry. `file` is its absolute
  * path where the caller has one, so that what its imports name can be resolved.
  */
-export function resolved(source: string, where: string, file?: string): void {
-	const loose = bindings(source, file).unresolved;
+export function resolved(source: string, where: string, file?: string, entry = false): void {
+	// `$$props`, `$$restProps` and `$$slots` are Svelte's own names for the object a component was
+	// called with. The entry's is the payload, which `locals.ts` writes each of them out over; a
+	// child's is what its call site passed, which nothing builds yet, so there the name stands.
+	const loose = bindings(source, file).unresolved.filter(
+		(one) => !(entry && RESERVED.has(one.name)),
+	);
 	if (loose.length === 0) return;
 
 	// One line per name rather than per occurrence, and the expression only where it says more

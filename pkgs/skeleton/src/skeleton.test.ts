@@ -2533,6 +2533,29 @@ const accepted: Case[] = [
 		data: [{ a: '1' }, { a: '<' }],
 	},
 	{
+		// `shared/element.js` pushes ` onload="this.__e=event" onerror="this.__e=event"` after the
+		// attributes of a load or error element carrying a spread. The spread replaces the whole
+		// attribute run with one call, so those two literals are inside what its marker stands for
+		// and have to be written back with it.
+		name: 'a spread on an element that fires load and error',
+		source: `${PROPS}<img alt="" {...data.rest} /><span {...data.rest}></span>`,
+		data: [{ rest: { width: '100%', src: 'x' } }, { rest: {} }],
+	},
+	{
+		// The legacy spelling of the whole props object. `transform-server.js` writes
+		// `$$sanitized_props` as `sanitize_props($$props)`, `$$restProps` as
+		// `rest_props($$sanitized_props, [named])` and `$$slots` as `sanitize_slots($$props)` --
+		// each Svelte's own function over the object the component was called with. The entry's is
+		// the payload, which the evaluator binds under a name of its own; an expression reads its
+		// scope through `with`, which binds the keys and not the object, and all three were refused
+		// for want of a name for it.
+		name: 'the whole of what the entry was given',
+		source:
+			'<script>export let a; export let b;</script>' +
+			'<p>{JSON.stringify($$props)}</p><b>{JSON.stringify($$restProps)}</b><i>{a}</i>',
+		data: [{ a: 1, b: 2, c: '<' }, { a: 1 }],
+	},
+	{
 		// `console` reads the same everywhere -- `undefined` -- and what it does instead of returning
 		// is not bytes, so it is one of the names nobody has to think about. Eight of Svelte's
 		// samples log from markup and were refused for reading a name the data does not carry.
@@ -2693,15 +2716,6 @@ const refused: Case[] = [
 		name: 'an `export { }` naming something a pattern binds',
 		says: 'a pattern binds',
 		source: '<script>let { a, b } = { a: 1, b: 2 }; export { a };</script><p>{a}{b}</p>',
-	},
-	{
-		// The legacy spelling of the whole props object. Svelte binds it from the component's own
-		// `$$props`; nothing here can, for the reason a rest cannot -- a derivation reads its scope
-		// through `with`, which binds the payload's keys and not the object. Reachable only since
-		// the entry stopped being rewritten into runes mode, where the name does not exist.
-		name: 'a spread of `$$props`',
-		says: '$$props',
-		source: '<script>export let a;</script><p>{a}</p><b>{JSON.stringify($$props)}</b>',
 	},
 	{
 		// `transform-server.js` passes `analysis.exports` to `$.bind_props` beside the bindable

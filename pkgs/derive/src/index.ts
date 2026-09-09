@@ -1,3 +1,4 @@
+import { GIVEN } from 'ast';
 import { resolve, SCOPED, type Scope } from 'injector';
 
 export type Source = { path: string } | { literal: string };
@@ -158,6 +159,12 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 
 	return (props) => {
 		const out: Scope = { ...props };
+		// The payload itself, under a name nothing an author writes can be: `$$props` is the object
+		// a component was called with, and the entry's is the payload. An expression reads its scope
+		// through `with`, which binds the keys and not the object, so `$$props`, `$$restProps` and a
+		// rest in the entry's `$props()` had nothing to be built from. The derived fields sit beside
+		// the props in `out` and are not part of it, which is why this holds `props` and not `out`.
+		out[GIVEN] = props;
 		if (compiled.length === 0) return out;
 		for (const derivation of compiled) {
 			const bindings = (): Record<string, unknown> =>

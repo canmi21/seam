@@ -38,7 +38,7 @@ export function bundle(entryFile: string, projectRoot: string): Bundle {
 		// Before anything is read out of the markup, every name in it has to come from somewhere.
 		// A local variable and a payload key are indistinguishable by shape, so without this a
 		// component compiles and renders an empty string where the value should be.
-		resolved(source, relative(root, file), file);
+		resolved(source, relative(root, file), file, file === entry);
 
 		const module = reduce(source);
 		const targets: Record<string, string> = {};

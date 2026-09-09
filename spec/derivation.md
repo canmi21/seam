@@ -486,6 +486,24 @@ expression -- `items.includes(item)` is one derivation with the array literal in
 nothing to share, and the array is built again. Holding a declaration rather than substituting it
 is what closes that, and it is the open item under Substitution below.
 
+## The payload itself has a name, for the expressions that need the object
+
+`$$props` is the object a component was called with, `$$restProps` what its declared props left of
+that object, and `$$slots` which slots it was given. `transform-server.js` builds each from
+`$$props`: `sanitize_props($$props)`, `rest_props($$sanitized_props, [named])`,
+`sanitize_slots($$props)` -- each Svelte's own function over the object.
+
+An expression reads its scope through `with`, which binds the payload's **keys** and not the
+object, so all three had nothing to be built from. The evaluator binds the payload under `GIVEN`
+now, a `$$` name nothing an author writes can shadow and Svelte's compiler refuses in markup, which
+is what keeps an expression naming it from being handed back to the render. The three names expand
+to Svelte's own functions over it, which is why the emptying, the symbol handling and the `children`
+and `$$slots` keys are upstream's rather than reproduced.
+
+**The entry only.** A child's `$$props` is what its call site passed, which is a different object --
+the attributes and spreads at the tag, folded the way a rest is -- and building it is the open half.
+Reading one in a child stands as the name it was, which the pass that resolves every name reports.
+
 ## A `$:` that assigns a name is a declaration
 
 `LabeledStatement.js` collects a `$:` and `transform-server.js` puts it at the end of the instance

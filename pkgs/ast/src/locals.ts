@@ -1,6 +1,7 @@
 import { parse } from 'svelte/compiler';
 import { type Edit, type Neutral, apply } from './edits.ts';
 import { chains, destructure, free, isNode, type Node, reads, requested, WRAPS } from './scope.ts';
+import { GIVEN } from './runes.ts';
 
 /**
  * What a component's scripts declare, as source to be substituted into whatever reads it.
@@ -1577,6 +1578,12 @@ export function locals(
 	dynamic?: ReadonlySet<string>,
 	/** The entry's own props, which are the payload rather than declarations. See `declared`. */
 	props: ReadonlySet<string> = new Set(),
+	/**
+	 * The names a caller passes for this component's props, which is what `$$restProps` leaves out.
+	 * `transform-server.js` builds that list from `analysis.exports` aliases and the bindable
+	 * props, so it is the prop's own name rather than the local it was destructured into.
+	 */
+	passed: readonly string[] = [],
 ): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const carried = requested(ast['instance']);
@@ -1699,6 +1706,27 @@ export function locals(
 			// takes the value and unsubscribes -- Svelte's own `store_get` keeps the subscription
 			// until the render tears down, and a derivation has no teardown to hang it on. Where
 			// `foo` is what the request brought, `subscribing()` refuses it instead.
+			// The whole of what a caller passed, which the entry's payload is. `transform-server.js`
+			// writes `$$sanitized_props` as `sanitize_props($$props)` and `$$restProps` as
+			// `rest_props($$sanitized_props, [named])`, and `$$slots` as `sanitize_slots($$props)`;
+			// each is Svelte's own function over the object, and the object is bound under `GIVEN`.
+			// Only for the entry: its object is the payload, bound under `GIVEN`. A child's is what
+			// its call site passed, which is a different object and is refused where it is read.
+			if (bound === undefined && RESERVED.has(name)) {
+				const from = at['start'];
+				const to = at['end'];
+				if (typeof from !== 'number' || typeof to !== 'number') return;
+				if (taken.has(from)) return;
+				const listed = [...passed].map((one) => JSON.stringify(one)).join(', ');
+				const held =
+					name === '$$props'
+						? `(${GIVEN})`
+						: name === '$$slots'
+							? `($$sanitize_slots(${GIVEN}))`
+							: `($$rest_props($$sanitize_props(${GIVEN}), [${listed}]))`;
+				edits.push([from, to, shorthand === true ? `${name}: ${held}` : held]);
+				return;
+			}
 			const store = name.startsWith('$') && !RESERVED.has(name) ? name.slice(1) : null;
 			if (given === undefined && !found.has(name)) {
 				if (store === null || !found.has(store) || settled.has(store)) return;

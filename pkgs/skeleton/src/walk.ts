@@ -4854,6 +4854,9 @@ export function rewrite(
 		undefined,
 		undefined,
 		new Set((entryProps ?? []).filter((one) => one.rest !== true).map((one) => one.local)),
+		// The names the caller passes, which is what `$$restProps` leaves out: a prop's own name
+		// rather than the local it was destructured into.
+		(entryProps ?? []).filter((one) => one.rest !== true).map((one) => one.prop),
 	);
 
 	// A render is given no data, so a declaration reading a prop would evaluate against nothing
@@ -4905,18 +4908,6 @@ export function rewrite(
 			`\`${unnameable.prop}\` is a prop whose name is not an identifier, so nothing can read it ` +
 				'as an expression: a path may hold it, and every derivation this compiler writes is ' +
 				'JavaScript. Give it a name that is one. See spec/refusals.md',
-		);
-	}
-	// `$$props` and `$$restProps` are the legacy spelling of the whole props object and of what a
-	// declared prop left over, and Svelte binds both from `$$props` in the component's own scope.
-	// Nothing here does: a derivation reads its scope through `with`, which binds the payload's keys
-	// and not the object, which is the same reason a rest is refused below. Reachable only since
-	// the entry stopped being rewritten into runes mode, where the names do not exist at all.
-	if (/\$\$(?:rest)?[Pp]rops\b/.test(source)) {
-		refuse(
-			'`$$props` and `$$restProps` are the whole of what a caller passed, and nothing here can ' +
-				'name the payload itself to build one. Name the props the markup reads. ' +
-				'See spec/refusals.md',
 		);
 	}
 	// A rest on the entry is every key the request brought that the pattern did not name, and there

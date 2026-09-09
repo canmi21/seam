@@ -60,7 +60,12 @@ export function filled(baseline: Rewritten, file: string, root: string): void {
 		if (one.styles !== undefined) rest[2] = one.styles;
 		const hole = baseline.holes[one.index];
 		if (hole !== undefined) {
-			hole.expression = `$$attributes(${[one.object, ...rest].join(', ')})`;
+			// The two literals `shared/element.js` pushes after the attributes of a load or error
+			// element carrying a spread. They sit inside what this marker stands for, because the
+			// spread replaced the whole run. See `LOAD_ERROR`.
+			const capture =
+				one.capture === true ? ' + \' onload="this.__e=event" onerror="this.__e=event"\'' : '';
+			hole.expression = `$$attributes(${[one.object, ...rest].join(', ')})${capture}`;
 		}
 	}
 }

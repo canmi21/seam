@@ -25,3 +25,18 @@ export function runesModule(file: string, text: string): string {
 		filename: file,
 	}).js.code;
 }
+
+/**
+ * The name the payload itself is bound under, for the expressions that need the object rather than
+ * its keys.
+ *
+ * `$$props` is the object a component was called with, `$$restProps` what its declared props left
+ * of that object, and a rest in `$props()` the same thing again. An expression reads its scope
+ * through `with`, which binds the keys and not the object, so all three had nothing to be built
+ * from. `$$` is Svelte's own reserved prefix -- `$$props`, `$$slots` -- so nothing an author writes
+ * can shadow it, and Svelte's compiler refuses a `$`-prefixed reference in markup, which is what
+ * keeps an expression naming it from being handed back to the render.
+ *
+ * Written here, where the expressions are written, and read by the evaluator that binds it.
+ */
+export const GIVEN = '$$given';
