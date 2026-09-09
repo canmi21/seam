@@ -8,6 +8,7 @@ import {
 	type Edit,
 	importsOf as importedBy,
 	type Locals,
+	GIVEN,
 	locals,
 	literalOf,
 	mentions,
@@ -5821,17 +5822,6 @@ export function rewrite(
 				'JavaScript. Give it a name that is one. See spec/refusals.md',
 		);
 	}
-	// A rest on the entry is every key the request brought that the pattern did not name, and there
-	// is no name for the payload itself to build one from: a derivation reads its scope through
-	// `with`, which binds the keys and not the object. Left alone it read as a path of its own --
-	// `others.bar` against a payload whose `bar` is at the top -- and wrote nothing.
-	if ((declares ?? []).some((one) => one.rest === true)) {
-		refuse(
-			"a rest in the entry's `$props()` is every key the request brought that the pattern did " +
-				'not name, and nothing here can name the payload itself to gather them. Name the props ' +
-				'the markup reads. See spec/refusals.md',
-		);
-	}
 	/**
 	 * A prop read under a name that is not the request's for it, which is a substitution like any
 	 * other -- and one whose replacement is a bare name, so a read of it stays a path rather than
@@ -5842,6 +5832,23 @@ export function rewrite(
 			.filter((one) => one.rest !== true && one.whole !== true && one.local !== one.prop)
 			.map((one): [string, string] => [one.local, one.prop]),
 	);
+	// A rest on the entry is every key the request brought that the pattern did not name, and the
+	// payload itself is what it is gathered from: `GIVEN` names that object, which the rune branch
+	// in `declared` already binds for a `$props()` given a name rather than destructured. Left
+	// alone the rest read as a path of its own -- `others.bar` against a payload whose `bar` is at
+	// the top -- and wrote nothing.
+	//
+	// `$$slots` and `$$events` are excluded with the named props, and only where there is a rest:
+	// `3-transform/server/visitors/VariableDeclaration.js` splices them into the object pattern
+	// ahead of the rest element for exactly that reason, and leaves a pattern without one alone.
+	const rest = (declares ?? []).find((one) => one.rest === true);
+	if (rest !== undefined) {
+		const named = (declares ?? [])
+			.filter((one) => one.rest !== true && one.whole !== true)
+			.map((one) => JSON.stringify(one.prop));
+		const excluded = [...named, '"$$slots"', '"$$events"'].join(', ');
+		renamed.set(rest.local, `$$exclude_from_object(${GIVEN}, [${excluded}])`);
+	}
 	/**
 	 * The same defaults as the AST nodes they were written as, for the walk to read a component out
 	 * of. A prop's default is the value the request did not send, and the request cannot send a

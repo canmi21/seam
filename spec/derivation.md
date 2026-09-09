@@ -519,6 +519,19 @@ back as "is an illegal variable name" -- so such an expression stays a marker an
 calls the function where the carried bundle has it. Tested by name rather than by the prefix, since
 `$$props`, `$$restProps` and `$$slots` wear it too and those are the render's own to evaluate.
 
+## A rest on the entry is gathered from the payload itself
+
+`let { a, ...others } = $props()` on the entry: `others` is every key the request brought that the
+pattern did not name. A derivation reads its scope through `with`, which binds an object's keys and
+not the object, so there used to be nothing to gather them from and the rest was refused. `GIVEN`
+is that object -- the name a `$props()` given a name rather than destructured already binds -- so
+the rest is `$$exclude_from_object(GIVEN, [...the named props])`, which is the same helper a
+pattern's rest already uses.
+
+**`$$slots` and `$$events` are excluded with them, and only where there is a rest.**
+`3-transform/server/visitors/VariableDeclaration.js` splices those two into the object pattern
+ahead of the rest element for exactly that reason, and leaves a pattern without one alone.
+
 ## A prop's default is a question about the payload, not about the name
 
 `$props()` destructures, so Svelte's answer is JavaScript's: the default is taken where the

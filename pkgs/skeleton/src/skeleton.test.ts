@@ -2252,6 +2252,21 @@ const accepted: Case[] = [
 		props: [{ data: { a: 'x' }, extra: { k: 1 } }, { data: { a: '<&' } }],
 	},
 	{
+		// A rest on the entry is every key the request brought that the pattern did not name, and the
+		// payload itself is what it is gathered from -- `GIVEN` names that object. `$$slots` and
+		// `$$events` are excluded with the named props, and only where there is a rest:
+		// `VariableDeclaration.js` splices them into the object pattern ahead of the rest element
+		// for that reason, and leaves a pattern without one alone.
+		name: "a rest in the entry's `$props()`",
+		source:
+			'<script>const { foo, first = 1, ...others } = $props();</script>' +
+			'{foo} {first} {others.bar} {JSON.stringify(others)}',
+		props: [
+			{ foo: 'f', bar: 'b', extra: 2 },
+			{ foo: '<&', first: 9, bar: '<&' },
+		],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request
@@ -3352,15 +3367,6 @@ const refused: Case[] = [
 		name: 'an entry prop whose name is not an identifier',
 		says: 'not an identifier',
 		source: "<script>let { data, 'kebab-case': k } = $props();</script><p>{k}</p><b>{data.a}</b>",
-	},
-	{
-		// Every key the request brought that the pattern did not name, and a derivation reads its
-		// scope through `with`, which binds the keys and not the object -- so there is nothing to
-		// gather them from. It used to read as a path of its own and write nothing.
-		name: "a rest in the entry's props",
-		says: 'rest in the entry',
-		source:
-			'<script>let { data, ...others } = $props();</script><p>{others.bar}</p><b>{data.a}</b>',
 	},
 	{
 		// A `<select>` carrying a spread goes through `renderer.select` rather than `$.attributes`,
