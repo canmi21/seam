@@ -500,11 +500,11 @@ down.
 against the item above about the render's module instances not being the artifact's, and the
 decision is the same one: what a module-scope binding means when there are two module graphs.
 
-### The 25 that remain, and what closed the rest
+### The 21 that remain, and what closed the rest
 
-Of the twenty-five ranked as needing nobody, nineteen are green, one turned out to be a decision
-rather than a gap, and five want one thing more. The rules that closed them are each written where
-they live:
+Of the twenty-five ranked as needing nobody, twenty-two are green and two turned out to be
+decisions rather than gaps once the detector reached them. One is left, and it is the parked item
+rather than a rule of its own. What closed the rest is written where each rule lives:
 
 - **A test the source has already decided is folded before the walk goes into either branch**, and
   a name read only in the branch that is dropped is not a name the data has to carry. A chain is
@@ -529,24 +529,18 @@ is the by-decision rule wearing the derivation evaluator's message. The rule ask
 changed name is read *by name* in the markup, and none of these is. [conformance.md](conformance.md)
 counts them where they belong.
 
-**Two of the four snippet cases are built and two are not.** A `{#snippet}` written **inside** a
-component's tag is a group of the caller's now, its body what the component renders and its
-parameters bound to the arguments the component calls it with. What is left is a snippet written at
-the **top level** and handed over by name -- `<Kid {foo} />`. It is the same group, and the reading
-is the same, but the declaration is still walked where it stands: which of the two paths it takes
-depends on whether the child can be entered, and that is not known when the declaration is met.
-`snippet-reactive-args` waits on the same thing, its `?:` between two of them.
+**The one left is `spread-component-side-effects`, and it is the parked item.**
+`<Widget {...getProps(foo)} />` over a `getProps` that counts its calls: the spread is written into
+every prop the child declares, so it is evaluated once per prop where the render evaluates it once,
+and each evaluation returns a different `i`. Holding the value once per request rather than writing
+the expression out per read is what closes it -- the same item as the one differing sample, and the
+same item as `destructure-state-iterable`. It is a change to what substitution is, which is why it
+is ranked here and not among the rules above.
 
-**The last five each want one reading that is not yet done.** `const-tag-component` needs the
-literal the render is handed for a prop it models to survive a member read. `bindings-before-onmount`
-needs "the caller's markup never reads this name", which is a reachability question rather than a
-mention. `select-value-implicit-value-complex` needs an `<option>`'s implicit value read off the
-render rather than off the source. `await-mutate-array` and
-`if-block-compound-outro-no-dependencies` both need a test folded where there is no payload to ask
-against. And `globals-accessible-directly-process` is a decision after all: the rule that would let
-a derivation read `process.env` is that a server's globals are the same at build and at request,
-which is true of the *value* and not of when it is read -- an expression judged inert is handed to
-the render, which bakes the build's environment.
+A narrower rule was tried and measured: refusing a spread whose value has to be computed and which
+folds into more than one prop. The expansion parenthesises everything, so the test for "has to be
+computed" caught seven spreads that are pure and cost them their bytes. The distinction that
+matters is whether the call changes anything, which the walk does not know and `locals` does.
 
 ### The 7 where the render threw, and what told the other eight apart
 
