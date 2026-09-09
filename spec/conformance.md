@@ -44,8 +44,8 @@ Three of the outcomes are not failures and saying so once is what keeps the targ
 **Upstream's own skips are out.** 558 samples whose `_config.js` says `skip`, or a `mode` without
 `sync`, or an `error` the sample exists to produce. Not our judgement.
 
-**A refusal by decision is out.** 228 samples: 157 that await in markup or at the top of a script,
-which is async Svelte and the load stage's by the scope line, and 71 whose script changes a value
+**A refusal by decision is out.** 260 samples: 184 that await in markup or at the top of a script,
+which is async Svelte and the load stage's by the scope line, and 76 whose script changes a value
 the markup reads while the bytes are written -- assigned after being declared, or changed by a
 function this render calls -- which is a program per request. [roadmap.md](roadmap.md) holds both
 and neither moves. The count moves as work lands, and upward: a sample that used to be refused for
@@ -61,14 +61,16 @@ render.** Nothing differing, nothing refused as a gap.
 
 ```
                         samples  identical  empty  differs  refused  skipped
-server-side-rendering       131         72      3        0       40       16
-runtime-runes              1048        493     14        1      262      278
-runtime-legacy             1209        733     21        0      190      264
-total                      2388       1298     38        1      492      558
+server-side-rendering       131         76      3        0       36       16
+runtime-runes              1048        513     15        1      241      278
+runtime-legacy             1209        780     21        0      143      264
+total                      2388       1369     39        1      420      558
 ```
 
-Against the target: **1336 of 1602**, with one differing and 264 refused as gaps. One sample fails
-inside the oracle rather than inside either side and is counted apart.
+Against the target: **1408 of 1570**, with one differing and 160 refused as gaps. One sample fails
+inside the oracle rather than inside either side and is counted apart. The 160 are sorted by who
+has to answer them in [roadmap.md](roadmap.md): 76 that need nobody, 68 that wait on a decision,
+and 15 where the compile-time render threw and the reasons have not been told apart.
 
 ### What is left, in the order it should be taken
 
@@ -78,14 +80,14 @@ array literal is built again and `items.includes(item)` is false where Svelte's 
 evaluates the declaration once, says true. Holding a declaration rather than substituting it is
 what closes it, and [roadmap.md](roadmap.md) ranks that.
 
-**24 refusals name no specification file, and that is a defect rather than a gap.**
+**5 refusals name no specification file, and that is a defect rather than a gap.** There were 24.
 [refusals.md](refusals.md) requires a refusal to say where the question lives, and these say
 `deriving ... failed` instead, which happens when the artifact is injected rather than when it is
 built: a real build writes the artifact and the server throws per request, the suite catching it
 only because it injects. Each is its own cause -- a store read, a function inlined whole, a
 `getAllContexts()` outside a render -- and reading them is what turns one label into entries that
-can be ranked. Beside them are the internal errors still escaping, `$state is not defined` among
-them, each a place the compiler met something it did not name.
+can be ranked. Beside them are the internal errors still escaping, each a place the compiler met
+something it did not name; [roadmap.md](roadmap.md) lists the fifteen that are left.
 
 ### When it is done
 

@@ -317,6 +317,122 @@ nothing reads. And a `<svelte:boundary>` whose body throws is caught by Svelte a
 `failed`; here the throw escapes the compile -- which is a decision where the throw depends on the
 request and a gap where it does not, and the two have not been told apart yet.
 
+## The 160 gaps, sorted by who has to answer
+
+The 420 refusals are 260 by decision and 160 gaps; [conformance.md](conformance.md) has the
+arithmetic. Sorting the 160 by their message is misleading, and the way it misleads is worth
+recording before the list: the largest message group is "a name the data does not carry", 34 of
+them, and that is a symptom rather than a cause. It says only that the markup read a name nothing
+recorded, and there are six unrelated reasons a name goes unrecorded. **A group has to be shown to
+be single-cause before it is ranked by size.**
+
+A message can also point away from us. Five samples are refused with Svelte's own error, that an
+`animate:` element must be the only child of a keyed `{#each}`. Every one of them is Svelte's own
+test, so Svelte cannot be failing it: the rewrite drops the key, and Svelte then reports a
+consequence rather than the cause. Where a message is upstream's and the sample is upstream's too,
+the fault is in what was handed to it.
+
+Sorted by cause and then by who has to answer, the 160 are **76 mechanical**, **68 waiting on a
+decision**, **15 where the compile-time render threw and nobody has told the reasons apart**, and
+one refused correctly, `runtime-runes/random`, which reads `Math.random`.
+
+**The 76 need nobody.** Each is a construct whose answer is in Svelte's source and can be read
+forward, or a fault of ours with a probe that shows it: `{@const}` and `DeclarationTag` 15, the
+destructuring a declaration does 10, a spread on a component 5, the dropped each key 5, a
+`<select>` reading `value` off merged attributes 6, a global the name list does not carry 8, the
+derivation evaluator 5, a directive beside a spread 4, `css: 'injected'` in the head 3, a recursive
+body of one block 3, two edits over one span 2, `{#each}` with no `as` 2, a rewrite of ours that
+Svelte then refuses 3, harness faults 4, and a head inside a block 1. None of them moves a line in
+this file, which is why they are counted here and listed nowhere: the suite names them, and the
+name is enough to start.
+
+### The 68 that wait on a decision
+
+Each of these can be built. What none of them can be is built without answering a question that
+outlives it, and the questions are not the same question.
+
+**A component `bind:`, 16.** The mechanism is read out above and it is not in doubt. What is in
+doubt is the IR: the parent's template becomes two passes with the last one subsuming the first,
+and either the IR gains a node that says "take the last pass" or the shape stays refused. That is
+a change to [ir.md](ir.md), not to a visitor.
+
+**A snippet arriving as a value, 12.** A snippet rendered by a file that does not declare it: passed
+as a prop, hoisted into a module script, held in a store, chosen from a nullish test. The walk
+enumerates snippets by their declaration, and following one as a value means the payload carries
+something callable. Whether it does is a question for [payload.md](payload.md), and it is asked
+once for all twelve.
+
+**A child's `$$props`, `$$restProps` and `$$slots`, 9.** The entry's are done -- the payload is
+bound under `GIVEN` -- and a child's is the object its call site passed, which has to be folded out
+of the attributes and the spreads at the tag the way a rest already is. This was tried once and the
+fold was put at the wrong moment, before `order` and `bindings` were known, and reverted rather
+than shipped. The decision is whether the fold belongs at the tag or whether a child gets a slice
+of the payload of its own.
+
+**A value handed to a component that did not come back, 7.** The probe writes a marker in the
+value's place and asks whether the bytes carry it; these are the cases where it does not come back
+and the walk cannot say why. Widening the probe and refusing are both defensible, and which one is
+right depends on how much a false pass costs, which is the question `dead()` already answered once
+in the other direction.
+
+**A component chosen from a request value, 6.** `<svelte:component this={x}>` where `x` is decided
+per request. A structure per candidate is the shape, and the decision is where the candidate set
+comes from and what happens when it cannot be closed. An open set is a compile that does not
+terminate, so this cannot be started without the rule that bounds it.
+
+**A store the request brings, 6.** A store is an object with a `subscribe` function where the
+payload carries data, so a marker handed to `store_get` reads nothing. The decision is not how to
+build it but where it belongs: this may already be excluded by the scope line, in which case these
+six move to **decided, and not built** and stop being gaps.
+
+**`createRawSnippet`, 5.** Abandoned, and recorded here so it is not derived again. Reproducing it
+means standing in for Svelte's renderer contract -- a snippet that is handed a renderer and pushes
+its own trimmed string -- and [refusals.md](refusals.md) says the two backends run Svelte's
+implementation rather than agree on a rule. Reopening it is reopening that.
+
+**A `<svelte:boundary>` whose `failed` body calls over a request value, 4.** The section above says
+a boundary whose body throws is a decision where the throw depends on the request and a gap where
+it does not, and that the two have not been told apart. These four are the request-dependent side,
+and they are here rather than under **decided** because the telling apart has not been written
+down.
+
+**A module script that exports, 3.** `<script module>` exporting a name the template reads. It sits
+against the item above about the render's module instances not being the artifact's, and the
+decision is the same one: what a module-scope binding means when there are two module graphs.
+
+### The 15 where the render threw, and nobody has told them apart
+
+The compile-time render runs the instance script with nothing the request brings. These fifteen
+threw while it did. Some are the sample throwing on purpose -- the error-boundary samples exist to
+be caught -- and some are neutralisation not reaching far enough, which is a fault. **Nothing here
+distinguishes the two, and until something does, the count is not evidence of anything.** Each has
+to be read against its source, after which most should leave this list for one of the two above.
+
+| sample | what escaped |
+| --- | --- |
+| `server-side-rendering/boundary-error-failed-prop` | you are not supposed to see this message |
+| `server-side-rendering/boundary-error-with-onerror` | you are not supposed to see this message |
+| `runtime-runes/error-boundary-26` | undefined |
+| `runtime-runes/error-boundary-27` | undefined |
+| `runtime-runes/error-recovery` | NonExistent is not defined |
+| `runtime-runes/effect-order-6` | Cannot read properties of undefined, reading 'boolean' |
+| `runtime-runes/effect-order-7` | Cannot read properties of undefined, reading 'boolean' |
+| `runtime-runes/snippet-slot-let-error` | Svelte's `invalid_default_snippet` |
+| `runtime-runes/snippet-slot-let-renamed-children-error` | Svelte's `invalid_default_snippet` |
+| `runtime-runes/state-snapshot` | `structuredClone` and a name inside `JSON.stringify` |
+| `runtime-legacy/await-mutate-array` | Promise.resolve(...).filter is not a function |
+| `runtime-legacy/binding-indirect-fn` | Cannot read properties of undefined, reading 'filter' |
+| `runtime-legacy/component-namespace` | LazyWidget.Tooltip is not a function |
+| `runtime-legacy/context-api` | Cannot destructure 'registerTab' of `getContext(...)` |
+| `runtime-legacy/reactive-values-no-implicit-member-expression` | document is not defined |
+
+Four of them name a shape rather than a crash and are worth reading first. The two boundary samples
+say the compile reached a branch Svelte's own render never reaches, which is the same fault class as
+a marker standing where a value decides. `context-api` is context that a component sets and a
+descendant destructures, which the context item above already owns. And `component-namespace` is
+`<Components.Foo />`, listed among the wrong-bytes rows above as a missing anchor pair, so it is one
+construct appearing twice under two different failures.
+
 ## Ready, and not done
 
 **The walk enters a package's component.** Done; [refusals.md](refusals.md) has what it took --
