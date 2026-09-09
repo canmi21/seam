@@ -3473,7 +3473,19 @@ function collect(node: unknown, walk: Walk): void {
 			// path the injector resolves per item, and everything else is a derivation over the
 			// binding, which is what a derivation reading an each's name already is.
 			const held = `$$item${String(index)}`;
+			// What the block binds stands for itself and not for a declaration of the same name.
+			// Svelte's server writes `let a = each_array[i]` inside the loop, which shadows the `let
+			// a` in the instance script the way any block-scoped declaration does, and
+			// `{#each a as a}` wrote the array's own initialiser at every read without it.
 			const apart = new Map<string, string>();
+			if (
+				isNode(pattern) &&
+				pattern['type'] === 'Identifier' &&
+				typeof pattern['name'] === 'string'
+			) {
+				apart.set(pattern['name'], pattern['name']);
+			}
+			if (typeof node['index'] === 'string') apart.set(node['index'], node['index']);
 			if (destructured && isNode(pattern)) {
 				// The pattern stays in the render, over the one element it iterates, so nothing in it
 				// may evaluate. A default is JavaScript's, read out of `EachBlock.js`: the server

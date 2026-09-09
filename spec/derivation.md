@@ -407,6 +407,12 @@ The cost is that an array pattern's names are derivations rather than paths, one
 item. An object pattern's stay paths, `$$item0.a` resolving per item as binding the name directly
 used to, and an object pattern is what an each destructures nearly always.
 
+**What a block binds shadows a declaration of the same name.** Svelte's server writes
+`let a = each_array[i]` inside the loop, which is block-scoped and shadows the `let a` in the
+instance script the way any declaration does, so `{#each a as a}` reads the item and not the array.
+The name stands for itself in the body, which is what the walk carries down; without it every read
+of `a` was written as the array's own initialiser.
+
 An each block's context is the one of the four whose value is not an expression this pass holds: it
 is the element, bound per item by the runtime. So the block binds the element under a name of its
 own -- `$$item` and the block's number, `$$` being Svelte's reserved prefix and the number keeping

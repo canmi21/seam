@@ -300,6 +300,16 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// Svelte's server writes `let a = each_array[i]` inside the loop, so what the block binds
+		// shadows a declaration of the same name the way any block-scoped declaration does. Without
+		// that, `{#each a as a}` wrote the array's own initialiser at every read of `a`.
+		name: 'an each whose binding shadows a declaration of the same name',
+		source:
+			"<script>let { data } = $props(); let a = ['x', 'y']; let i = 9;</script>" +
+			'{#each a as a, i}<li>{a}{i}</li>{/each}<p>{data.k}</p>',
+		data: [{ k: '1' }, { k: '<' }],
+	},
+	{
 		name: 'an each over an object pattern, with an index',
 		source: `${PROPS}{#each data.rows as { id, label }, at}<i>{at}:{id}:{label}</i>{/each}`,
 		data: [
