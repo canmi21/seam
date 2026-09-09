@@ -348,6 +348,22 @@ function declared(
 						}
 						continue;
 					}
+					// The three runes a declaration lets through to the visitor that answers them where
+					// they stand. `VariableDeclaration.js` names them and no others:
+					//
+					//     if (!rune || rune === '$effect.tracking' || rune === '$inspect' ||
+					//         rune === '$effect.root') { declarations.push(visit(declarator)); continue }
+					//
+					// Every other rune in a declaration is its first argument, or `void 0` where it has
+					// none -- which is why `const n = $effect.pending()` holds `undefined` there and `0`
+					// in an expression. The answer is the same rule read in two places, not one rule.
+					if (rune !== null && FALLS_THROUGH.has(rune) && id['type'] === 'Identifier') {
+						const answer = ANSWERED[rune];
+						if (typeof id['name'] === 'string' && answer != null) {
+							record(id['name'], id, { literal: answer, reads: false });
+						}
+						continue;
+					}
 					if (rune !== null) {
 						const suffix = SUBSTITUTED[rune];
 						const argument = Array.isArray(init['arguments']) ? init['arguments'][0] : undefined;
@@ -780,6 +796,19 @@ const ANSWERED: Record<string, string | null> = {
 	'$state.raw': null,
 	'$state.eager': null,
 };
+
+/**
+ * The runes a declaration lets through to the `CallExpression` visitor that answers them.
+ *
+ * `VariableDeclaration.js` names these three and no others; every other rune in a declaration is
+ * its first argument, or `void 0` where it has none. So `$effect.pending()` is `0` in an expression
+ * and `undefined` in a declaration, which is one rule read in two places rather than two rules.
+ */
+const FALLS_THROUGH: ReadonlySet<string> = new Set([
+	'$effect.tracking',
+	'$inspect',
+	'$effect.root',
+]);
 
 /** Every rune call in a node, innermost last, with the rune it names. */
 function answered(node: unknown, at: (one: Node, rune: string) => void): void {

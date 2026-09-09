@@ -633,6 +633,22 @@ different part of it, so writing one name's value there is wrong; for a declarat
 value directly the two are the same text. That is what lets a destructured declaration be left as
 written where nothing it reads varies, the way a plain one already was.
 
+## A rune in a declaration is answered by a different visitor
+
+`VariableDeclaration.js` on the server lets three runes through to the `CallExpression` visitor
+that answers them where they stand, and no others:
+
+```js
+if (!rune || rune === '$effect.tracking' || rune === '$inspect' || rune === '$effect.root') {
+	declarations.push(context.visit(declarator));
+	continue;
+}
+```
+
+Every other rune in a declaration is its first argument, or `void 0` where it has none. So
+`$effect.pending()` holds `0` in an expression and `undefined` in a declaration -- one rule read in
+two places rather than two rules, and the difference is which visitor sees the call.
+
 ## A rune in an expression is written as what the server answers it with
 
 A rune is compiled away by Svelte and exists nowhere at run time, so an expression holding one

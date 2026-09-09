@@ -1532,6 +1532,18 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// `VariableDeclaration.js` lets exactly three runes through to the visitor that answers them
+		// where they stand -- `$effect.tracking`, `$inspect` and `$effect.root` -- and every other
+		// rune in a declaration is its first argument or `void 0`. So `$effect.pending()` holds `0`
+		// in an expression and `undefined` in a declaration, which is the same rule read in two
+		// places. Without this the name went unrecorded and the markup reading it was refused.
+		name: 'a declaration whose initialiser is a rune the server answers',
+		source:
+			'<script>let { data } = $props(); const here = $effect.tracking();' +
+			' const stop = $effect.root(() => {});</script><p>{here}|{typeof stop}|{data.a}</p>',
+		data: [{ a: 'v' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
