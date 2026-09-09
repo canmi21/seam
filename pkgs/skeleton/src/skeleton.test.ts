@@ -2129,6 +2129,20 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// The payload carries data and no function -- spec/payload.md -- so a component never comes
+		// off the wire, and the only component a `this` the request decides can hold is the one the
+		// source itself names. That bounds the choice to two outcomes, the component and nothing,
+		// which is what Svelte's server writes: `build_inline_component` compiles the tag to
+		// `if (X) { BLOCK_OPEN; X(...); } else { BLOCK_OPEN_ELSE; }`. The `&&` is what makes the
+		// truthy side exactly the import. See spec/roadmap.md.
+		name: 'a dynamic component the request decides, named beside an `&&`',
+		beside: { Wid: '<script>export let v;</script><i>W{v}</i>' },
+		source:
+			"<script>import Wid from './Wid.svelte'; export let flag = true; export let n = 1;</script>" +
+			'<svelte:component this={flag && Wid} v={n} /><p>after</p>',
+		props: [{ flag: true, n: 2 }, { flag: false, n: 3 }, {}],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request

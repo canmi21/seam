@@ -2011,9 +2011,38 @@ goes through the same `build_inline_component`, dynamic, so the tag is rewritten
 expression expanded -- what the name stands for, with every fixed path a literal -- for Svelte to
 evaluate. A tag naming a plain `const` is not dynamic and is not rewritten. `<svelte:component
 this={...}>` written by the author is the same call and is settled the same way. One whose
-expression reaches the request is a component chosen per request, which is a structure that is not
-enumerable, and is refused by name; the article route's switcher is that, being given the
-article's own language, and declaring `data.meta.lang` a domain is what would enumerate it.
+expression reaches the request is a component chosen per request, and the paragraph below says
+what that is.
+
+**A component the request chooses has one candidate, because the payload carries no function.**
+This read as an open enumeration and it is not one. [payload.md](payload.md) records the decision:
+the wire is devalue's `stringify`, which serialises data, so a component -- a function -- never
+comes off it. The only component `this` can hold is one the source itself names, and the choice
+has two outcomes, that component and nothing at all.
+
+So the tag is a block with two branches, the alternate writing no bytes. **The tag stays**, and
+only `this` is a choice: the anchors here are `BLOCK_OPEN` and `BLOCK_OPEN_ELSE`, `<!--[-->` and
+`<!--[!-->`, and not the numbered pair an `{#if}` writes -- measured -- so rewriting it into an
+`{#if}` before the walk would change the bytes. Svelte writes its own anchors on both sides
+because it is still the same tag, which is the shape `{#await}` already uses for its expression.
+
+The candidate is read off the value positions of the expression: the right of an `&&`, either side
+of a `||`, a `??` or a `?:`. A component named anywhere else is not what the expression evaluates
+to, and two positions naming different components is a choice wider than one candidate; neither is
+one of these. The name has to be the import and not a nearer binding of it -- `{:then { Component
+}}` beside `import Component from './Component.svelte'` is one name and two things -- which the
+walk already knows, a bound name being substituted where an import is left as written.
+
+The test asks only whether the value is something, so each component the expression names stands
+for `true` in it. That is what every component is, a function being truthy, and it is also what
+leaves the test evaluable: the carried bundle drops a component on purpose, so the name is not
+there for a derivation to read.
+
+**What is given up is a page that cannot work either way.** A request that sends a truthy value
+that is not a component renders nothing: Svelte calls it and throws. There are no bytes to
+reproduce, so the artifact renders the candidate. Where the source names no component at all --
+`this={theValue}` off an `{#await}` over a prop -- there is no candidate and the tag is refused,
+saying that the component the page renders is the one the request sent.
 
 **A lookup in a table of components has its domain in the table.** `ICONS[data.k]` with `const
 ICONS = { a: Ay, b: Bee }` chooses per request, and the keys it chooses among are in the source. So

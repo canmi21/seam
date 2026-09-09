@@ -655,13 +655,24 @@ export function rename(
 	 * declaration, or `<svelte:component this={...}>` itself, whose `this` span is given. Either
 	 * stays dynamic in the render, so the anchors Svelte writes around one stay too.
 	 */
-	dynamic?: { expression: [number, number] | null },
+	dynamic?: {
+		expression: [number, number] | null;
+		/**
+		 * Set where the `this` span is an edit somebody else owns: a choice, whose taken text is the
+		 * copy's name and whose other branch renders nothing. Two edits over the same characters is
+		 * a mistake rather than a case to resolve, so the name goes through this instead of beside
+		 * it. See `rechose()` in walk.ts.
+		 */
+		rewritten?: (fresh: string) => void;
+	},
 ): void {
 	const [from, to] = [node['start'], node['end']];
 	if (typeof from !== 'number' || typeof to !== 'number') return;
 	const fresh = `${tag.replaceAll('.', '_')}$${String(ordinal)}`;
 	const text = walk.source.slice(from, to);
-	if (dynamic?.expression) {
+	if (dynamic?.rewritten !== undefined) {
+		dynamic.rewritten(fresh);
+	} else if (dynamic?.expression) {
 		walk.edits.push([dynamic.expression[0], dynamic.expression[1], fresh]);
 	} else {
 		// A member tag, `Kit.Root`, is one name once it is a copy's import -- and it stays a
