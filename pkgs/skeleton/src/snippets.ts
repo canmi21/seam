@@ -38,6 +38,23 @@ export interface Snippet {
 	/** Every `{@render}` that calls it, so a call inside its own body can be told from one outside. */
 	calls: AstNode[];
 	/**
+	 * Whether some site in this component may render it without naming it unambiguously.
+	 *
+	 * Svelte's own model, read out of `2-analyze`: `analysis.snippet_renderers` maps each **site**
+	 * -- a render tag, and a component tag, both of which render snippets -- to whether it resolves
+	 * to a particular declaration, and `index.js` then writes `node.metadata.snippets =
+	 * analysis.snippets` for one that does not. `is_resolved_snippet` is the test: a binding that
+	 * is an import, a prop, or a `{#snippet}` resolves, and anything else -- a `$derived` holding
+	 * one of two snippets -- does not.
+	 *
+	 * A component tag resolves through its attributes: `shared/component.js` adds the snippet a
+	 * `foo={bar}` names to the tag's set, and a spread or a `bind:` makes the tag unresolved.
+	 *
+	 * This compiler counted only the render tags whose callee is a name it declares, so a snippet
+	 * handed over as `<Kid {foo} />`, or reached through a `$derived`, read as one nobody renders.
+	 */
+	maybe?: true;
+	/**
 	 * The declaration, so its body can be walked where it is rendered rather than where it sits.
 	 *
 	 * Svelte declares a snippet as a function and inlines nothing: the body writes its bytes at the
@@ -107,8 +124,25 @@ export function supplied(node: AstNode): ReadonlySet<string> | null {
  * index, so where it comes back is not where it was written.
  */
 export function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = false): void {
+	const sites = { unresolved: false, named: new Set<string>() };
+	collecting(node, into, inside, sites);
+	// A site that names no particular declaration renders any of them, which is what
+	// `analysis.snippets` on an unresolved renderer says. A name a component tag was handed renders
+	// that one. Either way the snippet is not one nobody renders. See `Snippet.maybe`.
+	for (const [named, one] of into) {
+		if (!one.declared) continue;
+		if (sites.unresolved || sites.named.has(named)) one.maybe = true;
+	}
+}
+
+function collecting(
+	node: unknown,
+	into: Map<string, Snippet>,
+	inside: boolean,
+	sites: { unresolved: boolean; named: Set<string> },
+): void {
 	if (Array.isArray(node)) {
-		for (const one of node) snippetsIn(one, into, inside);
+		for (const one of node) collecting(one, into, inside, sites);
 		return;
 	}
 	if (!isNode(node)) return;
@@ -145,6 +179,12 @@ export function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = f
 	if (node['type'] === 'RenderTag') {
 		const call = called(node['expression']);
 		const name = renders(node);
+		// `is_resolved_snippet` in `2-analyze/visitors/shared/snippets.js`: a callee that is not a
+		// plain reference names no particular declaration, and neither does one whose name nothing
+		// here declares -- a `$derived` holding one of two snippets is that. Svelte then links the
+		// site to every snippet in the component, and so does this. See `Snippet.maybe`.
+		if (name === null) sites.unresolved = true;
+		else sites.named.add(name);
 		if (call !== null && name !== null) {
 			const one = into.get(name) ?? {
 				declared: false,
@@ -161,9 +201,34 @@ export function snippetsIn(node: unknown, into: Map<string, Snippet>, inside = f
 			into.set(name, one);
 		}
 	}
+	// A component tag renders snippets too: `shared/component.js` adds the one a `foo={bar}` names
+	// to the tag's set, and a spread or a `bind:` leaves the tag naming none in particular.
+	if (node['type'] === 'Component' || node['type'] === 'SvelteComponent') {
+		for (const attribute of Array.isArray(node['attributes']) ? node['attributes'] : []) {
+			if (!isNode(attribute)) continue;
+			if (attribute['type'] === 'SpreadAttribute' || attribute['type'] === 'BindDirective') {
+				sites.unresolved = true;
+				continue;
+			}
+			const held = attributeName(attribute);
+			if (held !== null) sites.named.add(held);
+		}
+	}
 	// Inside a component's tag, a snippet is a prop rather than something this component renders.
 	const within = inside || node['type'] === 'Component' || node['type'] === 'SvelteComponent';
-	for (const value of Object.values(node)) snippetsIn(value, into, within);
+	for (const value of Object.values(node)) collecting(value, into, within, sites);
+}
+
+/** The bare name an attribute's value is, where it is one: `{foo}` or `bar={foo}`. */
+function attributeName(attribute: AstNode): string | null {
+	if (attribute['type'] !== 'Attribute') return null;
+	const parts = Array.isArray(attribute['value']) ? attribute['value'] : [attribute['value']];
+	if (parts.length !== 1) return null;
+	const [only] = parts;
+	if (!isNode(only) || only['type'] !== 'ExpressionTag') return null;
+	const held = only['expression'];
+	if (!isNode(held) || held['type'] !== 'Identifier') return null;
+	return typeof held['name'] === 'string' ? held['name'] : null;
 }
 
 /**

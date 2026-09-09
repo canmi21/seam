@@ -2354,6 +2354,22 @@ const accepted: Case[] = [
 		props: [{ a: 'x' }],
 	},
 	{
+		// A component tag renders snippets too. `2-analyze` keeps `analysis.snippet_renderers` over
+		// **sites** -- a render tag and a component tag both are one -- and `shared/component.js`
+		// adds the snippet a `foo={bar}` names to the tag's set. Counting only the render tags whose
+		// callee is a name this file declares made a snippet handed over as `<Kid {foo} />` read as
+		// one nobody renders.
+		// The body is the component's to write here, and nothing in it is the request's: the walk
+		// leaves it, which is the same answer an inert value handed over already gets. One reading
+		// the request needs the body walked where the component calls it, and that is refused.
+		name: 'a snippet handed to a component by name',
+		beside: { Kidder: '<script>let { foo } = $props(); let n = 3;</script>{@render foo(n)}' },
+		source:
+			"<script>import Kidder from './Kidder.svelte'; let { data } = $props();</script>" +
+			'{#snippet foo(v)}<p>v={v}</p>{/snippet}<Kidder {foo} /><b>{data.a}</b>',
+		data: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request

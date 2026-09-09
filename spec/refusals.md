@@ -638,6 +638,19 @@ rewritten markup by the time the render sees it, and the render is handed nothin
 pattern would come apart from. Destructuring that threw; binding the whole of it under a name
 nobody reads does not.
 
+**Which snippets a component renders is a question about sites, and Svelte keeps the list.**
+`analysis.snippet_renderers` in `2-analyze` maps each **site** to whether it resolves to a
+particular declaration -- and a site is a render tag *or a component tag*, both of which render
+snippets. `index.js` then writes `node.metadata.snippets = analysis.snippets` for a site that does
+not resolve, linking it to every snippet in the component. `is_resolved_snippet` is the test: an
+import, a prop, or a `{#snippet}` resolves; anything else, a `$derived` holding one of two snippets
+among them, does not. A component tag resolves through its attributes -- `shared/component.js` adds
+the snippet a `foo={bar}` names to the tag's set, and a spread or a `bind:` leaves it naming none.
+
+This compiler counted only the render tags whose callee is a name the file declares, so a snippet
+handed over as `<Kid {foo} />`, or reached through a `$derived`, read as one nobody renders and was
+refused for taking parameters. The model here is upstream's now.
+
 **A `{#snippet}` written inside a component's tag is a group of the caller's like any other.**
 It is the modern spelling of `<svelte:fragment slot="x" let:...>` and `build_inline_component` puts
 both in the same place, so it is grouped under its own name rather than folded into the default

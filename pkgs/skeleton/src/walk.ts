@@ -4236,7 +4236,7 @@ function collect(node: unknown, walk: Walk): void {
 			// rendered source for `renderer.boundary` to find. Nothing here renders it, which is what
 			// the refusal below is about, so it is named apart from it.
 			if (named === 'failed' && walk.boundary === true) return;
-			if (one === undefined || one.renders === 0) {
+			if (one === undefined || (one.renders === 0 && one.maybe !== true)) {
 				// Written inside a component's tag, so it is a prop that component receives: the child
 				// decides when to call it and with what, and neither is visible from here. One with no
 				// parameters has nothing to decide and already works, which is what `children` is.
