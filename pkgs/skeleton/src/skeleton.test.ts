@@ -2870,6 +2870,18 @@ const refused: Case[] = [
 			'{#if item.sub}<svelte:self data={{ tree: item.sub }} />{/if}</div>{/each}',
 	},
 	{
+		// Svelte catches what a boundary's body throws and writes the `failed` snippet instead, so
+		// where the body calls the author's code over a value the request brings, which of the two
+		// shapes reaches the bytes is the request's answer. It threw at injection instead -- a
+		// refusal arriving per request, which is the whole of what `deriving ... failed` is.
+		name: 'a boundary whose body calls over a request value',
+		says: 'a `<svelte:boundary>` with a `failed` snippet',
+		source:
+			'<script>let { data } = $props(); function search(q) { throw new Error(q); }</script>' +
+			'<svelte:boundary><p>{search(data.q)}</p>' +
+			'{#snippet failed(e)}<i>{e.message}</i>{/snippet}</svelte:boundary>',
+	},
+	{
 		// The render's module instances are not the artifact's. An expression the walk judges inert
 		// is handed back for Svelte to evaluate in the render, which imports the module afresh; a
 		// derivation evaluates in the carried bundle, which imported it once. Where the module holds

@@ -499,6 +499,22 @@ holding a value came out with their contents swapped, silently. Refused rather t
 numbered around, because there is nothing to escape into -- the bytes are the protocol, and a
 component writing the protocol's own shape is a collision to name.
 
+**A `<svelte:boundary>` with a `failed` snippet whose body calls over a request value.** Svelte
+catches what the body throws and writes that snippet instead of it, so which of the two shapes
+reaches the bytes is the request's answer rather than one shape. It threw at injection instead --
+`{search(query)}` with `search` throwing is four of Svelte's samples, all of them
+`deriving ... failed`, a refusal arriving per request.
+
+A call over a request value, not any marker: `{data.a}` reads the payload and cannot throw in the
+way the snippet is there for, and refusing it would refuse the ordinary boundary. A body that only
+reads keeps the shape it had, which is the one the render wrote.
+
+**A subscription to a store the request brings is asked at every decision, not only where a value
+is handed to a component.** `{#if $condition}` over a prop declared `writable(true)` is the same
+unknowable as one handed over, and it reached the evaluator as a bare `$condition`. The test needs
+a `$name` to be written for there to be one: `mentions` answers yes to anything it cannot parse,
+which is the safe answer where it decides whether a value is a marker and the wrong one here.
+
 **A read of module state something in that module changes.** The render's module instances are not
 the artifact's: an expression the walk judges inert is handed back for Svelte to evaluate in the
 render, which imports the module afresh, while a derivation evaluates in the carried bundle, which

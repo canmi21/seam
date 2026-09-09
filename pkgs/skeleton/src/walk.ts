@@ -1996,6 +1996,10 @@ function varies(expression: string, walk: Walk): boolean {
 	// One of Svelte's own functions this compiler carries is not a name the render can be handed:
 	// Svelte's compiler refuses a `$`-prefixed variable in markup outright. See `carries()`.
 	if (carries(expression)) return true;
+	// A subscription to a store the request brings. Asked here rather than only where a value is
+	// handed to a component the walk could not enter: `{#if $condition}` over a prop declared
+	// `writable(true)` is the same unknowable and reached the evaluator as a bare `$condition`.
+	subscribing(expression, walk);
 	// A context read where something in this walk set one from a value the request decides. Neither
 	// `getContext` nor the key is a name the request decides, so this would be handed to the render
 	// -- which holds the neutralised value the `setContext` was given there. Refused rather than
@@ -2291,6 +2295,10 @@ function slotOf(node: AstNode): string | null {
  * the render evaluates Svelte's own call. See spec/derivation.md.
  */
 function subscribing(expression: string, walk: Walk): void {
+	// A `$name` has to be written for there to be one. `mentions` answers "yes" for anything it
+	// cannot parse, which is the safe answer where it decides whether a value is a marker and the
+	// wrong one here: a class built from a spread is unreadable to it and holds no subscription.
+	if (!/(?:^|[^\w$])\$[A-Za-z_]/.test(expression)) return;
 	const subscribed = new Set([...walk.dynamic].map((one) => `$${one}`));
 	if (subscribed.size === 0 || !mentions(expression, subscribed)) return;
 	refuse(
@@ -3658,11 +3666,17 @@ function collect(node: unknown, walk: Walk): void {
 			// Read out of `3-transform/server/visitors/SvelteBoundary.js`. On the server a boundary
 			// is one shape, not a decision: `<!--[-->`, its children, `<!--]-->` -- or, given a
 			// `pending` snippet, `<!--[!-->`, that snippet's body, `<!--]-->` and none of the
-			// children, because a synchronous render is pending by definition. The `failed` snippet
-			// is never written: nothing throws during a render this compiler accepts, and if it did
-			// the hole check would say so. So there is no block here. The anchors are a pair the
-			// assembler copies as bytes, the way it copies a package component's own, and what is
-			// inside them is walked as anything else is. See spec/refusals.md.
+			// children, because a synchronous render is pending by definition. So there is no block
+			// here. The anchors are a pair the assembler copies as bytes, the way it copies a
+			// package component's own, and what is inside them is walked as anything else is.
+			//
+			// **The `failed` snippet is a decision where the body calls over a request value.** Svelte
+			// catches what the body throws and writes that snippet instead, and a marker stands for
+			// a value the request brings -- so whether it throws is the request's answer, and which
+			// of the two shapes is written is not one shape. It threw at injection instead, which
+			// is a refusal arriving per request: `<svelte:boundary><p>{search(query)}</p>` with
+			// `search` throwing is four of Svelte's samples. Where nothing in the body is a marker
+			// the render's own answer is the request's, and that stays. See spec/refusals.md.
 			// `pending={p}` and `failed={f}` were written as the tag form before this walk read the
 			// file, or refused there. See `boundaries()` in snippets.ts.
 			const fragment = node['fragment'];
@@ -3680,8 +3694,24 @@ function collect(node: unknown, walk: Walk): void {
 				step(pendingSnippet['body']);
 				return;
 			}
+			const before = holes.length;
 			for (const child of children) {
 				if (!snippetNamed(child, 'failed')) step(child);
+			}
+			// A call over a value the request brings, not any marker. `{data.a}` reads the payload and
+			// cannot throw in the way the snippet is there for, and refusing it would refuse the
+			// ordinary boundary; `{search(query)}` runs the author's code over what the request sent,
+			// which is where the throw the snippet catches comes from.
+			const throws = holes
+				.slice(before)
+				.some((one) => /[\w$)\]]\s*\(/.test(one.expression) && mentions(one.expression, dynamic));
+			if (children.some((child) => snippetNamed(child, 'failed')) && throws) {
+				refuse(
+					'a `<svelte:boundary>` with a `failed` snippet, whose body calls something over a value ' +
+						'the request brings. Svelte writes that snippet instead of the body where the body ' +
+						"throws, so which of the two shapes reaches the bytes is the request's answer " +
+						'rather than one shape. See spec/refusals.md',
+				);
 			}
 			return;
 		}
