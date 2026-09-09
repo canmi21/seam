@@ -2329,6 +2329,19 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '<&' }],
 	},
 	{
+		// A test the render answers may read a store this file makes. `varies` says a `$store` cannot
+		// be handed to the render, and that is about the **expansion**, which names helpers the
+		// render has not got -- an ask is written as the author's own source, which it evaluates
+		// natively. And a test after the one that answered is never evaluated, so the names in it
+		// are not names the data has to carry.
+		name: 'a chain over a store this file makes, whose later test never runs',
+		source:
+			"<script>import { writable } from 'svelte/store'; export let a;" +
+			' const on = writable(true);</script>' +
+			'{#if $on}<p>yes</p>{:else if missing()}<p>no</p>{/if}<p>{a}</p>',
+		props: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request

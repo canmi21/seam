@@ -635,6 +635,17 @@ the walk runs again told, so the branch the answer excludes is folded on that se
 on the first. Checking the names on the first reported one that lives in markup no request reaches,
 a pass before the walk knew it.
 
+**A test may read a store this file makes.** `varies` answers that a `$store` read cannot be handed
+to the render, and that is about the **expansion**: it names helpers -- `$$get_store` -- the render
+has not got. An ask is not the expansion. `asWritten` gives the render the author's own source,
+which it evaluates natively, and the derivation still holds the expansion, whose helpers the carried
+bundle has.
+
+**A test after the one that answered is never evaluated**, so the names in it are not names the data
+has to carry, and it is blanked with the branch it opens. One before it was evaluated and its names
+still have to resolve. The blank is a `0` and then spaces rather than spaces alone, because
+`{:else if      }` does not parse where `{:else if 0     }` does.
+
 **A chain is decided as soon as its first not-false test is answered.** `{#if a}{:else if b}` is
 two tests Svelte evaluates in order until one is true, so `b` is reached only where `a` was false.
 Waiting for every answer before folding kept the block a decision -- and the ask for a test is

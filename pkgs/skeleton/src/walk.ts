@@ -2167,6 +2167,11 @@ function oneBranch(
 		const at = span(one['test']);
 		if (at !== null) edits.push([at[0], at[1], branch === chosen ? 'true' : 'false']);
 		if (branch !== chosen) buried(walk, one['consequent']);
+		// A test after the one that answered is never evaluated: the chain stops at the first true.
+		// One before it was evaluated and its names have to resolve, so only the later ones go --
+		// `{#if $foo}blah{:else if bar()}` over a store holding `true` is that, and `bar` is a name
+		// upstream's own sample never binds.
+		if (chosen >= 0 && branch > chosen && at !== null) dies(walk, at);
 	}
 	if (chosen >= 0) step(chain[chosen]?.['consequent']);
 	else if (isNode(otherwise)) step(otherwise);
@@ -2181,10 +2186,15 @@ function buried(walk: Walk, fragment: unknown): void {
 	const [first] = spans;
 	const last = spans[spans.length - 1];
 	if (first === undefined || last === undefined) return;
+	dies(walk, [first[0], last[1]]);
+}
+
+/** One span of this file's source that no request reaches. See `Walk.dead`. */
+function dies(walk: Walk, at: [number, number]): void {
 	const key = relative(walk.site.root, walk.site.file);
 	const held = walk.dead.get(key);
-	if (held === undefined) walk.dead.set(key, [[first[0], last[1]]]);
-	else held.push([first[0], last[1]]);
+	if (held === undefined) walk.dead.set(key, [at]);
+	else held.push(at);
 }
 
 function settled(expression: string, walk: Walk): string {
@@ -2400,10 +2410,22 @@ function unstable(walk: Walk): ReadonlySet<string> {
 /** Whether an expression reads a context, which is a channel this walk does not follow. */
 const READS_CONTEXT = /\bget(?:All)?Contexts?\b/;
 
-function varies(expression: string, walk: Walk): boolean {
+function varies(
+	expression: string,
+	walk: Walk,
+	/**
+	 * Set where the render is given the author's own source rather than this expansion.
+	 *
+	 * A test the render answers is written into the script by `asWritten`, which is the source as
+	 * the author wrote it -- so `$foo` over a store this file makes is a question the render can
+	 * answer, where the expansion naming `$$get` is not something it could be handed. The
+	 * derivation still holds the expansion, and the carried bundle has those helpers in it.
+	 */
+	written = false,
+): boolean {
 	// One of Svelte's own functions this compiler carries is not a name the render can be handed:
 	// Svelte's compiler refuses a `$`-prefixed variable in markup outright. See `carries()`.
-	if (carries(expression)) return true;
+	if (!written && carries(expression)) return true;
 	// A subscription to a store the request brings. Asked here rather than only where a value is
 	// handed to a component the walk could not enter: `{#if $condition}` over a prop declared
 	// `writable(true)` is the same unknowable and reached the evaluator as a bare `$condition`.
@@ -4675,7 +4697,7 @@ function collect(node: unknown, walk: Walk): void {
 			if (
 				site.payload !== null &&
 				walk.asking !== true &&
-				tests.every((test) => !varies(test, walk) && !site.mute.has(test))
+				tests.every((test) => !varies(test, walk, true) && !site.mute.has(test))
 			) {
 				const answers = tests.map((test) => site.decided.get(test));
 				const at = reached(answers);

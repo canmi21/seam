@@ -378,12 +378,19 @@ export function expressionsOf(rendered: Skeleton): { expression: string; files: 
  * Here rather than in the compiler so that the check gathers with the function the build gathers
  * with, over the same holes.
  */
-/** The source with a span replaced by spaces, so every offset outside it is where it was. */
+/**
+ * The source with each span replaced, keeping every offset outside it where it was.
+ *
+ * A `0` and then spaces rather than spaces alone: a span may be a test as well as a fragment, and
+ * `{:else if      }` does not parse where `{:else if 0     }` does. In markup the `0` is a text
+ * node reading no names, which is what this is asked about.
+ */
 function blanked(source: string, spans: readonly [number, number][]): string {
 	if (spans.length === 0) return source;
 	let held = source;
 	for (const [from, to] of spans) {
-		held = held.slice(0, from) + ' '.repeat(to - from) + held.slice(to);
+		if (to <= from) continue;
+		held = held.slice(0, from) + `0${' '.repeat(to - from - 1)}` + held.slice(to);
 	}
 	return held;
 }
