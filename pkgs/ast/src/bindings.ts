@@ -549,6 +549,20 @@ function reached(ast: Node, source: string, from: ReadonlySet<string>, into: Unr
 		const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
 		for (const statement of body) {
 			if (!isNode(statement)) continue;
+			// A `$:` that assigns is a declaration too, and its right-hand side is the initialiser.
+			// `$: props = omit($$props, 'value')` is the shape that found this.
+			if (statement['type'] === 'LabeledStatement') {
+				const label = statement['label'];
+				const held = statement['body'];
+				const assign =
+					isNode(held) && held['type'] === 'ExpressionStatement' ? held['expression'] : undefined;
+				if (!isNode(label) || label['name'] !== '$' || !isNode(assign)) continue;
+				if (assign['type'] !== 'AssignmentExpression') continue;
+				const names = new Set<string>();
+				bound(assign['left'], names);
+				for (const name of names) inits.set(name, assign['right']);
+				continue;
+			}
 			const declaration =
 				statement['type'] === 'ExportNamedDeclaration' ? statement['declaration'] : statement;
 			if (!isNode(declaration) || declaration['type'] !== 'VariableDeclaration') continue;

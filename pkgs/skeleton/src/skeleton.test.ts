@@ -1444,6 +1444,19 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// `build_element_attributes` has an arm for a spread, an attribute, a `class:`, a `style:` and
+		// an attachment, and nothing else: a `use:`, a `transition:` and an `on:` fall past all of
+		// them and write nothing. So a spread beside one merges exactly what it would have merged
+		// without it, and the shorthand is the variable of that name -- `build_attr_style` writes
+		// `b.id(directive.name)`, read from just past `style:` in the source, the same way the pass
+		// that has no spread beside it reads one.
+		name: 'a client-only directive and a `style:` shorthand beside a spread',
+		source:
+			'<script>let { data } = $props(); const focus = () => {}; const color = "red";</script>' +
+			'<input {...{ name: data.a }} use:focus onfocus={() => {}} style:color />',
+		data: [{ a: 'v' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.

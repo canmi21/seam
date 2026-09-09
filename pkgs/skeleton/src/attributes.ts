@@ -141,6 +141,14 @@ export function probe(index: number): string {
  *
  * @returns the attributes this took charge of, which the caller must not walk again.
  */
+/** The directives the client owns, which `build_element_attributes` writes nothing for. */
+const CLIENT_ONLY: ReadonlySet<string> = new Set([
+	'AnimateDirective',
+	'OnDirective',
+	'TransitionDirective',
+	'UseDirective',
+]);
+
 export function spread(
 	source: string,
 	node: AstNode,
@@ -211,11 +219,28 @@ export function spread(
 		}
 		if (one['type'] === 'StyleDirective') {
 			const value = one['value'];
+			// The shorthand's value is the variable of that name: `build_attr_style` writes
+			// `b.id(directive.name)` where a written value would have been built. The name sits just
+			// past `style:` in the source, which is where an expansion of it has to be read from --
+			// the same reading `styles()` makes of the same shape.
 			if (value === true) {
-				refuse(
-					`\`style:${String(one['name'])}\` written short beside a \`{...}\` is not handled yet: ` +
-						'the name is a local this pass has no node for',
-				);
+				const at = span(one);
+				const raw = typeof one['name'] === 'string' ? one['name'] : '';
+				if (at === null || raw === '') {
+					refuse(
+						`\`style:${raw}\` written short beside a \`{...}\` is not handled yet: ` +
+							'the name is a local this pass has no node for',
+					);
+				}
+				const named = {
+					type: 'Identifier',
+					name: raw,
+					start: at[0] + 'style:'.length,
+					end: at[0] + 'style:'.length + raw.length,
+				};
+				directives.push(`style:${raw}={null}`);
+				styled.push(`${JSON.stringify(raw)}: (${expand(named)})`);
+				continue;
 			}
 			const written = Array.isArray(value) ? value : [value];
 			const [only] = written;
@@ -230,6 +255,11 @@ export function spread(
 			styled.push(`${JSON.stringify(String(one['name']))}: ${expression}`);
 			continue;
 		}
+		// A directive the client owns writes nothing on the server, so a spread beside one merges
+		// exactly what it would have merged without it: `build_element_attributes` has an arm for a
+		// spread, an attribute, a `class:`, a `style:` and an attachment, and a `use:`, a
+		// `transition:`, an `in:`, an `out:`, an `animate:` and an `on:` fall past all of them.
+		if (CLIENT_ONLY.has(String(one['type']))) continue;
 		if (one['type'] !== 'Attribute') {
 			refuse(
 				`\`${source.slice(...(span(one) ?? [0, 0])).slice(0, 40)}\` beside a \`{...}\` is not ` +

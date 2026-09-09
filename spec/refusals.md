@@ -893,6 +893,14 @@ writes an object with no hole in it. Where the run *does* hold a value the reque
 nowhere to plant the marker, since a select with a spread goes through `renderer.select` and not
 through `$.attributes`, and that is refused too.
 
+**A directive beside a spread is whatever `build_element_attributes` does with it.** That visitor
+has an arm for a spread, an attribute, a `class:`, a `style:` and an attachment, and nothing else:
+a `use:`, a `transition:`, an `in:`, an `out:`, an `animate:` and an `on:` fall past all of them and
+write nothing on the server. So a spread beside one merges exactly what it would have merged
+without it, and the pass steps over it the way it steps over the same directive with no spread
+there. The shorthand is the variable of that name, `b.id(directive.name)`, read from just past
+`style:` in the source -- the same reading the pass without a spread beside it already makes.
+
 **A spread on a component the walk could not enter is written into the tag.** The two paragraphs
 above are about a spread the walk carries into the child. Where it cannot go in -- the child's
 `$props()` is a name rather than a pattern, say -- the component tag stays and the render writes it,
