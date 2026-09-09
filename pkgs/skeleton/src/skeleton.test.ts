@@ -2829,6 +2829,18 @@ const refused: Case[] = [
 			'{#each data.rows as row}<p>{next(row)}|{log.length}</p>{/each}',
 	},
 	{
+		// A function written as an argument of a call is run by that call: `run(() => count += 1)`
+		// from `svelte/legacy` is a `$:` migrated, and `untrack(() => count++)` is Svelte's own.
+		// A plain name only -- `sleep(10).then(() => ...)` hands its function to a member, and what
+		// a member does with one this pass does not know -- and not the runes `CallExpression.js`
+		// answers with `void 0`, whose argument the server never runs.
+		name: 'a value changed by a function handed to a call the render makes',
+		says: 'changed by a function this render calls',
+		source:
+			"<script>import { untrack } from 'svelte'; let { data } = $props(); let seen = 0;" +
+			' untrack(() => { seen += 1 });</script><p>{data.a}{seen}</p>',
+	},
+	{
 		// And through the script's own statements, which Svelte puts ahead of the template: a
 		// statement assigning through a call is the rule that refuses a direct one, one level in.
 		// `let promise; new_promise()` left `{#await promise}` taking the wrong branch.

@@ -500,11 +500,19 @@ about destructuring or blocks; the same script with `{#each rows as row}<p>{next
   called in the markup; and a name called inside a declaration the markup reads, since reading one
   writes its initialiser out where the render evaluates it. The first is the rule that refuses a
   direct assignment, one level in -- `let promise; ... new_promise()` left `{#await promise}`
-  taking the branch a resolved value takes. **Reading a function is not running
+  taking the branch a resolved value takes. A function **handed** to `run` or `untrack` runs too:
+  `legacy-server.js` is one line, `fn()`, and `index-server.js` exports `run as untrack`, so a
+  migrated `$:` written `run(() => count++)` changes what it names while the bytes are written.
+  By those two names and no rule, because there is no rule: `onMount` and `$effect` take a
+  function the server never calls and `sleep(10).then(fn)` calls it later, and nothing in the shape
+  of a call says which.
+- *And the markup reads it outside a function.* A handler is written nowhere on the server, so a
+  name the markup only names inside one -- `onclick={() => queued.shift()?.()}` -- is not a name a
+  change can be seen through, and holding it against one is a refusal nobody could act on. **Reading a function is not running
   it** -- `onclick={go}` and `on:change={() => handler(bar)}` both name a call and make none -- and
   the walk stops at every function it meets except the one it is asking about, so an arrow returned
   from a called function is not counted either.
-- *The markup reads it, by a route that does not pass through the function doing the changing.* A
+- *By a route that does not pass through the function doing the changing.* A
   function reading back what it just wrote is one evaluation and holds:
   `export function compute() { return value.toUpperCase() }` with `{compute()}` is the whole of
   `value`'s life.

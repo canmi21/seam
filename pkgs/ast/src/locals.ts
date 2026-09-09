@@ -385,7 +385,15 @@ function losing(
 
 	const mentioned = new Set<string>();
 	free(fragment, new Set(), mentioned);
-	const named = [...mentioned].filter((one) => names.has(one));
+	// Outside a function, which is where the markup writes bytes. A handler is written nowhere on
+	// the server -- `onclick={() => queued.shift()?.()}` reaches `queued` and puts nothing of it in
+	// the output -- so a name the markup only names inside one is not a name a change can be seen
+	// through, and holding it against a change is a refusal nobody could act on.
+	const outside = new Set<string>();
+	running(fragment, (one) => {
+		if (one['type'] === 'Identifier' && typeof one['name'] === 'string') outside.add(one['name']);
+	});
+	const named = [...mentioned].filter((one) => names.has(one) && outside.has(one));
 	// What the markup reads, through the declarations it reaches: reading `a` writes out `a`'s
 	// initialiser, so whatever that names is read too.
 	const read = closure(named, (one) => one.free);
@@ -404,6 +412,21 @@ function losing(
 	);
 
 	const lost = new Set<string>();
+	// The script's own statements run before the template, so what they change is changed. They are
+	// walked here rather than through `ran`, whose names are the declarations: `run(() => count++)`
+	// from `svelte/legacy` and `untrack(() => count++)` are calls of an import, and what they were
+	// handed is a function this pass sees only where the statement is walked itself.
+	{
+		const instance = isNode(ast['instance']) ? (ast['instance'] as Node)['content'] : undefined;
+		const body = isNode(instance) ? instance['body'] : undefined;
+		// The written half only. A method call is the conservative one and at this level it is
+		// everywhere -- `array.reduce(...)`, `items.find(...)` -- where inside a function the render
+		// calls it is rare enough to be worth the refusal. What that leaves out is a top-level
+		// `xs.push(1)`, which the rule above never caught either.
+		const { written } = changing(body, names, new Set());
+		const read = closure(named, (one) => one.free);
+		for (const target of written) if (read.has(target)) lost.add(target);
+	}
 	for (const name of ran) {
 		const held = found.get(name);
 		if (held === undefined) continue;
@@ -477,6 +500,19 @@ function reactive(
 	return out;
 }
 
+/**
+ * The two calls known to run what they are handed while the bytes are written, by name.
+ *
+ * `run` is `svelte/legacy`'s, which a migrated `$:` compiles to, and `legacy-server.js` is one
+ * line: `fn()`. `untrack` is the same function -- `index-server.js` exports `run as untrack` --
+ * so Svelte's own answer for both is a synchronous call.
+ *
+ * A list rather than a rule, because there is no rule: `onMount`, `beforeUpdate` and `$effect`
+ * take a function the server never calls, `sleep(10).then(fn)` calls it later, and nothing in the
+ * shape of a call says which. Anything not here is left alone, and that is the hole.
+ */
+const CALLS = new Set(['run', 'untrack']);
+
 /** The three shapes a function is written in, whose body does not run where it is written. */
 const FUNCTIONS = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
 
@@ -486,7 +522,8 @@ const FUNCTIONS = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFu
  * A function written inside an expression does not run where it is written: `on:change={() =>
  * handler(bar)}` names a call and makes none, and `factory` returning `{ onclick: () => { v = 1 } }`
  * assigns nothing while the bytes are written. So the walk stops at every function it meets --
- * except the one it was given, whose body is the thing being asked about.
+ * except the one it was given, whose body is the thing being asked about, and one written as the
+ * argument of a call, which that call runs.
  */
 function running(node: unknown, at: (one: Node) => void): void {
 	const step = (one: unknown): void => {
@@ -497,6 +534,24 @@ function running(node: unknown, at: (one: Node) => void): void {
 		if (!isNode(one)) return;
 		if (FUNCTIONS.has(String(one['type']))) return;
 		at(one);
+		// A function written as an argument of a call is run by that call. `run(() => count++)` from
+		// `svelte/legacy` is a `$:` migrated, and `untrack(() => count++)` is Svelte's own; both call
+		// what they are handed while the bytes are written. Conservative: `xs.map((x) => x.y)` is
+		// walked too and changes nothing, so it costs nothing to be in.
+		if (one['type'] === 'CallExpression' || one['type'] === 'NewExpression') {
+			// A plain name only. `sleep(10).then(() => { count += 1 })` hands its function to a
+			// method, and `then` does not run it while the bytes are written -- nor do `setTimeout`,
+			// `addEventListener` or any of the others reached through a member. What a member call
+			// does with a function is the member's, and this pass does not know it.
+			const callee = one['callee'];
+			if (isNode(callee) && callee['type'] === 'Identifier' && CALLS.has(String(callee['name']))) {
+				for (const argument of Array.isArray(one['arguments']) ? one['arguments'] : []) {
+					if (!isNode(argument) || !FUNCTIONS.has(String(argument['type']))) continue;
+					step(argument['params']);
+					step(argument['body']);
+				}
+			}
+		}
 		for (const value of Object.values(one)) step(value);
 	};
 	if (isNode(node) && FUNCTIONS.has(String(node['type']))) {
@@ -580,10 +635,12 @@ function shadows(node: unknown): Set<string> {
 function changing(
 	node: unknown,
 	names: ReadonlySet<string>,
+	/** What the node declares for itself, which shadows the script's. Empty for the script's own
+	 * statements, whose declarations are the ones being asked about. */
+	mine: ReadonlySet<string> = shadows(node),
 ): { written: Set<string>; called: Set<string> } {
 	const written = new Set<string>();
 	const called = new Set<string>();
-	const mine = shadows(node);
 	const rootOf = (target: unknown): string | null => {
 		let at = target;
 		while (isNode(at) && at['type'] === 'MemberExpression') at = at['object'];
