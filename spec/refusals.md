@@ -1468,6 +1468,15 @@ would have been guessed.
 `style:width={0}` writes `width: 0;`. That is what makes it a substitution inside a decision -- a
 marker stands where the value goes, and nothing could stand where the presence is decided.
 
+**A written value that is an expression is refused only where the request decides it.** The base is
+re-parsed and merged, so which bytes exist depends on a string a marker cannot stand in. Where that
+string is the same for every request the render is the one that has it, and the whole run -- the
+attribute and every directive beside it -- is left exactly as written for Svelte's own `to_style`
+to build. That is what a spread of constants already gets, and it is the same reasoning: what
+varies with nothing the request decides is the render's to evaluate. Left alone, the run has to be
+taken charge of all the same, or the directive reaches the arm that refuses what the walk has never
+met.
+
 ### Why the declarations are not independent, and why that stopped mattering
 
 The obvious encoding is one decision per declaration, which needs no enumeration at all. It is

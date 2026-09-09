@@ -1432,6 +1432,18 @@ const accepted: Case[] = [
 		data: [{ tree: [{ id: 'a', sub: [{ id: 'b' }] }, { id: 'c' }] }, { tree: [] }],
 	},
 	{
+		// `to_style` builds one string from the written value and the directives, dropping a
+		// declaration in the value whose name a directive also names. So which bytes exist is
+		// decided by that string, and a marker cannot stand in it. Where the string is the same for
+		// every request the render is the one that has it, and the whole run is left as written for
+		// Svelte's own `to_style` to build -- which is what a spread of constants already gets.
+		name: 'a `style:` beside a `style` the request does not decide',
+		source:
+			'<script>let { data } = $props(); const paint = () => "color: green";</script>' +
+			'<p style:color={"red"} style={paint()}>{data.a}</p>',
+		data: [{ a: 'v' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
@@ -2903,6 +2915,12 @@ const accepted: Case[] = [
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// And refused where the string is the request's, which is the half a marker cannot stand in.
+		name: 'a `style:` beside a `style` the request decides',
+		says: 'the request decides',
+		source: `${PROPS}<p style:color={"red"} style={data.s}>x</p>`,
+	},
 	{
 		// Where the object itself is what the request decides there is nothing to put a marker
 		// inside: its keys cannot be listed, so no object can stand in it while the bytes are

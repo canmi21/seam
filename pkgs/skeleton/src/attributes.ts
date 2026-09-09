@@ -491,6 +491,8 @@ export function styles(
 	edits: [number, number, string][],
 	expand: Locals['rewrite'],
 	pending: PendingChoice[],
+	/** Whether an expression varies with nothing the request decides, so the render evaluates it. */
+	inert: (expression: string) => boolean,
 ): ReadonlySet<unknown> {
 	const empty: ReadonlySet<unknown> = new Set();
 	if (node['type'] !== 'RegularElement' && node['type'] !== 'SvelteElement') return empty;
@@ -508,12 +510,40 @@ export function styles(
 		const value = attribute['value'];
 		const parts = value === true ? [] : Array.isArray(value) ? value : [value];
 		if (!parts.every((part) => isNode(part) && part['type'] === 'Text')) {
-			refuse(
-				'`style:` beside a `style` whose value is an expression is not handled yet: the ' +
-					'attribute is reassembled from both, and a declaration in that value whose name a ' +
-					'directive also names is dropped, so which bytes exist is decided by a string that ' +
-					'only exists per request',
-			);
+			// Unless nothing in the run is the request's. The attribute is one string Svelte builds
+			// from both -- `to_style` parses the written value and drops a declaration a directive
+			// also names -- so which bytes exist is decided by that string, and where the string is
+			// the same for every request the render is the one that has it. Left whole for Svelte's
+			// own `to_style` to build, which is what a spread of constants already gets.
+			const written = [
+				...parts.map((part) =>
+					isNode(part) && part['type'] === 'ExpressionTag' ? `(${expand(part['expression'])})` : '',
+				),
+				...directives.map((one) => {
+					const value = one['value'];
+					const held = value === true ? [] : Array.isArray(value) ? value : [value];
+					return held
+						.map((part) =>
+							isNode(part) && part['type'] === 'ExpressionTag'
+								? `(${expand(part['expression'])})`
+								: '',
+						)
+						.join(' ');
+				}),
+			]
+				.filter((one) => one !== '')
+				.join(' + ');
+			if (written === '' || !inert(written)) {
+				refuse(
+					'`style:` beside a `style` whose value is an expression the request decides is not ' +
+						'handled yet: the attribute is reassembled from both, and a declaration in that ' +
+						'value whose name a directive also names is dropped, so which bytes exist is ' +
+						'decided by a string that only exists per request',
+				);
+			}
+			// Taken charge of, and left exactly as written: the caller must not walk them again, or
+			// the directive reaches the arm that refuses what the walk has not been taught.
+			return new Set([...directives, attribute]);
 		}
 		base = parts.map((part) => String((part as AstNode)['data'] ?? '')).join('');
 	}

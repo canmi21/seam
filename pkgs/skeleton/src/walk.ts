@@ -3410,7 +3410,17 @@ function collect(node: unknown, walk: Walk): void {
 			// written attribute, class first. Here both are inserts at that one offset, and `apply`
 			// sorts descending and writes back to front, so the one pushed *later* comes out first.
 			const styled =
-				spreads.size > 0 ? spreads : styles(source, node, holes, edits, expand, pending);
+				spreads.size > 0
+					? spreads
+					: styles(
+							source,
+							node,
+							holes,
+							edits,
+							expand,
+							pending,
+							(text) => site.payload !== null && !varies(text, walk),
+						);
 			const handled = spreads.size > 0 ? spreads : classes(node, holes, edits, expand, pending);
 			const given = type === 'Component' || type === 'SvelteComponent';
 			const tag = typeof node['name'] === 'string' ? node['name'] : '';
