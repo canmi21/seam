@@ -61,16 +61,15 @@ render.** Nothing differing, nothing refused as a gap.
 
 ```
                         samples  identical  empty  differs  refused  skipped
-server-side-rendering       131         76      3        0       36       16
-runtime-runes              1048        513     15        1      241      278
-runtime-legacy             1209        780     21        0      143      264
-total                      2388       1369     39        1      420      558
+server-side-rendering       131         82      3        0       30       16
+runtime-runes              1048        535     15        1      218      278
+runtime-legacy             1209        811     21        0      112      264
+total                      2388       1428     39        1      360      558
 ```
 
-Against the target: **1408 of 1570**, with one differing and 160 refused as gaps. One sample fails
-inside the oracle rather than inside either side and is counted apart. The 160 are sorted by who
-has to answer them in [roadmap.md](roadmap.md): 76 that need nobody, 68 that wait on a decision,
-and 15 where the compile-time render threw and the reasons have not been told apart.
+Against the target: **1467 of 1570**, with one differing and 100 refused as gaps. Two samples fail
+inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
+has to answer them in [roadmap.md](roadmap.md): of the 76 that needed nobody, 59 are done.
 
 ### What is left, in the order it should be taken
 
@@ -80,7 +79,7 @@ array literal is built again and `items.includes(item)` is false where Svelte's 
 evaluates the declaration once, says true. Holding a declaration rather than substituting it is
 what closes it, and [roadmap.md](roadmap.md) ranks that.
 
-**5 refusals name no specification file, and that is a defect rather than a gap.** There were 24.
+**6 refusals name no specification file, and that is a defect rather than a gap.** There were 24.
 [refusals.md](refusals.md) requires a refusal to say where the question lives, and these say
 `deriving ... failed` instead, which happens when the artifact is injected rather than when it is
 built: a real build writes the artifact and the server throws per request, the suite catching it

@@ -318,34 +318,56 @@ nothing reads. And a `<svelte:boundary>` whose body throws is caught by Svelte a
 `failed`; here the throw escapes the compile -- which is a decision where the throw depends on the
 request and a gap where it does not, and the two have not been told apart yet.
 
-## The 160 gaps, sorted by who has to answer
+## The gaps, sorted by who has to answer
 
-The 420 refusals are 260 by decision and 160 gaps; [conformance.md](conformance.md) has the
-arithmetic. Sorting the 160 by their message is misleading, and the way it misleads is worth
-recording before the list: the largest message group is "a name the data does not carry", 34 of
-them, and that is a symptom rather than a cause. It says only that the markup read a name nothing
+The refusals are the ones taken by decision plus the gaps; [conformance.md](conformance.md) has the
+arithmetic. Sorting the gaps by their message is misleading, and the way it misleads is worth
+recording before the list: the largest message group used to be "a name the data does not carry",
+and that is a symptom rather than a cause. It says only that the markup read a name nothing
 recorded, and there are six unrelated reasons a name goes unrecorded. **A group has to be shown to
 be single-cause before it is ranked by size.**
 
-A message can also point away from us. Five samples are refused with Svelte's own error, that an
+A message can also point away from us. Five samples were refused with Svelte's own error, that an
 `animate:` element must be the only child of a keyed `{#each}`. Every one of them is Svelte's own
-test, so Svelte cannot be failing it: the rewrite drops the key, and Svelte then reports a
+test, so Svelte cannot be failing it: the rewrite dropped the key, and Svelte then reported a
 consequence rather than the cause. Where a message is upstream's and the sample is upstream's too,
 the fault is in what was handed to it.
 
-Sorted by cause and then by who has to answer, the 160 are **76 mechanical**, **68 waiting on a
-decision**, **15 where the compile-time render threw and nobody has told the reasons apart**, and
-one refused correctly, `runtime-runes/random`, which reads `Math.random`.
+Sorted that way the gaps were **76 mechanical**, **68 waiting on a decision**, **15 where the
+compile-time render threw and nobody has told the reasons apart**, and one refused correctly.
 
-**The 76 need nobody.** Each is a construct whose answer is in Svelte's source and can be read
-forward, or a fault of ours with a probe that shows it: `{@const}` and `DeclarationTag` 15, the
-destructuring a declaration does 10, a spread on a component 5, the dropped each key 5, a
-`<select>` reading `value` off merged attributes 6, a global the name list does not carry 8, the
-derivation evaluator 5, a directive beside a spread 4, `css: 'injected'` in the head 3, a recursive
-body of one block 3, two edits over one span 2, `{#each}` with no `as` 2, a rewrite of ours that
-Svelte then refuses 3, harness faults 4, and a head inside a block 1. None of them moves a line in
-this file, which is why they are counted here and listed nowhere: the suite names them, and the
-name is enough to start.
+### The 76 that needed nobody: 59 done
+
+Each was a construct whose answer is in Svelte's source and could be read forward, or a fault of
+ours with a probe that shows it. Nineteen changes closed 59 of them, and what they were is recorded
+where each rule lives -- [refusals.md](refusals.md), [derivation.md](derivation.md),
+[ir.md](ir.md). Three findings outlived their own item:
+
+- **Undoing a refusal uncovers what it was hiding.** Teaching `{@const}` its hoisting made one
+  sample compile and write `1,2,3` where Svelte writes `3,6,9`, because a block was not a scope and
+  a substitution reached past an inner `const` to the script's. Teaching a rest made another write
+  `false` for `true`, because `Symbol()` was substituted at two reads and made two symbols. Neither
+  was a new fault. **Every refusal removed needs the failing set diffed again, not only the total.**
+- **The same half-condition tends to be written more than once.** `from.endsWith('.svelte')` stood
+  for "this is a component" in three passes; a named import of a component is its `<script module>`,
+  and only the default export is the component. Two of the three reported a name that resolves fine;
+  the third let module state through unchecked, which one render cannot show.
+- **"Cannot express it" and "should not express it" read the same in a comment.** A default in a
+  pattern was left out because the template was raw source with nothing to expand names inside it.
+  That was true, and it was a missing slot rather than a boundary.
+
+**The 17 left are not one list.** Five are refusals that are now correct and want moving rather than
+building: `process.env` is an environment, `Symbol()` does not read the same twice, two read a global
+nothing binds, and one names a spread whose keys the request decides. The rest are
+`{@const}` inside an element carrying `slot=`, a `<svelte:head>` a block holds in a component the
+walk could not enter, four `deriving ... failed` that each surface a different gap with a message
+naming no file, a rune shadowed by a parameter of the same name, a child binding `$props()` to a
+name, and an `<option>` whose implicit value is a rendered snippet.
+
+**A child binding `$props()` to a name was tried and reverted.** The entry's is the payload and is
+done. A child's is the object its call site passed, and reading it as a rest with nothing named
+beside it -- which is what it is -- cost two sets of bytes and a sample. It wants the object built
+the way `merged()` builds a prop, and that is the shape it waits on.
 
 ### The 68 that wait on a decision
 
