@@ -486,6 +486,17 @@ expression -- `items.includes(item)` is one derivation with the array literal in
 nothing to share, and the array is built again. Holding a declaration rather than substituting it
 is what closes that, and it is the open item under Substitution below.
 
+## The globals an expression may read
+
+A short list, in `bindings.ts`: names that resolve to the same value everywhere, so an expression
+using one cannot make the server and the browser disagree. Anything that reads a clock, a locale or
+an environment is not on it, and `Math.random` is named apart from `Math`.
+
+`console` is on it. It reads the same everywhere -- `undefined` -- and what it does instead of
+returning is not bytes; both the render and the artifact call it, so a line is written twice, which
+is a log rather than a difference in what is served. Eight of Svelte's samples log from markup and
+were refused for reading a name the data does not carry.
+
 ## A store read is the store's value, where the store is a declaration
 
 `$foo` is a subscription: Svelte compiles it to `store_get($$store_subs, '$foo', foo)`, which

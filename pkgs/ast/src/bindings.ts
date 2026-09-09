@@ -37,6 +37,10 @@ const GLOBALS = new Set([
 	'String',
 	'URL',
 	'URLSearchParams',
+	// It reads the same everywhere -- `undefined` -- and what it does instead of returning is not
+	// bytes. Both the render and the artifact call it, so a line is written twice; that is a log,
+	// not a difference in what is served.
+	'console',
 	'decodeURI',
 	'decodeURIComponent',
 	'encodeURI',

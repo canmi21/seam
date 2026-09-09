@@ -2497,6 +2497,14 @@ const accepted: Case[] = [
 		data: [{ n: 3 }, { n: 0 }],
 	},
 	{
+		// `console` reads the same everywhere -- `undefined` -- and what it does instead of returning
+		// is not bytes, so it is one of the names nobody has to think about. Eight of Svelte's
+		// samples log from markup and were refused for reading a name the data does not carry.
+		name: 'markup that logs',
+		source: `${PROPS}<p>{console.log(data.a) ?? data.a}</p>`,
+		data: [{ a: '1' }, { a: '<' }],
+	},
+	{
 		// `$state` and the rest are compiled away by Svelte and exist nowhere at run time, so a
 		// `.svelte.js` cannot be loaded as it is written. The carried bundle compiled one on the way
 		// in and the compile-time render did not, which left Node importing `export let obj =
