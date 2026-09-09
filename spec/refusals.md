@@ -605,6 +605,17 @@ each value the way an attribute is escaped. So it takes a marker, where it used 
 to `null` and dropped. What stays open is the presence half: that helper drops a key whose value is
 null or the empty string, and a marker is neither.
 
+**A binding the child sends back and the caller never reads writes the same bytes either way.**
+`transform-server.js` wraps only `template.body` in `do { $$settled = true; ... } while
+(!$$settled)`, so what `bind_props` assigns up changes the bytes only through a read in that
+template. A name the template does not read makes the second render write what the first wrote.
+`onMount(() => { snapshot = foo() })` beside `<Two bind:foo />` is that: the only mention of the
+name is in a callback the server never runs.
+
+The script is read conservatively -- any declaration naming it counts, function bodies included --
+because a markup read of that declaration writes its initialiser out and the name goes with it. The
+`bind:` being settled is skipped by its own span, or it would count as a read of itself.
+
 **A `<svelte:component>` that settles to one import is entered like any other tag.** It was not,
 and for a reason with nothing to do with dynamic components: `expand` puts parentheses around every
 name it substitutes, so a `this` settling to one import came back as `(Foo)` and the identifier

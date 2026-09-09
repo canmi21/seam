@@ -2395,6 +2395,19 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '<&' }],
 	},
 	{
+		// `transform-server.js` wraps only `template.body` in `do { ... } while (!$$settled)`, so what
+		// a binding sends up changes the bytes only through a read in that template. A name it does
+		// not read is a second render writing what the first wrote.
+		name: 'a binding the child sends back and the caller never reads',
+		beside: {
+			Emits: '<script>export let n = 1; export function grab() { return n; }</script><p>e{n}</p>',
+		},
+		source:
+			"<script>import Emits from './Emits.svelte'; export let a; let grab;</script>" +
+			'<Emits bind:grab /><p>{a}</p>',
+		props: [{ a: 'x' }, { a: '<&' }],
+	},
+	{
 		// A lookup in a table of components is a choice whose domain is the table's keys, written as
 		// the chain of `?:` it is; a key the table lacks is the `undefined` that `<svelte:component>`
 		// writes `<!--[!--><!--]-->` for. Fixed here so the chain is Svelte's to evaluate; per request

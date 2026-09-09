@@ -5407,6 +5407,45 @@ function descend(
 			);
 		}
 		/**
+		 * Whether the caller's markup can read a name while the bytes are written.
+		 *
+		 * `transform-server.js` wraps only `template.body` in `do { ... } while (!$$settled)`, so
+		 * what a binding sends up changes the bytes only through a read in that template. A name it
+		 * does not read is a second render writing what the first wrote -- `onMount(() => { snapshot
+		 * = foo() })` beside `<Two bind:foo />` is that, the only mention being in a callback the
+		 * server never runs.
+		 *
+		 * Conservative on the script: any declaration naming it counts, function bodies included,
+		 * because a markup read of that declaration writes its initialiser out and the name goes
+		 * with it. The `bind:` being settled is skipped by its own span.
+		 */
+		const readsIt = (local: string): boolean => {
+			const ast = parsedComponent(walk.source);
+			const skip = (Array.isArray(node['attributes']) ? node['attributes'] : [])
+				.filter((one) => isNode(one) && one['type'] === 'BindDirective')
+				.map((one) => span(one as AstNode))
+				.filter((one) => one !== null);
+			let found = false;
+			readsIn(ast['fragment'], new Set(), (at) => {
+				if (at['name'] !== local) return;
+				const from = at['start'];
+				if (typeof from === 'number' && skip.some(([a, b]) => from >= a && from < b)) return;
+				found = true;
+			});
+			const instance = ast['instance'];
+			const content = isNode(instance) ? instance['content'] : undefined;
+			for (const statement of isNode(content) && Array.isArray(content['body'])
+				? content['body']
+				: []) {
+				if (!isNode(statement) || statement['type'] !== 'VariableDeclaration') continue;
+				readsIn(statement, new Set(), (at) => {
+					if (at['name'] === local) found = true;
+				});
+			}
+			return found;
+		};
+
+		/**
 		 * Records what a binding settles the caller's name to, or returns false where it cannot.
 		 *
 		 * The value is the child's, so it has to be one the caller can hold without the child's
@@ -5437,6 +5476,9 @@ function descend(
 			// child can be entered like any other.
 			if (walk.sent.size > 0) continue;
 			if (settles(name, value)) continue;
+			// Nothing the child sends back reaches the bytes where the caller's template does not
+			// read the name: the settling loop renders that template again and writes what it wrote.
+			if (!readsIt(boundTo.get(name) ?? name)) continue;
 			refuse(
 				`\`bind:${name}\` on <${tag}> is a binding the child sends back: \`${name}\` is a ` +
 					'readonly export, which `bind_props` assigns up to the caller where the caller ' +
