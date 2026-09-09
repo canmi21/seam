@@ -1913,9 +1913,12 @@ function choosing(written: string, tag: string, walk: Walk): string {
 	const chosen = settled(written, walk);
 	if (mentions(chosen, walk.dynamic)) {
 		refuse(
-			`\`<${tag}>\` chooses a component from a value the request decides, which is not ` +
-				'decided: a structure is enumerated, and this one is not enumerable. It stands ' +
-				`for \`${chosen.replace(/\s+/g, ' ').slice(0, 200)}\``,
+			`\`<${tag}>\` is handed a component the request decides, and the source names none it ` +
+				'could be. The payload carries data and no function, so a component never comes off ' +
+				'the wire: the component this renders is the one the request sent, and an artifact ' +
+				"has no bytes for it. Name it in the source -- as the prop's default, or beside the " +
+				'value in the expression -- or choose it in the load stage. It stands for ' +
+				`\`${chosen.replace(/\s+/g, ' ').slice(0, 200)}\``,
 		);
 	}
 	return chosen;

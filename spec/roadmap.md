@@ -423,7 +423,7 @@ done. A child's is the object its call site passed, and reading it as a rest wit
 beside it -- which is what it is -- cost two sets of bytes and a sample. It wants the object built
 the way `merged()` builds a prop, and that is the shape it waits on.
 
-### The 68 that wait on a decision
+### The 62 that wait on a decision
 
 Each of these can be built. What none of them can be is built without answering a question that
 outlives it, and the questions are not the same question.
@@ -452,51 +452,30 @@ and the walk cannot say why. Widening the probe and refusing are both defensible
 right depends on how much a false pass costs, which is the question `dead()` already answered once
 in the other direction.
 
-**A component chosen from a request value, 6.** `<svelte:component this={x}>` where `x` is decided
-per request. What bounds the candidate set was the open question, and the payload answers it: a
-component is a function, the wire is devalue, and devalue serialises data. **So the payload cannot
-carry a component**, and the only value `this` can take that renders anything is the one the source
-already names -- a prop's default, or an import. The set is bounded to one candidate and nothing,
-which is why this is not the open enumeration it was written up as.
+**A component chosen from a request value: decided, built, and out of this list.** The question
+was what bounds the candidate set, and the payload answers it: a component is a function, the wire
+is devalue, and devalue serialises data. **So the payload cannot carry a component**, and the only
+value `this` can take that renders anything is the one the source already names. The set is
+bounded to one candidate and nothing, which is an `{#if}` with an empty else, and Svelte's server
+compiles the tag to exactly that. The tag stays and only `this` is a choice, because the anchors
+here are `BLOCK_OPEN` and `BLOCK_OPEN_ELSE` rather than the numbered pair an `{#if}` writes.
+[refusals.md](refusals.md) holds the rule and [derivation.md](derivation.md) the one thing a
+component is worth to a derivation.
 
-The shape is an `{#if}`, and Svelte says so. `<svelte:component this={X}>` compiles on the server
-to
+Three of the six write Svelte's bytes now: `await-in-dynamic-component`, whose `&&` makes the
+truthy side exactly the import, and `dynamic-component-in-if` and `dynamic-component-nulled-out`,
+whose candidate is the prop's default. The other three are decisions rather than gaps and are
+counted in [conformance.md](conformance.md) as such. `await-with-update` and `await-with-update-2`
+name no component in the source at all -- the one the page renders is the one the request sent,
+which is the same reading that puts the `$store` samples below under decided, and the two have to
+stay consistent. `dynamic-component-dirty` is a call that pushes into a prop array while the bytes
+are written, which is the by-decision rule about a value the render changes; the message it wears
+is the candidate one, since the compiler reads the call as a value the request decides rather than
+as a mutation.
 
-```js
-if (X) { push('<!--[-->'); X($$renderer, {}); push('<!--]-->') }
-else   { push('<!--[!-->'); push('<!--]-->') }
-```
-
-a block with two branches, the alternate writing nothing. The compiler has that mechanism.
-
-**The anchors are not the `{#if}` ones, and that decides how it is built.** An `{#if}` writes
-`<!--[0-->` and `<!--[-1-->`; this writes `<!--[-->` and `<!--[!-->`, which are `BLOCK_OPEN` and
-`BLOCK_OPEN_ELSE`. So it cannot be reached by rewriting the tag into an `{#if}` before the walk --
-measured, the two forms differ by those bytes.
-
-**The tag stays and only `this` is a choice**, which is what `{#await}` already does with its
-expression: the block is pushed as an `if` with `alternate: true`, and `chose()` writes the
-candidate into `this` for the branch that is taken and `null` for the one that is not. Svelte then
-writes its own anchors on both sides, because it is still the same tag. The only structural part is
-`within`, which has to hold `[index, 0]` for the rest of the tag's walk so the holes and blocks the
-attributes and the child's body produce land in the branch -- and the tag's arm in `descend` is
-three hundred lines with several early returns, so that wants a `try`/`finally` rather than a
-matched pair.
-
-**Which candidate, by shape.** Read off the six samples:
-
-| the settled `this` | the candidate |
-| --- | --- |
-| `flag && Widget` | `Widget`, named in the expression -- and the `&&` makes the truthy branch exactly it |
-| `x`, a payload path whose prop declares a default | the default, `Foo` |
-| `((thePromise))`, a payload path with no component in the source | none |
-
-The first two are three of the six. The third is two of them, `await-with-update` and
-`await-with-update-2`, where the component the page renders is the one the request sent: there is
-no candidate and they stay refused, with a message that says which of the two it is rather than
-the one about an unbounded set. The sixth, `dynamic-component-dirty`, is a call that pushes into a
-prop array while the bytes are written, which is the by-decision rule about a value the render
-changes wearing the wrong message.
+**What is given up is a page that cannot work either way.** A request that sends a truthy value
+that is not a component renders nothing: Svelte calls it and throws, and there are no bytes to
+reproduce, so the artifact renders the candidate.
 
 **A store the request brings: decided, and moved.** The question was where it belongs, and the
 answer is the scope line. `$x` reads whatever `x` holds while the bytes are written, so the store

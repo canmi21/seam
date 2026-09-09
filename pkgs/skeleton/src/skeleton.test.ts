@@ -3359,12 +3359,13 @@ const refused: Case[] = [
 		says: 'scoping class',
 	},
 	{
-		// Chosen by a value the request decides and not through a table: which component is a
-		// structure, and one the payload hands over whole is not enumerable. A `?:` or a lookup in
-		// a literal would be, and stops the walk to ask instead.
+		// Chosen by a value the request decides, and the source names no component it could be: the
+		// payload carries data and no function, so the component this renders is the one the request
+		// sent and there are no bytes for it. A `?:` or a lookup in a literal would be enumerable
+		// and stops the walk to ask instead, and a `this` naming one candidate is a block.
 		name: 'a dynamic component chosen by the request',
 		source: '<script>let { data } = $props(); const Pick = $derived(data.c);</script><Pick />',
-		says: 'chooses a component',
+		says: 'the source names none it could be',
 	},
 	{
 		// Svelte's scope cannot prove a prop defined, so it writes `if (p) { pending } else {

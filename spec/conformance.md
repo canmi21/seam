@@ -44,15 +44,17 @@ Three of the outcomes are not failures and saying so once is what keeps the targ
 **Upstream's own skips are out.** 558 samples whose `_config.js` says `skip`, or a `mode` without
 `sync`, or an `error` the sample exists to produce. Not our judgement.
 
-**A refusal by decision is out.** 269 samples, in four shapes the scope line settles:
+**A refusal by decision is out.** 272 samples, in four shapes the scope line settles:
 
 - **184 await** in markup or at the top of a script, which is async Svelte and the load stage's.
-- **76 change a value** the markup reads while the bytes are written -- assigned after being
+- **77 change a value** the markup reads while the bytes are written -- assigned after being
   declared, or changed by a function this render calls -- which is a program per request.
-- **6 subscribe to a store the request brings.** `$x` reads whatever `x` holds while the bytes are
-  written, so the store itself would have to be in the payload, and a store is an object with a
-  `subscribe` function. The wire is devalue, which serialises data; a function is not data. Reading
-  the value in the load stage and putting *that* in the data is the same page.
+- **8 want a function off the wire.** The payload carries data and no function, deliberately: see
+  [payload.md](payload.md). Six subscribe to a store the request brings, `$x` reading whatever `x`
+  holds while the bytes are written, so the store itself would have to be in the payload -- and a
+  store is an object with a `subscribe` function. Two render a component the request sent, which
+  is the same shape: a component is a function. Reading the value, or choosing the component, in
+  the load stage is the same page.
 - **3 read a value that is not the same twice**, `Math.random` and `Symbol()`, which a compile-time
   render freezes into bytes every request would then share.
 
@@ -63,20 +65,20 @@ instead.
 **Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
 
-So the target is: **of the 1602 samples that are in, every one is byte-identical to Svelte's own
+So the target is: **of the 1558 samples that are in, every one is byte-identical to Svelte's own
 render.** Nothing differing, nothing refused as a gap.
 
 ### Where it stands
 
 ```
                         samples  identical  empty  differs  refused  skipped
-server-side-rendering       131         84      3        0       28       16
-runtime-runes              1048        542     15        1      212      278
-runtime-legacy             1209        822     22        0      101      264
-total                      2388       1448     40        1      339      558
+server-side-rendering       131         84      4        0       27       16
+runtime-runes              1048        542     15        1      211      278
+runtime-legacy             1209        825     21        0       98      264
+total                      2388       1451     40        1      336      558
 ```
 
-Against the target: **1488 of 1561**, with one differing and 70 refused as gaps. Two samples fail
+Against the target: **1491 of 1558**, with one differing and 64 refused as gaps. Two samples fail
 inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
 has to answer them in [roadmap.md](roadmap.md).
 
