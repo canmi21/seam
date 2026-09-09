@@ -3749,6 +3749,13 @@ function descend(
 		// the tag when it grouped the caller's markup. `build_inline_component` puts it in the slot
 		// function's parameter and passes nothing for it.
 		if (isNode(one) && one['type'] === 'LetDirective') continue;
+		// An event listener on a component is not a prop either, and the server does nothing with
+		// it: `build_inline_component`'s loop has an arm for a `let:`, a spread, an attribute, a
+		// `bind:` and an attachment, and nothing else -- an `OnDirective` falls past all of them
+		// and contributes no property. Leaving the walk out of the child over one was silent, and
+		// it is the ordinary way a legacy component is listened to: `<Todo {todo} on:click={...} />`
+		// handed the child a marker where its prop was.
+		if (isNode(one) && one['type'] === 'OnDirective') continue;
 		if (isNode(one) && one['type'] === 'BindDirective') {
 			const name = typeof one['name'] === 'string' ? one['name'] : '';
 			boundProps.add(name);

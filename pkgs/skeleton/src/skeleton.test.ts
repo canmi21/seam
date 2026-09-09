@@ -300,6 +300,33 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// Two things the walk had never met on the way into a child. `build_inline_component`'s
+		// attribute loop has an arm for a `let:`, a spread, an attribute, a `bind:` and an
+		// attachment and nothing else, so an `on:` contributes no property and the walk may step
+		// over it -- it used to leave the child unentered and hand it a marker for its prop. And a
+		// `$:` is collected by `LabeledStatement.js` and run once at the end of the instance body,
+		// writing no bytes, so one reading a prop the render was handed nothing for threw inside
+		// Svelte's own renderer.
+		name: 'a legacy child listened to, with a reactive statement beside its prop',
+		beside: {
+			Row:
+				'<script>export let todo; $: console.log(todo.id);</script>' +
+				"<button on:click>{todo.done ? 'X' : ''}{todo.id}</button>",
+		},
+		source:
+			"<script>import Row from './Row.svelte'; let { data } = $props();</script>" +
+			'{#each data.todos as todo}<Row {todo} on:click={() => todo.id} />{/each}',
+		data: [
+			{ todos: [] },
+			{
+				todos: [
+					{ id: 1, done: false },
+					{ id: 2, done: true },
+				],
+			},
+		],
+	},
+	{
 		// `$props()` destructures, so a default is taken where the property is `undefined` and the
 		// question is about the payload rather than about what the name resolves to. Written as
 		// `typeof Math === 'undefined'` it found the global and never took the default.

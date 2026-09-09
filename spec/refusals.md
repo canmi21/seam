@@ -492,6 +492,22 @@ it would reach for data the render is not given. What it is handed has to be des
 the parameter destructures: `{}` or `[]` rather than `null`, which is the same rule a declaration
 that reads a prop already has.
 
+**An event listener on a component is stepped over, not a reason to stay out.**
+`build_inline_component`'s attribute loop has an arm for a `let:`, a spread, an attribute, a
+`bind:` and an attachment, and nothing else: an `OnDirective` falls past all of them and
+contributes no property, because nothing on the server listens. The walk used to leave a child over
+one, silently and without recording a reason -- and `<Todo {todo} on:click={...} />` is the
+ordinary way a legacy component is listened to, so the child was handed a marker where its prop
+was and rendered nothing.
+
+**A `$:` is run once and writes no bytes, so the render is handed nothing in its place.**
+`LabeledStatement.js` collects it and `transform-server.js` puts it at the end of the instance body
+in topological order. It is not a declaration, so nothing neutralised it, and
+`$: console.log(todo.id)` against the literal standing in for a prop threw inside Svelte's own
+renderer. The whole body goes rather than its right-hand side: a name a `$:` assigns is already
+refused by name where the markup reads it, so nothing is left that wanted its value, and
+`$: ({ a } = o)` would throw on a neutralised right-hand side the way the read did.
+
 **Rendered more than once.** One body cannot stand in two places: every marker in it would come
 back twice, which the rule that each is consumed exactly once catches on its own. It is refused
 before that, because the invariant reports a value arriving twice and says nothing about the

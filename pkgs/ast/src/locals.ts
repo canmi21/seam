@@ -429,6 +429,49 @@ function losing(
 	);
 }
 
+/**
+ * Where the render has to be given nothing in place of a `$:` statement's body.
+ *
+ * `LabeledStatement.js` collects a `$:` and `transform-server.js` puts it at the end of the
+ * instance body in topological order, so it runs once per render and writes no bytes of its own.
+ * It is not a declaration, so nothing neutralised it, and a render given no data ran
+ * `$: console.log('$:' + todo.id)` against the `null` standing in for the prop and threw inside
+ * Svelte's own renderer -- an error naming nothing an author could act on.
+ *
+ * The whole body goes, not the right-hand side: a name a `$:` assigns is refused where the markup
+ * reads it -- `reads \`doubled\`, which the data does not carry` -- so by here nothing is left that
+ * wanted its value, and a destructuring `$: ({ a } = o)` would throw on a neutralised right-hand
+ * side the way the read did.
+ */
+function reactive(
+	ast: Node,
+	found: Map<string, Declared & { node: Node }>,
+	/** What the render is not given: the request's names, and the props of this component -- the
+	 * entry's own, and a child's, which its call site bound and the render is handed a literal
+	 * for. */
+	given: ReadonlySet<string>,
+): [at: [number, number], text: string][] {
+	const out: [[number, number], string][] = [];
+	const instance = ast['instance'];
+	if (!isNode(instance)) return out;
+	const content = instance['content'];
+	if (!isNode(content) || !Array.isArray(content['body'])) return out;
+	for (const statement of content['body']) {
+		if (!isNode(statement) || statement['type'] !== 'LabeledStatement') continue;
+		const label = statement['label'];
+		if (!isNode(label) || label['name'] !== '$') continue;
+		const body = statement['body'];
+		if (!isNode(body)) continue;
+		const reads = new Set<string>();
+		free(body, new Set(), reads);
+		const wanting = [...reads].some((one) => given.has(one) || found.get(one)?.reads === true);
+		if (!wanting) continue;
+		const { start, end } = body;
+		if (typeof start === 'number' && typeof end === 'number') out.push([[start, end], 'undefined']);
+	}
+	return out;
+}
+
 /** The three shapes a function is written in, whose body does not run where it is written. */
 const FUNCTIONS = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression']);
 
@@ -1406,6 +1449,7 @@ export function locals(
 		// substituted this way, since one initialiser stands for several names and the expansion
 		// is only ever one of them.
 		reading: [
+			...reactive(ast, found, new Set([...carried, ...props, ...(bound?.keys() ?? [])])),
 			...new Map(
 				[...found.values()]
 					.filter((one) => one.reads)
