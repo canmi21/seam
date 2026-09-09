@@ -871,6 +871,16 @@ prop it decided is bound inside the child and evaluated there it would read the 
 is not given. Measured with the spread before and after an attribute, a key present as
 `undefined`, a missing key taking the default, and a null object. `merged()` in `walk.ts`.
 
+**A `.svelte` specifier is a component only where there is a file of that name.** `./x.svelte` is
+how a bundler is asked for the runes module `x.svelte.js` once it completes the extension, so the
+file decides and not the specifier -- which the rule already said and the code did not ask. Read as
+a component, the walk opened a file nobody wrote and stopped with an ENOENT.
+
+**A side-effect import of a component goes from the render.** It binds nothing and is kept for what
+running it does, which is `customElements.define`: the client's. The server writes the tag as an
+unknown element whether or not anything was ever defined, and the render is Node, which cannot load
+a `.svelte` file at all.
+
 **An import is dropped only where nothing mentions it, and a write is a mention.** The pass that
 removes an unused import asks the reader that skips a name written to, which is right everywhere
 else: an assignment holds nothing of the old value and a substitution written over it is not

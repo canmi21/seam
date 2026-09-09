@@ -1458,7 +1458,18 @@ function unimported(text: string): string {
 		if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
 		const at = span(statement);
 		const specifiers = Array.isArray(statement['specifiers']) ? statement['specifiers'] : [];
-		if (at === null || specifiers.length === 0) continue;
+		if (at === null) continue;
+		// A side-effect import of a component binds nothing and is kept for what running it does.
+		// What it does is register a custom element, which is `customElements.define` and the
+		// client's: the server writes the tag as an unknown element whether or not anything was
+		// ever defined. The render is Node, which cannot load a `.svelte` file at all, so keeping it
+		// stopped the compile with `Unknown file extension ".svelte"`.
+		const from = statement['source'];
+		const named = isNode(from) && typeof from['value'] === 'string' ? from['value'] : '';
+		if (specifiers.length === 0) {
+			if (named.endsWith('.svelte')) edits.push([at[0], at[1], '']);
+			continue;
+		}
 		const wanted = specifiers.some((one) => {
 			const local = isNode(one) ? one['local'] : undefined;
 			const name = isNode(local) && typeof local['name'] === 'string' ? local['name'] : null;

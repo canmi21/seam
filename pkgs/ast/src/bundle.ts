@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, extname, relative, resolve } from 'node:path';
 import { resolved } from './resolved.ts';
 import type { Bundle, Module } from './markup.ts';
@@ -52,7 +52,11 @@ export function bundle(entryFile: string, projectRoot: string): Bundle {
 			const target = specifier.startsWith('.')
 				? resolve(dirname(file), specifier)
 				: resolveBare(specifier, file);
-			if (target === null || !target.endsWith('.svelte')) continue;
+			// The file decides, and here is where it is asked. `./state.svelte` is how a bundler is
+			// asked for the runes module `state.svelte.js` once it completes the extension, so a
+			// specifier ending `.svelte` with no such file beside it is not a component at all. Read
+			// as one, the walk opened a file nobody wrote and stopped the compile with an ENOENT.
+			if (target === null || !target.endsWith('.svelte') || !existsSync(target)) continue;
 			targets[local] = idOf(root, target);
 			pending.push(target);
 		}

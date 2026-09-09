@@ -1457,6 +1457,22 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// A side-effect import of a component binds nothing and is kept for what running it does,
+		// which is `customElements.define` and the client's: the server writes the tag as an unknown
+		// element whether or not anything was ever defined. The render is Node, which cannot load a
+		// `.svelte` file at all. And `./x.svelte` with no such file beside it is how a bundler is
+		// asked for the runes module `x.svelte.js`, so it is not a component to follow.
+		name: 'a side-effect import of a component, and a runes module named through `.svelte`',
+		alongside: {
+			'held.svelte.js': 'export const held = { a: 1 };',
+			'Side.svelte': '<b>side</b>',
+		},
+		source:
+			"<script>import './Side.svelte'; import { held } from './held.svelte';" +
+			' let { data } = $props();</script><p>{data.a}{held.a}</p>',
+		data: [{ a: 'v' }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.
