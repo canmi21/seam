@@ -1484,6 +1484,21 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// Svelte compiles a component to a module whose `default` is the component and whose
+		// `<script module>` exports are its named exports, so only the default import is the thing
+		// composed at compile time. A named one is a value like any other and is carried.
+		name: 'a named import from a component, which is its module script',
+		beside: {
+			Held:
+				'<script module>export const held = "m"; export function twice(n) { return n * 2 }' +
+				'</script><i>held</i>',
+		},
+		source:
+			"<script>import Held, { held, twice } from './Held.svelte'; let { data } = $props();" +
+			'</script><Held /><p>{held}|{twice(data.n)}</p>',
+		data: [{ n: 3 }],
+	},
+	{
 		// Every one of these is a measurement only a browser can take, so the server writes nothing
 		// for them and the walk steps over them. The list is Svelte's and `omitted.test.ts` holds it
 		// against what Svelte does. See spec/refusals.md.

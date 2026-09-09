@@ -871,6 +871,14 @@ prop it decided is bound inside the child and evaluated there it would read the 
 is not given. Measured with the spread before and after an attribute, a key present as
 `undefined`, a missing key taking the default, and a null object. `merged()` in `walk.ts`.
 
+**Only the default import of a component is the component.** Svelte compiles a component to a
+module whose `default` export is the component and whose `<script module>` exports are its named
+exports, so `import { foo } from './Foo.svelte'` is a value like any other: carried into the
+bundle, not composed at compile time. Two passes asked the specifier instead of the specifier and
+the kind -- the one that resolves names, which reported `foo` as a name the data does not carry,
+and the one that gathers what a derivation calls, which dropped it from the bundle. The bundler has
+a loader for a component already, so nothing else was needed.
+
 **A `.svelte` specifier is a component only where there is a file of that name.** `./x.svelte` is
 how a bundler is asked for the runes module `x.svelte.js` once it completes the extension, so the
 file decides and not the specifier -- which the rule already said and the code did not ask. Read as

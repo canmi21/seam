@@ -131,10 +131,14 @@ interface Context {
  * `x.svelte.ts` once it completes the extension. Without a file to resolve from, the suffix has
  * to do.
  */
-function componentImport(from: string, file: string | undefined): boolean {
-	if (!from.endsWith('.svelte')) return false;
+function componentImport(held: Carried, file: string | undefined): boolean {
+	// Only the default export is the component. Svelte compiles a component to a module whose
+	// `default` is the component and whose `<script module>` exports are its named exports, so
+	// `import { foo } from './Foo.svelte'` is a value like any other and is carried, not composed.
+	if (held.kind !== 'default') return false;
+	if (!held.from.endsWith('.svelte')) return false;
 	if (file === undefined) return true;
-	return (resolveBare(from, file) ?? from).endsWith('.svelte');
+	return (resolveBare(held.from, file) ?? held.from).endsWith('.svelte');
 }
 
 const KINDS: Record<string, Carried['kind']> = {
@@ -285,7 +289,7 @@ function report(
 		// An imported name is legal and gets bundled rather than looked up in the data. A
 		// component is not one of these: it is composed at compile time and never a value here.
 		const held = carried?.known.get(name);
-		if (carried !== undefined && held !== undefined && !componentImport(held.from, carried.file)) {
+		if (carried !== undefined && held !== undefined && !componentImport(held, carried.file)) {
 			carried.used.add(name);
 			continue;
 		}

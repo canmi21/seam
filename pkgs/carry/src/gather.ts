@@ -62,7 +62,11 @@ export function carriedBy(
 			// own dependencies, which are beside the package and not beside the bundle's entry. The
 			// file decides whether it is a component: `x.svelte` completes to `x.svelte.ts` as well.
 			const from = resolveBare(one.from, at) ?? one.from;
-			if (from.endsWith('.svelte')) continue;
+			// Only the **default** export is the component. Svelte compiles a component to a module
+			// whose `default` is the component and whose `<script module>` exports are its named
+			// exports, so `import { foo } from './Foo.svelte'` is a value an expression may call and
+			// has to be carried like any other. The bundler has a loader for a component already.
+			if (from.endsWith('.svelte') && one.kind === 'default') continue;
 			carried.push({ ...one, from });
 		}
 		if (carried.length > 0) found.set(file, carried);
