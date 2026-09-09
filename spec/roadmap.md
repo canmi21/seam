@@ -45,9 +45,15 @@ A refusal stops a build and names a file. What follows here compiled and wrote b
 Svelte's, which nothing said. [suite.md](suite.md) has the measurement and
 [conformance.md](conformance.md) why this ordering is not the obvious one. There were 115; the
 first entry below took it to 42 and the anchor row to 39, and all of them are read out here rather
-than counted -- the suite
-prints the first byte the two renders disagree on, which is what made reading them a morning
-instead of a project.
+than counted -- the suite prints the first byte the two renders disagree on, which is what made
+reading them a morning instead of a project.
+
+**One is left**, and it is not a construct: `runtime-runes/props-equality` reads a declaration
+inside a larger expression, so the array literal is built again per read and `items.includes(item)`
+is false where Svelte's own render, which evaluates the declaration once, says true. It is the
+identity half of the entry under Open below -- holding a declaration rather than substituting it --
+and one derivation per expression, which landed with it, closes the half where the read is the
+whole expression and not this one.
 
 **A default on the entry's own props was dropped: done.** It was 78 of the 115. The default now
 stands over the payload's key as one derivation computed before anything reads it, which is what

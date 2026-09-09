@@ -44,36 +44,39 @@ Three of the outcomes are not failures and saying so once is what keeps the targ
 **Upstream's own skips are out.** 558 samples whose `_config.js` says `skip`, or a `mode` without
 `sync`, or an `error` the sample exists to produce. Not our judgement.
 
-**A refusal by decision is out.** 220 samples: 157 that await in markup or at the top of a script,
-which is async Svelte and the load stage's by the scope line, and 63 that assign a name or mutate
-an object after declaring it where the statements read the request, which is a program per request.
-[roadmap.md](roadmap.md) holds both and neither moves. The count moves as work lands, and upward:
-a sample that used to be refused for a gap earlier in the walk reaches one of these instead.
+**A refusal by decision is out.** 228 samples: 157 that await in markup or at the top of a script,
+which is async Svelte and the load stage's by the scope line, and 71 whose script changes a value
+the markup reads while the bytes are written -- assigned after being declared, or changed by a
+function this render calls -- which is a program per request. [roadmap.md](roadmap.md) holds both
+and neither moves. The count moves as work lands, and upward: a sample that used to be refused for
+a gap earlier in the walk reaches one of these instead.
 
 **Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
 
-So the target is: **of the 1610 samples that are in, every one is byte-identical to Svelte's own
+So the target is: **of the 1602 samples that are in, every one is byte-identical to Svelte's own
 render.** Nothing differing, nothing refused as a gap.
 
 ### Where it stands
 
 ```
                         samples  identical  empty  differs  refused  skipped
-server-side-rendering       131         72      3        1       39       16
-runtime-runes              1048        490     15        9      256      278
-runtime-legacy             1209        722     21       12      189      264
-total                      2388       1284     39       22      484      558
+server-side-rendering       131         72      3        0       40       16
+runtime-runes              1048        493     14        1      262      278
+runtime-legacy             1209        733     21        0      190      264
+total                      2388       1298     38        1      492      558
 ```
 
-Against the target: **1323 of 1610**, with 22 differing and 264 refused as gaps. One sample fails
+Against the target: **1336 of 1602**, with one differing and 264 refused as gaps. One sample fails
 inside the oracle rather than inside either side and is counted apart.
 
 ### What is left, in the order it should be taken
 
-**The 22 that differ come first, whatever the refusals say.** A refusal stopped a build and named
-a file; a difference shipped bytes nobody asked for. [roadmap.md](roadmap.md) reads them out by
-cause and ranks them.
+**One sample writes bytes that are not Svelte's**, and it is the identity question rather than a
+construct: `runtime-runes/props-equality` reads a declaration inside a larger expression, so the
+array literal is built again and `items.includes(item)` is false where Svelte's own render, which
+evaluates the declaration once, says true. Holding a declaration rather than substituting it is
+what closes it, and [roadmap.md](roadmap.md) ranks that.
 
 **24 refusals name no specification file, and that is a defect rather than a gap.**
 [refusals.md](refusals.md) requires a refusal to say where the question lives, and these say
@@ -83,9 +86,6 @@ only because it injects. Each is its own cause -- a store read, a function inlin
 `getAllContexts()` outside a render -- and reading them is what turns one label into entries that
 can be ranked. Beside them are the internal errors still escaping, `$state is not defined` among
 them, each a place the compiler met something it did not name.
-
-Fixing these does not by itself move the count. It is worth doing early anyway, because a refusal
-that names nothing cannot be ranked.
 
 ### When it is done
 
