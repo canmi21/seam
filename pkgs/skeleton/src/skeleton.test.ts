@@ -300,6 +300,16 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// `$props()` destructures, so a default is taken where the property is `undefined` and the
+		// question is about the payload rather than about what the name resolves to. Written as
+		// `typeof Math === 'undefined'` it found the global and never took the default.
+		name: 'a prop default whose name a global already has',
+		source:
+			'<script>let { data, Math = { min: () => "potato" } } = $props();</script>' +
+			'<p>{Math.min(data.x, 5)}</p>',
+		data: [{ x: 10 }],
+	},
+	{
 		// Svelte's server writes `let a = each_array[i]` inside the loop, so what the block binds
 		// shadows a declaration of the same name the way any block-scoped declaration does. Without
 		// that, `{#each a as a}` wrote the array's own initialiser at every read of `a`.

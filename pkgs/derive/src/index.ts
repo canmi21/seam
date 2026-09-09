@@ -16,12 +16,17 @@ export interface Derivation {
 	 */
 	scoped?: boolean;
 	/**
-	 * A derivation that stands over a payload key rather than beside it: a prop's default, which is
-	 * `typeof x === 'undefined' ? ... : x` under the name `x`.
+	 * A derivation that stands over a payload key rather than beside it: a prop's default, whose
+	 * expression is the default itself and whose name is the prop's.
 	 *
-	 * Computed in order, while the name still holds what the request brought, because as a lazy
-	 * read it would resolve `x` to itself. Which is not the same as asking whether the key is there:
-	 * the request omitting it is exactly when the default matters.
+	 * Taken where the payload's **property** is `undefined`, which is what `$props()` destructuring
+	 * does and is a question about the object rather than about what the name resolves to. Asking
+	 * `typeof x === 'undefined'` inside the expression is a different question and a wrong one:
+	 * the scope is read through `with`, so a prop nobody sent falls through to the global of that
+	 * name, and `export let Math = { min: ... }` never took its default.
+	 *
+	 * Computed in order, while the names around it still hold what the request brought, since one
+	 * default may read another prop.
 	 */
 	prop?: boolean;
 	/**
@@ -166,9 +171,12 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 				out[derivation.name] = Object.assign(held, { [SCOPED]: true });
 				continue;
 			}
-			// A prop's default stands over the payload's key and is computed in order. See
+			// A prop's default stands over the payload's key and is computed in order. The test is
+			// the property's value and nothing else, which is what destructuring does: absent and
+			// present-as-`undefined` are the same case, and `null` is not one of them. See
 			// `Derivation.prop`.
 			if (derivation.prop === true) {
+				if (out[derivation.name] !== undefined) continue;
 				try {
 					out[derivation.name] = derivation.evaluate(bindings());
 				} catch (error) {

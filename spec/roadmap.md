@@ -107,7 +107,7 @@ a derivation is already evaluated once and cached. That is a change to what subs
 | ~~3~~ | ~~**the wrong branch, or a missing anchor**~~ | Done, and it was two faults rather than one. See below. |
 | 1 | **a namespaced component** | `<Components.Foo />` gets a block anchor pair Svelte does not write. |
 | ~~1~~ | ~~**attribute order beside a directive**~~ | Done, and the rule is in `2-analyze/index.js` rather than the transform: an element carrying a directive and no attribute of that name has one appended to `node.attributes`, class first, then style. |
-| 1 | **a prop default a global shadows** | `export let Math = { min: ... }`. The guard is `typeof Math === 'undefined'`, and a global of that name makes it false, so the default never fires. `typeof` is what lets the guard read a key the payload lacks; it cannot tell that from a global. |
+| ~~1~~ | ~~**a prop default a global shadows**~~ | Done, and the guard was the wrong question. `$props()` destructures, so the default is taken where the payload's property is `undefined`; asking `typeof Math === 'undefined'` asks what the name resolves to, and `with` falls through to the global. The expression is the default alone now and the test is on the property. |
 | 2 | **two of their own** | an `<option disabled>` on the wrong item, and a `--css-var` custom property that is not written. |
 
 **The three anchor cases were read first** even though they were not the largest group. Every

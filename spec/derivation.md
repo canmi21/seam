@@ -445,6 +445,21 @@ back as "is an illegal variable name" -- so such an expression stays a marker an
 calls the function where the carried bundle has it. Tested by name rather than by the prefix, since
 `$$props`, `$$restProps` and `$$slots` wear it too and those are the render's own to evaluate.
 
+## A prop's default is a question about the payload, not about the name
+
+`$props()` destructures, so Svelte's answer is JavaScript's: the default is taken where the
+**property** is `undefined`, which covers a key the request left out and a key it sent as
+`undefined`, and does not cover `null`.
+
+The derivation that stands over the payload's key used to carry the test in its expression,
+`typeof x === 'undefined' ? (d) : x`. That is a different question. An expression reads its scope
+through `with`, which asks the payload whether it has the name and falls through to the globals
+where it does not -- so `export let Math = { min: ... }` resolved `Math` to the global, `typeof`
+said `object`, and the default was never taken. Svelte wrote `potato`; this wrote `5`.
+
+The expression is the default alone now, and the test is on the property, made by the evaluator
+that applies it. See `Derivation.prop`.
+
 ## A name is only its initialiser while nothing changes what it holds
 
 `transform-server.js` puts the instance script's statements at the top of the component function

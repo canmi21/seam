@@ -4407,13 +4407,17 @@ export function rewrite(
 		.filter((one) => one.rest !== true && one.fallback !== 'undefined')
 		.map((one) => ({
 			name: one.prop,
+			// The default alone, without a test around it. `$props()` destructures, so Svelte's own
+			// answer is JavaScript's: the default is taken where the **property** is `undefined`,
+			// which is a question about the payload rather than about what the name resolves to.
+			// Written as `typeof x === 'undefined' ? d : x` it was neither -- `export let Math = {...}`
+			// found the global and never took the default. See `Derivation.prop`.
+			//
 			// Expanded, like every other expression the walk records. A default is the author's own
 			// source and may call what only its file has -- `export let foo = get()`, or a function
 			// the script below it declares -- and a derivation is evaluated with the carried bundle
 			// in scope rather than with the component's body.
-			expression: `typeof ${one.prop} === 'undefined' ? (${
-				one.at === undefined ? one.fallback : declared.rewrite(one.at)
-			}) : ${one.prop}`,
+			expression: one.at === undefined ? one.fallback : declared.rewrite(one.at),
 			files: [relative(root, file)],
 		}));
 	const missed: { file: string; reason: string }[] = [];
