@@ -2112,10 +2112,14 @@ the evaluator as `count is not defined`, which names nothing an author wrote. A 
 expression evaluated once per request and outside the script, so a name it assigns to is bound
 nowhere and nothing else can see what it wrote.
 
-Two of the samples that used to fail inside the evaluator are this, and both are the by-decision
-rule about a value the render changes reaching the walk by a route the rule does not watch:
+**It is the same decision as a value the render changes, and is counted with it.** An expression
+that assigns to a name outside itself is a program, and a derivation is not a program: it is
+evaluated once per request, outside the script, with nothing that can see what it wrote. Three
+samples are it, and each reaches the walk by a route the rule about a changed name does not watch --
 `destructure-state-iterable` writes `let [one, two] = $state(test())` over a generator whose body is
-`yield count++`, and `spread-component-side-effects` spreads a call that counts itself.
+`yield count++`, `spread-component-side-effects` spreads a call that counts itself, and
+`await-then-destruct-computed-props` writes `num++` inside a computed key of a pattern. The scope
+line settles all three the same way [conformance.md](conformance.md) settles the rest.
 
 **Only what the expression evaluates.** A function it holds rather than calls writes nothing while
 the bytes are written: `handleClick={() => clicked = letter}` is a handler handed to a component and

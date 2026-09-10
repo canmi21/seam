@@ -293,6 +293,20 @@ reader wants exactly that, which is the substitution a prop already gets -- one 
 key in scope makes it exact, and more than one is a decision. It is the one channel between
 components the walk does not follow, and every component library uses it.
 
+### A rune written as a class field is not read
+
+`props-derived-teardown` is the sample, and it is one gap rather than a family. Svelte reads a class
+body: `2-analyze` fills `analysis.classes`, and `ClassBody.js` answers each field from it --
+`$state` and `$state.raw` are visited in place, where `CallExpression.js` returns the argument, and
+`$derived` becomes a backing property holding `$.derived(() => e)` beside a getter that calls it.
+
+This compiler's `locals` reads the declarations a script's statements make and does not look inside
+a class body, so `class Test { originalIds = $state.raw([1, 2, 3]) }` keeps its rune. Substitution
+then carries `$state.raw` into an expression this compiler has to write itself, where a rune is a
+name nothing defines: it used to reach the evaluator as `$state is not defined` and says so at
+compile time now. Reading a class body the way `declared()` reads a `VariableDeclaration` is the
+work, and `runeHolds` already knows what each rune's declaration holds.
+
 ### The 42 that remain, by cause
 
 | | | |

@@ -56,7 +56,7 @@ counts them in a column of their own now rather than beside the gaps:
 - **183 await** in markup or at the top of a script, which is async Svelte and the load stage's.
   Which samples those are is upstream's compiler to say: one that will not build without
   `experimental.async` is async Svelte whatever this compiler's own message says.
-- **30 change a value** the markup reads while the bytes are written -- assigned after being
+- **33 change a value** the markup reads while the bytes are written -- assigned after being
   declared, changed by a function this render calls, written into `$$props`, or a store the script
   writes -- which is a program per request. There were 68, and the rule was asked at the
   declaration; it is asked where the walk writes an expansion out now, since the render runs the
@@ -87,11 +87,11 @@ render.** Nothing differing, nothing refused as a gap.
                         samples  identical  empty  differs   gap  decided  skipped  oracle
 server-side-rendering       131         85      4        0     2       18       16       6
 runtime-runes              1048        576     18        0     5      172      268       9
-runtime-legacy             1209        869     22        0    11       36      269       2
-total                      2388       1530     44        0    18      226      553      17
+runtime-legacy             1209        869     22        0     9       38      269       2
+total                      2388       1530     44        0    15      229      553      17
 ```
 
-Against the target: **1548 of 1566**, with nothing differing and 18 refused as gaps. Seventeen fail
+Against the target: **1545 of 1560**, with nothing differing and 15 refused as gaps. Seventeen fail
 inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
 has to answer them in [roadmap.md](roadmap.md).
 
@@ -111,23 +111,24 @@ two were one question underneath, a value a function this render calls changes, 
 by a route the rule does not watch -- a spread and a generator rather than a name. Both are now
 refused for assigning to a name outside the value this compiler has to write.
 
-**The 18 gaps, by what they are.**
+**The 15 gaps, by what they are.**
 
 | count | what it is |
 | ----- | ---------- |
 | 6 | a component binding sending a value back where the condition is the request's |
 | 3 | a `{@render}` whose callee this compiler cannot follow to a `{#snippet}` |
-| 3 | a value this compiler writes that assigns to a name outside it |
-| 2 | a context read and a rune left in a value this compiler has to write itself |
+| 1 | a context read in a value this compiler has to write itself |
+| 1 | a rune written as a class field, which this compiler does not read |
 | 1 | a value handed to a component and used for something other than being written out |
 | 1 | a `<select>` around a component the walk could not enter |
 | 1 | a component tag named by what a block binds |
 | 1 | a choice over a name an each block binds, which cannot be enumerated for the page |
 
-The first is a decision about block semantics and [roadmap.md](roadmap.md) has it. The fourth row is
-the two that used to fail inside the evaluator, and it is the by-decision rule about a value the
-render changes wearing another message because the read goes through a spread or a generator rather
-than by name.
+The first is a decision about block semantics and [roadmap.md](roadmap.md) has it. Every one of them
+names a specification file, which is the whole of what a refusal owes. The three that used to fail
+inside the derivation evaluator are counted as decisions now, being the rule about a value the
+render changes reaching the walk through a spread, a generator and a computed key rather than by
+name.
 
 ### When it is done
 

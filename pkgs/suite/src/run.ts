@@ -130,6 +130,10 @@ const DECIDED: readonly { says: string; kind: string }[] = [
 	{ says: 'is a prop this component changes', kind: 'a value the render changes' },
 	{ says: "is a store this component's own script writes", kind: 'a value the render changes' },
 	{
+		says: 'is assigned inside a value this compiler has to write itself',
+		kind: 'a value the render changes',
+	},
+	{
 		says: 'is written to, and it is not a value this compiler holds',
 		kind: 'a value the render changes',
 	},
