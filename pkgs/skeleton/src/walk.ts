@@ -3193,6 +3193,49 @@ function unknown(walk: Walk): ReadonlySet<string> {
 }
 
 /**
+ * Whether every `{#snippet}` this component declares holds a body the render can write on its own.
+ *
+ * A `{@render}` whose callee cannot be followed is left to the render, which then calls whichever
+ * snippet the value holds and writes that body's bytes. A body is walked where a render tag names
+ * it and nowhere else, so one left to the render is one this pass never rewrote: `{#snippet
+ * one()}<b>{data.a}</b>{/snippet}` reached Svelte's own renderer as written and read `.a` of the
+ * nothing a render is given.
+ *
+ * **Which snippet the render will call is the question that could not be answered, so the answer
+ * covers all of them.** That is Svelte's own model of a site it cannot resolve:
+ * `2-analyze/visitors/RenderTag.js` writes `node.metadata.snippets = analysis.snippets` for one,
+ * linking it to every snippet in the component.
+ *
+ * Every identifier in a body counts, one a parameter or a `{@const}` shadows included. Refusing
+ * where the walk could have gone in costs a compile that names a file; the other direction costs
+ * bytes nobody asked for.
+ */
+function inertBodies(snippets: ReadonlyMap<string, Snippet>, walk: Walk): boolean {
+	const names = unknown(walk);
+	if (names.size === 0) return true;
+	let found = false;
+	const seek = (node: unknown): void => {
+		if (found) return;
+		if (Array.isArray(node)) {
+			for (const one of node) seek(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		if (node['type'] === 'Identifier' && typeof node['name'] === 'string') {
+			if (names.has(node['name'])) found = true;
+			return;
+		}
+		for (const one of Object.values(node)) seek(one);
+	};
+	for (const one of snippets.values()) {
+		if (!one.declared || one.node === undefined) continue;
+		seek(one.node['body']);
+		if (found) return false;
+	}
+	return true;
+}
+
+/**
  * Appends a statement per test to the end of the instance script that reports the test's value
  * to the render's caller, so that a decision the request does not make is made once. At the end
  * rather than the top, because a declaration below is not yet in scope at the top.
@@ -5047,7 +5090,24 @@ function collect(node: unknown, walk: Walk): void {
 						: null;
 				const known = bare === null || site.carried.has(bare) || expand(callee) !== bare;
 				const called = isNode(call) ? expand(call) : null;
-				if (called !== null && known && site.payload !== null && !varies(called, walk)) return;
+				// Asked of what the render is given, which on this path is the author's own text: the
+				// tag is left exactly as written and Svelte compiles it. Asked of the expansion, a
+				// `{@render $s()}` over a store this file makes reads as the request's, because
+				// `$$get_store` is a helper this walk put there and no expression naming one can go
+				// back to the render. Nothing of that expansion reaches anything here, so the question
+				// is the author's. See spec/derivation.md.
+				//
+				// And the call is not the whole of what the render is left: it writes the body of
+				// whichever snippet the value holds, and a body is walked at the tag that names it or
+				// nowhere. See `inertBodies`.
+				if (
+					called !== null &&
+					known &&
+					site.payload !== null &&
+					inertBodies(snippets, walk) &&
+					!varies(called, walk, true)
+				)
+					return;
 				if (process.env['SEAM_TRACE'] !== undefined) {
 					console.error(
 						`[seam] render of ${String(name)} in ${site.file}: given ${JSON.stringify([...site.given.keys()])}, stack ${site.stack.map((one) => basename(one)).join(' > ')}`,
