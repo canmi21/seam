@@ -10,7 +10,7 @@ import { dead, filled, outcomes, probed } from './resolve.ts';
 import type { Block, Rendered, Skeleton } from './shape.ts';
 import { inlined } from './snippets.ts';
 import { unbound } from './unbind.ts';
-import { rechosen, rewrite } from './walk.ts';
+import { outside, rechosen, rewrite } from './walk.ts';
 
 export { Undecided } from './walk.ts';
 
@@ -331,6 +331,14 @@ export async function skeleton(
 		// that have one.
 		...(baseline.dead.size === 0 ? {} : { dead: Object.fromEntries(baseline.dead) }),
 	};
+
+	// Every expression here is a derivation, and a derivation is evaluated outside `render()`.
+	// `varies()` asks this of each expression it turns into a marker, and not every marker is
+	// planted through that question: a `class:` directive is a decision the element has whatever
+	// its value reads, so a context read inside one went out as a derivation and threw
+	// `lifecycle_outside_component` at injection rather than naming a file here. Asked once more
+	// over the finished list, which is the one place that holds all of them.
+	for (const one of expressionsOf(finished)) outside(one.expression);
 
 	return finished;
 }

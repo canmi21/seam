@@ -2094,6 +2094,17 @@ this={...}>` written by the author is the same call and is settled the same way.
 expression reaches the request is a component chosen per request, and the paragraph below says
 what that is.
 
+**What cannot survive being a derivation is asked wherever one is made, not only where `varies()`
+decides one.** A marker means a derivation and a derivation is evaluated outside `render()`, so a
+context read and a rune left in an expression have nowhere to come from. Both were asked at the end
+of `varies()`, after the question of which names the expression reads -- and not every marker is
+planted through that question. An expansion that names one of Svelte's own carried helpers is a
+derivation before anything asks what it reads, and a `class:` directive is a decision the element
+has whatever its value reads. A context read wrapped in `$$get_store` went out both ways and threw
+`lifecycle_outside_component` at injection, which names no file. It is asked at every answer
+`varies()` gives, and once more over the finished list of expressions, which is the one place that
+holds all of them.
+
 **A copy takes its `<script module>` exports from the file it copies.** `transform-server.js` puts
 the module block at the top level of the module it compiles, so Svelte runs it **once per file**
 however many times the component is used. A copy is a second file, so a restated module block ran a

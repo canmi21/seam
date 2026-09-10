@@ -3780,7 +3780,7 @@ const refused: Case[] = [
 		// rendered. Handed to the render the read is fine, which is the ordinary case; as a marker
 		// it has nowhere to come from, and it reached the evaluator and threw there.
 		name: 'a context read in a value the request decides',
-		says: 'a context read in a value the request decides',
+		says: 'a context read in a value this compiler has to write itself',
 		source:
 			"<script>import { getContext } from 'svelte'; let { data } = $props();</script>" +
 			'<b>{getContext(data.k)}</b>',
@@ -3798,6 +3798,22 @@ const refused: Case[] = [
 			'</script>{#each list as C}<C />{/each}<i>{data.a}</i>',
 	},
 	{
+		// Asked over the finished list of derivations as well as at each marker `varies()` plants:
+		// a `class:` directive is a decision the element has whatever its value reads, so the value
+		// never goes through that question and a context read inside one went out as a derivation.
+		// It threw `lifecycle_outside_component` at injection, which names no file at all.
+		name: 'a context read inside a `class:` directive',
+		says: 'a context read in a value this compiler has to write itself',
+		beside: {
+			Kid:
+				"<script>import { getContext } from 'svelte'; const held = getContext('k');</script>" +
+				'<b class:on={held.v}>x</b>',
+		},
+		source:
+			"<script>import { setContext } from 'svelte'; import Kid from './Kid.svelte';" +
+			" let { data } = $props(); setContext('k', { v: true });</script><Kid /><i>{data.a}</i>",
+	},
+	{
 		// Not a declaration: `$: $count = n` writes the store, and `transform-server.js` declares a
 		// `let` only for a binding whose kind is `legacy_reactive`. Nor is one whose name a `let`
 		// already declares, which stays an assignment after a declaration and stays refused.
@@ -3811,7 +3827,7 @@ const refused: Case[] = [
 		// is the ones that call into Svelte's runtime: `$derived` in a class field is not a
 		// declaration this pass reads, and reached the evaluator as `$derived is not defined`.
 		name: 'a rune left in a value the request decides',
-		says: 'is left in a value the request decides',
+		says: 'is left in a value this compiler has to write itself',
 		source:
 			'<script>let { data } = $props(); class T { n = 1; twice = $derived(this.n * 2); }' +
 			' const t = new T();</script><p>{t.twice + data.a}</p>',

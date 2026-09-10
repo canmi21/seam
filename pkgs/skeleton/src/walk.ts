@@ -2634,7 +2634,7 @@ function varies(
 ): boolean {
 	// One of Svelte's own functions this compiler carries is not a name the render can be handed:
 	// Svelte's compiler refuses a `$`-prefixed variable in markup outright. See `carries()`.
-	if (!written && carries(expression)) return true;
+	if (!written && carries(expression)) return outside(expression);
 	// A name the server holds and the build has not -- `process.env`. Svelte reads it inside
 	// `render()`, once per request, and a derivation is read once per request too, so the two
 	// agree. Handed to the compile-time render instead it would read the build machine's value and
@@ -2645,7 +2645,7 @@ function varies(
 	// set that is never empty made every unreadable expression vary. A class field written
 	// `$derived(...)` is one of those, and it took a sample that has nothing to do with the
 	// environment. See `AT_REQUEST`.
-	if (SERVER_HELD.test(expression)) return true;
+	if (SERVER_HELD.test(expression)) return outside(expression);
 	// A subscription to a store the request brings. Asked here rather than only where a value is
 	// handed to a component the walk could not enter: `{#if $condition}` over a prop declared
 	// `writable(true)` is the same unknowable and reached the evaluator as a bare `$condition`.
@@ -2682,18 +2682,30 @@ function varies(
 	if (!mentions(expression, names)) return false;
 	const varying = !onlyWithin(expression, names, walk.site.runes);
 	if (!varying) return false;
-	// From here it is a marker, which means a derivation, which means an expression evaluated
-	// outside `render()`. Two things cannot survive that trip, and both were reaching the evaluator
-	// and throwing there rather than naming a file here.
-	//
+	return outside(expression);
+}
+
+/**
+ * What cannot survive being a derivation, asked wherever one is about to be made.
+ *
+ * A marker means a derivation, and a derivation is an expression evaluated outside `render()`. Two
+ * things cannot make that trip, and both were reaching the evaluator and throwing there rather than
+ * naming a file here. Asked at every answer `varies()` gives rather than at its last one: an
+ * expansion naming one of Svelte's own helpers is a derivation before anything asks which names it
+ * reads, and a context read wrapped in `$$get_store` went out that way and threw
+ * `lifecycle_outside_component` at injection.
+ *
+ * Returns true, so it reads as the answer it guards.
+ */
+export function outside(expression: string): boolean {
 	// A context read: `getContext` and `getAllContexts` ask the component being rendered, and there
 	// is none. Handed to the render it is fine, which is the branch above.
 	if (READS_CONTEXT.test(expression)) {
 		refuse(
-			'a context read in a value the request decides. `getContext` asks the component being ' +
-				'rendered and a derivation is evaluated outside one, so the read has nowhere to come ' +
-				'from. Hand the value down as a prop, or read it where nothing the request decides is ' +
-				'in the expression. See spec/refusals.md',
+			'a context read in a value this compiler has to write itself. `getContext` asks the ' +
+				'component being rendered and a derivation is evaluated outside one, so the read has ' +
+				'nowhere to come from. Hand the value down as a prop, or write the read where the ' +
+				'render can evaluate it. See spec/refusals.md',
 		);
 	}
 	// A rune: `$state`, `$derived` and the rest are compiled away by Svelte and exist nowhere at
@@ -2702,9 +2714,9 @@ function varies(
 	const rune = RUNE.exec(expression);
 	if (rune !== null) {
 		refuse(
-			`\`${rune[0]}\` is left in a value the request decides. A rune is compiled away by Svelte ` +
-				'and is not a function anything can call, so a derivation reading one has nothing to ' +
-				'call. See spec/refusals.md',
+			`\`${rune[0].trim()}\` is left in a value this compiler has to write itself. A rune is ` +
+				'compiled away by Svelte and is not a function anything can call, so a derivation ' +
+				'reading one has nothing to call. See spec/refusals.md',
 		);
 	}
 	return true;
