@@ -742,8 +742,55 @@ structures writes the same expression once for every place it was read.
 
 **It is not the whole of the identity question.** Where the declaration is read inside a larger
 expression -- `items.includes(item)` is one derivation with the array literal inside it -- there is
-nothing to share, and the array is built again. Holding a declaration rather than substituting it
-is what closes that, and it is the open item under Substitution below.
+nothing to share, and the array is built again. The section below says which declarations are held
+instead of substituted, and why the answer is not "all of them".
+
+## A declaration that makes something is held, not substituted
+
+Substitution writes a name's initialiser at each read, and that is the same answer as Svelte's
+**only where evaluating it again is**. Two evaluations of `data.title` are one value; two
+evaluations of `[{ name: 'a' }]` are two arrays, and nothing the second one holds is what the first
+one held.
+
+`runtime-runes/props-equality` is that, and it is the one sample this compiler writes the wrong
+bytes for. `let items = $state([...])` is read as the each's source and again inside
+`items.includes(item)`, so the artifact carries
+
+```
+__d0: [{"name":"a"},{"name":"b"}]
+__d1: ([{"name":"a"},{"name":"b"}]).includes(item)
+```
+
+`item` came out of `__d0`'s array and `__d1` asks a second array whether it contains it. The answer
+is `false`; Svelte evaluates `items` once and says `true`.
+
+**The rule is two conditions, and both are needed.**
+
+**The initialiser makes something.** An object or array literal, a `new`, or a call: an expression
+whose two evaluations are two values. A member read, a name, arithmetic, a literal -- two
+evaluations of those are the same value, so substitution is exact and stays exact. This is the
+condition that keeps the rule off the ordinary component, and it is the one `Skeleton.defaults`
+records the cost of getting wrong: rewriting each read of a prop default turned every read of every
+defaulted prop into a derivation of its own, and on Kit's generated root that is every read on every
+page. `const t = data.title` must stay a path, and it does, because `data.title` makes nothing.
+
+**And substitution would embed it rather than share it.** Two reads that are each the *whole* of an
+expression already share one derivation -- that is the section above, and it is why `{items}` handed
+to two children costs one array. What is left is a read *inside* a larger expression, where there is
+no shared name to give it. So the trigger is a read that is not the whole of the expression it sits
+in.
+
+**Held means one derivation, named, and read by that name.** The machinery is already there and
+needs nothing new: a derivation is computed once per request and cached, and an expression reads its
+scope through `with`, so one derivation may name another -- `__d1` becomes `(__d0).includes(item)`
+and resolves, tested. What changes is the substitution: the name expands to the derivation's name
+rather than to the initialiser's text.
+
+**What it does not reach.** A value the render *mutates* is a different question and stays refused.
+`$: keys.forEach((key) => { object[key] = [] })` needs the statement to have run, and a derivation
+is a pure expression evaluated at request time with no `$:` to run -- holding `object` once gives
+the empty object, not the filled one. That is a program per request, which is the scope line's, and
+[roadmap.md](roadmap.md) keeps it there.
 
 ## Which names the request decides, in both spellings of a prop
 
