@@ -4697,9 +4697,24 @@ function collect(node: unknown, walk: Walk): void {
 								edits,
 								expand,
 								pending,
-								(text) => site.payload !== null && !varies(text, walk),
+								// The class run's question, asked the same way: nothing of the expansion is
+								// written anywhere on that answer. See spec/derivation.md.
+								(text) => site.payload !== null && !varies(text, walk, true),
 							);
-				const handled = spreads.size > 0 ? spreads : classes(node, holes, edits, expand, pending);
+				const handled =
+					spreads.size > 0
+						? spreads
+						: classes(
+								node,
+								holes,
+								edits,
+								expand,
+								pending,
+								// Asked with the expansion's own helpers allowed, because nothing of that
+								// expansion is written anywhere on this answer: the run is left exactly as
+								// the author wrote it and Svelte builds it. See spec/derivation.md.
+								(text) => site.payload !== null && !varies(text, walk, true),
+							);
 				const given = type === 'Component' || type === 'SvelteComponent';
 				const tag = typeof node['name'] === 'string' ? node['name'] : '';
 

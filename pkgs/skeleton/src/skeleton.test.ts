@@ -1864,6 +1864,21 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A `class:` run whose value and every directive vary with nothing the request decides is
+		// left exactly as written, and Svelte's own `attr_class` builds it in the render. Enumerated
+		// instead, the value had to survive being a derivation, and a `getContext` in one cannot:
+		// it asks the component being rendered, which is where the render evaluates it and a
+		// derivation never is. `style:` has to answer the same question the same way, or one run is
+		// written out here and the other left to the render and the two attributes come out in the
+		// wrong order. `runtime-legacy/context-api` is the vendored shape.
+		name: 'a `class:` and a `style:` the request does not decide',
+		source:
+			"<script>let { data } = $props(); const held = { v: true, c: 'red' };</script>" +
+			'<p style:color="red" class:foo={true}>a</p>' +
+			'<b class:on={held.v} style:color={held.c}>b</b><i>{data.a}</i>',
+		data: [{ a: 'q' }],
+	},
+	{
 		// A `bind:` whose value the request does not decide is left exactly as written, both halves
 		// of it, because both are the render's to run: Svelte wraps the caller's template in the
 		// settling loop, `bind_props` assigns into the value the caller actually holds, and the
@@ -3976,22 +3991,6 @@ const refused: Case[] = [
 		source:
 			"<script>import { One, Two } from './Reg.svelte'; let { data } = $props();" +
 			' const list = [One, Two];</script>{#each list as R}<R.Tip />{/each}<i>{data.a}</i>',
-	},
-	{
-		// Asked over the finished list of derivations as well as at each marker `varies()` plants:
-		// a `class:` directive is a decision the element has whatever its value reads, so the value
-		// never goes through that question and a context read inside one went out as a derivation.
-		// It threw `lifecycle_outside_component` at injection, which names no file at all.
-		name: 'a context read inside a `class:` directive',
-		says: 'a context read in a value this compiler has to write itself',
-		beside: {
-			Kid:
-				"<script>import { getContext } from 'svelte'; const held = getContext('k');</script>" +
-				'<b class:on={held.v}>x</b>',
-		},
-		source:
-			"<script>import { setContext } from 'svelte'; import Kid from './Kid.svelte';" +
-			" let { data } = $props(); setContext('k', { v: true });</script><Kid /><i>{data.a}</i>",
 	},
 	{
 		// `declared: false` says only that no `{#snippet}` of that name is written here, and the

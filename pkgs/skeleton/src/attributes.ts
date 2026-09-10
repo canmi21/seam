@@ -372,6 +372,8 @@ export function classes(
 	edits: [number, number, string][],
 	expand: Locals['rewrite'],
 	pending: PendingChoice[],
+	/** Whether an expression varies with nothing the request decides, so the render evaluates it. */
+	inert: (expression: string) => boolean,
 ): ReadonlySet<unknown> {
 	const empty: ReadonlySet<unknown> = new Set();
 	// An element, written or decided per request: `build_element_attributes` is one function and
@@ -414,6 +416,25 @@ export function classes(
 					? clsxed(only['expression'], expand)
 					: joined(parts, expand);
 		}
+	}
+
+	// Unless nothing in the run is the request's. `build_attr_class` compiles the element to one
+	// `attr_class(value, hash, directives)` call whose result is the whole attribute, so where the
+	// value and every directive are the same for every request the render is the one that has it,
+	// and the run is left exactly as written for Svelte's own call to build. That is the rule
+	// `style:` beside a written value already has, and `class:` had none: a directive was
+	// enumerated whatever it read, and an enumerated value has to survive being a derivation where
+	// a value the render was going to evaluate need not. `runtime-legacy/context-api` reads
+	// `getContext` in one, which is answered nowhere but inside a render.
+	//
+	// Taken charge of all the same, and left as written: the caller must not walk the directives
+	// again, or one reaches the arm that refuses what the walk has not been taught.
+	const values = [
+		...(written === undefined ? [] : [written]),
+		...directives.map((one) => expand(one['expression'])),
+	];
+	if (values.every((one) => inert(one))) {
+		return new Set(isNode(attribute) ? [...directives, attribute] : directives);
 	}
 
 	const index = holes.length;
@@ -576,6 +597,8 @@ export function styles(
 
 	const declarations: PendingChoice['declarations'] & object = [];
 	const tests: string[] = [];
+	/** Every directive value that is not written text, for the inert answer below. */
+	const values: string[] = [];
 	for (const one of directives) {
 		const raw = typeof one['name'] === 'string' ? one['name'] : '';
 		// `to_css_name`: a custom property keeps its case, everything else is lowered.
@@ -612,9 +635,21 @@ export function styles(
 		// null and undefined. So that is what is written here, as one expression.
 		const written = isNode(inner) ? expand(inner) : joined(parts ?? [], expand);
 		declarations.push({ name, important, literal: null, expression: written });
+		values.push(written);
 		// Svelte's own test, from `append_styles`: `value != null && value !== ''`. Truthiness is
 		// not it -- `style:width={0}` writes `width: 0;`.
 		tests.push(`(${written}) != null && (${written}) !== ''`);
+	}
+
+	// Unless nothing in the run is the request's, which is the rule the class run has one construct
+	// along: where the written value and every directive are the same for every request, the render
+	// is the one that has them and the run is left exactly as written for Svelte's own `to_style`
+	// to build. **Both runs have to answer this the same way.** One written out here and the other
+	// left to the render is two attributes in the wrong order, since Svelte's own analysis appends
+	// the one it invents after every attribute that was written: `runtime-runes/directives` wrote
+	// `style` before `class` where Svelte writes `class` first.
+	if (values.every((one) => inert(one))) {
+		return new Set(isNode(attribute) ? [...directives, attribute] : directives);
 	}
 
 	if (1 << tests.length > CHOICES) {
