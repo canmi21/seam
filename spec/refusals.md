@@ -4,6 +4,11 @@ The compiler refuses things. An author who meets one needs to know which of thre
 are in, because the three ask for different actions, and until this file existed the compiler said
 the same kind of thing for all of them.
 
+**A refusal names one specification file, and only one.** The pointer is added where one is
+missing, not on top of one that is there: a message that already says `See spec/derivation.md` has
+said where the question lives, and appending the general pointer anyway put two of them at the end
+of ten refusals. The suite checks it, since it is the one thing every refusal is required to do.
+
 ## The target is zero refusals, and that is a statement about scope
 
 **In principle every way of writing Svelte has to compile.** There is no question of whether a

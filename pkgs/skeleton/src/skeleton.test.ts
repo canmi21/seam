@@ -4209,6 +4209,12 @@ describe('what it refuses, it refuses by saying where the question lives', () =>
 		// Checked rather than trusted. Four of these used to be a TypeError escaping from inside
 		// the sentinel pass, which is an internal stack rather than anything an author can act on.
 		expect(refusal, 'the message names no specification file').toContain('spec/');
+		// Once. A message that already names a file has said where the question lives, and appending
+		// the pointer anyway wrote two of them at the end of ten refusals.
+		expect(
+			(refusal ?? '').match(/See spec\/[\w-]+\.md/g) ?? [],
+			'the message names two specification files, one after the other',
+		).toHaveLength(1);
 		if (one.says !== undefined) expect(refusal).toContain(one.says);
 	});
 });

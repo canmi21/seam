@@ -20,9 +20,16 @@ export function span(node: unknown): [number, number] | null {
 	return [start, end];
 }
 
-/** What a refusal says, in one shape, so the reader always learns where the question lives. */
+/**
+ * What a refusal says, in one shape, so the reader always learns where the question lives.
+ *
+ * The pointer is added once. A message that already names a specification file has said where the
+ * question lives, and appending this one anyway wrote `See spec/derivation.md. See
+ * spec/refusals.md` at the end of ten of them -- two pointers where one is the answer.
+ */
 export function refuse(what: string): never {
-	throw new Error(`${what}. See spec/refusals.md`);
+	const said = what.replace(/\.?$/, '');
+	throw new Error(/See spec\/[\w-]+\.md$/.test(said) ? said : `${said}. See spec/refusals.md`);
 }
 
 /**
