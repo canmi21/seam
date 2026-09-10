@@ -742,19 +742,19 @@ structures writes the same expression once for every place it was read.
 
 **It is not the whole of the identity question.** Where the declaration is read inside a larger
 expression -- `items.includes(item)` is one derivation with the array literal inside it -- there is
-nothing to share, and the array is built again. The section below says which declarations are held
+nothing to share, and the array is built again. The section below says which values are held
 instead of substituted, and why the answer is not "all of them".
 
-## A declaration that makes something is held, not substituted
+## A value that makes something is held where it crosses into a child
 
 Substitution writes a name's initialiser at each read, and that is the same answer as Svelte's
 **only where evaluating it again is**. Two evaluations of `data.title` are one value; two
 evaluations of `[{ name: 'a' }]` are two arrays, and nothing the second one holds is what the first
 one held.
 
-`runtime-runes/props-equality` is that, and it is the one sample this compiler writes the wrong
-bytes for. `let items = $state([...])` is read as the each's source and again inside
-`items.includes(item)`, so the artifact carries
+`runtime-runes/props-equality` is that, and it was the last sample in the vendored suite this
+compiler wrote the wrong bytes for. `let items = $state([...])` is the each's source in the caller
+and a prop of the child, whose markup reads `items.includes(item)`, so the artifact carried
 
 ```
 __d0: [{"name":"a"},{"name":"b"}]
@@ -766,24 +766,35 @@ is `false`; Svelte evaluates `items` once and says `true`.
 
 **The rule is two conditions, and both are needed.**
 
-**The initialiser makes something.** An object or array literal, a `new`, or a call: an expression
-whose two evaluations are two values. A member read, a name, arithmetic, a literal -- two
-evaluations of those are the same value, so substitution is exact and stays exact. This is the
-condition that keeps the rule off the ordinary component, and it is the one `Skeleton.defaults`
-records the cost of getting wrong: rewriting each read of a prop default turned every read of every
-defaulted prop into a derivation of its own, and on Kit's generated root that is every read on every
-page. `const t = data.title` must stay a path, and it does, because `data.title` makes nothing.
+**The value makes something.** An object or array literal, a `new`, or a call: an expression whose
+two evaluations are two values. A member read, a name, arithmetic, a literal -- two evaluations of
+those are the same value, so substitution is exact and stays exact. This is the condition that keeps
+the rule off the ordinary component, and it is the one `Skeleton.defaults` records the cost of
+getting wrong: rewriting each read of a prop default turned every read of every defaulted prop into
+a derivation of its own, and on Kit's generated root that is every read on every page.
+`const t = data.title` must stay a path, and it does, because `data.title` makes nothing.
 
-**And substitution would embed it rather than share it.** Two reads that are each the *whole* of an
-expression already share one derivation -- that is the section above, and it is why `{items}` handed
-to two children costs one array. What is left is a read *inside* a larger expression, where there is
-no shared name to give it. So the trigger is a read that is not the whole of the expression it sits
-in.
+**And the tag hands it over as a read of a name.** `<Item {items} />` is the caller reading
+something it already has and giving the child that one value; `<Item items={[...]} />` builds the
+array at the tag, and there is no earlier value for the child's reads to be the same as. Only the
+first crosses a boundary as a read, and only the first is held. Inside one file the two reads are
+each the whole of an expression and already share one derivation -- that is the section above -- so
+the boundary is where the sharing is lost and where the hold belongs.
+
+Held at the call site rather than at the declaration, and that is the measured line. The same rule
+applied to every embedded read of a holding declaration inside one file turned 47 samples that wrote
+Svelte's bytes into refusals, because the reference reaches places the render evaluates that the
+call-site form does not. An in-file `{#each items as item}{items.includes(item)}{/each}` is
+therefore still substituted, and still wrong; no vendored sample writes one, and the fix is the same
+mechanism reaching further rather than a different one.
 
 **Held means one derivation, named, and read by that name.** A derivation is computed once per
 request and cached, and an expression reads its scope through `with`, so one derivation may name
 another -- `__d1` becomes `(__d0).includes(item)` and resolves, tested. What changes is the
-substitution: the name expands to the derivation's name rather than to the initialiser's text.
+substitution: the prop expands to the derivation's name rather than to the caller's text. The
+reference is recorded under the **caller's** file chain, not the child's, since the value is the
+caller's to evaluate: that is what makes the caller's own read and the child's land on one
+derivation instead of two with the same text.
 
 **The name is not the walk's to invent, and that is the design decision inside this.** A name the
 walk chooses has to be unique per *copy* rather than per file: a child entered twice is two copies
@@ -804,6 +815,14 @@ holding it only makes the other reads share what is there. A value nothing else 
 derivation where the render used to bake a constant, which is a cost and needs the read to be one
 where identity is observable. The first is the case `props-equality` is, and it is where this
 starts.
+
+**A value the child's script reaches is not held.** The child's script is handed to Svelte to
+evaluate, and a reference into a list only this compiler holds is not something Svelte can parse:
+`let { foo } = $state(data)` came back as "`$$hold` is an illegal variable name". Where any
+declaration in the child's script reaches a held prop, every hold of that call site is given up and
+the props are bound to their values, which is what the compiler did before this rule existed.
+Markup is unaffected, a read that carries a reference being a hole this compiler evaluates. Two
+samples in the suite are that case, and both keep writing Svelte's bytes.
 
 **What it does not reach.** A value the render *mutates* is a different question and stays refused.
 `$: keys.forEach((key) => { object[key] = [] })` needs the statement to have run, and a derivation

@@ -1999,8 +1999,9 @@ export function locals(
 			if (typeof from !== 'number' || typeof to !== 'number') return;
 			// Already written out as part of a bound path.
 			if (taken.has(from)) return;
-			const held = `(${given ?? expand(name, open, extra)})`;
-			edits.push([from, to, shorthand === true ? `${name}: ${held}` : held]);
+			const inner = given ?? expand(name, open, extra);
+			const mark = `(${inner})`;
+			edits.push([from, to, shorthand === true ? `${name}: ${mark}` : mark]);
 		});
 
 		return apply(source.slice(start, end), edits, start);

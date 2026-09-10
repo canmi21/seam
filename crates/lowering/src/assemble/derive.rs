@@ -108,9 +108,48 @@ fn reads(source: &str) -> Vec<String> {
 }
 
 impl Assembler<'_> {
+	/// Every `$$hold(n)` in an expression replaced by the name of the derivation it refers to.
+	///
+	/// The index is into the skeleton's held list, one list for the entry and every copy it enters,
+	/// so it is unique by construction. The initialiser resolves through the file chain of the
+	/// declaration rather than of the expression reading it, which is what makes the read of the
+	/// whole and the read inside a larger expression land on one derivation. See
+	/// `spec/derivation.md`.
+	fn holding(&mut self, expression: &str) -> Result<String> {
+		if !expression.contains("$$hold(") {
+			return Ok(expression.to_owned());
+		}
+		let mut out = String::with_capacity(expression.len());
+		let mut rest = expression;
+		while let Some(at) = rest.find("$$hold(") {
+			out.push_str(&rest[..at]);
+			let after = &rest[at + "$$hold(".len()..];
+			let end =
+				after.find(')').ok_or_else(|| "a held reference with no closing parenthesis".to_owned())?;
+			let index: usize = after[..end]
+				.parse()
+				.map_err(|_| format!("a held reference that is not an index: `{}`", &after[..end]))?;
+			let one = self
+				.skeleton
+				.held
+				.get(index)
+				.ok_or_else(|| format!("the walk refers to a held declaration {index} it never recorded"))?
+				.clone();
+			out.push_str(&self.path(&one.expression, &one.files)?);
+			rest = &after[end + 1..];
+		}
+		out.push_str(rest);
+		Ok(out)
+	}
+
 	/// A path stays a path; anything else becomes a field on the payload. Composition is Svelte's
 	/// here, so there is never a prop scope to carry.
 	pub(super) fn path(&mut self, expression: &str, files: &[String]) -> Result<String> {
+		// A held declaration is written as a reference into the skeleton's list rather than as its
+		// text, and this is where the reference becomes a name. Resolved first, so that everything
+		// below -- the path test, the key a derivation is shared under -- sees the name.
+		let resolved = self.holding(expression)?;
+		let expression = resolved.as_str();
 		let trimmed = expression.trim();
 		// The parentheses substitution wraps it in decide nothing about what it is, so they come
 		// off for the question and stay on for the answer: a derivation is recorded as written.

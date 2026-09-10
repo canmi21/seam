@@ -590,6 +590,21 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '' }],
 	},
 	{
+		// The identity of a value handed to a child. `items` makes an array, and each read inside the
+		// child used to build its own, so `items.includes(item)` asked a second array whether it held
+		// the first one's element and answered `false` where Svelte answers `true`. The value is held
+		// at the call site now and both reads are one array. See spec/derivation.md.
+		name: 'a child asking whether the list it was handed holds the item it was handed',
+		beside: {
+			Item: '<script>let { item, items } = $props();</script><b>{item.n} {items.includes(item)}</b>',
+		},
+		source:
+			"<script>import Item from './Item.svelte'; let { data } = $props();" +
+			" const items = [{ n: 'a' }, { n: 'b' }];</script>" +
+			'{#each items as item}<Item {item} {items} />{/each}<i>{data.a}</i>',
+		data: [{ a: 'x' }, { a: '' }],
+	},
+	{
 		name: 'a child that writes a prop twice, and one that never writes it',
 		beside: {
 			Twice: '<script>let { p } = $props();</script><b>{p}</b><i>{p}</i>',

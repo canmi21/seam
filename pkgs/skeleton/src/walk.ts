@@ -517,6 +517,14 @@ export interface Walk {
 	 * name. See `resolved()` in the ast package.
 	 */
 	dead: Map<string, [number, number][]>;
+	/**
+	 * A held declaration's initialiser, by the index the substitution refers to it with.
+	 *
+	 * One list for the whole walk, so the index is unique across the entry and every copy: a child
+	 * entered twice is two copies with two call sites, and one name over two values is a silent
+	 * wrong byte. The pass that names derivations resolves the reference. See spec/derivation.md.
+	 */
+	keeping: { expression: string; files?: string[] }[];
 	within: [number, number][];
 	site: Site;
 	/** What the request decides, in the scope the call site sits in. */
@@ -662,6 +670,8 @@ export interface Rewritten {
 	edits: Edit[];
 	/** The markup no request reaches, by root-relative path. See `Walk.dead`. */
 	dead: Map<string, [number, number][]>;
+	/** Every held declaration's initialiser. See `Walk.keeping`. */
+	keeping: { expression: string; files?: string[] }[];
 	/** Every edit whose text a branch choice decides, the entry's and every copy's. */
 	choices: Choice[];
 	/** What a component `bind:` settles a name to, found on this pass. See `Site.sends`. */
@@ -2624,6 +2634,79 @@ function varies(
  * substitution left. Both are folded here rather than in `settle`, which is about the request
  * deciding a path and not about reducing an expression.
  */
+/**
+ * A prop bound to a reference into the walk's held list, or null where it is bound to its value.
+ *
+ * A value that **makes** something and reaches the tag as a read of a name is held at the call
+ * site, which is where its identity belongs: the caller has one value and hands the child that
+ * one, so two reads inside the child must not build two. `items.includes(item)` asked a second
+ * array whether it held the first one's element, and the answer was `false` where Svelte writes
+ * `true`.
+ *
+ * Only a read of a name. An expression written at the tag -- `options={{ a: 1 }}` -- makes its
+ * value there, and there is no earlier value for the child's reads to be the same as. Already
+ * held is left alone: a caller's own prop arrives holding a reference, and holding it again would
+ * name the reference rather than the value.
+ */
+function holding(
+	prop: string,
+	given: string | undefined,
+	byName: ReadonlySet<string>,
+	walk: Walk,
+): string | null {
+	if (given === undefined || !byName.has(prop) || given.includes('$$hold(')) return null;
+	if (!makes(given)) return null;
+	return `$$hold(${String(kept(given, walk))})`;
+}
+
+/**
+ * Whether an expression makes something, so that two evaluations are two values.
+ *
+ * An object or array literal, a `new`, or a call. A member read, a name, arithmetic or a literal is
+ * not one: two evaluations of those are the same value, so substitution is exact and stays exact.
+ * The same reading as `holding` in locals.ts, asked of a call site's text rather than of a
+ * declaration's initialiser. See spec/derivation.md.
+ */
+function makes(text: string | undefined): boolean {
+	if (text === undefined) return false;
+	let ast: Node;
+	try {
+		ast = parsed(text) as unknown as Node;
+	} catch {
+		return false;
+	}
+	const fragment = (ast as unknown as AstNode)['fragment'];
+	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	const [only] = nodes;
+	if (nodes.length !== 1 || !isNode(only) || only['type'] !== 'ExpressionTag') return false;
+	let held: unknown = only['expression'];
+	while (isNode(held) && held['type'] === 'ParenthesizedExpression') held = held['expression'];
+	const kind = isNode(held) ? held['type'] : undefined;
+	return (
+		kind === 'ObjectExpression' ||
+		kind === 'ArrayExpression' ||
+		kind === 'NewExpression' ||
+		kind === 'CallExpression'
+	);
+}
+
+/**
+ * The index a held expression has in this walk's list, under the chain of the file holding it.
+ *
+ * The chain is the caller's, not the child's: the value is the caller's to evaluate, and a hole
+ * recorded under the child would resolve its names through a file that does not declare them.
+ */
+function kept(expression: string, walk: Walk): number {
+	const files = walk.site.stack.toReversed().map((one) => relative(walk.site.root, one));
+	const key = files.join('\u0000');
+	const at = walk.keeping.findIndex(
+		(one) => one.expression === expression && (one.files ?? []).join('\u0000') === key,
+	);
+	if (at >= 0) return at;
+	walk.keeping.push({ expression, files });
+	return walk.keeping.length - 1;
+}
+
 function reaches(text: string): string | null {
 	let ast: Node;
 	try {
@@ -5323,6 +5406,15 @@ function descend(
 	// child read a name nothing binds.
 	const bindings = new Map<string, string>();
 	/**
+	 * The props the caller wrote as a bare name, which is what a hold is asked about.
+	 *
+	 * A name is a read of something the caller already has; an expression written at the tag makes
+	 * its value there and hands the child that one. Only the first crosses the boundary as a read,
+	 * and only a read of something that **makes** is held. See `held()` below and
+	 * spec/derivation.md.
+	 */
+	const byName = new Set<string>();
+	/**
 	 * The props whose expression awaits, by name.
 	 *
 	 * Read before the render's answer replaces the expression: the answer is the value, and the
@@ -5441,6 +5533,7 @@ function descend(
 			continue;
 		}
 		if (parts.length !== 1 || !isNode(only) || only['type'] !== 'ExpressionTag') return false;
+		if (isNode(only['expression']) && only['expression']['type'] === 'Identifier') byName.add(name);
 		const grown = walk.expand(only['expression']);
 		const written = `(${grown})`;
 		if (walk.site.payload !== null && !varies(grown, walk)) inertProps.add(name);
@@ -5505,6 +5598,7 @@ function descend(
 	const mark = {
 		holes: walk.holes.length,
 		blocks: walk.blocks.length,
+		keeping: walk.keeping.length,
 		edits: walk.edits.length,
 		pending: walk.pending.length,
 		copies: walk.site.copies.length,
@@ -5745,6 +5839,17 @@ function descend(
 		const named = new Set(
 			declares.filter((one) => one.rest !== true && one.whole !== true).map((one) => one.prop),
 		);
+		/**
+		 * What each held prop is bound to when the hold is given up, and where the list stood first.
+		 *
+		 * A hold is a reference this compiler resolves, and the child's **script** is handed to
+		 * Svelte to evaluate. Where a declaration in that script reaches one, the reference would be
+		 * written into source Svelte parses -- "`$$hold` is an illegal variable name" -- so the props
+		 * are bound to their values instead and the identity this would have kept is given up. Only
+		 * the script: a markup read is a hole, and a hole is an expression this compiler evaluates.
+		 */
+		const plain = new Map<string, string>();
+		const before = walk.keeping.length;
 		for (const one of declares) {
 			if (recursion !== null) {
 				bound.set(one.local, one.local);
@@ -5773,14 +5878,20 @@ function descend(
 			// A default is JavaScript's, taken when the value is `undefined` and only then -- a prop
 			// the caller passes as `undefined` takes it as much as one the caller leaves out.
 			const given = bindings.get(one.prop);
-			bound.set(
-				one.local,
+			const value =
 				given === undefined
 					? one.fallback
 					: one.fallback === 'undefined'
 						? given
-						: `(${given} === undefined ? (${one.fallback}) : ${given})`,
-			);
+						: `(${given} === undefined ? (${one.fallback}) : ${given})`;
+			// A value that **makes** something is held at the call site, which is where its identity
+			// belongs: the caller evaluates it once and hands the child that one value, so two reads
+			// inside the child must not build two. Recorded under the caller's own chain rather than
+			// this child's, which is what makes the caller's reads of the same text and the child's
+			// land on one derivation. See spec/derivation.md.
+			const kept = holding(one.prop, given, byName, walk);
+			if (kept !== null) plain.set(one.local, value);
+			bound.set(one.local, kept ?? value);
 		}
 		// What the child imports from Kit's `$app/state`, bound the way its server module reads it:
 		// `page` is the request's one object, which the root takes as its prop of that name, so the
@@ -5793,7 +5904,7 @@ function descend(
 		// The child's declarations, with what each prop is bound to, so that one reading a prop the
 		// caller gave a constant is left for the render to evaluate rather than neutralised.
 		const inside = recursion === null ? walk.dynamic : new Set([...walk.dynamic, ...params]);
-		const declared = locals(
+		let declared = locals(
 			raw,
 			held,
 			fresh,
@@ -5813,6 +5924,28 @@ function descend(
 			],
 			passing,
 		);
+		// A hold the child's script reaches is given up, and every hold of this call goes with it:
+		// the list is indexed, so dropping one and keeping another would need the indices renumbered
+		// for the sake of a distinction nothing here measures.
+		if (plain.size > 0 && declared.reading.some(([, empty]) => empty.includes('$$hold('))) {
+			for (const [local, value] of plain) bound.set(local, value);
+			walk.keeping.length = before;
+			declared = locals(
+				raw,
+				held,
+				fresh,
+				bound,
+				inside,
+				undefined,
+				[
+					...exportedBy(ahead),
+					...declares
+						.filter((one) => one.rest !== true && one.whole !== true)
+						.map((one) => one.prop),
+				],
+				passing,
+			);
+		}
 		if (recursion !== null) {
 			walk.blocks.push({
 				index: walk.blocks.length,
@@ -6065,6 +6198,7 @@ function descend(
 		);
 		for (const hole of walk.holes.slice(mark.holes)) hole.files ??= chain;
 		for (const block of walk.blocks.slice(mark.blocks)) block.files ??= chain;
+		for (const one of walk.keeping.slice(mark.keeping)) one.files ??= chain;
 		return true;
 	} catch (error) {
 		// Rolled back, and the component is rendered by Svelte the way it was before this tried.
@@ -6152,6 +6286,8 @@ export function rewrite(
 	// Before `locals`, because the entry's props are the payload and have to be kept out of the
 	// declarations: `export let x = 1` reaches that pass as an ordinary one. See `declared` there.
 	const entryProps = propsOf(ast, source);
+	/** Every held declaration's initialiser, one list for the entry and every copy it enters. */
+	const keeping: { expression: string; files?: string[] }[] = [];
 	const declared = locals(
 		source,
 		fixed,
@@ -6329,6 +6465,7 @@ export function rewrite(
 		snippets,
 		pending,
 		dead,
+		keeping,
 		within: recursion === null ? [] : [[0, 0]],
 		site: {
 			file,
@@ -6460,6 +6597,9 @@ export function rewrite(
 	const own = [relative(root, file)];
 	for (const hole of holes) hole.files ??= own;
 	for (const block of blocks) block.files ??= own;
+	// A held initialiser is the declaration's, so it resolves through the file that declared it --
+	// which is this one for anything a child did not claim.
+	for (const one of keeping) one.files ??= own;
 
 	return {
 		rewritten: unimported(apply(source, edits)),
@@ -6469,6 +6609,7 @@ export function rewrite(
 		edits,
 		choices,
 		dead,
+		keeping,
 		sends,
 		holes,
 		blocks,

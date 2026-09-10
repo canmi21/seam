@@ -159,6 +159,22 @@ pub struct Skeleton {
 	/// a file imported, `undefined`, `true` -- is an expression to evaluate.
 	#[serde(default)]
 	pub payload: Option<Vec<String>>,
+	/// A held declaration's initialiser, by the index the substitution refers to it with.
+	///
+	/// `$$hold(2)` in an expression means the value of `held[2]`, resolved to whatever name this
+	/// pass gave that text. The walk does not choose the name on purpose: it has to be unique per
+	/// copy, and this pass already keys a derivation by the text, the file chain and whether it is
+	/// scoped. See `spec/derivation.md`.
+	#[serde(default)]
+	pub held: Vec<Held>,
+}
+
+/// One held declaration's initialiser, with the file chain its names resolve through.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Held {
+	pub expression: String,
+	#[serde(default)]
+	pub files: Vec<String>,
 }
 
 pub type Result<T> = std::result::Result<T, String>;

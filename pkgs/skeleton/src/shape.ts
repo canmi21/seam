@@ -226,6 +226,15 @@ export interface Skeleton {
 	 * stays the path it was. See spec/derivation.md.
 	 */
 	defaults: { name: string; expression: string; files: string[] }[];
+	/**
+	 * A held declaration's initialiser, by the index the substitution refers to it with.
+	 *
+	 * `$$hold(2)` in an expression means the value of `held[2].expression`, resolved to whatever
+	 * name the derivation pass gave that text. The name is not chosen here on purpose: it has to
+	 * be unique per copy, and the pass that names derivations already keys them by the text, the
+	 * file chain and whether they are scoped. See spec/derivation.md.
+	 */
+	held: { expression: string; files: string[] }[];
 	holes: Hole[];
 	blocks: Block[];
 	/**

@@ -418,13 +418,17 @@ export function rebased(
 }
 
 /**
- * Whether an expansion names one of Svelte's own functions this compiler carries.
+ * Whether an expansion names something only this compiler can evaluate.
  *
  * They are reached under a `$$` name, which nothing an author writes can shadow. Svelte's own
  * compiler refuses that name in markup -- a leading `$` is a store subscription there, and
  * `$$exclude_from_object` came back as "is an illegal variable name" -- so an expansion naming one
  * is never handed back for Svelte to evaluate, however little of the request it reads. It stays a
  * marker, and the derivation calls the function where the carried bundle has it.
+ *
+ * Most are Svelte's own functions the carried bundle holds. `$$hold` is not a function at all: it
+ * is a reference into the skeleton's held list that the lowering pass resolves to a derivation's
+ * name, and it belongs here for the same reason -- nothing outside this compiler can evaluate it.
  */
 export const CARRIED = [
 	'attr_class',
@@ -433,6 +437,7 @@ export const CARRIED = [
 	'exclude_from_object',
 	'get_store',
 	'given',
+	'hold',
 	'rest_props',
 	'sanitize_props',
 	'sanitize_slots',

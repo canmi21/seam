@@ -25,5 +25,6 @@
 		}
 	],
 	"entered": ["parts/badge.svelte"],
-	"payload": ["data"]
+	"payload": ["data"],
+	"held": []
 }
