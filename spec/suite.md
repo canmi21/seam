@@ -85,6 +85,15 @@ the server, a `skip_mode` that names `server`, or an `error` the sample is writt
 our judgement, and never used to make a number look better. A sample skipped here is skipped by the
 people who wrote it.
 
+**A `runtime_error` is one of these where it is what the render threw, and only then.** The field is
+upstream naming an error the sample is written to raise while it runs, which is `error` one word
+along -- the renderer raising it rather than the compiler -- so a render that then raises it has
+said what upstream said it would and there are no bytes for either side to be held to. Matched
+against what came out rather than taken from the declaration, and the difference is not pedantry:
+seven samples write the field and six of them render on the server perfectly well, their
+`runtime_error` being what upstream's *client* test asserts. Skipping on the declaration took those
+six out of the measurement, which is the one thing this column must not do.
+
 ### The oracle is asked even where this compiler refused
 
 It used to be asked second and only where we had bytes of our own, so every sample Svelte cannot
@@ -140,9 +149,9 @@ as counting a gap out because the compiler announces it.
 
 A percentage over 2388 is meaningless, because three of the outcomes are not failures.
 
-**Upstream's skips are out.** 553 of them.
+**Upstream's skips are out.** 554 of them.
 
-**A sample the oracle cannot render is out.** 10, and it was 17 until the samples that say how to
+**A sample the oracle cannot render is out.** 9, and it was 17 until the samples that say how to
 render themselves were read. There is nothing to compare against, so counting it either way is a
 claim about a comparison nobody made -- which is also why the column has to be read rather than
 trusted: a sample in it because of this harness is a sample nobody has measured.

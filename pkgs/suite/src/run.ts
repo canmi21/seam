@@ -391,6 +391,22 @@ async function attempt(suite: string, name: string): Promise<Result> {
 		// answer, and what we answer is the scope line: async Svelte is the load stage's. See
 		// spec/roadmap.md.
 		const text = String((error as Error).message);
+		// **Upstream's own `runtime_error` is upstream saying the render throws, where it is what
+		// came out.** That is `error` one word along -- the compiler raising it rather than the
+		// renderer -- and it is a skip for the same reason: not our judgement, and no bytes for
+		// either side to be held to. Matched against what was thrown rather than taken from the
+		// declaration alone, which is the difference between reading upstream and guessing at it:
+		// seven samples write the field and six of them render on the server perfectly well, their
+		// `runtime_error` being what upstream's *client* test asserts. Skipping on the declaration
+		// took those six out of the measurement, which is the one thing this column must not do.
+		if (typeof config.runtime_error === 'string' && text.includes(config.runtime_error)) {
+			return {
+				suite,
+				name,
+				outcome: 'skipped',
+				why: `upstream expects it to throw \`${config.runtime_error}\` while it renders`,
+			};
+		}
 		if (!/experimental\.async/.test(text) || mine !== null) {
 			return { suite, name, outcome: 'oracle', why: firstLine(error) };
 		}

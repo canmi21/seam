@@ -41,11 +41,12 @@ neither gates anything. A compiler that is fast and writes the wrong bytes has n
 
 Three of the outcomes are not failures and saying so once is what keeps the target honest.
 
-**Upstream's own skips are out.** 553 samples whose `_config.js` says `skip`, or a `mode` upstream
+**Upstream's own skips are out.** 554 samples whose `_config.js` says `skip`, or a `mode` upstream
 does not run on the server, or a `skip_mode` naming `server`, or an `error` the sample exists to
-produce. Not our judgement.
+produce -- or a `runtime_error` that is what the render then threw, which is the same statement one
+word along. Not our judgement.
 
-**A sample Svelte's own render cannot produce bytes for is out.** 10. The oracle is asked even
+**A sample Svelte's own render cannot produce bytes for is out.** 9. The oracle is asked even
 where this compiler refused, so a sample nobody can render is not counted as our gap -- fifteen of
 them were, a quarter of what was being ranked as work. It was 17 until the eight samples whose own
 `_config.js` says what the render needs were read: a sample this harness did not ask properly is
@@ -88,12 +89,12 @@ render.** Nothing differing, nothing refused as a gap.
 ```
                         samples  identical  empty  differs   gap  decided  skipped  oracle
 server-side-rendering       131         90      0        0     6       19       16       0
-runtime-runes              1048        580     16        0     3      173      268       8
+runtime-runes              1048        580     16        0     3      173      269       7
 runtime-legacy             1209        886     14        0     0       38      269       2
-total                      2388       1556     30        0     9      230      553      10
+total                      2388       1556     30        0     9      230      554       9
 ```
 
-Against the target: **1556 of 1565**, with nothing differing and nine refused as gaps. Ten fail
+Against the target: **1556 of 1565**, with nothing differing and nine refused as gaps. Nine fail
 inside the oracle rather than inside either side and are counted apart.
 
 **Both numbers moved because the columns were read, not because the compiler did.** Fourteen
