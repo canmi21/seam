@@ -2051,6 +2051,49 @@ function stillDynamic(name: string, dynamic: boolean): string {
 	return dynamic ? `(0, ${name})` : name;
 }
 
+/**
+ * The replacement for a construct's expression, with the `await` the construct had kept.
+ *
+ * `create_child_block` in `3-transform/server/visitors/shared/utils.js` wraps a node whose
+ * `metadata.expression.has_await` is set in `renderer.child_block`, and that pushes `BLOCK_OPEN`
+ * and `BLOCK_CLOSE` around what the node writes. This walk substitutes the awaited value away, so
+ * Svelte saw no await and wrote no pair -- eight samples short by exactly those four bytes.
+ *
+ * Keeping the keyword keeps the anchors, and `await` of a value that is not a promise is that
+ * value, so nothing else moves. Read off the **expansion** rather than off the source: the await
+ * may sit in a declaration the construct reads, which is what `has_await` propagates through --
+ * `const foo = $derived(await 1)` beside `{#if foo}` is that, and there is no `await` written in
+ * the markup at all.
+ */
+function awaited(expanded: string, replacement: string): string {
+	return awaiting(expanded) ? `await ${replacement}` : replacement;
+}
+
+/** Whether an expression awaits outside any function, which is what `has_await` records. */
+function awaiting(text: string): boolean {
+	if (!/\bawait\b/.test(text)) return false;
+	let ast: Node;
+	try {
+		ast = parsed(text) as unknown as Node;
+	} catch {
+		return false;
+	}
+	const outside = (node: unknown): boolean => {
+		if (Array.isArray(node)) return node.some(outside);
+		if (!isNode(node)) return false;
+		if (node['type'] === 'AwaitExpression') return true;
+		if (
+			node['type'] === 'FunctionExpression' ||
+			node['type'] === 'ArrowFunctionExpression' ||
+			node['type'] === 'FunctionDeclaration'
+		) {
+			return false;
+		}
+		return Object.values(node).some(outside);
+	};
+	return outside(ast);
+}
+
 /** Whether a local name is a component: the default import of a `.svelte` file. See `Carried`. */
 function componentImport(local: string, walk: Walk): boolean {
 	const held = walk.site.carried.get(local);
@@ -2222,7 +2265,10 @@ function oneBranch(
 ): void {
 	for (const [branch, one] of chain.entries()) {
 		const at = span(one['test']);
-		if (at !== null) edits.push([at[0], at[1], branch === chosen ? 'true' : 'false']);
+		const held = at === null ? '' : walk.source.slice(at[0], at[1]);
+		if (at !== null) {
+			edits.push([at[0], at[1], awaited(held, branch === chosen ? 'true' : 'false')]);
+		}
 		if (branch !== chosen) buried(walk, one['consequent']);
 		// A test after the one that answered is never evaluated: the chain stops at the first true.
 		// One before it was evaluated and its names have to resolve, so only the later ones go --
@@ -3734,7 +3780,10 @@ function collect(node: unknown, walk: Walk): void {
 			// analysis as what the author wrote -- no less and no more. So the author's own
 			// expression stays, in the branch that is never taken. See `Walk.classValue`.
 			const shielded = (text: string): string =>
-				walk.inClass === true ? `(1 ? ${text} : (${source.slice(at[0], at[1])}))` : text;
+				awaited(
+					written,
+					walk.inClass === true ? `(1 ? ${text} : (${source.slice(at[0], at[1])}))` : text,
+				);
 			if (constant(written)) {
 				edits.push([at[0], at[1], shielded(written)]);
 				return;
@@ -3761,7 +3810,7 @@ function collect(node: unknown, walk: Walk): void {
 			// A value going to a component the walk could not enter, which has to survive being used
 			// rather than only written out. See `stands`.
 			if (walk.opaque === true) {
-				edits.push([at[0], at[1], stands(written, walk)]);
+				edits.push([at[0], at[1], awaited(written, stands(written, walk))]);
 				return;
 			}
 			const index = holes.length;
@@ -4882,7 +4931,19 @@ function collect(node: unknown, walk: Walk): void {
 
 			for (const [branch, one] of chain.entries()) {
 				const at = span(one['test']);
-				if (at !== null) chose(walk, edits, at[0], at[1], index, branch, 'true', 'false');
+				const held = tests[branch] ?? '';
+				if (at !== null) {
+					chose(
+						walk,
+						edits,
+						at[0],
+						at[1],
+						index,
+						branch,
+						awaited(held, 'true'),
+						awaited(held, 'false'),
+					);
+				}
 			}
 
 			// Which block just closed, written where the render puts it and nowhere else.
@@ -5025,7 +5086,16 @@ function collect(node: unknown, walk: Walk): void {
 			// `<!--[-->` and the items for a list with something in it, and `<!--[!-->` and the
 			// fallback for one with nothing, so the fallback gets a render of its own, from an empty
 			// list, the way an else does. See spec/refusals.md.
-			chose(walk, edits, at[0], at[1], index, 0, `[${element}]`, '[]');
+			chose(
+				walk,
+				edits,
+				at[0],
+				at[1],
+				index,
+				0,
+				awaited(written, `[${element}]`),
+				awaited(written, '[]'),
+			);
 			// Which block just closed, written where the render puts it and nowhere else.
 			const whole = span(node);
 			const closer = edits.length;

@@ -13,12 +13,13 @@ name everywhere else.
 ```
                 identical  empty  differs  refused  oracle
 off                  1479     41        1      297      17
-on                   1622     42       10      138      23
+on                   1624     42        8      138      23
 ```
 
-**143 of the 183 samples this compiler refuses as async write Svelte's exact bytes with no change
-to the compiler at all** -- only the flag at the compile and an `await` at the render. That is the
-number that decides the question.
+**145 of the 183 samples this compiler refuses as async write Svelte's exact bytes** -- 143 of them
+with no change to the compiler at all, only the flag at the compile and an `await` at the render,
+and two more once the walk keeps the `await` it was substituting away. That is the number that
+decides the question.
 
 **Why the refusal was so large.** It is written on the syntax -- `await` appears outside a function
 -- and not on the scope line, which excludes *a value loaded per request while the bytes are
@@ -36,11 +37,26 @@ still experimental at 5.57. SvelteKit takes it straight through --
 mode. There is no synchronous answer in the meantime: reading `.body` of an async component throws
 `await_invalid`, "Encountered asynchronous work while rendering synchronously".
 
-**What the ten differences are.** Eight are one shape: `create_child_block` wraps an awaited region
-in `child_block`, which pushes `BLOCK_OPEN` and `BLOCK_CLOSE` around it, and this walk rewrites the
-`await` away so Svelte writes no such pair. That is the anchor question a member tag and a render
-tag have already had -- keep the construct so Svelte writes its anchors, or write them here. One is
-a value, `async-resolve-stale`. One is the identity sample, which is not async at all.
+**What the differences are, and which half is done.** `create_child_block` wraps a node whose
+`metadata.expression.has_await` is set in `child_block`, which pushes `BLOCK_OPEN` and `BLOCK_CLOSE`
+around everything the node writes. This walk substituted the awaited value away, so Svelte saw no
+await and wrote no pair.
+
+**The walk's half is written.** A construct's expression is replaced with the `await` it had kept,
+read off the **expansion** rather than off the source -- the await may sit in a declaration the
+construct reads, `const foo = $derived(await 1)` beside `{#if foo}`, and there is no `await` written
+in that markup at all. `await` of a value that is not a promise is that value, so nothing else
+moves. Two of the eight close on it and the count goes to 1624.
+
+**The other half is the assembler's, and the obvious rule is unsound.** The render writes both
+pairs; what loses the outer one is that a block is found by the stamp that follows its close, and
+the child block's `<!--]-->` now sits between the two. Letting `stamped` step over one was tried and
+measured: it takes a component's own anchor pair followed by an enclosing block's close and stamp
+for that block, and `runtime-legacy` fell from 832 to 172. The assembler has to tell a child block's
+close from a block's own, which the bytes alone do not say.
+
+One difference is a value, `async-resolve-stale`. One is the identity sample, which is not async at
+all.
 
 **What it costs.** `enable_async_mode_flag()` is process-global and irreversible -- the only way
 back is a function marked "ONLY USE THIS DURING TESTING" -- and a compiled component turns it on by
