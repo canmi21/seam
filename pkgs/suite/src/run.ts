@@ -88,14 +88,35 @@ const EMPTY = 20;
  * one was skipped -- twenty of them server tests upstream runs, `head-payload-validation` among
  * them, saying `mode: ['server']` in as many words. A condition that cannot be false does not
  * fail; it makes the denominator smaller and says nothing.
+ *
+ * **What a sample says about how to render it is read too, and two fields were not.** A sample
+ * whose own config names what the render needs is not a sample the oracle cannot render; it is one
+ * this harness did not read. `transformError` is the larger of the two: `Renderer`'s constructor
+ * defaults it to a function that rethrows, and `boundary()` calls it where the children throw, so
+ * without the sample's own the throw escapes and both sides come back with nothing. Eight samples
+ * write one, and every one of them was counted as the oracle's failure and taken out of the
+ * denominator. `runtime_error` is upstream saying the sample is written to throw at run time,
+ * which is `error` one word along and is a skip for the same reason.
  */
 interface Config {
 	skip?: boolean;
 	mode?: string[];
 	skip_mode?: string[];
 	error?: unknown;
+	/** Upstream's own: the sample is written to throw while it renders, which is a skip here. */
+	runtime_error?: unknown;
 	load_compiled?: boolean;
 	props?: Record<string, unknown>;
+	/**
+	 * What the sample hands `render()` for an error a `<svelte:boundary>` catches.
+	 *
+	 * `Renderer`'s default rethrows, so a boundary whose body throws writes nothing without one.
+	 * Passed to the oracle only: this compiler's own artifact holds bytes and has nowhere to put a
+	 * function that maps an error to what the `failed` snippet is handed, which is the refusal
+	 * spec/refusals.md records. The point of passing it is to have an oracle to hold that refusal
+	 * against, since eight samples had neither side answering.
+	 */
+	transformError?: (error: unknown) => unknown;
 }
 
 type Outcome = 'identical' | 'empty' | 'differs' | 'gap' | 'decided' | 'skipped' | 'oracle';
@@ -235,6 +256,8 @@ async function ours(
 async function theirs(
 	dir: string,
 	props: Record<string, unknown>,
+	/** What the sample hands `render()` for an error a boundary catches. See `Config`. */
+	transformError?: (error: unknown) => unknown,
 ): Promise<{ body: string; head: string }> {
 	const file = resolve(dir, 'main.svelte');
 	const out = resolve(dir, 'oracle.js');
@@ -286,7 +309,10 @@ async function theirs(
 	if (chunk === undefined) throw new Error('nothing came out of bundling the oracle');
 	writeFileSync(out, chunk.code);
 	const mod = (await import(pathToFileURL(out).href)) as { default: Parameters<typeof render>[0] };
-	const rendered = render(mod.default, { props: props as never });
+	const rendered = render(mod.default, {
+		props: props as never,
+		...(transformError === undefined ? {} : { transformError }),
+	});
 	if (Object.keys(ASYNC).length > 0) {
 		const held = (await rendered) as { body: string; head: string };
 		return { body: held.body, head: held.head };
@@ -338,7 +364,7 @@ async function attempt(suite: string, name: string): Promise<Result> {
 	}
 	let svelte: { body: string; head: string };
 	try {
-		svelte = await theirs(dir, props);
+		svelte = await theirs(dir, props, config.transformError);
 	} catch (error) {
 		// Neither side's answer: the oracle could not be built or run. Reported apart so it is never
 		// read as agreement, and never as a refusal either.

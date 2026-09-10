@@ -383,7 +383,29 @@ export async function renderRewritten(
 			host.import(pathToFileURL(entry).href),
 		)) as { default: unknown };
 		// The prefix is what makes a `$props.id()` anchor readable after the render. See `fresh.ts`.
-		const held = render(mod.default as never, { props: props as never, idPrefix: ID_PREFIX });
+		//
+		// **A boundary that catches is a refusal named here rather than the author's own error.**
+		// `Renderer`'s `transformError` defaults to rethrowing, and `boundary()` calls it where the
+		// children throw, so a `<svelte:boundary>` whose body throws during this render sent the
+		// author's own message up with nothing saying which construct it was about. What the
+		// `failed` snippet is handed is `transformError(error)`, which is a render option: a server
+		// passes its own and an artifact holds bytes, so the shape a caught throw writes is not one
+		// this compiler can bake for every request. That is the refusal, and this is the one place
+		// that knows the throw was caught rather than thrown. See spec/refusals.md.
+		const held = render(mod.default as never, {
+			props: props as never,
+			idPrefix: ID_PREFIX,
+			transformError: (error: unknown) => {
+				throw new Error(
+					'a `<svelte:boundary>` caught what its body threw while the bytes were being ' +
+						'written, and what its `failed` snippet is handed is `transformError(error)` -- a ' +
+						'render option a server passes and an artifact has nowhere to hold. So which of ' +
+						'the two shapes a request gets is not one this compiler can write. The body ' +
+						`threw: ${String((error as { message?: unknown })?.message ?? error)}. ` +
+						'See spec/refusals.md',
+				);
+			},
+		});
 		// Awaited where the flag is on: `enable_async_mode_flag()` sends `render()` down its async
 		// path, and reading `.body` there throws `await_invalid`. For a component that awaits
 		// nothing the two paths write the same bytes -- measured.
