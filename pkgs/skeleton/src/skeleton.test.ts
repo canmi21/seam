@@ -647,6 +647,22 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '' }],
 	},
 	{
+		// `transform-server.js` collects each reactive statement and does
+		// `instance.body.push(statement)` in the analysis's topological order, after the rest of the
+		// instance body and before the template. So a `$:` wins over the declaration of the same
+		// name, `export let` included: the request may send `c` and the statement overwrites it.
+		// Read as an assignment to the declaration, every one of these was refused.
+		name: 'a reactive statement over a declaration, and over a prop',
+		props: [
+			{ data: { a: 'x' }, a: 1, b: 2, c: 9 },
+			{ data: { a: '' }, a: 3, b: 4 },
+		],
+		source:
+			'<script>export let data; export let a = 1; export let b = 2; export let c;' +
+			' let both; $: c = a + b; $: both = c * 2;</script>' +
+			'<p>{a} + {b} = {c}</p><p>{both}</p><i>{data.a}</i>',
+	},
+	{
 		name: 'a child that writes a prop twice, and one that never writes it',
 		beside: {
 			Twice: '<script>let { p } = $props();</script><b>{p}</b><i>{p}</i>',
@@ -3825,12 +3841,21 @@ const refused: Case[] = [
 			'{#snippet one()}<b>{data.a}</b>{/snippet}{@render $held()}',
 	},
 	{
-		// Not a declaration: `$: $count = n` writes the store, and `transform-server.js` declares a
-		// `let` only for a binding whose kind is `legacy_reactive`. Nor is one whose name a `let`
-		// already declares, which stays an assignment after a declaration and stays refused.
-		name: 'a reactive statement that writes a store',
+		// Two `$:` assigning one name. Which of them ran last is the analysis's topological order
+		// rather than the source's, and this pass does not build that order, so the pair stays an
+		// assignment after a declaration.
+		name: 'two reactive statements assigning one name',
 		says: 'assigned after being declared',
-		source: '<script>export let a; let n = 1; $: n = a * 2;</script><p>{n}</p>',
+		source: '<script>export let a; let n = 1; $: n = a * 2; $: n = a * 3;</script><p>{n}</p>',
+	},
+	{
+		// A `$:` reading the name it assigns, where something else declares it.
+		// `legacy_reactive_declarations` unshifts `let max;` only for a binding whose kind is
+		// `legacy_reactive`, so the self-reference reads `undefined` there and the declaration's own
+		// value here. Two answers, and only the first is written.
+		name: 'a reactive statement reading the name it assigns beside a declaration',
+		says: 'assigned after being declared',
+		source: '<script>export let a; let n = 1; $: n = Math.max(a, n);</script><p>{n}</p>',
 	},
 	{
 		// A rune is compiled away by Svelte and is not a function anything can call. The ones whose

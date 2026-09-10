@@ -1056,6 +1056,22 @@ expansion that folds to a literal was not going through it. It does now.
 
 Two rules stand on that, and for a long time only the first did:
 
+**A `$:` is not one of these, because it runs after the declaration.** `transform-server.js`
+collects each reactive statement and does `instance.body.push(statement)` in the analysis's
+topological order, after the rest of the instance body and before the template. So `export let c`
+beside `$: c = a + b` holds `a + b` when the bytes are written -- whatever the request sent for `c`
+-- and `let b; $: b = f(x)` holds `f(x)`. Read as an assignment to the declaration, every one of
+these was refused, and the reads came out empty behind the refusal because the statement had been
+neutralised and nothing carried its value. The `$:`'s right-hand side is the name's value now.
+
+Two shapes stay out, each for a reason rather than for caution. **Two `$:` assigning one name**:
+which ran last is the analysis's topological order rather than the source's, and this pass does not
+build that order. **A `$:` reading the name it assigns, where something else declares it**:
+`legacy_reactive_declarations` unshifts `let max;` only for a binding whose kind is
+`legacy_reactive`, a name nothing else declares, so `$: max = Math.max(num, max || 0)` reads
+`undefined` there and reads the declaration's own value here -- two answers, told apart by whether
+the name is declared elsewhere, and only the first is written.
+
 **Assigned after being declared.** `let x = 1; x = 2` and `const o = { a: 1 }; o.a = 2`, in the
 script's own statements. Both compiled and wrote the wrong bytes before they were refused. **A prop
 is under the same rule**, though it is not a declaration: `let { options = 'foo' } = $props();

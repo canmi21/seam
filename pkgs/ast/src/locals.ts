@@ -421,13 +421,36 @@ function declared(
 	// **Legacy mode only**, which is the mode `LabeledStatement.js` answers in: in runes mode it
 	// calls `context.next()` and the label is an ordinary one.
 	//
-	// The name has to be one nothing else declares. Where a `let x` exists, `$: x = e` is an
-	// assignment to it and the value the markup reads is not the initialiser -- which is the rule
-	// `assigned()` refuses on, and it still does.
+	// **A `$:` wins over the declaration of the same name, because it runs after it.**
+	// `transform-server.js` collects each reactive statement and does `instance.body.push(statement)`
+	// in the analysis's topological order, after the rest of the instance body and before the
+	// template. So `export let c` beside `$: c = a + b` holds `a + b` when the bytes are written,
+	// whatever the request sent, and `let b; $: b = f(x)` holds `f(x)`. Read as an assignment to the
+	// declaration it was refused, which is what `assigned()` did to every one of these.
+	//
+	// Two shapes stay out, and each for a reason rather than for caution:
+	//
+	// - **Two `$:` assigning one name.** Which of them ran last is the analysis's topological order,
+	//   not the source's, and this pass does not build that order.
+	// - **A `$:` reading the name it assigns**, where something else declares it.
+	//   `legacy_reactive_declarations` unshifts `let max;` only for a binding whose kind is
+	//   `legacy_reactive` -- a name nothing else declares -- so `$: max = Math.max(num, max || 0)`
+	//   reads `undefined` there and reads the declaration's own value here. Two answers, told apart
+	//   by whether the name is declared elsewhere, and only the first is written.
 	if (!runic(ast)) {
-		for (const one of reactives(ast['instance'])) {
+		const all = reactives(ast['instance']);
+		const twice = new Set<string>();
+		const once = new Set<string>();
+		for (const one of all) {
+			if (once.has(one.name)) twice.add(one.name);
+			once.add(one.name);
+		}
+		for (const one of all) {
 			const name = one.name;
-			if (found.has(name) || props.has(name)) continue;
+			if (twice.has(name)) continue;
+			const reading = new Set<string>();
+			free(one.value, new Set(), reading);
+			if (reading.has(name) && (found.has(name) || props.has(name))) continue;
 			record(name, one.value, {
 				reactive: true,
 				reach: one.reach,
