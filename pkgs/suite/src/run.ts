@@ -115,6 +115,27 @@ interface Config {
 	load_compiled?: boolean;
 	props?: Record<string, unknown>;
 	/**
+	 * What upstream hands a **server** render, where it differs from the client's.
+	 *
+	 * Fourteen samples write one, and reading `props` for both gave the server the client's: two of
+	 * them guard a `MutationObserver` on a `browser` prop that `server_props` sets false, so the
+	 * instance script reached for a DOM this process has not got and the oracle was counted as
+	 * unable to run. Both sides are handed the same object either way, so this never showed as a
+	 * difference -- it showed as a payload upstream does not use for the server.
+	 */
+	server_props?: Record<string, unknown>;
+	/**
+	 * What upstream runs before the test, which for a handful of samples is the environment.
+	 *
+	 * `globals-deconflicted` is `<p>{frag}</p>` over a `globalThis.frag` its config sets here, so
+	 * without it the render reads a name nothing binds. Fifty-five samples write one and most are
+	 * the client's, so it is called where it does not throw and left alone where it does: a hook
+	 * that wants a DOM says so by failing, and a sample whose setup this process cannot run is one
+	 * the oracle genuinely cannot be given.
+	 */
+	before_test?: () => void;
+	after_test?: () => void;
+	/**
 	 * What the sample hands `render()` for an error a `<svelte:boundary>` catches.
 	 *
 	 * `Renderer`'s default rethrows, so a boundary whose body throws writes nothing without one.
@@ -266,18 +287,16 @@ async function theirs(
 	/** What the sample hands `render()` for an error a boundary catches. See `Config`. */
 	transformError?: (error: unknown) => unknown,
 ): Promise<{ body: string; head: string }> {
-	const file = resolve(dir, 'main.svelte');
 	const out = resolve(dir, 'oracle.js');
-	writeFileSync(
-		out,
-		compileComponent(readFileSync(file, 'utf8'), {
-			generate: 'server',
-			name: 'C',
-			filename: file,
-			rootDir: dir,
-			...ASYNC,
-		}).js.code,
-	);
+	// **The entry re-exports the component rather than holding a compiled copy of it.** Compiled
+	// into the entry, `main.svelte` was in the graph twice -- once here and once through the
+	// plugin, for every child that imports the entry's own `<script module>` -- so its module block
+	// ran twice and everything it declares had two identities. `createContext()` returns a closure
+	// over a fresh key, so `set` in one copy and `get` in the other is `missing_context`:
+	// `runtime-runes/create-context` and `error-boundary-27` were counted as the oracle failing
+	// where they render perfectly well. It is the same fault `spec/refusals.md` records for a copy
+	// this compiler stages, met on the other side of the comparison.
+	writeFileSync(out, `export { default } from ${JSON.stringify(resolve(dir, 'main.svelte'))};\n`);
 	const bundle = await rolldown({
 		input: out,
 		platform: 'node',
@@ -361,7 +380,14 @@ async function attempt(suite: string, name: string): Promise<Result> {
 								: null;
 	if (why !== null) return { suite, name, outcome: 'skipped', why };
 
-	const props = config.props ?? {};
+	const props = config.server_props ?? config.props ?? {};
+	// Upstream's own setup, where this process can run it. See `Config.before_test`.
+	try {
+		config.before_test?.();
+	} catch {
+		// A hook that wants a DOM is not setup this render can be given, and the oracle says so
+		// on its own when the sample then reads what the hook would have set.
+	}
 	let mine: { body: string; head: string } | null = null;
 	let refusal: string | null = null;
 	try {
