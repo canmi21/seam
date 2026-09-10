@@ -78,20 +78,20 @@ these instead.
 **Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
 
-So the target is: **of the 1542 samples that are in, every one is byte-identical to Svelte's own
+So the target is: **of the 1544 samples that are in, every one is byte-identical to Svelte's own
 render.** Nothing differing, nothing refused as a gap.
 
 ### Where it stands
 
 ```
                         samples  identical  empty  differs   gap  decided  skipped  oracle
-server-side-rendering       131         85      4        0     2       18       16       6
+server-side-rendering       131         86      4        0     0       19       16       6
 runtime-runes              1048        577     18        0     3      173      268       9
 runtime-legacy             1209        871     22        0     7       38      269       2
 total                      2388       1534     44        0    10      230      553      17
 ```
 
-Against the target: **1547 of 1557**, with nothing differing and 10 refused as gaps. Seventeen fail
+Against the target: **1534 of 1544**, with nothing differing and 10 refused as gaps. Seventeen fail
 inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
 has to answer them in [roadmap.md](roadmap.md).
 
