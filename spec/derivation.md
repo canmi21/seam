@@ -610,9 +610,28 @@ varies, which keeps it a derivation wherever it is read.
 
 **Svelte has no list to read forward from here.** Its `globals` table in `phases/scope.js` is for
 folding a keypath at compile time and says nothing about which names are legal; an undeclared name
-is a reference the runtime resolves, and that is all. The category is this compiler's, and the
-scope line is what decides it: a value the build does not hold is a value the request brings,
-whatever channel it comes down.
+is a reference the runtime resolves, and that is all. The category is this compiler's.
+
+**And it is one name, not a rule about bare globals.** The sentence that used to end this paragraph
+-- a value the build does not hold is a value the request brings, whatever channel it comes down --
+reads as licence for any of them, and it is not, for two reasons that pull the same way. A bare
+global is a value only the **host** holds, and the artifact is read by a backend that has none:
+`pipeline.md` says a Rust or Go server embeds an expression evaluator with no filesystem, no
+network and no host of any kind, so a derivation reading one gets `undefined` there and the same
+artifact serves two different pages. And a name nothing binds is the exact shape the pass above
+exists to report: a local and a payload key are indistinguishable, so a name that resolves nowhere
+has to be named at the compile or a typo renders as an empty string with an exit status of zero.
+
+So every other bare name is refused, and `runtime-legacy`'s `globals-deconflicted` -- `<p>{frag}</p>`
+over a `globalThis.frag` its own config sets before rendering -- is a decision rather than work
+nobody has done. What it costs the author is a line in the load stage.
+
+**What `process` costs is written here rather than implied by being alone on a list.** It is the
+one name kept, because a JavaScript server has it by definition and the load stage runs there. An
+artifact whose derivation reads it is therefore one only a JavaScript backend can serve: QuickJS
+has no `process` either, and nothing here makes that up. That is a real limit on the second backend
+and it is recorded rather than argued away; the way out for an author who wants both is the same as
+for `frag`, which is to read it in the load stage and put the value in the data.
 
 **`globalThis` is not one of them, and measuring said so.** The object is the same object on both
 machines; it is a property of it that differs, and the test is on the root name -- so listing it

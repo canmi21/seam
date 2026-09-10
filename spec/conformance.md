@@ -89,12 +89,12 @@ render.** Nothing differing, nothing refused as a gap.
 ```
                         samples  identical  empty  differs   gap  decided  skipped  oracle
 server-side-rendering       131         90      0        0     6       19       16       0
-runtime-runes              1048        582     16        0     6      173      269       2
+runtime-runes              1048        583     16        0     5      173      269       2
 runtime-legacy             1209        886     14        0     0       38      269       2
-total                      2388       1558     30        0    12      230      554       4
+total                      2388       1559     30        0    11      230      554       4
 ```
 
-Against the target: **1558 of 1570**, with nothing differing and twelve refused as gaps. Four fail
+Against the target: **1559 of 1570**, with nothing differing and eleven refused as gaps. Four fail
 inside the oracle rather than inside either side and are counted apart.
 
 **Both numbers moved because the columns were read, not because the compiler did.** Fourteen
@@ -122,14 +122,16 @@ two were one question underneath, a value a function this render calls changes, 
 by a route the rule does not watch -- a spread and a generator rather than a name. Both are now
 refused for assigning to a name outside the value this compiler has to write.
 
-**The nine gaps left are two constructs, and both are the scope line the message has not caught up
-with.** Seven are a `<svelte:boundary>` whose body throws while the bytes are being written: what
-the `failed` snippet is handed is `transformError(error)`, a render option a server passes and an
+**The gaps left are three constructs and all three are the scope line, said in the wrong words.**
+Eight are a `<svelte:boundary>` whose body throws while the bytes are being written: what the
+`failed` snippet is handed is `transformError(error)`, a render option a server passes and an
 artifact has nowhere to hold, so which of the two shapes a request gets is not one this compiler
 can write. Two are a raw snippet whose `render` reads the request and calls `svelte/server`'s own
-`render()` inside itself, which is an artifact running Svelte's renderer per request.
-[roadmap.md](roadmap.md) records both as decisions; this table is read off the messages, so the
-count moves when the messages do.
+`render()` inside itself, which is an artifact running Svelte's renderer per request. One is a bare
+global the harness sets before rendering, which is a value only a JavaScript host holds and the
+second backend has none. [roadmap.md](roadmap.md) records all three as decisions and
+[derivation.md](derivation.md) has the third; this table is read off the messages, so the count
+moves when the messages do.
 
 **The eight that were work are done, and reading them one at a time is what said which was which.**
 Each was measured against Svelte's own render of the sample before anything was written, and three

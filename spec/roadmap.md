@@ -808,25 +808,27 @@ item above already owns. `component-namespace` is `<Components.Foo />` over a mo
 export, which is the module-graph item. `binding-indirect-fn` is a `$:` declaration substituted
 into `items.filter(fn)` and is its own fault.
 
-## Stage one is 1558 of 1570, and what is left is nearly all not work
+## Stage one is 1559 of 1570, and what is left is not work
 
-What the suite reports now is nothing differing and twelve refused. Ten of the twelve are two
-constructs turned away in the wrong words -- a `<svelte:boundary>` whose body throws, eight of
-them, and a raw snippet whose bytes the request decides, two -- and both are the scope line, under
-**Decided, and not built** below. [conformance.md](conformance.md) has the table.
+What the suite reports now is nothing differing and eleven refused, and all eleven are three
+constructs turned away in the wrong words: a `<svelte:boundary>` whose body throws, eight of them;
+a raw snippet whose bytes the request decides, two; and a bare global the harness sets before
+rendering, one. All three are the scope line, under **Decided, and not built** below.
+[conformance.md](conformance.md) has the table.
 
-**The two that are work arrived by the oracle being fixed rather than by anything being written**,
-and that is the finding worth carrying forward. Thirteen samples had never been measured in either
+**Two pieces of work arrived by the oracle being fixed rather than by anything being written**, and
+that is the finding worth carrying forward. Thirteen samples had never been measured in either
 direction: the suite rendered them without the `transformError`, the `server_props` or the
 `before_test` their own configs name, and it held a second compiled copy of the entry. A column
 that says "neither side answered" is as much a place for work to hide as one that says "refused",
 and it is smaller, so nobody reads it.
 
-The two are `style-directive-mutations`, a `style:` beside a `style` attribute whose value the
-request decides, which is a construct listed in [refusals.md](refusals.md) as refused; and
-`globals-deconflicted`, a bare global the harness sets before rendering, which this compiler
-refuses as a name the data does not carry. The second wants deciding rather than building: a name
-only the process holds is what [derivation.md](derivation.md) already says `process.env` is.
+Both are done. `style-directive-mutations` is a `style:` beside a `style` attribute whose value the
+request decides, which is `build_attr_style`'s own call carried, the way `class={expr}` beside a
+directive already was; [refusals.md](refusals.md) has it. `globals-deconflicted` wanted deciding
+rather than building, and the decision is that a bare global is a value only a JavaScript host
+holds while the second backend has none -- which also puts a price on `process`, the one name kept,
+and [derivation.md](derivation.md) now writes that price down instead of leaving it implied.
 
 **Three of the eight were one rule asked by one construct and not by another**, which is the shape
 worth carrying forward rather than the individual fixes: an ask is not the expansion, and a `class:`
