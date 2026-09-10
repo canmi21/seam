@@ -2258,6 +2258,8 @@ function reached(answers: readonly (boolean | undefined)[]): number | null {
 function oneBranch(
 	walk: Walk,
 	chain: readonly AstNode[],
+	/** Each test as the walk settled it, which is where an `await` shows. See `awaited()`. */
+	tests: readonly string[],
 	chosen: number,
 	otherwise: unknown,
 	edits: Edit[],
@@ -2265,7 +2267,7 @@ function oneBranch(
 ): void {
 	for (const [branch, one] of chain.entries()) {
 		const at = span(one['test']);
-		const held = at === null ? '' : walk.source.slice(at[0], at[1]);
+		const held = tests[branch] ?? '';
 		if (at !== null) {
 			edits.push([at[0], at[1], awaited(held, branch === chosen ? 'true' : 'false')]);
 		}
@@ -4877,7 +4879,7 @@ function collect(node: unknown, walk: Walk): void {
 			// here is what keeps the walk out of a branch that is never written. See `constantly()`.
 			const settledAt = reached(tests.map((one) => constantly(one)));
 			if (settledAt !== null) {
-				oneBranch(walk, chain, settledAt, otherwise, edits, step);
+				oneBranch(walk, chain, tests, settledAt, otherwise, edits, step);
 				return;
 			}
 
@@ -4897,7 +4899,7 @@ function collect(node: unknown, walk: Walk): void {
 				const answers = tests.map((test) => site.decided.get(test));
 				const at = reached(answers);
 				if (at !== null) {
-					oneBranch(walk, chain, at, otherwise, edits, step);
+					oneBranch(walk, chain, tests, at, otherwise, edits, step);
 					return;
 				}
 				// One test at a time, in source order, and never past one whose answer is not in yet.
@@ -5037,6 +5039,10 @@ function collect(node: unknown, walk: Walk): void {
 			// The render is asked for the value as JSON, and the walk runs again told, with the
 			// literal where the expression was. See spec/refusals.md.
 			let written = expand(node['expression']);
+			// Whether it awaits is read before the render's answer replaces it: the answer is the
+			// value, and the value is not a promise. What decides the anchors is the expression the
+			// source held. See `awaited()`.
+			const awaits = written;
 			if (
 				site.payload !== null &&
 				walk.asking !== true &&
@@ -5093,8 +5099,8 @@ function collect(node: unknown, walk: Walk): void {
 				at[1],
 				index,
 				0,
-				awaited(written, `[${element}]`),
-				awaited(written, '[]'),
+				awaited(awaits, `[${element}]`),
+				awaited(awaits, '[]'),
 			);
 			// Which block just closed, written where the render puts it and nowhere else.
 			const whole = span(node);
@@ -5316,6 +5322,14 @@ function descend(
 	// null: it is never called while the bytes are written, and leaving it unbound would make the
 	// child read a name nothing binds.
 	const bindings = new Map<string, string>();
+	/**
+	 * The props whose expression awaits, by name.
+	 *
+	 * Read before the render's answer replaces the expression: the answer is the value, and the
+	 * value is not a promise. What decides whether Svelte wraps this tag in a `child_block` is the
+	 * expression the source held. See `awaited()`.
+	 */
+	const awaits = new Set<string>();
 	/** The props the call site binds, whose value the child may send back. See below. */
 	const boundProps = new Set<string>();
 	/** A binding's getter, kept until every attribute and spread has been placed. See below. */
@@ -5446,6 +5460,7 @@ function descend(
 		) {
 			const held = walk.site.told.get(written);
 			if (held !== undefined) {
+				if (awaiting(grown)) awaits.add(name);
 				bindings.set(name, held);
 				continue;
 			}
@@ -5962,7 +5977,13 @@ function descend(
 		// A spread of the request's goes the same way, whole: every prop it decided is bound
 		// inside the child, and evaluated here it would read the payload the render is not given.
 		for (const part of order) {
-			if ('spread' in part && part.at !== null) walk.edits.push([part.at[0], part.at[1], '']);
+			// A spread whose object awaits leaves an empty one behind rather than nothing: what makes
+			// Svelte wrap this tag in a `child_block` is the await, and an empty spread carries no
+			// key. See `awaited()`.
+			if ('spread' in part && part.at !== null) {
+				const held = awaiting(part.spread) ? '{...await {}}' : '';
+				walk.edits.push([part.at[0], part.at[1], held]);
+			}
 		}
 		for (const one of attributes) {
 			// A `bind:` is written out as the plain attribute it used to be rewritten to. The setter
@@ -6019,7 +6040,8 @@ function descend(
 			// Left as written where the value varies with nothing the request decides: Svelte
 			// evaluates the caller's expression and hands the child the value itself.
 			if (known === undefined && inertProps.has(name)) continue;
-			const placed = known === undefined ? standsIn(ahead, local) : JSON.stringify(known);
+			const stood = known === undefined ? standsIn(ahead, local) : JSON.stringify(known);
+			const placed = awaits.has(name) ? `await ${stood}` : stood;
 			if (whole !== null && walk.source[whole[0]] === '{') {
 				walk.edits.push([whole[0], whole[1], `${name}={${placed}}`]);
 				continue;

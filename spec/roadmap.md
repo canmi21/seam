@@ -13,12 +13,12 @@ name everywhere else.
 ```
                 identical  empty  differs  refused  oracle
 off                  1479     41        1      297      17
-on                   1624     42        8      138      23
+on                   1629     42        3      138      23
 ```
 
-**145 of the 183 samples this compiler refuses as async write Svelte's exact bytes** -- 143 of them
+**150 of the 183 samples this compiler refuses as async write Svelte's exact bytes** -- 143 of them
 with no change to the compiler at all, only the flag at the compile and an `await` at the render,
-and two more once the walk keeps the `await` it was substituting away. That is the number that
+and seven more once the walk keeps the `await` it was substituting away. That is the number that
 decides the question.
 
 **Why the refusal was so large.** It is written on the syntax -- `await` appears outside a function
@@ -42,18 +42,34 @@ mode. There is no synchronous answer in the meantime: reading `.body` of an asyn
 around everything the node writes. This walk substituted the awaited value away, so Svelte saw no
 await and wrote no pair.
 
-**The walk's half is written.** A construct's expression is replaced with the `await` it had kept,
-read off the **expansion** rather than off the source -- the await may sit in a declaration the
-construct reads, `const foo = $derived(await 1)` beside `{#if foo}`, and there is no `await` written
-in that markup at all. `await` of a value that is not a promise is that value, so nothing else
-moves. Two of the eight close on it and the count goes to 1624.
+**Seven of the eight are written, and the IR needed nothing.** A construct's expression is replaced
+with the `await` it had kept, so Svelte writes the pair itself -- the same answer a member tag and a
+render tag already had. Three readings make it work:
 
-**The other half is the assembler's, and the obvious rule is unsound.** The render writes both
-pairs; what loses the outer one is that a block is found by the stamp that follows its close, and
-the child block's `<!--]-->` now sits between the two. Letting `stamped` step over one was tried and
-measured: it takes a component's own anchor pair followed by an enclosing block's close and stamp
-for that block, and `runtime-legacy` fell from 832 to 172. The assembler has to tell a child block's
-close from a block's own, which the bytes alone do not say.
+- **Read off the expansion, not the source.** The await may sit in a declaration the construct
+  reads: `const foo = $derived(await 1)` beside `{#if foo}` has no `await` written in the markup.
+- **Read before the render's answer replaces it.** An each's source and a component's prop are
+  asked of the render and come back as the value, and a value is not a promise. What decides the
+  anchors is the expression the source held, so it is taken before the substitution.
+- **An empty spread is not nothing.** A spread whose object awaits leaves `{...await {}}` behind
+  rather than being removed: the await is what wraps the tag, and an empty spread carries no key.
+
+`await` of a value that is not a promise is that value, so nothing else moves, and the default path
+is untouched -- a file that awaits is refused before any of this.
+
+**The eighth is a different mechanism.** `create_child_block` wraps on `has_await` *or* on
+`blockers`, and `blockers` is `$$renderer.async_block`: a top-level `await` anywhere in a component
+blocks every node after it, whether or not that node awaits. `async-derived-unmount-undefined-props`
+declares `const something = $derived(await ...)` and never reads it, and every node below is
+wrapped. That is a property of the component rather than of an expression, and reproducing it means
+reading `PromiseOptimiser`'s account of which nodes are blocked.
+
+**What the assembler could not do.** Before the walk kept the awaits, the outer pair was written by
+the render and lost afterwards, because a block is found by the stamp that follows its close and the
+child block's `<!--]-->` sat between the two. Letting the scan step over one was tried and measured:
+it takes a component's own anchor pair followed by an enclosing block's close and stamp for that
+block, and `runtime-legacy` fell from 832 to 172. Two identical bytes cannot be told apart by
+reading them; keeping the await keeps the information where it already was.
 
 One difference is a value, `async-resolve-stale`. One is the identity sample, which is not async at
 all.
