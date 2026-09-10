@@ -60,9 +60,9 @@ one exception to it.
   thing about the object a caller passed -- which is a program per request. Two more belong here
   and wear the derivation evaluator's message instead, because the rule asks whether the changed
   name is read *by name* in the markup and these are read through a spread or a generator:
-  `spread-component-side-effects` and `destructure-state-iterable`. Holding a declaration once per
-  request rather than writing it out per read is what closes those two and the one differing sample
-  together; [roadmap.md](roadmap.md) ranks it.
+  `spread-component-side-effects` and `destructure-state-iterable`. Holding a value once per request
+  rather than writing it out per read is what closes those two; the mechanism landed with the last
+  differing sample and does not reach a spread yet. [roadmap.md](roadmap.md) ranks the rest.
 - **8 want a function off the wire.** The payload carries data and no function, deliberately: see
   [payload.md](payload.md). Six subscribe to a store the request brings, `$x` reading whatever `x`
   holds while the bytes are written, so the store itself would have to be in the payload -- and a
@@ -87,22 +87,22 @@ render.** Nothing differing, nothing refused as a gap.
 ```
                         samples  identical  empty  differs  refused  skipped  oracle
 server-side-rendering       131         85      4        0       20       16       6
-runtime-runes              1048        562     16        1      192      268       9
+runtime-runes              1048        563     16        0      192      268       9
 runtime-legacy             1209        832     21        0       85      269       2
-total                      2388       1479     41        1      297      553      17
+total                      2388       1480     41        0      297      553      17
 ```
 
-Against the target: **1520 of 1542**, with one differing and 21 refused as gaps. Seventeen fail
+Against the target: **1521 of 1542**, with nothing differing and 21 refused as gaps. Seventeen fail
 inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
 has to answer them in [roadmap.md](roadmap.md).
 
 ### What is left, in the order it should be taken
 
-**One sample writes bytes that are not Svelte's**, and it is the identity question rather than a
-construct: `runtime-runes/props-equality` reads a declaration inside a larger expression, so the
-array literal is built again and `items.includes(item)` is false where Svelte's own render, which
-evaluates the declaration once, says true. Holding a declaration rather than substituting it is
-what closes it, and [roadmap.md](roadmap.md) ranks that.
+**No sample writes bytes that are not Svelte's.** The last one was the identity question rather
+than a construct: `runtime-runes/props-equality` handed an array to a child as a prop, and each
+read inside the child built it again, so `items.includes(item)` was false where Svelte's own
+render, which evaluates the value once, says true. A value that makes something is now held where
+it crosses into a child, which [derivation.md](derivation.md) states and bounds.
 
 **6 refusals name no specification file, and that is a defect rather than a gap.** There were 24.
 [refusals.md](refusals.md) requires a refusal to say where the question lives, and these say

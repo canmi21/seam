@@ -12,8 +12,8 @@ name everywhere else.
 
 ```
                 identical  empty  differs  refused  oracle
-off                  1479     41        1      297      17
-on                   1629     42        3      138      23
+off                  1480     41        0      297      17
+on                   1630     42        2      138      23
 ```
 
 **150 of the 183 samples this compiler refuses as async write Svelte's exact bytes** -- 143 of them
@@ -129,12 +129,13 @@ first entry below took it to 42 and the anchor row to 39, and all of them are re
 than counted -- the suite prints the first byte the two renders disagree on, which is what made
 reading them a morning instead of a project.
 
-**One is left**, and it is not a construct: `runtime-runes/props-equality` reads a declaration
-inside a larger expression, so the array literal is built again per read and `items.includes(item)`
-is false where Svelte's own render, which evaluates the declaration once, says true. It is the
-identity half of the entry under Open below -- holding a declaration rather than substituting it --
-and one derivation per expression, which landed with it, closes the half where the read is the
-whole expression and not this one.
+**None is left: done.** The last was not a construct. `runtime-runes/props-equality` hands an array
+to a child as a prop, and each read inside the child built it again, so `items.includes(item)` was
+false where Svelte's own render, which evaluates the value once, says true. A value that makes
+something is now held where it crosses into a child: the prop expands to a reference this compiler
+resolves to the derivation the caller's own read already named, so both reads are one array.
+[derivation.md](derivation.md) states the rule, why it is the call site rather than the declaration,
+and the one case it gives itself up for.
 
 **A default on the entry's own props was dropped: done.** It was 78 of the 115. The default now
 stands over the payload's key as one derivation computed before anything reads it, which is what
@@ -614,9 +615,11 @@ counts them where they belong.
 `<Widget {...getProps(foo)} />` over a `getProps` that counts its calls: the spread is written into
 every prop the child declares, so it is evaluated once per prop where the render evaluates it once,
 and each evaluation returns a different `i`. Holding the value once per request rather than writing
-the expression out per read is what closes it -- the same item as the one differing sample, and the
-same item as `destructure-state-iterable`. It is a change to what substitution is, which is why it
-is ranked here and not among the rules above.
+the expression out per read is what closes it. That mechanism now exists and closed the last
+differing sample -- see [derivation.md](derivation.md) -- but it holds a prop the tag hands over as
+a read of a name, and a spread is neither: its keys are folded out of the object one at a time, so
+each prop carries its own copy of the call. Reaching it means holding the spread's own value before
+the fold, which is the next step of the same item rather than a different one.
 
 A narrower rule was tried and measured: refusing a spread whose value has to be computed and which
 folds into more than one prop. The expansion parenthesises everything, so the test for "has to be
