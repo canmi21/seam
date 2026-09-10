@@ -719,6 +719,18 @@ marker planted as one never comes back: `disabled={taken.includes(a)}` inside an
 boolean one stood so the order the helper writes in is kept, and the decision owns the whole of
 that attribute -- the same shape ` selected=""` already had.
 
+**A second `<slot>` rendering the same group is walked once and no more.** The markup stays in the
+caller's tag and `$.slot` calls it wherever a slot executes, so the bytes come from the render
+either way; what the walk does at a `<slot>` is rewrite the caller's source and plant its holes, and
+doing that twice over one span is two edits on one place. `runtime-legacy/component-nested-deeper` is
+the shape, a `<slot>` in each branch of an `{#if}`.
+
+Only where the group holds nothing of its own. A marker belongs in one place and the same markup at
+two slots puts it in two, which lowering reports as a value coming back twice; and a `let:` name is
+bound by the slot, so two slots passing different values want the markup rewritten two ways. Both
+stay refused, and the walk says which. Whether the group planted a marker is recorded rather than
+reasoned about, since what it holds is only known once it is walked.
+
 **`$props()` bound whole carries `children`, and it is a function.** `build_inline_component`
 writes the default slot as `children: slot_fn` beside `$$slots.default: true`, and
 `VariableDeclaration.js` writes `let { $$slots, $$events, ...rest } = $$props`, which takes those

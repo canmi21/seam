@@ -196,7 +196,25 @@ first entry below took it to 42 and the anchor row to 39, and all of them are re
 than counted -- the suite prints the first byte the two renders disagree on, which is what made
 reading them a morning instead of a project.
 
-**None is left: done.** The last was not a construct. `runtime-runes/props-equality` hands an array
+**One is left, and the suite does not hold it.** Found by probe while the double-`<slot>` refusal
+was being narrowed. A component the walk could not enter is handed a marker for each prop, and the
+rule that catches a child doing something other than writing one out is the marker **not coming
+back**. A child that branches on a prop *and* writes it out somewhere else defeats that: the marker
+comes back, and the branch was taken over a non-empty string.
+
+```svelte
+<!-- Kid.svelte, a component the walk cannot enter -->
+<script>export let on;</script>
+<p>{on}</p>{#if on}<b>yes</b>{:else}<i>no</i>{/if}
+```
+
+`<Kid on={data.f} />` writes `yes` for every request. What the rule asks is whether the value came
+back, and what it means to ask is whether the child *used* it for something else; those two part
+company exactly here. No vendored sample writes the shape, which is why it is here rather than in
+the table. Reading which of a child's expressions the marker reached, rather than only whether it
+survived, is what closes it.
+
+**Everything the suite holds: done.** The last was not a construct. `runtime-runes/props-equality` hands an array
 to a child as a prop, and each read inside the child built it again, so `items.includes(item)` was
 false where Svelte's own render, which evaluates the value once, says true. A value that makes
 something is now held where it crosses into a child: the prop expands to a reference this compiler

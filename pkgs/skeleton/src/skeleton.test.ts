@@ -780,6 +780,26 @@ const accepted: Case[] = [
 		data: [{ v: 'a' }, { v: 'b' }],
 	},
 	{
+		// The markup stays in the caller's tag and `$.slot` calls it wherever a slot executes, so the
+		// bytes come from the render either way. What the walk does at a `<slot>` is rewrite the
+		// caller's source and plant its holes, and doing that twice over one span is two edits on one
+		// place -- so the second slot rendering the same group is walked once and no more.
+		name: 'a child with a `<slot>` in each branch',
+		beside: {
+			Kid:
+				'<script>export let on;</script>' +
+				'{#if on}<b>T <slot></slot></b>{:else}<i>F <slot></slot></i>{/if}',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid on={data.f}><em>fixed</em></Kid><p>{data.a}</p>',
+		data: [
+			{ f: true, a: 'x' },
+			{ f: false, a: '<&' },
+		],
+	},
+
+	{
 		name: 'a child that writes a prop twice, and one that never writes it',
 		beside: {
 			Twice: '<script>let { p } = $props();</script><b>{p}</b><i>{p}</i>',
@@ -3956,6 +3976,7 @@ const refused: Case[] = [
 			'<script>let { data } = $props(); let n = 0;' +
 			' function bump(v) { n += 1; return v }</script><p>{bump(data.a)}</p>',
 	},
+
 	{
 		// Two `$:` assigning one name. Which of them ran last is the analysis's topological order
 		// rather than the source's, and this pass does not build that order, so the pair stays an

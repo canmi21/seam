@@ -321,16 +321,17 @@ impl Assembler<'_> {
 				),
 				(0, None) => format!(
 					"`{expression}` is written but never comes back in the render, so it would be \
-					 dropped"
+					 dropped. See spec/refusals.md"
 				),
 				(count, Some(given)) => format!(
 					"`{expression}` was given to {given} and comes back {count} times. A value \
 					 handed to a component may be written once, because one value cannot stand in \
 					 two places. See spec/refusals.md"
 				),
-				(count, None) => {
-					format!("`{expression}` comes back {count} times in the render, and belongs in one place")
-				}
+				(count, None) => format!(
+					"`{expression}` comes back {count} times in the render, and belongs in one place: \
+					 one value cannot stand in two. See spec/refusals.md"
+				),
 			});
 		}
 		Ok(())

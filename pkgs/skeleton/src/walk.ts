@@ -192,6 +192,8 @@ export interface Given {
 	 * error naming offsets rather than a question. See `descend`.
 	 */
 	walked?: string;
+	/** Whether walking it put a marker in the bytes. See the `<slot>` case in `collect`. */
+	planted?: boolean;
 }
 
 /**
@@ -4196,15 +4198,28 @@ function collect(node: unknown, walk: Walk): void {
 			// not the same text. It is a fragment the runtime calls twice, the way a recursive
 			// component's body is, and until it is one this says so rather than letting `apply`
 			// report offsets.
+			// A second `<slot>` rendering the same group is walked once and no more. The markup stays
+			// in the caller's tag and Svelte's `$.slot` calls it wherever a slot executes, so the
+			// bytes come from the render either way; what the walk does here is rewrite the caller's
+			// source and plant its holes, and doing that twice over one span is two edits on one
+			// place. `component-nested-deeper` is the shape: a `<slot>` in each branch of an `{#if}`,
+			// one of which renders.
+			//
+			// **Only where the slot binds nothing.** A `let:` name is bound by the slot, so two slots
+			// passing different values want the markup rewritten two ways and one rewrite cannot
+			// serve both. That stays refused, and says which of the two it is.
 			if (handed.walked !== undefined) {
+				if (handed.handed.size === 0 && handed.planted !== true) return;
 				refuse(
 					`the markup handed to this component under \`${named}\` is rendered by more than one ` +
-						`\`<slot>\`, so one span of the caller's source would be rewritten two ways -- once ` +
-						'per slot, with the props each passes. It is a fragment called once per slot, the ' +
-						"way a recursive component's body is, which the walk does not write yet",
+						`\`<slot>\`, and it holds a value or binds a name of its own, so one span of the ` +
+						"caller's source would be rewritten once per slot and a marker in it would belong " +
+						'in two places. It is a fragment called once per slot, the way a recursive ' +
+						"component's body is, which the walk does not write yet",
 				);
 			}
 			handed.walked = named;
+			const planted = holes.length;
 			// Through `held` rather than one node at a time: the group is a fragment of the caller's
 			// and Svelte cleans it the same way, so a `{@const}` in it is hoisted and binds for its
 			// siblings. Walked flat, every one of them reached the arm that refuses what the walk has
@@ -4226,6 +4241,11 @@ function collect(node: unknown, walk: Walk): void {
 				},
 				only,
 			);
+			// Whether the group put a marker in the bytes, which is what makes a second slot
+			// impossible: a marker belongs in one place and the same markup at two slots puts it in
+			// two. Recorded rather than reasoned about, since what the group holds is only known once
+			// it is walked.
+			handed.planted = holes.length > planted;
 			return;
 		}
 
