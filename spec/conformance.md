@@ -112,13 +112,22 @@ only because it injects. Both that are left are the same question underneath: a 
 this render calls changes, read through a spread or through a generator rather than by name, so the
 rule that owns it does not see it. `spread-component-side-effects` and `destructure-state-iterable`.
 
-**The 18 gaps, by what they are.** Six are a component binding sending a value back where the
-condition is the request's, which [roadmap.md](roadmap.md) has as a decision about block semantics.
-Three are a value handed to a component and used for something other than being written out. Three
-are a snippet arriving as a value from the call site. Two are the two above. One is a `<select>`
-whose attributes a request-decided spread writes. One is a `<select>` around a component the walk
-could not enter, and one is a component tag named by what a block binds. Two are a value a caller
-passes that this compiler cannot reach through the file it was written in.
+**The 18 gaps, by what they are.**
+
+| count | what it is |
+| ----- | ---------- |
+| 6 | a component binding sending a value back where the condition is the request's |
+| 3 | a value handed to a component and used for something other than being written out |
+| 3 | a `{@render}` whose callee this compiler cannot follow to a `{#snippet}` |
+| 2 | a value a function this render calls changes, read through a spread or a generator |
+| 2 | a context read and a rune left in a value this compiler has to write itself |
+| 1 | a `<select>` around a component the walk could not enter |
+| 1 | a component tag named by what a block binds |
+
+The first is a decision about block semantics and [roadmap.md](roadmap.md) has it. The fourth row is
+the two that used to fail inside the evaluator, and it is the by-decision rule about a value the
+render changes wearing another message because the read goes through a spread or a generator rather
+than by name.
 
 ### When it is done
 
