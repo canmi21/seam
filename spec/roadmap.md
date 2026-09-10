@@ -420,15 +420,19 @@ half way through a template Svelte re-renders whole, the pass that finds a bindi
 it records what the binding settles and the walk runs again told, the way it already runs again
 told what the render answered.
 
-**What stays refused is a binding written inside a block, and that is two different things.** Which
-child sends back is then the block's answer rather than the file's -- `{#if a}<Foo bind:x/>{:else}
+**A binding written inside a block is taken, and the block's own test goes inside the ternary.**
+Which child sends back is the block's answer rather than the file's -- `{#if a}<Foo bind:x/>{:else}
 <Bar bind:x/>{/if}` settles `x` to one default or the other, and the read outside the block sees
-whichever branch ran. Where nothing settles the block's own test, the test inside the ternary is the
-whole of it: `component-binding-parent-supercedes-child-b` is that, and measured with the block
-taken off, the same file settles correctly both for a request that sends the prop and for one that
-does not. Where a binding does settle it, it is the pass unrolling above. One ternary per file
-cannot say either, and written as the file's answer it is bytes rather than a refusal, measured on
-two samples.
+whichever branch ran -- so the chain nests one `(test) ? (value) :` per binding of that name, in
+source order, because among them the first whose branch renders is the one `bind_props` reaches.
+
+**And the pass unrolling above needed no unrolling of its own.** A block's tests are expanded
+against the bindings settled so far, so the source order falls out of the walk's: a `<Baz bind:x/>`
+above the block makes the block's test the settled `x`, and below it the test is what the request
+brought. `component-binding-conditional` and `-conditional-b` are those two orders and are both
+byte-identical. What had to change beside it is the guard that skips a pass already told: it was
+whole-pass, so a binding reached only once an earlier one had settled was skipped for ever. It is
+by the name now.
 
 **Neither of the guesses, recorded so they are not made again.** Leaving the component to Svelte
 does not work: the render settles correctly, but the caller's name is substituted from the walk's
@@ -487,28 +491,32 @@ is `undefined`, and a prop the child assigns after declaring is refused where it
 The refusal is thrown past `descend`'s catch, which otherwise turns a refusal into "left to the
 render" -- and left to the render is exactly the wrong first pass this is about.
 
-**Six samples left, and reading them says the refusal's own sentence is wrong about half of them.**
-It says the condition is the value the request brings; in three of the six nothing in the file is
-the request's at all.
+**Six samples were left, and reading them said the refusal's own sentence was wrong about half of
+them.** It claimed the condition is the value the request brings; in three of the six nothing in
+the file was the request's at all. All six are byte-identical now, and each wanted its own answer:
 
-| samples | what it is | what answers it |
+| samples | what it was | what answered it |
 | --- | --- | --- |
-| `component-binding-store` | the caller binds `$value.value` over a store the file makes, which is `''` rather than `undefined`, so nothing travels | the render says whether it is `undefined`, which is the caller-binds-a-local half |
+| `component-binding-store` | the caller binds `$value.value` over a store the file makes, which is `''` rather than `undefined`, so nothing travels | the render is asked whether the caller's value is `undefined`, which is the caller-binds-a-local half |
 | `parent-supercedes-child-b` | one binding inside a block nothing settles | the block's test inside the ternary |
-| `conditional`, `conditional-b` | a binding inside a block another binding settles | the pass unrolling above |
-| `blowback-d`, `blowback-e` | the writeback fills in an each item of a `const` the caller's markup reads after the tag | undecided, below |
+| `conditional`, `conditional-b` | a binding inside a block another binding settles | the block's tests expanded against the bindings settled so far |
+| `blowback-d`, `blowback-e` | the writeback fills in an each item of a `const` the caller's markup reads after the tag | the binding left as written, and the refusal rolling back the component that holds it |
 
-**The two `blowback` samples are the one place this refusal costs bytes that were otherwise there.**
-`main.svelte` declares `const obj = { a: [{}], b: [] }`, hands `obj.a` down, and reads
-`{obj.a.map(JSON.stringify)}` after the tag; the child binds `item.value` inside an `{#each}` and
-the grandchild's default travels up into that object. Nothing in that file is a prop, so Svelte's
-own render is the whole answer and the walk had only to stay out of it. It cannot, because this
-refusal is thrown past `descend`'s catch on purpose -- which is right where the caller's name is
-substituted into bytes from this pass's own model, and wrong where the caller's read is inert and
-goes back to the render as the author wrote it. Narrowing the throw to the case it was written for
-is one answer; the other is that substitution cannot follow a value something changes, which is a
-decision already taken further down this file. **Which of the two it is has not been settled, and
-the measurement that would settle it cannot be taken while the refusal escapes the rollback.**
+**The two `blowback` samples were the one place this refusal cost bytes that were otherwise there,
+and they took two changes rather than one.** `main.svelte` declares `const obj = { a: [{}], b: [] }`,
+hands `obj.a` down, and reads `{obj.a.map(JSON.stringify)}` after the tag; the child binds
+`item.value` inside an `{#each}` and the grandchild's default travels up into that object. Nothing
+in that file is a prop, so Svelte's own render is the whole answer and the walk had only to stay out
+of it.
+
+It could not, for two reasons that had to be found in order. The getter was written out **expanded**,
+so the child filled in an object literal this pass had just built rather than the value the caller
+holds -- both halves of a binding whose value the request does not decide are left as written now,
+because both are the render's to run. And the refusal was thrown past every `descend` catch, where
+what it owes is one: the binding is written in the markup of the component the walk is in, not in the
+child that declares the prop, so that component is the one to leave to Svelte. Rolling back only the
+child leaves the binding in a copy this pass rewrote. Where there is no catch outside the first, the
+entry holds the binding and there is nothing to leave, so it reaches the author as before.
 
 ### The select row was three things, and only one of them was about `<select>`
 
@@ -642,10 +650,12 @@ the way `merged()` builds a prop, and that is the shape it waits on.
 Each of these can be built. What none of them can be is built without answering a question that
 outlives it, and the questions are not the same question.
 
-**A component `bind:`, 16.** The mechanism is read out above and it is not in doubt. What is in
-doubt is the IR: the parent's template becomes two passes with the last one subsuming the first,
-and either the IR gains a node that says "take the last pass" or the shape stays refused. That is
-a change to [ir.md](ir.md), not to a visitor.
+**A component `bind:`: done, and the IR needed nothing.** This entry said the parent's template
+becomes two passes with the last subsuming the first, so either the IR gains a node saying "take the
+last pass" or the shape stays refused. It is neither. The fixed point has a closed form -- one
+ternary per binding of a name, nested in source order, with the block's own test inside it -- and
+the passes the settling loop makes are the passes the walk already makes, since a block's tests are
+expanded against the bindings settled so far. Nothing in [ir.md](ir.md) moved. The reading is above.
 
 **A snippet arriving as a value, 12.** A snippet rendered by a file that does not declare it: passed
 as a prop, hoisted into a module script, held in a store, chosen from a nullish test. The walk
@@ -798,6 +808,24 @@ against the promise.
 item above already owns. `component-namespace` is `<Components.Foo />` over a module script's
 export, which is the module-graph item. `binding-indirect-fn` is a `$:` declaration substituted
 into `items.filter(fn)` and is its own fault.
+
+## Stage one is 1542 of 1544, and what is left is not work
+
+Every gap that was work is taken. What the suite reports now is nothing differing and two refused,
+and both of those are the same construct being turned away in the wrong words: a raw snippet whose
+bytes the request decides, which is the scope line and is under **Decided, and not built** below.
+[conformance.md](conformance.md) has the table and what each of the eight turned out to be.
+
+**Three of the eight were one rule asked by one construct and not by another**, which is the shape
+worth carrying forward rather than the individual fixes: an ask is not the expansion, and a `class:`
+run is a decision the same way a `style:` run is. Both are stated where the rule lives, once, rather
+than per construct. The fourth of that kind is not a rule but a key: an ask was filed under the
+expression alone, and two copies of one component share an expansion.
+
+**And the order was the finding rather than the fix.** `runtime-legacy/context-api` was one refusal
+standing in front of a difference; lifting the refusal first would have traded the only column that
+matters. What made it visible was measuring the sample with the refusal taken off, before deciding
+anything -- which is the same method [refusals.md](refusals.md) sets out for every entry in it.
 
 ## Ready, and not done
 

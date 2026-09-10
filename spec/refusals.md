@@ -2640,10 +2640,17 @@ vary with nothing the request decides is left as written**, and Svelte builds it
 run still has to be taken charge of rather than stepped over, or the directive reaches the arm that
 refuses what the walk has never met, which is what the `style:` rule already says of itself.
 
-**It is not the first thing to take.** What this refusal is standing in front of is in
-[derivation.md](derivation.md): with the directive gone the file compiles and writes bytes that are
-not Svelte's, and trading nothing differing for something differing is the one trade
-[suite.md](suite.md) ranks against.
+**Both runs answer it, and they have to answer it the same way.** One written out here and the
+other left to the render is two attributes in the wrong order, because `2-analyze/index.js` appends
+the one it invents after every attribute that was written: `runtime-runes/directives` wrote `style`
+before `class` where Svelte writes `class` first. So `style:` gained the second half of the rule at
+the same time -- a run whose every directive is a written value or an inert expression is the
+render's too.
+
+**It was not the first thing taken.** What this refusal was standing in front of is in
+[derivation.md](derivation.md): with the directive gone the file compiled and wrote bytes that are
+not Svelte's. That was found and fixed first, because trading nothing differing for something
+differing is the one trade [suite.md](suite.md) ranks against.
 
 ## A `?:` handed to a package chooses what is handed, and is enumerated
 

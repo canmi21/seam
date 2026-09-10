@@ -86,14 +86,15 @@ render.** Nothing differing, nothing refused as a gap.
 ```
                         samples  identical  empty  differs   gap  decided  skipped  oracle
 server-side-rendering       131         86      4        0     0       19       16       6
-runtime-runes              1048        577     18        0     3      173      268       9
-runtime-legacy             1209        871     22        0     7       38      269       2
-total                      2388       1534     44        0    10      230      553      17
+runtime-runes              1048        578     18        0     2      173      268       9
+runtime-legacy             1209        878     22        0     0       38      269       2
+total                      2388       1542     44        0     2      230      553      17
 ```
 
-Against the target: **1534 of 1544**, with nothing differing and 10 refused as gaps. Seventeen fail
-inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
-has to answer them in [roadmap.md](roadmap.md).
+Against the target: **1542 of 1544**, with nothing differing and two refused as gaps. Seventeen fail
+inside the oracle rather than inside either side and are counted apart. Both of the two are the
+same construct and both are the scope line said in the wrong words; [roadmap.md](roadmap.md) has
+them.
 
 ### What is left, in the order it should be taken
 
@@ -111,29 +112,30 @@ two were one question underneath, a value a function this render calls changes, 
 by a route the rule does not watch -- a spread and a generator rather than a name. Both are now
 refused for assigning to a name outside the value this compiler has to write.
 
-**The 10 gaps, by what they are.**
+**The two gaps left are one construct, and it is a decision the message has not caught up with.**
+`runtime-runes/snippet-raw-component` and `-ssr-dev` write a raw snippet whose `render` reads the
+request and calls `svelte/server`'s own `render()` inside itself, which is an artifact running
+Svelte's renderer per request. That is the scope line rather than work nobody has done, and
+[roadmap.md](roadmap.md) records it as one; this table is read off the messages, so the count moves
+when the message does.
 
-| count | what it is |
-| ----- | ---------- |
-| 6 | a component binding sending a value back, in three shapes [roadmap.md](roadmap.md) tells apart |
-| 2 | a raw snippet whose bytes the request decides, which is decided and not yet said |
-| 1 | a `{@render}` whose callee was asked of the expansion rather than of the author's text |
-| 1 | a context read in a value this compiler has to write itself |
+**The eight that were work are done, and reading them one at a time is what said which was which.**
+Each was measured against Svelte's own render of the sample before anything was written, and three
+of the eight were a rule already stated for one construct and not asked by another:
 
-Every one of them names a specification file, which is the whole of what a refusal owes. What none
-of them does yet is name the right question, and reading the ten one at a time moved three rows:
+| what it was | where the rule now lives |
+| --- | --- |
+| a `{@render}` callee asked of the expansion rather than of the author's text | [derivation.md](derivation.md) |
+| a `class:` run enumerated whatever it read, where a `style:` run is not | [refusals.md](refusals.md) |
+| an ask filed under the expression alone, so two copies of one component shared an answer | [derivation.md](derivation.md) |
+| a component binding inside a block, and inside a block another binding settles | [roadmap.md](roadmap.md) |
+| a bound value the render is the one to know is not `undefined` | [roadmap.md](roadmap.md) |
+| an inert binding written out expanded, and its refusal rolling back the wrong component | [roadmap.md](roadmap.md) |
 
-- **The six bindings are not one shape and the message says they are**, claiming the condition is
-  the request's where three of the six read nothing the request decides.
-  [roadmap.md](roadmap.md) has the three and what each needs.
-- **Two of the three render tags are the scope line rather than a gap.** An artifact cannot run
-  Svelte's renderer per request, which is what a raw snippet reading the request would need. They
-  are counted here until the message says so, because this table is read off the messages;
-  [refusals.md](refusals.md) has the decision.
-- **The context read is one refusal standing in front of a difference.** The file compiles once the
-  `class:` directive that turns it away is taken off, and then writes bytes that are not Svelte's.
-  Taking that refusal before the difference is found trades the only column that matters, so the
-  order is the difference first. [derivation.md](derivation.md) has the measurement.
+**The two the order mattered for were the last two.** `runtime-legacy/context-api` was one refusal
+standing in front of a difference: with the `class:` directive that turned it away taken off, the
+file compiled and wrote bytes that are not Svelte's. Taking the refusal first would have traded the
+only column that matters, so the difference was found first and the refusal lifted after.
 
 The three that used to fail inside the derivation evaluator are counted as decisions now, being the
 rule about a value the render changes reaching the walk through a spread, a generator and a computed

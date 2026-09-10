@@ -862,11 +862,18 @@ refuses the file first taken off:
 | two | both take the else where Svelte takes the first |
 | two, comparing something that is not an identity | Svelte's |
 
-So the ask reaches the render, and the registration the render runs is correct; what stops being the
-author's text once a second copy of the component exists has not been read yet. **It is the first
-thing to find, because it is bytes.** Lifting the `class:` refusal in [refusals.md](refusals.md)
-before it is found trades nothing differing for something differing, which is the one trade
-[suite.md](suite.md) ranks against.
+**What stopped being right once a second copy existed was the key, not the value.** An ask is
+filed in one object the render fills, and it was filed under the expression alone -- which two
+copies of one component share, because the expansion of `$selectedPanel === panel` is the same
+string in both. The second copy's answer overwrote the first's. It carries the copy's own name now,
+`keyed()` in `walk.ts`, and the entry, which has no copy, keeps the bare expression. The identity
+of `panel` was never the fault: the test is one the render answers, and the render holds the object
+the script registered.
+
+The order mattered and is worth keeping written down. This was found first and the `class:` refusal
+in [refusals.md](refusals.md) lifted after, because lifting the refusal first would have traded
+nothing differing for something differing, which is the one trade [suite.md](suite.md) ranks
+against.
 
 **Held means one derivation, named, and read by that name.** A derivation is computed once per
 request and cached, and an expression reads its scope through `with`, so one derivation may name
