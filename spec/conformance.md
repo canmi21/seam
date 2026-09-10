@@ -50,31 +50,33 @@ where this compiler refused, so a sample nobody can render is not counted as our
 them were, a quarter of what was being ranked as work. [suite.md](suite.md) has the rule and the
 one exception to it.
 
-**A refusal by decision is out.** 276 samples, in four shapes the scope line settles:
+**A refusal by decision is out.** 264 samples, in four shapes the scope line settles, and the suite
+counts them in a column of their own now rather than beside the gaps:
 
 - **183 await** in markup or at the top of a script, which is async Svelte and the load stage's.
   Which samples those are is upstream's compiler to say: one that will not build without
   `experimental.async` is async Svelte whatever this compiler's own message says.
-- **78 change a value** the markup reads while the bytes are written -- assigned after being
+- **68 change a value** the markup reads while the bytes are written -- assigned after being
   declared, changed by a function this render calls, or written into `$$props`, which is the same
   thing about the object a caller passed -- which is a program per request. Two more belong here
   and wear the derivation evaluator's message instead, because the rule asks whether the changed
   name is read *by name* in the markup and these are read through a spread or a generator:
-  `spread-component-side-effects` and `destructure-state-iterable`. Holding a value once per request
-  rather than writing it out per read is what closes those two; the mechanism landed with the last
-  differing sample and does not reach a spread yet. [roadmap.md](roadmap.md) ranks the rest.
-- **8 want a function off the wire.** The payload carries data and no function, deliberately: see
+  `spread-component-side-effects` and `destructure-state-iterable`. **This is the one row of the
+  four that is not settled**: measured, the rule is over-broad by about 35 of the 68, and
+  [roadmap.md](roadmap.md) has the entry and what the narrowing has to ask. It is counted here
+  because that is what the rule says today, and the entry says what the rule should say.
+- **9 want a function off the wire.** The payload carries data and no function, deliberately: see
   [payload.md](payload.md). Six subscribe to a store the request brings, `$x` reading whatever `x`
   holds while the bytes are written, so the store itself would have to be in the payload -- and a
-  store is an object with a `subscribe` function. Two render a component the request sent, which
+  store is an object with a `subscribe` function. Three render a component the request sent, which
   is the same shape: a component is a function. Reading the value, or choosing the component, in
   the load stage is the same page.
-- **3 read a value that is not the same twice**, `Math.random` and `Symbol()`, which a compile-time
-  render freezes into bytes every request would then share.
+- **4 read a value that is not the same twice**, `Math.random`, `Date()` and `Symbol()`, which a
+  compile-time render freezes into bytes every request would then share.
 
-[roadmap.md](roadmap.md) holds all four and none of them moves. The count moves as work lands, and
-upward: a sample that used to be refused for a gap earlier in the walk reaches one of these
-instead.
+[roadmap.md](roadmap.md) holds all four. Three of them do not move. The count itself moves as work
+lands, and upward: a sample that used to be refused for a gap earlier in the walk reaches one of
+these instead.
 
 **Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
@@ -85,11 +87,11 @@ render.** Nothing differing, nothing refused as a gap.
 ### Where it stands
 
 ```
-                        samples  identical  empty  differs  refused  skipped  oracle
-server-side-rendering       131         85      4        0       20       16       6
-runtime-runes              1048        566     16        0      189      268       9
-runtime-legacy             1209        844     21        0       73      269       2
-total                      2388       1495     41        0      282      553      17
+                        samples  identical  empty  differs   gap  decided  skipped  oracle
+server-side-rendering       131         85      4        0     2       18       16       6
+runtime-runes              1048        566     16        0     4      185      268       9
+runtime-legacy             1209        844     21        0    12       61      269       2
+total                      2388       1495     41        0    18      264      553      17
 ```
 
 Against the target: **1513 of 1531**, with nothing differing and 18 refused as gaps. Seventeen fail

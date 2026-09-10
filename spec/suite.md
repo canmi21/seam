@@ -48,8 +48,25 @@ about the compiler, so the suite gives them a column of their own rather than fo
 **differs** -- it compiled and the bytes are not Svelte's. This is the serious one: nothing said
 so. Everything else announces itself.
 
-**refused** -- the compiler turned it away and named a specification file. A gap or a decision;
-[refusals.md](refusals.md) says which, and [roadmap.md](roadmap.md) ranks the gaps.
+**gap** -- the compiler turned it away, named a specification file, and nobody has said that
+turning it away is the right answer. This is the list of what is left to do, and
+[roadmap.md](roadmap.md) ranks it.
+
+**decided** -- the compiler turned it away and the scope line settles it: async Svelte, a value the
+render changes, a value the payload cannot carry because it is a function, a value that is not the
+same twice. Out of the denominator, and printed grouped by which decision it is rather than one
+message at a time, because for one of them it is the same sentence 183 times.
+
+**A refusal is one of those two and the suite says which, rather than one number for both.** Which
+it is was in prose while the table said `refused`, so the figure a reader took away counted 264
+decisions as though they were work. It is read off the message, in a table in the runner: the
+classification is the measurement's and nothing in a build has a use for it. **An unmatched refusal
+counts as a gap**, which is the safe direction -- a refusal nobody has classified is work until
+somebody says otherwise.
+
+**And a decision is not a skip.** A skip is upstream saying not to run the sample. These ran, this
+compiler read them and turned them away on purpose. Folding them into `skipped` would make that
+column our judgement, which is the one thing it is written not to be.
 
 **oracle** -- neither side answered, because Svelte's own render could not be built or run here.
 There is nothing to be identical to, so the sample is not a pass, not a difference and not a
@@ -105,19 +122,20 @@ as counting a gap out because the compiler announces it.
 
 ## The denominator, said once
 
-A percentage over 2388 is meaningless, because two of the four outcomes are not failures.
+A percentage over 2388 is meaningless, because three of the outcomes are not failures.
 
 **Upstream's skips are out.** 553 of them.
 
 **A sample the oracle cannot render is out.** 17. There is nothing to compare against, so counting
 it either way is a claim about a comparison nobody made.
 
-**A refusal by decision is out, and it is the scope line rather than an excuse.** Async Svelte is
-the whole of it in practice: `await` in markup or at the top of a script awaits a promise per
-request while the bytes are written, which is the load stage's. The suite reports the count and
-`roadmap.md` holds the reasoning. A refusal that is a *gap* stays in the denominator -- it is work
-nobody has done, and hiding it behind the same word as a decision is exactly the confusion
-[refusals.md](refusals.md) was written to stop.
+**A refusal by decision is out, and it is the scope line rather than an excuse.** The suite counts
+it in a column of its own, `decided`, and prints the samples grouped by which decision each is.
+Async Svelte is most of it: `await` in markup or at the top of a script awaits a promise per request
+while the bytes are written, which is the load stage's. A refusal that is a *gap* stays in the
+denominator -- it is work nobody has done, and hiding it behind the same word as a decision is
+exactly the confusion [refusals.md](refusals.md) was written to stop, which is why the two are no
+longer one column.
 
 **Everything else is in.** So the number this file tracks is
 

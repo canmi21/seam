@@ -98,7 +98,7 @@ interface Config {
 	props?: Record<string, unknown>;
 }
 
-type Outcome = 'identical' | 'empty' | 'differs' | 'refused' | 'skipped' | 'oracle';
+type Outcome = 'identical' | 'empty' | 'differs' | 'gap' | 'decided' | 'skipped' | 'oracle';
 
 interface Result {
 	suite: string;
@@ -106,6 +106,53 @@ interface Result {
 	outcome: Outcome;
 	/** Why, for everything but an agreement: the refusal, the skip's reason, the stream that differs. */
 	why?: string;
+	/** For a refusal the scope line settles, which of its shapes it is. See `DECIDED`. */
+	kind?: string;
+}
+
+/**
+ * The refusals the scope line settles, by a phrase each of their messages says.
+ *
+ * **A refusal is not a skip and is not counted as one.** A skip is upstream saying not to run the
+ * sample; these ran, this compiler read them and turned them away on purpose, and the message
+ * names where the question lives. What they are not is work: [conformance.md](conformance.md)
+ * takes them out of the denominator, and they were being read out of prose while the table said
+ * one number for them and for the gaps together.
+ *
+ * Matched on the message rather than carried from the refusal, because the classification is the
+ * measurement's and nothing in a build has a use for it. **An unmatched refusal is a gap**, which
+ * is the safe direction: a refusal nobody has classified is work until somebody says otherwise.
+ */
+const DECIDED: readonly { says: string; kind: string }[] = [
+	{ says: 'async Svelte', kind: "async Svelte, which is the load stage's" },
+	{ says: 'assigned after being declared', kind: 'a value the render changes' },
+	{ says: 'changed by a function this render calls', kind: 'a value the render changes' },
+	{
+		says: 'is written to, and it is not a value this compiler holds',
+		kind: 'a value the render changes',
+	},
+	{
+		says: '`$store` subscription over a value the request brings',
+		kind: 'the payload carries data and no function',
+	},
+	{
+		says: 'is handed a component the request decides',
+		kind: 'the payload carries data and no function',
+	},
+	{ says: 'does not read the same twice', kind: 'a value that is not the same twice' },
+];
+
+/** Which shape of decision a refusal is, or null where nobody has said and it is work. */
+function settled(why: string): string | null {
+	return DECIDED.find((one) => why.includes(one.says))?.kind ?? null;
+}
+
+/** A refusal, sorted into the two things a refusal can be. */
+function turned(suite: string, name: string, why: string): Result {
+	const kind = settled(why);
+	return kind === null
+		? { suite, name, outcome: 'gap', why }
+		: { suite, name, outcome: 'decided', why, kind };
 }
 
 const need = createRequire(import.meta.url);
@@ -317,10 +364,10 @@ async function attempt(suite: string, name: string): Promise<Result> {
 			? said
 			: `upstream builds it with \`experimental.async\`, so it is async Svelte and the load ` +
 				`stage's. This compiler turned it away earlier and for another reason: ${said}`;
-		return { suite, name, outcome: 'refused', why };
+		return turned(suite, name, why);
 	}
 	if (mine === null) {
-		return { suite, name, outcome: 'refused', why: refusal ?? 'it failed and said nothing' };
+		return turned(suite, name, refusal ?? 'it failed and said nothing');
 	}
 
 	if (mine.body !== svelte.body) {
@@ -399,13 +446,31 @@ async function quietly<T>(what: () => Promise<T>): Promise<T> {
 
 const NOTHING = (): void => undefined;
 
-/** The counts, which is what a run is read for, so it is written last and on its own. */
+/**
+ * The counts, which is what a run is read for, so it is written last and on its own.
+ *
+ * `gap` and `decided` are the two things a refusal can be, apart because reading them together
+ * says nothing: one is the list of what is left to do and the other is the scope line holding.
+ * `skipped` stays upstream's own and only upstream's -- a skip nobody upstream asked for is a
+ * number made to look better, and a decision of ours is not a skip. See spec/suite.md.
+ */
 function table(results: readonly Result[]): void {
 	const width = Math.max(...SUITES.map((one) => one.length));
+	const columns: readonly [name: string, of: Outcome, pad: number][] = [
+		['identical', 'identical', 11],
+		['empty', 'empty', 7],
+		['differs', 'differs', 9],
+		['gap', 'gap', 6],
+		['decided', 'decided', 9],
+		['skipped', 'skipped', 9],
+		['oracle', 'oracle', 8],
+	];
 	const row = (name: string, mine: readonly Result[]): string =>
-		`${name.padEnd(width)}  ${String(mine.length).padStart(8)}${String(count(mine, 'identical')).padStart(11)}${String(count(mine, 'empty')).padStart(7)}${String(count(mine, 'differs')).padStart(9)}${String(count(mine, 'refused')).padStart(9)}${String(count(mine, 'skipped')).padStart(9)}${String(count(mine, 'oracle')).padStart(8)}`;
+		`${name.padEnd(width)}  ${String(mine.length).padStart(8)}` +
+		columns.map(([, of, pad]) => String(count(mine, of)).padStart(pad)).join('');
 	console.log(
-		`\n${'suite'.padEnd(width)}  ${'samples'.padStart(8)}${'identical'.padStart(11)}${'empty'.padStart(7)}${'differs'.padStart(9)}${'refused'.padStart(9)}${'skipped'.padStart(9)}${'oracle'.padStart(8)}`,
+		`\n${'suite'.padEnd(width)}  ${'samples'.padStart(8)}` +
+			columns.map(([name, , pad]) => name.padStart(pad)).join(''),
 	);
 	for (const suite of SUITES) {
 		console.log(
@@ -424,6 +489,28 @@ function list(results: readonly Result[], outcome: Outcome, title: string): void
 	console.log(`\n${title} (${String(found.length)})`);
 	for (const one of found) {
 		console.log(`  ${one.suite}/${one.name}${one.why === undefined ? '' : `\n      ${one.why}`}`);
+	}
+}
+
+/**
+ * The decided refusals grouped by which decision they are, names only.
+ *
+ * The message is the same sentence 183 times for one of these, and what a reader wants of them is
+ * the shape and the count. A gap is printed with its message, because a gap is read one at a time.
+ */
+function decided(results: readonly Result[]): void {
+	const found = results.filter((one) => one.outcome === 'decided');
+	if (found.length === 0) return;
+	const kinds = new Map<string, Result[]>();
+	for (const one of found) {
+		const held = kinds.get(one.kind ?? '') ?? [];
+		held.push(one);
+		kinds.set(one.kind ?? '', held);
+	}
+	console.log(`\nrefused by decision, which the scope line settles (${String(found.length)})`);
+	for (const [kind, held] of [...kinds].sort((a, b) => b[1].length - a[1].length)) {
+		console.log(`  ${kind} (${String(held.length)})`);
+		for (const one of held) console.log(`      ${one.suite}/${one.name}`);
 	}
 }
 
@@ -470,7 +557,8 @@ const results: Result[] = await quietly(async () => {
 if (!process.argv.includes('--table')) {
 	list(results, 'differs', "compiled and wrote bytes that are not Svelte's");
 	list(results, 'oracle', 'neither side answered: the oracle could not be built or run');
-	list(results, 'refused', 'refused, each naming where the question lives');
+	list(results, 'gap', 'refused, and nobody has said this one is not work');
+	decided(results);
 }
 table(results);
 
