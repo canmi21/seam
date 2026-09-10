@@ -2094,6 +2094,18 @@ this={...}>` written by the author is the same call and is settled the same way.
 expression reaches the request is a component chosen per request, and the paragraph below says
 what that is.
 
+**A tag's name is an expression, and a name a block binds is a component chosen per item.**
+`Component.js` in the server transform is one line: `context.visit(b.member_id(node.name))`, which
+splits the name on `.`, builds the member chain and puts the root through `build_getter` like any
+other read. So `<C />` is `<svelte:component this={C} />` written another way, and `<A.B />` is
+`this={A.B}`. Where the root is a name this walk binds per item the tag reached the render as the
+marker standing for that name, and Svelte called it: `C is not a function`, an error naming nothing
+the author wrote. It is refused now, and by which of the two questions it is. A root the request
+decides is a component off the wire, which the payload does not carry. A root a block binds is
+decided per item, and a per-item decision has no page-wide domain to enumerate -- the same answer
+`stands()` already gave for an each-bound `<svelte:component>`, and the same advice: write the
+choice as an `{#if}` around each component, which is a block and is taken per item.
+
 **A snippet the request chooses has one candidate too, and no second outcome.** The same reading:
 the payload carries data and no function, so a snippet never comes off the wire and the only one a
 `{@render}`'s callee can hold is the one the source names -- a prop's default, or a name a value

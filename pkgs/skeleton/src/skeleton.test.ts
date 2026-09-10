@@ -3770,6 +3770,18 @@ const refused: Case[] = [
 			'<b>{getContext(data.k)}</b>',
 	},
 	{
+		// `Component.js` is one line -- `context.visit(b.member_id(node.name))` -- so a tag's name is
+		// an expression and `<C />` is `<svelte:component this={C} />` written another way. Over a
+		// name an each binds, the tag used to reach the render as the marker standing for the item
+		// and Svelte called it: `C is not a function`, an error naming nothing the author wrote.
+		name: 'a component tag named by what an each block binds',
+		says: 'decided per item',
+		beside: { Tip: '<span>tip</span>' },
+		source:
+			"<script>import Tip from './Tip.svelte'; let { data } = $props(); const list = [Tip];" +
+			'</script>{#each list as C}<C />{/each}<i>{data.a}</i>',
+	},
+	{
 		// Not a declaration: `$: $count = n` writes the store, and `transform-server.js` declares a
 		// `let` only for a binding whose kind is `legacy_reactive`. Nor is one whose name a `let`
 		// already declares, which stays an assignment after a declaration and stays refused.

@@ -1999,6 +1999,30 @@ const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
  * every expression goes through. What the taken branch leaves has to be inert; one that still
  * reaches the request is a component chosen per request, which is not enumerable and is refused.
  */
+/**
+ * Refuses a component tag whose name this walk decides, saying which of the two questions it is.
+ *
+ * The name is `member_id(node.name)` visited, so only its root is a read; the members are property
+ * accesses off whatever that is. A root the walk binds per item is a component chosen per item,
+ * which a block can express and a page-wide enumeration cannot. A root the request decides is a
+ * component off the wire, which the payload does not carry.
+ */
+function naming(tag: string, walk: Walk): void {
+	const head = tag.split('.')[0] ?? '';
+	if (head === '' || !walk.dynamic.has(head)) return;
+	// A name a block binds, told apart from one the payload carries the way `stands()` tells them
+	// apart: the decision is made per item and there is no page-wide domain to enumerate.
+	if (walk.site.payload?.has(head) !== true && !walk.fresh.includes(head)) {
+		refuse(
+			`\`<${tag} />\` names a component through \`${head}\`, which a block binds, so which ` +
+				'component it is is decided per item and cannot be enumerated for the page. Write the ' +
+				'choice as an `{#if}` around each component, which is a block and is taken per item. ' +
+				'See spec/derivation.md',
+		);
+	}
+	choosing(head, tag, walk);
+}
+
 function choosing(written: string, tag: string, walk: Walk): string {
 	const chosen = settled(written, walk);
 	if (mentions(chosen, walk.dynamic)) {
@@ -4164,6 +4188,13 @@ function collect(node: unknown, walk: Walk): void {
 				if (given && descend(node, walk, settledTag ?? undefined)) {
 					return;
 				}
+				// A tag's name is an expression, which is `Component.js` in one line:
+				// `context.visit(b.member_id(node.name))` splits it on `.` and puts the root through
+				// `build_getter` like any other read. So `<C />` over a name this walk decides is
+				// `<svelte:component this={C} />` written another way, and it is refused where that
+				// would be. Left alone it reached the render as the marker standing for the name, and
+				// Svelte called it: `C is not a function`, an error about nothing the author wrote.
+				if (type === 'Component') naming(tag, walk);
 				// Not entered: the dynamic call gets the settled expression after all.
 				if (settledTag !== null) settledTag.written();
 				// `renderer.select` keeps the select's value on `this.local`, which a child renderer
