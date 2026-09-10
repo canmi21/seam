@@ -788,6 +788,22 @@ interface Group {
 }
 
 /**
+ * Whether a group holds anything Svelte writes a slot function for.
+ *
+ * `build_inline_component` visits the group and drops it where the block comes out empty --
+ * `if (block.body.length === 0) continue` -- and whitespace around a named slot's element is what
+ * `clean_nodes` takes out. `<Child a="b"><div slot="foo" /></Child>` has a default group of two
+ * whitespace text nodes and no default slot at all, and giving the props object a `children` for it
+ * put a key in `Object.keys($props())` that Svelte does not have.
+ */
+function filled(group: Given | undefined): boolean {
+	if (group === undefined) return false;
+	return group.nodes.some(
+		(one) => !isNode(one) || one['type'] !== 'Text' || String(one['data'] ?? '').trim() !== '',
+	);
+}
+
+/**
  * What a component is handed, by the name each part of it arrives under.
  *
  * Read out of `visitors/shared/component.js`. The markup inside a component's tag is not one
@@ -1313,10 +1329,27 @@ function selection(
 
 	if (selecting === undefined) return selecting;
 
+	// `renderer.option` compares against the rendered body and takes the attributes' `value` over it
+	// where they have one: `if (has_own_property.call(attrs, 'value')) value = attrs.value`. A spread
+	// carries the key exactly as a written attribute does, so the run is read in source order and
+	// the last of them wins, the way a select's is.
+	let spread: string | undefined;
+	for (const one of Array.isArray(node['attributes']) ? node['attributes'] : []) {
+		if (!isNode(one) || one['type'] !== 'SpreadAttribute') continue;
+		const grown = expand(one['expression']);
+		const entries = objectEntries(grown);
+		if (entries === null) {
+			spread = merges(grown, 'value', spread);
+			continue;
+		}
+		for (const [key, value] of entries) if (key.toLowerCase() === 'value') spread = `(${value})`;
+	}
 	const own = attributeOf(node, 'value');
 	let compared: string | null;
 	if (own !== undefined) {
 		compared = valueExpression(own, source, expand);
+	} else if (spread !== undefined) {
+		compared = spread;
 	} else {
 		const fragment = node['fragment'];
 		const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
@@ -6227,6 +6260,22 @@ function descend(
 		// `$$slots`, neither of which this carries, so it is left off; which slots the caller filled
 		// is known by name here and is written out rather than read back off the object.
 		const groups = hands(walk, nodes, node);
+		// `$props()` bound to a name, or gathered into a rest, is the caller's object **with**
+		// `children` in it: `VariableDeclaration.js` writes `let { $$slots, $$events, ...rest } =
+		// $$props`, which takes out those two and keeps the slot function. `$$props` itself is
+		// `sanitize_props($$props)`, which takes out `children` instead -- two objects, not one.
+		// The walk composes slot content rather than passing a function for it, so the key has to be
+		// put back: `Object.getOwnPropertyNames($props())` listed two names where Svelte lists three.
+		//
+		// **A function, not `true`.** `build_inline_component` writes the default slot as
+		// `children: slot_fn`, and `attributes()` skips a value whose type is `function` -- so a
+		// component spreading its whole props into an element writes no `children` attribute, and
+		// anything else would. What the function does is nothing: every `{@render}` of it is markup
+		// the walk composes where the call stands.
+		if (filled(groups.get('children')) && !bindings.has('children')) {
+			bindings.set('children', '(() => {})');
+			order.push({ name: 'children' });
+		}
 		const passing = {
 			object: `{ ${[
 				...order.map((part) =>
@@ -6238,17 +6287,6 @@ function descend(
 			].join(', ')} }`,
 			slots: [...groups.keys()].map((one) => (one === 'children' ? 'default' : one)),
 		};
-		// `$props()` bound to a name, or gathered into a rest, is the caller's object **with**
-		// `children` in it: `VariableDeclaration.js` writes `let { $$slots, $$events, ...rest } =
-		// $$props`, which takes out those two and keeps the slot function. `$$props` itself is
-		// `sanitize_props($$props)`, which takes out `children` instead -- two objects, not one.
-		// The walk composes slot content rather than passing a function for it, so where the caller
-		// filled the default slot there is no `children` to put in and the object would be short a
-		// key. Measured: `Object.getOwnPropertyNames($props())` listed two names where Svelte lists
-		// three.
-		if (groups.has('children') && declares.some((one) => one.whole === true || one.rest === true)) {
-			return rolled(walk, mark);
-		}
 		// A group the caller filled is a prop of the child's, and its value is a function -- the slot
 		// or snippet Svelte passes. The scope a child's expressions read is data, so it stands for
 		// the one thing a derivation can ask of a function: that it exists. Without it `{#if inner}`

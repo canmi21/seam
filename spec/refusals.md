@@ -719,6 +719,28 @@ marker planted as one never comes back: `disabled={taken.includes(a)}` inside an
 boolean one stood so the order the helper writes in is kept, and the decision owns the whole of
 that attribute -- the same shape ` selected=""` already had.
 
+**`$props()` bound whole carries `children`, and it is a function.** `build_inline_component`
+writes the default slot as `children: slot_fn` beside `$$slots.default: true`, and
+`VariableDeclaration.js` writes `let { $$slots, $$events, ...rest } = $$props`, which takes those
+two out and keeps the slot function. The walk composes slot content rather than passing a function
+for it, so the key was missing and `Object.getOwnPropertyNames($props())` was a name short; the tag
+was turned away over it. The key is put back as a function rather than as `true`, because
+`attributes()` skips a value whose type is `function` and a component spreading its whole props into
+an element must write no `children` attribute. What the function does is nothing: every `{@render}`
+of it is markup the walk composes where the call stands.
+
+A group Svelte writes no slot function for gets no key either. `build_inline_component` drops one
+whose block comes out empty -- `if (block.body.length === 0) continue` -- and the whitespace around
+a named slot's element is what `clean_nodes` takes out, so `<Child a="b"><div slot="foo" /></Child>`
+has a default group of two text nodes and no default slot at all.
+
+**An `<option>`'s `value` comes off its attributes before its body.** `renderer.option` compares
+against the rendered body and takes `attrs.value` over it where the attributes have one:
+`if (has_own_property.call(attrs, 'value')) value = attrs.value`. A spread carries the key exactly
+as a written attribute does, so the run is read in source order and the last of them wins, the way a
+select's is. Read as the body alone, `<option {...props}>` under a component was refused for a body
+it could not read where the value was on the tag all along.
+
 **A component under a `<select value>` the walk could not enter is refused.** `renderer.select`
 keeps the value on `this.local`, which a child renderer inherits, so an `<option>` written inside a
 component compares against it exactly as one written beside it does. The value is cut from the

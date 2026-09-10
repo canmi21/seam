@@ -753,6 +753,33 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '' }],
 	},
 	{
+		// `build_inline_component` writes the default slot as `children: slot_fn` and `$$slots.default:
+		// true`. The walk composes slot content rather than passing a function, so the key was
+		// missing from the object `$props()` binds and `Object.keys` was a name short. A function
+		// rather than `true`, because `attributes()` skips a value whose type is `function` and a
+		// component spreading its whole props into an element must write no `children` attribute.
+		name: 'a child binding `$props()` whole under filled slot content',
+		beside: {
+			Kid:
+				'<script>let props = $props();</script>' +
+				'<b {...props}>{Object.keys(props).join()}|{@render props.children?.()}</b>',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<Kid a={data.a}>in</Kid>',
+		data: [{ a: 'v' }, { a: '<&' }],
+	},
+	{
+		// `renderer.option` compares against the rendered body and takes the attributes' `value` over
+		// it where they have one: `if (has_own_property.call(attrs, 'value')) value = attrs.value`. A
+		// spread carries the key exactly as a written attribute does.
+		name: 'an option whose value comes off a spread',
+		source:
+			`${PROPS}<select value={data.v}>` +
+			'<option {...{ value: \'a\' }}>A</option><option value="b">B</option></select>',
+		data: [{ v: 'a' }, { v: 'b' }],
+	},
+	{
 		name: 'a child that writes a prop twice, and one that never writes it',
 		beside: {
 			Twice: '<script>let { p } = $props();</script><b>{p}</b><i>{p}</i>',

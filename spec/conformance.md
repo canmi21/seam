@@ -88,10 +88,10 @@ render.** Nothing differing, nothing refused as a gap.
 server-side-rendering       131         85      4        0     2       18       16       6
 runtime-runes              1048        577     18        0     3      173      268       9
 runtime-legacy             1209        870     22        0     8       38      269       2
-total                      2388       1532     44        0    12      230      553      17
+total                      2388       1533     44        0    11      230      553      17
 ```
 
-Against the target: **1545 of 1557**, with nothing differing and 12 refused as gaps. Seventeen fail
+Against the target: **1546 of 1557**, with nothing differing and 11 refused as gaps. Seventeen fail
 inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
 has to answer them in [roadmap.md](roadmap.md).
 
@@ -111,7 +111,7 @@ two were one question underneath, a value a function this render calls changes, 
 by a route the rule does not watch -- a spread and a generator rather than a name. Both are now
 refused for assigning to a name outside the value this compiler has to write.
 
-**The 12 gaps, by what they are.**
+**The 11 gaps, by what they are.**
 
 | count | what it is |
 | ----- | ---------- |
@@ -119,7 +119,6 @@ refused for assigning to a name outside the value this compiler has to write.
 | 3 | a `{@render}` whose callee this compiler cannot follow to a `{#snippet}` |
 | 1 | a context read in a value this compiler has to write itself |
 | 1 | a value handed to a component and used for something other than being written out |
-| 1 | a `<select>` around a component the walk could not enter |
 
 The first is a decision about block semantics and [roadmap.md](roadmap.md) has it. Every one of them
 names a specification file, which is the whole of what a refusal owes. The three that used to fail

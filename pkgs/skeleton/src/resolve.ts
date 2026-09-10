@@ -81,13 +81,15 @@ export function filled(baseline: Rewritten, file: string, root: string): void {
  * left to `attributes`. So what this pass wants is the tail, and what differs between them is the
  * name and how many arguments to step over to reach it.
  *
- * Read as a table because the list grows: `renderer.option` takes an object the same way, and
- * `is_customizable_select_element` is upstream leaving room for more. It was one hard-coded name,
- * and a `<select>` carrying a run this compiler had to write itself was refused for it.
+ * Read as a table because the list grows: `renderer.option` is the third row, its body where a
+ * select's children are, and `is_customizable_select_element` is upstream leaving room for more. It
+ * was one hard-coded name, and a `<select>` carrying a run this compiler had to write itself was
+ * refused for it.
  */
 const RUNS: readonly { call: string; skip: number }[] = [
 	{ call: '$.attributes(', skip: 0 },
 	{ call: '$$renderer.select(', skip: 1 },
+	{ call: '$$renderer.option(', skip: 1 },
 ];
 
 /**
