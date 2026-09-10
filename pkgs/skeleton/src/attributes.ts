@@ -314,22 +314,6 @@ export function spread(
 		return new Set(attributes);
 	}
 
-	// A `<select>` does not go through `$.attributes` at all: `RegularElement.js` compiles it to
-	// `renderer.select(attrs, fn, hash, classes, styles, flags)`, which destructures `value` and
-	// `defaultValue` off the object, maps `multiple === ''` to `true` and calls `attributes` on what
-	// is left, at run time. So the call this pass reads the rest of the arguments from is a different
-	// call with a different shape, and the object it would hand back is not the object Svelte hands
-	// `attributes`. Only where the run has to be written here: a run the render evaluates is Svelte's
-	// own `select` doing all of that, and is left alone above.
-	if (drop.size > 0) {
-		refuse(
-			'a `{...}` on a `<select>` whose value the request decides is not handled yet: the ' +
-				'attributes of a select are written by `renderer.select` rather than by `$.attributes`, ' +
-				'so the run this compiler has to write itself has a different call to read and a ' +
-				'different object to hand it',
-		);
-	}
-
 	const index = holes.length;
 	// Filled in after the render, which is where the rest of the call comes from.
 	holes.push({ index, expression: '', raw: true, spread: true });

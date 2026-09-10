@@ -676,6 +676,36 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '' }],
 	},
 	{
+		// `prepare_element_spread` returns one tuple -- `[object, css_hash, classes, styles, flags]` --
+		// and both paths are built from it: an ordinary element becomes `$.attributes(object, ...tail)`
+		// and a `<select>` becomes `$$renderer.select(object, fn, ...tail)`. Same object, same tail,
+		// with the children function between them. Reading the call by its name alone is what refused
+		// a select whose run this compiler has to write itself.
+		name: 'a spread on a `<select>` the request decides',
+		source:
+			`${PROPS}<select {...{ value: data.v, 'data-x': data.a }} defaultValue="a">` +
+			'<option value="a">A</option><option value="b">B</option></select>',
+		data: [
+			{ v: 'a', a: 'x' },
+			{ v: 'b', a: '' },
+		],
+	},
+	{
+		// The same over an object nobody can list the keys of, which is what makes the merge visible:
+		// a spread only overwrites the keys it has, so `{ value: v, ...other }` keeps `v` where
+		// `other` has none. `select()` reads `multiple` off the merged object too, and maps a written
+		// `multiple=""` to `true`, since `!!''` is false and a present boolean attribute is not.
+		name: 'a spread on a `<select>` whose keys the request decides',
+		source:
+			`${PROPS}<select value={data.v} {...data.r}>` +
+			'<option value="a">A</option><option value="b">B</option></select>',
+		data: [
+			{ v: 'a', r: {} },
+			{ v: 'a', r: { value: 'b' } },
+			{ v: 'a', r: { multiple: '', value: ['a', 'b'] } },
+		],
+	},
+	{
 		name: 'a child that writes a prop twice, and one that never writes it',
 		beside: {
 			Twice: '<script>let { p } = $props();</script><b>{p}</b><i>{p}</i>',
@@ -3612,26 +3642,6 @@ const refused: Case[] = [
 		name: 'an `export { }` naming something a pattern binds',
 		says: 'a pattern binds',
 		source: '<script>let { a, b } = { a: 1, b: 2 }; export { a };</script><p>{a}{b}</p>',
-	},
-	{
-		// `RegularElement.js` compiles a select to `renderer.select(attrs, fn, hash, classes, styles,
-		// flags)`, which destructures the two names off, maps `multiple === ''` to `true` and calls
-		// `attributes` on what is left at run time. So a run this compiler has to write itself has a
-		// different call to read the rest of the arguments from and a different object to hand it.
-		// A run the render evaluates is Svelte's own `select` doing all of that, and is untouched.
-		name: 'a spread on a `<select>` holding a value the request decides',
-		says: 'written by `renderer.select`',
-		source:
-			`${PROPS}<select {...{ value: data.v, 'data-x': data.a }} defaultValue="a">` +
-			'<option value="a">A</option></select>',
-	},
-	{
-		// The same, reached through an object whose keys nobody can list. Listability is no longer
-		// what decides it: the two names are written back as `undefined`, which needs no keys. What
-		// is left is the run being the request's to compute.
-		name: 'a spread on a `<select>` whose keys the request decides',
-		says: 'written by `renderer.select`',
-		source: `${PROPS}<select {...data.r}><option value="a">A</option></select>`,
 	},
 	{
 		// The other side of it. `$.bind_props` assigns the child's value up where the caller passed

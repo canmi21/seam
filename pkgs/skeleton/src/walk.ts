@@ -601,7 +601,7 @@ export interface Walk {
 	 * matches it, read out of `renderer.js`. So the decision is the option's, and every option
 	 * under the select gets one, as a boolean attribute nothing in the source wrote.
 	 */
-	selecting?: { value: string; multiple: boolean };
+	selecting?: { value: string; multiple: string };
 	/**
 	 * True while walking an element's attributes, as against a component's props. Only an
 	 * element is scoped by the stylesheet, which is what `classValue` is for.
@@ -1187,26 +1187,36 @@ function selection(
 		};
 		let chosen: string | undefined;
 		let held: string | undefined;
+		/** What `!!select_attrs.multiple` reads, as an expression rather than as a syntax fact. */
+		let several = 'false';
 		for (const one of listed) {
 			if (!isNode(one)) continue;
 			if (one['type'] === 'SpreadAttribute') {
 				const grown = expand(one['expression']);
 				const entries = objectEntries(grown);
 				// Keys this pass can list are read as written, which keeps the value a literal where the
-				// object is one. Where it cannot list them the two names are read off the object
+				// object is one. Where it cannot list them the three names are read off the object
 				// instead, which is what `renderer.select` does: `const { value, defaultValue, ...rest }
 				// = attrs`, so a key the object does not carry is `undefined` there and here. The
 				// select takes charge either way, because an object whose keys nobody can list may
 				// carry one and the comparison cannot be left half to the render.
+				//
+				// **A spread only overwrites the keys it has.** `{ value: v, ...other }` keeps `v`
+				// where `other` has no `value`, so reading the key off the object unconditionally
+				// wrote `undefined` over a value the tag had already given: measured on
+				// `select-multiple-spread-and-bind`, whose `bind:value` came before `{...other}` and
+				// lost to an object with neither key in it.
 				if (entries === null) {
-					chosen = `(${grown}).value`;
-					held = `(${grown}).defaultValue`;
+					chosen = merges(grown, 'value', chosen);
+					held = merges(grown, 'defaultValue', held);
+					several = merges(grown, 'multiple', several);
 					continue;
 				}
 				for (const [key, value] of entries) {
 					const name = key.toLowerCase();
 					if (name === 'value') chosen = `(${value})`;
 					else if (name === 'defaultvalue') held = `(${value})`;
+					else if (name === 'multiple') several = `(${value})`;
 				}
 				continue;
 			}
@@ -1214,6 +1224,10 @@ function selection(
 			const name = one['name'].toLowerCase();
 			if (name === 'value') chosen = each(one);
 			else if (name === 'defaultvalue') held = each(one);
+			// `select()` reads `renderer.local.multiple = !!select_attrs.multiple`, which is the
+			// value rather than the attribute being written: `multiple={false}` is not multiple.
+			// Taken off the tag rather than off `taken`, since it stays where it was written.
+			else if (name === 'multiple') several = valueExpression(one, source, expand) ?? 'true';
 		}
 		if (chosen === undefined && held === undefined) return undefined;
 		const written =
@@ -1241,7 +1255,16 @@ function selection(
 			dropped.add('value');
 			dropped.add('defaultvalue');
 		}
-		return { value: written, multiple: attributeOf(node, 'multiple') !== undefined };
+		// `select()` maps `multiple === ''` to `true` before reading it, because `multiple=""` is a
+		// present boolean attribute in markup and `!!''` is false. Folded where the value is written,
+		// and written out where it comes off an object nobody can list the keys of.
+		const many =
+			several === '""'
+				? 'true'
+				: several === 'true' || several === 'false'
+					? several
+					: `((${several}) === '' ? true : (${several}))`;
+		return { value: written, multiple: many };
 	}
 	if (tag !== 'option') return selecting;
 
@@ -1308,9 +1331,15 @@ function selection(
 		);
 	}
 	const { value, multiple } = selecting;
-	const test = multiple
-		? `(Array.isArray(${value}) ? (${value}).includes(${compared}) : (${value}) === (${compared}))`
-		: `(${value}) === (${compared})`;
+	// `select()` puts `!!select_attrs.multiple` on the renderer and `option()` reads it, so it is a
+	// value like the select's own. The two literal cases keep the shape they had, since every
+	// derivation this compiler has recorded was written with them.
+	const test =
+		multiple === 'false'
+			? `(${value}) === (${compared})`
+			: multiple === 'true'
+				? `(Array.isArray(${value}) ? (${value}).includes(${compared}) : (${value}) === (${compared}))`
+				: `((${multiple}) && Array.isArray(${value}) ? (${value}).includes(${compared}) : (${value}) === (${compared}))`;
 	// An option's attributes are written by the runtime helper rather than folded into the
 	// template, and the helper writes a boolean attribute as `=""` whatever its value, so a marker
 	// planted as the value never comes back. It is a decision instead, the way a `class:` is: the
@@ -1330,6 +1359,18 @@ function selection(
 }
 
 /** An attribute's value as one expression: a literal for text, the expression for one, else null. */
+/**
+ * A key read off a merged object the way a spread merges it: only where the object has it.
+ *
+ * `{ value: v, ...other }` keeps `v` where `other` has no `value`, so reading the key off the
+ * object unconditionally writes `undefined` over a value the tag had already given.
+ */
+function merges(object: string, key: string, before: string | undefined): string {
+	const named = JSON.stringify(key);
+	const held = before ?? 'undefined';
+	return `(Object.prototype.hasOwnProperty.call(${object}, ${named}) ? (${object})[${named}] : ${held})`;
+}
+
 function valueExpression(
 	attribute: AstNode,
 	source: string,

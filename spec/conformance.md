@@ -87,11 +87,11 @@ render.** Nothing differing, nothing refused as a gap.
                         samples  identical  empty  differs   gap  decided  skipped  oracle
 server-side-rendering       131         85      4        0     2       18       16       6
 runtime-runes              1048        576     18        0     5      172      268       9
-runtime-legacy             1209        867     22        0    13       36      269       2
-total                      2388       1528     44        0    20      226      553      17
+runtime-legacy             1209        869     22        0    11       36      269       2
+total                      2388       1530     44        0    18      226      553      17
 ```
 
-Against the target: **1548 of 1568**, with nothing differing and 20 refused as gaps. Seventeen fail
+Against the target: **1548 of 1566**, with nothing differing and 18 refused as gaps. Seventeen fail
 inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
 has to answer them in [roadmap.md](roadmap.md).
 
@@ -111,15 +111,15 @@ two were one question underneath, a value a function this render calls changes, 
 by a route the rule does not watch -- a spread and a generator rather than a name. Both are now
 refused for assigning to a name outside the value this compiler has to write.
 
-**The 20 gaps, by what they are.**
+**The 18 gaps, by what they are.**
 
 | count | what it is |
 | ----- | ---------- |
 | 6 | a component binding sending a value back where the condition is the request's |
-| 3 | a value handed to a component and used for something other than being written out |
 | 3 | a `{@render}` whose callee this compiler cannot follow to a `{#snippet}` |
 | 3 | a value this compiler writes that assigns to a name outside it |
 | 2 | a context read and a rune left in a value this compiler has to write itself |
+| 1 | a value handed to a component and used for something other than being written out |
 | 1 | a `<select>` around a component the walk could not enter |
 | 1 | a component tag named by what a block binds |
 | 1 | a choice over a name an each block binds, which cannot be enumerated for the page |

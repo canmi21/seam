@@ -71,20 +71,51 @@ export function filled(baseline: Rewritten, file: string, root: string): void {
 }
 
 /**
- * The arguments after the first, from the `$.attributes(...)` call whose object holds this key.
+ * The calls Svelte compiles a run of attributes into, and what sits between the object and the tail.
+ *
+ * `prepare_element_spread` in `visitors/shared/element.js` returns one tuple --
+ * `[object, css_hash, classes, styles, flags]` -- and every one of these is built from it. An
+ * ordinary element becomes `$.attributes(object, ...tail)`; a `<select>` becomes
+ * `$$renderer.select(object, fn, ...tail)`, the same object and the same tail with the children
+ * function put between them, and `select()` then drops `value` and `defaultValue` and hands what is
+ * left to `attributes`. So what this pass wants is the tail, and what differs between them is the
+ * name and how many arguments to step over to reach it.
+ *
+ * Read as a table because the list grows: `renderer.option` takes an object the same way, and
+ * `is_customizable_select_element` is upstream leaving room for more. It was one hard-coded name,
+ * and a `<select>` carrying a run this compiler had to write itself was refused for it.
+ */
+const RUNS: readonly { call: string; skip: number }[] = [
+	{ call: '$.attributes(', skip: 0 },
+	{ call: '$$renderer.select(', skip: 1 },
+];
+
+/**
+ * The arguments after the object, from the call whose **object** holds this key.
  *
  * Read by scanning rather than by parsing: what is wanted is the source of those arguments,
  * unchanged, and the shortest way to keep it unchanged is not to take it apart further than the
  * commas between them. Each comes back as written, so that putting one back is putting the rest
  * back unchanged.
+ *
+ * The key has to be in the first argument and not merely somewhere in the call. A select's children
+ * are an argument of the same call, so an `<option>` inside one carrying a marker of its own would
+ * otherwise answer for the select.
  */
 function restOf(code: string, key: string): string[] | null {
-	const CALL = '$.attributes(';
-	for (let at = code.indexOf(CALL); at >= 0; at = code.indexOf(CALL, at + 1)) {
+	for (const { call, skip } of RUNS) {
+		const found = within(code, call, key);
+		if (found !== null) return found.slice(skip);
+	}
+	return null;
+}
+
+function within(code: string, call: string, key: string): string[] | null {
+	for (let at = code.indexOf(call); at >= 0; at = code.indexOf(call, at + 1)) {
 		let depth = 0;
 		let quote: string | null = null;
 		const commas: number[] = [];
-		for (let i = at + CALL.length - 1; i < code.length; i++) {
+		for (let i = at + call.length - 1; i < code.length; i++) {
 			const c = code[i];
 			if (quote !== null) {
 				if (c === '\\') i += 1;
@@ -99,9 +130,10 @@ function restOf(code: string, key: string): string[] | null {
 			else if (c === ')' || c === '}' || c === ']') {
 				depth -= 1;
 				if (depth === 0) {
-					const text = code.slice(at + CALL.length, i);
-					if (!text.includes(key)) break;
-					const cuts = commas.map((each) => each - (at + CALL.length));
+					const text = code.slice(at + call.length, i);
+					const cuts = commas.map((each) => each - (at + call.length));
+					const first = text.slice(0, cuts[0] ?? text.length);
+					if (!first.includes(key)) break;
 					const args: string[] = [];
 					for (const [n, cut] of cuts.entries()) {
 						const end = cuts[n + 1] ?? text.length;

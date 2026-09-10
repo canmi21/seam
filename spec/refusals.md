@@ -1010,13 +1010,19 @@ destructures `{ value, defaultValue, ...select_attrs }`, writes neither, and put
 either of them exactly as a written attribute does, so the tag is read in source order and the last
 of each name wins. Both have to come off, or Svelte compares the options a second time over what was
 left: measured on `<select {...{ defaultValue: 'b' }} defaultValue="a">`, which marked both options
-when only the attribute was taken. Taking one out of a spread means rewriting the object, so the
-keys have to be listable, and a spread whose keys are the request's is refused. The rewrite is the
-spread pass's rather than the select pass's, because two passes writing over one span is an error --
-and it happens even where nothing in the run is the request's, which is the one place that pass
-writes an object with no hole in it. Where the run *does* hold a value the request decides there is
-nowhere to plant the marker, since a select with a spread goes through `renderer.select` and not
-through `$.attributes`, and that is refused too.
+when only the attribute was taken. They come off by being written `undefined`, which needs no keys
+to be listable -- see the paragraph on that below. The rewrite is the spread pass's rather than the
+select pass's, because two passes writing over one span is an error, and it happens even where
+nothing in the run is the request's, which is the one place that pass writes an object with no hole
+in it.
+
+**A spread only overwrites the keys it has**, so reading one off an object nobody can list the keys
+of has to ask: `{ value: v, ...other }` keeps `v` where `other` has no `value`. Read
+unconditionally, an empty spread wrote `undefined` over a value the tag had already given, which is
+`select-multiple-spread-and-bind`. **`multiple` is read the same way and is a value, not a syntax
+fact**: `select()` puts `!!select_attrs.multiple` on the renderer, and maps `multiple === ''` to
+`true` first, because a present boolean attribute is `''` in markup and `!!''` is false. So
+`multiple={false}` is not multiple and `multiple=""` is.
 
 **A boundary's `failed` snippet stays in the rendered source.** It used to go, on the grounds that
 `renderer.boundary` writes nothing for it during a render that does not throw. That is true and it
@@ -2168,13 +2174,20 @@ that takes charge of no option, which is what this compiler has taken over by th
 listed the object's keys and left those two out, and that needed the keys to be listable: a spread
 of a call has none, and the whole run was refused over a rewrite this does without one.
 
-What is still refused is a run this compiler has to write itself. `RegularElement.js` compiles a
-select to `renderer.select(attrs, fn, hash, classes, styles, flags)`, which destructures, maps
-`multiple === ''` to `true` and calls `attributes` on what is left at run time -- so the call the
-spread pass reads the rest of its arguments from is a different call with a different shape, and the
-object it would hand back is not the object Svelte hands `attributes`. A run the render evaluates is
-Svelte's own `select` doing all of that and is untouched; a run whose value the request decides is
-not, and says so.
+**A run this compiler has to write itself reads the call by its shape, not by its name.**
+`prepare_element_spread` returns one tuple -- `[object, css_hash, classes, styles, flags]` -- and
+every call is built from it: an ordinary element becomes `$.attributes(object, ...tail)` and a
+`<select>` becomes `$$renderer.select(object, fn, ...tail)`, the same object and the same tail with
+the children function between them. `select()` then drops the two names and hands what is left to
+`attributes`, and since `attr()` writes nothing for a nullish value, an object that carries them as
+`undefined` is the object `attributes` would have been handed. So what the pass wants is the tail,
+and what differs between the calls is the name and how many arguments to step over to reach it. It
+was one hard-coded name, and a select carrying such a run was refused for it; it is a table of two
+rows now, and `renderer.option` is the row after that.
+
+The key has to be found in the call's **first argument** rather than anywhere in it. A select's
+children are an argument of the same call, so an `<option>` inside one carrying a marker of its own
+would otherwise answer for the select.
 
 **A tag's name is an expression, and a name a block binds is a component chosen per item.**
 `Component.js` in the server transform is one line: `context.visit(b.member_id(node.name))`, which
