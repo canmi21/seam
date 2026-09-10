@@ -742,6 +742,17 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '' }],
 	},
 	{
+		// A call's result is not its callee. `{ a = fallback() }` in an each's pattern is a ternary
+		// over a per-item test whose branch is a call, and reading the callee as a name made it a
+		// choice between things a marker cannot stand for -- which a per-item test cannot be
+		// enumerated for. What a marker cannot stand for is a branch that **is** the thing.
+		name: 'a pattern default that calls, inside an each',
+		source:
+			'<script>let { data } = $props(); function one() { return 1 }</script>' +
+			'{#each [{}, { a: 2 }] as { a = one() }}<i>{a}</i>{/each}<b>{data.a}</b>',
+		data: [{ a: 'x' }, { a: '' }],
+	},
+	{
 		name: 'a child that writes a prop twice, and one that never writes it',
 		beside: {
 			Twice: '<script>let { p } = $props();</script><b>{p}</b><i>{p}</i>',

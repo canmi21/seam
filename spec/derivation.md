@@ -1044,6 +1044,20 @@ name substituted, which is `class Foo { (2) = 1 }` and not JavaScript at all --
 as anything an author could act on. Only a computed key is an expression there, the way it is on an
 object's property.
 
+## A call's result is not its callee, and only one of the two is a structure
+
+A ternary is enumerated where a branch holds something a marker cannot stand for: a component, a
+function, an object holding them. What decides that is what the branch **is** -- a name, a member
+chain reaching one, a function written there. A call is none of those: `cond ? make() : x` chooses
+between two values, whatever `make` is, and a marker stands for a value.
+
+Reading the callee as a name made every call in a branch a structure. A pattern's default is where
+it showed: `{#each xs as { a = fallback() }}` is a ternary over `$$item.a === undefined`, a test an
+each block binds, and a per-item test cannot be enumerated for the page -- so the choice was refused
+and the sample said so about a call that returns a number.
+`runtime-runes/each-block-default-arg` is refused for what it actually is now, a function the render
+calls changing a value the markup reads.
+
 ## A store read is the store's value, where the store is a declaration
 
 `$foo` is a subscription: Svelte compiles it to `store_get($$store_subs, '$foo', foo)`, which

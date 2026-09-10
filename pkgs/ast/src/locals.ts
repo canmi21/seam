@@ -1708,6 +1708,12 @@ function chooses(node: Node, dynamic: ReadonlySet<string>, plain: ReadonlySet<st
 		if (!isNode(branch)) return false;
 		if (branch['type'] === 'ConditionalExpression') return chooses(branch, dynamic, plain);
 		if (isLiteral(branch)) return false;
+		// A call's result is not its callee. `cond ? make() : x` chooses between two values, and a
+		// marker stands for a value; what a marker cannot stand for is a branch that **is** the
+		// thing -- a name, a member chain reaching one, a function written there. Reading the callee
+		// as a name made every call in a branch a structure, and a pattern's default written
+		// `{ a = fallback() }` inside an each was refused as a choice nobody could enumerate.
+		if (branch['type'] === 'CallExpression') return false;
 		// A branch that names nothing and holds no function is a value like a literal:
 		// `(undefined).entries`, which is what state with no value expands to, chooses no
 		// component. What a marker cannot stand for names something -- a component, a function --
