@@ -6282,6 +6282,32 @@ function descend(
 			walk.site.sends.set(local, `(${held} === undefined ? (${value}) : ${held})`);
 			return true;
 		};
+		/**
+		 * Whether the child's default can travel at all, which `bind_props` decides on the caller's
+		 * value and which the render is the one to hold.
+		 *
+		 * `bind_props` assigns up only where the caller's value is `undefined`, so a caller binding
+		 * something that is not is a binding that sends nothing and leaves nothing to settle.
+		 * Whether it is `undefined` is the request's answer wherever the caller binds one of its own
+		 * props, and the render's wherever it does not: `<Input bind:value={$value.value} />` over a
+		 * store this file makes is `''`, and the loop settles on its first pass with nothing moved.
+		 *
+		 * Asked as the author wrote it, because the expansion of a store read names helpers the
+		 * render has not got. Told nothing yet it answers no, so that the pass which collects the
+		 * ask reaches the render that answers it -- the skeleton of that pass is thrown away, and
+		 * the walk runs again told, the way it already does for a block's test.
+		 */
+		const travels = (prop: string): boolean => {
+			const local = boundTo.get(prop);
+			if (local === undefined || walk.site.payload === null) return true;
+			const test = `(${local}) === undefined`;
+			if (varies(test, walk, true) || walk.site.mute.has(test)) return true;
+			const answer = walk.site.decided.get(test);
+			if (answer !== undefined) return answer;
+			if (!walk.site.asks.some(([key]) => key === test)) walk.site.asks.push([test, test]);
+			return false;
+		};
+
 		for (const [name, value] of exportedValues(ahead, raw)) {
 			if (!boundProps.has(name)) continue;
 			// Already settled on an earlier pass, so the caller's reads hold the ternary and the
@@ -6309,6 +6335,9 @@ function descend(
 			if (one.bindable !== true) continue;
 			if (walk.sent.size > 0) continue;
 			if (settles(one.prop, one.fallback)) continue;
+			// Nothing travels where the caller's value is not `undefined`, and where the caller binds
+			// something of its own the render is what knows. See `travels`.
+			if (!travels(one.prop)) continue;
 			refuse(
 				`\`bind:${one.prop}\` on <${tag}> is a binding the child sends back: it declares ` +
 					`\`${one.prop}\` with a default, and Svelte's server assigns that default up to the ` +
