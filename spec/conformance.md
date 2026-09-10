@@ -87,12 +87,12 @@ render.** Nothing differing, nothing refused as a gap.
 ```
                         samples  identical  empty  differs  refused  skipped  oracle
 server-side-rendering       131         85      4        0       20       16       6
-runtime-runes              1048        565     16        0      190      268       9
-runtime-legacy             1209        833     21        0       84      269       2
-total                      2388       1483     41        0      294      553      17
+runtime-runes              1048        566     16        0      189      268       9
+runtime-legacy             1209        844     21        0       73      269       2
+total                      2388       1495     41        0      282      553      17
 ```
 
-Against the target: **1521 of 1539**, with nothing differing and 18 refused as gaps. Seventeen fail
+Against the target: **1513 of 1531**, with nothing differing and 18 refused as gaps. Seventeen fail
 inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
 has to answer them in [roadmap.md](roadmap.md).
 

@@ -12,8 +12,8 @@ name everywhere else.
 
 ```
                 identical  empty  differs  refused  oracle
-off                  1483     41        0      294      17
-on                   1634     42        1      135      23
+off                  1495     41        0      282      17
+on                   1646     42        1      123      23
 ```
 
 **151 of the 183 samples this compiler refuses as async write Svelte's exact bytes** -- 143 of them
@@ -102,34 +102,47 @@ author's own text there is nothing to refuse.
 
 ```
              identical  empty  differs  refused
-on                1483     41        0      294
-off               1521     48       25      224
+on                1495     41        0      282
+off               1530     48       17      223
 ```
 
-So the rules are over-broad by about 38 samples and genuinely needed for 25. A first narrowing was
-tried and abandoned on the measurement: refusing only where the changed name reaches a *derivation*
-leaves 4 of the 25 writing wrong bytes, because a derivation is not the only thing the walk writes
-out. Read out one at a time, those four say what the condition really is:
+So the rules are over-broad by about 35 samples and genuinely needed for 17. Two things have come
+out of that measurement already, and both are done:
 
-- `props-default-value-rest` and `props-default-value-lazy` change a **prop**, and a child copy is
-  handed `null` for every prop, so a markup read of one is always written out expanded.
-- `binding-indirect-value` changes a prop the caller binds, which `bind_props` sends back up.
-- `snippet-default-arg` changes nothing the markup reads *directly*: the walk substitutes a snippet
-  parameter with its default, `untrack(() => count++)`, so the render calls it once per read where
-  Svelte calls it once per render, and `{count}` -- kept as the author wrote it -- is then evaluated
-  against a count the walk moved.
+- **A `$:` runs after the declaration of the same name**, so it is not an assignment to it.
+  `instance.body.push(statement)` for each reactive statement, after the rest of the instance body
+  and before the template. Eleven samples, and they were not only refused: behind the refusal the
+  reads came out empty, because the statement had been neutralised and nothing carried its value.
+  See [derivation.md](derivation.md).
+- **The render is handed the author's text wherever it can evaluate it.** The branch for an
+  expansion that folds to a literal was not going through `asWritten`, so a read whose declaration
+  nothing had neutralised still went in expanded. Neutral on the suite with the rules on, and worth
+  seven of the wrong-byte samples with them off.
+
+**What is left of the 17, read one at a time.** Two are the whole of the remaining question and the
+other three are elsewhere on this page:
+
+| count | what it is |
+| ----- | ---------- |
+| 7 | a component binding sending a value back, which is the entry below |
+| 4 | a `$:` that mutates rather than assigns: `$: if (foo) count += 1` |
+| 3 | a prop or a snippet parameter, which the walk always writes out |
+| 2 | a function called from a block expression that counts its own calls |
+| 1 | a `$:` block that does more than one thing |
+
+**A first narrowing was tried and abandoned on the measurement**: refusing only where the changed
+name reaches a *derivation* leaves the prop and snippet rows writing wrong bytes, because a
+derivation is not the only thing the walk writes out. A child copy is handed `null` for every prop,
+so a markup read of one is always expanded; and a snippet parameter is substituted with its default,
+so `untrack(() => count++)` written as one runs once per read where Svelte runs it once per render.
 
 **So the question is not "does this become a derivation" but "does the walk write this out".** The
 answer belongs to the walk, which knows which reads it kept as source; `locals()` cannot know it.
 The shape of the change: `locals()` reports the names rather than throwing -- the ones assigned
 after being declared, and the ones whose evaluation changes a name the markup reads -- and the walk
 refuses at each site where it writes an expansion instead of the author's text, on the source for
-the first set and on the expansion for the second.
-
-**One step of it has landed**, because the narrowing cannot be measured without it: the branch for
-an expansion that folds to a literal now goes through `asWritten` like every other, so the render is
-handed the author's text wherever it can evaluate it. Neutral on the suite with the rules on, and
-worth 7 of the 32 wrong-byte samples with them off. See [derivation.md](derivation.md).
+the first set and on the expansion for the second. The four `$:` that mutate and the two that count
+calls are a program per request and stay refused whatever that lands.
 
 ## A component binding sends a value back, and which value is a branch
 
