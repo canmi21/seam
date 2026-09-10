@@ -192,6 +192,7 @@ async function theirs(
 			name: 'C',
 			filename: file,
 			rootDir: dir,
+			...ASYNC,
 		}).js.code,
 	);
 	const bundle = await rolldown({
@@ -210,6 +211,7 @@ async function theirs(
 							name: basename(id, '.svelte'),
 							filename: id,
 							rootDir: dir,
+							...ASYNC,
 						}).js.code;
 					}
 					if (/\.svelte\.(?:js|ts)$/.test(id)) {
@@ -217,6 +219,7 @@ async function theirs(
 						return compileModule(id.endsWith('.ts') ? stripTypeScriptTypes(text) : text, {
 							generate: 'server',
 							filename: id,
+							...ASYNC,
 						}).js.code;
 					}
 					return null;
@@ -231,8 +234,22 @@ async function theirs(
 	writeFileSync(out, chunk.code);
 	const mod = (await import(pathToFileURL(out).href)) as { default: Parameters<typeof render>[0] };
 	const rendered = render(mod.default, { props: props as never });
+	if (Object.keys(ASYNC).length > 0) {
+		const held = (await rendered) as { body: string; head: string };
+		return { body: held.body, head: held.head };
+	}
 	return { body: rendered.body, head: rendered.head };
 }
+
+/**
+ * The experiment: both sides compiled with `experimental.async` and both renders awaited.
+ *
+ * Off by default. Upstream's flag is process-global and irreversible once a compiled component
+ * imports `svelte/internal/flags/async`, so this is the whole process or none of it. See
+ * spec/roadmap.md.
+ */
+const ASYNC =
+	process.env['SEAM_ASYNC'] === undefined ? {} : { experimental: { async: true as const } };
 
 /** One sample, staged, compiled, rendered and compared. */
 async function attempt(suite: string, name: string): Promise<Result> {
@@ -427,7 +444,23 @@ symlinkSync(
 const results: Result[] = await quietly(async () => {
 	const found: Result[] = [];
 	for (const suite of SUITES) {
-		for (const name of samplesOf(suite)) found.push(await attempt(suite, name));
+		for (const name of samplesOf(suite)) {
+			// A render that awaits can wait forever: a sample handing it `new Promise(() => {})` is
+			// one the server never finishes, which upstream's own async render does not finish either.
+			// Reported as the oracle's own failure rather than hanging the run.
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			const held = await Promise.race([
+				attempt(suite, name),
+				new Promise<Result>((settle) => {
+					timer = setTimeout(
+						() => settle({ suite, name, outcome: 'oracle', why: 'the render never settled' }),
+						5000,
+					);
+				}),
+			]);
+			if (timer !== undefined) clearTimeout(timer);
+			found.push(held);
+		}
 	}
 	return found;
 });

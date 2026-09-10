@@ -169,7 +169,15 @@ function codegen(
 	if (held !== undefined) return held;
 	const code = timedSync('    codegen (svelte compile)', () => {
 		try {
-			const { js } = svelte.compile(source, { generate: 'server', name, filename, rootDir: root });
+			const { js } = svelte.compile(source, {
+				generate: 'server',
+				name,
+				filename,
+				rootDir: root,
+				...(process.env['SEAM_ASYNC'] === undefined
+					? {}
+					: { experimental: { async: true as const } }),
+			});
 			return js.code;
 		} catch (error) {
 			// Async Svelte, found by Svelte's own analysis rather than by ours. The walk checks every
@@ -375,9 +383,14 @@ export async function renderRewritten(
 			host.import(pathToFileURL(entry).href),
 		)) as { default: unknown };
 		// The prefix is what makes a `$props.id()` anchor readable after the render. See `fresh.ts`.
-		const { body, head } = timedSync('    render call (svelte/server)', () =>
-			render(mod.default as never, { props: props as never, idPrefix: ID_PREFIX }),
-		);
+		const held = render(mod.default as never, { props: props as never, idPrefix: ID_PREFIX });
+		// Awaited where the flag is on: `enable_async_mode_flag()` sends `render()` down its async
+		// path, and reading `.body` there throws `await_invalid`. For a component that awaits
+		// nothing the two paths write the same bytes -- measured.
+		const { body, head } =
+			process.env['SEAM_ASYNC'] === undefined
+				? timedSync('    render call (svelte/server)', () => held)
+				: await held;
 		return { body, head };
 	} finally {
 		// The staged files stay: the next render is nearly all the same copies, and deleting them

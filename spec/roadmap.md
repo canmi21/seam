@@ -5,6 +5,55 @@ The first decides whether a thing is in scope at all; the second decides which h
 belongs to. Both have been called "the line", which is why they are named here and referred to by
 name everywhere else.
 
+## Async Svelte is upstream's unfinished half, not this architecture's boundary
+
+**Measured, both sides compiled with `experimental.async` and both renders awaited:
+`SEAM_ASYNC=1 mise run suite`.**
+
+```
+                identical  empty  differs  refused  oracle
+off                  1479     41        1      297      17
+on                   1622     42       10      138      23
+```
+
+**143 of the 183 samples this compiler refuses as async write Svelte's exact bytes with no change
+to the compiler at all** -- only the flag at the compile and an `await` at the render. That is the
+number that decides the question.
+
+**Why the refusal was so large.** It is written on the syntax -- `await` appears outside a function
+-- and not on the scope line, which excludes *a value loaded per request while the bytes are
+written*. Of the 183, **174 involve nothing the request decides**: they await literals and promises
+the file itself makes, `{@html await 'this should work'}` and
+`{#each await Promise.resolve([first, second, third]) as item}`. One has request-decided props. In
+press the two readings very nearly coincide, because what an application awaits is its data; in
+Svelte's own corpus they differ by two orders of magnitude, because the corpus tests the mechanism.
+
+**Upstream's position, read rather than assumed.** `experimental.async` is `@since 5.36` and is
+still experimental at 5.57. SvelteKit takes it straight through --
+`async: ${s(!!config.compilerOptions?.experimental?.async)}` in `core/sync/write_server.js` -- and
+`page/render.js` uses it to choose between reading `.body` and awaiting; beside that choice is
+`// TODO 3.0 remove options.async`, which is upstream planning to make async rendering the only
+mode. There is no synchronous answer in the meantime: reading `.body` of an async component throws
+`await_invalid`, "Encountered asynchronous work while rendering synchronously".
+
+**What the ten differences are.** Eight are one shape: `create_child_block` wraps an awaited region
+in `child_block`, which pushes `BLOCK_OPEN` and `BLOCK_CLOSE` around it, and this walk rewrites the
+`await` away so Svelte writes no such pair. That is the anchor question a member tag and a render
+tag have already had -- keep the construct so Svelte writes its anchors, or write them here. One is
+a value, `async-resolve-stale`. One is the identity sample, which is not async at all.
+
+**What it costs.** `enable_async_mode_flag()` is process-global and irreversible -- the only way
+back is a function marked "ONLY USE THIS DURING TESTING" -- and a compiled component turns it on by
+importing `svelte/internal/flags/async`. So it is the whole build process or none of it. Measured,
+that costs nothing: the flag does not change what a component without `await` compiles to, beyond
+the import, and `#render_async` writes the same bytes as `#render` for one. Five samples hand the
+render a promise that never resolves, and an awaited render does not finish; upstream's does not
+either, and the suite gives each sample a deadline now.
+
+**Not turned on.** The flag is upstream's experiment, not ours to ship on their behalf, and the
+eight anchors are unwritten. What this section records is that the wall is theirs and thin, not
+ours and structural.
+
 ## The scope line: what compile-time rendering is for
 
 The line that decides what belongs here is one sentence. **Before hydration the page is an MPA

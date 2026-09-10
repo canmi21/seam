@@ -82,6 +82,18 @@ turned away earlier for a reason of their own and were being ranked as gaps on t
 message while being out of scope either way. Upstream's compiler says which samples those are; a
 message match here does not.
 
+### `SEAM_ASYNC=1` compiles both sides with `experimental.async` and awaits both renders
+
+The one experiment this runner carries. Upstream's flag is process-global and irreversible once a
+compiled component imports `svelte/internal/flags/async`, so it is the whole process or none of it
+-- which is why it is an environment variable rather than a per-sample decision. What it measures
+is in [roadmap.md](roadmap.md); the short of it is that 143 of the samples this compiler refuses as
+async write Svelte's exact bytes with no change to the compiler.
+
+**Each sample has a deadline.** An awaited render can wait forever: five samples hand it a promise
+that never resolves, and upstream's own async render does not finish either. One that passes the
+deadline is reported as the oracle's failure rather than hanging the run.
+
 ### `mode` names the modes upstream runs, and `sync` is not one of them
 
 The skip rule read `mode` for `sync`. No sample in the corpus names that mode -- they are `client`,
