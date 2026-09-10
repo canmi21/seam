@@ -618,6 +618,20 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '' }],
 	},
 	{
+		// A subscription over a prop. `2-analyze/index.js` writes the allowance out rather than
+		// implying it -- `store_name !== 'props' && get_rune(init, instance.scope) === '$props'`,
+		// under "rune-like names received as props are valid too" -- so `const { s } = $props()`
+		// beside `{$s}` is a store subscription Svelte compiles. This pass asked only what the
+		// scripts declare, so the read was reported as a name the data does not carry.
+		name: 'a child subscribing to a store its caller passed',
+		beside: { Sub: '<script>const { s } = $props();</script><b>{$s.n}</b>' },
+		source:
+			"<script>import { writable } from 'svelte/store'; import Sub from './Sub.svelte';" +
+			" let { data } = $props(); const s = writable({ n: 'q' });</script>" +
+			'<Sub {s} /><i>{data.a}</i>',
+		data: [{ a: 'x' }, { a: '' }],
+	},
+	{
 		name: 'a child that writes a prop twice, and one that never writes it',
 		beside: {
 			Twice: '<script>let { p } = $props();</script><b>{p}</b><i>{p}</i>',

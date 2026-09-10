@@ -97,6 +97,32 @@ describe('an import is carried in the form it was written', () => {
 	});
 });
 
+// `build_getter` in the server transform reads a `store_sub` binding as
+// `store_get($$store_subs ??= {}, '$x', <what x is>)`, and what `x` is goes back through
+// `build_getter` -- a declaration, a prop, whatever the scope holds. Which of those it is decides
+// nothing there, and it decided everything here.
+describe('a store subscription resolves wherever the store does', () => {
+	const stores: [label: string, source: string][] = [
+		['a store the script declares', '<script>const s = writable(0)</script><b>{$s}</b>'],
+		// `2-analyze/index.js` writes this one out rather than implying it:
+		// `store_name !== 'props' && get_rune(init, instance.scope) === '$props'`, under the comment
+		// "rune-like names received as props are valid too". So a store a caller passes is a
+		// subscription Svelte compiles, and it was reported as a name the data does not carry.
+		['a store a caller passed', '<script>const { s } = $props()</script><b>{$s.n}</b>'],
+		['a store the script imports', "<script>import { s } from './s.ts'</script><b>{$s}</b>"],
+	];
+
+	it.each(stores)('%s', (_label, source) => {
+		expect(bindings(source).unresolved).toEqual([]);
+	});
+
+	// The store still has to come from somewhere. Nothing binds `s` here, and the read is the
+	// payload asking for a value that is not data but an object with a `subscribe` function.
+	it('reports one the file never binds', () => {
+		expect(bindings('<b>{$s}</b>').unresolved.map((one) => one.name)).toEqual(['$s']);
+	});
+});
+
 describe('rewriting a source file', () => {
 	// Two replacements over the same characters mean one place was recorded twice. Applying both
 	// writes the second into the middle of the first and hands Svelte a file nobody wrote; it

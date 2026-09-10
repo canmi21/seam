@@ -143,6 +143,15 @@ interface Context {
 	known: ReadonlyMap<string, Carried>;
 	used: Set<string>;
 	declares: (name: string) => boolean;
+	/**
+	 * The names `$props()` binds in this file, which a store subscription may name.
+	 *
+	 * Apart from `declares` because a nested scope is not one of these: `2-analyze/index.js` errors
+	 * with `store_invalid_scoped_subscription` where the store is owned by anything other than the
+	 * module or instance scope, so a `let:` name or a snippet's parameter does not qualify and a
+	 * prop does.
+	 */
+	props: ReadonlySet<string>;
 	/** Declared names the markup reads, so what they expanded into can be checked as well. */
 	read: Set<string>;
 	/** The component's own path, for resolving what its imports name; unknown for bare source. */
@@ -308,7 +317,12 @@ function report(
 				carried.used.add(store);
 				continue;
 			}
-			if (carried?.declares(store) === true) continue;
+			// A prop counts, and it is written out in `2-analyze/index.js` rather than implied: the
+			// guard reads `store_name !== 'props' && get_rune(init, instance.scope) === '$props'`,
+			// under the comment "rune-like names received as props are valid too". So
+			// `const { attrs } = $props()` beside `{$attrs.count}` is a subscription Svelte compiles,
+			// and it was reported here as a name the data does not carry.
+			if (carried?.declares(store) === true || carried?.props.has(store) === true) continue;
 		}
 		// A name from `$app/state` is neither bundled nor looked up: `page` is the payload's and
 		// the other two are written out as what a server holds. See `stateImports()`.
@@ -674,6 +688,7 @@ export function bindings(source: string, file?: string): Bindings {
 		known: imported(ast['instance']),
 		used: new Set<string>(),
 		declares: declares.has,
+		props: requested(ast['instance']),
 		read: new Set<string>(),
 		...(file === undefined ? {} : { file }),
 	};

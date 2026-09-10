@@ -1002,6 +1002,18 @@ usable here: it hangs the subscription on a teardown a derivation has not got.
 Where `foo` is what the request brought, this does not apply and the subscription stays refused: a
 store is an object with a `subscribe` function and the payload carries data.
 
+**A prop is a store like any other, and the name check said otherwise.** `build_getter` reads a
+`store_sub` binding as `store_get($$store_subs ??= {}, '$foo', <what foo is>)` and puts *what foo
+is* back through `build_getter`, so a declaration, an import and a prop are one case there.
+`2-analyze/index.js` writes the allowance out rather than leaving it implied -- the guard reads
+`store_name !== 'props' && get_rune(init, instance.scope) === '$props'`, under the comment
+"rune-like names received as props are valid too". The pass that says every name resolves asked only
+what the scripts declare, so `const { attrs } = $props()` beside `{$attrs.count}` was reported as a
+name the data does not carry, over a store the caller had declared and handed down. A nested scope
+is still not one of these: `store_invalid_scoped_subscription` is what Svelte raises where the store
+is owned by anything but the module or instance scope, so a `let:` name and a snippet's parameter do
+not qualify.
+
 **And where the script itself writes the store, the read is left as written.** `$count += 1` in the
 instance script sets the store before the template runs, so the value the markup reads is the one
 those statements left. The render runs the script and has it; a derivation does not, and would read
