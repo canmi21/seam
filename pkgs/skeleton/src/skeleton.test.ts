@@ -652,14 +652,14 @@ const accepted: Case[] = [
 		// instance body and before the template. So a `$:` wins over the declaration of the same
 		// name, `export let` included: the request may send `c` and the statement overwrites it.
 		// Read as an assignment to the declaration, every one of these was refused.
-		name: 'a reactive statement over a declaration, and over a prop',
+		name: 'a reactive statement over a declaration, and over a prop, block or not',
 		props: [
 			{ data: { a: 'x' }, a: 1, b: 2, c: 9 },
 			{ data: { a: '' }, a: 3, b: 4 },
 		],
 		source:
 			'<script>export let data; export let a = 1; export let b = 2; export let c;' +
-			' let both; $: c = a + b; $: both = c * 2;</script>' +
+			' let both; $: c = a + b; $: { both = c * 2; }</script>' +
 			'<p>{a} + {b} = {c}</p><p>{both}</p><i>{data.a}</i>',
 	},
 	{

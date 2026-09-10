@@ -128,6 +128,30 @@ interface Reactive {
 	reach: string;
 	slots: readonly Node[];
 	holds: string;
+	/** Written inside a block, for which `transform-server.js` unshifts no `let` of its own. */
+	declared?: true;
+}
+
+/**
+ * The assignment a `$:` statement is, where it is one, with a block holding one taken as that one.
+ *
+ * `$: { bar = foo * 2 }` runs before the template the way `$: bar = foo * 2` does. What differs is
+ * upstream: `legacy_reactive_declarations` in `transform-server.js` is filled only for a body that
+ * is an `ExpressionStatement` holding an `AssignmentExpression`, so Svelte unshifts a `let` for the
+ * first shape and not for the second, which is why a name only a block assigns has to be declared
+ * elsewhere. Returns the block flag beside the node so the callers can tell them apart.
+ */
+function reactiveOf(statement: Node): { held: Node; inside: boolean } | null {
+	const written = statement['body'];
+	const inner =
+		isNode(written) && written['type'] === 'BlockStatement' && Array.isArray(written['body'])
+			? written['body']
+			: null;
+	const body = inner !== null && inner.length === 1 ? inner[0] : written;
+	if (!isNode(body) || body['type'] !== 'ExpressionStatement') return null;
+	const held = body['expression'];
+	if (!isNode(held) || held['type'] !== 'AssignmentExpression') return null;
+	return { held, inside: inner !== null };
 }
 
 function reactives(block: unknown): Reactive[] {
@@ -139,12 +163,9 @@ function reactives(block: unknown): Reactive[] {
 		if (!isNode(statement) || statement['type'] !== 'LabeledStatement') continue;
 		const label = statement['label'];
 		if (!isNode(label) || label['name'] !== '$') continue;
-		const body = statement['body'];
-		if (!isNode(body) || body['type'] !== 'ExpressionStatement') continue;
-		const held = body['expression'];
-		if (!isNode(held) || held['type'] !== 'AssignmentExpression' || held['operator'] !== '=') {
-			continue;
-		}
+		const written = reactiveOf(statement);
+		if (written === null || written.held['operator'] !== '=') continue;
+		const { held, inside } = written;
 		const left = held['left'];
 		const right = held['right'];
 		if (!isNode(left) || !isNode(right)) continue;
@@ -157,7 +178,14 @@ function reactives(block: unknown): Reactive[] {
 		// `store_sub` rather than `legacy_reactive`.
 		if (left['type'] === 'Identifier') {
 			if (typeof left['name'] !== 'string' || left['name'].startsWith('$')) continue;
-			found.push({ name: left['name'], value: right, reach: INIT, holds: 'null', slots: [] });
+			found.push({
+				name: left['name'],
+				value: right,
+				reach: INIT,
+				holds: 'null',
+				slots: [],
+				...(inside ? { declared: true as const } : {}),
+			});
 			continue;
 		}
 		if (left['type'] !== 'ObjectPattern' && left['type'] !== 'ArrayPattern') continue;
@@ -448,6 +476,10 @@ function declared(
 		for (const one of all) {
 			const name = one.name;
 			if (twice.has(name)) continue;
+			// A block's assignment declares nothing: Svelte unshifts a `let` only for a body that is
+			// one assignment, so a name only a block assigns has to be declared elsewhere or it is
+			// not a name at all.
+			if (one.declared === true && !found.has(name) && !props.has(name)) continue;
 			const reading = new Set<string>();
 			free(one.value, new Set(), reading);
 			if (reading.has(name) && (found.has(name) || props.has(name))) continue;
@@ -563,11 +595,12 @@ function assigned(
 			return;
 		}
 		// `$: x = e` where `x` is what that statement declares. Its right-hand side is still walked.
+		// A block holding one assignment is that assignment, which is the reading `reactives()`
+		// makes of the same shape.
 		if (type === 'LabeledStatement' && isNode(node['label']) && node['label']['name'] === '$') {
-			const body = node['body'];
-			const held =
-				isNode(body) && body['type'] === 'ExpressionStatement' ? body['expression'] : null;
-			const left = isNode(held) && held['type'] === 'AssignmentExpression' ? held['left'] : null;
+			const written = reactiveOf(node);
+			const held = written?.held ?? null;
+			const left = held === null ? null : held['left'];
 			if (
 				isNode(left) &&
 				left['type'] === 'Identifier' &&
@@ -778,8 +811,10 @@ function reactive(
 		if (!isNode(label) || label['name'] !== '$') continue;
 		const body = statement['body'];
 		if (!isNode(body)) continue;
-		const held = body['type'] === 'ExpressionStatement' ? body['expression'] : null;
-		const left = isNode(held) && held['type'] === 'AssignmentExpression' ? held['left'] : null;
+		// A block holding one assignment is that assignment, the reading `reactives()` makes.
+		const written = reactiveOf(statement);
+		const held = written?.held ?? null;
+		const left = held === null ? null : held['left'];
 		// Every name the left binds, not only a plain one: `$: ({ store } = container)` declares
 		// `store` the same way `$: doubled = n * 2` declares `doubled`, and that declaration is
 		// neutralised over its initialiser. Writing over the whole statement as well is two edits

@@ -1064,6 +1064,13 @@ beside `$: c = a + b` holds `a + b` when the bytes are written -- whatever the r
 these was refused, and the reads came out empty behind the refusal because the statement had been
 neutralised and nothing carried its value. The `$:`'s right-hand side is the name's value now.
 
+**A block holding one assignment is that assignment.** `$: { bar = foo * 2 }` runs before the
+template the way `$: bar = foo * 2` does; what differs is upstream, and only in one place.
+`legacy_reactive_declarations` is filled for a body that is an `ExpressionStatement` holding an
+`AssignmentExpression`, so Svelte unshifts a `let` for the first shape and not for the second --
+which is why a name only a block assigns has to be declared elsewhere, and is not a name at all
+otherwise. Three passes had to make the same reading of the shape and now do it in one place.
+
 Two shapes stay out, each for a reason rather than for caution. **Two `$:` assigning one name**:
 which ran last is the analysis's topological order rather than the source's, and this pass does not
 build that order. **A `$:` reading the name it assigns, where something else declares it**:
