@@ -85,6 +85,16 @@ describe('an import is carried in the form it was written', () => {
 		expect(carried).toBe(expected);
 	});
 
+	// `2-analyze/index.js` builds the instance scope with the module scope as its parent --
+	// `js(root.instance, scope_root, true, module.scope)` -- so what `<script module>` imports is in
+	// scope for the template. Read off the instance block alone, it was a name nothing bound.
+	it('carries what the module block imports, and does not question it', () => {
+		const source = "<script module>import state from './state.js'</script><b>{state.count}</b>";
+		const found = bindings(source);
+		expect(found.unresolved).toEqual([]);
+		expect(found.carried.map((one) => one.local)).toEqual(['state']);
+	});
+
 	// Kit's `$app/state` is the one module nothing is carried from: `page` is the request's and a
 	// name of the payload, and the other two are written out as what a server holds.
 	it('neither carries nor questions what comes from $app/state', () => {

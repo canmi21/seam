@@ -181,13 +181,28 @@ const KINDS: Record<string, Carried['kind']> = {
 };
 
 /** Every name the instance script imports, and enough about each to import it again. */
-function imported(instance: unknown): Map<string, Carried> {
+/**
+ * Every name the component's scripts import, by local name, the module block included.
+ *
+ * `2-analyze/index.js` builds the instance scope with the module scope as its parent --
+ * `js(root.instance, scope_root, true, module.scope)` -- so a name `<script module>` imports is in
+ * scope for the instance script and for the template. Read off the instance block alone, an import
+ * written up there was a name nothing bound: `import state from './state.js'` in the module block
+ * beside `{state.count}` was reported as a name the data does not carry. The instance block is read
+ * last so that it wins, which is the inner scope winning.
+ */
+function imported(...blocks: readonly unknown[]): Map<string, Carried> {
 	const found = new Map<string, Carried>();
-	if (!isNode(instance)) return found;
-	const content = instance['content'];
-	if (!isNode(content)) return found;
+	for (const block of blocks) read(block, found);
+	return found;
+}
+
+function read(block: unknown, found: Map<string, Carried>): void {
+	if (!isNode(block)) return;
+	const content = block['content'];
+	if (!isNode(content)) return;
 	const body = content['body'];
-	if (!Array.isArray(body)) return found;
+	if (!Array.isArray(body)) return;
 
 	for (const statement of body) {
 		if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
@@ -207,7 +222,6 @@ function imported(instance: unknown): Map<string, Carried> {
 			});
 		}
 	}
-	return found;
 }
 
 /**
@@ -591,7 +605,7 @@ function snippetNames(node: unknown, into: Set<string>): void {
  */
 export const importsOf: (source: string) => Map<string, Carried> = bySource((source) => {
 	const ast = parse(source, { modern: true }) as unknown as Node;
-	return imported(ast['instance']);
+	return imported(ast['module'], ast['instance']);
 });
 
 /**
@@ -685,7 +699,7 @@ export function bindings(source: string, file?: string): Bindings {
 	const found: Unresolved[] = [];
 	const declares = locals(source);
 	const carried: Context = {
-		known: imported(ast['instance']),
+		known: imported(ast['module'], ast['instance']),
 		used: new Set<string>(),
 		declares: declares.has,
 		props: requested(ast['instance']),

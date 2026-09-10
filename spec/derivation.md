@@ -991,6 +991,16 @@ harmless.
 **A child's is a different object.** What its call site passed is bound prop by prop, so a child
 binding `$props()` to a name stays unrecorded and the name is reported where it is read.
 
+## The module block is in scope, and only the instance block was read
+
+`2-analyze/index.js` builds the instance scope with the module scope as its parent --
+`js(root.instance, scope_root, true, module.scope)` -- so a name `<script module>` declares or
+imports is in scope for the instance script and for the template, the way an outer scope is in
+JavaScript. The pass that reads a component's imports read the instance block alone, so
+`import state from './state.js'` written up there beside `{state.count}` came back as a name the
+data does not carry, and the same list is what decides which imports the derivation bundle carries.
+Both read both blocks now, instance last so the inner scope wins a name written in each.
+
 ## A store read is the store's value, where the store is a declaration
 
 `$foo` is a subscription: Svelte compiles it to `store_get($$store_subs, '$foo', foo)`, which
