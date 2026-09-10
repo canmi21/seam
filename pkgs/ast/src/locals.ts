@@ -952,6 +952,40 @@ const FALLS_THROUGH: ReadonlySet<string> = new Set([
 	'$effect.root',
 ]);
 
+/**
+ * Every class field written `$derived(e)` or `$derived.by(fn)`, with the spans a getter replaces.
+ *
+ * `at` is the whole field, `argument` the rune's one argument, and `called` says which rune it was:
+ * `$derived.by` takes the function rather than the value, so reading it is a call.
+ */
+function derived(
+	node: unknown,
+	at: (one: Node, whole: [number, number], argument: [number, number], called: boolean) => void,
+): void {
+	const step = (one: unknown): void => {
+		if (Array.isArray(one)) {
+			for (const each of one) step(each);
+			return;
+		}
+		if (!isNode(one)) return;
+		for (const value of Object.values(one)) step(value);
+		if (one['type'] !== 'PropertyDefinition') return;
+		const value = one['value'];
+		if (!isNode(value) || value['type'] !== 'CallExpression') return;
+		const rune = runeCalled(value['callee']);
+		if (rune !== '$derived' && rune !== '$derived.by') return;
+		const args = Array.isArray(value['arguments']) ? value['arguments'] : [];
+		const [only] = args;
+		if (!isNode(only)) return;
+		const whole = [one['start'], one['end']];
+		const argument = [only['start'], only['end']];
+		if (whole.some((each) => typeof each !== 'number')) return;
+		if (argument.some((each) => typeof each !== 'number')) return;
+		at(one, whole as [number, number], argument as [number, number], rune === '$derived.by');
+	};
+	step(node);
+}
+
 /** Every rune call in a node, innermost last, with the rune it names. */
 function answered(node: unknown, at: (one: Node, rune: string) => void): void {
 	const step = (one: unknown): void => {
@@ -2082,6 +2116,25 @@ export function locals(
 			}
 			edits.push([at[0], only['start'], '(']);
 			edits.push([only['end'], at[1], ')']);
+		});
+		// A `$derived` written as a class field is a getter, which is the shape `ClassBody.js` gives
+		// it. Svelte fills `analysis.classes` in the analysis and answers each field from it: a
+		// `$state` or `$state.raw` field is visited in place, where `CallExpression.js` returns the
+		// argument -- which `answered()` above already does -- and a `$derived` field becomes a
+		// backing property holding `$.derived(() => e)` beside a getter that calls it. Left alone,
+		// the rune survived substitution into an expression this compiler has to write itself, where
+		// it is a name nothing defines.
+		//
+		// **The getter re-evaluates, and so does Svelte's**: `$.derived` memoises with `once` only
+		// where `ssr_context` is set, and a derivation is evaluated outside a render. What the thunk
+		// buys is laziness, which the getter has too -- a field initialiser would run at
+		// construction, before a field written after it exists.
+		derived(node, (one, at, argument, called) => {
+			const key = one['key'];
+			const name = isNode(key) && key['type'] === 'Identifier' ? key['name'] : null;
+			if (typeof name !== 'string' || one['static'] === true || one['computed'] === true) return;
+			edits.push([at[0], argument[0], `get ${name}() { return (`]);
+			edits.push([argument[1], at[1], called ? ')() }' : ') }']);
 		});
 		const written = (from: number): boolean => gone.some(([a, b]) => from >= a && from < b);
 		if (fixed.size > 0) {

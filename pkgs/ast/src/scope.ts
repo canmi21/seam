@@ -83,6 +83,15 @@ export function reads(
 		return;
 	}
 
+	// A class field's or method's name is not a read: `class Foo { y = 1 }` names the field, and a
+	// substitution written over it -- `class Foo { (2) = 1 }` -- is not JavaScript at all. Only a
+	// computed key is an expression, the way it is on an object's property.
+	if (type === 'PropertyDefinition' || type === 'MethodDefinition') {
+		if (node['computed'] === true) reads(node['key'], scope, visit);
+		reads(node['value'], scope, visit);
+		return;
+	}
+
 	if (type === 'Property') {
 		if (node['computed'] === true) reads(node['key'], scope, visit);
 		// A shorthand property is one node standing as both key and value, so writing over it in

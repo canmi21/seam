@@ -1020,6 +1020,30 @@ JavaScript. The pass that reads a component's imports read the instance block al
 data does not carry, and the same list is what decides which imports the derivation bundle carries.
 Both read both blocks now, instance last so the inner scope wins a name written in each.
 
+## A rune written as a class field is read as the shape Svelte gives it
+
+`2-analyze` fills `analysis.classes` and `ClassBody.js` answers each field from it. A `$state` or
+`$state.raw` field is visited in place, where `CallExpression.js` returns the argument, which
+`ANSWERED` already does here. A `$derived` field becomes a backing property holding
+`$.derived(() => e)` beside a getter that calls it, and that shape is written here as the getter it
+is: `y = $derived(e)` is `get y() { return (e) }`, and `$derived.by(fn)` is `get y() { return (fn)() }`.
+
+**The getter re-evaluates, and so does Svelte's.** `$.derived` memoises with `once` only where
+`ssr_context` is set, and a derivation is evaluated outside a render. What the thunk buys is
+laziness, which the getter has too: a field initialiser would run at construction, before a field
+written after it exists.
+
+This pass read the declarations a script's statements make and did not look inside a class body, so
+the rune survived substitution into an expression this compiler has to write itself, where a rune is
+a name nothing defines. A field whose key is computed is still left as written: `get_name` cannot
+name it either, and the refusal says so.
+
+**A class field's name is not a read.** `class Foo { y = 1 }` beside a `let y` had the field's own
+name substituted, which is `class Foo { (2) = 1 }` and not JavaScript at all --
+`runtime-runes/derived-unowned` is the sample, and it read as two edits over one place rather than
+as anything an author could act on. Only a computed key is an expression there, the way it is on an
+object's property.
+
 ## A store read is the store's value, where the store is a declaration
 
 `$foo` is a subscription: Svelte compiles it to `store_get($$store_subs, '$foo', foo)`, which

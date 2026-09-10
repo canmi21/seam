@@ -706,6 +706,25 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// `ClassBody.js` answers each field from `analysis.classes`: `$state` and `$state.raw` are
+		// visited in place, where `CallExpression.js` returns the argument, and `$derived` becomes a
+		// backing property holding `$.derived(() => e)` beside a getter that calls it. This pass read
+		// the declarations a script's statements make and not a class body, so the rune survived
+		// substitution and reached the evaluator as `$state is not defined`.
+		//
+		// A getter rather than a field, which is the shape Svelte gives it and the laziness the thunk
+		// buys: a field initialiser runs at construction, before a field written after it exists.
+		name: 'a class field written with a rune',
+		source:
+			'<script>let { data } = $props();' +
+			' class Held { n = $state.raw(2); twice = $derived(this.n * 2);' +
+			' by = $derived.by(() => this.n + 1) }' +
+			' const held = new Held();</script>' +
+			'<p>{held.n + data.a}|{held.twice + data.a}|{held.by + data.a}</p>',
+		data: [{ a: 'x' }, { a: '' }],
+	},
+
+	{
 		name: 'a child that writes a prop twice, and one that never writes it',
 		beside: {
 			Twice: '<script>let { p } = $props();</script><b>{p}</b><i>{p}</i>',
@@ -3895,14 +3914,16 @@ const refused: Case[] = [
 	},
 	{
 		// A rune is compiled away by Svelte and is not a function anything can call. The ones whose
-		// answer the server writes are written out -- `ANSWERED` in `locals.ts` -- and what is left
-		// is the ones that call into Svelte's runtime: `$derived` in a class field is not a
-		// declaration this pass reads, and reached the evaluator as `$derived is not defined`.
+		// answer the server writes are written out -- `ANSWERED` in `locals.ts` -- and a `$derived`
+		// class field is read as the getter `ClassBody.js` makes of it. A field whose key is computed
+		// is neither: `get_name` cannot name it, so this pass leaves it as written and the rune is
+		// still there.
 		name: 'a rune left in a value the request decides',
 		says: 'is left in a value this compiler has to write itself',
 		source:
-			'<script>let { data } = $props(); class T { n = 1; twice = $derived(this.n * 2); }' +
-			' const t = new T();</script><p>{t.twice + data.a}</p>',
+			"<script>let { data } = $props(); const k = 'twice';" +
+			' class T { n = 1; [k] = $derived(this.n * 2); }' +
+			' const t = new T();</script><p>{t[k] + data.a}</p>',
 	},
 	{
 		// Svelte catches what a boundary's body throws and writes the `failed` snippet instead, so
