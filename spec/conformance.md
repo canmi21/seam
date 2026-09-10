@@ -45,10 +45,12 @@ Three of the outcomes are not failures and saying so once is what keeps the targ
 does not run on the server, or a `skip_mode` naming `server`, or an `error` the sample exists to
 produce. Not our judgement.
 
-**A sample Svelte's own render cannot produce bytes for is out.** 17. The oracle is asked even
+**A sample Svelte's own render cannot produce bytes for is out.** 10. The oracle is asked even
 where this compiler refused, so a sample nobody can render is not counted as our gap -- fifteen of
-them were, a quarter of what was being ranked as work. [suite.md](suite.md) has the rule and the
-one exception to it.
+them were, a quarter of what was being ranked as work. It was 17 until the eight samples whose own
+`_config.js` says what the render needs were read: a sample this harness did not ask properly is
+not a sample the oracle cannot render, and all eight were out of the denominator without either
+side having answered. [suite.md](suite.md) has the rule and the one exception to it.
 
 **A refusal by decision is out.** 264 samples, in four shapes the scope line settles, and the suite
 counts them in a column of their own now rather than beside the gaps:
@@ -78,23 +80,27 @@ these instead.
 **Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
 
-So the target is: **of the 1544 samples that are in, every one is byte-identical to Svelte's own
+So the target is: **of the 1565 samples that are in, every one is byte-identical to Svelte's own
 render.** Nothing differing, nothing refused as a gap.
 
 ### Where it stands
 
 ```
                         samples  identical  empty  differs   gap  decided  skipped  oracle
-server-side-rendering       131         86      4        0     0       19       16       6
-runtime-runes              1048        578     18        0     2      173      268       9
-runtime-legacy             1209        878     22        0     0       38      269       2
-total                      2388       1542     44        0     2      230      553      17
+server-side-rendering       131         90      0        0     6       19       16       0
+runtime-runes              1048        580     16        0     3      173      268       8
+runtime-legacy             1209        886     14        0     0       38      269       2
+total                      2388       1556     30        0     9      230      553      10
 ```
 
-Against the target: **1542 of 1544**, with nothing differing and two refused as gaps. Seventeen fail
-inside the oracle rather than inside either side and are counted apart. Both of the two are the
-same construct and both are the scope line said in the wrong words; [roadmap.md](roadmap.md) has
-them.
+Against the target: **1556 of 1565**, with nothing differing and nine refused as gaps. Ten fail
+inside the oracle rather than inside either side and are counted apart.
+
+**Both numbers moved because the columns were read, not because the compiler did.** Fourteen
+samples whose whole content is a `<svelte:head>` were filed as agreements that say nothing, and
+seven that this harness rendered without what their own config says to hand `render()` were filed
+as the oracle's failure. Neither was true, and the second is the one that mattered: those samples
+had never been measured in either direction. See [suite.md](suite.md).
 
 ### What is left, in the order it should be taken
 
@@ -112,12 +118,14 @@ two were one question underneath, a value a function this render calls changes, 
 by a route the rule does not watch -- a spread and a generator rather than a name. Both are now
 refused for assigning to a name outside the value this compiler has to write.
 
-**The two gaps left are one construct, and it is a decision the message has not caught up with.**
-`runtime-runes/snippet-raw-component` and `-ssr-dev` write a raw snippet whose `render` reads the
-request and calls `svelte/server`'s own `render()` inside itself, which is an artifact running
-Svelte's renderer per request. That is the scope line rather than work nobody has done, and
-[roadmap.md](roadmap.md) records it as one; this table is read off the messages, so the count moves
-when the message does.
+**The nine gaps left are two constructs, and both are the scope line the message has not caught up
+with.** Seven are a `<svelte:boundary>` whose body throws while the bytes are being written: what
+the `failed` snippet is handed is `transformError(error)`, a render option a server passes and an
+artifact has nowhere to hold, so which of the two shapes a request gets is not one this compiler
+can write. Two are a raw snippet whose `render` reads the request and calls `svelte/server`'s own
+`render()` inside itself, which is an artifact running Svelte's renderer per request.
+[roadmap.md](roadmap.md) records both as decisions; this table is read off the messages, so the
+count moves when the messages do.
 
 **The eight that were work are done, and reading them one at a time is what said which was which.**
 Each was measured against Svelte's own render of the sample before anything was written, and three

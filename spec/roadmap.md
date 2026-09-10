@@ -590,8 +590,8 @@ Constructs the walk had never met, each a gap. `DeclarationTag` -- `{const x = 0
 `REFUSED`, so it reached the default arm. `css: 'injected'` puts the stylesheet in the head, which
 the head assembly does not recognise as either a block or a stamp. `$state.eager` is a rune
 nothing reads. And a `<svelte:boundary>` whose body throws is caught by Svelte and rendered as
-`failed`; here the throw escapes the compile -- which is a decision where the throw depends on the
-request and a gap where it does not, and the two have not been told apart yet.
+`failed`; the throw used to escape the compile, and this said the two sides of it had not been told
+apart. They have, and neither is a gap: see **Decided, and not built**.
 
 ## The gaps, sorted by who has to answer
 
@@ -712,11 +712,10 @@ The six are counted under **decided** in [conformance.md](conformance.md) now, n
 built** below. It was written here as abandoned, which reads as work nobody wanted rather than as
 the scope line, and those are the two things this file exists to keep apart.
 
-**A `<svelte:boundary>` whose `failed` body calls over a request value, 4.** The section above says
-a boundary whose body throws is a decision where the throw depends on the request and a gap where
-it does not, and that the two have not been told apart. These four are the request-dependent side,
-and they are here rather than under **decided** because the telling apart has not been written
-down.
+**A `<svelte:boundary>` whose body throws: moved.** This said the request-dependent side was a gap
+waiting for the two halves to be told apart. Telling them apart is not what decides it: what the
+`failed` snippet is handed is a render option, whichever side the throw is on. See **Decided, and
+not built**.
 
 **A module script that exports, 3.** `<script module>` exporting a name the template reads. It sits
 against the item above about the render's module instances not being the artifact's, and the
@@ -809,12 +808,19 @@ item above already owns. `component-namespace` is `<Components.Foo />` over a mo
 export, which is the module-graph item. `binding-indirect-fn` is a `$:` declaration substituted
 into `items.filter(fn)` and is its own fault.
 
-## Stage one is 1542 of 1544, and what is left is not work
+## Stage one is 1556 of 1565, and what is left is not work
 
-Every gap that was work is taken. What the suite reports now is nothing differing and two refused,
-and both of those are the same construct being turned away in the wrong words: a raw snippet whose
-bytes the request decides, which is the scope line and is under **Decided, and not built** below.
-[conformance.md](conformance.md) has the table and what each of the eight turned out to be.
+Every gap that was work is taken. What the suite reports now is nothing differing and nine refused,
+and all nine are two constructs turned away in the wrong words: a `<svelte:boundary>` whose body
+throws, seven of them, and a raw snippet whose bytes the request decides, two. Both are the scope
+line and both are under **Decided, and not built** below.
+[conformance.md](conformance.md) has the table and what each of the eight gaps turned out to be.
+
+**Two of those numbers moved because the columns were read rather than because the compiler
+changed**, and the second is worth carrying forward: seven samples had never been measured in
+either direction, because the suite rendered them without what their own config says to hand
+`render()`. A column that says "neither side answered" is as much a place for work to hide as one
+that says "refused".
 
 **Three of the eight were one rule asked by one construct and not by another**, which is the shape
 worth carrying forward rather than the individual fixes: an ask is not the expansion, and a `class:`
@@ -913,6 +919,21 @@ the load stage's by definition, and it is refused by decision: the walk turns an
 away by name, since Svelte itself compiles one only under `experimental.async`. Non-async SSR
 writes the pending branch and awaits nothing, which is what `{#await}` compiles to here and is
 kept.
+
+**A `<svelte:boundary>` whose body throws.** Svelte catches it and writes the `failed` snippet
+instead of the children, and what that snippet is handed is `transformError(error)` --
+`Renderer`'s own option, defaulting to a function that rethrows, which a server passes and an
+artifact has nowhere to hold. So which of the two shapes a request gets is not a function of the
+request at all, and a compiler that baked either would be baking a render option. It is refused
+wherever the compile-time render catches one, which is the one place that knows the throw was
+caught rather than thrown, and the message says so.
+
+**The eight samples that write this shape had never been measured**, because they hand `render()`
+a `transformError` in their own `_config.js` and the suite did not read it, so neither side
+answered and all eight sat outside the denominator. Reading it is what turned a column that said
+"the oracle could not run" into seven refusals this compiler already had a reason for.
+[suite.md](suite.md) has the rule that a sample saying how to render itself is not a sample the
+oracle cannot render.
 
 **A raw snippet whose bytes the request decides.** `createRawSnippet(fn)` is
 `renderer.push(fn(...getters).render().trim())` on the server, so where that `render` reads the

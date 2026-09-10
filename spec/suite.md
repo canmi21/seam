@@ -36,10 +36,18 @@ are in because they found most of what was wrong: of the 115 samples that compil
 wrong bytes, 97 are theirs. A test written for a client still renders on a server, and the render
 is the thing being checked.
 
-**A sample that renders to nothing is not evidence.** 38 of the 1052 agreements have a body of 20
-bytes or fewer, which is `<!--[--><!--]-->` and nothing else -- 34 of them in the two runtime
-suites, which were written to be driven by a client. They are agreements and they say nothing
-about the compiler, so the suite gives them a column of their own rather than folding them in.
+**A sample that renders to nothing is not evidence.** An agreement whose streams are
+`<!--[--><!--]-->` and nothing else is one, and most of them are in the two runtime suites, which
+were written to be driven by a client. They are agreements and they say nothing about the compiler,
+so the suite gives them a column of their own rather than folding them in.
+
+**Both streams, because a sample can render everything it has into the other one.** The test read
+the body alone, and fourteen samples whose whole content is a `<svelte:head>` were filed as saying
+nothing: every head and title case the corpus has, which is which title wins, a block standing in
+the head stream, a child's head merged into its parent's, and the anchor a `$props.id()` writes.
+They are the only evidence there is for the half of the IR that [ir.md](ir.md) records was missed
+once already by reading the body and not the head. A column that says "not evidence" has to be read
+as often as the one that says "wrong", and this one was not.
 
 ## What a sample comes out as
 
@@ -86,6 +94,14 @@ one does not. `$: document.title = 'foo'` needs a DOM. Two samples exist to rais
 error, and one reads a global upstream's harness sets before rendering. None of those is a
 difference between two renders, because there is only one render.
 
+**And what a sample says about how to render it is given to the oracle.** A sample whose own
+`_config.js` names what the render needs is not a sample the oracle cannot render; it is one this
+harness did not read. `transformError` is that: `Renderer`'s constructor defaults it to a function
+that rethrows and `boundary()` calls it where the children throw, so without the sample's own the
+throw escaped and neither side answered. Eight samples write one and all eight were out of the
+denominator, never measured in either direction. What they turn out to be is a refusal this
+compiler already had a reason for, which is the point of having an oracle to hold it against.
+
 **With one exception, and it is this harness's own.** Upstream compiles the runtime suites with
 `experimental.async` on and this one does not, so Svelte's compiler turns away every async sample.
 That is not the oracle failing; it is a question this harness did not ask. The flag is
@@ -126,8 +142,10 @@ A percentage over 2388 is meaningless, because three of the outcomes are not fai
 
 **Upstream's skips are out.** 553 of them.
 
-**A sample the oracle cannot render is out.** 17. There is nothing to compare against, so counting
-it either way is a claim about a comparison nobody made.
+**A sample the oracle cannot render is out.** 10, and it was 17 until the samples that say how to
+render themselves were read. There is nothing to compare against, so counting it either way is a
+claim about a comparison nobody made -- which is also why the column has to be read rather than
+trusted: a sample in it because of this harness is a sample nobody has measured.
 
 **A refusal by decision is out, and it is the scope line rather than an excuse.** The suite counts
 it in a column of its own, `decided`, and prints the samples grouped by which decision each is.
@@ -165,7 +183,7 @@ upstream skips, 17 async, 2 that ask a boundary to catch a throw -- **59 of 96**
 
 [conformance.md](conformance.md) puts this suite in its place: it is stage one of three, and it
 says what "all of them" means once the skips, the oracle's own failures and the refusals by
-decision come out -- 1544 of the 2388 -- and why neither SvelteKit's own test apps nor a real
+decision come out -- 1565 of the 2388 -- and why neither SvelteKit's own test apps nor a real
 application should be measured until
 this one is finished. What follows here is the rule that decides the order of work inside it.
 

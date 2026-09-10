@@ -65,11 +65,18 @@ const STAGE = resolve(here, '../.build-suite');
 const SUITES = ['server-side-rendering', 'runtime-runes', 'runtime-legacy'] as const;
 
 /**
- * A body of 20 bytes or fewer, which is `<!--[--><!--]-->` and nothing else.
+ * A stream of 20 bytes or fewer, which is `<!--[--><!--]-->` and nothing else.
  *
  * A sample that renders to nothing agrees with Svelte for a reason that says nothing about the
  * compiler, and the two runtime suites hold some because they were written to be driven by a
  * client. Counted apart rather than dropped: they are agreements, just not evidence.
+ *
+ * **Both streams, because a sample can render everything it has into the other one.** This read
+ * the body alone, and fourteen samples whose whole content is a `<svelte:head>` were filed as
+ * saying nothing: every head and title case the corpus has -- which title wins, a block standing
+ * in the head stream, a child's head merged into its parent's, the anchor a `$props.id()` writes.
+ * They were the only evidence there is for the half of the IR that spec/ir.md records was missed
+ * once already by reading the body and not the head.
  */
 const EMPTY = 20;
 
@@ -408,7 +415,8 @@ async function attempt(suite: string, name: string): Promise<Result> {
 	if (mine.head !== svelte.head) {
 		return { suite, name, outcome: 'differs', why: divergence('head', mine.head, svelte.head) };
 	}
-	return { suite, name, outcome: svelte.body.length <= EMPTY ? 'empty' : 'identical' };
+	const nothing = svelte.body.length <= EMPTY && svelte.head.length <= EMPTY;
+	return { suite, name, outcome: nothing ? 'empty' : 'identical' };
 }
 
 /**

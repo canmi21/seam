@@ -1065,12 +1065,22 @@ stopped the boundary catching at all. It is copied inside the tag now, the way `
 was, renamed to `failed` -- the name `SvelteBoundary.js` looks for in the fragment -- and with its
 parameters kept, since the snippet is called with the error.
 
-That does not make the four samples that throw compile, and the reason is worth writing down. The
-`failed` snippet is written **through `transformError`**, and `Renderer`'s default one rethrows. A
-server passes its own; an artifact holds bytes and has nowhere to put a function that maps an error
-to what the snippet is handed. So the bytes a caught throw writes are a function of a render option
-rather than of the request, which is outside what a payload can carry. The refusal is still the
-author's own error message arriving as a compile failure, which is the wrong words for it.
+That does not make the samples that throw compile, and the reason is what settles them. The `failed`
+snippet is written **through `transformError`**, and `Renderer`'s default one rethrows. A server
+passes its own; an artifact holds bytes and has nowhere to put a function that maps an error to what
+the snippet is handed. So the bytes a caught throw writes are a function of a render option rather
+than of the request, which is outside what a payload can carry -- and that holds whichever side the
+throw is on, so it is a decision rather than a gap waiting to be told apart.
+
+**The refusal is named where the throw is caught, which is the compile-time render.** It used to be
+the author's own error message arriving as a compile failure, which says nothing about the
+construct: a `<svelte:boundary>` whose body calls a local function that throws is inert, so the call
+is handed back to the render, and the render's own default rethrew it. The render is given a
+`transformError` of its own now whose whole job is to refuse in these words. `render.ts`.
+
+**Eight samples write this shape and none of them had been measured**, because they hand `render()`
+a `transformError` in their own `_config.js` and the suite did not read it, so neither side answered
+and all eight sat outside the denominator. See [suite.md](suite.md).
 
 **A snippet is a value, and a `{@render}` of one nothing here declares can still be the render's.**
 `RenderTag.js` visits the callee as an expression and calls it with the renderer -- `{@render
