@@ -338,7 +338,7 @@ export async function skeleton(
 	// its value reads, so a context read inside one went out as a derivation and threw
 	// `lifecycle_outside_component` at injection rather than naming a file here. Asked once more
 	// over the finished list, which is the one place that holds all of them.
-	for (const one of expressionsOf(finished)) outside(one.expression);
+	for (const one of expressionsOf(finished)) outside(one.expression, true);
 
 	return finished;
 }
@@ -367,7 +367,28 @@ export function expressionsOf(rendered: Skeleton): { expression: string; files: 
 	// it calls is what that file imports. It is not a hole -- the hole names a reference to it -- so
 	// gathering holes alone left the bundle without it: `const attrs = writable(...)` handed to a
 	// child came out as a derivation calling a name the bundle had not got. See `Skeleton.held`.
-	for (const one of rendered.held) found.push({ expression: one.expression, files: one.files });
+	//
+	// **Only the ones something reaches**, to a fixed point, since a held value may name another.
+	// The list is appended to while the walk expands, and a branch the walk then folds away leaves
+	// its entries behind: an `{#await}`'s `then` pattern is walked and the block is dropped, and the
+	// pattern's initialiser stayed in the list with nothing naming it.
+	const reached = new Set<number>();
+	for (let changed = true; changed;) {
+		changed = false;
+		const text = [
+			...found.map((one) => one.expression),
+			...[...reached].map((at) => rendered.held[at]?.expression ?? ''),
+		].join('\n');
+		for (const [at] of rendered.held.entries()) {
+			if (reached.has(at) || !text.includes(`$$hold(${String(at)})`)) continue;
+			reached.add(at);
+			changed = true;
+		}
+	}
+	for (const at of [...reached].sort((a, b) => a - b)) {
+		const one = rendered.held[at];
+		if (one !== undefined) found.push({ expression: one.expression, files: one.files });
+	}
 	// A default on one of the entry's props is a derivation like any other and may call anything
 	// the entry's file has in scope -- `export let foo = get()`, a store read. It is not a hole, so
 	// it would be gathered from nowhere, and the bundle would come out without what it calls: the

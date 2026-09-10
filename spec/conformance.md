@@ -90,11 +90,11 @@ render.** Nothing differing, nothing refused as a gap.
                         samples  identical  empty  differs   gap  decided  skipped  oracle
 server-side-rendering       131         85      4        0     2       18       16       6
 runtime-runes              1048        566     16        0     4      185      268       9
-runtime-legacy             1209        844     21        0    12       61      269       2
-total                      2388       1495     41        0    18      264      553      17
+runtime-legacy             1209        843     21        0    13       61      269       2
+total                      2388       1494     41        0    19      264      553      17
 ```
 
-Against the target: **1513 of 1531**, with nothing differing and 18 refused as gaps. Seventeen fail
+Against the target: **1513 of 1532**, with nothing differing and 19 refused as gaps. Seventeen fail
 inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
 has to answer them in [roadmap.md](roadmap.md).
 
@@ -106,22 +106,22 @@ read inside the child built it again, so `items.includes(item)` was false where 
 render, which evaluates the value once, says true. A value that makes something is now held where
 it crosses into a child, which [derivation.md](derivation.md) states and bounds.
 
-**2 refusals name no specification file, and that is a defect rather than a gap.** There were 24.
-[refusals.md](refusals.md) requires a refusal to say where the question lives, and these say
-`deriving ... failed` instead, which happens when the artifact is injected rather than when it is
-built: a real build writes the artifact and the server throws per request, the suite catching it
-only because it injects. Both that are left are the same question underneath: a value a function
-this render calls changes, read through a spread or through a generator rather than by name, so the
-rule that owns it does not see it. `spread-component-side-effects` and `destructure-state-iterable`.
+**No refusal names no specification file any more.** There were 24. [refusals.md](refusals.md)
+requires a refusal to say where the question lives, and these said `deriving ... failed` instead,
+which happens when the artifact is injected rather than when it is built: a real build writes the
+artifact and the server throws per request, the suite catching it only because it injects. The last
+two were one question underneath, a value a function this render calls changes, reaching the walk
+by a route the rule does not watch -- a spread and a generator rather than a name. Both are now
+refused for assigning to a name outside the value this compiler has to write.
 
-**The 18 gaps, by what they are.**
+**The 19 gaps, by what they are.**
 
 | count | what it is |
 | ----- | ---------- |
 | 6 | a component binding sending a value back where the condition is the request's |
 | 3 | a value handed to a component and used for something other than being written out |
 | 3 | a `{@render}` whose callee this compiler cannot follow to a `{#snippet}` |
-| 2 | a value a function this render calls changes, read through a spread or a generator |
+| 3 | a value this compiler writes that assigns to a name outside it |
 | 2 | a context read and a rune left in a value this compiler has to write itself |
 | 1 | a `<select>` around a component the walk could not enter |
 | 1 | a component tag named by what a block binds |

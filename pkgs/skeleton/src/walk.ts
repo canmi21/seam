@@ -484,6 +484,7 @@ export interface Walk {
 	plain: Locals['rewrite'];
 	/** The rune a declared name was written with, which decides whether a tag naming it is dynamic. */
 	runeOf: Locals['rune'];
+	declares: Locals['has'];
 	/**
 	 * What a component `bind:` settles a name to, by the caller's local: `expr === undefined ?
 	 * <what the child sends> : expr`.
@@ -2685,6 +2686,94 @@ function varies(
 	return outside(expression);
 }
 
+/** The node types that hold a body the expression may or may not call. */
+const FUNCTIONS: ReadonlySet<string> = new Set([
+	'FunctionDeclaration',
+	'FunctionExpression',
+	'ArrowFunctionExpression',
+]);
+
+/**
+ * The first name an expression assigns to and does not itself declare, or null where there is none.
+ *
+ * Declarations are collected from the whole expression rather than per scope: a name declared in
+ * one function and assigned in another is a shape nothing here writes, and reading the scopes
+ * exactly would refuse more than the question asks. Loose in the direction of not refusing, which
+ * is the safe one here -- what is missed is a derivation that throws at request time and says so,
+ * not a byte written wrongly and silently.
+ */
+function assigns(expression: string): string | null {
+	let ast: unknown;
+	try {
+		ast = parsed(expression);
+	} catch {
+		return null;
+	}
+	const bound = new Set<string>();
+	const targets: string[] = [];
+	// A bare name only. `counter.count += 1` over an imported `counter` writes into the module the
+	// carried bundle holds, which is a module the derivation has: it is the rule about a module
+	// binding something in that module changes, and `changedBy()` owns it. What cannot work at all
+	// is a bare name nothing binds, since `reads()` never substituted it and nothing declares it.
+	const root = (node: unknown): string | null =>
+		isNode(node) && node['type'] === 'Identifier' && typeof node['name'] === 'string'
+			? node['name']
+			: null;
+	// Only where the assignment can run while the expression is evaluated. A function the
+	// expression holds rather than calls writes nothing: `handleClick={() => clicked = letter}` is
+	// a handler handed to a component and the server calls nothing, which is the same reading
+	// `losing()` makes of a name the markup only names inside a function. A function called where
+	// it is written is the other case, and it is the one this is here for -- an arrow invoked at
+	// once, and a generator invoked and then drained by `to_array`.
+	/** What a function binds, whether or not this expression ever runs its body. */
+	const binds = (node: AstNode): void => {
+		if (isNode(node['id']) && typeof node['id']['name'] === 'string') bound.add(node['id']['name']);
+		for (const one of Array.isArray(node['params']) ? node['params'] : []) namesIn(one, bound);
+	};
+	/** Walks what the expression evaluates, and nothing it only holds. */
+	const step = (node: unknown): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) step(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		const type = String(node['type']);
+		if (type === 'VariableDeclarator') namesIn(node['id'], bound);
+		// A function this expression holds rather than calls writes nothing while the bytes are
+		// written: `handleClick={() => clicked = letter}` is a handler handed to a component and the
+		// server calls nothing. It is read for what it binds and no further, which is the same
+		// reading `losing()` makes of a name the markup only names inside a function.
+		if (FUNCTIONS.has(type)) {
+			binds(node);
+			return;
+		}
+		if (type === 'AssignmentExpression') {
+			const name = root(node['left']);
+			if (name !== null) targets.push(name);
+		}
+		if (type === 'UpdateExpression') {
+			const name = root(node['argument']);
+			if (name !== null) targets.push(name);
+		}
+		// A function written where it is called does run: an arrow invoked at once, and a generator
+		// invoked and then drained by `to_array`.
+		if (type === 'CallExpression') {
+			const callee = node['callee'];
+			if (isNode(callee) && FUNCTIONS.has(String(callee['type']))) {
+				binds(callee);
+				step(callee['body']);
+			} else {
+				step(callee);
+			}
+			step(node['arguments']);
+			return;
+		}
+		for (const value of Object.values(node)) step(value);
+	};
+	step(ast);
+	return targets.find((one) => !bound.has(one)) ?? null;
+}
+
 /**
  * What cannot survive being a derivation, asked wherever one is about to be made.
  *
@@ -2697,7 +2786,35 @@ function varies(
  *
  * Returns true, so it reads as the answer it guards.
  */
-export function outside(expression: string): boolean {
+export function outside(
+	expression: string,
+	/**
+	 * Set where the expression is one the artifact holds rather than one the walk is considering.
+	 *
+	 * `varies()` asks this of markup the walk may still fold away -- an `{#await}`'s `then` branch
+	 * is walked and then not rendered, since the server writes the pending branch for a promise --
+	 * and a refusal about markup nothing renders is a refusal about nothing. The two questions
+	 * below hold whenever an expression is written out at all; the third is asked only of what is
+	 * left at the end.
+	 */
+	written = false,
+): boolean {
+	// An assignment to a name the expression does not itself declare. A derivation is a pure
+	// expression evaluated once per request and outside the script, so the name it writes to is
+	// bound nowhere and no other read can see what it wrote. `reads()` never visits an assignment
+	// target -- `(0) = 1` is not JavaScript -- so such a name is never substituted and never
+	// reported as read either, and it went out as a free name: `let [one, two] = $state(test())`
+	// over a generator whose body is `yield count++` reached the evaluator as `count is not
+	// defined`, which names nothing an author wrote.
+	const changed = written ? assigns(expression) : null;
+	if (changed !== null) {
+		refuse(
+			`\`${changed}\` is assigned inside a value this compiler has to write itself. A derivation ` +
+				'is a pure expression evaluated once per request and outside the script, so a name it ' +
+				'assigns to is bound nowhere and nothing else can see what it wrote. Compute the value ' +
+				'in one expression, or move what changes it out of the render. See spec/derivation.md',
+		);
+	}
 	// A context read: `getContext` and `getAllContexts` ask the component being rendered, and there
 	// is none. Handed to the render it is fine, which is the branch above.
 	if (READS_CONTEXT.test(expression)) {
@@ -6163,6 +6280,7 @@ function descend(
 				declared.rewrite(child, new Map([...bound, ...(extra ?? new Map())]), walk.sent),
 			plain: (child, extra) => declared.rewrite(child, extra),
 			runeOf: declared.rune,
+			declares: declared.has,
 			legacy: legacyMode(ast),
 			sent: walk.sent,
 			snippets,
@@ -6599,6 +6717,7 @@ export function rewrite(
 						declared.rewrite(node, new Map([...renamed, ...(extra ?? new Map())]), sent),
 		plain: declared.rewrite,
 		runeOf: declared.rune,
+		declares: declared.has,
 		legacy: legacyMode(ast),
 		sent,
 		snippets,

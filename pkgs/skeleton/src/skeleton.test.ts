@@ -3854,6 +3854,17 @@ const refused: Case[] = [
 			'{#snippet one()}<b>{data.a}</b>{/snippet}{@render $held()}',
 	},
 	{
+		// `reads()` never visits an assignment target -- `(0) = 1` is not JavaScript -- so a name
+		// written to is never substituted and never reported as read either, and it went out as a
+		// free name. A derivation is a pure expression evaluated once per request and outside the
+		// script, so the name is bound nowhere: it reached the evaluator as `n is not defined`.
+		name: 'a value this compiler writes that assigns to a name outside it',
+		says: 'is assigned inside a value this compiler has to write itself',
+		source:
+			'<script>let { data } = $props(); let n = 0;' +
+			' function bump(v) { n += 1; return v }</script><p>{bump(data.a)}</p>',
+	},
+	{
 		// Two `$:` assigning one name. Which of them ran last is the analysis's topological order
 		// rather than the source's, and this pass does not build that order, so the pair stays an
 		// assignment after a declaration.

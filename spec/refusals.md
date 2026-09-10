@@ -2099,6 +2099,37 @@ this={...}>` written by the author is the same call and is settled the same way.
 expression reaches the request is a component chosen per request, and the paragraph below says
 what that is.
 
+**A value this compiler writes cannot assign to a name outside it.** `reads()` never visits an
+assignment target, because `(0) = 1` is not JavaScript, so a name written to is never substituted --
+and never reported as read either, so nothing else saw it. It went out as a free name and reached
+the evaluator as `count is not defined`, which names nothing an author wrote. A derivation is a pure
+expression evaluated once per request and outside the script, so a name it assigns to is bound
+nowhere and nothing else can see what it wrote.
+
+Two of the samples that used to fail inside the evaluator are this, and both are the by-decision
+rule about a value the render changes reaching the walk by a route the rule does not watch:
+`destructure-state-iterable` writes `let [one, two] = $state(test())` over a generator whose body is
+`yield count++`, and `spread-component-side-effects` spreads a call that counts itself.
+
+**Only what the expression evaluates.** A function it holds rather than calls writes nothing while
+the bytes are written: `handleClick={() => clicked = letter}` is a handler handed to a component and
+the server calls nothing, which is the same reading `losing()` makes of a name the markup only names
+inside a function. A function written where it is called does run, and that is the case this is for
+-- an arrow invoked at once, and a generator invoked and then drained by `to_array`.
+
+**Asked of what the artifact holds, not of what the walk is considering.** `varies()` asks its other
+two questions of markup the walk may still fold away, and a refusal about markup nothing renders is
+a refusal about nothing. This one is asked over the finished list of expressions. The list itself
+had to learn the same thing: a held value the walk recorded for a branch it then dropped stayed in
+it with nothing naming it, so the gather follows `$$hold(n)` from the expressions that are left,
+to a fixed point.
+
+`runtime-legacy/await-then-destruct-computed-props` is refused by it and used to be identical. It is
+identical on the payload upstream passes and not on the one it does not: `{#await object then ...}`
+writes the pending branch for a promise, and the branch this refuses is the one a request taking a
+value rather than a promise renders. See spec/suite.md on a construct only having to be wrong on the
+payload nobody tried.
+
 **What cannot survive being a derivation is asked wherever one is made, not only where `varies()`
 decides one.** A marker means a derivation and a derivation is evaluated outside `render()`, so a
 context read and a rune left in an expression have nowhere to come from. Both were asked at the end
