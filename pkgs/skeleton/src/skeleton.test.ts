@@ -3789,11 +3789,13 @@ const refused: Case[] = [
 		// afterwards makes that expression stop being what the name holds. Both of these compiled and
 		// wrote the wrong bytes before they were refused.
 		name: 'a name assigned after it is declared',
-		source: '<script>let { data } = $props(); let x = 1; x = 2</script><p>{x}</p>',
+		source: '<script>let { data } = $props(); let x = 1; x = 2</script><p>{data.a + x}</p>',
 	},
 	{
 		name: 'an object mutated after it is declared',
-		source: '<script>let { data } = $props(); const o = { a: 1 }; o.a = 2</script><p>{o.a}</p>',
+		source:
+			'<script>let { data } = $props(); const o = { a: 1 }; o.a = 2</script>' +
+			'<p>{data.a + o.a}</p>',
 	},
 	{
 		// The whole pass plants a marker, renders, and reads it out of the bytes. A component
@@ -3870,7 +3872,7 @@ const refused: Case[] = [
 		// assignment after a declaration.
 		name: 'two reactive statements assigning one name',
 		says: 'assigned after being declared',
-		source: '<script>export let a; let n = 1; $: n = a * 2; $: n = a * 3;</script><p>{n}</p>',
+		source: '<script>export let a; let n = 1; $: n = a * 2; $: n = a * 3;</script><p>{a + n}</p>',
 	},
 	{
 		// A `$:` reading the name it assigns, where something else declares it.
@@ -3879,7 +3881,7 @@ const refused: Case[] = [
 		// value here. Two answers, and only the first is written.
 		name: 'a reactive statement reading the name it assigns beside a declaration',
 		says: 'assigned after being declared',
-		source: '<script>export let a; let n = 1; $: n = Math.max(a, n);</script><p>{n}</p>',
+		source: '<script>export let a; let n = 1; $: n = Math.max(a, n);</script><p>{a + n}</p>',
 	},
 	{
 		// A rune is compiled away by Svelte and is not a function anything can call. The ones whose
@@ -3940,7 +3942,7 @@ const refused: Case[] = [
 		// before the template, so `options` holds `bar` while the bytes are written, where the
 		// substitution stands for the payload's key and wrote `foo`.
 		name: 'a prop assigned after it is destructured',
-		says: 'assigned after being declared',
+		says: 'is a prop this component changes',
 		source: "<script>let { options = 'foo' } = $props(); options = 'bar'</script><p>{options}</p>",
 	},
 	{
@@ -3965,7 +3967,7 @@ const refused: Case[] = [
 		says: 'changed by a function this render calls',
 		source:
 			"<script>import { untrack } from 'svelte'; let { data } = $props(); let seen = 0;" +
-			' untrack(() => { seen += 1 });</script><p>{data.a}{seen}</p>',
+			' untrack(() => { seen += 1 });</script><p>{data.a + seen}</p>',
 	},
 	{
 		// And through the script's own statements, which Svelte puts ahead of the template: a
@@ -3975,7 +3977,7 @@ const refused: Case[] = [
 		says: 'changed by a function this render calls',
 		source:
 			'<script>let { data } = $props(); let seen = 0;' +
-			' function bump() { seen += 1 } bump();</script><p>{data.a}{seen}</p>',
+			' function bump() { seen += 1 } bump();</script><p>{data.a + seen}</p>',
 	},
 	{
 		// The same through a declaration rather than the markup: reading `first` writes `tick()` out
@@ -3985,7 +3987,7 @@ const refused: Case[] = [
 		source:
 			'<script>let { data } = $props(); const seen = [];' +
 			' function tick() { seen.push(1); return seen.length; }' +
-			' const first = tick();</script><p>{data.a}{first}|{seen.length}</p>',
+			' const first = tick();</script><p>{data.a + first}|{seen.length}</p>',
 	},
 	{
 		// The language's own iterators call what they are handed before they return, whatever the
@@ -3997,7 +3999,7 @@ const refused: Case[] = [
 		source:
 			'<script>export let a; const keys = ["x"]; let held = {};' +
 			' $: keys.forEach((key) => { held[key] = 1; });</script>' +
-			'<p>{JSON.stringify(held)}|{a}</p>',
+			'<p>{JSON.stringify(held) + a}</p>',
 	},
 	{
 		// A getter is run by a property read, which is not something the reader wrote as a call, and
@@ -4011,7 +4013,7 @@ const refused: Case[] = [
 			'<script>export let a; let seen = 0;' +
 			' function tick() { seen += 1; return seen; }' +
 			' const held = { get now() { return tick(); } };</script>' +
-			'<p>{held.now}|{seen}|{a}</p>',
+			'<p>{held.now + a}|{seen}</p>',
 	},
 	{
 		// The other reading of a marker that does not come back, and the one that is a fault: the

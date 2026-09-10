@@ -221,6 +221,17 @@ export interface Site {
 	 */
 	stood: Set<string>;
 	/**
+	 * The names substitution cannot follow, from every file this walk read, with why.
+	 *
+	 * `locals()` records them rather than refusing: the render runs the instance script and has the
+	 * value, so an expression the render evaluates is right with the name left as written. What
+	 * cannot hold one is an expression this compiler has to write itself, and that is asked of the
+	 * finished list rather than here -- the walk folds branches away, and a refusal about markup
+	 * nothing renders is a refusal about nothing. Unioned across files, since two files' locals are
+	 * two scopes and the union only ever refuses more. See spec/derivation.md.
+	 */
+	changing: Map<string, string>;
+	/**
 	 * The fragment this file's copy is the body of, where the component renders itself: a call of
 	 * itself inside it is a call of this fragment. Undefined for a component that does not.
 	 */
@@ -673,6 +684,8 @@ export interface Rewritten {
 	dead: Map<string, [number, number][]>;
 	/** Every held declaration's initialiser. See `Walk.keeping`. */
 	keeping: { expression: string; files?: string[] }[];
+	/** The names substitution cannot follow, with why. See `Site.changing`. */
+	changing: ReadonlyMap<string, string>;
 	/** Every edit whose text a branch choice decides, the entry's and every copy's. */
 	choices: Choice[];
 	/** What a component `bind:` settles a name to, found on this pass. See `Site.sends`. */
@@ -2798,7 +2811,21 @@ export function outside(
 	 * left at the end.
 	 */
 	written = false,
+	/** The names substitution could not follow, with why. See `Site.changing`. */
+	changing: ReadonlyMap<string, string> = new Map(),
 ): boolean {
+	// A name substitution could not follow, left as the author wrote it and now inside an
+	// expression this compiler has to write itself. The render would have evaluated it against the
+	// value the script left; nothing evaluates a derivation against that, so this is where the rule
+	// about a value the render changes refuses, rather than at the declaration.
+	if (changing.size > 0) {
+		for (const name of readsOf([expression])) {
+			// `$x` is a subscription to `x`, so it is a read of `x` and stands or falls with it.
+			const why =
+				changing.get(name) ?? (name.startsWith('$') ? changing.get(name.slice(1)) : undefined);
+			if (why !== undefined) refuse(why);
+		}
+	}
 	// An assignment to a name the expression does not itself declare. A derivation is a pure
 	// expression evaluated once per request and outside the script, so the name it writes to is
 	// bound nowhere and no other read can see what it wrote. `reads()` never visits an assignment
@@ -3115,6 +3142,16 @@ function asWritten(node: unknown, written: string, walk: Walk): string {
 	// its key. What the render evaluates is then the expression in this file's own names, which
 	// the copy has in scope; the expansion names the caller's, which it does not.
 	if (mentions(written, unknown(walk))) return plain;
+	// The expansion goes into the render's own source, so a name substitution could not follow has
+	// gone with it: `{#snippet item(id = default_arg())}` written out at each read of `id` had the
+	// render call `default_arg` nine times where Svelte calls it twice. The same question the
+	// finished expressions are asked, at the other place an expansion is written out.
+	for (const name of readsOf([written])) {
+		const why =
+			walk.site.changing.get(name) ??
+			(name.startsWith('$') ? walk.site.changing.get(name.slice(1)) : undefined);
+		if (why !== undefined) refuse(why);
+	}
 	return written;
 }
 
@@ -6170,6 +6207,7 @@ function descend(
 			passing,
 			walk.keeping,
 		);
+		for (const [name, why] of declared.changed) walk.site.changing.set(name, why);
 		// A hold the child's script reaches is given up, and every hold of this call goes with it:
 		// the list is indexed, so dropping one and keeping another would need the indices renumbered
 		// for the sake of a distinction nothing here measures.
@@ -6294,6 +6332,7 @@ function descend(
 				carried: importedBy(raw),
 				defaults: new Map(),
 				stood: walk.site.stood,
+				changing: walk.site.changing,
 				copies: walk.site.copies,
 				choices: walk.site.choices,
 				stack: [...walk.site.stack, file],
@@ -6477,6 +6516,11 @@ function descend(
 		// and this compiler would keep the first pass, which is bytes nobody asked for rather than
 		// a component it could not read. So it is the author's to see too.
 		if (walk.asking !== true && reason.includes('a binding the child sends back')) throw error;
+		// Left to Svelte, a child that changes a value is handed the marker standing for it and
+		// computes with that: `export let value; value += 1` over a marker wrote `%%s0%%1`, which is
+		// the marker back with a digit on it, so nothing downstream could tell. The author's to see.
+		if (walk.asking !== true && reason.includes('is a prop this component changes')) throw error;
+
 		// Left to Svelte, a context read is evaluated in the render -- where the `setContext` above
 		// it was handed the literal standing in for a request value, so the child bakes that. The
 		// refusal has to reach the author rather than turn into a component rendered as it was.
@@ -6543,6 +6587,8 @@ export function rewrite(
 	const entryProps = propsOf(ast, source);
 	/** Every held declaration's initialiser, one list for the entry and every copy it enters. */
 	const keeping: { expression: string; files?: string[] }[] = [];
+	/** Every file's names substitution cannot follow, unioned. See `Site.changing`. */
+	const changing = new Map<string, string>();
 	const declared = locals(
 		source,
 		fixed,
@@ -6565,6 +6611,8 @@ export function rewrite(
 		undefined,
 		keeping,
 	);
+
+	for (const [name, why] of declared.changed) changing.set(name, why);
 
 	// A render is given no data, so a declaration reading a prop would evaluate against nothing
 	// and crash inside Svelte's own renderer. It has already been substituted into every
@@ -6732,6 +6780,7 @@ export function rewrite(
 			carried: importedBy(source),
 			defaults: propDefaultNodes,
 			stood,
+			changing,
 			copies,
 			choices,
 			stack: [file],
@@ -6868,6 +6917,7 @@ export function rewrite(
 		choices,
 		dead,
 		keeping,
+		changing,
 		sends,
 		holes,
 		blocks,

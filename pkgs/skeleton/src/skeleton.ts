@@ -338,7 +338,7 @@ export async function skeleton(
 	// its value reads, so a context read inside one went out as a derivation and threw
 	// `lifecycle_outside_component` at injection rather than naming a file here. Asked once more
 	// over the finished list, which is the one place that holds all of them.
-	for (const one of expressionsOf(finished)) outside(one.expression, true);
+	for (const one of expressionsOf(finished)) outside(one.expression, true, baseline.changing);
 
 	return finished;
 }

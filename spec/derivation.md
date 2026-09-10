@@ -1056,6 +1056,31 @@ and the template after them, so a declaration is evaluated **once** and every re
 binding -- a function written beside it closes over the same value. Substitution writes the
 initialiser at each read instead, which is the same answer only where evaluating it again is.
 
+**These rules are asked where the walk writes an expansion out, not at the declaration.** The render
+runs the instance script and has the value; what cannot follow a change is substitution, writing the
+initialiser at each read. So a read of a changed name is **left as the author wrote it** and the
+render evaluates it correctly, and the refusal is made where an expansion is written out instead --
+over the finished list of expressions the artifact holds, and at `asWritten` where an expansion goes
+into the render's own source. Measured: 34 samples in the vendored suite write Svelte's bytes that
+were refused, and nothing writes the wrong bytes.
+
+Three shapes still refuse at the declaration, because leaving the name is only right where the
+render evaluates the author's text against the value the script left:
+
+- **A prop, and anything in a copy of a component.** A copy is handed a marker for every prop, so a
+  markup read of one is always written out expanded. A prop the component itself changes says so in
+  its own words and `descend()` lets that reach the author rather than rolling the copy back:
+  leaving the component to Svelte is what hands it the marker, and `export let value; value += 1`
+  wrote the marker back with a digit on it.
+- **A name a neutralised `$:` binds.** The statement was written over with `undefined` for a render
+  given no data, so there is nothing left for the render to compute.
+- **A name whose declaration the neutralisation replaced.** `function foo() { b = c }` over a `c`
+  that reads a prop became `null`, and the script's own `foo()` then failed inside Svelte's renderer.
+
+**A store the script writes is one of these names too.** `$count += 1` sets the store before the
+template runs, so the value the markup reads is the one those statements left: the render runs them
+and a derivation reads what the store was declared with.
+
 **The render is handed the author's text wherever it can evaluate it, and that is what these two
 rules are protecting.** An expression the request does not decide is written into the render's
 source, and it used to go in expanded whatever it read: the comment on that branch gives the reason,

@@ -127,6 +127,8 @@ const DECIDED: readonly { says: string; kind: string }[] = [
 	{ says: 'async Svelte', kind: "async Svelte, which is the load stage's" },
 	{ says: 'assigned after being declared', kind: 'a value the render changes' },
 	{ says: 'changed by a function this render calls', kind: 'a value the render changes' },
+	{ says: 'is a prop this component changes', kind: 'a value the render changes' },
+	{ says: "is a store this component's own script writes", kind: 'a value the render changes' },
 	{
 		says: 'is written to, and it is not a value this compiler holds',
 		kind: 'a value the render changes',

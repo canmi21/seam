@@ -513,6 +513,15 @@ function declared(
 }
 
 export interface Locals {
+	/**
+	 * The names substitution cannot follow, each with the sentence that says why.
+	 *
+	 * A read of one is left as the author wrote it: the render runs the instance script and has the
+	 * value, so an expression the render evaluates is right without anything being done to it. What
+	 * cannot follow the change is writing the initialiser at each read, so the name survives into
+	 * any expression this compiler has to write itself and the refusal is made there.
+	 */
+	changed: ReadonlyMap<string, string>;
 	/** Whether the scripts declare this name. */
 	has: (name: string) => boolean;
 	/** The rune a declaration was written with, or undefined for a plain one or no declaration. */
@@ -601,21 +610,22 @@ function assigned(
 			const written = reactiveOf(node);
 			const held = written?.held ?? null;
 			const left = held === null ? null : held['left'];
-			if (
-				isNode(left) &&
-				left['type'] === 'Identifier' &&
-				typeof left['name'] === 'string' &&
-				reactive.has(left['name'])
-			) {
+			// Every name the left binds, not only a plain one: `$: ({ store } = container)` declares
+			// `store` the way `$: doubled = n * 2` declares `doubled`, and the statement is that
+			// declaration rather than an assignment to one.
+			const declares = new Set<string>();
+			if (isNode(left)) namesBound(left, declares);
+			if (declares.size > 0 && [...declares].every((one) => reactive.has(one))) {
 				walk(isNode(held) ? held['right'] : null);
 				return;
 			}
 		}
 		if (type === 'AssignmentExpression' || type === 'UpdateExpression') {
-			// Every name the target binds, not only its root: `[$a, $b] = c` and `({ x: $a } = c)`
-			// assign through a pattern, and each name in one is a target of its own. Only for the
-			// store scan: the refusal above is the surface it already had, and widening what counts
-			// as an assignment there refuses components that were rendering correctly.
+			// Every name the target binds, not only its root: `[u, v] = c` and `({ x: a } = c)` assign
+			// through a pattern, and each name in one is a target of its own. It used to be the store
+			// scan alone, because widening it refused components that were rendering correctly -- and
+			// what the rule does with a name is no longer a refusal but leaving it as the author wrote
+			// it, which costs nothing where the render evaluates the expression itself.
 			const targets: unknown[] = [];
 			const spread = (one: unknown): void => {
 				if (Array.isArray(one)) {
@@ -630,9 +640,7 @@ function assigned(
 				}
 				for (const value of Object.values(one)) spread(value);
 			};
-			const held = node[type === 'UpdateExpression' ? 'argument' : 'left'];
-			if (stores) spread(held);
-			else targets.push(held);
+			spread(node[type === 'UpdateExpression' ? 'argument' : 'left']);
 			for (const target of targets) {
 				const name = rootOf(target);
 				if (name !== null && names.has(name)) found.add(name);
@@ -682,7 +690,7 @@ function losing(
 	names: Set<string>,
 	/** Names a `$:` declares. Its statement is the declaration, not a change to one. */
 	declares: ReadonlySet<string>,
-): void {
+): ReadonlyMap<string, string> {
 	const fragment = ast['fragment'];
 	const closure = (
 		seed: Iterable<string>,
@@ -762,17 +770,24 @@ function losing(
 		// and holds: `export function compute() { return value.toUpperCase() }` with `{compute()}`
 		// is the whole of `value`'s life.
 		const elsewhere = closure(named, (one) => one.free, name);
-		for (const target of changed) if (elsewhere.has(target)) lost.add(target);
+		for (const target of changed) {
+			if (!elsewhere.has(target)) continue;
+			lost.add(target);
+			// The function itself, so that an expression this compiler writes out is refused for
+			// calling it. `{count}` left as the author wrote it is the render's to evaluate and comes
+			// out right; a derivation that calls `default_arg` runs the change once per read, where
+			// the render runs it once, and the two disagree about a name neither expression names.
+			lost.add(name);
+		}
 	}
-	if (lost.size === 0) return;
+	if (lost.size === 0) return new Map();
 	const list = [...lost].map((one) => `\`${one}\``).join(', ');
-	throw new Error(
+	const why =
 		`${list} ${lost.size > 1 ? 'are' : 'is'} changed by a function this render calls, and the ` +
-			'markup reads a name by the expression it was declared to be -- so every read evaluates ' +
-			'that expression again and the change is made to a value nothing else holds. Compute the ' +
-			'value in one expression, or move what changes it out of the render. See ' +
-			'spec/derivation.md',
-	);
+		'markup reads a name by the expression it was declared to be -- so every read evaluates ' +
+		'that expression again and the change is made to a value nothing else holds. Compute the ' +
+		'value in one expression, or move what changes it out of the render. See spec/derivation.md';
+	return new Map([...lost].map((one) => [one, why]));
 }
 
 /**
@@ -789,6 +804,26 @@ function losing(
  * wanted its value, and a destructuring `$: ({ a } = o)` would throw on a neutralised right-hand
  * side the way the read did.
  */
+/** Every name a statement assigns to by a bare name, however deep, function bodies included. */
+function writes(node: unknown, into: Set<string>): void {
+	if (Array.isArray(node)) {
+		for (const one of node) writes(one, into);
+		return;
+	}
+	if (!isNode(node)) return;
+	const type = node['type'];
+	const target =
+		type === 'AssignmentExpression'
+			? node['left']
+			: type === 'UpdateExpression'
+				? node['argument']
+				: null;
+	if (isNode(target) && target['type'] === 'Identifier' && typeof target['name'] === 'string') {
+		into.add(target['name']);
+	}
+	for (const value of Object.values(node)) writes(value, into);
+}
+
 function reactive(
 	ast: Node,
 	found: Map<string, Declared & { node: Node }>,
@@ -799,6 +834,8 @@ function reactive(
 	/** Names a `$:` declares. One of those is neutralised as the declaration it is, over its
 	 * initialiser, and writing over the whole statement too would be two edits on one span. */
 	declares: ReadonlySet<string>,
+	/** Filled with the names a neutralised statement binds: the render no longer computes them. */
+	gone: Set<string> = new Set(),
 ): [at: [number, number], text: string][] {
 	const out: [[number, number], string][] = [];
 	const instance = ast['instance'];
@@ -826,6 +863,12 @@ function reactive(
 		free(body, new Set(), reads);
 		const wanting = [...reads].some((one) => given.has(one) || found.get(one)?.reads === true);
 		if (!wanting) continue;
+		// Every name the statement assigns, not only the one a single assignment binds: a block that
+		// does two things is neutralised whole, and both names stop being computed. `$: { c = a + b;
+		// count = count + 1 }` is that, and reading only the first left `count` looking like a name
+		// the render still holds.
+		for (const name of bound) gone.add(name);
+		writes(body, gone);
 		const { start, end } = body;
 		if (typeof start === 'number' && typeof end === 'number') out.push([[start, end], 'undefined']);
 	}
@@ -1913,16 +1956,36 @@ export function locals(
 		...assigned(ast['module'], names, false, declares),
 		...assigned(ast['instance'], names, false, declares),
 	];
+	/**
+	 * The names substitution cannot follow, each with the sentence that says why.
+	 *
+	 * **Recorded rather than refused here.** Substitution is what cannot follow a change; the render
+	 * runs the instance script and has the value. So a read of one of these is left as the author
+	 * wrote it, which the render evaluates correctly, and the refusal belongs where the walk writes
+	 * an expansion out instead. See spec/derivation.md.
+	 */
+	const changed = new Map<string, string>();
+	/** Names a neutralised `$:` binds, filled by `reactive()` below. See `eager`. */
+	const gone = new Set<string>();
 	if (moved.length > 0) {
 		const list = [...new Set(moved)].map((one) => `\`${one}\``).join(', ');
-		throw new Error(
+		const why =
 			`${list} ${moved.length > 1 ? 'are' : 'is'} assigned after being declared, and the markup ` +
-				'reads a name by the expression it was declared to be, which stops being what the name ' +
-				'holds. Compute the value in one expression, or move the assignment into a function, ' +
-				'which does not run while the bytes are written. See spec/derivation.md',
-		);
+			'reads a name by the expression it was declared to be, which stops being what the name ' +
+			'holds. Compute the value in one expression, or move the assignment into a function, ' +
+			'which does not run while the bytes are written. See spec/derivation.md';
+		for (const one of moved) changed.set(one, why);
 	}
-	losing(ast, found as Map<string, Declared & { node: Node; free: Set<string> }>, names, declares);
+	for (const [name, why] of losing(
+		ast,
+		found as Map<string, Declared & { node: Node; free: Set<string> }>,
+		names,
+		declares,
+	)) {
+		// The first sentence wins. A name assigned after being declared is often also changed by a
+		// function, and the assignment is the more particular of the two things to say.
+		if (!changed.has(name)) changed.set(name, why);
+	}
 
 	// Svelte's own names for the object a caller passed are rebuilt at every read here -- the
 	// entry's out of the payload, a child's out of what its call site wrote -- so a script that
@@ -1956,6 +2019,26 @@ export function locals(
 		...assigned(ast['module'], names, true, declares),
 		...assigned(ast['instance'], names, true, declares),
 	]);
+
+	// A store the script writes is one of these too. `$count += 1` sets the store before the
+	// template runs, so the value the markup reads is the one those statements left: the render has
+	// it and a derivation reads what the store was declared with. The read is left as written, which
+	// is right where the render evaluates it and is a free `$count` where this compiler has to write
+	// the expression itself.
+	for (const name of settled) {
+		// Only where nothing more particular has been said. `settled` is every name the scripts
+		// assign to, read with a `$x` target reported as `x`, so a plain name is in it too and the
+		// sentence about the declaration it was assigned after is the better one.
+		if (changed.has(name)) continue;
+		changed.set(
+			name,
+			`\`$${name}\` is a store this component's own script writes, and the value the markup ` +
+				'reads is the one those statements left. The render runs them; a derivation is ' +
+				'evaluated outside the script and reads what the store was declared with. Compute the ' +
+				'value in one expression, or move what writes it out of the render. See ' +
+				'spec/derivation.md',
+		);
+	}
 
 	const expanded = new Map<string, string>();
 
@@ -2109,6 +2192,12 @@ export function locals(
 			if (typeof from !== 'number' || typeof to !== 'number') return;
 			// Already written out as part of a bound path.
 			if (taken.has(from)) return;
+			// A name substitution cannot follow is left as the author wrote it. The render runs the
+			// instance script and has the value; what cannot follow the change is writing the
+			// initialiser at each read. Where the expression is one the render evaluates that is the
+			// whole answer, and where it is one this compiler has to write itself the name survives
+			// into it and the refusal is made there. See `changed` and spec/derivation.md.
+			if (given === undefined && changed.has(name)) return;
 			const inner = given ?? expand(name, open, extra);
 			const mark = `(${inner})`;
 			edits.push([from, to, shorthand === true ? `${name}: ${mark}` : mark]);
@@ -2124,6 +2213,11 @@ export function locals(
 	): string {
 		// Not cached when names come from outside: the same declaration expands differently for
 		// two callers, which is the whole point of a composed child having its own call site.
+		// A name substitution cannot follow is left as the author wrote it, wherever the expansion is
+		// reached from: the read above is one way in and a `$store`'s own name is another, and the
+		// second went on substituting after the first stopped -- `$: z = u.id` over a `u` the script
+		// reassigns came out as `(undefined).id`.
+		if (changed.has(name)) return name;
 		const cached = expanded.get(name);
 		if (cached !== undefined && open.size === 0 && extra === undefined) return cached;
 		const one = found.get(name);
@@ -2173,7 +2267,69 @@ export function locals(
 		return text;
 	}
 
+	const reading: Neutral[] = [
+		...reactive(
+			ast,
+			found,
+			new Set([...carried, ...props, ...(bound?.keys() ?? [])]),
+			declares,
+			gone,
+		),
+		...new Map(
+			[...found.values()]
+				.filter((one) => one.reads)
+				.map((one): [string, Neutral] => {
+					const text = one.literal ?? slice(one.node, new Set([one.name]), bound);
+					// `GIVEN` is the payload object, which the render is not given any more than it
+					// is given a payload name. A declaration standing for it is neutralised for the
+					// same reason one reading a prop is, and Svelte refuses a `$$` name outright.
+					const held = new Set([...(dynamic ?? carried), GIVEN]);
+					const settled = !mentions(text, held) ? text : one.holds;
+					// The render no longer computes this one either, so a read of it left as the
+					// author wrote it reads the placeholder. `function foo() { b = c }` neutralised
+					// over a `c` that reads a prop left `foo` as `null`, and the script's own
+					// `foo()` failed inside Svelte's renderer.
+					if (settled !== text) gone.add(one.name);
+					if (process.env['SEAM_TRACE'] !== undefined && settled !== text) {
+						const mentioned = [...held].filter((each) => mentions(text, new Set([each])));
+						console.error(
+							`[seam] neutralised \`${one.name}\` mentioning ${mentioned.join(', ') || '(unparsable)'}: ` +
+								text.replace(/\s+/g, ' ').slice(0, 240),
+						);
+					}
+					return [one.at.join(':'), [one.at, settled]];
+				}),
+		).values(),
+	];
+
+	// **Two of these refuse here rather than where the expansion is written out.**
+	//
+	// A prop, because a copy of a component is handed `null` for every prop and a markup read of one
+	// is always written out expanded: leaving the name would leave the copy reading nothing.
+	//
+	// A name a neutralised `$:` binds, because the render no longer computes it either. Leaving the
+	// name is only right where the render evaluates the author's own text and gets the value the
+	// script left, and a statement written over with `undefined` leaves nothing.
+	//
+	// A prop says so in its own words. The caller's value reaches a copy as a marker standing for
+	// it, so the change is made to the marker -- `export let value; value += 1` wrote the marker
+	// back with a digit on it, which nothing downstream could tell from the value. `descend()` reads
+	// this sentence and lets it reach the author rather than rolling the copy back, since leaving
+	// the component to Svelte is what hands it the marker.
+	const given = [...changed].find(([name]) => props.has(name) || bound?.has(name) === true);
+	if (given !== undefined) {
+		throw new Error(
+			`\`${given[0]}\` is a prop this component changes, and a value handed to a component is ` +
+				'written out as a marker standing for it, so the change is made to the marker rather ' +
+				'than to the value. Compute the value in one expression, or move what changes it out ' +
+				'of the render. See spec/derivation.md',
+		);
+	}
+	const eager = [...changed].find(([name]) => bound !== undefined || gone.has(name));
+	if (eager !== undefined) throw new Error(eager[1]);
+
 	return {
+		changed,
 		has: (name) => found.has(name),
 		rune: (name) => found.get(name)?.rune,
 		ids: new Set(
@@ -2197,29 +2353,7 @@ export function locals(
 		// **initialiser's** own expansion rather than the name's, because one initialiser stands for
 		// every name a destructuring binds and each of those reaches a different part of it. For a
 		// declaration that named the value directly the two are the same text.
-		reading: [
-			...reactive(ast, found, new Set([...carried, ...props, ...(bound?.keys() ?? [])]), declares),
-			...new Map(
-				[...found.values()]
-					.filter((one) => one.reads)
-					.map((one): [string, Neutral] => {
-						const text = one.literal ?? slice(one.node, new Set([one.name]), bound);
-						// `GIVEN` is the payload object, which the render is not given any more than it
-						// is given a payload name. A declaration standing for it is neutralised for the
-						// same reason one reading a prop is, and Svelte refuses a `$$` name outright.
-						const held = new Set([...(dynamic ?? carried), GIVEN]);
-						const settled = !mentions(text, held) ? text : one.holds;
-						if (process.env['SEAM_TRACE'] !== undefined && settled !== text) {
-							const mentioned = [...held].filter((each) => mentions(text, new Set([each])));
-							console.error(
-								`[seam] neutralised \`${one.name}\` mentioning ${mentioned.join(', ') || '(unparsable)'}: ` +
-									text.replace(/\s+/g, ' ').slice(0, 240),
-							);
-						}
-						return [one.at.join(':'), [one.at, settled]];
-					}),
-			).values(),
-		],
+		reading,
 	};
 }
 

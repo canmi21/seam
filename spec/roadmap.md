@@ -86,63 +86,36 @@ either, and the suite gives each sample a deadline now.
 eight anchors are unwritten. What this section records is that the wall is theirs and thin, not
 ours and structural.
 
-## A value the render changes: the rule is over-broad, and by how much is measured
+## A value the render changes: asked where the expansion is written out, and done
 
 Two rules refuse a name the render changes -- assigned after being declared, or changed by a
-function this render calls -- and they are the largest thing left after async. **80 of the 294
-refusals are theirs.** [derivation.md](derivation.md) states them. This entry is what is wrong with
-where they are asked.
+function this render calls. They were the largest thing left after async, 80 of the refusals, and
+they were asked in the wrong place: in `locals()`, before anything knew whether the read would be
+substituted at all.
 
-**They fire in `locals()`, before anything knows whether the read will be substituted at all.** The
-compile-time render runs the instance script for real, so `let x = 1; x = 2` is a value it has and
-writes correctly; what cannot follow the assignment is substitution. Where the render evaluates the
-author's own text there is nothing to refuse.
+**The compile-time render runs the instance script.** `let x = 1; x = 2` is a value it has and
+writes correctly; what cannot follow the assignment is substitution. So a read of a changed name is
+left as the author wrote it, and the refusal is made where the walk writes an expansion out instead:
+over the finished list of expressions the artifact holds, and at `asWritten`, where an expansion
+goes into the render's own source. [derivation.md](derivation.md) has the rule and the three shapes
+that still refuse at the declaration.
 
-**Measured, both rules turned off:**
+**Measured**: 1494 identical and 19 gaps before, 1528 identical and 20 gaps after, with nothing
+differing either way and every gap naming a specification file. Three things came out of doing it
+that are worth keeping written down.
 
-```
-             identical  empty  differs  refused
-on                1495     41        0      282
-off               1530     48       17      223
-```
+- **A prop is not one of these**, and neither is anything in a copy. A copy is handed a marker for
+  every prop, so a markup read of one is always written out. A prop the component itself changes
+  reaches the author rather than rolling the copy back, since leaving the component to Svelte is
+  what hands it the marker.
+- **A neutralised statement leaves nothing to evaluate**, so a name it binds -- and a declaration
+  the neutralisation replaced -- still refuses where it is declared.
+- **A store the script writes is the same rule**, one spelling along: the render runs the statements
+  that set it and a derivation reads what it was declared with.
 
-So the rules are over-broad by about 35 samples and genuinely needed for 17. Two things have come
-out of that measurement already, and both are done:
-
-- **A `$:` runs after the declaration of the same name**, so it is not an assignment to it.
-  `instance.body.push(statement)` for each reactive statement, after the rest of the instance body
-  and before the template. Eleven samples, and they were not only refused: behind the refusal the
-  reads came out empty, because the statement had been neutralised and nothing carried its value.
-  See [derivation.md](derivation.md).
-- **The render is handed the author's text wherever it can evaluate it.** The branch for an
-  expansion that folds to a literal was not going through `asWritten`, so a read whose declaration
-  nothing had neutralised still went in expanded. Neutral on the suite with the rules on, and worth
-  seven of the wrong-byte samples with them off.
-
-**What is left of the 17, read one at a time.** Two are the whole of the remaining question and the
-other three are elsewhere on this page:
-
-| count | what it is |
-| ----- | ---------- |
-| 7 | a component binding sending a value back, which is the entry below |
-| 4 | a `$:` that mutates rather than assigns: `$: if (foo) count += 1` |
-| 3 | a prop or a snippet parameter, which the walk always writes out |
-| 2 | a function called from a block expression that counts its own calls |
-| 1 | a `$:` block that does more than one thing |
-
-**A first narrowing was tried and abandoned on the measurement**: refusing only where the changed
-name reaches a *derivation* leaves the prop and snippet rows writing wrong bytes, because a
-derivation is not the only thing the walk writes out. A child copy is handed `null` for every prop,
-so a markup read of one is always expanded; and a snippet parameter is substituted with its default,
-so `untrack(() => count++)` written as one runs once per read where Svelte runs it once per render.
-
-**So the question is not "does this become a derivation" but "does the walk write this out".** The
-answer belongs to the walk, which knows which reads it kept as source; `locals()` cannot know it.
-The shape of the change: `locals()` reports the names rather than throwing -- the ones assigned
-after being declared, and the ones whose evaluation changes a name the markup reads -- and the walk
-refuses at each site where it writes an expansion instead of the author's text, on the source for
-the first set and on the expansion for the second. The four `$:` that mutate and the two that count
-calls are a program per request and stay refused whatever that lands.
+What is left of the shapes this used to cover is a program per request either way: a `$:` that
+mutates rather than assigns, a function called from a block expression that counts its own calls,
+and a `$:` block that does more than one thing.
 
 ## A component binding sends a value back, and which value is a branch
 

@@ -56,15 +56,12 @@ counts them in a column of their own now rather than beside the gaps:
 - **183 await** in markup or at the top of a script, which is async Svelte and the load stage's.
   Which samples those are is upstream's compiler to say: one that will not build without
   `experimental.async` is async Svelte whatever this compiler's own message says.
-- **68 change a value** the markup reads while the bytes are written -- assigned after being
-  declared, changed by a function this render calls, or written into `$$props`, which is the same
-  thing about the object a caller passed -- which is a program per request. Two more belong here
-  and wear the derivation evaluator's message instead, because the rule asks whether the changed
-  name is read *by name* in the markup and these are read through a spread or a generator:
-  `spread-component-side-effects` and `destructure-state-iterable`. **This is the one row of the
-  four that is not settled**: measured, the rule is over-broad by about 35 of the 68, and
-  [roadmap.md](roadmap.md) has the entry and what the narrowing has to ask. It is counted here
-  because that is what the rule says today, and the entry says what the rule should say.
+- **30 change a value** the markup reads while the bytes are written -- assigned after being
+  declared, changed by a function this render calls, written into `$$props`, or a store the script
+  writes -- which is a program per request. There were 68, and the rule was asked at the
+  declaration; it is asked where the walk writes an expansion out now, since the render runs the
+  instance script and has the value. [derivation.md](derivation.md) has the rule and
+  [roadmap.md](roadmap.md) what came out of moving it.
 - **9 want a function off the wire.** The payload carries data and no function, deliberately: see
   [payload.md](payload.md). Six subscribe to a store the request brings, `$x` reading whatever `x`
   holds while the bytes are written, so the store itself would have to be in the payload -- and a
@@ -89,12 +86,12 @@ render.** Nothing differing, nothing refused as a gap.
 ```
                         samples  identical  empty  differs   gap  decided  skipped  oracle
 server-side-rendering       131         85      4        0     2       18       16       6
-runtime-runes              1048        566     16        0     4      185      268       9
-runtime-legacy             1209        843     21        0    13       61      269       2
-total                      2388       1494     41        0    19      264      553      17
+runtime-runes              1048        576     18        0     5      172      268       9
+runtime-legacy             1209        867     22        0    13       36      269       2
+total                      2388       1528     44        0    20      226      553      17
 ```
 
-Against the target: **1513 of 1532**, with nothing differing and 19 refused as gaps. Seventeen fail
+Against the target: **1548 of 1568**, with nothing differing and 20 refused as gaps. Seventeen fail
 inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
 has to answer them in [roadmap.md](roadmap.md).
 
@@ -114,7 +111,7 @@ two were one question underneath, a value a function this render calls changes, 
 by a route the rule does not watch -- a spread and a generator rather than a name. Both are now
 refused for assigning to a name outside the value this compiler has to write.
 
-**The 19 gaps, by what they are.**
+**The 20 gaps, by what they are.**
 
 | count | what it is |
 | ----- | ---------- |
@@ -125,6 +122,7 @@ refused for assigning to a name outside the value this compiler has to write.
 | 2 | a context read and a rune left in a value this compiler has to write itself |
 | 1 | a `<select>` around a component the walk could not enter |
 | 1 | a component tag named by what a block binds |
+| 1 | a choice over a name an each block binds, which cannot be enumerated for the page |
 
 The first is a decision about block semantics and [roadmap.md](roadmap.md) has it. The fourth row is
 the two that used to fail inside the evaluator, and it is the by-decision rule about a value the
