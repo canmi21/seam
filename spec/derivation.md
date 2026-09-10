@@ -780,11 +780,30 @@ to two children costs one array. What is left is a read *inside* a larger expres
 no shared name to give it. So the trigger is a read that is not the whole of the expression it sits
 in.
 
-**Held means one derivation, named, and read by that name.** The machinery is already there and
-needs nothing new: a derivation is computed once per request and cached, and an expression reads its
-scope through `with`, so one derivation may name another -- `__d1` becomes `(__d0).includes(item)`
-and resolves, tested. What changes is the substitution: the name expands to the derivation's name
-rather than to the initialiser's text.
+**Held means one derivation, named, and read by that name.** A derivation is computed once per
+request and cached, and an expression reads its scope through `with`, so one derivation may name
+another -- `__d1` becomes `(__d0).includes(item)` and resolves, tested. What changes is the
+substitution: the name expands to the derivation's name rather than to the initialiser's text.
+
+**The name is not the walk's to invent, and that is the design decision inside this.** A name the
+walk chooses has to be unique per *copy* rather than per file: a child entered twice is two copies
+with two call sites, and `const xs = [props.a]` in each holds two different values under one name.
+That is a silent wrong byte, which is the failure this whole arrangement exists to stop.
+
+The names already come from somewhere that has the answer. `derive.rs` gives one name per
+derivation, keyed by the text, the file chain each name in it resolves through, and whether it is
+computed here or per item -- the same key that makes two whole-expression reads share a value. So
+the walk writes a *reference* rather than a name: the read becomes a mark naming the initialiser's
+expanded text, and the pass that names derivations resolves the mark to the name it already gave
+that text. Uniqueness, the file chain and the scoped question are then answered once, in the place
+that answers them for every other derivation.
+
+**Where a hold costs nothing.** A value that some read already makes into a derivation -- a block's
+source is always one, being iterated per request -- is built at request time either way, and
+holding it only makes the other reads share what is there. A value nothing else builds is a new
+derivation where the render used to bake a constant, which is a cost and needs the read to be one
+where identity is observable. The first is the case `props-equality` is, and it is where this
+starts.
 
 **What it does not reach.** A value the render *mutates* is a different question and stays refused.
 `$: keys.forEach((key) => { object[key] = [] })` needs the statement to have run, and a derivation
