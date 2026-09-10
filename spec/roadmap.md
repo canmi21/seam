@@ -611,15 +611,24 @@ is the by-decision rule wearing the derivation evaluator's message. The rule ask
 changed name is read *by name* in the markup, and none of these is. [conformance.md](conformance.md)
 counts them where they belong.
 
-**The one left is `spread-component-side-effects`, and it is the parked item.**
-`<Widget {...getProps(foo)} />` over a `getProps` that counts its calls: the spread is written into
-every prop the child declares, so it is evaluated once per prop where the render evaluates it once,
-and each evaluation returns a different `i`. Holding the value once per request rather than writing
-the expression out per read is what closes it. That mechanism now exists and closed the last
-differing sample -- see [derivation.md](derivation.md) -- but it holds a prop the tag hands over as
-a read of a name, and a spread is neither: its keys are folded out of the object one at a time, so
-each prop carries its own copy of the call. Reaching it means holding the spread's own value before
-the fold, which is the next step of the same item rather than a different one.
+**The one left is `spread-component-side-effects`, and holding does not close it.**
+`<Widget {...getProps(foo)} />` over a `getProps` that counts its calls. The fold writes the spread
+into every prop the child declares, and the derivation carries the arrow inlined six times across
+two names -- read out of the artifact:
+
+```
+__d0: (((foo) => { i += 1; return { foo, i: (0) } })(foo)) ... ["i"] : undefined
+```
+
+Two things are wrong there and only the first is this item's. The call is evaluated once per prop
+where the render evaluates it once, and holding the spread's own value before the fold is the next
+step of the mechanism [derivation.md](derivation.md) describes -- it holds a prop the tag hands over
+as a read of a name, and a spread is not one. But `i` was substituted to `(0)` inside the object and
+`i += 1` is left reading a name the derivation scope does not hold, which is what actually throws.
+That half is the by-decision rule above: a value a function this render calls changes. It is read
+through the spread rather than by name, so the rule missed it and the evaluator's message stands in
+its place. **Held once, this sample still refuses**; what changes is that it refuses by saying where
+the question lives.
 
 A narrower rule was tried and measured: refusing a spread whose value has to be computed and which
 folds into more than one prop. The expansion parenthesises everything, so the test for "has to be
