@@ -105,11 +105,21 @@ difference between two renders, because there is only one render.
 
 **And what a sample says about how to render it is given to the oracle.** A sample whose own
 `_config.js` names what the render needs is not a sample the oracle cannot render; it is one this
-harness did not read. `transformError` is that: `Renderer`'s constructor defaults it to a function
-that rethrows and `boundary()` calls it where the children throw, so without the sample's own the
-throw escaped and neither side answered. Eight samples write one and all eight were out of the
-denominator, never measured in either direction. What they turn out to be is a refusal this
-compiler already had a reason for, which is the point of having an oracle to hold it against.
+harness did not read. Three fields say it. `transformError` is the largest: `Renderer`'s
+constructor defaults it to a function that rethrows and `boundary()` calls it where the children
+throw, so without the sample's own the throw escaped and neither side answered, for eight samples.
+`server_props` is what upstream hands a **server** render where it differs from the client's, which
+fourteen write and both sides were getting the client's. `before_test` is upstream's setup, and for
+one sample it is the environment: `<p>{frag}</p>` over a `globalThis.frag` its config sets.
+
+**And the entry was in the graph twice.** The oracle wrote a compiled copy of `main.svelte` as its
+input and the plugin compiled the file again for every child that imports the entry's own
+`<script module>`, so that block ran twice and everything it declares had two identities:
+`createContext()` closes over a fresh key, and `set` in one copy with `get` in the other is
+`missing_context`. The entry re-exports the file now. It is the fault
+[refusals.md](refusals.md) records for a copy this compiler stages, met on the other side of the
+comparison -- which is worth saying out loud, because an oracle is only an oracle while nothing is
+wrong with it.
 
 **With one exception, and it is this harness's own.** Upstream compiles the runtime suites with
 `experimental.async` on and this one does not, so Svelte's compiler turns away every async sample.
@@ -151,8 +161,8 @@ A percentage over 2388 is meaningless, because three of the outcomes are not fai
 
 **Upstream's skips are out.** 554 of them.
 
-**A sample the oracle cannot render is out.** 9, and it was 17 until the samples that say how to
-render themselves were read. There is nothing to compare against, so counting it either way is a
+**A sample the oracle cannot render is out.** 4, and it was 17 until the samples that say how to
+render themselves were read, and until the entry stopped being compiled twice. There is nothing to compare against, so counting it either way is a
 claim about a comparison nobody made -- which is also why the column has to be read rather than
 trusted: a sample in it because of this harness is a sample nobody has measured.
 
@@ -192,7 +202,7 @@ upstream skips, 17 async, 2 that ask a boundary to catch a throw -- **59 of 96**
 
 [conformance.md](conformance.md) puts this suite in its place: it is stage one of three, and it
 says what "all of them" means once the skips, the oracle's own failures and the refusals by
-decision come out -- 1565 of the 2388 -- and why neither SvelteKit's own test apps nor a real
+decision come out -- 1570 of the 2388 -- and why neither SvelteKit's own test apps nor a real
 application should be measured until
 this one is finished. What follows here is the rule that decides the order of work inside it.
 

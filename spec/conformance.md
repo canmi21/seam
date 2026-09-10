@@ -46,7 +46,7 @@ does not run on the server, or a `skip_mode` naming `server`, or an `error` the 
 produce -- or a `runtime_error` that is what the render then threw, which is the same statement one
 word along. Not our judgement.
 
-**A sample Svelte's own render cannot produce bytes for is out.** 9. The oracle is asked even
+**A sample Svelte's own render cannot produce bytes for is out.** 4. The oracle is asked even
 where this compiler refused, so a sample nobody can render is not counted as our gap -- fifteen of
 them were, a quarter of what was being ranked as work. It was 17 until the eight samples whose own
 `_config.js` says what the render needs were read: a sample this harness did not ask properly is
@@ -81,7 +81,7 @@ these instead.
 **Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
 
-So the target is: **of the 1565 samples that are in, every one is byte-identical to Svelte's own
+So the target is: **of the 1570 samples that are in, every one is byte-identical to Svelte's own
 render.** Nothing differing, nothing refused as a gap.
 
 ### Where it stands
@@ -89,19 +89,22 @@ render.** Nothing differing, nothing refused as a gap.
 ```
                         samples  identical  empty  differs   gap  decided  skipped  oracle
 server-side-rendering       131         90      0        0     6       19       16       0
-runtime-runes              1048        580     16        0     3      173      269       7
+runtime-runes              1048        582     16        0     6      173      269       2
 runtime-legacy             1209        886     14        0     0       38      269       2
-total                      2388       1556     30        0     9      230      554       9
+total                      2388       1558     30        0    12      230      554       4
 ```
 
-Against the target: **1556 of 1565**, with nothing differing and nine refused as gaps. Nine fail
+Against the target: **1558 of 1570**, with nothing differing and twelve refused as gaps. Four fail
 inside the oracle rather than inside either side and are counted apart.
 
 **Both numbers moved because the columns were read, not because the compiler did.** Fourteen
 samples whose whole content is a `<svelte:head>` were filed as agreements that say nothing, and
-seven that this harness rendered without what their own config says to hand `render()` were filed
-as the oracle's failure. Neither was true, and the second is the one that mattered: those samples
-had never been measured in either direction. See [suite.md](suite.md).
+thirteen were filed as the oracle's failure where what could not run was this harness: it rendered
+them without the `transformError`, the `server_props` or the `before_test` their own configs name,
+and it held a second compiled copy of the entry, so a child importing the entry's `<script module>`
+got a module that had run twice. **A column that says neither side answered is where work hides
+without being counted**, which is the whole reason it is read out rather than totalled. See
+[suite.md](suite.md).
 
 ### What is left, in the order it should be taken
 

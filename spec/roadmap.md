@@ -808,19 +808,25 @@ item above already owns. `component-namespace` is `<Components.Foo />` over a mo
 export, which is the module-graph item. `binding-indirect-fn` is a `$:` declaration substituted
 into `items.filter(fn)` and is its own fault.
 
-## Stage one is 1556 of 1565, and what is left is not work
+## Stage one is 1558 of 1570, and what is left is nearly all not work
 
-Every gap that was work is taken. What the suite reports now is nothing differing and nine refused,
-and all nine are two constructs turned away in the wrong words: a `<svelte:boundary>` whose body
-throws, seven of them, and a raw snippet whose bytes the request decides, two. Both are the scope
-line and both are under **Decided, and not built** below.
-[conformance.md](conformance.md) has the table and what each of the eight gaps turned out to be.
+What the suite reports now is nothing differing and twelve refused. Ten of the twelve are two
+constructs turned away in the wrong words -- a `<svelte:boundary>` whose body throws, eight of
+them, and a raw snippet whose bytes the request decides, two -- and both are the scope line, under
+**Decided, and not built** below. [conformance.md](conformance.md) has the table.
 
-**Two of those numbers moved because the columns were read rather than because the compiler
-changed**, and the second is worth carrying forward: seven samples had never been measured in
-either direction, because the suite rendered them without what their own config says to hand
-`render()`. A column that says "neither side answered" is as much a place for work to hide as one
-that says "refused".
+**The two that are work arrived by the oracle being fixed rather than by anything being written**,
+and that is the finding worth carrying forward. Thirteen samples had never been measured in either
+direction: the suite rendered them without the `transformError`, the `server_props` or the
+`before_test` their own configs name, and it held a second compiled copy of the entry. A column
+that says "neither side answered" is as much a place for work to hide as one that says "refused",
+and it is smaller, so nobody reads it.
+
+The two are `style-directive-mutations`, a `style:` beside a `style` attribute whose value the
+request decides, which is a construct listed in [refusals.md](refusals.md) as refused; and
+`globals-deconflicted`, a bare global the harness sets before rendering, which this compiler
+refuses as a name the data does not carry. The second wants deciding rather than building: a name
+only the process holds is what [derivation.md](derivation.md) already says `process.env` is.
 
 **Three of the eight were one rule asked by one construct and not by another**, which is the shape
 worth carrying forward rather than the individual fixes: an ask is not the expansion, and a `class:`
