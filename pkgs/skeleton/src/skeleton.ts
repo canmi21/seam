@@ -353,6 +353,11 @@ export function expressionsOf(rendered: Skeleton): { expression: string; files: 
 		}
 		for (const [, expression] of block.fragment?.binds ?? []) found.push({ expression, files });
 	}
+	// A held value is a derivation like any other and is written where the declaration was, so what
+	// it calls is what that file imports. It is not a hole -- the hole names a reference to it -- so
+	// gathering holes alone left the bundle without it: `const attrs = writable(...)` handed to a
+	// child came out as a derivation calling a name the bundle had not got. See `Skeleton.held`.
+	for (const one of rendered.held) found.push({ expression: one.expression, files: one.files });
 	// A default on one of the entry's props is a derivation like any other and may call anything
 	// the entry's file has in scope -- `export let foo = get()`, a store read. It is not a hole, so
 	// it would be gathered from nowhere, and the bundle would come out without what it calls: the

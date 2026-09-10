@@ -605,6 +605,19 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '' }],
 	},
 	{
+		// A held value is written where the declaration was, so what it calls is what that file
+		// imports. Gathering only the holes left the bundle without it, because the hole names a
+		// reference to the held value rather than the value: the artifact compiled and the
+		// derivation threw `make is not defined` per request. See `expressionsOf`.
+		name: 'a held value that calls what its own file imported',
+		alongside: { 'make.ts': "export const make = () => new Map([['a', 1]]);" },
+		beside: { Held: '<script>let { xs } = $props();</script><b>{xs.size}</b>' },
+		source:
+			"<script>import Held from './Held.svelte'; import { make } from './make.ts';" +
+			' let { data } = $props(); const xs = make();</script><Held {xs} /><i>{data.a}</i>',
+		data: [{ a: 'x' }, { a: '' }],
+	},
+	{
 		name: 'a child that writes a prop twice, and one that never writes it',
 		beside: {
 			Twice: '<script>let { p } = $props();</script><b>{p}</b><i>{p}</i>',
