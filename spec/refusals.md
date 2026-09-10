@@ -2094,6 +2094,25 @@ this={...}>` written by the author is the same call and is settled the same way.
 expression reaches the request is a component chosen per request, and the paragraph below says
 what that is.
 
+**A copy takes its `<script module>` exports from the file it copies.** `transform-server.js` puts
+the module block at the top level of the module it compiles, so Svelte runs it **once per file**
+however many times the component is used. A copy is a second file, so a restated module block ran a
+second time and everything it declared had a second identity. `runtime-legacy/context-api` is the
+shape: `export const TABS = {}` beside `setContext(TABS, ...)`, with a sibling reading
+`getContext(TABS)` off the original's key. The copy set the context under its own key, the sibling
+found nothing, and the failure surfaced as a destructuring throwing inside Svelte's own renderer --
+about a file the author did not write. Each exported name is imported from the original and
+re-exported now, which is one module and one identity, and the name is left out of the instance
+prelude so the two do not declare it twice. Imports in the block stay, since importing a module
+twice is the same module; a name the block declares without exporting is left restated, there being
+no way to reach it from outside, and it is observable only where something changes it, which
+`changedBy()` already refuses.
+
+There is no byte that shows this on its own. Substitution reaches a module declaration like any
+other, so an identity comparison written to prove it compares two fresh values whichever module they
+came from; what the sample shows is a refusal that names a file where there used to be a crash that
+named none.
+
 **A `<select>`'s `value` comes out of a spread by being written `undefined`, not by being left
 out.** `renderer.select` destructures -- `const { value, defaultValue, ...select_attrs } = attrs` --
 so neither name reaches the attributes whatever it holds, and what it holds decides only

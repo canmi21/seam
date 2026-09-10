@@ -640,6 +640,15 @@ interface Marks {
 	copies: number;
 	handed: number;
 	spreads: number;
+	/**
+	 * The imports of copies this descent added, which go back with the copies.
+	 *
+	 * `rename()` writes one per tag it took, and a descent that stopped had already written the
+	 * ones for the tags it got through. Left behind, the file imported a copy that had been rolled
+	 * back -- and where the next attempt took the same tags again, imported the same name twice,
+	 * which Svelte answers with `Identifier 'X$2' has already been declared`.
+	 */
+	prelude: number;
 }
 
 /** Puts back what a walk that did not finish appended, and says it did not take the component. */
@@ -651,6 +660,7 @@ export function rolled(walk: Walk, mark: Marks): false {
 	walk.site.copies.length = mark.copies;
 	walk.site.handed.length = mark.handed;
 	walk.site.spreads.length = mark.spreads;
+	walk.site.prelude.length = mark.prelude;
 	return false;
 }
 

@@ -312,7 +312,7 @@ export async function skeleton(
 	// alternate and not in the baseline, and the hash has to be read wherever the marker landed.
 	await outcomes(baseline.holes, baseline.pending, everywhere);
 
-	return {
+	const finished: Skeleton = {
 		html,
 		head,
 		alternates,
@@ -331,6 +331,8 @@ export async function skeleton(
 		// that have one.
 		...(baseline.dead.size === 0 ? {} : { dead: Object.fromEntries(baseline.dead) }),
 	};
+
+	return finished;
 }
 
 /**

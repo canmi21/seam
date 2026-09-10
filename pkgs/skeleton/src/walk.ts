@@ -1490,6 +1490,64 @@ function componentFile(tag: string, walk: Walk): string | null {
 }
 
 /**
+ * A copy takes its `<script module>` exports from the file it copies rather than restating them.
+ *
+ * `transform-server.js` puts the module block at the top level of the module it compiles, so Svelte
+ * runs it **once per file** however many times the component is used. A copy is a second file, so a
+ * restated module block runs a second time and everything it declares has a second identity.
+ * `export const TABS = {}` beside `setContext(TABS, ...)` is the shape: the copy set the context
+ * under its own key and a sibling reading `getContext(TABS)` off the original's key got `undefined`,
+ * which showed up as a destructuring failing inside Svelte's own renderer.
+ *
+ * So each exported name is imported from the original and re-exported, which is one module and one
+ * identity. Imports in the block stay: importing a module twice is the same module. A name the
+ * block declares without exporting is left restated, since there is no way to reach it from
+ * outside, and it is only observable where something changes it -- which `changedBy()` already
+ * refuses.
+ */
+function shared(ast: AstNode, file: string, edits: [number, number, string][]): void {
+	const { names, taken } = moduleExports(ast);
+	if (names.size === 0) return;
+	const listed = [...names].join(', ');
+	// Relative to the file this copies, which is where a copy's own specifiers are resolved from:
+	// the render emits a copy under the original's directory as its origin. See `emit()` in
+	// `render.ts`.
+	const from = `'./${basename(file)}'`;
+	const [first, ...rest] = taken;
+	if (first === undefined) return;
+	edits.push([first[0], first[1], `import { ${listed} } from ${from};\nexport { ${listed} };`]);
+	for (const at of rest) edits.push([at[0], at[1], '']);
+}
+
+/** What a component's `<script module>` exports, and where each export is written. */
+function moduleExports(ast: AstNode): { names: Set<string>; taken: [number, number][] } {
+	const block = ast['module'];
+	const content = isNode(block) ? block['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	const names = new Set<string>();
+	const taken: [number, number][] = [];
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'ExportNamedDeclaration') continue;
+		const one = statement['declaration'];
+		if (!isNode(one)) continue;
+		const found = new Set<string>();
+		if (one['type'] === 'VariableDeclaration') {
+			for (const each of Array.isArray(one['declarations']) ? one['declarations'] : []) {
+				if (isNode(each)) namesIn(each['id'], found);
+			}
+		} else if (isNode(one['id']) && typeof one['id']['name'] === 'string') {
+			found.add(one['id']['name']);
+		}
+		if (found.size === 0) continue;
+		const at = span(statement);
+		if (at === null) continue;
+		for (const name of found) names.add(name);
+		taken.push(at);
+	}
+	return { names, taken };
+}
+
+/**
  * The rewritten source with the imports nothing in it reads any more taken out.
  *
  * A component tag the walk replaced with a copy leaves its import behind, and the render would
@@ -5639,6 +5697,7 @@ function descend(
 		copies: walk.site.copies.length,
 		handed: walk.site.handed.length,
 		spreads: walk.site.spreads.length,
+		prelude: walk.site.prelude.length,
 	};
 
 	// Whether the child writes a head, which decides what a failure to enter it means below.
@@ -6020,7 +6079,13 @@ function descend(
 		const wants: [string, string][] = [];
 		const own = importsOf(raw);
 		for (const name of runesOf(own, file)) walk.site.runes.add(name);
+		// A name the module block binds is the module block's, and `shared()` will import it there.
+		// Restating it in the instance prelude is the same binding declared twice, which
+		// `transform-server.js` puts in one module and Svelte answers with
+		// `declaration_duplicate`.
+		const exported = moduleExports(ahead).names;
 		for (const one of brought) {
+			if (exported.has(one.local)) continue;
 			const already = own[one.local];
 			if (already === one.from) continue;
 			if (already !== undefined) {
@@ -6128,6 +6193,7 @@ function descend(
 		withPrelude(raw, ast, prelude, inner);
 		withAsks(ast, asks, wants, inner);
 		withFresh(ast, fresh, declared.ids, inner);
+		shared(ast, file, inner);
 		copy.asks = asks;
 		copy.wants = wants;
 		copy.source = unimported(apply(raw, inner));
