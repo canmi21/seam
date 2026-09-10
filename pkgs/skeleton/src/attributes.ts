@@ -1,4 +1,4 @@
-import { type Locals, objectEntries } from 'ast';
+import type { Locals } from 'ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { sentinel } from './sentinel.ts';
 import type { Hole } from './shape.ts';
@@ -192,24 +192,7 @@ export function spread(
 	for (const one of attributes) {
 		if (!isNode(one)) return empty;
 		if (one['type'] === 'SpreadAttribute') {
-			const grown = expand(one['expression']);
-			if (drop.size === 0) {
-				parts.push(`...(${grown})`);
-				continue;
-			}
-			// Written out key by key so the dropped ones can be left behind. Only reached where the
-			// keys are listable, which `selection()` has already required of the same spread.
-			const entries = objectEntries(grown);
-			if (entries === null) {
-				refuse(
-					'`{...spread}` on a `<select>` whose keys cannot be listed is not handled yet: ' +
-						'`renderer.select` reads `value` and `defaultValue` off the merged attributes',
-				);
-			}
-			for (const [key, value] of entries) {
-				if (drop.has(key.toLowerCase())) continue;
-				parts.push(`${JSON.stringify(key)}: (${value})`);
-			}
+			parts.push(`...(${expand(one['expression'])})`);
 			continue;
 		}
 		if (one['type'] === 'ClassDirective') {
@@ -299,6 +282,19 @@ export function spread(
 		);
 	}
 
+	// A key another pass took charge of is written back as `undefined` rather than left out.
+	// `renderer.select` destructures -- `const { value, defaultValue, ...select_attrs } = attrs` --
+	// so neither name reaches the attributes whatever it holds, and what it holds decides only
+	// `select_value`, which is `value === undefined ? defaultValue : value`. Both `undefined` is
+	// `select_value` undefined, which is the select taking no charge of any option, and that is what
+	// `selection()` has already taken over. Written last, so a spread cannot put the key back.
+	//
+	// Listing the object's keys and leaving these two out was the older answer, and it needed the
+	// keys to be listable: a spread of a value the request brings has none, and three samples were
+	// refused over a rewrite this does without one.
+	if (drop.has('value')) parts.push('"value": undefined');
+	if (drop.has('defaultvalue')) parts.push('"defaultValue": undefined');
+
 	// A run nothing the request decides is bytes: the render evaluates the same call Svelte wrote
 	// and writes what it writes, which is what a package's element spreading its merged props is
 	// once the caller's values are constants. Left as written, and every attribute with it, so
@@ -316,6 +312,22 @@ export function spread(
 			edits.push([from[0], to[1], [`{...${object}}`, ...directives].join(' ')]);
 		}
 		return new Set(attributes);
+	}
+
+	// A `<select>` does not go through `$.attributes` at all: `RegularElement.js` compiles it to
+	// `renderer.select(attrs, fn, hash, classes, styles, flags)`, which destructures `value` and
+	// `defaultValue` off the object, maps `multiple === ''` to `true` and calls `attributes` on what
+	// is left, at run time. So the call this pass reads the rest of the arguments from is a different
+	// call with a different shape, and the object it would hand back is not the object Svelte hands
+	// `attributes`. Only where the run has to be written here: a run the render evaluates is Svelte's
+	// own `select` doing all of that, and is left alone above.
+	if (drop.size > 0) {
+		refuse(
+			'a `{...}` on a `<select>` whose value the request decides is not handled yet: the ' +
+				'attributes of a select are written by `renderer.select` rather than by `$.attributes`, ' +
+				'so the run this compiler has to write itself has a different call to read and a ' +
+				'different object to hand it',
+		);
 	}
 
 	const index = holes.length;

@@ -632,6 +632,21 @@ const accepted: Case[] = [
 		data: [{ a: 'x' }, { a: '' }],
 	},
 	{
+		// `renderer.select` destructures `const { value, defaultValue, ...select_attrs } = attrs`, so
+		// what those two names hold decides `select_value` and nothing else, and both `undefined` is
+		// a select taking charge of no option -- which is what this compiler has taken over. Written
+		// back as `undefined` rather than left out, the object no longer has to have listable keys:
+		// a spread of a call had none, and the whole run was refused over a rewrite this does
+		// without one.
+		name: 'a select whose spread has keys nobody can list',
+		source:
+			'<script>let { data } = $props();' +
+			" const extra = Object.assign({}, { id: 'pick' });</script>" +
+			'<select {...extra} value="b"><option value="a">A</option>' +
+			'<option value="b">B</option></select><i>{data.a}</i>',
+		data: [{ a: 'x' }, { a: '' }],
+	},
+	{
 		name: 'a child that writes a prop twice, and one that never writes it',
 		beside: {
 			Twice: '<script>let { p } = $props();</script><b>{p}</b><i>{p}</i>',
@@ -3570,22 +3585,23 @@ const refused: Case[] = [
 		source: '<script>let { a, b } = { a: 1, b: 2 }; export { a };</script><p>{a}{b}</p>',
 	},
 	{
-		// A `<select>` carrying a spread goes through `renderer.select` rather than `$.attributes`,
-		// so the run of attributes has no call for a marker to ride in. Where the spread holds a
-		// value the request decides there is nowhere to put it, and it is refused rather than
-		// planted into a call Svelte did not compile.
+		// `RegularElement.js` compiles a select to `renderer.select(attrs, fn, hash, classes, styles,
+		// flags)`, which destructures the two names off, maps `multiple === ''` to `true` and calls
+		// `attributes` on what is left at run time. So a run this compiler has to write itself has a
+		// different call to read the rest of the arguments from and a different object to hand it.
+		// A run the render evaluates is Svelte's own `select` doing all of that, and is untouched.
 		name: 'a spread on a `<select>` holding a value the request decides',
-		says: 'Svelte compiled no call',
+		says: 'written by `renderer.select`',
 		source:
 			`${PROPS}<select {...{ value: data.v, 'data-x': data.a }} defaultValue="a">` +
 			'<option value="a">A</option></select>',
 	},
 	{
-		// The keys of a spread on a `<select>` are only listable where it is written out. Where they
-		// are not, the value the options compare against is the request's and so is the option that
-		// carries it, and nothing can take it off the tag.
-		name: 'a spread on a `<select>` whose keys cannot be listed',
-		says: 'whose keys cannot be listed',
+		// The same, reached through an object whose keys nobody can list. Listability is no longer
+		// what decides it: the two names are written back as `undefined`, which needs no keys. What
+		// is left is the run being the request's to compute.
+		name: 'a spread on a `<select>` whose keys the request decides',
+		says: 'written by `renderer.select`',
 		source: `${PROPS}<select {...data.r}><option value="a">A</option></select>`,
 	},
 	{

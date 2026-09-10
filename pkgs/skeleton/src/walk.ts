@@ -1178,12 +1178,16 @@ function selection(
 			if (one['type'] === 'SpreadAttribute') {
 				const grown = expand(one['expression']);
 				const entries = objectEntries(grown);
+				// Keys this pass can list are read as written, which keeps the value a literal where the
+				// object is one. Where it cannot list them the two names are read off the object
+				// instead, which is what `renderer.select` does: `const { value, defaultValue, ...rest }
+				// = attrs`, so a key the object does not carry is `undefined` there and here. The
+				// select takes charge either way, because an object whose keys nobody can list may
+				// carry one and the comparison cannot be left half to the render.
 				if (entries === null) {
-					refuse(
-						'`{...spread}` on a `<select>` whose keys cannot be listed is not handled yet: ' +
-							'`renderer.select` reads `value` and `defaultValue` off the merged attributes ' +
-							'and writes neither, and taking them out means rewriting the object',
-					);
+					chosen = `(${grown}).value`;
+					held = `(${grown}).defaultValue`;
+					continue;
 				}
 				for (const [key, value] of entries) {
 					const name = key.toLowerCase();

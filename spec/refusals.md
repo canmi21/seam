@@ -2094,6 +2094,22 @@ this={...}>` written by the author is the same call and is settled the same way.
 expression reaches the request is a component chosen per request, and the paragraph below says
 what that is.
 
+**A `<select>`'s `value` comes out of a spread by being written `undefined`, not by being left
+out.** `renderer.select` destructures -- `const { value, defaultValue, ...select_attrs } = attrs` --
+so neither name reaches the attributes whatever it holds, and what it holds decides only
+`select_value`, which is `value === undefined ? defaultValue : value`. Both `undefined` is a select
+that takes charge of no option, which is what this compiler has taken over by then. The older answer
+listed the object's keys and left those two out, and that needed the keys to be listable: a spread
+of a call has none, and the whole run was refused over a rewrite this does without one.
+
+What is still refused is a run this compiler has to write itself. `RegularElement.js` compiles a
+select to `renderer.select(attrs, fn, hash, classes, styles, flags)`, which destructures, maps
+`multiple === ''` to `true` and calls `attributes` on what is left at run time -- so the call the
+spread pass reads the rest of its arguments from is a different call with a different shape, and the
+object it would hand back is not the object Svelte hands `attributes`. A run the render evaluates is
+Svelte's own `select` doing all of that and is untouched; a run whose value the request decides is
+not, and says so.
+
 **A tag's name is an expression, and a name a block binds is a component chosen per item.**
 `Component.js` in the server transform is one line: `context.visit(b.member_id(node.name))`, which
 splits the name on `.`, builds the member chain and puts the root through `build_getter` like any
