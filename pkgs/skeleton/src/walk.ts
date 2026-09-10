@@ -603,6 +603,15 @@ export interface Walk {
 	 */
 	selecting?: { value: string; multiple: string };
 	/**
+	 * What each name an enclosing `{#each}` binds is iterated over, as the block's source expanded.
+	 *
+	 * Only a plain name, and only the expression rather than the render's answer to it. A component
+	 * tag naming one of these is the one thing that cannot be a marker: the body is written once and
+	 * every item renders the same bytes, so the tag has to be the same component for all of them.
+	 * See `perItem()`.
+	 */
+	items: ReadonlyMap<string, string>;
+	/**
 	 * True while walking an element's attributes, as against a component's props. Only an
 	 * element is scoped by the stylesheet, which is what `classValue` is for.
 	 */
@@ -2116,6 +2125,90 @@ const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
  * every expression goes through. What the taken branch leaves has to be inert; one that still
  * reaches the request is a component chosen per request, which is not enumerable and is refused.
  */
+/**
+ * A component tag whose root an `{#each}` binds, written as the one component every item is.
+ *
+ * The body of an each is written once and every item renders those bytes, so a tag naming the item
+ * is only expressible where the item is the same component throughout. The block's source is read
+ * for that: a list the source writes out, whose elements all name one thing. Then the root is
+ * written as that thing and the tag is Svelte's to render, which is where a member tag already goes
+ * -- `2-analyze/visitors/Component.js` marks a tag with a `.` in it dynamic and the server writes
+ * the anchors for it.
+ *
+ * True where it wrote the name, false where the caller should refuse. A list whose elements differ
+ * is the false case and stays refused: the body would have to be written once per element, which is
+ * the block unrolled and not the block.
+ */
+function perItem(
+	node: AstNode,
+	tag: string,
+	walk: Walk,
+	edits: [number, number, string][],
+): boolean {
+	const [head] = tag.split('.');
+	if (head === undefined) return false;
+	const over = walk.items.get(head);
+	if (over === undefined) return false;
+	const listed = elements(over);
+	if (listed === null || listed.length === 0) return false;
+	const [only] = listed;
+	if (only === undefined || !listed.every((one) => one === only)) return false;
+	// A tag's name is a path of names and not an expression, so what goes in its place has to be one
+	// too. `member_id` splits on `.` and builds the chain, which is the only shape it can build.
+	const named = unwrapped(only);
+	if (!PATH.test(named)) return false;
+	// The block's source is a derivation like any other, and `carriedBy` carries no component: the
+	// default export of a `.svelte` file is composed at compile time and is never a value an
+	// expression calls. So a list of components written that way cannot be evaluated at all, and the
+	// tag is not this pass's to answer. A named export of a component's module script is an ordinary
+	// import and is carried, which is what `component-namespace` writes.
+	const [root] = named.split('.');
+	if (root === undefined || componentImport(root, walk)) return false;
+	const at = span(node);
+	const name = typeof node['name'] === 'string' ? node['name'] : '';
+	if (at === null || name === '' || !walk.source.startsWith(`<${name}`, at[0])) return false;
+	edits.push([at[0] + 1, at[0] + 1 + head.length, named]);
+	const closing = `</${name}>`;
+	if (walk.source.endsWith(closing, at[1])) {
+		const from = at[1] - closing.length + 2;
+		edits.push([from, from + head.length, named]);
+	}
+	return true;
+}
+
+/** A tag's name: `member_id` splits it on `.` and builds the chain, so it is a path of names. */
+const PATH = /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/;
+
+/** The elements of an array literal, as source, or null where the expression is not one. */
+function elements(expression: string): string[] | null {
+	let ast: Node;
+	try {
+		ast = parsed(expression) as unknown as Node;
+	} catch {
+		return null;
+	}
+	const fragment = (ast as unknown as AstNode)['fragment'];
+	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+	const [tag] = nodes;
+	if (nodes.length !== 1 || !isNode(tag) || tag['type'] !== 'ExpressionTag') return null;
+	// `parsed` wraps the expression in a component -- `{<expression>}` in its markup -- so an offset
+	// in the tree is an offset in that wrapper. Just past the tag's own `{` is the expression's
+	// offset zero, which the expression node is not: a parenthesised one may or may not survive as a
+	// node of its own, and its start is then past the paren.
+	const base = (span(tag)?.[0] ?? -1) + 1;
+	if (base === 0) return null;
+	let held: unknown = tag['expression'];
+	while (isNode(held) && held['type'] === 'ParenthesizedExpression') held = held['expression'];
+	if (!isNode(held) || held['type'] !== 'ArrayExpression') return null;
+	const found: string[] = [];
+	for (const one of Array.isArray(held['elements']) ? held['elements'] : []) {
+		const where = span(one);
+		if (where === null) return null;
+		found.push(`(${expression.slice(where[0] - base, where[1] - base)})`);
+	}
+	return found;
+}
+
 /**
  * Refuses a component tag whose name this walk decides, saying which of the two questions it is.
  *
@@ -4463,7 +4556,11 @@ function collect(node: unknown, walk: Walk): void {
 				// `<svelte:component this={C} />` written another way, and it is refused where that
 				// would be. Left alone it reached the render as the marker standing for the name, and
 				// Svelte called it: `C is not a function`, an error about nothing the author wrote.
-				if (type === 'Component') naming(tag, walk);
+				//
+				// A name an `{#each}` binds is the one that can be answered rather than refused: the
+				// body is written once and every item renders it, so the tag is the same component for
+				// all of them or it is nothing this IR can hold. See `perItem()`.
+				if (type === 'Component' && !perItem(node, tag, walk, edits)) naming(tag, walk);
 				// Not entered: the dynamic call gets the settled expression after all.
 				if (settledTag !== null) settledTag.written();
 				// `renderer.select` keeps the select's value on `this.local`, which a child renderer
@@ -5522,8 +5619,15 @@ function collect(node: unknown, walk: Walk): void {
 					? expand
 					: (child, more) =>
 							expand(child, more === undefined ? apart : new Map([...apart, ...more]));
+			// What this block binds, for a component tag that names it. The expression rather than the
+			// render's answer: a list of components is not data and the render answers nothing for it.
+			const named = destructured || context === null ? null : source.slice(context[0], context[1]);
+			const bound =
+				named === null || !IDENTIFIER.test(named)
+					? walk.items
+					: new Map([...walk.items, [named, awaits]]);
 			within.push([index, 0]);
-			collect(node['body'], { ...walk, dynamic: inside, expand: body });
+			collect(node['body'], { ...walk, dynamic: inside, expand: body, items: bound });
 			within.pop();
 			if (isNode(fallback)) {
 				within.push([index, -1]);
@@ -6807,6 +6911,7 @@ export function rewrite(
 		plain: declared.rewrite,
 		runeOf: declared.rune,
 		declares: declared.has,
+		items: new Map(),
 		legacy: legacyMode(ast),
 		sent,
 		snippets,

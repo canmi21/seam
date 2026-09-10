@@ -725,6 +725,23 @@ const accepted: Case[] = [
 	},
 
 	{
+		// `Component.js` is one line -- `context.visit(b.member_id(node.name))` -- so a tag's name is
+		// an expression and `<C />` is `<svelte:component this={C} />` written another way. Over a
+		// name an each binds, the tag used to reach the render as the marker standing for the item
+		// and Svelte called it: `C is not a function`, naming nothing the author wrote. Where the
+		// block's source is a list whose elements all name one component, the root is written as that
+		// component and the tag is Svelte's to render, which is where a member tag already goes.
+		name: 'a component tag named by what an each block binds',
+		beside: {
+			Tip: '<span>tip</span>',
+			Reg: "<script module>import Tip from './Tip.svelte'; export const Reg = { Tip };</script>",
+		},
+		source:
+			"<script>import { Reg } from './Reg.svelte'; let { data } = $props();" +
+			' const list = [Reg];</script>{#each list as R}<R.Tip />{/each}<i>{data.a}</i>',
+		data: [{ a: 'x' }, { a: '' }],
+	},
+	{
 		name: 'a child that writes a prop twice, and one that never writes it',
 		beside: {
 			Twice: '<script>let { p } = $props();</script><b>{p}</b><i>{p}</i>',
@@ -3846,16 +3863,22 @@ const refused: Case[] = [
 			'<b>{getContext(data.k)}</b>',
 	},
 	{
-		// `Component.js` is one line -- `context.visit(b.member_id(node.name))` -- so a tag's name is
-		// an expression and `<C />` is `<svelte:component this={C} />` written another way. Over a
-		// name an each binds, the tag used to reach the render as the marker standing for the item
-		// and Svelte called it: `C is not a function`, an error naming nothing the author wrote.
-		name: 'a component tag named by what an each block binds',
+		// The body of an each is written once and every item renders those bytes, so a tag naming the
+		// item is expressible where the item is the same component throughout and not otherwise. Two
+		// components in the list would want the body written once each, which is the block unrolled
+		// rather than the block.
+		name: 'a component tag named by an each block over two components',
 		says: 'decided per item',
-		beside: { Tip: '<span>tip</span>' },
+		beside: {
+			Tip: '<span>tip</span>',
+			Tap: '<span>tap</span>',
+			Reg:
+				"<script module>import Tip from './Tip.svelte'; import Tap from './Tap.svelte';" +
+				' export const One = { Tip }; export const Two = { Tap };</script>',
+		},
 		source:
-			"<script>import Tip from './Tip.svelte'; let { data } = $props(); const list = [Tip];" +
-			'</script>{#each list as C}<C />{/each}<i>{data.a}</i>',
+			"<script>import { One, Two } from './Reg.svelte'; let { data } = $props();" +
+			' const list = [One, Two];</script>{#each list as R}<R.Tip />{/each}<i>{data.a}</i>',
 	},
 	{
 		// Asked over the finished list of derivations as well as at each marker `varies()` plants:

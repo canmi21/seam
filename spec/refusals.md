@@ -2193,6 +2193,23 @@ The key has to be found in the call's **first argument** rather than anywhere in
 children are an argument of the same call, so an `<option>` inside one carrying a marker of its own
 would otherwise answer for the select.
 
+**A name an `{#each}` binds is answered where every item is the same component.** The body of an
+each is written once and every item renders those bytes, so a tag naming the item is expressible
+exactly where the item is one component throughout. The block's source says: a list the source
+writes out, whose elements all name one thing. The root is then written as that thing and the tag is
+Svelte's to render, which is where a member tag already goes -- `2-analyze/visitors/Component.js`
+marks a tag with a `.` in it dynamic and the server writes the anchors for it.
+`runtime-legacy/component-namespace` is the sample, `<LazyWidget.Tooltip />` over `[Widget]`.
+
+Three things keep it narrow, and each is a fact rather than caution. A list whose elements differ
+would want the body written once per element, which is the block unrolled and not the block. What
+goes in a tag's name has to be a path of names, because `member_id` splits on `.` and builds the
+chain and can build nothing else. And an element that is a component's **default** import is not
+one: the block's source is a derivation like any other and `carriedBy` carries no component, the
+default export of a `.svelte` file being composed at compile time rather than called. A named export
+of a component's module script is an ordinary import and is carried, which is what the sample
+writes.
+
 **A tag's name is an expression, and a name a block binds is a component chosen per item.**
 `Component.js` in the server transform is one line: `context.visit(b.member_id(node.name))`, which
 splits the name on `.`, builds the member chain and puts the root through `build_getter` like any
