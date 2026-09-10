@@ -1864,6 +1864,25 @@ const accepted: Case[] = [
 		],
 	},
 	{
+		// A `bind:` whose value the request does not decide is left exactly as written, both halves
+		// of it, because both are the render's to run: Svelte wraps the caller's template in the
+		// settling loop, `bind_props` assigns into the value the caller actually holds, and the
+		// markup after the tag reads what it left. Written out as the getter expanded, the child
+		// filled in an object literal this pass had just built and the caller's own read saw
+		// nothing. `component-binding-blowback-d` is the vendored shape.
+		name: 'a component `bind:` on an inert value, in a child the walk cannot enter',
+		beside: {
+			One:
+				"<script>import Two from './Two.svelte'; export let list;</script>" +
+				'{#each list as item}<Two bind:value={item.value} />{/each}',
+			Two: "<script>export let value = 'filled';</script>",
+		},
+		source:
+			"<script>import One from './One.svelte'; const obj = { a: [{}] };</script>" +
+			'<One bind:list={obj.a} /><p>{obj.a.map(JSON.stringify)}</p>',
+		data: [{}],
+	},
+	{
 		// The settling loop renders the template again, so a name one binding settles is read by the
 		// markup after it on the same pass and by the markup before it on the next. A block's tests
 		// are expanded against the bindings settled so far, and the source order falls out of the

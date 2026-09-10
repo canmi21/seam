@@ -4794,6 +4794,18 @@ function collect(node: unknown, walk: Walk): void {
 						if (given && isNode(attr) && attr['type'] === 'BindDirective') {
 							const name = typeof attr['name'] === 'string' ? attr['name'] : '';
 							const whole = span(attr);
+							// Where nothing in the value is the request's, both halves are left exactly
+							// as written, because both are the render's to run: Svelte wraps the caller's
+							// template in the settling loop, `bind_props` assigns into the value the
+							// caller actually holds, and the markup after the tag reads what it left.
+							// Written out as the getter expanded instead, the child fills in a copy --
+							// an object literal this pass has just built -- and
+							// `component-binding-blowback-d` wrote `{}` where Svelte wrote
+							// `{"value":"0:0"}`. It is the same rule the prop above follows, one
+							// construct along.
+							if (site.payload !== null && !varies(expand(getterOf(attr, source)), walk)) {
+								continue;
+							}
 							if (whole !== null) {
 								// The getter, written as the attribute it used to be rewritten to, with a
 								// marker standing in it where the request decides the value -- which is what
@@ -6879,7 +6891,22 @@ function descend(
 		// Left to Svelte, a binding the child sends back writes the caller's markup a second time
 		// and this compiler would keep the first pass, which is bytes nobody asked for rather than
 		// a component it could not read. So it is the author's to see too.
-		if (walk.asking !== true && reason.includes('a binding the child sends back')) throw error;
+		//
+		// **Past one catch rather than all of them.** The binding is written in the markup of the
+		// component this walk is in, not in the child that declares the prop, so that component is
+		// the one to leave to Svelte: `bind_props` then runs inside Svelte's own render of it and
+		// whatever it settled is there for the caller above to read. Rolling back only the child
+		// leaves the binding in a copy this pass rewrote, where the value it fills in is a
+		// placeholder's -- `component-binding-blowback-d` wrote `{}` where Svelte wrote
+		// `{"value":"0:0"}`. Where there is no catch outside this one the entry holds the binding
+		// and there is nothing to leave, so it reaches the author as before.
+		if (walk.asking !== true && reason.includes('a binding the child sends back')) {
+			const carried = error as { past?: true };
+			if (carried.past !== true) {
+				carried.past = true;
+				throw error;
+			}
+		}
 		// Left to Svelte, a child that changes a value is handed the marker standing for it and
 		// computes with that: `export let value; value += 1` over a marker wrote `%%s0%%1`, which is
 		// the marker back with a digit on it, so nothing downstream could tell. The author's to see.
