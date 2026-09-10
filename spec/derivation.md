@@ -704,11 +704,8 @@ the walk runs again told, so the branch the answer excludes is folded on that se
 on the first. Checking the names on the first reported one that lives in markup no request reaches,
 a pass before the walk knew it.
 
-**A test may read a store this file makes.** `varies` answers that a `$store` read cannot be handed
-to the render, and that is about the **expansion**: it names helpers -- `$$get_store` -- the render
-has not got. An ask is not the expansion. `asWritten` gives the render the author's own source,
-which it evaluates natively, and the derivation still holds the expansion, whose helpers the carried
-bundle has.
+**A test may read a store this file makes.** The ask is not the expansion, and the section after
+this one states that once rather than per construct.
 
 **A test after the one that answered is never evaluated**, so the names in it are not names the data
 has to carry, and it is blanked with the branch it opens. One before it was evaluated and its names
@@ -726,6 +723,49 @@ whole tree the entry reaches, and it reads each file from disk -- which is not t
 read, since `unbound` and `inlined` rewrite it first. An offset from one does not name the same
 characters in the other, and blanking by them turned `</label>` into `<` and stopped the parser. So
 the entry is checked where the walk is and is not asked again there.
+
+## What the render is asked is the author's text, and the expansion is what a request evaluates
+
+Two questions are asked of one expression and they have different subjects, which is why asking one
+of the other is a defect rather than an approximation.
+
+| | asked so that | its subject |
+| --- | --- | --- |
+| **is this the request's?** | the walk knows whether to plant a hole or leave the bytes to Svelte | what the author wrote |
+| **can this survive being a derivation?** | the artifact does not carry what a request cannot evaluate | the expansion |
+
+The expansion exists because this compiler made it. It carries Svelte's own helpers under `$$`
+names, it carries the caller's expressions substituted into a child's, and it carries a
+declaration's initialiser at every read. **None of that is the author's program, so none of it is
+evidence about what the request decides.** Handing it back to the render is not an option either:
+Svelte's compiler refuses a `$`-prefixed variable in markup outright, so an expansion naming a
+carried helper is a derivation before anything asks what it reads.
+
+`asWritten` is the half that answers the first question: the render is given the author's own source
+wherever nothing the walk bound was substituted into it. So `$foo` over a store this file makes is a
+question the render evaluates natively, while the derivation still holds `$$get_store` and the
+carried bundle still has it.
+
+**It has been arrived at twice before, and the third construct was still asking the expansion**,
+which is what makes it a rule rather than a case. A block's test was the first, where `varies`
+gained the flag that says the render is given the author's source. An expansion written into the
+render's own source was the second, where `asWritten` became the one place deciding which of the two
+spellings goes there. A `{@render}`'s callee is the third and had neither. Measured, on one snippet
+the same file declares, reached two ways:
+
+```
+let s = hello;             {@render s()}     compiles, byte for byte
+let s = writable(hello);   {@render $s()}    refused for reading the request
+```
+
+Nothing in that file is a prop. What made the second vary was `$$get_store` in the expansion, which
+is a helper the walk put there. `runtime-runes/snippet-store` is the sample, and
+[refusals.md](refusals.md) has what a render tag does with the answer.
+
+**So the rule is one line: a construct asks whether an expression is the request's by asking the
+author's text, and asks what a derivation must survive by asking the expansion.** A construct that
+has only one of the two spellings in hand has to get the other before it asks, not ask the one it
+has.
 
 ## One derivation per expression, not per read of it
 
@@ -804,8 +844,29 @@ Held at the call site rather than at the declaration, and that is the measured l
 applied to every embedded read of a holding declaration inside one file turned 47 samples that wrote
 Svelte's bytes into refusals, because the reference reaches places the render evaluates that the
 call-site form does not. An in-file `{#each items as item}{items.includes(item)}{/each}` is
-therefore still substituted, and still wrong; no vendored sample writes one, and the fix is the same
-mechanism reaching further rather than a different one.
+therefore still substituted, and still wrong, and the fix is the same mechanism reaching further
+rather than a different one.
+
+**A vendored sample writes the in-file shape, and a refusal is standing in front of it.**
+`runtime-legacy/context-api` declares `const panel = {}` and reads it twice: `registerPanel(panel)`
+in the instance script, which the render evaluates, and `$selectedPanel === panel` in the markup,
+which is a test the render answers. Two evaluations of `{}` are two objects, so a comparison over
+the expansion is false where Svelte's is true, and no derivation could answer it either, since
+`getContext` asks the component being rendered and there is none. The test has to reach the render
+as the author wrote it, which is the section above. Measured with the `class:` directive that
+refuses the file first taken off:
+
+| the file | the bytes |
+| --- | --- |
+| one `<TabPanel>` | Svelte's |
+| two | both take the else where Svelte takes the first |
+| two, comparing something that is not an identity | Svelte's |
+
+So the ask reaches the render, and the registration the render runs is correct; what stops being the
+author's text once a second copy of the component exists has not been read yet. **It is the first
+thing to find, because it is bytes.** Lifting the `class:` refusal in [refusals.md](refusals.md)
+before it is found trades nothing differing for something differing, which is the one trade
+[suite.md](suite.md) ranks against.
 
 **Held means one derivation, named, and read by that name.** A derivation is computed once per
 request and cached, and an expression reads its scope through `with`, so one derivation may name

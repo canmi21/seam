@@ -115,15 +115,29 @@ refused for assigning to a name outside the value this compiler has to write.
 
 | count | what it is |
 | ----- | ---------- |
-| 6 | a component binding sending a value back where the condition is the request's |
-| 3 | a `{@render}` whose callee this compiler cannot follow to a `{#snippet}` |
+| 6 | a component binding sending a value back, in three shapes [roadmap.md](roadmap.md) tells apart |
+| 2 | a raw snippet whose bytes the request decides, which is decided and not yet said |
+| 1 | a `{@render}` whose callee was asked of the expansion rather than of the author's text |
 | 1 | a context read in a value this compiler has to write itself |
 
-The first is a decision about block semantics and [roadmap.md](roadmap.md) has it. Every one of them
-names a specification file, which is the whole of what a refusal owes. The three that used to fail
-inside the derivation evaluator are counted as decisions now, being the rule about a value the
-render changes reaching the walk through a spread, a generator and a computed key rather than by
-name.
+Every one of them names a specification file, which is the whole of what a refusal owes. What none
+of them does yet is name the right question, and reading the ten one at a time moved three rows:
+
+- **The six bindings are not one shape and the message says they are**, claiming the condition is
+  the request's where three of the six read nothing the request decides.
+  [roadmap.md](roadmap.md) has the three and what each needs.
+- **Two of the three render tags are the scope line rather than a gap.** An artifact cannot run
+  Svelte's renderer per request, which is what a raw snippet reading the request would need. They
+  are counted here until the message says so, because this table is read off the messages;
+  [refusals.md](refusals.md) has the decision.
+- **The context read is one refusal standing in front of a difference.** The file compiles once the
+  `class:` directive that turns it away is taken off, and then writes bytes that are not Svelte's.
+  Taking that refusal before the difference is found trades the only column that matters, so the
+  order is the difference first. [derivation.md](derivation.md) has the measurement.
+
+The three that used to fail inside the derivation evaluator are counted as decisions now, being the
+rule about a value the render changes reaching the walk through a spread, a generator and a computed
+key rather than by name.
 
 ### When it is done
 

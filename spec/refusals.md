@@ -1086,6 +1086,25 @@ scope reached Svelte's renderer and failed there with `children is not a functio
 author's mistake reported in the wrong place, so the callee has to resolve somewhere before this
 applies.
 
+**Whether nothing in the call is the request's is asked of the author's text.** It was asked of the
+expansion, so `{@render $s()}` over a store this file makes was turned away for reading the request
+in a file that has no props at all, naming a snippet the same file declares: what varied was
+`$$get_store`, which the walk put there. [derivation.md](derivation.md) states that once for every
+construct that asks it. `runtime-runes/snippet-store` is the sample.
+
+**And where the call is the request's, a raw snippet is a decision rather than a gap.**
+`createRawSnippet(fn)` on the server is `renderer.push(fn(...getters).render().trim())`, so the
+bytes are whatever the author's `render` returns and, where that reads the request, they are a
+string computed per request. Getting the string means calling what this compiler was handed with a
+renderer of its own, which is standing in for Svelte's renderer contract; and the two samples that
+write the shape go further, calling `svelte/server`'s own `render()` inside that function. **An
+artifact that runs Svelte's renderer per request is the runtime fallback this file opens by
+refusing**, and a backend that is not Node cannot do it at all, so this is the scope line rather
+than work nobody has done. The condition for reopening it is the one named at the top of this file.
+What is owed meanwhile is the message: the compiler says the callee cannot be followed where what it
+means is that the value would have to be rendered per request, and [conformance.md](conformance.md)
+counts `runtime-runes/snippet-raw-component` and `-ssr-dev` as gaps until it says so.
+
 **A child's `$$props`, `$$restProps` and `$$slots` are the object its call site passed.**
 `transform-server.js` binds each of them over that object: `$$props` is `sanitize_props($$props)`,
 `$$restProps` is `rest_props($$sanitized_props, [named])`, `$$slots` is `sanitize_slots($$props)`.
@@ -2601,6 +2620,30 @@ owns the whole attribute, which is one more thing the assembler knows about a ma
 backends run Svelte's implementation of the removal rule rather than agreeing about one. The same
 `clsx` now wraps a class written as one expression with no directive beside it, which used to write
 an array as its `toString`.
+
+### A run the request does not decide is the render's, as a `style:` run already is
+
+`style:` says this in as many words: where the string its base is re-parsed from is the same for
+every request, the render is the one that has it, and the whole run is left exactly as written for
+Svelte's own `to_style` to build. `class:` is the same kind of construct, a decision with the value
+inside the outcome, and it had no such rule, so a directive was enumerated whatever its value read.
+
+The enumeration is not what that costs. It is that an enumerated value has to survive being a
+derivation, and a value the render was going to evaluate need not:
+`class:selected={$selectedTab === tab}` over a context this render sets reads `getContext`, which
+asks the component being rendered and is answered nowhere else. Measured on
+`runtime-legacy/context-api`, whose only refusal it is: with that one directive taken off, the file
+compiles.
+
+So the rule is `style:`'s, written once for both. **A run whose attribute and whose every directive
+vary with nothing the request decides is left as written**, and Svelte builds it in the render. The
+run still has to be taken charge of rather than stepped over, or the directive reaches the arm that
+refuses what the walk has never met, which is what the `style:` rule already says of itself.
+
+**It is not the first thing to take.** What this refusal is standing in front of is in
+[derivation.md](derivation.md): with the directive gone the file compiles and writes bytes that are
+not Svelte's, and trading nothing differing for something differing is the one trade
+[suite.md](suite.md) ranks against.
 
 ## A `?:` handed to a package chooses what is handed, and is enumerated
 

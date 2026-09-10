@@ -383,11 +383,35 @@ settled name is
 expr === undefined ? <what the child sends> : expr
 ```
 
-one ternary per bound prop, chaining where one binding decides whether another component renders.
 A ternary is a value, and a value the request decides is what a marker already stands for; where
 the name goes on to decide a branch, the choice machinery takes it from there as it does for any
 request-decided value. Nothing here needs the UI run per request, which is the only thing the scope
 line gives up.
+
+**One ternary per bound prop is the closed form only while no binding decides another's block, and
+that qualification was missing here.** The loop renders the whole template again, so a name settled
+on one pass is read on the next by markup whose blocks that next pass decides, and the two passes do
+not answer the same. Measured on two of Svelte's own samples that differ in where one line sits and
+in nothing else:
+
+```
+conditional     <p>y: {y}</p> {#if x}<Foo bind:y/>{:else}<Bar bind:y/>{/if} <Baz bind:x/>
+conditional-b   <p>y: {y}</p> <Baz bind:x/> {#if x}<Foo bind:y/>{:else}<Bar bind:y/>{/if}
+
+conditional     y: bar, with the block writing <!--[0-->
+conditional-b   y: foo, with the block writing <!--[0-->
+```
+
+`Baz` defaults `x` to `true` and sends it up. In the first, the block is decided on pass one with
+`x` still `undefined`, so `Bar` is what sends `bar`; on pass two `x` is `true`, so the branch that
+renders is `Foo`, reading the value the branch that is not in the response gave it. Written from the
+settled state the closed form answers `foo`, and Svelte answers `bar`.
+
+**The correction is the same shape unrolled by pass, and it is bounded.** `bind_props` assigns only
+where the caller passed `undefined` and never back, so a name settles once and the loop runs at most
+one pass more than the template has bound props. The settled read is then a ternary per pass, each
+pass's block tests taken from the pass before it, which is still a value and still asks nothing of
+the IR. What it asks for is a walk that has the passes, where today it has one.
 
 **Both halves of that are built.** The settled name is a channel of its own, `sent`, read where the
 expression itself reads the name and never inside a declaration this pass expands on the way, so a
@@ -396,12 +420,15 @@ half way through a template Svelte re-renders whole, the pass that finds a bindi
 it records what the binding settles and the walk runs again told, the way it already runs again
 told what the render answered.
 
-**What stays refused is a binding written inside a block.** Which child sends back is then the
-block's answer rather than the file's -- `{#if a}<Foo bind:x/>{:else}<Bar bind:x/>{/if}` settles
-`x` to one default or the other, and the read outside the block sees whichever branch ran. One
-ternary per file cannot say that; the block's test would have to be inside the ternary, which is
-the next step and not this one. Written as the file's answer it is bytes rather than a refusal,
-measured on two samples.
+**What stays refused is a binding written inside a block, and that is two different things.** Which
+child sends back is then the block's answer rather than the file's -- `{#if a}<Foo bind:x/>{:else}
+<Bar bind:x/>{/if}` settles `x` to one default or the other, and the read outside the block sees
+whichever branch ran. Where nothing settles the block's own test, the test inside the ternary is the
+whole of it: `component-binding-parent-supercedes-child-b` is that, and measured with the block
+taken off, the same file settles correctly both for a request that sends the prop and for one that
+does not. Where a binding does settle it, it is the pass unrolling above. One ternary per file
+cannot say either, and written as the file's answer it is bytes rather than a refusal, measured on
+two samples.
 
 **Neither of the guesses, recorded so they are not made again.** Leaving the component to Svelte
 does not work: the render settles correctly, but the caller's name is substituted from the walk's
@@ -460,9 +487,28 @@ is `undefined`, and a prop the child assigns after declaring is refused where it
 The refusal is thrown past `descend`'s catch, which otherwise turns a refusal into "left to the
 render" -- and left to the render is exactly the wrong first pass this is about.
 
-Four samples left, and they are the two halves not built: reading a child through a
-`<svelte:component>`, and the caller that binds a **local**, where whether it is `undefined` is
-known at compile time and the fixed point is a compile-time render rather than a refusal.
+**Six samples left, and reading them says the refusal's own sentence is wrong about half of them.**
+It says the condition is the value the request brings; in three of the six nothing in the file is
+the request's at all.
+
+| samples | what it is | what answers it |
+| --- | --- | --- |
+| `component-binding-store` | the caller binds `$value.value` over a store the file makes, which is `''` rather than `undefined`, so nothing travels | the render says whether it is `undefined`, which is the caller-binds-a-local half |
+| `parent-supercedes-child-b` | one binding inside a block nothing settles | the block's test inside the ternary |
+| `conditional`, `conditional-b` | a binding inside a block another binding settles | the pass unrolling above |
+| `blowback-d`, `blowback-e` | the writeback fills in an each item of a `const` the caller's markup reads after the tag | undecided, below |
+
+**The two `blowback` samples are the one place this refusal costs bytes that were otherwise there.**
+`main.svelte` declares `const obj = { a: [{}], b: [] }`, hands `obj.a` down, and reads
+`{obj.a.map(JSON.stringify)}` after the tag; the child binds `item.value` inside an `{#each}` and
+the grandchild's default travels up into that object. Nothing in that file is a prop, so Svelte's
+own render is the whole answer and the walk had only to stay out of it. It cannot, because this
+refusal is thrown past `descend`'s catch on purpose -- which is right where the caller's name is
+substituted into bytes from this pass's own model, and wrong where the caller's read is inert and
+goes back to the render as the author wrote it. Narrowing the throw to the case it was written for
+is one answer; the other is that substitution cannot follow a value something changes, which is a
+decision already taken further down this file. **Which of the two it is has not been settled, and
+the measurement that would settle it cannot be taken while the refusal escapes the rollback.**
 
 ### The select row was three things, and only one of them was about `<select>`
 
@@ -652,10 +698,9 @@ an object with a `subscribe` function. A function is not data. Reading the value
 and putting *that* in the data is the same page, which is what the refusal already tells the author.
 The six are counted under **decided** in [conformance.md](conformance.md) now, not as gaps.
 
-**`createRawSnippet`, 5.** Abandoned, and recorded here so it is not derived again. Reproducing it
-means standing in for Svelte's renderer contract -- a snippet that is handed a renderer and pushes
-its own trimmed string -- and [refusals.md](refusals.md) says the two backends run Svelte's
-implementation rather than agree on a rule. Reopening it is reopening that.
+**`createRawSnippet`, 5.** Not a decision that waits on anything, and moved: see **Decided, and not
+built** below. It was written here as abandoned, which reads as work nobody wanted rather than as
+the scope line, and those are the two things this file exists to keep apart.
 
 **A `<svelte:boundary>` whose `failed` body calls over a request value, 4.** The section above says
 a boundary whose body throws is a decision where the throw depends on the request and a gap where
@@ -840,6 +885,18 @@ the load stage's by definition, and it is refused by decision: the walk turns an
 away by name, since Svelte itself compiles one only under `experimental.async`. Non-async SSR
 writes the pending branch and awaits nothing, which is what `{#await}` compiles to here and is
 kept.
+
+**A raw snippet whose bytes the request decides.** `createRawSnippet(fn)` is
+`renderer.push(fn(...getters).render().trim())` on the server, so where that `render` reads the
+request the bytes are a string an artifact would have to compute per request -- by calling what it
+was handed with a renderer of its own, and, in both of the samples that write the shape, by calling
+`svelte/server`'s own `render()` inside it. That is running Svelte's renderer per request, which is
+the runtime fallback [refusals.md](refusals.md) refuses in its first section and which a backend
+that is not Node cannot do at all. Where the same construct reads nothing the request decides it
+already compiles, because the render evaluates it and the bytes are Svelte's. The condition for
+reopening is the one refusals.md names: compile-time and request-time rendering both appearing on
+one page. What is owed before the count moves is the message, which still says the callee cannot be
+followed.
 
 **Several hydration roots on one page.** Out of scope by the scope line: after
 hydration the page is one Svelte SPA, and Svelte hydrates one root against one payload. Astro's
