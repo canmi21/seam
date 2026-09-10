@@ -12,11 +12,11 @@ name everywhere else.
 
 ```
                 identical  empty  differs  refused  oracle
-off                  1480     41        0      297      17
-on                   1630     42        2      138      23
+off                  1483     41        0      294      17
+on                   1634     42        1      135      23
 ```
 
-**150 of the 183 samples this compiler refuses as async write Svelte's exact bytes** -- 143 of them
+**151 of the 183 samples this compiler refuses as async write Svelte's exact bytes** -- 143 of them
 with no change to the compiler at all, only the flag at the compile and an `await` at the render,
 and seven more once the walk keeps the `await` it was substituting away. That is the number that
 decides the question.
@@ -85,6 +85,87 @@ either, and the suite gives each sample a deadline now.
 **Not turned on.** The flag is upstream's experiment, not ours to ship on their behalf, and the
 eight anchors are unwritten. What this section records is that the wall is theirs and thin, not
 ours and structural.
+
+## A value the render changes: the rule is over-broad, and by how much is measured
+
+Two rules refuse a name the render changes -- assigned after being declared, or changed by a
+function this render calls -- and they are the largest thing left after async. **80 of the 294
+refusals are theirs.** [derivation.md](derivation.md) states them. This entry is what is wrong with
+where they are asked.
+
+**They fire in `locals()`, before anything knows whether the read will be substituted at all.** The
+compile-time render runs the instance script for real, so `let x = 1; x = 2` is a value it has and
+writes correctly; what cannot follow the assignment is substitution. Where the render evaluates the
+author's own text there is nothing to refuse.
+
+**Measured, both rules turned off:**
+
+```
+             identical  empty  differs  refused
+on                1483     41        0      294
+off               1521     48       25      224
+```
+
+So the rules are over-broad by about 38 samples and genuinely needed for 25. A first narrowing was
+tried and abandoned on the measurement: refusing only where the changed name reaches a *derivation*
+leaves 4 of the 25 writing wrong bytes, because a derivation is not the only thing the walk writes
+out. Read out one at a time, those four say what the condition really is:
+
+- `props-default-value-rest` and `props-default-value-lazy` change a **prop**, and a child copy is
+  handed `null` for every prop, so a markup read of one is always written out expanded.
+- `binding-indirect-value` changes a prop the caller binds, which `bind_props` sends back up.
+- `snippet-default-arg` changes nothing the markup reads *directly*: the walk substitutes a snippet
+  parameter with its default, `untrack(() => count++)`, so the render calls it once per read where
+  Svelte calls it once per render, and `{count}` -- kept as the author wrote it -- is then evaluated
+  against a count the walk moved.
+
+**So the question is not "does this become a derivation" but "does the walk write this out".** The
+answer belongs to the walk, which knows which reads it kept as source; `locals()` cannot know it.
+The shape of the change: `locals()` reports the names rather than throwing -- the ones assigned
+after being declared, and the ones whose evaluation changes a name the markup reads -- and the walk
+refuses at each site where it writes an expansion instead of the author's text, on the source for
+the first set and on the expansion for the second.
+
+**One step of it has landed**, because the narrowing cannot be measured without it: the branch for
+an expansion that folds to a literal now goes through `asWritten` like every other, so the render is
+handed the author's text wherever it can evaluate it. Neutral on the suite with the rules on, and
+worth 7 of the 32 wrong-byte samples with them off. See [derivation.md](derivation.md).
+
+## A component binding sends a value back, and which value is a branch
+
+Six refusals, all in `runtime-legacy`, and this is what they are. Read forward:
+
+- `visitors/shared/component.js:141` compiles `bind:y` on a component to a getter and a setter on
+  the props object; the setter assigns back to the caller's `y` and sets `$$settled = false`.
+- `internal/server/index.js:388`, `bind_props(props_parent, props_now)`, copies a value up only when
+  the caller passed `undefined`, the child's value is not `undefined`, and the caller's props object
+  has a setter for that key -- which is what `bind:` created.
+- `transform-server.js:194` wraps a caller that uses component bindings in
+  `do { $$settled = true; $$inner_renderer = $$renderer.copy(); $$render_inner(...) } while
+  (!$$settled)`, then `subsume`.
+
+So a component binding is not one render. It is a fixed point over the caller's **whole template**,
+and the bytes written *above* the tag depend on what the child sends back.
+
+The compiler already answers this where the caller's value is a constant: `site.sends` binds the
+name to `child === undefined ? caller : child`. The six left are the ones where the condition is the
+request's. `component-binding-conditional` is the clearest:
+
+```svelte
+<p>y: {y}</p>
+{#if x}<Foo bind:y/>{:else}<Bar bind:y/>{/if}
+```
+
+`Foo` defaults `y` to `'foo'` and `Bar` to `'bar'`, so the byte above the tag is one or the other
+depending on `x`, and only where the request left `y` undefined.
+
+**It is in scope by the scope line** -- `x` is data and both outcomes are knowable -- and it is not
+one of the blocks this protocol has. Ours are decisions inside the markup; this is a decision about
+which of several whole-template renders the request gets, with the value flowing backwards to bytes
+written before the tag. Expressing it means walking the caller once per branch of every binding
+condition and keeping the settled value per branch, which multiplies renders and needs a rule for
+what happens when two bindings' conditions cross. That is a block semantics this file does not have,
+and it is the decision this entry is waiting on.
 
 ## The scope line: what compile-time rendering is for
 

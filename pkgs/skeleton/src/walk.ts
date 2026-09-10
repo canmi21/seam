@@ -3968,7 +3968,7 @@ function collect(node: unknown, walk: Walk): void {
 					walk.inClass === true ? `(1 ? ${text} : (${source.slice(at[0], at[1])}))` : text,
 				);
 			if (constant(written)) {
-				edits.push([at[0], at[1], shielded(written)]);
+				edits.push([at[0], at[1], shielded(asWritten(node['expression'], written, walk))]);
 				return;
 			}
 			// A value the request does not decide is the same bytes every request, and the render

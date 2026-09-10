@@ -87,12 +87,12 @@ render.** Nothing differing, nothing refused as a gap.
 ```
                         samples  identical  empty  differs  refused  skipped  oracle
 server-side-rendering       131         85      4        0       20       16       6
-runtime-runes              1048        563     16        0      192      268       9
-runtime-legacy             1209        832     21        0       85      269       2
-total                      2388       1480     41        0      297      553      17
+runtime-runes              1048        565     16        0      190      268       9
+runtime-legacy             1209        833     21        0       84      269       2
+total                      2388       1483     41        0      294      553      17
 ```
 
-Against the target: **1521 of 1542**, with nothing differing and 21 refused as gaps. Seventeen fail
+Against the target: **1521 of 1539**, with nothing differing and 18 refused as gaps. Seventeen fail
 inside the oracle rather than inside either side and are counted apart. The gaps are sorted by who
 has to answer them in [roadmap.md](roadmap.md).
 
@@ -104,15 +104,21 @@ read inside the child built it again, so `items.includes(item)` was false where 
 render, which evaluates the value once, says true. A value that makes something is now held where
 it crosses into a child, which [derivation.md](derivation.md) states and bounds.
 
-**6 refusals name no specification file, and that is a defect rather than a gap.** There were 24.
+**2 refusals name no specification file, and that is a defect rather than a gap.** There were 24.
 [refusals.md](refusals.md) requires a refusal to say where the question lives, and these say
 `deriving ... failed` instead, which happens when the artifact is injected rather than when it is
 built: a real build writes the artifact and the server throws per request, the suite catching it
-only because it injects. Each is its own cause -- a store read, a function inlined whole, a
-`getAllContexts()` outside a render -- and reading them is what turns one label into entries that
-can be ranked. Beside them are the internal errors still escaping, each a place the compiler met
-something it did not name; [roadmap.md](roadmap.md) lists the seven that are left, and how asking
-the oracle told the other eight apart.
+only because it injects. Both that are left are the same question underneath: a value a function
+this render calls changes, read through a spread or through a generator rather than by name, so the
+rule that owns it does not see it. `spread-component-side-effects` and `destructure-state-iterable`.
+
+**The 18 gaps, by what they are.** Six are a component binding sending a value back where the
+condition is the request's, which [roadmap.md](roadmap.md) has as a decision about block semantics.
+Three are a value handed to a component and used for something other than being written out. Three
+are a snippet arriving as a value from the call site. Two are the two above. One is a `<select>`
+whose attributes a request-decided spread writes. One is a `<select>` around a component the walk
+could not enter, and one is a component tag named by what a block binds. Two are a value a caller
+passes that this compiler cannot reach through the file it was written in.
 
 ### When it is done
 

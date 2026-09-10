@@ -1037,6 +1037,23 @@ and the template after them, so a declaration is evaluated **once** and every re
 binding -- a function written beside it closes over the same value. Substitution writes the
 initialiser at each read instead, which is the same answer only where evaluating it again is.
 
+**The render is handed the author's text wherever it can evaluate it, and that is what these two
+rules are protecting.** An expression the request does not decide is written into the render's
+source, and it used to go in expanded whatever it read: the comment on that branch gives the reason,
+which is that a declaration reading a prop has been neutralised for a render that is given no data,
+so a markup read of that name would read the placeholder. It was doing it unconditionally.
+`derived-leading-comments` is the cost, read out of the rewritten source:
+
+```
+written    <p>{foo}:{bar}</p>
+handed to  <p>{('x')}:{bar}</p>
+```
+
+Nothing in that file reads a prop, nothing was neutralised, and there are no derivations at all. The
+script still runs `write('y')`, which sets `foo`, and nothing reads `foo` any more. `asWritten`
+already keeps the author's text where nothing the walk bound was substituted, and the branch for an
+expansion that folds to a literal was not going through it. It does now.
+
 Two rules stand on that, and for a long time only the first did:
 
 **Assigned after being declared.** `let x = 1; x = 2` and `const o = { a: 1 }; o.a = 2`, in the
