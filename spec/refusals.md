@@ -2159,6 +2159,15 @@ position of the expression reaches. Unlike a `<svelte:component>` there is no bl
 is no other outcome: `RenderTag.js` emits `snippet($$renderer, ...)`, a plain call, so a value that
 is not a function throws rather than rendering nothing.
 
+**A snippet a `{@render}` cannot be followed to is two questions, and they wore one sentence.**
+`Snippet.declared` says only that no `{#snippet}` of that name is written in this file; the record
+exists because a render was seen. A bare name nothing here binds did arrive from outside, which is
+the call site and is composition in the other direction. A name the file **does** bind and this
+compiler cannot follow to a `{#snippet}` is not that at all, and saying it was said something untrue
+about the author's own file: `let snippet = writable(hello)` read as `{@render $snippet()}` names a
+snippet the file declares, through a store, and `createRawSnippet(...)` names a function that is not
+a `{#snippet}` at all. The second says what it is instead, and shows what the callee stands for.
+
 **A site Svelte cannot resolve links to every snippet, and so does this.**
 `is_resolved_snippet` reads the binding: an import, a prop or a `{#snippet}` resolves, and anything
 else does not. This compiler has no scope to read a binding's kind off, so what it cannot tell it

@@ -3814,6 +3814,17 @@ const refused: Case[] = [
 			" let { data } = $props(); setContext('k', { v: true });</script><Kid /><i>{data.a}</i>",
 	},
 	{
+		// `declared: false` says only that no `{#snippet}` of that name is written here, and the
+		// record exists because a render was seen. It does not say the name came from the call site,
+		// and the refusal used to say it did -- untrue about a file that binds the name itself.
+		name: 'a render tag whose callee this file binds and nothing can follow to a snippet',
+		says: 'names no `{#snippet}` this compiler can follow it to',
+		source:
+			"<script>import { writable } from 'svelte/store'; let { data } = $props();" +
+			' const held = writable(one);</script>' +
+			'{#snippet one()}<b>{data.a}</b>{/snippet}{@render $held()}',
+	},
+	{
 		// Not a declaration: `$: $count = n` writes the store, and `transform-server.js` declares a
 		// `let` only for a binding whose kind is `legacy_reactive`. Nor is one whose name a `let`
 		// already declares, which stays an assignment after a declaration and stays refused.

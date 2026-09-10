@@ -4708,10 +4708,32 @@ function collect(node: unknown, walk: Walk): void {
 						`[seam] render of ${String(name)} in ${site.file}: given ${JSON.stringify([...site.given.keys()])}, stack ${site.stack.map((one) => basename(one)).join(' > ')}`,
 					);
 				}
+				// Two different questions wore one sentence. A name the call site supplied is composition
+				// in the other direction and says so. A name this file writes and this compiler cannot
+				// follow to a `{#snippet}` is not that at all: `let snippet = writable(hello)` read as
+				// `{@render $snippet()}` names a snippet the file declares, through a store, and
+				// `createRawSnippet(...)` names a function that is not a `{#snippet}` at all. Saying
+				// either of those came from the call site was untrue about the author's own file.
+				// A bare name nothing in this file binds arrived from outside, which is the call site.
+				// A name the file does bind and this compiler cannot follow to a `{#snippet}` is the
+				// other question, and `declared: false` does not tell them apart: the record exists
+				// because a render was seen, not because anything declares it.
+				if (!known) {
+					refuse(
+						`\`{@render ${String(name)}()}\` in ${basename(site.file)} of a snippet this ` +
+							'component does not declare is not handled yet: the snippet comes from the call ' +
+							'site, which is composition in the other direction',
+					);
+				}
 				refuse(
-					`\`{@render ${String(name)}()}\` in ${basename(site.file)} of a snippet this component ` +
-						'does not declare is not handled yet: the ' +
-						'snippet comes from the call site, which is composition in the other direction',
+					`\`{@render ${String(name)}()}\` in ${basename(site.file)} names no \`{#snippet}\` this ` +
+						'compiler can follow it to, and the call reads something the request decides, so ' +
+						'the render cannot be left to evaluate it either. `RenderTag.js` visits the callee ' +
+						'as an expression, so it may be any value; what this follows is a name, a default ' +
+						'and a lookup in a table the source writes out. It stands for ' +
+						`\`${String(called ?? name)
+							.replace(/\s+/g, ' ')
+							.slice(0, 160)}\``,
 				);
 			}
 			// A snippet that renders itself is a fragment the runtime calls: its body is walked once
