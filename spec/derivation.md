@@ -747,6 +747,25 @@ instead of substituted, and why the answer is not "all of them".
 
 ## A value that makes something is held where it crosses into a child
 
+**A pattern's initialiser is one of these too, and it is written once per name the pattern binds.**
+`destructure()` gives each name a way into the initialiser -- `INIT.a` out of an object,
+`$$to_array(INIT, n)[0]` out of an array -- and the initialiser's text goes into every one of them.
+Where it makes something, the names come out of different values:
+`server-side-rendering/destructure-state-iterable` writes `let [one, two] = $state(test())` over a
+generator, and `to_array` ran on a fresh generator for each name, so both read from the start.
+
+What is held is the part every name of the pattern **shares**, not the initialiser alone. For an
+object that is the initialiser; for an array it is the whole `$$to_array(...)` call, because
+`to_array` over a generator is what consumes it and calling it once per name reads an exhausted one
+the second time. Measured: holding the initialiser alone turned `derived-destructured-iterator` into
+`1`, empty, empty.
+
+And only where the initialiser makes something. A pattern over a name or a member read takes the
+same value apart however many times it is written out, so holding it would buy nothing and cost a
+derivation where the render used to evaluate the expression itself. Measured too: without that
+condition a `{...props}` over a destructured snippet parameter started carrying a reference, which
+made it vary, which made a whole run of attributes a hole.
+
 Substitution writes a name's initialiser at each read, and that is the same answer as Svelte's
 **only where evaluating it again is**. Two evaluations of `data.title` are one value; two
 evaluations of `[{ name: 'a' }]` are two arrays, and nothing the second one holds is what the first

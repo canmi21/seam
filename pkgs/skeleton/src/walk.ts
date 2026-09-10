@@ -6051,6 +6051,7 @@ function descend(
 				...declares.filter((one) => one.rest !== true && one.whole !== true).map((one) => one.prop),
 			],
 			passing,
+			walk.keeping,
 		);
 		// A hold the child's script reaches is given up, and every hold of this call goes with it:
 		// the list is indexed, so dropping one and keeping another would need the indices renumbered
@@ -6072,6 +6073,7 @@ function descend(
 						.map((one) => one.prop),
 				],
 				passing,
+				walk.keeping,
 			);
 		}
 		if (recursion !== null) {
@@ -6442,6 +6444,8 @@ export function rewrite(
 		(entryProps ?? [])
 			.filter((one) => one.rest !== true && one.whole !== true)
 			.map((one) => one.prop),
+		undefined,
+		keeping,
 	);
 
 	// A render is given no data, so a declaration reading a prop would evaluate against nothing

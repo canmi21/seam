@@ -663,6 +663,19 @@ const accepted: Case[] = [
 			'<p>{a} + {b} = {c}</p><p>{both}</p><i>{data.a}</i>',
 	},
 	{
+		// A pattern's initialiser is written once per name it binds, and where it makes something
+		// the names come out of different values. `destructure-state-iterable` is the shape upstream
+		// wrote: `let [one, two] = $state(test())` over a generator, called twice, each call read
+		// from the start. Held once, every name of the pattern reaches into one value.
+		name: 'a pattern over an initialiser that makes something',
+		alongside: { 'make.ts': 'export const make = () => { const v = {}; return { a: v, b: v } };' },
+		source:
+			"<script>import { make } from './make.ts'; let { data } = $props();" +
+			' const { a, b } = make();</script>' +
+			"<p>{a === b ? data.a : 'other'}</p>",
+		data: [{ a: 'x' }, { a: '' }],
+	},
+	{
 		name: 'a child that writes a prop twice, and one that never writes it',
 		beside: {
 			Twice: '<script>let { p } = $props();</script><b>{p}</b><i>{p}</i>',

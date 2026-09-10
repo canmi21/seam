@@ -1796,6 +1796,46 @@ export function constant(expression: string): boolean {
  * is not a hole: it is a literal in this render, in the expressions the markup carries and in the
  * script that computed it, so both say the same thing. See spec/pipeline.md.
  */
+/** The initialisers whose two evaluations are two values. See spec/derivation.md. */
+const MAKES: ReadonlySet<string> = new Set([
+	'ObjectExpression',
+	'ArrayExpression',
+	'NewExpression',
+	'CallExpression',
+]);
+
+/**
+ * The part of a reach template every name of one pattern shares, as a template over `INIT`.
+ *
+ * `destructure()` writes an array's reach as `$$to_array(INIT, n)[0]`, so the call is the shared
+ * part and the index is the name's own. Everything else reaches by member, where the initialiser is
+ * what is shared and one accessor is the name's.
+ */
+function shared(reach: string): string | null {
+	if (reach.startsWith('$$to_array(')) {
+		let depth = 0;
+		for (const [at, c] of [...reach].entries()) {
+			if (c === '(') depth += 1;
+			else if (c === ')') {
+				depth -= 1;
+				if (depth > 0) continue;
+				const call = reach.slice(0, at + 1);
+				return call.includes(INIT) ? call : null;
+			}
+		}
+		return null;
+	}
+	return reach.startsWith(INIT) ? INIT : null;
+}
+
+/** The index this expression has in a walk's held list, appending it where it is new. */
+function kept(expression: string, held: { expression: string; files?: string[] }[]): number {
+	const at = held.findIndex((one) => one.expression === expression);
+	if (at >= 0) return at;
+	held.push({ expression });
+	return held.length - 1;
+}
+
 export function locals(
 	source: string,
 	fixed: ReadonlyMap<string, string> = new Map(),
@@ -1834,6 +1874,18 @@ export function locals(
 	 * name and this carries as one.
 	 */
 	passing?: { object: string; slots: readonly string[] },
+	/**
+	 * Where a held initialiser is recorded, shared across every file of one walk.
+	 *
+	 * **A pattern's initialiser is written once per name it binds**, and where that initialiser
+	 * makes something the names come out of different values: `let [one, two] = $state(test())` over
+	 * a generator called `test()` twice and read `0` from one call and `0` from the other, where
+	 * Svelte calls it once and reads `0` and `1`. It is written as a reference into this list
+	 * instead, and the pass that names derivations resolves the reference to the name it already
+	 * gave that text, so every name the pattern binds reaches into one value. See
+	 * spec/derivation.md.
+	 */
+	held?: { expression: string; files?: string[] }[],
 ): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const carried = requested(ast['instance']);
@@ -2089,7 +2141,28 @@ export function locals(
 		// function or a class only reads as an expression that way. Where the declaration named the
 		// value directly the source stands as written, because a `function f() {}` wrapped in
 		// parentheses is no longer a declaration and `export (function f() {})` is not JavaScript.
+		// A pattern reaches into the initialiser, and every name it binds reaches into the same one.
+		// Held where this walk has a list to hold it in, so that they reach into one value rather
+		// than one each. A declaration that named the value directly is read once and needs none.
 		let written = one.reach === INIT ? body : within(one.reach, `(${body})`);
+		// And only where the initialiser **makes** something: an object or array literal, a `new`, or
+		// a call, whose two evaluations are two values. A pattern over a name or a member read takes
+		// the same value apart however many times it is written out, so holding it would buy nothing
+		// and cost a derivation where the render used to evaluate the expression itself.
+		const makes = MAKES.has(String(one.node['type']));
+		if (one.reach !== INIT && held !== undefined && makes) {
+			// What every name of this pattern shares, which is what has to be one value: the whole
+			// `$$to_array(...)` call for an array, and the initialiser itself for an object. Holding
+			// the initialiser alone is not enough for an array -- `to_array` would be called once per
+			// name, and a second call over a generator reads an exhausted one, which is
+			// `derived-destructured-iterator` written as `[a, b, c]` and coming out `1`, empty,
+			// empty.
+			const cut = shared(one.reach);
+			if (cut !== null) {
+				const at = kept(within(cut, `(${body})`), held);
+				written = `$$hold(${String(at)})${one.reach.slice(cut.length)}`;
+			}
+		}
 		for (const [at, node] of one.slots.entries()) {
 			written = written.split(SLOT(at)).join(`(${slice(node, inner, extra)})`);
 		}
