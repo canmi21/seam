@@ -3285,6 +3285,21 @@ function branchTest(walk: Walk): string | null {
 }
 
 /**
+ * The key an ask or a want is filed under, which has to name the copy as well as the expression.
+ *
+ * A copy per call site means two copies of one component write the same expansion: `{#if
+ * $selectedPanel === panel}` in two `<TabPanel>`s expands to one string in both, and the second's
+ * answer overwrote the first's in the object the render fills. Measured on
+ * `runtime-legacy/context-api`, with the `class:` refusal that hides it taken off: one panel took
+ * its branch and two took neither, where Svelte takes the first. The entry has no copy of its own
+ * and keeps the bare expression, so nothing about it moves.
+ */
+function keyed(walk: Walk, expression: string): string {
+	const copy = walk.site.copy;
+	return copy === undefined || copy === null ? expression : `${basename(copy.at)}#${expression}`;
+}
+
+/**
  * Appends a statement per test to the end of the instance script that reports the test's value
  * to the render's caller, so that a decision the request does not make is made once. At the end
  * rather than the top, because a declaration below is not yet in scope at the top.
@@ -5398,9 +5413,9 @@ function collect(node: unknown, walk: Walk): void {
 				site.payload !== null &&
 				walk.asking !== true &&
 				!varies(test, walk, true) &&
-				!site.mute.has(test)
+				!site.mute.has(keyed(walk, test))
 			) {
-				const answer = site.decided.get(test);
+				const answer = site.decided.get(keyed(walk, test));
 				if (answer === true) {
 					edits.push([at[0], at[1], 'Promise.resolve()']);
 					if (isNode(waiting)) step(waiting);
@@ -5413,9 +5428,9 @@ function collect(node: unknown, walk: Walk): void {
 					return;
 				}
 				// Asked as the author wrote it, since the expansion may name what only this walk holds.
-				if (!site.asks.some(([key]) => key === test)) {
+				if (!site.asks.some(([key]) => key === keyed(walk, test))) {
 					const written = `typeof (${source.slice(at[0], at[1])})?.then === 'function'`;
-					site.asks.push([test, written]);
+					site.asks.push([keyed(walk, test), written]);
 				}
 				// And the branches are walked as a decision until the answer is in, which is what
 				// stops a block inside one asking a question of its own: an ask is a statement in the
@@ -5570,9 +5585,9 @@ function collect(node: unknown, walk: Walk): void {
 			if (
 				site.payload !== null &&
 				walk.asking !== true &&
-				tests.every((test) => !varies(test, walk, true) && !site.mute.has(test))
+				tests.every((test) => !varies(test, walk, true) && !site.mute.has(keyed(walk, test)))
 			) {
-				const answers = tests.map((test) => site.decided.get(test));
+				const answers = tests.map((test) => site.decided.get(keyed(walk, test)));
 				const at = reached(answers);
 				if (at !== null) {
 					oneBranch(walk, chain, tests, at, otherwise, edits, step);
@@ -5586,8 +5601,8 @@ function collect(node: unknown, walk: Walk): void {
 				// true, and `bar` is a name that sample never binds.
 				for (const [index, test] of tests.entries()) {
 					if (answers[index] === false) continue;
-					if (!site.asks.some(([key]) => key === test)) {
-						site.asks.push([test, asWritten(chain[index]?.['test'], test, walk)]);
+					if (!site.asks.some(([key]) => key === keyed(walk, test))) {
+						site.asks.push([keyed(walk, test), asWritten(chain[index]?.['test'], test, walk)]);
 					}
 					break;
 				}
@@ -5732,12 +5747,12 @@ function collect(node: unknown, walk: Walk): void {
 				walk.asking !== true &&
 				!constant(written) &&
 				!varies(written, walk) &&
-				!site.mute.has(written)
+				!site.mute.has(keyed(walk, written))
 			) {
-				const held = site.told.get(written);
+				const held = site.told.get(keyed(walk, written));
 				if (held === undefined) {
-					if (!site.wants.some(([key]) => key === written)) {
-						site.wants.push([written, asWritten(node['expression'], written, walk)]);
+					if (!site.wants.some(([key]) => key === keyed(walk, written))) {
+						site.wants.push([keyed(walk, written), asWritten(node['expression'], written, walk)]);
 					}
 				} else {
 					written = held;
@@ -6156,17 +6171,20 @@ function descend(
 			walk.site.payload !== null &&
 			walk.asking !== true &&
 			!constant(grown) &&
-			!walk.site.mute.has(written) &&
+			!walk.site.mute.has(keyed(walk, written)) &&
 			!varies(grown, walk)
 		) {
-			const held = walk.site.told.get(written);
+			const held = walk.site.told.get(keyed(walk, written));
 			if (held !== undefined) {
 				if (awaiting(grown)) awaits.add(name);
 				bindings.set(name, held);
 				continue;
 			}
-			if (!walk.site.wants.some(([key]) => key === written)) {
-				walk.site.wants.push([written, `(${asWritten(only['expression'], grown, walk)})`]);
+			if (!walk.site.wants.some(([key]) => key === keyed(walk, written))) {
+				walk.site.wants.push([
+					keyed(walk, written),
+					`(${asWritten(only['expression'], grown, walk)})`,
+				]);
 			}
 		}
 		bindings.set(name, written);
@@ -6381,10 +6399,11 @@ function descend(
 			const local = boundTo.get(prop);
 			if (local === undefined || walk.site.payload === null) return true;
 			const test = `(${local}) === undefined`;
-			if (varies(test, walk, true) || walk.site.mute.has(test)) return true;
-			const answer = walk.site.decided.get(test);
+			const key = keyed(walk, test);
+			if (varies(test, walk, true) || walk.site.mute.has(key)) return true;
+			const answer = walk.site.decided.get(key);
 			if (answer !== undefined) return answer;
-			if (!walk.site.asks.some(([key]) => key === test)) walk.site.asks.push([test, test]);
+			if (!walk.site.asks.some(([one]) => one === key)) walk.site.asks.push([key, test]);
 			return false;
 		};
 
