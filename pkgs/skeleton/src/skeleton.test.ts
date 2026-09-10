@@ -1705,6 +1705,22 @@ const accepted: Case[] = [
 		data: [{ a: 'v' }],
 	},
 	{
+		// And where the string is the request's, the whole run is `build_attr_style`'s own call
+		// carried, the way `class={expr}` beside a directive already is: `$.attr_style(value,
+		// directives)`, one call whose result is the attribute or nothing. Simpler than the class
+		// one, which has a scoping hash to read back off the render, and `attr_style` has none. The
+		// `!important` bag is a second object beside the first, which is the shape `to_style` reads.
+		// Payloads for what `to_style` decides: a value whose declaration a directive drops, an
+		// empty one, and a nullish directive that writes no declaration at all.
+		name: 'a `style:` beside a `style` the request decides',
+		source: `${PROPS}<p style:color={data.c} style:margin|important={data.m} style={data.s}>x</p>`,
+		data: [
+			{ c: 'red', m: '1em', s: 'color: blue; border: 1px solid' },
+			{ c: null, m: null, s: '' },
+			{ c: 'green', m: '0', s: 'padding: 2px' },
+		],
+	},
+	{
 		// `build_element_attributes` has an arm for a spread, an attribute, a `class:`, a `style:` and
 		// an attachment, and nothing else: a `use:`, a `transition:` and an `on:` fall past all of
 		// them and write nothing. So a spread beside one merges exactly what it would have merged
@@ -3744,12 +3760,6 @@ const refused: Case[] = [
 		name: 'a name read under `typeof` and beside it',
 		says: 'the data does not carry',
 		source: `${PROPS}<p>{typeof mystery}{mystery}</p>`,
-	},
-	{
-		// And refused where the string is the request's, which is the half a marker cannot stand in.
-		name: 'a `style:` beside a `style` the request decides',
-		says: 'the request decides',
-		source: `${PROPS}<p style:color={"red"} style={data.s}>x</p>`,
 	},
 	{
 		// Where the object itself is what the request decides there is nothing to put a marker

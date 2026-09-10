@@ -553,6 +553,8 @@ export function styles(
 		(one) => isNode(one) && one['type'] === 'Attribute' && one['name'] === 'style',
 	);
 	let base = '';
+	/** The attribute's own value as one expression, where the run is one `attr_style` call. */
+	let asCall: string | undefined;
 	if (isNode(attribute)) {
 		const value = attribute['value'];
 		const parts = value === true ? [] : Array.isArray(value) ? value : [value];
@@ -580,19 +582,32 @@ export function styles(
 			]
 				.filter((one) => one !== '')
 				.join(' + ');
-			if (written === '' || !inert(written)) {
-				refuse(
-					'`style:` beside a `style` whose value is an expression the request decides is not ' +
-						'handled yet: the attribute is reassembled from both, and a declaration in that ' +
-						'value whose name a directive also names is dropped, so which bytes exist is ' +
-						'decided by a string that only exists per request',
-				);
+			if (written !== '' && inert(written)) {
+				// Taken charge of, and left exactly as written: the caller must not walk them again,
+				// or the directive reaches the arm that refuses what the walk has not been taught.
+				return new Set([...directives, attribute]);
 			}
-			// Taken charge of, and left exactly as written: the caller must not walk them again, or
-			// the directive reaches the arm that refuses what the walk has not been taught.
-			return new Set([...directives, attribute]);
+			// **Otherwise the whole run is Svelte's own call, carried.** It used to be refused here,
+			// because a declaration in the written value whose name a directive also names is
+			// dropped, so which bytes exist is decided by a string that only exists per request.
+			// That is true and it is not a reason to enumerate: `build_attr_style` compiles the
+			// element to `$.attr_style(value, directives)`, one call whose result is the whole
+			// attribute or nothing at all, and `to_style` is a pure function in
+			// `internal/shared/attributes.js`. So the hole is that call, with the value as
+			// `build_attribute_value` builds it, and the parsing, the dropping, the ordering, the
+			// `!important` bag and the trim stay Svelte's answers. It is the answer `class={expr}`
+			// beside a directive already has, one construct along -- and simpler, since `attr_style`
+			// takes no scoping hash and so needs nothing read back off the render. Measured at 1855
+			// bytes bundled, with the same two host references `attributes` has, both optionally
+			// chained off `globalThis`. See spec/refusals.md.
+			const [only] = parts;
+			asCall =
+				parts.length === 1 && isNode(only) && only['type'] === 'ExpressionTag'
+					? `(${expand(only['expression'])})`
+					: joined(parts, expand);
+		} else {
+			base = parts.map((part) => String((part as AstNode)['data'] ?? '')).join('');
 		}
-		base = parts.map((part) => String((part as AstNode)['data'] ?? '')).join('');
 	}
 
 	const declarations: PendingChoice['declarations'] & object = [];
@@ -661,8 +676,33 @@ export function styles(
 	}
 
 	const index = holes.length;
-	holes.push({ index, expression: '', raw: false, choice: { tests, outcomes: [] } });
-	pending.push({ index, tests, kind: 'style', names: [], base, declarations });
+	if (asCall === undefined) {
+		holes.push({ index, expression: '', raw: false, choice: { tests, outcomes: [] } });
+		pending.push({ index, tests, kind: 'style', names: [], base, declarations });
+	} else {
+		// The directives as `build_attr_style` builds them: one object of the ordinary ones and, where
+		// any carries `!important`, a second beside it in an array, which is the shape `to_style`
+		// reads. A written value is its own text and an expression is itself; `to_style` drops a
+		// declaration whose value is null or empty, so nothing here decides presence.
+		const held = (each: (typeof declarations)[number]): string =>
+			`${JSON.stringify(each.name)}: ${
+				each.expression === null ? JSON.stringify(each.literal) : `(${each.expression})`
+			}`;
+		const bag = (some: boolean): string =>
+			`{ ${declarations
+				.filter((each) => each.important === some)
+				.map((one) => held(one))
+				.join(', ')} }`;
+		const object = declarations.some((each) => each.important)
+			? `[${bag(false)}, ${bag(true)}]`
+			: bag(false);
+		holes.push({
+			index,
+			expression: `$$attr_style(${asCall}, ${object})`,
+			raw: true,
+			whole: true,
+		});
+	}
 
 	for (const one of directives) {
 		const at = span(one);

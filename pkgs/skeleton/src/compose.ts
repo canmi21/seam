@@ -432,6 +432,7 @@ export function rebased(
  */
 export const CARRIED = [
 	'attr_class',
+	'attr_style',
 	'attributes',
 	'clsx',
 	'exclude_from_object',

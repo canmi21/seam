@@ -449,6 +449,13 @@ export function helpers(rendered: Skeleton): Carried[] {
 	// Over every expression rather than the holes alone: a name a pattern binds is reached inside a
 	// block's own expression and inside a fragment call's bindings as readily as inside a hole.
 	const written = expressionsOf(rendered).map((one) => one.expression);
+	// `attr_style` is the same answer for a `style` attribute beside a `style:` directive: one call
+	// whose result is the whole attribute. Keyed off the expression rather than off `whole`, which
+	// the class hole also sets. Measured at 1855 bytes bundled, its only host references optionally
+	// chained off `globalThis`, which is the same terms `attributes` is carried on.
+	if (written.some((one) => one.includes('$$attr_style('))) {
+		found.push({ local: '$$attr_style', from, kind: 'named', exported: 'attr_style' });
+	}
 	if (written.some((one) => one.includes('$$clsx('))) {
 		found.push({ local: '$$clsx', from, kind: 'named', exported: 'clsx' });
 	}

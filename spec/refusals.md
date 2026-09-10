@@ -1750,9 +1750,21 @@ attribute's region. Each outcome gets markers of its own, so a value appearing i
 still a hole planted once and consumed once, and the invariant that has caught most of the defects
 here did not have to be weakened to let this through.
 
-Refused: a `style` attribute whose value is an expression, because which of its declarations
-survive is decided by a string that only exists per request; and a directive mixing text with an
-expression, because Svelte joins them into one value and this reads a single expression.
+**A `style` attribute whose value is an expression is the same call carried**, which is where
+`class={expr}` beside a directive already goes. It was refused here, because which of the written
+value's declarations survive is decided by a string that only exists per request -- true, and not a
+reason to enumerate. `build_attr_style` compiles the element to `$.attr_style(value, directives)`,
+one call whose result is the whole attribute or nothing at all, with the value as
+`build_attribute_value` builds it and the `!important` ones in a second object beside the first,
+which is the shape `to_style` reads. So the hole is that call, and the parsing, the dropping, the
+ordering, the trim and the empty result stay Svelte's answers. It is simpler than the class one,
+which has a scoping hash to read back off the render where `attr_style` has none. Measured: 1855
+bytes bundled, its only host references `globalThis.process?.env?.NODE_ENV` and
+`globalThis.document?.contentType`, both optionally chained, which is the same shape and the same
+terms `attributes` is carried on.
+
+Still refused: a directive mixing text with an expression, because Svelte joins them into one value
+and this reads a single expression.
 
 Of press's 41 components, 20 compiled and now 22 do.
 
