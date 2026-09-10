@@ -285,6 +285,26 @@ export interface Site {
 	 */
 	sends: Map<string, string>;
 	/**
+	 * What each binding of a name settles it to and the branch that has to render for it to,
+	 * in source order, from which `sends` is composed.
+	 *
+	 * `bind_props` assigns up only where the caller's value is `undefined` and never back, so among
+	 * the bindings of one name the **first** whose branch renders is the one whose value the name
+	 * holds. Kept as pairs rather than composed at each tag, because a second tag has to nest
+	 * inside the first rather than replace it.
+	 */
+	sending: Map<string, [when: string, value: string][]>;
+	/**
+	 * A block's branch tests as the settling loop sees them where the block was walked, by block.
+	 *
+	 * The loop renders the template again, so a name a binding settles is read by the markup after
+	 * it on the same pass and by the markup before it on the next. Expanding a test against the
+	 * bindings settled so far is that, and source order falls out of the walk's own order:
+	 * `component-binding-conditional` and `-conditional-b` differ in where a `<Baz bind:x/>` sits
+	 * and Svelte answers `bar` and `foo`. See `branchTest`.
+	 */
+	tested: Map<number, string[]>;
+	/**
 	 * Why a component was left to Svelte, one line each.
 	 *
 	 * A walk that stops is rolled back and the component is rendered as it was before, which is
@@ -3236,6 +3256,35 @@ function inertBodies(snippets: ReadonlyMap<string, Snippet>, walk: Walk): boolea
 }
 
 /**
+ * What has to hold for the markup at this point in the walk to render at all, as one expression.
+ *
+ * `IfBlock.js` emits one `if`/`else if`/`else` over `metadata.flattened`, so a branch renders
+ * exactly where its own test is true and every test before it was false, and the else where all of
+ * them were false. Nested blocks are the conjunction of their branches.
+ *
+ * **An `{#each}` is not one of these and returns nothing.** What it encloses renders once per item,
+ * so what a binding inside it settles is a per-item answer, and the name it settles is read once
+ * for the page.
+ */
+function branchTest(walk: Walk): string | null {
+	const parts: string[] = [];
+	for (const [index, branch] of walk.within) {
+		const block = walk.blocks[index];
+		if (block === undefined || block.kind !== 'if') return null;
+		const tests = walk.site.tested.get(index) ?? block.tests ?? [];
+		for (const one of branch === -1 ? tests : tests.slice(0, Math.max(branch, 0))) {
+			parts.push(`!(${one})`);
+		}
+		if (branch >= 0) {
+			const own = tests[branch];
+			if (own === undefined) return null;
+			parts.push(`(${own})`);
+		}
+	}
+	return parts.length === 0 ? 'true' : parts.join(' && ');
+}
+
+/**
  * Appends a statement per test to the end of the instance script that reports the test's value
  * to the render's caller, so that a decision the request does not make is made once. At the end
  * rather than the top, because a declaration below is not yet in scope at the top.
@@ -5545,6 +5594,14 @@ function collect(node: unknown, walk: Walk): void {
 				alternate: otherwise !== null && otherwise !== undefined,
 				within: [...within],
 			});
+			// What a binding inside this block settles is read against the tests as they stand where
+			// the block is walked, which is the pass's own source order. See `Site.tested`.
+			if (site.sends.size > 0) {
+				site.tested.set(
+					index,
+					chain.map((one, at) => expand(one['test'], new Map(site.sends)) || (tests[at] ?? '')),
+				);
+			}
 
 			for (const [branch, one] of chain.entries()) {
 				const at = span(one['test']);
@@ -6266,20 +6323,31 @@ function descend(
 		 * because that is what the setter assigns to.
 		 */
 		const settles = (prop: string, value: string): boolean => {
-			// Written inside a block, which child sends back is the block's answer rather than the
-			// file's: `{#if a}<Foo bind:x/>{:else}<Bar bind:x/>{/if}` settles `x` to one default or
-			// the other, and the read outside the block sees whichever branch ran. One name, one
-			// ternary per file, is not enough for that, and writing the block's answer as the file's
-			// is bytes rather than a refusal -- measured, two samples.
-			if (walk.within.length > 0) return false;
 			const held = delayed.find(([bound]) => bound === prop)?.[1];
 			if (held === undefined || !constant(value)) return false;
 			const local = boundTo.get(prop) ?? '';
 			if (!IDENTIFIER.test(local)) return false;
+			// Written inside a block, which child sends back is the block's answer, so the block's
+			// own test goes inside the ternary. An each is not a branch and has no such test.
+			const when = branchTest(walk);
+			if (when === null) return false;
+
 			// Svelte assigns up only where the caller's value is `undefined`, and the assignment is
 			// monotone -- `undefined` becomes a value and never goes back -- so the settled read is
-			// this and the loop is not something the artifact repeats.
-			walk.site.sends.set(local, `(${held} === undefined ? (${value}) : ${held})`);
+			// this and the loop is not something the artifact repeats. Among the bindings of one
+			// name the first whose branch renders is the one that reaches it, which is what the
+			// chain nests in source order.
+			const chain = [...(walk.site.sending.get(local) ?? []), [when, value] as const];
+			walk.site.sending.set(
+				local,
+				chain.map(([a, b]) => [a, b]),
+			);
+			const nested = chain.reduceRight(
+				(rest, [test, held]) =>
+					test === 'true' ? `(${held})` : `((${test}) ? (${held}) : ${rest})`,
+				'undefined',
+			);
+			walk.site.sends.set(local, `(${held} === undefined ? ${nested} : ${held})`);
 			return true;
 		};
 		/**
@@ -6311,8 +6379,10 @@ function descend(
 		for (const [name, value] of exportedValues(ahead, raw)) {
 			if (!boundProps.has(name)) continue;
 			// Already settled on an earlier pass, so the caller's reads hold the ternary and the
-			// child can be entered like any other.
-			if (walk.sent.size > 0) continue;
+			// child can be entered like any other. By the name rather than by the pass: a binding
+			// inside a block another binding opens is reached only once that one has settled, and a
+			// whole-pass guard skipped it for ever.
+			if (walk.sent.has(boundTo.get(name) ?? name)) continue;
 			if (settles(name, value)) continue;
 			// Nothing the child sends back reaches the bytes where the caller's template does not
 			// read the name: the settling loop renders that template again and writes what it wrote.
@@ -6333,7 +6403,7 @@ function descend(
 			// a child declaring `let { x = 42 } = $props()`, whose caller wrote nothing either side
 			// of the tag where a bindable one writes 42.
 			if (one.bindable !== true) continue;
-			if (walk.sent.size > 0) continue;
+			if (walk.sent.has(boundTo.get(one.prop) ?? one.prop)) continue;
 			if (settles(one.prop, one.fallback)) continue;
 			// Nothing travels where the caller's value is not `undefined`, and where the caller binds
 			// something of its own the render is what knows. See `travels`.
@@ -6634,6 +6704,8 @@ function descend(
 				told: walk.site.told,
 				mute: walk.site.mute,
 				sends: walk.site.sends,
+				sending: walk.site.sending,
+				tested: walk.site.tested,
 				runes: walk.site.runes,
 				contexts: walk.site.contexts,
 				...(recursion === null ? {} : { fragment: recursion }),
@@ -6920,6 +6992,8 @@ export function rewrite(
 	const asks: [string, string][] = [];
 	const wants: [string, string][] = [];
 	const sends = new Map<string, string>();
+	const sending = new Map<string, [when: string, value: string][]>();
+	const tested = new Map<number, string[]>();
 	const declares = entryProps;
 	// The entry's `page` from `$app/state` is the payload's `page`, under that name and no other:
 	// a child's rename is bound at its call, and the entry has no call to bind it at.
@@ -7083,6 +7157,8 @@ export function rewrite(
 			told,
 			mute,
 			sends,
+			sending,
+			tested,
 			runes: runesOf(importsOf(source), file),
 			contexts: new Set<string>(),
 			...(recursion === null ? {} : { fragment: recursion }),

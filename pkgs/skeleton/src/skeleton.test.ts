@@ -1849,6 +1849,39 @@ const accepted: Case[] = [
 		data: [{ a: 'q' }],
 	},
 	{
+		// Written inside a block, which child sends back is that block's answer, so the block's own
+		// test goes inside the ternary: `x === undefined ? (data.f ? 'yes' : undefined) : x`. Both
+		// payloads, because the shape turns on the test -- with `data.f` false nothing renders the
+		// child and the name keeps what the request brought.
+		name: 'a component `bind:` written inside a block',
+		beside: { Kid: "<script>export let x = 'yes';</script><p>{x}</p>" },
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props(); let x;</script>" +
+			'{#if data.f}<Kid bind:x />{/if}<p>{x}|{data.a}</p>',
+		data: [
+			{ f: true, a: 'q' },
+			{ f: false, a: 'q' },
+		],
+	},
+	{
+		// The settling loop renders the template again, so a name one binding settles is read by the
+		// markup after it on the same pass and by the markup before it on the next. A block's tests
+		// are expanded against the bindings settled so far, and the source order falls out of the
+		// walk's own: with `<Baz bind:f/>` above the block the test is the settled `f`, and below it
+		// the test is what the request brought. Both orders are in the vendored corpus, as
+		// `component-binding-conditional-b` and `-conditional`, and Svelte answers them differently.
+		name: 'a component `bind:` inside a block another binding settles',
+		beside: {
+			Kid: "<script>export let x = 'yes';</script><p>{x}</p>",
+			Baz: '<script>export let f = true;</script>',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; import Baz from './Baz.svelte';" +
+			' let { data } = $props(); let x; let f;</script>' +
+			'<Baz bind:f />{#if f}<Kid bind:x />{/if}<p>{x}|{data.a}</p>',
+		data: [{ a: 'q' }],
+	},
+	{
 		// `transform-server.js` binds `$$props` to `sanitize_props($$props)`, `$$restProps` to
 		// `rest_props($$sanitized_props, [named])` and `$$slots` to `sanitize_slots($$props)`, each
 		// over the object the caller passed. The entry's is the payload; a child's is what its call
@@ -3656,19 +3689,6 @@ const refused: Case[] = [
 		source:
 			"<script>export let a; $: $$restProps.c = $$restProps.c ?? 'c';</script>" +
 			'<p>{a}{$$restProps.c}</p>',
-	},
-	{
-		// Which child sends back is the block's answer rather than the file's:
-		// `{#if a}<Foo bind:x/>{:else}<Bar bind:x/>{/if}` settles `x` to one default or the other,
-		// and the read outside the block sees whichever branch ran. One ternary per file cannot say
-		// that, and writing the block's answer as the file's is bytes rather than a refusal --
-		// measured on two samples before this said so.
-		name: 'a component `bind:` written inside a block',
-		says: 'a binding the child sends back',
-		beside: { Kid: "<script>export let x = 'yes';</script><p>{x}</p>" },
-		source:
-			"<script>import Kid from './Kid.svelte'; let { data } = $props(); let x;</script>" +
-			'{#if data.f}<Kid bind:x />{/if}<p>{x}</p>',
 	},
 	{
 		// A component's `<script module>` is module state too, reached by a named import of the
