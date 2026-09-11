@@ -99,7 +99,8 @@ and the argument two paragraphs up, that folding a decision in here would make t
 the same argument. Every import that leaves the sample's own directory is replaced now, and what
 stands in for a name throws when it is called, so a config that merely mentions upstream's helpers
 evaluates and one whose props are built by them says so where the props are read. 276 of the
-recovered samples are identical, one writes bytes that are not Svelte's, and three are gaps.
+recovered samples are identical with no change to the compiler, one wrote bytes that are not
+Svelte's and three were gaps, and those four are done.
 
 **A `runtime_error` is one of these where it is what the render threw, and only then.** The field is
 upstream naming an error the sample is written to raise while it runs, which is `error` one word
@@ -275,12 +276,13 @@ anybody acts on.
 
 ## What it asks now, and where it is run
 
-**It is in `verify`, and widening the skips turned it red.** It was red on purpose for as long as
-any sample wrote the wrong bytes, and out of `verify` for the same reason: a check that cannot pass
-stops being read, and every commit would have carried it. Both counts reached zero and it joined
-the gate, and both were zero over a corpus 342 samples smaller than this file describes. It asks
-the question it was written to ask now: one difference and three gaps, and a sample that starts
-differing and a sample that starts being refused are the same failure.
+**It is green and it is in `verify`, over the corpus this file describes.** It was red on purpose
+for as long as any sample wrote the wrong bytes, and out of `verify` for the same reason: a check
+that cannot pass stops being read, and every commit would have carried it. Both counts reached zero
+and it joined the gate -- and both were zero over a corpus 342 samples smaller than this, which is
+what the skips were hiding. Widening them turned it red on one difference and three gaps; those are
+done, and the question it asks is the one it was written to ask: whether it stops reaching as far,
+a sample that starts differing and a sample that starts being refused being the same failure.
 
 ```
 mise run suite              the lists, then the table

@@ -112,15 +112,15 @@ render.** Nothing differing, nothing refused as a gap.
 ```
                         samples  identical  empty  differs   gap  decided  skipped  oracle
 server-side-rendering       131         90      0        0     0       25       16       0
-runtime-runes              1048        665     19        1     1      189      170       3
-runtime-legacy             1209       1080     14        0     2       45       54      14
-total                      2388       1835     33        1     3      259      240      17
+runtime-runes              1048        667     19        0     0      189      170       3
+runtime-legacy             1209       1082     14        0     0       45       54      14
+total                      2388       1839     33        0     0      259      240      17
 ```
 
-Against the target: **1835 of 1839**, with one sample writing bytes that are not Svelte's and three
-refused as gaps. That is not the condition this file sets, and it was read as met for as long as
-the 342 samples above sat in the skips: 276 more agree, and the four below are work nobody had
-seen.
+Against the target: **1839 of 1839**. Nothing differs and nothing is refused as a gap, which is the
+condition this file sets for stage one -- this time over the corpus this file describes. It read
+1559 of 1559 first, over one 342 samples smaller: 276 of the recovered samples agreed with no
+change to the compiler and four were work, and those four are done.
 
 **The denominator is the measurement, and it is the half that gets audited last.** Every number
 in the table moved by 302 samples without a line of the compiler changing, because a column nobody
@@ -138,18 +138,18 @@ without being counted**, which is the whole reason it is read out rather than to
 
 ### What is left, in the order it should be taken
 
-**Four, and all four came out of the skips.** None of them was ever refused or measured; they were
-in a column that said upstream had spoken. They are ranked here the way this file ranks everything,
-the difference first:
+**Nothing, and the four that came out of the skips are done.** None of them had ever been refused
+or measured; they were in a column that said upstream had spoken. Each was taken the way this file
+ranks work, the difference first, and none of the four was the construct its symptom named:
 
-| | |
+| | what it was |
 | --- | --- |
-| `runtime-runes/bind-getter-setter` | **differs.** `bind:value={() => a, (v) => {...}}` on an element writes the getter's own source where Svelte writes what calling it returns. The form itself compiles -- `select-function-binding-derived` is identical -- and what this one adds is that the bound name is the child's `$bindable()` prop, bound by the caller with a pair of its own. |
-| `runtime-runes/bindable-prop-and-export` | **gap.** `bind:open` where the child's `open` is a readonly export rather than a `$bindable()`, which is the component binding family [roadmap.md](roadmap.md) already holds. |
-| `runtime-legacy/binding-contenteditable-html` | **gap.** `bind:innerHTML` is written and checked; the tag under it is `<editor>`, a name the walk does not read. |
-| `runtime-legacy/transition-css-iframe` | **gap.** `<Frame component={Foo}/>` over a `Foo` the file imports, which is a value the compile has in its hand. |
+| `runtime-runes/bind-getter-setter` | **differed.** A `bind:` given a getter and a setter is the getter *called*, and the call was carried on a synthetic node's `name` where an expansion is sliced out of the source by span. The child was handed the function. |
+| `runtime-legacy/binding-contenteditable-html` | **a gap**, for a tag this compiler could not read, and the tag was readable: what it could not do was put content inside an element the author closed in one piece. `unbind.ts` had already answered that and the arm planting the content carried its own reading. |
+| `runtime-legacy/transition-css-iframe` | **a gap**, for a name the data does not carry, over a `Foo` two lines above it in an `import`. A component import resolves; what it cannot do is reach a derivation, and that is asked over the finished expressions now. |
+| `runtime-runes/bindable-prop-and-export` | **a gap**, for a binding the child sends back, over one that sends nothing: `bind_props` assigns up only where the caller passed `undefined`, and the half of `descend()` reading readonly exports was not asking. |
 
-**No sample that was being measured writes bytes that are not Svelte's.** The last one was the identity question rather
+**No sample writes bytes that are not Svelte's.** The last one before those was the identity question rather
 than a construct: `runtime-runes/props-equality` handed an array to a child as a prop, and each
 read inside the child built it again, so `items.includes(item)` was false where Svelte's own
 render, which evaluates the value once, says true. A value that makes something is now held where
@@ -196,13 +196,14 @@ The three that used to fail inside the derivation evaluator are counted as decis
 rule about a value the render changes reaching the walk through a spread, a generator and a computed
 key rather than by name.
 
-### It was reported done, and what that was worth
+### It is done, and what the second time was worth
 
-`mise run suite` reported 0 differing and 0 refused as a gap, which is the condition this section
-sets, and the condition was met over a corpus 342 samples smaller than the one this file names. It
-reports 1 and 3 now. The work that reached zero stands -- the samples it was measured over agree,
-and 276 of the recovered ones agree with no change to the compiler -- and the claim did not, because
-a target is only as good as the denominator under it.
+`mise run suite` reports 0 differing and 0 refused as a gap, which is the condition this section
+sets. It reported that once before over a corpus 342 samples smaller than the one this file names,
+and the audit that found those samples is the reason the claim is worth more the second time: the
+work that had reached zero stood, 276 of the recovered samples agreed with no change to the
+compiler, and four were work. **A target is only as good as the denominator under it**, and the
+denominator is the half nothing was checking.
 
 **What the gate cannot see is the denominator.** It fails on the two counts, and both stayed at
 zero while 342 samples sat outside them. Two directions are owed and they are the same direction:

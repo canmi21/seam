@@ -214,14 +214,14 @@ company exactly here. No vendored sample writes the shape, which is why it is he
 the table. Reading which of a child's expressions the marker reached, rather than only whether it
 survived, is what closes it.
 
-**One the suite does hold, and it had been sitting in the skips.**
-`runtime-runes/bind-getter-setter` writes `value="() =&gt; a"` where Svelte writes `value="0"`: a
-`bind:` given a getter and a setter rather than a name, with the bound name being the child's own
-`$bindable()` prop and the caller binding it with a pair of its own. The form itself compiles --
-`select-function-binding-derived` binds a `<select>` that way and is identical -- so what is wrong
-is one path through it, where the value reaching the element is the function rather than what
-calling it returns. It was never measured, because its `_config.js` imports `assert_ok` from
-upstream's runner and the shim only stood in for `test`. [suite.md](suite.md) has that.
+**One the suite does hold, found by widening the skips: done.**
+`runtime-runes/bind-getter-setter` wrote `value="() =&gt; a"` where Svelte writes `value="0"`. A
+`bind:` given a getter and a setter is the getter **called** -- `element.js` writes
+`b.call(expression.expressions[0])` where the value goes -- and the call was being carried on a
+synthetic node's `name`, where an expansion is sliced out of the source by span and never reads
+one. So the child was handed the function. The call is written where the expansion is now. It had
+never been measured: its `_config.js` imports `assert_ok` from upstream's runner and the shim only
+stood in for `test`. [suite.md](suite.md) has that, and three gaps came out of the same column.
 
 **Everything else the suite holds: done.** The last was not a construct. `runtime-runes/props-equality` hands an array
 to a child as a prop, and each read inside the child built it again, so `items.includes(item)` was
@@ -817,11 +817,21 @@ item above already owns. `component-namespace` is `<Components.Foo />` over a mo
 export, which is the module-graph item. `binding-indirect-fn` is a `$:` declaration substituted
 into `items.filter(fn)` and is its own fault.
 
-## Stage one is 1559 of 1559, and the gate has changed
+## Stage one is 1839 of 1839, and the gate has changed
 
 What the suite reports now is nothing differing and nothing refused as a gap, which is the
-condition [conformance.md](conformance.md) set for stage one. The last eleven were three constructs
-turned away in the wrong words -- a `<svelte:boundary>` whose body throws, eight of them; a raw
+condition [conformance.md](conformance.md) set for stage one.
+
+**It reported that once already, at 1559 of 1559, over a corpus 342 samples smaller.** The shim
+standing in for upstream's un-vendored runner matched one spelling of one import, and every config
+naming another threw and was filed as a skip -- so a third of what the skips held was this
+harness's own failure, sitting in the column [suite.md](suite.md) requires to be upstream's
+judgement and nobody else's. 276 of those samples agree with no change to the compiler. Four were
+work: one wrote bytes that are not Svelte's and three were refused, and none of the four was the
+construct its message named. **The denominator is the half nothing was checking**, and the rule
+this file already stated for the oracle's column held for the skips word for word.
+
+The eleven before those were three constructs turned away in the wrong words -- a `<svelte:boundary>` whose body throws, eight of them; a raw
 snippet whose bytes the request decides, two; and a bare global, one -- and all three are the scope
 line, under **Decided, and not built** below. Each now says which decision it is, and the suite
 reads that off the message rather than being told.
@@ -831,9 +841,9 @@ differing and a sample that starts being refused are the same failure now. The d
 cannot see is a sample sliding from `identical` into `decided`, since a decision is read off a
 message and a message can be widened; that wants a baseline of names and is owed.
 
-**Two pieces of work arrived by the oracle being fixed rather than by anything being written**, and
-that is the finding worth carrying forward. Thirteen samples had never been measured in either
-direction: the suite rendered them without the `transformError`, the `server_props` or the
+**Work arrives by the measurement being fixed rather than by anything being written**, twice now,
+and that is the finding worth carrying forward. It was thirteen samples the first time, never
+measured in either direction: the suite rendered them without the `transformError`, the `server_props` or the
 `before_test` their own configs name, and it held a second compiled copy of the entry. A column
 that says "neither side answered" is as much a place for work to hide as one that says "refused",
 and it is smaller, so nobody reads it.
