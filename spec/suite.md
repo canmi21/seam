@@ -103,6 +103,16 @@ evaluates and one whose props are built by them says so where the props are read
 recovered samples are identical with no change to the compiler, one wrote bytes that are not
 Svelte's and three were gaps, and those four are done.
 
+**CodeQL reports the stub as a code construction, and it is dismissed as a false positive.**
+`js/bad-code-sanitization`, alert 36. The value is a vendored `_config.js` pinned at one tag and
+read off the disk, and the file it is written into is a module this harness already imports and
+runs, so a name reaching code position grants nothing that running the config does not: there is no
+boundary to cross. The identifier check above is stricter than what the rule's own recommendation
+asks for, which is escaping. It cannot be written some other way either -- an ESM named import is
+satisfied only by a real export, so the names upstream wrote have to be emitted as names. **What
+the alert is worth is the sentence before it**: code built from text nobody parsed is how a shape
+this harness does not know goes quiet, and that is the defect this file exists to keep out.
+
 **And a config that still will not evaluate goes where nobody's answer goes.** One is left, and the
 rule holds for one the same as for 342: it is not upstream saying anything, so it is not a skip. The
 clause is read rather than pattern-matched now -- every name checked against what a `const` may be
