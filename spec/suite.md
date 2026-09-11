@@ -77,8 +77,9 @@ compiler read them and turned them away on purpose. Folding them into `skipped` 
 column our judgement, which is the one thing it is written not to be.
 
 **oracle** -- neither side answered. Svelte's own render could not be built or run here, or the
-props the sample names could not be built at all: fourteen configs write `get props()` and thirteen
-of them return what `create_deferred()` made, which is upstream's helper and not vendored. There is
+sample's own config could not be read, or the props it names could not be built at all: fourteen
+configs write `get props()` and thirteen of them return what `create_deferred()` made, which is
+upstream's helper and not vendored. There is
 nothing to be identical to, so the sample is not a pass, not a difference and not a refusal.
 **Whichever half could not answer, the column means the same thing**: nobody measured this, read
 the names.
@@ -101,6 +102,13 @@ stands in for a name throws when it is called, so a config that merely mentions 
 evaluates and one whose props are built by them says so where the props are read. 276 of the
 recovered samples are identical with no change to the compiler, one wrote bytes that are not
 Svelte's and three were gaps, and those four are done.
+
+**And a config that still will not evaluate goes where nobody's answer goes.** One is left, and the
+rule holds for one the same as for 342: it is not upstream saying anything, so it is not a skip. The
+clause is read rather than pattern-matched now -- every name checked against what a `const` may be
+written against before it becomes one, and a shape this does not understand reported instead of
+left as written, since leaving it as written leaves an import nothing can resolve and the config
+fails for a reason that names no shape.
 
 **A `runtime_error` is one of these where it is what the render threw, and only then.** The field is
 upstream naming an error the sample is written to raise while it runs, which is `error` one word
@@ -176,12 +184,13 @@ as counting a gap out because the compiler announces it.
 
 A percentage over 2388 is meaningless, because three of the outcomes are not failures.
 
-**Upstream's skips are out.** 240 of them. It read 554 while 342 configs were not being read at
-all, and reading them raised what upstream really declares as well: `mode` from 160 to 182 and
-`skip` from 17 to 19, because a config that throws declares nothing.
+**Upstream's skips are out.** 239 of them, and every one is upstream saying so. It read 554 while
+342 configs were not being read at all, and reading them raised what upstream really declares as
+well: `mode` from 160 to 182 and `skip` from 17 to 19, because a config that throws declares
+nothing.
 
-**A sample neither side answered for is out.** 17, of which 13 are the props this harness cannot
-build and 4 the oracle's own. There is nothing to compare against, so counting it either way is a
+**A sample neither side answered for is out.** 18, of which 13 are the props this harness cannot
+build, 1 a config it cannot read, and 4 the oracle's own. There is nothing to compare against, so counting it either way is a
 claim about a comparison nobody made -- which is also why the column has to be read rather than
 trusted: a sample in it because of this harness is a sample nobody has measured.
 

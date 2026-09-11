@@ -224,6 +224,49 @@ function turned(suite: string, name: string, why: string): Result {
 
 const need = createRequire(import.meta.url);
 
+/** A name a `const` may be written against, which is every name an import clause can bind. */
+const BINDS = /^[A-Za-z_$][\w$]*$/;
+
+/**
+ * The names one import clause binds, or a throw where this does not understand the clause.
+ *
+ * `* as name`, `{ a, b as c }`, a default on its own, and a default beside either of the other two.
+ * **Every name is checked against `BINDS` before it is written into a `const`**, which is what
+ * makes the substitution above a rewrite rather than a concatenation: the clause is upstream's
+ * text, the result is code this process then runs, and a piece of text that is not an identifier
+ * has no business becoming one. Nothing in the corpus is anything else at the pinned tag, and the
+ * point of the check is the tag after it.
+ *
+ * **A clause this does not understand throws rather than being left alone**, because leaving it
+ * alone leaves an import nothing can resolve, and the config then fails for a reason that says
+ * nothing about which shape it was. See `attempt`, where that outcome goes.
+ */
+function binds(clause: string): string[] {
+	const found: string[] = [];
+	const brace = clause.indexOf('{');
+	const head = (brace < 0 ? clause : clause.slice(0, brace)).replace(/,\s*$/, '').trim();
+	const braced = brace < 0 ? '' : clause.slice(brace).trim();
+	const named = (text: string): string => {
+		// `a as b` binds `b`, and the stub is written against the name the config reads.
+		const name =
+			text
+				.split(/\s+as\s+/)
+				.pop()
+				?.trim() ?? '';
+		if (!BINDS.test(name)) throw new Error(`an import clause this harness cannot read: ${clause}`);
+		return name;
+	};
+	if (head !== '') found.push(named(head.startsWith('*') ? head.slice(1) : head));
+	if (braced !== '') {
+		if (!braced.endsWith('}'))
+			throw new Error(`an import clause this harness cannot read: ${clause}`);
+		for (const each of braced.slice(1, -1).split(',')) {
+			if (each.trim() !== '') found.push(named(each));
+		}
+	}
+	return found;
+}
+
 /**
  * The sample's configuration, with the harness imports it opens with stood in for.
  *
@@ -255,38 +298,33 @@ async function configOf(from: string, into: string): Promise<Config & { broken?:
 		// Most samples have none, and a sample with no config is one with no props.
 		return {};
 	}
-	const shimmed = source.replaceAll(
-		/import\s+(?:\{([^}]*)\}|(\w+))\s+from\s*['"]([^'"]+)['"];?/g,
-		(whole, named: string | undefined, sole: string | undefined, specifier: string) => {
-			// A specifier that stays inside the sample is the sample's own, and a bare one is a
-			// package this process has. Only what climbs out of the directory is upstream's runner.
-			if (!specifier.startsWith('../') && !specifier.startsWith('#')) return whole;
-			const bound =
-				named === undefined
-					? [sole ?? '']
-					: named
-							.split(',')
-							.map((one) => one.trim())
-							.filter((one) => one !== '')
-							// `a as b` binds `b`, and the stub is written against the name the config reads.
-							.map(
-								(one) =>
-									one
-										.split(/\s+as\s+/)
-										.pop()
-										?.trim() ?? '',
-							);
-			return bound
-				.map((one) =>
-					one === 'test'
-						? 'const test = (one) => one;'
-						: `const ${one} = () => { throw new Error(${JSON.stringify(
-								`\`${one}\` is upstream's own test harness, which is not vendored here`,
-							)}); };`,
-				)
-				.join(' ');
-		},
-	);
+	let shimmed: string;
+	try {
+		shimmed = source.replaceAll(
+			// Anchored at the start of a line, because an `import` inside a comment or a string is
+			// not one and rewriting it would take the config apart. Every clause is matched as one
+			// piece and read by `binds()`, rather than matching the two shapes that were expected:
+			// a shape nothing matched used to be left as written, which left an import nothing can
+			// resolve, which is a config that will not evaluate.
+			/^[ \t]*import\s+([^'"]+?)\s+from\s*['"]([^'"]+)['"];?/gm,
+			(whole, clause: string, specifier: string) => {
+				// A specifier that stays inside the sample is the sample's own, and a bare one is a
+				// package this process has. Only what climbs out of the directory is upstream's runner.
+				if (!specifier.startsWith('../') && !specifier.startsWith('#')) return whole;
+				return binds(clause)
+					.map((one) =>
+						one === 'test'
+							? 'const test = (one) => one;'
+							: `const ${one} = () => { throw new Error(${JSON.stringify(
+									`\`${one}\` is upstream's own test harness, which is not vendored here`,
+								)}); };`,
+					)
+					.join(' ');
+			},
+		);
+	} catch (error) {
+		return { broken: (error as Error).message };
+	}
 	const at = resolve(into, '_config.mjs');
 	writeFileSync(at, shimmed);
 	try {
@@ -419,20 +457,30 @@ async function attempt(suite: string, name: string): Promise<Result> {
 	cpSync(from, dir, { recursive: true });
 
 	const config = await configOf(from, dir);
+	// **A config this harness cannot read is not a skip, and that is the whole finding.** It used
+	// to be filed as one, which put 342 samples in the column spec/suite.md requires to be
+	// upstream's own judgement -- nobody skipped them and nobody measured them. There is one left
+	// and the rule holds for one the same as for 342: it goes where "neither side answered" goes.
+	if (config.broken !== undefined) {
+		return {
+			suite,
+			name,
+			outcome: 'oracle',
+			why: `its config will not evaluate: ${config.broken}`,
+		};
+	}
 	const why =
-		config.broken !== undefined
-			? `its config will not evaluate: ${config.broken}`
-			: config.skip === true
-				? 'upstream skips it'
-				: Array.isArray(config.mode) && !config.mode.includes('server')
-					? `upstream runs it only in ${config.mode.join(', ')} mode`
-					: Array.isArray(config.skip_mode) && config.skip_mode.includes('server')
-						? 'upstream skips it in server mode'
-						: config.error !== undefined
-							? 'upstream expects it to error'
-							: config.load_compiled === true
-								? 'upstream loads its output precompiled'
-								: null;
+		config.skip === true
+			? 'upstream skips it'
+			: Array.isArray(config.mode) && !config.mode.includes('server')
+				? `upstream runs it only in ${config.mode.join(', ')} mode`
+				: Array.isArray(config.skip_mode) && config.skip_mode.includes('server')
+					? 'upstream skips it in server mode'
+					: config.error !== undefined
+						? 'upstream expects it to error'
+						: config.load_compiled === true
+							? 'upstream loads its output precompiled'
+							: null;
 	if (why !== null) return { suite, name, outcome: 'skipped', why };
 
 	// **A props getter that reaches for upstream's harness is nobody's answer, so it is the

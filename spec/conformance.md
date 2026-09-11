@@ -41,7 +41,7 @@ neither gates anything. A compiler that is fast and writes the wrong bytes has n
 
 Three of the outcomes are not failures and saying so once is what keeps the target honest.
 
-**Upstream's own skips are out.** 240 samples whose `_config.js` says `skip`, or a `mode` upstream
+**Upstream's own skips are out.** 239 samples whose `_config.js` says `skip`, or a `mode` upstream
 does not run on the server, or a `skip_mode` naming `server`, or an `error` the sample exists to
 produce -- or a `runtime_error` that is what the render then threw, which is the same statement one
 word along. Not our judgement.
@@ -55,10 +55,12 @@ requires to be upstream's own and nobody else's. Nobody skipped them. They were 
 four of them are work. Reading the configs raised the skips upstream really does declare, since a
 config that throws declares nothing: `mode` went from 160 to 182 and `skip` from 17 to 19.
 
-**A sample Svelte's own render cannot produce bytes for is out.** 17, and 13 of them are this
-harness reaching the same wall one field along: their `props` are *built* by `create_deferred()`
-and the rest of upstream's helpers, so neither side can be handed the props the sample names. That
-is a sample nobody measured rather than a sample that agrees, which is what the column is for.
+**A sample Svelte's own render cannot produce bytes for is out.** 18, and 14 of them are this
+harness rather than the oracle: 13 whose `props` are *built* by `create_deferred()` and the rest of
+upstream's helpers, so neither side can be handed the props the sample names, and one whose config
+imports a sibling without naming its extension. Each is a sample nobody measured rather than a
+sample that agrees, which is what the column is for and why a config this harness cannot read is
+counted here rather than among the skips.
 
 The other 4 are the oracle's own. It is asked even where this compiler refused, so a sample nobody
 can render is not counted as our gap -- fifteen of them were, a quarter of what was being ranked as
@@ -113,8 +115,8 @@ render.** Nothing differing, nothing refused as a gap.
                         samples  identical  empty  differs   gap  decided  skipped  oracle
 server-side-rendering       131         90      0        0     0       25       16       0
 runtime-runes              1048        667     19        0     0      189      170       3
-runtime-legacy             1209       1082     14        0     0       45       54      14
-total                      2388       1839     33        0     0      259      240      17
+runtime-legacy             1209       1082     14        0     0       45       53      15
+total                      2388       1839     33        0     0      259      239      18
 ```
 
 Against the target: **1839 of 1839**. Nothing differs and nothing is refused as a gap, which is the
