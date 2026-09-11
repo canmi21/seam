@@ -195,6 +195,18 @@ const DECIDED: readonly { says: string; kind: string }[] = [
 		kind: 'the payload carries data and no function',
 	},
 	{ says: 'does not read the same twice', kind: 'a value that is not the same twice' },
+	{
+		says: 'a render option a server passes',
+		kind: 'a boundary whose body throws, which is a render option',
+	},
+	{
+		says: 'is a raw snippet whose bytes the request decides',
+		kind: 'a string an artifact would have to render per request',
+	},
+	{
+		says: 'no script in this file writes',
+		kind: 'a global of whatever is running, which a second backend has not got',
+	},
 ];
 
 /** Which shape of decision a refusal is, or null where nobody has said and it is work. */
@@ -645,8 +657,17 @@ if (!process.argv.includes('--table')) {
 table(results);
 
 const differs = count(results, 'differs');
+const gaps = count(results, 'gap');
 console.log(
-	`\n${String(differs)} sample(s) wrote the wrong bytes. A refusal names a file and stops a build; a difference ships. See spec/suite.md.`,
+	`\n${String(differs)} sample(s) wrote the wrong bytes and ${String(gaps)} were refused as a gap. ` +
+		'A refusal names a file and stops a build; a difference ships. See spec/suite.md.',
 );
 rmSync(STAGE, { recursive: true, force: true });
-process.exit(differs === 0 ? 0 : 1);
+// **Both, because the condition changed when the second reached zero.** While any sample wrote the
+// wrong bytes this failed on that alone, and the refusals were a list it printed: a check that
+// cannot pass stops being read. Now that neither has anything in it the question is no longer how
+// far the subset reaches but whether it stops reaching as far, so a sample that starts differing
+// and a sample that starts being refused are the same failure and both are the gate's. What this
+// does not catch is a sample sliding from `identical` into `decided`, which wants a baseline of
+// names rather than a count. See spec/suite.md.
+process.exit(differs === 0 && gaps === 0 ? 0 : 1);

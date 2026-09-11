@@ -255,10 +255,13 @@ this does not. Reading them was a morning rather than a project because the suit
 byte the two renders disagree on beside each name -- a list of forty sample names is not something
 anybody acts on.
 
-## Why it is red, and where it is run
+## What it asks now, and where it is run
 
-The suite fails today and is meant to. It is not part of `verify`: a check that cannot pass stops
-being read, and every commit would carry it.
+**It is green and it is in `verify`.** It was red on purpose for as long as any sample wrote the
+wrong bytes, and out of `verify` for the same reason: a check that cannot pass stops being read,
+and every commit would have carried it. Both counts are zero now, so the question it asks has
+changed from how far the subset reaches to whether it stops reaching as far, and a sample that
+starts differing and a sample that starts being refused are the same failure.
 
 ```
 mise run suite              the lists, then the table
@@ -274,10 +277,10 @@ somebody wrote to exercise Svelte and a good number of them log: 127 lines of `0
 what a command wrote. Upstream's output is not a result of this run, so it goes nowhere; every
 outcome here is a value returned or thrown, so nothing is lost with it.
 
-It becomes part of `verify` when the count that differs reaches zero -- at which point its
-condition changes from "no sample writes the wrong bytes" to "no sample that used to be identical
-stops being", which is a regression check and belongs in the gate. The refusals stay a list at
-that point, ranked by [roadmap.md](roadmap.md), and the file has nothing left to decide.
+**What it does not hold is a sample sliding from `identical` into `decided`.** Both counts stay at
+zero while the number that agrees goes down, because a decision is read off a message and a message
+can be widened -- which is the one direction this gate cannot see. It wants a baseline of names
+rather than a count, and it is owed. Everything else the file had to decide is decided.
 
 The corpus is vendored rather than fetched, at one tag, under the workspace's arrangement for
 vendored source: see [`vendor/svelte/VENDOR.md`](../vendor/svelte/VENDOR.md). It is 2.0 MB of text

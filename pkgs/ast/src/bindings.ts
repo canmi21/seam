@@ -115,7 +115,19 @@ export interface Unresolved {
 	name: string;
 	/** The expression it was written in, so the report says where to look. */
 	expression: string;
-	reason: 'unknown' | 'ambient';
+	/**
+	 * `free` where no script in the file so much as writes the name, which is a different answer
+	 * from the others and a decision rather than work.
+	 *
+	 * A name that resolves nowhere has six unrelated causes and most of them are a binding this
+	 * compiler failed to record, which is why the message it gets is ranked as a gap. One of them
+	 * is not: a name the scripts never mention is a reference the host resolves at run time, and
+	 * `pipeline.md` says the second backend embeds an evaluator with no host of any kind. Told
+	 * apart on the scripts because a binding this compiler missed is still *written* -- and a
+	 * markup construct it has never met is refused by the allowlist before anything reaches here,
+	 * so the name cannot have been bound by one of those either.
+	 */
+	reason: 'unknown' | 'ambient' | 'free';
 }
 
 /** One name an expression uses that came from an import, and how to ask for it again. */
@@ -154,6 +166,14 @@ interface Context {
 	props: ReadonlySet<string>;
 	/** Declared names the markup reads, so what they expanded into can be checked as well. */
 	read: Set<string>;
+	/**
+	 * Every name any script in this file writes, whether or not it binds anything.
+	 *
+	 * What it tells apart is a binding this compiler failed to record from a name that was never
+	 * written down at all, which is the difference between a gap and a decision. See
+	 * `Unresolved.reason`.
+	 */
+	written: ReadonlySet<string>;
 	/** The component's own path, for resolving what its imports name; unknown for bare source. */
 	file?: string;
 }
@@ -354,7 +374,11 @@ function report(
 			carried.read.add(name);
 			continue;
 		}
-		into.push({ name, expression: text, reason: 'unknown' });
+		// A name no script in this file writes is a reference the host resolves, which is a decision
+		// rather than a binding this compiler missed. See `Unresolved.reason`. Where there is no
+		// context there is no answer, and `unknown` is the safe one.
+		const free = carried !== undefined && !carried.written.has(name);
+		into.push({ name, expression: text, reason: free ? 'free' : 'unknown' });
 	}
 
 	ambient(expression, text, into);
@@ -694,6 +718,33 @@ function reached(ast: Node, source: string, from: ReadonlySet<string>, into: Unr
 	}
 }
 
+/**
+ * Every identifier either script writes, which is a wider question than what they declare.
+ *
+ * A binding this compiler failed to record is still a binding somebody wrote, so the name is in
+ * here; a name that is in neither script came from nowhere this compiler can see. Every identifier
+ * counts, a property key and a member's name included, because over-reporting leaves a refusal
+ * ranked as work and under-reporting hides work in a column that says there is none.
+ */
+function namesWritten(ast: Node): ReadonlySet<string> {
+	const found = new Set<string>();
+	const seek = (node: unknown): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) seek(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		if (node['type'] === 'Identifier' && typeof node['name'] === 'string') {
+			found.add(node['name']);
+			return;
+		}
+		for (const one of Object.values(node)) seek(one);
+	};
+	seek(ast['module']);
+	seek(ast['instance']);
+	return found;
+}
+
 export function bindings(source: string, file?: string): Bindings {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const found: Unresolved[] = [];
@@ -704,6 +755,7 @@ export function bindings(source: string, file?: string): Bindings {
 		declares: declares.has,
 		props: requested(ast['instance']),
 		read: new Set<string>(),
+		written: namesWritten(ast),
 		...(file === undefined ? {} : { file }),
 	};
 	// A `let:` name is bound by the slot it is written on and supplied by the component that

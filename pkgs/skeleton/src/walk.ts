@@ -5221,6 +5221,22 @@ function collect(node: unknown, walk: Walk): void {
 							'site, which is composition in the other direction',
 					);
 				}
+				// **A raw snippet whose bytes the request decides is the scope line, not a callee this
+				// compiler failed to follow.** `createRawSnippet(fn)` is
+				// `renderer.push(fn(...getters).render().trim())` on the server, so where that
+				// `render` reads the request the bytes are a string an artifact would have to compute
+				// per request -- by calling what it was handed with a renderer of its own, and, in
+				// both of the samples that write the shape, by calling `svelte/server`'s own
+				// `render()` inside it. See spec/roadmap.md.
+				if (called !== null && called.includes('createRawSnippet(')) {
+					refuse(
+						`\`{@render ${String(name)}()}\` in ${basename(site.file)} is a raw snippet whose ` +
+							'bytes the request decides. `createRawSnippet` hands the renderer a string its ' +
+							'own function writes, so an artifact would have to run that function per ' +
+							'request, with a renderer of its own, to know what the bytes are. Write it as a ' +
+							'`{#snippet}`, or compute the string in the load stage. See spec/refusals.md',
+					);
+				}
 				refuse(
 					`\`{@render ${String(name)}()}\` in ${basename(site.file)} names no \`{#snippet}\` this ` +
 						'compiler can follow it to, and the call reads something the request decides, so ' +
@@ -5543,11 +5559,15 @@ function collect(node: unknown, walk: Walk): void {
 				.slice(before)
 				.some((one) => /[\w$)\]]\s*\(/.test(one.expression) && mentions(one.expression, dynamic));
 			if (children.some((child) => snippetNamed(child, 'failed')) && throws) {
+				// The same answer the render gives where it catches one, said before it is reached:
+				// what decides it is not which side the throw is on but what the `failed` snippet is
+				// handed, which is `transformError(error)` -- a render option a server passes and an
+				// artifact has nowhere to hold. See `render.ts` and spec/refusals.md.
 				refuse(
 					'a `<svelte:boundary>` with a `failed` snippet, whose body calls something over a value ' +
 						'the request brings. Svelte writes that snippet instead of the body where the body ' +
-						"throws, so which of the two shapes reaches the bytes is the request's answer " +
-						'rather than one shape. See spec/refusals.md',
+						'throws, and what the snippet is handed is `transformError(error)` -- a render ' +
+						'option a server passes and an artifact has nowhere to hold. See spec/refusals.md',
 				);
 			}
 			return;

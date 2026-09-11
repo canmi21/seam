@@ -75,7 +75,11 @@ run = [
 
 [tasks.verify]
 description = "Everything a change has to pass"
-depends = ["check", "check-rust", "lint", "lint-rust", "test", "test-rust"]
+# `suite` joined when its count of differing samples and its count of gaps both reached zero, which
+# is the condition spec/conformance.md sets for stage one. Before that it was kept out on purpose: a
+# check that cannot pass stops being read, and every commit would have carried it. What it asks now
+# is the opposite question -- not how far the subset reaches, but whether it stops reaching as far.
+depends = ["check", "check-rust", "lint", "lint-rust", "test", "test-rust", "suite"]
 
 [tasks.suite]
 description = "Svelte's own 2388 samples, compiled here and held against Svelte's own render"

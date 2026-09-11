@@ -808,13 +808,19 @@ item above already owns. `component-namespace` is `<Components.Foo />` over a mo
 export, which is the module-graph item. `binding-indirect-fn` is a `$:` declaration substituted
 into `items.filter(fn)` and is its own fault.
 
-## Stage one is 1559 of 1570, and what is left is not work
+## Stage one is 1559 of 1559, and the gate has changed
 
-What the suite reports now is nothing differing and eleven refused, and all eleven are three
-constructs turned away in the wrong words: a `<svelte:boundary>` whose body throws, eight of them;
-a raw snippet whose bytes the request decides, two; and a bare global the harness sets before
-rendering, one. All three are the scope line, under **Decided, and not built** below.
-[conformance.md](conformance.md) has the table.
+What the suite reports now is nothing differing and nothing refused as a gap, which is the
+condition [conformance.md](conformance.md) set for stage one. The last eleven were three constructs
+turned away in the wrong words -- a `<svelte:boundary>` whose body throws, eight of them; a raw
+snippet whose bytes the request decides, two; and a bare global, one -- and all three are the scope
+line, under **Decided, and not built** below. Each now says which decision it is, and the suite
+reads that off the message rather than being told.
+
+**So the suite is in `verify` and its failure condition is both counts.** A sample that starts
+differing and a sample that starts being refused are the same failure now. The direction it still
+cannot see is a sample sliding from `identical` into `decided`, since a decision is read off a
+message and a message can be widened; that wants a baseline of names and is owed.
 
 **Two pieces of work arrived by the oracle being fixed rather than by anything being written**, and
 that is the finding worth carrying forward. Thirteen samples had never been measured in either

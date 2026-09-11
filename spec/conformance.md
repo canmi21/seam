@@ -53,8 +53,8 @@ them were, a quarter of what was being ranked as work. It was 17 until the eight
 not a sample the oracle cannot render, and all eight were out of the denominator without either
 side having answered. [suite.md](suite.md) has the rule and the one exception to it.
 
-**A refusal by decision is out.** 264 samples, in four shapes the scope line settles, and the suite
-counts them in a column of their own now rather than beside the gaps:
+**A refusal by decision is out.** 241 samples, in seven shapes the scope line settles, and the
+suite counts them in a column of their own rather than beside the gaps:
 
 - **183 await** in markup or at the top of a script, which is async Svelte and the load stage's.
   Which samples those are is upstream's compiler to say: one that will not build without
@@ -73,29 +73,39 @@ counts them in a column of their own now rather than beside the gaps:
   the load stage is the same page.
 - **4 read a value that is not the same twice**, `Math.random`, `Date()` and `Symbol()`, which a
   compile-time render freezes into bytes every request would then share.
+- **8 catch what a `<svelte:boundary>`'s body throws.** What the `failed` snippet is handed is
+  `transformError(error)`, a render option a server passes and an artifact has nowhere to hold, so
+  which of the two shapes a request gets is not a function of the request at all.
+- **2 are a raw snippet whose bytes the request decides.** `createRawSnippet` hands the renderer a
+  string its own function writes, so an artifact would have to run that function per request, with
+  a renderer of its own, to know what the bytes are.
+- **1 reads a bare global**, a name no script in the file writes, which can only be a global of
+  whatever is running -- and a backend that is not Node embeds an evaluator with no host to hold
+  one. [derivation.md](derivation.md) has it, and prices `process`, the one name kept.
 
-[roadmap.md](roadmap.md) holds all four. Three of them do not move. The count itself moves as work
-lands, and upward: a sample that used to be refused for a gap earlier in the walk reaches one of
-these instead.
+[roadmap.md](roadmap.md) holds them. None of them moves. The count itself moved as the work landed,
+and upward: a sample refused for a gap earlier in the walk reaches one of these instead, which is
+what the last three shapes are -- every one of them was counted as work until somebody read it.
 
 **Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
 
-So the target is: **of the 1570 samples that are in, every one is byte-identical to Svelte's own
+So the target is: **of the 1559 samples that are in, every one is byte-identical to Svelte's own
 render.** Nothing differing, nothing refused as a gap.
 
 ### Where it stands
 
 ```
                         samples  identical  empty  differs   gap  decided  skipped  oracle
-server-side-rendering       131         90      0        0     6       19       16       0
-runtime-runes              1048        583     16        0     5      173      269       2
+server-side-rendering       131         90      0        0     0       25       16       0
+runtime-runes              1048        583     16        0     0      178      269       2
 runtime-legacy             1209        886     14        0     0       38      269       2
-total                      2388       1559     30        0    11      230      554       4
+total                      2388       1559     30        0     0      241      554       4
 ```
 
-Against the target: **1559 of 1570**, with nothing differing and eleven refused as gaps. Four fail
-inside the oracle rather than inside either side and are counted apart.
+Against the target: **1559 of 1559**. Nothing differs and nothing is refused as a gap, which is
+the condition this file sets for stage one. Four fail inside the oracle rather than inside either
+side and are counted apart.
 
 **Both numbers moved because the columns were read, not because the compiler did.** Fourteen
 samples whose whole content is a `<svelte:head>` were filed as agreements that say nothing, and
@@ -155,11 +165,18 @@ The three that used to fail inside the derivation evaluator are counted as decis
 rule about a value the render changes reaching the walk through a spread, a generator and a computed
 key rather than by name.
 
-### When it is done
+### It is done, and what that means
 
-`mise run suite` reports 0 differing and 0 refused-as-gap. At that point the suite's failure
-condition changes from "no sample writes the wrong bytes" to "no sample that passed stops
-passing", which is a regression check, and it joins `verify`. See [suite.md](suite.md).
+`mise run suite` reports 0 differing and 0 refused as a gap, which is the condition this section
+set. The suite's failure condition is both counts now rather than the first alone, and it is in
+`verify`: while any sample wrote the wrong bytes the refusals were a list it printed, because a
+check that cannot pass stops being read, and now that neither column has anything in it the
+question is no longer how far the subset reaches but whether it stops reaching as far.
+
+**What is not yet held is a sample sliding from `identical` into `decided`.** Both counts would
+stay at zero while the number that agrees went down, because a decision is read off a message and
+a message can be widened. That wants a baseline of names rather than a count, and it is owed. See
+[suite.md](suite.md).
 
 ## Stage 2: SvelteKit's own test apps
 

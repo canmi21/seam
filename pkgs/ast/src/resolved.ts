@@ -38,14 +38,30 @@ export function resolved(source: string, where: string, file?: string): void {
 	const show = ([name, at]: [string, string]): string =>
 		at === name ? `\`${name}\`` : `\`${name}\` in \`${at}\``;
 	const ambient = loose.filter((one) => one.reason === 'ambient').map((one) => one.name);
-	const unknown = [...seen].filter(([name]) => !ambient.includes(name)).map(show);
+	const free = loose.filter((one) => one.reason === 'free').map((one) => one.name);
+	const unknown = [...seen]
+		.filter(([name]) => !ambient.includes(name) && !free.includes(name))
+		.map(show);
 
-	// Both of these are refusals an author can act on now, so both say what to do about it rather
+	// Three of these are refusals an author can act on now, so each says what to do about it rather
 	// than only what is wrong. See spec/refusals.md.
 	const reasons = [
 		unknown.length > 0
 			? `${unknown.join(', ')}, which the data does not carry; the name has to come from the \
 payload, an each block, a script in this file, or an import`
+			: '',
+		// **A name no script writes is the host's, and that is the scope line rather than work.**
+		// The other reading of an unresolved name is a binding this compiler failed to record, and
+		// there are six of those, which is why they are ranked as a gap. This one is not: nothing
+		// in the file ever wrote the name, so the only thing left that could hold it is the global
+		// scope of whatever is running -- and spec/pipeline.md says the second backend embeds an
+		// evaluator with no host of any kind, so the same artifact would serve two different pages.
+		// `process` is the one name kept, and spec/derivation.md writes down what that costs.
+		free.length > 0
+			? `${[...new Set(free)].map((name) => `\`${name}\``).join(', ')}, which no script in this \
+file writes, so it can only be a global of whatever is running -- and a backend that is not Node \
+embeds an evaluator with no host to hold one. Read it in the load stage and put the value in the \
+data`
 			: '',
 		ambient.length > 0
 			? `${[...new Set(ambient)].map((name) => `\`${name}\``).join(', ')}, which does not read \

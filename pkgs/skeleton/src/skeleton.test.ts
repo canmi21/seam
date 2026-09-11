@@ -3756,9 +3756,11 @@ const refused: Case[] = [
 			'</script><p>{n}|{data.a}</p>',
 	},
 	{
-		// And a name read both ways still has to come from somewhere.
+		// And a name read both ways still has to come from somewhere. No script writes it, so what
+		// it could only be is a global of whatever is running, which is the scope line rather than a
+		// binding this compiler failed to record. See spec/derivation.md.
 		name: 'a name read under `typeof` and beside it',
-		says: 'the data does not carry',
+		says: 'no script in this file writes',
 		source: `${PROPS}<p>{typeof mystery}{mystery}</p>`,
 	},
 	{
