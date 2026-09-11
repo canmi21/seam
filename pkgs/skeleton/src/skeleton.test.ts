@@ -3741,6 +3741,18 @@ const accepted: Case[] = [
 			'</script><Kid bind:a={() => a, (v) => { a = v; }} /><i>{data.a}</i>',
 		data: [{ a: 'x' }, { a: '' }],
 	},
+	{
+		// `runtime-legacy/binding-contenteditable-html`, out of the skips with the one above.
+		// Svelte writes the open tag, the value and the close tag whichever way the author closed
+		// the element, and `unbind.ts` already wrote the pair out for a `bind:textContent` written
+		// self-closing. The arm that plants the content did not, and refused for a tag it could not
+		// read, which was never what was wrong with it.
+		name: 'a `bind:innerHTML` on a self-closing tag',
+		source:
+			'<script>export let name;</script><editor contenteditable="true" bind:innerHTML={name} />' +
+			'<p>hello {@html name}</p>',
+		props: [{ name: '<b>world</b>' }, { name: '' }],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.

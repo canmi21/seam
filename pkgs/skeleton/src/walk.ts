@@ -82,7 +82,7 @@ import {
 import type { Block, Hole, Stream } from './shape.ts';
 import { inlined, type Snippet, snippetsIn, supplied } from './snippets.ts';
 import { RAW_TEXT_ELEMENTS, VALID_TAG_NAME, VOID_ELEMENTS } from './tags.ts';
-import { unbound } from './unbind.ts';
+import { opening, unbound } from './unbind.ts';
 
 /**
  * The walk: one pass over the markup that plants a marker wherever a value goes and follows a
@@ -1493,7 +1493,14 @@ function contents(
 	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
 	const at = span(binding);
 	const close = closing(source, node);
-	if (at === null || source[close - 1] === '/')
+	// A self-closing tag has no content and the pair is written out around the value, which is the
+	// same answer `unbind.ts` already gave a `bind:textContent` written that way and this arm did
+	// not: `<editor contenteditable bind:innerHTML={name} />` is `runtime-legacy/
+	// binding-contenteditable-html`, and Svelte renders it `<editor ...>` -- the value -- `</editor>`
+	// whichever way the author closed it. It was refused for a tag this compiler cannot read, which
+	// was never what was wrong. The sample sat in the skips until the configs were read.
+	const opened = opening(source, node);
+	if (at === null || opened === null)
 		refuse(`\`bind:${String(binding['name'])}\` on a tag this compiler cannot read`);
 	const value = `(${expand(binding['expression'])})`;
 	skipped.add(binding);
@@ -1502,7 +1509,7 @@ function contents(
 	if (nodes.length === 0) {
 		const index = holes.length;
 		holes.push({ index, expression: `(${value} || '')`, raw: true });
-		edits.push([close + 1, close + 1, sentinel(index)]);
+		edits.push([opened.from, opened.to, `${opened.before}${sentinel(index)}${opened.after}`]);
 		return;
 	}
 

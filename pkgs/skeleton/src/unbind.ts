@@ -137,7 +137,7 @@ function isContent(name: string, tag: string): boolean {
  * A self-closing tag has no content, and `<textarea />` and `<textarea></textarea>` compile to the
  * same thing -- measured -- so the pair is written out around the value rather than refused.
  */
-function opening(
+export function opening(
 	source: string,
 	node: AstNode,
 ): { from: number; to: number; before: string; after: string } | null {
