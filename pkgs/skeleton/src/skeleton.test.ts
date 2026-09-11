@@ -3770,6 +3770,24 @@ const accepted: Case[] = [
 			' export let visible;</script><Frame component={Foo} {visible}/>',
 		props: [{ visible: true }, { visible: false }],
 	},
+	{
+		// `runtime-runes/bindable-prop-and-export`, the last of the four out of the skips. The
+		// child declares `open` as a `$bindable()` and exports a function of the same name, so
+		// `bind_props` is handed `{ open: is_open, open }` and the function wins the duplicate key.
+		// None of that travels: the caller binds a value of its own that is not `undefined`, which
+		// is the question the bindable half of this already asked and the readonly half did not.
+		name: 'a readonly export bound where the caller holds a value',
+		beside: {
+			Held:
+				'<script>let { open: is_open = $bindable() } = $props();' +
+				' export function open() { is_open = !is_open; }</script>' +
+				'<button>{is_open}</button>',
+		},
+		source:
+			"<script>import Held from './Held.svelte'; let { data } = $props();" +
+			' let open = $state(true);</script><Held bind:open /><b>{open}</b><i>{data.a}</i>',
+		data: [{ a: 'x' }, { a: '' }],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.

@@ -6472,6 +6472,13 @@ function descend(
 			// Nothing the child sends back reaches the bytes where the caller's template does not
 			// read the name: the settling loop renders that template again and writes what it wrote.
 			if (!readsIt(boundTo.get(name) ?? name)) continue;
+			// And nothing travels where the caller's value is not `undefined`, which is the same
+			// question the bindable half below asks and this half was not asking.
+			// `runtime-runes/bindable-prop-and-export` is a child declaring `open` as a `$bindable()`
+			// and exporting a function of that name, so `bind_props` is handed `{ open: is_open,
+			// open }` and the duplicate key leaves the function -- and none of it moves, because the
+			// caller binds a `$state(true)` of its own. See `travels`.
+			if (!travels(name)) continue;
 			refuse(
 				`\`bind:${name}\` on <${tag}> is a binding the child sends back: \`${name}\` is a ` +
 					'readonly export, which `bind_props` assigns up to the caller where the caller ' +
