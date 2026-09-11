@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { collides } from './sentinel.ts';
 import { basename, relative, resolve as resolvePath } from 'node:path';
-import { type Carried, resolved } from 'ast';
+import { type Carried, importsOf, readsOf, resolveBare, resolved } from 'ast';
 import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
 import { timed, timedSync } from './timing.ts';
@@ -339,8 +339,66 @@ export async function skeleton(
 	// `lifecycle_outside_component` at injection rather than naming a file here. Asked once more
 	// over the finished list, which is the one place that holds all of them.
 	for (const one of expressionsOf(finished)) outside(one.expression, true, baseline.changing);
+	composed(expressionsOf(finished), root);
 
 	return finished;
+}
+
+/**
+ * Refuses a derivation that reads a component, which is the half of resolution this is the place for.
+ *
+ * A component import resolves -- the file imports it and the copy this compiler stages keeps the
+ * import, so a component handed to a child as a prop is a value the build has. What the bundle
+ * cannot hold is the same name: `carriedBy()` skips a default `.svelte` import because a component
+ * is composed at compile time and is never a value an expression calls, and a derivation is
+ * evaluated outside the render with only what the bundle carries. So the one shape that has to be
+ * refused is a component reaching an expression the artifact holds.
+ *
+ * Asked here rather than in `bindings.ts`, for the same reason the rule about a value the render
+ * changes is: over the finished list, which is the one place that holds every expression. Asked at
+ * the name, it refused `runtime-legacy/transition-css-iframe` -- `<Frame component={Foo}/>` over a
+ * `Foo` two lines above it in an `import` -- for a name the data does not carry. See
+ * spec/derivation.md.
+ */
+function composed(
+	expressions: readonly { expression: string; files: string[] }[],
+	root: string,
+): void {
+	const components = new Map<string, ReadonlySet<string>>();
+	const held = (file: string): ReadonlySet<string> => {
+		const found = components.get(file);
+		if (found !== undefined) return found;
+		const at = resolvePath(root, file);
+		const names = new Set<string>();
+		let source: string;
+		try {
+			source = readFileSync(at, 'utf8');
+		} catch {
+			components.set(file, names);
+			return names;
+		}
+		for (const [local, one] of importsOf(source)) {
+			if (one.kind !== 'default') continue;
+			if ((resolveBare(one.from, at) ?? one.from).endsWith('.svelte')) names.add(local);
+		}
+		components.set(file, names);
+		return names;
+	};
+	for (const one of expressions) {
+		const names = readsOf([one.expression]);
+		for (const file of one.files) {
+			for (const name of names) {
+				if (!held(file).has(name)) continue;
+				throw new Error(
+					`\`${name}\` is a component read by an expression this artifact holds, and a ` +
+						'derivation is evaluated outside the render with only what the bundle carries. A ' +
+						'component is composed at compile time and is not a value the bundle can hold, so ' +
+						'the choice has to be written as an `{#if}` around each component. See ' +
+						'spec/derivation.md',
+				);
+			}
+		}
+	}
 }
 
 /**

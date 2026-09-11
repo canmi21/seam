@@ -361,11 +361,20 @@ function report(
 		// A name from `$app/state` is neither bundled nor looked up: `page` is the payload's and
 		// the other two are written out as what a server holds. See `stateImports()`.
 		if (carried?.known.get(name)?.from === APP_STATE) continue;
-		// An imported name is legal and gets bundled rather than looked up in the data. A
-		// component is not one of these: it is composed at compile time and never a value here.
+		// An imported name is legal and gets bundled rather than looked up in the data.
+		//
+		// **A component is not carried, and it still resolves.** It is composed at compile time and
+		// is never a value an expression calls, so the bundle has nothing to put under the name --
+		// but the file imports it, and the copy this compiler stages keeps that import, so
+		// `<Frame component={Foo}/>` hands the render the component the build already has.
+		// Reporting it here said `Foo`, "which the data does not carry", of a name sitting in an
+		// `import` two lines above, and refused `runtime-legacy/transition-css-iframe` for it. What
+		// must not happen is the name reaching a *derivation*, where the bundle is all there is;
+		// that is asked over the finished expressions in `pkgs/skeleton`, which is the one place
+		// that holds all of them. See spec/derivation.md.
 		const held = carried?.known.get(name);
-		if (carried !== undefined && held !== undefined && !componentImport(held, carried.file)) {
-			carried.used.add(name);
+		if (carried !== undefined && held !== undefined) {
+			if (!componentImport(held, carried.file)) carried.used.add(name);
 			continue;
 		}
 		// A name the scripts declare is substituted rather than looked up, so by the time an

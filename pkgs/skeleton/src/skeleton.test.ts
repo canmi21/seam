@@ -3753,10 +3753,42 @@ const accepted: Case[] = [
 			'<p>hello {@html name}</p>',
 		props: [{ name: '<b>world</b>' }, { name: '' }],
 	},
+	{
+		// `runtime-legacy/transition-css-iframe`, out of the skips with the two above. The child
+		// writes an `<iframe>` and nothing else, and the component it is handed is a file this
+		// compile imports: a value the build has, whichever way the child then uses it.
+		name: 'a component handed to a child as a prop',
+		beside: {
+			Frame:
+				'<script>export let component; let frame;' +
+				' $: hold($$props); function hold(p) { return p; }</script>' +
+				'<iframe bind:this={frame} title="frame"></iframe>',
+			Foo: '<script>export let visible;</script>{#if visible}<b>yes</b>{/if}',
+		},
+		source:
+			"<script>import Frame from './Frame.svelte'; import Foo from './Foo.svelte';" +
+			' export let visible;</script><Frame component={Foo} {visible}/>',
+		props: [{ visible: true }, { visible: false }],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
+	{
+		// The other half of letting a component import resolve. The name is legal and the staged
+		// copy keeps the import, so a component handed to a child is a value the build has; what
+		// the bundle cannot hold is the same name, because `carriedBy()` skips a component and a
+		// derivation is evaluated with the bundle and nothing else. So the shape to refuse is a
+		// component reaching an expression the artifact holds, and it is asked over the finished
+		// list rather than at the name. See `composed()` in skeleton.ts.
+		name: 'a component read by an expression the request decides',
+		beside: { Foo: '<p>foo</p>' },
+		source:
+			"<script>import Foo from './Foo.svelte'; let { data } = $props();</script>" +
+			'<p>{data.a + Foo.name}</p>',
+		data: [{ a: 'x' }, { a: '' }],
+		says: 'is a component read by an expression this artifact holds',
+	},
 	{
 		// The object a caller passed is rebuilt wherever it is read -- the entry's out of the
 		// payload, a child's out of what its call site wrote -- so a write into it is lost. The
