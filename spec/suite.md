@@ -76,14 +76,30 @@ somebody says otherwise.
 compiler read them and turned them away on purpose. Folding them into `skipped` would make that
 column our judgement, which is the one thing it is written not to be.
 
-**oracle** -- neither side answered, because Svelte's own render could not be built or run here.
-There is nothing to be identical to, so the sample is not a pass, not a difference and not a
-refusal.
+**oracle** -- neither side answered. Svelte's own render could not be built or run here, or the
+props the sample names could not be built at all: fourteen configs write `get props()` and thirteen
+of them return what `create_deferred()` made, which is upstream's helper and not vendored. There is
+nothing to be identical to, so the sample is not a pass, not a difference and not a refusal.
+**Whichever half could not answer, the column means the same thing**: nobody measured this, read
+the names.
 
 **skipped** -- upstream's own `_config.js` says so: `skip: true`, a `mode` upstream does not run on
 the server, a `skip_mode` that names `server`, or an `error` the sample is written to produce. Not
 our judgement, and never used to make a number look better. A sample skipped here is skipped by the
 people who wrote it.
+
+**Which requires reading the config, and for 342 samples it was not read.** Upstream's runner is
+not vendored, so the imports that reach for it are stood in for; the rule matched
+`import { test } from '...'` alone, and 276 of upstream's configs write `import { ok, test }` or
+`import { test, ok }`, with the rest reaching for `helpers`, `../../../suite` and
+`#client/constants`. Those configs threw on an import nothing resolves, and a config that will not
+evaluate was filed as a skip -- which put this harness's own failure in the one column that exists
+to hold somebody else's judgement. **A number this column makes smaller is a number nobody checked**,
+and the argument two paragraphs up, that folding a decision in here would make the column ours, is
+the same argument. Every import that leaves the sample's own directory is replaced now, and what
+stands in for a name throws when it is called, so a config that merely mentions upstream's helpers
+evaluates and one whose props are built by them says so where the props are read. 276 of the
+recovered samples are identical, one writes bytes that are not Svelte's, and three are gaps.
 
 **A `runtime_error` is one of these where it is what the render threw, and only then.** The field is
 upstream naming an error the sample is written to raise while it runs, which is `error` one word
@@ -159,10 +175,12 @@ as counting a gap out because the compiler announces it.
 
 A percentage over 2388 is meaningless, because three of the outcomes are not failures.
 
-**Upstream's skips are out.** 554 of them.
+**Upstream's skips are out.** 240 of them. It read 554 while 342 configs were not being read at
+all, and reading them raised what upstream really declares as well: `mode` from 160 to 182 and
+`skip` from 17 to 19, because a config that throws declares nothing.
 
-**A sample the oracle cannot render is out.** 4, and it was 17 until the samples that say how to
-render themselves were read, and until the entry stopped being compiled twice. There is nothing to compare against, so counting it either way is a
+**A sample neither side answered for is out.** 17, of which 13 are the props this harness cannot
+build and 4 the oracle's own. There is nothing to compare against, so counting it either way is a
 claim about a comparison nobody made -- which is also why the column has to be read rather than
 trusted: a sample in it because of this harness is a sample nobody has measured.
 
@@ -202,7 +220,7 @@ upstream skips, 17 async, 2 that ask a boundary to catch a throw -- **59 of 96**
 
 [conformance.md](conformance.md) puts this suite in its place: it is stage one of three, and it
 says what "all of them" means once the skips, the oracle's own failures and the refusals by
-decision come out -- 1570 of the 2388 -- and why neither SvelteKit's own test apps nor a real
+decision come out -- 1839 of the 2388 -- and why neither SvelteKit's own test apps nor a real
 application should be measured until
 this one is finished. What follows here is the rule that decides the order of work inside it.
 
@@ -257,11 +275,12 @@ anybody acts on.
 
 ## What it asks now, and where it is run
 
-**It is green and it is in `verify`.** It was red on purpose for as long as any sample wrote the
-wrong bytes, and out of `verify` for the same reason: a check that cannot pass stops being read,
-and every commit would have carried it. Both counts are zero now, so the question it asks has
-changed from how far the subset reaches to whether it stops reaching as far, and a sample that
-starts differing and a sample that starts being refused are the same failure.
+**It is in `verify`, and widening the skips turned it red.** It was red on purpose for as long as
+any sample wrote the wrong bytes, and out of `verify` for the same reason: a check that cannot pass
+stops being read, and every commit would have carried it. Both counts reached zero and it joined
+the gate, and both were zero over a corpus 342 samples smaller than this file describes. It asks
+the question it was written to ask now: one difference and three gaps, and a sample that starts
+differing and a sample that starts being refused are the same failure.
 
 ```
 mise run suite              the lists, then the table

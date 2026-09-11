@@ -214,7 +214,16 @@ company exactly here. No vendored sample writes the shape, which is why it is he
 the table. Reading which of a child's expressions the marker reached, rather than only whether it
 survived, is what closes it.
 
-**Everything the suite holds: done.** The last was not a construct. `runtime-runes/props-equality` hands an array
+**One the suite does hold, and it had been sitting in the skips.**
+`runtime-runes/bind-getter-setter` writes `value="() =&gt; a"` where Svelte writes `value="0"`: a
+`bind:` given a getter and a setter rather than a name, with the bound name being the child's own
+`$bindable()` prop and the caller binding it with a pair of its own. The form itself compiles --
+`select-function-binding-derived` binds a `<select>` that way and is identical -- so what is wrong
+is one path through it, where the value reaching the element is the function rather than what
+calling it returns. It was never measured, because its `_config.js` imports `assert_ok` from
+upstream's runner and the shim only stood in for `test`. [suite.md](suite.md) has that.
+
+**Everything else the suite holds: done.** The last was not a construct. `runtime-runes/props-equality` hands an array
 to a child as a prop, and each read inside the child built it again, so `items.includes(item)` was
 false where Svelte's own render, which evaluates the value once, says true. A value that makes
 something is now held where it crosses into a child: the prop expands to a reference this compiler

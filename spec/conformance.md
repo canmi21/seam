@@ -41,32 +41,46 @@ neither gates anything. A compiler that is fast and writes the wrong bytes has n
 
 Three of the outcomes are not failures and saying so once is what keeps the target honest.
 
-**Upstream's own skips are out.** 554 samples whose `_config.js` says `skip`, or a `mode` upstream
+**Upstream's own skips are out.** 240 samples whose `_config.js` says `skip`, or a `mode` upstream
 does not run on the server, or a `skip_mode` naming `server`, or an `error` the sample exists to
 produce -- or a `runtime_error` that is what the render then threw, which is the same statement one
 word along. Not our judgement.
 
-**A sample Svelte's own render cannot produce bytes for is out.** 4. The oracle is asked even
-where this compiler refused, so a sample nobody can render is not counted as our gap -- fifteen of
-them were, a quarter of what was being ranked as work. It was 17 until the eight samples whose own
-`_config.js` says what the render needs were read: a sample this harness did not ask properly is
-not a sample the oracle cannot render, and all eight were out of the denominator without either
-side having answered. [suite.md](suite.md) has the rule and the one exception to it.
+**It was 554, and 342 of those were never anybody's judgement.** The shim that stands in for
+upstream's un-vendored runner replaced `import { test } from '...'` and nothing else, and 276 of
+upstream's configs write `import { ok, test }` or `import { test, ok }`, with the rest reaching for
+`helpers`, `../../../suite` and `#client/constants`. Every one of those threw on an import nothing
+resolves, and a config that will not evaluate was filed here -- in the one column [suite.md](suite.md)
+requires to be upstream's own and nobody else's. Nobody skipped them. They were not measured, and
+four of them are work. Reading the configs raised the skips upstream really does declare, since a
+config that throws declares nothing: `mode` went from 160 to 182 and `skip` from 17 to 19.
 
-**A refusal by decision is out.** 241 samples, in seven shapes the scope line settles, and the
+**A sample Svelte's own render cannot produce bytes for is out.** 17, and 13 of them are this
+harness reaching the same wall one field along: their `props` are *built* by `create_deferred()`
+and the rest of upstream's helpers, so neither side can be handed the props the sample names. That
+is a sample nobody measured rather than a sample that agrees, which is what the column is for.
+
+The other 4 are the oracle's own. It is asked even where this compiler refused, so a sample nobody
+can render is not counted as our gap -- fifteen of them were, a quarter of what was being ranked as
+work. That number was 17 once before, until the eight samples whose own `_config.js` says what the
+render needs were read: a sample this harness did not ask properly is not a sample the oracle
+cannot render, and all eight were out of the denominator without either side having answered.
+[suite.md](suite.md) has the rule and the one exception to it.
+
+**A refusal by decision is out.** 259 samples, in seven shapes the scope line settles, and the
 suite counts them in a column of their own rather than beside the gaps:
 
-- **183 await** in markup or at the top of a script, which is async Svelte and the load stage's.
+- **193 await** in markup or at the top of a script, which is async Svelte and the load stage's.
   Which samples those are is upstream's compiler to say: one that will not build without
   `experimental.async` is async Svelte whatever this compiler's own message says.
-- **34 change a value** the markup reads while the bytes are written -- assigned after being
+- **37 change a value** the markup reads while the bytes are written -- assigned after being
   declared, changed by a function this render calls, written into `$$props`, or a store the script
   writes -- which is a program per request. There were 68, and the rule was asked at the
   declaration; it is asked where the walk writes an expansion out now, since the render runs the
   instance script and has the value. [derivation.md](derivation.md) has the rule and
   [roadmap.md](roadmap.md) what came out of moving it.
-- **9 want a function off the wire.** The payload carries data and no function, deliberately: see
-  [payload.md](payload.md). Six subscribe to a store the request brings, `$x` reading whatever `x`
+- **14 want a function off the wire.** The payload carries data and no function, deliberately: see
+  [payload.md](payload.md). Eleven subscribe to a store the request brings, `$x` reading whatever `x`
   holds while the bytes are written, so the store itself would have to be in the payload -- and a
   store is an object with a `subscribe` function. Three render a component the request sent, which
   is the same shape: a component is a function. Reading the value, or choosing the component, in
@@ -90,7 +104,7 @@ what the last three shapes are -- every one of them was counted as work until so
 **Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
 
-So the target is: **of the 1559 samples that are in, every one is byte-identical to Svelte's own
+So the target is: **of the 1839 samples that are in, every one is byte-identical to Svelte's own
 render.** Nothing differing, nothing refused as a gap.
 
 ### Where it stands
@@ -98,16 +112,22 @@ render.** Nothing differing, nothing refused as a gap.
 ```
                         samples  identical  empty  differs   gap  decided  skipped  oracle
 server-side-rendering       131         90      0        0     0       25       16       0
-runtime-runes              1048        583     16        0     0      178      269       2
-runtime-legacy             1209        886     14        0     0       38      269       2
-total                      2388       1559     30        0     0      241      554       4
+runtime-runes              1048        665     19        1     1      189      170       3
+runtime-legacy             1209       1080     14        0     2       45       54      14
+total                      2388       1835     33        1     3      259      240      17
 ```
 
-Against the target: **1559 of 1559**. Nothing differs and nothing is refused as a gap, which is
-the condition this file sets for stage one. Four fail inside the oracle rather than inside either
-side and are counted apart.
+Against the target: **1835 of 1839**, with one sample writing bytes that are not Svelte's and three
+refused as gaps. That is not the condition this file sets, and it was read as met for as long as
+the 342 samples above sat in the skips: 276 more agree, and the four below are work nobody had
+seen.
 
-**Both numbers moved because the columns were read, not because the compiler did.** Fourteen
+**The denominator is the measurement, and it is the half that gets audited last.** Every number
+in the table moved by 302 samples without a line of the compiler changing, because a column nobody
+can see into is a claim nobody checked. The rule this file already stated for the oracle's column
+holds for the skips exactly as written, and it was not being applied to them.
+
+**Both numbers moved once before because the columns were read, not because the compiler did.** Fourteen
 samples whose whole content is a `<svelte:head>` were filed as agreements that say nothing, and
 thirteen were filed as the oracle's failure where what could not run was this harness: it rendered
 them without the `transformError`, the `server_props` or the `before_test` their own configs name,
@@ -118,7 +138,18 @@ without being counted**, which is the whole reason it is read out rather than to
 
 ### What is left, in the order it should be taken
 
-**No sample writes bytes that are not Svelte's.** The last one was the identity question rather
+**Four, and all four came out of the skips.** None of them was ever refused or measured; they were
+in a column that said upstream had spoken. They are ranked here the way this file ranks everything,
+the difference first:
+
+| | |
+| --- | --- |
+| `runtime-runes/bind-getter-setter` | **differs.** `bind:value={() => a, (v) => {...}}` on an element writes the getter's own source where Svelte writes what calling it returns. The form itself compiles -- `select-function-binding-derived` is identical -- and what this one adds is that the bound name is the child's `$bindable()` prop, bound by the caller with a pair of its own. |
+| `runtime-runes/bindable-prop-and-export` | **gap.** `bind:open` where the child's `open` is a readonly export rather than a `$bindable()`, which is the component binding family [roadmap.md](roadmap.md) already holds. |
+| `runtime-legacy/binding-contenteditable-html` | **gap.** `bind:innerHTML` is written and checked; the tag under it is `<editor>`, a name the walk does not read. |
+| `runtime-legacy/transition-css-iframe` | **gap.** `<Frame component={Foo}/>` over a `Foo` the file imports, which is a value the compile has in its hand. |
+
+**No sample that was being measured writes bytes that are not Svelte's.** The last one was the identity question rather
 than a construct: `runtime-runes/props-equality` handed an array to a child as a prop, and each
 read inside the child built it again, so `items.includes(item)` was false where Svelte's own
 render, which evaluates the value once, says true. A value that makes something is now held where
@@ -132,7 +163,7 @@ two were one question underneath, a value a function this render calls changes, 
 by a route the rule does not watch -- a spread and a generator rather than a name. Both are now
 refused for assigning to a name outside the value this compiler has to write.
 
-**The gaps left are three constructs and all three are the scope line, said in the wrong words.**
+**Of the gaps that were being measured, the three left are the scope line said in the wrong words.**
 Eight are a `<svelte:boundary>` whose body throws while the bytes are being written: what the
 `failed` snippet is handed is `transformError(error)`, a render option a server passes and an
 artifact has nowhere to hold, so which of the two shapes a request gets is not one this compiler
@@ -165,18 +196,19 @@ The three that used to fail inside the derivation evaluator are counted as decis
 rule about a value the render changes reaching the walk through a spread, a generator and a computed
 key rather than by name.
 
-### It is done, and what that means
+### It was reported done, and what that was worth
 
-`mise run suite` reports 0 differing and 0 refused as a gap, which is the condition this section
-set. The suite's failure condition is both counts now rather than the first alone, and it is in
-`verify`: while any sample wrote the wrong bytes the refusals were a list it printed, because a
-check that cannot pass stops being read, and now that neither column has anything in it the
-question is no longer how far the subset reaches but whether it stops reaching as far.
+`mise run suite` reported 0 differing and 0 refused as a gap, which is the condition this section
+sets, and the condition was met over a corpus 342 samples smaller than the one this file names. It
+reports 1 and 3 now. The work that reached zero stands -- the samples it was measured over agree,
+and 276 of the recovered ones agree with no change to the compiler -- and the claim did not, because
+a target is only as good as the denominator under it.
 
-**What is not yet held is a sample sliding from `identical` into `decided`.** Both counts would
-stay at zero while the number that agrees went down, because a decision is read off a message and
-a message can be widened. That wants a baseline of names rather than a count, and it is owed. See
-[suite.md](suite.md).
+**What the gate cannot see is the denominator.** It fails on the two counts, and both stayed at
+zero while 342 samples sat outside them. Two directions are owed and they are the same direction:
+a sample sliding from `identical` into `decided`, which is read off a message and a message can be
+widened, and a sample sliding out of the measurement altogether. Both want a baseline of names
+rather than a count. See [suite.md](suite.md).
 
 ## Stage 2: SvelteKit's own test apps
 

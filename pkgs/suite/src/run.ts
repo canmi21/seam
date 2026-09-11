@@ -225,12 +225,27 @@ function turned(suite: string, name: string, why: string): Result {
 const need = createRequire(import.meta.url);
 
 /**
- * The sample's configuration, with the harness import it opens with stood in for.
+ * The sample's configuration, with the harness imports it opens with stood in for.
  *
- * Every `_config.js` is `import { test } from '../../test'; export default test({ ... })`, and
- * that harness is upstream's runner rather than its fixtures, so it is not vendored. The import is
- * replaced by an identity and the object read straight off the default export. A config that will
- * not evaluate is a skip that says so, not a silent empty one.
+ * Upstream's runner is not vendored -- it is its runner rather than its fixtures -- so the imports
+ * that reach for it are replaced and the object is read straight off the default export.
+ *
+ * **Every import that leaves the sample's own directory, not the first one that says `test`.** The
+ * rule was a single replacement of `import { test } from '...'`, and 276 of upstream's configs
+ * write `import { ok, test }` or `import { test, ok }` instead, with more reaching for `helpers`,
+ * `../../../suite` and `#client/constants`. None of those matched, so the config threw on an
+ * import nothing resolves and the sample was filed under `skipped` -- 342 of them, in the one
+ * column spec/suite.md requires to be upstream's own judgement and nobody else's. They were not
+ * skipped by anybody: they were never measured, and four of them are work. A specifier that stays
+ * inside the sample is left alone, because `./data.js` beside a component is the sample's own
+ * fixture and its props may be read out of it.
+ *
+ * **What stands in for a name throws when it is called.** `test` is the identity, since the object
+ * is what is wanted. Everything else is upstream's assertion and timing helpers, which a server
+ * render never reaches -- they are called from the `test` function, and this harness does not run
+ * it. A stub that throws keeps the two cases apart: a config that only mentions them evaluates,
+ * and a config whose `props` are *built* by one says so where the props are read, instead of
+ * handing the render a value neither side should be held to.
  */
 async function configOf(from: string, into: string): Promise<Config & { broken?: string }> {
 	let source: string;
@@ -240,9 +255,37 @@ async function configOf(from: string, into: string): Promise<Config & { broken?:
 		// Most samples have none, and a sample with no config is one with no props.
 		return {};
 	}
-	const shimmed = source.replace(
-		/import\s*\{\s*test\s*\}\s*from\s*['"][^'"]+['"];?/,
-		'const test = (one) => one;',
+	const shimmed = source.replaceAll(
+		/import\s+(?:\{([^}]*)\}|(\w+))\s+from\s*['"]([^'"]+)['"];?/g,
+		(whole, named: string | undefined, sole: string | undefined, specifier: string) => {
+			// A specifier that stays inside the sample is the sample's own, and a bare one is a
+			// package this process has. Only what climbs out of the directory is upstream's runner.
+			if (!specifier.startsWith('../') && !specifier.startsWith('#')) return whole;
+			const bound =
+				named === undefined
+					? [sole ?? '']
+					: named
+							.split(',')
+							.map((one) => one.trim())
+							.filter((one) => one !== '')
+							// `a as b` binds `b`, and the stub is written against the name the config reads.
+							.map(
+								(one) =>
+									one
+										.split(/\s+as\s+/)
+										.pop()
+										?.trim() ?? '',
+							);
+			return bound
+				.map((one) =>
+					one === 'test'
+						? 'const test = (one) => one;'
+						: `const ${one} = () => { throw new Error(${JSON.stringify(
+								`\`${one}\` is upstream's own test harness, which is not vendored here`,
+							)}); };`,
+				)
+				.join(' ');
+		},
 	);
 	const at = resolve(into, '_config.mjs');
 	writeFileSync(at, shimmed);
@@ -392,7 +435,23 @@ async function attempt(suite: string, name: string): Promise<Result> {
 								: null;
 	if (why !== null) return { suite, name, outcome: 'skipped', why };
 
-	const props = config.server_props ?? config.props ?? {};
+	// **A props getter that reaches for upstream's harness is nobody's answer, so it is the
+	// oracle's column.** Fourteen configs write `get props()`, and a handful build what they return
+	// out of `create_deferred()` and the rest of upstream's helpers, which are not vendored. The
+	// stub above throws there rather than inventing a value, and a sample neither side was given
+	// the same props for is one nobody measured -- which is what that column is for, and why
+	// spec/suite.md says it has to be read rather than trusted.
+	let props: Record<string, unknown>;
+	try {
+		props = config.server_props ?? config.props ?? {};
+	} catch (error) {
+		return {
+			suite,
+			name,
+			outcome: 'oracle',
+			why: `its props are the harness's: ${firstLine(error)}`,
+		};
+	}
 	// Upstream's own setup, where this process can run it. See `Config.before_test`.
 	try {
 		config.before_test?.();
@@ -612,6 +671,11 @@ function decided(results: readonly Result[]): void {
 // default is to end the process. The outcome of the sample that did it is already recorded by the
 // time this fires, so the run continues.
 process.on('unhandledRejection', () => undefined);
+// And from a timer, which is the same statement one channel along: `reactive-values-text-node`
+// starts a `setTimeout` in its instance script and calls a method on a prop upstream's own
+// harness builds. Both renders write their bytes and agree; what throws does so five milliseconds
+// later, with nothing left to record. Unguarded it ends the process, which ends the run.
+process.on('uncaughtException', () => undefined);
 
 rmSync(STAGE, { recursive: true, force: true });
 mkdirSync(resolve(STAGE, 'node_modules'), { recursive: true });
