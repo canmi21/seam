@@ -3724,6 +3724,23 @@ const accepted: Case[] = [
 			{ myClass: '', attributes: {} },
 		],
 	},
+	{
+		// `runtime-runes/bind-getter-setter`, which sat in the skips until the configs were read.
+		// `element.js` writes `b.call(expression.expressions[0])` where the value goes, so a pair
+		// is the getter *called*; the child's own `bind:` reads a prop the caller bound with a
+		// pair of its own, and what reached the element was the function rather than what calling
+		// it returns.
+		name: 'a get/set pair bound to a child prop, and the child binding an element with one',
+		beside: {
+			Kid:
+				'<script>let { a = $bindable() } = $props();</script>' +
+				'<input type="value" bind:value={() => a, (v) => { a = v; }} />',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props(); let a = $state(0);" +
+			'</script><Kid bind:a={() => a, (v) => { a = v; }} /><i>{data.a}</i>',
+		data: [{ a: 'x' }, { a: '' }],
+	},
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.

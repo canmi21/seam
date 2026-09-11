@@ -3432,19 +3432,35 @@ function asWritten(node: unknown, written: string, walk: Walk): string {
 }
 
 /**
- * The getter half of a `bind:`, as source text: what the child is handed for the prop.
+ * The getter half of a `bind:`: the node the value comes out of.
  *
  * `shared/component.js` writes `get x() { return <expression> }`, and for the two-function form
- * `bind:x={(get, set)}` the getter is called, which is what `element.js` writes there too.
+ * `bind:x={(get, set)}` the first of the pair is what that getter returns.
  */
-function getterOf(node: AstNode, source: string): unknown {
+function getterOf(node: AstNode): unknown {
 	const expression = node['expression'];
 	if (!isNode(expression) || expression['type'] !== 'SequenceExpression') return expression;
 	const [getter] = Array.isArray(expression['expressions']) ? expression['expressions'] : [];
-	const at = span(getter);
-	return at === null
-		? expression
-		: { type: 'Identifier', name: `(${source.slice(at[0], at[1])})()`, start: at[0], end: at[1] };
+	return isNode(getter) ? getter : expression;
+}
+
+/**
+ * What a `bind:` hands the child for the prop, expanded: the getter, **called** where it is one.
+ *
+ * `element.js` writes `b.call(expression.expressions[0])` where the value goes and `component.js`
+ * a getter returning the same call, so a pair is the first function's result and never the
+ * function. This was a synthetic `Identifier` whose `name` carried the call, and an expansion is
+ * sliced out of the source by span rather than read off a name, so the name went nowhere and the
+ * child was handed the function itself. `runtime-runes/bind-getter-setter` is that: a child whose
+ * `$bindable()` prop the caller binds with a pair of its own wrote `value="() =&gt; a"` where
+ * Svelte writes `value="0"`. It was in the skips until the configs were read. See spec/suite.md.
+ */
+function handed(node: AstNode, expand: Locals['rewrite']): string {
+	const expression = node['expression'];
+	const getter = getterOf(node);
+	return isNode(expression) && expression['type'] === 'SequenceExpression' && getter !== expression
+		? `(${expand(getter)})()`
+		: expand(getter);
 }
 
 /**
@@ -4833,7 +4849,7 @@ function collect(node: unknown, walk: Walk): void {
 							// `component-binding-blowback-d` wrote `{}` where Svelte wrote
 							// `{"value":"0:0"}`. It is the same rule the prop above follows, one
 							// construct along.
-							if (site.payload !== null && !varies(expand(getterOf(attr, source)), walk)) {
+							if (site.payload !== null && !varies(handed(attr, expand), walk)) {
 								continue;
 							}
 							if (whole !== null) {
@@ -4841,11 +4857,7 @@ function collect(node: unknown, walk: Walk): void {
 								// marker standing in it where the request decides the value -- which is what
 								// `collect` would have done had `unbind.ts` written the attribute itself.
 								const before = holes.length;
-								edits.push([
-									whole[0],
-									whole[1],
-									`${name}={${stands(expand(getterOf(attr, source)), walk)}}`,
-								]);
+								edits.push([whole[0], whole[1], `${name}={${stands(handed(attr, expand), walk)}}`]);
 								for (const one of holes.slice(before)) one.given = `\`<${tag}>\` as \`${name}\``;
 							}
 							continue;
@@ -6139,10 +6151,10 @@ function descend(
 			// setter with `push_prop(..., true)`, whose comment says why: "Delay prop pushes so
 			// bindings come at the end, to avoid spreads overwriting them." So a spread written
 			// after a binding does not win, and both the merge order and the map have to say so.
-			delayed.push([name, `(${walk.expand(getterOf(one, walk.source))})`]);
+			delayed.push([name, `(${handed(one, walk.expand)})`]);
 			// The name as written, which is what the setter assigns to. The expansion beside it is
 			// the value it holds now; the two are different things and `settles` needs both.
-			const where = span(getterOf(one, walk.source));
+			const where = span(getterOf(one));
 			if (where !== null) boundTo.set(name, walk.source.slice(where[0], where[1]));
 			continue;
 		}
