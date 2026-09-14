@@ -107,6 +107,15 @@ export function seam(options: Options = {}): Plugin {
 			}
 		},
 
+		// The reference is written relative to the chunk here rather than left to the bundler's
+		// default: Vite's own asset hook answers every emitted file too, and in a server build it
+		// writes `base` joined with the file name -- a path from the site's root, which names no file
+		// on disk. Running before it, as this plugin does, the first answer is this one.
+		resolveFileUrl({ fileName, relativePath }) {
+			if (!active || !fileName.startsWith(`${ARTIFACTS}/`)) return null;
+			return `new URL(${JSON.stringify(relativePath)}, import.meta.url).href`;
+		},
+
 		resolveId(source, importer) {
 			if (!active || importer === undefined || !source.endsWith('/root.js')) return null;
 			const at = resolve(dirname(importer), source);
