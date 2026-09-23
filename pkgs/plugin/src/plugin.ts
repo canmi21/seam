@@ -239,8 +239,15 @@ export default {
 		const { ir, derive } = artifact(entry);
 		// A promise where a derivation awaits, which only a project in Svelte's async mode has, and
 		// Kit awaits what the root's render returns under that mode.
-		const shaped = ({ body, head }) => ({ head, html: body, css: { code: '', map: null } });
-		const injected = inject(ir, derive(props));
+		// Kit hands its content security policy in \`options.csp\` and adds what comes back in
+		// \`hashes\` to the header, which is the script \`hydratable\` values go into.
+		const shaped = ({ body, head, hashes }) => ({
+			head,
+			html: body,
+			css: { code: '', map: null },
+			...(hashes === undefined ? {} : { hashes }),
+		});
+		const injected = inject(ir, derive(props), { csp: options?.csp });
 		return typeof injected.then === 'function' ? injected.then(shaped) : shaped(injected);
 	},
 };
