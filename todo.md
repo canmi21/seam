@@ -55,8 +55,6 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 ## Also open
 
-- [ ] `runtime-legacy/spread-component-dynamic-undefined` hangs about one run in five: 3ms
-      normally, and once the 5s deadline, filed as a harness skip. Cause not found.
 - [ ] Refusal messages still carry the withdrawn scope reasons ("an artifact has nowhere to
       hold", "the payload carries data"); each changes with the gap it names.
 
