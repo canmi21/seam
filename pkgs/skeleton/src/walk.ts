@@ -212,6 +212,8 @@ export interface Site {
 	 * `blockedBy()`.
 	 */
 	blocked: ReadonlySet<string>;
+	/** The names a top-level statement reading the request assigns. See `movedBy()`. */
+	moved: ReadonlySet<string>;
 	/** Local name to specifier, for this file, so `<Card />` finds the file it was imported from. */
 	imports: Record<string, string>;
 	/** The same imports with what each one is -- default, named, the module -- for a package's. */
@@ -2492,6 +2494,63 @@ function blockedBy(ast: AstNode): ReadonlySet<string> {
 	return found;
 }
 
+/**
+ * The names a top-level statement that reads the request assigns: `if (environment === 'server')
+ * value = 'server'; else value = ...` over a prop.
+ *
+ * The render runs the instance script, and a name something changes is left as the author wrote
+ * it, so a read of one is right wherever the render evaluates it -- except where what changed it
+ * read the request, because the render is given a stand-in for that and the branch it takes is not
+ * the request's. That is a program per request, and the read of the name has to be one this
+ * compiler writes, where the rule about a value the render changes refuses it. Left to the render
+ * it threw over the stand-in, or wrote the wrong branch's value without a word. See
+ * spec/derivation.md.
+ */
+function movedBy(ast: AstNode, dynamic: ReadonlySet<string>): ReadonlySet<string> {
+	const found = new Set<string>();
+	if (dynamic.size === 0) return found;
+	const instance = ast['instance'];
+	const content = isNode(instance) ? instance['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	for (const statement of body) {
+		if (!isNode(statement)) continue;
+		const type = statement['type'];
+		if (
+			type === 'ImportDeclaration' ||
+			type === 'VariableDeclaration' ||
+			type === 'FunctionDeclaration' ||
+			type === 'ExportNamedDeclaration' ||
+			type === 'ClassDeclaration'
+		) {
+			continue;
+		}
+		let reads = false;
+		readsIn(statement, new Set(), (at) => {
+			if (typeof at['name'] === 'string' && dynamic.has(at['name'])) reads = true;
+		});
+		if (!reads) continue;
+		const root = (target: unknown): void => {
+			let at = target;
+			while (isNode(at) && at['type'] === 'MemberExpression') at = at['object'];
+			if (isNode(at) && at['type'] === 'Identifier' && typeof at['name'] === 'string') {
+				found.add(at['name']);
+			}
+		};
+		const step = (one: unknown): void => {
+			if (Array.isArray(one)) {
+				for (const each of one) step(each);
+				return;
+			}
+			if (!isNode(one)) return;
+			if (one['type'] === 'AssignmentExpression') root(one['left']);
+			if (one['type'] === 'UpdateExpression') root(one['argument']);
+			for (const value of Object.values(one)) step(value);
+		};
+		step(statement);
+	}
+	return found;
+}
+
 /** Whether a statement awaits outside any function inside it, which is Svelte's `has_await_expression`. */
 function awaitsAtTop(node: unknown): boolean {
 	if (Array.isArray(node)) return node.some(awaitsAtTop);
@@ -3078,6 +3137,9 @@ function varies(
 	 */
 	written = false,
 ): boolean {
+	// A name a statement reading the request assigns is the request's, whatever else it reads. See
+	// `movedBy()`.
+	if (walk.site.moved.size > 0 && mentions(expression, walk.site.moved)) return true;
 	// One of Svelte's own functions this compiler carries is not a name the render can be handed:
 	// Svelte's compiler refuses a `$`-prefixed variable in markup outright. See `carries()`.
 	if (!written && carries(expression)) return outside(expression);
@@ -7071,6 +7133,7 @@ function descend(
 				file,
 				root: walk.site.root,
 				blocked: blockedBy(ast),
+				moved: movedBy(ast, inside),
 				imports: importsOf(raw),
 				carried: importedBy(raw),
 				defaults: new Map(),
@@ -7551,6 +7614,7 @@ export function rewrite(
 			file,
 			root,
 			blocked: blockedBy(ast),
+			moved: movedBy(ast, payload ?? new Set()),
 			imports: importsOf(source),
 			carried: importedBy(source),
 			defaults: propDefaultNodes,

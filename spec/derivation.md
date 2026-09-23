@@ -1310,6 +1310,19 @@ The fix rather than the refusal is to stop substituting such a name and bind it 
 which the derivation machinery could hold since a derivation is already evaluated once and cached.
 That is a change to what substitution is, not a patch to this rule, and it is not made here.
 
+## A name a statement reading the request changes is the request's
+
+The render runs the instance script and a name something changes is left as the author wrote it,
+so a read of one the render evaluates is right -- **unless what changed it read the request**. The
+render is handed a stand-in for the request, and the branch a statement takes over a stand-in is
+not the one the request takes: `if (environment === 'server') value = 'server'; else value =
+hydratable(...)` over a prop wrote the other branch's value without a word, and over `.toUpperCase()`
+it threw inside the render; `$: if (modify) settings.fontSize = 50` baked 12px for every request,
+which was right only for the one value the suite sends. So a name a top-level statement reading
+the request assigns or mutates varies (`movedBy()` in `walk.ts`), a read of it becomes one this
+compiler writes, and the rule about a value the render changes refuses it there: a program per
+request, blocked on request-time rendering.
+
 ## Substitution maps a name to an expression, and a program is not an expression
 
 Every name the markup reads becomes one self-contained expression. `const t = data.a + 1` becomes
