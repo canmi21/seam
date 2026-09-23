@@ -2291,7 +2291,12 @@ export function locals(
 			}
 			const store = name.startsWith('$') && !RESERVED.has(name) ? name.slice(1) : null;
 			if (given === undefined && !found.has(name)) {
-				if (store === null || !found.has(store) || settled.has(store)) return;
+				if (store === null) return;
+				// A store the file declares, or one a prop holds: the entry's props are the render
+				// input and a child's are what its call site bound, and either may be a store. See
+				// spec/payload.md.
+				const handed = props.has(store) || bound?.has(store) === true;
+				if (!handed && (!found.has(store) || settled.has(store))) return;
 				const from = at['start'];
 				const to = at['end'];
 				if (typeof from !== 'number' || typeof to !== 'number') return;

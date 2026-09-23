@@ -1062,12 +1062,14 @@ a component to Svelte's renderer; this is a derivation calling the author's func
 renderer because the author wrote it to. Where that function reads only the payload it is a pure
 function of it. What is also owed is the message, which still says the callee cannot be followed.
 
-**A store, or a component, the props carry.** Filed as a value the payload cannot carry, since the
+**A store, or a component, the props carry: the store is done.** Filed as a value the payload cannot carry, since the
 wire is devalue and a store is an object with a `subscribe` function. That is the hydration wire's
 constraint, the framework layer's; at this layer props are values in the render's process, and
 `$x` is `get(x)`. Kit's own universal `load` returns components and stores to its server render, and
 [payload.md](payload.md) now splits the render input, which holds them, from the wire, which does
-not.
+not. A `$x` over a prop is `$$get_store(x)` in the derivation, as one over a store the file declares
+already was, and a script statement assigning a store from one is the request's (`movedBy()` reads
+`$x` as a read of `x`). The component half waits on which components a request may hand in.
 
 **A value that is not the same twice.** `Math.random`, `Date`, `Symbol()`. Filed as a value a build
 would freeze. Evaluated per request it has the server render's semantics, and it is the

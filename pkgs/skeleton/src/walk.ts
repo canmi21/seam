@@ -2601,6 +2601,26 @@ function movedBy(ast: AstNode, dynamic: ReadonlySet<string>): ReadonlySet<string
 	const instance = ast['instance'];
 	const content = isNode(instance) ? instance['content'] : undefined;
 	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	// `$c` is a subscription to `c`, so it reads what `c` reads. And a name one statement moves is
+	// read by the next -- `$: $b = $c; $: $a = $b` -- so this runs until nothing new is found.
+	const varying = (name: string): boolean =>
+		dynamic.has(name) ||
+		found.has(name) ||
+		(name.startsWith('$') && (dynamic.has(name.slice(1)) || found.has(name.slice(1))));
+	let size = -1;
+	while (found.size !== size) {
+		size = found.size;
+		moves(body, varying, found);
+	}
+	return found;
+}
+
+/** Every name a top-level statement reading something `varying` assigns or updates. */
+function moves(
+	body: readonly unknown[],
+	varying: (name: string) => boolean,
+	found: Set<string>,
+): void {
 	for (const statement of body) {
 		if (!isNode(statement)) continue;
 		const type = statement['type'];
@@ -2615,7 +2635,7 @@ function movedBy(ast: AstNode, dynamic: ReadonlySet<string>): ReadonlySet<string
 		}
 		let reads = false;
 		readsIn(statement, new Set(), (at) => {
-			if (typeof at['name'] === 'string' && dynamic.has(at['name'])) reads = true;
+			if (typeof at['name'] === 'string' && varying(at['name'])) reads = true;
 		});
 		if (!reads) continue;
 		const root = (target: unknown): void => {
@@ -2637,7 +2657,6 @@ function movedBy(ast: AstNode, dynamic: ReadonlySet<string>): ReadonlySet<string
 		};
 		step(statement);
 	}
-	return found;
 }
 
 /** Whether a statement awaits outside any function inside it, which is Svelte's `has_await_expression`. */
@@ -3231,10 +3250,6 @@ function varies(
 	// `$derived(...)` is one of those, and it took a sample that has nothing to do with the
 	// environment. See `AT_REQUEST`.
 	if (SERVER_HELD.test(expression)) return outside(expression);
-	// A subscription to a store the request brings. Asked here rather than only where a value is
-	// handed to a component the walk could not enter: `{#if $condition}` over a prop declared
-	// `writable(true)` is the same unknowable and reached the evaluator as a bare `$condition`.
-	subscribing(expression, walk);
 	// A context read where something in this walk set one from a value the request decides. Neither
 	// `getContext` nor the key is a name the request decides, so this would be handed to the render
 	// -- which holds the neutralised value the `setContext` was given there. Refused rather than
@@ -4012,32 +4027,7 @@ function slotOf(node: AstNode): string | null {
  * the component reads off it are still there. What is left gets one marker, and is reported if it
  * does not come back.
  */
-/**
- * Refuses a subscription to a store the request brings.
- *
- * `$x` is `store_get($$store_subs ??= {}, '$x', x)` and reads whatever `x` holds while the bytes
- * are written, so the store itself has to be there -- and a store is an object with a `subscribe`
- * function, which is not something a payload can carry: devalue serialises data. Handed a marker
- * instead, `store_get` reads nothing, and the derivation that stood for it failed at injection
- * rather than at build. Where `x` is the component's own the read decides nothing per request, and
- * the render evaluates Svelte's own call. See spec/derivation.md.
- */
-function subscribing(expression: string, walk: Walk): void {
-	// A `$name` has to be written for there to be one. `mentions` answers "yes" for anything it
-	// cannot parse, which is the safe answer where it decides whether a value is a marker and the
-	// wrong one here: a class built from a spread is unreadable to it and holds no subscription.
-	if (!/(?:^|[^\w$])\$[A-Za-z_]/.test(expression)) return;
-	const subscribed = new Set([...walk.dynamic].map((one) => `$${one}`));
-	if (subscribed.size === 0 || !mentions(expression, subscribed)) return;
-	refuse(
-		'a `$store` subscription over a value the request brings is not handled: a store is an ' +
-			'object with a `subscribe` function and the payload carries data. Read the value in the ' +
-			'load stage and put that in the data. See spec/derivation.md',
-	);
-}
-
 function stands(expression: string, walk: Walk): string {
-	subscribing(expression, walk);
 	const held = settle(expression, walk.site.decided, walk.dynamic, new Set(walk.fresh));
 	if (held.undecided !== null) {
 		// A name a block binds is decided per item, and a decision over it cannot be enumerated for
@@ -4808,7 +4798,6 @@ function collect(node: unknown, walk: Walk): void {
 			// form rather than left as it was: what it expanded from may have been a name, and the
 			// declaration that name came from has been neutralised for the render.
 			const written = settled(expand(node['expression']), walk);
-			subscribing(written, walk);
 			// Inside a class value, what is written has to be exactly as readable to Svelte's CSS
 			// analysis as what the author wrote -- no less and no more. So the author's own
 			// expression stays, in the branch that is never taken. See `Walk.classValue`.
@@ -6334,7 +6323,6 @@ function collect(node: unknown, walk: Walk): void {
 			const whole = span(node);
 			if (whole === null) return;
 			const grown = expand(node['expression']);
-			subscribing(grown, walk);
 			const varying = site.payload !== null && (carries(grown) || mentions(grown, walk.dynamic));
 			const text = varying ? leaves(grown, walk) : grown;
 			if (text === null) {
@@ -7811,10 +7799,16 @@ export function rewrite(
 			// carries no function, and `gather()` in the carry package drops a component from the
 			// bundle on purpose -- so the name is not there to evaluate, and the one construct that
 			// consumes the value asks only whether there is one. See `chosenComponent()`.
+			// Through `renamed`, as `walk.expand` is: a default naming another prop's local names that
+			// prop's key -- `let vi1 = v2; export { v2 as a2, vi1 as a3 }` defaults `a3` to `a2`, and
+			// `v2` is bound nowhere a derivation reads.
 			expression:
 				one.at === undefined
 					? one.fallback
-					: declared.rewrite(one.at, stood.has(one.local) ? standsFor(walk) : undefined),
+					: declared.rewrite(
+							one.at,
+							new Map([...renamed, ...(stood.has(one.local) ? standsFor(walk) : new Map())]),
+						),
 			files: [relative(root, file)],
 		}));
 	const eager = hydratableCalls(ast).map((call) => ({

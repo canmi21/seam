@@ -23,6 +23,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { rolldown } from 'rolldown';
 import { compile, compileModule } from 'svelte/compiler';
 import { render } from 'svelte/server';
+import { writable } from 'svelte/store';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { carriedBy, carry } from 'carry';
 import { joined } from 'compiler';
@@ -630,6 +631,14 @@ const accepted: Case[] = [
 			" let { data } = $props(); const s = writable({ n: 'q' });</script>" +
 			'<Sub {s} /><i>{data.a}</i>',
 		data: [{ a: 'x' }, { a: '' }],
+	},
+	{
+		// A store the request brings. It used to be refused: the payload was the wire too, and a
+		// store is an object with a `subscribe` function. The render input holds any value, and
+		// `$s` is the store's value read per request. See spec/payload.md.
+		name: 'a `$store` over a value the request brings',
+		source: '<script>export let s;</script><p>{$s}</p>',
+		props: [{ s: writable('one') }, { s: writable('two') }, { s: writable(undefined) }],
 	},
 	{
 		// `renderer.select` destructures `const { value, defaultValue, ...select_attrs } = attrs`, so
@@ -3865,14 +3874,6 @@ const refused: Case[] = [
 			'<script>let { data } = $props(); const s = Symbol(); const o = { [s]: data.a };</script>' +
 			'<p>{s in o}</p>',
 		says: 'the same twice',
-	},
-	{
-		// The store itself would have to be in the payload, and a store is an object with a
-		// `subscribe` function where the payload carries data. `store_get` handed a marker reads
-		// nothing, so this used to be written out for the render and came back empty.
-		name: 'a `$store` over a value the request brings',
-		says: '`$store` subscription',
-		source: '<script>export let s;</script><p>{$s}</p>',
 	},
 	{
 		// `export { x }` is a prop only where `x` is a plain `let` or `var`: over a `const` it is a

@@ -7,12 +7,9 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 - [ ] **C and D: a value that is not data in the render input.** Decided: the render input and the
       hydration wire are two things, and the input holds any JavaScript value (spec/payload.md).
-  - C, stores and components in props: await-with-update, await-with-update-2,
-    dynamic-component-dirty, prop-exports, prop-subscribable, store-assignment-updates,
-    store-assignment-updates-reactive, store-auto-subscribe, store-auto-subscribe-implicit,
-    store-auto-subscribe-in-reactive-declaration, store-auto-subscribe-nullish,
-    store-auto-subscribe-removed-store, store-resubscribe-export,
-    transition-js-if-outro-unrelated-component-store-update
+  - C, a component the request hands in: await-with-update, await-with-update-2,
+    dynamic-component-dirty. The source names no component it could be; which components a request
+    may hand in is the open part.
   - D, `transformError`: async-error-boundary, async-error-boundary-2, async-error-boundary-3,
     boundary-error-failed-prop, boundary-error-html-comment-close-bang-escape,
     boundary-error-html-comment-escape, boundary-error-html-comment-open-escape,
@@ -44,7 +41,8 @@ What the suite fails on, sorted by what closing each takes. The live list is
       reactive-compound-operator, reactive-update-expression, reactive-values-function-dependency,
       reactive-values-second-order, reactive-values-self-dependency,
       reactive-values-self-dependency-b, reactive-values-subscript-assignment,
-      reactive-values-uninitialised, spread-component-side-effects
+      reactive-values-uninitialised, spread-component-side-effects,
+      store-assignment-updates-reactive
 
 ## Waiting on a decision
 
@@ -63,6 +61,14 @@ What the suite fails on, sorted by what closing each takes. The live list is
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- C, stores in props (prop-exports, prop-subscribable, store-assignment-updates,
+  store-auto-subscribe, store-auto-subscribe-implicit,
+  store-auto-subscribe-in-reactive-declaration, store-auto-subscribe-nullish,
+  store-auto-subscribe-removed-store, store-resubscribe-export,
+  transition-js-if-outro-unrelated-component-store-update): `$x` over a prop is the store's value
+  read per request. store-assignment-updates-reactive moved to B: its script assigns local stores
+  from the request's.
 
 - A, the 17 samples whose page no request can change (binding-circular, binding-indirect-value,
   binding-input-group-each-8, block-expression-fn-call, block-expression-member-access,
