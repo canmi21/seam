@@ -93,6 +93,13 @@ devalue escapes `<` itself, so the hand-written `replaceAll('<', '\\u003C')` tha
 that goes away. Its README lists XSS mitigation as a goal and demonstrates the exact hole that
 line was covering.
 
+**Svelte's own `uneval` script is a different thing from this choice.** A project in async mode
+calling `hydratable` gets a `<script>` at the head of the page that Svelte writes with
+`devalue.uneval` -- executable source -- and the bytes are Svelte's, so a server reproducing them
+writes that script too. That is reproducing Svelte, not choosing `uneval` for this protocol's own
+payload, which stays `stringify` and a `<script type="application/json">`. So `crates/devalue` ports
+`uneval` beside `stringify`, held to the npm package the same way.
+
 **`crates/devalue` is a port of one version of it, and moves when that version does.** The crate's
 version is the npm package's, byte for byte, because devalue promises no stable format between
 versions. So a bump of the `devalue` the workspace pins is a re-port: read upstream's diff for

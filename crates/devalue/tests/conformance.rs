@@ -1,10 +1,12 @@
 //! Held against the JavaScript devalue rather than against a reading of it.
 //!
-//! `fixtures/wire.json` records what the real package writes for each case, and the table below
-//! builds the same values here. The labels tie the two together: one present on a side and not
+//! `fixtures/wire.json` and `fixtures/uneval.json` record what the real package's `stringify` and
+//! `uneval` write for each case, and the table below builds the same values here. The labels tie the two together: one present on a side and not
 //! the other fails, so the tables cannot drift apart quietly.
 
-use devalue::{Value, stringify};
+use std::rc::Rc;
+
+use devalue::{Value, stringify, uneval};
 
 fn n(v: f64) -> Value {
 	Value::Number(v)
@@ -95,14 +97,61 @@ fn cases() -> Vec<(&'static str, Value)> {
 		("line separators", object(&[("s", s("a\u{2028}b\u{2029}c"))])),
 		("non ascii", object(&[("s", s("中文 \u{1f600}"))])),
 		("key needing escape", object(&[("a\"b<c", n(1.0))])),
+		// What `uneval` writes differently from `stringify`, and the names it hands out.
+		("fraction under one", n(0.5)),
+		("negative fraction", object(&[("n", n(-0.25))])),
+		("shared twice in array", {
+			let twice = Rc::new(object(&[("y", n(2.0))]));
+			Value::Array(vec![Value::Shared(twice.clone()), Value::Shared(twice)])
+		}),
+		("shared object with quoted keys", {
+			let quoted = Rc::new(object(&[("a b", n(1.0)), ("c", Value::Array(vec![n(1.0), n(2.0)]))]));
+			object(&[("a", Value::Shared(quoted.clone())), ("b", Value::Shared(quoted))])
+		}),
+		("shared set and map", {
+			let set = Rc::new(Value::Set(vec![n(1.0)]));
+			let map = Rc::new(Value::Map(vec![(s("k"), Value::Shared(set.clone()))]));
+			object(&[
+				("a", Value::Shared(map.clone())),
+				("b", Value::Shared(map)),
+				("c", Value::Shared(set)),
+			])
+		}),
+		("shared date", {
+			let when = Rc::new(Value::Date("2026-09-02T12:34:56.789Z".to_owned()));
+			Value::Array(vec![Value::Shared(when.clone()), Value::Shared(when)])
+		}),
+		("date before the epoch", Value::Date("1960-01-01T00:00:00.000Z".to_owned())),
+		("long string twice", {
+			let long = "x".repeat(200);
+			Value::Array(vec![s(&long), s(&long)])
+		}),
+		(
+			"bigint twice",
+			Value::Array(vec![Value::BigInt("10".to_owned()), Value::BigInt("10".to_owned())]),
+		),
+		("many shared", {
+			// Enough to reach two-letter names and the first reserved one, `do`, which is name 230.
+			let many: Vec<Rc<Value>> =
+				(0..240).map(|i| Rc::new(object(&[("i", n(f64::from(i)))]))).collect();
+			Value::Array(many.iter().chain(many.iter()).map(|one| Value::Shared(one.clone())).collect())
+		}),
+		(
+			"keys needing quotes",
+			object(&[("a-b", n(1.0)), ("<x>", n(2.0)), ("line\u{2028}", n(3.0)), ("$ok", n(4.0))]),
+		),
 	]
 }
 
 fn wire() -> std::collections::BTreeMap<String, String> {
-	let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/wire.json");
+	recorded("wire.json")
+}
+
+fn recorded(file: &str) -> std::collections::BTreeMap<String, String> {
+	let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures").join(file);
 	let text = std::fs::read_to_string(&path)
 		.unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
-	serde_json::from_str(&text).expect("wire.json does not parse")
+	serde_json::from_str(&text).unwrap_or_else(|e| panic!("{file} does not parse: {e}"))
 }
 
 #[test]
@@ -117,6 +166,20 @@ fn every_case_writes_what_javascript_writes() {
 		checked += 1;
 	}
 	assert_eq!(checked, expected.len(), "wire.json holds cases this table does not build");
+}
+
+#[test]
+fn every_case_unevals_to_what_javascript_writes() {
+	let expected = recorded("uneval.json");
+	let mut checked = 0;
+	for (label, value) in cases() {
+		let want = expected
+			.get(label)
+			.unwrap_or_else(|| panic!("`{label}` is not in uneval.json; regenerate the fixtures"));
+		assert_eq!(&uneval(&value), want, "`{label}` disagrees with the JavaScript devalue");
+		checked += 1;
+	}
+	assert_eq!(checked, expected.len(), "uneval.json holds cases this table does not build");
 }
 
 /// The crate is the port of one devalue, and that is the one the fixtures were recorded with: the

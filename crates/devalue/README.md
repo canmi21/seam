@@ -26,11 +26,14 @@ assert_eq!(
 
 ## What is here
 
-`stringify`, and the values it accepts.
+`stringify`, `uneval`, and the values they accept.
 
-`parse` is not, because it runs in the browser where the original already is. `uneval` is not,
-because it produces executable source, which is what serialized state in a document should not be.
-Neither is approximated.
+`uneval` writes JavaScript that evaluates to the value, which is not how state should reach a page
+of your own choosing. It is here because Svelte writes one: the script `hydratable` values reach
+the client through is `uneval`'s, and a server reproducing Svelte's bytes has to write it too.
+
+`parse` is not here, because it runs in the browser where the original already is. It is not
+approximated.
 
 Cycles cannot be built from the value type. Repeated references can, by stating them with
 `Value::Shared`, since a Rust tree has no identity of its own to compare.

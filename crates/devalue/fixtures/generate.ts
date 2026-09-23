@@ -11,6 +11,14 @@ import { fileURLToPath } from 'node:url';
 import * as devalue from 'devalue';
 
 const shared = { x: 1 };
+const twice = { y: 2 };
+const quoted = { 'a b': 1, c: [1, 2] };
+const set = new Set([1]);
+const map = new Map<string, unknown>([['k', set]]);
+const when = new Date('2026-09-02T12:34:56.789Z');
+const long = 'x'.repeat(200);
+// Enough to reach two-letter names and the first reserved one, `do`, which is name 230.
+const many = Array.from({ length: 240 }, (_, i) => ({ i }));
 
 const cases: [string, unknown][] = [
 	['null', null],
@@ -60,14 +68,29 @@ const cases: [string, unknown][] = [
 	['line separators', { s: 'a\u2028b\u2029c' }],
 	['non ascii', { s: '\u4e2d\u6587 \ud83d\ude00' }],
 	['key needing escape', { 'a"b<c': 1 }],
+	// What `uneval` writes differently from `stringify`, and the names it hands out.
+	['fraction under one', 0.5],
+	['negative fraction', { n: -0.25 }],
+	['shared twice in array', [twice, twice]],
+	['shared object with quoted keys', { a: quoted, b: quoted }],
+	['shared set and map', { a: map, b: map, c: set }],
+	['shared date', [when, when]],
+	['date before the epoch', new Date('1960-01-01T00:00:00.000Z')],
+	['long string twice', [long, long]],
+	['bigint twice', [10n, 10n]],
+	['many shared', [...many, ...many]],
+	['keys needing quotes', { 'a-b': 1, '<x>': 2, 'line\u2028': 3, $ok: 4 }],
 ];
 
 const wire: Record<string, string> = {};
+const uneval: Record<string, string> = {};
 for (const [label, value] of cases) {
 	if (label in wire) throw new Error(`duplicate label: ${label}`);
 	wire[label] = devalue.stringify(value);
+	uneval[label] = devalue.uneval(value);
 }
 
 const here = dirname(fileURLToPath(import.meta.url));
 writeFileSync(resolve(here, 'wire.json'), `${JSON.stringify(wire, null, '\t')}\n`);
+writeFileSync(resolve(here, 'uneval.json'), `${JSON.stringify(uneval, null, '\t')}\n`);
 console.log(`${cases.length} cases recorded`);
