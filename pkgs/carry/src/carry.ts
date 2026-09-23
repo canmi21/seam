@@ -3,7 +3,14 @@ import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type Plugin, rolldown } from 'rolldown';
 import { compile } from 'svelte/compiler';
-import { type Carried, currentAliases, resolveBare, RUNES_MODULE, runesModule } from 'ast';
+import {
+	type Carried,
+	currentAliases,
+	projectOptions,
+	resolveBare,
+	RUNES_MODULE,
+	runesModule,
+} from 'ast';
 
 /** An immediately invoked bundle assigning to one name, which `derive` reads back out. */
 const NAME = '__carried';
@@ -67,6 +74,7 @@ function svelted(): Plugin {
 					generate: 'server',
 					name: basename(id, '.svelte'),
 					filename: id,
+					...projectOptions(),
 				}).js.code;
 			}
 			if (RUNES_MODULE.test(id)) return runesModule(id, readFileSync(id, 'utf8'));

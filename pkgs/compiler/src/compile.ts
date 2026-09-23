@@ -20,13 +20,14 @@ import {
 	bundle,
 	type Carried,
 	configureAliases,
+	configureProjectOptions,
 	remembered,
 	rememberedSources,
 	type Bundle,
 } from 'ast';
 import { carriedBy, carry, rememberedBundles } from 'carry';
 import { lower } from 'lowering';
-import { aliases } from 'routes';
+import { aliases, compilerOptions } from 'routes';
 import {
 	combinations,
 	type Decided,
@@ -213,6 +214,8 @@ export async function prepare(
 export async function structures(entry: Entry, root: string): Promise<(Prepared & Run)[]> {
 	// What `$lib` and the project's own aliases stand for, as Kit's plugin would have told Vite.
 	configureAliases(await aliases(root));
+	// And the compile options it sets that change the bytes, which every compile below is handed.
+	configureProjectOptions(await compilerOptions(root));
 	const queue: Run[] = combinations(entry.enumerate ?? {}).map((fixed) => ({
 		fixed,
 		decided: new Map(),

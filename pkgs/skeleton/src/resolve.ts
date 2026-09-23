@@ -1,4 +1,5 @@
 import { basename } from 'node:path';
+import { projectOptions } from 'ast';
 import { compile } from 'svelte/compiler';
 import { type PendingChoice, probe } from './attributes.ts';
 import { refuse } from './node.ts';
@@ -31,6 +32,7 @@ export function filled(baseline: Rewritten, file: string, root: string): void {
 		name: 'Entry',
 		filename: file,
 		rootDir: root,
+		...projectOptions(),
 	}).js.code;
 	const seen = new Map<Copy, string>();
 	const compiled = (copy: Copy, at: string): string => {
@@ -41,6 +43,7 @@ export function filled(baseline: Rewritten, file: string, root: string): void {
 			name: basename(copy.file, '.svelte'),
 			filename: copy.file,
 			rootDir: at,
+			...projectOptions(),
 		}).js.code;
 		seen.set(copy, out);
 		return out;

@@ -34,6 +34,22 @@ minor releases without owing anybody notice.
 
 Borrowing the code generator removes the class of problem rather than the current instance.
 
+## Every compile is handed the options the project sets
+
+Borrowing the code generator means borrowing it as the project configures it. A project's
+`svelte.config.js` can set `compilerOptions`, which `vite-plugin-svelte` hands to every compile of
+every component, and some of them change the bytes. **`runes` is one**: set, every component
+compiles in that mode; unset, each file's mode is read off its scripts, and a file with no rune in
+it is in legacy mode, which writes different anchors around the same markup. Svelte's own order is
+`<svelte:options runes>` first, then the project's option, then the scripts.
+
+So the compiler reads `compilerOptions.runes` off the file, raw -- Kit's validator does not know the
+key -- and every Svelte compile in the pipeline is handed it, along with the one place that decides
+a file's mode for itself (`legacyMode`). It was not read at all until Svelte's own samples, compiled
+in the mode upstream forces per suite, wrote the extra anchor where this compiler had inferred
+legacy. `runes` is the only option taken so far; another is taken the day one is found to change
+bytes, measured the same way.
+
 ## Sentinels, and why they are not v1
 
 v1 also rendered at build time, so the difference has to be stated precisely.

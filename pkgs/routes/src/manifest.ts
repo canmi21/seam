@@ -90,6 +90,18 @@ export async function configured(cwd: string): Promise<Config> {
 }
 
 /**
+ * The compile options the project's `svelte.config.js` sets that change what a component compiles
+ * to: `compilerOptions.runes`, read off the file as `vite-plugin-svelte` reads it, since Kit's
+ * validator does not know the key.
+ */
+export async function compilerOptions(root: string): Promise<{ runes?: boolean }> {
+	const given = (await userConfig(resolve(root)))['compilerOptions'];
+	const runes =
+		typeof given === 'object' && given !== null ? (given as { runes?: unknown }).runes : undefined;
+	return typeof runes === 'boolean' ? { runes } : {};
+}
+
+/**
  * The prefix aliases Kit's plugin gives Vite, as a map: `$lib` to the lib directory, and each of
  * `kit.alias` with a trailing `/*` taken off both sides, resolved against the project. Kit's own
  * `get_config_aliases` writes the same as Vite alias entries; this is the shape a resolver takes.

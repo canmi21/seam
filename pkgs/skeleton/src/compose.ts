@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { literalOf, type Locals, mentions, pathOf, reduce } from 'ast';
+import { literalOf, type Locals, mentions, pathOf, projectOptions, reduce } from 'ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { type Snippet, snippetsIn } from './snippets.ts';
 import type { Given, Walk } from './walk.ts';
@@ -221,8 +221,9 @@ const RUNES: ReadonlySet<string> = new Set([
 
 /**
  * Whether a component is in legacy mode, which is what `2-analyze/index.js` decides in one line:
- * `runes_option ?? ... some(is_rune)`. `<svelte:options runes={...}>` is that option and wins over
- * the scripts, which is the only way a file with no rune in it can still be in runes mode.
+ * `runes_option ?? ... some(is_rune)`. `runes_option` is `<svelte:options runes={...}>` where the
+ * file writes one and the project's `compilerOptions.runes` where it does not (`compiler/index.js`),
+ * and either wins over the scripts -- which is how a file with no rune in it is in runes mode.
  *
  * It decides more than one thing, and the two that are read here are far apart: whether
  * `export let` is a prop, and whether a fragment's `{@const}`s are sorted into topological order.
@@ -238,6 +239,8 @@ export function legacyMode(ast: AstNode): boolean {
 		if (isNode(held) && held['type'] === 'Literal') return held['value'] === false;
 		return false;
 	}
+	const configured = projectOptions().runes;
+	if (configured !== undefined) return !configured;
 	const instance = ast['instance'];
 	const module = ast['module'];
 	for (const block of [instance, module]) {

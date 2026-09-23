@@ -3,7 +3,7 @@ import { readFileSync, realpathSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { APP_STATE, resolveBare, RUNES_MODULE, runesModule } from 'ast';
+import { APP_STATE, projectOptions, resolveBare, RUNES_MODULE, runesModule } from 'ast';
 import type { Rendered } from './shape.ts';
 import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel } from './sentinel.ts';
 import { timed, timedSync } from './timing.ts';
@@ -174,6 +174,7 @@ function codegen(
 				name,
 				filename,
 				rootDir: root,
+				...projectOptions(),
 				...(process.env['SEAM_ASYNC'] === undefined
 					? {}
 					: { experimental: { async: true as const } }),
