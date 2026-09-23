@@ -106,21 +106,22 @@ what the last three shapes are -- every one of them was counted as work until so
 **Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
 
-So the target is: **of the 1845 samples that are in, every one is byte-identical to Svelte's own
-render.** Nothing differing, nothing refused as a gap.
+So the target is: **every sample that is not skipped passes**, which is byte-identical to Svelte's
+own render. Nothing failing. Pass, skip and fail are the three states [suite.md](suite.md) sets,
+and a skip is one the list names with its reason.
 
 ### Where it stands
 
 ```
-                        samples  identical  empty  differs   gap  decided  skipped  oracle
-server-side-rendering       132         91      0        0     0       25       16       0
-runtime-runes              1054        672     19        0     0      190      170       3
-runtime-legacy             1209       1082     14        0     0       45       53      15
-total                      2395       1845     33        0     0      260      239      18
+suite                   samples   pass   skip   fail
+server-side-rendering       132     91     41      0
+runtime-runes              1054    691    363      0
+runtime-legacy             1209   1096    113      0
+total                      2395   1878    517      0
 ```
 
-Against the target: **1845 of 1845**, at `svelte@5.57.1`. Nothing differs and nothing is refused as a gap, which is the
-condition this file sets for stage one -- this time over the corpus this file describes. It read
+Against the target: **1878 of 1878**, at `svelte@5.57.1`. Nothing fails, which is the condition
+this file sets for stage one -- this time over the corpus this file describes. It read
 1559 of 1559 first, over one 342 samples smaller: 276 of the recovered samples agreed with no
 change to the compiler and four were work, and those four are done.
 
@@ -200,18 +201,16 @@ key rather than by name.
 
 ### It is done, and what the second time was worth
 
-`mise run suite` reports 0 differing and 0 refused as a gap, which is the condition this section
-sets. It reported that once before over a corpus 342 samples smaller than the one this file names,
+`mise run vendor-baseline` reports nothing failing, which is the condition this section sets. It reported that once before over a corpus 342 samples smaller than the one this file names,
 and the audit that found those samples is the reason the claim is worth more the second time: the
 work that had reached zero stood, 276 of the recovered samples agreed with no change to the
 compiler, and four were work. **A target is only as good as the denominator under it**, and the
 denominator is the half nothing was checking.
 
-**What the gate cannot see is the denominator.** It fails on the two counts, and both stayed at
-zero while 342 samples sat outside them. Two directions are owed and they are the same direction:
-a sample sliding from `identical` into `decided`, which is read off a message and a message can be
-widened, and a sample sliding out of the measurement altogether. Both want a baseline of names
-rather than a count. See [suite.md](suite.md).
+**So the gate is a list of names, not a count.** Two counts stayed at zero while 342 samples sat
+outside them, and a count cannot see a sample move from a pass into a skip or out of the corpus.
+Every sample is named in `pkgs/suite/baseline.json` with the state it has to come out as, and one
+that moves fails the run. See [suite.md](suite.md).
 
 ## Stage 2: SvelteKit's own test apps
 

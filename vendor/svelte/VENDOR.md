@@ -53,13 +53,12 @@ must not hold. See `spec/suite.md`.
 
 ## What is checked
 
-`mise run suite`, which is part of `verify`. It compiles all 2395 samples and reports how many are
-byte-identical to Svelte's own render, how many compiled and differ, how many were refused as a gap,
-how many were refused by a decision the scope line settles, how many upstream skips itself and how
-many neither side answered for. At the pinned tag it reports 1844 identical and 33 more that agree
-on an empty body, nothing differing, no gaps, 260 decided, 239 skipped and 18 with no answer from
-either side. It takes twelve seconds. `spec/suite.md` holds the reading of those numbers and the
-denominator they are against, and `spec/conformance.md` what they have to reach.
+Upstream's samples are not themselves a condition of `verify`. What is, is
+`mise run vendor-baseline`: it compiles all 2395 samples, sorts each into pass, skip or fail, and
+holds every one to `pkgs/suite/baseline.json`, the list this repository keeps of which state each
+has to be and why a skip is one. At the pinned tag it reports 1878 pass, 517 skip -- 239 upstream's,
+260 the scope line's, 18 this runner's -- and nothing failing. It takes twelve seconds.
+`spec/suite.md` holds the states and the list, and `spec/conformance.md` what they have to reach.
 
 The samples are excluded from lint and format with everything else under `vendor/`, which is the
 workspace's rule, and from `tsc` because the repository's `include` names `pkgs/*/src` and
@@ -70,6 +69,9 @@ workspace's rule, and from `tsc` because the repository's `include` names `pkgs/
 1. Download the new tag's tarball, as above.
 2. Replace the three `samples` directories and `LICENSE` with the new tag's.
 3. Update the tag, commit and directory counts in the table above.
-4. Run `mise run suite` and update the counts under **What is checked**. A sample that upstream
-   added is a new construct or a new shape of one; a sample that moved from refused to differing
-   is a regression and the suite says so before the counts do.
+4. Run `mise run vendor-baseline`. It fails on every sample upstream added, removed or changed
+   the state of, since the list names each one: read each failure, fix what is work, and record
+   the rest with `mise run vendor-baseline -- --write`. The diff of `pkgs/suite/baseline.json` is
+   the upgrade's account of what moved, and a sample going from `pass` to `skip` in it is a
+   regression unless its reason says otherwise.
+5. Update the counts under **What is checked**.

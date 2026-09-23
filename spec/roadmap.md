@@ -817,10 +817,10 @@ item above already owns. `component-namespace` is `<Components.Foo />` over a mo
 export, which is the module-graph item. `binding-indirect-fn` is a `$:` declaration substituted
 into `items.filter(fn)` and is its own fault.
 
-## Stage one is 1845 of 1845, and the gate has changed
+## Stage one is 1878 of 1878, and the gate has changed
 
-What the suite reports now is nothing differing and nothing refused as a gap, which is the
-condition [conformance.md](conformance.md) set for stage one.
+What the suite reports now is nothing failing, which is the condition
+[conformance.md](conformance.md) set for stage one.
 
 **It reported that once already, at 1559 of 1559, over a corpus 342 samples smaller.** The shim
 standing in for upstream's un-vendored runner matched one spelling of one import, and every config
@@ -836,10 +836,10 @@ snippet whose bytes the request decides, two; and a bare global, one -- and all 
 line, under **Decided, and not built** below. Each now says which decision it is, and the suite
 reads that off the message rather than being told.
 
-**So the suite is in `verify` and its failure condition is both counts.** A sample that starts
-differing and a sample that starts being refused are the same failure now. The direction it still
-cannot see is a sample sliding from `identical` into `decided`, since a decision is read off a
-message and a message can be widened; that wants a baseline of names and is owed.
+**So the suite is in `verify`, and what it is held to is a list of names.** A sample that starts
+differing, one that starts being refused, and one that slides from a pass into a skip are the same
+failure: every sample is named in `pkgs/suite/baseline.json` with the state it has to be, which
+[suite.md](suite.md) sets out.
 
 **Work arrives by the measurement being fixed rather than by anything being written**, twice now,
 and that is the finding worth carrying forward. It was thirteen samples the first time, never

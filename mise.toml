@@ -75,18 +75,16 @@ run = [
 
 [tasks.verify]
 description = "Everything a change has to pass"
-# `suite` joined when its count of differing samples and its count of gaps both reached zero, which
-# is the condition spec/conformance.md sets for stage one. Before that it was kept out on purpose: a
-# check that cannot pass stops being read, and every commit would have carried it. What it asks now
-# is the opposite question -- not how far the subset reaches, but whether it stops reaching as far.
-depends = ["check", "check-rust", "lint", "lint-rust", "test", "test-rust", "suite"]
+# Our own checks, and the vendored corpus only as the list this repository keeps of it: upstream's
+# tests are not a condition here, `vendor-baseline` holding every sample to pkgs/suite/baseline.json
+# is. See spec/suite.md.
+depends = ["check", "check-rust", "lint", "lint-rust", "test", "test-rust", "vendor-baseline"]
 
-[tasks.suite]
-description = "Svelte's own 2388 samples, compiled here and held against Svelte's own render"
-# `mise run suite` writes the lists and then the table; `mise run suite -- --table` writes the
-# table alone. Either way it exits non-zero while any sample writes bytes that are not Svelte's.
-# Not in `verify`, and spec/suite.md says why: it cannot pass yet, and a check that cannot pass
-# stops being read. It joins the gate when the count that differs reaches zero.
+[tasks.vendor-baseline]
+description = "Svelte's own samples, each held to what pkgs/suite/baseline.json says it has to be"
+# The failures and the skips by reason, then the table; `-- --table` is the table alone, and
+# `-- --write` records the run as the list, refusing while anything fails. It exits non-zero while
+# any sample disagrees with the list. See spec/suite.md.
 depends = ["wasm"]
 # The same reason `test` sets it: Svelte's development runtime writes a hash into the anchor that
 # opens a `{@html}` block, so a compile under it renders bytes no server ships.

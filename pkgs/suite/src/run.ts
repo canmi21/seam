@@ -3,7 +3,7 @@
  *
  * `pkgs/skeleton/src/skeleton.test.ts` is the refusal surface and every case in it was written
  * here, so it measures what somebody thought to write down. This runs the same comparison over a
- * corpus nobody here chose: the 2388 samples under `vendor/svelte`, each compiled, injected with
+ * corpus nobody here chose: every sample under `vendor/svelte`, each compiled, injected with
  * the props its own `_config.js` declares, and compared byte for byte -- body and head -- against
  * `render()` of the same component with the same props.
  *
@@ -12,14 +12,11 @@
  * order, insignificant whitespace and the exact anchors do not survive it. Passing upstream's
  * assertion is a weaker claim than the one this protocol makes. See spec/suite.md.
  *
- * **It fails when a sample compiled and wrote the wrong bytes, and only then.** A refusal stopped
- * a build and named a specification file, so the author knows; a difference shipped bytes nobody
- * asked for, and the whole claim here is that the bytes are Svelte's. The refusals are printed as
- * a list, ranked elsewhere -- spec/roadmap.md -- rather than counted as failures.
- *
- * Run by `mise run suite`, apart from `verify`: a check that cannot pass stops being read, and
- * every commit would carry it. It joins the gate when the count that differs reaches zero, at
- * which point its condition becomes a regression check. See spec/suite.md.
+ * **A sample is pass, skip or fail, and `baseline.json` beside this package says which it has to
+ * be.** Every sample is run, skipped ones included, and any that disagrees with the list fails --
+ * a pass that stopped passing, a skip whose reason changed or that passes now, a sample the list
+ * does not name, a name the corpus no longer holds. `--write` records the run as the list, and
+ * refuses while anything fails. See spec/suite.md.
  */
 import {
 	cpSync,
@@ -53,6 +50,10 @@ const SAMPLES = resolve(here, '../../../vendor/svelte/tests');
  * vendored files are upstream's, unedited. `.build*` is ignored by name.
  */
 const STAGE = resolve(here, '../.build-suite');
+/** What every sample has to come out as, kept here and not under `vendor/`. See spec/suite.md. */
+const BASELINE = resolve(here, '../baseline.json');
+/** Taken off a reason, so a path in one reads the same on every machine. */
+const ROOT = `${resolve(here, '../../..')}/`;
 
 /**
  * The suites whose assertions a server render can be held to, and what each was written for.
@@ -67,9 +68,9 @@ const SUITES = ['server-side-rendering', 'runtime-runes', 'runtime-legacy'] as c
 /**
  * A stream of 20 bytes or fewer, which is `<!--[--><!--]-->` and nothing else.
  *
- * A sample that renders to nothing agrees with Svelte for a reason that says nothing about the
- * compiler, and the two runtime suites hold some because they were written to be driven by a
- * client. Counted apart rather than dropped: they are agreements, just not evidence.
+ * A sample that renders to nothing agrees with Svelte, and the two runtime suites hold some because
+ * they were written to be driven by a client. The bytes are the same, so it is a pass; this only
+ * keeps the outcome apart where it is worth knowing, and `stateOf` reads the two alike.
  *
  * **Both streams, because a sample can render everything it has into the other one.** This read
  * the body alone, and fourteen samples whose whole content is a `<svelte:head>` were filed as
@@ -220,6 +221,43 @@ function turned(suite: string, name: string, why: string): Result {
 	return kind === null
 		? { suite, name, outcome: 'gap', why }
 		: { suite, name, outcome: 'decided', why, kind };
+}
+
+type State = 'pass' | 'skip' | 'fail';
+
+/**
+ * What an outcome is once it is read against the list: pass, skip or fail.
+ *
+ * Empty is a pass, since both sides wrote the same bytes. A skip carries whose it is -- `upstream`
+ * where the sample's own config says so, `scope` where the scope line refuses it, `harness` where
+ * this runner could not ask the oracle -- because a skip nobody can attribute is a number made to
+ * look better. See spec/suite.md.
+ */
+function stateOf(one: Result): { state: State; reason?: string } {
+	switch (one.outcome) {
+		case 'identical':
+		case 'empty':
+			return { state: 'pass' };
+		case 'skipped':
+			return { state: 'skip', reason: `upstream: ${one.why ?? ''}` };
+		case 'decided':
+			return { state: 'skip', reason: `scope: ${one.kind ?? ''}` };
+		case 'oracle':
+			return { state: 'skip', reason: `harness: ${(one.why ?? '').replaceAll(ROOT, '')}` };
+		case 'differs':
+		case 'gap':
+			return { state: 'fail', reason: one.why ?? '' };
+	}
+}
+
+/** The list every run is held to. See spec/suite.md. */
+interface Baseline {
+	version: 1;
+	/** The Svelte the oracle is, since the same corpus renders differently under another one. */
+	svelte: string;
+	pass: string[];
+	/** Each skipped sample and why, in the words `stateOf` writes. */
+	skip: Record<string, string>;
 }
 
 const need = createRequire(import.meta.url);
@@ -623,10 +661,6 @@ function samplesOf(suite: string): string[] {
 		.sort();
 }
 
-function count(results: readonly Result[], outcome: Outcome): number {
-	return results.filter((one) => one.outcome === outcome).length;
-}
-
 /**
  * Runs something with the samples' own writing to the terminal swallowed.
  *
@@ -647,71 +681,147 @@ async function quietly<T>(what: () => Promise<T>): Promise<T> {
 
 const NOTHING = (): void => undefined;
 
+/** One sample's verdict: what it came out as, read against what the list says it has to be. */
+interface Verdict {
+	key: string;
+	suite: string;
+	state: State;
+	/** For a skip, whose it is and why; for a fail, what went wrong. */
+	reason?: string;
+}
+
 /**
- * The counts, which is what a run is read for, so it is written last and on its own.
+ * Every sample held to the list, and every name on the list held to the corpus.
  *
- * `gap` and `decided` are the two things a refusal can be, apart because reading them together
- * says nothing: one is the list of what is left to do and the other is the scope line holding.
- * `skipped` stays upstream's own and only upstream's -- a skip nobody upstream asked for is a
- * number made to look better, and a decision of ours is not a skip. See spec/suite.md.
+ * A skip is checked like a pass: the sample still runs, and a reason that changed -- or a skip that
+ * passes now -- fails until the list says so. The list is only as true as the last run that read
+ * it. See spec/suite.md.
  */
-function table(results: readonly Result[]): void {
+function judge(results: readonly Result[], listed: Baseline | null): Verdict[] {
+	const passes = new Set(listed?.pass ?? []);
+	const skips = new Map(Object.entries(listed?.skip ?? {}));
+	const verdicts: Verdict[] = [];
+	for (const one of results) {
+		const key = `${one.suite}/${one.name}`;
+		const { state, reason } = stateOf(one);
+		const wanted = passes.has(key) ? 'pass' : skips.get(key);
+		passes.delete(key);
+		skips.delete(key);
+		const wrong = disagreement(state, reason, wanted);
+		verdicts.push(
+			wrong === null
+				? { key, suite: one.suite, state, ...(reason === undefined ? {} : { reason }) }
+				: { key, suite: one.suite, state: 'fail', reason: wrong },
+		);
+	}
+	for (const key of [...passes, ...skips.keys()]) {
+		verdicts.push({
+			key,
+			suite: key.slice(0, key.indexOf('/')),
+			state: 'fail',
+			reason: 'in the baseline, and not in the corpus',
+		});
+	}
+	return verdicts;
+}
+
+/** What is wrong with one sample, or null where it came out as the list says it has to. */
+function disagreement(
+	state: State,
+	reason: string | undefined,
+	wanted: string | undefined,
+): string | null {
+	if (state === 'fail') return reason ?? '';
+	if (wanted === undefined) return `not in the baseline; it ${describe(state, reason)}`;
+	if (wanted === 'pass') {
+		return state === 'pass' ? null : `the baseline has it passing; it ${describe(state, reason)}`;
+	}
+	return state === 'skip' && reason === wanted
+		? null
+		: `the baseline skips it, ${wanted}; it ${describe(state, reason)}`;
+}
+
+function describe(state: State, reason: string | undefined): string {
+	return state === 'pass' ? 'passes' : `is skipped, ${reason ?? ''}`;
+}
+
+/** The Svelte the oracle renders with. */
+function svelteVersion(): string {
+	const manifest = JSON.parse(readFileSync(need.resolve('svelte/package.json'), 'utf8')) as {
+		version: string;
+	};
+	return manifest.version;
+}
+
+function read(): Baseline | null {
+	let text: string;
+	try {
+		text = readFileSync(BASELINE, 'utf8');
+	} catch {
+		return null;
+	}
+	const held = JSON.parse(text) as Baseline;
+	if (held.version !== 1)
+		throw new Error(`baseline.json is version ${String(held.version)}, not 1`);
+	return held;
+}
+
+/** The run, written as the list: sorted, so a sample that moves is one line in a diff. */
+function write(results: readonly Result[]): void {
+	const pass: string[] = [];
+	const skip: Record<string, string> = {};
+	for (const one of results.toSorted((a, b) => keyOf(a).localeCompare(keyOf(b)))) {
+		const { state, reason } = stateOf(one);
+		if (state === 'pass') pass.push(keyOf(one));
+		else skip[keyOf(one)] = reason ?? '';
+	}
+	const held: Baseline = { version: 1, svelte: svelteVersion(), pass, skip };
+	writeFileSync(BASELINE, `${JSON.stringify(held, null, '\t')}\n`);
+}
+
+function keyOf(one: Result): string {
+	return `${one.suite}/${one.name}`;
+}
+
+/** The three counts per suite, which is what a run is read for, so it is written last. */
+function table(verdicts: readonly Verdict[]): void {
 	const width = Math.max(...SUITES.map((one) => one.length));
-	const columns: readonly [name: string, of: Outcome, pad: number][] = [
-		['identical', 'identical', 11],
-		['empty', 'empty', 7],
-		['differs', 'differs', 9],
-		['gap', 'gap', 6],
-		['decided', 'decided', 9],
-		['skipped', 'skipped', 9],
-		['oracle', 'oracle', 8],
-	];
-	const row = (name: string, mine: readonly Result[]): string =>
+	const states: readonly State[] = ['pass', 'skip', 'fail'];
+	const row = (name: string, mine: readonly Verdict[]): string =>
 		`${name.padEnd(width)}  ${String(mine.length).padStart(8)}` +
-		columns.map(([, of, pad]) => String(count(mine, of)).padStart(pad)).join('');
+		states
+			.map((state) => String(mine.filter((one) => one.state === state).length).padStart(7))
+			.join('');
 	console.log(
-		`\n${'suite'.padEnd(width)}  ${'samples'.padStart(8)}` +
-			columns.map(([name, , pad]) => name.padStart(pad)).join(''),
+		`\n${'suite'.padEnd(width)}  ${'samples'.padStart(8)}${states.map((one) => one.padStart(7)).join('')}`,
 	);
 	for (const suite of SUITES) {
 		console.log(
 			row(
 				suite,
-				results.filter((one) => one.suite === suite),
+				verdicts.filter((one) => one.suite === suite),
 			),
 		);
 	}
-	console.log(row('total', results));
+	console.log(row('total', verdicts));
 }
 
-function list(results: readonly Result[], outcome: Outcome, title: string): void {
-	const found = results.filter((one) => one.outcome === outcome);
-	if (found.length === 0) return;
-	console.log(`\n${title} (${String(found.length)})`);
-	for (const one of found) {
-		console.log(`  ${one.suite}/${one.name}${one.why === undefined ? '' : `\n      ${one.why}`}`);
+/** The failures one at a time with what went wrong, and the skips by reason with how many. */
+function lists(verdicts: readonly Verdict[]): void {
+	const failed = verdicts.filter((one) => one.state === 'fail');
+	if (failed.length > 0) {
+		console.log(`\nfail (${String(failed.length)})`);
+		for (const one of failed) console.log(`  ${one.key}\n      ${one.reason ?? ''}`);
 	}
-}
-
-/**
- * The decided refusals grouped by which decision they are, names only.
- *
- * The message is the same sentence 183 times for one of these, and what a reader wants of them is
- * the shape and the count. A gap is printed with its message, because a gap is read one at a time.
- */
-function decided(results: readonly Result[]): void {
-	const found = results.filter((one) => one.outcome === 'decided');
-	if (found.length === 0) return;
-	const kinds = new Map<string, Result[]>();
-	for (const one of found) {
-		const held = kinds.get(one.kind ?? '') ?? [];
-		held.push(one);
-		kinds.set(one.kind ?? '', held);
+	const reasons = new Map<string, number>();
+	for (const one of verdicts) {
+		if (one.state === 'skip')
+			reasons.set(one.reason ?? '', (reasons.get(one.reason ?? '') ?? 0) + 1);
 	}
-	console.log(`\nrefused by decision, which the scope line settles (${String(found.length)})`);
-	for (const [kind, held] of [...kinds].sort((a, b) => b[1].length - a[1].length)) {
-		console.log(`  ${kind} (${String(held.length)})`);
-		for (const one of held) console.log(`      ${one.suite}/${one.name}`);
+	if (reasons.size === 0) return;
+	console.log(`\nskip, by reason; the names are in baseline.json`);
+	for (const [reason, many] of [...reasons].toSorted((a, b) => b[1] - a[1])) {
+		console.log(`  ${String(many).padStart(4)}  ${reason}`);
 	}
 }
 
@@ -758,28 +868,48 @@ const results: Result[] = await quietly(async () => {
 	return found;
 });
 
+// `--write` records the run as the list, and only a run with nothing failing can be recorded: a
+// failure is not a state the list has. Otherwise the run is held to the list. See spec/suite.md.
+const experiment = Object.keys(ASYNC).length > 0;
+if (process.argv.includes('--write')) {
+	const failing = results.filter((one) => stateOf(one).state === 'fail');
+	if (experiment || failing.length > 0) {
+		lists(failing.map((one) => ({ key: keyOf(one), suite: one.suite, ...stateOf(one) })));
+		console.log(
+			experiment
+				? '\nThe list is the default render, and `SEAM_ASYNC` is an experiment on it.'
+				: `\n${String(failing.length)} sample(s) fail, and a failure is not something the ` +
+						'baseline records.',
+		);
+		rmSync(STAGE, { recursive: true, force: true });
+		process.exit(1);
+	}
+	write(results);
+	rmSync(STAGE, { recursive: true, force: true });
+	console.log(`\nbaseline.json records ${String(results.length)} samples.`);
+	process.exit(0);
+}
+
+// The experiment compiles both sides another way, so it is reported rather than held to the list.
+const listed = experiment ? null : read();
+const verdicts = experiment
+	? results.map((one) => ({ key: keyOf(one), suite: one.suite, ...stateOf(one) }))
+	: judge(results, listed);
+const version = svelteVersion();
 // The lists first and the table last: a terminal shows the end of what a command wrote, and the
 // table is what the run is for. `--table` is the same run with the lists left out.
-if (!process.argv.includes('--table')) {
-	list(results, 'differs', "compiled and wrote bytes that are not Svelte's");
-	list(results, 'oracle', 'neither side answered: the oracle could not be built or run');
-	list(results, 'gap', 'refused, and nobody has said this one is not work');
-	decided(results);
-}
-table(results);
+if (!process.argv.includes('--table')) lists(verdicts);
+table(verdicts);
 
-const differs = count(results, 'differs');
-const gaps = count(results, 'gap');
+const failed = verdicts.filter((one) => one.state === 'fail').length;
+const moved = listed !== null && listed.svelte !== version;
 console.log(
-	`\n${String(differs)} sample(s) wrote the wrong bytes and ${String(gaps)} were refused as a gap. ` +
-		'A refusal names a file and stops a build; a difference ships. See spec/suite.md.',
+	experiment
+		? `\n${String(failed)} sample(s) fail under \`experimental.async\`, which no list holds.`
+		: listed === null
+			? '\nThere is no baseline.json; `mise run vendor-baseline -- --write` records one.'
+			: `\n${String(failed)} sample(s) disagree with baseline.json.` +
+				(moved ? ` It was recorded against svelte@${listed.svelte}, and this is ${version}.` : ''),
 );
 rmSync(STAGE, { recursive: true, force: true });
-// **Both, because the condition changed when the second reached zero.** While any sample wrote the
-// wrong bytes this failed on that alone, and the refusals were a list it printed: a check that
-// cannot pass stops being read. Now that neither has anything in it the question is no longer how
-// far the subset reaches but whether it stops reaching as far, so a sample that starts differing
-// and a sample that starts being refused are the same failure and both are the gate's. What this
-// does not catch is a sample sliding from `identical` into `decided`, which wants a baseline of
-// names rather than a count. See spec/suite.md.
-process.exit(differs === 0 && gaps === 0 ? 0 : 1);
+process.exit(failed === 0 && !moved && (experiment || listed !== null) ? 0 : 1);

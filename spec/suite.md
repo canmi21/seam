@@ -6,7 +6,7 @@ both directions before -- [refusals.md](refusals.md) records the two times the t
 went stale -- and replacing a remembered list with a check fixed the drift without fixing the
 blind spot. A construct nobody here has thought of is absent from both.
 
-**So the measure is somebody else's corpus.** Svelte ships 2388 samples across the three suites
+**So the measure is somebody else's corpus.** Svelte ships 2395 samples across the three suites
 whose assertions a server render can be held to, and they were written by the people who decide
 what Svelte does. Running them says how far the subset reaches in a way our own cases cannot,
 because we did not choose them.
@@ -27,8 +27,8 @@ output upstream keeps for the client, is still usable: the oracle is the rendere
 
 | suite | samples | what it was written for |
 | --- | --- | --- |
-| `server-side-rendering` | 131 | the server bytes, directly. Its assertions are ours. |
-| `runtime-runes` | 1048 | the client, in runes mode. Repurposed: both sides get the same props and the server render is compared. |
+| `server-side-rendering` | 132 | the server bytes, directly. Its assertions are ours. |
+| `runtime-runes` | 1054 | the client, in runes mode. Repurposed: both sides get the same props and the server render is compared. |
 | `runtime-legacy` | 1209 | the client, in Svelte 4 spelling. Repurposed the same way. |
 
 The two runtime suites are not written for a server and the temptation is to leave them out. They
@@ -36,10 +36,11 @@ are in because they found most of what was wrong: of the 115 samples that compil
 wrong bytes, 97 are theirs. A test written for a client still renders on a server, and the render
 is the thing being checked.
 
-**A sample that renders to nothing is not evidence.** An agreement whose streams are
+**A sample that renders to nothing is a pass.** An agreement whose streams are
 `<!--[--><!--]-->` and nothing else is one, and most of them are in the two runtime suites, which
-were written to be driven by a client. They are agreements and they say nothing about the compiler,
-so the suite gives them a column of their own rather than folding them in.
+were written to be driven by a client. It had a column of its own, as agreement that was not
+evidence; the bytes are the same bytes, and a state nobody acts on differently is a state that
+only makes the table harder to read.
 
 **Both streams, because a sample can render everything it has into the other one.** The test read
 the body alone, and fourteen samples whose whole content is a `<svelte:head>` were filed as saying
@@ -49,45 +50,49 @@ They are the only evidence there is for the half of the IR that [ir.md](ir.md) r
 once already by reading the body and not the head. A column that says "not evidence" has to be read
 as often as the one that says "wrong", and this one was not.
 
-## What a sample comes out as
+## What a sample comes out as: pass, skip or fail
 
-**identical** -- seam's bytes are Svelte's, body and head. The only outcome that is a pass.
+**Three states, and no more.** Seven columns were read off this suite at one point -- identical,
+empty, differs, gap, decided, skipped, oracle -- and a reader could not tell from the table whether
+the run was good. What a reader acts on is three things, so the table has three.
 
-**differs** -- it compiled and the bytes are not Svelte's. This is the serious one: nothing said
-so. Everything else announces itself.
+**pass** -- seam's bytes are Svelte's, body and head. An empty render on both sides is a pass.
 
-**gap** -- the compiler turned it away, named a specification file, and nobody has said that
-turning it away is the right answer. This is the list of what is left to do, and
-[roadmap.md](roadmap.md) ranks it.
+**skip** -- the sample is not a condition of the run, and the list says why. The why is one of
+three, and it is written into the reason so that nobody has to guess whose judgement a skip is:
 
-**decided** -- the compiler turned it away and the scope line settles it: async Svelte, a value the
-render changes, a value the payload cannot carry because it is a function, a value that is not the
-same twice. Out of the denominator, and printed grouped by which decision it is rather than one
-message at a time, because for one of them it is the same sentence 183 times.
+- `upstream:` -- the sample's own `_config.js` says not to run it on the server.
+- `scope:` -- this compiler refuses it and the scope line settles that: async Svelte, a value the
+  render changes, a value the payload cannot carry because it is a function, a value that is not
+  the same twice. The reason is which of those decisions it is, not the message.
+- `harness:` -- neither side answered, because this runner could not ask the oracle. That is a
+  debt of this repository's, kept visible in the list rather than folded into either of the others.
 
-**A refusal is one of those two and the suite says which, rather than one number for both.** Which
-it is was in prose while the table said `refused`, so the figure a reader took away counted 264
-decisions as though they were work. It is read off the message, in a table in the runner: the
-classification is the measurement's and nothing in a build has a use for it. **An unmatched refusal
-counts as a gap**, which is the safe direction -- a refusal nobody has classified is work until
-somebody says otherwise.
+**fail** -- everything else: the bytes are not Svelte's, the compiler refused it and the scope line
+does not settle it, or the sample disagrees with [the list](#the-list-is-what-verify-holds-it-to).
 
-**And a decision is not a skip.** A skip is upstream saying not to run the sample. These ran, this
-compiler read them and turned them away on purpose. Folding them into `skipped` would make that
-column our judgement, which is the one thing it is written not to be.
+**A refusal is a skip or a fail, and which one is read off its message**, in a table in the runner:
+the classification is the measurement's and nothing in a build has a use for it. **An unmatched
+refusal is a fail**, which is the safe direction -- a refusal nobody has classified is work until
+somebody says otherwise. The two used to be one column, `refused`, and the figure a reader took away
+counted 264 decisions as though they were work.
 
-**oracle** -- neither side answered. Svelte's own render could not be built or run here, or the
-sample's own config could not be read, or the props it names could not be built at all: fourteen
-configs write `get props()` and thirteen of them return what `create_deferred()` made, which is
-upstream's helper and not vendored. There is
-nothing to be identical to, so the sample is not a pass, not a difference and not a refusal.
-**Whichever half could not answer, the column means the same thing**: nobody measured this, read
-the names.
+**And a scope skip is not an upstream skip.** An upstream skip is somebody else saying not to run
+the sample. A scope skip ran, and this compiler read it and turned it away on purpose. One prefix
+for both would make upstream's column our judgement, which is the one thing it is written not to
+be.
 
-**skipped** -- upstream's own `_config.js` says so: `skip: true`, a `mode` upstream does not run on
-the server, a `skip_mode` that names `server`, or an `error` the sample is written to produce. Not
-our judgement, and never used to make a number look better. A sample skipped here is skipped by the
-people who wrote it.
+**A harness skip is where neither side answered.** Svelte's own render could not be built or run
+here, or the sample's own config could not be read, or the props it names could not be built at
+all: fourteen configs write `get props()` and thirteen of them return what `create_deferred()`
+made, which is upstream's helper and not vendored. There is nothing to compare against, so it is not
+a pass and not a fail. **Whichever half could not answer, the reason says so**: nobody measured
+this sample, and the list names it so that somebody can.
+
+**An upstream skip is what the sample's own `_config.js` says**: `skip: true`, a `mode` upstream
+does not run on the server, a `skip_mode` that names `server`, or an `error` the sample is written
+to produce. Not our judgement, and never used to make a number look better. A sample skipped here is
+skipped by the people who wrote it.
 
 **Which requires reading the config, and for 342 samples it was not read.** Upstream's runner is
 not vendored, so the imports that reach for it are stood in for; the rule matched
@@ -192,40 +197,31 @@ as counting a gap out because the compiler announces it.
 
 ## The denominator, said once
 
-A percentage over 2388 is meaningless, because three of the outcomes are not failures.
+A percentage over every sample is meaningless, because a skip is not a failure. **The number this
+file tracks is pass over pass and fail, and the target is every one of them**: nothing failing.
 
-**Upstream's skips are out.** 239 of them, and every one is upstream saying so. It read 554 while
-342 configs were not being read at all, and reading them raised what upstream really declares as
-well: `mode` from 160 to 182 and `skip` from 17 to 19, because a config that throws declares
+**The upstream skips.** 239 at `svelte@5.57.1`, and every one is upstream saying so. It read 554
+while 342 configs were not being read at all, and reading them raised what upstream really declares
+as well: `mode` from 160 to 182 and `skip` from 17 to 19, because a config that throws declares
 nothing.
 
-**A sample neither side answered for is out.** 18, of which 13 are the props this harness cannot
-build, 1 a config it cannot read, and 4 the oracle's own. There is nothing to compare against, so counting it either way is a
-claim about a comparison nobody made -- which is also why the column has to be read rather than
-trusted: a sample in it because of this harness is a sample nobody has measured.
+**The harness skips.** 18: 13 are props this runner cannot build, 1 a config it cannot read, and 4
+the oracle's own. There is nothing to compare against, so counting either way is a claim about a
+comparison nobody made -- and a sample skipped because of this runner is a sample nobody has
+measured, which is why the reason is written into the list rather than into a count.
 
-**A refusal by decision is out, and it is the scope line rather than an excuse.** The suite counts
-it in a column of its own, `decided`, and prints the samples grouped by which decision each is.
-Async Svelte is most of it: `await` in markup or at the top of a script awaits a promise per request
-while the bytes are written, which is the load stage's. A refusal that is a *gap* stays in the
-denominator -- it is work nobody has done, and hiding it behind the same word as a decision is
-exactly the confusion [refusals.md](refusals.md) was written to stop, which is why the two are no
-longer one column.
-
-**Everything else is in.** So the number this file tracks is
-
-```
-identical / (samples - upstream's skips - oracle failures - refusals by decision)
-```
-
-and the two figures beside it are the count that differs and the count refused as a gap.
+**The scope skips, which are the scope line rather than an excuse.** 260. Async Svelte is most of
+it: `await` in markup or at the top of a script awaits a promise per request while the bytes are
+written, which is the load stage's. A refusal the scope line does not settle is a fail -- it is work
+nobody has done, and hiding it behind the same word as a decision is exactly the confusion
+[refusals.md](refusals.md) was written to stop.
 
 ## What it said the first time it ran, at `svelte@5.57.0`
 
 | suite | samples | identical | empty | differs | refused | skipped |
 | --- | --- | --- | --- | --- | --- | --- |
-| `server-side-rendering` | 131 | 55 | 4 | 18 | 38 | 16 |
-| `runtime-runes` | 1048 | 463 | 15 | 18 | 274 | 278 |
+| `server-side-rendering` | 132 | 55 | 4 | 18 | 38 | 16 |
+| `runtime-runes` | 1054 | 463 | 15 | 18 | 274 | 278 |
 | `runtime-legacy` | 1209 | 496 | 19 | 79 | 350 | 264 |
 | | **2388** | **1014** | **38** | **115** | **662** | **558** |
 
@@ -240,7 +236,7 @@ upstream skips, 17 async, 2 that ask a boundary to catch a throw -- **59 of 96**
 
 [conformance.md](conformance.md) puts this suite in its place: it is stage one of three, and it
 says what "all of them" means once the skips, the oracle's own failures and the refusals by
-decision come out -- 1845 of the 2395 -- and why neither SvelteKit's own test apps nor a real
+decision come out -- 1878 of the 2395 -- and why neither SvelteKit's own test apps nor a real
 application should be measured until
 this one is finished. What follows here is the rule that decides the order of work inside it.
 
@@ -293,23 +289,43 @@ this does not. Reading them was a morning rather than a project because the suit
 byte the two renders disagree on beside each name -- a list of forty sample names is not something
 anybody acts on.
 
-## What it asks now, and where it is run
+## The list is what `verify` holds it to
 
-**It is green and it is in `verify`, over the corpus this file describes.** It was red on purpose
-for as long as any sample wrote the wrong bytes, and out of `verify` for the same reason: a check
-that cannot pass stops being read, and every commit would have carried it. Both counts reached zero
-and it joined the gate -- and both were zero over a corpus 342 samples smaller than this, which is
-what the skips were hiding. Widening them turned it red on one difference and three gaps; those are
-done, and the question it asks is the one it was written to ask: whether it stops reaching as far,
-a sample that starts differing and a sample that starts being refused being the same failure.
+**Upstream's tests are not a condition of `verify`; a list this repository keeps of them is.** The
+gate used to be two counts, the samples that differ and the samples refused as a gap, and a count
+cannot see a sample move between the columns it does not count: identical into a scope skip because
+a refusal's message was widened, into an upstream skip because this runner misread a config -- which
+is how 342 samples left the measurement once with both counts at zero -- into a harness skip, or out
+of the corpus altogether. So every sample is named.
+
+`pkgs/suite/baseline.json` holds every sample in the corpus by `<suite>/<name>`, under `pass` or
+under `skip` with its reason, and the Svelte it was recorded against. It sits with the runner rather
+than under `vendor/`, which holds upstream's files and nothing of ours, and an upgrade of the vendor
+is then a diff of this file. A run fails where
+
+- a sample the list has passing does not pass,
+- a sample the list skips passes, or is skipped for another reason,
+- a sample is not on the list, or a name on the list is not in the corpus,
+- the Svelte installed is not the one the list was recorded against.
+
+**Every sample runs, skipped ones included**, because a skip's reason is a fact about somebody
+else's file or about this compiler, and both move without anyone editing the list: upstream
+un-skips a sample at the next tag, a refusal lifted by a change here lets a sample through to write
+wrong bytes, a stand-in for upstream's harness makes thirteen samples measurable. A list that is not
+checked is only true on the day it was written.
+
+**`--write` records the run as the list, and refuses while anything fails.** A failure is not a
+state the list has, so it cannot be recorded away; what the list can take is a sample moving
+between `pass` and `skip`, and that is one line in a diff, which is where it is read.
+`SEAM_ASYNC=1` is reported and not held to the list, since it compiles both sides another way.
 
 ```
-mise run suite              the lists, then the table
-mise run suite -- --table   the table alone
+mise run vendor-baseline               the failures, the skips by reason, then the table
+mise run vendor-baseline -- --table    the table alone
+mise run vendor-baseline -- --write    record the run as the list
 ```
 
-Run from anywhere in the workspace it is `mise run //repos/seam:suite`. It exits non-zero while
-any sample writes bytes that are not Svelte's.
+Run from anywhere in the workspace it is `mise run //repos/seam:vendor-baseline`.
 
 **The table is written last and the samples are silenced while they run.** A sample is a component
 somebody wrote to exercise Svelte and a good number of them log: 127 lines of `0n`, `1n`, `100`,
@@ -317,14 +333,9 @@ somebody wrote to exercise Svelte and a good number of them log: 127 lines of `0
 what a command wrote. Upstream's output is not a result of this run, so it goes nowhere; every
 outcome here is a value returned or thrown, so nothing is lost with it.
 
-**What it does not hold is a sample sliding from `identical` into `decided`.** Both counts stay at
-zero while the number that agrees goes down, because a decision is read off a message and a message
-can be widened -- which is the one direction this gate cannot see. It wants a baseline of names
-rather than a count, and it is owed. Everything else the file had to decide is decided.
-
 The corpus is vendored rather than fetched, at one tag, under the workspace's arrangement for
 vendored source: see [`vendor/svelte/VENDOR.md`](../vendor/svelte/VENDOR.md). It is 2.0 MB of text
-across 5730 files, most of them under 500 bytes -- `du` says 22 MB, which is the filesystem
+across 5746 files, most of them under 500 bytes -- `du` says 22 MB, which is the filesystem
 allocating a 4 KB block per file and not a reason to take fewer of them.
 
 The runner is `pkgs/suite`. It does not call `compile()`: that batches lowering across a whole
