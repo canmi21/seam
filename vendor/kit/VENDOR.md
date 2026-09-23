@@ -65,7 +65,7 @@ implementation were replaced, one package changes.
 ## What is checked
 
 - `vitest run --config vitest.config.ts`, run from this directory, is upstream's own Node-side
-  suite over the vendored files: 38 files, 559 checks at the pinned tag. The config is upstream's
+  suite over the vendored files, and `mise run test-vendor` is how it is reached. The config is upstream's
   with the client project left out, and three files excluded: `src/version.spec.js`, which reads a
   script upstream keeps beside the package; `src/core/sync/write_types/index.spec.js`, which
   drives the TypeScript compiler API and was written against a major behind the one installed
@@ -74,8 +74,8 @@ implementation were replaced, one package changes.
   fixture is not here, and the `.svelte-kit` directories the other specs write into theirs are
   ignored by name.
 - `tsc -p vendor/kit` checks the source under upstream's own compiler options, kept in
-  `tsconfig.json` here. At the pinned tag it reports 42 errors, all of them the installed
-  TypeScript being a major ahead of upstream's -- `write_types` calling a compiler API that moved,
+  `tsconfig.json` here. What it reports is its own output; at the pinned tag every error is the
+  installed TypeScript being a major ahead of upstream's -- `write_types` calling a compiler API that moved,
   `import()` of a module used as a type, and declarations for `rollup` and `connect` upstream has
   as dev dependencies. It is run to read, not to gate: the repository's own `tsc` does not include
   these files and is not held to them.

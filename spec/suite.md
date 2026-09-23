@@ -6,7 +6,7 @@ both directions before -- [refusals.md](refusals.md) records the two times the t
 went stale -- and replacing a remembered list with a check fixed the drift without fixing the
 blind spot. A construct nobody here has thought of is absent from both.
 
-**So the measure is somebody else's corpus.** Svelte ships 2395 samples across the three suites
+**So the measure is somebody else's corpus.** Svelte ships its samples in three suites
 whose assertions a server render can be held to, and they were written by the people who decide
 what Svelte does. Running them says how far the subset reaches in a way our own cases cannot,
 because we did not choose them.
@@ -25,11 +25,11 @@ output upstream keeps for the client, is still usable: the oracle is the rendere
 
 ## What the suites are, and why all three
 
-| suite | samples | what it was written for |
-| --- | --- | --- |
-| `server-side-rendering` | 132 | the server bytes, directly. Its assertions are ours. |
-| `runtime-runes` | 1054 | the client, in runes mode. Repurposed: both sides get the same props and the server render is compared. |
-| `runtime-legacy` | 1209 | the client, in Svelte 4 spelling. Repurposed the same way. |
+| suite | what it was written for |
+| --- | --- |
+| `server-side-rendering` | the server bytes, directly. Its assertions are ours. |
+| `runtime-runes` | the client, in runes mode. Repurposed: both sides get the same props and the server render is compared. |
+| `runtime-legacy` | the client, in Svelte 4 spelling. Repurposed the same way. |
 
 The two runtime suites are not written for a server and the temptation is to leave them out. They
 are in because they found most of what was wrong: of the 115 samples that compiled and wrote the
@@ -248,26 +248,28 @@ skip in the synchronous one -- see **Two passes** above.
 
 ## The denominator, said once
 
-A percentage over every sample is meaningless, because a skip is not a failure. **The number this
-file tracks is pass over pass and fail, and the target is every one of them**: nothing failing.
+A percentage over every sample is meaningless, because a skip is not a failure. **The number that
+matters is pass over pass and fail, and the target is every one of them**: nothing failing.
 
-**The upstream skips.** 445 in the sync pass and 166 in the async one at `svelte@5.57.1`, and every
-one is upstream saying so -- in the sample's own config, in Svelte's compiler refusing it without the
+**The counts are the run's, not this file's.** `mise run vendor-baseline` prints the skips by pass
+and reason and then the table, and `pkgs/suite/baseline.json` names every sample in each; what
+follows is what each kind of skip is, which the next run cannot change. See the workspace's
+`spec/agent-protocol.md`, "A number a command prints is cited, not copied".
+
+**The upstream skips.** Every one is upstream saying so -- in the sample's own config, in Svelte's compiler refusing it without the
 flag, or in a render that needs upstream's DOM. Many sync-pass skips are async-pass samples: the
 reason says which pass has it. It read 554
 while 342 configs were not being read at all, and reading them raised what upstream really declares
 as well: `mode` from 160 to 182 and `skip` from 17 to 19, because a config that throws declares
 nothing.
 
-**The harness skips.** None in the sync pass and 5 in the async one at `svelte@5.57.1`, every one a
-render handed a promise that never resolves, which upstream's own async render does not finish
-either. There were 18, and then 57 waiting for an async pass, and what paid them is above.
+**The harness skips.** Neither side answered: a render handed a promise that never resolves, for
+one, which upstream's own async render does not finish either. There were 18, and then 57 waiting for an async pass, and what paid them is above.
 There is nothing to compare against in one, so counting either way is a claim about a comparison
 nobody made -- and a sample skipped because of this runner is a sample nobody has measured, which is
 why the reason is written into the list rather than into a count.
 
-**The blocked skips, which wait on request-time rendering rather than being an excuse.** 67 in the
-sync pass and 30 in the async one. An `await` is not among them unless it waits on what the request
+**The blocked skips, which wait on request-time rendering rather than being an excuse.** An `await` is not among them unless it waits on what the request
 decides, which is async request-time rendering; Svelte's own corpus has none. An `await` whose value
 the build can know is compile-time work, measured in the async pass and failing there until it is
 done (see [roadmap.md](roadmap.md)). A refusal that is none of these is a fail --
@@ -294,7 +296,7 @@ upstream skips, 17 async, 2 that ask a boundary to catch a throw -- **59 of 96**
 
 [conformance.md](conformance.md) puts this suite in its place: it is stage one of three, and it
 says what "all of them" means once the skips, the oracle's own failures and the refusals by
-decision come out -- 1883 of the 2395 -- and why neither SvelteKit's own test apps nor a real
+decision come out, and why neither SvelteKit's own test apps nor a real
 application should be measured until
 this one is finished. What follows here is the rule that decides the order of work inside it.
 

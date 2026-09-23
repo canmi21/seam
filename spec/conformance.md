@@ -10,7 +10,7 @@ gaps. This file is only the order.
 
 ## The order, and why it is this one
 
-**1. Svelte's own samples.** 2388 of them, compared byte for byte against Svelte's own `render()`.
+**1. Svelte's own samples.** Every one of them, compared byte for byte against Svelte's own `render()`.
 Proves: every way of writing a Svelte component compiles, and compiles to Svelte's bytes.
 
 **2. SvelteKit's own test apps.** Kit's `test/apps/*`, built with this plugin and driven by Kit's
@@ -37,11 +37,14 @@ neither gates anything. A compiler that is fast and writes the wrong bytes has n
 
 ## Stage 1: Svelte's own samples
 
-### What "all of them" means, because it is not 2388
+### What "all of them" means, because it is not every sample
 
-Three of the outcomes are not failures and saying so once is what keeps the target honest.
+Three of the outcomes are not failures and saying so once is what keeps the target honest. How
+many samples each holds is the run's to say: `mise run vendor-baseline` prints them by pass and
+reason. See the workspace's `spec/agent-protocol.md`, "A number a command prints is cited, not
+copied".
 
-**Upstream's own skips are out.** 239 samples whose `_config.js` says `skip`, or a `mode` upstream
+**Upstream's own skips are out.** Samples whose `_config.js` says `skip`, or a `mode` upstream
 does not run on the server, or a `skip_mode` naming `server`, or an `error` the sample exists to
 produce -- or a `runtime_error` that is what the render then threw, which is the same statement one
 word along. Not our judgement.
@@ -55,47 +58,50 @@ requires to be upstream's own and nobody else's. Nobody skipped them. They were 
 four of them are work. Reading the configs raised the skips upstream really does declare, since a
 config that throws declares nothing: `mode` went from 160 to 182 and `skip` from 17 to 19.
 
-**A sample Svelte's own render cannot produce bytes for is out.** 18, and 14 of them are this
-harness rather than the oracle: 13 whose `props` are *built* by `create_deferred()` and the rest of
+**A sample Svelte's own render cannot produce bytes for is out.** When the list was first written
+there were 18, and 14 of them were this harness rather than the oracle: 13 whose `props` are *built* by `create_deferred()` and the rest of
 upstream's helpers, so neither side can be handed the props the sample names, and one whose config
 imports a sibling without naming its extension. Each is a sample nobody measured rather than a
 sample that agrees, which is what the column is for and why a config this harness cannot read is
 counted here rather than among the skips.
 
-The other 4 are the oracle's own. It is asked even where this compiler refused, so a sample nobody
+The other 4 were the oracle's own. It is asked even where this compiler refused, so a sample nobody
 can render is not counted as our gap -- fifteen of them were, a quarter of what was being ranked as
 work. That number was 17 once before, until the eight samples whose own `_config.js` says what the
 render needs were read: a sample this harness did not ask properly is not a sample the oracle
 cannot render, and all eight were out of the denominator without either side having answered.
 [suite.md](suite.md) has the rule and the one exception to it.
 
-**A refusal blocked on request-time rendering is out** until that rendering exists: 259 samples,
-in seven shapes, and the suite counts them apart from the gaps:
+**A refusal blocked on request-time rendering is out** until that rendering exists, and the suite
+counts it apart from the gaps. The shapes, each a reason the list writes beside the sample:
 
-- **193 await** in markup or at the top of a script, which is async Svelte and the load stage's.
-  Which samples those are is upstream's compiler to say: one that will not build without
-  `experimental.async` is async Svelte whatever this compiler's own message says.
-- **37 change a value** the markup reads while the bytes are written -- assigned after being
+- **An await of what the request decides**, which is async request-time rendering. An await whose
+  value the build can know is compile-time work and is not among these; [suite.md](suite.md) has
+  the line and [roadmap.md](roadmap.md) the work.
+- **A value the markup reads changes** while the bytes are written -- assigned after being
   declared, changed by a function this render calls, written into `$$props`, or a store the script
   writes -- which is a program per request. There were 68, and the rule was asked at the
   declaration; it is asked where the walk writes an expansion out now, since the render runs the
   instance script and has the value. [derivation.md](derivation.md) has the rule and
   [roadmap.md](roadmap.md) what came out of moving it.
-- **14 want a function off the wire.** The payload carries data and no function, deliberately: see
-  [payload.md](payload.md). Eleven subscribe to a store the request brings, `$x` reading whatever `x`
+- **A function off the wire.** The payload carries data and no function, deliberately: see
+  [payload.md](payload.md). Some subscribe to a store the request brings, `$x` reading whatever `x`
   holds while the bytes are written, so the store itself would have to be in the payload -- and a
-  store is an object with a `subscribe` function. Three render a component the request sent, which
+  store is an object with a `subscribe` function. Others render a component the request sent, which
   is the same shape: a component is a function. Reading the value, or choosing the component, in
   the load stage is the same page.
-- **4 read a value that is not the same twice**, `Math.random`, `Date()` and `Symbol()`, which a
+- **A value that is not the same twice**, `Math.random`, `Date()` and `Symbol()`, which a
   compile-time render freezes into bytes every request would then share.
-- **8 catch what a `<svelte:boundary>`'s body throws.** What the `failed` snippet is handed is
+- **Module state its module changes**, which a process holds and a build cannot: the render
+  imports each module afresh, so the state it reads is not the state a server would. See
+  [roadmap.md](roadmap.md).
+- **Catching what a `<svelte:boundary>`'s body throws.** What the `failed` snippet is handed is
   `transformError(error)`, a render option a server passes and an artifact has nowhere to hold, so
   which of the two shapes a request gets is not a function of the request at all.
-- **2 are a raw snippet whose bytes the request decides.** `createRawSnippet` hands the renderer a
+- **A raw snippet whose bytes the request decides.** `createRawSnippet` hands the renderer a
   string its own function writes, so an artifact would have to run that function per request, with
   a renderer of its own, to know what the bytes are.
-- **1 reads a bare global**, a name no script in the file writes, which can only be a global of
+- **A bare global**, a name no script in the file writes, which can only be a global of
   whatever is running -- and a backend that is not Node embeds an evaluator with no host to hold
   one. [derivation.md](derivation.md) has it, and prices `process`, the one name kept.
 
@@ -112,26 +118,17 @@ and a skip is one the list names with its reason.
 
 ### Where it stands
 
-```
-pass  suite                    samples   pass   skip   fail
-sync  server-side-rendering        132     91     41      0
-sync  runtime-runes               1054    683    371      0
-sync  runtime-legacy              1209   1108    101      0
-async server-side-rendering        132    114     18      0
-async runtime-runes               1054    870    184      0
-total                             3581   2866    715      0
-```
-
-Against the target, at `svelte@5.57.1`: **1882 of 1882 in the synchronous render**, and **984 of
-984 in the async one** -- the pass [suite.md](suite.md) added when async became work rather than an
-experiment. The async pass began at 953 of 985 with 32 owed; what closed them is in
+**`mise run vendor-baseline` is where it stands**, and nothing here copies its table. What this file
+can say without going stale is what `verify` already enforces: the list holds no failing sample, so
+while `verify` passes the target holds in both the synchronous render and the async one -- the pass
+[suite.md](suite.md) added when async became work rather than an experiment. The async pass began at 953 of 985 with 32 owed; what closed them is in
 [roadmap.md](roadmap.md) and [derivation.md](derivation.md), the last 3 being the script
 `hydratable` writes at the head, now written per request from the request's own table -- a value a
 prop decides, or a render option's CSP nonce. One sample left the synchronous pass's passes for its skips on the way, having
 passed only for the one prop value the suite sends (`inline-style-directive-update-object-property`).
 
 **The denominator is the measurement, and it is the half that gets audited last.** Every number
-in the table moved by 302 samples without a line of the compiler changing, because a column nobody
+in the run's table once moved by 302 samples without a line of the compiler changing, because a column nobody
 can see into is a claim nobody checked. The rule this file already stated for the oracle's column
 holds for the skips exactly as written, and it was not being applied to them.
 
