@@ -71,6 +71,12 @@ it takes a component's own anchor pair followed by an enclosing block's close an
 block, and `runtime-legacy` fell from 832 to 172. Two identical bytes cannot be told apart by
 reading them; keeping the await keeps the information where it already was.
 
+**Which is how it was closed: by the walk, not the assembler.** The walk knows which block kept an
+`await` in its source or its head test, so it marks the block `wrapped`, and before assembly the
+block's stamp is moved one close in -- inside the wrapper -- so the close before it is the block's
+own again and the wrapper's pair is bytes around it (`tucked()` in `skeleton.ts`). A block with no
+wrapper is untouched, which is what stepping over a close in the assembler could not promise.
+
 One difference is a value, `async-resolve-stale`. One is the identity sample, which is not async at
 all.
 

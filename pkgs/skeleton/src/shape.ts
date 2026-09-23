@@ -111,6 +111,14 @@ export interface Block {
 	/** The test of an if, or the source of an each, as written. */
 	expression: string;
 	/**
+	 * Whether Svelte wraps the block in a child block of its own: `create_child_block` does, where
+	 * the source or a test awaits (`has_await`), writing `<!--[-->` and `<!--]-->` around the whole
+	 * block. Its close lands between the block's own close and the stamp that names the block, and
+	 * two identical closes cannot be told apart by reading them, so the walk says which block has
+	 * one and the stamp is moved inside it before assembly. See spec/roadmap.md.
+	 */
+	wrapped?: true;
+	/**
 	 * Every test of an if, in order, which is one per branch before the final else.
 	 *
 	 * `{:else if}` is one block rather than a nested one. Svelte's server transform flattens the

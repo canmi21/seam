@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { collides } from './sentinel.ts';
+import { collides, stamp } from './sentinel.ts';
 import { basename, relative, resolve as resolvePath } from 'node:path';
 import { type Carried, GIVEN, importsOf, parsed, readsOf, resolveBare, resolved } from 'ast';
 import { partial } from './compose.ts';
@@ -297,7 +297,10 @@ export async function skeleton(
 	}
 	// An id written by a component the walk did not enter is a marker rather than a hole, because
 	// Svelte numbers them per render. See `anchored`.
-	const { body: html, head } = anchored(rendered);
+	const { body: html, head } = tucked(anchored(rendered), baseline.blocks);
+	for (const [key, other] of Object.entries(alternates)) {
+		alternates[key] = tucked(other, baseline.blocks);
+	}
 
 	const everywhere = [
 		html,
@@ -343,6 +346,28 @@ export async function skeleton(
 	awaited(expressionsOf(finished), baseline.payload);
 
 	return finished;
+}
+
+/**
+ * A render with the stamp of each block Svelte wraps in a child block moved inside that wrapper.
+ *
+ * `create_child_block` writes `<!--[-->` and `<!--]-->` around a block whose source or test awaits,
+ * so its close sits between the block's own close and the stamp, and the assembler, which takes
+ * the close before a stamp as the block's, took the wrapper for the block: every item of an each
+ * came out wrapped in a pair of its own. Moving the stamp one close in leaves the wrapper's close as
+ * the bytes around the block it is. Letting the assembler step over a close instead was tried and
+ * is wrong for every block that has none -- see spec/roadmap.md -- which is why the walk says which
+ * block has one.
+ */
+function tucked(rendered: Rendered, blocks: readonly Block[]): Rendered {
+	let { body, head } = rendered;
+	for (const one of blocks) {
+		if (one.wrapped !== true) continue;
+		const at = stamp(one.index);
+		body = body.replace(`<!--]-->${at}`, `${at}<!--]-->`);
+		head = head.replace(`<!--]-->${at}`, `${at}<!--]-->`);
+	}
+	return { ...rendered, body, head };
 }
 
 /**

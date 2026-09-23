@@ -5563,10 +5563,14 @@ function collect(node: unknown, walk: Walk): void {
 				return;
 			}
 			const before = holes.length;
-			for (const child of children) {
-				if (child === failedSnippet) continue;
-				step(child);
-			}
+			// As a fragment, so a `{@const}` or `{const}` written straight inside the boundary binds
+			// for the whole of it -- `clean_nodes` hoists them from the boundary's fragment as from
+			// any other.
+			held(
+				children.filter((child) => child !== failedSnippet),
+				walk,
+				walk.standalone && isNode(fragment) ? onlyChild(fragment) : null,
+			);
 			// Walked with the boundary in scope, so the refusal about a snippet nothing renders knows
 			// this one is Svelte's to call.
 			if (failedSnippet !== undefined) {
@@ -5676,6 +5680,8 @@ function collect(node: unknown, walk: Walk): void {
 				counter: null,
 				alternate: otherwise !== null && otherwise !== undefined,
 				within: [...within],
+				// `IfBlock.js` wraps the chain on its head's `has_await`, the first test's.
+				...(awaiting(tests[0] ?? '') ? { wrapped: true as const } : {}),
 			});
 			// What a binding inside this block settles is read against the tests as they stand where
 			// the block is walked, which is the pass's own source order. See `Site.tested`.
@@ -5820,6 +5826,7 @@ function collect(node: unknown, walk: Walk): void {
 				within: [...within],
 				stream,
 				expression: written,
+				...(awaiting(awaits) ? { wrapped: true as const } : {}),
 				// A block with no `as` still binds: `EachBlock.js` writes the `for` loop either way and
 				// only skips `let <context> = each_array[i]` where there is no context to bind. So the
 				// item is the block's own name, which nothing reads, rather than nothing at all --
