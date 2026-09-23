@@ -3,7 +3,7 @@
 	"private": true,
 	"type": "module",
 	"description": "SvelteKit's source at a pinned tag, kept as the JavaScript it is and named as upstream names it so that its own imports of itself resolve; see VENDOR.md",
-	"version": "2.70.2",
+	"version": "2.70.3",
 	"exports": {
 		"./package.json": "./package.json",
 		".": {

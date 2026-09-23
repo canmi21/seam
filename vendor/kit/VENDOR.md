@@ -10,8 +10,8 @@ written in that package rather than in these files.
 | | |
 | --- | --- |
 | upstream | `https://github.com/sveltejs/kit`, `packages/kit` |
-| tag | `@sveltejs/kit@2.70.2` |
-| commit | `a297affcec19d6f4d2df8bac1b292d8c34486344` |
+| tag | `@sveltejs/kit@2.70.3` |
+| commit | `39e8e1fbd4feba7f22dd46bfdf7335362c38de16` |
 | `src/` | `packages/kit/src`, whole, including the `.spec.js` files and their fixtures |
 | `types/` | `packages/kit/types`, the public declarations |
 | `test/mocks/` | `packages/kit/test/mocks`, the stand-ins the specs use for Kit's virtual modules |
@@ -74,7 +74,7 @@ implementation were replaced, one package changes.
   fixture is not here, and the `.svelte-kit` directories the other specs write into theirs are
   ignored by name.
 - `tsc -p vendor/kit` checks the source under upstream's own compiler options, kept in
-  `tsconfig.json` here. At the pinned tag it reports 44 errors, all of them the installed
+  `tsconfig.json` here. At the pinned tag it reports 42 errors, all of them the installed
   TypeScript being a major ahead of upstream's -- `write_types` calling a compiler API that moved,
   `import()` of a module used as a type, and declarations for `rollup` and `connect` upstream has
   as dev dependencies. It is run to read, not to gate: the repository's own `tsc` does not include

@@ -217,7 +217,7 @@ rather than a count. See [suite.md](suite.md).
 
 Not started, and not to be started before stage 1 is done.
 
-**What they are.** At `@sveltejs/kit@2.70.2`, `packages/kit/test` holds fourteen whole SvelteKit
+**What they are.** At `@sveltejs/kit@2.70.3`, `packages/kit/test` holds fourteen whole SvelteKit
 applications -- `basics`, `options`, `no-ssr`, `embed`, `amp`, `hash-based-routing`, `writes` and
 the rest -- each with its own `svelte.config.js`, `vite.config.js` and a `test/` directory of
 Playwright specs. `apps/basics` alone carries `server.test.js`, `client.test.js` and `test.js`,
