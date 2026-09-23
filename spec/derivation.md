@@ -1470,6 +1470,14 @@ promise is otherwise a value: `{#await p}` over a promise the request hands in d
 waiting on every thenable took that decision away from `runtime-legacy/await-set-simultaneous-
 reactive` the first time.
 
+**A value that awaits, read inside a function that is not `async`, is held.** `const value = await
+getValue()` read inside `keys.every((k) => value.has(k))`, a `{@const host = await get_host()}` read
+inside `(() => host)()`, a store that awaits read inside a `function read()`: substituted where it
+is read, the `await` lands in a function that is not `async` and is not JavaScript. Svelte awaits it
+once, where it is declared, so it is held the way a pattern's shared value is -- `$$hold(n)`, its own
+derivation, awaited before anything reading it. Only there: held everywhere it would become a
+derivation where the render could have evaluated it, and `async-resolve-stale` was refused for it.
+
 **What may be awaited is still the rule's, not the mechanism's.** An `await` whose argument reads
 the payload is async request-time rendering, and is refused at compile time over the finished
 list -- the mechanism here could run it, and the refusal is what keeps the line where

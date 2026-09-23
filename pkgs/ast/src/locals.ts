@@ -1511,6 +1511,31 @@ export function unfolded(expression: string): string | null {
  * it stands. A marker stands where request-varying data goes; an expression that reaches none of
  * the payload's names is the same every request, and the render writes it as bytes.
  */
+/** Whether an expression awaits outside any function inside it, which is what the render awaits. */
+function awaitsOutside(expression: string): boolean {
+	if (!/\bawait\b/.test(expression)) return false;
+	let tree: Node;
+	try {
+		tree = parsed(expression);
+	} catch {
+		return false;
+	}
+	const inside = (node: unknown): boolean => {
+		if (Array.isArray(node)) return node.some(inside);
+		if (!isNode(node)) return false;
+		if (node['type'] === 'AwaitExpression') return true;
+		if (
+			node['type'] === 'FunctionExpression' ||
+			node['type'] === 'ArrowFunctionExpression' ||
+			node['type'] === 'FunctionDeclaration'
+		) {
+			return false;
+		}
+		return Object.values(node).some(inside);
+	};
+	return inside(tree);
+}
+
 export function mentions(expression: string, names: ReadonlySet<string>): boolean {
 	if (names.size === 0) return false;
 	let ast: Node;
@@ -2162,6 +2187,31 @@ export function locals(
 				return true;
 			});
 		}
+		// The functions inside this node that are not `async`, where an `await` is not JavaScript.
+		const closures: [number, number][] = [];
+		const functions = (one: unknown): void => {
+			if (Array.isArray(one)) {
+				for (const each of one) functions(each);
+				return;
+			}
+			if (!isNode(one)) return;
+			const type = one['type'];
+			if (
+				(type === 'FunctionExpression' ||
+					type === 'ArrowFunctionExpression' ||
+					type === 'FunctionDeclaration') &&
+				one['async'] !== true &&
+				typeof one['start'] === 'number' &&
+				typeof one['end'] === 'number'
+			) {
+				closures.push([one['start'], one['end']]);
+			}
+			for (const [key, value] of Object.entries(one)) {
+				if (key !== 'parent') functions(value);
+			}
+		};
+		functions(node);
+		const inClosure = (at: number): boolean => closures.some(([from, to]) => at > from && at < to);
 		reads(node, new Set(), (at, shorthand) => {
 			const name = at['name'];
 			if (typeof name !== 'string') return;
@@ -2243,8 +2293,17 @@ export function locals(
 				// What the caller bound it to first, the way the branch below reads a name: a child's
 				// `export let items;` is a declaration holding `undefined` here and a prop bound at
 				// the call site there, and reading the declaration gave `$$get_store(undefined)`.
-				const inner = extra?.get(store) ?? expand(store, open, extra);
+				let inner = extra?.get(store) ?? expand(store, open, extra);
 				if (inner === 'undefined') return;
+				// A store that awaits, read inside a function that is not `async`: held, as below.
+				if (
+					held !== undefined &&
+					inClosure(from) &&
+					!inner.includes('$$hold(') &&
+					awaitsOutside(inner)
+				) {
+					inner = `$$hold(${String(kept(inner, held))})`;
+				}
 				const read = `($$get_store(${inner}))`;
 				edits.push([from, to, shorthand === true ? `${name}: ${read}` : read]);
 				return;
@@ -2260,7 +2319,22 @@ export function locals(
 			// whole answer, and where it is one this compiler has to write itself the name survives
 			// into it and the refusal is made there. See `changed` and spec/derivation.md.
 			if (given === undefined && changed.has(name)) return;
-			const inner = given ?? expand(name, open, extra);
+			let inner = given ?? expand(name, open, extra);
+			// **A value that awaits, read inside a function that is not `async`**, is one value awaited
+			// once where Svelte's async mode awaits it: `const value = await getValue()` read inside
+			// `keys.every((k) => value.has(k))`. Written out there the `await` is not JavaScript at
+			// all, so it is held, the way a pattern's shared value is, and the read names the
+			// derivation that holds it, which `derive` awaits before anything reading it. Only
+			// there: held anywhere else it would be a derivation where the render could have
+			// evaluated it. See spec/derivation.md.
+			if (
+				held !== undefined &&
+				inClosure(from) &&
+				!inner.includes('$$hold(') &&
+				awaitsOutside(inner)
+			) {
+				inner = `$$hold(${String(kept(inner, held))})`;
+			}
 			const mark = `(${inner})`;
 			edits.push([from, to, shorthand === true ? `${name}: ${mark}` : mark]);
 		});
