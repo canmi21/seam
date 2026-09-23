@@ -59,7 +59,7 @@ four of them are work. Reading the configs raised the skips upstream really does
 config that throws declares nothing: `mode` went from 160 to 182 and `skip` from 17 to 19.
 
 **A sample Svelte's own render cannot produce bytes for is out.** When the list was first written
-there were 18, and 14 of them were this harness rather than the oracle: 13 whose `props` are *built* by `create_deferred()` and the rest of
+there were 18, and 14 of them were this harness rather than the oracle: 13 whose `props` are _built_ by `create_deferred()` and the rest of
 upstream's helpers, so neither side can be handed the props the sample names, and one whose config
 imports a sibling without naming its extension. Each is a sample nobody measured rather than a
 sample that agrees, which is what the column is for and why a config this harness cannot read is
@@ -147,12 +147,12 @@ without being counted**, which is the whole reason it is read out rather than to
 or measured; they were in a column that said upstream had spoken. Each was taken the way this file
 ranks work, the difference first, and none of the four was the construct its symptom named:
 
-| | what it was |
-| --- | --- |
-| `runtime-runes/bind-getter-setter` | **differed.** A `bind:` given a getter and a setter is the getter *called*, and the call was carried on a synthetic node's `name` where an expansion is sliced out of the source by span. The child was handed the function. |
+|                                               | what it was                                                                                                                                                                                                                                                         |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `runtime-runes/bind-getter-setter`            | **differed.** A `bind:` given a getter and a setter is the getter _called_, and the call was carried on a synthetic node's `name` where an expansion is sliced out of the source by span. The child was handed the function.                                        |
 | `runtime-legacy/binding-contenteditable-html` | **a gap**, for a tag this compiler could not read, and the tag was readable: what it could not do was put content inside an element the author closed in one piece. `unbind.ts` had already answered that and the arm planting the content carried its own reading. |
-| `runtime-legacy/transition-css-iframe` | **a gap**, for a name the data does not carry, over a `Foo` two lines above it in an `import`. A component import resolves; what it cannot do is reach a derivation, and that is asked over the finished expressions now. |
-| `runtime-runes/bindable-prop-and-export` | **a gap**, for a binding the child sends back, over one that sends nothing: `bind_props` assigns up only where the caller passed `undefined`, and the half of `descend()` reading readonly exports was not asking. |
+| `runtime-legacy/transition-css-iframe`        | **a gap**, for a name the data does not carry, over a `Foo` two lines above it in an `import`. A component import resolves; what it cannot do is reach a derivation, and that is asked over the finished expressions now.                                           |
+| `runtime-runes/bindable-prop-and-export`      | **a gap**, for a binding the child sends back, over one that sends nothing: `bind_props` assigns up only where the caller passed `undefined`, and the half of `descend()` reading readonly exports was not asking.                                                  |
 
 **No sample writes bytes that are not Svelte's.** The last one before those was the identity question rather
 than a construct: `runtime-runes/props-equality` handed an array to a child as a prop, and each
@@ -183,14 +183,14 @@ moves when the messages do.
 Each was measured against Svelte's own render of the sample before anything was written, and three
 of the eight were a rule already stated for one construct and not asked by another:
 
-| what it was | where the rule now lives |
-| --- | --- |
-| a `{@render}` callee asked of the expansion rather than of the author's text | [derivation.md](derivation.md) |
-| a `class:` run enumerated whatever it read, where a `style:` run is not | [refusals.md](refusals.md) |
+| what it was                                                                              | where the rule now lives       |
+| ---------------------------------------------------------------------------------------- | ------------------------------ |
+| a `{@render}` callee asked of the expansion rather than of the author's text             | [derivation.md](derivation.md) |
+| a `class:` run enumerated whatever it read, where a `style:` run is not                  | [refusals.md](refusals.md)     |
 | an ask filed under the expression alone, so two copies of one component shared an answer | [derivation.md](derivation.md) |
-| a component binding inside a block, and inside a block another binding settles | [roadmap.md](roadmap.md) |
-| a bound value the render is the one to know is not `undefined` | [roadmap.md](roadmap.md) |
-| an inert binding written out expanded, and its refusal rolling back the wrong component | [roadmap.md](roadmap.md) |
+| a component binding inside a block, and inside a block another binding settles           | [roadmap.md](roadmap.md)       |
+| a bound value the render is the one to know is not `undefined`                           | [roadmap.md](roadmap.md)       |
+| an inert binding written out expanded, and its refusal rolling back the wrong component  | [roadmap.md](roadmap.md)       |
 
 **The two the order mattered for were the last two.** `runtime-legacy/context-api` was one refusal
 standing in front of a difference: with the `class:` directive that turned it away taken off, the

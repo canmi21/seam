@@ -38,11 +38,11 @@ The compiler previously decided by shape alone: an expression matching a dotted 
 data path, and anything else became a derivation carried verbatim. Nothing ever asked where the
 names in it came from. Three failure modes were measured, and all three are the same missing pass:
 
-| written | what happened |
-| --- | --- |
-| `{#if p.price > LIMIT}`, `LIMIT` a script const | compiled; `ReferenceError` at request time |
-| `<script>const total = p.price * 2</script>{total}` | the baseline render threw Svelte's own `TypeError` |
-| `{total}` on its own | matched the path shape, resolved against the payload, rendered empty |
+| written                                             | what happened                                                        |
+| --------------------------------------------------- | -------------------------------------------------------------------- |
+| `{#if p.price > LIMIT}`, `LIMIT` a script const     | compiled; `ReferenceError` at request time                           |
+| `<script>const total = p.price * 2</script>{total}` | the baseline render threw Svelte's own `TypeError`                   |
+| `{total}` on its own                                | matched the path shape, resolved against the payload, rendered empty |
 
 The last is the worst of the three, because it is silent. A local variable and a payload key are
 indistinguishable by shape, so a shape test cannot tell them apart, and the wrong answer is an
@@ -51,13 +51,13 @@ empty string rather than an error.
 **Every identifier appearing in markup resolves to exactly one of these, or the component is
 refused and the name is reported:**
 
-| binding | comes from |
-| --- | --- |
-| a prop | the `$props()` destructuring, resolved against the data. See [payload.md](payload.md) |
-| an each binding | `{#each xs as t}` |
-| a carried constant | see below |
-| request context | see below |
-| anything else | refused, by name, at compile time |
+| binding            | comes from                                                                            |
+| ------------------ | ------------------------------------------------------------------------------------- |
+| a prop             | the `$props()` destructuring, resolved against the data. See [payload.md](payload.md) |
+| an each binding    | `{#each xs as t}`                                                                     |
+| a carried constant | see below                                                                             |
+| request context    | see below                                                                             |
+| anything else      | refused, by name, at compile time                                                     |
 
 This is one pass over the expression's ESTree, collecting `Identifier` nodes and subtracting the
 locally bound ones. The AST is already in hand: the compiler reads the expression's source span
@@ -84,13 +84,13 @@ and Bun's macros decide what may be evaluated at build time by requiring the inp
 statically known and the result to be serializable. Neither proves anything about the code. Both
 require a shape the author declares.
 
-| where it is written | what happens |
-| --- | --- |
-| either `<script>`, not reading props | substituted into the expression, where it is a constant |
-| either `<script>`, reading props | substituted into the expression, where it is **a derivation** |
-| a function or a class | substituted as the expression form of itself |
-| a name taken out of a destructuring | substituted as the initialiser with the way in after it |
-| imported, with its source reachable | bundled with the expression that calls it |
+| where it is written                  | what happens                                                  |
+| ------------------------------------ | ------------------------------------------------------------- |
+| either `<script>`, not reading props | substituted into the expression, where it is a constant       |
+| either `<script>`, reading props     | substituted into the expression, where it is **a derivation** |
+| a function or a class                | substituted as the expression form of itself                  |
+| a name taken out of a destructuring  | substituted as the initialiser with the way in after it       |
+| imported, with its source reachable  | bundled with the expression that calls it                     |
 
 **A declaration is substituted, not evaluated**, and the two rows are one mechanism rather than
 two. `TAX` becomes `(0.2)` and `total` becomes `(data.price * (1 + (0.2)))`; the first is a
@@ -143,7 +143,7 @@ the author already depends on.
 
 **What is carried is gathered from every file whose expressions became derivations, not from the
 entry alone.** Composition walks into a child, and the child's own markup becomes derivations in
-the *entry's* artifact -- so a child writing `{shout(word)}` around a function it imported itself
+the _entry's_ artifact -- so a child writing `{shout(word)}` around a function it imported itself
 compiled cleanly and threw `ReferenceError: shout is not defined` at request time. Nothing at
 compile time could say so, because a render never evaluates a derivation: the expression is
 collected as source and first runs when a request arrives. A component the walk did not enter is
@@ -295,16 +295,16 @@ does not run at all -- measured, on a component whose effect assigns `9` to a `$
 the markup: Svelte's server renders `0`.
 
 So a rune declaration is substituted like any other, using the rune's argument as the initialiser.
-What made them look different is that they say something about the value's *future*, and the
+What made them look different is that they say something about the value's _future_, and the
 compiler read that as a statement about its present.
 
 Four are substituted, and the list is short on purpose:
 
-| | |
-| --- | --- |
-| `$state(x)`, `$state.raw(x)` | the value is `x` |
-| `$derived(e)` | the value is `e` |
-| `$derived.by(fn)` | the value is `fn()`, so what reaches it is a call |
+|                              |                                                   |
+| ---------------------------- | ------------------------------------------------- |
+| `$state(x)`, `$state.raw(x)` | the value is `x`                                  |
+| `$derived(e)`                | the value is `e`                                  |
+| `$derived.by(fn)`            | the value is `fn()`, so what reaches it is a call |
 
 `$props()` is the payload and is read elsewhere. `$effect` declares nothing and does not run.
 `$props.id()` is not substituted either, and for the opposite reason to the one this file used to
@@ -332,7 +332,13 @@ The render that produces the byte skeleton does not read the script. Measured, o
 sentinel pass actually hands to Svelte:
 
 ```html
-<script>let { data } = $props(); let x = 1; x = 2</script><p>{"%%s0%%"}</p>{#if true}<b>y</b>{/if}
+<script>
+	let { data } = $props();
+	let x = 1;
+	x = 2;
+</script>
+<p>{"%%s0%%"}</p>
+{#if true}<b>y</b>{/if}
 ```
 
 Every markup expression is already a sentinel and every branch is already a constant, so no name
@@ -401,16 +407,16 @@ taking a value apart, and all four go through one function. What it writes for e
 own `_extract_paths` in `compiler/utils/ast.js`, which answers the same question for the client
 transform:
 
-| written | the way in |
-| ------------------------- | -------------------------------------------------- |
-| `{ a }` | `(v).a` |
+| written                    | the way in                                          |
+| -------------------------- | --------------------------------------------------- |
+| `{ a }`                    | `(v).a`                                             |
 | `{ 'a-b': c }`, `{ 0: c }` | `(v)['a-b']`, `(v)[0]` -- a literal key is an index |
-| `{ [k]: c }` | `(v)[k]`, with `k` expanded where it stands |
-| `{ a: { b } }` | `((v).a).b` -- one way in written after another |
-| `{ a, ...rest }` | `$$exclude_from_object((v), ["a"])` |
-| `[a, b]` | `$$to_array((v))[0]`, `$$to_array((v))[1]` |
-| `[a, ...rest]` | `$$to_array((v)).slice(1)` |
-| `{ a = d }` | `((v).a === undefined ? (d) : (v).a)` |
+| `{ [k]: c }`               | `(v)[k]`, with `k` expanded where it stands         |
+| `{ a: { b } }`             | `((v).a).b` -- one way in written after another     |
+| `{ a, ...rest }`           | `$$exclude_from_object((v), ["a"])`                 |
+| `[a, b]`                   | `$$to_array((v))[0]`, `$$to_array((v))[1]`          |
+| `[a, ...rest]`             | `$$to_array((v)).slice(1)`                          |
+| `{ a = d }`                | `((v).a === undefined ? (d) : (v).a)`               |
 
 There is a way in to every name a pattern binds. **It is not always a member**, and the rule this
 replaces -- a rest or a nesting is neither a member nor an index, so it has no way in to write down
@@ -552,7 +558,7 @@ reports it. For a `$:` it is Svelte's own answer and the answer is `undefined`.
 member of that object rather than a name in scope.
 
 **The default is folded into that read rather than left to the prop derivation.** A prop's default
-stands over the payload's key *under a name*, and a name is the one thing this prop has not got;
+stands over the payload's key _under a name_, and a name is the one thing this prop has not got;
 `GIVEN` holds what the request brought, before any default was applied. So the substitution is the
 choice JavaScript makes, `(GIVEN["kebab-case"] === undefined ? d : GIVEN["kebab-case"])`.
 
@@ -748,10 +754,10 @@ the entry is checked where the walk is and is not asked again there.
 Two questions are asked of one expression and they have different subjects, which is why asking one
 of the other is a defect rather than an approximation.
 
-| | asked so that | its subject |
-| --- | --- | --- |
-| **is this the request's?** | the walk knows whether to plant a hole or leave the bytes to Svelte | what the author wrote |
-| **can this survive being a derivation?** | the artifact does not carry what a request cannot evaluate | the expansion |
+|                                          | asked so that                                                       | its subject           |
+| ---------------------------------------- | ------------------------------------------------------------------- | --------------------- |
+| **is this the request's?**               | the walk knows whether to plant a hole or leave the bytes to Svelte | what the author wrote |
+| **can this survive being a derivation?** | the artifact does not carry what a request cannot evaluate          | the expansion         |
 
 The expansion exists because this compiler made it. It carries Svelte's own helpers under `$$`
 names, it carries the caller's expressions substituted into a child's, and it carries a
@@ -875,11 +881,11 @@ the expansion is false where Svelte's is true, and no derivation could answer it
 as the author wrote it, which is the section above. Measured with the `class:` directive that
 refuses the file first taken off:
 
-| the file | the bytes |
-| --- | --- |
-| one `<TabPanel>` | Svelte's |
-| two | both take the else where Svelte takes the first |
-| two, comparing something that is not an identity | Svelte's |
+| the file                                         | the bytes                                       |
+| ------------------------------------------------ | ----------------------------------------------- |
+| one `<TabPanel>`                                 | Svelte's                                        |
+| two                                              | both take the else where Svelte takes the first |
+| two, comparing something that is not an identity | Svelte's                                        |
 
 **What stopped being right once a second copy existed was the key, not the value.** An ask is
 filed in one object the render fills, and it was filed under the expression alone -- which two
@@ -903,14 +909,14 @@ caller's to evaluate: that is what makes the caller's own read and the child's l
 derivation instead of two with the same text.
 
 **The name is not the walk's to invent, and that is the design decision inside this.** A name the
-walk chooses has to be unique per *copy* rather than per file: a child entered twice is two copies
+walk chooses has to be unique per _copy_ rather than per file: a child entered twice is two copies
 with two call sites, and `const xs = [props.a]` in each holds two different values under one name.
 That is a silent wrong byte, which is the failure this whole arrangement exists to stop.
 
 The names already come from somewhere that has the answer. `derive.rs` gives one name per
 derivation, keyed by the text, the file chain each name in it resolves through, and whether it is
 computed here or per item -- the same key that makes two whole-expression reads share a value. So
-the walk writes a *reference* rather than a name: the read becomes a mark naming the initialiser's
+the walk writes a _reference_ rather than a name: the read becomes a mark naming the initialiser's
 expanded text, and the pass that names derivations resolves the mark to the name it already gave
 that text. Uniqueness, the file chain and the scoped question are then answered once, in the place
 that answers them for every other derivation.
@@ -930,7 +936,7 @@ the props are bound to their values, which is what the compiler did before this 
 Markup is unaffected, a read that carries a reference being a hole this compiler evaluates. Two
 samples in the suite are that case, and both keep writing Svelte's bytes.
 
-**What it does not reach.** A value the render *mutates* is a different question and stays refused.
+**What it does not reach.** A value the render _mutates_ is a different question and stays refused.
 `$: keys.forEach((key) => { object[key] = [] })` needs the statement to have run, and a derivation
 is a pure expression evaluated at request time with no `$:` to run -- holding `object` once gives
 the empty object, not the filled one. That is a program per request, which is the scope line's, and
@@ -974,9 +980,10 @@ Reading one in a child stands as the name it was, which the pass that resolves e
 
 `LabeledStatement.js` collects a `$:` and `transform-server.js` puts it at the end of the instance
 body in **topological order**, declaring `let x` above for the name it assigns. So `$: doubled = n
-* 2` is a declaration whose initialiser is the right-hand side, and it substitutes like any other:
-one reading another chains the way two declarations do, the ordering being what substitution does
-anyway.
+
+- 2` is a declaration whose initialiser is the right-hand side, and it substitutes like any other:
+  one reading another chains the way two declarations do, the ordering being what substitution does
+  anyway.
 
 **Legacy mode only**, which is the mode `LabeledStatement.js` answers in -- in runes mode it calls
 `context.next()` and the label is an ordinary one, which Svelte's own analysis then refuses.
@@ -1033,13 +1040,13 @@ A rune is compiled away by Svelte and exists nowhere at run time, so an expressi
 cannot be evaluated as it is written. `CallExpression.js` gives each an answer where it stands, and
 they are copied into `ANSWERED` in `locals.ts`:
 
-| written | the server |
-| --------------------- | ----------------------- |
-| `$effect.tracking()` | `false` |
-| `$effect.pending()` | `0` |
-| `$effect.root(f)` | `() => {}` |
+| written                                                    | the server  |
+| ---------------------------------------------------------- | ----------- |
+| `$effect.tracking()`                                       | `false`     |
+| `$effect.pending()`                                        | `0`         |
+| `$effect.root(f)`                                          | `() => {}`  |
 | `$effect(f)`, `$effect.pre(f)`, `$host()`, `$inspect(...)` | `undefined` |
-| `$state(v)`, `$state.raw(v)`, `$state.eager(v)` | `v` |
+| `$state(v)`, `$state.raw(v)`, `$state.eager(v)`            | `v`         |
 
 The last three keep the argument and lose the call, so the names inside it are still rewritten
 where they stand; the rest replace the whole call, and nothing inside one is looked at again.
@@ -1157,8 +1164,8 @@ Where `foo` is what the request brought, this does not apply and the subscriptio
 store is an object with a `subscribe` function and the payload carries data.
 
 **A prop is a store like any other, and the name check said otherwise.** `build_getter` reads a
-`store_sub` binding as `store_get($$store_subs ??= {}, '$foo', <what foo is>)` and puts *what foo
-is* back through `build_getter`, so a declaration, an import and a prop are one case there.
+`store_sub` binding as `store_get($$store_subs ??= {}, '$foo', <what foo is>)` and puts _what foo
+is_ back through `build_getter`, so a declaration, an import and a prop are one case there.
 `2-analyze/index.js` writes the allowance out rather than leaving it implied -- the guard reads
 `store_name !== 'props' && get_rune(init, instance.scope) === '$props'`, under the comment
 "rune-like names received as props are valid too". The pass that says every name resolves asked only
@@ -1274,7 +1281,7 @@ about destructuring or blocks; the same script with `{#each rows as row}<p>{next
 
 **Both halves have to hold**, and that is what keeps the rule off the ordinary component:
 
-- *Something the render runs changes it.* What the render runs is the closure of calls: a name
+- _Something the render runs changes it._ What the render runs is the closure of calls: a name
   called by the instance script's own statements, which Svelte puts ahead of the template; a name
   called in the markup; and a name called inside a declaration the markup reads, since reading one
   writes its initialiser out where the render evaluates it. The first is the rule that refuses a
@@ -1285,13 +1292,13 @@ about destructuring or blocks; the same script with `{#each rows as row}<p>{next
   By those two names and no rule, because there is no rule: `onMount` and `$effect` take a
   function the server never calls and `sleep(10).then(fn)` calls it later, and nothing in the shape
   of a call says which.
-- *And the markup reads it outside a function.* A handler is written nowhere on the server, so a
+- _And the markup reads it outside a function._ A handler is written nowhere on the server, so a
   name the markup only names inside one -- `onclick={() => queued.shift()?.()}` -- is not a name a
   change can be seen through, and holding it against one is a refusal nobody could act on. **Reading a function is not running
   it** -- `onclick={go}` and `on:change={() => handler(bar)}` both name a call and make none -- and
   the walk stops at every function it meets except the one it is asking about, so an arrow returned
   from a called function is not counted either.
-- *By a route that does not pass through the function doing the changing.* A
+- _By a route that does not pass through the function doing the changing._ A
   function reading back what it just wrote is one evaluation and holds:
   `export function compute() { return value.toUpperCase() }` with `{compute()}` is the whole of
   `value`'s life.
@@ -1391,8 +1398,8 @@ The languages built for this say the same thing about themselves. CEL is non-Tur
 evaluates in linear time; Starlark forbids recursion and unbounded loops; both are the right prior
 art and neither was consulted the first time. But Starlark's own issue tracker puts it plainly:
 prohibiting recursion **helps achieve finite execution in theory, while in practice it is easy to
-write a five-line program which will not finish**. Syntactic totality buys *finite*, and a request
-needs *bounded*.
+write a five-line program which will not finish**. Syntactic totality buys _finite_, and a request
+needs _bounded_.
 
 So the third violation is struck. **This file governs divergence, not cost.** Ambient input,
 mutation and non-determinism each make one side wrong -- the server and the browser disagreeing,
@@ -1421,6 +1428,7 @@ budget, and that is a deployment choice rather than a rule here.
   `class={tv({...})}` -- a call, producing a string, in a substitution position the pipeline
   already handles. Measured across 1107 `.svelte` files in eleven published libraries, 267 carry
   such a call. Almost every one of them imports the function it calls.
+
 - **A script that substitution cannot reach, reading the request.** A reassignment, a mutation or
   a loop leaves a name with no single expression standing for it. **It is refused until request-time
   rendering sits beside compile-time rendering**, which is planned and not yet the time. Where the statements read nothing the request decides, the
@@ -1442,7 +1450,8 @@ budget, and that is a deployment choice rather than a rule here.
   exactly when a component has a derivation -- 10 of the 14 components in the corpus have none, and
   that survives only if substitution stays the thing that turns a name into a path wherever it can,
   with the script reached for only where it cannot. See [ir.md](ir.md).
-- **Per-item derivation.** *Settled.* A derivation reading a name an each block binds is computed
+
+- **Per-item derivation.** _Settled._ A derivation reading a name an each block binds is computed
   where it is used, once per item, rather than once before injection.
 
   It was refused twice over, and the second refusal was right about the fault and wrong about the
@@ -1469,6 +1478,7 @@ budget, and that is a deployment choice rather than a rule here.
   The written-bytes pass still refuses this, and stays refusing. It is an oracle with a limited
   life -- see [pipeline.md](pipeline.md) -- and the agreement test simply does not cover a case the
   render pass takes and it does not.
+
 - **The shape of request context.** `$.now`, `$.tz` and `$.locale` are named here, and the wire
   carrying them is settled -- see [payload.md](payload.md), which means they can hold real values
   rather than numbers the author has to reconstitute. Where they sit within the data, and whether
@@ -1476,7 +1486,7 @@ budget, and that is a deployment choice rather than a rule here.
 
 ## A derivation is computed when it is read, and not before
 
-**A derivation is a pure expression, so *when* it is computed cannot change what it is. Whether it
+**A derivation is a pure expression, so _when_ it is computed cannot change what it is. Whether it
 is computed at all can.** They used to be evaluated up front, all of them, as the payload was
 built. `{#if boxes.length === 2}{@const box2 = boxes[1]}` is a derivation that only makes sense
 inside its branch -- Svelte evaluates a `{@const}` in the branch's own init -- and computing it for
@@ -1487,7 +1497,7 @@ refusal arrived per request rather than at the build, which is the one thing
 Each is a getter on the scope now, computed once on first read. A route also stops paying for the
 branches it did not take, which on a page joined out of several structures is most of them.
 
-**A prop's default is the exception and is marked `prop`.** It stands *over* a payload key rather
+**A prop's default is the exception and is marked `prop`.** It stands _over_ a payload key rather
 than beside it -- `typeof x === 'undefined' ? ... : x` under the name `x` -- so it has to be
 computed in order, while the name still holds what the request brought; as a lazy read it would
 resolve `x` to itself and recurse. Asking instead whether the key is already there does not work:

@@ -12,7 +12,7 @@ of ten refusals. The suite checks it, since it is the one thing every refusal is
 ## The target is zero refusals, and that is a statement about scope
 
 **In principle every way of writing Svelte has to compile.** There is no question of whether a
-construct *deserves* to be refused, and a refusal is never a judgement that somebody wrote
+construct _deserves_ to be refused, and a refusal is never a judgement that somebody wrote
 something the wrong way. Nearly every entry in this file is a gap in the work, and the work is
 finished when the file has nothing left in it but the exception below.
 
@@ -27,7 +27,7 @@ blocked refusal as unfinished work is how "a subset of Svelte" comes to sound li
 boundary, and reading a gap as blocked is how it comes to sound like one that was chosen.
 
 **The reason is structural rather than aspirational.** This compiler is arranged the way SvelteKit
-is; what changed is *when* the render happens. So anything SvelteKit serves should be portable to
+is; what changed is _when_ the render happens. So anything SvelteKit serves should be portable to
 compile-time rendering, with one exception that waits on the next piece of architecture rather than
 marking a limit: an application that genuinely needs arbitrary code executed per request, against
 something only that request knows. That is request-time rendering's, and it is coming beside this
@@ -61,7 +61,7 @@ not going to acquire one, so a fallback would make two backends differ in which 
 serve. That is a divergence, and divergence is what this protocol governs.
 
 **The cost of not having one is smaller than it looks.** Measured across what is refused today,
-there is no category of *this will never work* -- see below.
+there is no category of _this will never work_ -- see below.
 
 ## Not permanently. The condition is named
 
@@ -82,11 +82,11 @@ One rule, three ways of saying it. This is the same shape as the decision in
 [derivation.md](derivation.md) not to grade strictness by where a value lands: the distinction
 lives in the diagnostic, never in a second set of rules.
 
-| | what it means | what the message owes the reader |
-| --- | --- | --- |
-| **not implemented** | the shape is understood and measured, and nobody has written it | what it is, and that it is coming |
-| **not decided** | the protocol has no answer and guessing would be worse than waiting | where the question is recorded |
-| **not expressible as written** | there is a legal way to write this | **the other way of writing it** |
+|                                | what it means                                                       | what the message owes the reader  |
+| ------------------------------ | ------------------------------------------------------------------- | --------------------------------- |
+| **not implemented**            | the shape is understood and measured, and nobody has written it     | what it is, and that it is coming |
+| **not decided**                | the protocol has no answer and guessing would be worse than waiting | where the question is recorded    |
+| **not expressible as written** | there is a legal way to write this                                  | **the other way of writing it**   |
 
 The third is the only one where the author can act now, so a message that leaves them without the
 alternative has failed. `Date.now()` is refused because it does not read the same twice, and the
@@ -110,18 +110,18 @@ list kept beside it, and a row that disagrees with the check is the row that is 
 
 A list nobody runs is a claim. The check is the list, and this file keeps only the reasoning:
 
-| | | |
-| --- | --- | --- |
-| `{@render}` of a snippet that arrived as a prop, `children` included | the body was written at the call site, which is composition in the other direction | gap |
-| a snippet passed to a component with parameters, and one the component supplies a value to | the child calls it, with what is not visible from where the snippet was written; one with no parameters has nothing to decide and compiles | gap |
-| a boundary whose pending snippet is a prop | Svelte cannot prove the prop defined, so it writes a choice per request over a snippet that arrived as a value | gap |
-| a value a child transforms, and one it takes and never writes | the bytes hold what the child computed from the prop rather than the prop, and rendering again with another value in its place is what says so | gap |
-| a component the request chooses | a structure, and this one is not enumerable | gap |
-| a head reached from a component inside a body, and a fragment that renders itself around one | the head stream has no call there | gap |
-| a block inside a table whose stylesheet relates siblings | the stamp that says which block closed cannot be text there, and the scoping class reads siblings | gap |
-| `page` imported under another name in the entry | a rename is bound at a call, and the entry has none | gap |
-| a name assigned or an object mutated after it is declared, where the statements read the request | substitution maps a name to one expression, and a program is not an expression | **decision** |
-| `await` in markup or at the top of a script | async Svelte awaits a promise per request while the bytes are written, which is the load stage's | **decision** |
+|                                                                                                  |                                                                                                                                                |              |
+| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `{@render}` of a snippet that arrived as a prop, `children` included                             | the body was written at the call site, which is composition in the other direction                                                             | gap          |
+| a snippet passed to a component with parameters, and one the component supplies a value to       | the child calls it, with what is not visible from where the snippet was written; one with no parameters has nothing to decide and compiles     | gap          |
+| a boundary whose pending snippet is a prop                                                       | Svelte cannot prove the prop defined, so it writes a choice per request over a snippet that arrived as a value                                 | gap          |
+| a value a child transforms, and one it takes and never writes                                    | the bytes hold what the child computed from the prop rather than the prop, and rendering again with another value in its place is what says so | gap          |
+| a component the request chooses                                                                  | a structure, and this one is not enumerable                                                                                                    | gap          |
+| a head reached from a component inside a body, and a fragment that renders itself around one     | the head stream has no call there                                                                                                              | gap          |
+| a block inside a table whose stylesheet relates siblings                                         | the stamp that says which block closed cannot be text there, and the scoping class reads siblings                                              | gap          |
+| `page` imported under another name in the entry                                                  | a rename is bound at a call, and the entry has none                                                                                            | gap          |
+| a name assigned or an object mutated after it is declared, where the statements read the request | substitution maps a name to one expression, and a program is not an expression                                                                 | **decision** |
+| `await` in markup or at the top of a script                                                      | async Svelte awaits a promise per request while the bytes are written, which is the load stage's                                               | **decision** |
 
 The last column is the split at the top of this file: a gap leaves when somebody writes it, a
 decision does not. [roadmap.md](roadmap.md) sorts the same items by what each waits on.
@@ -155,7 +155,7 @@ statically over every `.svelte` file on this machine -- 4323 of them, a real app
 dependency tree it installs.
 
 This section and the one after it rank what to work on by how much of the installed world each
-refusal blocks. That is a different question from how much of *Svelte* compiles, which is
+refusal blocks. That is a different question from how much of _Svelte_ compiles, which is
 [suite.md](suite.md)'s, and the two disagree on what matters: a construct nothing installed
 happens to use still has to compile.
 
@@ -402,13 +402,13 @@ hydration entry it already generates. See spec/build.md.
 The entry-only walk holds because request-varying data reaches a child only as props, and a prop is
 a marker. That is sound exactly as far as the child only writes the marker out. Everything else:
 
-| the child | what happens |
-| --- | --- |
-| writes it | compiles |
-| computes with it | lowering: the value never comes back, so it would be dropped |
-| branches on it | lowering: the render holds more blocks than the source declared |
-| iterates it | lowering: the render holds more blocks than the source declared |
-| calls it | Svelte, mid-render: `f is not a function` |
+| the child        | what happens                                                    |
+| ---------------- | --------------------------------------------------------------- |
+| writes it        | compiles                                                        |
+| computes with it | lowering: the value never comes back, so it would be dropped    |
+| branches on it   | lowering: the render holds more blocks than the source declared |
+| iterates it      | lowering: the render holds more blocks than the source declared |
+| calls it         | Svelte, mid-render: `f is not a function`                       |
 
 **Nothing is silent, and that is the invariant doing its job.** But none of the four messages says
 what happened, and three of them point somewhere else entirely: the first blames `<svelte:head>`,
@@ -470,7 +470,7 @@ nothing to find.
 Svelte and fails if one starts writing something, and spot-checks the other direction so the list
 cannot quietly grow. The alternative was to plant a marker in every binding and let the holes that
 never came back name the omitted ones, which needs no list at all. It was turned down because it
-would make an unconsumed hole mean *the server omits this* rather than *content was lost*, and that
+would make an unconsumed hole mean _the server omits this_ rather than _content was lost_, and that
 invariant is what has caught four defects here. **A list that can go stale is cheaper than an
 invariant that can no longer fail.**
 
@@ -481,8 +481,8 @@ Svelte's server compiles `{#snippet name()}` to a function declaration -- `funct
 inlines it, and this compiler gets that for free: the skeleton comes from rendering, and Svelte
 calls the function while it renders.
 
-What the walk has to do is plant the markers in the snippet's body where it is *written*, and they
-come back where it is *called*. That is fine because **a marker carries its own index**, so a
+What the walk has to do is plant the markers in the snippet's body where it is _written_, and they
+come back where it is _called_. That is fine because **a marker carries its own index**, so a
 snippet declared below the render tag that names it works exactly as well as one declared above --
 measured, along with snippets holding an `{#if}` and an `{#each}` of their own.
 
@@ -569,7 +569,10 @@ inert `cn(...)` to the render right. Where it does, they are two states:
 
 ```js
 export const seen = [];
-export function mark(x) { seen.push(x); return seen.length; }
+export function mark(x) {
+	seen.push(x);
+	return seen.length;
+}
 ```
 
 `{mark(n)}` is a marker and runs in the bundle; `{seen.length}` looked inert and ran in the render,
@@ -681,7 +684,7 @@ nobody reads does not.
 
 **Which snippets a component renders is a question about sites, and Svelte keeps the list.**
 `analysis.snippet_renderers` in `2-analyze` maps each **site** to whether it resolves to a
-particular declaration -- and a site is a render tag *or a component tag*, both of which render
+particular declaration -- and a site is a render tag _or a component tag_, both of which render
 snippets. `index.js` then writes `node.metadata.snippets = analysis.snippets` for a site that does
 not resolve, linking it to every snippet in the component. `is_resolved_snippet` is the test: an
 import, a prop, or a `{#snippet}` resolves; anything else, a `$derived` holding one of two snippets
@@ -829,14 +832,14 @@ the server is its absence**, and the markers planted in it are meant not to come
 
 The refusal was taken at the declaration, which is before the question can be answered. Now the
 walk plants markers in the body as it does in any markup and records, on the group the snippet
-arrives as, why the group cannot compile *if the component writes it* -- and the probe render,
+arrives as, why the group cannot compile _if the component writes it_ -- and the probe render,
 which already exists to say whether a component writes what it is handed, decides:
 
-| the probe's literal | what it means | what happens |
-| --- | --- | --- |
-| does not come back | the component never calls the snippet on the server | compiles; the holes are safe and the blocks absent, as for a portal |
-| comes back | the component calls it, with a value the walk cannot see | refused, with the message it always had, and now for a reason that is true |
-| the probe cannot be made | nothing is known | refused, because a compile that skipped the check is the wrong direction |
+| the probe's literal      | what it means                                            | what happens                                                               |
+| ------------------------ | -------------------------------------------------------- | -------------------------------------------------------------------------- |
+| does not come back       | the component never calls the snippet on the server      | compiles; the holes are safe and the blocks absent, as for a portal        |
+| comes back               | the component calls it, with a value the walk cannot see | refused, with the message it always had, and now for a reason that is true |
+| the probe cannot be made | nothing is known                                         | refused, because a compile that skipped the check is the wrong direction   |
 
 A `forceMount`, or a menu open by default, renders the snippet on the server and is refused the
 way it was. What changed is that a snippet nobody renders is no longer refused for a value nobody
@@ -845,7 +848,7 @@ is the switcher.
 
 **The probe had never measured a `{#snippet children}` at all, and this is what found it.** The
 literal is planted at the head of the group the markup arrives under, and the group for
-`children` was being opened by the *whitespace* between the tag and the snippet -- a text node,
+`children` was being opened by the _whitespace_ between the tag and the snippet -- a text node,
 one child among the others. The literal landed there, Svelte's analysis saw non-whitespace content
 beside an explicit `children` snippet, and the probe failed with `snippet_conflict` -- silently,
 which for the render-only shape meant nothing was relaxed and nothing was reported, and for this
@@ -869,10 +872,10 @@ behind it is that same call. **And the call is taken from Svelte's own output**,
 compiled code looks like:
 
 ```js
-$.attributes({ ...data.r, id: 'i' })
-$.attributes({ ...data.r }, void 0, void 0, void 0, 4)          // an input
-$.attributes({ ...data.r }, void 0, void 0, void 0, 3)          // inside <svg>
-$.attributes({ ...data.r, class: 'a' }, 'svelte-1lj1c3f')       // a scoped element
+$.attributes({ ...data.r, id: 'i' });
+$.attributes({ ...data.r }, void 0, void 0, void 0, 4); // an input
+$.attributes({ ...data.r }, void 0, void 0, void 0, 3); // inside <svg>
+$.attributes({ ...data.r, class: 'a' }, 'svelte-1lj1c3f'); // a scoped element
 ```
 
 Everything after the object is decided by the element rather than by its attributes, so replacing
@@ -917,7 +920,7 @@ component the walk did not enter writes its own, and there is nothing in the byt
 apart. Reading how Svelte marks a component boundary answered the question by not having one.
 
 **`block_open` is written in five places** -- an each, a `<slot>`, a `<svelte:boundary>`, an async
-`{#key}`, and a *dynamic* component. A static component call is `Child($$renderer, props)` and
+`{#key}`, and a _dynamic_ component. A static component call is `Child($$renderer, props)` and
 writes nothing around itself.
 
 **Because the client does not need it.** From `internal/client/dom/hydration.js`:
@@ -925,7 +928,7 @@ writes nothing around itself.
 > The node that is currently being hydrated ... updates each time a component calls `$.child(...)`
 > or `$.sibling(...)`.
 
-Hydration walks the DOM in lockstep with the component tree it is *executing*. Each component
+Hydration walks the DOM in lockstep with the component tree it is _executing_. Each component
 consumes exactly the nodes it produced, so the boundary is implicit in running the same code again.
 Svelte never asks where a component's output ends, because it is always inside the component when
 it matters.
@@ -956,8 +959,8 @@ namespace import -- to a file, which is module analysis rather than a lookup. An
 surviving library source: over sixty of `bits-ui`'s components, the markup constructs that stop it
 are `{...spread}` on an element and a parameterised snippet handed to a component.
 
-**Which closes a loop.** The spread section says the unenumerable half becomes *required rather
-than possible* on the day the walk descends into a child. This is that day, reached from the other
+**Which closes a loop.** The spread section says the unenumerable half becomes _required rather
+than possible_ on the day the walk descends into a child. This is that day, reached from the other
 side: the boundary problem is solved by walking in, and walking in is blocked by the spread. Its
 cost was measured there -- `attributes` and what it reaches bundle to 2.3 kB of Svelte's own code,
 in the derivation bundle both backends already run, with nothing reproduced anywhere.
@@ -1357,7 +1360,7 @@ disappear** -- the only thing objecting is the invariant that every hole comes b
 
 ### Why they may disappear, and the one condition that makes it safe
 
-The compile-time render *is* the server render, so whatever Svelte writes is what a request would
+The compile-time render _is_ the server render, so whatever Svelte writes is what a request would
 get. The only way the two could differ is if this render's markers changed a decision the real
 values would have made differently -- a child branching on a prop, where a marker is a truthy
 string and the real value might be falsy.
@@ -1373,7 +1376,7 @@ either every marker in it comes back or none does. Partial is not a portal; it i
 did something with, and stays a loss. That is the rule, and it keeps the invariant strong
 everywhere it was strong before.
 
-**The residual risk, named:** a request-varying value can reach a subtree through *context* rather
+**The residual risk, named:** a request-varying value can reach a subtree through _context_ rather
 than through props, and a decision taken on that would not be visible in the attributes. Nothing in
 press does it, and a compiler cannot see it without walking the provider; it is written down here
 rather than guarded against.
@@ -1390,11 +1393,11 @@ So the evidence is positive and comes from an experiment. **The same render is m
 with each handed fragment replaced by a literal nobody could produce.** The literal coming back is
 what says the component writes what it is given:
 
-| the probe | what it means | what the invariant does |
-| --- | --- | --- |
-| comes back | the component writes what it is handed | unchanged: every marker must come back once |
-| does not | it writes none of it, which is what a portal is | the holes there may go unconsumed, and the blocks leave the order |
-| does not, but a marker came back | two things that cannot both be true | refused, and the message says it is the compiler rather than the component |
+| the probe                        | what it means                                   | what the invariant does                                                    |
+| -------------------------------- | ----------------------------------------------- | -------------------------------------------------------------------------- |
+| comes back                       | the component writes what it is handed          | unchanged: every marker must come back once                                |
+| does not                         | it writes none of it, which is what a portal is | the holes there may go unconsumed, and the blocks leave the order          |
+| does not, but a marker came back | two things that cannot both be true             | refused, and the message says it is the compiler rather than the component |
 
 **What the probe cannot see is the mechanism itself failing**, and that is not its job: it is
 pinned by the surface checks for a wrapper around markup and a layout around a page, which walk a
@@ -1484,12 +1487,12 @@ is what it should have been:
 which is what SvelteKit composes. Over press's eight routes, **none compiles yet**, and what stops
 them is four things rather than the eighteen the file count last showed.
 
-| what | where | routes |
-| --- | --- | --- |
+| what                                                     | where                                                                                                        | routes        |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------- |
 | a component that renders none of the markup it was given | the layout's search dialog: `<Dialog.Root {open}>` with `open` a piece of client state that has no value yet | **all eight** |
-| a parameterised snippet inside a component's tag | `{#snippet child({ props })}`, which is how `bits-ui` hands an element back to its caller | two |
-| `{...spread}` on an element | the home page, and the article body | one |
-| `{@const}` inside a snippet that takes parameters | the support block | one |
+| a parameterised snippet inside a component's tag         | `{#snippet child({ props })}`, which is how `bits-ui` hands an element back to its caller                    | two           |
+| `{...spread}` on an element                              | the home page, and the article body                                                                          | one           |
+| `{@const}` inside a snippet that takes parameters        | the support block                                                                                            | one           |
 
 **The first one gates everything**, because it is in the layout: the other three routes stop for
 their own reason first, and would meet it next.
@@ -1509,19 +1512,21 @@ thing that happened rather than the first.
 
 ## `<svelte:element>`, where the tag decides four shapes and nothing else
 
-Refused as *an unenumerable decision, so a small closed runtime node*, which had the cost right and
+Refused as _an unenumerable decision, so a small closed runtime node_, which had the cost right and
 the shape wrong. `internal/server`'s `element()` is nine lines:
 
 ```js
 renderer.push('<!---->');
 if (tag) {
-  if (!REGEX_VALID_TAG_NAME.test(tag)) e.dynamic_element_invalid_tag(tag);
-  renderer.push(`<${tag}`); attributes_fn(); renderer.push(`>`);
-  if (!is_void(tag)) {
-    children_fn();
-    if (!is_raw_text_element(tag)) renderer.push(EMPTY_COMMENT);
-    renderer.push(`</${tag}>`);
-  }
+	if (!REGEX_VALID_TAG_NAME.test(tag)) e.dynamic_element_invalid_tag(tag);
+	renderer.push(`<${tag}`);
+	attributes_fn();
+	renderer.push(`>`);
+	if (!is_void(tag)) {
+		children_fn();
+		if (!is_raw_text_element(tag)) renderer.push(EMPTY_COMMENT);
+		renderer.push(`</${tag}>`);
+	}
 }
 renderer.push('<!---->');
 ```
@@ -1671,27 +1676,27 @@ what it writes**. So the assembler cannot tell which bytes came from the child, 
 does not come back is an absence with nothing attached to it. That is the whole of why this family
 is hard, and it is one line of Svelte's output rather than anything about props.
 
-| the child | what happens |
-| --- | --- |
-| writes it | compiles, and agrees with Svelte byte for byte |
-| writes it in an attribute | compiles |
-| writes it in `<svelte:head>` | compiles |
-| concatenates it with text | compiles |
-| renames it while destructuring, or gives it a default | compiles |
-| hands it to a child of its own | compiles |
-| computes with it, measures it, reads a member of it | the value never comes back |
-| **does not use it at all** | the value never comes back |
-| **writes it twice** | the value comes back twice |
-| calls it | Svelte, mid-render: `p is not a function` |
+| the child                                                         | what happens                                          |
+| ----------------------------------------------------------------- | ----------------------------------------------------- |
+| writes it                                                         | compiles, and agrees with Svelte byte for byte        |
+| writes it in an attribute                                         | compiles                                              |
+| writes it in `<svelte:head>`                                      | compiles                                              |
+| concatenates it with text                                         | compiles                                              |
+| renames it while destructuring, or gives it a default             | compiles                                              |
+| hands it to a child of its own                                    | compiles                                              |
+| computes with it, measures it, reads a member of it               | the value never comes back                            |
+| **does not use it at all**                                        | the value never comes back                            |
+| **writes it twice**                                               | the value comes back twice                            |
+| calls it                                                          | Svelte, mid-render: `p is not a function`             |
 | branches on it, iterates it, or renders none of what it was given | the render holds more blocks than the source declared |
-| makes it a tag name | Svelte, mid-render: `dynamic_element_invalid_tag` |
+| makes it a tag name                                               | Svelte, mid-render: `dynamic_element_invalid_tag`     |
 
 **Nothing in that table is silent**, which is the result that matters most and the invariant doing
 its job.
 
 ### The rule that is actually being enforced, which is narrower than it looked
 
-Not *content must not be lost*. It is: **the entry's model of a component is that every prop it
+Not _content must not be lost_. It is: **the entry's model of a component is that every prop it
 hands over is written out verbatim, exactly once.** Two rows above are not losses at all -- a child
 that ignores a prop loses nothing, and a child that writes one twice has written everything -- and
 both are ordinary Svelte. They are refused because an unconsumed hole and a mangled value look
@@ -1755,7 +1760,7 @@ met.
 
 The obvious encoding is one decision per declaration, which needs no enumeration at all. It is
 wrong for one reason: the result is **trimmed**, and every declaration is written with a leading
-space, so whichever is present *first* loses its space. With a base there is always something in
+space, so whichever is present _first_ loses its space. With a base there is always something in
 front and they are independent; with no base they are not. press writes exactly that shape --
 `<span style:width={...} style:margin-top={...}>` with no `style` attribute -- so the easy half
 would not have covered the one file there is.
@@ -1815,13 +1820,13 @@ marks, and `bind:value` on a `<select>` or on a file input, both of which it ski
 attribute has no effect on either.
 
 Three shapes are not an attribute, and each now says what it is rather than what it is not:
-`bind:innerHTML`, `bind:textContent` and `bind:innerText` are written as the element's *content*,
+`bind:innerHTML`, `bind:textContent` and `bind:innerText` are written as the element's _content_,
 replacing its children; `bind:value` on a `<textarea>` is the same; and `bind:group` is written as
 `checked`, computed from the bound value together with the element's own `value` attribute.
 
 ## A declaration with no value, which is what client state looks like on the server
 
-Three of press's components were refused for reading a name *the data does not carry*, and all
+Three of press's components were refused for reading a name _the data does not carry_, and all
 three are the same shape: a piece of client state, set by a handler, read by the markup.
 
 ```svelte
@@ -1912,7 +1917,10 @@ at least one on an element.**
 ### And the wrapper, which is what the 96% is, already compiles
 
 ```svelte
-<script>let { children, ...rest } = $props();</script>
+<script>
+	let { children, ...rest } = $props();
+</script>
+
 <div {...rest}>{@render children()}</div>
 ```
 
@@ -1930,7 +1938,7 @@ Two shapes, and they are not the same problem:
   has a known set of keys per outcome and two outcomes. That is an enumerable decision, the same
   one `class:` turned out to be, and the same mechanism takes it: call `$.attributes` per outcome
   and keep the strings. Two of press's three spreads are this, and one of those two is in a route.
-  A literal whose *value* is request-varying is not this: it is a substitution inside a decision,
+  A literal whose _value_ is request-varying is not this: it is a substitution inside a decision,
   which is where `style:` sits.
 - **A name** -- `{...restProps}`, `{...data.attrs}` -- has no enumerable outcomes and needs the
   runtime to write attributes from an object.
@@ -1961,7 +1969,7 @@ spread resolves during the compile-time render and lowering sees three `attr` no
 paths. The same holds for press's own `{...attributes}` icon.
 
 **So the unenumerable case is narrower than the refusal says.** It needs the spread to be in the
-entry *and* its object to come from the payload -- `{...data.attrs}` -- because only then do the
+entry _and_ its object to come from the payload -- `{...data.attrs}` -- because only then do the
 keys arrive per request. press has none, and neither does anything it installs.
 
 ### And it would not cost a reproduction, which an earlier draft of this section got wrong
@@ -1969,8 +1977,8 @@ keys arrive per request. press has none, and neither does anything it installs.
 That draft said a second backend "cannot" call `$.attributes` and would need around 150 lines of
 Rust reproducing it. Both halves are wrong, and the file it contradicted is
 [pipeline.md](pipeline.md): **a Rust backend embeds QuickJS and already runs the derivation
-bundle**, which is defined there as the author's expressions *and the pure functions those
-expressions call*, compiled to one script with no imports left in it. `attributes` is a pure
+bundle**, which is defined there as the author's expressions _and the pure functions those
+expressions call_, compiled to one script with no imports left in it. `attributes` is a pure
 function. It belongs in that bundle like any other.
 
 Measured: `attr`, `clsx`, `to_class`, `to_style` and `escape_html` bundle to **2.3 kB with no
@@ -2165,7 +2173,7 @@ written. An option whose own value is mixed content stays refused by name.
 
 ## A byte oracle over press's own payloads, and what it found first
 
-Every measurement above asked whether a route *compiles*. None asked whether the bytes are
+Every measurement above asked whether a route _compiles_. None asked whether the bytes are
 right, because nothing had a payload to inject: the load functions depend on the site's virtual
 modules and on Kit, and the stubs hold nothing. The dev server has it. SvelteKit exposes each
 route's data at `<path>/__data.json`, devalue-encoded, and decoding it gives the `data` a request
@@ -2334,7 +2342,7 @@ a `{#snippet}` at all. The second says what it is instead, and shows what the ca
 **A site Svelte cannot resolve links to every snippet, and so does this.**
 `is_resolved_snippet` reads the binding: an import, a prop or a `{#snippet}` resolves, and anything
 else does not. This compiler has no scope to read a binding's kind off, so what it cannot tell it
-calls unresolved -- which is Svelte's own answer for what *it* cannot tell, and which only links
+calls unresolved -- which is Svelte's own answer for what _it_ cannot tell, and which only links
 more snippets. A render tag naming something the file does not declare as a snippet is that.
 
 **The parameters come apart from this call's arguments**, not from the ones recorded against the
@@ -2344,7 +2352,7 @@ count })}` over a `$derived` of two snippets is that, and the parameter came apa
 
 **The settled name is written as `(0, name)`, and that is not decoration.**
 `2-analyze/visitors/RenderTag.js` sets `metadata.dynamic = binding?.kind !== 'normal'`, and
-`is_standalone` in `3-transform/utils.js` wants a render tag that is *not* dynamic before it lets
+`is_standalone` in `3-transform/utils.js` wants a render tag that is _not_ dynamic before it lets
 the parent block's anchor stand for the tag's own. Every callee this walk settles was dynamic --
 a prop, a member expression, anything but a plain reference to a declared snippet -- so writing the
 name bare made the tag static and dropped the `<!---->` Svelte writes after it. `(0, name)` is not
@@ -2503,7 +2511,7 @@ render, because Svelte's server never reads one and the placeholder the render i
 
 ## `{@render}`, where the count of five was measuring the scan rather than the compiler
 
-Five components were held by *`{@render}` of a snippet this component does not declare*. Every one
+Five components were held by _`{@render}` of a snippet this component does not declare_. Every one
 of them writes `{@render children()}`, and every one of them is a component somebody else's markup
 goes inside -- a layout, a modal, a popover, a menu, an article. **Compiled where they are actually
 used, four of the five compile and the fifth stops on something else entirely** (a `getContext` its
@@ -2537,7 +2545,7 @@ call sites to make copies for.
 
 **`{@render a?.()}` was refused for a reason that was simply untrue.** The optional form parses as
 a `ChainExpression` around the call, so reading `callee` off the expression found nothing and a
-snippet the component *does* declare was reported as one it does not. Svelte's own transform calls
+snippet the component _does_ declare was reported as one it does not. Svelte's own transform calls
 `unwrap_optional` at exactly this point, which is what this now does. Third time a refusal has been
 right about stopping and wrong about why.
 
@@ -2545,7 +2553,7 @@ Of press's 41 components, 15 compiled and now 17 do.
 
 ## A block inside an else, and the `{:else if}` that was never one
 
-Five of press's components were held by *a block inside an else is not handled yet*, and reading
+Five of press's components were held by _a block inside an else is not handled yet_, and reading
 Svelte's `visitors/IfBlock.js` said that most of them were not that case at all.
 
 **An `{:else if}` chain is one block.** The transform walks `metadata.flattened` and emits one
@@ -2563,7 +2571,7 @@ render is filed under, which is one convention rather than two.
 
 **The genuine case turned out to be one line.** A block inside a real `{:else}` is numbered by the
 source walk after the branch above it, and the assembler meets it in that branch's own render --
-in the same order. The two lined up already. What stopped them was that the assembler *rewound*
+in the same order. The two lined up already. What stopped them was that the assembler _rewound_
 its block count before walking the alternate, so a block there would have been given a number the
 consequent had already used. Nothing needed that rewind: it was invisible for as long as the
 refusal meant no alternate ever held a block.
@@ -2582,7 +2590,7 @@ Of press's 41 components, 13 compiled and now 15 do, and this refusal is gone fr
 **decides** rather than being written, and a marker has nowhere to stand -- which is the distinction
 [pipeline.md](pipeline.md) draws, and the reason a boolean attribute needed `presence`.
 
-`style:color={c}` looked like the other kind. Its value *is* written, into the style attribute, so
+`style:color={c}` looked like the other kind. Its value _is_ written, into the style attribute, so
 a marker stands in it and four shapes came out byte for byte: alone, beside a static style, two
 together, and with characters that escape. It was ready to ship. The fifth shape was a nullish
 value:
@@ -2594,7 +2602,7 @@ style:color={undefined}      Svelte writes nothing at all
 
 **Each declaration is dropped when its own value is nullish**, not only the attribute when
 everything in it comes out empty -- which `presence` already covers. So `style:` is a substitution
-*inside* a decision.
+_inside_ a decision.
 
 A note here used to say that meant it was **not** waiting on what `class:` waited on, because a
 class directive's value never reaches the bytes while a style declaration's does, so its outcomes
@@ -2635,7 +2643,7 @@ sentinel that landed inside a tag, names the attribute it landed in and owns the
 ` name="..."` run including the space in front of it -- which is exactly the region a decision
 replaces, and exactly the shape `attr_class` returns.
 
-**What did not work was the obvious rewrite.** Putting the marker *in place of* the class value,
+**What did not work was the obvious rewrite.** Putting the marker _in place of_ the class value,
 and deleting the directives, silently lost the scoping hash: whether Svelte scopes an element is
 decided by whether a selector matches it, and it matches against the class attribute's text and
 against the directive names -- `css-prune.js` reads a `ClassDirective` for that. Told the element
@@ -2698,11 +2706,8 @@ The last route of the real application stopped inside a translation package with
 is not a function`. What it had been given was a marker, and what it wanted was a function:
 
 ```svelte
-const message = $derived(
-  (code === 'zh' && source === 'tw') || (code === 'tw' && source === 'zh')
-    ? m['notice.script']
-    : source === code ? m['notice.polished'] : m['notice.translated'],
-);
+const message = $derived( (code === 'zh' && source === 'tw') || (code === 'tw' && source === 'zh') ?
+m['notice.script'] : source === code ? m['notice.polished'] : m['notice.translated'], );
 <ParaglideMessage {message} ... />
 ```
 
@@ -2721,23 +2726,22 @@ value of a declared domain. This is what was chosen, and what follows is how it 
 
 ### Which ternaries, because a marker still stands for most of them
 
-Not every `?:` in a prop. A marker stands wherever the value is *written*, and a ternary whose
+Not every `?:` in a prop. A marker stands wherever the value is _written_, and a ternary whose
 branches are all things a marker can stand for is a value like any other: `tone === 'dark' ?
 'text-black' : 'text-white'` on a package's icon is written per item inside an each block, which
 one marker does and which enumeration could not have done at all. So the rule is about the branches
 and not about the operator:
 
-| a branch that is | a marker | because |
-| --- | --- | --- |
-| a literal, a template, `undefined` | stands for it | it can only be written |
-| a value the request decides | stands for it | it would have to be a marker whatever it was |
-| anything else the request does not decide | **cannot** | it is a name, a member, a call, a function, an object -- what `inert` leaves for Svelte to evaluate, and a string in its place is the crash above |
+| a branch that is                          | a marker      | because                                                                                                                                           |
+| ----------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a literal, a template, `undefined`        | stands for it | it can only be written                                                                                                                            |
+| a value the request decides               | stands for it | it would have to be a marker whatever it was                                                                                                      |
+| anything else the request does not decide | **cannot**    | it is a name, a member, a call, a function, an object -- what `inert` leaves for Svelte to evaluate, and a string in its place is the crash above |
 
 A ternary with a branch in the third row is enumerated; a ternary in a branch is asked the same
 question, so a choice between choices comes out as a tree. It is `settle` in `pkgs/ast`, and the
 first draft enumerated every ternary in an opaque prop, which turned link cards and the language
 switcher away for a choice between two strings that had always compiled.
-
 
 **And not one whose test the request does not decide.** `code === preferred ? Compass :
 markFor(current)` with `code` fixed is a choice Svelte can make in the render, and it was being
@@ -2794,11 +2798,11 @@ component later on `$props.id()`, which is the next section.
 [derivation.md](derivation.md) refused it as a value each side generates. Read rather than
 assumed, it is nothing of the kind:
 
-| | |
-| --- | --- |
-| `transform-server.js` | `const id = $.props_id($$renderer)` is made the first statement of the component |
+|                          |                                                                                    |
+| ------------------------ | ---------------------------------------------------------------------------------- |
+| `transform-server.js`    | `const id = $.props_id($$renderer)` is made the first statement of the component   |
 | `props_id` on the server | `renderer.push('<!--$' + uid + '-->')`, the uid from a counter kept per `render()` |
-| `props_id` on the client | while hydrating, if the current node is a `$` comment, take its text as the id |
+| `props_id` on the client | while hydrating, if the current node is a `$` comment, take its text as the id     |
 
 So the id is the server's, and the client compares nothing. That looked like the best case for
 static bytes -- the compile-time render writes an anchor and a request-time one would write the
@@ -2883,15 +2887,15 @@ in one place.
 
 Measured, every carrier in every parent, against the same markup carrying none:
 
-| parent | text | `<template>` | `<option>` |
-| --- | --- | --- | --- |
-| anything ordinary, the root, `<pre>`, `<option>` | same | **differs** under `+` or `~` | refused |
-| `<table>` and its parts | refused | same | refused |
-| `<select>`, `<optgroup>` | makes it rich | makes it rich | same |
+| parent                                           | text          | `<template>`                 | `<option>` |
+| ------------------------------------------------ | ------------- | ---------------------------- | ---------- |
+| anything ordinary, the root, `<pre>`, `<option>` | same          | **differs** under `+` or `~` | refused    |
+| `<table>` and its parts                          | refused       | same                         | refused    |
+| `<select>`, `<optgroup>`                         | makes it rich | makes it rich                | same       |
 
 **Text is not an element, so the analysis steps over it**, and it is the carrier wherever text is
 writable. An element is used only where it is the one thing that works: an `<option>` inside a
-`<select>`, where anything else makes the select *rich* and changes how it closes, and a
+`<select>`, where anything else makes the select _rich_ and changes how it closes, and a
 `<template>` inside a table, where text is refused outright.
 
 A `<template>` inside a table keeps the problem, and no carrier there avoids it. So that one
@@ -2921,11 +2925,11 @@ node, so only one part of that refusal was rebuilt -- the one about holes, which
 Three things an allowlist over node types cannot catch, because they are not node types, and each
 is checked on its own:
 
-| | what it is |
-| --- | --- |
-| `<style>` | hangs off the AST root, not the fragment, so neither walk reaches it |
-| an each block's `index`, `key` and `{:else}` | fields of a node the compiler does handle |
-| `translate={true}` | the shape of an attribute's value, which Svelte maps through a table |
+|                                              | what it is                                                           |
+| -------------------------------------------- | -------------------------------------------------------------------- |
+| `<style>`                                    | hangs off the AST root, not the fragment, so neither walk reaches it |
+| an each block's `index`, `key` and `{:else}` | fields of a node the compiler does handle                            |
+| `translate={true}`                           | the shape of an attribute's value, which Svelte maps through a table |
 
 **And an accepted construct is only accepted on the payloads it was tried with.** `{:else}` on an
 each agreed with Svelte byte for byte against a list with something in it, because the branch it
@@ -2955,8 +2959,8 @@ stronger one.
 
 **Sanitizing on the server would not make the page safe.** Svelte's client does not re-render
 `{@html}` while hydrating; it walks from the opening anchor to the closing one and adopts
-whatever is there, saying so in a comment: *we're deliberately not trying to repair mismatches
-between server and client*. So a sanitized server rendering survives exactly until the value
+whatever is there, saying so in a comment: _we're deliberately not trying to repair mismatches
+between server and client_. So a sanitized server rendering survives exactly until the value
 changes, at which point the client assigns the raw value to `innerHTML` and replaces it.
 Sanitizing here would buy no safety and would make the first frame disagree with every one after
 it.
@@ -2991,7 +2995,7 @@ disagree with every frame after it; transforming the payload transforms both, be
 read from it.
 
 Which values is not a second list: the IR already says `escape: false` on exactly those slots. A
-raw slot on a *derivation* is not among them, and that is the same rule rather than a gap in it --
+raw slot on a _derivation_ is not among them, and that is the same rule rather than a gap in it --
 a derived value is computed per request and never serialised, so the client recomputes it and
 would disagree with anything done here.
 
@@ -3042,7 +3046,7 @@ stand in for.
 any value that is set and does not begin with `prod`. Unset gives production, which is why this
 was invisible for as long as the compiler only ever ran from a task. A test runner sets `test` and
 `vite dev` sets `development`, and the compiler is going to run inside a Vite plugin -- where it
-would render a hash of a *sentinel* into the IR, which is a hash of a value no request will ever
+would render a hash of a _sentinel_ into the IR, which is a hash of a value no request will ever
 carry, making the artifact wrong for every payload rather than for an unusual one.
 
 So the render pass measures it rather than reasoning about it: it calls the helper and compares

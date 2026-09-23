@@ -22,8 +22,8 @@ and seven more once the walk keeps the `await` it was substituting away. That is
 decides the question.
 
 **Why the refusal was so large.** It is written on the syntax -- `await` appears outside a function
--- and not on the scope line, which excludes *a value loaded per request while the bytes are
-written*. Of the 183, **174 involve nothing the request decides**: they await literals and promises
+-- and not on the scope line, which excludes _a value loaded per request while the bytes are
+written_. Of the 183, **174 involve nothing the request decides**: they await literals and promises
 the file itself makes, `{@html await 'this should work'}` and
 `{#each await Promise.resolve([first, second, third]) as item}`. One has request-decided props. In
 press the two readings very nearly coincide, because what an application awaits is its data; in
@@ -57,7 +57,7 @@ render tag already had. Three readings make it work:
 `await` of a value that is not a promise is that value, so nothing else moves, and the default path
 is untouched -- a file that awaits is refused before any of this.
 
-**The eighth is a different mechanism.** `create_child_block` wraps on `has_await` *or* on
+**The eighth is a different mechanism.** `create_child_block` wraps on `has_await` _or_ on
 `blockers`, and `blockers` is `$$renderer.async_block`: a top-level `await` anywhere in a component
 blocks every node after it, whether or not that node awaits. `async-derived-unmount-undefined-props`
 declares `const something = $derived(await ...)` and never reads it, and every node below is
@@ -161,10 +161,10 @@ Six refusals, all in `runtime-legacy`, and this is what they are. Read forward:
   has a setter for that key -- which is what `bind:` created.
 - `transform-server.js:194` wraps a caller that uses component bindings in
   `do { $$settled = true; $$inner_renderer = $$renderer.copy(); $$render_inner(...) } while
-  (!$$settled)`, then `subsume`.
+(!$$settled)`, then `subsume`.
 
 So a component binding is not one render. It is a fixed point over the caller's **whole template**,
-and the bytes written *above* the tag depend on what the child sends back.
+and the bytes written _above_ the tag depend on what the child sends back.
 
 The compiler already answers this where the caller's value is a constant: `site.sends` binds the
 name to `child === undefined ? caller : child`. The six left are the ones where the condition is the
@@ -172,7 +172,7 @@ request's. `component-binding-conditional` is the clearest:
 
 ```svelte
 <p>y: {y}</p>
-{#if x}<Foo bind:y/>{:else}<Bar bind:y/>{/if}
+{#if x}<Foo bind:y />{:else}<Bar bind:y />{/if}
 ```
 
 `Foo` defaults `y` to `'foo'` and `Bar` to `'bar'`, so the byte above the tag is one or the other
@@ -220,7 +220,7 @@ that holds the two together. See the workspace's `spec/agent-protocol.md`.
 
 ## Where this file sits
 
-This is the list of what is left, ranked. The order the work is *proved* in is
+This is the list of what is left, ranked. The order the work is _proved_ in is
 [conformance.md](conformance.md): Svelte's own samples, then SvelteKit's own test apps, then an
 application written for Kit and moved. Everything below belongs to the first of those.
 
@@ -236,17 +236,21 @@ reading them a morning instead of a project.
 **One is left, and the suite does not hold it.** Found by probe while the double-`<slot>` refusal
 was being narrowed. A component the walk could not enter is handed a marker for each prop, and the
 rule that catches a child doing something other than writing one out is the marker **not coming
-back**. A child that branches on a prop *and* writes it out somewhere else defeats that: the marker
+back**. A child that branches on a prop _and_ writes it out somewhere else defeats that: the marker
 comes back, and the branch was taken over a non-empty string.
 
 ```svelte
 <!-- Kid.svelte, a component the walk cannot enter -->
-<script>export let on;</script>
-<p>{on}</p>{#if on}<b>yes</b>{:else}<i>no</i>{/if}
+<script>
+	export let on;
+</script>
+
+<p>{on}</p>
+{#if on}<b>yes</b>{:else}<i>no</i>{/if}
 ```
 
 `<Kid on={data.f} />` writes `yes` for every request. What the rule asks is whether the value came
-back, and what it means to ask is whether the child *used* it for something else; those two part
+back, and what it means to ask is whether the child _used_ it for something else; those two part
 company exactly here. No vendored sample writes the shape, which is why it is here rather than in
 the table. Reading which of a child's expressions the marker reached, rather than only whether it
 survived, is what closes it.
@@ -344,9 +348,8 @@ call, which counts a `Context`'s `.get()` as a change.
 Found by probe, and it wrote the wrong bytes with nothing to say so:
 
 ```svelte
-setContext('k', { v });          <!-- v is a prop -->
-...
-const held = getContext('k');    <!-- in a child -->
+setContext('k', {v}); <!-- v is a prop -->
+... const held = getContext('k'); <!-- in a child -->
 <b>{held.v}</b>
 ```
 
@@ -363,23 +366,23 @@ components the walk does not follow, and every component library uses it.
 
 ### The 42 that remain, by cause
 
-| | | |
-| --- | --- | --- |
-| 4 | **a component `bind:` the server writes back** | Half done: the caller no longer keeps the first pass silently. See below. |
-| 1 | ~~a later attribute has to beat a spread's, and `value` has to reach a child's `<option>`~~ | Four of the five were three different things. See below. |
-| 6 | **a name that holds client state is read as though the server had it** | `$state` mutated by an effect or a callback, a reactive block that runs again, an each key compared by identity. The server writes the value before any of that, and these say we write a different one. Each needs reading on its own; they are one group only in that none is markup. |
-| ~~3~~ | ~~**entry props the walk cannot name**~~ | Two refused, one fixed. The payload's keys are the props rather than the names the entry destructured them into, which is a substitution; a name that is not an identifier and a rest are refused, since neither can be written as an expression. |
-| ~~2~~ | ~~**a quoted attribute holding one expression is passed as text**~~ | Done, and it was the other half of `build_attribute_value` that was missing: several chunks are a template, and having no second shape made one mixed value keep the walk out of the whole component. |
-| ~~2~~ | ~~**`{#each}` over a string**~~ | Done. `ensure_array_like` asks the value for a `length` and hands back the value itself where it has one; the loop then reads `array[i]`, so a string iterates its characters and so does any array-like. Ours asked whether the source was an object first. Read by index rather than through `Array.from`, because an astral character has a `length` of two and the loop sees both halves. |
-| ~~2~~ | ~~**`style:` in its shorthand form**~~ | Done. `build_attr_style` writes `b.id(directive.name)` where a written value would have been built, so `style:color` is the variable `color`; the name is read from just past `style:` in the source. |
-| ~~2~~ | ~~**a doubled space after a block**~~ | Done, and the case it was short of is an `{expression}`: `clean_nodes` asks `next?.type !== 'ExpressionTag'` before collapsing a text node's trailing whitespace, so an expression tag holds it as written where a block or an element collapses it to one space. |
-| 2 | **a default with a side effect is evaluated a different number of times** | a snippet parameter default that increments a counter, a child's defaults evaluated lazily. The value is right and the count of evaluations is not, which the bytes show because the counter is rendered. |
-| 2 | **Svelte writes a snippet that was never rendered** | `snippet-children-without-render-tag`: children given with no `{@render}` reach the output as the function's own source. Whether that is worth reproducing is a question rather than a gap. |
-| ~~3~~ | ~~**the wrong branch, or a missing anchor**~~ | Done, and it was two faults rather than one. See below. |
-| 1 | **a namespaced component** | `<Components.Foo />` gets a block anchor pair Svelte does not write. |
-| ~~1~~ | ~~**attribute order beside a directive**~~ | Done, and the rule is in `2-analyze/index.js` rather than the transform: an element carrying a directive and no attribute of that name has one appended to `node.attributes`, class first, then style. |
-| ~~1~~ | ~~**a prop default a global shadows**~~ | Done, and the guard was the wrong question. `$props()` destructures, so the default is taken where the payload's property is `undefined`; asking `typeof Math === 'undefined'` asks what the name resolves to, and `with` falls through to the global. The expression is the default alone now and the test is on the property. |
-| 2 | **two of their own** | an `<option disabled>` on the wrong item, and a `--css-var` custom property that is not written. |
+|       |                                                                                             |                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 4     | **a component `bind:` the server writes back**                                              | Half done: the caller no longer keeps the first pass silently. See below.                                                                                                                                                                                                                                                                                                                     |
+| 1     | ~~a later attribute has to beat a spread's, and `value` has to reach a child's `<option>`~~ | Four of the five were three different things. See below.                                                                                                                                                                                                                                                                                                                                      |
+| 6     | **a name that holds client state is read as though the server had it**                      | `$state` mutated by an effect or a callback, a reactive block that runs again, an each key compared by identity. The server writes the value before any of that, and these say we write a different one. Each needs reading on its own; they are one group only in that none is markup.                                                                                                       |
+| ~~3~~ | ~~**entry props the walk cannot name**~~                                                    | Two refused, one fixed. The payload's keys are the props rather than the names the entry destructured them into, which is a substitution; a name that is not an identifier and a rest are refused, since neither can be written as an expression.                                                                                                                                             |
+| ~~2~~ | ~~**a quoted attribute holding one expression is passed as text**~~                         | Done, and it was the other half of `build_attribute_value` that was missing: several chunks are a template, and having no second shape made one mixed value keep the walk out of the whole component.                                                                                                                                                                                         |
+| ~~2~~ | ~~**`{#each}` over a string**~~                                                             | Done. `ensure_array_like` asks the value for a `length` and hands back the value itself where it has one; the loop then reads `array[i]`, so a string iterates its characters and so does any array-like. Ours asked whether the source was an object first. Read by index rather than through `Array.from`, because an astral character has a `length` of two and the loop sees both halves. |
+| ~~2~~ | ~~**`style:` in its shorthand form**~~                                                      | Done. `build_attr_style` writes `b.id(directive.name)` where a written value would have been built, so `style:color` is the variable `color`; the name is read from just past `style:` in the source.                                                                                                                                                                                         |
+| ~~2~~ | ~~**a doubled space after a block**~~                                                       | Done, and the case it was short of is an `{expression}`: `clean_nodes` asks `next?.type !== 'ExpressionTag'` before collapsing a text node's trailing whitespace, so an expression tag holds it as written where a block or an element collapses it to one space.                                                                                                                             |
+| 2     | **a default with a side effect is evaluated a different number of times**                   | a snippet parameter default that increments a counter, a child's defaults evaluated lazily. The value is right and the count of evaluations is not, which the bytes show because the counter is rendered.                                                                                                                                                                                     |
+| 2     | **Svelte writes a snippet that was never rendered**                                         | `snippet-children-without-render-tag`: children given with no `{@render}` reach the output as the function's own source. Whether that is worth reproducing is a question rather than a gap.                                                                                                                                                                                                   |
+| ~~3~~ | ~~**the wrong branch, or a missing anchor**~~                                               | Done, and it was two faults rather than one. See below.                                                                                                                                                                                                                                                                                                                                       |
+| 1     | **a namespaced component**                                                                  | `<Components.Foo />` gets a block anchor pair Svelte does not write.                                                                                                                                                                                                                                                                                                                          |
+| ~~1~~ | ~~**attribute order beside a directive**~~                                                  | Done, and the rule is in `2-analyze/index.js` rather than the transform: an element carrying a directive and no attribute of that name has one appended to `node.attributes`, class first, then style.                                                                                                                                                                                        |
+| ~~1~~ | ~~**a prop default a global shadows**~~                                                     | Done, and the guard was the wrong question. `$props()` destructures, so the default is taken where the payload's property is `undefined`; asking `typeof Math === 'undefined'` asks what the name resolves to, and `with` falls through to the global. The expression is the default alone now and the test is on the property.                                                               |
+| 2     | **two of their own**                                                                        | an `<option disabled>` on the wrong item, and a `--css-var` custom property that is not written.                                                                                                                                                                                                                                                                                              |
 
 **The three anchor cases were read first** even though they were not the largest group. Every
 other row is a construct the compiler does not handle; those three were the compiler handling one
@@ -390,8 +393,8 @@ faults:
 could not enter -- `<slot>` stopped it -- with `visible` handed in as a marker. Every marker is a
 non-empty string, so the branch was taken and the whole component came back as static bytes with
 no block and no hole. What let that through was `dead()`, whose probe put a second marker in the
-value's place and asked whether the bytes changed: that asks whether the component *writes* the
-value and cannot ask whether it *decides* on it, two non-empty strings being the same truth. The
+value's place and asked whether the bytes changed: that asks whether the component _writes_ the
+value and cannot ask whether it _decides_ on it, two non-empty strings being the same truth. The
 probe now also puts the empty string there, which differs in truthiness, in length and as a
 number. Both are refused now, and a third sample that had been passing --
 `component-yield-nested-if` -- was a false pass the same probe had been relaxing.
@@ -545,12 +548,12 @@ render" -- and left to the render is exactly the wrong first pass this is about.
 them.** It claimed the condition is the value the request brings; in three of the six nothing in
 the file was the request's at all. All six are byte-identical now, and each wanted its own answer:
 
-| samples | what it was | what answered it |
-| --- | --- | --- |
-| `component-binding-store` | the caller binds `$value.value` over a store the file makes, which is `''` rather than `undefined`, so nothing travels | the render is asked whether the caller's value is `undefined`, which is the caller-binds-a-local half |
-| `parent-supercedes-child-b` | one binding inside a block nothing settles | the block's test inside the ternary |
-| `conditional`, `conditional-b` | a binding inside a block another binding settles | the block's tests expanded against the bindings settled so far |
-| `blowback-d`, `blowback-e` | the writeback fills in an each item of a `const` the caller's markup reads after the tag | the binding left as written, and the refusal rolling back the component that holds it |
+| samples                        | what it was                                                                                                            | what answered it                                                                                      |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `component-binding-store`      | the caller binds `$value.value` over a store the file makes, which is `''` rather than `undefined`, so nothing travels | the render is asked whether the caller's value is `undefined`, which is the caller-binds-a-local half |
+| `parent-supercedes-child-b`    | one binding inside a block nothing settles                                                                             | the block's test inside the ternary                                                                   |
+| `conditional`, `conditional-b` | a binding inside a block another binding settles                                                                       | the block's tests expanded against the bindings settled so far                                        |
+| `blowback-d`, `blowback-e`     | the writeback fills in an each item of a `const` the caller's markup reads after the tag                               | the binding left as written, and the refusal rolling back the component that holds it                 |
 
 **The two `blowback` samples were the one place this refusal cost bytes that were otherwise there,
 and they took two changes rather than one.** `main.svelte` declares `const obj = { a: [{}], b: [] }`,
@@ -755,7 +758,7 @@ reproduce, so the artifact renders the candidate.
 answer is the scope line. `$x` reads whatever `x` holds while the bytes are written, so the store
 itself would have to be in the payload; the wire is devalue, which serialises data, and a store is
 an object with a `subscribe` function. A function is not data. Reading the value in the load stage
-and putting *that* in the data is the same page, which is what the refusal already tells the author.
+and putting _that_ in the data is the same page, which is what the refusal already tells the author.
 The six are counted under **decided** in [conformance.md](conformance.md) now, not as gaps.
 
 **`createRawSnippet`, 5.** Not a decision that waits on anything, and moved: see **Decided, and not
@@ -797,7 +800,7 @@ rather than a rule of its own. What closed the rest is written where each rule l
 `spread-component-side-effects`, `destructure-state-iterable` and `binding-input-group-each-8` each
 change a value while the bytes are written -- through a getter, a spread, or a generator -- which
 is the by-decision rule wearing the derivation evaluator's message. The rule asks whether the
-changed name is read *by name* in the markup, and none of these is. [conformance.md](conformance.md)
+changed name is read _by name_ in the markup, and none of these is. [conformance.md](conformance.md)
 counts them where they belong.
 
 **The one left is `spread-component-side-effects`, and holding does not close it.**
@@ -834,15 +837,15 @@ asking Svelte's own render the same question. Eight of the fifteen throw there t
 the sample's rather than ours; [conformance.md](conformance.md) counts them apart now, and
 [suite.md](suite.md) has the rule.
 
-| sample | what escaped |
-| --- | --- |
-| `runtime-runes/error-recovery` | NonExistent is not defined |
-| `runtime-runes/effect-order-6` | Cannot read properties of undefined, reading 'boolean' |
-| `runtime-runes/effect-order-7` | Cannot read properties of undefined, reading 'boolean' |
-| `runtime-legacy/await-mutate-array` | Promise.resolve(...).filter is not a function |
-| `runtime-legacy/binding-indirect-fn` | Cannot read properties of undefined, reading 'filter' |
-| `runtime-legacy/component-namespace` | LazyWidget.Tooltip is not a function |
-| `runtime-legacy/context-api` | Cannot destructure 'registerTab' of `getContext(...)` |
+| sample                               | what escaped                                           |
+| ------------------------------------ | ------------------------------------------------------ |
+| `runtime-runes/error-recovery`       | NonExistent is not defined                             |
+| `runtime-runes/effect-order-6`       | Cannot read properties of undefined, reading 'boolean' |
+| `runtime-runes/effect-order-7`       | Cannot read properties of undefined, reading 'boolean' |
+| `runtime-legacy/await-mutate-array`  | Promise.resolve(...).filter is not a function          |
+| `runtime-legacy/binding-indirect-fn` | Cannot read properties of undefined, reading 'filter'  |
+| `runtime-legacy/component-namespace` | LazyWidget.Tooltip is not a function                   |
+| `runtime-legacy/context-api`         | Cannot destructure 'registerTab' of `getContext(...)`  |
 
 **Three of the seven are one cause.** `error-recovery`, `effect-order-6` and `effect-order-7` each
 put an expression inside a branch that nothing renders -- `{#if object}` over a `$state()` holding

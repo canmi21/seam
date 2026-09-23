@@ -25,11 +25,11 @@ output upstream keeps for the client, is still usable: the oracle is the rendere
 
 ## What the suites are, and why all three
 
-| suite | what it was written for |
-| --- | --- |
-| `server-side-rendering` | the server bytes, directly. Its assertions are ours. |
-| `runtime-runes` | the client, in runes mode. Repurposed: both sides get the same props and the server render is compared. |
-| `runtime-legacy` | the client, in Svelte 4 spelling. Repurposed the same way. |
+| suite                   | what it was written for                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------- |
+| `server-side-rendering` | the server bytes, directly. Its assertions are ours.                                                    |
+| `runtime-runes`         | the client, in runes mode. Repurposed: both sides get the same props and the server render is compared. |
+| `runtime-legacy`        | the client, in Svelte 4 spelling. Repurposed the same way.                                              |
 
 The two runtime suites are not written for a server and the temptation is to leave them out. They
 are in because they found most of what was wrong: of the 115 samples that compiled and wrote the
@@ -160,7 +160,7 @@ along -- the renderer raising it rather than the compiler -- so a render that th
 said what upstream said it would and there are no bytes for either side to be held to. Matched
 against what came out rather than taken from the declaration, and the difference is not pedantry:
 seven samples write the field and six of them render on the server perfectly well, their
-`runtime_error` being what upstream's *client* test asserts. Skipping on the declaration took those
+`runtime_error` being what upstream's _client_ test asserts. Skipping on the declaration took those
 six out of the measurement, which is the one thing this column must not do.
 
 ### The oracle is asked even where this compiler refused
@@ -278,12 +278,12 @@ confusion [refusals.md](refusals.md) was written to stop.
 
 ## What it said the first time it ran, at `svelte@5.57.0`
 
-| suite | samples | identical | empty | differs | refused | skipped |
-| --- | --- | --- | --- | --- | --- | --- |
-| `server-side-rendering` | 132 | 55 | 4 | 18 | 38 | 16 |
-| `runtime-runes` | 1054 | 463 | 15 | 18 | 274 | 278 |
-| `runtime-legacy` | 1209 | 496 | 19 | 79 | 350 | 264 |
-| | **2388** | **1014** | **38** | **115** | **662** | **558** |
+| suite                   | samples  | identical | empty  | differs | refused | skipped |
+| ----------------------- | -------- | --------- | ------ | ------- | ------- | ------- |
+| `server-side-rendering` | 132      | 55        | 4      | 18      | 38      | 16      |
+| `runtime-runes`         | 1054     | 463       | 15     | 18      | 274     | 278     |
+| `runtime-legacy`        | 1209     | 496       | 19     | 79      | 350     | 264     |
+|                         | **2388** | **1014**  | **38** | **115** | **662** | **558** |
 
 One sample in `runtime-legacy` failed inside the oracle rather than inside either side, and is
 counted apart. The whole run takes eleven seconds, which is worth saying because it is the
@@ -319,11 +319,15 @@ to 1125 identical, 42 differing and 624 refused; [roadmap.md](roadmap.md) record
 **78 of the 115 were one thing: a default on the entry's own props was dropped.**
 
 ```svelte
-<script>let { foo = 42 } = $props();</script><p>{foo}</p>
+<script>
+	let { foo = 42 } = $props();
+</script>
+
+<p>{foo}</p>
 ```
 
 compiled to a bare read of `foo` off the payload. Svelte writes `42` where the payload has no
-`foo`; this wrote nothing. A *child's* default is right, because the render bakes it in and the
+`foo`; this wrote nothing. A _child's_ default is right, because the render bakes it in and the
 walk takes the bytes -- so the fault is in exactly the one component whose props become payload
 paths. It is not spread evenly: 64 of `runtime-legacy`'s 79, 13 of the SSR suite's 18, and 1 of
 `runtime-runes`'s 18.
@@ -335,13 +339,13 @@ a fact rather than as a principle.
 
 Five more were read off their output:
 
-| | |
-| --- | --- |
-| `{#each}` over a string | Svelte iterates the characters; this renders nothing. A `Map` and a `Set` were taken and a string was not. |
+|                                           |                                                                                                                     |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `{#each}` over a string                   | Svelte iterates the characters; this renders nothing. A `Map` and a `Set` were taken and a string was not.          |
 | a quoted attribute holding one expression | `<Widget baz='{40 + x}' />` passes `"42"` where Svelte passes `42`. Quotes around a single tag do not make it text. |
-| an attribute after a spread | `{...{ defaultValue: 'b' }} defaultValue="a"` selects both options; the later attribute has to win. |
-| `<select value>` over a child's options | the `<option>` a component renders is not reached, so nothing is marked selected. |
-| a namespaced component | `<Components.Foo />` gets a block anchor pair around it that Svelte does not write. |
+| an attribute after a spread               | `{...{ defaultValue: 'b' }} defaultValue="a"` selects both options; the later attribute has to win.                 |
+| `<select value>` over a child's options   | the `<option>` a component renders is not reached, so nothing is marked selected.                                   |
+| a namespaced component                    | `<Components.Foo />` gets a block anchor pair around it that Svelte does not write.                                 |
 
 **All of them are attributed now**, and [roadmap.md](roadmap.md) holds the reading: fifteen causes
 across the 42 that remain, the largest a component `bind:` whose writeback the server performs and
