@@ -113,20 +113,21 @@ and a skip is one the list names with its reason.
 ### Where it stands
 
 ```
-suite                   samples   pass   skip   fail
-server-side-rendering       132     91     41      0
-runtime-runes              1054    683    371      0
-runtime-legacy             1209   1109    100      0
-total                      2395   1883    512      0
+pass  suite                    samples   pass   skip   fail
+sync  server-side-rendering        132     91     41      0
+sync  runtime-runes               1054    683    371      0
+sync  runtime-legacy              1209   1109    100      0
+async server-side-rendering        132    104     18     10
+async runtime-runes               1054    849    183     22
+total                             3581   2836    713     32
 ```
 
-Against the target: **1883 of 1883**, at `svelte@5.57.1`, over the synchronous render alone; the
-samples upstream renders only with `experimental.async` wait for the async pass. Nothing fails, which is the condition
-this file sets for stage one. It was 1878 of 1878 until the runner stopped skipping what it could
-not stage and the samples were measured: fourteen more pass, and the rest are skips whose reason is
-written. It read
-1559 of 1559 first, over one 342 samples smaller: 276 of the recovered samples agreed with no
-change to the compiler and four were work, and those four are done.
+Against the target, at `svelte@5.57.1`: **1883 of 1883 in the synchronous render**, and **953 of
+985 in the async one** -- the pass [suite.md](suite.md) added when async became work rather than an
+experiment. The 32 are compile-time async not done yet, recorded off the list with
+`--skip-failing` and failing every run until they pass; [roadmap.md](roadmap.md) has what each is.
+Stage one is done when both are whole. Before the async pass it was 1878 of 1878 and then 1892,
+until the runner stopped skipping what it could not stage and the samples were measured.
 
 **The denominator is the measurement, and it is the half that gets audited last.** Every number
 in the table moved by 302 samples without a line of the compiler changing, because a column nobody
@@ -204,7 +205,8 @@ key rather than by name.
 
 ### It is done, and what the second time was worth
 
-`mise run vendor-baseline` reports nothing failing, which is the condition this section sets. It reported that once before over a corpus 342 samples smaller than the one this file names,
+`mise run vendor-baseline` reported nothing failing over the synchronous render, which is the
+condition this section sets, and the async pass is the half now owed. It reported that once before over a corpus 342 samples smaller than the one this file names,
 and the audit that found those samples is the reason the claim is worth more the second time: the
 work that had reached zero stood, 276 of the recovered samples agreed with no change to the
 compiler, and four were work. **A target is only as good as the denominator under it**, and the

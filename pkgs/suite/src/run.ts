@@ -34,6 +34,7 @@ import {
 	symlinkSync,
 	writeFileSync,
 } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { basename, dirname, resolve } from 'node:path';
 import { createRequire, stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -48,6 +49,21 @@ import { inject } from 'injector';
 import { lower } from 'lowering';
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Which render this process measures, or none where it is the one that runs both and holds them to
+ * the list.
+ *
+ * **One pass per process**: Svelte's async flag is turned on by importing a compiled component that
+ * asks for it, and nothing turns it off, so the synchronous render and the async one cannot share a
+ * process. `sync` is the render a project without `experimental.async` gets and `async` the one a
+ * project with it gets -- which Svelte 6 makes the only one. See spec/suite.md.
+ */
+type Pass = 'sync' | 'async';
+const PASSES: readonly Pass[] = ['sync', 'async'];
+const argument = (name: string): string | undefined =>
+	process.argv.find((one) => one.startsWith(`--${name}=`))?.slice(name.length + 3);
+const PASS = argument('pass') as Pass | undefined;
 /** The vendored corpus, at the tag `vendor/svelte/VENDOR.md` pins. */
 const SAMPLES = resolve(here, '../../../vendor/svelte/tests');
 /**
@@ -57,7 +73,7 @@ const SAMPLES = resolve(here, '../../../vendor/svelte/tests');
  * stages Svelte's compiled output next to it and the oracle writes its bundle there -- and the
  * vendored files are upstream's, unedited. `.build*` is ignored by name.
  */
-const STAGE = resolve(here, '../.build-suite');
+const STAGE = resolve(here, `../.build-suite-${PASS ?? 'results'}`);
 /** What every sample has to come out as, kept here and not under `vendor/`. See spec/suite.md. */
 const BASELINE = resolve(here, '../baseline.json');
 /** Taken off a reason, so a path in one reads the same on every machine. */
@@ -126,6 +142,8 @@ interface Config {
 	 * otherwise (`runtime-legacy/shared.ts`). So it is async Svelte. See `SERVED`.
 	 */
 	skip_no_async?: boolean;
+	/** Upstream's own: the sample is skipped in async mode (`runtime-legacy/shared.ts`). */
+	skip_async?: boolean;
 	load_compiled?: boolean;
 	props?: Record<string, unknown>;
 	/**
@@ -184,6 +202,16 @@ const RUNES: Readonly<Record<string, boolean>> = { 'runtime-runes': true, 'runti
  * upstream renders only in the second is async Svelte rather than upstream's skip. See
  * spec/suite.md.
  */
+/**
+ * The suites each pass measures. Upstream renders the SSR suite both ways and the runes suite's
+ * async variant too, and never the legacy suite's: `async-ssr` is `no-test` there without runes
+ * (`runtime-legacy/shared.ts`).
+ */
+const MEASURED: Readonly<Record<Pass, readonly string[]>> = {
+	sync: SUITES,
+	async: ['server-side-rendering', 'runtime-runes'],
+};
+
 const SERVED: Readonly<Record<string, readonly string[]>> = {
 	'server-side-rendering': ['sync', 'async'],
 	'runtime-runes': ['server', 'async-server'],
@@ -203,8 +231,11 @@ interface Result {
 }
 
 /** The decision async Svelte is, by the kind `DECIDED` gives it. */
-const ASYNC_KIND =
-	'async Svelte, whose compile-time half is owed and whose request-time half waits on async request-time rendering';
+const ASYNC_KIND = 'async Svelte outside its async mode';
+
+/** Why the sync pass skips a sample, where it is the async pass's to measure. */
+const ONLY_ASYNC =
+	'upstream renders it on the server only with `experimental.async`, which the async pass measures';
 
 /**
  * The refusals blocked on request-time rendering, by a phrase each of their messages says.
@@ -273,6 +304,9 @@ function settled(why: string): string | null {
 /** A refusal, sorted into the two things a refusal can be. */
 function turned(suite: string, name: string, why: string): Result {
 	const kind = settled(why);
+	// This compiler's own word that the sample needs Svelte's async mode, which the sync pass does
+	// not have: the async pass measures it. See `ONLY_ASYNC`.
+	if (kind === ASYNC_KIND) return { suite, name, outcome: 'skipped', why: ONLY_ASYNC };
 	return kind === null
 		? { suite, name, outcome: 'gap', why }
 		: { suite, name, outcome: 'decided', why, kind };
@@ -305,14 +339,20 @@ function stateOf(one: Result): { state: State; reason?: string } {
 	}
 }
 
-/** The list every run is held to. See spec/suite.md. */
-interface Baseline {
-	version: 1;
-	/** The Svelte the oracle is, since the same corpus renders differently under another one. */
-	svelte: string;
+/** One pass's half of the list. */
+interface Section {
 	pass: string[];
 	/** Each skipped sample and why, in the words `stateOf` writes. */
 	skip: Record<string, string>;
+}
+
+/** The list every run is held to, one section per pass. See spec/suite.md. */
+interface Baseline {
+	version: 2;
+	/** The Svelte the oracle is, since the same corpus renders differently under another one. */
+	svelte: string;
+	sync: Section;
+	async: Section;
 }
 
 const need = createRequire(import.meta.url);
@@ -601,15 +641,8 @@ async function withDom<T>(dom: boolean, what: () => Promise<T>): Promise<T> {
 	}
 }
 
-/**
- * The experiment: both sides compiled with `experimental.async` and both renders awaited.
- *
- * Off by default. Upstream's flag is process-global and irreversible once a compiled component
- * imports `svelte/internal/flags/async`, so this is the whole process or none of it. See
- * spec/roadmap.md.
- */
-const ASYNC =
-	process.env['SEAM_ASYNC'] === undefined ? {} : { experimental: { async: true as const } };
+/** The async pass's compile option, which both sides are given and ours reads as a project's. */
+const ASYNC = PASS === 'async' ? { experimental: { async: true as const } } : {};
 
 /** One sample, staged, compiled, rendered and compared. */
 async function attempt(suite: string, name: string): Promise<Result> {
@@ -638,31 +671,27 @@ async function attempt(suite: string, name: string): Promise<Result> {
 		(!Array.isArray(config.mode) || config.mode.includes(mode)) &&
 		!(Array.isArray(config.skip_mode) && config.skip_mode.includes(mode));
 	const [sync, async] = SERVED[suite] ?? [];
+	// A sample upstream renders in only one of the two is measured in that pass, and skipped as
+	// upstream's in the other, saying which pass has it. See spec/suite.md.
 	const why =
 		config.skip === true
 			? 'upstream skips it'
-			: !served(sync) && !served(async)
-				? Array.isArray(config.mode)
-					? `upstream runs it only in ${config.mode.toSorted().join(', ')} mode`
-					: 'upstream skips it in server mode'
-				: config.error !== undefined
-					? 'upstream expects it to error'
-					: config.load_compiled === true
-						? 'upstream loads its output precompiled'
-						: null;
+			: PASS === 'async' && config.skip_async === true
+				? 'upstream skips it in async mode'
+				: !served(sync) && !served(async)
+					? Array.isArray(config.mode)
+						? `upstream runs it only in ${config.mode.toSorted().join(', ')} mode`
+						: 'upstream skips it in server mode'
+					: config.error !== undefined
+						? 'upstream expects it to error'
+						: config.load_compiled === true
+							? 'upstream loads its output precompiled'
+							: PASS === 'sync' && (config.skip_no_async === true || !served(sync))
+								? ONLY_ASYNC
+								: PASS === 'async' && !served(async)
+									? 'upstream renders it on the server only without `experimental.async`, which the sync pass measures'
+									: null;
 	if (why !== null) return { suite, name, outcome: 'skipped', why };
-	// **A sample upstream renders on the server only with `experimental.async` is not upstream's
-	// skip**: upstream measures it on the server, in the mode this runner has no pass for yet. That is
-	// this runner's debt, and the async pass pays it. Read off the config, the way upstream's own
-	// skips are. See spec/suite.md.
-	if (config.skip_no_async === true || !served(sync)) {
-		return {
-			suite,
-			name,
-			outcome: 'oracle',
-			why: 'upstream renders it on the server only with `experimental.async`, and this runner has no async pass yet',
-		};
-	}
 
 	// Upstream's own setup, where this process can run it, and before the props, which is upstream's
 	// order (`runtime-legacy/shared.ts`): a config's getter may read what its setup made. See
@@ -768,16 +797,9 @@ async function attempt(suite: string, name: string): Promise<Result> {
 		if (!/experimental[._]async/.test(text) || mine !== null) {
 			return { suite, name, outcome: 'oracle', why: firstLine(error) };
 		}
-		// Which samples are async Svelte is upstream's compiler to say, not a message match here.
-		// Two of them this compiler turns away earlier for a reason of its own -- a boundary given
-		// its pending snippet as a value -- and were ranked as gaps on the strength of that message
-		// while being out of scope whatever the message said. Both facts are reported.
-		const said = refusal ?? 'it failed and said nothing';
-		const why = said.includes('async Svelte')
-			? said
-			: `upstream builds it with \`experimental.async\`, so it is async Svelte and the load ` +
-				`stage's. This compiler turned it away earlier and for another reason: ${said}`;
-		return turned(suite, name, why);
+		// Which samples need the flag is Svelte's own compiler to say, not a message match here: one
+		// it will not build without it is the async pass's, whatever this compiler said.
+		return { suite, name, outcome: 'skipped', why: ONLY_ASYNC };
 	}
 	if (mine === null) {
 		return turned(suite, name, refusal ?? 'it failed and said nothing');
@@ -856,8 +878,9 @@ async function quietly<T>(what: () => Promise<T>): Promise<T> {
 
 const NOTHING = (): void => undefined;
 
-/** One sample's verdict: what it came out as, read against what the list says it has to be. */
+/** One sample's verdict in one pass: what it came out as, read against what the list says. */
 interface Verdict {
+	pass: Pass;
 	key: string;
 	suite: string;
 	state: State;
@@ -866,18 +889,19 @@ interface Verdict {
 }
 
 /**
- * Every sample held to the list, and every name on the list held to the corpus.
+ * Every sample of one pass held to that pass's section, and every name in the section held to the
+ * corpus.
  *
  * A skip is checked like a pass: the sample still runs, and a reason that changed -- or a skip that
  * passes now -- fails until the list says so. The list is only as true as the last run that read
  * it. See spec/suite.md.
  */
-function judge(results: readonly Result[], listed: Baseline | null): Verdict[] {
+function judge(pass: Pass, results: readonly Result[], listed: Section | undefined): Verdict[] {
 	const passes = new Set(listed?.pass ?? []);
 	const skips = new Map(Object.entries(listed?.skip ?? {}));
 	const verdicts: Verdict[] = [];
 	for (const one of results) {
-		const key = `${one.suite}/${one.name}`;
+		const key = keyOf(one);
 		const { state, reason } = stateOf(one);
 		const wanted = passes.has(key) ? 'pass' : skips.get(key);
 		passes.delete(key);
@@ -885,12 +909,13 @@ function judge(results: readonly Result[], listed: Baseline | null): Verdict[] {
 		const wrong = disagreement(state, reason, wanted);
 		verdicts.push(
 			wrong === null
-				? { key, suite: one.suite, state, ...(reason === undefined ? {} : { reason }) }
-				: { key, suite: one.suite, state: 'fail', reason: wrong },
+				? { pass, key, suite: one.suite, state, ...(reason === undefined ? {} : { reason }) }
+				: { pass, key, suite: one.suite, state: 'fail', reason: wrong },
 		);
 	}
 	for (const key of [...passes, ...skips.keys()]) {
 		verdicts.push({
+			pass,
 			key,
 			suite: key.slice(0, key.indexOf('/')),
 			state: 'fail',
@@ -935,14 +960,18 @@ function read(): Baseline | null {
 	} catch {
 		return null;
 	}
-	const held = JSON.parse(text) as Baseline;
-	if (held.version !== 1)
-		throw new Error(`baseline.json is version ${String(held.version)}, not 1`);
-	return held;
+	const held = JSON.parse(text) as { version?: unknown };
+	if (held.version !== 2) {
+		throw new Error(
+			`baseline.json is version ${String(held.version)}, and this reads 2: one section per ` +
+				'pass. `mise run vendor-baseline -- --write` records it. See spec/suite.md',
+		);
+	}
+	return held as Baseline;
 }
 
-/** The run, written as the list: sorted, so a sample that moves is one line in a diff. */
-function write(results: readonly Result[]): void {
+/** One pass's run, written as its section: sorted, so a sample that moves is one line in a diff. */
+function section(results: readonly Result[]): Section {
 	const pass: string[] = [];
 	const skip: Record<string, string> = {};
 	for (const one of results.toSorted((a, b) => keyOf(a).localeCompare(keyOf(b)))) {
@@ -952,17 +981,16 @@ function write(results: readonly Result[]): void {
 		if (state === 'pass') pass.push(keyOf(one));
 		else if (state === 'skip') skip[keyOf(one)] = reason ?? '';
 	}
-	const held: Baseline = { version: 1, svelte: svelteVersion(), pass, skip };
-	writeFileSync(BASELINE, `${JSON.stringify(held, null, '\t')}\n`);
+	return { pass, skip };
 }
 
 function keyOf(one: Result): string {
 	return `${one.suite}/${one.name}`;
 }
 
-/** The three counts per suite, which is what a run is read for, so it is written last. */
+/** The three counts per pass and suite, which is what a run is read for, so it is written last. */
 function table(verdicts: readonly Verdict[]): void {
-	const width = Math.max(...SUITES.map((one) => one.length));
+	const width = Math.max(...SUITES.map((one) => one.length)) + 7;
 	const states: readonly State[] = ['pass', 'skip', 'fail'];
 	const row = (name: string, mine: readonly Verdict[]): string =>
 		`${name.padEnd(width)}  ${String(mine.length).padStart(8)}` +
@@ -970,118 +998,167 @@ function table(verdicts: readonly Verdict[]): void {
 			.map((state) => String(mine.filter((one) => one.state === state).length).padStart(7))
 			.join('');
 	console.log(
-		`\n${'suite'.padEnd(width)}  ${'samples'.padStart(8)}${states.map((one) => one.padStart(7)).join('')}`,
+		`\n${'pass  suite'.padEnd(width)}  ${'samples'.padStart(8)}${states.map((one) => one.padStart(7)).join('')}`,
 	);
-	for (const suite of SUITES) {
-		console.log(
-			row(
-				suite,
-				verdicts.filter((one) => one.suite === suite),
-			),
-		);
+	for (const pass of PASSES) {
+		for (const suite of MEASURED[pass]) {
+			console.log(
+				row(
+					`${pass.padEnd(5)} ${suite}`,
+					verdicts.filter((one) => one.pass === pass && one.suite === suite),
+				),
+			);
+		}
 	}
 	console.log(row('total', verdicts));
 }
 
-/** The failures one at a time with what went wrong, and the skips by reason with how many. */
+/** The failures one at a time with what went wrong, and the skips by pass and reason. */
 function lists(verdicts: readonly Verdict[]): void {
 	const failed = verdicts.filter((one) => one.state === 'fail');
 	if (failed.length > 0) {
 		console.log(`\nfail (${String(failed.length)})`);
-		for (const one of failed) console.log(`  ${one.key}\n      ${one.reason ?? ''}`);
+		for (const one of failed) console.log(`  ${one.pass} ${one.key}\n      ${one.reason ?? ''}`);
 	}
 	const reasons = new Map<string, number>();
 	for (const one of verdicts) {
-		if (one.state === 'skip')
-			reasons.set(one.reason ?? '', (reasons.get(one.reason ?? '') ?? 0) + 1);
+		if (one.state !== 'skip') continue;
+		const said = `${one.pass.padEnd(5)} ${one.reason ?? ''}`;
+		reasons.set(said, (reasons.get(said) ?? 0) + 1);
 	}
 	if (reasons.size === 0) return;
-	console.log(`\nskip, by reason; the names are in baseline.json`);
+	console.log(`\nskip, by pass and reason; the names are in baseline.json`);
 	for (const [reason, many] of [...reasons].toSorted((a, b) => b[1] - a[1])) {
 		console.log(`  ${String(many).padStart(4)}  ${reason}`);
 	}
 }
 
-// A sample is free to throw from a promise nobody awaits -- several are written to -- and the
-// default is to end the process. The outcome of the sample that did it is already recorded by the
-// time this fires, so the run continues.
-process.on('unhandledRejection', () => undefined);
-// And from a timer, which is the same statement one channel along: `reactive-values-text-node`
-// starts a `setTimeout` in its instance script and calls a method on a prop upstream's own
-// harness builds. Both renders write their bytes and agree; what throws does so five milliseconds
-// later, with nothing left to record. Unguarded it ends the process, which ends the run.
-process.on('uncaughtException', () => undefined);
-
-rmSync(STAGE, { recursive: true, force: true });
-mkdirSync(resolve(STAGE, 'node_modules'), { recursive: true });
-// The bundled oracle keeps Svelte's own runtime external, so it has to resolve from where it sits.
-symlinkSync(
-	dirname(need.resolve('svelte/package.json')),
-	resolve(STAGE, 'node_modules/svelte'),
-	'dir',
-);
-
-const results: Result[] = await quietly(async () => {
-	const found: Result[] = [];
-	for (const suite of SUITES) {
-		for (const name of samplesOf(suite)) {
-			// A render that awaits can wait forever: a sample handing it `new Promise(() => {})` is
-			// one the server never finishes, which upstream's own async render does not finish either.
-			// Reported as the oracle's own failure rather than hanging the run.
-			let timer: ReturnType<typeof setTimeout> | undefined;
-			const held = await Promise.race([
-				attempt(suite, name),
-				new Promise<Result>((settle) => {
-					timer = setTimeout(
-						() => settle({ suite, name, outcome: 'oracle', why: 'the render never settled' }),
-						5000,
-					);
-				}),
-			]);
-			if (timer !== undefined) clearTimeout(timer);
-			found.push(held);
+/** One pass, run in this process, its results written where the parent reads them. */
+async function measure(pass: Pass, out: string): Promise<void> {
+	// A sample is free to throw from a promise nobody awaits -- several are written to -- and the
+	// default is to end the process. The outcome of the sample that did it is already recorded by
+	// the time this fires, so the run continues. Only here, where samples run: the parent's own
+	// errors are its errors.
+	process.on('unhandledRejection', () => undefined);
+	// And from a timer, which is the same statement one channel along: `reactive-values-text-node`
+	// starts a `setTimeout` in its instance script and calls a method on a prop upstream's own
+	// harness builds. Both renders write their bytes and agree; what throws does so five
+	// milliseconds later, with nothing left to record. Unguarded it ends the process, which ends
+	// the run.
+	process.on('uncaughtException', () => undefined);
+	rmSync(STAGE, { recursive: true, force: true });
+	mkdirSync(resolve(STAGE, 'node_modules'), { recursive: true });
+	// The bundled oracle keeps Svelte's own runtime external, so it has to resolve from where it
+	// sits.
+	symlinkSync(
+		dirname(need.resolve('svelte/package.json')),
+		resolve(STAGE, 'node_modules/svelte'),
+		'dir',
+	);
+	const results: Result[] = await quietly(async () => {
+		const found: Result[] = [];
+		for (const suite of MEASURED[pass]) {
+			for (const name of samplesOf(suite)) {
+				// A render that awaits can wait forever: a sample handing it `new Promise(() => {})` is
+				// one the server never finishes, which upstream's own async render does not finish
+				// either. Reported as the oracle's own failure rather than hanging the run.
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				const held = await Promise.race([
+					attempt(suite, name),
+					new Promise<Result>((settle) => {
+						timer = setTimeout(
+							() => settle({ suite, name, outcome: 'oracle', why: 'the render never settled' }),
+							5000,
+						);
+					}),
+				]);
+				if (timer !== undefined) clearTimeout(timer);
+				found.push(held);
+			}
 		}
-	}
+		return found;
+	});
+	writeFileSync(out, JSON.stringify(results));
+	rmSync(STAGE, { recursive: true, force: true });
+}
+
+/** Both passes, each in a process of its own and the two at once, read back when they are done. */
+async function both(): Promise<Record<Pass, Result[]>> {
+	mkdirSync(STAGE, { recursive: true });
+	const one = (pass: Pass): Promise<[Pass, Result[]]> => {
+		const out = resolve(STAGE, `${pass}.json`);
+		return new Promise((settle, fail) => {
+			const child = spawn(
+				process.execPath,
+				[...process.execArgv, fileURLToPath(import.meta.url), `--pass=${pass}`, `--out=${out}`],
+				{ stdio: ['ignore', 'ignore', 'inherit'] },
+			);
+			child.on('error', fail);
+			child.on('exit', (code) => {
+				if (code !== 0) {
+					fail(new Error(`the ${pass} pass exited ${String(code)}`));
+					return;
+				}
+				settle([pass, JSON.parse(readFileSync(out, 'utf8')) as Result[]]);
+			});
+		});
+	};
+	const found = Object.fromEntries(await Promise.all(PASSES.map(one))) as Record<Pass, Result[]>;
+	rmSync(STAGE, { recursive: true, force: true });
 	return found;
-});
+}
+
+if (PASS !== undefined) {
+	const out = argument('out');
+	if (out === undefined) throw new Error('a pass is run by the parent, which names `--out`');
+	await measure(PASS, out);
+	process.exit(0);
+}
+
+const results = await both();
+const all = PASSES.flatMap((pass) => results[pass].map((one) => ({ pass, one })));
+const failing = all.filter(({ one }) => stateOf(one).state === 'fail');
 
 // `--write` records the run as the list, and only a run with nothing failing can be recorded: a
 // failure is not a state the list has. Otherwise the run is held to the list. See spec/suite.md.
-const experiment = Object.keys(ASYNC).length > 0;
 if (process.argv.includes('--write')) {
-	const failing = results.filter((one) => stateOf(one).state === 'fail');
-	const past = process.argv.includes('--skip-failing');
-	if (experiment || (failing.length > 0 && !past)) {
-		lists(failing.map((one) => ({ key: keyOf(one), suite: one.suite, ...stateOf(one) })));
-		console.log(
-			experiment
-				? '\nThe list is the default render, and `SEAM_ASYNC` is an experiment on it.'
-				: `\n${String(failing.length)} sample(s) fail, and a failure is not something the ` +
-						'baseline records. Only where each of them has been decided to be work that is ' +
-						'owed, `--write --skip-failing` records the rest and leaves these off the list, ' +
-						'where they go on failing until the work is done. See spec/suite.md.',
+	if (failing.length > 0 && !process.argv.includes('--skip-failing')) {
+		lists(
+			failing.map(({ pass, one }) => ({
+				pass,
+				key: keyOf(one),
+				suite: one.suite,
+				...stateOf(one),
+			})),
 		);
-		rmSync(STAGE, { recursive: true, force: true });
+		console.log(
+			`\n${String(failing.length)} sample(s) fail, and a failure is not something the ` +
+				'baseline records. Only where each of them has been decided to be work that is ' +
+				'owed, `--write --skip-failing` records the rest and leaves these off the list, ' +
+				'where they go on failing until the work is done. See spec/suite.md.',
+		);
 		process.exit(1);
 	}
-	write(results);
-	rmSync(STAGE, { recursive: true, force: true });
+	const held: Baseline = {
+		version: 2,
+		svelte: svelteVersion(),
+		sync: section(results.sync),
+		async: section(results.async),
+	};
+	writeFileSync(BASELINE, `${JSON.stringify(held, null, '\t')}\n`);
 	console.log(
-		`\nbaseline.json records ${String(results.length - failing.length)} samples` +
+		`\nbaseline.json records ${String(all.length - failing.length)} samples across both passes` +
 			(failing.length > 0
 				? `, and leaves ${String(failing.length)} failing off it: ` +
-					failing.map((one) => keyOf(one)).join(', ')
+					failing.map(({ pass, one }) => `${pass} ${keyOf(one)}`).join(', ')
 				: '') +
 			'.',
 	);
 	process.exit(0);
 }
 
-// The experiment compiles both sides another way, so it is reported rather than held to the list.
-const listed = experiment ? null : read();
-const verdicts = experiment
-	? results.map((one) => ({ key: keyOf(one), suite: one.suite, ...stateOf(one) }))
-	: judge(results, listed);
+const listed = read();
+const verdicts = PASSES.flatMap((pass) => judge(pass, results[pass], listed?.[pass]));
 const version = svelteVersion();
 // The lists first and the table last: a terminal shows the end of what a command wrote, and the
 // table is what the run is for. `--table` is the same run with the lists left out.
@@ -1091,12 +1168,9 @@ table(verdicts);
 const failed = verdicts.filter((one) => one.state === 'fail').length;
 const moved = listed !== null && listed.svelte !== version;
 console.log(
-	experiment
-		? `\n${String(failed)} sample(s) fail under \`experimental.async\`, which no list holds.`
-		: listed === null
-			? '\nThere is no baseline.json; `mise run vendor-baseline -- --write` records one.'
-			: `\n${String(failed)} sample(s) disagree with baseline.json.` +
+	listed === null
+		? '\nThere is no baseline.json; `mise run vendor-baseline -- --write` records one.'
+		: `\n${String(failed)} sample(s) disagree with baseline.json.` +
 				(moved ? ` It was recorded against svelte@${listed.svelte}, and this is ${version}.` : ''),
 );
-rmSync(STAGE, { recursive: true, force: true });
-process.exit(failed === 0 && !moved && (experiment || listed !== null) ? 0 : 1);
+process.exit(failed === 0 && !moved && listed !== null ? 0 : 1);

@@ -56,8 +56,10 @@ must not hold. See `spec/suite.md`.
 Upstream's samples are not themselves a condition of `verify`. What is, is
 `mise run vendor-baseline`: it compiles all 2395 samples, sorts each into pass, skip or fail, and
 holds every one to `pkgs/suite/baseline.json`, the list this repository keeps of which state each
-has to be and why a skip is one. At the pinned tag it reports 1883 pass, 512 skip -- 200 upstream's,
-255 blocked on request-time rendering and 57 waiting for an async pass -- and nothing failing. It takes twelve seconds.
+has to be and why a skip is one. It runs two passes, the synchronous render
+and the async one, each in its own process. At the pinned tag the sync pass reports 1883 pass, 512
+skip and nothing failing, and the async pass 953 pass, 201 skip and 32 failing -- compile-time async
+owed, recorded off the list. It takes about half a minute.
 `spec/suite.md` holds the states and the list, and `spec/conformance.md` what they have to reach.
 
 The samples are excluded from lint and format with everything else under `vendor/`, which is the

@@ -82,7 +82,10 @@ depends = ["check", "check-rust", "lint", "lint-rust", "test", "test-rust", "ven
 
 [tasks.vendor-baseline]
 description = "Svelte's own samples, each held to what pkgs/suite/baseline.json says it has to be"
-# The failures and the skips by reason, then the table; `-- --table` is the table alone, and
+# Two passes, each in a process of its own and both at once: the synchronous render and the async
+# one, since Svelte's async flag cannot be turned off once on. See spec/suite.md.
+#
+# The failures and the skips by pass and reason, then the table; `-- --table` is the table alone, and
 # `-- --write` records the run as the list, refusing while anything fails. It exits non-zero while
 # any sample disagrees with the list. See spec/suite.md.
 #
