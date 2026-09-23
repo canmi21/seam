@@ -152,9 +152,40 @@ describe('an await in a project in async mode, by what it waits on', () => {
 		);
 	});
 
-	it('refuses one of what the request decides, as async request-time rendering', async () => {
-		await expect(structures({ path: '/', component: 'request.svelte' }, project)).rejects.toThrow(
-			'an `await` of what the request decides',
+	// It used to be refused as async request-time rendering. The derivation that holds it is built
+	// `async` and awaited per request, and it stays a pure function of the payload. See
+	// spec/roadmap.md, "Owed: what the render computes per request".
+	it('compiles one of what the request decides, and writes what Svelte writes for each request', async () => {
+		const source =
+			'<script>let { data } = $props();</script><p>{await Promise.resolve(data.x)}</p>';
+		const out = resolve(project, 'oracle.js');
+		writeFileSync(
+			out,
+			svelte(source, {
+				generate: 'server',
+				name: 'Request',
+				filename: resolve(project, 'request.svelte'),
+				rootDir: project,
+				experimental: { async: true },
+			}).js.code,
 		);
+		const mod = (await import(pathToFileURL(out).href)) as { default: unknown };
+		const runs = await structures({ path: '/', component: 'request.svelte' }, project);
+		const lowered = lower(runs.map((one) => [one.id, JSON.stringify(one.skeleton)] as const));
+		const structure = joined(
+			'request',
+			runs.map((one, at) => ({
+				fixed: one.fixed,
+				decided: one.decided,
+				compiled: lowered[at] as unknown as Structure,
+			})),
+		);
+		for (const x of ['one', 'two']) {
+			const props = { data: { x } };
+			const theirs = (await render(mod.default as never, { props: props as never })).body;
+			expect(theirs).toContain(x);
+			const ours = await inject(structure.ir, deriving(structure.derivations, '')(props));
+			expect(ours.body).toBe(theirs);
+		}
 	});
 });

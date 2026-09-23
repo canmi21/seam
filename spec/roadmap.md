@@ -105,16 +105,16 @@ the same half:
   that reads nothing the request decides -- is awaited at compile time and its bytes written, the
   way any inert value is. That is 174 of the 183 measured above, and it is this compiler's.
 - **An `await` of what the request decides** is the same derivation awaited per request rather
-  than at the build, and is owed: see **Owed: what the render computes per request**.
+  than at the build: done, see **Owed: what the render computes per request**.
 
 A project turns the mode on with `compilerOptions.experimental.async` in `svelte.config.js`, and
 that is what the compiler reads, the way it reads `runes`; `SEAM_ASYNC` was the stand-in for it.
 The eighth anchor above is owed.
 
-**The two halves are told apart where an expression becomes a derivation** (`awaited()` in
-`skeleton.ts`). An `await` whose argument reads the payload is the request-time half, refused
-for now and owed. One whose argument does not sits where this compiler writes a derivation whatever the
-value -- an `<option>`'s `selected`, an each body's item, a local function inlined into one -- and
+**The two halves are one mechanism.** An `await` whose argument reads the payload is a derivation
+built `async` and awaited per request; it used to be refused where an expression became a
+derivation, and nothing but that refusal stood in its way. One whose argument does not sits where
+this compiler writes a derivation whatever the value -- an `<option>`'s `selected`, an each body's item, a local function inlined into one -- and
 the derivation is built `async` and waited on; [derivation.md](derivation.md) has how. **Svelte's own corpus has no `await` of the payload at all**: every async sample's
 awaited value is one the build can know, so every async failure is compile-time work.
 
@@ -1032,10 +1032,11 @@ it has to answer. Where the statements read nothing
 the request decides, the render already evaluates them and the walk bakes the result (`wants` in
 `walk.ts`).
 
-**An `await` of what the request decides.** `await fetch(data.url)`, or an `await` on a promise a
-prop hands in. The derivation that holds it is built `async` and awaited per request, as one already
-is where the awaited value is the build's; it stays a pure function of the payload, and
-[derivation.md](derivation.md) says the refusal is the only thing that stops it. An `await` whose value the build can know is under
+**An `await` of what the request decides: done.** `await fetch(data.url)`, or an `await` on a
+promise a prop hands in. The derivation that holds it is built `async` and awaited per request, as
+one already was where the awaited value is the build's, and it stays a pure function of the payload.
+The refusal was the only thing in the way; `options.test.ts` holds two requests to Svelte's own
+render. An `await` whose value the build can know is under
 **Async Svelte is upstream's unfinished half** at the top of this file.
 
 **A `<svelte:boundary>` whose body throws.** Svelte catches it and writes the `failed` snippet

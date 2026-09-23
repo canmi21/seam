@@ -1531,10 +1531,9 @@ once, where it is declared, so it is held the way a pattern's shared value is --
 derivation, awaited before anything reading it. Only there: held everywhere it would become a
 derivation where the render could have evaluated it, and `async-resolve-stale` was refused for it.
 
-**What may be awaited is still the rule's, not the mechanism's.** An `await` whose argument reads
-the payload is refused at compile time over the finished list -- the mechanism here could run it,
-and the refusal is the only thing that stops it, which makes it owed work; see
-[roadmap.md](roadmap.md). The second backend's evaluator has to run promises for an
+**An `await` whose argument reads the payload is the same mechanism.** It was refused over the
+finished list, and the refusal was the only thing that stopped it; it is a derivation built `async`
+and awaited per request now, a pure function of the payload like any other. The second backend's evaluator has to run promises for an
 artifact that holds such a derivation, which only a project in async mode produces.
 
 ## The helpers are carried under a name nothing can shadow

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { collides, stamp } from './sentinel.ts';
 import { basename, relative, resolve as resolvePath } from 'node:path';
-import { type Carried, GIVEN, importsOf, parsed, readsOf, resolveBare, resolved } from 'ast';
+import { type Carried, importsOf, readsOf, resolveBare, resolved } from 'ast';
 import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
 import { refuse } from './node.ts';
@@ -348,7 +348,6 @@ export async function skeleton(
 	// over the finished list, which is the one place that holds all of them.
 	for (const one of expressionsOf(finished)) outside(one.expression, true, baseline.changing);
 	composed(expressionsOf(finished), root);
-	awaited(expressionsOf(finished), baseline.payload);
 
 	return finished;
 }
@@ -406,70 +405,6 @@ function unhydrated(rendered: Rendered, calls: number): Rendered {
 		);
 	}
 	return { ...rendered, head: rendered.head.slice(end + closes.length) };
-}
-
-/**
- * Refuses a derivation that awaits what the request decides.
- *
- * A derivation may await: `derive` builds one that does as `async`, and the injector waits on it,
- * so an `await` the build can know -- in a place this compiler writes as a derivation whatever the
- * value, an `<option>`'s `selected` or an each body's item -- is awaited per request and writes what
- * Svelte's async render writes. What is refused is an `await` whose argument reads the payload:
- * the bytes would wait on something only the request has. The refusal is owed work, and the only
- * thing that stops the mechanism, which could run it. Asked over the finished list for the reason `composed()` is. An `await`
- * inside a function is that function's and is not asked about. See spec/roadmap.md.
- */
-function awaited(
-	expressions: readonly { expression: string }[],
-	payload: readonly string[] | null,
-): void {
-	// The wrapper `parsed()` reads an expression inside, which every offset in its tree counts.
-	const wrapped = '<script lang="ts"></script>{'.length;
-	const request = (name: string): boolean =>
-		name === GIVEN || (payload !== null && payload.includes(name));
-	const found: unknown[] = [];
-	const collect = (node: unknown): void => {
-		if (Array.isArray(node)) {
-			for (const one of node) collect(one);
-			return;
-		}
-		if (typeof node !== 'object' || node === null) return;
-		const type = (node as { type?: unknown }).type;
-		if (
-			type === 'FunctionExpression' ||
-			type === 'ArrowFunctionExpression' ||
-			type === 'FunctionDeclaration'
-		) {
-			return;
-		}
-		if (type === 'AwaitExpression') found.push((node as { argument?: unknown }).argument);
-		for (const value of Object.values(node)) collect(value);
-	};
-	for (const one of expressions) {
-		if (!/\bawait\b/.test(one.expression)) continue;
-		found.length = 0;
-		try {
-			collect(parsed(one.expression));
-		} catch {
-			found.push(null);
-		}
-		if (found.length === 0) continue;
-		const shown = one.expression.slice(0, 80);
-		const decided = found.some((argument) => {
-			const at = argument as { start?: unknown; end?: unknown } | null;
-			if (at === null || typeof at.start !== 'number' || typeof at.end !== 'number') return false;
-			const text = one.expression.slice(at.start - wrapped, at.end - wrapped);
-			return [...readsOf([text])].some(request);
-		});
-		if (!decided) continue;
-		throw new Error(
-			`an \`await\` of what the request decides -- \`${shown}\` -- where the value has to be ` +
-				'written into the bytes. The bytes would wait on something only the request has, ' +
-				'which is async request-time rendering: it comes after the synchronous kind, and ' +
-				'until then this is refused. Await only what the build can know, or put the value ' +
-				'in the load stage data. See spec/roadmap.md',
-		);
-	}
 }
 
 /**

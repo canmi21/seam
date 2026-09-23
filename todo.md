@@ -15,15 +15,20 @@ What the suite fails on, sorted by what closing each takes. The live list is
       keyed-each-bind-read-index, props-reassign, reactive-assignment-in-complex-declaration-with-store,
       reactive-assignment-in-complex-declaration-with-store-2, rest-props-reassign,
       async-block-reject-during-init, async-derived-in-multiple-effects, async-derived-unowned,
-      async-each-preserve-pending, async-error-in-block-expression, derived-rest-includes-symbol,
-      each-block-default-arg, props-default-value-rest, snippet-default-arg, state-snapshot-date,
-      destructure-state-iterable
+      async-each-preserve-pending, async-error-in-block-expression, each-block-default-arg,
+      props-default-value-rest, snippet-default-arg, destructure-state-iterable
+      Done: props-default-value-rest (a child changing a prop the call site passes as a constant),
+      async-block-reject-during-init, async-error-in-block-expression, async-derived-unowned,
+      async-derived-in-multiple-effects (ECMAScript built-ins and timers as globals).
+      Left: an entry whose payload is empty still writes derivations where the walk always does --
+      an option's `selected`, an each item, a held destructuring, a store read -- and those are
+      substituted where the render has the value.
 - [ ] **B. Script state over props.** Deterministic statements over props (`$: x *= 2`,
       `count += 1`, `items.sort(...)`). Running the instance script per request and reading the
       names after is still a pure function of the payload. spec/derivation.md, Open.
-- [ ] **G. Pure over props, not yet written.** An `await` of a promise built from a prop
-      (hydratable-complex-nesting, hydratable-unused-keys-nesting-partial); a raw snippet whose
-      function is called per request (snippet-raw-component, snippet-raw-component-ssr-dev).
+- [ ] **G. Pure over props, not yet written.** A raw snippet whose function is called per request
+      (snippet-raw-component, snippet-raw-component-ssr-dev). Done: an `await` of a promise built
+      from a prop (hydratable-complex-nesting, hydratable-unused-keys-nesting-partial).
 
 ## Waiting on a decision
 
@@ -31,7 +36,9 @@ What the suite fails on, sorted by what closing each takes. The live list is
       component, a render option's function. Covers C (stores and components in props, 14) and
       D (`transformError`, 11).
 - [ ] **May the derive stage read ambient state, or be non-deterministic?** Covers E
-      (`Math.random`: random, props-derived) and F (a host global: globals-deconflicted; module
+      (`Math.random`: random, props-derived; `Date()` and `Symbol()`: state-snapshot-date and
+      derived-rest-includes-symbol, whose bytes are constant but which the compiler cannot prove
+      without baking an ambient value or rendering twice) and F (a host global: globals-deconflicted; module
       state: reactive-import-statement). E also needs the suite to give both sides the same
       random numbers before it can compare bytes.
 

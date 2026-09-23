@@ -2147,8 +2147,8 @@ function standIn(
 /**
  * Refuses `await` in markup and at the top of a script where the project is not in Svelte's async
  * mode, which is the only mode Svelte compiles one in. Where it is, an `await` whose value the build
- * can know is compiled and awaited here, and one of what the request decides is refused over the
- * finished list, where it has become a derivation (`awaited()` in `skeleton.ts`). `{#await}` is not
+ * can know is compiled and awaited here, and one of what the request decides becomes a derivation
+ * built `async` and awaited per request. `{#await}` is not
  * this, since a synchronous render writes its pending branch and awaits nothing. See
  * spec/roadmap.md.
  */
