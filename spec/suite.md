@@ -240,7 +240,7 @@ upstream skips, 17 async, 2 that ask a boundary to catch a throw -- **59 of 96**
 
 [conformance.md](conformance.md) puts this suite in its place: it is stage one of three, and it
 says what "all of them" means once the skips, the oracle's own failures and the refusals by
-decision come out -- 1839 of the 2388 -- and why neither SvelteKit's own test apps nor a real
+decision come out -- 1845 of the 2395 -- and why neither SvelteKit's own test apps nor a real
 application should be measured until
 this one is finished. What follows here is the rule that decides the order of work inside it.
 

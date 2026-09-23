@@ -817,7 +817,7 @@ item above already owns. `component-namespace` is `<Components.Foo />` over a mo
 export, which is the module-graph item. `binding-indirect-fn` is a `$:` declaration substituted
 into `items.filter(fn)` and is its own fault.
 
-## Stage one is 1839 of 1839, and the gate has changed
+## Stage one is 1845 of 1845, and the gate has changed
 
 What the suite reports now is nothing differing and nothing refused as a gap, which is the
 condition [conformance.md](conformance.md) set for stage one.

@@ -57,7 +57,7 @@ must not hold. See `spec/suite.md`.
 byte-identical to Svelte's own render, how many compiled and differ, how many were refused as a gap,
 how many were refused by a decision the scope line settles, how many upstream skips itself and how
 many neither side answered for. At the pinned tag it reports 1844 identical and 33 more that agree
-on an empty body, nothing differing, one gap, 260 decided, 239 skipped and 18 with no answer from
+on an empty body, nothing differing, no gaps, 260 decided, 239 skipped and 18 with no answer from
 either side. It takes twelve seconds. `spec/suite.md` holds the reading of those numbers and the
 denominator they are against, and `spec/conformance.md` what they have to reach.
 

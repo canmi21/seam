@@ -106,20 +106,20 @@ what the last three shapes are -- every one of them was counted as work until so
 **Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
 
-So the target is: **of the 1839 samples that are in, every one is byte-identical to Svelte's own
+So the target is: **of the 1845 samples that are in, every one is byte-identical to Svelte's own
 render.** Nothing differing, nothing refused as a gap.
 
 ### Where it stands
 
 ```
                         samples  identical  empty  differs   gap  decided  skipped  oracle
-server-side-rendering       131         90      0        0     0       25       16       0
-runtime-runes              1048        667     19        0     0      189      170       3
+server-side-rendering       132         91      0        0     0       25       16       0
+runtime-runes              1054        672     19        0     0      190      170       3
 runtime-legacy             1209       1082     14        0     0       45       53      15
-total                      2388       1839     33        0     0      259      239      18
+total                      2395       1845     33        0     0      260      239      18
 ```
 
-Against the target: **1839 of 1839**. Nothing differs and nothing is refused as a gap, which is the
+Against the target: **1845 of 1845**, at `svelte@5.57.1`. Nothing differs and nothing is refused as a gap, which is the
 condition this file sets for stage one -- this time over the corpus this file describes. It read
 1559 of 1559 first, over one 342 samples smaller: 276 of the recovered samples agreed with no
 change to the compiler and four were work, and those four are done.

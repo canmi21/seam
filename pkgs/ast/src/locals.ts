@@ -236,6 +236,9 @@ export function runeCalled(callee: unknown): string | null {
 const SUBSTITUTED: Readonly<Record<string, string>> = {
 	$state: '',
 	'$state.raw': '',
+	// No branch of its own in the server's `VariableDeclaration.js`, so the general one's first
+	// argument; the client dropped the declaration until 5.57.1, which is why no sample had one.
+	'$state.eager': '',
 	// `VariableDeclaration.js` writes `args.length > 0 ? visit(args[0]) : b.void0` for every rune it
 	// does not let through, so a declaration holding a snapshot holds what was snapshotted. In an
 	// expression the same call is `$.snapshot(v)`, which clones; the two visitors differ and this
