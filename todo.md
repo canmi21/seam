@@ -5,24 +5,16 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 ## Doable now, decided
 
-- [ ] **B. Script state over props.** The entry's script runs; a child copy's does not yet, and in
-      a Kit project every component the author writes is a child of the generated root, so B is not
-      done until it does. The plugin's own test is where the project's Vite path gets held.
-      Deterministic statements over props (`$: x *= 2`,
-      `count += 1`, `items.sort(...)`): decided: where substitution cannot follow, the instance script
-      runs per request as Svelte compiled it, template replaced by a capture; the module block once
-      per process; imports as Svelte's output has them. spec/derivation.md, "Where substitution
-      cannot follow, the script runs as Svelte compiled it".
-      assignment-to-computed-property, await-then-destruct-computed-props, binding-backflow,
-      binding-select-from-let-2, component-not-constructor2, hydratable-error-on-missing,
-      immutable-option, immutable-svelte-meta, immutable-svelte-meta-false,
-      inline-style-directive-update-object-property, key-block-post-hydrate,
-      ownership-invalid-mutation-use-transform, props-default-value-lazy-accessors,
-      reactive-compound-operator, reactive-update-expression, reactive-values-function-dependency,
-      reactive-values-second-order, reactive-values-self-dependency,
-      reactive-values-self-dependency-b, reactive-values-subscript-assignment,
-      reactive-values-uninitialised, spread-component-side-effects,
-      store-assignment-updates-reactive
+- [ ] **B. Script state over props.** Decided and built: where substitution cannot follow, the
+      script runs as Svelte compiled it, the entry's and a child copy's (spec/derivation.md, "Where
+      substitution cannot follow, the script runs as Svelte compiled it"; the plugin's own test holds
+      a Kit page through the project's Vite). Left, each on a refusal that says why:
+      await-then-destruct-computed-props and spread-component-side-effects (a function a derivation
+      calls assigns a name), binding-backflow (a bound prop the child changes),
+      component-not-constructor2 (a component the run chose), hydratable-error-on-missing (a
+      `hydratable` in a run script), props-default-value-lazy-accessors (a destructuring default
+      counting its calls), reactive-values-function-dependency and reactive-values-uninitialised (a
+      neutralised name the script calls, which the render cannot run).
 
 - [ ] **C and D: a value that is not data in the render input.** Decided: the render input and the
       hydration wire are two things, and the input holds any JavaScript value (spec/payload.md).
@@ -61,6 +53,14 @@ What the suite fails on, sorted by what closing each takes. The live list is
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- B, 15 samples: the entry's script runs where a read cannot be substituted
+  (ownership-invalid-mutation-use-transform, assignment-to-computed-property,
+  binding-select-from-let-2, immutable-option, immutable-svelte-meta, immutable-svelte-meta-false,
+  inline-style-directive-update-object-property, key-block-post-hydrate, reactive-compound-operator,
+  reactive-update-expression, reactive-values-second-order, reactive-values-self-dependency,
+  reactive-values-self-dependency-b, reactive-values-subscript-assignment,
+  store-assignment-updates-reactive).
 
 - C, stores in props (prop-exports, prop-subscribable, store-assignment-updates,
   store-auto-subscribe, store-auto-subscribe-implicit,

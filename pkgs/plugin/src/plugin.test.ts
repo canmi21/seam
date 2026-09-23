@@ -51,6 +51,12 @@ const files: Record<string, string> = {
 		"import { error } from '@sveltejs/kit';\nexport function load({ params }) { if (params.slug === 'gone') error(404, 'no such post'); return { body: `post ${params.slug}`, draft: params.slug.startsWith('d') }; }",
 	'src/routes/blog/[slug]/+page.svelte':
 		'<script>let { data, params } = $props();</script><article>{params.slug}: {data.body}</article>{#if data.draft}<em>draft</em>{/if}',
+	// A page whose script changes a name over the request's data: substitution cannot follow it, so
+	// the page's script runs as Svelte compiled it, carried through the project's own Vite. The page
+	// is a child of Kit's generated root, which is every page an author writes.
+	'src/routes/run/+page.server.js': 'export function load() { return { count: 21 }; }',
+	'src/routes/run/+page.svelte':
+		'<script>let { data } = $props(); let n = data.count; n = n * 2;</script><p>run: {n}</p>',
 };
 
 const URLS = [
@@ -60,6 +66,7 @@ const URLS = [
 	'/blog/gone',
 	'/blog/hello/__data.json',
 	'/missing',
+	'/run',
 ];
 
 /** Builds the project into Kit's output under `outDir`, with or without the plugin. */
@@ -121,5 +128,10 @@ describe("the built server answers as Kit's does", () => {
 		// program, and a page Kit's own render could not have written from them.
 		expect(kit['/']).toContain('Home &amp; away');
 		expect(ours['/']).toContain('Home &amp; away');
+	});
+
+	it("ran the page's script where substitution could not follow it", () => {
+		expect(kit['/run']).toContain('run: 42');
+		expect(ours['/run']).toContain('run: 42');
 	});
 });

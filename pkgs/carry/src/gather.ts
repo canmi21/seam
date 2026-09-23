@@ -35,9 +35,14 @@ export function carriedBy(
 	// a name it reads is taken from the first of them that imports it, and which that is only
 	// the imports say.
 	const reads = new Map<string, Set<string>>();
+	// A script run belongs to the file that declares the script, which is the first of the chain:
+	// the callers behind it are how the value reached it, and each has its own run or none.
+	const running = new Set<string>();
 	const trace = process.env['SEAM_TRACE'] !== undefined;
 	for (const one of expressions) {
 		const names = readsOf([one.expression]);
+		const [first] = one.files;
+		if (first !== undefined && names.has(RUN_NAME)) running.add(first);
 		if (trace && (one.files[0] ?? '').includes('node_modules')) {
 			console.error(
 				`[seam]   reads ${one.expression.replace(/\s+/g, ' ').slice(0, 200)} in ${one.files[0] ?? '?'}`,
@@ -71,7 +76,7 @@ export function carriedBy(
 		}
 		// The file's own script, run as Svelte compiled it, where a read substitution could not
 		// follow became a field of that run. See `RUN` in carry.ts.
-		if (names.has(RUN_NAME)) {
+		if (running.has(file)) {
 			carried.push({ local: RUN_NAME, from: `${RUN}${at}`, kind: 'named', exported: 'run' });
 		}
 		if (carried.length > 0) found.set(file, carried);

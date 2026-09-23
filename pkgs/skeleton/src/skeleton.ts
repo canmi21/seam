@@ -21,7 +21,7 @@ import { dead, filled, outcomes, probed } from './resolve.ts';
 import type { Block, Rendered, Skeleton } from './shape.ts';
 import { inlined } from './snippets.ts';
 import { unbound } from './unbind.ts';
-import { outside, rechosen, rewrite, Undecided } from './walk.ts';
+import { HYDRATABLE, HYDRATABLE_RUN, outside, rechosen, rewrite, Undecided } from './walk.ts';
 import { whole } from './whole.ts';
 
 export { Undecided } from './walk.ts';
@@ -378,7 +378,7 @@ async function walked(
 	// its value reads, so a context read inside one went out as a derivation and threw
 	// `lifecycle_outside_component` at injection rather than naming a file here. Asked once more
 	// over the finished list, which is the one place that holds all of them.
-	ran(finished, relative(root, file), baseline.ran);
+	ran(finished, relative(root, file), baseline.ran, source);
 	for (const one of expressionsOf(finished)) outside(one.expression, true, baseline.changing);
 	composed(expressionsOf(finished), root);
 
@@ -395,11 +395,30 @@ async function walked(
  * an expression written in the entry's own file, whose names are the entry's. See
  * spec/derivation.md, "Where substitution cannot follow, the script runs as Svelte compiled it".
  */
-function ran(rendered: Skeleton, entry: string, changed: ReadonlySet<string>): void {
+function ran(
+	rendered: Skeleton,
+	entry: string,
+	changed: ReadonlySet<string>,
+	source: string,
+): void {
 	if (changed.size === 0) return;
+	const hydrating = HYDRATABLE.test(source);
+	// A component the run chose is compared by identity, and the run holds its own copy of each.
+	// Asked of the markup by the name, as `chosenComponent()` asks it of an expansion in a child.
+	const component = [...changed].find((name) =>
+		new RegExp(`this=\\{[^}]*\\b${name}\\b|<${name}[\\s/>]`).test(source),
+	);
 	const names = new Set([...changed, ...[...changed].map((one) => `$${one}`)]);
 	let at: number | undefined;
 	const field = (name: string): string => {
+		if (hydrating) refuse(HYDRATABLE_RUN);
+		if (component !== undefined) {
+			refuse(
+				`\`${component}\` is a component chosen by a script this compiler runs per request: ` +
+					'which component renders is decided by identity, and the run holds its own copy of ' +
+					'each, not the one the source names. See spec/derivation.md',
+			);
+		}
 		at ??=
 			rendered.held.push({
 				expression: projectAsync() ? `(await ${RUN_NAME}(${GIVEN}))` : `${RUN_NAME}(${GIVEN})`,

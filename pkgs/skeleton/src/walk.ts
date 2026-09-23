@@ -24,6 +24,7 @@ import {
 	projectAsync,
 	reads as readsIn,
 	resolveBare,
+	RUN_NAME,
 	runeCalled,
 	runeHolds,
 	settle,
@@ -2881,6 +2882,15 @@ function standsFor(walk: Walk): Map<string, string> {
  * calls it and throws, and there are no bytes to reproduce. See spec/roadmap.md.
  */
 function chosenComponent(expression: unknown, walk: Walk): { name: string; test: string } | null {
+	// A component the script run chose is compared by identity, and the run's copy of a component is
+	// not the one a candidate names. See `ranBy` in `descend()`.
+	if (walk.expand(expression).includes(`${RUN_NAME}(`)) {
+		refuse(
+			'a component chosen by a script this compiler runs per request: which component renders is ' +
+				'decided by identity, and the run holds its own copy of each, not the one the source ' +
+				'names. See spec/derivation.md',
+		);
+	}
 	if (!mentions(settled(walk.expand(expression), walk), walk.dynamic)) return null;
 	const through = new Set<string>();
 	const name = candidateOf(expression, walk, through, (held) => componentImport(held, walk));
@@ -3210,6 +3220,17 @@ function unstable(walk: Walk): ReadonlySet<string> {
 	}
 	return found;
 }
+
+/**
+ * A `hydratable` call in a script the run would answer. The script the injector writes is made from
+ * the entry's own calls, computed first on every request, and a run cannot hand back which calls it
+ * made. See spec/derivation.md.
+ */
+export const HYDRATABLE = /\bhydratable\b/;
+export const HYDRATABLE_RUN =
+	'a `hydratable` call in a script this compiler runs per request: the script the injector ' +
+	'writes is made from the calls the entry makes first, and a run cannot hand back which it ' +
+	'made. See spec/derivation.md';
 
 /** Whether an expression reads a context, which is a channel this walk does not follow. */
 const READS_CONTEXT = /\bget(?:All)?Contexts?\b/;
@@ -6529,6 +6550,12 @@ function descend(
 	// a spread's keys cannot be listed: a name for an attribute or a listed key, an expression for
 	// a spread whose keys are the request's. See `merged()`.
 	const order: ({ name: string } | { spread: string; at: [number, number] | null })[] = [];
+	/** A spread whose keys were listed into props, and the object it was written as. */
+	const listed: {
+		at: [number, number] | null;
+		grown: string;
+		entries: [key: string, value: string][];
+	}[] = [];
 	for (const one of attributes) {
 		// An attachment is in the props and nothing on the server calls it.
 		if (isNode(one) && one['type'] === 'AttachTag') continue;
@@ -6545,6 +6572,9 @@ function descend(
 				order.push({ spread: `(${grown})`, at: span(one) });
 				continue;
 			}
+			// Its keys are so many props now, and the object is dead at the call site like any other
+			// value handed to a child this walk enters. See below, where the call site is cleared.
+			listed.push({ at: span(one), grown, entries });
 			for (const [key, value] of entries) {
 				bindings.set(key, key.startsWith('on') && key.length > 2 ? 'null' : `(${value})`);
 				order.push({ name: key });
@@ -7088,6 +7118,9 @@ function descend(
 			],
 			passing,
 			walk.keeping,
+			// The copy's script runs as Svelte compiled it where a read cannot be substituted. See
+			// `ranBy` below.
+			'run',
 		);
 		for (const [name, why] of declared.changed) walk.site.changing.set(name, why);
 		// A hold the child's script reaches is given up, and every hold of this call goes with it:
@@ -7111,7 +7144,66 @@ function descend(
 				],
 				passing,
 				walk.keeping,
+				'run',
 			);
+		}
+		// What the copy's own statements change is answered by its script run, per call site: the
+		// props are what the call site passes, in the caller's terms, and the reads become fields of
+		// the run -- over the prop's own binding, since a prop the script changes
+		// holds what the script left. See `ran()` in skeleton.ts, and spec/derivation.md, "Where
+		// substitution cannot follow, the script runs as Svelte compiled it".
+		const ranBy = new Map<string, string>();
+		const running = [...declared.changed]
+			.filter(([, why]) => !why.includes('changed by a function this render calls'))
+			.map(([name]) => name);
+		// What a function the markup calls changes while the bytes are written is not in any run,
+		// and a copy's reads are always written out, so it stays refused as it always was.
+		const during = [...declared.changed].find(([name]) => !running.includes(name));
+		if (during !== undefined) throw new Error(during[1]);
+		if (running.length > 0) {
+			// Two cases the run is not the answer for, and each keeps the refusal it had. A prop the
+			// call site binds sends the value back, and the caller's whole template renders again
+			// with it -- which the binding rule above the tag answers, not this. And where nothing the
+			// call site passes varies with the request, the child is Svelte's to render: the render is
+			// handed the values themselves, and a caller's local a run would read is in no scope a
+			// derivation has. See `handsMarker`.
+			const bindsBack = running.find((name) => {
+				const prop = declares.find((one) => one.local === name)?.prop;
+				return prop !== undefined && boundProps.has(prop);
+			});
+			if (bindsBack !== undefined) {
+				throw new Error(
+					`\`${bindsBack}\` is a prop this component changes, and a value handed to a component ` +
+						'is written out as a marker standing for it, so the change is made to the marker ' +
+						'rather than to the value. Compute the value in one expression, or move what ' +
+						'changes it out of the render. See spec/derivation.md',
+				);
+			}
+			const varying =
+				walk.site.payload !== null &&
+				([...bindings.values()].some((value) => varies(value, walk)) ||
+					order.some((one) => 'spread' in one && varies(one.spread, walk)));
+			const [first] = running;
+			if (!varying)
+				throw new Error(declared.changed.get(first ?? '') ?? 'a name the script changes');
+			if (HYDRATABLE.test(raw)) refuse(HYDRATABLE_RUN);
+			const passed = [
+				...order.map((one) =>
+					'spread' in one
+						? `...${one.spread}`
+						: `${JSON.stringify(one.name)}: ${bindings.get(one.name) ?? 'undefined'}`,
+				),
+				...delayed.map(([name, value]) => `${JSON.stringify(name)}: ${value}`),
+			];
+			// Written at each read rather than held: the props may read a name a block binds -- a child
+			// in an each is run once per item -- and a held value is one per request. The run is a
+			// pure function of them, so a second read runs it again to the same answer.
+			const call = `${RUN_NAME}({ ${passed.join(', ')} })`;
+			const run = projectAsync() ? `(await ${call})` : call;
+			for (const name of running) {
+				ranBy.set(name, `(${run}.${name})`);
+				ranBy.set(`$${name}`, `(${run}.$${name})`);
+			}
 		}
 		if (recursion !== null) {
 			walk.blocks.push({
@@ -7197,7 +7289,7 @@ function descend(
 
 			within: recursion === null ? walk.within : [...walk.within, [fragmentAt, 0]],
 			expand: (child, extra) =>
-				declared.rewrite(child, new Map([...bound, ...(extra ?? new Map())]), walk.sent),
+				declared.rewrite(child, new Map([...bound, ...ranBy, ...(extra ?? new Map())]), walk.sent),
 			plain: (child, extra) => declared.rewrite(child, extra),
 			runeOf: declared.rune,
 			declares: declared.has,
@@ -7297,6 +7389,21 @@ function descend(
 				const held = awaiting(part.spread) ? '{...await {}}' : '';
 				walk.edits.push([part.at[0], part.at[1], held]);
 			}
+		}
+		// A listed spread keeps what the request does not decide, which the render is handed as
+		// written the way any such prop is, and loses what it does -- which the child's markers carry,
+		// and which evaluated here would read the payload the render is not given.
+		for (const one of listed) {
+			if (one.at === null || walk.site.payload === null) continue;
+			const kept = one.entries.filter(([, value]) => !varies(value, walk));
+			if (kept.length === one.entries.length) continue;
+			const text =
+				kept.length > 0
+					? `{...{ ${kept.map(([key, value]) => `${JSON.stringify(key)}: ${value}`).join(', ')} }}`
+					: awaiting(one.grown)
+						? '{...await {}}'
+						: '';
+			walk.edits.push([one.at[0], one.at[1], text]);
 		}
 		for (const one of attributes) {
 			// A `bind:` is written out as the plain attribute it used to be rewritten to. The setter
@@ -7737,7 +7844,11 @@ export function rewrite(
 			fixed,
 			decided,
 		},
-		dynamic: payload ?? new Set(),
+		// What a statement reading the request changes is the request's, and every position that asks
+		// `dynamic` rather than `varies()` has to see it so: with the entry's script run where a read
+		// cannot be substituted, nothing refuses such a name any more, and a position that took it for
+		// the render's baked the value a neutralised `$:` left. See `movedBy()`.
+		dynamic: new Set([...(payload ?? []), ...movedBy(ast, payload ?? new Set())]),
 		fresh: fresh === null ? [] : [fresh],
 		parent: null,
 		tight: false,

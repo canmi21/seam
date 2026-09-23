@@ -671,6 +671,65 @@ const accepted: Case[] = [
 		props: [{}, { options: 'x' }],
 	},
 	{
+		// What the script's own statements do through a function -- handed to `untrack`, called by
+		// name, handed to an iterator -- happens before the template, where the run captures.
+		name: 'a value changed by a function handed to a call the render makes',
+		source:
+			"<script>import { untrack } from 'svelte'; let { data } = $props(); let seen = 0;" +
+			' untrack(() => { seen += 1 });</script><p>{data.a + seen}</p>',
+		data: [{ a: 1 }, { a: 5 }],
+	},
+	{
+		name: 'a value changed by a function the script itself calls',
+		source:
+			'<script>let { data } = $props(); let seen = 0;' +
+			' function bump() { seen += 1 } bump();</script><p>{data.a + seen}</p>',
+		data: [{ a: 1 }, { a: 5 }],
+	},
+	{
+		name: 'a `$:` that mutates through an iterator',
+		source:
+			'<script>export let a; const keys = ["x"]; let held = {};' +
+			' $: keys.forEach((key) => { held[key] = 1; });</script>' +
+			'<p>{JSON.stringify(held) + a}</p>',
+		props: [{ a: 'p' }, { a: 'q' }],
+	},
+	{
+		// A child's script run, per call site, over what the call site passes.
+		name: 'a child assigning a name after declaring it, over a value the request decides',
+		beside: {
+			Gate:
+				'<script>let { on } = $props(); let t = on; t = !!on;</script>' +
+				'{#if t}<b>shown</b>{/if}',
+		},
+		source:
+			"<script>import Gate from './Gate.svelte'; let { data } = $props();</script>" +
+			'<Gate on={data.on} />',
+		data: [{ on: true }, { on: '' }, { on: 'x' }],
+	},
+	{
+		name: 'a child transforming what it is given beside a name it assigns',
+		beside: {
+			Chews:
+				'<script>let { tag, ...rest } = $props(); let n = 1; n = 2;</script>' +
+				'<i>{tag.toUpperCase()}{n}</i>',
+		},
+		source:
+			"<script>import Chews from './Chews.svelte'; let { data } = $props();</script>" +
+			'<Chews tag={data.a} />',
+		data: [{ a: 'x' }, { a: 'yz' }],
+	},
+	{
+		name: 'a child in an each running its script per item',
+		beside: {
+			Row: '<script>export let n; let doubled; $: doubled = n * 2;</script><li>{doubled}</li>',
+		},
+		source:
+			"<script>import Row from './Row.svelte'; let { data } = $props();</script>" +
+			'<ul>{#each data.rows as n}<Row {n} />{/each}</ul>',
+		data: [{ rows: [1, 2, 3] }, { rows: [] }, { rows: [5] }],
+	},
+	{
 		// A store the request brings. It used to be refused: the payload was the wire too, and a
 		// store is an object with a `subscribe` function. The render input holds any value, and
 		// `$s` is the store's value read per request. See spec/payload.md.
@@ -3883,7 +3942,9 @@ const refused: Case[] = [
 		// written. Refused by name rather than written wrong.
 		name: 'a spread on a component the walk could not enter, over a value the request decides',
 		beside: {
-			Gate: '<script>let { a } = $props(); let c = a; c = "s";</script><b>{c}{a}</b>',
+			Gate:
+				'<script>let { a } = $props(); let c = a; const set = () => { c = "s"; return ""; };</script>' +
+				'{set()}<b>{c}{a}</b>',
 		},
 		source:
 			"<script>import Gate from './Gate.svelte'; let { data } = $props();</script>" +
@@ -3944,12 +4005,12 @@ const refused: Case[] = [
 		// Measured on `runtime-legacy/component-yield-nested-if`, which passed this way.
 		name: 'a value a child the walk cannot enter branches on',
 		says: 'did not come back',
-		// The child is one the walk cannot enter -- it assigns a name after declaring it and the
-		// markup reads that name -- and it branches on what it was handed.
+		// The child is one the walk cannot enter -- its markup calls a function that changes a name
+		// the markup then reads, which no script run sees -- and it branches on what it was handed.
 		beside: {
 			Gate:
-				'<script>let { on } = $props(); let t = on; t = !!on;</script>' +
-				'{#if t}<b>shown</b>{/if}',
+				"<script>let { on } = $props(); let t = on; const flip = () => { t = !!on; return ''; };</script>" +
+				'{flip()}{#if t}<b>shown</b>{/if}',
 		},
 		source:
 			"<script>import Gate from './Gate.svelte'; let { data } = $props();</script>" +
@@ -4034,8 +4095,9 @@ const refused: Case[] = [
 		says: '`eaten`',
 		beside: {
 			Eats:
-				'<script>let { eaten, ignored, ...rest } = $props(); let open = false; open = true;</script>' +
-				'<b>{eaten.toUpperCase()}</b>{#if open}<i>{ignored}</i>{/if}',
+				'<script>let { eaten, ignored, ...rest } = $props(); let open = false;' +
+				" const opened = () => { open = true; return ''; };</script>" +
+				'{opened()}<b>{eaten.toUpperCase()}</b>{#if open}<i>{ignored}</i>{/if}',
 		},
 		source:
 			"<script>import Eats from './Eats.svelte'; let { data } = $props();</script>" +
@@ -4206,23 +4268,9 @@ const refused: Case[] = [
 		// A plain name only -- `sleep(10).then(() => ...)` hands its function to a member, and what
 		// a member does with one this pass does not know -- and not the runes `CallExpression.js`
 		// answers with `void 0`, whose argument the server never runs.
-		name: 'a value changed by a function handed to a call the render makes',
-		says: 'changed by a function this render calls',
-		source:
-			"<script>import { untrack } from 'svelte'; let { data } = $props(); let seen = 0;" +
-			' untrack(() => { seen += 1 });</script><p>{data.a + seen}</p>',
-	},
-	{
 		// And through the script's own statements, which Svelte puts ahead of the template: a
 		// statement assigning through a call is the rule that refuses a direct one, one level in.
 		// `let promise; new_promise()` left `{#await promise}` taking the wrong branch.
-		name: 'a value changed by a function the script itself calls',
-		says: 'changed by a function this render calls',
-		source:
-			'<script>let { data } = $props(); let seen = 0;' +
-			' function bump() { seen += 1 } bump();</script><p>{data.a + seen}</p>',
-	},
-	{
 		// The same through a declaration rather than the markup: reading `first` writes `tick()` out
 		// where the render evaluates it, so the call is made and what it changes is lost.
 		name: 'a value changed by a function a declaration the markup reads calls',
@@ -4231,18 +4279,6 @@ const refused: Case[] = [
 			'<script>let { data } = $props(); const seen = [];' +
 			' function tick() { seen.push(1); return seen.length; }' +
 			' const first = tick();</script><p>{data.a + first}|{seen.length}</p>',
-	},
-	{
-		// The language's own iterators call what they are handed before they return, whatever the
-		// receiver is. `then`, `setTimeout` and `addEventListener` are the other side, which is why
-		// this is a list rather than a rule -- and a `$:` written with one was a mutation nothing
-		// here could see.
-		name: 'a `$:` that mutates through an iterator',
-		says: 'changed by a function this render calls',
-		source:
-			'<script>export let a; const keys = ["x"]; let held = {};' +
-			' $: keys.forEach((key) => { held[key] = 1; });</script>' +
-			'<p>{JSON.stringify(held) + a}</p>',
 	},
 	{
 		// A getter is run by a property read, which is not something the reader wrote as a call, and
@@ -4266,8 +4302,8 @@ const refused: Case[] = [
 		name: 'a value a child is given and transforms',
 		beside: {
 			Chews:
-				'<script>let { tag, ...rest } = $props(); let n = 1; n = 2;</script>' +
-				'<i>{tag.toUpperCase()}{n}</i>',
+				"<script>let { tag, ...rest } = $props(); let n = 1; const two = () => { n = 2; return ''; };</script>" +
+				'<i>{two()}{tag.toUpperCase()}{n}</i>',
 		},
 		source:
 			"<script>import Chews from './Chews.svelte'; let { data } = $props();</script>" +

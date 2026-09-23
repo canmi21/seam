@@ -104,6 +104,17 @@ function svelted(): Plugin {
 const CAPTURED = '\0seam:captured:';
 
 /**
+ * What ends both virtual ids. The file they are made from is written into them encoded, because a
+ * Svelte plugin in a project's Vite takes an id that looks like a component, or like a runes module,
+ * for one of its own and compiles it again -- measured both ways: it compiled the runner's
+ * JavaScript as markup, and the captured component's output as a `.svelte.js` module.
+ */
+const SUFFIX = '.seam.js';
+const encoded = (file: string): string => Buffer.from(file).toString('base64url');
+const decoded = (id: string, prefix: string): string =>
+	Buffer.from(id.slice(prefix.length, -SUFFIX.length), 'base64url').toString();
+
+/**
  * A component's script as Svelte compiled it, run per request: `run(props)` renders the component
  * with its markup replaced by a capture and returns what was captured. The render and the
  * component resolve Svelte from where the component sits, so the context the capture reads from is
@@ -114,19 +125,23 @@ export function running(): Plugin {
 	return {
 		name: 'seam:run',
 		async resolveId(id, importer) {
-			if (id.startsWith(RUN) || id.startsWith(CAPTURED)) return id;
+			if (id.startsWith(RUN)) {
+				return id.endsWith(SUFFIX) ? id : `${RUN}${encoded(id.slice(RUN.length))}${SUFFIX}`;
+			}
+			if (id.startsWith(CAPTURED)) return id;
 			if (importer?.startsWith(CAPTURED) !== true) return null;
-			const resolved = await this.resolve(id, importer.slice(CAPTURED.length), { skipSelf: true });
+			const from = decoded(importer, CAPTURED);
+			const resolved = await this.resolve(id, from, { skipSelf: true });
 			return resolved?.id ?? null;
 		},
 		load(id) {
 			if (id.startsWith(RUN)) {
-				const file = id.slice(RUN.length);
+				const file = decoded(id, RUN);
 				const server = resolveBare('svelte/server', file) ?? 'svelte/server';
 				const read = projectAsync() ? 'await rendered;' : 'rendered.body;';
 				return [
 					`import { render } from ${JSON.stringify(server)};`,
-					`import Script from ${JSON.stringify(`${CAPTURED}${file}`)};`,
+					`import Script from ${JSON.stringify(`${CAPTURED}${encoded(file)}${SUFFIX}`)};`,
 					`export ${projectAsync() ? 'async ' : ''}function run(props) {`,
 					'\tlet got;',
 					`\tconst context = new Map([[${JSON.stringify(CAPTURE)}, (value) => { got = value; return ''; }]]);`,
@@ -137,7 +152,7 @@ export function running(): Plugin {
 				].join('\n');
 			}
 			if (id.startsWith(CAPTURED)) {
-				const file = id.slice(CAPTURED.length);
+				const file = decoded(id, CAPTURED);
 				return compile(captured(readFileSync(file, 'utf8')), {
 					generate: 'server',
 					name: basename(file, '.svelte'),

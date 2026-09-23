@@ -1413,8 +1413,27 @@ component function.
 package ships already is. That is more than the names the expressions call, which is what `carry`
 followed before, and it is exactly what the script needs.
 
-**It answers what the script's own statements change, and nothing the template changes.** The
-capture sits where the template would start, so a name a function the markup calls changes while
+**A child the walk enters runs its script per call site.** Its props are what the call site passes,
+in the caller's terms, and the run is written at each read rather than held: a child in an each is
+one run per item, and a held value is one per request. The run is a pure function of its props, so
+a second read runs it again to the same answer. It is taken only where something the call site
+passes varies with the request; where nothing does, the child is Svelte's to render, as any child
+handed no marker is, since a local of the caller a run would read is in no scope a derivation has.
+
+**What the run cannot hand back stays refused**, each for a reason the run does not change: a prop
+the call site binds, whose value goes back up and renders the caller's whole template again; a
+component the run chose, which is picked by identity and the run holds its own copy of each; a
+`hydratable` call, whose script the injector writes from the calls the entry makes first; and a
+name neutralised for the render that the script itself calls, since the render still has to run
+the script and a name written over with nothing stops it.
+
+**For the entry, what a statement reading the request changes is the request's** at every position,
+not only where `varies()` is asked: with the refusal gone, a position asking `dynamic` alone took
+such a name for the render's and baked the value a neutralised `$:` left.
+
+**It answers what the script's own statements change, and nothing the template changes.** That
+takes in a function the script's statements call -- it runs before the template too -- and not one
+the markup calls. The capture sits where the template would start, so a name a function the markup calls changes while
 the bytes are written -- an each default that counts its calls, a snippet parameter's -- is not in
 it, and those stay refused; an entry that reads nothing the request decides is Svelte's render,
 whole, in [pipeline.md](pipeline.md). A write into the object a caller passed stays refused too: a

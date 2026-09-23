@@ -731,16 +731,25 @@ function losing(
 	// `let promise; ... new_promise()` is the first of those -- a statement assigning through a
 	// call rather than directly, which is the rule one level in.
 	const instance = isNode(ast['instance']) ? (ast['instance'] as Node)['content'] : undefined;
-	const ran = closure(
+	// Apart, because the two are not the same to a script run: what the script's statements call
+	// runs before the template, where the run's capture sits, and what the markup calls runs while
+	// the bytes are written, which no capture sees. See spec/derivation.md, "Where substitution
+	// cannot follow, the script runs as Svelte compiled it".
+	const scripted = closure(
+		calling(isNode(instance) ? instance['body'] : undefined, names, false),
+		(one) => calling(one.node, names, true),
+	);
+	const templated = closure(
 		[
-			...calling(isNode(instance) ? instance['body'] : undefined, names, false),
 			...calling(fragment, names, false),
 			...[...read].flatMap((one) => [...calling(found.get(one)?.node, names, false)]),
 		],
 		(one) => calling(one.node, names, true),
 	);
+	const ran = new Set([...scripted, ...templated]);
 
 	const lost = new Set<string>();
+	const lostBefore = new Set<string>();
 	// The script's own statements run before the template, so what they change is changed. They are
 	// walked here rather than through `ran`, whose names are the declarations: `run(() => count++)`
 	// from `svelte/legacy` and `untrack(() => count++)` are calls of an import, and what they were
@@ -754,7 +763,8 @@ function losing(
 		// `xs.push(1)`, which the rule above never caught either.
 		const { written } = changing(body, names, new Set());
 		const read = closure(named, (one) => one.free);
-		for (const target of written) if (read.has(target) && !declares.has(target)) lost.add(target);
+		for (const target of written)
+			if (read.has(target) && !declares.has(target)) lostBefore.add(target);
 	}
 	for (const name of ran) {
 		const held = found.get(name);
@@ -775,6 +785,10 @@ function losing(
 		const elsewhere = closure(named, (one) => one.free, name);
 		for (const target of changed) {
 			if (!elsewhere.has(target)) continue;
+			if (!templated.has(name)) {
+				lostBefore.add(target);
+				continue;
+			}
 			lost.add(target);
 			// The function itself, so that an expression this compiler writes out is refused for
 			// calling it. `{count}` left as the author wrote it is the render's to evaluate and comes
@@ -783,14 +797,24 @@ function losing(
 			lost.add(name);
 		}
 	}
-	if (lost.size === 0) return new Map();
+	for (const one of lost) lostBefore.delete(one);
+	if (lost.size === 0 && lostBefore.size === 0) return new Map();
 	const list = [...lost].map((one) => `\`${one}\``).join(', ');
 	const why =
 		`${list} ${lost.size > 1 ? 'are' : 'is'} changed by a function this render calls, and the ` +
 		'markup reads a name by the expression it was declared to be -- so every read evaluates ' +
 		'that expression again and the change is made to a value nothing else holds. Compute the ' +
 		'value in one expression, or move what changes it out of the render. See spec/derivation.md';
-	return new Map([...lost].map((one) => [one, why]));
+	const before = [...lostBefore].map((one) => `\`${one}\``).join(', ');
+	const whyBefore =
+		`${before} ${lostBefore.size > 1 ? 'are' : 'is'} changed by a function the script calls, ` +
+		'and the markup reads a name by the expression it was declared to be, which stops being ' +
+		'what the name holds. Compute the value in one expression, or move what changes it out of ' +
+		'the render. See spec/derivation.md';
+	return new Map([
+		...[...lost].map((one): [string, string] => [one, why]),
+		...[...lostBefore].map((one): [string, string] => [one, whyBefore]),
+	]);
 }
 
 /**
@@ -2481,6 +2505,26 @@ export function locals(
 	}
 	const eager = [...changed].find(([name]) => bound !== undefined || gone.has(name));
 	if (eager !== undefined && refusing === 'refuse') throw new Error(eager[1]);
+	// The run answers a neutralised name's reads, but the render still runs the script, and a name
+	// neutralised to nothing that the script then calls stops it: `function foo() { b = c }` over a
+	// prop, called by `foo()`, and `$: x = xGetter()` over an `xGetter` a neutralised block assigns.
+	if (refusing === 'run') {
+		// Not a call inside a statement that is itself written over for the render, which never runs.
+		const spans = reading.map(([at]) => at);
+		const called = callees(
+			isNode(ast['instance']) ? (ast['instance'] as Node)['content'] : undefined,
+			spans,
+		);
+		const stopping = [...gone].find((name) => called.has(name));
+		if (stopping !== undefined) {
+			throw new Error(
+				changed.get(stopping) ??
+					`\`${stopping}\` reads what the request decides and the script calls it, so the render ` +
+						'this compiler makes without the request cannot run the script. Compute the value in ' +
+						'one expression, or move the call out of the script. See spec/derivation.md',
+			);
+		}
+	}
 
 	return {
 		changed,
@@ -2514,4 +2558,40 @@ export function locals(
 /** How many trees the two memos above hold, which is what a compile trades memory for. */
 export function remembered(): { expressions: number; components: number } {
 	return { expressions: trees.size, components: 0 };
+}
+
+/**
+ * Every bare name a block calls as it runs: not inside a function, which runs when called, and not
+ * inside one of `skipped`, the spans written over for the render.
+ */
+function callees(
+	node: unknown,
+	skipped: readonly (readonly [number, number])[],
+	into = new Set<string>(),
+): Set<string> {
+	if (Array.isArray(node)) {
+		for (const one of node) callees(one, skipped, into);
+		return into;
+	}
+	if (!isNode(node)) return into;
+	const start = node['start'];
+	if (typeof start === 'number' && skipped.some(([from, to]) => start >= from && start < to)) {
+		return into;
+	}
+	const type = node['type'];
+	if (
+		type === 'FunctionDeclaration' ||
+		type === 'FunctionExpression' ||
+		type === 'ArrowFunctionExpression'
+	) {
+		return into;
+	}
+	if (node['type'] === 'CallExpression') {
+		const callee = node['callee'];
+		if (isNode(callee) && callee['type'] === 'Identifier' && typeof callee['name'] === 'string') {
+			into.add(callee['name']);
+		}
+	}
+	for (const value of Object.values(node)) callees(value, skipped, into);
+	return into;
 }

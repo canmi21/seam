@@ -1030,7 +1030,7 @@ function of the payload, since a local it changes is no side effect outside it. 
 script runs as Svelte compiled it, with its template replaced by a capture, the instance block per
 request and the module block once per process, and only where substitution cannot follow -- see
 [derivation.md](derivation.md), "Where substitution cannot follow, the script runs as Svelte
-compiled it". Where the statements read nothing
+compiled it". Built, for the entry and for a child the walk enters. Where the statements read nothing
 the request decides, the render already evaluates them and the walk bakes the result (`wants` in
 `walk.ts`).
 
