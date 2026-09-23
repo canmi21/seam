@@ -100,6 +100,15 @@ writes that script too. That is reproducing Svelte, not choosing `uneval` for th
 payload, which stays `stringify` and a `<script type="application/json">`. So `crates/devalue` ports
 `uneval` beside `stringify`, held to the npm package the same way.
 
+**Today the script is written by the npm devalue Svelte itself depends on, and the crate is not
+involved.** The injector resolves `devalue` from where Svelte sits (`pkgs/injector/src/hydratable.ts`),
+so the bytes are Svelte's whatever this repository pins. The two can differ by a major: Svelte
+5.57.1 declares `^5.9.2` and resolves 5.9.4 while the pin is 6.x, and 6.0 changed how `uneval`
+writes a shared value. Only a Rust backend writing this script would have to match Svelte's major
+from the crate, which is when the crate grows a 5.x line on crates.io beside the 6.x one its code
+tracks -- the version being devalue's, not seam's -- and that backend depends on the major Svelte
+does. Until there is one, there is nothing to port.
+
 **`crates/devalue` is a port of one version of it, and moves when that version does.** The crate's
 version is the npm package's, byte for byte, because devalue promises no stable format between
 versions. So a bump of the `devalue` the workspace pins is a re-port: read upstream's diff for
