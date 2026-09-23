@@ -64,7 +64,7 @@ three, and it is written into the reason so that nobody has to guess whose judge
 - `upstream:` -- the sample's own `_config.js` says not to run it on the server.
 - `scope:` -- this compiler refuses it and the scope line settles that: async Svelte, a value the
   render changes, a value the payload cannot carry because it is a function, a value that is not
-  the same twice. The reason is which of those decisions it is, not the message.
+  the same twice, module state its module changes. The reason is which of those decisions it is, not the message.
 - `harness:` -- neither side answered, because this runner could not ask the oracle. That is a
   debt of this repository's, kept visible in the list rather than folded into either of the others.
 
@@ -237,7 +237,7 @@ There is nothing to compare against in one, so counting either way is a claim ab
 nobody made -- and a sample skipped because of this runner is a sample nobody has measured, which is
 why the reason is written into the list rather than into a count.
 
-**The scope skips, which are the scope line rather than an excuse.** 260. Async Svelte is most of
+**The scope skips, which are the scope line rather than an excuse.** 261. Async Svelte is most of
 it: `await` in markup or at the top of a script awaits a promise per request while the bytes are
 written, which is the load stage's. A refusal the scope line does not settle is a fail -- it is work
 nobody has done, and hiding it behind the same word as a decision is exactly the confusion
@@ -263,7 +263,7 @@ upstream skips, 17 async, 2 that ask a boundary to catch a throw -- **59 of 96**
 
 [conformance.md](conformance.md) puts this suite in its place: it is stage one of three, and it
 says what "all of them" means once the skips, the oracle's own failures and the refusals by
-decision come out -- 1893 of the 2395 -- and why neither SvelteKit's own test apps nor a real
+decision come out -- 1892 of the 2395 -- and why neither SvelteKit's own test apps nor a real
 application should be measured until
 this one is finished. What follows here is the rule that decides the order of work inside it.
 
@@ -351,8 +351,9 @@ has to be recorded. `--write --skip-failing` writes the list with the failing sa
 so each goes on failing every run until the work is done, and `verify` stays red with it. It is not
 for a failure nobody has read. It was added when one did exactly that: the harness fixes above
 turned seventeen skips into passes and upstream skips and one into a refusal nobody had classified,
-`runtime-legacy/reactive-import-statement`, which is owed work, and the seventeen could not be
-recorded behind it.
+`runtime-legacy/reactive-import-statement`, decided as owed work at first, and the seventeen could
+not be recorded behind it. It was later decided as the scope line; see
+[refusals.md](refusals.md).
 `SEAM_ASYNC=1` is reported and not held to the list, since it compiles both sides another way.
 
 ```

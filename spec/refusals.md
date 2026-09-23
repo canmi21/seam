@@ -579,6 +579,19 @@ Only the binding the module changes is refused, not everything imported from it:
 the ordinary case and stays. Only a relative module, whose source this can read; a package's is a
 hole, in [roadmap.md](roadmap.md).
 
+**It is the scope line, and a survey is what settled it.** Exported state a module changes is
+state the process holds: SSR reads it as it stands at the request, a build can only read it as it
+stood at the build, and whether anything changes it at run time is not a question the component can
+answer -- any importer may call the function that does, a server hook as easily as the component.
+Making it work would take a proof that nothing does, over the whole project and its packages. So it
+was measured before it was decided: lattice, its 54 components and the 5107 components of every
+package it imports (`bits-ui`, `@lucide/svelte`, `phosphor-svelte`, `@tanstack/svelte-query`,
+paraglide and the rest), with imports followed through `$lib`, workspace packages and re-exports.
+**No component reads a binding its module changes.** Ten reads in `bits-ui` match the rule's test,
+and every one is a `Context` or an event dispatcher whose method is called -- the test counts any
+method call as a change -- in components lattice does not use. Svelte's own corpus has one sample
+that does it, `runtime-legacy/reactive-import-statement`, and it is a scope skip.
+
 **A context read where a `setContext` in this render was given a value the request decides.**
 `setContext(k, v)` runs while the bytes are written and a descendant's `getContext(k)` reads it.
 Neither name is one the request decides, so a read of one looks inert and is handed to the render

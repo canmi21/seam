@@ -298,6 +298,10 @@ store created at module scope, a client cached in a module -- each is state the 
 copy of, and reading one where the value has to reach the bytes is the same fault. Reading a
 package's source to find out is what closes it, and `carry` already resolves the file.
 
+The refusal itself is the scope line, not work: see **Decided, and not built**. What stays owed
+here is the hole -- the same test over a package's module -- and a narrower test than any method
+call, which counts a `Context`'s `.get()` as a change.
+
 ### Context carries a value the walk does not follow
 
 Found by probe, and it wrote the wrong bytes with nothing to say so:
@@ -817,12 +821,13 @@ item above already owns. `component-namespace` is `<Components.Foo />` over a mo
 export, which is the module-graph item. `binding-indirect-fn` is a `$:` declaration substituted
 into `items.filter(fn)` and is its own fault.
 
-## Stage one is 1892 of 1893, and the gate has changed
+## Stage one is 1892 of 1892, and the gate has changed
 
 What the suite reported was nothing failing, which is the condition
-[conformance.md](conformance.md) set for stage one. Paying the runner's own skips measured eighteen
-more samples, and one of them fails: `runtime-legacy/reactive-import-statement`, a read of module
-state its module changes, which is owed work. [conformance.md](conformance.md) has the count.
+[conformance.md](conformance.md) set for stage one, and it does again. Paying the runner's own skips
+measured eighteen more samples: fourteen pass, three are upstream's environment, and one,
+`runtime-legacy/reactive-import-statement`, is module state its module changes, which was classified
+as owed work and then decided as the scope line -- see **Decided, and not built**.
 
 **It reported that once already, at 1559 of 1559, over a corpus 342 samples smaller.** The shim
 standing in for upstream's un-vendored runner matched one spelling of one import, and every config
@@ -937,6 +942,11 @@ a marker reads nothing -- which used to fail at injection rather than at build, 
 function, a store deciding a `<svelte:element>` tag, and one still failing in a derivation.
 
 ## Decided, and not built
+
+**Module state a module changes.** A read of an exported binding its own module assigns, updates or
+calls a method on is state the process holds, which a build cannot read on the request's behalf.
+[refusals.md](refusals.md) has the reason and the survey that settled it: no component in lattice or
+in any package it imports reads one.
 
 **A script that substitution cannot reach, reading the request.** A name reassigned or an object
 mutated after its declaration, where the statements read request data, is a program per request.

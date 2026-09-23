@@ -1964,6 +1964,7 @@
 		"runtime-legacy/reactive-assignment-in-complex-declaration-with-store": "scope: a value the render changes",
 		"runtime-legacy/reactive-assignment-in-complex-declaration-with-store-2": "scope: a value the render changes",
 		"runtime-legacy/reactive-compound-operator": "scope: a value the render changes",
+		"runtime-legacy/reactive-import-statement": "scope: module state a process holds, which a build cannot",
 		"runtime-legacy/reactive-update-expression": "scope: a value the render changes",
 		"runtime-legacy/reactive-values-function-dependency": "scope: a value the render changes",
 		"runtime-legacy/reactive-values-no-implicit-member-expression": "upstream: it renders only with a DOM, which upstream's jsdom environment has and a server has not",

@@ -226,6 +226,14 @@ const DECIDED: readonly { says: string; kind: string }[] = [
 		kind: 'a string an artifact would have to render per request',
 	},
 	{
+		says: 'a module binding something in that module changes',
+		kind: 'module state a process holds, which a build cannot',
+	},
+	{
+		says: 'a module binding something in that module changes',
+		kind: 'module state a process holds, which a build cannot',
+	},
+	{
 		says: 'no script in this file writes',
 		kind: 'a global of whatever is running, which a second backend has not got',
 	},
