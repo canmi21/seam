@@ -1323,6 +1323,32 @@ the request assigns or mutates varies (`movedBy()` in `walk.ts`), a read of it b
 compiler writes, and the rule about a value the render changes refuses it there: a program per
 request, blocked on request-time rendering.
 
+## `hydratable` is the request's, and its calls are made whether or not anything reads them
+
+Svelte's `hydratable(key, fn)` records `fn()` under `key` while a render runs, and `#render_async`
+writes every value it recorded into a `<script>` ahead of the head, for the client to read back
+instead of running `fn` again. A derivation runs outside any render. So the name is not Svelte's
+where a derivation reads it: the carried bundle stands a marked function in for the import
+(`carry.ts`), and `derive` binds every name so marked to the request's own `hydratable`, over a
+table made once per request (`hydratables` in `pkgs/injector/src/hydratable.ts`). The injector
+writes that table as the script, byte for byte what `#hydratable_block` writes -- the values through
+Svelte's own devalue `uneval`, a promise as `r(...)` once it settles, `nonce` on the tag where the
+server hands one, and the tag's sha256 back as `hashes` where it asks for a hash instead. Nothing is
+written where nothing was recorded.
+
+**The script's own calls are made first, on every request, in the order it makes them.** Svelte runs
+the instance script before the markup, so `const foo = await hydratable('key', ...)` records `key`
+whether or not the page reads `foo`, and one read only behind a boundary's pending branch records it
+all the same. A derivation is computed when it is read, which would miss both. So the walk collects
+the entry's top-level calls (`hydratableCalls()` in `walk.ts`; not inside a function or a
+`$derived`, which run when something calls or reads them) as eager derivations, computed after the
+prop defaults and before anything else; a later read of the same key reads what was recorded.
+
+The script the build's own render wrote is taken off the head (`unhydrated()` in `skeleton.ts`): its
+values are the build's stand-ins. Where it holds more keys than the entry's script makes calls, a
+call was made that no derivation makes per request -- one in a child, or behind a function the
+script called -- and that is refused rather than written without it.
+
 ## Substitution maps a name to an expression, and a program is not an expression
 
 Every name the markup reads becomes one self-contained expression. `const t = data.a + 1` becomes

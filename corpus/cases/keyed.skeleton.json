@@ -65,6 +65,7 @@
 			"files": ["keyed.svelte"]
 		}
 	],
+	"eager": [],
 	"entered": [],
 	"payload": ["data"],
 	"held": []

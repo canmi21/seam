@@ -139,12 +139,21 @@ export function joined(
 	 * reason, which is safe because a prop's name cannot collide with a `__v` the compiler makes.
 	 */
 	defaults: readonly { name: string; expression: string; files: string[] }[] = [],
+	/**
+	 * The entry's own `hydratable` calls, as `Skeleton.eager` records them: computed after the
+	 * defaults, which they may read, and before anything else, in the order the script makes them.
+	 * Entry-wide for the reason the defaults are. Named `__h` and never read by name.
+	 */
+	eager: readonly { expression: string; files: string[] }[] = [],
 ): Structure {
 	const [only] = runs;
 	if (only === undefined) throw new Error('a component compiled to no structures at all');
 	// Over the payload's own keys, which is what `scope: null` says, because a prop's default may
 	// read anything else the entry has in scope -- another prop, a constant its file imported.
-	const given: Derivation[] = defaults.map((one) => ({ ...one, scope: null, prop: true }));
+	const given: Derivation[] = [
+		...defaults.map((one) => ({ ...one, scope: null, prop: true })),
+		...eager.map((one, at) => ({ ...one, name: `__h${String(at)}`, scope: null, eager: true })),
+	];
 	// First, so that a derivation reading a prop reads the default rather than what the request
 	// left out: `derive()` applies them in order into the scope the next one reads.
 	if (runs.length === 1) {

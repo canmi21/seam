@@ -65,6 +65,7 @@
 			"files": ["booleans.svelte"]
 		}
 	],
+	"eager": [],
 	"entered": [],
 	"payload": ["data"],
 	"held": []

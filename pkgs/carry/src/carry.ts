@@ -12,6 +12,15 @@ import {
 	runesModule,
 } from 'ast';
 
+/**
+ * What stands for Svelte's `hydratable` in a carried file: a function that says what it is if it
+ * is ever called unbound, marked so `derive` finds the names it stands under and binds them to the
+ * request's `hydratable` instead. See `hydratables` in the injector.
+ */
+const HYDRATABLE_MARK =
+	"Object.assign(() => { throw new Error('hydratable is bound per request by derive'); }, " +
+	"{ [Symbol.for('seam.hydratable')]: true })";
+
 /** An immediately invoked bundle assigning to one name, which `derive` reads back out. */
 const NAME = '__carried';
 
@@ -104,6 +113,17 @@ export async function carry(
 		const fields: string[] = [];
 		for (const [n, one] of names.entries()) {
 			const alias = `__c${String(at)}_${String(n)}`;
+			// Svelte's `hydratable` runs only inside a render, and a derivation runs outside one, so
+			// the name is carried as a mark `derive` binds to the request's own. See `HYDRATABLE`.
+			if (
+				fromSvelte(one.from) &&
+				one.kind === 'named' &&
+				(one.exported ?? one.local) === 'hydratable'
+			) {
+				lines.push(`const ${alias} = ${HYDRATABLE_MARK};`);
+				fields.push(`${JSON.stringify(one.local)}: ${alias}`);
+				continue;
+			}
 			// Svelte's own modules are named by file for the default bundler, which would otherwise
 			// take a copy from wherever the component sits; a bundler the project gave resolves them.
 			lines.push(restate(bundler === null ? ownSvelte(one) : one, alias));
@@ -164,6 +184,14 @@ export async function carry(
  * entry: the entry may be a generated root or a corpus case with no `node_modules` above it, and
  * there is one copy of Svelte in a compile, this package's. See `helpers()` in skeleton.
  */
+/**
+ * Whether a specifier is Svelte's own entry, as written or as the compiler resolved it to the
+ * package's `src/index-*.js`.
+ */
+function fromSvelte(from: string): boolean {
+	return from === 'svelte' || /[\\/]svelte[\\/]src[\\/]index-(?:server|client)\.js$/.test(from);
+}
+
 function ownSvelte(one: Carried): Carried {
 	if (one.from !== 'svelte' && !one.from.startsWith('svelte/')) return one;
 	const at = resolveBare(one.from, fileURLToPath(import.meta.url));

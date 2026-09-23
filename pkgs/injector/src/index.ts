@@ -1,6 +1,7 @@
 import { escape } from './escape.ts';
 import type { ComponentIR, Node } from './ir.ts';
 import { drive, thenable, waited } from './drive.ts';
+import { type Csp, HYDRATABLES, type Hydratables, script } from './hydratable.ts';
 import { resolve, type Scope, settle } from './resolve.ts';
 
 /** Svelte's `replacements`, which has this one entry. */
@@ -11,6 +12,7 @@ const TRANSLATE: ReadonlyMap<unknown, string> = new Map<unknown, string>([
 
 export type { Branch, ComponentIR, EscapeMode, Node, Presence } from './ir.ts';
 export { drive, thenable, waited, waiting, WAITS } from './drive.ts';
+export { type Csp, HYDRATABLES, type Hydratables, hydratables } from './hydratable.ts';
 export { resolve, SCOPED, type Scope, settle } from './resolve.ts';
 
 /**
@@ -208,16 +210,20 @@ function* title(
 export interface Injected {
 	body: string;
 	head: string;
+	/** What a `hash` policy has to allow, which is the script `hydratable` values went into. */
+	hashes?: { script: string[] };
 }
 
 /**
  * The bytes for one request, synchronously where nothing waits and as a promise where something
- * does: a derivation that awaits, which only a project in Svelte's async mode has. `data` may be the
- * promise `derive` returns for one. See `drive`.
+ * does: a derivation that awaits, which only a project in Svelte's async mode has, or the script
+ * `hydratable` values go into, which is written once every one of them has settled. `data` may be
+ * the promise `derive` returns for one. See `drive`.
  */
 export function inject(
 	ir: ComponentIR,
 	data: Scope | PromiseLike<Scope>,
+	options: { csp?: Csp } = {},
 ): Injected | Promise<Injected> {
 	return drive(
 		(function* (): Generator<unknown, Injected, unknown> {
@@ -225,11 +231,20 @@ export function inject(
 			const scopes = [scope];
 			const fresh: Fresh = { next: 1, block: 0, fragments: ir.fragments ?? {} };
 			const body = yield* walk(ir.body, scopes, fresh);
-			const head =
+			let head =
 				(yield* walk(ir.head, scopes, fresh)) +
 				(yield* title(ir.title, scopes, fresh)) +
 				(yield* walk(ir.styles ?? [], scopes, fresh));
-			return { body, head };
+			// Ahead of the head, as `#render_async` puts it: `content.head = hydratables +
+			// content.head`, after every value the page recorded has settled.
+			const record = scope[HYDRATABLES] as Hydratables | undefined;
+			if (record === undefined || record.size === 0) return { body, head };
+			const made = (yield script(record, options.csp)) as Awaited<ReturnType<typeof script>>;
+			if (made === null) return { body, head };
+			head = made.script + head;
+			return made.hash === undefined
+				? { body, head }
+				: { body, head, hashes: { script: [made.hash] } };
 		})(),
 	);
 }

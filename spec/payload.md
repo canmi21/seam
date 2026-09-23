@@ -103,7 +103,7 @@ payload, which stays `stringify` and a `<script type="application/json">`. So `c
 **`crates/devalue` is a port of one version of it, and moves when that version does.** The crate's
 version is the npm package's, byte for byte, because devalue promises no stable format between
 versions. So a bump of the `devalue` the workspace pins is a re-port: read upstream's diff for
-`stringify` between the two tags, carry what changes bytes the crate can produce, regenerate the
+`stringify` and `uneval` between the two tags, carry what changes bytes the crate can produce, regenerate the
 fixtures with `mise run fixtures`, and set the crate's version to the new one. The crate's
 conformance test reads the pin and fails while the two disagree.
 

@@ -18,6 +18,7 @@
 			"files": ["roottext.svelte"]
 		}
 	],
+	"eager": [],
 	"entered": ["parts/badge.svelte"],
 	"payload": ["data"],
 	"held": []

@@ -52,6 +52,7 @@
 			"files": ["derive.svelte"]
 		}
 	],
+	"eager": [],
 	"entered": [],
 	"payload": ["data"],
 	"held": []

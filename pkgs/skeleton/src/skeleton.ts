@@ -4,6 +4,7 @@ import { basename, relative, resolve as resolvePath } from 'node:path';
 import { type Carried, GIVEN, importsOf, parsed, readsOf, resolveBare, resolved } from 'ast';
 import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
+import { refuse } from './node.ts';
 import { timed, timedSync } from './timing.ts';
 import { renderRewritten, shippable } from './render.ts';
 import { dead, filled, outcomes, probed } from './resolve.ts';
@@ -297,9 +298,12 @@ export async function skeleton(
 	}
 	// An id written by a component the walk did not enter is a marker rather than a hole, because
 	// Svelte numbers them per render. See `anchored`.
-	const { body: html, head } = tucked(anchored(rendered), baseline.blocks);
+	const { body: html, head } = unhydrated(
+		tucked(anchored(rendered), baseline.blocks),
+		baseline.eager.length,
+	);
 	for (const [key, other] of Object.entries(alternates)) {
-		alternates[key] = tucked(other, baseline.blocks);
+		alternates[key] = unhydrated(tucked(other, baseline.blocks), baseline.eager.length);
 	}
 
 	const everywhere = [
@@ -322,6 +326,7 @@ export async function skeleton(
 		holes: baseline.holes,
 		blocks: baseline.blocks,
 		defaults: baseline.defaults,
+		eager: baseline.eager,
 		// One entry per file rather than per call site: two calls of one component carry the same
 		// imports, and what is wanted here is which modules the bundle has to reach. Relative to the
 		// root, because this is written into a fixture two machines have to agree on, and an
@@ -368,6 +373,39 @@ function tucked(rendered: Rendered, blocks: readonly Block[]): Rendered {
 		head = head.replace(`<!--]-->${at}`, `${at}<!--]-->`);
 	}
 	return { ...rendered, body, head };
+}
+
+/**
+ * The render without the script `hydratable` values went into, which the injector writes per request.
+ *
+ * `#render_async` prepends it to the head as `\n\t\t<script>` (or `<script nonce=...>`), the
+ * entries and `</script>`, and the values in it are the build's -- the sentinels a request's would
+ * have been, run once. So it is taken off and the injector writes the request's own, from the
+ * record the derivations filled. See `Skeleton.eager`.
+ *
+ * Refused where the render wrote more keys than the entry's script makes calls: a key the walk did
+ * not see made is one no derivation would make per request, a child's `hydratable` or one behind
+ * a function the script called, and the script would come out without it.
+ */
+function unhydrated(rendered: Rendered, calls: number): Rendered {
+	const opens = '\n\t\t<script';
+	const closes = '</script>';
+	if (!rendered.head.startsWith(opens)) return rendered;
+	const end = rendered.head.indexOf(closes);
+	if (end === -1) return rendered;
+	const script = rendered.head.slice(0, end);
+	// One entry per line inside the `for` over them, as `#hydratable_block` joins them.
+	const listed = /for \(const \[k, v\] of \[\n([\s\S]*?)\n\t*\]\)/.exec(script)?.[1] ?? '';
+	const keys = listed.split(',\n').length;
+	if (keys > calls) {
+		refuse(
+			`a \`hydratable\` call this compiler cannot see made: the render wrote ${String(keys)} ` +
+				`key${keys === 1 ? '' : 's'} and the entry's script makes ${String(calls)} call` +
+				`${calls === 1 ? '' : 's'}. One inside a child component, or behind a function the script ` +
+				'calls, is made per request by nothing. See spec/derivation.md',
+		);
+	}
+	return { ...rendered, head: rendered.head.slice(end + closes.length) };
 }
 
 /**
@@ -542,7 +580,7 @@ export function expressionsOf(rendered: Skeleton): { expression: string; files: 
 	// the entry's file has in scope -- `export let foo = get()`, a store read. It is not a hole, so
 	// it would be gathered from nowhere, and the bundle would come out without what it calls: the
 	// artifact compiled and the derivation threw at request time. See `Skeleton.defaults`.
-	for (const one of rendered.defaults) {
+	for (const one of [...rendered.defaults, ...rendered.eager]) {
 		found.push({ expression: one.expression, files: one.files });
 	}
 	return found;

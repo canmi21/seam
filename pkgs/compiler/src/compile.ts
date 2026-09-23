@@ -338,7 +338,7 @@ export async function compile(options: Options): Promise<Report[]> {
 		const together = merged(prepared.slice(at, at + one.of).map((each) => each.names));
 		at += one.of;
 		// The entry declares the same props in every run, so the defaults are the entry's.
-		const compiled = joined(one.id, runs, one.skeleton.defaults);
+		const compiled = joined(one.id, runs, one.skeleton.defaults, one.skeleton.eager);
 		// One route, one bundle, over what every structure of it calls. See `Prepared.names`.
 		const carried = await timed('carry (derivation bundle)', () => carry(one.file, together));
 		const files: string[] = [];

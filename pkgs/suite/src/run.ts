@@ -506,10 +506,19 @@ async function configOf(from: string, into: string): Promise<Config & { broken?:
 	}
 }
 
+/** A render's bytes, and what a `hash` policy has to allow for them. */
+interface Rendered {
+	body: string;
+	head: string;
+	hashes?: { script: string[] };
+}
+
 /** What this compiler makes of the sample, through the same steps a build takes. */
 async function ours(
 	dir: string,
 	props: Record<string, unknown>,
+	/** The policy the oracle is handed, handed to the injector as the plugin hands it Kit's. */
+	csp?: Config['csp'],
 ): Promise<Awaited<ReturnType<typeof inject>>> {
 	// Not `compile()`: that batches lowering across a whole project and writes artifacts to disk,
 	// and this is one component compared in memory. The steps are its steps.
@@ -529,11 +538,16 @@ async function ours(
 			compiled: lowered[at] as unknown as Parameters<typeof joined>[1][number]['compiled'],
 		})),
 		first.skeleton.defaults,
+		first.skeleton.eager,
 	);
 	// One bundle over what every structure of it calls, which is what a route gets.
 	const carried = await carry(first.file, merged(runs.map((one) => one.names)));
 	const derive = compileDerivations(compiled.derivations, carried);
-	return await inject(compiled.ir as Parameters<typeof inject>[0], derive(props));
+	return await inject(
+		compiled.ir as Parameters<typeof inject>[0],
+		derive(props),
+		csp === undefined ? {} : { csp },
+	);
 }
 
 /**
@@ -620,8 +634,12 @@ async function theirs(
 			...(csp === undefined ? {} : { csp }),
 		});
 		if (Object.keys(ASYNC).length > 0) {
-			const held = (await rendered) as { body: string; head: string };
-			return { body: held.body, head: held.head };
+			const held = (await rendered) as Rendered;
+			return {
+				body: held.body,
+				head: held.head,
+				...(held.hashes === undefined ? {} : { hashes: held.hashes }),
+			};
 		}
 		return { body: rendered.body, head: rendered.head };
 	});
@@ -743,14 +761,14 @@ async function attempt(suite: string, name: string): Promise<Result> {
 			`export default { compilerOptions: ${JSON.stringify(compilerOptions)} };\n`,
 		);
 	}
-	let mine: { body: string; head: string } | null = null;
+	let mine: Rendered | null = null;
 	let refusal: string | null = null;
 	try {
-		mine = await ours(dir, props);
+		mine = await ours(dir, props, config.csp);
 	} catch (error) {
 		refusal = firstLine(error);
 	}
-	let svelte: { body: string; head: string };
+	let svelte: Rendered;
 	try {
 		svelte = await theirs(dir, props, config.transformError, runes, config.csp);
 	} catch (error) {
@@ -819,6 +837,16 @@ async function attempt(suite: string, name: string): Promise<Result> {
 	}
 	if (mine.head !== svelte.head) {
 		return { suite, name, outcome: 'differs', why: divergence('head', mine.head, svelte.head) };
+	}
+	// What a `hash` policy has to allow, which a server adds to the header. See `Config.csp`.
+	const hashes = [mine, svelte].map((one) => JSON.stringify(one.hashes?.script ?? []));
+	if (hashes[0] !== hashes[1]) {
+		return {
+			suite,
+			name,
+			outcome: 'differs',
+			why: `script hashes: ours ${String(hashes[0])}, Svelte's ${String(hashes[1])}`,
+		};
 	}
 	const nothing = svelte.body.length <= EMPTY && svelte.head.length <= EMPTY;
 	return { suite, name, outcome: nothing ? 'empty' : 'identical' };

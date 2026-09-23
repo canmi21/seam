@@ -53,6 +53,7 @@
 			"files": ["locals.svelte"]
 		}
 	],
+	"eager": [],
 	"entered": [],
 	"payload": ["data"],
 	"held": []

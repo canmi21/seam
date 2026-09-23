@@ -1,5 +1,5 @@
 import { GIVEN } from 'ast';
-import { resolve, SCOPED, type Scope, thenable, waiting } from 'injector';
+import { HYDRATABLES, hydratables, resolve, SCOPED, type Scope, thenable, waiting } from 'injector';
 
 export type Source = { path: string } | { literal: string };
 
@@ -37,6 +37,13 @@ export interface Derivation {
 	 */
 	prop?: boolean;
 	/**
+	 * A call of Svelte's `hydratable` the entry's script makes as it initializes: computed on every
+	 * request, first after the defaults and in order, whether or not anything reads it, because
+	 * Svelte's script makes it whether or not the markup does. Its value goes nowhere; what it is for
+	 * is the key it records. See `Skeleton.eager` in the skeleton package.
+	 */
+	eager?: boolean;
+	/**
 	 * The files the expression was written across, innermost first. Each name in it resolves in
 	 * the first of these that imports it, so the evaluator opens their imports as scopes, the
 	 * innermost shadowing the rest. Absent for an expression the compiler wrote itself.
@@ -69,7 +76,7 @@ function build(
 	 * it reads their values rather than their promises. See `compile`.
 	 */
 	waits: readonly string[] | null = null,
-): (bindings: Record<string, unknown>) => unknown {
+): (bindings: Record<string, unknown>, request?: Record<string, unknown>) => unknown {
 	// The shared helpers outermost, then each file of the chain from the entry inward, so the
 	// component the expression sits in shadows its callers, and the data innermost of all.
 	const scopes = ['*', ...chain.toReversed()].map((file) => files[file] ?? {});
@@ -80,13 +87,15 @@ function build(
 		waits === null || waits.length === 0
 			? ''
 			: `await Promise.all([${waits.map((one) => `$scope[${JSON.stringify(one)}]`).join(', ')}]); `;
+	// Innermost of all, what the request binds for itself: the names a carried file marks as
+	// Svelte's `hydratable`, bound to this request's. See `marked`.
 	const made =
 		waits === null
-			? `return ($scope) => { with ($scope) { return (${expression}); } };`
-			: `return async ($scope) => { ${first}with ($scope) { return (${expression}); } };`;
+			? `return ($scope, $request = {}) => { with ($scope) { with ($request) { return (${expression}); } } };`
+			: `return async ($scope, $request = {}) => { ${first}with ($scope) { with ($request) { return (${expression}); } } };`;
 	const make = new Function('$files', `${opened} ${made} ${closed}`) as (
 		files: Record<string, unknown>[],
-	) => (bindings: Record<string, unknown>) => unknown;
+	) => (bindings: Record<string, unknown>, request?: Record<string, unknown>) => unknown;
 	return make(scopes);
 }
 
@@ -176,7 +185,10 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 		source: derivation.expression,
 		/** Whether it was built `async`, which is the only promise it returns that is waited on. */
 		asynchronous: awaiting.has(derivation.name),
+		eager: derivation.eager === true,
+		marked: marked(files, derivation.files ?? []),
 	}));
+	const hydrating = compiled.some((one) => one.marked.length > 0);
 
 	return (props) => {
 		const out: Scope = { ...props };
@@ -187,7 +199,14 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 		// the props in `out` and are not part of it, which is why this holds `props` and not `out`.
 		out[GIVEN] = props;
 		if (compiled.length === 0) return out;
+		// One table per request, which every derivation calling `hydratable` fills and the injector
+		// writes out. See `hydratables` in the injector.
+		const table = hydratables();
+		if (hydrating) out[HYDRATABLES] = table.record;
+		const requested = (names: readonly string[]): Record<string, unknown> =>
+			Object.fromEntries(names.map((name) => [name, table.hydratable]));
 		for (const derivation of compiled) {
+			const request = requested(derivation.marked);
 			const bindings = (): Record<string, unknown> =>
 				derivation.scope === null
 					? out
@@ -205,7 +224,7 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 				const held = (scopes: readonly Scope[]): unknown => {
 					try {
 						return failing(
-							derivation.evaluate(stacked(scopes)),
+							derivation.evaluate(stacked(scopes), request),
 							derivation.source,
 							derivation.asynchronous,
 						);
@@ -223,7 +242,20 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 			if (derivation.prop === true) {
 				if (out[derivation.name] !== undefined) continue;
 				try {
-					out[derivation.name] = derivation.evaluate(bindings());
+					out[derivation.name] = derivation.evaluate(bindings(), request);
+				} catch (error) {
+					throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
+				}
+				continue;
+			}
+			// Made now, as Svelte's script makes it, and read by nothing. See `Derivation.eager`.
+			if (derivation.eager) {
+				try {
+					out[derivation.name] = failing(
+						derivation.evaluate(bindings(), request),
+						derivation.source,
+						derivation.asynchronous,
+					);
 				} catch (error) {
 					throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
 				}
@@ -246,7 +278,7 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 					if (done) return held;
 					try {
 						held = failing(
-							derivation.evaluate(bindings()),
+							derivation.evaluate(bindings(), request),
 							derivation.source,
 							derivation.asynchronous,
 						);
@@ -271,6 +303,31 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 		return out;
 	};
 }
+
+/**
+ * The names an expression's files carry as Svelte's `hydratable`, which the request binds to its
+ * own. The carried bundle stands a marked function in for the import, and the evaluator puts the
+ * request's over it, innermost. See `hydratable` in the carry package.
+ */
+function marked(
+	files: Record<string, Record<string, unknown>>,
+	chain: readonly string[],
+): string[] {
+	const names = new Set<string>();
+	for (const file of ['*', ...chain]) {
+		for (const [name, value] of Object.entries(files[file] ?? {})) {
+			if (
+				typeof value === 'function' &&
+				(value as unknown as Record<symbol, unknown>)[MARK] === true
+			) {
+				names.add(name);
+			}
+		}
+	}
+	return [...names];
+}
+
+const MARK = Symbol.for('seam.hydratable');
 
 /**
  * Which derivations wait, and on which others: one whose expression holds an `await`, and one that

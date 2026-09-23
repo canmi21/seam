@@ -743,6 +743,8 @@ export interface Rewritten {
 	payload: string[] | null;
 	/** A default on one of those keys, as the derivation that decides it. See `Skeleton.defaults`. */
 	defaults: { name: string; expression: string; files: string[] }[];
+	/** The entry's own `hydratable` calls, as the derivations that make them. See `Skeleton.eager`. */
+	eager: { expression: string; files: string[] }[];
 	/** Tests the render is asked to decide, by their expanded text. See `Site.asks`. */
 	asks: string[];
 	/** Values the render is asked for, by their expanded text. See `Site.wants`. */
@@ -2178,6 +2180,93 @@ function awaitless(ast: AstNode, what: string): void {
 }
 
 /** Whether markup holds a node of this type anywhere inside it. */
+/**
+ * The calls of Svelte's `hydratable` the entry's script makes as it initializes, in the order it
+ * makes them.
+ *
+ * Svelte runs a component's script before its markup, so these are called on every request whether
+ * or not anything reads what they return, and the script `#hydratable_block` writes holds their keys
+ * in this order. Not inside a function, which runs when something calls it, and not inside
+ * `$derived`, which runs when something reads it; either is a call a derivation makes when it is
+ * read. See spec/derivation.md.
+ */
+function hydratableCalls(ast: Record<string, unknown>): Record<string, unknown>[] {
+	const content = isNode(ast['instance']) ? ast['instance']['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	const aliases = new Set<string>();
+	for (const statement of body) {
+		if (
+			!isNode(statement) ||
+			statement['type'] !== 'ImportDeclaration' ||
+			!isNode(statement['source']) ||
+			statement['source']['value'] !== 'svelte'
+		) {
+			continue;
+		}
+		for (const one of Array.isArray(statement['specifiers']) ? statement['specifiers'] : []) {
+			if (
+				isNode(one) &&
+				one['type'] === 'ImportSpecifier' &&
+				isNode(one['imported']) &&
+				one['imported']['name'] === 'hydratable' &&
+				isNode(one['local']) &&
+				typeof one['local']['name'] === 'string'
+			) {
+				aliases.add(one['local']['name']);
+			}
+		}
+	}
+	const found: Record<string, unknown>[] = [];
+	if (aliases.size === 0) return found;
+	const visit = (node: unknown): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) visit(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		const type = node['type'];
+		if (
+			type === 'FunctionDeclaration' ||
+			type === 'FunctionExpression' ||
+			type === 'ArrowFunctionExpression' ||
+			type === 'ImportDeclaration'
+		) {
+			return;
+		}
+		if (type === 'CallExpression') {
+			const callee = node['callee'];
+			if (
+				isNode(callee) &&
+				callee['type'] === 'Identifier' &&
+				aliases.has(String(callee['name']))
+			) {
+				// Its arguments first, which JavaScript evaluates before the call.
+				visit(node['arguments']);
+				found.push(node);
+				return;
+			}
+			if (isNode(callee) && ['$derived', '$derived.by'].includes(calleeName(callee))) return;
+		}
+		for (const value of Object.values(node)) visit(value);
+	};
+	visit(body);
+	return found;
+}
+
+/** A callee written as a name or as one member of one, `$derived.by`, and '' for anything else. */
+function calleeName(callee: Record<string, unknown>): string {
+	if (callee['type'] === 'Identifier') return String(callee['name']);
+	if (
+		callee['type'] === 'MemberExpression' &&
+		isNode(callee['object']) &&
+		callee['object']['type'] === 'Identifier' &&
+		isNode(callee['property'])
+	) {
+		return `${String(callee['object']['name'])}.${String(callee['property']['name'])}`;
+	}
+	return '';
+}
+
 function contains(node: unknown, type: string): boolean {
 	if (Array.isArray(node)) return node.some((one) => contains(one, type));
 	if (!isNode(node)) return false;
@@ -7709,6 +7798,10 @@ export function rewrite(
 					: declared.rewrite(one.at, stood.has(one.local) ? standsFor(walk) : undefined),
 			files: [relative(root, file)],
 		}));
+	const eager = hydratableCalls(ast).map((call) => ({
+		expression: walk.expand(call),
+		files: [relative(root, file)],
+	}));
 	if (recursion !== null) {
 		// The body as a bare block, once the walk has been through it and everything it marked
 		// is where it is: the whitespace at either end is trimmed either way, so the block wraps
@@ -7757,6 +7850,7 @@ export function rewrite(
 		spreads,
 		payload: payload === null ? null : [...payload],
 		defaults: propDefaults,
+		eager,
 		// The entry's own and every surviving copy's: a copy rolled back takes its asks with it,
 		// and a test only a discarded render would have answered is not one to wait on.
 		asks: [...new Set([...asks, ...copies.flatMap((copy) => copy.asks ?? [])].map(([key]) => key))],

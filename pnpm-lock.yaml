@@ -251,6 +251,10 @@ importers:
         version: link:../injector
 
   pkgs/injector:
+    dependencies:
+      svelte:
+        specifier: ^5.57.0
+        version: 5.57.1
     devDependencies:
       ast:
         specifier: workspace:*
@@ -264,9 +268,6 @@ importers:
       skeleton:
         specifier: workspace:*
         version: link:../skeleton
-      svelte:
-        specifier: ^5.57.0
-        version: 5.57.1
 
   pkgs/lowering: {}
 

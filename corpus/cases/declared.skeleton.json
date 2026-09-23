@@ -36,6 +36,7 @@
 			"files": ["declared.svelte"]
 		}
 	],
+	"eager": [],
 	"entered": [],
 	"payload": ["data"],
 	"held": []

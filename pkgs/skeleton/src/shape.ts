@@ -235,6 +235,18 @@ export interface Skeleton {
 	 */
 	defaults: { name: string; expression: string; files: string[] }[];
 	/**
+	 * The entry's own calls of Svelte's `hydratable`, as derivations computed first on every request
+	 * and in this order.
+	 *
+	 * Svelte calls them as the script initializes, whether or not the markup reads what they return,
+	 * and writes every key into the script ahead of the head. A derivation is computed when it is
+	 * read, so one the page never reads -- `await hydratable(...)` into a name nothing uses, or read
+	 * only behind a boundary's pending branch -- would never have been called. The script itself is
+	 * written per request by the injector rather than taken from the render, whose values are the
+	 * build's. See spec/derivation.md.
+	 */
+	eager: { expression: string; files: string[] }[];
+	/**
 	 * A held declaration's initialiser, by the index the substitution refers to it with.
 	 *
 	 * `$$hold(2)` in an expression means the value of `held[2].expression`, resolved to whatever

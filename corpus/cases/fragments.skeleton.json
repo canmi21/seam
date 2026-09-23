@@ -47,6 +47,7 @@
 			"files": ["fragments.svelte"]
 		}
 	],
+	"eager": [],
 	"entered": [],
 	"payload": ["data"],
 	"held": []

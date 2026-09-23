@@ -30,6 +30,7 @@
 			"files": ["head.svelte"]
 		}
 	],
+	"eager": [],
 	"entered": [],
 	"payload": ["data"],
 	"held": []

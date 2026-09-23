@@ -71,6 +71,7 @@
 			"files": ["compose.svelte"]
 		}
 	],
+	"eager": [],
 	"entered": ["parts/badge.svelte"],
 	"payload": ["data"],
 	"held": []

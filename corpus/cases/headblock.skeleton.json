@@ -69,6 +69,7 @@
 			"files": ["headblock.svelte"]
 		}
 	],
+	"eager": [],
 	"entered": [],
 	"payload": ["data"],
 	"held": []
