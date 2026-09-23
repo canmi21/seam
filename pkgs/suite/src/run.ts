@@ -692,10 +692,16 @@ async function attempt(suite: string, name: string): Promise<Result> {
 		config.compileOptions !== undefined && 'runes' in config.compileOptions
 			? config.compileOptions.runes
 			: RUNES[suite];
-	if (runes !== undefined) {
+	// Both sides compile in the mode the project would set, ours by reading it the way a project
+	// gives it. See `RUNES` and `ASYNC`.
+	const compilerOptions = {
+		...(runes === undefined ? {} : { runes }),
+		...ASYNC,
+	};
+	if (Object.keys(compilerOptions).length > 0) {
 		writeFileSync(
 			resolve(dir, 'svelte.config.js'),
-			`export default { compilerOptions: { runes: ${String(runes)} } };\n`,
+			`export default { compilerOptions: ${JSON.stringify(compilerOptions)} };\n`,
 		);
 	}
 	let mine: { body: string; head: string } | null = null;

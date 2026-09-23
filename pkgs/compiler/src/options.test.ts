@@ -92,3 +92,45 @@ describe("a project's runes option written as a function of the file", () => {
 		expect(await ours('node_modules/pkg')).toBe(await oracle('node_modules/pkg', RUNES));
 	});
 });
+
+describe("a project's experimental.async", () => {
+	const project = resolve(staging, 'async');
+	const AWAITS = "<p>{await Promise.resolve('built')}</p>";
+
+	beforeAll(() => {
+		mkdirSync(project, { recursive: true });
+		writeFileSync(resolve(project, 'page.svelte'), AWAITS);
+		writeFileSync(
+			resolve(project, 'svelte.config.js'),
+			'export default { compilerOptions: { experimental: { async: true } } };\n',
+		);
+	});
+
+	it('compiles an await the build can answer, and writes what Svelte writes', async () => {
+		const out = resolve(project, 'oracle.js');
+		writeFileSync(
+			out,
+			svelte(AWAITS, {
+				generate: 'server',
+				name: 'Page',
+				filename: resolve(project, 'page.svelte'),
+				rootDir: project,
+				experimental: { async: true },
+			}).js.code,
+		);
+		const mod = (await import(pathToFileURL(out).href)) as { default: unknown };
+		const theirs = (await render(mod.default as never, { props: {} as never })).body;
+		const runs = await structures({ path: '/', component: 'page.svelte' }, project);
+		const lowered = lower(runs.map((one) => [one.id, JSON.stringify(one.skeleton)] as const));
+		const structure = joined(
+			'page',
+			runs.map((one, at) => ({
+				fixed: one.fixed,
+				decided: one.decided,
+				compiled: lowered[at] as unknown as Structure,
+			})),
+		);
+		expect(theirs).toContain('built');
+		expect(inject(structure.ir, deriving(structure.derivations, '')({})).body).toBe(theirs);
+	});
+});

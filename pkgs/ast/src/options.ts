@@ -3,9 +3,11 @@
  * to, handed to every compile this pipeline makes the way `vite-plugin-svelte` hands them to Svelte.
  *
  * Set once per compile by the one package that reads the configuration, the way the aliases are;
- * unset, Svelte decides for itself. Only `runes` is here: a project that sets it compiles every
+ * unset, Svelte decides for itself. Two are here. `runes`: a project that sets it compiles every
  * component in that mode, where one that does not has each component's mode read off its scripts,
- * and the two write different bytes for the same markup. See spec/pipeline.md.
+ * and the two write different bytes for the same markup. `experimental.async`: a project that sets
+ * it compiles `await` in markup and at the top of a script, and its render is awaited. See
+ * spec/pipeline.md.
  */
 export interface ProjectOptions {
 	/**
@@ -14,12 +16,22 @@ export interface ProjectOptions {
 	 * it with the filename the compile is given, so each compile here is given the file's real path.
 	 */
 	runes?: boolean | ((options: { filename: string }) => boolean | undefined);
+	/** Svelte's own `experimental.async`, which Svelte 6 makes the only mode. */
+	experimental?: { async: true };
 }
 
 let options: ProjectOptions = {};
 
 export function configureProjectOptions(given: ProjectOptions): void {
-	options = given.runes === undefined ? {} : { runes: given.runes };
+	options = {
+		...(given.runes === undefined ? {} : { runes: given.runes }),
+		...(given.experimental?.async === true ? { experimental: { async: true } } : {}),
+	};
+}
+
+/** Whether the project compiles in Svelte's async mode, which is also whether a render is awaited. */
+export function projectAsync(): boolean {
+	return options.experimental?.async === true;
 }
 
 /** The mode the project sets for one file, or undefined where the file's scripts decide. */

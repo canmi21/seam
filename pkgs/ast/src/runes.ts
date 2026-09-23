@@ -1,5 +1,6 @@
 import { stripTypeScriptTypes } from 'node:module';
 import { compileModule } from 'svelte/compiler';
+import { projectAsync } from './options.ts';
 
 /**
  * A module holding runes, which is a name and an extension rather than anything in the source.
@@ -23,6 +24,8 @@ export function runesModule(file: string, text: string): string {
 	return compileModule(file.endsWith('.ts') ? stripTypeScriptTypes(text) : text, {
 		generate: 'server',
 		filename: file,
+		// A module's `$derived(await ...)` is the same async mode a component's is.
+		...(projectAsync() ? { experimental: { async: true } } : {}),
 	}).js.code;
 }
 

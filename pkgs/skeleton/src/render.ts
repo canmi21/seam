@@ -3,7 +3,14 @@ import { readFileSync, realpathSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { APP_STATE, projectOptions, resolveBare, RUNES_MODULE, runesModule } from 'ast';
+import {
+	APP_STATE,
+	projectAsync,
+	projectOptions,
+	resolveBare,
+	RUNES_MODULE,
+	runesModule,
+} from 'ast';
 import type { Rendered } from './shape.ts';
 import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel } from './sentinel.ts';
 import { timed, timedSync } from './timing.ts';
@@ -175,9 +182,6 @@ function codegen(
 				filename,
 				rootDir: root,
 				...projectOptions(),
-				...(process.env['SEAM_ASYNC'] === undefined
-					? {}
-					: { experimental: { async: true as const } }),
 			});
 			return js.code;
 		} catch (error) {
@@ -410,10 +414,9 @@ export async function renderRewritten(
 		// Awaited where the flag is on: `enable_async_mode_flag()` sends `render()` down its async
 		// path, and reading `.body` there throws `await_invalid`. For a component that awaits
 		// nothing the two paths write the same bytes -- measured.
-		const { body, head } =
-			process.env['SEAM_ASYNC'] === undefined
-				? timedSync('    render call (svelte/server)', () => held)
-				: await held;
+		const { body, head } = projectAsync()
+			? await held
+			: timedSync('    render call (svelte/server)', () => held);
 		return { body, head };
 	} finally {
 		// The staged files stay: the next render is nearly all the same copies, and deleting them

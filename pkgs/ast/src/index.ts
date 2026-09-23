@@ -45,6 +45,7 @@ export {
 export { componentOf, configureAliases, currentAliases, resolveBare } from './packages.ts';
 export {
 	configureProjectOptions,
+	projectAsync,
 	projectOptions,
 	projectRunes,
 	type ProjectOptions,

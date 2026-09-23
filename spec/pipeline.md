@@ -56,8 +56,12 @@ also what `vite-plugin-svelte` gives it, and `legacyMode` calls the function wit
 reading that took booleans only ignored the function without a word, and a project written from
 the template compiled every rune-less file in the mode Svelte would not. It was not read at all until Svelte's own samples, compiled
 in the mode upstream forces per suite, wrote the extra anchor where this compiler had inferred
-legacy. `runes` is the only option taken so far; another is taken the day one is found to change
-bytes, measured the same way.
+legacy. **`experimental.async` is the other.** Set, a component may `await` in markup and at the top of its
+script, every compile is handed the flag -- a `.svelte.js` module's `compileModule` included, whose
+`$derived(await ...)` is the same mode -- and the render is awaited, which is what Kit does under
+the same option. It replaced `SEAM_ASYNC`, an environment variable that stood in for it while
+async was an experiment here; Svelte 6 makes it the only mode (see [roadmap.md](roadmap.md)).
+Another option is taken the day one is found to change bytes, measured the same way.
 
 ## Sentinels, and why they are not v1
 

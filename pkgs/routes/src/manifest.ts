@@ -91,20 +91,28 @@ export async function configured(cwd: string): Promise<Config> {
 
 /**
  * The compile options the project's `svelte.config.js` sets that change what a component compiles
- * to: `compilerOptions.runes`, read off the file as `vite-plugin-svelte` reads it, since Kit's
- * validator does not know the key. A boolean or Svelte's function of the file, taken as it is.
+ * to, read off the file as `vite-plugin-svelte` reads it, since Kit's validator does not know the
+ * key: `runes`, a boolean or Svelte's function of the file, taken as it is, and
+ * `experimental.async`.
  */
-export async function compilerOptions(
-	root: string,
-): Promise<{ runes?: boolean | ((options: { filename: string }) => boolean | undefined) }> {
+export async function compilerOptions(root: string): Promise<{
+	runes?: boolean | ((options: { filename: string }) => boolean | undefined);
+	experimental?: { async: true };
+}> {
 	const given = (await userConfig(resolve(root)))['compilerOptions'];
-	const runes =
-		typeof given === 'object' && given !== null ? (given as { runes?: unknown }).runes : undefined;
-	if (typeof runes === 'boolean') return { runes };
-	if (typeof runes === 'function') {
-		return { runes: runes as (options: { filename: string }) => boolean | undefined };
-	}
-	return {};
+	const held = typeof given === 'object' && given !== null ? (given as Record<string, unknown>) : {};
+	const runes = held['runes'];
+	const experimental = held['experimental'];
+	const async =
+		typeof experimental === 'object' &&
+		experimental !== null &&
+		(experimental as { async?: unknown }).async === true;
+	return {
+		...(typeof runes === 'boolean' || typeof runes === 'function'
+			? { runes: runes as boolean | ((options: { filename: string }) => boolean | undefined) }
+			: {}),
+		...(async ? { experimental: { async: true as const } } : {}),
+	};
 }
 
 /**

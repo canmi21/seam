@@ -21,6 +21,7 @@ import {
 	objectEntries,
 	parsed,
 	parsedComponent,
+	projectAsync,
 	reads as readsIn,
 	resolveBare,
 	runeCalled,
@@ -2156,9 +2157,8 @@ function awaitless(ast: AstNode, what: string): void {
 		}
 		return Object.values(node).some(outside);
 	};
-	// The experiment: compiled with `experimental.async` and rendered by awaiting, which is what
-	// SvelteKit does when a project turns the same flag on. See spec/roadmap.md.
-	if (process.env['SEAM_ASYNC'] !== undefined) return;
+	// A project in Svelte's async mode compiles these, and the render is awaited. See spec/roadmap.md.
+	if (projectAsync()) return;
 	if (outside(ast['fragment']) || outside(ast['instance'])) {
 		refuse(
 			`${what} awaits in its markup or at the top of its script, which is async Svelte: a ` +
