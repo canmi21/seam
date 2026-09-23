@@ -1,5 +1,5 @@
 import { parse } from 'svelte/compiler';
-import { apply, bySource } from 'ast';
+import { apply, bySource, locals } from 'ast';
 import { type AstNode, called, isNode, namesIn, refuse, renders, span } from './node.ts';
 
 /**
@@ -398,6 +398,8 @@ function boundaries(source: string): string {
 
 	const edits: [number, number, string][] = [];
 	const cut = new Set<string>();
+	/** The script's declarations, read only where an attribute names one. */
+	let scripts: ReturnType<typeof locals> | undefined;
 	for (const boundary of found) {
 		const attributes = Array.isArray(boundary['attributes']) ? boundary['attributes'] : [];
 		let after = span(boundary)?.[0] ?? 0;
@@ -416,12 +418,24 @@ function boundaries(source: string): string {
 			const [only] = Array.isArray(value) ? value : [value];
 			const expression =
 				isNode(only) && only['type'] === 'ExpressionTag' ? only['expression'] : null;
-			const named =
+			let named =
 				isNode(expression) &&
 				expression['type'] === 'Identifier' &&
 				typeof expression['name'] === 'string'
 					? expression['name']
 					: null;
+			// A name the script declares rather than the markup is read through what it was declared
+			// as: `let pending = null` is no `pending` at all -- `renderer.boundary` renders the
+			// children where the value is nullish -- and `$derived(defaultPending)` is that snippet
+			// under another name. Anything else is still a value this cannot see the body of.
+			if (named !== null && !declarations.has(named) && isNode(expression)) {
+				const held = unwrapped((scripts ??= locals(source)).rewrite(expression));
+				if (held === 'null' || held === 'undefined') {
+					edits.push([where[0], where[1], '']);
+					continue;
+				}
+				if (declarations.has(held)) named = held;
+			}
 			const declared = named === null ? undefined : declarations.get(named);
 			if (name === 'failed') {
 				// **Not "never written".** `renderer.boundary` rethrows where `props.failed` is
@@ -487,4 +501,24 @@ function boundaries(source: string): string {
 		if (at !== null) edits.push([at[0], at[1], '']);
 	}
 	return edits.length === 0 ? source : apply(source, edits);
+}
+
+/** An expression with the parentheses around the whole of it taken off. */
+function unwrapped(text: string): string {
+	let held = text.trim();
+	while (held.startsWith('(') && held.endsWith(')')) {
+		let depth = 0;
+		let whole = true;
+		for (let at = 0; at < held.length; at += 1) {
+			if (held[at] === '(') depth += 1;
+			else if (held[at] === ')') depth -= 1;
+			if (depth === 0 && at < held.length - 1) {
+				whole = false;
+				break;
+			}
+		}
+		if (!whole) break;
+		held = held.slice(1, -1).trim();
+	}
+	return held;
 }
