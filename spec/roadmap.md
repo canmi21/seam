@@ -1024,9 +1024,11 @@ rare the shape is.
 after its declaration, where the statements read request data. It was held that building this in the
 compiler would carry SSR's per-request rendering back in under another name. What it carries is the
 instance script's statements, which the server render runs once per request; running them once per
-request and reading the names after is the same work at the same time. It is mutation and order, so
-it **waits on derivation.md**, whose Open section already says running the script is blocked by
-nothing measured and holds the three questions it has to answer. Where the statements read nothing
+request and reading the names after is the same work at the same time. It does not wait on
+derivation.md's rule: a script that reads only the payload, run once and read after, is still a pure
+function of the payload, since a local it changes is no side effect outside it. derivation.md's
+Open section says running the script is blocked by nothing measured and holds the three questions
+it has to answer. Where the statements read nothing
 the request decides, the render already evaluates them and the walk bakes the result (`wants` in
 `walk.ts`).
 
