@@ -10,14 +10,14 @@ of it; `spec/suite.md` says why that comparison exists and what it reports.
 | | |
 | --- | --- |
 | upstream | `https://github.com/sveltejs/svelte`, `packages/svelte/tests` |
-| tag | `svelte@5.57.0` |
-| commit | `7bc0a70fe64dbb3fa3848b741963f31d1e10a8dc` |
-| `tests/server-side-rendering/samples/` | 131 sample directories |
-| `tests/runtime-runes/samples/` | 1048 sample directories |
+| tag | `svelte@5.57.1` |
+| commit | `636eaaaa6f064b55072e7d192bb76dc9d8c4516e` |
+| `tests/server-side-rendering/samples/` | 132 sample directories |
+| `tests/runtime-runes/samples/` | 1054 sample directories |
 | `tests/runtime-legacy/samples/` | 1209 sample directories |
 | `LICENSE` | the repository's `LICENSE.md`, MIT |
 
-5731 files, 2.0 MB of text. `du` reports 22 MB because almost every file is under 500 bytes and
+5746 files, 2.0 MB of text. `du` reports 22 MB because almost every file is under 500 bytes and
 the filesystem allocates a 4 KB block for each.
 
 Taken by downloading the tag's tarball, and copying the three `samples` directories in whole. The
@@ -53,11 +53,11 @@ must not hold. See `spec/suite.md`.
 
 ## What is checked
 
-`mise run suite`, which is part of `verify`. It compiles all 2388 samples and reports how many are
+`mise run suite`, which is part of `verify`. It compiles all 2395 samples and reports how many are
 byte-identical to Svelte's own render, how many compiled and differ, how many were refused as a gap,
 how many were refused by a decision the scope line settles, how many upstream skips itself and how
-many neither side answered for. At the pinned tag it reports 1839 identical and 33 more that agree
-on an empty body, nothing differing, no gaps, 259 decided, 239 skipped and 18 with no answer from
+many neither side answered for. At the pinned tag it reports 1844 identical and 33 more that agree
+on an empty body, nothing differing, one gap, 260 decided, 239 skipped and 18 with no answer from
 either side. It takes twelve seconds. `spec/suite.md` holds the reading of those numbers and the
 denominator they are against, and `spec/conformance.md` what they have to reach.
 
