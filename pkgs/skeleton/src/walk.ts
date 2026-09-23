@@ -4394,7 +4394,11 @@ function hoisting(nodes: readonly unknown[], walk: Walk): Locals['rewrite'] | nu
 			// The value is unused once every read of it is a marker, and evaluating it would
 			// reach for data the render is not given. What stands in has to come apart the way
 			// the name does.
-			if (at !== null) edits.push([at[0], at[1], holdsFor(id)]);
+			// Still awaiting where the author's did: a `{@const}` that awaits gives what reads it a
+			// blocker, and `{@debug}` over one is wrapped for it. See `DebugTag.js`.
+			if (at !== null) {
+				edits.push([at[0], at[1], awaitsAtTop(init) ? `await ${holdsFor(id)}` : holdsFor(id)]);
+			}
 			// The pattern stays for the render, taking the placeholder apart, so nothing in it may
 			// evaluate: `{@const { [`${a}-x`]: { b } } = f()}` reads `a` and destructures a member
 			// of `{}`, and both are gone before the render sees it.
@@ -5626,9 +5630,13 @@ function collect(node: unknown, walk: Walk): void {
 				}
 			}
 
+			// Still reading what the argument read that Svelte's async mode makes wait, which is what
+			// wraps the render tag in `$$renderer.async`. See `blocking()`.
 			for (const [index, argument] of given.entries()) {
 				const at = span(argument);
-				if (at !== null) edits.push([at[0], at[1], one.holds[index] ?? 'null']);
+				if (at !== null) {
+					edits.push([at[0], at[1], blocking(argument, one.holds[index] ?? 'null', walk)]);
+				}
 			}
 
 			// The body, here, with the parameters bound and everything else this walk carries --
@@ -7115,7 +7123,11 @@ function descend(
 				const known = local === undefined ? undefined : partial(held, local);
 				const whole = span(one);
 				if (whole !== null && !(known === undefined && inertProps.has(name))) {
-					const placed = known === undefined ? standsIn(ahead, local) : JSON.stringify(known);
+					const placed = blocking(
+						one['expression'],
+						known === undefined ? standsIn(ahead, local) : JSON.stringify(known),
+						walk,
+					);
 					// Written last, not where it stood. `push_prop(..., true)` delays a binding's
 					// pair so it comes after the spreads -- "to avoid spreads overwriting them" --
 					// and the fold this walk makes says so, so the render has to say so too.
