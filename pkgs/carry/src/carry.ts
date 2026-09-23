@@ -4,13 +4,17 @@ import { fileURLToPath } from 'node:url';
 import { type Plugin, rolldown } from 'rolldown';
 import { compile } from 'svelte/compiler';
 import {
+	CAPTURE,
 	type Carried,
+	captured,
 	currentAliases,
+	projectAsync,
 	projectOptions,
 	resolveBare,
 	RUNES_MODULE,
 	runesModule,
 } from 'ast';
+import { RUN } from './gather.ts';
 
 /**
  * What stands for Svelte's `hydratable` in a carried file: a function that says what it is if it
@@ -93,6 +97,60 @@ function svelted(): Plugin {
 }
 
 /**
+ * What a component compiled with its markup replaced by a capture is named by. See `running()`.
+ * Virtual rather than a query on the file, which a Svelte plugin in a project's Vite would take
+ * for one of its own requests; what it imports is resolved from the file it was made from.
+ */
+const CAPTURED = '\0seam:captured:';
+
+/**
+ * A component's script as Svelte compiled it, run per request: `run(props)` renders the component
+ * with its markup replaced by a capture and returns what was captured. The render and the
+ * component resolve Svelte from where the component sits, so the context the capture reads from is
+ * the one the render sets. See spec/derivation.md, "Where substitution cannot follow, the script
+ * runs as Svelte compiled it".
+ */
+export function running(): Plugin {
+	return {
+		name: 'seam:run',
+		async resolveId(id, importer) {
+			if (id.startsWith(RUN) || id.startsWith(CAPTURED)) return id;
+			if (importer?.startsWith(CAPTURED) !== true) return null;
+			const resolved = await this.resolve(id, importer.slice(CAPTURED.length), { skipSelf: true });
+			return resolved?.id ?? null;
+		},
+		load(id) {
+			if (id.startsWith(RUN)) {
+				const file = id.slice(RUN.length);
+				const server = resolveBare('svelte/server', file) ?? 'svelte/server';
+				const read = projectAsync() ? 'await rendered;' : 'rendered.body;';
+				return [
+					`import { render } from ${JSON.stringify(server)};`,
+					`import Script from ${JSON.stringify(`${CAPTURED}${file}`)};`,
+					`export ${projectAsync() ? 'async ' : ''}function run(props) {`,
+					'\tlet got;',
+					`\tconst context = new Map([[${JSON.stringify(CAPTURE)}, (value) => { got = value; return ''; }]]);`,
+					'\tconst rendered = render(Script, { props, context });',
+					`\t${read}`,
+					'\treturn got;',
+					'}',
+				].join('\n');
+			}
+			if (id.startsWith(CAPTURED)) {
+				const file = id.slice(CAPTURED.length);
+				return compile(captured(readFileSync(file, 'utf8')), {
+					generate: 'server',
+					name: basename(file, '.svelte'),
+					filename: file,
+					...projectOptions(),
+				}).js.code;
+			}
+			return null;
+		},
+	};
+}
+
+/**
  * Bundles the named imports of a component into a script that defines `__carried`.
  *
  * Returns an empty string when the component carries nothing, so a page that needs no bundle
@@ -156,7 +214,7 @@ export async function carry(
 			mainFields: ['svelte', 'module', 'main'],
 			alias: { ...currentAliases() },
 		},
-		plugins: [entryOf(contents), svelted()],
+		plugins: [entryOf(contents), running(), svelted()],
 		logLevel: 'silent',
 	});
 	try {

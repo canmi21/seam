@@ -5,7 +5,10 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 ## Doable now, decided
 
-- [ ] **B. Script state over props.** Deterministic statements over props (`$: x *= 2`,
+- [ ] **B. Script state over props.** The entry's script runs; a child copy's does not yet, and in
+      a Kit project every component the author writes is a child of the generated root, so B is not
+      done until it does. The plugin's own test is where the project's Vite path gets held.
+      Deterministic statements over props (`$: x *= 2`,
       `count += 1`, `items.sort(...)`): decided: where substitution cannot follow, the instance script
       runs per request as Svelte compiled it, template replaced by a capture; the module block once
       per process; imports as Svelte's output has them. spec/derivation.md, "Where substitution

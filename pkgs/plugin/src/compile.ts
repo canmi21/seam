@@ -15,7 +15,7 @@ import { createRequire } from 'node:module';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Plugin } from 'vite';
-import { type Bundler, configureCarry } from 'carry';
+import { type Bundler, configureCarry, running } from 'carry';
 import { compile } from 'compiler';
 import { aliases, configured, entries } from 'routes';
 import { configureRender, forgetStaging } from 'skeleton';
@@ -108,6 +108,9 @@ export async function compileRoutes({
 			logLevel: 'silent',
 			plugins: [
 				appModules(kit),
+				// A component's script run as Svelte compiled it, which a derivation calls where
+				// substitution could not follow. See `running()` in the carry package.
+				{ ...running(), enforce: 'pre' } as Plugin,
 				...plugins.filter((one) => !one.name.startsWith('vite-plugin-sveltekit')),
 			],
 			resolve: {

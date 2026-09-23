@@ -725,6 +725,8 @@ export interface Rewritten {
 	keeping: { expression: string; files?: string[] }[];
 	/** The names substitution cannot follow, with why. See `Site.changing`. */
 	changing: ReadonlyMap<string, string>;
+	/** The entry's own names substitution cannot follow, which its script run answers. */
+	ran: ReadonlySet<string>;
 	/** Every edit whose text a branch choice decides, the entry's and every copy's. */
 	choices: Choice[];
 	/** What a component `bind:` settles a name to, found on this pass. See `Site.sends`. */
@@ -7528,6 +7530,9 @@ export function rewrite(
 			.map((one) => one.prop),
 		undefined,
 		keeping,
+		// The entry's script runs as Svelte compiled it where a read cannot be substituted, so a
+		// name that cannot be followed is recorded rather than refused. See `ran()` in skeleton.ts.
+		'run',
 	);
 
 	for (const [name, why] of declared.changed) changing.set(name, why);
@@ -7853,6 +7858,14 @@ export function rewrite(
 		dead,
 		keeping,
 		changing,
+		// Only what the script's own statements change: the run captures where the template would
+		// start, so a change a function the markup calls makes while the bytes are written is not
+		// in it, and those stay refused. See `ran()` in skeleton.ts.
+		ran: new Set(
+			[...declared.changed]
+				.filter(([, why]) => !why.includes('changed by a function this render calls'))
+				.map(([name]) => name),
+		),
 		sends,
 		holes,
 		blocks,

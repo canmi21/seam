@@ -169,7 +169,7 @@ export const reduce: (source: string) => Module = bySource((source) => {
 		[],
 		undefined,
 		undefined,
-		true,
+		'names',
 	).rewrite;
 	return { markup: children(source, ast['fragment']), imports: imports(ast['instance']) };
 });

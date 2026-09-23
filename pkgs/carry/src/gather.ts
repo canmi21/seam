@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { APP_STATE, importsOf, readsOf, resolveBare, type Carried } from 'ast';
+import { APP_STATE, importsOf, readsOf, resolveBare, RUN_NAME, type Carried } from 'ast';
 
 /**
  * What the expressions of this route call, gathered from every file whose expressions became
@@ -69,7 +69,15 @@ export function carriedBy(
 			if (from.endsWith('.svelte') && one.kind === 'default') continue;
 			carried.push({ ...one, from });
 		}
+		// The file's own script, run as Svelte compiled it, where a read substitution could not
+		// follow became a field of that run. See `RUN` in carry.ts.
+		if (names.has(RUN_NAME)) {
+			carried.push({ local: RUN_NAME, from: `${RUN}${at}`, kind: 'named', exported: 'run' });
+		}
 		if (carried.length > 0) found.set(file, carried);
 	}
 	return found;
 }
+
+/** The specifier a file's script runner is named by, which `running()` in carry.ts loads. */
+export const RUN = '\0seam:run:';

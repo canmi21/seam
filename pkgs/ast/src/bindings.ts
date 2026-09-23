@@ -800,7 +800,7 @@ export function bindings(source: string, file?: string): Bindings {
 		[],
 		undefined,
 		undefined,
-		true,
+		'names',
 	);
 	const carried: Context = {
 		known: imported(ast['module'], ast['instance']),

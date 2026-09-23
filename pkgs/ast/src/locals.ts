@@ -873,7 +873,10 @@ function reactive(
 		for (const name of bound) gone.add(name);
 		writes(body, gone);
 		const { start, end } = body;
-		if (typeof start === 'number' && typeof end === 'number') out.push([[start, end], 'undefined']);
+		// With its own semicolon: the statement's span takes the author's with it, and two written
+		// over on one line were `$: undefined $: undefined`, which is not JavaScript.
+		if (typeof start === 'number' && typeof end === 'number')
+			out.push([[start, end], 'undefined;']);
 	}
 	return out;
 }
@@ -1998,11 +2001,15 @@ export function locals(
 	 */
 	held?: { expression: string; files?: string[] }[],
 	/**
-	 * Set by a caller asking only which names are declared -- `bindings()`, resolving the markup's
-	 * names. The refusals below are about substitution, which is the walk's, and one of them firing
-	 * there stopped a name check that had nothing to do with it.
+	 * Which of the refusals below are made here. `names` makes none, for a caller asking only which
+	 * names are declared -- `bindings()`, `reduce()` -- where one of them stopped a name check that
+	 * had nothing to do with it. `run` is the walk of an entry, whose script runs as Svelte compiled
+	 * it where a read cannot be substituted: a name that cannot be followed comes back in `changed`
+	 * and its reads become fields of that run, while a write into the props object, which the run
+	 * cannot hand back, is still refused. See spec/derivation.md, "Where substitution cannot
+	 * follow, the script runs as Svelte compiled it".
 	 */
-	namesOnly = false,
+	refusing: 'refuse' | 'names' | 'run' = 'refuse',
 ): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const carried = requested(ast['instance']);
@@ -2070,7 +2077,7 @@ export function locals(
 		...assigned(ast['module'], RESERVED, false, declares),
 		...assigned(ast['instance'], RESERVED, false, declares),
 	];
-	if (written.length > 0 && !namesOnly) {
+	if (written.length > 0 && refusing !== 'names') {
 		const list = [...new Set(written)].map((one) => `\`${one}\``).join(', ');
 		throw new Error(
 			`${list} ${written.length > 1 ? 'are' : 'is'} written to, and it is not a value this ` +
@@ -2464,7 +2471,7 @@ export function locals(
 	// this sentence and lets it reach the author rather than rolling the copy back, since leaving
 	// the component to Svelte is what hands it the marker.
 	const given = [...changed].find(([name]) => props.has(name) || bound?.has(name) === true);
-	if (given !== undefined && !namesOnly) {
+	if (given !== undefined && refusing === 'refuse') {
 		throw new Error(
 			`\`${given[0]}\` is a prop this component changes, and a value handed to a component is ` +
 				'written out as a marker standing for it, so the change is made to the marker rather ' +
@@ -2473,7 +2480,7 @@ export function locals(
 		);
 	}
 	const eager = [...changed].find(([name]) => bound !== undefined || gone.has(name));
-	if (eager !== undefined && !namesOnly) throw new Error(eager[1]);
+	if (eager !== undefined && refusing === 'refuse') throw new Error(eager[1]);
 
 	return {
 		changed,

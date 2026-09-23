@@ -1413,6 +1413,13 @@ component function.
 package ships already is. That is more than the names the expressions call, which is what `carry`
 followed before, and it is exactly what the script needs.
 
+**It answers what the script's own statements change, and nothing the template changes.** The
+capture sits where the template would start, so a name a function the markup calls changes while
+the bytes are written -- an each default that counts its calls, a snippet parameter's -- is not in
+it, and those stay refused; an entry that reads nothing the request decides is Svelte's render,
+whole, in [pipeline.md](pipeline.md). A write into the object a caller passed stays refused too: a
+read of it is written out as Svelte's own helper, not as a name the run could hand back.
+
 **It stays a pure function of the render input.** Its inputs are the props and the module scope;
 what reads a clock, a host global or module state its own module changes is refused as before, and
 those wait on the question [roadmap.md](roadmap.md) holds open.

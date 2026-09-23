@@ -632,6 +632,44 @@ const accepted: Case[] = [
 			'<Sub {s} /><i>{data.a}</i>',
 		data: [{ a: 'x' }, { a: '' }],
 	},
+	// **The script run.** Each of these was refused: substitution maps a name to the expression it
+	// was declared to be, and a script that changes the name afterwards leaves no single expression
+	// standing for it. The instance script runs per request as Svelte compiled it and the reads are
+	// fields of that run. See spec/derivation.md, "Where substitution cannot follow, the script runs
+	// as Svelte compiled it".
+	{
+		name: 'a name assigned after it is declared',
+		source: '<script>let { data } = $props(); let x = 1; x = 2</script><p>{data.a + x}</p>',
+		data: [{ a: 1 }, { a: 5 }],
+	},
+	{
+		name: 'an object mutated after it is declared',
+		source:
+			'<script>let { data } = $props(); const o = { a: 1 }; o.a = 2</script>' +
+			'<p>{data.a + o.a}</p>',
+		data: [{ a: 1 }, { a: 5 }],
+	},
+	{
+		// Which of the two ran last is the analysis's topological order, which the run is Svelte's.
+		name: 'two reactive statements assigning one name',
+		source: '<script>export let a; let n = 1; $: n = a * 2; $: n = a * 3;</script><p>{a + n}</p>',
+		props: [{ a: 1 }, { a: 3 }],
+	},
+	{
+		// `legacy_reactive_declarations` unshifts `let max;` only for a name nothing else declares,
+		// so the self-reference reads the declaration's own value here -- Svelte's answer, since the
+		// run is Svelte's.
+		name: 'a reactive statement reading the name it assigns beside a declaration',
+		source: '<script>export let a; let n = 1; $: n = Math.max(a, n);</script><p>{a + n}</p>',
+		props: [{ a: 0 }, { a: 3 }],
+	},
+	{
+		// Svelte runs the instance script before the template, so `options` holds `bar` whatever the
+		// request sent.
+		name: 'a prop assigned after it is destructured',
+		source: "<script>let { options = 'foo' } = $props(); options = 'bar'</script><p>{options}</p>",
+		props: [{}, { options: 'x' }],
+	},
 	{
 		// A store the request brings. It used to be refused: the payload was the wire too, and a
 		// store is an object with a `subscribe` function. The render input holds any value, and
@@ -3817,18 +3855,6 @@ const refused: Case[] = [
 		says: 'is a component read by an expression this artifact holds',
 	},
 	{
-		// The object a caller passed is rebuilt wherever it is read -- the entry's out of the
-		// payload, a child's out of what its call site wrote -- so a write into it is lost. The
-		// same rule an assignment after a declaration falls under, on a name that is not a
-		// declaration: measured, `$: $$restProps.c = 'c'` beside `{$$restProps.c}` wrote nothing
-		// where Svelte wrote `c`.
-		name: 'a script that writes into the props object',
-		says: 'the object a caller passed is rebuilt',
-		source:
-			"<script>export let a; $: $$restProps.c = $$restProps.c ?? 'c';</script>" +
-			'<p>{a}{$$restProps.c}</p>',
-	},
-	{
 		// A component's `<script module>` is module state too, reached by a named import of the
 		// component. The render mutates its own instance of that module and would bake whatever it
 		// left behind; the artifact's instance is a different one, per request. One render cannot
@@ -3874,6 +3900,18 @@ const refused: Case[] = [
 			'<script>let { data } = $props(); const s = Symbol(); const o = { [s]: data.a };</script>' +
 			'<p>{s in o}</p>',
 		says: 'the same twice',
+	},
+	{
+		// The object a caller passed is rebuilt wherever it is read -- the entry's out of the
+		// payload, a child's out of what its call site wrote -- so a write into it is lost:
+		// measured, `$: $$restProps.c = 'c'` beside `{$$restProps.c}` wrote nothing where Svelte
+		// wrote `c`. The script run does not answer it either, since a read of the object is written
+		// out as Svelte's own helper rather than as a name the run could hand back.
+		name: 'a script that writes into the props object',
+		says: 'the object a caller passed is rebuilt',
+		source:
+			"<script>export let a; $: $$restProps.c = $$restProps.c ?? 'c';</script>" +
+			'<p>{a}{$$restProps.c}</p>',
 	},
 	{
 		// `export { x }` is a prop only where `x` is a plain `let` or `var`: over a `const` it is a
@@ -4035,19 +4073,6 @@ const refused: Case[] = [
 		source: `${PROPS}<div>{@render children()}</div>`,
 	},
 	{
-		// Substitution replaces a name with the expression it was declared to be, so an assignment
-		// afterwards makes that expression stop being what the name holds. Both of these compiled and
-		// wrote the wrong bytes before they were refused.
-		name: 'a name assigned after it is declared',
-		source: '<script>let { data } = $props(); let x = 1; x = 2</script><p>{data.a + x}</p>',
-	},
-	{
-		name: 'an object mutated after it is declared',
-		source:
-			'<script>let { data } = $props(); const o = { a: 1 }; o.a = 2</script>' +
-			'<p>{data.a + o.a}</p>',
-	},
-	{
 		// The whole pass plants a marker, renders, and reads it out of the bytes. A component
 		// writing that shape as literal markup puts something in the output nothing can tell from
 		// a marker: measured, a `<p>` holding the text and a `<p>` holding a value came out with
@@ -4108,23 +4133,6 @@ const refused: Case[] = [
 	},
 
 	{
-		// Two `$:` assigning one name. Which of them ran last is the analysis's topological order
-		// rather than the source's, and this pass does not build that order, so the pair stays an
-		// assignment after a declaration.
-		name: 'two reactive statements assigning one name',
-		says: 'assigned after being declared',
-		source: '<script>export let a; let n = 1; $: n = a * 2; $: n = a * 3;</script><p>{a + n}</p>',
-	},
-	{
-		// A `$:` reading the name it assigns, where something else declares it.
-		// `legacy_reactive_declarations` unshifts `let max;` only for a binding whose kind is
-		// `legacy_reactive`, so the self-reference reads `undefined` there and the declaration's own
-		// value here. Two answers, and only the first is written.
-		name: 'a reactive statement reading the name it assigns beside a declaration',
-		says: 'assigned after being declared',
-		source: '<script>export let a; let n = 1; $: n = Math.max(a, n);</script><p>{a + n}</p>',
-	},
-	{
 		// A rune is compiled away by Svelte and is not a function anything can call. The ones whose
 		// answer the server writes are written out -- `ANSWERED` in `locals.ts` -- and a `$derived`
 		// class field is read as the getter `ClassBody.js` makes of it. A field whose key is computed
@@ -4179,14 +4187,6 @@ const refused: Case[] = [
 		source:
 			"<script>import { setContext } from 'svelte'; import Kid from './Kid.svelte';" +
 			" let { data } = $props(); setContext('k', { v: data.v });</script><Kid />",
-	},
-	{
-		// A prop is not a declaration, and the rule is the same: Svelte runs the instance script
-		// before the template, so `options` holds `bar` while the bytes are written, where the
-		// substitution stands for the payload's key and wrote `foo`.
-		name: 'a prop assigned after it is destructured',
-		says: 'is a prop this component changes',
-		source: "<script>let { options = 'foo' } = $props(); options = 'bar'</script><p>{options}</p>",
 	},
 	{
 		// The same fault one level in, and it used to compile: the instance script runs once and a

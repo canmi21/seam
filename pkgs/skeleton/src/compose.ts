@@ -443,6 +443,7 @@ export const CARRIED = [
 	'given',
 	'hold',
 	'rest_props',
+	'run',
 	'sanitize_props',
 	'sanitize_slots',
 	'stringify',

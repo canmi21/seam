@@ -1,7 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { collides, stamp } from './sentinel.ts';
 import { basename, relative, resolve as resolvePath } from 'node:path';
-import { type Carried, importsOf, readsOf, resolveBare, resolved } from 'ast';
+import {
+	type Carried,
+	GIVEN,
+	importsOf,
+	projectAsync,
+	readsOf,
+	readsReplaced,
+	resolveBare,
+	resolved,
+	RUN_NAME,
+} from 'ast';
 import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
 import { refuse } from './node.ts';
@@ -368,10 +378,53 @@ async function walked(
 	// its value reads, so a context read inside one went out as a derivation and threw
 	// `lifecycle_outside_component` at injection rather than naming a file here. Asked once more
 	// over the finished list, which is the one place that holds all of them.
+	ran(finished, relative(root, file), baseline.ran);
 	for (const one of expressionsOf(finished)) outside(one.expression, true, baseline.changing);
 	composed(expressionsOf(finished), root);
 
 	return finished;
+}
+
+/**
+ * Every read of one of the entry's own names that substitution could not follow, in an expression
+ * the artifact holds, written as a field of the entry's script run as Svelte compiled it.
+ *
+ * The render evaluates the author's text and has these right wherever it is the one asked; what
+ * reaches here is a read the artifact has to answer per request, and the run is its answer: one
+ * held value per request, `$$run($$given)`, whose fields are what the markup would have read. Only
+ * an expression written in the entry's own file, whose names are the entry's. See
+ * spec/derivation.md, "Where substitution cannot follow, the script runs as Svelte compiled it".
+ */
+function ran(rendered: Skeleton, entry: string, changed: ReadonlySet<string>): void {
+	if (changed.size === 0) return;
+	const names = new Set([...changed, ...[...changed].map((one) => `$${one}`)]);
+	let at: number | undefined;
+	const field = (name: string): string => {
+		at ??=
+			rendered.held.push({
+				expression: projectAsync() ? `(await ${RUN_NAME}(${GIVEN}))` : `${RUN_NAME}(${GIVEN})`,
+				files: [entry],
+			}) - 1;
+		return `($$hold(${String(at)}).${name})`;
+	};
+	const over = (text: string): string => readsReplaced(text, names, field);
+	const own = (files: readonly string[] | undefined): boolean => (files?.[0] ?? entry) === entry;
+	for (const hole of rendered.holes) {
+		if (!own(hole.files)) continue;
+		hole.expression = over(hole.expression);
+		if (hole.choice?.tests !== undefined) hole.choice.tests = hole.choice.tests.map(over);
+		if (hole.call?.binds !== undefined) {
+			hole.call.binds = hole.call.binds.map(([name, one]) => [name, over(one)]);
+		}
+	}
+	for (const block of rendered.blocks) {
+		if (!own(block.files)) continue;
+		block.expression = over(block.expression);
+		if (block.tests !== undefined) block.tests = block.tests.map(over);
+		if (block.fragment?.binds !== undefined) {
+			block.fragment.binds = block.fragment.binds.map(([name, one]) => [name, over(one)]);
+		}
+	}
 }
 
 /**

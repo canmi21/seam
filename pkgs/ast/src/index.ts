@@ -8,6 +8,7 @@ export {
 	type Unresolved,
 } from './bindings.ts';
 export { bundle } from './bundle.ts';
+export { CAPTURE, captured, readsReplaced, RUN_NAME } from './capture.ts';
 export { apply, type Edit, type Neutral } from './edits.ts';
 export {
 	constant,
