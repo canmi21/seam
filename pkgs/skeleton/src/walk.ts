@@ -2565,6 +2565,16 @@ function waitsOn(
 	return own || through ? `await ${blocked}` : blocked;
 }
 
+/**
+ * Whether an expression awaits only through a name that waits, which the render has to be left to
+ * evaluate as written: `<X />` over `const X = $derived(await Promise.resolve(Component))` is a
+ * component the render reads off its own declaration, and written as the expansion,
+ * `<svelte:component this={(await ...)}>`, Svelte's output would not load.
+ */
+function waitsThrough(original: unknown, expanded: string, walk: Walk): boolean {
+	return !awaitsAtTop(original) && awaiting(expanded) && blockedRead(original, walk);
+}
+
 /** Whether an expression reads a name Svelte's async mode makes wait. See `blocking()`. */
 function blockedRead(original: unknown, walk: Walk): boolean {
 	return blocking(original, '', walk) !== '';
@@ -4796,7 +4806,7 @@ function collect(node: unknown, walk: Walk): void {
 							rechose(walk, choice, fresh);
 						},
 					};
-				} else {
+				} else if (!waitsThrough(node['expression'], expand(node['expression']), walk)) {
 					const chosen = choosing(expand(node['expression']), 'svelte:component', walk);
 					const written = (): void => {
 						edits.push([where[0], where[1], chosen]);
@@ -5014,9 +5024,11 @@ function collect(node: unknown, walk: Walk): void {
 				// per request, which is not decided. See spec/refusals.md.
 				if (type === 'Component' && !tag.includes('.') && walk.runeOf(tag) !== undefined) {
 					const whole = span(node);
-					if (whole !== null) {
-						const at: [number, number] = [whole[0] + 1, whole[0] + 1 + tag.length];
-						const written = expand({ type: 'Identifier', name: tag, start: at[0], end: at[1] });
+					const at: [number, number] | null =
+						whole === null ? null : [whole[0] + 1, whole[0] + 1 + tag.length];
+					const name = { type: 'Identifier', name: tag, start: at?.[0], end: at?.[1] };
+					if (whole !== null && at !== null && !waitsThrough(name, expand(name), walk)) {
+						const written = expand(name);
 						// A `?:` in it chooses which component, the way one handed to a package chooses
 						// what is handed, and is enumerated the same way: the walk stops and asks, and the
 						// build renders once per branch. What the taken branch leaves has to be inert.
