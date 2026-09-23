@@ -6712,6 +6712,19 @@ function descend(
 		prelude: walk.site.prelude.length,
 	};
 
+	/**
+	 * Whether Svelte's render of this call site would hand the child a marker for `prop`: where the
+	 * value written for it varies with the request, where a spread whose keys nobody can list does,
+	 * or where it is bound. A prop the call site does not pass is the child's own default.
+	 */
+	const handsMarker = (prop: string | undefined): boolean => {
+		if (prop === undefined || boundProps.has(prop)) return true;
+		if (walk.site.payload === null) return false;
+		const value = bindings.get(prop);
+		if (value !== undefined) return varies(value, walk);
+		return order.some((one) => 'spread' in one && varies(one.spread, walk));
+	};
+
 	// Whether the child writes a head, which decides what a failure to enter it means below.
 	let headed = false;
 	try {
@@ -7427,8 +7440,17 @@ function descend(
 		}
 		// Left to Svelte, a child that changes a value is handed the marker standing for it and
 		// computes with that: `export let value; value += 1` over a marker wrote `%%s0%%1`, which is
-		// the marker back with a digit on it, so nothing downstream could tell. The author's to see.
-		if (walk.asking !== true && reason.includes('is a prop this component changes')) throw error;
+		// the marker back with a digit on it, so nothing downstream could tell. The author's to see
+		// -- but only where a marker is what the child would be handed. A prop whose value here
+		// reads nothing the request decides reaches Svelte's render as written, and the render runs
+		// the child's script over it as a server would.
+		if (
+			walk.asking !== true &&
+			reason.includes('is a prop this component changes') &&
+			handsMarker(/^`([^`]+)`/.exec(reason)?.[1])
+		) {
+			throw error;
+		}
 
 		// Left to Svelte, a context read is evaluated in the render -- where the `setContext` above
 		// it was handed the literal standing in for a request value, so the child bakes that. The
