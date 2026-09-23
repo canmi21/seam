@@ -115,13 +115,15 @@ and a skip is one the list names with its reason.
 ```
 suite                   samples   pass   skip   fail
 server-side-rendering       132     91     41      0
-runtime-runes              1054    691    363      0
-runtime-legacy             1209   1096    113      0
-total                      2395   1878    517      0
+runtime-runes              1054    692    362      0
+runtime-legacy             1209   1109     99      1
+total                      2395   1892    502      1
 ```
 
-Against the target: **1878 of 1878**, at `svelte@5.57.1`. Nothing fails, which is the condition
-this file sets for stage one -- this time over the corpus this file describes. It read
+Against the target: **1892 of 1893**, at `svelte@5.57.1`. It was 1878 of 1878 until the runner
+stopped skipping what it could not stage and the samples were measured: fourteen more passed and
+`runtime-legacy/reactive-import-statement` is refused, a read of module state its module changes,
+which is owed work. Stage one is done again when that one passes. It read
 1559 of 1559 first, over one 342 samples smaller: 276 of the recovered samples agreed with no
 change to the compiler and four were work, and those four are done.
 
@@ -201,7 +203,8 @@ key rather than by name.
 
 ### It is done, and what the second time was worth
 
-`mise run vendor-baseline` reports nothing failing, which is the condition this section sets. It reported that once before over a corpus 342 samples smaller than the one this file names,
+`mise run vendor-baseline` reported nothing failing, which is the condition this section sets, and
+does again once the one sample under **Where it stands** passes. It reported that once before over a corpus 342 samples smaller than the one this file names,
 and the audit that found those samples is the reason the claim is worth more the second time: the
 work that had reached zero stood, 276 of the recovered samples agreed with no change to the
 compiler, and four were work. **A target is only as good as the denominator under it**, and the

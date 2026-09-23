@@ -84,15 +84,41 @@ be.
 
 **A harness skip is where neither side answered.** Svelte's own render could not be built or run
 here, or the sample's own config could not be read, or the props it names could not be built at
-all: fourteen configs write `get props()` and thirteen of them return what `create_deferred()`
-made, which is upstream's helper and not vendored. There is nothing to compare against, so it is not
-a pass and not a fail. **Whichever half could not answer, the reason says so**: nobody measured
-this sample, and the list names it so that somebody can.
+all. There is nothing to compare against, so it is not a pass and not a fail. **Whichever half
+could not answer, the reason says so**: nobody measured this sample, and the list names it so that
+somebody can.
+
+**A harness skip is this runner's debt, and it is paid by doing what upstream's runner does.**
+Eighteen were, when the list was first written, and every one was a piece of upstream's environment
+missing here rather than anything about the sample:
+
+- **Upstream's helpers.** Twelve `await` samples build their props out of `create_deferred()` in
+  `tests/helpers.js`, which is not vendored and was stubbed to throw. It is ten lines that build a
+  promise, and it is copied now. The same samples showed the setup running after the props were
+  read, where upstream runs `before_test` first; a getter reads what the setup made.
+- **Vite's resolution.** Upstream runs a config under Vite, so `./data` is `./data.js` and an import
+  of a name a module does not export is `undefined`; Node and rolldown refuse both. Resolved the
+  way Vite resolves them.
+- **The mode each suite compiles in.** Upstream passes `runes: true` for `runtime-runes` and
+  `false` for `runtime-legacy`, unless the sample's own `compileOptions` say otherwise, and the SSR
+  suite passes nothing. Both sides get it -- ours through a `svelte.config.js` staged beside the
+  sample, which is how a project gives it (see [pipeline.md](pipeline.md)). Without it a file with
+  no rune infers legacy mode, which upstream is not testing and which writes other anchors.
+- **A DOM.** Upstream renders the runtime suites' server variant under
+  `// @vitest-environment jsdom`, which is the next paragraph.
 
 **An upstream skip is what the sample's own `_config.js` says**: `skip: true`, a `mode` upstream
 does not run on the server, a `skip_mode` that names `server`, or an `error` the sample is written
 to produce. Not our judgement, and never used to make a number look better. A sample skipped here is
 skipped by the people who wrote it.
+
+**And a sample that renders only with a DOM is upstream's environment, not a server.** Upstream's
+server render runs with jsdom's globals in place, so `customElements.define` in a module script,
+`$: document.title = ...` and a bare `{name}` -- which is `window.name` -- render there. Kit's server
+is plain Node, where Svelte's own render of the same component throws, so the sample is not one a
+server can render at all. The oracle is asked without a DOM, and only where that fails is it asked
+again with one; a sample that renders then is skipped with that reason. This compiler is never
+given a DOM: a build has none.
 
 **Which requires reading the config, and for 342 samples it was not read.** Upstream's runner is
 not vendored, so the imports that reach for it are stood in for; the rule matched
@@ -200,15 +226,16 @@ as counting a gap out because the compiler announces it.
 A percentage over every sample is meaningless, because a skip is not a failure. **The number this
 file tracks is pass over pass and fail, and the target is every one of them**: nothing failing.
 
-**The upstream skips.** 239 at `svelte@5.57.1`, and every one is upstream saying so. It read 554
+**The upstream skips.** 242 at `svelte@5.57.1`, and every one is upstream saying so -- 239 in the
+sample's own config and 3 that render only under upstream's DOM. It read 554
 while 342 configs were not being read at all, and reading them raised what upstream really declares
 as well: `mode` from 160 to 182 and `skip` from 17 to 19, because a config that throws declares
 nothing.
 
-**The harness skips.** 18: 13 are props this runner cannot build, 1 a config it cannot read, and 4
-the oracle's own. There is nothing to compare against, so counting either way is a claim about a
-comparison nobody made -- and a sample skipped because of this runner is a sample nobody has
-measured, which is why the reason is written into the list rather than into a count.
+**The harness skips.** None at `svelte@5.57.1`; there were 18, and what paid them is above.
+There is nothing to compare against in one, so counting either way is a claim about a comparison
+nobody made -- and a sample skipped because of this runner is a sample nobody has measured, which is
+why the reason is written into the list rather than into a count.
 
 **The scope skips, which are the scope line rather than an excuse.** 260. Async Svelte is most of
 it: `await` in markup or at the top of a script awaits a promise per request while the bytes are
@@ -236,7 +263,7 @@ upstream skips, 17 async, 2 that ask a boundary to catch a throw -- **59 of 96**
 
 [conformance.md](conformance.md) puts this suite in its place: it is stage one of three, and it
 says what "all of them" means once the skips, the oracle's own failures and the refusals by
-decision come out -- 1878 of the 2395 -- and why neither SvelteKit's own test apps nor a real
+decision come out -- 1893 of the 2395 -- and why neither SvelteKit's own test apps nor a real
 application should be measured until
 this one is finished. What follows here is the rule that decides the order of work inside it.
 
@@ -317,12 +344,23 @@ checked is only true on the day it was written.
 **`--write` records the run as the list, and refuses while anything fails.** A failure is not a
 state the list has, so it cannot be recorded away; what the list can take is a sample moving
 between `pass` and `skip`, and that is one line in a diff, which is where it is read.
+
+**`--skip-failing` is the one way past that refusal, for one situation.** A sample fails, it has
+been decided to be work that is owed -- not a decision, not a skip -- and what else moved still
+has to be recorded. `--write --skip-failing` writes the list with the failing samples left off it,
+so each goes on failing every run until the work is done, and `verify` stays red with it. It is not
+for a failure nobody has read. It was added when one did exactly that: the harness fixes above
+turned seventeen skips into passes and upstream skips and one into a refusal nobody had classified,
+`runtime-legacy/reactive-import-statement`, which is owed work, and the seventeen could not be
+recorded behind it.
 `SEAM_ASYNC=1` is reported and not held to the list, since it compiles both sides another way.
 
 ```
 mise run vendor-baseline               the failures, the skips by reason, then the table
 mise run vendor-baseline -- --table    the table alone
 mise run vendor-baseline -- --write    record the run as the list
+mise run vendor-baseline -- --write --skip-failing
+                                       the same, leaving failing samples off it; see above
 ```
 
 Run from anywhere in the workspace it is `mise run //repos/seam:vendor-baseline`.

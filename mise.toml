@@ -85,6 +85,10 @@ description = "Svelte's own samples, each held to what pkgs/suite/baseline.json 
 # The failures and the skips by reason, then the table; `-- --table` is the table alone, and
 # `-- --write` records the run as the list, refusing while anything fails. It exits non-zero while
 # any sample disagrees with the list. See spec/suite.md.
+#
+# `-- --write --skip-failing` is the one way past that refusal, and only for this: a failing sample
+# has been decided to be work that is owed, and what else moved still has to be recorded. The
+# failing samples are left off the list and go on failing every run until the work is done.
 depends = ["wasm"]
 # The same reason `test` sets it: Svelte's development runtime writes a hash into the anchor that
 # opens a `{@html}` block, so a compile under it renders bytes no server ships.

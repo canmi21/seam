@@ -817,10 +817,12 @@ item above already owns. `component-namespace` is `<Components.Foo />` over a mo
 export, which is the module-graph item. `binding-indirect-fn` is a `$:` declaration substituted
 into `items.filter(fn)` and is its own fault.
 
-## Stage one is 1878 of 1878, and the gate has changed
+## Stage one is 1892 of 1893, and the gate has changed
 
-What the suite reports now is nothing failing, which is the condition
-[conformance.md](conformance.md) set for stage one.
+What the suite reported was nothing failing, which is the condition
+[conformance.md](conformance.md) set for stage one. Paying the runner's own skips measured eighteen
+more samples, and one of them fails: `runtime-legacy/reactive-import-statement`, a read of module
+state its module changes, which is owed work. [conformance.md](conformance.md) has the count.
 
 **It reported that once already, at 1559 of 1559, over a corpus 342 samples smaller.** The shim
 standing in for upstream's un-vendored runner matched one spelling of one import, and every config

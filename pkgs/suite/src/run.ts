@@ -17,9 +17,16 @@
  * a pass that stopped passing, a skip whose reason changed or that passes now, a sample the list
  * does not name, a name the corpus no longer holds. `--write` records the run as the list, and
  * refuses while anything fails. See spec/suite.md.
+ *
+ * **`--skip-failing` is the one way past that refusal, and it is for one situation only**: a
+ * sample that fails has been decided to be work that is owed, not a decision and not a skip, and
+ * what else moved still has to be recorded. It writes the list with the failing samples left off
+ * it, so they go on failing every run -- as not on the list -- until the work is done. It is not
+ * for a failure nobody has read, and not for making `verify` pass: it cannot, by construction.
  */
 import {
 	cpSync,
+	existsSync,
 	mkdirSync,
 	readdirSync,
 	readFileSync,
@@ -30,6 +37,7 @@ import {
 import { basename, dirname, resolve } from 'node:path';
 import { createRequire, stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { JSDOM } from 'jsdom';
 import { rolldown } from 'rolldown';
 import { compile as compileComponent, compileModule } from 'svelte/compiler';
 import { render } from 'svelte/server';
@@ -146,7 +154,20 @@ interface Config {
 	 * against, since eight samples had neither side answering.
 	 */
 	transformError?: (error: unknown) => unknown;
+	/** Upstream's compile options for the sample, of which `runes` is read. See `RUNES`. */
+	compileOptions?: { runes?: boolean };
 }
+
+/**
+ * The mode upstream compiles each suite in, where the sample's own `compileOptions` do not say.
+ *
+ * `runtime_suite(runes)` in upstream's `runtime-legacy/shared.ts` passes `runes: true` for the one
+ * suite and `false` for the other, and the SSR suite passes nothing. Read here because a file with
+ * no rune in it infers legacy mode, and upstream is testing it in runes mode: the two write
+ * different anchors. Both sides get it, ours through a `svelte.config.js` the way a project gives
+ * it. See spec/suite.md.
+ */
+const RUNES: Readonly<Record<string, boolean>> = { 'runtime-runes': true, 'runtime-legacy': false };
 
 type Outcome = 'identical' | 'empty' | 'differs' | 'gap' | 'decided' | 'skipped' | 'oracle';
 
@@ -322,12 +343,38 @@ function binds(clause: string): string[] {
  * fixture and its props may be read out of it.
  *
  * **What stands in for a name throws when it is called.** `test` is the identity, since the object
- * is what is wanted. Everything else is upstream's assertion and timing helpers, which a server
- * render never reaches -- they are called from the `test` function, and this harness does not run
- * it. A stub that throws keeps the two cases apart: a config that only mentions them evaluates,
- * and a config whose `props` are *built* by one says so where the props are read, instead of
- * handing the render a value neither side should be held to.
+ * is what is wanted, and the helpers in `STANDS_IN` are upstream's own, copied. Everything else is
+ * upstream's assertion and timing helpers, which a server render never reaches -- they are called
+ * from the `test` function, and this harness does not run it. A stub that throws keeps the two
+ * cases apart: a config that only mentions them evaluates, and a config whose `props` are *built*
+ * by one says so where the props are read, instead of handing the render a value neither side
+ * should be held to.
+ *
+ * **A specifier inside the sample is resolved the way Vite resolves it**, since upstream runs the
+ * config under Vite: `./data` is `./data.js`, which Node's own resolution does not do.
  */
+/**
+ * Upstream's helpers that build a config's props, as `tests/helpers.js` writes them.
+ *
+ * A config that builds its props out of one is not a sample the oracle cannot render, so the helper
+ * is copied rather than stubbed: thirteen `await` samples hand the render `create_deferred()`'s
+ * promise, and with the stub the props were never built.
+ */
+const STANDS_IN: Readonly<Record<string, string>> = {
+	create_deferred: `function create_deferred() {
+	let resolve = (value) => {};
+	let reject = (reason) => {};
+	const promise = new Promise((f, r) => {
+		resolve = f;
+		reject = r;
+	});
+	return { promise, resolve, reject };
+}`,
+};
+
+/** Vite's own order for a specifier written without one. */
+const EXTENSIONS = ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'];
+
 async function configOf(from: string, into: string): Promise<Config & { broken?: string }> {
 	let source: string;
 	try {
@@ -348,14 +395,20 @@ async function configOf(from: string, into: string): Promise<Config & { broken?:
 			(whole, clause: string, specifier: string) => {
 				// A specifier that stays inside the sample is the sample's own, and a bare one is a
 				// package this process has. Only what climbs out of the directory is upstream's runner.
+				if (specifier.startsWith('./')) {
+					if (existsSync(resolve(from, specifier))) return whole;
+					const found = EXTENSIONS.find((one) => existsSync(resolve(from, `${specifier}${one}`)));
+					return found === undefined ? whole : whole.replace(specifier, `${specifier}${found}`);
+				}
 				if (!specifier.startsWith('../') && !specifier.startsWith('#')) return whole;
 				return binds(clause)
 					.map((one) =>
 						one === 'test'
 							? 'const test = (one) => one;'
-							: `const ${one} = () => { throw new Error(${JSON.stringify(
+							: (STANDS_IN[one] ??
+								`const ${one} = () => { throw new Error(${JSON.stringify(
 									`\`${one}\` is upstream's own test harness, which is not vendored here`,
-								)}); };`,
+								)}); };`),
 					)
 					.join(' ');
 			},
@@ -416,9 +469,15 @@ async function theirs(
 	dir: string,
 	props: Record<string, unknown>,
 	/** What the sample hands `render()` for an error a boundary catches. See `Config`. */
-	transformError?: (error: unknown) => unknown,
+	transformError: ((error: unknown) => unknown) | undefined,
+	/** The mode to compile in, or undefined where Svelte decides. See `RUNES`. */
+	runes: boolean | undefined,
+	/** Whether to render with a browser's globals in place. See `withDom`. */
+	dom = false,
 ): Promise<{ body: string; head: string }> {
-	const out = resolve(dir, 'oracle.js');
+	// A file of its own for each, since a module whose evaluation threw stays thrown when imported
+	// again, and the render with a DOM is asked only after the one without it failed.
+	const out = resolve(dir, dom ? 'oracle-dom.js' : 'oracle.js');
 	// **The entry re-exports the component rather than holding a compiled copy of it.** Compiled
 	// into the entry, `main.svelte` was in the graph twice -- once here and once through the
 	// plugin, for every child that imports the entry's own `<script module>` -- so its module block
@@ -433,6 +492,9 @@ async function theirs(
 		platform: 'node',
 		resolve: { conditionNames: ['svelte', 'import', 'default'] },
 		external: [/^svelte(?:\/|$)/],
+		// An import of a name the module does not export is `undefined` under Vite, which upstream
+		// runs under, and an error under rolldown's default. `context-api-b` imports one.
+		shimMissingExports: true,
 		logLevel: 'silent',
 		plugins: [
 			{
@@ -445,6 +507,7 @@ async function theirs(
 							filename: id,
 							rootDir: dir,
 							...ASYNC,
+							...(runes === undefined ? {} : { runes }),
 						}).js.code;
 					}
 					if (/\.svelte\.(?:js|ts)$/.test(id)) {
@@ -465,16 +528,43 @@ async function theirs(
 	const [chunk] = output;
 	if (chunk === undefined) throw new Error('nothing came out of bundling the oracle');
 	writeFileSync(out, chunk.code);
-	const mod = (await import(pathToFileURL(out).href)) as { default: Parameters<typeof render>[0] };
-	const rendered = render(mod.default, {
-		props: props as never,
-		...(transformError === undefined ? {} : { transformError }),
+	return withDom(dom, async () => {
+		const mod = (await import(pathToFileURL(out).href)) as {
+			default: Parameters<typeof render>[0];
+		};
+		const rendered = render(mod.default, {
+			props: props as never,
+			...(transformError === undefined ? {} : { transformError }),
+		});
+		if (Object.keys(ASYNC).length > 0) {
+			const held = (await rendered) as { body: string; head: string };
+			return { body: held.body, head: held.head };
+		}
+		return { body: rendered.body, head: rendered.head };
 	});
-	if (Object.keys(ASYNC).length > 0) {
-		const held = (await rendered) as { body: string; head: string };
-		return { body: held.body, head: held.head };
+}
+
+/**
+ * Runs the oracle with a browser's globals in place where `dom` says so, and takes them away again.
+ *
+ * Upstream renders both runtime suites' server variant under `// @vitest-environment jsdom`, so a
+ * sample reading `document`, `customElements` or a bare `name` -- which is `window.name` -- renders
+ * there and throws in plain Node. Kit's server is plain Node, so a sample that renders only with a
+ * DOM is not one a server can render either: it is asked with one only to say so, and skipped as
+ * upstream's environment. This compiler never gets a DOM. See spec/suite.md.
+ */
+async function withDom<T>(dom: boolean, what: () => Promise<T>): Promise<T> {
+	if (!dom) return what();
+	const { window } = new JSDOM('', { url: 'http://localhost/' });
+	const held = globalThis as unknown as Record<string, unknown>;
+	const added = Object.getOwnPropertyNames(window).filter((key) => !(key in globalThis));
+	for (const key of added) held[key] = (window as unknown as Record<string, unknown>)[key];
+	try {
+		return await what();
+	} finally {
+		for (const key of added) delete held[key];
+		window.close();
 	}
-	return { body: rendered.body, head: rendered.head };
 }
 
 /**
@@ -521,12 +611,20 @@ async function attempt(suite: string, name: string): Promise<Result> {
 							: null;
 	if (why !== null) return { suite, name, outcome: 'skipped', why };
 
-	// **A props getter that reaches for upstream's harness is nobody's answer, so it is the
-	// oracle's column.** Fourteen configs write `get props()`, and a handful build what they return
-	// out of `create_deferred()` and the rest of upstream's helpers, which are not vendored. The
-	// stub above throws there rather than inventing a value, and a sample neither side was given
-	// the same props for is one nobody measured -- which is what that column is for, and why
-	// spec/suite.md says it has to be read rather than trusted.
+	// Upstream's own setup, where this process can run it, and before the props, which is upstream's
+	// order (`runtime-legacy/shared.ts`): a config's getter may read what its setup made. See
+	// `Config.before_test`.
+	try {
+		config.before_test?.();
+	} catch {
+		// A hook that wants a DOM is not setup this render can be given, and the oracle says so
+		// on its own when the sample then reads what the hook would have set.
+	}
+	// **A props getter that reaches for upstream's harness is nobody's answer, so it is a harness
+	// skip.** Fourteen configs write `get props()`, and most build what they return out of
+	// `create_deferred()`, which `STANDS_IN` copies. A helper that is still stubbed throws there
+	// rather than inventing a value, and a sample neither side was given the same props for is one
+	// nobody measured.
 	let props: Record<string, unknown>;
 	try {
 		props = config.server_props ?? config.props ?? {};
@@ -538,12 +636,15 @@ async function attempt(suite: string, name: string): Promise<Result> {
 			why: `its props are the harness's: ${firstLine(error)}`,
 		};
 	}
-	// Upstream's own setup, where this process can run it. See `Config.before_test`.
-	try {
-		config.before_test?.();
-	} catch {
-		// A hook that wants a DOM is not setup this render can be given, and the oracle says so
-		// on its own when the sample then reads what the hook would have set.
+	const runes =
+		config.compileOptions !== undefined && 'runes' in config.compileOptions
+			? config.compileOptions.runes
+			: RUNES[suite];
+	if (runes !== undefined) {
+		writeFileSync(
+			resolve(dir, 'svelte.config.js'),
+			`export default { compilerOptions: { runes: ${String(runes)} } };\n`,
+		);
 	}
 	let mine: { body: string; head: string } | null = null;
 	let refusal: string | null = null;
@@ -554,7 +655,7 @@ async function attempt(suite: string, name: string): Promise<Result> {
 	}
 	let svelte: { body: string; head: string };
 	try {
-		svelte = await theirs(dir, props, config.transformError);
+		svelte = await theirs(dir, props, config.transformError, runes);
 	} catch (error) {
 		// Neither side's answer: the oracle could not be built or run. Reported apart so it is never
 		// read as agreement, and never as a refusal either.
@@ -574,6 +675,20 @@ async function attempt(suite: string, name: string): Promise<Result> {
 		// answer, and what we answer is the scope line: async Svelte is the load stage's. See
 		// spec/roadmap.md.
 		const text = String((error as Error).message);
+		// **A sample that renders only with a DOM is upstream's environment, not a server's.**
+		if (
+			await theirs(dir, props, config.transformError, runes, true).then(
+				() => true,
+				() => false,
+			)
+		) {
+			return {
+				suite,
+				name,
+				outcome: 'skipped',
+				why: "it renders only with a DOM, which upstream's jsdom environment has and a server has not",
+			};
+		}
 		// **Upstream's own `runtime_error` is upstream saying the render throws, where it is what
 		// came out.** That is `error` one word along -- the compiler raising it rather than the
 		// renderer -- and it is a skip for the same reason: not our judgement, and no bytes for
@@ -772,8 +887,10 @@ function write(results: readonly Result[]): void {
 	const skip: Record<string, string> = {};
 	for (const one of results.toSorted((a, b) => keyOf(a).localeCompare(keyOf(b)))) {
 		const { state, reason } = stateOf(one);
+		// A failure is not a state the list has, so a failing sample is left off it. See
+		// `--skip-failing`, which is the only way one reaches here.
 		if (state === 'pass') pass.push(keyOf(one));
-		else skip[keyOf(one)] = reason ?? '';
+		else if (state === 'skip') skip[keyOf(one)] = reason ?? '';
 	}
 	const held: Baseline = { version: 1, svelte: svelteVersion(), pass, skip };
 	writeFileSync(BASELINE, `${JSON.stringify(held, null, '\t')}\n`);
@@ -873,20 +990,30 @@ const results: Result[] = await quietly(async () => {
 const experiment = Object.keys(ASYNC).length > 0;
 if (process.argv.includes('--write')) {
 	const failing = results.filter((one) => stateOf(one).state === 'fail');
-	if (experiment || failing.length > 0) {
+	const past = process.argv.includes('--skip-failing');
+	if (experiment || (failing.length > 0 && !past)) {
 		lists(failing.map((one) => ({ key: keyOf(one), suite: one.suite, ...stateOf(one) })));
 		console.log(
 			experiment
 				? '\nThe list is the default render, and `SEAM_ASYNC` is an experiment on it.'
 				: `\n${String(failing.length)} sample(s) fail, and a failure is not something the ` +
-						'baseline records.',
+						'baseline records. Only where each of them has been decided to be work that is ' +
+						'owed, `--write --skip-failing` records the rest and leaves these off the list, ' +
+						'where they go on failing until the work is done. See spec/suite.md.',
 		);
 		rmSync(STAGE, { recursive: true, force: true });
 		process.exit(1);
 	}
 	write(results);
 	rmSync(STAGE, { recursive: true, force: true });
-	console.log(`\nbaseline.json records ${String(results.length)} samples.`);
+	console.log(
+		`\nbaseline.json records ${String(results.length - failing.length)} samples` +
+			(failing.length > 0
+				? `, and leaves ${String(failing.length)} failing off it: ` +
+					failing.map((one) => keyOf(one)).join(', ')
+				: '') +
+			'.',
+	);
 	process.exit(0);
 }
 
