@@ -98,12 +98,12 @@ const EMPTY = 20;
  * to look better. `props` is what both sides are handed.
  *
  * **`mode` is a list of the modes upstream runs the sample in, and `skip_mode` a list of the ones
- * it leaves out.** The modes are `client`, `hydrate`, `server`, `async` and `async-server`; the
- * one this suite is, is `server`. This used to read `mode` for `sync`, which is not a mode any
- * sample names, so the test was true wherever `mode` was written at all and every sample carrying
- * one was skipped -- twenty of them server tests upstream runs, `head-payload-validation` among
- * them, saying `mode: ['server']` in as many words. A condition that cannot be false does not
- * fail; it makes the denominator smaller and says nothing.
+ * it leaves out**, in each runner's own words -- see `SERVED`, which says which are the server's.
+ * This read `mode` for `sync` once, which no runtime sample names, so every runtime sample carrying
+ * a `mode` was skipped -- twenty of them server tests upstream runs, `head-payload-validation`
+ * saying `mode: ['server']` in as many words. Then it read `server` alone, and 37 samples written
+ * for an async server render were upstream's skips. A condition that cannot be false does not fail;
+ * it makes the denominator smaller and says nothing.
  *
  * **What a sample says about how to render it is read too, and two fields were not.** A sample
  * whose own config names what the render needs is not a sample the oracle cannot render; it is one
@@ -121,6 +121,11 @@ interface Config {
 	error?: unknown;
 	/** Upstream's own: the sample is written to throw while it renders, which is a skip here. */
 	runtime_error?: unknown;
+	/**
+	 * Upstream's own: the sample runs only with `experimental.async`, and upstream skips it outright
+	 * otherwise (`runtime-legacy/shared.ts`). So it is async Svelte. See `SERVED`.
+	 */
+	skip_no_async?: boolean;
 	load_compiled?: boolean;
 	props?: Record<string, unknown>;
 	/**
@@ -169,6 +174,22 @@ interface Config {
  */
 const RUNES: Readonly<Record<string, boolean>> = { 'runtime-runes': true, 'runtime-legacy': false };
 
+/**
+ * The modes in which upstream renders a sample on the server, per suite, since the two runners name
+ * them differently.
+ *
+ * The runtime suites' `mode` is `client`, `hydrate`, `server` and `async-server`; the SSR suite's is
+ * `sync` and `async` (`server-side-rendering/test.ts`). The first of each pair is the synchronous
+ * render this runner makes, the second the same render with `experimental.async` on. A sample
+ * upstream renders only in the second is async Svelte rather than upstream's skip. See
+ * spec/suite.md.
+ */
+const SERVED: Readonly<Record<string, readonly string[]>> = {
+	'server-side-rendering': ['sync', 'async'],
+	'runtime-runes': ['server', 'async-server'],
+	'runtime-legacy': ['server', 'async-server'],
+};
+
 type Outcome = 'identical' | 'empty' | 'differs' | 'gap' | 'decided' | 'skipped' | 'oracle';
 
 interface Result {
@@ -177,16 +198,20 @@ interface Result {
 	outcome: Outcome;
 	/** Why, for everything but an agreement: the refusal, the skip's reason, the stream that differs. */
 	why?: string;
-	/** For a refusal the scope line settles, which of its shapes it is. See `DECIDED`. */
+	/** For a refusal blocked on request-time rendering, which of its shapes it is. See `DECIDED`. */
 	kind?: string;
 }
 
+/** The decision async Svelte is, by the kind `DECIDED` gives it. */
+const ASYNC_KIND =
+	'async Svelte, whose compile-time half is owed and whose request-time half waits on async request-time rendering';
+
 /**
- * The refusals the scope line settles, by a phrase each of their messages says.
+ * The refusals blocked on request-time rendering, by a phrase each of their messages says.
  *
- * **A refusal is not a skip and is not counted as one.** A skip is upstream saying not to run the
- * sample; these ran, this compiler read them and turned them away on purpose, and the message
- * names where the question lives. What they are not is work: [conformance.md](conformance.md)
+ * **A refusal is not upstream's skip and is not counted as one.** An upstream skip is upstream saying
+ * not to run the sample; these ran, this compiler read them and turned them away because what they
+ * need -- the UI run per request -- is not built yet. What they are not is work inside the compiler: [conformance.md](conformance.md)
  * takes them out of the denominator, and they were being read out of prose while the table said
  * one number for them and for the gaps together.
  *
@@ -195,7 +220,7 @@ interface Result {
  * is the safe direction: a refusal nobody has classified is work until somebody says otherwise.
  */
 const DECIDED: readonly { says: string; kind: string }[] = [
-	{ says: 'async Svelte', kind: "async Svelte, which is the load stage's" },
+	{ says: 'async Svelte', kind: ASYNC_KIND },
 	{ says: 'assigned after being declared', kind: 'a value the render changes' },
 	{ says: 'changed by a function this render calls', kind: 'a value the render changes' },
 	{ says: 'is a prop this component changes', kind: 'a value the render changes' },
@@ -258,7 +283,7 @@ type State = 'pass' | 'skip' | 'fail';
  * What an outcome is once it is read against the list: pass, skip or fail.
  *
  * Empty is a pass, since both sides wrote the same bytes. A skip carries whose it is -- `upstream`
- * where the sample's own config says so, `scope` where the scope line refuses it, `harness` where
+ * where the sample's own config says so, `blocked` where it waits on request-time rendering, `harness` where
  * this runner could not ask the oracle -- because a skip nobody can attribute is a number made to
  * look better. See spec/suite.md.
  */
@@ -270,7 +295,7 @@ function stateOf(one: Result): { state: State; reason?: string } {
 		case 'skipped':
 			return { state: 'skip', reason: `upstream: ${one.why ?? ''}` };
 		case 'decided':
-			return { state: 'skip', reason: `scope: ${one.kind ?? ''}` };
+			return { state: 'skip', reason: `blocked: ${one.kind ?? ''}` };
 		case 'oracle':
 			return { state: 'skip', reason: `harness: ${(one.why ?? '').replaceAll(ROOT, '')}` };
 		case 'differs':
@@ -605,19 +630,38 @@ async function attempt(suite: string, name: string): Promise<Result> {
 			why: `its config will not evaluate: ${config.broken}`,
 		};
 	}
+	// The server renders upstream gives the sample, by the mode each is: this runner's is the
+	// synchronous one, and the other is the same render with `experimental.async` on. See `SERVED`.
+	const served = (mode: string | undefined): boolean =>
+		mode !== undefined &&
+		(!Array.isArray(config.mode) || config.mode.includes(mode)) &&
+		!(Array.isArray(config.skip_mode) && config.skip_mode.includes(mode));
+	const [sync, async] = SERVED[suite] ?? [];
 	const why =
 		config.skip === true
 			? 'upstream skips it'
-			: Array.isArray(config.mode) && !config.mode.includes('server')
-				? `upstream runs it only in ${config.mode.join(', ')} mode`
-				: Array.isArray(config.skip_mode) && config.skip_mode.includes('server')
-					? 'upstream skips it in server mode'
-					: config.error !== undefined
-						? 'upstream expects it to error'
-						: config.load_compiled === true
-							? 'upstream loads its output precompiled'
-							: null;
+			: !served(sync) && !served(async)
+				? Array.isArray(config.mode)
+					? `upstream runs it only in ${config.mode.toSorted().join(', ')} mode`
+					: 'upstream skips it in server mode'
+				: config.error !== undefined
+					? 'upstream expects it to error'
+					: config.load_compiled === true
+						? 'upstream loads its output precompiled'
+						: null;
 	if (why !== null) return { suite, name, outcome: 'skipped', why };
+	// **A sample upstream renders on the server only with `experimental.async` is not upstream's
+	// skip**: upstream measures it on the server, in the mode this runner has no pass for yet. That is
+	// this runner's debt, and the async pass pays it. Read off the config, the way upstream's own
+	// skips are. See spec/suite.md.
+	if (config.skip_no_async === true || !served(sync)) {
+		return {
+			suite,
+			name,
+			outcome: 'oracle',
+			why: 'upstream renders it on the server only with `experimental.async`, and this runner has no async pass yet',
+		};
+	}
 
 	// Upstream's own setup, where this process can run it, and before the props, which is upstream's
 	// order (`runtime-legacy/shared.ts`): a config's getter may read what its setup made. See
@@ -680,8 +724,7 @@ async function attempt(suite: string, name: string): Promise<Result> {
 		// every async sample -- and that is not the oracle failing, it is a question this harness did
 		// not ask. The flag is process-global and irreversible once set, so passing it would make
 		// every later sample's render depend on the order samples ran in. The sample stays ours to
-		// answer, and what we answer is the scope line: async Svelte is the load stage's. See
-		// spec/roadmap.md.
+		// answer, and it is async Svelte. See spec/roadmap.md.
 		const text = String((error as Error).message);
 		// **A sample that renders only with a DOM is upstream's environment, not a server's.**
 		if (
@@ -713,7 +756,9 @@ async function attempt(suite: string, name: string): Promise<Result> {
 				why: `upstream expects it to throw \`${config.runtime_error}\` while it renders`,
 			};
 		}
-		if (!/experimental\.async/.test(text) || mine !== null) {
+		// Both spellings: the option's name in one message, and `experimental_async_required` -- the
+		// code a `hydratable` call raises -- in another.
+		if (!/experimental[._]async/.test(text) || mine !== null) {
 			return { suite, name, outcome: 'oracle', why: firstLine(error) };
 		}
 		// Which samples are async Svelte is upstream's compiler to say, not a message match here.

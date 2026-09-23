@@ -69,8 +69,8 @@ render needs were read: a sample this harness did not ask properly is not a samp
 cannot render, and all eight were out of the denominator without either side having answered.
 [suite.md](suite.md) has the rule and the one exception to it.
 
-**A refusal by decision is out.** 259 samples, in seven shapes the scope line settles, and the
-suite counts them in a column of their own rather than beside the gaps:
+**A refusal blocked on request-time rendering is out** until that rendering exists: 259 samples,
+in seven shapes, and the suite counts them apart from the gaps:
 
 - **193 await** in markup or at the top of a script, which is async Svelte and the load stage's.
   Which samples those are is upstream's compiler to say: one that will not build without
@@ -115,12 +115,13 @@ and a skip is one the list names with its reason.
 ```
 suite                   samples   pass   skip   fail
 server-side-rendering       132     91     41      0
-runtime-runes              1054    692    362      0
+runtime-runes              1054    683    371      0
 runtime-legacy             1209   1109    100      0
-total                      2395   1892    503      0
+total                      2395   1883    512      0
 ```
 
-Against the target: **1892 of 1892**, at `svelte@5.57.1`. Nothing fails, which is the condition
+Against the target: **1883 of 1883**, at `svelte@5.57.1`, over the synchronous render alone; the
+samples upstream renders only with `experimental.async` wait for the async pass. Nothing fails, which is the condition
 this file sets for stage one. It was 1878 of 1878 until the runner stopped skipping what it could
 not stage and the samples were measured: fourteen more pass, and the rest are skips whose reason is
 written. It read

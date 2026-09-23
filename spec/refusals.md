@@ -16,20 +16,22 @@ construct *deserves* to be refused, and a refusal is never a judgement that some
 something the wrong way. Nearly every entry in this file is a gap in the work, and the work is
 finished when the file has nothing left in it but the exception below.
 
-**Two kinds of refusal are recorded here and only one of them empties out.** A gap is a construct
-nobody has written yet, and it leaves when somebody writes it. A refusal by decision is not a gap
-and no amount of work moves it, because it is the scope line said from the inside -- the exception
-the next paragraph names, and what follows from it. [roadmap.md](roadmap.md) keeps the two in
-separate sections, a gap under **ready, and not done** or **not yet the time** and a decision
-under **decided, and not built**, so that neither is ever read as the other. Reading a decision as
-unfinished work is how "a subset of Svelte" comes to sound like a permanent boundary, and reading
-a gap as a decision is how it comes to sound like one that was chosen.
+**Two kinds of refusal are recorded here, and they empty out at different times.** A gap is a
+construct nobody has written yet, and it leaves when somebody writes it. A blocked refusal is a
+construct that needs the UI run per request -- the exception the next paragraph names -- and no work
+inside this compiler moves it: it leaves when request-time rendering sits beside compile-time
+rendering, the condition under **Not permanently** below. [roadmap.md](roadmap.md) keeps the two in
+separate sections, a gap under **ready, and not done** or **not yet the time** and a blocked one
+under **blocked on request-time rendering**, so that neither is ever read as the other. Reading a
+blocked refusal as unfinished work is how "a subset of Svelte" comes to sound like a permanent
+boundary, and reading a gap as blocked is how it comes to sound like one that was chosen.
 
 **The reason is structural rather than aspirational.** This compiler is arranged the way SvelteKit
 is; what changed is *when* the render happens. So anything SvelteKit serves should be portable to
-compile-time rendering, with one exception that is a definition rather than a limit: an application
-that genuinely needs arbitrary code executed per request, against something only that request
-knows. Everything else -- an article, a form, an admin screen, a dashboard -- is in scope.
+compile-time rendering, with one exception that waits on the next piece of architecture rather than
+marking a limit: an application that genuinely needs arbitrary code executed per request, against
+something only that request knows. That is request-time rendering's, and it is coming beside this
+one; see **Not permanently** below. Everything else -- an article, a form, an admin screen, a dashboard -- is in scope.
 Interaction is not the scope line. A dashboard that filters, sorts and opens dialogs is a page
 whose bytes are fixed and whose behaviour is the client's, which is exactly what the client half
 is for.
@@ -63,8 +65,11 @@ there is no category of *this will never work* -- see below.
 
 ## Not permanently. The condition is named
 
-This is a decision for now, not for ever, and the thing that would reopen it is written down so
-that reopening it is not a matter of mood.
+This is a decision for now, not for ever, and the thing that reopens it is written down so that
+reopening it is not a matter of mood. **It is going to be reopened**: request-time rendering beside
+compile-time is planned -- synchronous first, asynchronous straight after -- and it is not yet the
+time. Everything [roadmap.md](roadmap.md) files under **blocked on request-time rendering** is
+waiting on exactly this.
 
 **When compile-time and request-time rendering can both appear on one page** -- different
 components on the same response, some compiled and some rendered -- the question becomes whether

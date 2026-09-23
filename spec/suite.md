@@ -62,14 +62,16 @@ the run was good. What a reader acts on is three things, so the table has three.
 three, and it is written into the reason so that nobody has to guess whose judgement a skip is:
 
 - `upstream:` -- the sample's own `_config.js` says not to run it on the server.
-- `scope:` -- this compiler refuses it and the scope line settles that: async Svelte, a value the
-  render changes, a value the payload cannot carry because it is a function, a value that is not
-  the same twice, module state its module changes. The reason is which of those decisions it is, not the message.
+- `blocked:` -- this compiler refuses it because it needs the UI run per request, which waits on
+  request-time rendering beside compile-time rendering (see [roadmap.md](roadmap.md), **Blocked on
+  request-time rendering**): a value the render changes, a value the payload cannot carry because
+  it is a function, a value that is not the same twice, module state its module changes, and async
+  Svelte for now. The reason is which of those it is, not the message.
 - `harness:` -- neither side answered, because this runner could not ask the oracle. That is a
   debt of this repository's, kept visible in the list rather than folded into either of the others.
 
-**fail** -- everything else: the bytes are not Svelte's, the compiler refused it and the scope line
-does not settle it, or the sample disagrees with [the list](#the-list-is-what-verify-holds-it-to).
+**fail** -- everything else: the bytes are not Svelte's, the compiler refused it for a reason that
+is not one of those, or the sample disagrees with [the list](#the-list-is-what-verify-holds-it-to).
 
 **A refusal is a skip or a fail, and which one is read off its message**, in a table in the runner:
 the classification is the measurement's and nothing in a build has a use for it. **An unmatched
@@ -77,8 +79,9 @@ refusal is a fail**, which is the safe direction -- a refusal nobody has classif
 somebody says otherwise. The two used to be one column, `refused`, and the figure a reader took away
 counted 264 decisions as though they were work.
 
-**And a scope skip is not an upstream skip.** An upstream skip is somebody else saying not to run
-the sample. A scope skip ran, and this compiler read it and turned it away on purpose. One prefix
+**And a blocked skip is not an upstream skip.** An upstream skip is somebody else saying not to run
+the sample. A blocked skip ran, and this compiler read it and turned it away because what it needs
+is not built yet. One prefix
 for both would make upstream's column our judgement, which is the one thing it is written not to
 be.
 
@@ -191,8 +194,9 @@ wrong with it.
 `experimental.async` on and this one does not, so Svelte's compiler turns away every async sample.
 That is not the oracle failing; it is a question this harness did not ask. The flag is
 process-global and irreversible once set, so passing it would make every later sample's render
-depend on the order the samples ran in. Those samples stay ours to answer, and what we answer is
-the scope line.
+depend on the order the samples ran in. Those samples stay ours to answer, and they are async
+Svelte: compile-time work where the build can know what is awaited, and blocked on async
+request-time rendering where the request decides it.
 
 **Which is also how membership of that class is decided.** A sample the oracle cannot build without
 `experimental.async` is async Svelte, whatever this compiler's own message says -- two of them were
@@ -212,36 +216,49 @@ async write Svelte's exact bytes with no change to the compiler.
 that never resolves, and upstream's own async render does not finish either. One that passes the
 deadline is reported as the oracle's failure rather than hanging the run.
 
-### `mode` names the modes upstream runs, and `sync` is not one of them
+### `mode` names the modes upstream runs, in each runner's own words
 
-The skip rule read `mode` for `sync`. No sample in the corpus names that mode -- they are `client`,
-`hydrate`, `server`, `async` and `async-server` -- so the test was true wherever `mode` was written
-at all, and every sample carrying one was skipped. Twenty of those are server tests upstream runs,
-`head-payload-validation` saying `mode: ['server']` in as many words. **A condition that cannot be
-false does not fail. It makes the denominator smaller and says nothing**, which is the same shape
-as counting a gap out because the compiler announces it.
+The two runners do not share a vocabulary. The runtime suites' `mode` is `client`, `hydrate`,
+`server` and `async-server`; the SSR suite's is `sync` and `async`. In each, the first server mode
+is the synchronous render this runner makes and the second is the same render with
+`experimental.async` on, so a sample is upstream's skip only where its config leaves neither on.
+
+It was read wrong twice. First for `sync`, which no runtime sample names, so every runtime sample
+carrying a `mode` was skipped -- twenty of them server tests upstream runs,
+`head-payload-validation` saying `mode: ['server']` in as many words. Then for `server` alone, so
+38 samples written for an async server render were filed as upstream's skips, when upstream does
+measure them on the server; and `skip_no_async`, upstream's own word that a sample runs only with
+the flag, was not read at all. **A condition that cannot be false does not fail. It makes the
+denominator smaller and says nothing**, which is the same shape as counting a gap out because the
+compiler announces it.
+
+**A sample upstream renders on the server only with the flag is a harness skip for now**, not
+upstream's: this runner has no async pass yet, and that is its debt. 57 at `svelte@5.57.1`.
 
 ## The denominator, said once
 
 A percentage over every sample is meaningless, because a skip is not a failure. **The number this
 file tracks is pass over pass and fail, and the target is every one of them**: nothing failing.
 
-**The upstream skips.** 242 at `svelte@5.57.1`, and every one is upstream saying so -- 239 in the
+**The upstream skips.** 200 at `svelte@5.57.1`, and every one is upstream saying so -- 197 in the
 sample's own config and 3 that render only under upstream's DOM. It read 554
 while 342 configs were not being read at all, and reading them raised what upstream really declares
 as well: `mode` from 160 to 182 and `skip` from 17 to 19, because a config that throws declares
 nothing.
 
-**The harness skips.** None at `svelte@5.57.1`; there were 18, and what paid them is above.
+**The harness skips.** 57 at `svelte@5.57.1`, every one a sample upstream renders on the server
+only with `experimental.async`, which the async pass pays. There were 18 before, and what paid them
+is above.
 There is nothing to compare against in one, so counting either way is a claim about a comparison
 nobody made -- and a sample skipped because of this runner is a sample nobody has measured, which is
 why the reason is written into the list rather than into a count.
 
-**The scope skips, which are the scope line rather than an excuse.** 261. Async Svelte is most of
-it: `await` in markup or at the top of a script awaits a promise per request while the bytes are
-written, which is the load stage's. A refusal the scope line does not settle is a fail -- it is work
-nobody has done, and hiding it behind the same word as a decision is exactly the confusion
-[refusals.md](refusals.md) was written to stop.
+**The blocked skips, which wait on request-time rendering rather than being an excuse.** 255. Async
+Svelte is most of it, and most of that is not blocked at all: an `await` whose value the build can
+know is compile-time work, owed now (see [roadmap.md](roadmap.md)), and only an `await` of what the
+request decides waits on async request-time rendering. A refusal that is none of these is a fail --
+it is work nobody has done, and hiding it behind the same word as a blocked one is exactly the
+confusion [refusals.md](refusals.md) was written to stop.
 
 ## What it said the first time it ran, at `svelte@5.57.0`
 
@@ -263,7 +280,7 @@ upstream skips, 17 async, 2 that ask a boundary to catch a throw -- **59 of 96**
 
 [conformance.md](conformance.md) puts this suite in its place: it is stage one of three, and it
 says what "all of them" means once the skips, the oracle's own failures and the refusals by
-decision come out -- 1892 of the 2395 -- and why neither SvelteKit's own test apps nor a real
+decision come out -- 1883 of the 2395 -- and why neither SvelteKit's own test apps nor a real
 application should be measured until
 this one is finished. What follows here is the rule that decides the order of work inside it.
 
@@ -352,7 +369,7 @@ so each goes on failing every run until the work is done, and `verify` stays red
 for a failure nobody has read. It was added when one did exactly that: the harness fixes above
 turned seventeen skips into passes and upstream skips and one into a refusal nobody had classified,
 `runtime-legacy/reactive-import-statement`, decided as owed work at first, and the seventeen could
-not be recorded behind it. It was later decided as the scope line; see
+not be recorded behind it. It was later filed as blocked on request-time rendering; see
 [refusals.md](refusals.md).
 `SEAM_ASYNC=1` is reported and not held to the list, since it compiles both sides another way.
 

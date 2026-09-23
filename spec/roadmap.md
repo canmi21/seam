@@ -82,9 +82,21 @@ the import, and `#render_async` writes the same bytes as `#render` for one. Five
 render a promise that never resolves, and an awaited render does not finish; upstream's does not
 either, and the suite gives each sample a deadline now.
 
-**Not turned on.** The flag is upstream's experiment, not ours to ship on their behalf, and the
-eight anchors are unwritten. What this section records is that the wall is theirs and thin, not
-ours and structural.
+**Being turned on, because it is where upstream is going.** Svelte's documentation says the flag
+is removed in Svelte 6, and Kit's `page/render.js` carries `// TODO 3.0 remove options.async`
+beside the note that opting into async SSR is a breaking change: async rendering becomes the only
+mode. So compile-time async is work now, not an experiment to wait out. Two halves, and they are not
+the same half:
+
+- **An `await` whose value the build can know** -- a literal, a promise the file makes, anything
+  that reads nothing the request decides -- is awaited at compile time and its bytes written, the
+  way any inert value is. That is 174 of the 183 measured above, and it is this compiler's.
+- **An `await` of what the request decides** is async request-time rendering, and waits for it
+  under **Blocked on request-time rendering**, straight after the synchronous kind.
+
+A project turns the mode on with `compilerOptions.experimental.async` in `svelte.config.js`, and
+that is what the compiler reads, the way it reads `runes`; `SEAM_ASYNC` was the stand-in for it.
+The eighth anchor above is owed.
 
 ## A value the render changes: asked where the expansion is written out, and done
 
@@ -158,10 +170,14 @@ and it is the decision this entry is waiting on.
 The line that decides what belongs here is one sentence. **Before hydration the page is an MPA
 and has to be what SvelteKit's SSR would have served; after hydration it is a standard Svelte SPA
 and there is nothing to decide.** CTR differs from SSR in one thing only: the UI is rendered at
-compile time rather than per request. What is given up is SSR's ability to run the UI per request
--- a component whose bytes can only be known by executing its script against the request. Every
-other way of writing Svelte is in scope, and a construct is refused only for as long as nobody has
-written it, never because it is the wrong way to write Svelte. [refusals.md](refusals.md) says what
+compile time rather than per request. What it cannot do on its own is run the UI per request -- a
+component whose bytes can only be known by executing its script against the request. **That is not
+given up: it waits on request-time rendering beside compile-time rendering on one page**, which is
+the next piece of architecture rather than a boundary, synchronous first and asynchronous straight
+after it. Until then such a construct is refused and filed under **Blocked on request-time
+rendering**, never as out of scope for good. Every other way of writing Svelte is in scope, async
+Svelte whose awaited value the build can know included, and a construct is refused only for as long
+as nobody has written it, never because it is the wrong way to write Svelte. [refusals.md](refusals.md) says what
 a refusal means; this file says what is still refused and why each is where it is.
 
 ## The layer line: protocol, and the framework around it
@@ -298,7 +314,7 @@ store created at module scope, a client cached in a module -- each is state the 
 copy of, and reading one where the value has to reach the bytes is the same fault. Reading a
 package's source to find out is what closes it, and `carry` already resolves the file.
 
-The refusal itself is the scope line, not work: see **Decided, and not built**. What stays owed
+The refusal itself is blocked, not work: see **Blocked on request-time rendering**. What stays owed
 here is the hole -- the same test over a package's module -- and a narrower test than any method
 call, which counts a `Context`'s `.get()` as a change.
 
@@ -604,7 +620,7 @@ Constructs the walk had never met, each a gap. `DeclarationTag` -- `{const x = 0
 the head assembly does not recognise as either a block or a stamp. `$state.eager` is a rune
 nothing reads. And a `<svelte:boundary>` whose body throws is caught by Svelte and rendered as
 `failed`; the throw used to escape the compile, and this said the two sides of it had not been told
-apart. They have, and neither is a gap: see **Decided, and not built**.
+apart. They have, and neither is a gap: see **Blocked on request-time rendering**.
 
 ## The gaps, sorted by who has to answer
 
@@ -821,13 +837,13 @@ item above already owns. `component-namespace` is `<Components.Foo />` over a mo
 export, which is the module-graph item. `binding-indirect-fn` is a `$:` declaration substituted
 into `items.filter(fn)` and is its own fault.
 
-## Stage one is 1892 of 1892, and the gate has changed
+## Stage one is 1883 of 1883, and the gate has changed
 
 What the suite reported was nothing failing, which is the condition
 [conformance.md](conformance.md) set for stage one, and it does again. Paying the runner's own skips
 measured eighteen more samples: fourteen pass, three are upstream's environment, and one,
 `runtime-legacy/reactive-import-statement`, is module state its module changes, which was classified
-as owed work and then decided as the scope line -- see **Decided, and not built**.
+as owed work and then filed as blocked on request-time rendering -- see **Blocked on request-time rendering**.
 
 **It reported that once already, at 1559 of 1559, over a corpus 342 samples smaller.** The shim
 standing in for upstream's un-vendored runner matched one spelling of one import, and every config
@@ -840,7 +856,7 @@ this file already stated for the oracle's column held for the skips word for wor
 
 The eleven before those were three constructs turned away in the wrong words -- a `<svelte:boundary>` whose body throws, eight of them; a raw
 snippet whose bytes the request decides, two; and a bare global, one -- and all three are the scope
-line, under **Decided, and not built** below. Each now says which decision it is, and the suite
+line, under **Blocked on request-time rendering** below. Each now says which decision it is, and the suite
 reads that off the message rather than being told.
 
 **So the suite is in `verify`, and what it is held to is a list of names.** A sample that starts
@@ -941,7 +957,16 @@ a marker reads nothing -- which used to fail at injection rather than at build, 
 `deriving \`$b\` failed`. Three are left, each its own shape: a store write inside an exported
 function, a store deciding a `<svelte:element>` tag, and one still failing in a derivation.
 
-## Decided, and not built
+## Blocked on request-time rendering
+
+**Everything here needs the UI run per request, and waits on one piece of architecture**: a page
+whose components are some compiled and some rendered at request time, which
+[refusals.md](refusals.md) names as the condition that reopens its refusal of a runtime fallback.
+It is planned, not declined -- synchronous request-time rendering first, then the asynchronous kind
+straight after it -- and it is not yet the time. Until then each item is refused at compile time,
+and a refusal here is not a gap in the compiler: no work inside it moves one. Request-time rendering
+exists only where a JavaScript host runs the page, so a backend that is not Node serves these pages
+only by handing them to one.
 
 **Module state a module changes.** A read of an exported binding its own module assigns, updates or
 calls a method on is state the process holds, which a build cannot read on the request's behalf.
@@ -950,20 +975,18 @@ in any package it imports reads one.
 
 **A script that substitution cannot reach, reading the request.** A name reassigned or an object
 mutated after its declaration, where the statements read request data, is a program per request.
-That is the one thing the scope line gives up, by definition, and it stays refused by decision
-rather than by omission: building it would be carrying SSR's per-request rendering back in under
-another name. Where the statements read nothing the request decides, the render already evaluates
+That is request-time rendering, and it waits for it: built inside the compiler instead it would be
+carrying SSR's per-request rendering back in under another name. Where the statements read nothing the request decides, the render already evaluates
 them and the walk bakes the result (`wants` in `walk.ts`). Zero in press.
 [derivation.md](derivation.md)
-holds the reasons and the three questions that would have to be answered if the scope line were
-moved.
+holds the reasons and the three questions request-time rendering has to answer for it.
 
-**Async Svelte.** `await` in markup or at the top of a script, and the async server render that
-goes with it, await a real promise per request while the bytes are written. That is loading data,
-the load stage's by definition, and it is refused by decision: the walk turns an `AwaitExpression`
-away by name, since Svelte itself compiles one only under `experimental.async`. Non-async SSR
-writes the pending branch and awaits nothing, which is what `{#await}` compiles to here and is
-kept.
+**An `await` of what the request decides.** `await fetch(data.url)`, or an `await` on a promise a
+prop hands in: the bytes wait on something only the request has, while they are written. That is
+async request-time rendering, and it comes straight after the synchronous kind. An `await` whose
+value the build can know is not here: it is compile-time work, under **Async Svelte is upstream's
+unfinished half** at the top of this file. Non-async SSR writes the pending branch and awaits
+nothing, which is what `{#await}` compiles to here and is kept.
 
 **A `<svelte:boundary>` whose body throws.** Svelte catches it and writes the `failed` snippet
 instead of the children, and what that snippet is handed is `transformError(error)` --
@@ -992,10 +1015,13 @@ reopening is the one refusals.md names: compile-time and request-time rendering 
 one page. What is owed before the count moves is the message, which still says the callee cannot be
 followed.
 
-**Several hydration roots on one page.** Out of scope by the scope line: after
-hydration the page is one Svelte SPA, and Svelte hydrates one root against one payload. Astro's
-islands are a different arrangement, and [build.md](build.md) records that this artifact does not
-express it and is not going to.
+## Out of scope
+
+**Several hydration roots on one page.** After hydration the page is one Svelte SPA, and Svelte
+hydrates one root against one payload. Astro's islands are a different arrangement, and
+[build.md](build.md) records that this artifact does not express it and is not going to. This is
+about the client, and request-time rendering does not change it: a page with some components
+rendered at request time still hydrates as one root.
 
 ## Not yet the time
 
@@ -1029,8 +1055,8 @@ assigns a declared name from request data is the per-request script decided agai
 
 ## Blocked, and on what
 
-Nothing, now. The two that were are the framework layer's first step, done: see
-[framework.md](framework.md).
+Request-time rendering, under its own heading above, and nothing else now. The two that were are
+the framework layer's first step, done: see [framework.md](framework.md).
 
 **The root is a layout chain around a page: done.** `pkgs/routes` reads `src/routes` with Kit's
 own `create_manifest_data`, generates one root per route in the shape Kit's `write_root` generates
