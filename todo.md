@@ -5,6 +5,22 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 ## Doable now, decided
 
+- [ ] **B. Script state over props.** Deterministic statements over props (`$: x *= 2`,
+      `count += 1`, `items.sort(...)`): decided: where substitution cannot follow, the instance script
+      runs per request as Svelte compiled it, template replaced by a capture; the module block once
+      per process; imports as Svelte's output has them. spec/derivation.md, "Where substitution
+      cannot follow, the script runs as Svelte compiled it".
+      assignment-to-computed-property, await-then-destruct-computed-props, binding-backflow,
+      binding-select-from-let-2, component-not-constructor2, hydratable-error-on-missing,
+      immutable-option, immutable-svelte-meta, immutable-svelte-meta-false,
+      inline-style-directive-update-object-property, key-block-post-hydrate,
+      ownership-invalid-mutation-use-transform, props-default-value-lazy-accessors,
+      reactive-compound-operator, reactive-update-expression, reactive-values-function-dependency,
+      reactive-values-second-order, reactive-values-self-dependency,
+      reactive-values-self-dependency-b, reactive-values-subscript-assignment,
+      reactive-values-uninitialised, spread-component-side-effects,
+      store-assignment-updates-reactive
+
 - [ ] **C and D: a value that is not data in the render input.** Decided: the render input and the
       hydration wire are two things, and the input holds any JavaScript value (spec/payload.md).
   - C, a component the request hands in: await-with-update, await-with-update-2,
@@ -26,23 +42,6 @@ What the suite fails on, sorted by what closing each takes. The live list is
       by asking the render for a subexpression, which `Site.wants` does today only for a whole
       expression.
       snippet-raw-component, snippet-raw-component-ssr-dev
-
-- [ ] **B. Script state over props.** Deterministic statements over props (`$: x *= 2`,
-      `count += 1`, `items.sort(...)`): run the instance script per request and read the names
-      after, still a pure function of the payload. spec/derivation.md, Open, names three questions:
-      `<script module>` runs once where the instance script runs per render; the script's imports
-      are more than `carry` bundles today; a backend then needs a JavaScript engine for any
-      component that takes this path.
-      assignment-to-computed-property, await-then-destruct-computed-props, binding-backflow,
-      binding-select-from-let-2, component-not-constructor2, hydratable-error-on-missing,
-      immutable-option, immutable-svelte-meta, immutable-svelte-meta-false,
-      inline-style-directive-update-object-property, key-block-post-hydrate,
-      ownership-invalid-mutation-use-transform, props-default-value-lazy-accessors,
-      reactive-compound-operator, reactive-update-expression, reactive-values-function-dependency,
-      reactive-values-second-order, reactive-values-self-dependency,
-      reactive-values-self-dependency-b, reactive-values-subscript-assignment,
-      reactive-values-uninitialised, spread-component-side-effects,
-      store-assignment-updates-reactive
 
 ## Waiting on a decision
 

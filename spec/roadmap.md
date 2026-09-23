@@ -1026,9 +1026,11 @@ compiler would carry SSR's per-request rendering back in under another name. Wha
 instance script's statements, which the server render runs once per request; running them once per
 request and reading the names after is the same work at the same time. It does not wait on
 derivation.md's rule: a script that reads only the payload, run once and read after, is still a pure
-function of the payload, since a local it changes is no side effect outside it. derivation.md's
-Open section says running the script is blocked by nothing measured and holds the three questions
-it has to answer. Where the statements read nothing
+function of the payload, since a local it changes is no side effect outside it. **Decided**: the
+script runs as Svelte compiled it, with its template replaced by a capture, the instance block per
+request and the module block once per process, and only where substitution cannot follow -- see
+[derivation.md](derivation.md), "Where substitution cannot follow, the script runs as Svelte
+compiled it". Where the statements read nothing
 the request decides, the render already evaluates them and the walk bakes the result (`wants` in
 `walk.ts`).
 

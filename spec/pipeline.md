@@ -294,8 +294,15 @@ structure it always did.
 
 ## What runs at request time, and what does not
 
-A derivation is a pure function of the payload. It computes values. It renders nothing, touches
-no component, and produces no HTML.
+A derivation is a pure function of the payload. It computes values, and it produces no HTML.
+
+**Where a component's instance script has to run per request, it runs as Svelte compiled it.**
+Substitution turns a name into an expression wherever it can; where it cannot follow what the
+script does -- a name reassigned, an object mutated, a `$:` over a prop -- the values are computed
+by Svelte's own server output for that component with its template replaced by a capture of the
+names the markup reads. The component function runs and writes nothing. That is computing data,
+not rendering UI, and it is Svelte's reading of the script rather than a second one written here.
+See [derivation.md](derivation.md).
 
 - **A TypeScript server already has a JavaScript runtime**, and uses it.
 - **A Rust or Go server embeds one**, in the QuickJS sense: not Node and not Bun, no filesystem,

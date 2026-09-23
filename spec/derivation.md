@@ -1383,7 +1383,39 @@ error at the boundary.
 
 Running the script instead is not blocked by anything measured. Its inputs are `$$props` and the
 module scope, and there is no third: Svelte's compiled component is a function of exactly those,
-with no DOM, no lifecycle and no request. What it would cost is written under Open.
+with no DOM, no lifecycle and no request.
+
+## Where substitution cannot follow, the script runs as Svelte compiled it
+
+**Substitution first, the script only where substitution cannot follow.** A name that is one
+expression stays one expression, and a component whose every read substitutes has no derivation
+for this and needs no JavaScript engine to be served. Where a read cannot be substituted -- the
+name is reassigned, the object mutated, a `$:` changes it over a prop, a store the script writes --
+the values come out of the script run for that request, and the read becomes a field of that one
+held value.
+
+**The run is Svelte's own server output for the component, with its template replaced by a
+capture.** The markup is taken out and one expression put in its place that hands the names the
+markup reads to a function the render's context supplies, and the result is compiled by Svelte as
+the server compiles any component. So the order of `$:` statements, a store's subscription, a
+legacy prop and `$$props` are Svelte's reading of the script and not a second one written here --
+the rule in the workspace's `spec/code.md` about two readings of one format, applied to a script.
+The component function runs and writes nothing; see [pipeline.md](pipeline.md), "What runs at
+request time, and what does not".
+
+**The instance script runs per request, and `<script module>` once per process.** That is the shape
+Svelte compiles to -- the module block at the top of the module, the instance block inside the
+component function -- and it is what a server running Kit does. The compiled module is carried in
+the route's bundle, so its module scope is evaluated when the bundle is, and each request calls the
+component function.
+
+**What it imports is what Svelte's compiled output imports**, bundled by `carry` as a component a
+package ships already is. That is more than the names the expressions call, which is what `carry`
+followed before, and it is exactly what the script needs.
+
+**It stays a pure function of the render input.** Its inputs are the props and the module scope;
+what reads a clock, a host global or module state its own module changes is refused as before, and
+those wait on the question [roadmap.md](roadmap.md) holds open.
 
 ## Termination is not one of the three
 
@@ -1439,26 +1471,12 @@ budget, and that is a deployment choice rather than a rule here.
   already handles. Measured across 1107 `.svelte` files in eleven published libraries, 267 carry
   such a call. Almost every one of them imports the function it calls.
 
-- **A script that substitution cannot reach, reading the request.** A reassignment, a mutation or
-  a loop leaves a name with no single expression standing for it. **It is refused, and it is a
-  gap.** Where the statements read nothing the request decides, the render evaluates them and the
-  walk bakes the result -- `wants` in `walk.ts`, see [refusals.md](refusals.md) -- so what is
-  refused is exactly a statement sequence whose inputs arrive with the request. Running it per
-  request is what the server render does; whether the derive stage may run a program rather than an
-  expression is the decision this item waits on, and it is this protocol's, not the scope line's.
-  See [roadmap.md](roadmap.md), **Owed: what the render computes per request**.
-
-  The measurement that made the decision cheap still stands. Across 4323 real components, 15
-  assign to a declared name outside a function, and **not one of them is refused by that alone**
-  -- every one is also turned away by a spread, a binding or something else -- and press has none.
-
-  **Whichever stage takes it**, three questions have to be answered rather than one:
-  `<script module>` runs once where an instance script runs per render, so a preamble that merged
-  them would rebuild module state per request; the script's imports are a superset of the names
-  `carry` bundles today, which follow expressions only; and a backend needs a JavaScript engine
-  exactly when a component has a derivation -- 10 of the 14 components in the corpus have none, and
-  that survives only if substitution stays the thing that turns a name into a path wherever it can,
-  with the script reached for only where it cannot. See [ir.md](ir.md).
+- **A script that substitution cannot reach, reading the request.** _Settled_: the script runs as
+  Svelte compiled it; see "Where substitution cannot follow, the script runs as Svelte compiled it".
+  The three questions this item held are answered there: the module block once per process and the
+  instance block per request, the imports Svelte's output has, and substitution first so a
+  component that needs no run needs no engine. The measurement that made it cheap still stands:
+  across 4323 real components, 15 assign to a declared name outside a function, and press has none.
 
 - **Per-item derivation.** _Settled._ A derivation reading a name an each block binds is computed
   where it is used, once per item, rather than once before injection.
