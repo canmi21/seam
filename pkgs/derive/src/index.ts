@@ -1,5 +1,5 @@
 import { GIVEN } from 'ast';
-import { resolve, SCOPED, type Scope } from 'injector';
+import { resolve, SCOPED, type Scope, thenable, waiting } from 'injector';
 
 export type Source = { path: string } | { literal: string };
 
@@ -63,6 +63,12 @@ function build(
 	expression: string,
 	files: Record<string, Record<string, unknown>>,
 	chain: readonly string[],
+	/**
+	 * Null for an expression that waits on nothing. Otherwise it is built `async`, and these are the
+	 * names of other derivations it reads that wait: each is awaited before the expression runs, so
+	 * it reads their values rather than their promises. See `compile`.
+	 */
+	waits: readonly string[] | null = null,
 ): (bindings: Record<string, unknown>) => unknown {
 	// The shared helpers outermost, then each file of the chain from the entry inward, so the
 	// component the expression sits in shadows its callers, and the data innermost of all.
@@ -70,10 +76,17 @@ function build(
 	const opened = scopes.map((_, at) => `with ($files[${String(at)}]) {`).join(' ');
 	const closed = '}'.repeat(scopes.length);
 	// eslint-disable-next-line no-new-func
-	const make = new Function(
-		'$files',
-		`${opened} return ($scope) => { with ($scope) { return (${expression}); } }; ${closed}`,
-	) as (files: Record<string, unknown>[]) => (bindings: Record<string, unknown>) => unknown;
+	const first =
+		waits === null || waits.length === 0
+			? ''
+			: `await Promise.all([${waits.map((one) => `$scope[${JSON.stringify(one)}]`).join(', ')}]); `;
+	const made =
+		waits === null
+			? `return ($scope) => { with ($scope) { return (${expression}); } };`
+			: `return async ($scope) => { ${first}with ($scope) { return (${expression}); } };`;
+	const make = new Function('$files', `${opened} ${made} ${closed}`) as (
+		files: Record<string, unknown>[],
+	) => (bindings: Record<string, unknown>) => unknown;
 	return make(scopes);
 }
 
@@ -141,6 +154,7 @@ export interface Derived {
 
 export function compile(derivations: readonly Derivation[], carried = ''): Derived {
 	const files = (evaluate(carried)['files'] ?? {}) as Record<string, Record<string, unknown>>;
+	const awaiting = waits(derivations);
 	const compiled = derivations.map((derivation) => ({
 		name: derivation.name,
 		scope: derivation.scope,
@@ -153,8 +167,15 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 		evaluate:
 			derivation.prop === true && derivation.expression === 'undefined'
 				? (): unknown => undefined
-				: build(derivation.expression, files, derivation.files ?? []),
+				: build(
+						derivation.expression,
+						files,
+						derivation.files ?? [],
+						awaiting.get(derivation.name) ?? null,
+					),
 		source: derivation.expression,
+		/** Whether it was built `async`, which is the only promise it returns that is waited on. */
+		asynchronous: awaiting.has(derivation.name),
 	}));
 
 	return (props) => {
@@ -183,7 +204,11 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 			if (derivation.scoped === true) {
 				const held = (scopes: readonly Scope[]): unknown => {
 					try {
-						return derivation.evaluate(stacked(scopes));
+						return failing(
+							derivation.evaluate(stacked(scopes)),
+							derivation.source,
+							derivation.asynchronous,
+						);
 					} catch (error) {
 						throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
 					}
@@ -220,15 +245,76 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 				get: () => {
 					if (done) return held;
 					try {
-						held = derivation.evaluate(bindings());
+						held = failing(
+							derivation.evaluate(bindings()),
+							derivation.source,
+							derivation.asynchronous,
+						);
 					} catch (error) {
 						throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
 					}
 					done = true;
+					// Once it settles it reads as its value, so what reads it after an `await` reads
+					// the value rather than the promise. See `build`.
+					if (derivation.asynchronous && thenable(held)) {
+						held = waiting(
+							Promise.resolve(held).then((value) => {
+								held = value;
+								return value;
+							}),
+						);
+					}
 					return held;
 				},
 			});
 		}
 		return out;
 	};
+}
+
+/**
+ * Which derivations wait, and on which others: one whose expression holds an `await`, and one that
+ * reads one that waits, to the fixed point. The second reads through `with`, which would hand it the
+ * other's promise, so it is built to await those names first. Only a project in Svelte's async mode
+ * has an `await` here, and only of a value the build can know. See spec/derivation.md.
+ */
+function waits(derivations: readonly Derivation[]): Map<string, string[]> {
+	const found = new Map<string, string[]>();
+	for (const one of derivations) {
+		if (/\bawait\b/.test(one.expression)) found.set(one.name, []);
+	}
+	for (let moved = true; moved;) {
+		moved = false;
+		for (const one of derivations) {
+			const reads = [...found.keys()].filter(
+				(name) =>
+					name !== one.name &&
+					new RegExp(`(?<![\\w$])${escaped(name)}(?![\\w$])`).test(one.expression),
+			);
+			const held = found.get(one.name);
+			if (
+				reads.length === 0 ||
+				(held !== undefined && reads.every((name) => held.includes(name)))
+			) {
+				continue;
+			}
+			found.set(one.name, [...new Set([...(held ?? []), ...reads])]);
+			moved = true;
+		}
+	}
+	return found;
+}
+
+function escaped(name: string): string {
+	return name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** A derivation's value, with a rejection saying which derivation it was, the way a throw does. */
+function failing(value: unknown, source: string, asynchronous: boolean): unknown {
+	if (!asynchronous || !thenable(value)) return value;
+	return waiting(
+		Promise.resolve(value).catch((error: unknown) => {
+			throw new Error(`deriving \`${source}\` failed`, { cause: error });
+		}),
+	);
 }

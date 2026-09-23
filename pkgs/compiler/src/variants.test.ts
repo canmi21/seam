@@ -154,13 +154,13 @@ describe('a route compiled once per value of a declared domain', () => {
 		const derive = deriving(structure.derivations, '');
 		for (const code of LOCALES) {
 			const data = { locale: { code }, title: '<&', tags: ['x', 'y'] };
-			expect(inject(structure.ir, derive({ data })).body, `locale ${code}`).toBe(
+			expect((await inject(structure.ir, derive({ data }))).body, `locale ${code}`).toBe(
 				await oracle(['page', PAGE], [['greet', CHILD]], data),
 			);
 		}
 
 		const outside = { locale: { code: 'ja' }, title: 'x', tags: [] };
-		expect(inject(structure.ir, derive({ data: outside })).body).toBe('');
+		expect((await inject(structure.ir, derive({ data: outside }))).body).toBe('');
 	});
 });
 
@@ -194,7 +194,7 @@ describe('a `?:` in a value handed to a component the walk cannot enter', () => 
 		const derive = deriving(structure.derivations, '');
 		for (const n of [0, 1, 2]) {
 			const data = { n, title: `t${String(n)}` };
-			expect(inject(structure.ir, derive({ data })).body, `n ${String(n)}`).toBe(
+			expect((await inject(structure.ir, derive({ data }))).body, `n ${String(n)}`).toBe(
 				await oracle(['choosing', CHOOSING], [['say', CALLER]], data),
 			);
 		}
@@ -222,7 +222,7 @@ describe('a component chosen through a table, read off the entry', () => {
 		// arm for a missing key is what `<svelte:component>` writes `<!--[!--><!--]-->` for.
 		for (const k of ['a', 'b', 'zz', '']) {
 			const data = { k, title: `t-${k}` };
-			expect(inject(structure.ir, derive({ data })).body, `k ${JSON.stringify(k)}`).toBe(
+			expect((await inject(structure.ir, derive({ data }))).body, `k ${JSON.stringify(k)}`).toBe(
 				await oracle(
 					['table', TABLE],
 					[

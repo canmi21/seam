@@ -99,11 +99,10 @@ that is what the compiler reads, the way it reads `runes`; `SEAM_ASYNC` was the 
 The eighth anchor above is owed.
 
 **The two halves are told apart where an expression becomes a derivation** (`awaited()` in
-`skeleton.ts`), since a derivation is what is evaluated per request and cannot wait. An `await`
-whose argument reads the payload is the request-time half, refused as blocked. One whose argument
-does not is compile-time work in a place this compiler writes as a derivation whatever the value --
-an `<option>`'s `selected`, an each body's item, a local function inlined into one -- and fails as
-the gap it is. **Svelte's own corpus has no `await` of the payload at all**: every async sample's
+`skeleton.ts`). An `await` whose argument reads the payload is the request-time half, refused as
+blocked. One whose argument does not sits where this compiler writes a derivation whatever the
+value -- an `<option>`'s `selected`, an each body's item, a local function inlined into one -- and
+the derivation is built `async` and waited on; [derivation.md](derivation.md) has how. **Svelte's own corpus has no `await` of the payload at all**: every async sample's
 awaited value is one the build can know, so every async failure is compile-time work.
 
 ## A value the render changes: asked where the expansion is written out, and done

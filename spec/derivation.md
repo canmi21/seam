@@ -1454,6 +1454,28 @@ computed in order, while the name still holds what the request brought; as a laz
 resolve `x` to itself and recurse. Asking instead whether the key is already there does not work:
 the request omitting it is exactly when the default matters.
 
+## A derivation may await, where the value is one the build can know
+
+A project in Svelte's async mode writes `await` in markup, and some of those land where this
+compiler keeps a derivation whatever the value: an `<option>`'s `selected`, an each body's item, a
+local function inlined into one. **Such a derivation is built `async`**, and one that reads another
+that waits awaits those names first, since `with` would otherwise hand it the promise -- to the
+fixed point, in `derive`. The injector waits on what they return: its walk is a generator driven
+synchronously until the first promise and asynchronously after (`drive`), so an artifact with
+nothing to await injects exactly as it did, and `inject` returns a promise only where one waited.
+Kit awaits what the root's render returns under the same mode.
+
+**Only a derivation's own promise is waited on**, marked when `derive` makes it. A value that is a
+promise is otherwise a value: `{#await p}` over a promise the request hands in decides on it, and
+waiting on every thenable took that decision away from `runtime-legacy/await-set-simultaneous-
+reactive` the first time.
+
+**What may be awaited is still the rule's, not the mechanism's.** An `await` whose argument reads
+the payload is async request-time rendering, and is refused at compile time over the finished
+list -- the mechanism here could run it, and the refusal is what keeps the line where
+[roadmap.md](roadmap.md) draws it. The second backend's evaluator has to run promises for an
+artifact that holds such a derivation, which only a project in async mode produces.
+
 ## The helpers are carried under a name nothing can shadow
 
 `attributes`, `attr_class`, `clsx` and `stringify` are Svelte's own, carried into the bundle so

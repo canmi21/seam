@@ -504,7 +504,7 @@ async function configOf(from: string, into: string): Promise<Config & { broken?:
 async function ours(
 	dir: string,
 	props: Record<string, unknown>,
-): Promise<ReturnType<typeof inject>> {
+): Promise<Awaited<ReturnType<typeof inject>>> {
 	// Not `compile()`: that batches lowering across a whole project and writes artifacts to disk,
 	// and this is one component compared in memory. The steps are its steps.
 	const runs = await structures({ path: '/', component: 'main.svelte' }, dir);
@@ -527,7 +527,7 @@ async function ours(
 	// One bundle over what every structure of it calls, which is what a route gets.
 	const carried = await carry(first.file, merged(runs.map((one) => one.names)));
 	const derive = compileDerivations(compiled.derivations, carried);
-	return inject(compiled.ir as Parameters<typeof inject>[0], derive(props));
+	return await inject(compiled.ir as Parameters<typeof inject>[0], derive(props));
 }
 
 /**

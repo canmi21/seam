@@ -92,7 +92,7 @@ describe.each(files)('%s', (file) => {
 
 		// Both streams, because the injector produces both and comparing one proves half.
 		const expected = render(mod.default, { props: { data } as never });
-		const actual = inject(compiled.ir, derive({ data }));
+		const actual = await inject(compiled.ir, derive({ data }));
 		expect(actual.body).toBe(expected.body);
 		expect(actual.head).toBe(expected.head);
 	});

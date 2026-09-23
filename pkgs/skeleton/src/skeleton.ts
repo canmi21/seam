@@ -346,21 +346,16 @@ export async function skeleton(
 }
 
 /**
- * Refuses a derivation that awaits, and says which of two things it is.
+ * Refuses a derivation that awaits what the request decides.
  *
- * A derivation is an expression evaluated per request, synchronously, so it cannot wait on
- * anything. An `await` in one is either:
- *
- * - **of what the request decides** -- its argument reads the payload -- which is async
- *   request-time rendering: planned, after the synchronous kind, and not yet the time; or
- * - **of what the build can know**, in a place this compiler writes as a derivation whatever the
- *   value -- an `<option>`'s `selected`, an each body's item -- which is compile-time work not done
- *   yet: the value is there to be awaited at build and written in.
- *
- * Told apart by what the argument reads, with a read nobody can place counted as the second, since
- * a gap fails where a blocked refusal is skipped. Asked over the finished list for the reason
- * `composed()` is. An `await` inside a function is that function's and is not asked about. See
- * spec/roadmap.md.
+ * A derivation may await: `derive` builds one that does as `async`, and the injector waits on it,
+ * so an `await` the build can know -- in a place this compiler writes as a derivation whatever the
+ * value, an `<option>`'s `selected` or an each body's item -- is awaited per request and writes what
+ * Svelte's async render writes. What is refused is an `await` whose argument reads the payload:
+ * the bytes would wait on something only the request has, which is async request-time rendering --
+ * planned, after the synchronous kind, and not yet the time. That is the rule, not the mechanism,
+ * which could run it. Asked over the finished list for the reason `composed()` is. An `await`
+ * inside a function is that function's and is not asked about. See spec/roadmap.md.
  */
 function awaited(
 	expressions: readonly { expression: string }[],
@@ -404,20 +399,13 @@ function awaited(
 			const text = one.expression.slice(at.start - wrapped, at.end - wrapped);
 			return [...readsOf([text])].some(request);
 		});
-		if (decided) {
-			throw new Error(
-				`an \`await\` of what the request decides -- \`${shown}\` -- where the value has to be ` +
-					'written into the bytes. The bytes would wait on something only the request has, ' +
-					'which is async request-time rendering: it comes after the synchronous kind, and ' +
-					'until then this is refused. Await only what the build can know, or put the value ' +
-					'in the load stage data. See spec/roadmap.md',
-			);
-		}
+		if (!decided) continue;
 		throw new Error(
-			`an \`await\` the build can answer -- \`${shown}\` -- in a place this compiler writes as ` +
-				'an expression evaluated per request, which cannot wait. Awaiting it at compile time ' +
-				'and writing its value there is not done yet; nothing is refused on principle, so this ' +
-				'is a gap. See spec/roadmap.md',
+			`an \`await\` of what the request decides -- \`${shown}\` -- where the value has to be ` +
+				'written into the bytes. The bytes would wait on something only the request has, ' +
+				'which is async request-time rendering: it comes after the synchronous kind, and ' +
+				'until then this is refused. Await only what the build can know, or put the value ' +
+				'in the load stage data. See spec/roadmap.md',
 		);
 	}
 }

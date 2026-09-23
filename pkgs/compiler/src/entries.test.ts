@@ -156,7 +156,7 @@ describe('a route is compiled from its generated root', () => {
 				props[`data_${String(at)}`] = at === 0 ? site : { ...site, ...page };
 			});
 			props['page'] = pageOf(id, `http://localhost${id}`, params, { ...site, ...page });
-			const ours = inject(structure.ir, derive(props));
+			const ours = await inject(structure.ir, derive(props));
 			// Kit hands the root `page` as a prop and the same object to `$app/state` through the
 			// context, under `__request__`; both are given here as `render_response` gives them.
 			const theirs = render(mod.default, {

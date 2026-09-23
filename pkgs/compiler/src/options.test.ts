@@ -77,7 +77,7 @@ async function ours(dir: string): Promise<string> {
 			compiled: lowered[at] as unknown as Structure,
 		})),
 	);
-	return inject(structure.ir, deriving(structure.derivations, '')({})).body;
+	return (await inject(structure.ir, deriving(structure.derivations, '')({}))).body;
 }
 
 describe("a project's runes option written as a function of the file", () => {
@@ -131,7 +131,7 @@ describe("a project's experimental.async", () => {
 			})),
 		);
 		expect(theirs).toContain('built');
-		expect(inject(structure.ir, deriving(structure.derivations, '')({})).body).toBe(theirs);
+		expect((await inject(structure.ir, deriving(structure.derivations, '')({}))).body).toBe(theirs);
 	});
 });
 

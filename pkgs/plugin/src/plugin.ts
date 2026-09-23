@@ -237,8 +237,11 @@ export default {
 		const entry = failed ? undefined : manifest.routes[props.page?.route?.id];
 		if (entry === undefined) return kit.render(props, options);
 		const { ir, derive } = artifact(entry);
-		const { body, head } = inject(ir, derive(props));
-		return { head, html: body, css: { code: '', map: null } };
+		// A promise where a derivation awaits, which only a project in Svelte's async mode has, and
+		// Kit awaits what the root's render returns under that mode.
+		const shaped = ({ body, head }) => ({ head, html: body, css: { code: '', map: null } });
+		const injected = inject(ir, derive(props));
+		return typeof injected.then === 'function' ? injected.then(shaped) : shaped(injected);
 	},
 };
 `;
