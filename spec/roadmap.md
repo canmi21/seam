@@ -71,6 +71,14 @@ it takes a component's own anchor pair followed by an enclosing block's close an
 block, and `runtime-legacy` fell from 832 to 172. Two identical bytes cannot be told apart by
 reading them; keeping the await keeps the information where it already was.
 
+**And the eighth is the same wrapper met through blockers.** A top-level `await` gives every
+binding declared or written after it a blocker (`calculate_blockers` in `2-analyze/index.js`), and a
+node reading one is wrapped in `$$renderer.async` or `async_block` -- the same pair. Substitution
+wrote the value where the author wrote the name, so Svelte saw nothing waiting and wrote no pair.
+The walk computes the same set per file (`blockedBy()` in `walk.ts`) and writes a replacement that
+still reads those names ahead of the value, `(recipient, "world")`, and a block that reads one is
+marked `wrapped` like one that awaits.
+
 **Which is how it was closed: by the walk, not the assembler.** The walk knows which block kept an
 `await` in its source or its head test, so it marks the block `wrapped`, and before assembly the
 block's stamp is moved one close in -- inside the wrapper -- so the close before it is the block's
