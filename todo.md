@@ -3,13 +3,16 @@
 What the suite fails on, sorted by what closing each takes. The live list is
 `mise run vendor-baseline`; this file is the plan, not the count.
 
-## Doable now, no decision needed
-
-- [ ] **G. A raw snippet whose function reads a prop.** The derivation calls the author's function
-      per request; it is a pure function of the payload.
-      snippet-raw-component, snippet-raw-component-ssr-dev
-
 ## Work, with design questions to answer first
+
+- [ ] **G. A raw snippet whose function reads a prop.** The author's `render` calls
+      `svelte/server`'s `render(Child)` inside it. Two ways, and the first is a decision: carry
+      `svelte/server` and compiled components into the derivation bundle, which crosses
+      spec/pipeline.md's line that a derivation renders nothing and touches no component; or fold
+      what reads nothing the request decides -- `render(Child).body` here, `Child` taking no props --
+      by asking the render for a subexpression, which `Site.wants` does today only for a whole
+      expression.
+      snippet-raw-component, snippet-raw-component-ssr-dev
 
 - [ ] **B. Script state over props.** Deterministic statements over props (`$: x *= 2`,
       `count += 1`, `items.sort(...)`): run the instance script per request and read the names
