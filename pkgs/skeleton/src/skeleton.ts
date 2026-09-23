@@ -11,7 +11,8 @@ import { dead, filled, outcomes, probed } from './resolve.ts';
 import type { Block, Rendered, Skeleton } from './shape.ts';
 import { inlined } from './snippets.ts';
 import { unbound } from './unbind.ts';
-import { outside, rechosen, rewrite } from './walk.ts';
+import { outside, rechosen, rewrite, Undecided } from './walk.ts';
+import { whole } from './whole.ts';
 
 export { Undecided } from './walk.ts';
 
@@ -28,6 +29,27 @@ export type { Block, Choice, Hole, Rendered, Skeleton, Stream } from './shape.ts
  */
 
 /**
+ * The walked compile, and where it refuses, the whole page as Svelte renders it if nothing on the
+ * page is a request's to decide -- the rule `descend()` applies to a child, at the root. A refusal
+ * about a page no request can change is a refusal about nothing. See spec/pipeline.md.
+ */
+export async function skeleton(
+	entryFile: string,
+	root: string,
+	fixed: ReadonlyMap<string, string> = new Map(),
+	decided: ReadonlyMap<string, boolean> = new Map(),
+): Promise<Skeleton> {
+	try {
+		return await walked(entryFile, root, fixed, decided);
+	} catch (error) {
+		if (error instanceof Undecided || fixed.size > 0) throw error;
+		const page = await whole(resolvePath(entryFile), root);
+		if (page === null) throw error;
+		return page;
+	}
+}
+
+/**
  * `root` is handed to Svelte as `rootDir`, and it decides bytes rather than diagnostics.
  *
  * Two things Svelte writes are hashes of the component's filename: the anchor that opens a
@@ -42,7 +64,7 @@ export type { Block, Choice, Hole, Rendered, Skeleton, Stream } from './shape.ts
  * leaving `filename` absolute, is Svelte's own answer -- the filename stays real for errors and
  * source maps. See spec/build.md.
  */
-export async function skeleton(
+async function walked(
 	entryFile: string,
 	root: string,
 	/**
@@ -111,7 +133,7 @@ export async function skeleton(
 	// so the pass that found it walked half the file without it. Walked again told, the way a value
 	// the render was asked for is. Once, because the second pass is given every one of them.
 	if (baseline.sends.size > 0) {
-		return skeleton(file, root, fixed, decided, told, mute, new Map([...sent, ...baseline.sends]));
+		return walked(file, root, fixed, decided, told, mute, new Map([...sent, ...baseline.sends]));
 	}
 
 	// After the walk, not before it. Every name has to come from somewhere -- this pass renders
@@ -284,7 +306,7 @@ export async function skeleton(
 			if (typeof value !== 'string') muted.add(want);
 			else values.set(want, value);
 		}
-		return skeleton(file, root, fixed, settled, values, muted, sent);
+		return walked(file, root, fixed, settled, values, muted, sent);
 	}
 
 	if (process.env['SEAM_TRACE'] !== undefined) {

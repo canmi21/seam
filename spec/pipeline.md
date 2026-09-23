@@ -76,7 +76,7 @@ enumerable, so the branch was never found, and the user was asked to supply mock
 `IfBlock` with two fragments. Nothing is discovered, nothing is diffed, and the number of renders
 is set by the number of blocks rather than by the size of any value space.
 
-The sentinel returns as a *marker of a known hole*, not as a probe. It must survive both escaping
+The sentinel returns as a _marker of a known hole_, not as a probe. It must survive both escaping
 modes untouched, so it may contain none of `&`, `<`, `>` or `"`.
 
 ## Where a sentinel can stand, and where it cannot
@@ -86,10 +86,10 @@ it cannot work anywhere the value instead **decides what output there is**. The 
 naming, because which one a construct is decides whether it can be compiled by reading a render at
 all.
 
-| | the value | a sentinel |
-| --- | --- | --- |
+|                             | the value                 | a sentinel                                   |
+| --------------------------- | ------------------------- | -------------------------------------------- |
 | **A substitution position** | is written into the bytes | stands there, and the render says everything |
-| **A decision position** | chooses which bytes exist | has nowhere to stand |
+| **A decision position**     | chooses which bytes exist | has nowhere to stand                         |
 
 `{data.name}` and `title={data.x}` are substitutions. `disabled={data.d}` is a decision: its
 output is `disabled=""` or nothing, and there is no place in either for a marker to sit. Put one
@@ -101,12 +101,12 @@ decision over two outcomes, and the compiler handles it by rendering each outcom
 both. Nothing about that is specific to blocks. So a decision position is compilable exactly when
 **its outcomes can be enumerated at compile time**:
 
-| | outcomes | |
-| --- | --- | --- |
-| a boolean attribute, `class:`, `style:` | two | enumerable |
-| `<select value={x}>` marking one `<option>` | one per option, all in the source | enumerable |
-| `{...spread}` | whatever keys the data has | **not** enumerable |
-| `<svelte:element this={x}>` | any tag name | **not** enumerable |
+|                                             | outcomes                          |                    |
+| ------------------------------------------- | --------------------------------- | ------------------ |
+| a boolean attribute, `class:`, `style:`     | two                               | enumerable         |
+| `<select value={x}>` marking one `<option>` | one per option, all in the source | enumerable         |
+| `{...spread}`                               | whatever keys the data has        | **not** enumerable |
+| `<svelte:element this={x}>`                 | any tag name                      | **not** enumerable |
 
 An unenumerable decision cannot be compiled into structure, and needs the runtime to make it. That
 is a real cost, since every backend then carries it, and a small one: writing attributes from an
@@ -134,11 +134,11 @@ hold. It is how many structures depend on it.**
 A field's type is not the count. `username` is a string with no bound, and what it costs depends
 on what reads it, not on how many values it has:
 
-| what the page does with it | structures | what compiles |
-| --- | --- | --- |
-| `<p>{username}</p>` | one | a slot, filled at request time |
-| `{#if username}<p>{username}</p>{/if}` | two | both rendered, both kept |
-| `<Message options={{ locale }} />`, nine locales | nine | nine rendered, all kept |
+| what the page does with it                       | structures | what compiles                  |
+| ------------------------------------------------ | ---------- | ------------------------------ |
+| `<p>{username}</p>`                              | one        | a slot, filled at request time |
+| `{#if username}<p>{username}</p>{/if}`           | two        | both rendered, both kept       |
+| `<Message options={{ locale }} />`, nine locales | nine       | nine rendered, all kept        |
 
 In the first row every payload writes the same shape, so the domain is irrelevant and there is
 nothing to enumerate: the value is written into the bytes and a slot is the whole answer. **The one
@@ -265,6 +265,33 @@ collect the bytes.
 What such an expression may reference, and why that is a boundary rather than a feature list, is
 [derivation.md](derivation.md).
 
+## A page no request can change is Svelte's render, whole
+
+**Where the walk refuses and the entry reads nothing a request decides, the page is Svelte's own
+render of it, as fixed bytes with no holes** (`whole()` in `whole.ts`). It is the rule `descend()`
+already applies to a child it cannot walk -- a component whose inputs carry no marker is Svelte's to
+render -- applied at the root, where there was no caller to hand the component back to. A refusal
+about a page every request gets identically is a refusal about nothing: the render at build time
+is the render every request would have made.
+
+It is not the runtime fallback [refusals.md](refusals.md) refuses. Nothing renders per request; the
+bytes are made once, at build time, and served as they are.
+
+**It is taken only where it is provably the request's render**, asked of every file the entry
+reaches by a relative import, whatever refusal the walk happened to raise first:
+
+- **The entry takes no props**: no `$props()`, no `export let`, no `$$props`, nothing from
+  `$app/`.
+- **No value only the server holds** (`process`), which the build would read in its place.
+- **No `hydratable`**, whose script the injector writes per request with the request's nonce.
+- **No clock, randomness or host global in any component's markup, and no module state its own
+  module changes.** These are the two questions [roadmap.md](roadmap.md) holds open -- whether the
+  derive stage may read ambient state -- and baking one at build is answering them. So a page that
+  reads one is left to its refusal.
+
+The walk is still the path for everything else, and tried first: a page it compiles gets the
+structure it always did.
+
 ## What runs at request time, and what does not
 
 A derivation is a pure function of the payload. It computes values. It renders nothing, touches
@@ -340,9 +367,9 @@ and whether the value read back off the wire is the value the bytes were rendere
 the reason the obvious check is the wrong one. Two of Svelte's own client behaviours change the
 DOM without anything being wrong, and both are in its source rather than inferred:
 
-| | |
-| --- | --- |
-| `head_anchor.remove()` in `head()` | the anchor that opens a head block is consumed on purpose |
+|                                         |                                                             |
+| --------------------------------------- | ----------------------------------------------------------- |
+| `head_anchor.remove()` in `head()`      | the anchor that opens a head block is consumed on purpose   |
 | `dom.style.cssText = ''` in `set_style` | an empty style materialises an attribute the server omitted |
 
 Writing a list of allowances for those would be this project reproducing Svelte's behaviour by
@@ -353,7 +380,7 @@ same client. What Svelte does to its own output, it does to ours, and the compar
 **But the comparison after hydration is not enough on its own, and this was measured rather than
 reasoned about.** With a word changed in the served bytes, the client repairs the text silently, in
 the direction of the payload, so both documents converge and a check that only compared what they
-became passed. The two documents are therefore compared *before* the client runs as well as after.
+became passed. The two documents are therefore compared _before_ the client runs as well as after.
 The first assertion is the one with teeth; the second is what tolerates the mutations above.
 
 ## What this does not change

@@ -5,28 +5,6 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 ## Doable now, no decision needed
 
-- [ ] **A. Constant bytes, refused anyway.** The entry's payload is empty, so the compile-time
-      render already has the bytes; a refusal fires on a shape before asking whether anything reads
-      the request. Four causes:
-  - [ ] **A1. Positions the walk always writes as a derivation.** An option's `selected`, an each
-        item, a held destructuring, a store read -- each substituted outside the render, which has
-        the value. Fix: where the value varies with nothing the request decides, ask the render
-        (`Site.wants`), as an each's source already is; an each item is the hard one, being one
-        value per item.
-        async-each-preserve-pending, binding-circular, binding-input-group-each-8,
-        destructure-state-iterable, each-block-default-arg,
-        reactive-assignment-in-complex-declaration-with-store,
-        reactive-assignment-in-complex-declaration-with-store-2
-  - [ ] **A2. `asWritten` expands a name the walk bound** -- a `{@const}`, a snippet parameter --
-        and the expansion reads a name the script changes.
-        block-expression-fn-call, block-expression-member-access, snippet-default-arg
-  - [ ] **A3. A child changes a prop the call site binds with `bind:`,** from a value that varies
-        with nothing the request decides.
-        binding-indirect-value, component-binding-each-reassigned, keyed-each-bind-read-index
-  - [ ] **A4. `locals()` refuses before the walk:** a write into `$$props` or `$$restProps`, and a
-        name assigned after its declaration in a copy.
-        props-reassign, rest-props-reassign, component-binding-each-remount-keyed,
-        component-binding-each-remount-unkeyed
 - [ ] **G. A raw snippet whose function reads a prop.** The derivation calls the author's function
       per request; it is a pure function of the payload.
       snippet-raw-component, snippet-raw-component-ssr-dev
@@ -79,6 +57,15 @@ What the suite fails on, sorted by what closing each takes. The live list is
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- A, the 17 samples whose page no request can change (binding-circular, binding-indirect-value,
+  binding-input-group-each-8, block-expression-fn-call, block-expression-member-access,
+  component-binding-each-reassigned, component-binding-each-remount-keyed,
+  component-binding-each-remount-unkeyed, keyed-each-bind-read-index, props-reassign,
+  rest-props-reassign, reactive-assignment-in-complex-declaration-with-store and -2,
+  each-block-default-arg, snippet-default-arg, destructure-state-iterable,
+  async-each-preserve-pending): where the walk refuses and the entry reads nothing a request
+  decides, the page is Svelte's render, whole. spec/pipeline.md.
 
 - props-default-value-rest: a child changing a prop the call site passes as a constant is left to
   Svelte.

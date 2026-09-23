@@ -157,6 +157,19 @@ function imports(instance: unknown): Record<string, string> {
  */
 export const reduce: (source: string) => Module = bySource((source) => {
 	const ast = parse(source, { modern: true }) as unknown as AstNode;
-	expand = locals(source).rewrite;
+	// Names only: a substitution refusal is the walk's, which asks it of every component it enters;
+	// here it only stopped the name check over a component Svelte renders. See `locals()`.
+	expand = locals(
+		source,
+		new Map(),
+		null,
+		undefined,
+		undefined,
+		new Set(),
+		[],
+		undefined,
+		undefined,
+		true,
+	).rewrite;
 	return { markup: children(source, ast['fragment']), imports: imports(ast['instance']) };
 });

@@ -1997,6 +1997,12 @@ export function locals(
 	 * spec/derivation.md.
 	 */
 	held?: { expression: string; files?: string[] }[],
+	/**
+	 * Set by a caller asking only which names are declared -- `bindings()`, resolving the markup's
+	 * names. The refusals below are about substitution, which is the walk's, and one of them firing
+	 * there stopped a name check that had nothing to do with it.
+	 */
+	namesOnly = false,
 ): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const carried = requested(ast['instance']);
@@ -2064,7 +2070,7 @@ export function locals(
 		...assigned(ast['module'], RESERVED, false, declares),
 		...assigned(ast['instance'], RESERVED, false, declares),
 	];
-	if (written.length > 0) {
+	if (written.length > 0 && !namesOnly) {
 		const list = [...new Set(written)].map((one) => `\`${one}\``).join(', ');
 		throw new Error(
 			`${list} ${written.length > 1 ? 'are' : 'is'} written to, and it is not a value this ` +
@@ -2453,7 +2459,7 @@ export function locals(
 	// this sentence and lets it reach the author rather than rolling the copy back, since leaving
 	// the component to Svelte is what hands it the marker.
 	const given = [...changed].find(([name]) => props.has(name) || bound?.has(name) === true);
-	if (given !== undefined) {
+	if (given !== undefined && !namesOnly) {
 		throw new Error(
 			`\`${given[0]}\` is a prop this component changes, and a value handed to a component is ` +
 				'written out as a marker standing for it, so the change is made to the marker rather ' +
@@ -2462,7 +2468,7 @@ export function locals(
 		);
 	}
 	const eager = [...changed].find(([name]) => bound !== undefined || gone.has(name));
-	if (eager !== undefined) throw new Error(eager[1]);
+	if (eager !== undefined && !namesOnly) throw new Error(eager[1]);
 
 	return {
 		changed,

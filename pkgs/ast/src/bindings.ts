@@ -790,7 +790,18 @@ function namesWritten(ast: Node): ReadonlySet<string> {
 export function bindings(source: string, file?: string): Bindings {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const found: Unresolved[] = [];
-	const declares = locals(source);
+	const declares = locals(
+		source,
+		new Map(),
+		null,
+		undefined,
+		undefined,
+		new Set(),
+		[],
+		undefined,
+		undefined,
+		true,
+	);
 	const carried: Context = {
 		known: imported(ast['module'], ast['instance']),
 		used: new Set<string>(),

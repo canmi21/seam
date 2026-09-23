@@ -3107,7 +3107,7 @@ function contextual(ast: AstNode, walk: Walk): void {
  */
 const CHANGED = new Map<string, ReadonlySet<string>>();
 
-function changedBy(file: string): ReadonlySet<string> {
+export function changedBy(file: string): ReadonlySet<string> {
 	const held = CHANGED.get(file);
 	if (held !== undefined) return held;
 	const found = new Set<string>();
