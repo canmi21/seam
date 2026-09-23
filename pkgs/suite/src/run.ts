@@ -19,7 +19,7 @@
  * refuses while anything fails. See spec/suite.md.
  *
  * **`--skip-failing` is the one way past that refusal, and it is for one situation only**: a
- * sample that fails has been decided to be work that is owed, not a decision and not a skip, and
+ * sample that fails has been decided to be work that is owed rather than a skip, and
  * what else moved still has to be recorded. It writes the list with the failing samples left off
  * it, so they go on failing every run -- as not on the list -- until the work is done. It is not
  * for a failure nobody has read, and not for making `verify` pass: it cannot, by construction.
@@ -224,7 +224,7 @@ const SERVED: Readonly<Record<string, readonly string[]>> = {
 	'runtime-legacy': ['server', 'async-server'],
 };
 
-type Outcome = 'identical' | 'empty' | 'differs' | 'gap' | 'decided' | 'skipped' | 'oracle';
+type Outcome = 'identical' | 'empty' | 'differs' | 'gap' | 'skipped' | 'oracle';
 
 interface Result {
 	suite: string;
@@ -232,90 +232,20 @@ interface Result {
 	outcome: Outcome;
 	/** Why, for everything but an agreement: the refusal, the skip's reason, the stream that differs. */
 	why?: string;
-	/** For a refusal blocked on request-time rendering, which of its shapes it is. See `DECIDED`. */
-	kind?: string;
 }
-
-/** The decision async Svelte is, by the kind `DECIDED` gives it. */
-const ASYNC_KIND = 'async Svelte outside its async mode';
 
 /** Why the sync pass skips a sample, where it is the async pass's to measure. */
 const ONLY_ASYNC =
 	'upstream renders it on the server only with `experimental.async`, which the async pass measures';
 
 /**
- * The refusals blocked on request-time rendering, by a phrase each of their messages says.
- *
- * **A refusal is not upstream's skip and is not counted as one.** An upstream skip is upstream saying
- * not to run the sample; these ran, this compiler read them and turned them away because what they
- * need -- the UI run per request -- is not built yet. What they are not is work inside the compiler: [conformance.md](conformance.md)
- * takes them out of the denominator, and they were being read out of prose while the table said
- * one number for them and for the gaps together.
- *
- * Matched on the message rather than carried from the refusal, because the classification is the
- * measurement's and nothing in a build has a use for it. **An unmatched refusal is a gap**, which
- * is the safe direction: a refusal nobody has classified is work until somebody says otherwise.
+ * A refusal is a gap, whatever it says: work nobody has done. No refusal is a skip, because
+ * compile-time rendering differs from Svelte's server render only in when the render runs, so
+ * nothing Svelte renders is out of this compiler's reach -- and which samples need Svelte's async
+ * mode is Svelte's own compiler to say, which the oracle already asks. See spec/suite.md.
  */
-const DECIDED: readonly { says: string; kind: string }[] = [
-	{ says: 'async Svelte', kind: ASYNC_KIND },
-	{ says: 'an `await` of what the request decides', kind: 'async request-time rendering' },
-	{ says: 'assigned after being declared', kind: 'a value the render changes' },
-	{ says: 'changed by a function this render calls', kind: 'a value the render changes' },
-	{ says: 'is a prop this component changes', kind: 'a value the render changes' },
-	{ says: "is a store this component's own script writes", kind: 'a value the render changes' },
-	{
-		says: 'is assigned inside a value this compiler has to write itself',
-		kind: 'a value the render changes',
-	},
-	{
-		says: 'is written to, and it is not a value this compiler holds',
-		kind: 'a value the render changes',
-	},
-	{
-		says: '`$store` subscription over a value the request brings',
-		kind: 'the payload carries data and no function',
-	},
-	{
-		says: 'is handed a component the request decides',
-		kind: 'the payload carries data and no function',
-	},
-	{ says: 'does not read the same twice', kind: 'a value that is not the same twice' },
-	{
-		says: 'a render option a server passes',
-		kind: 'a boundary whose body throws, which is a render option',
-	},
-	{
-		says: 'is a raw snippet whose bytes the request decides',
-		kind: 'a string an artifact would have to render per request',
-	},
-	{
-		says: 'a module binding something in that module changes',
-		kind: 'module state a process holds, which a build cannot',
-	},
-	{
-		says: 'a module binding something in that module changes',
-		kind: 'module state a process holds, which a build cannot',
-	},
-	{
-		says: 'no script in this file writes',
-		kind: 'a global of whatever is running, which a second backend has not got',
-	},
-];
-
-/** Which shape of decision a refusal is, or null where nobody has said and it is work. */
-function settled(why: string): string | null {
-	return DECIDED.find((one) => why.includes(one.says))?.kind ?? null;
-}
-
-/** A refusal, sorted into the two things a refusal can be. */
 function turned(suite: string, name: string, why: string): Result {
-	const kind = settled(why);
-	// This compiler's own word that the sample needs Svelte's async mode, which the sync pass does
-	// not have: the async pass measures it. See `ONLY_ASYNC`.
-	if (kind === ASYNC_KIND) return { suite, name, outcome: 'skipped', why: ONLY_ASYNC };
-	return kind === null
-		? { suite, name, outcome: 'gap', why }
-		: { suite, name, outcome: 'decided', why, kind };
+	return { suite, name, outcome: 'gap', why };
 }
 
 type State = 'pass' | 'skip' | 'fail';
@@ -324,9 +254,8 @@ type State = 'pass' | 'skip' | 'fail';
  * What an outcome is once it is read against the list: pass, skip or fail.
  *
  * Empty is a pass, since both sides wrote the same bytes. A skip carries whose it is -- `upstream`
- * where the sample's own config says so, `blocked` where it waits on request-time rendering, `harness` where
- * this runner could not ask the oracle -- because a skip nobody can attribute is a number made to
- * look better. See spec/suite.md.
+ * where the sample's own config says so, `harness` where this runner could not ask the oracle --
+ * because a skip nobody can attribute is a number made to look better. See spec/suite.md.
  */
 function stateOf(one: Result): { state: State; reason?: string } {
 	switch (one.outcome) {
@@ -335,8 +264,6 @@ function stateOf(one: Result): { state: State; reason?: string } {
 			return { state: 'pass' };
 		case 'skipped':
 			return { state: 'skip', reason: `upstream: ${one.why ?? ''}` };
-		case 'decided':
-			return { state: 'skip', reason: `blocked: ${one.kind ?? ''}` };
 		case 'oracle':
 			return { state: 'skip', reason: `harness: ${(one.why ?? '').replaceAll(ROOT, '')}` };
 		case 'differs':
