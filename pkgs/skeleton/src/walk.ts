@@ -2816,6 +2816,15 @@ function oneBranch(
 	if (chosen >= 0) buried(walk, otherwise);
 }
 
+/** What a fragment's own nodes cover, a fragment carrying no span of its own. */
+function spanOfFragment(fragment: unknown): [number, number] | null {
+	if (!isNode(fragment) || !Array.isArray(fragment['nodes'])) return null;
+	const spans = fragment['nodes'].map((one) => span(one)).filter((one) => one !== null);
+	const [first] = spans;
+	const last = spans[spans.length - 1];
+	return first === undefined || last === undefined ? null : [first[0], last[1]];
+}
+
 /** A fragment nothing renders, recorded by the span its own nodes cover. */
 function buried(walk: Walk, fragment: unknown): void {
 	if (!isNode(fragment)) return;
@@ -6060,9 +6069,33 @@ function collect(node: unknown, walk: Walk): void {
 					if (!site.wants.some(([key]) => key === keyed(walk, written))) {
 						site.wants.push([keyed(walk, written), asWritten(node['expression'], written, walk)]);
 					}
+					// This render is only asked the value and is thrown away, and a body that awaits,
+					// run over a placeholder item, runs what Svelte may never run: over an empty list it
+					// does not, and `{await Promise.reject(...)}` in one threw here. So that body is left
+					// out of it, and not walked, since an edit inside it would outlive the one that cuts
+					// it. The next walk is told. A body that awaits nothing is walked as ever: what it
+					// asks and binds is read in this pass.
+					const inner = spanOfFragment(node['body']);
+					if (inner !== null && awaitsAtTop(node['body'])) {
+						edits.push([inner[0], inner[1], '']);
+						if (isNode(fallback)) step(fallback);
+						return;
+					}
 				} else {
 					written = held;
 				}
+			}
+			// **A source the build knows is empty never renders its body**, so the body is not
+			// rendered here either, and the block is the bytes of its fallback: the render writes
+			// `<!--[!-->`, the fallback and `<!--]-->` from the source as written. Rendered over a
+			// placeholder item instead it ran what Svelte never runs -- `async-each-fallback-hoisting`
+			// rejects in there on purpose.
+			if (/^\[\s*\]$/.test(unwrapped(written)) && !constant(awaits)) {
+				buried(walk, node['body']);
+				const inner = spanOfFragment(node['body']);
+				if (inner !== null) edits.push([inner[0], inner[1], '']);
+				if (isNode(fallback)) step(fallback);
+				return;
 			}
 			blocks.push({
 				index,
