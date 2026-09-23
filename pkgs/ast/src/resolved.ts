@@ -50,12 +50,12 @@ export function resolved(source: string, where: string, file?: string): void {
 			? `${unknown.join(', ')}, which the data does not carry; the name has to come from the \
 payload, an each block, a script in this file, or an import`
 			: '',
-		// **A name no script writes is the host's, and that is the scope line rather than work.**
-		// The other reading of an unresolved name is a binding this compiler failed to record, and
-		// there are six of those, which is why they are ranked as a gap. This one is not: nothing
-		// in the file ever wrote the name, so the only thing left that could hold it is the global
-		// scope of whatever is running -- and spec/pipeline.md says the second backend embeds an
-		// evaluator with no host of any kind, so the same artifact would serve two different pages.
+		// **A name no script writes is the host's, a gap that waits on spec/derivation.md.** The
+		// other reading of an unresolved name is a binding this compiler failed to record. This one
+		// is not: nothing in the file wrote the name, so only the global scope of whatever is
+		// running can hold it -- ambient input, which the derive stage refuses. That the second
+		// backend has no host (spec/pipeline.md) is that backend's constraint, not a reason here;
+		// see spec/suite.md.
 		// `process` is the one name kept, and spec/derivation.md writes down what that costs.
 		free.length > 0
 			? `${[...new Set(free)].map((name) => `\`${name}\``).join(', ')}, which no script in this \

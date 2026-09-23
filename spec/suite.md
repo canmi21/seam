@@ -59,31 +59,42 @@ the run was good. What a reader acts on is three things, so the table has three.
 **pass** -- seam's bytes are Svelte's, body and head. An empty render on both sides is a pass.
 
 **skip** -- the sample is not a condition of the run, and the list says why. The why is one of
-three, and it is written into the reason so that nobody has to guess whose judgement a skip is:
+two, and it is written into the reason so that nobody has to guess whose judgement a skip is:
 
 - `upstream:` -- the sample's own `_config.js` says not to run it on the server.
-- `blocked:` -- this compiler refuses it because it needs the UI run per request, which waits on
-  request-time rendering beside compile-time rendering (see [roadmap.md](roadmap.md), **Blocked on
-  request-time rendering**): a value the render changes, a value the payload cannot carry because
-  it is a function, a value that is not the same twice, module state its module changes, and async
-  Svelte for now. The reason is which of those it is, not the message.
 - `harness:` -- neither side answered, because this runner could not ask the oracle. That is a
   debt of this repository's, kept visible in the list rather than folded into either of the others.
 
-**fail** -- everything else: the bytes are not Svelte's, the compiler refused it for a reason that
-is not one of those, or the sample disagrees with [the list](#the-list-is-what-verify-holds-it-to).
+**fail** -- everything else: the bytes are not Svelte's, the compiler refused it, or the sample
+disagrees with [the list](#the-list-is-what-verify-holds-it-to).
 
-**A refusal is a skip or a fail, and which one is read off its message**, in a table in the runner:
-the classification is the measurement's and nothing in a build has a use for it. **An unmatched
-refusal is a fail**, which is the safe direction -- a refusal nobody has classified is work until
-somebody says otherwise. The two used to be one column, `refused`, and the figure a reader took away
-counted 264 decisions as though they were work.
+**A refusal is a fail, whatever it says.** It used to be read off its message into a table in the
+runner, and the matches became a third kind of skip, `blocked:`, for a refusal said to wait on
+request-time rendering. That column held 99 sample runs and not one of them was blocked; the next
+section is the rule that keeps it from coming back. **Nor does this compiler route a sample to the
+other pass**: which samples need Svelte's async mode is Svelte's compiler to say, and the oracle
+asks it, so a refusal of ours that mentions async is a fail like any other.
 
-**And a blocked skip is not an upstream skip.** An upstream skip is somebody else saying not to run
-the sample. A blocked skip ran, and this compiler read it and turned it away because what it needs
-is not built yet. One prefix
-for both would make upstream's column our judgement, which is the one thing it is written not to
-be.
+## Every sample is the protocol's, and another layer's limit is measured in that layer
+
+**Compile-time rendering differs from Svelte's server render only in when the render runs**, and
+after hydration both are the same Svelte SPA. So there is no sample Svelte renders that this
+compiler may call out of its reach, and no skip of ours: the two kinds above are upstream's word and
+this runner's own failure to ask, and neither is a judgement about the compiler.
+
+**This suite measures Svelte, and nothing above it.** The question it asks is whether the same props
+and the same render options give Svelte's bytes, and props here are values in the process that
+renders -- functions, stores and components included, as `render()` takes them. The framework layer
+is where a page's data crosses a wire and must be serialisable, where the load stage fetches, and
+where Kit is the comparison; a second backend is where an evaluator may lack a host. Each of those
+limits is real in its own layer and is measured there -- [conformance.md](conformance.md)'s later
+stages, a backend's own tests -- and none of them is a reason to take a Svelte sample out of this
+one. A refusal that says one is a gap that has named the wrong layer.
+
+**The same holds for this protocol's own rules.** [derivation.md](derivation.md) holds the derive
+stage to a pure function of the payload, for reasons about hydration and about two backends. Where
+a sample needs more than that allows, it fails here, and closing it is a decision about that rule
+-- [roadmap.md](roadmap.md) marks those, under **Owed: what the render computes per request**.
 
 **A harness skip is where neither side answered.** Svelte's own render could not be built or run
 here, or the sample's own config could not be read, or the props it names could not be built at
@@ -195,13 +206,13 @@ wrong with it.
 That is not the oracle failing; it is a question this harness did not ask. The flag is
 process-global and irreversible once set, so passing it would make every later sample's render
 depend on the order the samples ran in. Those samples stay ours to answer, and they are async
-Svelte: compile-time work where the build can know what is awaited, and blocked on async
-request-time rendering where the request decides it.
+Svelte: compile-time work where the build can know what is awaited, and owed work where the request
+decides it.
 
 **Which is also how membership of that class is decided.** A sample the oracle cannot build without
 `experimental.async` is async Svelte, whatever this compiler's own message says -- two of them were
 turned away earlier for a reason of their own and were being ranked as gaps on the strength of that
-message while being out of scope either way. Upstream's compiler says which samples those are; a
+message while being the async pass's either way. Upstream's compiler says which samples those are; a
 message match here does not.
 
 ### Two passes: the synchronous render and the async one
@@ -269,12 +280,9 @@ There is nothing to compare against in one, so counting either way is a claim ab
 nobody made -- and a sample skipped because of this runner is a sample nobody has measured, which is
 why the reason is written into the list rather than into a count.
 
-**The blocked skips, which wait on request-time rendering rather than being an excuse.** An `await` is not among them unless it waits on what the request
-decides, which is async request-time rendering; Svelte's own corpus has none. An `await` whose value
-the build can know is compile-time work, measured in the async pass and failing there until it is
-done (see [roadmap.md](roadmap.md)). A refusal that is none of these is a fail --
-it is work nobody has done, and hiding it behind the same word as a blocked one is exactly the
-confusion [refusals.md](refusals.md) was written to stop.
+**There are no skips of ours.** A refusal is a fail, and what each still refused waits on is in
+[roadmap.md](roadmap.md). Hiding work behind a word that sounds like a boundary is the confusion
+[refusals.md](refusals.md) was written to stop, and a `blocked:` column was that word.
 
 ## What it said the first time it ran, at `svelte@5.57.0`
 
@@ -384,14 +392,14 @@ state the list has, so it cannot be recorded away; what the list can take is a s
 between `pass` and `skip`, and that is one line in a diff, which is where it is read.
 
 **`--skip-failing` is the one way past that refusal, for one situation.** A sample fails, it has
-been decided to be work that is owed -- not a decision, not a skip -- and what else moved still
+been decided to be work that is owed rather than a skip, and what else moved still
 has to be recorded. `--write --skip-failing` writes the list with the failing samples left off it,
 so each goes on failing every run until the work is done, and `verify` stays red with it. It is not
 for a failure nobody has read. It was added when one did exactly that: the harness fixes above
 turned seventeen skips into passes and upstream skips and one into a refusal nobody had classified,
 `runtime-legacy/reactive-import-statement`, decided as owed work at first, and the seventeen could
-not be recorded behind it. It was later filed as blocked on request-time rendering; see
-[refusals.md](refusals.md).
+not be recorded behind it. It was later filed as blocked on request-time rendering, and is a fail
+again; see [roadmap.md](roadmap.md).
 
 ```
 mise run vendor-baseline               the failures, the skips by reason, then the table

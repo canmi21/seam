@@ -39,7 +39,7 @@ neither gates anything. A compiler that is fast and writes the wrong bytes has n
 
 ### What "all of them" means, because it is not every sample
 
-Three of the outcomes are not failures and saying so once is what keeps the target honest. How
+Two of the outcomes are not failures and saying so once is what keeps the target honest. How
 many samples each holds is the run's to say: `mise run vendor-baseline` prints them by pass and
 reason. See the workspace's `spec/agent-protocol.md`, "A number a command prints is cited, not
 copied".
@@ -72,44 +72,19 @@ render needs were read: a sample this harness did not ask properly is not a samp
 cannot render, and all eight were out of the denominator without either side having answered.
 [suite.md](suite.md) has the rule and the one exception to it.
 
-**A refusal blocked on request-time rendering is out** until that rendering exists, and the suite
-counts it apart from the gaps. The shapes, each a reason the list writes beside the sample:
+**A refusal is never out.** It used to be: a refusal said to be blocked on request-time rendering
+was taken out of the denominator, in eight shapes -- a value the render changes, a store or a
+component in the props, a value that is not the same twice, a boundary whose body throws, a raw
+snippet the request decides, a bare global, module state, an `await` of the request. Read against
+the samples, not one needed Svelte's renderer run per request, and each reason belonged to another
+layer or to this protocol's own rules. All of them are in and fail until done; [roadmap.md](roadmap.md),
+**Owed: what the render computes per request**, holds each shape with the reason it was given and
+why that reason does not hold, and [suite.md](suite.md) has the rule.
 
-- **An await of what the request decides**, which is async request-time rendering. An await whose
-  value the build can know is compile-time work and is not among these; [suite.md](suite.md) has
-  the line and [roadmap.md](roadmap.md) the work.
-- **A value the markup reads changes** while the bytes are written -- assigned after being
-  declared, changed by a function this render calls, written into `$$props`, or a store the script
-  writes -- which is a program per request. There were 68, and the rule was asked at the
-  declaration; it is asked where the walk writes an expansion out now, since the render runs the
-  instance script and has the value. [derivation.md](derivation.md) has the rule and
-  [roadmap.md](roadmap.md) what came out of moving it.
-- **A function off the wire.** The payload carries data and no function, deliberately: see
-  [payload.md](payload.md). Some subscribe to a store the request brings, `$x` reading whatever `x`
-  holds while the bytes are written, so the store itself would have to be in the payload -- and a
-  store is an object with a `subscribe` function. Others render a component the request sent, which
-  is the same shape: a component is a function. Reading the value, or choosing the component, in
-  the load stage is the same page.
-- **A value that is not the same twice**, `Math.random`, `Date()` and `Symbol()`, which a
-  compile-time render freezes into bytes every request would then share.
-- **Module state its module changes**, which a process holds and a build cannot: the render
-  imports each module afresh, so the state it reads is not the state a server would. See
-  [roadmap.md](roadmap.md).
-- **Catching what a `<svelte:boundary>`'s body throws.** What the `failed` snippet is handed is
-  `transformError(error)`, a render option a server passes and an artifact has nowhere to hold, so
-  which of the two shapes a request gets is not a function of the request at all.
-- **A raw snippet whose bytes the request decides.** `createRawSnippet` hands the renderer a
-  string its own function writes, so an artifact would have to run that function per request, with
-  a renderer of its own, to know what the bytes are.
-- **A bare global**, a name no script in the file writes, which can only be a global of
-  whatever is running -- and a backend that is not Node embeds an evaluator with no host to hold
-  one. [derivation.md](derivation.md) has it, and prices `process`, the one name kept.
+Out of the denominator goes only what somebody other than this compiler said: upstream, in the
+sample's own config, or nobody, where neither side could answer.
 
-[roadmap.md](roadmap.md) holds them. None of them moves. The count itself moved as the work landed,
-and upward: a sample refused for a gap earlier in the walk reaches one of these instead, which is
-what the last three shapes are -- every one of them was counted as work until somebody read it.
-
-**Everything else is in, refusals included.** A gap is work nobody has done. Counting it out
+**Everything is in, refusals included.** A gap is work nobody has done. Counting it out
 because the compiler announces it is how a subset comes to be described as a boundary.
 
 So the target is: **every sample that is not skipped passes**, which is byte-identical to Svelte's
@@ -119,9 +94,10 @@ and a skip is one the list names with its reason.
 ### Where it stands
 
 **`mise run vendor-baseline` is where it stands**, and nothing here copies its table. What this file
-can say without going stale is what `verify` already enforces: the list holds no failing sample, so
-while `verify` passes the target holds in both the synchronous render and the async one -- the pass
-[suite.md](suite.md) added when async became work rather than an experiment. The async pass began at 953 of 985 with 32 owed; what closed them is in
+can say without going stale is what `verify` already enforces: a failing sample fails the run, so
+the target holds in both the synchronous render and the async one -- the pass [suite.md](suite.md)
+added when async became work rather than an experiment -- exactly while `verify` passes, and
+`verify`'s colour is where stage one stands. The async pass began at 953 of 985 with 32 owed; what closed them is in
 [roadmap.md](roadmap.md) and [derivation.md](derivation.md), the last 3 being the script
 `hydratable` writes at the head, now written per request from the request's own table -- a value a
 prop decides, or a render option's CSP nonce. One sample left the synchronous pass's passes for its skips on the way, having
@@ -143,7 +119,8 @@ without being counted**, which is the whole reason it is read out rather than to
 
 ### What is left, in the order it should be taken
 
-**Nothing, and the four that came out of the skips are done.** None of them had ever been refused
+**What is still refused, ranked, is [roadmap.md](roadmap.md)'s.** The four that came out of the
+upstream skips are done. None of them had ever been refused
 or measured; they were in a column that said upstream had spoken. Each was taken the way this file
 ranks work, the difference first, and none of the four was the construct its symptom named:
 
@@ -168,16 +145,16 @@ two were one question underneath, a value a function this render calls changes, 
 by a route the rule does not watch -- a spread and a generator rather than a name. Both are now
 refused for assigning to a name outside the value this compiler has to write.
 
-**Of the gaps that were being measured, the three left are the scope line said in the wrong words.**
+**Of the gaps that were being measured, the three left were filed as the scope line, and are gaps.**
 Eight are a `<svelte:boundary>` whose body throws while the bytes are being written: what the
 `failed` snippet is handed is `transformError(error)`, a render option a server passes and an
 artifact has nowhere to hold, so which of the two shapes a request gets is not one this compiler
 can write. Two are a raw snippet whose `render` reads the request and calls `svelte/server`'s own
 `render()` inside itself, which is an artifact running Svelte's renderer per request. One is a bare
 global the harness sets before rendering, which is a value only a JavaScript host holds and the
-second backend has none. [roadmap.md](roadmap.md) records all three as decisions and
-[derivation.md](derivation.md) has the third; this table is read off the messages, so the count
-moves when the messages do.
+second backend has none. Those were the reasons, and none holds at this layer: a render option the
+injector can take, the author's own function called per request, and a global a JavaScript host
+has. [roadmap.md](roadmap.md) now holds all three as owed.
 
 **The eight that were work are done, and reading them one at a time is what said which was which.**
 Each was measured against Svelte's own render of the sample before anything was written, and three
@@ -197,16 +174,18 @@ standing in front of a difference: with the `class:` directive that turned it aw
 file compiled and wrote bytes that are not Svelte's. Taking the refusal first would have traded the
 only column that matters, so the difference was found first and the refusal lifted after.
 
-The three that used to fail inside the derivation evaluator are counted as decisions now, being the
+The three that used to fail inside the derivation evaluator were counted as decisions, and are gaps
+again, being the
 rule about a value the render changes reaching the walk through a spread, a generator and a computed
 key rather than by name.
 
-### It is done, and what the second time was worth
+### It was called done twice, and what each time was worth
 
-`mise run vendor-baseline` reported nothing failing over the synchronous render, which is the
-condition this section sets, and the async pass is the half now owed. It reported that once before over a corpus 342 samples smaller than the one this file names,
-and the audit that found those samples is the reason the claim is worth more the second time: the
-work that had reached zero stood, 276 of the recovered samples agreed with no change to the
+`mise run vendor-baseline` reported nothing failing, which is the condition this section sets, and
+both times the denominator under it was short. The second time the blocked skips were the gap: a
+column of refusals counted out as boundaries, which were work. The first time it reported that over a corpus 342 samples smaller than the one this file names,
+and the audit that found those samples said the same thing both times would: the work that had
+reached zero stood, 276 of the recovered samples agreed with no change to the
 compiler, and four were work. **A target is only as good as the denominator under it**, and the
 denominator is the half nothing was checking.
 

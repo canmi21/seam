@@ -80,8 +80,8 @@ const GLOBALS = new Set([
  *
  * Svelte itself has no list to read forward from: its `globals` table in `phases/scope.js` is for
  * folding a keypath at compile time and says nothing about which names are legal. The category is
- * this compiler's, and the scope line is what decides it -- a value the build does not hold is a
- * value the request brings, whatever channel it comes down. See spec/derivation.md.
+ * this compiler's: a value the build does not hold is a value the request brings, whatever channel
+ * it comes down. See spec/derivation.md.
  *
  * **`globalThis` is not one of these, and measuring said so.** The object is the same object on
  * both machines; it is a *property* of it that differs, and the test here is on the root name, so

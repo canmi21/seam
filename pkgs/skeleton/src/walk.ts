@@ -5627,13 +5627,11 @@ function collect(node: unknown, walk: Walk): void {
 							'site, which is composition in the other direction',
 					);
 				}
-				// **A raw snippet whose bytes the request decides is the scope line, not a callee this
+				// **A raw snippet whose bytes the request decides is a gap, not a callee this
 				// compiler failed to follow.** `createRawSnippet(fn)` is
 				// `renderer.push(fn(...getters).render().trim())` on the server, so where that
-				// `render` reads the request the bytes are a string an artifact would have to compute
-				// per request -- by calling what it was handed with a renderer of its own, and, in
-				// both of the samples that write the shape, by calling `svelte/server`'s own
-				// `render()` inside it. See spec/roadmap.md.
+				// `render` reads the request the bytes are what the author's function returns per
+				// request, and calling it then is what is owed. See spec/roadmap.md.
 				if (called !== null && called.includes('createRawSnippet(')) {
 					refuse(
 						`\`{@render ${String(name)}()}\` in ${basename(site.file)} is a raw snippet whose ` +
@@ -5975,8 +5973,8 @@ function collect(node: unknown, walk: Walk): void {
 			if (children.some((child) => snippetNamed(child, 'failed')) && throws) {
 				// The same answer the render gives where it catches one, said before it is reached:
 				// what decides it is not which side the throw is on but what the `failed` snippet is
-				// handed, which is `transformError(error)` -- a render option a server passes and an
-				// artifact has nowhere to hold. See `render.ts` and spec/refusals.md.
+				// handed, which is `transformError(error)` -- a render option a server passes, and one
+				// the injector does not take yet. See `render.ts` and spec/roadmap.md.
 				refuse(
 					'a `<svelte:boundary>` with a `failed` snippet, whose body calls something over a value ' +
 						'the request brings. Svelte writes that snippet instead of the body where the body ' +
@@ -7443,11 +7441,10 @@ function descend(
 		if (walk.asking !== true && reason.includes('a module binding something in that module')) {
 			throw error;
 		}
-		// Async Svelte is out of scope by the scope line rather than a component this walk could not
-		// read, so leaving it to the render is not the answer it is for a gap -- and the render does
-		// not take it either: Svelte's own compiler answers `Cannot use \`await\` in deriveds and
-		// template expressions`, which is upstream's words for our decision and puts 25 samples in
-		// the gap list they do not belong in. See spec/conformance.md.
+		// Async Svelte outside its async mode is refused by Svelte's own compiler as well as by this
+		// walk, so leaving it to the render is not the answer it is for a gap -- the render does not
+		// take it either, answering `Cannot use \`await\` in deriveds and template expressions`,
+		// which would put the sample in the list under upstream's words. See spec/suite.md.
 		if (walk.asking !== true && reason.includes('which is async Svelte')) throw error;
 		if (walk.asking !== true && headed && walk.within.length > 0) {
 			refuse(

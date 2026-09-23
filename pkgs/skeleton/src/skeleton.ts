@@ -415,9 +415,8 @@ function unhydrated(rendered: Rendered, calls: number): Rendered {
  * so an `await` the build can know -- in a place this compiler writes as a derivation whatever the
  * value, an `<option>`'s `selected` or an each body's item -- is awaited per request and writes what
  * Svelte's async render writes. What is refused is an `await` whose argument reads the payload:
- * the bytes would wait on something only the request has, which is async request-time rendering --
- * planned, after the synchronous kind, and not yet the time. That is the rule, not the mechanism,
- * which could run it. Asked over the finished list for the reason `composed()` is. An `await`
+ * the bytes would wait on something only the request has. The refusal is owed work, and the only
+ * thing that stops the mechanism, which could run it. Asked over the finished list for the reason `composed()` is. An `await`
  * inside a function is that function's and is not asked about. See spec/roadmap.md.
  */
 function awaited(

@@ -16,25 +16,25 @@ construct _deserves_ to be refused, and a refusal is never a judgement that some
 something the wrong way. Nearly every entry in this file is a gap in the work, and the work is
 finished when the file has nothing left in it but the exception below.
 
-**Two kinds of refusal are recorded here, and they empty out at different times.** A gap is a
-construct nobody has written yet, and it leaves when somebody writes it. A blocked refusal is a
-construct that needs the UI run per request -- the exception the next paragraph names -- and no work
-inside this compiler moves it: it leaves when request-time rendering sits beside compile-time
-rendering, the condition under **Not permanently** below. [roadmap.md](roadmap.md) keeps the two in
-separate sections, a gap under **ready, and not done** or **not yet the time** and a blocked one
-under **blocked on request-time rendering**, so that neither is ever read as the other. Reading a
-blocked refusal as unfinished work is how "a subset of Svelte" comes to sound like a permanent
-boundary, and reading a gap as blocked is how it comes to sound like one that was chosen.
+**Every refusal is a gap.** A gap is a construct nobody has written yet, and it leaves when somebody
+writes it. There used to be a second kind, a refusal _blocked_ on request-time rendering, said to be
+moved by no work inside this compiler and counted out of stage one. It is gone: read against the
+samples that carried it, not one needed Svelte's renderer run per request, and the reasons given for
+it belonged to other layers. [suite.md](suite.md), "Every sample is the protocol's, and another
+layer's limit is measured in that layer", has the rule.
 
-**The reason is structural rather than aspirational.** This compiler is arranged the way SvelteKit
-is; what changed is _when_ the render happens. So anything SvelteKit serves should be portable to
-compile-time rendering, with one exception that waits on the next piece of architecture rather than
-marking a limit: an application that genuinely needs arbitrary code executed per request, against
-something only that request knows. That is request-time rendering's, and it is coming beside this
-one; see **Not permanently** below. Everything else -- an article, a form, an admin screen, a dashboard -- is in scope.
-Interaction is not the scope line. A dashboard that filters, sorts and opens dialogs is a page
-whose bytes are fixed and whose behaviour is the client's, which is exactly what the client half
-is for.
+**The reason is structural rather than aspirational.** Compile-time rendering differs from Svelte's
+server render in one thing: when the render runs. Before hydration the page is what SvelteKit's SSR
+would have served; after it, a standard Svelte SPA. So whatever the server render computes from its
+props and its render options, this computes too -- at build time where nothing the request decides
+is read, and per request where something is. A value the render changes, an `await` of what a prop
+hands in, a store the props carry, a `transformError` the server passes: each is the author's code
+run against values the request supplies, and this compiler has a stage that runs code per request.
+What that stage may run is [derivation.md](derivation.md)'s rule, which is this protocol's own
+decision and not a limit of rendering at compile time, so a gap that waits on it is a gap that waits
+on a decision -- the second kind in the table below. Everything -- an article, a form, an admin screen, a dashboard -- is in scope. Interaction is not
+the line either. A dashboard that filters, sorts and opens dialogs is a page whose bytes are fixed
+and whose behaviour is the client's, which is exactly what the client half is for.
 
 **So a refusal is a research task with a known method.** Read Svelte's source, and SvelteKit's,
 find what they do with the construct at request time, and move that to compile time. Nearly every
@@ -63,13 +63,18 @@ serve. That is a divergence, and divergence is what this protocol governs.
 **The cost of not having one is smaller than it looks.** Measured across what is refused today,
 there is no category of _this will never work_ -- see below.
 
+**This says how a gap is closed, never whether it is one.** Closing a gap does not mean handing the
+component to Svelte's renderer per request; it means writing what that renderer does into the
+artifact, derivations included. A refusal that could only be closed by a fallback would be worth
+stopping for, and none has been found.
+
 ## Not permanently. The condition is named
 
 This is a decision for now, not for ever, and the thing that reopens it is written down so that
-reopening it is not a matter of mood. **It is going to be reopened**: request-time rendering beside
-compile-time is planned -- synchronous first, asynchronous straight after -- and it is not yet the
-time. Everything [roadmap.md](roadmap.md) files under **blocked on request-time rendering** is
-waiting on exactly this.
+reopening it is not a matter of mood. Request-time rendering beside compile-time is planned --
+synchronous first, asynchronous straight after -- and it is not yet the time. **No refusal waits on
+it**: what the server render computes per request, a derivation computes per request, so the
+machinery below is a choice to offer authors and not the condition any gap is closed on.
 
 **When compile-time and request-time rendering can both appear on one page** -- different
 components on the same response, some compiled and some rendered -- the question becomes whether
@@ -110,21 +115,21 @@ list kept beside it, and a row that disagrees with the check is the row that is 
 
 A list nobody runs is a claim. The check is the list, and this file keeps only the reasoning:
 
-|                                                                                                  |                                                                                                                                                |              |
-| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| `{@render}` of a snippet that arrived as a prop, `children` included                             | the body was written at the call site, which is composition in the other direction                                                             | gap          |
-| a snippet passed to a component with parameters, and one the component supplies a value to       | the child calls it, with what is not visible from where the snippet was written; one with no parameters has nothing to decide and compiles     | gap          |
-| a boundary whose pending snippet is a prop                                                       | Svelte cannot prove the prop defined, so it writes a choice per request over a snippet that arrived as a value                                 | gap          |
-| a value a child transforms, and one it takes and never writes                                    | the bytes hold what the child computed from the prop rather than the prop, and rendering again with another value in its place is what says so | gap          |
-| a component the request chooses                                                                  | a structure, and this one is not enumerable                                                                                                    | gap          |
-| a head reached from a component inside a body, and a fragment that renders itself around one     | the head stream has no call there                                                                                                              | gap          |
-| a block inside a table whose stylesheet relates siblings                                         | the stamp that says which block closed cannot be text there, and the scoping class reads siblings                                              | gap          |
-| `page` imported under another name in the entry                                                  | a rename is bound at a call, and the entry has none                                                                                            | gap          |
-| a name assigned or an object mutated after it is declared, where the statements read the request | substitution maps a name to one expression, and a program is not an expression                                                                 | **decision** |
-| `await` in markup or at the top of a script                                                      | async Svelte awaits a promise per request while the bytes are written, which is the load stage's                                               | **decision** |
+|                                                                                                  |                                                                                                                                                                                                                                       |                  |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `{@render}` of a snippet that arrived as a prop, `children` included                             | the body was written at the call site, which is composition in the other direction                                                                                                                                                    | gap              |
+| a snippet passed to a component with parameters, and one the component supplies a value to       | the child calls it, with what is not visible from where the snippet was written; one with no parameters has nothing to decide and compiles                                                                                            | gap              |
+| a boundary whose pending snippet is a prop                                                       | Svelte cannot prove the prop defined, so it writes a choice per request over a snippet that arrived as a value                                                                                                                        | gap              |
+| a value a child transforms, and one it takes and never writes                                    | the bytes hold what the child computed from the prop rather than the prop, and rendering again with another value in its place is what says so                                                                                        | gap              |
+| a component the request chooses                                                                  | a structure, and this one is not enumerable                                                                                                                                                                                           | gap              |
+| a head reached from a component inside a body, and a fragment that renders itself around one     | the head stream has no call there                                                                                                                                                                                                     | gap              |
+| a block inside a table whose stylesheet relates siblings                                         | the stamp that says which block closed cannot be text there, and the scoping class reads siblings                                                                                                                                     | gap              |
+| `page` imported under another name in the entry                                                  | a rename is bound at a call, and the entry has none                                                                                                                                                                                   | gap              |
+| a name assigned or an object mutated after it is declared, where the statements read the request | substitution maps a name to one expression, and a program is not an expression; running the statements per request is what the server render does, and whether the derive stage may is [derivation.md](derivation.md)'s open question | gap, not decided |
+| `await` of what the request decides                                                              | the bytes wait on a promise built from the request, which an async derivation awaits; only the refusal stops it                                                                                                                       | gap              |
 
-The last column is the split at the top of this file: a gap leaves when somebody writes it, a
-decision does not. [roadmap.md](roadmap.md) sorts the same items by what each waits on.
+Every row is a gap, which is the rule at the top of this file. Two used to be marked as decisions,
+and neither was. [roadmap.md](roadmap.md) sorts the same items by what each waits on.
 
 **So "a subset of Svelte" is a statement about how far the work has got, not about where a line
 was drawn.** The subset grows, and the README should say that rather than implying a boundary
@@ -139,12 +144,11 @@ against the same oracle: [suite.md](suite.md) has what that is and what it said.
 
 ## What is still refused is ranked in one place, by what it waits on
 
-[roadmap.md](roadmap.md) holds every construct still refused, sorted three ways: ready and not
-done, not yet the time, and blocked on the meta-framework. The line it sorts by is the scope line,
-which is the one at the top of this file and is stated once more there so that it can be checked
-against each item: before
-hydration the page is what SvelteKit's SSR would serve, after it a standard Svelte SPA, and the
-only thing given up is rendering the UI per request. The reasoning behind each refusal stays in
+[roadmap.md](roadmap.md) holds every construct still refused, sorted by what each waits on. The
+line it checks each item against is the scope line, which is the one at the top of this file and is
+stated once more there: before hydration the page is what SvelteKit's SSR would serve, after it a
+standard Svelte SPA, and nothing is given up -- per request is when part of the work happens, never
+a reason it is not done. The reasoning behind each refusal stays in
 this file; the ranking and the dependencies are there.
 
 ## How far the subset is from the ecosystem, measured
@@ -587,18 +591,20 @@ Only the binding the module changes is refused, not everything imported from it:
 the ordinary case and stays. Only a relative module, whose source this can read; a package's is a
 hole, in [roadmap.md](roadmap.md).
 
-**It is the scope line, and a survey is what settled it.** Exported state a module changes is
-state the process holds: SSR reads it as it stands at the request, a build can only read it as it
-stood at the build, and whether anything changes it at run time is not a question the component can
-answer -- any importer may call the function that does, a server hook as easily as the component.
-Making it work would take a proof that nothing does, over the whole project and its packages. So it
-was measured before it was decided: lattice, its 54 components and the 5107 components of every
+**It was filed as the scope line, and that was wrong.** Exported state a module changes is state
+the process holds: SSR reads it as it stands at the request, and the reading was that a build can
+only read it as it stood at the build. A derivation is not the build. It is evaluated per request
+in the carried bundle, which imports each module once as a server process does, so it reads the
+binding as it stands at the request -- SSR's own reading. What is owed is carrying the read into a
+derivation rather than baking it. The survey that was taken to settle it stands as a measure of how
+rare the shape is: lattice, its 54 components and the 5107 components of every
 package it imports (`bits-ui`, `@lucide/svelte`, `phosphor-svelte`, `@tanstack/svelte-query`,
 paraglide and the rest), with imports followed through `$lib`, workspace packages and re-exports.
 **No component reads a binding its module changes.** Ten reads in `bits-ui` match the rule's test,
 and every one is a `Context` or an event dispatcher whose method is called -- the test counts any
 method call as a change -- in components lattice does not use. Svelte's own corpus has one sample
-that does it, `runtime-legacy/reactive-import-statement`, and it is a scope skip.
+that does it, `runtime-legacy/reactive-import-statement`, and it fails in the suite until the read
+is carried.
 
 **A context read where a `setContext` in this render was given a value the request decides.**
 `setContext(k, v)` runs while the bytes are written and a descendant's `getContext(k)` reads it.
@@ -1123,18 +1129,17 @@ in a file that has no props at all, naming a snippet the same file declares: wha
 `$$get_store`, which the walk put there. [derivation.md](derivation.md) states that once for every
 construct that asks it. `runtime-runes/snippet-store` is the sample.
 
-**And where the call is the request's, a raw snippet is a decision rather than a gap.**
+**And where the call is the request's, a raw snippet is still a gap.**
 `createRawSnippet(fn)` on the server is `renderer.push(fn(...getters).render().trim())`, so the
 bytes are whatever the author's `render` returns and, where that reads the request, they are a
 string computed per request. Getting the string means calling what this compiler was handed with a
 renderer of its own, which is standing in for Svelte's renderer contract; and the two samples that
-write the shape go further, calling `svelte/server`'s own `render()` inside that function. **An
-artifact that runs Svelte's renderer per request is the runtime fallback this file opens by
-refusing**, and a backend that is not Node cannot do it at all, so this is the scope line rather
-than work nobody has done. The condition for reopening it is the one named at the top of this file.
-What is owed meanwhile is the message: the compiler says the callee cannot be followed where what it
-means is that the value would have to be rendered per request, and [conformance.md](conformance.md)
-counts `runtime-runes/snippet-raw-component` and `-ssr-dev` as gaps until it says so.
+write the shape go further, calling `svelte/server`'s own `render()` inside that function. It was
+filed as the runtime fallback this file opens by refusing, and it is not one: the fallback is this
+compiler handing a component to Svelte's renderer, and this is a derivation calling the author's
+own function, which happens to call a renderer because the author wrote it to. The string is that
+function's return value per request. `runtime-runes/snippet-raw-component` and `-ssr-dev` fail in
+the suite until the derivation calls it.
 
 **A child's `$$props`, `$$restProps` and `$$slots` are the object its call site passed.**
 `transform-server.js` binds each of them over that object: `$$props` is `sanitize_props($$props)`,

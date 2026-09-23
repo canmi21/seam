@@ -32,6 +32,12 @@ So the rule is not a list of permitted APIs. It is a property:
 Everything below follows from that sentence, and the sections are the two ways to violate it:
 ambient input and side effect. A third was counted once and struck; see the end.
 
+**The sentence is this protocol's, not a limit of rendering at compile time.** Svelte's server render
+is not held to it. Where a Svelte sample needs more than it allows -- a value the render changes, a
+clock, a global, a store in the props -- the sample is a gap that waits on this rule and fails in
+the suite; it is never a skip. [roadmap.md](roadmap.md) lists them under **Owed: what the render
+computes per request**.
+
 ## Every identifier resolves, or it is refused
 
 The compiler previously decided by shape alone: an expression matching a dotted identifier was a
@@ -572,7 +578,7 @@ ECMAScript's iterators do, whatever the receiver is.
 
 So a `$:` written as `keys.forEach((key) => { object[key] = [] })` is a mutation this pass can see,
 where before it was one it could not -- and the sample it was hiding in reported the derivation
-evaluator's failure instead of the scope line's answer.
+evaluator's failure instead of the refusal that names it.
 
 ## A getter is a function this render calls
 
@@ -584,8 +590,7 @@ runs `fn` on `obj.promise` as surely as `fn()` would.
 It found this the way these are usually found: an `{#await obj.promise}` was folded once its test
 was answered, and the sample that counts how many times its getters ran went from a refusal nobody
 had read to eight bytes that were not Svelte's. Walking a getter's body puts the name back in what
-the render runs, and the refusal it earns is the one the scope line already gives -- a value the
-render changes while the bytes are written.
+the render runs, and the refusal it earns is the one a value the render changes already gets.
 
 ## An `{#await}` is a test the render can answer
 
@@ -939,8 +944,8 @@ samples in the suite are that case, and both keep writing Svelte's bytes.
 **What it does not reach.** A value the render _mutates_ is a different question and stays refused.
 `$: keys.forEach((key) => { object[key] = [] })` needs the statement to have run, and a derivation
 is a pure expression evaluated at request time with no `$:` to run -- holding `object` once gives
-the empty object, not the filled one. That is a program per request, which is the scope line's, and
-[roadmap.md](roadmap.md) keeps it there.
+the empty object, not the filled one. That is a program per request, a gap that waits on the rule
+at the top of this file, and [roadmap.md](roadmap.md) lists it.
 
 ## Which names the request decides, in both spellings of a prop
 
@@ -1328,7 +1333,7 @@ it threw inside the render; `$: if (modify) settings.fontSize = 50` baked 12px f
 which was right only for the one value the suite sends. So a name a top-level statement reading
 the request assigns or mutates varies (`movedBy()` in `walk.ts`), a read of it becomes one this
 compiler writes, and the rule about a value the render changes refuses it there: a program per
-request, blocked on request-time rendering.
+request, owed and waiting on the rule at the top of this file.
 
 ## `hydratable` is the request's, and its calls are made whether or not anything reads them
 
@@ -1430,20 +1435,19 @@ budget, and that is a deployment choice rather than a rule here.
   such a call. Almost every one of them imports the function it calls.
 
 - **A script that substitution cannot reach, reading the request.** A reassignment, a mutation or
-  a loop leaves a name with no single expression standing for it. **It is refused until request-time
-  rendering sits beside compile-time rendering**, which is planned and not yet the time. Where the statements read nothing the request decides, the
-  render evaluates them and the walk bakes the result -- `wants` in `walk.ts`, see
-  [refusals.md](refusals.md) -- so what is refused is exactly a statement sequence whose inputs
-  arrive with the request. That is a program run per request, which CTR cannot do on its own: the
-  UI is rendered at compile time, and a component whose bytes can only be known by executing its
-  script against the request is request-time rendering's, not the compiler's. See
-  [roadmap.md](roadmap.md) for the scope line, stated once.
+  a loop leaves a name with no single expression standing for it. **It is refused, and it is a
+  gap.** Where the statements read nothing the request decides, the render evaluates them and the
+  walk bakes the result -- `wants` in `walk.ts`, see [refusals.md](refusals.md) -- so what is
+  refused is exactly a statement sequence whose inputs arrive with the request. Running it per
+  request is what the server render does; whether the derive stage may run a program rather than an
+  expression is the decision this item waits on, and it is this protocol's, not the scope line's.
+  See [roadmap.md](roadmap.md), **Owed: what the render computes per request**.
 
   The measurement that made the decision cheap still stands. Across 4323 real components, 15
   assign to a declared name outside a function, and **not one of them is refused by that alone**
   -- every one is also turned away by a spread, a binding or something else -- and press has none.
 
-  **When request-time rendering takes it**, three questions have to be answered rather than one:
+  **Whichever stage takes it**, three questions have to be answered rather than one:
   `<script module>` runs once where an instance script runs per render, so a preamble that merged
   them would rebuild module state per request; the script's imports are a superset of the names
   `carry` bundles today, which follow expressions only; and a backend needs a JavaScript engine
@@ -1528,9 +1532,9 @@ derivation, awaited before anything reading it. Only there: held everywhere it w
 derivation where the render could have evaluated it, and `async-resolve-stale` was refused for it.
 
 **What may be awaited is still the rule's, not the mechanism's.** An `await` whose argument reads
-the payload is async request-time rendering, and is refused at compile time over the finished
-list -- the mechanism here could run it, and the refusal is what keeps the line where
-[roadmap.md](roadmap.md) draws it. The second backend's evaluator has to run promises for an
+the payload is refused at compile time over the finished list -- the mechanism here could run it,
+and the refusal is the only thing that stops it, which makes it owed work; see
+[roadmap.md](roadmap.md). The second backend's evaluator has to run promises for an
 artifact that holds such a derivation, which only a project in async mode produces.
 
 ## The helpers are carried under a name nothing can shadow

@@ -3836,8 +3836,8 @@ const refused: Case[] = [
 	},
 	{
 		// And a name read both ways still has to come from somewhere. No script writes it, so what
-		// it could only be is a global of whatever is running, which is the scope line rather than a
-		// binding this compiler failed to record. See spec/derivation.md.
+		// it could only be is a global of whatever is running, a gap that waits on spec/derivation.md
+		// rather than a binding this compiler failed to record.
 		name: 'a name read under `typeof` and beside it',
 		says: 'no script in this file writes',
 		source: `${PROPS}<p>{typeof mystery}{mystery}</p>`,

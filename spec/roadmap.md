@@ -22,8 +22,7 @@ and seven more once the walk keeps the `await` it was substituting away. That is
 decides the question.
 
 **Why the refusal was so large.** It is written on the syntax -- `await` appears outside a function
--- and not on the scope line, which excludes _a value loaded per request while the bytes are
-written_. Of the 183, **174 involve nothing the request decides**: they await literals and promises
+-- and not on what the request decides. Of the 183, **174 involve nothing the request decides**: they await literals and promises
 the file itself makes, `{@html await 'this should work'}` and
 `{#each await Promise.resolve([first, second, third]) as item}`. One has request-decided props. In
 press the two readings very nearly coincide, because what an application awaits is its data; in
@@ -105,16 +104,16 @@ the same half:
 - **An `await` whose value the build can know** -- a literal, a promise the file makes, anything
   that reads nothing the request decides -- is awaited at compile time and its bytes written, the
   way any inert value is. That is 174 of the 183 measured above, and it is this compiler's.
-- **An `await` of what the request decides** is async request-time rendering, and waits for it
-  under **Blocked on request-time rendering**, straight after the synchronous kind.
+- **An `await` of what the request decides** is the same derivation awaited per request rather
+  than at the build, and is owed: see **Owed: what the render computes per request**.
 
 A project turns the mode on with `compilerOptions.experimental.async` in `svelte.config.js`, and
 that is what the compiler reads, the way it reads `runes`; `SEAM_ASYNC` was the stand-in for it.
 The eighth anchor above is owed.
 
 **The two halves are told apart where an expression becomes a derivation** (`awaited()` in
-`skeleton.ts`). An `await` whose argument reads the payload is the request-time half, refused as
-blocked. One whose argument does not sits where this compiler writes a derivation whatever the
+`skeleton.ts`). An `await` whose argument reads the payload is the request-time half, refused
+for now and owed. One whose argument does not sits where this compiler writes a derivation whatever the
 value -- an `<option>`'s `selected`, an each body's item, a local function inlined into one -- and
 the derivation is built `async` and waited on; [derivation.md](derivation.md) has how. **Svelte's own corpus has no `await` of the payload at all**: every async sample's
 awaited value is one the build can know, so every async failure is compile-time work.
@@ -190,23 +189,31 @@ and it is the decision this entry is waiting on.
 
 The line that decides what belongs here is one sentence. **Before hydration the page is an MPA
 and has to be what SvelteKit's SSR would have served; after hydration it is a standard Svelte SPA
-and there is nothing to decide.** CTR differs from SSR in one thing only: the UI is rendered at
-compile time rather than per request. What it cannot do on its own is run the UI per request -- a
-component whose bytes can only be known by executing its script against the request. **That is not
-given up: it waits on request-time rendering beside compile-time rendering on one page**, which is
-the next piece of architecture rather than a boundary, synchronous first and asynchronous straight
-after it. Until then such a construct is refused and filed under **Blocked on request-time
-rendering**, never as out of scope for good. Every other way of writing Svelte is in scope, async
-Svelte whose awaited value the build can know included, and a construct is refused only for as long
-as nobody has written it, never because it is the wrong way to write Svelte. [refusals.md](refusals.md) says what
-a refusal means; this file says what is still refused and why each is where it is.
+and there is nothing to decide.** CTR differs from SSR in one thing only: when the UI is rendered.
+So nothing Svelte's server render produces is outside it. Where the bytes depend on what the
+request brings, the part that depends is computed per request and the rest at compile time; what
+the per-request stage may run is [derivation.md](derivation.md)'s rule, which this protocol chose. That split is how the work is done, never a line the work stops at, and a
+construct is refused only for as long as nobody has written it. [refusals.md](refusals.md) says
+what a refusal means; this file says what is still refused and why each is where it is.
+
+**It used to say otherwise.** A component whose bytes needed "the UI run per request" was filed as
+blocked on request-time rendering and counted out of stage one, 99 sample runs of it. Read against
+the samples, not one needed Svelte's renderer run per request, and the reasons they were given
+belonged to other layers, which the layer line below now keeps out.
 
 ## The layer line: protocol, and the framework around it
 
 Nothing here is the framework layer. Routing, the layout chain, the load stage and where request
 context sits are the meta-framework's, and this protocol is not yet the equivalent of SvelteKit;
-[framework.md](framework.md) is where that layer is taken from Kit. What is listed under
-**blocked** is blocked on that, and nothing else.
+[framework.md](framework.md) is where that layer is taken from Kit.
+
+**A constraint of that layer, or of a backend, is not a reason here.** The payload a page hydrates
+from carries data, the load stage is where a value is fetched, and a backend that is not Node embeds
+an evaluator with no host: each is true of the framework or of one backend, and each is measured
+there -- stages two and three in [conformance.md](conformance.md), a backend's own tests -- never by
+turning a Svelte sample away. At this layer the question is only whether the same props and render
+options give Svelte's bytes, and props are values in the process that renders, stores and functions
+included. [suite.md](suite.md) holds the suite to it.
 
 The two are independent, which is the reason for naming them apart. A construct can be in scope by
 the scope line and still not be this protocol's by the layer line: the load stage is exactly that,
@@ -339,8 +346,8 @@ store created at module scope, a client cached in a module -- each is state the 
 copy of, and reading one where the value has to reach the bytes is the same fault. Reading a
 package's source to find out is what closes it, and `carry` already resolves the file.
 
-The refusal itself is blocked, not work: see **Blocked on request-time rendering**. What stays owed
-here is the hole -- the same test over a package's module -- and a narrower test than any method
+The refusal itself is owed work too: see **Owed: what the render computes per request**. What is
+owed beside it is the hole -- the same test over a package's module -- and a narrower test than any method
 call, which counts a `Context`'s `.get()` as a change.
 
 ### Context carries a value the walk does not follow
@@ -644,7 +651,7 @@ Constructs the walk had never met, each a gap. `DeclarationTag` -- `{const x = 0
 the head assembly does not recognise as either a block or a stamp. `$state.eager` is a rune
 nothing reads. And a `<svelte:boundary>` whose body throws is caught by Svelte and rendered as
 `failed`; the throw used to escape the compile, and this said the two sides of it had not been told
-apart. They have, and neither is a gap: see **Blocked on request-time rendering**.
+apart. They have, and both are gaps: see **Owed: what the render computes per request**.
 
 ## The gaps, sorted by who has to answer
 
@@ -703,6 +710,11 @@ the way `merged()` builds a prop, and that is the shape it waits on.
 Each of these can be built. What none of them can be is built without answering a question that
 outlives it, and the questions are not the same question.
 
+**Four of the answers below were withdrawn**: the store the request brings, `createRawSnippet`, the
+boundary whose body throws, and the call that pushes into a prop array were each decided to be the
+scope line. None is; each is owed under **Owed: what the render computes per request**, and what
+follows is kept as the reading of each shape rather than as its verdict.
+
 **A component `bind:`: done, and the IR needed nothing.** This entry said the parent's template
 becomes two passes with the last subsuming the first, so either the IR gains a node saying "take the
 last pass" or the shape stays refused. It is neither. The fixed point has a closed form -- one
@@ -759,16 +771,15 @@ answer is the scope line. `$x` reads whatever `x` holds while the bytes are writ
 itself would have to be in the payload; the wire is devalue, which serialises data, and a store is
 an object with a `subscribe` function. A function is not data. Reading the value in the load stage
 and putting _that_ in the data is the same page, which is what the refusal already tells the author.
-The six are counted under **decided** in [conformance.md](conformance.md) now, not as gaps.
+The six were counted under **decided** in [conformance.md](conformance.md), and are gaps again.
 
-**`createRawSnippet`, 5.** Not a decision that waits on anything, and moved: see **Decided, and not
-built** below. It was written here as abandoned, which reads as work nobody wanted rather than as
+**`createRawSnippet`, 5.** Not a decision that waits on anything, and moved: see **Owed: what the render
+computes per request** below. It was written here as abandoned, which reads as work nobody wanted rather than as
 the scope line, and those are the two things this file exists to keep apart.
 
 **A `<svelte:boundary>` whose body throws: moved.** This said the request-dependent side was a gap
 waiting for the two halves to be told apart. Telling them apart is not what decides it: what the
-`failed` snippet is handed is a render option, whichever side the throw is on. See **Decided, and
-not built**.
+`failed` snippet is handed is a render option, whichever side the throw is on. See **Owed: what the render computes per request**.
 
 **A module script that exports, 3.** `<script module>` exporting a name the template reads. It sits
 against the item above about the render's module instances not being the artifact's, and the
@@ -867,7 +878,12 @@ What the suite reported was nothing failing, which is the condition
 [conformance.md](conformance.md) set for stage one, and it does again. Paying the runner's own skips
 measured eighteen more samples: fourteen pass, three are upstream's environment, and one,
 `runtime-legacy/reactive-import-statement`, is module state its module changes, which was classified
-as owed work and then filed as blocked on request-time rendering -- see **Blocked on request-time rendering**.
+as owed work, then filed as blocked on request-time rendering, and is owed work again -- see **Owed:
+what the render computes per request**.
+
+**And it stopped reporting that when the blocked skips were read.** 99 sample runs were skipped as
+blocked on request-time rendering, and none of them was: each is a gap, and the suite fails on it
+until it is closed. Nothing failing is stage one's condition still; it is not met.
 
 **It reported that once already, at 1559 of 1559, over a corpus 342 samples smaller.** The shim
 standing in for upstream's un-vendored runner matched one spelling of one import, and every config
@@ -879,9 +895,8 @@ construct its message named. **The denominator is the half nothing was checking*
 this file already stated for the oracle's column held for the skips word for word.
 
 The eleven before those were three constructs turned away in the wrong words -- a `<svelte:boundary>` whose body throws, eight of them; a raw
-snippet whose bytes the request decides, two; and a bare global, one -- and all three are the scope
-line, under **Blocked on request-time rendering** below. Each now says which decision it is, and the suite
-reads that off the message rather than being told.
+snippet whose bytes the request decides, two; and a bare global, one -- and all three were filed as
+the scope line and are gaps, under **Owed: what the render computes per request** below.
 
 **So the suite is in `verify`, and what it is held to is a list of names.** A sample that starts
 differing, one that starts being refused, and one that slides from a pass into a skip are the same
@@ -981,63 +996,84 @@ a marker reads nothing -- which used to fail at injection rather than at build, 
 `deriving \`$b\` failed`. Three are left, each its own shape: a store write inside an exported
 function, a store deciding a `<svelte:element>` tag, and one still failing in a derivation.
 
-## Blocked on request-time rendering
+## Owed: what the render computes per request
 
-**Everything here needs the UI run per request, and waits on one piece of architecture**: a page
-whose components are some compiled and some rendered at request time, which
-[refusals.md](refusals.md) names as the condition that reopens its refusal of a runtime fallback.
-It is planned, not declined -- synchronous request-time rendering first, then the asynchronous kind
-straight after it -- and it is not yet the time. Until then each item is refused at compile time,
-and a refusal here is not a gap in the compiler: no work inside it moves one. Request-time rendering
-exists only where a JavaScript host runs the page, so a backend that is not Node serves these pages
-only by handing them to one.
+**Every item here is a gap, and the samples that write it fail in the suite until it is closed.**
+They were filed as blocked on request-time rendering and skipped, on the claim that no work inside
+this compiler moves them. The claim was wrong the same way for each: what Svelte's server render
+does with them is run the author's code against the request's values, and this compiler has a stage
+that runs code per request. None needs Svelte's renderer run per request, which is the runtime
+fallback [refusals.md](refusals.md) refuses. The reason each was given is kept so it is not given
+again.
 
-**Module state a module changes.** A read of an exported binding its own module assigns, updates or
-calls a method on is state the process holds, which a build cannot read on the request's behalf.
-[refusals.md](refusals.md) has the reason and the survey that settled it: no component in lattice or
-in any package it imports reads one.
+**Some of them wait on a decision, and it is this protocol's own.** [derivation.md](derivation.md)
+holds a derivation to a pure, deterministic function of the payload -- no ambient input, no
+mutation, no order between derivations -- argued from the client agreeing with the server and two
+backends agreeing with each other. Svelte's server render is held to neither, and neither is the
+question the suite asks. So where an item below needs more than that rule allows, it is marked
+**waits on derivation.md**: a gap whose closing is a decision about the rule, not a limit of
+rendering at compile time.
 
-**A script that substitution cannot reach, reading the request.** A name reassigned or an object
-mutated after its declaration, where the statements read request data, is a program per request.
-That is request-time rendering, and it waits for it: built inside the compiler instead it would be
-carrying SSR's per-request rendering back in under another name. Where the statements read nothing the request decides, the render already evaluates
-them and the walk bakes the result (`wants` in `walk.ts`). Zero in press.
-[derivation.md](derivation.md)
-holds the reasons and the three questions request-time rendering has to answer for it.
+**Module state a module changes.** Filed as state a build cannot read. The derive stage is not the
+build: it runs per request in the carried bundle, which imports each module once as a server
+process does, so it could read the binding as it stands at the request. Reading process state is
+ambient input, so it **waits on derivation.md**. [refusals.md](refusals.md) has the survey of how
+rare the shape is.
+
+**A script substitution cannot reach, reading the request.** A name reassigned or an object mutated
+after its declaration, where the statements read request data. It was held that building this in the
+compiler would carry SSR's per-request rendering back in under another name. What it carries is the
+instance script's statements, which the server render runs once per request; running them once per
+request and reading the names after is the same work at the same time. It is mutation and order, so
+it **waits on derivation.md**, whose Open section already says running the script is blocked by
+nothing measured and holds the three questions it has to answer. Where the statements read nothing
+the request decides, the render already evaluates them and the walk bakes the result (`wants` in
+`walk.ts`).
 
 **An `await` of what the request decides.** `await fetch(data.url)`, or an `await` on a promise a
-prop hands in: the bytes wait on something only the request has, while they are written. That is
-async request-time rendering, and it comes straight after the synchronous kind. An `await` whose
-value the build can know is not here: it is compile-time work, under **Async Svelte is upstream's
-unfinished half** at the top of this file. Non-async SSR writes the pending branch and awaits
-nothing, which is what `{#await}` compiles to here and is kept.
+prop hands in. The derivation that holds it is built `async` and awaited per request, as one already
+is where the awaited value is the build's; it stays a pure function of the payload, and
+[derivation.md](derivation.md) says the refusal is the only thing that stops it. An `await` whose value the build can know is under
+**Async Svelte is upstream's unfinished half** at the top of this file.
 
 **A `<svelte:boundary>` whose body throws.** Svelte catches it and writes the `failed` snippet
-instead of the children, and what that snippet is handed is `transformError(error)` --
-`Renderer`'s own option, defaulting to a function that rethrows, which a server passes and an
-artifact has nowhere to hold. So which of the two shapes a request gets is not a function of the
-request at all, and a compiler that baked either would be baking a render option. It is refused
-wherever the compile-time render catches one, which is the one place that knows the throw was
-caught rather than thrown, and the message says so.
+instead of the children, handing it `transformError(error)` -- `Renderer`'s own option, defaulting
+to a function that rethrows. Filed as a render option an artifact has nowhere to hold. The injector
+already takes one render option per request, Kit's CSP; `transformError` is the second, and the
+`failed` branch's argument is its result. A function the server hands in is not payload data, so
+how it enters the derive stage **waits on derivation.md**. Where the throw reads nothing the request
+decides, which branch renders is the build's to know.
 
 **The eight samples that write this shape had never been measured**, because they hand `render()`
 a `transformError` in their own `_config.js` and the suite did not read it, so neither side
-answered and all eight sat outside the denominator. Reading it is what turned a column that said
-"the oracle could not run" into seven refusals this compiler already had a reason for.
-[suite.md](suite.md) has the rule that a sample saying how to render itself is not a sample the
-oracle cannot render.
+answered and all eight sat outside the denominator. [suite.md](suite.md) has the rule that a sample
+saying how to render itself is not a sample the oracle cannot render.
 
 **A raw snippet whose bytes the request decides.** `createRawSnippet(fn)` is
-`renderer.push(fn(...getters).render().trim())` on the server, so where that `render` reads the
-request the bytes are a string an artifact would have to compute per request -- by calling what it
-was handed with a renderer of its own, and, in both of the samples that write the shape, by calling
-`svelte/server`'s own `render()` inside it. That is running Svelte's renderer per request, which is
-the runtime fallback [refusals.md](refusals.md) refuses in its first section and which a backend
-that is not Node cannot do at all. Where the same construct reads nothing the request decides it
-already compiles, because the render evaluates it and the bytes are Svelte's. The condition for
-reopening is the one refusals.md names: compile-time and request-time rendering both appearing on
-one page. What is owed before the count moves is the message, which still says the callee cannot be
-followed.
+`renderer.push(fn(...getters).render().trim())` on the server, so the bytes are what the author's
+`render` returns, per request. Filed as the runtime fallback, because both samples that write the
+shape call `svelte/server`'s `render()` inside that function. The fallback is this compiler handing
+a component to Svelte's renderer; this is a derivation calling the author's function, which calls a
+renderer because the author wrote it to. Where that function reads only the payload it is a pure
+function of it. What is also owed is the message, which still says the callee cannot be followed.
+
+**A store, or a component, the props carry.** Filed as a value the payload cannot carry, since the
+wire is devalue and a store is an object with a `subscribe` function. That is the hydration wire's
+constraint, the framework layer's; at this layer props are values in the render's process, and
+`$x` is `get(x)`. Kit's own universal `load` returns components and stores to its server render. A
+payload that holds a function is not the frozen data derivation.md describes, so it **waits on
+derivation.md**.
+
+**A value that is not the same twice.** `Math.random`, `Date`, `Symbol()`. Filed as a value a build
+would freeze. Evaluated per request it has the server render's semantics, and it is the
+non-determinism derivation.md refuses, so it **waits on derivation.md**. Two of the samples --
+`state-snapshot-date` and `derived-rest-includes-symbol` -- write constant bytes and were refused
+for the call alone, which is plain work. Comparing `random` byte for byte needs both sides to draw the same
+numbers, which is the suite's to arrange, not a reason to skip it.
+
+**A bare global.** A name no script in the file writes, read in a JavaScript host the way the server
+render reads it. It is ambient input and **waits on derivation.md**. A backend that embeds an
+evaluator with no host is that backend's constraint, and is measured there; see the layer line.
 
 ## Out of scope
 
@@ -1079,8 +1115,8 @@ assigns a declared name from request data is the per-request script decided agai
 
 ## Blocked, and on what
 
-Request-time rendering, under its own heading above, and nothing else now. The two that were are
-the framework layer's first step, done: see [framework.md](framework.md).
+Nothing now. The two that were are the framework layer's first step, done: see
+[framework.md](framework.md).
 
 **The root is a layout chain around a page: done.** `pkgs/routes` reads `src/routes` with Kit's
 own `create_manifest_data`, generates one root per route in the shape Kit's `write_root` generates
