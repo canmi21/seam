@@ -2136,10 +2136,12 @@ function standIn(
 }
 
 /**
- * Refuses `await` in markup, which is async Svelte: a promise awaited per request while the bytes
- * are written, which is loading data, and the one thing this line gives up by definition. Svelte
- * itself compiles it only under `experimental.async`; `{#await}` is not this, since a synchronous
- * render writes its pending branch and awaits nothing. See spec/roadmap.md.
+ * Refuses `await` in markup and at the top of a script where the project is not in Svelte's async
+ * mode, which is the only mode Svelte compiles one in. Where it is, an `await` whose value the build
+ * can know is compiled and awaited here, and one of what the request decides is refused over the
+ * finished list, where it has become a derivation (`awaited()` in `skeleton.ts`). `{#await}` is not
+ * this, since a synchronous render writes its pending branch and awaits nothing. See
+ * spec/roadmap.md.
  */
 function awaitless(ast: AstNode, what: string): void {
 	// An `await` inside a function is that function's, run when something calls it -- a handler,
@@ -2161,9 +2163,9 @@ function awaitless(ast: AstNode, what: string): void {
 	if (projectAsync()) return;
 	if (outside(ast['fragment']) || outside(ast['instance'])) {
 		refuse(
-			`${what} awaits in its markup or at the top of its script, which is async Svelte: a ` +
-				'value loaded per request while the bytes are written, which is the load stage and not ' +
-				"this compiler's to render",
+			`${what} awaits in its markup or at the top of its script, which is async Svelte, and ` +
+				'Svelte compiles that only in its async mode: set `compilerOptions.experimental.async` ' +
+				'in svelte.config.js. See spec/roadmap.md',
 		);
 	}
 }

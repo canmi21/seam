@@ -134,3 +134,27 @@ describe("a project's experimental.async", () => {
 		expect(inject(structure.ir, deriving(structure.derivations, '')({})).body).toBe(theirs);
 	});
 });
+
+describe('an await in a project in async mode, by what it waits on', () => {
+	const project = resolve(staging, 'awaits');
+	const write = (name: string, source: string): void =>
+		writeFileSync(resolve(project, `${name}.svelte`), source);
+
+	beforeAll(() => {
+		mkdirSync(project, { recursive: true });
+		writeFileSync(
+			resolve(project, 'svelte.config.js'),
+			'export default { compilerOptions: { experimental: { async: true } } };\n',
+		);
+		write(
+			'request',
+			'<script>let { data } = $props();</script><p>{await Promise.resolve(data.x)}</p>',
+		);
+	});
+
+	it('refuses one of what the request decides, as async request-time rendering', async () => {
+		await expect(structures({ path: '/', component: 'request.svelte' }, project)).rejects.toThrow(
+			'an `await` of what the request decides',
+		);
+	});
+});

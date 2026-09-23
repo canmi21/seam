@@ -221,6 +221,7 @@ const ASYNC_KIND =
  */
 const DECIDED: readonly { says: string; kind: string }[] = [
 	{ says: 'async Svelte', kind: ASYNC_KIND },
+	{ says: 'an `await` of what the request decides', kind: 'async request-time rendering' },
 	{ says: 'assigned after being declared', kind: 'a value the render changes' },
 	{ says: 'changed by a function this render calls', kind: 'a value the render changes' },
 	{ says: 'is a prop this component changes', kind: 'a value the render changes' },

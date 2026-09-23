@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { collides } from './sentinel.ts';
 import { basename, relative, resolve as resolvePath } from 'node:path';
-import { type Carried, importsOf, readsOf, resolveBare, resolved } from 'ast';
+import { type Carried, GIVEN, importsOf, parsed, readsOf, resolveBare, resolved } from 'ast';
 import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
 import { timed, timedSync } from './timing.ts';
@@ -340,8 +340,86 @@ export async function skeleton(
 	// over the finished list, which is the one place that holds all of them.
 	for (const one of expressionsOf(finished)) outside(one.expression, true, baseline.changing);
 	composed(expressionsOf(finished), root);
+	awaited(expressionsOf(finished), baseline.payload);
 
 	return finished;
+}
+
+/**
+ * Refuses a derivation that awaits, and says which of two things it is.
+ *
+ * A derivation is an expression evaluated per request, synchronously, so it cannot wait on
+ * anything. An `await` in one is either:
+ *
+ * - **of what the request decides** -- its argument reads the payload -- which is async
+ *   request-time rendering: planned, after the synchronous kind, and not yet the time; or
+ * - **of what the build can know**, in a place this compiler writes as a derivation whatever the
+ *   value -- an `<option>`'s `selected`, an each body's item -- which is compile-time work not done
+ *   yet: the value is there to be awaited at build and written in.
+ *
+ * Told apart by what the argument reads, with a read nobody can place counted as the second, since
+ * a gap fails where a blocked refusal is skipped. Asked over the finished list for the reason
+ * `composed()` is. An `await` inside a function is that function's and is not asked about. See
+ * spec/roadmap.md.
+ */
+function awaited(
+	expressions: readonly { expression: string }[],
+	payload: readonly string[] | null,
+): void {
+	// The wrapper `parsed()` reads an expression inside, which every offset in its tree counts.
+	const wrapped = '<script lang="ts"></script>{'.length;
+	const request = (name: string): boolean =>
+		name === GIVEN || (payload !== null && payload.includes(name));
+	const found: unknown[] = [];
+	const collect = (node: unknown): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) collect(one);
+			return;
+		}
+		if (typeof node !== 'object' || node === null) return;
+		const type = (node as { type?: unknown }).type;
+		if (
+			type === 'FunctionExpression' ||
+			type === 'ArrowFunctionExpression' ||
+			type === 'FunctionDeclaration'
+		) {
+			return;
+		}
+		if (type === 'AwaitExpression') found.push((node as { argument?: unknown }).argument);
+		for (const value of Object.values(node)) collect(value);
+	};
+	for (const one of expressions) {
+		if (!/\bawait\b/.test(one.expression)) continue;
+		found.length = 0;
+		try {
+			collect(parsed(one.expression));
+		} catch {
+			found.push(null);
+		}
+		if (found.length === 0) continue;
+		const shown = one.expression.slice(0, 80);
+		const decided = found.some((argument) => {
+			const at = argument as { start?: unknown; end?: unknown } | null;
+			if (at === null || typeof at.start !== 'number' || typeof at.end !== 'number') return false;
+			const text = one.expression.slice(at.start - wrapped, at.end - wrapped);
+			return [...readsOf([text])].some(request);
+		});
+		if (decided) {
+			throw new Error(
+				`an \`await\` of what the request decides -- \`${shown}\` -- where the value has to be ` +
+					'written into the bytes. The bytes would wait on something only the request has, ' +
+					'which is async request-time rendering: it comes after the synchronous kind, and ' +
+					'until then this is refused. Await only what the build can know, or put the value ' +
+					'in the load stage data. See spec/roadmap.md',
+			);
+		}
+		throw new Error(
+			`an \`await\` the build can answer -- \`${shown}\` -- in a place this compiler writes as ` +
+				'an expression evaluated per request, which cannot wait. Awaiting it at compile time ' +
+				'and writing its value there is not done yet; nothing is refused on principle, so this ' +
+				'is a gap. See spec/roadmap.md',
+		);
+	}
 }
 
 /**
