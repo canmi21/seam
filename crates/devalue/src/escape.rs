@@ -5,6 +5,9 @@
 //! JavaScript parser and not to a JSON one, so a string containing them is valid JSON that is not
 //! valid JavaScript. Neither is optional: they are why the serialized form is safe to put in a
 //! document, which is the whole reason it exists.
+//!
+//! devalue also escapes an unpaired surrogate, as `\u` and its code in lowercase hex, since UTF-8
+//! cannot carry one. A `&str` cannot hold one either, so that branch has nothing to meet here.
 
 /// Quotes and escapes a string the way devalue does.
 pub(crate) fn string(text: &str) -> String {

@@ -3,7 +3,7 @@ name = "devalue"
 # Tracks the npm package it reproduces, rather than the workspace. The two have to agree byte for
 # byte, and devalue's own non-goals include stability of the serialization mechanism between
 # versions, so the version is the only useful thing this can say about what it agrees with.
-version = "5.9.2"
+version = "6.0.1"
 authors = ["Canmi <t@canmi.icu>"]
 categories = ["encoding", "web-programming"]
 edition.workspace = true

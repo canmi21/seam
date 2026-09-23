@@ -93,6 +93,13 @@ devalue escapes `<` itself, so the hand-written `replaceAll('<', '\\u003C')` tha
 that goes away. Its README lists XSS mitigation as a goal and demonstrates the exact hole that
 line was covering.
 
+**`crates/devalue` is a port of one version of it, and moves when that version does.** The crate's
+version is the npm package's, byte for byte, because devalue promises no stable format between
+versions. So a bump of the `devalue` the workspace pins is a re-port: read upstream's diff for
+`stringify` between the two tags, carry what changes bytes the crate can produce, regenerate the
+fixtures with `mise run fixtures`, and set the crate's version to the new one. The crate's
+conformance test reads the pin and fails while the two disagree.
+
 **This answers a question [derivation.md](derivation.md) left open.** Request context can carry a
 real `Date`, so `$.now` need not be a number the author has to reconstitute -- which matters,
 because the same file forbids the bare `new Date()` that reconstituting it would otherwise need.

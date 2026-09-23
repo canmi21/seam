@@ -48,7 +48,7 @@ while objects are deduplicated by identity, and JavaScript prints a number in ex
 
 ## Version
 
-The version tracks the npm package it reproduces. `5.9.2` here agrees with `5.9.2` there, and
+The version tracks the npm package it reproduces. `6.0.1` here agrees with `6.0.1` there, and
 saying so is the only claim it can make, because devalue does not promise its format is stable
 across versions.
 
