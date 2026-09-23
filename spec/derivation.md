@@ -29,12 +29,17 @@ So the rule is not a list of permitted APIs. It is a property:
 
 > **A derivation is a pure, deterministic function of the payload.**
 
+The payload here is the render input [payload.md](payload.md) defines: the root's props and the
+render options the server passes, any JavaScript value. Calling a function the input carries -- a
+store's value read through `get`, a `transformError` the server hands over -- is a function of the
+input; what that function does is the load stage's, as the value it made is.
+
 Everything below follows from that sentence, and the sections are the two ways to violate it:
 ambient input and side effect. A third was counted once and struck; see the end.
 
 **The sentence is this protocol's, not a limit of rendering at compile time.** Svelte's server render
-is not held to it. Where a Svelte sample needs more than it allows -- a value the render changes, a
-clock, a global, a store in the props -- the sample is a gap that waits on this rule and fails in
+is not held to it. Where a Svelte sample needs more than it allows -- a clock, a global, module
+state -- the sample is a gap that waits on this rule and fails in
 the suite; it is never a skip. [roadmap.md](roadmap.md) lists them under **Owed: what the render
 computes per request**.
 

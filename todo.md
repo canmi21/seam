@@ -3,6 +3,22 @@
 What the suite fails on, sorted by what closing each takes. The live list is
 `mise run vendor-baseline`; this file is the plan, not the count.
 
+## Doable now, decided
+
+- [ ] **C and D: a value that is not data in the render input.** Decided: the render input and the
+      hydration wire are two things, and the input holds any JavaScript value (spec/payload.md).
+  - C, stores and components in props: await-with-update, await-with-update-2,
+    dynamic-component-dirty, prop-exports, prop-subscribable, store-assignment-updates,
+    store-assignment-updates-reactive, store-auto-subscribe, store-auto-subscribe-implicit,
+    store-auto-subscribe-in-reactive-declaration, store-auto-subscribe-nullish,
+    store-auto-subscribe-removed-store, store-resubscribe-export,
+    transition-js-if-outro-unrelated-component-store-update
+  - D, `transformError`: async-error-boundary, async-error-boundary-2, async-error-boundary-3,
+    boundary-error-failed-prop, boundary-error-html-comment-close-bang-escape,
+    boundary-error-html-comment-escape, boundary-error-html-comment-open-escape,
+    boundary-error-html-comment-overlap-escape, boundary-error-with-onerror, error-boundary-26,
+    error-boundary-27
+
 ## Work, with design questions to answer first
 
 - [ ] **G. A raw snippet whose function reads a prop.** The author's `render` calls
@@ -32,19 +48,6 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 ## Waiting on a decision
 
-- [ ] **May the payload hold a value that is not data on the server?** A store, a promise, a
-      component, a render option's function.
-  - C, stores and components in props: await-with-update, await-with-update-2,
-    dynamic-component-dirty, prop-exports, prop-subscribable, store-assignment-updates,
-    store-assignment-updates-reactive, store-auto-subscribe, store-auto-subscribe-implicit,
-    store-auto-subscribe-in-reactive-declaration, store-auto-subscribe-nullish,
-    store-auto-subscribe-removed-store, store-resubscribe-export,
-    transition-js-if-outro-unrelated-component-store-update
-  - D, `transformError`: async-error-boundary, async-error-boundary-2, async-error-boundary-3,
-    boundary-error-failed-prop, boundary-error-html-comment-close-bang-escape,
-    boundary-error-html-comment-escape, boundary-error-html-comment-open-escape,
-    boundary-error-html-comment-overlap-escape, boundary-error-with-onerror, error-boundary-26,
-    error-boundary-27
 - [ ] **May the derive stage read ambient state, or be non-deterministic?**
   - E, a clock, randomness, a fresh symbol: random, props-derived; and state-snapshot-date,
     derived-rest-includes-symbol, whose bytes are constant but which cannot be proved so without

@@ -9,8 +9,8 @@ never says what a prop is, where it comes from, or who guarantees it is there.
 Two lines, one on each side, and nothing in between them:
 
 ```ts
-resolve([payload], 'p.name')                                  // the injector
-hydrate(Component, { props: JSON.parse(text) })               // the client
+resolve([payload], 'p.name'); // the injector
+hydrate(Component, { props: JSON.parse(text) }); // the client
 ```
 
 They agreed by luck. Nothing wrote the agreement down and nothing checked it, and three things
@@ -41,7 +41,9 @@ compiler's scratch space is not one anybody chose.
 **The payload is not the props object. It is one prop.**
 
 ```svelte
-<script>let { data } = $props()</script>
+<script>
+	let { data } = $props();
+</script>
 ```
 
 This is SvelteKit's arrangement and the reason for it is structural rather than stylistic: it
@@ -72,6 +74,27 @@ from the request; a derivation reads them as it reads any prop, and never reache
 itself. The names
 `$.now`, `$.tz` and `$.locale` that [derivation.md](derivation.md) reserved are whatever the load
 stage puts in those props.
+
+## The render's input and the hydration wire are two things
+
+**The payload used to be both**: what derive and inject read per request, and what is serialised
+into the page for the browser to hydrate from. The second role made the first data-only, so a store,
+a promise, a component or a render option's function could not reach the server render at all --
+where Svelte's own `render()` takes any value as a prop. **They are split.**
+
+- **The render input** is what derive and inject read: the root's props as the load stage built
+  them, and the render options the server passes, Kit's CSP and a `transformError` among them. Any
+  JavaScript value is one. Both backends hold them: a Rust or Go server embeds QuickJS, which lacks
+  a host and not the language, so a function, a store and a promise are values there as they are in
+  Node -- see [pipeline.md](pipeline.md).
+- **The hydration wire** is what crosses to the browser: devalue's `stringify` of the data a client
+  needs, in a script it does not execute. What it carries, and how the browser rebuilds a value
+  that is not data, is the framework layer's, as Kit rebuilds one by running a universal `load`
+  again in the browser.
+
+This is Kit's own arrangement, and it follows from the scope line in [roadmap.md](roadmap.md):
+compile-time rendering differs from Svelte's server render only in when the render runs, and that
+render is handed whatever the load stage made.
 
 ## The wire is devalue
 
@@ -124,19 +147,20 @@ Next chose plain JSON for `getServerSideProps`, on performance grounds, and the 
 `cannot be serialized as JSON` error produced `superjson` and a pair of compiler plugins to work
 around a decision the framework made for its users. The saving was not worth what it cost them.
 
-**What the payload cannot carry is a function, and that is a decision rather than a limit.** The
-line above is where it is made: `stringify` and `parse` over `uneval`, so the payload is data a
-browser does not execute. devalue carries a `Date`, a `Set`, a `BigInt`; it carries no function,
-and giving it one would mean giving up the thing that line is protecting.
+**What the wire cannot carry is a function, and that is a decision rather than a limit.** The line
+above is where it is made: `stringify` and `parse` over `uneval`, so what crosses is data a browser
+does not execute. devalue carries a `Date`, a `Set`, a `BigInt`; it carries no function, and giving
+it one would mean giving up the thing that line is protecting.
 
-Two refusals follow from it and read the same way. **A store is an object with a `subscribe`
-function**, so a prop that is a store cannot arrive here -- `$x` reads whatever `x` holds while the
-bytes are written, and the load stage reading the value and putting *that* in the data is the same
-page. **A component is a function**, so `<svelte:component this={x}>` over a payload path cannot be
-handed one either: the only component it can be is the one the source already names, which is what
-bounds a candidate set that otherwise had no bound. A request that sends something else for that
-key is sending data where a component is required, which is a page that does not work -- Svelte
-throws there, and an artifact has no correct bytes to reproduce.
+**It is a rule about the wire and not about the render.** It used to be read as both, and two
+refusals followed from it that the split above withdraws. **A store** is an object with a
+`subscribe` function, and `$x` reads whatever `x` holds while the bytes are written: on the server
+that is the store's value, read per request out of the render input. **A component** is a function,
+and `<svelte:component this={x}>` over one the request hands in renders it. What stays is the bound
+on which component that can be -- one the source names -- since rendering whatever component a
+request sends would be running Svelte's renderer per request, the fallback
+[refusals.md](refusals.md) refuses. A request that sends anything else there is a page that does
+not work: Svelte throws, and there are no bytes to reproduce.
 
 **The two sides must run the same devalue.** Its own non-goals include stability of the
 serialization mechanism between versions. This is the same class of coupling as the scoped style
@@ -199,9 +223,11 @@ mechanism it loses to a declaration, which carries types as well as names.
 
 ## Names
 
-`data` is what the load stage produces and what crosses to the client. `payload` is `data` plus
-the derived fields, exists only between deriving and injecting, and is never serialized. The two
-were one word for both until this file.
+`data` is what the load stage produces. The **render input** is the root's props and the render
+options, any JavaScript value, read by derive and inject. The **wire** is what crosses to the
+client, data only. `payload` is the render input plus the derived fields, exists only between
+deriving and injecting, and is never serialized. The two were one word for both until this file,
+and the render input and the wire were one thing until the section that splits them.
 
 ## Open
 

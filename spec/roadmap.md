@@ -1043,9 +1043,11 @@ render. An `await` whose value the build can know is under
 instead of the children, handing it `transformError(error)` -- `Renderer`'s own option, defaulting
 to a function that rethrows. Filed as a render option an artifact has nowhere to hold. The injector
 already takes one render option per request, Kit's CSP; `transformError` is the second, and the
-`failed` branch's argument is its result. A function the server hands in is not payload data, so
-how it enters the derive stage **waits on derivation.md**. Where the throw reads nothing the request
-decides, which branch renders is the build's to know.
+`failed` branch's argument is its result. It is part of the render input
+[payload.md](payload.md) splits from the hydration wire, so it enters the derive stage as any input
+does. Where the throw reads nothing the request decides, which branch renders is the build's to
+know; where it does, both branches are rendered and a derivation decides per request whether the
+body throws.
 
 **The eight samples that write this shape had never been measured**, because they hand `render()`
 a `transformError` in their own `_config.js` and the suite did not read it, so neither side
@@ -1063,9 +1065,9 @@ function of it. What is also owed is the message, which still says the callee ca
 **A store, or a component, the props carry.** Filed as a value the payload cannot carry, since the
 wire is devalue and a store is an object with a `subscribe` function. That is the hydration wire's
 constraint, the framework layer's; at this layer props are values in the render's process, and
-`$x` is `get(x)`. Kit's own universal `load` returns components and stores to its server render. A
-payload that holds a function is not the frozen data derivation.md describes, so it **waits on
-derivation.md**.
+`$x` is `get(x)`. Kit's own universal `load` returns components and stores to its server render, and
+[payload.md](payload.md) now splits the render input, which holds them, from the wire, which does
+not.
 
 **A value that is not the same twice.** `Math.random`, `Date`, `Symbol()`. Filed as a value a build
 would freeze. Evaluated per request it has the server render's semantics, and it is the
