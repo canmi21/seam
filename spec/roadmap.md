@@ -858,7 +858,7 @@ item above already owns. `component-namespace` is `<Components.Foo />` over a mo
 export, which is the module-graph item. `binding-indirect-fn` is a `$:` declaration substituted
 into `items.filter(fn)` and is its own fault.
 
-## Stage one is 1883 of 1883 synchronously and 953 of 985 async, and the gate has changed
+## Stage one is 1882 of 1882 synchronously and 981 of 984 async, and the gate has changed
 
 What the suite reported was nothing failing, which is the condition
 [conformance.md](conformance.md) set for stage one, and it does again. Paying the runner's own skips

@@ -2602,7 +2602,13 @@ function blocking(
 
 /**
  * A construct's replacement as Svelte's async mode has to see it: reading what the original read
- * that waits (`blocking()`), and awaiting where the original awaits (`awaited()`).
+ * that waits (`blocking()`), and awaiting where the original awaits.
+ *
+ * `create_child_block` in `3-transform/server/visitors/shared/utils.js` wraps a node whose
+ * `metadata.expression.has_await` is set in `renderer.child_block`, and that pushes `BLOCK_OPEN`
+ * and `BLOCK_CLOSE` around what the node writes. Substituting the awaited value away, Svelte saw no
+ * await and wrote no pair, so the keyword is kept -- `await` of a value that is not a promise is that
+ * value, so nothing else moves.
  *
  * Where the await is only in the expansion -- a name declared with one -- it is kept only where no
  * blocker explains it. A script declaration that awaits gives its name a blocker, and Svelte waits
@@ -2637,24 +2643,6 @@ function waitsThrough(original: unknown, expanded: string, walk: Walk): boolean 
 /** Whether an expression reads a name Svelte's async mode makes wait. See `blocking()`. */
 function blockedRead(original: unknown, walk: Walk): boolean {
 	return blocking(original, '', walk) !== '';
-}
-
-/**
- * The replacement for a construct's expression, with the `await` the construct had kept.
- *
- * `create_child_block` in `3-transform/server/visitors/shared/utils.js` wraps a node whose
- * `metadata.expression.has_await` is set in `renderer.child_block`, and that pushes `BLOCK_OPEN`
- * and `BLOCK_CLOSE` around what the node writes. This walk substitutes the awaited value away, so
- * Svelte saw no await and wrote no pair -- eight samples short by exactly those four bytes.
- *
- * Keeping the keyword keeps the anchors, and `await` of a value that is not a promise is that
- * value, so nothing else moves. Read off the **expansion** rather than off the source: the await
- * may sit in a declaration the construct reads, which is what `has_await` propagates through --
- * `const foo = $derived(await 1)` beside `{#if foo}` is that, and there is no `await` written in
- * the markup at all.
- */
-function awaited(expanded: string, replacement: string): string {
-	return awaiting(expanded) ? `await ${replacement}` : replacement;
 }
 
 /** Whether an expression awaits outside any function, which is what `has_await` records. */
@@ -2846,7 +2834,7 @@ function reached(answers: readonly (boolean | undefined)[]): number | null {
 function oneBranch(
 	walk: Walk,
 	chain: readonly AstNode[],
-	/** Each test as the walk settled it, which is where an `await` shows. See `awaited()`. */
+	/** Each test as the walk settled it, which is where an `await` shows. See `waitsOn()`. */
 	tests: readonly string[],
 	chosen: number,
 	otherwise: unknown,
@@ -6117,7 +6105,7 @@ function collect(node: unknown, walk: Walk): void {
 			let written = expand(node['expression']);
 			// Whether it awaits is read before the render's answer replaces it: the answer is the
 			// value, and the value is not a promise. What decides the anchors is the expression the
-			// source held. See `awaited()`.
+			// source held. See `waitsOn()`.
 			const awaits = written;
 			if (
 				site.payload !== null &&
@@ -6446,7 +6434,7 @@ function descend(
 	 *
 	 * Read before the render's answer replaces the expression: the answer is the value, and the
 	 * value is not a promise. What decides whether Svelte wraps this tag in a `child_block` is the
-	 * expression the source held. See `awaited()`.
+	 * expression the source held. See `waitsOn()`.
 	 */
 	const awaits = new Set<string>();
 	/** The props the call site binds, whose value the child may send back. See below. */
@@ -7214,7 +7202,7 @@ function descend(
 		for (const part of order) {
 			// A spread whose object awaits leaves an empty one behind rather than nothing: what makes
 			// Svelte wrap this tag in a `child_block` is the await, and an empty spread carries no
-			// key. See `awaited()`.
+			// key. See `waitsOn()`.
 			if ('spread' in part && part.at !== null) {
 				const held = awaiting(part.spread) ? '{...await {}}' : '';
 				walk.edits.push([part.at[0], part.at[1], held]);

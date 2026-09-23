@@ -116,18 +116,20 @@ and a skip is one the list names with its reason.
 pass  suite                    samples   pass   skip   fail
 sync  server-side-rendering        132     91     41      0
 sync  runtime-runes               1054    683    371      0
-sync  runtime-legacy              1209   1109    100      0
-async server-side-rendering        132    104     18     10
-async runtime-runes               1054    849    183     22
-total                             3581   2836    713     32
+sync  runtime-legacy              1209   1108    101      0
+async server-side-rendering        132    113     18      1
+async runtime-runes               1054    868    184      2
+total                             3581   2863    715      3
 ```
 
-Against the target, at `svelte@5.57.1`: **1883 of 1883 in the synchronous render**, and **953 of
-985 in the async one** -- the pass [suite.md](suite.md) added when async became work rather than an
-experiment. The 32 are compile-time async not done yet, recorded off the list with
-`--skip-failing` and failing every run until they pass; [roadmap.md](roadmap.md) has what each is.
-Stage one is done when both are whole. Before the async pass it was 1878 of 1878 and then 1892,
-until the runner stopped skipping what it could not stage and the samples were measured.
+Against the target, at `svelte@5.57.1`: **1882 of 1882 in the synchronous render**, and **981 of
+984 in the async one** -- the pass [suite.md](suite.md) added when async became work rather than an
+experiment. The async pass began at 953 of 985 with 32 owed; what closed 29 of them is in
+[roadmap.md](roadmap.md) and [derivation.md](derivation.md). The 3 left all put request data into
+the script `hydratable` writes at the head -- a value a prop decides, or a render option's CSP
+nonce -- which is a question about the payload rather than work: see **Blocked on request-time
+rendering** there. One sample left the synchronous pass's passes for its skips on the way, having
+passed only for the one prop value the suite sends (`inline-style-directive-update-object-property`).
 
 **The denominator is the measurement, and it is the half that gets audited last.** Every number
 in the table moved by 302 samples without a line of the compiler changing, because a column nobody
