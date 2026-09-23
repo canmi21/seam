@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { literalOf, type Locals, mentions, pathOf, projectOptions, reduce } from 'ast';
+import { literalOf, type Locals, mentions, pathOf, projectRunes, reduce } from 'ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { type Snippet, snippetsIn } from './snippets.ts';
 import type { Given, Walk } from './walk.ts';
@@ -228,7 +228,7 @@ const RUNES: ReadonlySet<string> = new Set([
  * It decides more than one thing, and the two that are read here are far apart: whether
  * `export let` is a prop, and whether a fragment's `{@const}`s are sorted into topological order.
  */
-export function legacyMode(ast: AstNode): boolean {
+export function legacyMode(ast: AstNode, file: string): boolean {
 	for (const one of optionAttributes(ast)) {
 		if (!isNode(one) || one['name'] !== 'runes') continue;
 		const value = one['value'];
@@ -239,7 +239,7 @@ export function legacyMode(ast: AstNode): boolean {
 		if (isNode(held) && held['type'] === 'Literal') return held['value'] === false;
 		return false;
 	}
-	const configured = projectOptions().runes;
+	const configured = projectRunes(file);
 	if (configured !== undefined) return !configured;
 	const instance = ast['instance'];
 	const module = ast['module'];

@@ -45,7 +45,16 @@ it is in legacy mode, which writes different anchors around the same markup. Sve
 
 So the compiler reads `compilerOptions.runes` off the file, raw -- Kit's validator does not know the
 key -- and every Svelte compile in the pipeline is handed it, along with the one place that decides
-a file's mode for itself (`legacyMode`). It was not read at all until Svelte's own samples, compiled
+a file's mode for itself (`legacyMode`).
+
+**It is a function as often as a boolean.** `sv create` writes
+`runes: ({ filename }) => filename.split(/[/\\]/).includes('node_modules') ? undefined : true`, forcing
+runes on the project's own files and leaving packages to infer, and lattice's config is exactly that.
+Svelte's own `compile()` takes the function and calls it with the `filename` it was given, so it is
+handed on as it is; what matters is that every compile here is given the file's real path, which is
+also what `vite-plugin-svelte` gives it, and `legacyMode` calls the function with the same path. A
+reading that took booleans only ignored the function without a word, and a project written from
+the template compiled every rune-less file in the mode Svelte would not. It was not read at all until Svelte's own samples, compiled
 in the mode upstream forces per suite, wrote the extra anchor where this compiler had inferred
 legacy. `runes` is the only option taken so far; another is taken the day one is found to change
 bytes, measured the same way.

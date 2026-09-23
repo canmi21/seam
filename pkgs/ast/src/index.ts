@@ -43,4 +43,9 @@ export {
 	stateImports,
 } from './scope.ts';
 export { componentOf, configureAliases, currentAliases, resolveBare } from './packages.ts';
-export { configureProjectOptions, projectOptions, type ProjectOptions } from './options.ts';
+export {
+	configureProjectOptions,
+	projectOptions,
+	projectRunes,
+	type ProjectOptions,
+} from './options.ts';

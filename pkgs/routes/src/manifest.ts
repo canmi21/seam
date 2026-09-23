@@ -92,13 +92,19 @@ export async function configured(cwd: string): Promise<Config> {
 /**
  * The compile options the project's `svelte.config.js` sets that change what a component compiles
  * to: `compilerOptions.runes`, read off the file as `vite-plugin-svelte` reads it, since Kit's
- * validator does not know the key.
+ * validator does not know the key. A boolean or Svelte's function of the file, taken as it is.
  */
-export async function compilerOptions(root: string): Promise<{ runes?: boolean }> {
+export async function compilerOptions(
+	root: string,
+): Promise<{ runes?: boolean | ((options: { filename: string }) => boolean | undefined) }> {
 	const given = (await userConfig(resolve(root)))['compilerOptions'];
 	const runes =
 		typeof given === 'object' && given !== null ? (given as { runes?: unknown }).runes : undefined;
-	return typeof runes === 'boolean' ? { runes } : {};
+	if (typeof runes === 'boolean') return { runes };
+	if (typeof runes === 'function') {
+		return { runes: runes as (options: { filename: string }) => boolean | undefined };
+	}
+	return {};
 }
 
 /**
