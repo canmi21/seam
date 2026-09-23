@@ -177,6 +177,12 @@ interface Config {
 	 * against, since eight samples had neither side answering.
 	 */
 	transformError?: (error: unknown) => unknown;
+	/**
+	 * What the sample hands `render()` for a content security policy: a `nonce` put on the script
+	 * `hydratable` values are written into, or `hash` to have one computed. Passed to the oracle
+	 * only, the way `transformError` is: it is a render option a server passes.
+	 */
+	csp?: { nonce?: string; hash?: boolean };
 	/** Upstream's compile options for the sample, of which `runes` is read. See `RUNES`. */
 	compileOptions?: { runes?: boolean };
 }
@@ -546,6 +552,8 @@ async function theirs(
 	transformError: ((error: unknown) => unknown) | undefined,
 	/** The mode to compile in, or undefined where Svelte decides. See `RUNES`. */
 	runes: boolean | undefined,
+	/** What the sample hands `render()` for a content security policy. See `Config.csp`. */
+	csp: Config['csp'],
 	/** Whether to render with a browser's globals in place. See `withDom`. */
 	dom = false,
 ): Promise<{ body: string; head: string }> {
@@ -609,6 +617,7 @@ async function theirs(
 		const rendered = render(mod.default, {
 			props: props as never,
 			...(transformError === undefined ? {} : { transformError }),
+			...(csp === undefined ? {} : { csp }),
 		});
 		if (Object.keys(ASYNC).length > 0) {
 			const held = (await rendered) as { body: string; head: string };
@@ -743,7 +752,7 @@ async function attempt(suite: string, name: string): Promise<Result> {
 	}
 	let svelte: { body: string; head: string };
 	try {
-		svelte = await theirs(dir, props, config.transformError, runes);
+		svelte = await theirs(dir, props, config.transformError, runes, config.csp);
 	} catch (error) {
 		// Neither side's answer: the oracle could not be built or run. Reported apart so it is never
 		// read as agreement, and never as a refusal either.
@@ -764,7 +773,7 @@ async function attempt(suite: string, name: string): Promise<Result> {
 		const text = String((error as Error).message);
 		// **A sample that renders only with a DOM is upstream's environment, not a server's.**
 		if (
-			await theirs(dir, props, config.transformError, runes, true).then(
+			await theirs(dir, props, config.transformError, runes, config.csp, true).then(
 				() => true,
 				() => false,
 			)

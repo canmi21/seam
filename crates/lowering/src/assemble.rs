@@ -637,7 +637,7 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 	// of its own and appends it after the lot -- so the last empty comment is where the head ends
 	// and the title begins. Both are assembled after the body, because blocks are numbered in
 	// source order and counted as they are met, which lines up only while the head holds none.
-	let (head_bytes, title_bytes, style_bytes) = split_head(&skeleton.head)?;
+	let (script_bytes, head_bytes, title_bytes, style_bytes) = split_head(&skeleton.head)?;
 
 	assembler.stream = Stream::Head;
 	let mut head = Out::default();
@@ -672,7 +672,13 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 		ir: ir::ComponentIR {
 			component: component.to_owned(),
 			body: out.finish(),
-			head: head.finish(),
+			head: if script_bytes.is_empty() {
+				head.finish()
+			} else {
+				let mut nodes = vec![ir::Node::Static { s: script_bytes.to_owned() }];
+				nodes.extend(head.finish());
+				nodes
+			},
 			title: title.finish(),
 			styles: if style_bytes.is_empty() {
 				Vec::new()
@@ -696,7 +702,27 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 /// block or a stamp does, so a release appending something else is a failure rather than a silent
 /// misreading.
 fn split_off_title(head: &str) -> Result<(&str, &str)> {
-	Ok((split_head(head)?.0, split_head(head)?.1))
+	let (_, blocks, title, _) = split_head(head)?;
+	Ok((blocks, title))
+}
+
+/// The script `hydratable` values are written into, peeled off the front.
+///
+/// `#render_async` prepends what `#hydratable_block` returns to the head -- `content.head =
+/// hydratables + content.head` -- and that is `\n\t\t<script>` (with a `nonce` where the render is
+/// given one), the values, and `</script>`. So it is a prefix of constant bytes where the values are
+/// the build's, ahead of every head block, the way the stylesheets are a suffix after the title.
+/// A value `devalue.uneval` writes escapes `<`, so the first `</script>` is the one that closes it.
+fn split_off_hydratables(head: &str) -> (&str, &str) {
+	const OPENS: &str = "\n\t\t<script";
+	const CLOSES: &str = "</script>";
+	if !head.starts_with(OPENS) {
+		return ("", head);
+	}
+	match head.find(CLOSES) {
+		Some(at) => head.split_at(at + CLOSES.len()),
+		None => ("", head),
+	}
 }
 
 /// The stylesheet `css: 'injected'` puts in the head, peeled off the end.
@@ -724,11 +750,13 @@ fn split_off_styles(head: &str) -> (&str, &str) {
 	head.split_at(at)
 }
 
-/// The rendered head as its three parts: the blocks, the title, and the injected stylesheets.
-fn split_head(head: &str) -> Result<(&str, &str, &str)> {
+/// The rendered head as its four parts: the `hydratable` script, the blocks, the title, and the
+/// injected stylesheets.
+fn split_head(head: &str) -> Result<(&str, &str, &str, &str)> {
+	let (script, head) = split_off_hydratables(head);
 	let (head, styles) = split_off_styles(head);
 	if head.is_empty() {
-		return Ok(("", "", styles));
+		return Ok((script, "", "", styles));
 	}
 	let (blocks, title) = if head.ends_with("</title>") {
 		let at = head
@@ -742,5 +770,5 @@ fn split_head(head: &str) -> Result<(&str, &str, &str)> {
 		let tail = &blocks[blocks.len().saturating_sub(40)..];
 		return Err(format!("the head ends with `{tail}`, which is neither a head block nor a stamp"));
 	}
-	Ok((blocks, title, styles))
+	Ok((script, blocks, title, styles))
 }
