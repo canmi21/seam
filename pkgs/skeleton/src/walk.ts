@@ -2415,6 +2415,25 @@ function blockedBy(ast: AstNode): ReadonlySet<string> {
 			if (!isNode(one)) return;
 			if (one['type'] === 'AssignmentExpression') root(one['left']);
 			if (one['type'] === 'UpdateExpression') root(one['argument']);
+			// A call is assumed to change everything it reaches -- `touch` in `trace_references`,
+			// "assume everything touched by the callee ends up mutating the object" -- so every name
+			// it references waits, `$derived(await foo)` giving `foo` a blocker. `$effect` is the
+			// exception Svelte makes, since it only runs once the async work is done.
+			if (one['type'] === 'CallExpression') {
+				if (runeCalled(one['callee']) === '$effect') return;
+				readsIn(one, new Set(), (at) => {
+					if (typeof at['name'] === 'string') out.push(at['name']);
+				});
+				return;
+			}
+			// Svelte does not look inside a function until something calls it.
+			if (
+				one['type'] === 'ArrowFunctionExpression' ||
+				one['type'] === 'FunctionExpression' ||
+				one['type'] === 'FunctionDeclaration'
+			) {
+				return;
+			}
 			for (const value of Object.values(one)) step(value);
 		};
 		step(node);
@@ -2497,7 +2516,17 @@ function awaitsAtTop(node: unknown): boolean {
  * the "eighth" anchor in spec/roadmap.md. So the names are read ahead of the value in a sequence:
  * `(recipient, "world")` is the same value, waiting on the same thing.
  */
-function blocking(original: unknown, replacement: string, walk: Walk): string {
+function blocking(
+	original: unknown,
+	replacement: string,
+	walk: Walk,
+	/**
+	 * Written as `[a, b, value][2]` instead, which does not open with a parenthesis: an each with no
+	 * `as` reads its expression up to the closing brace, and `{#each (a, value)}` is Svelte's own
+	 * parse error.
+	 */
+	bracketed = false,
+): string {
 	const blocked = walk.site.blocked;
 	if (blocked.size === 0) return replacement;
 	const read = new Set<string>();
@@ -2507,7 +2536,33 @@ function blocking(original: unknown, replacement: string, walk: Walk): string {
 		});
 	}
 	if (read.size === 0) return replacement;
-	return `(${[...read].join(', ')}, ${replacement})`;
+	return bracketed
+		? `[${[...read].join(', ')}, ${replacement}][${String(read.size)}]`
+		: `(${[...read].join(', ')}, ${replacement})`;
+}
+
+/**
+ * A construct's replacement as Svelte's async mode has to see it: reading what the original read
+ * that waits (`blocking()`), and awaiting where the original awaits (`awaited()`).
+ *
+ * Where the await is only in the expansion -- a name declared with one -- it is kept only where no
+ * blocker explains it. A script declaration that awaits gives its name a blocker, and Svelte waits
+ * on a read of it through `async_block` rather than through the read's own `has_await`: kept as an
+ * `await` as well, an else-if reading one stopped being flattened into its chain and wrote a block
+ * of its own (`async-if-nested`). A `{@const}` that awaits has no blocker in that sense, so its
+ * reads keep the `await`.
+ */
+function waitsOn(
+	original: unknown,
+	expanded: string,
+	replacement: string,
+	walk: Walk,
+	bracketed = false,
+): string {
+	const blocked = blocking(original, replacement, walk, bracketed);
+	const own = awaitsAtTop(original);
+	const through = awaiting(expanded) && blocked === replacement;
+	return own || through ? `await ${blocked}` : blocked;
 }
 
 /** Whether an expression reads a name Svelte's async mode makes wait. See `blocking()`. */
@@ -2736,7 +2791,7 @@ function oneBranch(
 			edits.push([
 				at[0],
 				at[1],
-				awaited(held, blocking(one['test'], branch === chosen ? 'true' : 'false', walk)),
+				waitsOn(one['test'], held, branch === chosen ? 'true' : 'false', walk),
 			]);
 		}
 		if (branch !== chosen) buried(walk, one['consequent']);
@@ -4596,13 +4651,11 @@ function collect(node: unknown, walk: Walk): void {
 			// analysis as what the author wrote -- no less and no more. So the author's own
 			// expression stays, in the branch that is never taken. See `Walk.classValue`.
 			const shielded = (text: string): string =>
-				awaited(
+				waitsOn(
+					node['expression'],
 					written,
-					blocking(
-						node['expression'],
-						walk.inClass === true ? `(1 ? ${text} : (${source.slice(at[0], at[1])}))` : text,
-						walk,
-					),
+					walk.inClass === true ? `(1 ? ${text} : (${source.slice(at[0], at[1])}))` : text,
+					walk,
 				);
 			if (constant(written)) {
 				edits.push([at[0], at[1], shielded(asWritten(node['expression'], written, walk))]);
@@ -4633,7 +4686,7 @@ function collect(node: unknown, walk: Walk): void {
 				edits.push([
 					at[0],
 					at[1],
-					awaited(written, blocking(node['expression'], stands(written, walk), walk)),
+					waitsOn(node['expression'], written, stands(written, walk), walk),
 				]);
 				return;
 			}
@@ -5874,8 +5927,8 @@ function collect(node: unknown, walk: Walk): void {
 						at[1],
 						index,
 						branch,
-						awaited(held, blocking(one['test'], 'true', walk)),
-						awaited(held, blocking(one['test'], 'false', walk)),
+						waitsOn(one['test'], held, 'true', walk),
+						waitsOn(one['test'], held, 'false', walk),
 					);
 				}
 			}
@@ -6034,8 +6087,8 @@ function collect(node: unknown, walk: Walk): void {
 				at[1],
 				index,
 				0,
-				awaited(awaits, blocking(node['expression'], `[${element}]`, walk)),
-				awaited(awaits, blocking(node['expression'], '[]', walk)),
+				waitsOn(node['expression'], awaits, `[${element}]`, walk, true),
+				waitsOn(node['expression'], awaits, '[]', walk, true),
 			);
 			// Which block just closed, written where the render puts it and nowhere else.
 			const whole = span(node);

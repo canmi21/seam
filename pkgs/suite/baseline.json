@@ -2525,6 +2525,7 @@
 			"runtime-runes/async-if",
 			"runtime-runes/async-if-after-await-in-script",
 			"runtime-runes/async-if-block-unskip",
+			"runtime-runes/async-if-nested",
 			"runtime-runes/async-ignore-skipped-block",
 			"runtime-runes/async-indirect-blockers",
 			"runtime-runes/async-inner-after-outer",
