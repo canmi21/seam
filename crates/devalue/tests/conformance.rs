@@ -121,11 +121,11 @@ fn every_case_writes_what_javascript_writes() {
 
 /// The crate is the port of one devalue, and that is the one the fixtures were recorded with: the
 /// version the workspace pins. A bump there without a port here fails here. See spec/payload.md.
+/// The crate as published sits outside the workspace, where there is no pin to disagree with.
 #[test]
 fn version_is_the_one_the_fixtures_were_recorded_with() {
 	let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../package.json");
-	let text = std::fs::read_to_string(&path)
-		.unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+	let Ok(text) = std::fs::read_to_string(&path) else { return };
 	let manifest: serde_json::Value =
 		serde_json::from_str(&text).expect("package.json does not parse");
 	let pinned =
