@@ -548,8 +548,21 @@ export interface Walk {
 	 * as well as below it. See `Site.sends`.
 	 */
 	sent: ReadonlyMap<string, string>;
-	/** Whether the walk is inside a `<svelte:boundary>`, whose `failed` snippet is Svelte's to call. */
-	boundary?: true;
+	/**
+	 * Set inside the children of a `<svelte:boundary>` with a `failed` snippet: what guards a value
+	 * there, so that nothing computing it throws anywhere but in the boundary's own catch. A child
+	 * copy builds its substitution afresh and guards through this. See `boundary()`.
+	 */
+	trying?: (text: string) => string;
+	/**
+	 * Set inside both branches of a `<svelte:boundary>` with a `failed` snippet: every value is a
+	 * hole, even one the request does not decide. Whether it throws is asked per request -- by the
+	 * boundary's run in the children, by the request's `transformError` choosing a branch in the
+	 * snippet -- and the render made at the build would throw it there instead, for every request.
+	 * A derivation is computed only where it is read, so one in a branch no request takes throws
+	 * for none. A context read stays the render's, having nowhere else to be read. See `boundary()`.
+	 */
+	holding?: true;
 	/**
 	 * Whether this file is in legacy mode, which is the one thing that decides whether a fragment's
 	 * `{@const}`s are put in topological order: `clean_nodes` calls `sort_const_tags` under
@@ -3292,9 +3305,11 @@ function stirred(walk: Walk): boolean {
  * snippet over the request's `transformError` of what did. See spec/ir.md, "A boundary that may
  * throw is a block of its own, lowered to an `if`".
  *
- * The children's expressions run in order inside one catch per request, which is the test and the
- * source of the error. Their values are guarded holes, so the render written for the first branch
- * evaluates none of them and cannot throw; the render for the second throws from inside the
+ * The children are walked as any markup is, components entered and blocks recorded, and what they
+ * compute is guarded holes: the render written for the first branch evaluates none of them and
+ * cannot throw, and so does every derivation. The test is the same values computed again inside
+ * one catch per request, in the order the render computes them and under the same ifs and eaches,
+ * which is the source of the error. The render for the second branch throws from inside the
  * children on purpose, at their end, and `failed` is walked with its parameter bound to the
  * transformed value.
  */
@@ -3302,85 +3317,221 @@ function boundary(
 	node: AstNode,
 	kept: readonly unknown[],
 	failed: AstNode,
-	read: readonly unknown[],
 	walk: Walk,
 	fragment: unknown,
 ): void {
-	const { blocks, edits, source, stream, within } = walk;
-	const expanded = read.map((one) => walk.expand(one));
-	const waits = expanded.some(awaiting);
-	const run = `${waits ? 'async ' : ''}() => { ${expanded.map((one) => `(${one});`).join(' ')} }`;
-	const outcome = waits ? `(await $$caught(${run}, ${OPTIONS}))` : `$$caught(${run}, ${OPTIONS})`;
-	const test = `!(${outcome}).threw`;
+	const { blocks, edits, holes, source, stream, within } = walk;
 	const index = blocks.length;
-	blocks.push({
+	const block: Block = {
 		index,
 		kind: 'boundary',
 		stream,
-		expression: test,
-		tests: [test, `(${outcome}).json`],
+		expression: '',
+		tests: [],
 		item: null,
 		counter: null,
 		alternate: true,
 		within: [...within],
-	});
+	};
+	blocks.push(block);
 	const whole = span(node);
 	if (whole !== null) {
 		const close = source.lastIndexOf('</svelte:boundary', whole[1]);
 		chose(walk, edits, close, close, index, -1, `{(() => { throw globalThis.${THROWN}; })()}`, '');
 		edits.push(stamped(walk, index, source, whole[1]));
 	}
-	const guarded = (text: string): string =>
-		awaiting(text) ? `(await $$tried(async () => (${text})))` : `$$tried(() => (${text}))`;
+	const raw = new Map<string, string>();
+	const guard = (text: string): string => {
+		// A literal throws nothing, and it is what the walk folds a test or a value by.
+		if (constant(text) || unwrapped(text) === 'undefined') return text;
+		const guarded = awaiting(text)
+			? `(await $$tried(async () => (${text})))`
+			: `$$tried(() => (${text}))`;
+		raw.set(guarded, text);
+		return guarded;
+	};
+	// Every hole and block the children record, with the blocks enclosing it, in the order the walk
+	// records them -- which is source order, entered components included. Read off the two lists as
+	// they grow, since the children record into them from every one of their visitors.
+	const steps: Step[] = [];
+	const listen = <T extends Hole | Block>(list: T[], as: (one: T) => Step['at']): (() => void) => {
+		const push = list.push.bind(list);
+		list.push = (...items: T[]): number => {
+			for (const one of items)
+				steps.push({ at: as(one), within: within.slice(block.within?.length) });
+			return push(...items);
+		};
+		return () => {
+			list.push = push;
+		};
+	};
+	const quiet = [
+		listen(holes, (hole) => ({ hole })),
+		listen(blocks, (inner) => ({ block: inner })),
+	];
 	within.push([index, 0]);
-	held(
-		kept,
-		{ ...walk, expand: (one, extra) => guarded(walk.expand(one, extra)) },
-		walk.standalone && isNode(fragment) ? onlyChild(fragment) : null,
-	);
-	within.pop();
+	try {
+		held(
+			kept,
+			{
+				...walk,
+				trying: guard,
+				holding: true,
+				expand: (one, extra) => guard(walk.expand(one, extra)),
+			},
+			walk.standalone && isNode(fragment) ? onlyChild(fragment) : null,
+		);
+	} finally {
+		within.pop();
+		for (const one of quiet) one();
+	}
+	const unguarded = (text: string): string => {
+		// Longest first: a guarded value inside another is part of the outer one's text until the
+		// outer one is taken off.
+		const keys = [...raw.keys()].toSorted((a, b) => b.length - a.length);
+		for (let changed = true; changed;) {
+			changed = false;
+			for (const key of keys) {
+				if (!text.includes(key)) continue;
+				text = text.split(key).join(raw.get(key) ?? key);
+				changed = true;
+			}
+		}
+		return text;
+	};
+	const waits = raw.size > 0 && [...raw.values()].some(awaiting);
+	const body = inOrder(steps, 1, unguarded, waits);
+	if (body === null) {
+		refuse(
+			'a `<svelte:boundary>` with a `failed` snippet, whose body holds what computing its values ' +
+				'in order cannot follow: an `{#await}`, a `<svelte:element>`, a component rendering ' +
+				'itself or a boundary inside it. Whether the body throws is asked per request by running ' +
+				'what it computes, which these are not written for. See spec/ir.md',
+		);
+	}
+	const run = `${waits ? 'async ' : ''}() => { ${body} }`;
+	const outcome = waits ? `(await $$caught(${run}, ${OPTIONS}))` : `$$caught(${run}, ${OPTIONS})`;
+	const test = `!(${outcome}).threw`;
+	block.expression = test;
+	block.tests = [test, `(${outcome}).json`];
 	const params = parameterNames(Array.isArray(failed['parameters']) ? failed['parameters'] : []);
 	const bound = new Map([...params].map((name): [string, string] => [name, `(${outcome}).value`]));
 	within.push([index, -1]);
 	collect(failed['body'], {
 		...walk,
+		holding: true,
 		dynamic: new Set([...walk.dynamic, ...params]),
 		expand: (one, extra) => walk.expand(one, new Map([...bound, ...(extra ?? new Map())])),
 	});
 	within.pop();
 }
 
+/** A hole or a block a boundary's children recorded, and the blocks inside the boundary around it. */
+interface Step {
+	at: { hole: Hole } | { block: Block };
+	within: [number, number][];
+}
+
 /**
- * A boundary's children's expressions in the order they run, or null where the children are not
- * only markup and expressions: a block, a component or a render tag decides which of its own run
- * and when, which is the render's and not a list this compiler holds.
+ * What a boundary's children compute, as statements in the order the render computes it: a hole's
+ * value, an if's tests choosing the branch whose values follow, an each's source iterated with its
+ * body's values per item and its fallback where it is empty. Null for anything else, which is a
+ * shape the render computes in an order of its own.
  */
-function inOrder(nodes: readonly unknown[]): unknown[] | null {
-	const found: unknown[] = [];
-	for (const node of nodes) {
-		if (!isNode(node)) continue;
-		const type = node['type'];
-		if (type === 'Text' || type === 'Comment') continue;
-		if (type === 'ExpressionTag') {
-			found.push(node['expression']);
+function inOrder(
+	steps: readonly Step[],
+	depth: number,
+	unguarded: (text: string) => string,
+	/** Whether the run awaits, which makes a fragment's function async and each call an await. */
+	waits: boolean,
+	/** The fragments this run has defined so far, which a call inside it can call. */
+	defined: Set<string> = new Set(),
+): string | null {
+	const out: string[] = [];
+	const binding = (binds: readonly [string, string][]): string =>
+		binds.map(([, value]) => unguarded(value)).join(', ');
+	const entered = (name: string, binds: readonly [string, string][]): string =>
+		`${waits ? 'await ' : ''}${name}(${binding(binds)});`;
+	for (let at = 0; at < steps.length; at += 1) {
+		const step = steps[at];
+		if (step === undefined) continue;
+		if (step.within.length !== depth) return null;
+		if ('hole' in step.at) {
+			const { hole } = step.at;
+			if (hole.call !== undefined) {
+				if (!defined.has(hole.call.fragment)) return null;
+				out.push(entered(hole.call.fragment, hole.call.binds));
+				continue;
+			}
+			// An id is the runtime's count and throws nothing.
+			if (hole.fresh === true) continue;
+			for (const one of [hole.expression, ...(hole.choice?.tests ?? [])]) {
+				if (one !== '') out.push(`(${unguarded(one)});`);
+			}
 			continue;
 		}
-		if (type !== 'RegularElement') return null;
-		for (const attribute of Array.isArray(node['attributes']) ? node['attributes'] : []) {
-			if (!isNode(attribute) || attribute['type'] !== 'Attribute') return null;
-			const value = attribute['value'];
-			for (const part of Array.isArray(value) ? value : [value]) {
-				if (isNode(part) && part['type'] === 'ExpressionTag') found.push(part['expression']);
-			}
+		const { block } = step.at;
+		const inside: Step[] = [];
+		while (steps[at + 1] !== undefined && (steps[at + 1]?.within.length ?? 0) > depth) {
+			const next = steps[at + 1] as Step;
+			if (next.within[depth]?.[0] !== block.index) return null;
+			inside.push(next);
+			at += 1;
 		}
-		const fragment = node['fragment'];
-		const inner = inOrder(
-			isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [],
-		);
-		if (inner === null) return null;
-		found.push(...inner);
+		const branch = (which: number): string | null =>
+			inOrder(
+				inside.filter((one) => one.within[depth]?.[1] === which),
+				depth + 1,
+				unguarded,
+				waits,
+				defined,
+			);
+		// A component entered as a fragment, which a call inside it may enter again: a function of
+		// its parameters, called here with what this first call binds them to.
+		if (block.fragment !== undefined && block.mirrors === undefined) {
+			const { name, params, binds } = block.fragment;
+			defined.add(name);
+			const body = branch(0);
+			if (body === null) return null;
+			out.push(
+				`const ${name} = ${waits ? 'async ' : ''}(${params.join(', ')}) => { ${body} }; ` +
+					entered(name, binds),
+			);
+			continue;
+		}
+		if (block.kind === 'if' && block.mirrors === undefined && block.fragment === undefined) {
+			const tests = block.tests ?? [block.expression];
+			const arms: string[] = [];
+			for (const [which, test] of tests.entries()) {
+				const taken = branch(which);
+				if (taken === null) return null;
+				arms.push(`if (${unguarded(test)}) { ${taken} }`);
+			}
+			const otherwise = branch(-1);
+			if (otherwise === null) return null;
+			out.push(`${arms.join(' else ')} else { ${otherwise} }`);
+			continue;
+		}
+		if (block.kind === 'each' && block.mirrors === undefined && block.item !== null) {
+			const each = branch(0);
+			const empty = branch(-1);
+			if (each === null || empty === null) return null;
+			// `ensure_array_like`: nothing for a falsy source, and the source itself or `Array.from` of
+			// it otherwise, which iterate alike.
+			const list = `$$list${String(block.index)}`;
+			const counter = `$$at${String(block.index)}`;
+			out.push(
+				`{ const ${list} = Array.from((${unguarded(block.expression)}) || []); ` +
+					`if (${list}.length === 0) { ${empty} } ` +
+					`for (let ${counter} = 0; ${counter} < ${list}.length; ${counter} += 1) { ` +
+					`const ${block.item} = ${list}[${counter}]; ` +
+					`${block.counter == null ? '' : `const ${block.counter} = ${counter}; `}${each} } }`,
+			);
+			continue;
+		}
+		return null;
 	}
-	return found;
+	return out.join(' ');
 }
 
 /**
@@ -3444,6 +3595,22 @@ function hostedIn(source: string, file: string): RegExp | null {
 const READS_CONTEXT = /\bget(?:All)?Contexts?\b/;
 
 /**
+ * Whether an expression may read a context, which only a render has: Svelte's own context API by
+ * name, or anything imported from Svelte or from a component's module script, which is where the
+ * getter `createContext` hands back is exported from. Read where every value would otherwise be a
+ * hole, to leave these to the render. See `Walk.holding`.
+ */
+function rendersOnly(expression: string, walk: Walk): boolean {
+	if (READS_CONTEXT.test(expression)) return true;
+	const names = new Set(
+		Object.entries(walk.site.imports)
+			.filter(([, from]) => from === 'svelte' || from.endsWith('.svelte'))
+			.map(([name]) => name),
+	);
+	return names.size > 0 && mentions(expression, names);
+}
+
+/**
  * A read of one of the names the server holds and the build has not, by the word.
  *
  * Not a member of something else: `a.process` is somebody's own property, and `$process` is a
@@ -3464,6 +3631,9 @@ function varies(
 	 */
 	written = false,
 ): boolean {
+	// What a boundary caught is the request's, and so is everything read off it, in whichever
+	// component the failed snippet hands it to. See `boundary()`.
+	if (expression.includes('$$caught(')) return true;
 	// A name a statement reading the request assigns is the request's, whatever else it reads. See
 	// `movedBy()`.
 	if (walk.site.moved.size > 0 && mentions(expression, walk.site.moved)) return true;
@@ -5065,10 +5235,13 @@ function collect(node: unknown, walk: Walk): void {
 			// impossible by construction: `getContext` outside `render()` has no context to read.
 			// Anything ambient in it -- a clock, a random -- is refused before this by `resolved`.
 			// See spec/refusals.md.
+			// Inside a boundary that catches, whether the value throws is the request's question too.
+			// See `Walk.holding`.
 			if (
 				site.payload !== null &&
 				walk.opaque !== true &&
 				walk.asking !== true &&
+				(walk.holding !== true || rendersOnly(written, walk)) &&
 				!varies(written, walk)
 			) {
 				edits.push([at[0], at[1], shielded(asWritten(node['expression'], written, walk))]);
@@ -5707,10 +5880,6 @@ function collect(node: unknown, walk: Walk): void {
 			}
 
 			if (parameters.length === 0) return;
-			// A boundary's `failed` is Svelte's to call, with the error it caught, and it stays in the
-			// rendered source for `renderer.boundary` to find. Nothing here renders it, which is what
-			// the refusal below is about, so it is named apart from it.
-			if (named === 'failed' && walk.boundary === true) return;
 			if (one === undefined || (one.renders === 0 && one.maybe !== true)) {
 				// Written inside a component's tag, so it is a prop that component receives: the child
 				// decides when to call it and with what, and neither is visible from here. One with no
@@ -6224,48 +6393,22 @@ function collect(node: unknown, walk: Walk): void {
 				step(pendingSnippet['body']);
 				return;
 			}
-			// A `failed` snippet over children this can walk in order is a block: whether they threw
-			// and what `transformError` made of it are the request's. See `boundary()`.
+			// A `failed` snippet makes a block: whether the children threw and what `transformError`
+			// made of it are the request's. See `boundary()`.
 			if (failedSnippet !== undefined) {
-				const kept = children.filter((child) => child !== failedSnippet);
-				const read = inOrder(kept);
-				if (read !== null) {
-					boundary(node, kept, failedSnippet, read, walk, fragment);
-					return;
-				}
+				boundary(
+					node,
+					children.filter((child) => child !== failedSnippet),
+					failedSnippet,
+					walk,
+					fragment,
+				);
+				return;
 			}
-			const before = holes.length;
 			// As a fragment, so a `{@const}` or `{const}` written straight inside the boundary binds
 			// for the whole of it -- `clean_nodes` hoists them from the boundary's fragment as from
 			// any other.
-			held(
-				children.filter((child) => child !== failedSnippet),
-				walk,
-				walk.standalone && isNode(fragment) ? onlyChild(fragment) : null,
-			);
-			// Walked with the boundary in scope, so the refusal about a snippet nothing renders knows
-			// this one is Svelte's to call.
-			if (failedSnippet !== undefined) {
-				collect(failedSnippet, { ...walk, boundary: true });
-			}
-			// A call over a value the request brings, not any marker. `{data.a}` reads the payload and
-			// cannot throw in the way the snippet is there for, and refusing it would refuse the
-			// ordinary boundary; `{search(query)}` runs the author's code over what the request sent,
-			// which is where the throw the snippet catches comes from.
-			const throws = holes
-				.slice(before)
-				.some((one) => /[\w$)\]]\s*\(/.test(one.expression) && mentions(one.expression, dynamic));
-			if (children.some((child) => snippetNamed(child, 'failed')) && throws) {
-				// Children this walk takes in order are a block, in `boundary()`; these are the rest,
-				// and the same answer the render gives where it catches one. See `render.ts`.
-				refuse(
-					'a `<svelte:boundary>` with a `failed` snippet, whose body calls something over a value ' +
-						'the request brings inside a block, a component or a render tag. Which of their ' +
-						"expressions run, and in what order, is the render's rather than a list this " +
-						'compiler holds, so whether the body throws cannot be asked per request. See ' +
-						'spec/ir.md',
-				);
-			}
+			held(children, walk, walk.standalone && isNode(fragment) ? onlyChild(fragment) : null);
 			return;
 		}
 
@@ -7579,9 +7722,9 @@ function descend(
 			source: raw,
 			edits: inner,
 
-			within: recursion === null ? walk.within : [...walk.within, [fragmentAt, 0]],
-			expand: (child, extra) =>
-				placed(
+			within: walk.within,
+			expand: (child, extra) => {
+				const text = placed(
 					declared.rewrite(
 						child,
 						new Map([...bound, ...ranBy, ...(extra ?? new Map())]),
@@ -7589,7 +7732,9 @@ function descend(
 					),
 					child,
 					file,
-				),
+				);
+				return walk.trying === undefined ? text : walk.trying(text);
+			},
 			plain: (child, extra) => declared.rewrite(child, extra),
 			runeOf: declared.rune,
 			declares: declared.has,
@@ -7640,7 +7785,14 @@ function descend(
 			},
 		};
 		contextual(ast, child);
-		collect(ast['fragment'], child);
+		// Onto the one stack rather than a copy of it, so whoever reads the stack as the walk goes
+		// sees the fragment's block around what the body records. See `boundary()`.
+		if (recursion !== null) walk.within.push([fragmentAt, 0]);
+		try {
+			collect(ast['fragment'], child);
+		} finally {
+			if (recursion !== null) walk.within.pop();
+		}
 		// The body as the fragment: everything the root fragment writes, wrapped as the bare block
 		// the fragment's block is, with the stamp that names it where the render puts it.
 		if (recursion !== null) {

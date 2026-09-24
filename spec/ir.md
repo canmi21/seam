@@ -234,17 +234,32 @@ escapes `<` and `>` in it -- and `-->`. The assembler is what knows that shape, 
 the render it reads is the build's, not the request's. No backend learns what a boundary is, which
 is the rule under **Svelte's anchors are baked in, not emitted**.
 
-**The children's expressions are evaluated per request, in order, inside one catch.** That is the
-test and it is where the error comes from: the error an expression throws is not data and cannot
-be carried from the build, so it is thrown again per request by the same pure expression, and
-handed to the request's `transformError`. The children's own values are holes guarded against the
-throw, which cannot be written anyway: the branch that holds them is the one taken when nothing
-threw. The `failed` snippet's parameter is bound to the transformed value, so what it reads is the
-request's like any other hole.
+**The children's values are computed per request, in the order the render computes them, inside
+one catch.** That is the test and it is where the error comes from: the error an expression throws
+is not data and cannot be carried from the build, so it is thrown again per request by the same
+expressions, and handed to the request's `transformError`. The children are walked as any markup
+is -- components entered, blocks recorded, the body rendered at the build as a skeleton -- and the
+run is read off what the walk recorded: a hole's value, an `if`'s tests choosing the branch whose
+values follow, an `each`'s source iterated with its body's values per item and its fallback where
+it is empty, a component entered as a fragment as a function of its parameters that a call inside
+it calls again. Everything is data: the run renders nothing, it computes what the skeleton's holes
+and blocks would read, which is what a derivation is ([pipeline.md](pipeline.md)). The children's
+own values are holes guarded against the throw, which cannot be written anyway: the branch that
+holds them is the one taken when nothing threw. The `failed` snippet's parameter is bound to the
+transformed value, so what it reads is the request's like any other hole, in whichever component
+the snippet hands it to.
 
-**Only children this can walk in order are taken**: markup and expressions. A boundary around a
-block, a component or a render tag still refuses, since which of their expressions run, and in what
-order, is the render's and not a list this compiler holds.
+**Inside both branches every value is a hole, even one the request does not decide.** Whether it
+throws is the request's question -- the run asks it of the children, the request's `transformError`
+asks it of the snippet by choosing a branch -- and the render made at the build would throw it there
+instead, for every request. A derivation is computed only where it is read, so a hole in a branch
+no request takes throws for none. What may read a context stays the render's, having nowhere else
+to be read: Svelte's context API by name, and anything imported from Svelte or from a component's
+module script, which is where a `createContext` getter comes from.
+
+**What the run cannot follow still refuses**: an `{#await}`, a `<svelte:element>`, a boundary inside
+the children, a call of a fragment the run did not define. Each computes in an order of its own that
+the recorded holes and blocks do not say.
 
 ## Recursion is a fragment and a call
 

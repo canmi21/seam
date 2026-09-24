@@ -16,13 +16,6 @@ What the suite fails on, sorted by what closing each takes. The live list is
       counting its calls), reactive-values-function-dependency and reactive-values-uninitialised (a
       neutralised name the script calls, which the render cannot run).
 
-- [ ] **C and D: a value that is not data in the render input.** Decided: the render input and the
-      hydration wire are two things, and the input holds any JavaScript value (spec/payload.md).
-  - D, `transformError`: done where the boundary's children are markup and expressions (spec/ir.md,
-    "A boundary that may throw is a block of its own, lowered to an `if`"). Left: error-boundary-27,
-    async-error-boundary-2, async-error-boundary-3, which throw from inside a child component in
-    the boundary.
-
 ## Work, with design questions to answer first
 
 - [ ] **G. A raw snippet whose function reads a prop.** The author's `render` calls
@@ -42,6 +35,11 @@ What the suite fails on, sorted by what closing each takes. The live list is
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- D, 3 samples: a boundary's children are computed per request in the order the render computes
+  them -- ifs, eaches, components and fragments included -- and every value inside both branches is a
+  hole the request asks (error-boundary-27, async-error-boundary-2, async-error-boundary-3).
+  spec/ir.md, "A boundary that may throw is a block of its own, lowered to an `if`".
 
 - C, 3 samples: a component the request hands in that the source names none of compiles as Svelte's
   does -- nothing for nothing, a throw per request otherwise -- or is refused at the build under

@@ -753,6 +753,54 @@ const accepted: Case[] = [
 		data: [{ a: 1 }],
 		transformError: (error) => `caught ${String(error)}`,
 	},
+	{
+		// The throw is inside a component, under an if the request decides: the run enters the copy
+		// and takes the branch the render takes.
+		name: 'a boundary whose child throws where the request says',
+		beside: {
+			Kid:
+				'<script>let { ok, why } = $props();</script>' +
+				'{#if ok}<b>{ok}</b>{:else}<s>{(() => { throw new Error(why); })()}</s>{/if}',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<svelte:boundary><Kid ok={data.ok} why={data.why} />' +
+			'{#snippet failed(e)}<i>{e}</i>{/snippet}</svelte:boundary>',
+		data: [
+			{ ok: 'fine', why: 'a' },
+			{ ok: '', why: 'no <b>' },
+		],
+		transformError: (error) => `caught ${(error as Error).message}`,
+	},
+	{
+		// The shape of Svelte's error-boundary-27: the child throws for every request, the failed
+		// branch renders the same child given the error, and the child imports from the entry, so
+		// each is entered as a fragment. The sample reads a `createContext` getter where this reads
+		// a constant: the oracle here compiles the entry twice, and two contexts never meet.
+		name: 'a boundary whose child always throws, rendered again by the failed snippet',
+		beside: {
+			Kid:
+				"<script>import { label } from './entry.svelte'; let { error } = $props();</script>" +
+				"{#if error}<p>caught: {error} ({label})</p>{:else}{(() => { throw 'catch me'; })()}{/if}",
+		},
+		source:
+			"<script module>import Kid from './Kid.svelte'; export const label = 'hello';</script>" +
+			'<script>let { data } = $props();</script>' +
+			'<svelte:boundary>{#snippet failed(error)}<Kid {error} />{/snippet}<Kid /></svelte:boundary>' +
+			'<p>{data.a}</p>',
+		data: [{ a: 1 }],
+		transformError: () => 'error',
+	},
+	{
+		// Per item: the run iterates the list the render iterates and stops at the item that throws.
+		name: 'a boundary whose each throws on one item',
+		source:
+			'<script>let { data } = $props(); function check(n) { if (n > 2) throw new Error(`big ${n}`); return n; }</script>' +
+			'<svelte:boundary><ul>{#each data.xs as x, i}<li>{i}:{check(x)}</li>{:else}<li>none</li>{/each}</ul>' +
+			'{#snippet failed(e)}<i>{e}</i>{/snippet}</svelte:boundary>',
+		data: [{ xs: [1, 2] }, { xs: [1, 3, 5] }, { xs: [] }],
+		transformError: (error) => (error as Error).message,
+	},
 	// **What Svelte's render reads while it writes**, read per request and never at the build: a
 	// module's state, a fresh symbol, a host's global. Each of these was refused. See spec/derivation.md,
 	// "Ambient input is read at request time, never at the build".
