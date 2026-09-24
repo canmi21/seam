@@ -2644,10 +2644,49 @@ function movedBy(ast: AstNode, dynamic: ReadonlySet<string>): ReadonlySet<string
 		dynamic.has(name) ||
 		found.has(name) ||
 		(name.startsWith('$') && (dynamic.has(name.slice(1)) || found.has(name.slice(1))));
+	// A function the script calls runs as part of the statement that calls it, so what it reads is
+	// what that statement reads and what it assigns is what that statement moves: `function foo() {
+	// b = c }` called by `foo()` over a `c` the request decides moves `b`.
+	// So does a getter or a method of an object the script declares, reached as `object.name`.
+	const functions = new Map<string, AstNode>();
+	for (const statement of body) {
+		if (!isNode(statement)) continue;
+		if (statement['type'] === 'FunctionDeclaration' && isNode(statement['id'])) {
+			const name = statement['id']['name'];
+			if (typeof name === 'string') functions.set(name, statement);
+		}
+		if (statement['type'] !== 'VariableDeclaration') continue;
+		const declarations = statement['declarations'];
+		for (const one of Array.isArray(declarations) ? declarations : []) {
+			if (!isNode(one) || !isNode(one['id']) || !isNode(one['init'])) continue;
+			const name = one['id']['name'];
+			const init = one['init'];
+			if (typeof name !== 'string') continue;
+			if (init['type'] === 'ArrowFunctionExpression' || init['type'] === 'FunctionExpression') {
+				functions.set(name, init);
+			}
+			if (init['type'] !== 'ObjectExpression') continue;
+			const properties = init['properties'];
+			for (const property of Array.isArray(properties) ? properties : []) {
+				if (!isNode(property) || property['computed'] === true || !isNode(property['key']))
+					continue;
+				const key = property['key']['name'];
+				if (typeof key === 'string' && isNode(property['value'])) {
+					const value = property['value'];
+					if (
+						value['type'] === 'FunctionExpression' ||
+						value['type'] === 'ArrowFunctionExpression'
+					) {
+						functions.set(`${name}.${key}`, value);
+					}
+				}
+			}
+		}
+	}
 	let size = -1;
 	while (found.size !== size) {
 		size = found.size;
-		moves(body, varying, found);
+		moves(body, varying, found, functions);
 	}
 	return found;
 }
@@ -2657,43 +2696,126 @@ function moves(
 	body: readonly unknown[],
 	varying: (name: string) => boolean,
 	found: Set<string>,
+	functions: ReadonlyMap<string, AstNode> = new Map(),
 ): void {
-	for (const statement of body) {
-		if (!isNode(statement)) continue;
-		const type = statement['type'];
-		if (
-			type === 'ImportDeclaration' ||
-			type === 'VariableDeclaration' ||
-			type === 'FunctionDeclaration' ||
-			type === 'ExportNamedDeclaration' ||
-			type === 'ClassDeclaration'
-		) {
-			continue;
-		}
-		let reads = false;
-		readsIn(statement, new Set(), (at) => {
-			if (typeof at['name'] === 'string' && varying(at['name'])) reads = true;
-		});
-		if (!reads) continue;
-		const root = (target: unknown): void => {
-			let at = target;
-			while (isNode(at) && at['type'] === 'MemberExpression') at = at['object'];
-			if (isNode(at) && at['type'] === 'Identifier' && typeof at['name'] === 'string') {
-				found.add(at['name']);
-			}
-		};
-		const step = (one: unknown): void => {
+	// The functions a statement reaches by calling them by name, to the fixed point.
+	const through = (statement: AstNode): AstNode[] => {
+		const out: AstNode[] = [];
+		const seen = new Set<string>();
+		const visit = (one: unknown): void => {
 			if (Array.isArray(one)) {
-				for (const each of one) step(each);
+				for (const each of one) visit(each);
 				return;
 			}
 			if (!isNode(one)) return;
-			if (one['type'] === 'AssignmentExpression') root(one['left']);
-			if (one['type'] === 'UpdateExpression') root(one['argument']);
-			for (const value of Object.values(one)) step(value);
+			const callee = one['type'] === 'CallExpression' ? one['callee'] : undefined;
+			const object = one['type'] === 'MemberExpression' ? one['object'] : undefined;
+			const property = one['type'] === 'MemberExpression' ? one['property'] : undefined;
+			const name =
+				isNode(callee) && callee['type'] === 'Identifier'
+					? callee['name']
+					: one['computed'] !== true &&
+						  isNode(object) &&
+						  object['type'] === 'Identifier' &&
+						  isNode(property) &&
+						  typeof object['name'] === 'string' &&
+						  typeof property['name'] === 'string'
+						? `${object['name']}.${property['name']}`
+						: undefined;
+			const fn = typeof name === 'string' ? functions.get(name) : undefined;
+			if (typeof name === 'string' && fn !== undefined && !seen.has(name)) {
+				seen.add(name);
+				out.push(fn);
+				visit(fn['body']);
+			}
+			for (const value of Object.values(one)) visit(value);
 		};
+		visit(statement);
+		return out;
+	};
+	const root = (target: unknown): void => {
+		let at = target;
+		while (isNode(at) && at['type'] === 'MemberExpression') at = at['object'];
+		if (isNode(at) && at['type'] === 'Identifier' && typeof at['name'] === 'string') {
+			found.add(at['name']);
+		}
+	};
+	const step = (one: unknown): void => {
+		if (Array.isArray(one)) {
+			for (const each of one) step(each);
+			return;
+		}
+		if (!isNode(one)) return;
+		if (one['type'] === 'AssignmentExpression') root(one['left']);
+		if (one['type'] === 'UpdateExpression') root(one['argument']);
+		// A method of the language's own that changes what it is called on: `log.push(x)`.
+		const callee = one['type'] === 'CallExpression' ? one['callee'] : undefined;
+		if (isNode(callee) && callee['type'] === 'MemberExpression') {
+			const method = callee['property'];
+			if (isNode(method) && typeof method['name'] === 'string' && MUTATING.has(method['name'])) {
+				root(callee['object']);
+			}
+		}
+		for (const value of Object.values(one)) step(value);
+	};
+	for (const statement of body) {
+		if (!isNode(statement)) continue;
+		const type = statement['type'];
+		// `$props()` reads the request by definition, and a default in its pattern runs only where the
+		// request sent nothing: what the defaults call moves what it assigns.
+		const destructured = type === 'VariableDeclaration' && propsDeclaration(statement);
+		if (
+			!destructured &&
+			(type === 'ImportDeclaration' ||
+				type === 'VariableDeclaration' ||
+				type === 'FunctionDeclaration' ||
+				type === 'ExportNamedDeclaration' ||
+				type === 'ClassDeclaration')
+		) {
+			continue;
+		}
+		const calls = through(statement);
+		if (destructured) {
+			for (const fn of calls) step(fn['body']);
+			continue;
+		}
+		let reads = false;
+		for (const one of [statement, ...calls.map((fn) => fn['body'])]) {
+			readsIn(one, new Set(), (at) => {
+				if (typeof at['name'] === 'string' && varying(at['name'])) reads = true;
+			});
+		}
+		if (!reads) continue;
 		step(statement);
+		for (const fn of calls) step(fn['body']);
 	}
+}
+
+/** The methods of ECMAScript's own collections that change the value they are called on. */
+const MUTATING: ReadonlySet<string> = new Set([
+	'push',
+	'pop',
+	'shift',
+	'unshift',
+	'splice',
+	'sort',
+	'reverse',
+	'fill',
+	'copyWithin',
+	'set',
+	'add',
+	'delete',
+	'clear',
+]);
+
+/** Whether a declaration destructures `$props()`, the one statement that reads the request itself. */
+function propsDeclaration(statement: AstNode): boolean {
+	const declarations = statement['declarations'];
+	return (Array.isArray(declarations) ? declarations : []).some((one) => {
+		const init = isNode(one) ? one['init'] : undefined;
+		const callee = isNode(init) && init['type'] === 'CallExpression' ? init['callee'] : undefined;
+		return isNode(callee) && callee['type'] === 'Identifier' && callee['name'] === '$props';
+	});
 }
 
 /** Whether a statement awaits outside any function inside it, which is Svelte's `has_await_expression`. */

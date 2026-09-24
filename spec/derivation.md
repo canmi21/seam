@@ -1431,9 +1431,28 @@ handed no marker is, since a local of the caller a run would read is in no scope
 **What the run cannot hand back stays refused**, each for a reason the run does not change: a prop
 the call site binds, whose value goes back up and renders the caller's whole template again; a
 component the run chose, which is picked by identity and the run holds its own copy of each; a
-`hydratable` call, whose script the injector writes from the calls the entry makes first; and a
-name neutralised for the render that the script itself calls, since the render still has to run
-the script and a name written over with nothing stops it.
+`hydratable` call, whose script the injector writes from the calls the entry makes first.
+
+**The build's render runs only what the run does not answer.** The render made at the build still
+runs the script, written over where it reads what the request decides, and a statement calling into
+something written over -- `foo()` over a `foo` that reads a neutralised `$:`, `$: x = xGetter()` over
+an `xGetter` a neutralised block assigns -- ran against nothing and threw, or computed a value
+nothing reads. Such a statement is withheld from that render, to a fixed point: a declaration over
+its initialiser, anything else whole, and what it assigns counts as written over too. What it
+computes is the run's to answer per request. Everything else runs as it did, which is what keeps a
+`setContext` over a constant in the one render that has the context.
+
+**What a statement reaches is what it reads and what it changes.** A statement that calls a function
+the script declares reads what that function reads and moves what it assigns, and so does one that
+reads a getter or calls a method of an object the script declares; a mutating method of the
+language's own -- `log.push(x)` -- is a change to what it is called on. A `$props()` destructuring
+reads the request by definition, and a default in it runs only where the request sent nothing, so
+what the defaults reach is the request's.
+
+**A prop's default that reads what substitution cannot follow is the run's prop.** The run is handed
+the request's props and applies the default as Svelte's script does, so what the default changes on
+the way is changed in the same run the markup reads. The run answers one props object once, which
+makes the entry's one run per request however many places read it.
 
 **For the entry, what a statement reading the request changes is the request's** at every position,
 not only where `varies()` is asked: with the refusal gone, a position asking `dynamic` alone took

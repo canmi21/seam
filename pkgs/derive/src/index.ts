@@ -244,11 +244,24 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 			// `Derivation.prop`.
 			if (derivation.prop === true) {
 				if (out[derivation.name] !== undefined) continue;
+				let value: unknown;
 				try {
-					out[derivation.name] = derivation.evaluate(bindings(), request);
+					value = derivation.evaluate(bindings(), request);
 				} catch (error) {
 					throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
 				}
+				// One that awaits -- a default read from the script's run in async mode -- is waited on
+				// where it is read, and reads as its value once it settles, as any derivation does.
+				const name = derivation.name;
+				out[name] =
+					derivation.asynchronous && thenable(value)
+						? waiting(
+								Promise.resolve(value).then((settled) => {
+									out[name] = settled;
+									return settled;
+								}),
+							)
+						: value;
 				continue;
 			}
 			// Made now, as Svelte's script makes it, and read by nothing. See `Derivation.eager`.

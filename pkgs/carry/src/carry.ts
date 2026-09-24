@@ -139,10 +139,19 @@ export function running(): Plugin {
 				const file = decoded(id, RUN);
 				const server = resolveBare('svelte/server', file) ?? 'svelte/server';
 				const read = projectAsync() ? 'await rendered;' : 'rendered.body;';
+				// Once per props object, which is once per request for the entry's `$$run($$given)`:
+				// Svelte runs the script once, and a prop's default read from the run and the markup's
+				// reads of it are the one run. See spec/derivation.md.
 				return [
 					`import { render } from ${JSON.stringify(server)};`,
 					`import Script from ${JSON.stringify(`${CAPTURED}${encoded(file)}${SUFFIX}`)};`,
-					`export ${projectAsync() ? 'async ' : ''}function run(props) {`,
+					'const runs = new WeakMap();',
+					'export function run(props) {',
+					"\tif (props === null || typeof props !== 'object') return ran(props);",
+					'\tif (!runs.has(props)) runs.set(props, ran(props));',
+					'\treturn runs.get(props);',
+					'}',
+					`${projectAsync() ? 'async ' : ''}function ran(props) {`,
 					'\tlet got;',
 					`\tconst context = new Map([[${JSON.stringify(CAPTURE)}, (value) => { got = value; return ''; }]]);`,
 					'\tconst rendered = render(Script, { props, context });',

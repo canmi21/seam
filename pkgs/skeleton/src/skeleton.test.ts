@@ -801,6 +801,39 @@ const accepted: Case[] = [
 		data: [{ xs: [1, 2] }, { xs: [1, 3, 5] }, { xs: [] }],
 		transformError: (error) => (error as Error).message,
 	},
+	// **The build's render runs only what the run does not answer.** A statement that calls into a
+	// name the render no longer computes is withheld from it, and the run computes it per request.
+	// See spec/derivation.md.
+	{
+		// Svelte's reactive-values-uninitialised: `foo()` runs before the `$:`, over a `c` that the
+		// render is given nothing for.
+		name: 'a script call over a name a neutralised `$:` binds',
+		source:
+			"<script>export let a = 'a'; let b; $: c = a; function foo() { b = c === 'a' ? 'b' : 'c'; } foo();</script>" +
+			'<p>{a}{b}{c}</p>',
+		props: [{}, { a: 'z' }],
+	},
+	{
+		// Svelte's reactive-values-function-dependency: a `$:` calls a function a neutralised block
+		// assigned.
+		name: 'a `$:` calling what a neutralised block assigns',
+		source:
+			'<script>let _x; function getX() { return _x; } export let y = 1; let xGetter; export let x;' +
+			' $: { _x = y * 2; xGetter = getX; } $: x = xGetter();</script><p>{x}</p>',
+		props: [{}, { y: 2 }],
+	},
+	{
+		// Svelte's props-default-value-lazy-accessors: a default fires only where the request sent
+		// nothing, and what it calls changes a name the markup reads.
+		name: 'a prop default that changes a name the markup reads',
+		source:
+			'<script>let log = []; const fallback_value = 1;' +
+			" const nested = { get fallback_value() { log.push('nested'); return fallback_value; } };" +
+			" const fallback_fn = () => { log.push('fn'); return fallback_value; };" +
+			' const { p0 = 1, p2 = nested.fallback_value, p3 = fallback_fn() } = $props();</script>' +
+			'<p>{p0} {p2} {p3}</p><p>{log}</p>',
+		props: [{ p0: 0, p2: 0, p3: 0 }, {}, { p2: 5 }],
+	},
 	// **What Svelte's render reads while it writes**, read per request and never at the build: a
 	// module's state, a fresh symbol, a host's global. Each of these was refused. See spec/derivation.md,
 	// "Ambient input is read at request time, never at the build".

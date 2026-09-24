@@ -12,9 +12,7 @@ What the suite fails on, sorted by what closing each takes. The live list is
       await-then-destruct-computed-props and spread-component-side-effects (a function a derivation
       calls assigns a name), binding-backflow (a bound prop the child changes),
       component-not-constructor2 (a component the run chose), hydratable-error-on-missing (a
-      `hydratable` in a run script), props-default-value-lazy-accessors (a destructuring default
-      counting its calls), reactive-values-function-dependency and reactive-values-uninitialised (a
-      neutralised name the script calls, which the render cannot run).
+      `hydratable` in a run script).
 
 ## Work, with design questions to answer first
 
@@ -35,6 +33,12 @@ What the suite fails on, sorted by what closing each takes. The live list is
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- B, 3 samples: the build's render no longer runs a statement that calls into what it was given
+  nothing for, and the run answers it; a statement reaches what the functions, getters and `$props()`
+  defaults it calls read and change (reactive-values-uninitialised,
+  reactive-values-function-dependency, props-default-value-lazy-accessors). spec/derivation.md,
+  "The build's render runs only what the run does not answer".
 
 - D, 3 samples: a boundary's children are computed per request in the order the render computes
   them -- ifs, eaches, components and fragments included -- and every value inside both branches is a

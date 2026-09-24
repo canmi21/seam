@@ -439,6 +439,19 @@ function ran(
 			hole.call.binds = hole.call.binds.map(([name, one]) => [name, over(one)]);
 		}
 	}
+	// A prop's default that reads one of these is the run's too, and the run answers with the prop
+	// itself: it is given the request's props and applies the default as Svelte's script does, so
+	// what the default changes along the way is changed in the same run the markup reads. `field` is
+	// still asked, for the refusals it makes.
+	for (const one of rendered.defaults) {
+		if (!own(one.files) || over(one.expression) === one.expression) continue;
+		// The run itself rather than the held derivation standing for it: defaults are computed
+		// before any other derivation exists, and the run answers the same props object once.
+		field(one.name);
+		one.expression = projectAsync()
+			? `(await ${RUN_NAME}(${GIVEN})).${one.name}`
+			: `${RUN_NAME}(${GIVEN}).${one.name}`;
+	}
 	for (const block of rendered.blocks) {
 		if (!own(block.files)) continue;
 		block.expression = over(block.expression);

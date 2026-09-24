@@ -2522,23 +2522,16 @@ export function locals(
 	// The run answers a neutralised name's reads, but the render still runs the script, and a name
 	// neutralised to nothing that the script then calls stops it: `function foo() { b = c }` over a
 	// prop, called by `foo()`, and `$: x = xGetter()` over an `xGetter` a neutralised block assigns.
-	if (refusing === 'run') {
-		// Not a call inside a statement that is itself written over for the render, which never runs.
-		const spans = reading.map(([at]) => at);
-		const called = callees(
-			isNode(ast['instance']) ? (ast['instance'] as Node)['content'] : undefined,
-			spans,
+	// What that call computes is the run's to answer, so the render is not given it either. See
+	// spec/derivation.md, "The build's render runs only what the run does not answer".
+	if (refusing === 'run')
+		withheld(
+			ast,
+			found as Map<string, Declared & { node: Node; free: Set<string> }>,
+			reading,
+			gone,
+			changed,
 		);
-		const stopping = [...gone].find((name) => called.has(name));
-		if (stopping !== undefined) {
-			throw new Error(
-				changed.get(stopping) ??
-					`\`${stopping}\` reads what the request decides and the script calls it, so the render ` +
-						'this compiler makes without the request cannot run the script. Compute the value in ' +
-						'one expression, or move the call out of the script. See spec/derivation.md',
-			);
-		}
-	}
 
 	return {
 		changed,
@@ -2572,6 +2565,98 @@ export function locals(
 /** How many trees the two memos above hold, which is what a compile trades memory for. */
 export function remembered(): { expressions: number; components: number } {
 	return { expressions: trees.size, components: 0 };
+}
+
+/** Why a name a withheld statement assigns cannot be substituted. See `withheld()`. */
+function withheldBecause(name: string): string {
+	return (
+		`\`${name}\` is assigned by a statement that calls what the request decides, and the markup ` +
+		'reads a name by the expression it was declared to be, which stops being what the name holds. ' +
+		'Compute the value in one expression, or move the call out of the script. See spec/derivation.md'
+	);
+}
+
+/**
+ * The instance script's statements that call into what the render no longer computes, written over
+ * for the render, and the names they assign added to what it no longer computes -- to a fixed point,
+ * since each one withheld may stop another.
+ *
+ * A function is tainted where it reads a neutralised name or calls a tainted function, and a
+ * statement is withheld where it calls one outside a function of its own: a declaration over its
+ * initialiser, as a neutralised declaration is, and anything else whole. What is left runs as it
+ * did, which is what keeps a `setContext` over a constant in the render that has the context.
+ */
+function withheld(
+	ast: Node,
+	found: Map<string, Declared & { node: Node; free: Set<string> }>,
+	reading: Neutral[],
+	gone: Set<string>,
+	changed: Map<string, string>,
+): void {
+	const instance = ast['instance'];
+	const content = isNode(instance) ? instance['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	const overlaps = (from: number, to: number): boolean =>
+		reading.some(([[a, b]]) => from < b && a < to);
+	for (let moved = true; moved;) {
+		moved = false;
+		const tainted = new Set(gone);
+		for (let grew = true; grew;) {
+			grew = false;
+			for (const [name, one] of found) {
+				if (tainted.has(name)) continue;
+				const kind = one.node['type'];
+				const callable =
+					kind === 'FunctionDeclaration' ||
+					kind === 'FunctionExpression' ||
+					kind === 'ArrowFunctionExpression';
+				if (callable && [...one.free].some((each) => tainted.has(each))) {
+					tainted.add(name);
+					grew = true;
+				}
+			}
+		}
+		const spans = reading.map(([at]) => at);
+		for (const one of found.values()) {
+			if (gone.has(one.name) || overlaps(one.at[0], one.at[1])) continue;
+			const calls = callees(one.node, spans);
+			if (![...calls].some((each) => tainted.has(each))) continue;
+			reading.push([one.at, one.holds]);
+			gone.add(one.name);
+			if (!changed.has(one.name)) changed.set(one.name, withheldBecause(one.name));
+			moved = true;
+		}
+		for (const statement of body) {
+			if (!isNode(statement)) continue;
+			const type = statement['type'];
+			if (
+				type === 'FunctionDeclaration' ||
+				type === 'VariableDeclaration' ||
+				type === 'ImportDeclaration' ||
+				type === 'ExportNamedDeclaration' ||
+				type === 'ClassDeclaration'
+			) {
+				continue;
+			}
+			// A `$:` is written over past its label, as `reactive()` writes it.
+			const target =
+				type === 'LabeledStatement' && isNode(statement['body']) ? statement['body'] : statement;
+			const { start, end } = target;
+			if (typeof start !== 'number' || typeof end !== 'number' || overlaps(start, end)) continue;
+			const calls = callees(target, spans);
+			if (![...calls].some((each) => tainted.has(each))) continue;
+			// Opening with its own semicolon too: what precedes it may be a neutralised declaration
+			// written as a bare `null` on the same line, which nothing else ends.
+			reading.push([[start, end], ';undefined;']);
+			const assigns = new Set<string>();
+			writes(target, assigns);
+			for (const name of assigns) {
+				gone.add(name);
+				if (!changed.has(name)) changed.set(name, withheldBecause(name));
+			}
+			moved = true;
+		}
+	}
 }
 
 /**
