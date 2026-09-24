@@ -752,6 +752,37 @@ const accepted: Case[] = [
 		data: [{ a: 1 }],
 		transformError: (error) => `caught ${String(error)}`,
 	},
+	// **What Svelte's render reads while it writes**, read per request and never at the build: a
+	// module's state, a fresh symbol, a host's global. Each of these was refused. See spec/derivation.md,
+	// "Ambient input is read at request time, never at the build".
+	{
+		// Changed only by a handler, which the server never runs: the state as it stands at the
+		// request, read in the carried bundle's instance of the module.
+		name: 'a read of module state only a handler changes',
+		alongside: {
+			'held.js': 'export let count = 0;\nexport function inc() { count += 1; }\n',
+		},
+		source:
+			"<script>import { count, inc } from './held.js'; let { data } = $props();</script>" +
+			'<button onclick={inc}>{count}{data.a}</button>',
+		data: [{ a: 'x' }, { a: 'y' }],
+	},
+	{
+		// One value per request where substitution would make one per read: two reads, one symbol.
+		name: 'a declaration the markup reaches holding a value that is not the same twice',
+		source:
+			'<script>let { data } = $props(); const s = Symbol(); const o = { [s]: data.a };</script>' +
+			'<p>{s in o}</p>',
+		data: [{ a: 1 }],
+	},
+	{
+		// A name no script writes is the host's, read where Svelte's render reads it.
+		name: 'a name read under `typeof` and beside it',
+		source:
+			"<script>let { data } = $props(); globalThis['myst' + 'ery'] ??= 'm';</script>" +
+			'<p>{typeof mystery}{mystery}{data.a}</p>',
+		data: [{ a: 1 }],
+	},
 	{
 		// A store the request brings. It used to be refused: the payload was the wire too, and a
 		// store is an object with a `subscribe` function. The render input holds any value, and
@@ -3937,29 +3968,6 @@ const refused: Case[] = [
 		says: 'is a component read by an expression this artifact holds',
 	},
 	{
-		// A component's `<script module>` is module state too, reached by a named import of the
-		// component. The render mutates its own instance of that module and would bake whatever it
-		// left behind; the artifact's instance is a different one, per request. One render cannot
-		// show it -- the oracle renders once and agrees -- which is why this is a refusal and not a
-		// byte comparison.
-		name: 'a name a component`s module script changes',
-		says: 'a module binding something in that module changes',
-		beside: {
-			Held: '<script module>export let n = 0; export function bump() { n += 1 }</script><i>h</i>',
-		},
-		source:
-			"<script>import { n, bump } from './Held.svelte'; let { data } = $props(); bump();" +
-			'</script><p>{n}|{data.a}</p>',
-	},
-	{
-		// And a name read both ways still has to come from somewhere. No script writes it, so what
-		// it could only be is a global of whatever is running, a gap that waits on spec/derivation.md
-		// rather than a binding this compiler failed to record.
-		name: 'a name read under `typeof` and beside it',
-		says: 'no script in this file writes',
-		source: `${PROPS}<p>{typeof mystery}{mystery}</p>`,
-	},
-	{
 		// Where the object itself is what the request decides there is nothing to put a marker
 		// inside: its keys cannot be listed, so no object can stand in it while the bytes are
 		// written. Refused by name rather than written wrong.
@@ -3975,17 +3983,6 @@ const refused: Case[] = [
 		says: 'its keys cannot be listed',
 	},
 	{
-		// A declaration is substituted at every read, so a value that is not the same twice is a
-		// different value at each of them. `Math.random` was already refused where the markup wrote
-		// it; this is the same rule reaching the declaration the markup read, and `Symbol()` is the
-		// shape that found it -- two reads, two symbols, and `false` where Svelte writes `true`.
-		name: 'a declaration the markup reaches holding a value that is not the same twice',
-		source:
-			'<script>let { data } = $props(); const s = Symbol(); const o = { [s]: data.a };</script>' +
-			'<p>{s in o}</p>',
-		says: 'the same twice',
-	},
-	{
 		// The object a caller passed is rebuilt wherever it is read -- the entry's out of the
 		// payload, a child's out of what its call site wrote -- so a write into it is lost:
 		// measured, `$: $$restProps.c = 'c'` beside `{$$restProps.c}` wrote nothing where Svelte
@@ -3996,6 +3993,31 @@ const refused: Case[] = [
 		source:
 			"<script>export let a; $: $$restProps.c = $$restProps.c ?? 'c';</script>" +
 			'<p>{a}{$$restProps.c}</p>',
+	},
+	{
+		// A component's `<script module>` is module state too, reached by a named import. This render
+		// calls into it -- `bump()` as the script runs -- so the value depends on calls made while the
+		// bytes are written, in their order, which a derivation reading the module does not keep.
+		name: 'a name a component`s module script changes',
+		says: 'read beside a call into that module',
+		beside: {
+			Held: '<script module>export let n = 0; export function bump() { n += 1 }</script><i>h</i>',
+		},
+		source:
+			"<script>import { n, bump } from './Held.svelte'; let { data } = $props(); bump();" +
+			'</script><p>{n}|{data.a}</p>',
+	},
+	{
+		// The same from the markup: `{mark(r)}` changes what `{seen.length}` reads, per item.
+		name: 'a read of module state something in that module changes',
+		says: 'read beside a call into that module',
+		alongside: {
+			'held.js':
+				'export const seen = [];\nexport function mark(x) { seen.push(x); return seen.length; }\n',
+		},
+		source:
+			"<script>import { mark, seen } from './held.js'; let { data } = $props();</script>" +
+			'{#each data.rows as r}<b>{mark(r)}:{seen.length}</b>{/each}',
 	},
 	{
 		// `export { x }` is a prop only where `x` is a plain `let` or `var`: over a `const` it is a
@@ -4229,23 +4251,6 @@ const refused: Case[] = [
 			"<script>let { data } = $props(); const k = 'twice';" +
 			' class T { n = 1; [k] = $derived(this.n * 2); }' +
 			' const t = new T();</script><p>{t[k] + data.a}</p>',
-	},
-	{
-		// The render's module instances are not the artifact's. An expression the walk judges inert
-		// is handed back for Svelte to evaluate in the render, which imports the module afresh; a
-		// derivation evaluates in the carried bundle, which imported it once. Where the module holds
-		// no state the two agree; where it does, they are two states -- `{mark(n)}` ran in the
-		// bundle and `{seen.length}` in the render, where `mark` was a marker and never ran: `1:0`,
-		// `2:0` against Svelte's `1:1`, `2:2`.
-		name: 'a read of module state something in that module changes',
-		says: 'a module binding something in that module changes',
-		alongside: {
-			'held.js':
-				'export const seen = [];\nexport function mark(x) { seen.push(x); return seen.length; }\n',
-		},
-		source:
-			"<script>import { mark, seen } from './held.js'; let { data } = $props();</script>" +
-			'{#each data.rows as r}<b>{mark(r)}:{seen.length}</b>{/each}',
 	},
 	{
 		// `setContext(k, v)` runs while the bytes are written and a descendant's `getContext(k)`

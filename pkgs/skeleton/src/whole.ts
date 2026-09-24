@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { parse } from 'svelte/compiler';
-import { AT_REQUEST, resolved } from 'ast';
+import { AT_REQUEST, bindings, resolved } from 'ast';
 import { propsOf } from './compose.ts';
 import { isNode, type AstNode } from './node.ts';
 import { renderRewritten } from './render.ts';
@@ -68,6 +68,9 @@ function steady(one: { file: string; source: string }): boolean {
 	if (!one.file.endsWith('.svelte')) return true;
 	try {
 		resolved(one.source, basename(one.file), one.file);
+		// A clock, randomness or a host's global resolves now, read per request; the build reading
+		// one in its place is the thing refused, which is exactly what this path would do.
+		if (bindings(one.source, one.file).unresolved.length > 0) return false;
 	} catch {
 		return false;
 	}

@@ -26,7 +26,12 @@ export function resolved(source: string, where: string, file?: string): void {
 	// a child the walk does not enter is Svelte's to render, where the names are its own. So there
 	// is nowhere left for one of these to be unresolved, and reporting them refused components that
 	// compile.
-	const loose = bindings(source, file).unresolved.filter((one) => !RESERVED.has(one.name));
+	// A clock, randomness and a host's global are read per request, where Svelte's render reads them,
+	// so they resolve; what is left is a name a script writes that no binding was recorded for. See
+	// spec/derivation.md, "Ambient input is read at request time, never at the build".
+	const loose = bindings(source, file).unresolved.filter(
+		(one) => !RESERVED.has(one.name) && one.reason === 'unknown',
+	);
 	if (loose.length === 0) return;
 
 	// One line per name rather than per occurrence, and the expression only where it says more
@@ -37,37 +42,10 @@ export function resolved(source: string, where: string, file?: string): void {
 	}
 	const show = ([name, at]: [string, string]): string =>
 		at === name ? `\`${name}\`` : `\`${name}\` in \`${at}\``;
-	const ambient = loose.filter((one) => one.reason === 'ambient').map((one) => one.name);
-	const free = loose.filter((one) => one.reason === 'free').map((one) => one.name);
-	const unknown = [...seen]
-		.filter(([name]) => !ambient.includes(name) && !free.includes(name))
-		.map(show);
-
-	// Three of these are refusals an author can act on now, so each says what to do about it rather
-	// than only what is wrong. See spec/refusals.md.
 	const reasons = [
-		unknown.length > 0
-			? `${unknown.join(', ')}, which the data does not carry; the name has to come from the \
-payload, an each block, a script in this file, or an import`
-			: '',
-		// **A name no script writes is the host's, a gap that waits on spec/derivation.md.** The
-		// other reading of an unresolved name is a binding this compiler failed to record. This one
-		// is not: nothing in the file wrote the name, so only the global scope of whatever is
-		// running can hold it -- ambient input, which the derive stage refuses. That the second
-		// backend has no host (spec/pipeline.md) is that backend's constraint, not a reason here;
-		// see spec/suite.md.
-		// `process` is the one name kept, and spec/derivation.md writes down what that costs.
-		free.length > 0
-			? `${[...new Set(free)].map((name) => `\`${name}\``).join(', ')}, which no script in this \
-file writes, so it can only be a global of whatever is running -- and a backend that is not Node \
-embeds an evaluator with no host to hold one. Read it in the load stage and put the value in the \
-data`
-			: '',
-		ambient.length > 0
-			? `${[...new Set(ambient)].map((name) => `\`${name}\``).join(', ')}, which does not read \
-the same twice; the load stage can determine the value and put it in the data`
-			: '',
-	].filter((one) => one !== '');
+		`${[...seen].map(show).join(', ')}, which the data does not carry; the name has to come from \
+the payload, an each block, a script in this file, or an import`,
+	];
 
 	throw new Error(`${where} reads ${reasons.join('; and ')}. See spec/derivation.md`);
 }

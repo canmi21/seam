@@ -33,21 +33,14 @@ describe('a name that cannot resolve is refused, by name', () => {
 	afterAll(() => rmSync(staging, { recursive: true, force: true }));
 
 	const refusals: [label: string, source: string, named: string][] = [
+		// A name a script writes and no declaration binds: this compiler failing to follow a binding,
+		// which is the one kind of unresolved name still refused. A name no script writes at all is
+		// the host's and is read per request; see below.
 		[
-			'a name that is neither a prop nor an import',
-			'<script>let { data } = $props()</script><b>{helpers[data.k](data.v)}</b>',
+			'a name a script writes that nothing declares',
+			'<script>let { data } = $props(); helpers = {}</script><b>{helpers[data.k]}</b>',
 			'helpers',
 		],
-		// `Date` itself is deterministic wherever it is given something -- `Date.parse(s)`,
-		// `new Date(s)`, `x instanceof Date` -- so it is a global. What is not is the clock: the
-		// `now` member, and a `Date` built from nothing.
-		['a clock', '<script>let { data } = $props()</script><b>{Date.now()}</b>', 'Date.now'],
-		[
-			'a clock built from nothing',
-			'<script>let { data } = $props()</script><b>{new Date().getTime()}</b>',
-			'Date()',
-		],
-		['randomness', '<script>let { data } = $props()</script><b>{Math.random()}</b>', 'Math.random'],
 	];
 
 	it.each(refusals)('%s', (_label, source, named) => {
@@ -56,6 +49,28 @@ describe('a name that cannot resolve is refused, by name', () => {
 		// Named rather than merely thrown: a refusal the author cannot act on is the failure this
 		// pass exists to replace. See spec/refusals.md.
 		expect(() => bundle(file, staging)).toThrow(`\`${named}\``);
+	});
+});
+
+// What Svelte's render reads while it writes -- a clock, randomness, a host's global -- resolves, and
+// is read per request rather than at the build. See spec/derivation.md, "Ambient input is read at
+// request time, never at the build".
+describe('a clock, randomness and a host global resolve', () => {
+	const staging = mkdtempSync(join(tmpdir(), 'seam-ambient-'));
+	afterAll(() => rmSync(staging, { recursive: true, force: true }));
+
+	it.each([
+		['a clock', '<script>let { data } = $props()</script><b>{Date.now()}</b>'],
+		[
+			'a clock built from nothing',
+			'<script>let { data } = $props()</script><b>{new Date().getTime()}</b>',
+		],
+		['randomness', '<script>let { data } = $props()</script><b>{Math.random()}</b>'],
+		['a host global', '<script>let { data } = $props()</script><b>{frag}</b>'],
+	])('%s', (_label, source) => {
+		const file = join(staging, 'component.svelte');
+		writeFileSync(file, source);
+		expect(() => bundle(file, staging)).not.toThrow();
 	});
 });
 

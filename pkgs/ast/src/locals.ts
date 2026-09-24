@@ -1,4 +1,5 @@
 import { parse } from 'svelte/compiler';
+import { ambientIn } from './ambient.ts';
 import { type Edit, type Neutral, apply } from './edits.ts';
 import {
 	bound as namesBound,
@@ -2090,6 +2091,19 @@ export function locals(
 		// The first sentence wins. A name assigned after being declared is often also changed by a
 		// function, and the assignment is the more particular of the two things to say.
 		if (!changed.has(name)) changed.set(name, why);
+	}
+	// A declaration whose initialiser does not read the same twice -- `const s = Symbol()` -- is one
+	// value per request, and substitution would make one per read. The script run holds it once. See
+	// spec/derivation.md, "Ambient input is read at request time, never at the build".
+	for (const [name, one] of found) {
+		if (changed.has(name) || ambientIn(one.node).length === 0) continue;
+		changed.set(
+			name,
+			`\`${name}\` is declared with a value that does not read the same twice, and the markup ` +
+				'reads a name by the expression it was declared to be, so every read would make another. ' +
+				'Compute the value in one expression, or move it into the load stage. See ' +
+				'spec/derivation.md',
+		);
 	}
 
 	// Svelte's own names for the object a caller passed are rebuilt at every read here -- the

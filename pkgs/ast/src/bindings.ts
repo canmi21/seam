@@ -1,5 +1,6 @@
 import { parse } from 'svelte/compiler';
 import { locals, parsed } from './locals.ts';
+import { ambientIn } from './ambient.ts';
 import { bySource } from './memo.ts';
 import { resolveBare } from './packages.ts';
 import {
@@ -123,26 +124,6 @@ const GLOBALS = new Set([
  * the server agree on.
  */
 export const AT_REQUEST: ReadonlySet<string> = new Set(['process']);
-
-/** Members of an allowed global that are not themselves deterministic. */
-const AMBIENT_MEMBERS: Record<string, ReadonlySet<string>> = {
-	Math: new Set(['random']),
-	Date: new Set(['now']),
-};
-
-/**
- * Globals whose call does not return the same value twice, so substituting one duplicates it.
- *
- * `Symbol()` is the one that found this: `const s = Symbol()` beside `s in obj` substituted the
- * call at both reads, made two different symbols, and wrote `false` where Svelte wrote `true`. It
- * is `Math.random` again in a shape a member test cannot see -- a bare call rather than a member.
- * `Symbol.for` is interned and is not one of these, which is why the test is on the callee being
- * the bare name.
- */
-const AMBIENT_CALLS: ReadonlySet<string> = new Set(['Symbol']);
-
-/** Globals whose call reads a clock when it is given nothing, and a value when it is given one. */
-const AMBIENT_EMPTY: ReadonlySet<string> = new Set(['Date']);
 
 export interface Unresolved {
 	name: string;
@@ -427,65 +408,12 @@ function report(
 }
 
 /**
- * The names in one expression that do not read the same twice, reported wherever it is found.
- *
- * A global on the list can still hold something that is not: `Math` is fine and `Math.random` is a
- * clock by another name. A bare call is the other shape, `Symbol()`.
+ * The names in one expression that do not read the same twice, reported wherever it is found. See
+ * `ambientIn()`.
  */
 function ambient(expression: unknown, text: string, into: Unresolved[]): void {
-	walkMembers(expression, (object, property) => {
-		if (AMBIENT_MEMBERS[object]?.has(property) === true) {
-			into.push({ name: `${object}.${property}`, expression: text, reason: 'ambient' });
-		}
-	});
-	walkCalls(expression, (name, empty) => {
-		if (AMBIENT_CALLS.has(name) || (empty && AMBIENT_EMPTY.has(name))) {
-			into.push({ name: `${name}()`, expression: text, reason: 'ambient' });
-		}
-	});
-}
-
-/** Every call whose callee is a bare name, by that name and whether it was given nothing. */
-function walkCalls(node: unknown, found: (name: string, empty: boolean) => void): void {
-	if (!isNode(node)) return;
-	if (node['type'] === 'CallExpression' || node['type'] === 'NewExpression') {
-		const callee = node['callee'];
-		const args = node['arguments'];
-		if (isNode(callee) && callee['type'] === 'Identifier' && typeof callee['name'] === 'string') {
-			found(callee['name'], Array.isArray(args) && args.length === 0);
-		}
-	}
-	for (const value of Object.values(node)) {
-		if (Array.isArray(value)) {
-			for (const one of value) walkCalls(one, found);
-		} else {
-			walkCalls(value, found);
-		}
-	}
-}
-
-function walkMembers(node: unknown, found: (object: string, property: string) => void): void {
-	if (!isNode(node)) return;
-	if (node['type'] === 'MemberExpression' && node['computed'] !== true) {
-		const object = node['object'];
-		const property = node['property'];
-		if (
-			isNode(object) &&
-			object['type'] === 'Identifier' &&
-			typeof object['name'] === 'string' &&
-			isNode(property) &&
-			typeof property['name'] === 'string'
-		) {
-			found(object['name'], property['name']);
-		}
-	}
-	for (const value of Object.values(node)) {
-		if (Array.isArray(value)) {
-			for (const child of value) walkMembers(child, found);
-		} else if (isNode(value)) {
-			walkMembers(value, found);
-		}
-	}
+	for (const name of ambientIn(expression))
+		into.push({ name, expression: text, reason: 'ambient' });
 }
 
 function markup(

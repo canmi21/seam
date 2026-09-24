@@ -472,10 +472,12 @@ async function ours(
 	// One bundle over what every structure of it calls, which is what a route gets.
 	const carried = await carry(first.file, merged(runs.map((one) => one.names)));
 	const derive = compileDerivations(compiled.derivations, carried);
-	return await inject(
-		compiled.ir as Parameters<typeof inject>[0],
-		derive(props, transformError === undefined ? {} : { transformError }),
-		csp === undefined ? {} : { csp },
+	return await seededly(async () =>
+		inject(
+			compiled.ir as Parameters<typeof inject>[0],
+			derive(props, transformError === undefined ? {} : { transformError }),
+			csp === undefined ? {} : { csp },
+		),
 	);
 }
 
@@ -557,21 +559,45 @@ async function theirs(
 		const mod = (await import(pathToFileURL(out).href)) as {
 			default: Parameters<typeof render>[0];
 		};
-		const rendered = render(mod.default, {
-			props: props as never,
-			...(transformError === undefined ? {} : { transformError }),
-			...(csp === undefined ? {} : { csp }),
+		return seededly(async () => {
+			const rendered = render(mod.default, {
+				props: props as never,
+				...(transformError === undefined ? {} : { transformError }),
+				...(csp === undefined ? {} : { csp }),
+			});
+			if (Object.keys(ASYNC).length > 0) {
+				const held = (await rendered) as Rendered;
+				return {
+					body: held.body,
+					head: held.head,
+					...(held.hashes === undefined ? {} : { hashes: held.hashes }),
+				};
+			}
+			return { body: rendered.body, head: rendered.head };
 		});
-		if (Object.keys(ASYNC).length > 0) {
-			const held = (await rendered) as Rendered;
-			return {
-				body: held.body,
-				head: held.head,
-				...(held.hashes === undefined ? {} : { hashes: held.hashes }),
-			};
-		}
-		return { body: rendered.body, head: rendered.head };
 	});
+}
+
+/**
+ * One side's render with `Math.random` drawing the numbers the other side's draws: a sample that
+ * reads randomness agrees only where both read one sequence. It makes nothing agree that would not:
+ * a render drawing a different number of times, or in another order, still writes other bytes. See
+ * spec/suite.md.
+ */
+async function seededly<T>(run: () => Promise<T>): Promise<T> {
+	const random = Math.random;
+	let state = 0x9e3779b9;
+	Math.random = () => {
+		state = (state + 0x6d2b79f5) >>> 0;
+		let mixed = Math.imul(state ^ (state >>> 15), state | 1);
+		mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
+		return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+	};
+	try {
+		return await run();
+	} finally {
+		Math.random = random;
+	}
 }
 
 /**

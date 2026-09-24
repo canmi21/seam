@@ -39,19 +39,18 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 ## Waiting on a decision
 
-- [ ] **May the derive stage read ambient state, or be non-deterministic?**
-  - E, a clock, randomness, a fresh symbol: random, props-derived; and state-snapshot-date,
-    derived-rest-includes-symbol, whose bytes are constant but which cannot be proved so without
-    baking an ambient value or rendering twice. `random` also needs the suite to give both sides
-    the same numbers before it can compare bytes.
-  - F, a host global and module state: globals-deconflicted, reactive-import-statement
-
 ## Also open
 
 - [ ] Refusal messages still carry the withdrawn scope reasons ("an artifact has nowhere to
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- E and F, 6 samples: a derivation reads a clock, randomness, a fresh symbol, a host's global and a
+  module's state per request, as the server render does, and the build never reads one in its
+  place (random, props-derived, state-snapshot-date, derived-rest-includes-symbol,
+  globals-deconflicted, reactive-import-statement). spec/derivation.md, "Ambient input is read at
+  request time, never at the build". Module state the render itself changes stays refused.
 
 - D, 8 samples: a boundary with a `failed` snippet over markup and expressions is a block
   (boundary-error-failed-prop, boundary-error-with-onerror, the four boundary-error-html-comment

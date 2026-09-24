@@ -257,10 +257,21 @@ runs, which is when Svelte's render would have read them. `$.now`, `$.tz` and `$
 the load stage determines and carries -- are still the way to make the client agree with the
 server, and they are the author's choice, not this compiler's requirement.
 
-**A value read once is read once.** Substitution writes an initialiser at every read, and a call
-that does not answer the same twice -- `const s = Symbol()` read in two places -- would then be two
-calls where Svelte makes one. So a declaration whose initialiser reads one of these is a name
-substitution cannot follow, and the script run answers it, one value per request.
+**A value read once is read once, and two places are two.** Substitution writes an initialiser at
+every read, and a call that does not answer the same twice -- `const s = Symbol()` read in two
+places -- would then be two calls where Svelte makes one. So a declaration whose initialiser reads
+one of these is a name substitution cannot follow, and the script run answers it, one value per
+request. The other way round, lowering makes one derivation per expression text, and
+`{Math.random()}` written twice is two numbers in Svelte's render, so such an expression carries the
+place it was written as a comment: one place substituted at three reads is still one derivation,
+two places are two (`placed()` in `walk.ts`).
+
+**A module's state is read as it stands at the request, unless the render itself changes it.** A
+binding its own module changes is read in the carried bundle, which imports the module once as a
+server process does -- right where only a handler changes it, which the server never runs. Where the
+component's script or markup calls into that module while the bytes are written, the value depends
+on those calls in their order, which a derivation reading the module does not keep, and that stays
+refused (`stirred()` in `walk.ts`).
 
 It was refused outright before, with the determined values the only way in; that rule was stricter
 than the render the bytes are compared with, and it moved a clock the author wrote into the load
@@ -743,6 +754,11 @@ two tests Svelte evaluates in order until one is true, so `b` is reached only wh
 Waiting for every answer before folding kept the block a decision -- and the ask for a test is
 written into the script, where it runs whatever branch the render takes, so a test the source never
 evaluates was evaluated. They are asked one at a time in source order for the same reason.
+
+**And a later test the request decides does not undo that.** A chain whose render-decided prefix holds
+a true answer is decided whatever follows, since what follows is never evaluated:
+`{#if $foo}blah{:else if bar()}` over a `bar` the host holds is the first branch for every request,
+and `bar()` -- a host's name now, read per request -- was keeping the whole chain undecided.
 
 **It is asked once, and where the offsets are the walk's.** `bundle()` runs the same check over the
 whole tree the entry reaches, and it reads each file from disk -- which is not the source the walk

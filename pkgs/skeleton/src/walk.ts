@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs';
 import { basename, dirname, relative, resolve as resolvePath } from 'node:path';
 import { parse } from 'svelte/compiler';
 import {
+	ambientIn,
 	apply,
 	AT_REQUEST,
+	bindings,
 	type Carried,
 	constant,
 	type Edit,
@@ -244,6 +246,12 @@ export interface Site {
 	 * two scopes and the union only ever refuses more. See spec/derivation.md.
 	 */
 	changing: Map<string, string>;
+	/**
+	 * The names this file reads that no script in it writes: a host's globals, read per request and
+	 * never by the build. See `hostedIn()`, and spec/derivation.md, "Ambient input is read at request
+	 * time, never at the build".
+	 */
+	hosted: RegExp | null;
 	/**
 	 * The fragment this file's copy is the body of, where the component renders itself: a call of
 	 * itself inside it is a call of this fragment. Undefined for a component that does not.
@@ -3224,6 +3232,51 @@ function unstable(walk: Walk): ReadonlySet<string> {
 }
 
 /**
+ * Whether this component's own render calls into a relative module that changes something of its
+ * own: a call its script makes as it runs, or one its markup makes, and not one inside a function
+ * only a handler runs. See `unstable()`.
+ */
+function stirred(walk: Walk): boolean {
+	const into = new Set<string>();
+	for (const [local, one] of walk.site.carried) {
+		if (!one.from.startsWith('.')) continue;
+		if (changedBy(resolvePath(dirname(walk.site.file), one.from)).size > 0) into.add(local);
+	}
+	if (into.size === 0) return false;
+	let ast: AstNode;
+	try {
+		ast = parsedComponent(walk.source) as AstNode;
+	} catch {
+		return true;
+	}
+	const called = new Set<string>();
+	const visit = (node: unknown): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) visit(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		const type = node['type'];
+		if (
+			type === 'FunctionDeclaration' ||
+			type === 'FunctionExpression' ||
+			type === 'ArrowFunctionExpression'
+		) {
+			return;
+		}
+		const callee = node['callee'];
+		if (type === 'CallExpression' && isNode(callee) && typeof callee['name'] === 'string') {
+			called.add(callee['name']);
+		}
+		for (const value of Object.values(node)) visit(value);
+	};
+	const instance = ast['instance'];
+	visit(isNode(instance) ? instance['content'] : undefined);
+	visit(ast['fragment']);
+	return [...called].some((one) => into.has(one));
+}
+
+/**
  * A `<svelte:boundary>` with a `failed` snippet, as a block: the children where nothing threw, the
  * snippet over the request's `transformError` of what did. See spec/ir.md, "A boundary that may
  * throw is a block of its own, lowered to an `if`".
@@ -3330,6 +3383,52 @@ export const HYDRATABLE_RUN =
 	'writes is made from the calls the entry makes first, and a run cannot hand back which it ' +
 	'made. See spec/derivation.md';
 
+/**
+ * An expression that does not read the same twice, marked with where it was written.
+ *
+ * Lowering makes one derivation per expression text, which is right for one expression substituted
+ * at several reads -- Svelte evaluated it once -- and wrong for two places that happen to write the
+ * same text: `{Math.random()}` twice is two numbers in Svelte's render. The place goes in as a
+ * comment, so text from one place still meets itself and two places stay two.
+ */
+function placed(text: string, node: unknown, file: string): string {
+	const at = span(node);
+	// Text that already carries a place came from there by substitution: a prop read three times in
+	// a child is the caller's one expression, which Svelte evaluated once.
+	if (at === null || text.includes('/*@') || !ambientText(text)) return text;
+	return `${text} /*@${basename(file).replaceAll('*', '')}:${String(at[0])} */`;
+}
+
+/** Whether an expression reads a clock, randomness or a fresh symbol. See `ambientIn()` in `ast`. */
+function ambientText(expression: string): boolean {
+	if (!/\b(?:Math|Date|Symbol)\b/.test(expression)) return false;
+	try {
+		const fragment = (parsed(expression) as AstNode)['fragment'];
+		const [tag] = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+		return isNode(tag) && ambientIn(tag['expression']).length > 0;
+	} catch {
+		return true;
+	}
+}
+
+/**
+ * A file's host globals as a test by the word: a name no script in it writes. By the word rather than
+ * through `mentions`, which reads an expression it cannot parse as naming everything. See `varies()`.
+ */
+function hostedIn(source: string, file: string): RegExp | null {
+	let names: string[];
+	try {
+		names = bindings(source, file)
+			.unresolved.filter((one) => one.reason === 'free')
+			.map((one) => one.name);
+	} catch {
+		return null;
+	}
+	if (names.length === 0) return null;
+	const words = [...new Set(names)].map((one) => one.replace(/[$]/g, '\\$'));
+	return new RegExp(`(?:^|[^$\\w.])(?:${words.join('|')})\\b`);
+}
+
 /** Whether an expression reads a context, which is a channel this walk does not follow. */
 const READS_CONTEXT = /\bget(?:All)?Contexts?\b/;
 
@@ -3371,6 +3470,12 @@ function varies(
 	// `$derived(...)` is one of those, and it took a sample that has nothing to do with the
 	// environment. See `AT_REQUEST`.
 	if (SERVER_HELD.test(expression)) return outside(expression);
+	// A clock, randomness, a fresh symbol or a host's global: what Svelte's render reads while it
+	// writes, which a derivation reads per request and the build never reads in its place. See
+	// spec/derivation.md, "Ambient input is read at request time, never at the build".
+	if (ambientText(expression) || walk.site.hosted?.test(expression) === true) {
+		return outside(expression);
+	}
 	// A context read where something in this walk set one from a value the request decides. Neither
 	// `getContext` nor the key is a name the request decides, so this would be handed to the render
 	// -- which holds the neutralised value the `setContext` was given there. Refused rather than
@@ -3380,16 +3485,22 @@ function varies(
 	// the carried bundle imported it once, so an inert read is answered by the wrong one of the two
 	// -- and there is no place in this pipeline that is right, a derivation being pure and held.
 	// See `changedBy()`.
+	// Read per request instead, in the carried bundle, which imported the module once as a server
+	// process does -- the state as it stands at the request. See spec/derivation.md. Unless this
+	// render itself calls into that module: the change would then be made while the bytes are
+	// written, in an order the render keeps and a derivation reading the module does not.
 	const moving = unstable(walk);
 	if (moving.size > 0 && mentions(expression, moving)) {
-		refuse(
-			`a module binding something in that module changes -- ${[...moving]
-				.map((one) => `\`${one}\``)
-				.join(', ')} -- read where the value has to be written into the bytes. The render ` +
-				'imports the module again and the artifact imported it once, so the two hold different ' +
-				'states, and a derivation is a pure expression computed once. Read it in the load ' +
-				'stage and put the value in the data. See spec/refusals.md',
-		);
+		if (stirred(walk)) {
+			refuse(
+				`a module binding something in that module changes -- ${[...moving]
+					.map((one) => `\`${one}\``)
+					.join(', ')} -- read beside a call into that module this render makes, so the value ` +
+					'depends on the calls made while the bytes are written, in their order, which a ' +
+					'derivation reading the module per request does not keep. See spec/derivation.md',
+			);
+		}
+		return outside(expression);
 	}
 	if (walk.site.contexts.size > 0 && READS_CONTEXT.test(expression)) {
 		refuse(
@@ -6138,14 +6249,34 @@ function collect(node: unknown, walk: Walk): void {
 			// it asks: the render reports the value and the walk runs again told. Until then the
 			// block is walked as a decision so that the render it is asked of can be made.
 			let branches: Walk = walk;
+			// **Up to the first test the request decides.** A later test is reached only where every
+			// earlier one was false, so a chain whose render-decided prefix holds a true one is decided
+			// whatever comes after: `{#if $foo}blah{:else if bar()}` over a `bar` the host holds is
+			// the first branch for every request, and `bar()` is never called.
+			const deciding = tests.findIndex(
+				(test) => varies(test, walk, true) || site.mute.has(keyed(walk, test)),
+			);
+			const prefix = deciding === -1 ? tests : tests.slice(0, deciding);
+			const heard = reached(prefix.map((test) => site.decided.get(keyed(walk, test))));
 			if (
 				site.payload !== null &&
 				walk.asking !== true &&
-				tests.every((test) => !varies(test, walk, true) && !site.mute.has(keyed(walk, test)))
+				deciding !== -1 &&
+				heard !== null &&
+				heard >= 0
 			) {
-				const answers = tests.map((test) => site.decided.get(keyed(walk, test)));
+				oneBranch(walk, chain, tests, heard, otherwise, edits, step);
+				return;
+			}
+			if (
+				site.payload !== null &&
+				walk.asking !== true &&
+				deciding !== 0 &&
+				(deciding === -1 || heard === null)
+			) {
+				const answers = prefix.map((test) => site.decided.get(keyed(walk, test)));
 				const at = reached(answers);
-				if (at !== null) {
+				if (at !== null && deciding === -1) {
 					oneBranch(walk, chain, tests, at, otherwise, edits, step);
 					return;
 				}
@@ -6155,7 +6286,7 @@ function collect(node: unknown, walk: Walk): void {
 				// script, where it runs whatever branch the render takes. Asked all at once,
 				// `{#if $foo}blah{:else if bar()}` evaluated `bar()` for a chain whose first test is
 				// true, and `bar` is a name that sample never binds.
-				for (const [index, test] of tests.entries()) {
+				for (const [index, test] of prefix.entries()) {
 					if (answers[index] === false) continue;
 					if (!site.asks.some(([key]) => key === keyed(walk, test))) {
 						site.asks.push([keyed(walk, test), asWritten(chain[index]?.['test'], test, walk)]);
@@ -7386,7 +7517,15 @@ function descend(
 
 			within: recursion === null ? walk.within : [...walk.within, [fragmentAt, 0]],
 			expand: (child, extra) =>
-				declared.rewrite(child, new Map([...bound, ...ranBy, ...(extra ?? new Map())]), walk.sent),
+				placed(
+					declared.rewrite(
+						child,
+						new Map([...bound, ...ranBy, ...(extra ?? new Map())]),
+						walk.sent,
+					),
+					child,
+					file,
+				),
 			plain: (child, extra) => declared.rewrite(child, extra),
 			runeOf: declared.rune,
 			declares: declared.has,
@@ -7401,6 +7540,7 @@ function descend(
 				root: walk.site.root,
 				blocked: blockedBy(ast),
 				moved: movedBy(ast, inside),
+				hosted: hostedIn(raw, file),
 				imports: importsOf(raw),
 				carried: importedBy(raw),
 				defaults: new Map(),
@@ -7887,11 +8027,14 @@ export function rewrite(
 		blocks,
 		taken,
 		stream: 'body',
-		expand:
-			renamed.size === 0 && sent.size === 0
-				? declared.rewrite
-				: (node, extra) =>
-						declared.rewrite(node, new Map([...renamed, ...(extra ?? new Map())]), sent),
+		expand: (node, extra) =>
+			placed(
+				renamed.size === 0 && sent.size === 0
+					? declared.rewrite(node, extra)
+					: declared.rewrite(node, new Map([...renamed, ...(extra ?? new Map())]), sent),
+				node,
+				file,
+			),
 		plain: declared.rewrite,
 		runeOf: declared.rune,
 		declares: declared.has,
@@ -7908,6 +8051,7 @@ export function rewrite(
 			root,
 			blocked: blockedBy(ast),
 			moved: movedBy(ast, payload ?? new Set()),
+			hosted: hostedIn(source, file),
 			imports: importsOf(source),
 			carried: importedBy(source),
 			defaults: propDefaultNodes,

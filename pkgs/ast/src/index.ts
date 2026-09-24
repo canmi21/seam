@@ -7,6 +7,7 @@ export {
 	readsOf,
 	type Unresolved,
 } from './bindings.ts';
+export { ambientIn } from './ambient.ts';
 export { bundle } from './bundle.ts';
 export { CAPTURE, captured, readsReplaced, RUN_NAME } from './capture.ts';
 export { apply, type Edit, type Neutral } from './edits.ts';

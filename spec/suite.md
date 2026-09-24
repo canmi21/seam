@@ -411,6 +411,11 @@ mise run vendor-baseline -- --write --skip-failing
 
 Run from anywhere in the workspace it is `mise run //repos/seam:vendor-baseline`.
 
+**Both sides draw one sequence of random numbers.** A sample that reads randomness renders other
+bytes on every run, on either side, so each side's render is given the same seeded `Math.random`
+for the length of that render (`seededly()` in the runner). It makes nothing agree that would not: a
+render drawing a different number of times, or in another order, still writes other bytes.
+
 **The table is written last and the samples are silenced while they run.** A sample is a component
 somebody wrote to exercise Svelte and a good number of them log: 127 lines of `0n`, `1n`, `100`,
 `undefined` used to come out of the corpus before the table did, and a terminal shows the end of
