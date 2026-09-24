@@ -1068,7 +1068,7 @@ constraint, the framework layer's; at this layer props are values in the render'
 [payload.md](payload.md) now splits the render input, which holds them, from the wire, which does
 not. A `$x` over a prop is `$$get_store(x)` in the derivation, as one over a store the file declares
 already was, and a script statement assigning a store from one is the request's (`movedBy()` reads
-`$x` as a read of `x`). The component half waits on which components a request may hand in.
+`$x` as a read of `x`). The component half is decided: one the source names none of compiles, rendering nothing for nothing and throwing per request otherwise, or is refused at the build under `refuseUnnamedComponents` ([payload.md](payload.md)).
 
 **A value that is not the same twice.** `Math.random`, `Date`, `Symbol()`. Filed as a value a build
 would freeze. Evaluated per request it has the server render's semantics, and it is the

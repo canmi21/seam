@@ -55,6 +55,12 @@ export interface Options {
 	 * compiler renders the route once per combination. See spec/build.md.
 	 */
 	enumerate?: Readonly<Record<string, Readonly<Record<string, readonly unknown[]>>>>;
+	/**
+	 * Refuse at the build a component the request hands in that the source names none of. Off by
+	 * default: it renders nothing for a value that is nothing and throws per request for anything
+	 * else, as Svelte throws for what is not a component. See spec/payload.md.
+	 */
+	refuseUnnamedComponents?: boolean;
 }
 
 export function seam(options: Options = {}): Plugin {
@@ -145,6 +151,9 @@ export function seam(options: Options = {}): Plugin {
 			configFile: config.configFile ?? null,
 			outDir,
 			...(options.enumerate === undefined ? {} : { enumerate: options.enumerate }),
+			...(options.refuseUnnamedComponents === undefined
+				? {}
+				: { refuseUnnamedComponents: options.refuseUnnamedComponents }),
 		};
 		// One compile per set of inputs. `vite build` resolves the config more than once with
 		// `build.ssr` set -- twice for Kit alone, three times with an adapter that builds again --

@@ -35,6 +35,8 @@ export interface Compiling {
 	outDir: string;
 	/** See `Options.enumerate`. */
 	enumerate?: Readonly<Record<string, Readonly<Record<string, readonly unknown[]>>>>;
+	/** See `Options.refuseUnnamedComponents`. */
+	refuseUnnamedComponents?: boolean;
 }
 
 export async function compileRoutes({
@@ -42,6 +44,7 @@ export async function compileRoutes({
 	configFile,
 	outDir,
 	enumerate: declared,
+	refuseUnnamedComponents,
 }: Compiling): Promise<void> {
 	const found = await entries(root);
 	const out = resolve(outDir, ARTIFACTS);
@@ -147,6 +150,7 @@ export async function compileRoutes({
 					: { path: one.path, component: one.component, enumerate: each };
 			}),
 			out,
+			...(refuseUnnamedComponents === undefined ? {} : { refuseUnnamedComponents }),
 		});
 	} finally {
 		forgetStaging();

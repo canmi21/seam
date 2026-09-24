@@ -59,3 +59,18 @@ export function tried(run: () => unknown): unknown {
 		return undefined;
 	}
 }
+
+/**
+ * Whether a component the request handed in renders, where the source names none it could be:
+ * nothing for a value that is nothing, and a throw for anything else, which the artifact holds no
+ * bytes for. Svelte renders whatever it is handed; the project may ask for this refused at the build
+ * instead. See spec/payload.md.
+ */
+export function unnamed(value: unknown): boolean {
+	if (value === null || value === undefined) return false;
+	throw new Error(
+		'a component the source does not name reached `<svelte:component>` at request time, and this ' +
+			'artifact renders only the components the source names. Name it in the source, or set ' +
+			'`refuseUnnamedComponents` to have it refused at the build.',
+	);
+}

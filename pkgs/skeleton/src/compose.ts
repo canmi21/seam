@@ -451,6 +451,7 @@ export const CARRIED = [
 	'stringify',
 	'to_array',
 	'tried',
+	'unnamed',
 ] as const;
 
 /**

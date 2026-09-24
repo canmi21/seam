@@ -717,5 +717,8 @@ export function helpers(rendered: Skeleton): Carried[] {
 	if (written.some((one) => one.includes('$$tried('))) {
 		found.push({ local: '$$tried', from: caughtAt, kind: 'named', exported: 'tried' });
 	}
+	if (written.some((one) => one.includes('$$unnamed('))) {
+		found.push({ local: '$$unnamed', from: caughtAt, kind: 'named', exported: 'unnamed' });
+	}
 	return found;
 }

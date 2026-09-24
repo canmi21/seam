@@ -31,6 +31,7 @@ import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject } from 'injector';
 import { lower } from 'lowering';
 import { expressionsOf, helpers, skeleton } from './skeleton.ts';
+import { configureUnnamedComponents } from './walk.ts';
 
 // Its own directory: `skeleton()` stages Svelte's compiled output in `../.build` and removes it
 // when it is done, which would take this with it halfway through a case.
@@ -782,6 +783,13 @@ const accepted: Case[] = [
 			"<script>let { data } = $props(); globalThis['myst' + 'ery'] ??= 'm';</script>" +
 			'<p>{typeof mystery}{mystery}{data.a}</p>',
 		data: [{ a: 1 }],
+	},
+	{
+		// A component the request hands in that the source names none of: nothing for a value that is
+		// nothing, as Svelte writes, and a throw per request for anything else -- see below.
+		name: 'a dynamic component chosen by the request',
+		source: '<script>let { data } = $props(); const Pick = $derived(data.c);</script><Pick />',
+		data: [{ c: null }, {}],
 	},
 	{
 		// A store the request brings. It used to be refused: the payload was the wire too, and a
@@ -4101,15 +4109,6 @@ const refused: Case[] = [
 		says: 'scoping class',
 	},
 	{
-		// Chosen by a value the request decides, and the source names no component it could be: the
-		// payload carries data and no function, so the component this renders is the one the request
-		// sent and there are no bytes for it. A `?:` or a lookup in a literal would be enumerable
-		// and stops the walk to ask instead, and a `this` naming one candidate is a block.
-		name: 'a dynamic component chosen by the request',
-		source: '<script>let { data } = $props(); const Pick = $derived(data.c);</script><Pick />',
-		says: 'the source names none it could be',
-	},
-	{
 		// Svelte's scope cannot prove a prop defined, so it writes `if (p) { pending } else {
 		// children }`: a choice per request over a snippet that arrived as a value.
 		name: 'a boundary given its pending snippet from a prop',
@@ -4521,6 +4520,40 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 			const theirs = render(mod.default, { props: props as never, ...options });
 			expect(ours.body).toBe(theirs.body);
 			expect(ours.head).toBe(theirs.head);
+		}
+	});
+});
+
+describe('a component the request hands in that the source names none of', () => {
+	const unnamed: Case = {
+		name: 'unnamed',
+		source: '<script>let { data } = $props();</script><svelte:component this={data.c} />',
+	};
+
+	it('throws per request for a value that is something', async () => {
+		const { ir, derivations, carried, refusal } = await attempt(unnamed, 'unnamed-off');
+		expect(refusal).toBeUndefined();
+		const derive = compileDerivations(derivations ?? [], carried ?? '');
+		let thrown: unknown;
+		try {
+			await inject(ir as Parameters<typeof inject>[0], derive({ data: { c: () => {} } }));
+		} catch (error) {
+			thrown = error;
+		}
+		// Through `derive`, which names the derivation and keeps the cause.
+		const chain = [thrown, (thrown as { cause?: unknown } | undefined)?.cause]
+			.map((one) => String((one as Error | undefined)?.message))
+			.join(' <- ');
+		expect(chain).toContain('a component the source does not name');
+	});
+
+	it('is refused at the build where the project asks for that', async () => {
+		configureUnnamedComponents(true);
+		try {
+			const { refusal } = await attempt(unnamed, 'unnamed-on');
+			expect(refusal).toContain('the source names none it could be');
+		} finally {
+			configureUnnamedComponents(false);
 		}
 	});
 });

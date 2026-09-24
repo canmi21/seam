@@ -7,6 +7,7 @@ export {
 	type Hole,
 	Undecided,
 } from './skeleton.ts';
+export { configureUnnamedComponents } from './walk.ts';
 
 /**
  * Where the render's `$app/state` sits, for a check that renders a reference with the same

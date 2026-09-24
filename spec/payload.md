@@ -159,8 +159,14 @@ that is the store's value, read per request out of the render input. **A compone
 and `<svelte:component this={x}>` over one the request hands in renders it. What stays is the bound
 on which component that can be -- one the source names -- since rendering whatever component a
 request sends would be running Svelte's renderer per request, the fallback
-[refusals.md](refusals.md) refuses. A request that sends anything else there is a page that does
-not work: Svelte throws, and there are no bytes to reproduce.
+[refusals.md](refusals.md) refuses.
+
+**Where the source names none, it compiles, as Svelte's own does.** A value that is nothing renders
+nothing, the bytes Svelte writes for it, and anything else throws per request, since the artifact
+holds no bytes for it -- where Svelte would render whatever it was handed, or throw for what is not
+a component. That is the default because it is Svelte's contract: the author finds out when the page
+runs. `refuseUnnamedComponents` in the plugin's options moves it to the build instead, for a project
+that would rather be told there; off unless set.
 
 **The two sides must run the same devalue.** Its own non-goals include stability of the
 serialization mechanism between versions. This is the same class of coupling as the scoped style

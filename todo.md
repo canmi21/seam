@@ -18,9 +18,6 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 - [ ] **C and D: a value that is not data in the render input.** Decided: the render input and the
       hydration wire are two things, and the input holds any JavaScript value (spec/payload.md).
-  - C, a component the request hands in: await-with-update, await-with-update-2,
-    dynamic-component-dirty. The source names no component it could be; which components a request
-    may hand in is the open part.
   - D, `transformError`: done where the boundary's children are markup and expressions (spec/ir.md,
     "A boundary that may throw is a block of its own, lowered to an `if`"). Left: error-boundary-27,
     async-error-boundary-2, async-error-boundary-3, which throw from inside a child component in
@@ -45,6 +42,10 @@ What the suite fails on, sorted by what closing each takes. The live list is
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- C, 3 samples: a component the request hands in that the source names none of compiles as Svelte's
+  does -- nothing for nothing, a throw per request otherwise -- or is refused at the build under
+  `refuseUnnamedComponents` (await-with-update, await-with-update-2, dynamic-component-dirty).
 
 - E and F, 6 samples: a derivation reads a clock, randomness, a fresh symbol, a host's global and a
   module's state per request, as the server render does, and the build never reads one in its

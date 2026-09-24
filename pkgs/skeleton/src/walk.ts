@@ -2406,6 +2406,17 @@ function naming(tag: string, walk: Walk): void {
 	choosing(head, tag, walk);
 }
 
+/**
+ * Whether a component the request hands in, which the source names none of, is refused at the build
+ * rather than rendered as nothing and thrown on per request. Off unless the project asks. See
+ * spec/payload.md.
+ */
+let refusingUnnamed = false;
+
+export function configureUnnamedComponents(refuse: boolean): void {
+	refusingUnnamed = refuse;
+}
+
 function choosing(written: string, tag: string, walk: Walk): string {
 	const chosen = settled(written, walk);
 	if (mentions(chosen, walk.dynamic)) {
@@ -5175,6 +5186,32 @@ function collect(node: unknown, walk: Walk): void {
 							rechose(walk, choice, fresh);
 						},
 					};
+				} else if (
+					!refusingUnnamed &&
+					mentions(settled(expand(node['expression']), walk), walk.dynamic)
+				) {
+					// A component the request hands in that the source names none of. Svelte renders
+					// whatever it is handed; this renders what it can hold, which is nothing for a
+					// value that is nothing, and throws per request for anything else. Refused at the
+					// build instead where the project asks for that. See spec/payload.md.
+					const test = `$$unnamed(${expand(node['expression'])})`;
+					const index = blocks.length;
+					blocks.push({
+						index,
+						kind: 'if',
+						stream,
+						expression: test,
+						tests: [test],
+						item: null,
+						counter: null,
+						alternate: true,
+						within: [...within],
+					});
+					chose(walk, edits, where[0], where[1], index, 0, 'null', 'null');
+					const whole = span(node);
+					if (whole !== null) edits.push(stamped(walk, index, source, whole[1]));
+					buried(walk, node['fragment']);
+					return;
 				} else if (!waitsThrough(node['expression'], expand(node['expression']), walk)) {
 					const chosen = choosing(expand(node['expression']), 'svelte:component', walk);
 					const written = (): void => {
@@ -5398,6 +5435,33 @@ function collect(node: unknown, walk: Walk): void {
 					const name = { type: 'Identifier', name: tag, start: at?.[0], end: at?.[1] };
 					if (whole !== null && at !== null && !waitsThrough(name, expand(name), walk)) {
 						const written = expand(name);
+						// A component the request hands in that the source names none of, as on
+						// `<svelte:component>`: nothing for a value that is nothing, a throw per request
+						// for anything else. See `refusingUnnamed`.
+						if (!refusingUnnamed && mentions(settled(written, walk), walk.dynamic)) {
+							const test = `$$unnamed(${written})`;
+							const index = blocks.length;
+							blocks.push({
+								index,
+								kind: 'if',
+								stream,
+								expression: test,
+								tests: [test],
+								item: null,
+								counter: null,
+								alternate: true,
+								within: [...within],
+							});
+							const opened = 'svelte:component this={null}';
+							chose(walk, edits, at[0], at[1], index, 0, opened, opened);
+							const close = `</${tag}>`;
+							if (source.endsWith(close, whole[1])) {
+								edits.push([whole[1] - close.length, whole[1], '</svelte:component>']);
+							}
+							edits.push(stamped(walk, index, source, whole[1]));
+							buried(walk, node['fragment']);
+							return;
+						}
 						// A `?:` in it chooses which component, the way one handed to a package chooses
 						// what is handed, and is enumerated the same way: the walk stops and asks, and the
 						// build renders once per branch. What the taken branch leaves has to be inert.

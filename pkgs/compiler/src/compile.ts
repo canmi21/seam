@@ -48,6 +48,7 @@ import {
 	rememberedCodegen,
 	rememberedStaging,
 	Undecided,
+	configureUnnamedComponents,
 } from 'skeleton';
 
 /**
@@ -99,6 +100,13 @@ export interface Options {
 	 * identically -- which is a byte-level agreement of exactly the kind this protocol avoids.
 	 */
 	assets?: Readonly<Record<string, string>>;
+	/**
+	 * Refuse at the build a `<svelte:component>` handed a component the request decides that the
+	 * source names none of. Off, it renders nothing for a value that is nothing and throws per
+	 * request for anything else, where Svelte would render whatever it was handed. See
+	 * spec/payload.md.
+	 */
+	refuseUnnamedComponents?: boolean;
 }
 
 /**
@@ -262,6 +270,7 @@ export async function structures(entry: Entry, root: string): Promise<(Prepared 
  */
 export async function compile(options: Options): Promise<Report[]> {
 	const root = resolve(options.root);
+	configureUnnamedComponents(options.refuseUnnamedComponents === true);
 	const server = resolve(options.out, 'server');
 
 	// Every entry, then every refusal, rather than the first one. An author fixing a build wants
