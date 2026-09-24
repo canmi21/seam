@@ -1006,18 +1006,15 @@ that runs code per request. None needs Svelte's renderer run per request, which 
 fallback [refusals.md](refusals.md) refuses. The reason each was given is kept so it is not given
 again.
 
-**Some of them wait on a decision, and it is this protocol's own.** [derivation.md](derivation.md)
-holds a derivation to a pure, deterministic function of the payload -- no ambient input, no
-mutation, no order between derivations -- argued from the client agreeing with the server and two
-backends agreeing with each other. Svelte's server render is held to neither, and neither is the
-question the suite asks. So where an item below needs more than that rule allows, it is marked
-**waits on derivation.md**: a gap whose closing is a decision about the rule, not a limit of
-rendering at compile time.
+**Some of them waited on a decision, and it was this protocol's own: decided.** A derivation reads
+what a server render would read at that moment -- a clock, randomness, a host's global, a module's
+state -- per request, and the build never reads one in its place; see [derivation.md](derivation.md),
+"Ambient input is read at request time, never at the build". The items below that were marked as
+waiting on it are work now.
 
 **Module state a module changes.** Filed as state a build cannot read. The derive stage is not the
 build: it runs per request in the carried bundle, which imports each module once as a server
-process does, so it could read the binding as it stands at the request. Reading process state is
-ambient input, so it **waits on derivation.md**. [refusals.md](refusals.md) has the survey of how
+process does, so it reads the binding as it stands at the request, which is decided. [refusals.md](refusals.md) has the survey of how
 rare the shape is.
 
 **A script substitution cannot reach, reading the request.** A name reassigned or an object mutated
@@ -1075,13 +1072,13 @@ already was, and a script statement assigning a store from one is the request's 
 
 **A value that is not the same twice.** `Math.random`, `Date`, `Symbol()`. Filed as a value a build
 would freeze. Evaluated per request it has the server render's semantics, and it is the
-non-determinism derivation.md refuses, so it **waits on derivation.md**. Two of the samples --
+non-determinism derivation.md now reads per request. Two of the samples --
 `state-snapshot-date` and `derived-rest-includes-symbol` -- write constant bytes and were refused
 for the call alone, which is plain work. Comparing `random` byte for byte needs both sides to draw the same
 numbers, which is the suite's to arrange, not a reason to skip it.
 
 **A bare global.** A name no script in the file writes, read in a JavaScript host the way the server
-render reads it. It is ambient input and **waits on derivation.md**. A backend that embeds an
+render reads it, which is decided. A backend that embeds an
 evaluator with no host is that backend's constraint, and is measured there; see the layer line.
 
 ## Out of scope

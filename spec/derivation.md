@@ -20,28 +20,28 @@ inject   ->  bytes        concatenation
 network service, or open a file, in whatever language and by whatever means. That is the load
 stage, and nothing here constrains it.
 
-This is the distinction that dissolves the question of whether a derivation may use `fetch`. It
-may not, and not because the network is dangerous: because fetching is a capability of the stage
-before this one. A derivation does not acquire values. It decides things about values that have
-already been determined.
+Where data is fetched is still the load stage's first, and a page reads better for it. It is no
+longer a rule here: a derivation runs when Svelte's server render would have run the same code,
+and what that render may do at that moment, a derivation may do.
 
 So the rule is not a list of permitted APIs. It is a property:
 
-> **A derivation is a pure, deterministic function of the payload.**
+> **A derivation is computed per request, from the render input and from whatever a server render
+> would read at that moment -- and nothing it reads is fixed at the build.**
 
-The payload here is the render input [payload.md](payload.md) defines: the root's props and the
-render options the server passes, any JavaScript value. Calling a function the input carries -- a
-store's value read through `get`, a `transformError` the server hands over -- is a function of the
-input; what that function does is the load stage's, as the value it made is.
+The render input is what [payload.md](payload.md) defines: the root's props and the render options
+the server passes, any JavaScript value. What a server render would read beside it is the rest of
+what Svelte's own `render()` reads while it writes: a clock, randomness, a host's global, a module's
+state as it stands. Compile-time rendering differs from that render only in when it runs, so a
+derivation reads each of those per request, as the server render does, and the one thing refused is
+the build reading one in its place and writing it into the bytes.
 
-Everything below follows from that sentence, and the sections are the two ways to violate it:
-ambient input and side effect. A third was counted once and struck; see the end.
-
-**The sentence is this protocol's, not a limit of rendering at compile time.** Svelte's server render
-is not held to it. Where a Svelte sample needs more than it allows -- a clock, a global, module
-state -- the sample is a gap that waits on this rule and fails in
-the suite; it is never a skip. [roadmap.md](roadmap.md) lists them under **Owed: what the render
-computes per request**.
+**It used to be a pure, deterministic function of the payload**, and the reasons were the client
+agreeing with the server and two backends agreeing with each other. Neither is a reason to be
+stricter than the render the bytes are held to: Svelte's own server render writes `Math.random()`
+and the client overwrites the text, and a backend that lacks a host's name is measured in its own
+layer -- see [suite.md](suite.md), "Every sample is the protocol's, and another layer's limit is
+measured in that layer". What stays is the side effect: a derivation does not change what it reads.
 
 ## Every identifier resolves, or it is refused
 
@@ -68,6 +68,7 @@ refused and the name is reported:**
 | an each binding    | `{#each xs as t}`                                                                     |
 | a carried constant | see below                                                                             |
 | request context    | see below                                                                             |
+| a host's global    | a name no script writes, read per request. See "A name the server holds"              |
 | anything else      | refused, by name, at compile time                                                     |
 
 This is one pass over the expression's ESTree, collecting `Identifier` nodes and subtracting the
@@ -232,11 +233,10 @@ mismatch that SvelteKit, Next and Remix all have and none prevent. Analysing lib
 make this stricter than Svelte itself, at the cost of the library. What is genuinely ours to
 govern is what the author writes in the markup, and that is exactly what the pass above reads.
 
-## Ambient input is data, not capability
+## Ambient input is read at request time, never at the build
 
-`fetch` is the obvious violation and the least dangerous, because nobody writes it by accident.
-The dangerous ones arrive through APIs that look pure. Measured, on one payload, with no clock and
-no randomness anywhere in the expression:
+The measurement that made this a rule is still the reason for half of it. On one payload, with no
+clock and no randomness anywhere in the expression:
 
 ```
                                     TZ=UTC          TZ=Asia/Tokyo
@@ -244,31 +244,27 @@ new Date(p.d).getHours()            22              7
 new Date(p.d).toLocaleDateString()  "11/14/2023"    "11/15/2023"
 ```
 
-The value came entirely from the payload. The reading of it did not. Time zone and locale are
-ambient inputs that no list of forbidden function names would catch, and they are reported
-elsewhere as the most common silent hydration mismatch in server-rendered React.
+The value came entirely from the payload; the reading of it did not. **Read by the build and written
+into the bytes, it is the build machine's answer for every request**, which neither Svelte nor this
+compiler gives. So an expression reading a clock, randomness, a locale, a host's global or a module's
+state always varies: it is a derivation wherever it is read, and the compile-time render is never
+handed it (`varies()` in `walk.ts`). An entry that reads one is not Svelte's render whole either; see
+[pipeline.md](pipeline.md).
 
-So ambient access is refused in its bare form -- `Date.now()`, `new Date()` with no argument,
-`Math.random()`, `toLocale*`, `Intl.*` without an explicit `timeZone` or `locale` -- and the
-determined values are provided instead, resolved once during load and carried in the payload:
+**Read per request, it is the server render's answer**, which is the whole claim. `Date.now()`, `new
+Date()`, `Math.random()`, `toLocale*` and a bare name the host holds are read when the derivation
+runs, which is when Svelte's render would have read them. `$.now`, `$.tz` and `$.locale` -- a value
+the load stage determines and carries -- are still the way to make the client agree with the
+server, and they are the author's choice, not this compiler's requirement.
 
-```
-$.now      $.tz      $.locale
-```
+**A value read once is read once.** Substitution writes an initialiser at every read, and a call
+that does not answer the same twice -- `const s = Symbol()` read in two places -- would then be two
+calls where Svelte makes one. So a declaration whose initialiser reads one of these is a name
+substitution cannot follow, and the script run answers it, one value per request.
 
-**The client agrees by construction.** Hydration re-evaluates the same expression in the browser,
-so this would otherwise be the ordinary SSR mismatch that every framework has. Next's own guidance
-is to pin the time zone into `Intl.DateTimeFormat`'s arguments so both sides use one value; it can
-only be guidance there, because React cannot analyse component code. Here the browser has no
-second source to read: the field it reads is the field the server wrote. The failure class is not
-mitigated, it is absent.
-
-A weaker rule was considered and rejected: grading strictness by where the derivation lands.
-Svelte's own behaviour does distinguish them -- `set_text` compares and silently overwrites, while
-a mismatched anchor throws `HYDRATION_ERROR` -- so a wrong slot costs one frame and a wrong branch
-costs the whole hydration. But grading only pays when strictness costs the author something, and
-once the determined value is available it costs nothing. The distinction survives as the wording
-of the diagnostic, not as two sets of rules.
+It was refused outright before, with the determined values the only way in; that rule was stricter
+than the render the bytes are compared with, and it moved a clock the author wrote into the load
+stage whether or not the client ever needed to agree.
 
 ## The payload is frozen
 
@@ -628,19 +624,14 @@ varies, which keeps it a derivation wherever it is read.
 folding a keypath at compile time and says nothing about which names are legal; an undeclared name
 is a reference the runtime resolves, and that is all. The category is this compiler's.
 
-**And it is one name, not a rule about bare globals.** The sentence that used to end this paragraph
--- a value the build does not hold is a value the request brings, whatever channel it comes down --
-reads as licence for any of them, and it is not, for two reasons that pull the same way. A bare
-global is a value only the **host** holds, and the artifact is read by a backend that has none:
-`pipeline.md` says a Rust or Go server embeds an expression evaluator with no filesystem, no
-network and no host of any kind, so a derivation reading one gets `undefined` there and the same
-artifact serves two different pages. And a name nothing binds is the exact shape the pass above
-exists to report: a local and a payload key are indistinguishable, so a name that resolves nowhere
-has to be named at the compile or a typo renders as an empty string with an exit status of zero.
-
-So every other bare name is refused, and `runtime-legacy`'s `globals-deconflicted` -- `<p>{frag}</p>`
-over a `globalThis.frag` its own config sets before rendering -- is a decision rather than work
-nobody has done. What it costs the author is a line in the load stage.
+**And a bare global is the same answer.** A name no script in the file writes is one the host
+resolves, and Svelte's render resolves it while it writes; a derivation resolves it per request the
+same way. `runtime-legacy`'s `globals-deconflicted` -- `<p>{frag}</p>` over a `globalThis.frag` its own
+config sets before rendering -- is that. A typo is not made silent by it: the evaluator reads its
+scope through `with`, so a name the host has not got throws `ReferenceError` per request, as the
+server render does. A backend whose evaluator has no host answers `undefined` there, and that is
+the backend's to measure. What is still refused at the compile is a name a script **writes** that
+the walk could not bind, which is this compiler failing to follow a binding rather than the host's.
 
 **What `process` costs is written here rather than implied by being alone on a list.** It is the
 one name kept, because a JavaScript server has it by definition and the load stage runs there. An
@@ -1072,8 +1063,9 @@ reported `$effect` in `$effect.pending()` as one, which is how they were being f
 ## The globals an expression may read
 
 A short list, in `bindings.ts`: names that resolve to the same value everywhere, so an expression
-using one cannot make the server and the browser disagree. Anything that reads a clock, a locale or
-an environment is not on it, and `Math.random` is named apart from `Math`.
+using one may be handed to the compile-time render and baked. Anything that reads a clock, a locale
+or an environment is not on it, and `Math.random` is named apart from `Math`: those are read per
+request, never baked. See "Ambient input is read at request time, never at the build".
 
 **A name can be on the list and one of its uses off it.** `Date` reads the same everywhere wherever
 it is given something -- `Date.parse(s)`, `new Date(s)`, `x instanceof Date` -- and is a clock when

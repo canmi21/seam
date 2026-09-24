@@ -294,7 +294,7 @@ structure it always did.
 
 ## What runs at request time, and what does not
 
-A derivation is a pure function of the payload. It computes values, and it produces no HTML.
+A derivation computes values per request, and it produces no HTML. See [derivation.md](derivation.md).
 
 **Where a component's instance script has to run per request, it runs as Svelte compiled it.**
 Substitution turns a name into an expression wherever it can; where it cannot follow what the
