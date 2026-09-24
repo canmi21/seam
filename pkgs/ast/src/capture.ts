@@ -10,6 +10,12 @@ export const RUN_NAME = '$$run';
 export const CAPTURE = 'seam:capture';
 
 /**
+ * The context key a run's `hydratable` reads the request's from, which the runner sets per render.
+ * Through the render's context rather than anything global, since requests run side by side.
+ */
+export const HYDRATING = 'seam:hydratable';
+
+/**
  * A component's source with its markup replaced by a capture of every name its instance script
  * declares, for Svelte to compile and a derivation to run per request.
  *
@@ -32,7 +38,7 @@ export function captured(source: string): string {
 	const fields = [...names, ...stores].map((one) => `${JSON.stringify(one)}: ${one}`).join(', ');
 	const importing = "import { getContext as __seam_context } from 'svelte';";
 	const script = isNode(instance)
-		? spliced(source, instance, importing)
+		? spliced(source, instance, importing, hydrating(instance))
 		: `<script>${importing}</script>`;
 	const options = isNode(ast['options']) ? slice(source, ast['options']) : '';
 	return [
@@ -41,6 +47,48 @@ export function captured(source: string): string {
 		script,
 		`{__seam_context(${JSON.stringify(CAPTURE)})({ ${fields} })}`,
 	].join('\n');
+}
+
+/**
+ * The edits that hand the instance block's import of Svelte's `hydratable` the request's: the
+ * import keeps a name nothing reads, and the author's name is declared over a call into the
+ * render's context, where the runner puts the request's record. Svelte's own would record into
+ * the run's render, which nobody reads. See spec/derivation.md, "Where substitution cannot follow,
+ * the script runs as Svelte compiled it".
+ */
+function hydrating(instance: Record<string, unknown>): Edit[] {
+	const content = instance['content'];
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	const edits: Edit[] = [];
+	const locals: string[] = [];
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
+		const from = statement['source'];
+		if (!isNode(from) || from['value'] !== 'svelte') continue;
+		const specifiers = statement['specifiers'];
+		for (const one of Array.isArray(specifiers) ? specifiers : []) {
+			if (!isNode(one) || one['type'] !== 'ImportSpecifier') continue;
+			const imported = one['imported'];
+			const local = one['local'];
+			if (!isNode(imported) || imported['name'] !== 'hydratable' || !isNode(local)) continue;
+			const { start, end } = one;
+			if (typeof start !== 'number' || typeof end !== 'number') continue;
+			if (typeof local['name'] !== 'string') continue;
+			edits.push([start, end, `hydratable as __seam_hydratable${String(locals.length)}`]);
+			locals.push(local['name']);
+		}
+	}
+	if (locals.length === 0) return edits;
+	const at = isNode(content) ? content['start'] : undefined;
+	if (typeof at !== 'number') return [];
+	const declared = locals
+		.map(
+			(name) =>
+				`const ${name} = (key, fn) => __seam_context(${JSON.stringify(HYDRATING)})(key, fn);`,
+		)
+		.join(' ');
+	edits.push([at, at, declared]);
+	return edits;
 }
 
 /** Every name the instance block declares at its top level, a `$:` it assigns included. */
@@ -78,9 +126,15 @@ function declaredAtTop(instance: unknown): Set<string> {
 	return found;
 }
 
-/** A block's source with a statement put first inside it. */
-function spliced(source: string, block: Record<string, unknown>, statement: string): string {
-	const whole = slice(source, block);
+/** A block's source, with edits made inside it, and with a statement put first inside it. */
+function spliced(
+	source: string,
+	block: Record<string, unknown>,
+	statement: string,
+	edits: readonly Edit[] = [],
+): string {
+	const start = block['start'];
+	const whole = apply(slice(source, block), edits, typeof start === 'number' ? start : 0);
 	const open = whole.indexOf('>') + 1;
 	return `${whole.slice(0, open)}${statement}${whole.slice(open)}`;
 }

@@ -10,8 +10,7 @@ What the suite fails on, sorted by what closing each takes. The live list is
       substitution cannot follow, the script runs as Svelte compiled it"; the plugin's own test holds
       a Kit page through the project's Vite). Left, each on a refusal that says why:
       await-then-destruct-computed-props and spread-component-side-effects (a function a derivation
-      calls assigns a name), binding-backflow (a bound prop the child changes),
-      hydratable-error-on-missing (a `hydratable` in a run script).
+      calls assigns a name), binding-backflow (a bound prop the child changes).
 
 ## Work, with design questions to answer first
 
@@ -30,6 +29,10 @@ What the suite fails on, sorted by what closing each takes. The live list is
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- B, 1 sample: the entry's run makes its `hydratable` calls into the request's record, and is the
+  entry's one eager call (hydratable-error-on-missing). spec/derivation.md, "The entry's run makes
+  its `hydratable` calls into the request's record".
 
 - G, 2 samples: a raw snippet is a raw hole over the author's `render`, and what it computes that
   reads nothing the request decides -- `render(Child).body` included -- is a literal the build's

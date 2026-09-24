@@ -2962,6 +2962,7 @@
 			"runtime-runes/html-tag-escaping",
 			"runtime-runes/hydratable",
 			"runtime-runes/hydratable-complex-nesting",
+			"runtime-runes/hydratable-error-on-missing",
 			"runtime-runes/hydratable-unused-keys",
 			"runtime-runes/hydratable-unused-keys-nesting-partial",
 			"runtime-runes/hydrate-modified-input",

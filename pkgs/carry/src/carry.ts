@@ -5,6 +5,7 @@ import { type Plugin, rolldown } from 'rolldown';
 import { compile } from 'svelte/compiler';
 import {
 	CAPTURE,
+	HYDRATING,
 	type Carried,
 	captured,
 	currentAliases,
@@ -139,6 +140,8 @@ export function running(): Plugin {
 				const file = decoded(id, RUN);
 				const server = resolveBare('svelte/server', file) ?? 'svelte/server';
 				const read = projectAsync() ? 'await rendered;' : 'rendered.body;';
+				// The request's `hydratable` goes into the render's context, where the captured script's
+				// reads it. See `captured()` in the ast package.
 				// Once per props object, which is once per request for the entry's `$$run($$given)`:
 				// Svelte runs the script once, and a prop's default read from the run and the markup's
 				// reads of it are the one run. See spec/derivation.md.
@@ -146,14 +149,14 @@ export function running(): Plugin {
 					`import { render } from ${JSON.stringify(server)};`,
 					`import Script from ${JSON.stringify(`${CAPTURED}${encoded(file)}${SUFFIX}`)};`,
 					'const runs = new WeakMap();',
-					'export function run(props) {',
-					"\tif (props === null || typeof props !== 'object') return ran(props);",
-					'\tif (!runs.has(props)) runs.set(props, ran(props));',
+					'export function run(props, hydratable) {',
+					"\tif (props === null || typeof props !== 'object') return ran(props, hydratable);",
+					'\tif (!runs.has(props)) runs.set(props, ran(props, hydratable));',
 					'\treturn runs.get(props);',
 					'}',
-					`${projectAsync() ? 'async ' : ''}function ran(props) {`,
+					`${projectAsync() ? 'async ' : ''}function ran(props, hydratable) {`,
 					'\tlet got;',
-					`\tconst context = new Map([[${JSON.stringify(CAPTURE)}, (value) => { got = value; return ''; }]]);`,
+					`\tconst context = new Map([[${JSON.stringify(CAPTURE)}, (value) => { got = value; return ''; }], [${JSON.stringify(HYDRATING)}, hydratable]]);`,
 					'\tconst rendered = render(Script, { props, context });',
 					`\t${read}`,
 					'\treturn got;',

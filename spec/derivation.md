@@ -1429,9 +1429,22 @@ passes varies with the request; where nothing does, the child is Svelte's to ren
 handed no marker is, since a local of the caller a run would read is in no scope a derivation has.
 
 **What the run cannot hand back stays refused**, each for a reason the run does not change: a prop
-the call site binds, whose value goes back up and renders the caller's whole template again; a
-component the run chose, which is picked by identity and the run holds its own copy of each; a
-`hydratable` call, whose script the injector writes from the calls the entry makes first.
+the call site binds, whose value goes back up and renders the caller's whole template again; and a
+component the run chose, which is picked by identity and the run holds its own copy of each.
+
+**The entry's run makes its `hydratable` calls into the request's record.** The instance block's
+import of Svelte's `hydratable` is handed the request's through the render's context -- not
+anything global, since requests run side by side -- and the taken run is the entry's one eager
+call, made first on every request: the script makes its calls in its own order and under its own
+conditions, where reading them out of the source one by one made every one of them whichever
+branch the script took. An import in `<script module>` is still refused, the two blocks being one
+module once compiled. A child's run makes none: it is written at each read, and a call per read is
+not Svelte's one per render.
+
+**An async run needs the evaluator's dynamic import.** Svelte's async render reaches
+`AsyncLocalStorage` through `import('node:async_hooks')`, which the carried bundle keeps; Node
+answers it where a derivation is evaluated, and Vitest's module runner does not, so what an async
+run renders is held by the suite rather than by a unit test.
 
 **The build's render runs only what the run does not answer.** The render made at the build still
 runs the script, written over where it reads what the request decides, and a statement calling into

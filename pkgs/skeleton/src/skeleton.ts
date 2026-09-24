@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'svelte/compiler';
 import { collides, stamp } from './sentinel.ts';
 import { basename, relative, resolve as resolvePath } from 'node:path';
 import {
@@ -15,7 +16,7 @@ import {
 } from 'ast';
 import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
-import { refuse } from './node.ts';
+import { isNode, refuse } from './node.ts';
 import { timed, timedSync } from './timing.ts';
 import { renderRewritten, shippable } from './render.ts';
 import { dead, filled, outcomes, probed } from './resolve.ts';
@@ -412,9 +413,14 @@ function ran(
 		new RegExp(`this=\\{[^}]*\\b${name}\\b|<${name}[\\s/>]`).test(source),
 	);
 	const names = new Set([...changed, ...[...changed].map((one) => `$${one}`)]);
+	// The request's `hydratable` goes to the run, whose script makes its calls in its own order and
+	// under its own conditions, which is Svelte's. See `captured()` in the ast package.
+	const imported = hydrating ? hydratableImport(source) : { local: null, module: false };
+	const call = `${RUN_NAME}(${GIVEN}${imported.local === null ? '' : `, ${imported.local}`})`;
+	const running = projectAsync() ? `(await ${call})` : call;
 	let at: number | undefined;
 	const field = (name: string): string => {
-		if (hydrating) refuse(HYDRATABLE_RUN);
+		if (hydrating && (imported.local === null || imported.module)) refuse(HYDRATABLE_RUN);
 		if (component !== undefined) {
 			refuse(
 				`\`${component}\` is a component chosen by a script this compiler runs per request: ` +
@@ -422,11 +428,7 @@ function ran(
 					'each, not the one the source names. See spec/derivation.md',
 			);
 		}
-		at ??=
-			rendered.held.push({
-				expression: projectAsync() ? `(await ${RUN_NAME}(${GIVEN}))` : `${RUN_NAME}(${GIVEN})`,
-				files: [entry],
-			}) - 1;
+		at ??= rendered.held.push({ expression: running, files: [entry] }) - 1;
 		return `($$hold(${String(at)}).${name})`;
 	};
 	const over = (text: string): string => readsReplaced(text, names, field);
@@ -448,9 +450,7 @@ function ran(
 		// The run itself rather than the held derivation standing for it: defaults are computed
 		// before any other derivation exists, and the run answers the same props object once.
 		field(one.name);
-		one.expression = projectAsync()
-			? `(await ${RUN_NAME}(${GIVEN})).${one.name}`
-			: `${RUN_NAME}(${GIVEN}).${one.name}`;
+		one.expression = `${running}.${one.name}`;
 	}
 	for (const block of rendered.blocks) {
 		if (!own(block.files)) continue;
@@ -460,6 +460,42 @@ function ran(
 			block.fragment.binds = block.fragment.binds.map(([name, one]) => [name, over(one)]);
 		}
 	}
+	// Taken, the run is what makes the entry's `hydratable` calls: once, first, whether or not the
+	// markup reads what they return, as Svelte's script makes them. The calls read out of the source
+	// one by one would make every one of them, whichever branch the script takes.
+	if (at !== undefined && imported.local !== null) {
+		rendered.eager = [{ expression: running, files: [entry] }];
+	}
+}
+
+/** The name one script block imports Svelte's `hydratable` under, or null. */
+function hydratableIn(block: unknown): string | null {
+	const content = isNode(block) ? block['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
+		if (!isNode(statement['source']) || statement['source']['value'] !== 'svelte') continue;
+		const specifiers = statement['specifiers'];
+		for (const one of Array.isArray(specifiers) ? specifiers : []) {
+			if (!isNode(one) || !isNode(one['imported']) || !isNode(one['local'])) continue;
+			if (one['imported']['name'] !== 'hydratable') continue;
+			if (typeof one['local']['name'] === 'string') return one['local']['name'];
+		}
+	}
+	return null;
+}
+
+/**
+ * The name the instance script imports Svelte's `hydratable` under, and whether the module script
+ * imports it too, which the run cannot hand the request's: the two blocks are one module once
+ * compiled.
+ */
+function hydratableImport(source: string): { local: string | null; module: boolean } {
+	const ast = parse(source, { modern: true }) as unknown as Record<string, unknown>;
+	return {
+		local: hydratableIn(ast['instance']),
+		module: hydratableIn(ast['module']) !== null,
+	};
 }
 
 /**

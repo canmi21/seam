@@ -9,7 +9,7 @@ export {
 } from './bindings.ts';
 export { ambientIn } from './ambient.ts';
 export { bundle } from './bundle.ts';
-export { CAPTURE, captured, readsReplaced, RUN_NAME } from './capture.ts';
+export { CAPTURE, captured, HYDRATING, readsReplaced, RUN_NAME } from './capture.ts';
 export { apply, type Edit, type Neutral } from './edits.ts';
 export {
 	constant,
