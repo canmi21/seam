@@ -475,6 +475,51 @@ impl Assembler<'_> {
 				});
 				Ok(())
 			}
+			Kind::Boundary => {
+				// Two branches, as an if: the children where nothing threw, read from the render
+				// being walked, and the failed snippet, read from the render made with the children
+				// throwing. The second opens with the transformed error as JSON, which in that render
+				// is the build's; the request's goes in its place, unescaped, since Svelte's own
+				// serialisation already escapes what could close the comment. See `spec/ir.md`.
+				let [test, json] = <[String; 2]>::try_from(block.tests.clone())
+					.map_err(|_| "a boundary without its test and its JSON".to_owned())?;
+				let files = block.files.clone();
+				let test = self.path(&test, &files)?;
+				let json = self.path(&json, &files)?;
+				let mut children = Out::default();
+				children.write(&html[span.from..span.content]);
+				self.region(html, span.content, span.until, &mut children)?;
+
+				let key = format!("{index}.-1");
+				let rendered = self
+					.skeleton
+					.alternates
+					.get(&key)
+					.ok_or_else(|| format!("no render was made with boundary {index} failing"))?;
+				let other = match self.stream {
+					Stream::Body => rendered.body.as_str(),
+					Stream::Head => split_off_title(&rendered.head)?.0,
+				};
+				let at = self.locate(other, index)?;
+				let opening = &other[at.from..at.content];
+				if !opening.starts_with("<!--[?") {
+					return Err(format!(
+						"the failed branch of boundary {index} opens with `{opening}`, where Svelte writes `<!--[?`"
+					));
+				}
+				let mut failed = Out::default();
+				failed.write("<!--[?");
+				failed.push(ir::Node::Slot { path: json, escape: ir::Escape::Raw, fresh: false });
+				failed.write("-->");
+				self.region(other, at.content, at.until, &mut failed)?;
+				out.push(ir::Node::If {
+					branches: vec![
+						ir::Branch { test: Some(test), body: children.finish() },
+						ir::Branch { test: None, body: failed.finish() },
+					],
+				});
+				Ok(())
+			}
 			Kind::If => {
 				// A fragment: the body of a recursive snippet or component, wrapped by the walk in a
 				// bare `{#if true}` so that it has anchors to be found by. It is kept under its name

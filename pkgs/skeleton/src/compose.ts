@@ -437,17 +437,20 @@ export const CARRIED = [
 	'attr_class',
 	'attr_style',
 	'attributes',
+	'caught',
 	'clsx',
 	'exclude_from_object',
 	'get_store',
 	'given',
 	'hold',
+	'options',
 	'rest_props',
 	'run',
 	'sanitize_props',
 	'sanitize_slots',
 	'stringify',
 	'to_array',
+	'tried',
 ] as const;
 
 /**

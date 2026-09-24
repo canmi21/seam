@@ -31,7 +31,7 @@ export {
 export type { Bundle, MarkupAttr, MarkupNode, Module } from './markup.ts';
 export { bySource, rememberedSources } from './memo.ts';
 export { reduce } from './reduce.ts';
-export { GIVEN, RUNES_MODULE, runesModule } from './runes.ts';
+export { GIVEN, OPTIONS, RUNES_MODULE, runesModule } from './runes.ts';
 export { resolved } from './resolved.ts';
 export {
 	APP_STATE,

@@ -247,7 +247,10 @@ export default {
 			css: { code: '', map: null },
 			...(hashes === undefined ? {} : { hashes }),
 		});
-		const injected = inject(ir, derive(props), { csp: options?.csp });
+		// Kit hands \`transformError\` too, which a boundary's failed branch is written with.
+		const injected = inject(ir, derive(props, { transformError: options?.transformError }), {
+			csp: options?.csp,
+		});
 		return typeof injected.then === 'function' ? injected.then(shaped) : shaped(injected);
 	},
 };

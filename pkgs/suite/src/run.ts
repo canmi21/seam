@@ -446,6 +446,8 @@ async function ours(
 	props: Record<string, unknown>,
 	/** The policy the oracle is handed, handed to the injector as the plugin hands it Kit's. */
 	csp?: Config['csp'],
+	/** What the oracle is handed as `transformError`, handed to the derivations as a render option. */
+	transformError?: Config['transformError'],
 ): Promise<Awaited<ReturnType<typeof inject>>> {
 	// Not `compile()`: that batches lowering across a whole project and writes artifacts to disk,
 	// and this is one component compared in memory. The steps are its steps.
@@ -472,7 +474,7 @@ async function ours(
 	const derive = compileDerivations(compiled.derivations, carried);
 	return await inject(
 		compiled.ir as Parameters<typeof inject>[0],
-		derive(props),
+		derive(props, transformError === undefined ? {} : { transformError }),
 		csp === undefined ? {} : { csp },
 	);
 }
@@ -691,7 +693,7 @@ async function attempt(suite: string, name: string): Promise<Result> {
 	let mine: Rendered | null = null;
 	let refusal: string | null = null;
 	try {
-		mine = await ours(dir, props, config.csp);
+		mine = await ours(dir, props, config.csp, config.transformError);
 	} catch (error) {
 		refusal = firstLine(error);
 	}

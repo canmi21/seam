@@ -43,3 +43,10 @@ export function runesModule(file: string, text: string): string {
  * Written here, where the expressions are written, and read by the evaluator that binds it.
  */
 export const GIVEN = '$$given';
+
+/**
+ * The render options the server passed, beside the payload and under a name of the same kind: Kit's
+ * `transformError` and anything else `render()` is handed that a derivation reads. Part of the render
+ * input, not of the wire. See spec/payload.md.
+ */
+export const OPTIONS = '$$options';

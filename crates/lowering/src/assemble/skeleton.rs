@@ -71,6 +71,9 @@ pub enum Kind {
 	Each,
 	/// `<svelte:element>`, whose tag the request decides. See `spec/refusals.md`.
 	Element,
+	/// A `<svelte:boundary>` with a `failed` snippet, whose children may throw per request. See
+	/// `spec/ir.md`, "A boundary that may throw is a block of its own, lowered to an `if`".
+	Boundary,
 }
 
 /// Which of Svelte's two output streams a block was rendered into. The bytes cannot say: the same

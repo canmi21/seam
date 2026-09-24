@@ -221,3 +221,9 @@ export function collides(source: string, file: string): string | null {
 		'spec/refusals.md'
 	);
 }
+
+/**
+ * What a render that is to take a boundary's `failed` branch throws from inside its children, and
+ * the one error `render.ts` answers rather than refuses. See `boundary()` in walk.ts.
+ */
+export const THROWN = '__seam_thrown';

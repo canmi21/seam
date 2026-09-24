@@ -12,7 +12,7 @@ import {
 	runesModule,
 } from 'ast';
 import type { Rendered } from './shape.ts';
-import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel } from './sentinel.ts';
+import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel, THROWN } from './sentinel.ts';
 import { timed, timedSync } from './timing.ts';
 import type { Copy } from './walk.ts';
 
@@ -397,17 +397,24 @@ export async function renderRewritten(
 		// passes its own and an artifact holds bytes, so the shape a caught throw writes is not one
 		// this compiler can bake for every request. That is the refusal, and this is the one place
 		// that knows the throw was caught rather than thrown. See spec/refusals.md.
+		//
+		// **Except the throw the walk planted**, in a render made for a boundary block's `failed`
+		// branch: that one is the branch being rendered, and what the snippet is handed is a value
+		// its reads do not look at, the walk having written them as holes. See `boundary()` in
+		// walk.ts.
+		const thrown = Symbol(THROWN);
+		(globalThis as Record<string, unknown>)[THROWN] = thrown;
 		const held = render(mod.default as never, {
 			props: props as never,
 			idPrefix: ID_PREFIX,
 			transformError: (error: unknown) => {
+				if (error === thrown) return null;
 				throw new Error(
 					'a `<svelte:boundary>` caught what its body threw while the bytes were being ' +
-						'written, and what its `failed` snippet is handed is `transformError(error)` -- a ' +
-						'render option a server passes and an artifact has nowhere to hold. So which of ' +
-						'the two shapes a request gets is not one this compiler can write. The body ' +
-						`threw: ${String((error as { message?: unknown })?.message ?? error)}. ` +
-						'See spec/refusals.md',
+						'written, from inside a block, a component or a render tag -- which of whose ' +
+						"expressions run, and in what order, is the render's rather than a list this " +
+						'compiler holds, so it cannot throw them again per request. The body threw: ' +
+						`${String((error as { message?: unknown })?.message ?? error)}. See spec/ir.md`,
 				);
 			},
 		});

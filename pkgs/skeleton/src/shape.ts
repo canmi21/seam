@@ -100,7 +100,13 @@ export type Stream = 'body' | 'head';
 /** One if or each in the source, in document order. */
 export interface Block {
 	index: number;
-	kind: 'if' | 'each' | 'element';
+	/**
+	 * `boundary` is a `<svelte:boundary>` with a `failed` snippet: `expression` is the test that the
+	 * children did not throw, and `tests` holds it and then the JSON the failed branch opens with.
+	 * Lowered to an `if`; see spec/ir.md, "A boundary that may throw is a block of its own, lowered to
+	 * an `if`".
+	 */
+	kind: 'if' | 'each' | 'element' | 'boundary';
 	/**
 	 * Blocks are numbered across the whole source but appear in one stream or the other, and the
 	 * bytes give no way to tell which: the same two ifs, one in the head and one in the body,

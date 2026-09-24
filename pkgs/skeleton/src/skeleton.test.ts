@@ -73,6 +73,8 @@ interface Case {
 	 * the message names is the behaviour under test.
 	 */
 	says?: string;
+	/** The render option both sides are handed, where the case is a boundary that catches. */
+	transformError?: (error: unknown) => unknown;
 }
 
 const accepted: Case[] = [
@@ -728,6 +730,27 @@ const accepted: Case[] = [
 			"<script>import Row from './Row.svelte'; let { data } = $props();</script>" +
 			'<ul>{#each data.rows as n}<Row {n} />{/each}</ul>',
 		data: [{ rows: [1, 2, 3] }, { rows: [] }, { rows: [5] }],
+	},
+	{
+		// A boundary is a block: whether its children threw and what `transformError` made of it are
+		// the request's. See spec/ir.md, "A boundary that may throw is a block of its own, lowered to
+		// an `if`". Both requests throw here with a different message, and the third does not.
+		name: 'a boundary whose body calls over a request value',
+		source:
+			'<script>let { data } = $props(); function search(q) { if (q) throw new Error(q); return "ok"; }</script>' +
+			'<svelte:boundary><p>{search(data.q)}</p>' +
+			'{#snippet failed(e)}<i>{e.message}</i>{/snippet}</svelte:boundary>',
+		data: [{ q: 'a' }, { q: '<b> --> </b>' }, { q: '' }],
+		transformError: (error) => ({ message: (error as Error).message }),
+	},
+	{
+		name: 'a boundary whose body throws for every request',
+		source:
+			'<script>let { data } = $props();</script>' +
+			"<svelte:boundary><p>{data.a}{(() => { throw 'x'; })()}</p>" +
+			'{#snippet failed(e)}<i>{e}</i>{/snippet}</svelte:boundary>',
+		data: [{ a: 1 }],
+		transformError: (error) => `caught ${String(error)}`,
 	},
 	{
 		// A store the request brings. It used to be refused: the payload was the wire too, and a
@@ -4208,18 +4231,6 @@ const refused: Case[] = [
 			' const t = new T();</script><p>{t[k] + data.a}</p>',
 	},
 	{
-		// Svelte catches what a boundary's body throws and writes the `failed` snippet instead, so
-		// where the body calls the author's code over a value the request brings, which of the two
-		// shapes reaches the bytes is the request's answer. It threw at injection instead -- a
-		// refusal arriving per request, which is the whole of what `deriving ... failed` is.
-		name: 'a boundary whose body calls over a request value',
-		says: 'a `<svelte:boundary>` with a `failed` snippet',
-		source:
-			'<script>let { data } = $props(); function search(q) { throw new Error(q); }</script>' +
-			'<svelte:boundary><p>{search(data.q)}</p>' +
-			'{#snippet failed(e)}<i>{e.message}</i>{/snippet}</svelte:boundary>',
-	},
-	{
 		// The render's module instances are not the artifact's. An expression the walk judges inert
 		// is handed back for Svelte to evaluate in the render, which imports the module afresh; a
 		// derivation evaluates in the carried bundle, which imported it once. Where the module holds
@@ -4499,8 +4510,10 @@ describe('what the compiler accepts, it reproduces byte for byte', () => {
 		for (const props of payloads) {
 			// Both streams. The head used to go uncompared, and a headed component inside a body
 			// block compiled to a head that held its block whichever branch the request took.
-			const ours = await inject(ir as Parameters<typeof inject>[0], derive(props));
-			const theirs = render(mod.default, { props: props as never });
+			const options =
+				one.transformError === undefined ? {} : { transformError: one.transformError };
+			const ours = await inject(ir as Parameters<typeof inject>[0], derive(props, options));
+			const theirs = render(mod.default, { props: props as never, ...options });
 			expect(ours.body).toBe(theirs.body);
 			expect(ours.head).toBe(theirs.head);
 		}

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { collides, stamp } from './sentinel.ts';
 import { basename, relative, resolve as resolvePath } from 'node:path';
 import {
@@ -245,8 +246,10 @@ async function walked(
 		// An each with an `{:else}` has one other shape, the empty list, and it is keyed the way
 		// an if's else is: `-1`, which is the branch the walk puts the fallback's blocks within.
 		if (block.kind === 'each' && !block.alternate) continue;
-		if (block.kind !== 'if' && block.kind !== 'each') continue;
-		const wanted = block.kind === 'each' ? [] : [...(block.tests ?? []).keys()].slice(1);
+		if (block.kind !== 'if' && block.kind !== 'each' && block.kind !== 'boundary') continue;
+		// A boundary's second test is the JSON its failed branch opens with, not a branch of its own:
+		// the one other render is the failed one, keyed as an else.
+		const wanted = block.kind === 'if' ? [...(block.tests ?? []).keys()].slice(1) : [];
 		// The else always gets a render, with or without a `{:else}` written: Svelte opens the
 		// branch either way and an empty one is still the bytes for an if that is not taken.
 		for (const branch of [...wanted, -1]) {
@@ -704,6 +707,15 @@ export function helpers(rendered: Skeleton): Carried[] {
 		if (written.some((one) => one.includes(`$$${name}(`))) {
 			found.push({ local: `$$${name}`, from, kind: 'named', exported: name });
 		}
+	}
+	// A boundary's children run in one catch, and each of their values is guarded against the throw.
+	// This compiler's own, since Svelte's renderer keeps the equivalent private. See `caught.ts`.
+	const caughtAt = fileURLToPath(new URL('./caught.ts', import.meta.url));
+	if (written.some((one) => one.includes('$$caught('))) {
+		found.push({ local: '$$caught', from: caughtAt, kind: 'named', exported: 'caught' });
+	}
+	if (written.some((one) => one.includes('$$tried('))) {
+		found.push({ local: '$$tried', from: caughtAt, kind: 'named', exported: 'tried' });
 	}
 	return found;
 }

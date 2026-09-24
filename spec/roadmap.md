@@ -1041,15 +1041,15 @@ The refusal was the only thing in the way; `options.test.ts` holds two requests 
 render. An `await` whose value the build can know is under
 **Async Svelte is upstream's unfinished half** at the top of this file.
 
-**A `<svelte:boundary>` whose body throws.** Svelte catches it and writes the `failed` snippet
-instead of the children, handing it `transformError(error)` -- `Renderer`'s own option, defaulting
-to a function that rethrows. Filed as a render option an artifact has nowhere to hold. The injector
-already takes one render option per request, Kit's CSP; `transformError` is the second, and the
-`failed` branch's argument is its result. It is part of the render input
-[payload.md](payload.md) splits from the hydration wire, so it enters the derive stage as any input
-does. Where the throw reads nothing the request decides, which branch renders is the build's to
-know; where it does, both branches are rendered and a derivation decides per request whether the
-body throws.
+**A `<svelte:boundary>` whose body throws: done, where the children are markup and expressions.**
+Svelte catches it and writes the `failed` snippet instead of the children, handing it
+`transformError(error)` -- `Renderer`'s own option, defaulting to a function that rethrows. Filed as
+a render option an artifact has nowhere to hold; it is part of the render input
+[payload.md](payload.md) splits from the hydration wire, reaching the derivations as `$$options`
+beside Kit's CSP in the injector. The boundary is a block of its own in the skeleton, lowered to an
+`if`: [ir.md](ir.md), "A boundary that may throw is a block of its own, lowered to an `if`". **Left**:
+children that hold a block, a component or a render tag, whose expressions this compiler does not
+run in order -- three samples, each throwing from inside a child component.
 
 **The eight samples that write this shape had never been measured**, because they hand `render()`
 a `transformError` in their own `_config.js` and the suite did not read it, so neither side

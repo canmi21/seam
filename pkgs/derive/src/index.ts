@@ -1,4 +1,4 @@
-import { GIVEN } from 'ast';
+import { GIVEN, OPTIONS } from 'ast';
 import { HYDRATABLES, hydratables, resolve, SCOPED, type Scope, thenable, waiting } from 'injector';
 
 export type Source = { path: string } | { literal: string };
@@ -158,7 +158,8 @@ function stacked(scopes: readonly Scope[]): Record<string, unknown> {
  * it off the wire, where only the props go. See spec/payload.md.
  */
 export interface Derived {
-	(props: Scope): Scope;
+	/** `options` is what the server passes `render()`, Kit's `transformError` among it. */
+	(props: Scope, options?: Scope): Scope;
 }
 
 export function compile(derivations: readonly Derivation[], carried = ''): Derived {
@@ -190,7 +191,7 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 	}));
 	const hydrating = compiled.some((one) => one.marked.length > 0);
 
-	return (props) => {
+	return (props, options = {}) => {
 		const out: Scope = { ...props };
 		// The payload itself, under a name nothing an author writes can be: `$$props` is the object
 		// a component was called with, and the entry's is the payload. An expression reads its scope
@@ -198,6 +199,8 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 		// rest in the entry's `$props()` had nothing to be built from. The derived fields sit beside
 		// the props in `out` and are not part of it, which is why this holds `props` and not `out`.
 		out[GIVEN] = props;
+		// The render options beside it, under a name of the same kind. See `OPTIONS` in `ast`.
+		out[OPTIONS] = options;
 		if (compiled.length === 0) return out;
 		// One table per request, which every derivation calling `hydratable` fills and the injector
 		// writes out. See `hydratables` in the injector.

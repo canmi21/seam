@@ -10,6 +10,7 @@ import {
 	importsOf as importedBy,
 	type Locals,
 	GIVEN,
+	OPTIONS,
 	locals,
 	literalOf,
 	mentions,
@@ -79,6 +80,7 @@ import {
 	marksHead,
 	collides,
 	sentinel,
+	THROWN,
 	writes,
 } from './sentinel.ts';
 import type { Block, Hole, Stream } from './shape.ts';
@@ -3222,6 +3224,102 @@ function unstable(walk: Walk): ReadonlySet<string> {
 }
 
 /**
+ * A `<svelte:boundary>` with a `failed` snippet, as a block: the children where nothing threw, the
+ * snippet over the request's `transformError` of what did. See spec/ir.md, "A boundary that may
+ * throw is a block of its own, lowered to an `if`".
+ *
+ * The children's expressions run in order inside one catch per request, which is the test and the
+ * source of the error. Their values are guarded holes, so the render written for the first branch
+ * evaluates none of them and cannot throw; the render for the second throws from inside the
+ * children on purpose, at their end, and `failed` is walked with its parameter bound to the
+ * transformed value.
+ */
+function boundary(
+	node: AstNode,
+	kept: readonly unknown[],
+	failed: AstNode,
+	read: readonly unknown[],
+	walk: Walk,
+	fragment: unknown,
+): void {
+	const { blocks, edits, source, stream, within } = walk;
+	const expanded = read.map((one) => walk.expand(one));
+	const waits = expanded.some(awaiting);
+	const run = `${waits ? 'async ' : ''}() => { ${expanded.map((one) => `(${one});`).join(' ')} }`;
+	const outcome = waits ? `(await $$caught(${run}, ${OPTIONS}))` : `$$caught(${run}, ${OPTIONS})`;
+	const test = `!(${outcome}).threw`;
+	const index = blocks.length;
+	blocks.push({
+		index,
+		kind: 'boundary',
+		stream,
+		expression: test,
+		tests: [test, `(${outcome}).json`],
+		item: null,
+		counter: null,
+		alternate: true,
+		within: [...within],
+	});
+	const whole = span(node);
+	if (whole !== null) {
+		const close = source.lastIndexOf('</svelte:boundary', whole[1]);
+		chose(walk, edits, close, close, index, -1, `{(() => { throw globalThis.${THROWN}; })()}`, '');
+		edits.push(stamped(walk, index, source, whole[1]));
+	}
+	const guarded = (text: string): string =>
+		awaiting(text) ? `(await $$tried(async () => (${text})))` : `$$tried(() => (${text}))`;
+	within.push([index, 0]);
+	held(
+		kept,
+		{ ...walk, expand: (one, extra) => guarded(walk.expand(one, extra)) },
+		walk.standalone && isNode(fragment) ? onlyChild(fragment) : null,
+	);
+	within.pop();
+	const params = parameterNames(Array.isArray(failed['parameters']) ? failed['parameters'] : []);
+	const bound = new Map([...params].map((name): [string, string] => [name, `(${outcome}).value`]));
+	within.push([index, -1]);
+	collect(failed['body'], {
+		...walk,
+		dynamic: new Set([...walk.dynamic, ...params]),
+		expand: (one, extra) => walk.expand(one, new Map([...bound, ...(extra ?? new Map())])),
+	});
+	within.pop();
+}
+
+/**
+ * A boundary's children's expressions in the order they run, or null where the children are not
+ * only markup and expressions: a block, a component or a render tag decides which of its own run
+ * and when, which is the render's and not a list this compiler holds.
+ */
+function inOrder(nodes: readonly unknown[]): unknown[] | null {
+	const found: unknown[] = [];
+	for (const node of nodes) {
+		if (!isNode(node)) continue;
+		const type = node['type'];
+		if (type === 'Text' || type === 'Comment') continue;
+		if (type === 'ExpressionTag') {
+			found.push(node['expression']);
+			continue;
+		}
+		if (type !== 'RegularElement') return null;
+		for (const attribute of Array.isArray(node['attributes']) ? node['attributes'] : []) {
+			if (!isNode(attribute) || attribute['type'] !== 'Attribute') return null;
+			const value = attribute['value'];
+			for (const part of Array.isArray(value) ? value : [value]) {
+				if (isNode(part) && part['type'] === 'ExpressionTag') found.push(part['expression']);
+			}
+		}
+		const fragment = node['fragment'];
+		const inner = inOrder(
+			isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [],
+		);
+		if (inner === null) return null;
+		found.push(...inner);
+	}
+	return found;
+}
+
+/**
  * A `hydratable` call in a script the run would answer. The script the injector writes is made from
  * the entry's own calls, computed first on every request, and a run cannot hand back which calls it
  * made. See spec/derivation.md.
@@ -5930,22 +6028,12 @@ function collect(node: unknown, walk: Walk): void {
 		}
 
 		case 'SvelteBoundary': {
-			// Read out of `3-transform/server/visitors/SvelteBoundary.js`. On the server a boundary
-			// is one shape, not a decision: `<!--[-->`, its children, `<!--]-->` -- or, given a
-			// `pending` snippet, `<!--[!-->`, that snippet's body, `<!--]-->` and none of the
-			// children, because a synchronous render is pending by definition. So there is no block
-			// here. The anchors are a pair the assembler copies as bytes, the way it copies a
-			// package component's own, and what is inside them is walked as anything else is.
-			//
-			// **The `failed` snippet is a decision where the body calls over a request value.** Svelte
-			// catches what the body throws and writes that snippet instead, and a marker stands for
-			// a value the request brings -- so whether it throws is the request's answer, and which
-			// of the two shapes is written is not one shape. It threw at injection instead, which
-			// is a refusal arriving per request: `<svelte:boundary><p>{search(query)}</p>` with
-			// `search` throwing is four of Svelte's samples. Where nothing in the body is a marker
-			// the render's own answer is the request's, and that stays. See spec/refusals.md.
-			// `pending={p}` and `failed={f}` were written as the tag form before this walk read the
-			// file, or refused there. See `boundaries()` in snippets.ts.
+			// Read out of `3-transform/server/visitors/SvelteBoundary.js`. Given a `pending` snippet a
+			// synchronous render is pending by definition: `<!--[!-->`, that body, `<!--]-->`, one
+			// shape. Given a `failed` one, whether the children throw and what `transformError` made
+			// of it are the request's, and that is a block, in `boundary()`. Given neither, the
+			// anchors are a pair the assembler copies as bytes. `pending={p}` and `failed={f}` were
+			// written as the tag form first; see `boundaries()` in snippets.ts.
 			const fragment = node['fragment'];
 			const children =
 				isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
@@ -5960,6 +6048,16 @@ function collect(node: unknown, walk: Walk): void {
 			if (pendingSnippet !== undefined) {
 				step(pendingSnippet['body']);
 				return;
+			}
+			// A `failed` snippet over children this can walk in order is a block: whether they threw
+			// and what `transformError` made of it are the request's. See `boundary()`.
+			if (failedSnippet !== undefined) {
+				const kept = children.filter((child) => child !== failedSnippet);
+				const read = inOrder(kept);
+				if (read !== null) {
+					boundary(node, kept, failedSnippet, read, walk, fragment);
+					return;
+				}
 			}
 			const before = holes.length;
 			// As a fragment, so a `{@const}` or `{const}` written straight inside the boundary binds
@@ -5983,15 +6081,14 @@ function collect(node: unknown, walk: Walk): void {
 				.slice(before)
 				.some((one) => /[\w$)\]]\s*\(/.test(one.expression) && mentions(one.expression, dynamic));
 			if (children.some((child) => snippetNamed(child, 'failed')) && throws) {
-				// The same answer the render gives where it catches one, said before it is reached:
-				// what decides it is not which side the throw is on but what the `failed` snippet is
-				// handed, which is `transformError(error)` -- a render option a server passes, and one
-				// the injector does not take yet. See `render.ts` and spec/roadmap.md.
+				// Children this walk takes in order are a block, in `boundary()`; these are the rest,
+				// and the same answer the render gives where it catches one. See `render.ts`.
 				refuse(
 					'a `<svelte:boundary>` with a `failed` snippet, whose body calls something over a value ' +
-						'the request brings. Svelte writes that snippet instead of the body where the body ' +
-						'throws, and what the snippet is handed is `transformError(error)` -- a render ' +
-						'option a server passes and an artifact has nowhere to hold. See spec/refusals.md',
+						'the request brings inside a block, a component or a render tag. Which of their ' +
+						"expressions run, and in what order, is the render's rather than a list this " +
+						'compiler holds, so whether the body throws cannot be asked per request. See ' +
+						'spec/ir.md',
 				);
 			}
 			return;

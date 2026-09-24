@@ -21,11 +21,10 @@ What the suite fails on, sorted by what closing each takes. The live list is
   - C, a component the request hands in: await-with-update, await-with-update-2,
     dynamic-component-dirty. The source names no component it could be; which components a request
     may hand in is the open part.
-  - D, `transformError`: async-error-boundary, async-error-boundary-2, async-error-boundary-3,
-    boundary-error-failed-prop, boundary-error-html-comment-close-bang-escape,
-    boundary-error-html-comment-escape, boundary-error-html-comment-open-escape,
-    boundary-error-html-comment-overlap-escape, boundary-error-with-onerror, error-boundary-26,
-    error-boundary-27
+  - D, `transformError`: done where the boundary's children are markup and expressions (spec/ir.md,
+    "A boundary that may throw is a block of its own, lowered to an `if`"). Left: error-boundary-27,
+    async-error-boundary-2, async-error-boundary-3, which throw from inside a child component in
+    the boundary.
 
 ## Work, with design questions to answer first
 
@@ -53,6 +52,10 @@ What the suite fails on, sorted by what closing each takes. The live list is
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- D, 8 samples: a boundary with a `failed` snippet over markup and expressions is a block
+  (boundary-error-failed-prop, boundary-error-with-onerror, the four boundary-error-html-comment
+  escapes, error-boundary-26, async-error-boundary).
 
 - B, 15 samples: the entry's script runs where a read cannot be substituted
   (ownership-invalid-mutation-use-transform, assignment-to-computed-property,

@@ -218,6 +218,34 @@ The unit is still the component. A bundle carries the entry and everything reach
 and lowering walks that graph -- so a cycle is an error rather than a hang, and a component the
 bundle does not carry is named rather than skipped.
 
+## A boundary that may throw is a block of its own, lowered to an `if`
+
+`renderer.boundary` writes one of two shapes: `<!--[-->`, the children, `<!--]-->` where they do not
+throw, and `<!--[?`, `transformError(error)` as JSON, `-->`, the `failed` snippet over that value,
+`<!--]-->` where they do. Which one, and the JSON, are the request's: `transformError` is a render
+option the server passes ([payload.md](payload.md), the render input), and whether the children
+throw can turn on a prop. So a boundary with a `failed` snippet is a decision, and **the skeleton
+records it as a block of kind `boundary`**: a test that the children did not throw, and the JSON.
+
+**It is a kind of its own in the skeleton and not in the IR.** Its branches are the IR's `if`: the
+first branch's opening anchor is Svelte's constant, copied as bytes like any branch marker, and the
+second's is `<!--[?`, a slot holding the JSON unescaped -- Svelte's own serialisation already
+escapes `<` and `>` in it -- and `-->`. The assembler is what knows that shape, because the JSON in
+the render it reads is the build's, not the request's. No backend learns what a boundary is, which
+is the rule under **Svelte's anchors are baked in, not emitted**.
+
+**The children's expressions are evaluated per request, in order, inside one catch.** That is the
+test and it is where the error comes from: the error an expression throws is not data and cannot
+be carried from the build, so it is thrown again per request by the same pure expression, and
+handed to the request's `transformError`. The children's own values are holes guarded against the
+throw, which cannot be written anyway: the branch that holds them is the one taken when nothing
+threw. The `failed` snippet's parameter is bound to the transformed value, so what it reads is the
+request's like any other hole.
+
+**Only children this can walk in order are taken**: markup and expressions. A boundary around a
+block, a component or a render tag still refuses, since which of their expressions run, and in what
+order, is the render's and not a list this compiler holds.
+
 ## Recursion is a fragment and a call
 
 `<svelte:self>` is `build_inline_component(node, analysis.name)` in `SvelteSelf.js`, a component
