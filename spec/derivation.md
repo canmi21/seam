@@ -1470,6 +1470,25 @@ read of it is written out as Svelte's own helper, not as a name the run could ha
 what reads a clock, a host global or module state its own module changes is refused as before, and
 those wait on the question [roadmap.md](roadmap.md) holds open.
 
+## A value the request does not decide is the build's, however it is computed
+
+A value that reads nothing the request decides is the same every request, and the build's render
+computes it, as it computes any such value the markup writes. **That holds for a piece of an
+expression as well as for the whole of one**: where an expression reads the request, the largest
+pieces of it that do not are asked of the render and written back as the literals it answered, and
+what is left is data computed per request. **It holds however the value is computed**, a call of
+`svelte/server`'s `render()` included: `render(Child).body` over a `Child` handed nothing from the
+request is a string, and that the string came out of a renderer changes nothing about it. Svelte
+computes it per request and the build computes it once, and the two are the same string.
+
+A piece is taken only where it is data a literal can hold -- the answer is JSON, as a `wants`
+answer is -- and only where it reads nothing a function inside the expression binds, since a
+parameter is decided per call. It is asked where a throw is an answer of its own: Svelte evaluates
+it on the branch that reaches it, the build whatever the branch, and a piece that throws is not
+folded. **A derivation still renders nothing.** A component render that reads the request is left
+after folding, and that is refused rather than run per request. The raw snippet is where this is
+used: [refusals.md](refusals.md).
+
 ## Termination is not one of the three
 
 An earlier draft counted it as the third way to violate the sentence at the top, and claimed it

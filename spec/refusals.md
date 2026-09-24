@@ -1128,17 +1128,17 @@ in a file that has no props at all, naming a snippet the same file declares: wha
 `$$get_store`, which the walk put there. [derivation.md](derivation.md) states that once for every
 construct that asks it. `runtime-runes/snippet-store` is the sample.
 
-**And where the call is the request's, a raw snippet is still a gap.**
+**And where the call is the request's, a raw snippet is a raw hole over the author's function.**
 `createRawSnippet(fn)` on the server is `renderer.push(fn(...getters).render().trim())`, so the
 bytes are whatever the author's `render` returns and, where that reads the request, they are a
-string computed per request. Getting the string means calling what this compiler was handed with a
-renderer of its own, which is standing in for Svelte's renderer contract; and the two samples that
-write the shape go further, calling `svelte/server`'s own `render()` inside that function. It was
-filed as the runtime fallback this file opens by refusing, and it is not one: the fallback is this
-compiler handing a component to Svelte's renderer, and this is a derivation calling the author's
-own function, which happens to call a renderer because the author wrote it to. The string is that
-function's return value per request. `runtime-runes/snippet-raw-component` and `-ssr-dev` fail in
-the suite until the derivation calls it.
+string computed per request -- by the author's own function, which is what a derivation computes.
+The render is handed a snippet that pushes the marker, bound the way the author's callee was bound
+so the anchors Svelte writes around the tag stay its own, and only `render` goes into the hole:
+`setup` runs on the client. What `render` computes that reads nothing the request decides is the
+build's, however it is computed -- `render(Child).body` included, which is a string the build's
+render answers and the hole holds as a literal. See [derivation.md](derivation.md), "A value the
+request does not decide is the build's, however it is computed". A component render still left
+after that reads the request, and is refused: a derivation renders nothing.
 
 **A child's `$$props`, `$$restProps` and `$$slots` are the object its call site passed.**
 `transform-server.js` binds each of them over that object: `$$props` is `sanitize_props($$props)`,

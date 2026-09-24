@@ -1044,22 +1044,19 @@ Svelte catches it and writes the `failed` snippet instead of the children, handi
 a render option an artifact has nowhere to hold; it is part of the render input
 [payload.md](payload.md) splits from the hydration wire, reaching the derivations as `$$options`
 beside Kit's CSP in the injector. The boundary is a block of its own in the skeleton, lowered to an
-`if`: [ir.md](ir.md), "A boundary that may throw is a block of its own, lowered to an `if`". **Left**:
-children that hold a block, a component or a render tag, whose expressions this compiler does not
-run in order -- three samples, each throwing from inside a child component.
+`if`: [ir.md](ir.md), "A boundary that may throw is a block of its own, lowered to an `if`", which
+also holds the children computed in render order, components and blocks included.
 
 **The eight samples that write this shape had never been measured**, because they hand `render()`
 a `transformError` in their own `_config.js` and the suite did not read it, so neither side
 answered and all eight sat outside the denominator. [suite.md](suite.md) has the rule that a sample
 saying how to render itself is not a sample the oracle cannot render.
 
-**A raw snippet whose bytes the request decides.** `createRawSnippet(fn)` is
-`renderer.push(fn(...getters).render().trim())` on the server, so the bytes are what the author's
-`render` returns, per request. Filed as the runtime fallback, because both samples that write the
-shape call `svelte/server`'s `render()` inside that function. The fallback is this compiler handing
-a component to Svelte's renderer; this is a derivation calling the author's function, which calls a
-renderer because the author wrote it to. Where that function reads only the payload it is a pure
-function of it. What is also owed is the message, which still says the callee cannot be followed.
+**A raw snippet whose bytes the request decides: done.** `createRawSnippet(fn)` is
+`renderer.push(fn(...getters).render().trim())` on the server, and both samples that write the shape
+call `svelte/server`'s `render()` inside that function -- over a component handed nothing from the
+request, so the render is a value the build computes and the rest is the author's function over
+the payload. [refusals.md](refusals.md) has the shape.
 
 **A store, or a component, the props carry: the store is done.** Filed as a value the payload cannot carry, since the
 wire is devalue and a store is an object with a `subscribe` function. That is the hydration wire's

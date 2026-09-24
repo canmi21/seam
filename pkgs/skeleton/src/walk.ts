@@ -3657,6 +3657,206 @@ function inOrder(
 }
 
 /**
+ * A `{@render}` of a raw snippet whose bytes the request decides, as a raw hole: the value is what
+ * `createRawSnippet(fn)` pushes on the server, `fn(...getters).render().trim()`, and the render is
+ * handed a snippet that pushes the marker instead, so the anchors Svelte writes around the tag are
+ * its own. Only `render` goes into the hole: `setup` is the client's.
+ *
+ * What in `fn` reads nothing the request decides is a value the build's render computes, the way
+ * any such value is -- a whole `render(Child).body` included, which is a string however it was
+ * made. It is asked for and written back as the literal it answered, and what is left is data
+ * computed per request. What still renders a component after that is a render the request decides,
+ * which a derivation does not do, and is refused. See spec/derivation.md, "A value the request does
+ * not decide is the build's, however it is computed".
+ */
+function rawSnippet(call: unknown, name: string | null, walk: Walk): boolean {
+	const { edits, expand, holes, site } = walk;
+	if (!isNode(call) || call['type'] !== 'CallExpression') return false;
+	const at = span(call);
+	if (at === null) return false;
+	const made = expressionIn(expand(call['callee']));
+	if (made === null) return false;
+	let maker = made.node;
+	while (isNode(maker) && maker['type'] === 'ParenthesizedExpression') maker = maker['expression'];
+	if (!isNode(maker) || maker['type'] !== 'CallExpression') return false;
+	const callee = maker['callee'];
+	const named = isNode(callee) && callee['type'] === 'Identifier' ? callee['name'] : undefined;
+	const imported = typeof named === 'string' ? site.carried.get(named) : undefined;
+	if (
+		typeof named !== 'string' ||
+		(imported === undefined
+			? named !== 'createRawSnippet'
+			: imported.from !== 'svelte' || imported.exported !== 'createRawSnippet')
+	) {
+		return false;
+	}
+	const [fn] = Array.isArray(maker['arguments']) ? maker['arguments'] : [];
+	if (!isNode(fn)) return false;
+	const text = made.text;
+	const cut = (node: unknown): string => {
+		const where = span(node);
+		return where === null ? '' : text.slice(where[0] - made.offset, where[1] - made.offset);
+	};
+
+	// Every name a function inside `fn` binds, which a value read under it may read.
+	const bound = new Set<string>();
+	const binds = (node: unknown): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) binds(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		const type = node['type'];
+		if (Array.isArray(node['params'])) namesIn(node['params'], bound);
+		if (type === 'VariableDeclarator') namesIn(node['id'], bound);
+		if (type === 'CatchClause') namesIn(node['param'], bound);
+		if ((type === 'FunctionDeclaration' || type === 'ClassDeclaration') && isNode(node['id'])) {
+			namesIn(node['id'], bound);
+		}
+		for (const value of Object.values(node)) binds(value);
+	};
+	binds(fn);
+
+	// Only `render`, where `fn` hands back an object written out: `setup` runs on the client.
+	let body = fn['body'];
+	while (isNode(body) && body['type'] === 'ParenthesizedExpression') body = body['expression'];
+	const properties =
+		isNode(body) && body['type'] === 'ObjectExpression' && Array.isArray(body['properties'])
+			? body['properties']
+			: null;
+	const rendering = properties?.find(
+		(one) => isNode(one) && isNode(one['key']) && one['key']['name'] === 'render',
+	);
+	const fnAt = span(fn);
+	const whole = span(body);
+	if (fnAt === null) return false;
+
+	// The largest pieces that read nothing the request decides and nothing bound inside `fn`, each
+	// asked of the render. A function is not one: its body runs when it is called, which may be never.
+	let pending = false;
+	const folds: [number, number, string][] = [];
+	const FOLDED = new Set([
+		'CallExpression',
+		'NewExpression',
+		'MemberExpression',
+		'TaggedTemplateExpression',
+		'TemplateLiteral',
+		'BinaryExpression',
+		'LogicalExpression',
+		'ConditionalExpression',
+	]);
+	const visit = (node: unknown): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) visit(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		const type = node['type'];
+		if (typeof type === 'string' && FOLDED.has(type)) {
+			const piece = cut(node);
+			let local = false;
+			readsIn(node, new Set(), (read) => {
+				if (typeof read['name'] === 'string' && bound.has(read['name'])) local = true;
+			});
+			if (piece !== '' && !local && !constant(piece) && !varies(piece, walk)) {
+				const key = keyed(walk, piece);
+				const told = site.told.get(key);
+				const where = span(node);
+				if (told !== undefined && where !== null) {
+					folds.push([where[0], where[1], told]);
+					return;
+				}
+				if (!site.mute.has(key)) {
+					pending = true;
+					if (!site.wants.some(([one]) => one === key)) {
+						// Asked where a throw is an answer of its own: what Svelte evaluates only on one
+						// branch is evaluated here whatever the branch, and nothing is folded from it.
+						site.wants.push([
+							key,
+							`(() => { try { return (${piece}); } catch { return undefined; } })()`,
+						]);
+					}
+					return;
+				}
+			}
+		}
+		for (const [key, value] of Object.entries(node)) {
+			if (key === 'type' || key === 'start' || key === 'end' || key === 'loc') continue;
+			visit(value);
+		}
+	};
+	visit(isNode(rendering) ? rendering : fn);
+
+	// Written back from the last one, so every earlier position still holds.
+	const withFolds = (from: number, to: number): string => {
+		let out = text.slice(from - made.offset, to - made.offset);
+		for (const [a, b, value] of folds.toSorted((x, y) => y[0] - x[0])) {
+			if (a < from || b > to) continue;
+			out = `${out.slice(0, a - from)}${value}${out.slice(b - from)}`;
+		}
+		return out;
+	};
+	const inner = isNode(rendering) ? span(rendering) : null;
+	const written =
+		inner !== null && whole !== null
+			? `${text.slice(fnAt[0] - made.offset, whole[0] - made.offset)}({ ${withFolds(inner[0], inner[1])} })${text.slice(whole[1] - made.offset, fnAt[1] - made.offset)}`
+			: withFolds(fnAt[0], fnAt[1]);
+
+	// What still renders a component is a render the request decides.
+	const rendersStill = [...site.carried.values()].some(
+		(one) =>
+			(one.from === 'svelte/server' || one.from.endsWith('.svelte')) &&
+			mentions(written, new Set([one.local])),
+	);
+	if (rendersStill && !pending) {
+		refuse(
+			`\`{@render ${String(name)}()}\` in ${basename(site.file)} is a raw snippet whose function ` +
+				'renders a component over what the request decides. What reads nothing the request ' +
+				'decides is computed at the build, however it is made; a render that reads the request ' +
+				'would have to run per request, and a derivation renders nothing. Hand the component ' +
+				'nothing from the request, or write it as a `{#snippet}`. See spec/derivation.md',
+		);
+	}
+
+	const args = Array.isArray(call['arguments']) ? call['arguments'] : [];
+	const getters = args.map((one) => `() => (${expand(one)})`).join(', ');
+	const index = holes.length;
+	holes.push({ index, expression: `(${written})(${getters}).render().trim()`, raw: true });
+	// Standing where the author's snippet stood, and as dynamic as it was: `RenderTag.js` calls a tag
+	// dynamic unless its callee is a name bound the plain way, and a standalone tag that is not
+	// dynamic writes no anchor after it. So a plain name gets a plain name, declared at the top of
+	// the script, and anything else an expression.
+	const pushing = `(r) => r.push(${JSON.stringify(sentinel(index))})`;
+	const plain =
+		isNode(call['callee']) &&
+		call['callee']['type'] === 'Identifier' &&
+		typeof call['callee']['name'] === 'string' &&
+		walk.declares(call['callee']['name']) &&
+		walk.runeOf(call['callee']['name']) === undefined &&
+		!(site.payload?.has(call['callee']['name']) ?? false);
+	if (plain) {
+		const stand = `__seam_raw${String(index)}`;
+		site.prelude.push(`const ${stand} = ${pushing};`);
+		edits.push([at[0], at[1], `${stand}()`]);
+	} else {
+		edits.push([at[0], at[1], `(${pushing})()`]);
+	}
+	return true;
+}
+
+/** An expression as parsed, with the text and the offset its positions are counted from. */
+function expressionIn(text: string): { node: unknown; text: string; offset: number } | null {
+	try {
+		const fragment = (parsed(text) as AstNode)['fragment'];
+		const [tag] = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
+		if (!isNode(tag)) return null;
+		return { node: tag['expression'], text, offset: '<script lang="ts"></script>{'.length };
+	} catch {
+		return null;
+	}
+}
+
+/**
  * A `hydratable` call in a script the run would answer. The script the injector writes is made from
  * the entry's own calls, computed first on every request, and a run cannot hand back which calls it
  * made. See spec/derivation.md.
@@ -6203,20 +6403,9 @@ function collect(node: unknown, walk: Walk): void {
 							'site, which is composition in the other direction',
 					);
 				}
-				// **A raw snippet whose bytes the request decides is a gap, not a callee this
-				// compiler failed to follow.** `createRawSnippet(fn)` is
-				// `renderer.push(fn(...getters).render().trim())` on the server, so where that
-				// `render` reads the request the bytes are what the author's function returns per
-				// request, and calling it then is what is owed. See spec/roadmap.md.
-				if (called !== null && called.includes('createRawSnippet(')) {
-					refuse(
-						`\`{@render ${String(name)}()}\` in ${basename(site.file)} is a raw snippet whose ` +
-							'bytes the request decides. `createRawSnippet` hands the renderer a string its ' +
-							'own function writes, so an artifact would have to run that function per ' +
-							'request, with a renderer of its own, to know what the bytes are. Write it as a ' +
-							'`{#snippet}`, or compute the string in the load stage. See spec/refusals.md',
-					);
-				}
+				// A raw snippet whose bytes the request decides is a raw hole over the author's own
+				// function. See `rawSnippet()`.
+				if (called !== null && rawSnippet(call, name, walk)) return;
 				refuse(
 					`\`{@render ${String(name)}()}\` in ${basename(site.file)} names no \`{#snippet}\` this ` +
 						'compiler can follow it to, and the call reads something the request decides, so ' +

@@ -11,21 +11,18 @@ What the suite fails on, sorted by what closing each takes. The live list is
       a Kit page through the project's Vite). Left, each on a refusal that says why:
       await-then-destruct-computed-props and spread-component-side-effects (a function a derivation
       calls assigns a name), binding-backflow (a bound prop the child changes),
-      component-not-constructor2 (a component the run chose), hydratable-error-on-missing (a
-      `hydratable` in a run script).
+      hydratable-error-on-missing (a `hydratable` in a run script).
 
 ## Work, with design questions to answer first
 
-- [ ] **G. A raw snippet whose function reads a prop.** The author's `render` calls
-      `svelte/server`'s `render(Child)` inside it. Two ways, and the first is a decision: carry
-      `svelte/server` and compiled components into the derivation bundle, which crosses
-      spec/pipeline.md's line that a derivation renders nothing and touches no component; or fold
-      what reads nothing the request decides -- `render(Child).body` here, `Child` taking no props --
-      by asking the render for a subexpression, which `Site.wants` does today only for a whole
-      expression.
-      snippet-raw-component, snippet-raw-component-ssr-dev
-
 ## Waiting on a decision
+
+- [ ] **A component value the source does not name, rendered per request.** Svelte calls whatever
+      `this` holds with the renderer: a `new Proxy(Sub, {})` and a function wrapping `Sub` both
+      write `Sub`, measured, and neither can be told apart from outside by any means. Matching that
+      means a derivation handing the value to Svelte's renderer per request, which spec/pipeline.md
+      says a derivation does not do. Recording a proxy's target reaches the empty-handler proxy and
+      nothing else. component-not-constructor2; C's unnamed component would follow the same answer.
 
 ## Also open
 
@@ -33,6 +30,11 @@ What the suite fails on, sorted by what closing each takes. The live list is
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- G, 2 samples: a raw snippet is a raw hole over the author's `render`, and what it computes that
+  reads nothing the request decides -- `render(Child).body` included -- is a literal the build's
+  render answers (snippet-raw-component, snippet-raw-component-ssr-dev). spec/derivation.md, "A
+  value the request does not decide is the build's, however it is computed".
 
 - B, 3 samples: the build's render no longer runs a statement that calls into what it was given
   nothing for, and the run answers it; a statement reaches what the functions, getters and `$props()`

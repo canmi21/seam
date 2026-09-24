@@ -4042,6 +4042,19 @@ const accepted: Case[] = [
 // Each one is a gap rather than a boundary, and the message has to say which.
 const refused: Case[] = [
 	{
+		// The same raw snippet with the component handed what the request decides: that render is the
+		// request's, and a derivation renders nothing.
+		name: 'a raw snippet embedding a render over the request',
+		beside: { Kid: '<script>let { n } = $props();</script><b>{n}</b>' },
+		source:
+			"<script>import { createRawSnippet } from 'svelte'; import { render } from 'svelte/server';" +
+			" import Kid from './Kid.svelte'; let { data } = $props();" +
+			' const hello = createRawSnippet(() => ({ render: () => `<div>${render(Kid, { props: { n: data.n } }).body}</div>` }));</script>' +
+			'{@render hello()}',
+		data: [{ n: 1 }],
+		says: 'renders a component over what the request decides',
+	},
+	{
 		// The other half of letting a component import resolve. The name is legal and the staged
 		// copy keeps the import, so a component handed to a child is a value the build has; what
 		// the bundle cannot hold is the same name, because `carriedBy()` skips a component and a
