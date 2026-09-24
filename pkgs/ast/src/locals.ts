@@ -779,6 +779,11 @@ function losing(
 			...[...called].filter((one) => found.get(one)?.literal !== 'undefined'),
 		]);
 		if (changed.size === 0) continue;
+		// A function the markup calls that changes the script's state is the run's to call, whatever
+		// reads what it changed: written out where it is called, its body would make the change to a
+		// name no derivation holds. See spec/derivation.md, "What the markup changes while the bytes
+		// are written is changed in the run".
+		if (templated.has(name) && bareWrites(held.node, names).size > 0) lost.add(name);
 		// Read by a route that does not pass through the function doing the changing. One that only
 		// goes through it is that function reading back what it just wrote, which is one evaluation
 		// and holds: `export function compute() { return value.toUpperCase() }` with `{compute()}`
@@ -797,6 +802,15 @@ function losing(
 			// the render runs it once, and the two disagree about a name neither expression names.
 			lost.add(name);
 		}
+	}
+	// And what the markup writes itself, outside any function it only names: `{num++}`, a computed
+	// key in a pattern the markup destructures.
+	for (const target of bareWrites(fragment, names)) lost.add(target);
+	// A declaration whose initialiser calls one of those holds what that call returned when the
+	// script ran it; written out at a read, the call would be made again.
+	for (const [name, one] of found) {
+		if (lost.has(name) || FUNCTIONS.has(String(one.node['type']))) continue;
+		if ([...calling(one.node, names, true)].some((each) => lost.has(each))) lost.add(name);
 	}
 	for (const one of lost) lostBefore.delete(one);
 	if (lost.size === 0 && lostBefore.size === 0) return new Map();
@@ -1128,6 +1142,31 @@ function calling(node: unknown, names: ReadonlySet<string>, run: boolean): Set<s
 		const callee = one['callee'];
 		if (!isNode(callee) || callee['type'] !== 'Identifier') return;
 		if (typeof callee['name'] === 'string' && names.has(callee['name'])) found.add(callee['name']);
+	});
+	return found;
+}
+
+/**
+ * The script's names a node assigns or updates as bare names while it runs -- `n += 1`, `num++` --
+ * which is what a derivation written out has nowhere to write. A member written through, `o.a = 1`,
+ * changes the value the name holds, and a derivation holding that value changes it as the render
+ * does. What a function the node declares binds for itself is its own.
+ */
+function bareWrites(node: unknown, names: ReadonlySet<string>): Set<string> {
+	const found = new Set<string>();
+	const mine = shadows(node);
+	const body = isNode(node) && FUNCTIONS.has(String(node['type'])) ? node['body'] : node;
+	running(body, (one) => {
+		const type = one['type'];
+		const target =
+			type === 'AssignmentExpression'
+				? one['left']
+				: type === 'UpdateExpression'
+					? one['argument']
+					: undefined;
+		if (!isNode(target) || target['type'] !== 'Identifier') return;
+		const name = target['name'];
+		if (typeof name === 'string' && names.has(name) && !mine.has(name)) found.add(name);
 	});
 	return found;
 }

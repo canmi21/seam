@@ -751,6 +751,8 @@ export interface Rewritten {
 	changing: ReadonlyMap<string, string>;
 	/** The entry's own names substitution cannot follow, which its script run answers. */
 	ran: ReadonlySet<string>;
+	/** Whether the markup changes what the run holds while the bytes are written. See `ran()`. */
+	live: boolean;
 	/** Every edit whose text a branch choice decides, the entry's and every copy's. */
 	choices: Choice[];
 	/** What a component `bind:` settles a name to, found on this pass. See `Site.sends`. */
@@ -938,6 +940,12 @@ function takenApart(
 	argument: string,
 	expand: Locals['rewrite'],
 	what: () => string,
+	/**
+	 * Where a computed key changes something as it is evaluated -- `[`p${num++}`]` -- what it is
+	 * held as, so that the member read and the keys a rest leaves out are the one evaluation
+	 * JavaScript makes. Absent, a key is written at each place it is read.
+	 */
+	hold?: (text: string, at: number) => string,
 ): Map<string, string> {
 	const bound = new Map<string, string>();
 	// Bound so far, so a computed key reaches a name written before it in the same pattern.
@@ -981,8 +989,12 @@ function takenApart(
 					one(property['value'], `${reached}.${key['name']}`);
 					continue;
 				}
-				taken.push(literal ? JSON.stringify(String(key['value'])) : `String(${write(key)})`);
-				one(property['value'], `${reached}[${write(key)}]`);
+				const text = write(key);
+				const place = span(key)?.[0] ?? 0;
+				const once =
+					!literal && hold !== undefined && assigned(text).length > 0 ? hold(text, place) : text;
+				taken.push(literal ? JSON.stringify(String(key['value'])) : `String(${once})`);
+				one(property['value'], `${reached}[${once}]`);
 			}
 			return;
 		}
@@ -2791,6 +2803,17 @@ function moves(
 	}
 }
 
+/**
+ * The names the markup changes while the bytes are written, and the functions it calls to change
+ * them: what they hold is read where the render reads it, per request, from the run. See `ran()`
+ * in skeleton.ts.
+ */
+function liveIn(changed: ReadonlyMap<string, string>): string[] {
+	return [...changed]
+		.filter(([, why]) => why.includes('changed by a function this render calls'))
+		.map(([name]) => name);
+}
+
 /** The methods of ECMAScript's own collections that change the value they are called on. */
 const MUTATING: ReadonlySet<string> = new Set([
 	'push',
@@ -3959,6 +3982,10 @@ function varies(
 	// A name a statement reading the request assigns is the request's, whatever else it reads. See
 	// `movedBy()`.
 	if (walk.site.moved.size > 0 && mentions(expression, walk.site.moved)) return true;
+	// And so is writing one, which is not a read: `{num++}` over a `num` the markup changes.
+	if (walk.site.moved.size > 0 && assigned(expression).some((one) => walk.site.moved.has(one))) {
+		return true;
+	}
 	// One of Svelte's own functions this compiler carries is not a name the render can be handed:
 	// Svelte's compiler refuses a `$`-prefixed variable in markup outright. See `carries()`.
 	if (!written && carries(expression)) return outside(expression);
@@ -4037,11 +4064,16 @@ const FUNCTIONS: ReadonlySet<string> = new Set([
  * not a byte written wrongly and silently.
  */
 function assigns(expression: string): string | null {
+	return assigned(expression)[0] ?? null;
+}
+
+/** Every bare name an expression assigns to that it does not bind itself. See `assigns()`. */
+function assigned(expression: string): string[] {
 	let ast: unknown;
 	try {
 		ast = parsed(expression);
 	} catch {
-		return null;
+		return [];
 	}
 	const bound = new Set<string>();
 	const targets: string[] = [];
@@ -4105,7 +4137,7 @@ function assigns(expression: string): string | null {
 		for (const value of Object.values(node)) step(value);
 	};
 	step(ast);
-	return targets.find((one) => !bound.has(one)) ?? null;
+	return targets.filter((one) => !bound.has(one));
 }
 
 /**
@@ -6600,11 +6632,27 @@ function collect(node: unknown, walk: Walk): void {
 			// snippet's parameter does.
 			const resolved = (): Walk => {
 				if (isNode(value)) neutralise(value, edits);
+				// A key that changes something as it is evaluated is held, by place, since two keys
+				// written alike are two evaluations; and every value in the branch reads the holds
+				// first, in order, because Svelte takes the pattern apart as the branch opens.
+				const keys: string[] = [];
 				const bound = isNode(value)
-					? takenApart(value, `(${expression})`, expand, () => 'this await')
+					? takenApart(
+							value,
+							`(${expression})`,
+							expand,
+							() => 'this await',
+							(text, place) => {
+								const key = `$$hold(${String(kept(`${text} /*@key:${String(place)} */`, walk))})`;
+								keys.push(key);
+								return key;
+							},
+						)
 					: new Map<string, string>();
-				const inner: Locals['rewrite'] = (child, more) =>
-					expand(child, more === undefined ? bound : new Map([...bound, ...more]));
+				const inner: Locals['rewrite'] = (child, more) => {
+					const text = expand(child, more === undefined ? bound : new Map([...bound, ...more]));
+					return keys.length === 0 ? text : `(${keys.join(', ')}, ${text})`;
+				};
 				return { ...walk, expand: inner };
 			};
 
@@ -7315,7 +7363,15 @@ function descend(
 			const grown = walk.expand(one['expression']);
 			const entries = objectEntries(grown);
 			if (entries === null) {
-				order.push({ spread: `(${grown})`, at: span(one) });
+				// Evaluated once, as `$.spread_props` evaluates it: merged below, the object is read once
+				// per prop the child declares, and a call in it -- one that changes the script, above
+				// all -- would run as many times. Held where it is the request's and calls something.
+				const whole = `(${grown})`;
+				const once =
+					/[\w$)\]]\s*\(/.test(grown) && varies(whole, walk)
+						? `$$hold(${String(kept(whole, walk))})`
+						: whole;
+				order.push({ spread: once, at: span(one) });
 				continue;
 			}
 			// Its keys are so many props now, and the object is dead at the call site like any other
@@ -8577,7 +8633,7 @@ export function rewrite(
 			file,
 			root,
 			blocked: blockedBy(ast),
-			moved: movedBy(ast, payload ?? new Set()),
+			moved: new Set([...movedBy(ast, payload ?? new Set()), ...liveIn(declared.changed)]),
 			hosted: hostedIn(source, file),
 			imports: importsOf(source),
 			carried: importedBy(source),
@@ -8616,7 +8672,11 @@ export function rewrite(
 		// `dynamic` rather than `varies()` has to see it so: with the entry's script run where a read
 		// cannot be substituted, nothing refuses such a name any more, and a position that took it for
 		// the render's baked the value a neutralised `$:` left. See `movedBy()`.
-		dynamic: new Set([...(payload ?? []), ...movedBy(ast, payload ?? new Set())]),
+		dynamic: new Set([
+			...(payload ?? []),
+			...movedBy(ast, payload ?? new Set()),
+			...liveIn(declared.changed),
+		]),
 		fresh: fresh === null ? [] : [fresh],
 		parent: null,
 		tight: false,
@@ -8737,14 +8797,11 @@ export function rewrite(
 		dead,
 		keeping,
 		changing,
-		// Only what the script's own statements change: the run captures where the template would
-		// start, so a change a function the markup calls makes while the bytes are written is not
-		// in it, and those stay refused. See `ran()` in skeleton.ts.
-		ran: new Set(
-			[...declared.changed]
-				.filter(([, why]) => !why.includes('changed by a function this render calls'))
-				.map(([name]) => name),
-		),
+		// Everything substitution cannot follow, what the markup changes while the bytes are written
+		// included: the run's bindings are live, so a function the markup calls changes the run's own
+		// state and a read after it sees the change. See `ran()` in skeleton.ts.
+		ran: new Set([...declared.changed].map(([name]) => name)),
+		live: liveIn(declared.changed).length > 0,
 		sends,
 		holes,
 		blocks,

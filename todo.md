@@ -7,10 +7,8 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 - [ ] **B. Script state over props.** Decided and built: where substitution cannot follow, the
       script runs as Svelte compiled it, the entry's and a child copy's (spec/derivation.md, "Where
-      substitution cannot follow, the script runs as Svelte compiled it"; the plugin's own test holds
-      a Kit page through the project's Vite). Left, each on a refusal that says why:
-      await-then-destruct-computed-props and spread-component-side-effects (a function a derivation
-      calls assigns a name), binding-backflow (a bound prop the child changes).
+      substitution cannot follow, the script runs as Svelte compiled it"). Left: binding-backflow (a
+      bound prop the child changes, which renders the caller's template again).
 
 ## Work, with design questions to answer first
 
@@ -29,6 +27,12 @@ What the suite fails on, sorted by what closing each takes. The live list is
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- Template changes, 2 samples: the rule refusing what the markup changes while the bytes are
+  written is withdrawn, and the entry's run answers it with live bindings, each read where the
+  render reads it (await-then-destruct-computed-props, spread-component-side-effects).
+  spec/derivation.md, "What the markup changes while the bytes are written is changed in the run".
+  A child's run still refuses it.
 
 - B, 1 sample: the entry's run makes its `hydratable` calls into the request's record, and is the
   entry's one eager call (hydratable-error-on-missing). spec/derivation.md, "The entry's run makes

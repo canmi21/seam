@@ -1281,9 +1281,11 @@ the name holds `bar` while the bytes are written where the substitution stood fo
 and wrote `foo`. The entry's props arrive here as a set of names and a child's as the names its
 call site bound, a `$props()` destructuring being read elsewhere rather than declared.
 
-**Changed by a function this render calls.** The first rule's exemption said a function body does
-not run while the bytes are written, and that is true of a handler and false of anything the markup
-calls:
+**Changed by a function this render calls.** What follows is why substitution cannot follow such a
+name; the entry's run answers it, under "What the markup changes while the bytes are written is
+changed in the run", and a child's copy refuses it. The first rule's exemption said a function body
+does not run while the bytes are written, and that is true of a handler and false of anything the
+markup calls:
 
 ```svelte
 const log = [];
@@ -1471,13 +1473,38 @@ makes the entry's one run per request however many places read it.
 not only where `varies()` is asked: with the refusal gone, a position asking `dynamic` alone took
 such a name for the render's and baked the value a neutralised `$:` left.
 
-**It answers what the script's own statements change, and nothing the template changes.** That
-takes in a function the script's statements call -- it runs before the template too -- and not one
-the markup calls. The capture sits where the template would start, so a name a function the markup calls changes while
-the bytes are written -- an each default that counts its calls, a snippet parameter's -- is not in
-it, and those stay refused; an entry that reads nothing the request decides is Svelte's render,
-whole, in [pipeline.md](pipeline.md). A write into the object a caller passed stays refused too: a
-read of it is written out as Svelte's own helper, not as a name the run could hand back.
+**What the markup changes while the bytes are written is changed in the run.** The rule that
+refused it is withdrawn: Svelte allows a function the markup calls to change the script's state, a
+markup expression to write `n++`, and a pattern's computed key to count, and what each writes is
+determined. The entry's run answers it:
+
+- _Its bindings are live._ The capture hands back a getter per name, and a setter where a statement
+  may assign it -- a `let` or a `var` that is not a `$derived`, and a `$:` -- the module block's
+  names beside the instance block's. So a function the markup calls is the run's own, closing over
+  the run's state, and a read after it sees what it changed.
+- _What must be the run's is read from it._ A function the markup calls that assigns a script name
+  as a bare name, the names it and the markup assign that way, and a declaration whose initialiser
+  calls one of those: each is read from the run and never written out, since a body written out
+  where it is called makes its change to a name no derivation holds, and an initialiser written out
+  makes its call again. A change through a member -- `log.push(x)`, `reads[k] += 1` -- is made to the
+  value itself, which a derivation holding that value changes as the render does, and is left
+  alone. Those names count as the request's wherever the walk asks, a write of one included.
+- _Each read is read where the render reads it._ A derivation is computed when the injector reaches
+  it, which is render order; a read of the run's state is marked with its place, so two reads
+  written alike stay two reads, and inside an `{#each}` it is one per item. A caller's expression
+  that reaches a child's hole is written the same way, but for a name a file nearer the hole
+  declares, which is that file's.
+- _What Svelte evaluates once is held once._ A spread the request decides that calls something is
+  one value, as `$.spread_props` makes it; a computed key that changes something is held by place,
+  so the member it reads and the keys a rest leaves out are the one evaluation, and every value in
+  the `{#await}` branch reads those holds first, since Svelte takes the pattern apart as the branch
+  opens.
+
+Where no request decides anything on the page, Svelte's own render is the page, and it is taken
+over this. **A child's run still refuses it**: a child's run is written at each read rather than
+held, so a change one read makes is not seen by the next. A write into the object a caller passed
+stays refused: a read of it is written out as Svelte's own helper, not as a name the run could hand
+back.
 
 **It stays a pure function of the render input.** Its inputs are the props and the module scope;
 what reads a clock, a host global or module state its own module changes is refused as before, and

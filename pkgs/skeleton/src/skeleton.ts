@@ -16,7 +16,7 @@ import {
 } from 'ast';
 import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
-import { isNode, refuse } from './node.ts';
+import { isNode, namesIn, refuse } from './node.ts';
 import { timed, timedSync } from './timing.ts';
 import { renderRewritten, shippable } from './render.ts';
 import { dead, filled, outcomes, probed } from './resolve.ts';
@@ -40,6 +40,9 @@ export type { Block, Choice, Hole, Rendered, Skeleton, Stream } from './shape.ts
  * inside an if is in the alternate and not in the baseline.
  */
 
+/** The walked pages whose markup changes what the script run holds. See `ran()`. */
+const livePages = new WeakSet<Skeleton>();
+
 /**
  * The walked compile, and where it refuses, the whole page as Svelte renders it if nothing on the
  * page is a request's to decide -- the rule `descend()` applies to a child, at the root. A refusal
@@ -52,7 +55,11 @@ export async function skeleton(
 	decided: ReadonlyMap<string, boolean> = new Map(),
 ): Promise<Skeleton> {
 	try {
-		return await walked(entryFile, root, fixed, decided);
+		const page = await walked(entryFile, root, fixed, decided);
+		// Where the markup changes the script's state, the page is computed by the run in render
+		// order; where no request decides anything on it, Svelte's render is that page already.
+		if (!livePages.has(page) || fixed.size > 0) return page;
+		return (await whole(resolvePath(entryFile), root)) ?? page;
 	} catch (error) {
 		if (error instanceof Undecided || fixed.size > 0) throw error;
 		const page = await whole(resolvePath(entryFile), root);
@@ -382,7 +389,8 @@ async function walked(
 	// its value reads, so a context read inside one went out as a derivation and threw
 	// `lifecycle_outside_component` at injection rather than naming a file here. Asked once more
 	// over the finished list, which is the one place that holds all of them.
-	ran(finished, relative(root, file), baseline.ran, source);
+	ran(finished, relative(root, file), baseline.ran, source, baseline.live, root);
+	if (baseline.live) livePages.add(finished);
 	for (const one of expressionsOf(finished)) outside(one.expression, true, baseline.changing);
 	composed(expressionsOf(finished), root);
 
@@ -404,6 +412,9 @@ function ran(
 	entry: string,
 	changed: ReadonlySet<string>,
 	source: string,
+	/** Whether the markup itself changes the run's state while the bytes are written. */
+	live = false,
+	root = '',
 ): void {
 	if (changed.size === 0) return;
 	const hydrating = HYDRATABLE.test(source);
@@ -431,9 +442,45 @@ function ran(
 		at ??= rendered.held.push({ expression: running, files: [entry] }) - 1;
 		return `($$hold(${String(at)}).${name})`;
 	};
-	const over = (text: string): string => readsReplaced(text, names, field);
+	// Where the markup changes the run's state, a read is a read at one moment: two holes writing
+	// the same text read at two points of the render, and one derivation for both would answer the
+	// second with the first's value. Each is marked with its place, as `placed()` marks a clock.
+	let place = 0;
+	const over = (text: string): string => {
+		const read = readsReplaced(text, names, field);
+		if (!live || read === text) return read;
+		place += 1;
+		return `${read} /*@run:${String(place)} */`;
+	};
 	const own = (files: readonly string[] | undefined): boolean => (files?.[0] ?? entry) === entry;
+	// What the walk holds once per request -- a spread's object -- is written in the entry's terms
+	// too, and read once, where the render reads it.
+	for (const one of [...rendered.held]) {
+		if (own(one.files)) one.expression = over(one.expression);
+	}
+	// A child's hole holds what the entry handed it, in the entry's names, beside the child's own:
+	// the entry's are written as fields of the run where the markup changes what it holds, and a
+	// name a file nearer the hole declares is that file's and stays.
+	const handed = (files: readonly string[] | undefined): string[] | null => {
+		const chain = files ?? [];
+		const reached = chain.indexOf(entry);
+		if (!live || reached <= 0) return null;
+		return chain.slice(0, reached);
+	};
 	for (const hole of rendered.holes) {
+		const inner = handed(hole.files);
+		if (inner !== null) {
+			const nearer = new Set<string>();
+			for (const one of inner)
+				for (const name of declaredIn(resolvePath(root, one))) nearer.add(name);
+			const mine = new Set([...names].filter((one) => !nearer.has(one.replace(/^\$/, ''))));
+			const read = readsReplaced(hole.expression, mine, field);
+			if (read !== hole.expression) {
+				place += 1;
+				hole.expression = `${read} /*@run:${String(place)} */`;
+			}
+			continue;
+		}
 		if (!own(hole.files)) continue;
 		hole.expression = over(hole.expression);
 		if (hole.choice?.tests !== undefined) hole.choice.tests = hole.choice.tests.map(over);
@@ -466,6 +513,48 @@ function ran(
 	if (at !== undefined && imported.local !== null) {
 		rendered.eager = [{ expression: running, files: [entry] }];
 	}
+}
+
+/** Every name a component's scripts declare or import at their top level, by file, once. */
+const declaredNames = new Map<string, ReadonlySet<string>>();
+function declaredIn(file: string): ReadonlySet<string> {
+	const held = declaredNames.get(file);
+	if (held !== undefined) return held;
+	const found = new Set<string>();
+	try {
+		const ast = parse(readFileSync(file, 'utf8'), { modern: true }) as unknown as Record<
+			string,
+			unknown
+		>;
+		for (const block of [ast['module'], ast['instance']]) {
+			const content = isNode(block) ? block['content'] : undefined;
+			const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+			for (const statement of body) {
+				if (!isNode(statement)) continue;
+				const declaration =
+					statement['type'] === 'ExportNamedDeclaration' && isNode(statement['declaration'])
+						? statement['declaration']
+						: statement;
+				if (declaration['type'] === 'ImportDeclaration') {
+					const specifiers = declaration['specifiers'];
+					for (const one of Array.isArray(specifiers) ? specifiers : []) {
+						if (isNode(one) && isNode(one['local'])) namesIn(one['local'], found);
+					}
+				} else if (declaration['type'] === 'VariableDeclaration') {
+					const declarations = declaration['declarations'];
+					for (const one of Array.isArray(declarations) ? declarations : []) {
+						if (isNode(one)) namesIn(one['id'], found);
+					}
+				} else if (isNode(declaration['id'])) {
+					namesIn(declaration['id'], found);
+				}
+			}
+		}
+	} catch {
+		// A file that does not parse declares nothing this can read; the compile has said so already.
+	}
+	declaredNames.set(file, found);
+	return found;
 }
 
 /** The name one script block imports Svelte's `hydratable` under, or null. */

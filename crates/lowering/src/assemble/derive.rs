@@ -168,8 +168,11 @@ impl Assembler<'_> {
 		// function either way; what changes is how often it is called, and that follows from what
 		// its inputs are rather than from a rule about derivations. See spec/derivation.md.
 		let read = reads(trimmed);
-		let scoped =
-			self.locals.iter().chain(self.fresh.iter()).any(|one| read.iter().any(|name| name == one));
+		// A read of the script run's state the markup changes is a read at one moment, so inside an
+		// each it is one per item, whatever it names. The skeleton marks such a read with its place.
+		let live = trimmed.contains("/*@run:") && !self.locals.is_empty();
+		let scoped = live
+			|| self.locals.iter().chain(self.fresh.iter()).any(|one| read.iter().any(|name| name == one));
 		// One derivation per expression, not per read of it. A declaration is written out wherever
 		// the markup reads it, so `{#each items as item}` and the `{items}` handed to a child are
 		// the same text twice -- and evaluated twice they are two arrays, whose elements are not

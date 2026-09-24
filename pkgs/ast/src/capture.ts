@@ -30,12 +30,24 @@ export function captured(source: string): string {
 	const ast = parse(source, { modern: true }) as unknown as Record<string, unknown>;
 	const instance = ast['instance'];
 	const module = ast['module'];
-	const names = declaredAtTop(instance);
+	const writable = new Set<string>();
+	// The module block's too: the markup reads its names as it reads the instance block's, and may
+	// change them while the bytes are written.
+	const names = new Set([...declaredAtTop(module, writable), ...declaredAtTop(instance, writable)]);
 	const stores = new Set<string>();
 	for (const [, name] of source.matchAll(/(?<![\w$])\$([A-Za-z_][\w]*)/g)) {
 		if (name !== undefined && names.has(name)) stores.add(`$${name}`);
 	}
-	const fields = [...names, ...stores].map((one) => `${JSON.stringify(one)}: ${one}`).join(', ');
+	// Live rather than the values at the capture: what the markup computes may change a name while
+	// the bytes are written -- a function it calls, an `n++` -- and a read after it sees the change,
+	// as the render's does. A name the script may assign is written through as well.
+	const fields = [...names, ...stores]
+		.map(
+			(one) =>
+				`get ${JSON.stringify(one)}() { return ${one}; }` +
+				(writable.has(one) ? `, set ${JSON.stringify(one)}(value) { ${one} = value; }` : ''),
+		)
+		.join(', ');
 	const importing = "import { getContext as __seam_context } from 'svelte';";
 	const script = isNode(instance)
 		? spliced(source, instance, importing, hydrating(instance))
@@ -91,8 +103,12 @@ function hydrating(instance: Record<string, unknown>): Edit[] {
 	return edits;
 }
 
-/** Every name the instance block declares at its top level, a `$:` it assigns included. */
-function declaredAtTop(instance: unknown): Set<string> {
+/**
+ * Every name the instance block declares at its top level, a `$:` it assigns included, with the
+ * ones a statement may assign -- a `let` or a `var` that is not a `$derived`, and a `$:` -- put in
+ * `writable`.
+ */
+function declaredAtTop(instance: unknown, writable: Set<string> = new Set()): Set<string> {
 	const found = new Set<string>();
 	const content = isNode(instance) ? instance['content'] : undefined;
 	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
@@ -105,8 +121,11 @@ function declaredAtTop(instance: unknown): Set<string> {
 				: statement;
 		if (declaration['type'] === 'VariableDeclaration') {
 			const declarations = declaration['declarations'];
+			const reassignable = declaration['kind'] === 'let' || declaration['kind'] === 'var';
 			for (const one of Array.isArray(declarations) ? declarations : []) {
-				if (isNode(one)) bound(one['id'], found);
+				if (!isNode(one)) continue;
+				bound(one['id'], found);
+				if (reassignable && !derivedRune(one['init'])) bound(one['id'], writable);
 			}
 		} else if (
 			declaration['type'] === 'FunctionDeclaration' ||
@@ -120,10 +139,24 @@ function declaredAtTop(instance: unknown): Set<string> {
 			const expression = isNode(body) ? body['expression'] : undefined;
 			if (isNode(expression) && expression['type'] === 'AssignmentExpression') {
 				bound(expression['left'], found);
+				bound(expression['left'], writable);
 			}
 		}
 	}
 	return found;
+}
+
+/** Whether an initialiser is `$derived(...)` or `$derived.by(...)`, which nothing may assign. */
+function derivedRune(init: unknown): boolean {
+	if (!isNode(init) || init['type'] !== 'CallExpression') return false;
+	const callee = init['callee'];
+	if (isNode(callee) && callee['type'] === 'Identifier') return callee['name'] === '$derived';
+	return (
+		isNode(callee) &&
+		callee['type'] === 'MemberExpression' &&
+		isNode(callee['object']) &&
+		callee['object']['name'] === '$derived'
+	);
 }
 
 /** A block's source, with edits made inside it, and with a statement put first inside it. */
@@ -148,7 +181,8 @@ function slice(source: string, node: Record<string, unknown>): string {
 /**
  * An expression with every read of one of `names` from outside it written as `as(name)`: a
  * property name, a key and a name a function inside binds are not reads, and a shorthand property
- * keeps its key. The expression comes back unchanged where it cannot be parsed.
+ * keeps its key. A name assigned or updated is written the same way, so `n++` writes through to
+ * what `as(n)` reads. The expression comes back unchanged where it cannot be parsed.
  */
 export function readsReplaced(
 	expression: string,
@@ -167,6 +201,50 @@ export function readsReplaced(
 	if (!isNode(tag)) return expression;
 	const wrapped = '<script lang="ts"></script>{'.length;
 	const edits: Edit[] = [];
+	// A write target is not a read, and `reads()` never visits one. Written through all the same,
+	// outside a function that binds the name for itself.
+	const targets = (node: unknown, shadowed: ReadonlySet<string>): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) targets(one, shadowed);
+			return;
+		}
+		if (!isNode(node)) return;
+		const type = node['type'];
+		if (
+			type === 'FunctionExpression' ||
+			type === 'ArrowFunctionExpression' ||
+			type === 'FunctionDeclaration'
+		) {
+			const inner = new Set(shadowed);
+			bound(node['params'], inner);
+			targets(node['body'], inner);
+			return;
+		}
+		const target =
+			type === 'AssignmentExpression'
+				? node['left']
+				: type === 'UpdateExpression'
+					? node['argument']
+					: undefined;
+		if (isNode(target) && target['type'] === 'Identifier') {
+			const name = target['name'];
+			const start = target['start'];
+			const end = target['end'];
+			if (
+				typeof name === 'string' &&
+				names.has(name) &&
+				!shadowed.has(name) &&
+				typeof start === 'number' &&
+				typeof end === 'number'
+			) {
+				edits.push([start - wrapped, end - wrapped, as(name)]);
+			}
+		}
+		for (const [key, value] of Object.entries(node)) {
+			if (key !== 'type' && key !== 'start' && key !== 'end' && key !== 'loc') targets(value, shadowed);
+		}
+	};
+	targets(tag['expression'], new Set());
 	reads(tag['expression'], new Set(), (at, shorthand) => {
 		const name = at['name'];
 		const start = at['start'];

@@ -834,6 +834,99 @@ const accepted: Case[] = [
 			'<p>{p0} {p2} {p3}</p><p>{log}</p>',
 		props: [{ p0: 0, p2: 0, p3: 0 }, {}, { p2: 5 }],
 	},
+	// **What the markup changes while the bytes are written is changed in the run.** The run's
+	// bindings are live, a function the markup calls is the run's own, and each read is read where
+	// the render reads it. See spec/derivation.md.
+	{
+		name: 'a function the markup calls that changes a name the markup reads',
+		source:
+			'<script>let { data } = $props(); let n = 0;' +
+			' function bump(v) { n += 1; return v }</script>' +
+			'<p>{n}</p><p>{bump(data.a)}</p><p>{n}</p><p>{bump(data.b)}</p><p>{n}</p>',
+		data: [
+			{ a: 'x', b: 'y' },
+			{ a: '', b: 'z' },
+		],
+	},
+	{
+		// Svelte's spread-component-side-effects: the spread is computed once and the change it makes
+		// is the run's.
+		name: 'a spread computed by a function that changes the script',
+		beside: {
+			Widget:
+				'<script>export let i; export let foo; export let qux;</script>' +
+				'<p>i: {i}</p><p>foo: {foo}</p><p>qux: {qux}</p>',
+		},
+		source:
+			"<script>import Widget from './Widget.svelte'; export let foo = 'foo'; let i = 0;" +
+			' const getProps = (foo) => { i += 1; return { foo, i }; };</script>' +
+			'<div><Widget {...getProps(foo)} qux="named"/></div>',
+		props: [{}, { foo: 'lol' }],
+	},
+	{
+		// The same fault one level in, and it used to compile: the instance script runs once and a
+		// function beside it closes over that one binding, while substitution gives every read its
+		// own copy of the initialiser. Measured against Svelte before it was refused, `1|0` and
+		// `2|0` where Svelte wrote `1|1` and `2|2`.
+		name: 'a value changed by a function the markup calls',
+		source:
+			'<script>let { data } = $props(); const log = [];' +
+			' function next(x) { log.push(x); return x; }</script>' +
+			'{#each data.rows as row}<p>{next(row)}|{log.length}</p>{/each}',
+		data: [{ rows: [1, 2] }, { rows: [] }],
+	},
+	{
+		// A function written as an argument of a call is run by that call: `run(() => count += 1)`
+		// from `svelte/legacy` is a `$:` migrated, and `untrack(() => count++)` is Svelte's own.
+		// A plain name only -- `sleep(10).then(() => ...)` hands its function to a member, and what
+		// a member does with one this pass does not know -- and not the runes `CallExpression.js`
+		// answers with `void 0`, whose argument the server never runs.
+		// And through the script's own statements, which Svelte puts ahead of the template: a
+		// statement assigning through a call is the rule that refuses a direct one, one level in.
+		// `let promise; new_promise()` left `{#await promise}` taking the wrong branch.
+		// The same through a declaration rather than the markup: reading `first` writes `tick()` out
+		// where the render evaluates it, so the call is made and what it changes is lost.
+		name: 'a value changed by a function a declaration the markup reads calls',
+		source:
+			'<script>let { data } = $props(); const seen = [];' +
+			' function tick() { seen.push(1); return seen.length; }' +
+			' const first = tick();</script><p>{data.a + first}|{seen.length}</p>',
+		data: [{ a: 1 }, { a: 5 }],
+	},
+	{
+		// A getter is run by a property read, which is not something the reader wrote as a call, and
+		// this pass writes a declaration's initialiser out at every read. So a getter that changes
+		// something is a function this render calls, and the walk into it stops where a plain
+		// function property's body stops -- what a function property does is decided by whoever
+		// calls it, and nobody here does.
+		name: 'a getter that changes what the markup reads',
+		source:
+			'<script>export let a; let seen = 0;' +
+			' function tick() { seen += 1; return seen; }' +
+			' const held = { get now() { return tick(); } };</script>' +
+			'<p>{held.now + a}|{seen}</p>',
+		props: [{ a: 1 }, { a: 2 }],
+	},
+	{
+		// Svelte's await-then-destruct-computed-props over a value rather than a promise: the pattern
+		// is taken apart once, its keys in order, and what they change is read after.
+		name: 'a pattern whose computed keys change a name the markup reads',
+		source:
+			'<script>let { data } = $props(); let num = 1;</script>' +
+			'{#await data.o then { [`p${num++}`]: a, [`p${num++}`]: b, ...rest }}' +
+			'<p>{num}{a}{b}{num}{JSON.stringify(rest)}</p>{/await}',
+		data: [{ o: { p1: 'x', p2: 'y' } }, { o: { p1: 'q', p2: 'r', p3: 's' } }],
+	},
+	{
+		name: 'a markup expression that updates a name it reads again',
+		source:
+			'<script>let { data } = $props(); let num = 1;</script>' +
+			'<p>{data.a}{num++}</p><p>{num}</p>{#each data.xs as x}<i>{x}{num++}</i>{/each}<p>{num}</p>',
+		data: [
+			{ a: 'q', xs: [1, 2] },
+			{ a: 'r', xs: [] },
+		],
+	},
 	// **What Svelte's render reads while it writes**, read per request and never at the build: a
 	// module's state, a fresh symbol, a host's global. Each of these was refused. See spec/derivation.md,
 	// "Ambient input is read at request time, never at the build".
@@ -4320,17 +4413,6 @@ const refused: Case[] = [
 			' const held = writable(one);</script>' +
 			'{#snippet one()}<b>{data.a}</b>{/snippet}{@render $held()}',
 	},
-	{
-		// `reads()` never visits an assignment target -- `(0) = 1` is not JavaScript -- so a name
-		// written to is never substituted and never reported as read either, and it went out as a
-		// free name. A derivation is a pure expression evaluated once per request and outside the
-		// script, so the name is bound nowhere: it reached the evaluator as `n is not defined`.
-		name: 'a value this compiler writes that assigns to a name outside it',
-		says: 'is assigned inside a value this compiler has to write itself',
-		source:
-			'<script>let { data } = $props(); let n = 0;' +
-			' function bump(v) { n += 1; return v }</script><p>{bump(data.a)}</p>',
-	},
 
 	{
 		// A rune is compiled away by Svelte and is not a function anything can call. The ones whose
@@ -4358,50 +4440,6 @@ const refused: Case[] = [
 		source:
 			"<script>import { setContext } from 'svelte'; import Kid from './Kid.svelte';" +
 			" let { data } = $props(); setContext('k', { v: data.v });</script><Kid />",
-	},
-	{
-		// The same fault one level in, and it used to compile: the instance script runs once and a
-		// function beside it closes over that one binding, while substitution gives every read its
-		// own copy of the initialiser. Measured against Svelte before it was refused, `1|0` and
-		// `2|0` where Svelte wrote `1|1` and `2|2`.
-		name: 'a value changed by a function the markup calls',
-		says: 'changed by a function this render calls',
-		source:
-			'<script>let { data } = $props(); const log = [];' +
-			' function next(x) { log.push(x); return x; }</script>' +
-			'{#each data.rows as row}<p>{next(row)}|{log.length}</p>{/each}',
-	},
-	{
-		// A function written as an argument of a call is run by that call: `run(() => count += 1)`
-		// from `svelte/legacy` is a `$:` migrated, and `untrack(() => count++)` is Svelte's own.
-		// A plain name only -- `sleep(10).then(() => ...)` hands its function to a member, and what
-		// a member does with one this pass does not know -- and not the runes `CallExpression.js`
-		// answers with `void 0`, whose argument the server never runs.
-		// And through the script's own statements, which Svelte puts ahead of the template: a
-		// statement assigning through a call is the rule that refuses a direct one, one level in.
-		// `let promise; new_promise()` left `{#await promise}` taking the wrong branch.
-		// The same through a declaration rather than the markup: reading `first` writes `tick()` out
-		// where the render evaluates it, so the call is made and what it changes is lost.
-		name: 'a value changed by a function a declaration the markup reads calls',
-		says: 'changed by a function this render calls',
-		source:
-			'<script>let { data } = $props(); const seen = [];' +
-			' function tick() { seen.push(1); return seen.length; }' +
-			' const first = tick();</script><p>{data.a + first}|{seen.length}</p>',
-	},
-	{
-		// A getter is run by a property read, which is not something the reader wrote as a call, and
-		// this pass writes a declaration's initialiser out at every read. So a getter that changes
-		// something is a function this render calls, and the walk into it stops where a plain
-		// function property's body stops -- what a function property does is decided by whoever
-		// calls it, and nobody here does.
-		name: 'a getter that changes what the markup reads',
-		says: 'changed by a function this render calls',
-		source:
-			'<script>export let a; let seen = 0;' +
-			' function tick() { seen += 1; return seen; }' +
-			' const held = { get now() { return tick(); } };</script>' +
-			'<p>{held.now + a}|{seen}</p>',
 	},
 	{
 		// The other reading of a marker that does not come back, and the one that is a fault: the
