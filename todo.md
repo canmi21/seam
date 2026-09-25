@@ -9,6 +9,11 @@ What the suite fails on, sorted by what closing each takes. The live list is
       script runs as Svelte compiled it, the entry's and a child copy's (spec/derivation.md, "Where
       substitution cannot follow, the script runs as Svelte compiled it"). Left: binding-backflow (a
       bound prop the child changes, which renders the caller's template again).
+- [ ] **An `await` written into a legacy-mode component.** With `experimental.async` on, this
+      compiler writes an `await` into a component compiled without runes, and Svelte refuses it with
+      `legacy_await_invalid`; upstream never compiles a legacy component with the flag, so nothing
+      says what shape is right. The one sample the synchronous pass had passing that the one render
+      does not (spec/suite.md, "One render: Svelte's with `experimental.async` on"). props-reactive.
 
 ## Work, with design questions to answer first
 

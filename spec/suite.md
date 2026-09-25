@@ -201,38 +201,38 @@ input and the plugin compiled the file again for every child that imports the en
 comparison -- which is worth saying out loud, because an oracle is only an oracle while nothing is
 wrong with it.
 
-**With one exception, and it is this harness's own.** Upstream compiles the runtime suites with
-`experimental.async` on and this one does not, so Svelte's compiler turns away every async sample.
-That is not the oracle failing; it is a question this harness did not ask. The flag is
-process-global and irreversible once set, so passing it would make every later sample's render
-depend on the order the samples ran in. Those samples stay ours to answer, and they are async
-Svelte: compile-time work where the build can know what is awaited, and owed work where the request
-decides it.
+**The oracle is compiled with `experimental.async`, the way this compiler is.** It was not, once:
+upstream compiles the runtime suites with the flag on and this harness did not, so Svelte's compiler
+turned away every async sample -- not the oracle failing, a question the harness did not ask. What
+kept the flag off was that it is process-global and irreversible once set, so passing it for one
+sample would have made every later sample's render depend on the order they ran in. The answer was
+a second pass in a process of its own, and then the one render below.
 
-**Which is also how membership of that class is decided.** A sample the oracle cannot build without
-`experimental.async` is async Svelte, whatever this compiler's own message says -- two of them were
-turned away earlier for a reason of their own and were being ranked as gaps on the strength of that
-message while being the async pass's either way. Upstream's compiler says which samples those are; a
-message match here does not.
+### One render: Svelte's with `experimental.async` on
 
-### Two passes: the synchronous render and the async one
+Every sample is measured in one render: Svelte's server render with `experimental.async` on, both
+sides compiled with it and both renders awaited. It is the render a project gets with the flag
+today, and the only one Svelte 6 keeps: the flag is removed there, and Kit's `page/render.js`
+carries `// TODO 3.0 remove options.async` beside the choice it still makes (see
+[roadmap.md](roadmap.md)). The runner stages a `svelte.config.js` with `experimental.async` beside
+every sample, so this compiler reads the mode the way a project gives it.
 
-Every sample is measured in the render upstream measures it in, and there are two: the synchronous
-server render, and the same render with `experimental.async` on -- the render a project gets with
-the flag, and the only one Svelte 6 keeps (see [roadmap.md](roadmap.md)). The runner is a parent
-that starts **one process per pass**, both at once, because the flag is process-global and nothing
-turns it off once a compiled component has imported `svelte/internal/flags/async`; each writes its
-results for the parent to hold to the list. The async pass stages a `svelte.config.js` with
-`experimental.async` beside every sample, so this compiler reads the mode the way a project gives
-it, and both renders are awaited.
+**It was two passes, and the synchronous one was dropped after being measured against this one.**
+The synchronous render was a pass of its own, in a process of its own since the flag is
+process-global and nothing turns it off once a compiled component has imported
+`svelte/internal/flags/async`; a parent started both at once and held each to a section of the
+list. Before it went, every sample the synchronous pass had passing was run under the async render,
+the legacy suite and the samples upstream renders only synchronously included, and all of them
+passed but one: `runtime-legacy/props-reactive`, where this compiler writes an `await` into a
+legacy-mode component and Svelte refuses it with `legacy_await_invalid`. That is a gap of this
+compiler's, owed in `todo.md`, and it is the whole cost of the one render. It replaced `SEAM_ASYNC`
+before that, the environment variable that ran the async render as an experiment.
 
-**The async pass measures the SSR suite and the runes suite**, since upstream's `async-ssr` variant
-is `no-test` for the legacy suite. A sample upstream renders in only one of the two passes is
-measured there and is upstream's skip in the other, saying which pass has it: `skip_no_async` or a
-`mode` naming only the async server render sends a sample to the async pass, `skip_async` or a `mode`
-naming only the synchronous one keeps it out of it, and a sample Svelte's own compiler will not
-build without the flag is the async pass's whatever this compiler said. It replaced `SEAM_ASYNC`,
-the environment variable that ran the async render as an experiment.
+**The legacy suite is measured too, which is more than upstream does.** Upstream's `async-ssr`
+variant is `no-test` for the legacy suite, and its `common_setup` compiles a legacy component with
+`async: runes && async_mode` -- never with the flag. A Svelte 6 project has no other render to give
+a legacy component, so the sample is measured in this one, and the run above is the evidence that
+it can be.
 
 **Each sample has a deadline.** An awaited render can wait forever: five samples hand it a promise
 that never resolves, and upstream's own async render does not finish either. One that passes the
@@ -242,8 +242,10 @@ deadline is reported as the oracle's failure rather than hanging the run.
 
 The two runners do not share a vocabulary. The runtime suites' `mode` is `client`, `hydrate`,
 `server` and `async-server`; the SSR suite's is `sync` and `async`. In each, the first server mode
-is the synchronous render this runner makes and the second is the same render with
-`experimental.async` on, so a sample is upstream's skip only where its config leaves neither on.
+is upstream's synchronous render and the second is the same render with `experimental.async` on. A
+sample upstream renders in either is a server sample and is measured, so a sample is upstream's skip
+only where its config leaves neither on; `skip_async`, upstream's own word that a sample is not run
+in async mode, is a skip as well, since the render here is that one.
 
 It was read wrong twice. First for `sync`, which no runtime sample names, so every runtime sample
 carrying a `mode` was skipped -- twenty of them server tests upstream runs,
@@ -254,28 +256,24 @@ the flag, was not read at all. **A condition that cannot be false does not fail.
 denominator smaller and says nothing**, which is the same shape as counting a gap out because the
 compiler announces it.
 
-**A sample upstream renders on the server only with the flag is the async pass's**, and upstream's
-skip in the synchronous one -- see **Two passes** above.
-
 ## The denominator, said once
 
 A percentage over every sample is meaningless, because a skip is not a failure. **The number that
 matters is pass over pass and fail, and the target is every one of them**: nothing failing.
 
-**The counts are the run's, not this file's.** `mise run vendor-baseline` prints the skips by pass
-and reason and then the table, and `pkgs/suite/baseline.json` names every sample in each; what
+**The counts are the run's, not this file's.** `mise run vendor-baseline` prints the skips by
+reason and then the table, and `pkgs/suite/baseline.json` names every sample in each; what
 follows is what each kind of skip is, which the next run cannot change. See the workspace's
 `spec/agent-protocol.md`, "A number a command prints is cited, not copied".
 
-**The upstream skips.** Every one is upstream saying so -- in the sample's own config, in Svelte's compiler refusing it without the
-flag, or in a render that needs upstream's DOM. Many sync-pass skips are async-pass samples: the
-reason says which pass has it. It read 554
+**The upstream skips.** Every one is upstream saying so -- in the sample's own config, or in a
+render that needs upstream's DOM. It read 554
 while 342 configs were not being read at all, and reading them raised what upstream really declares
 as well: `mode` from 160 to 182 and `skip` from 17 to 19, because a config that throws declares
 nothing.
 
 **The harness skips.** Neither side answered: a render handed a promise that never resolves, for
-one, which upstream's own async render does not finish either. There were 18, and then 57 waiting for an async pass, and what paid them is above.
+one, which upstream's own async render does not finish either. There were 18, and then 57 waiting for the async render, and what paid them is above.
 There is nothing to compare against in one, so counting either way is a claim about a comparison
 nobody made -- and a sample skipped because of this runner is a sample nobody has measured, which is
 why the reason is written into the list rather than into a count.
@@ -370,11 +368,11 @@ a refusal's message was widened, into an upstream skip because this runner misre
 is how 342 samples left the measurement once with both counts at zero -- into a harness skip, or out
 of the corpus altogether. So every sample is named.
 
-`pkgs/suite/baseline.json` holds every sample in the corpus by `<suite>/<name>`, once per pass it
-is measured in -- a `sync` section and an `async` section, each with `pass` and `skip` and a reason
-for every skip -- and the Svelte it was recorded against. Version 2; version 1 was one section. It sits with the runner rather
-than under `vendor/`, which holds upstream's files and nothing of ours, and an upgrade of the vendor
-is then a diff of this file. A run fails where
+`pkgs/suite/baseline.json` holds every sample in the corpus by `<suite>/<name>` -- `pass`, and
+`skip` with a reason for every skip -- and the Svelte it was recorded against. Version 3; version 2
+held a section per pass while there were two, and version 1 was one section before that. It sits
+with the runner rather than under `vendor/`, which holds upstream's files and nothing of ours, and
+an upgrade of the vendor is then a diff of this file. A run fails where
 
 - a sample the list has passing does not pass,
 - a sample the list skips passes, or is skipped for another reason,

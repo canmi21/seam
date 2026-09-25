@@ -40,8 +40,7 @@ neither gates anything. A compiler that is fast and writes the wrong bytes has n
 ### What "all of them" means, because it is not every sample
 
 Two of the outcomes are not failures and saying so once is what keeps the target honest. How
-many samples each holds is the run's to say: `mise run vendor-baseline` prints them by pass and
-reason. See the workspace's `spec/agent-protocol.md`, "A number a command prints is cited, not
+many samples each holds is the run's to say: `mise run vendor-baseline` prints them by reason. See the workspace's `spec/agent-protocol.md`, "A number a command prints is cited, not
 copied".
 
 **Upstream's own skips are out.** Samples whose `_config.js` says `skip`, or a `mode` upstream

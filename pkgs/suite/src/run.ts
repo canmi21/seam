@@ -34,7 +34,6 @@ import {
 	symlinkSync,
 	writeFileSync,
 } from 'node:fs';
-import { spawn } from 'node:child_process';
 import { basename, dirname, resolve } from 'node:path';
 import { createRequire, stripTypeScriptTypes } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -51,19 +50,15 @@ import { lower } from 'lowering';
 const here = dirname(fileURLToPath(import.meta.url));
 
 /**
- * Which render this process measures, or none where it is the one that runs both and holds them to
- * the list.
+ * The one render this measures: Svelte's with `experimental.async` on, both sides compiled with it
+ * and both renders awaited.
  *
- * **One pass per process**: Svelte's async flag is turned on by importing a compiled component that
- * asks for it, and nothing turns it off, so the synchronous render and the async one cannot share a
- * process. `sync` is the render a project without `experimental.async` gets and `async` the one a
- * project with it gets -- which Svelte 6 makes the only one. See spec/suite.md.
+ * It is the render a project with the flag gets today and the only one Svelte 6 keeps, and it
+ * renders everything the synchronous one does. The synchronous render was a second pass, in a
+ * process of its own since the flag is process-global and nothing turns it off; measured under
+ * this one, every sample it passed still passes but one, which is owed. See spec/suite.md.
  */
-type Pass = 'sync' | 'async';
-const PASSES: readonly Pass[] = ['sync', 'async'];
-const argument = (name: string): string | undefined =>
-	process.argv.find((one) => one.startsWith(`--${name}=`))?.slice(name.length + 3);
-const PASS = argument('pass') as Pass | undefined;
+const ASYNC = { experimental: { async: true as const } };
 /** The vendored corpus, at the tag `vendor/svelte/VENDOR.md` pins. */
 const SAMPLES = resolve(here, '../../../vendor/svelte/tests');
 /**
@@ -73,7 +68,7 @@ const SAMPLES = resolve(here, '../../../vendor/svelte/tests');
  * stages Svelte's compiled output next to it and the oracle writes its bundle there -- and the
  * vendored files are upstream's, unedited. `.build*` is ignored by name.
  */
-const STAGE = resolve(here, `../.build-suite-${PASS ?? 'results'}`);
+const STAGE = resolve(here, '../.build-suite');
 /** What every sample has to come out as, kept here and not under `vendor/`. See spec/suite.md. */
 const BASELINE = resolve(here, '../baseline.json');
 /** Taken off a reason, so a path in one reads the same on every machine. */
@@ -137,11 +132,6 @@ interface Config {
 	error?: unknown;
 	/** Upstream's own: the sample is written to throw while it renders, which is a skip here. */
 	runtime_error?: unknown;
-	/**
-	 * Upstream's own: the sample runs only with `experimental.async`, and upstream skips it outright
-	 * otherwise (`runtime-legacy/shared.ts`). So it is async Svelte. See `SERVED`.
-	 */
-	skip_no_async?: boolean;
 	/** Upstream's own: the sample is skipped in async mode (`runtime-legacy/shared.ts`). */
 	skip_async?: boolean;
 	load_compiled?: boolean;
@@ -203,21 +193,12 @@ const RUNES: Readonly<Record<string, boolean>> = { 'runtime-runes': true, 'runti
  * them differently.
  *
  * The runtime suites' `mode` is `client`, `hydrate`, `server` and `async-server`; the SSR suite's is
- * `sync` and `async` (`server-side-rendering/test.ts`). The first of each pair is the synchronous
- * render this runner makes, the second the same render with `experimental.async` on. A sample
- * upstream renders only in the second is async Svelte rather than upstream's skip. See
- * spec/suite.md.
+ * `sync` and `async` (`server-side-rendering/test.ts`). The first of each pair is upstream's
+ * synchronous render, the second the same render with `experimental.async` on. A sample upstream
+ * renders in either is a server sample, and it is measured here in the one render this runner
+ * makes: the legacy suite is never rendered async by upstream -- `async-ssr` is `no-test` there
+ * without runes (`runtime-legacy/shared.ts`) -- and is measured all the same. See spec/suite.md.
  */
-/**
- * The suites each pass measures. Upstream renders the SSR suite both ways and the runes suite's
- * async variant too, and never the legacy suite's: `async-ssr` is `no-test` there without runes
- * (`runtime-legacy/shared.ts`).
- */
-const MEASURED: Readonly<Record<Pass, readonly string[]>> = {
-	sync: SUITES,
-	async: ['server-side-rendering', 'runtime-runes'],
-};
-
 const SERVED: Readonly<Record<string, readonly string[]>> = {
 	'server-side-rendering': ['sync', 'async'],
 	'runtime-runes': ['server', 'async-server'],
@@ -233,10 +214,6 @@ interface Result {
 	/** Why, for everything but an agreement: the refusal, the skip's reason, the stream that differs. */
 	why?: string;
 }
-
-/** Why the sync pass skips a sample, where it is the async pass's to measure. */
-const ONLY_ASYNC =
-	'upstream renders it on the server only with `experimental.async`, which the async pass measures';
 
 /**
  * A refusal is a gap, whatever it says: work nobody has done. No refusal is a skip, because
@@ -272,20 +249,14 @@ function stateOf(one: Result): { state: State; reason?: string } {
 	}
 }
 
-/** One pass's half of the list. */
-interface Section {
+/** The list every run is held to. See spec/suite.md. */
+interface Baseline {
+	version: 3;
+	/** The Svelte the oracle is, since the same corpus renders differently under another one. */
+	svelte: string;
 	pass: string[];
 	/** Each skipped sample and why, in the words `stateOf` writes. */
 	skip: Record<string, string>;
-}
-
-/** The list every run is held to, one section per pass. See spec/suite.md. */
-interface Baseline {
-	version: 2;
-	/** The Svelte the oracle is, since the same corpus renders differently under another one. */
-	svelte: string;
-	sync: Section;
-	async: Section;
 }
 
 const need = createRequire(import.meta.url);
@@ -565,15 +536,12 @@ async function theirs(
 				...(transformError === undefined ? {} : { transformError }),
 				...(csp === undefined ? {} : { csp }),
 			});
-			if (Object.keys(ASYNC).length > 0) {
-				const held = (await rendered) as Rendered;
-				return {
-					body: held.body,
-					head: held.head,
-					...(held.hashes === undefined ? {} : { hashes: held.hashes }),
-				};
-			}
-			return { body: rendered.body, head: rendered.head };
+			const held = (await rendered) as Rendered;
+			return {
+				body: held.body,
+				head: held.head,
+				...(held.hashes === undefined ? {} : { hashes: held.hashes }),
+			};
 		});
 	});
 }
@@ -623,9 +591,6 @@ async function withDom<T>(dom: boolean, what: () => Promise<T>): Promise<T> {
 	}
 }
 
-/** The async pass's compile option, which both sides are given and ours reads as a project's. */
-const ASYNC = PASS === 'async' ? { experimental: { async: true as const } } : {};
-
 /** One sample, staged, compiled, rendered and compared. */
 async function attempt(suite: string, name: string): Promise<Result> {
 	const from = resolve(SAMPLES, suite, 'samples', name);
@@ -646,21 +611,19 @@ async function attempt(suite: string, name: string): Promise<Result> {
 			why: `its config will not evaluate: ${config.broken}`,
 		};
 	}
-	// The server renders upstream gives the sample, by the mode each is: this runner's is the
-	// synchronous one, and the other is the same render with `experimental.async` on. See `SERVED`.
+	// The server renders upstream gives the sample, by the mode each is. A sample upstream renders
+	// on the server in either mode is measured, in the one render made here; only a sample upstream
+	// renders in neither is upstream's skip. See `SERVED` and spec/suite.md.
 	const served = (mode: string | undefined): boolean =>
 		mode !== undefined &&
 		(!Array.isArray(config.mode) || config.mode.includes(mode)) &&
 		!(Array.isArray(config.skip_mode) && config.skip_mode.includes(mode));
-	const [sync, async] = SERVED[suite] ?? [];
-	// A sample upstream renders in only one of the two is measured in that pass, and skipped as
-	// upstream's in the other, saying which pass has it. See spec/suite.md.
 	const why =
 		config.skip === true
 			? 'upstream skips it'
-			: PASS === 'async' && config.skip_async === true
+			: config.skip_async === true
 				? 'upstream skips it in async mode'
-				: !served(sync) && !served(async)
+				: !(SERVED[suite] ?? []).some(served)
 					? Array.isArray(config.mode)
 						? `upstream runs it only in ${config.mode.toSorted().join(', ')} mode`
 						: 'upstream skips it in server mode'
@@ -668,11 +631,7 @@ async function attempt(suite: string, name: string): Promise<Result> {
 						? 'upstream expects it to error'
 						: config.load_compiled === true
 							? 'upstream loads its output precompiled'
-							: PASS === 'sync' && (config.skip_no_async === true || !served(sync))
-								? ONLY_ASYNC
-								: PASS === 'async' && !served(async)
-									? 'upstream renders it on the server only without `experimental.async`, which the sync pass measures'
-									: null;
+							: null;
 	if (why !== null) return { suite, name, outcome: 'skipped', why };
 
 	// Upstream's own setup, where this process can run it, and before the props, which is upstream's
@@ -736,13 +695,6 @@ async function attempt(suite: string, name: string): Promise<Result> {
 		// the `transformError` upstream's harness passes and this one does not; `$: document.title`
 		// needs a DOM; two samples exist to raise upstream's own error. None of those is a
 		// difference between the two renders, because there is only one render.
-		//
-		// **Except where the oracle's refusal is this harness's own.** Upstream compiles the runtime
-		// suites with `experimental.async` on and this one does not, so Svelte's compiler turns away
-		// every async sample -- and that is not the oracle failing, it is a question this harness did
-		// not ask. The flag is process-global and irreversible once set, so passing it would make
-		// every later sample's render depend on the order samples ran in. The sample stays ours to
-		// answer, and it is async Svelte. See spec/roadmap.md.
 		const text = String((error as Error).message);
 		// **A sample that renders only with a DOM is upstream's environment, not a server's.**
 		if (
@@ -774,14 +726,7 @@ async function attempt(suite: string, name: string): Promise<Result> {
 				why: `upstream expects it to throw \`${config.runtime_error}\` while it renders`,
 			};
 		}
-		// Both spellings: the option's name in one message, and `experimental_async_required` -- the
-		// code a `hydratable` call raises -- in another.
-		if (!/experimental[._]async/.test(text) || mine !== null) {
-			return { suite, name, outcome: 'oracle', why: firstLine(error) };
-		}
-		// Which samples need the flag is Svelte's own compiler to say, not a message match here: one
-		// it will not build without it is the async pass's, whatever this compiler said.
-		return { suite, name, outcome: 'skipped', why: ONLY_ASYNC };
+		return { suite, name, outcome: 'oracle', why: firstLine(error) };
 	}
 	if (mine === null) {
 		return turned(suite, name, refusal ?? 'it failed and said nothing');
@@ -870,9 +815,8 @@ async function quietly<T>(what: () => Promise<T>): Promise<T> {
 
 const NOTHING = (): void => undefined;
 
-/** One sample's verdict in one pass: what it came out as, read against what the list says. */
+/** One sample's verdict: what it came out as, read against what the list says. */
 interface Verdict {
-	pass: Pass;
 	key: string;
 	suite: string;
 	state: State;
@@ -881,14 +825,13 @@ interface Verdict {
 }
 
 /**
- * Every sample of one pass held to that pass's section, and every name in the section held to the
- * corpus.
+ * Every sample held to the list, and every name on the list held to the corpus.
  *
  * A skip is checked like a pass: the sample still runs, and a reason that changed -- or a skip that
  * passes now -- fails until the list says so. The list is only as true as the last run that read
  * it. See spec/suite.md.
  */
-function judge(pass: Pass, results: readonly Result[], listed: Section | undefined): Verdict[] {
+function judge(results: readonly Result[], listed: Baseline | null): Verdict[] {
 	const passes = new Set(listed?.pass ?? []);
 	const skips = new Map(Object.entries(listed?.skip ?? {}));
 	const verdicts: Verdict[] = [];
@@ -901,13 +844,12 @@ function judge(pass: Pass, results: readonly Result[], listed: Section | undefin
 		const wrong = disagreement(state, reason, wanted);
 		verdicts.push(
 			wrong === null
-				? { pass, key, suite: one.suite, state, ...(reason === undefined ? {} : { reason }) }
-				: { pass, key, suite: one.suite, state: 'fail', reason: wrong },
+				? { key, suite: one.suite, state, ...(reason === undefined ? {} : { reason }) }
+				: { key, suite: one.suite, state: 'fail', reason: wrong },
 		);
 	}
 	for (const key of [...passes, ...skips.keys()]) {
 		verdicts.push({
-			pass,
 			key,
 			suite: key.slice(0, key.indexOf('/')),
 			state: 'fail',
@@ -953,17 +895,17 @@ function read(): Baseline | null {
 		return null;
 	}
 	const held = JSON.parse(text) as { version?: unknown };
-	if (held.version !== 2) {
+	if (held.version !== 3) {
 		throw new Error(
-			`baseline.json is version ${String(held.version)}, and this reads 2: one section per ` +
-				'pass. `mise run vendor-baseline -- --write` records it. See spec/suite.md',
+			`baseline.json is version ${String(held.version)}, and this reads 3: one render, every ` +
+				'sample in it. `mise run vendor-baseline -- --write` records it. See spec/suite.md',
 		);
 	}
 	return held as Baseline;
 }
 
-/** One pass's run, written as its section: sorted, so a sample that moves is one line in a diff. */
-function section(results: readonly Result[]): Section {
+/** The run, written as the list: sorted, so a sample that moves is one line in a diff. */
+function listing(results: readonly Result[]): Baseline {
 	const pass: string[] = [];
 	const skip: Record<string, string> = {};
 	for (const one of results.toSorted((a, b) => keyOf(a).localeCompare(keyOf(b)))) {
@@ -973,16 +915,16 @@ function section(results: readonly Result[]): Section {
 		if (state === 'pass') pass.push(keyOf(one));
 		else if (state === 'skip') skip[keyOf(one)] = reason ?? '';
 	}
-	return { pass, skip };
+	return { version: 3, svelte: svelteVersion(), pass, skip };
 }
 
 function keyOf(one: Result): string {
 	return `${one.suite}/${one.name}`;
 }
 
-/** The three counts per pass and suite, which is what a run is read for, so it is written last. */
+/** The three counts per suite, which is what a run is read for, so it is written last. */
 function table(verdicts: readonly Verdict[]): void {
-	const width = Math.max(...SUITES.map((one) => one.length)) + 7;
+	const width = Math.max(...SUITES.map((one) => one.length));
 	const states: readonly State[] = ['pass', 'skip', 'fail'];
 	const row = (name: string, mine: readonly Verdict[]): string =>
 		`${name.padEnd(width)}  ${String(mine.length).padStart(8)}` +
@@ -990,47 +932,44 @@ function table(verdicts: readonly Verdict[]): void {
 			.map((state) => String(mine.filter((one) => one.state === state).length).padStart(7))
 			.join('');
 	console.log(
-		`\n${'pass  suite'.padEnd(width)}  ${'samples'.padStart(8)}${states.map((one) => one.padStart(7)).join('')}`,
+		`\n${'suite'.padEnd(width)}  ${'samples'.padStart(8)}${states.map((one) => one.padStart(7)).join('')}`,
 	);
-	for (const pass of PASSES) {
-		for (const suite of MEASURED[pass]) {
-			console.log(
-				row(
-					`${pass.padEnd(5)} ${suite}`,
-					verdicts.filter((one) => one.pass === pass && one.suite === suite),
-				),
-			);
-		}
+	for (const suite of SUITES) {
+		console.log(
+			row(
+				suite,
+				verdicts.filter((one) => one.suite === suite),
+			),
+		);
 	}
 	console.log(row('total', verdicts));
 }
 
-/** The failures one at a time with what went wrong, and the skips by pass and reason. */
+/** The failures one at a time with what went wrong, and the skips by reason. */
 function lists(verdicts: readonly Verdict[]): void {
 	const failed = verdicts.filter((one) => one.state === 'fail');
 	if (failed.length > 0) {
 		console.log(`\nfail (${String(failed.length)})`);
-		for (const one of failed) console.log(`  ${one.pass} ${one.key}\n      ${one.reason ?? ''}`);
+		for (const one of failed) console.log(`  ${one.key}\n      ${one.reason ?? ''}`);
 	}
 	const reasons = new Map<string, number>();
 	for (const one of verdicts) {
 		if (one.state !== 'skip') continue;
-		const said = `${one.pass.padEnd(5)} ${one.reason ?? ''}`;
+		const said = one.reason ?? '';
 		reasons.set(said, (reasons.get(said) ?? 0) + 1);
 	}
 	if (reasons.size === 0) return;
-	console.log(`\nskip, by pass and reason; the names are in baseline.json`);
+	console.log(`\nskip, by reason; the names are in baseline.json`);
 	for (const [reason, many] of [...reasons].toSorted((a, b) => b[1] - a[1])) {
 		console.log(`  ${String(many).padStart(4)}  ${reason}`);
 	}
 }
 
-/** One pass, run in this process, its results written where the parent reads them. */
-async function measure(pass: Pass, out: string): Promise<void> {
+/** Every sample of every suite, run in this process. */
+async function measure(): Promise<Result[]> {
 	// A sample is free to throw from a promise nobody awaits -- several are written to -- and the
 	// default is to end the process. The outcome of the sample that did it is already recorded by
-	// the time this fires, so the run continues. Only here, where samples run: the parent's own
-	// errors are its errors.
+	// the time this fires, so the run continues.
 	process.on('unhandledRejection', () => undefined);
 	// And from a timer, which is the same statement one channel along: `reactive-values-text-node`
 	// starts a `setTimeout` in its instance script and calls a method on a prop upstream's own
@@ -1049,7 +988,7 @@ async function measure(pass: Pass, out: string): Promise<void> {
 	);
 	const results: Result[] = await quietly(async () => {
 		const found: Result[] = [];
-		for (const suite of MEASURED[pass]) {
+		for (const suite of SUITES) {
 			for (const name of samplesOf(suite)) {
 				// A render that awaits can wait forever: a sample handing it `new Promise(() => {})` is
 				// one the server never finishes, which upstream's own async render does not finish
@@ -1070,59 +1009,18 @@ async function measure(pass: Pass, out: string): Promise<void> {
 		}
 		return found;
 	});
-	writeFileSync(out, JSON.stringify(results));
 	rmSync(STAGE, { recursive: true, force: true });
+	return results;
 }
 
-/** Both passes, each in a process of its own and the two at once, read back when they are done. */
-async function both(): Promise<Record<Pass, Result[]>> {
-	mkdirSync(STAGE, { recursive: true });
-	const one = (pass: Pass): Promise<[Pass, Result[]]> => {
-		const out = resolve(STAGE, `${pass}.json`);
-		return new Promise((settle, fail) => {
-			const child = spawn(
-				process.execPath,
-				[...process.execArgv, fileURLToPath(import.meta.url), `--pass=${pass}`, `--out=${out}`],
-				{ stdio: ['ignore', 'ignore', 'inherit'] },
-			);
-			child.on('error', fail);
-			child.on('exit', (code) => {
-				if (code !== 0) {
-					fail(new Error(`the ${pass} pass exited ${String(code)}`));
-					return;
-				}
-				settle([pass, JSON.parse(readFileSync(out, 'utf8')) as Result[]]);
-			});
-		});
-	};
-	const found = Object.fromEntries(await Promise.all(PASSES.map(one))) as Record<Pass, Result[]>;
-	rmSync(STAGE, { recursive: true, force: true });
-	return found;
-}
-
-if (PASS !== undefined) {
-	const out = argument('out');
-	if (out === undefined) throw new Error('a pass is run by the parent, which names `--out`');
-	await measure(PASS, out);
-	process.exit(0);
-}
-
-const results = await both();
-const all = PASSES.flatMap((pass) => results[pass].map((one) => ({ pass, one })));
-const failing = all.filter(({ one }) => stateOf(one).state === 'fail');
+const results = await measure();
+const failing = results.filter((one) => stateOf(one).state === 'fail');
 
 // `--write` records the run as the list, and only a run with nothing failing can be recorded: a
 // failure is not a state the list has. Otherwise the run is held to the list. See spec/suite.md.
 if (process.argv.includes('--write')) {
 	if (failing.length > 0 && !process.argv.includes('--skip-failing')) {
-		lists(
-			failing.map(({ pass, one }) => ({
-				pass,
-				key: keyOf(one),
-				suite: one.suite,
-				...stateOf(one),
-			})),
-		);
+		lists(failing.map((one) => ({ key: keyOf(one), suite: one.suite, ...stateOf(one) })));
 		console.log(
 			`\n${String(failing.length)} sample(s) fail, and a failure is not something the ` +
 				'baseline records. Only where each of them has been decided to be work that is ' +
@@ -1131,18 +1029,12 @@ if (process.argv.includes('--write')) {
 		);
 		process.exit(1);
 	}
-	const held: Baseline = {
-		version: 2,
-		svelte: svelteVersion(),
-		sync: section(results.sync),
-		async: section(results.async),
-	};
-	writeFileSync(BASELINE, `${JSON.stringify(held, null, '\t')}\n`);
+	writeFileSync(BASELINE, `${JSON.stringify(listing(results), null, '\t')}\n`);
 	console.log(
-		`\nbaseline.json records ${String(all.length - failing.length)} samples across both passes` +
+		`\nbaseline.json records ${String(results.length - failing.length)} samples` +
 			(failing.length > 0
 				? `, and leaves ${String(failing.length)} failing off it: ` +
-					failing.map(({ pass, one }) => `${pass} ${keyOf(one)}`).join(', ')
+					failing.map((one) => keyOf(one)).join(', ')
 				: '') +
 			'.',
 	);
@@ -1150,7 +1042,7 @@ if (process.argv.includes('--write')) {
 }
 
 const listed = read();
-const verdicts = PASSES.flatMap((pass) => judge(pass, results[pass], listed?.[pass]));
+const verdicts = judge(results, listed);
 const version = svelteVersion();
 // The lists first and the table last: a terminal shows the end of what a command wrote, and the
 // table is what the run is for. `--table` is the same run with the lists left out.

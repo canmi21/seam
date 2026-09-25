@@ -8,7 +8,9 @@ name everywhere else.
 ## Async Svelte is upstream's unfinished half, not this architecture's boundary
 
 **Measured, both sides compiled with `experimental.async` and both renders awaited** -- by what
-was then `SEAM_ASYNC=1 mise run suite` and is now the suite's async pass, which is part of `verify`.
+was then `SEAM_ASYNC=1 mise run suite`, then the suite's async pass beside a synchronous one, and
+is now the suite's one render, which is part of `verify` (see [suite.md](suite.md), "One render:
+Svelte's with `experimental.async` on").
 
 ```
                 identical  empty  differs  refused  oracle
