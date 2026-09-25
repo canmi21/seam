@@ -2074,6 +2074,7 @@
 		"server-side-rendering/async-directive-with-spreading",
 		"server-side-rendering/async-each-fallback-hoisting",
 		"server-side-rendering/async-each-hoisting",
+		"server-side-rendering/async-head-multiple-title-order-preserved",
 		"server-side-rendering/async-html-tag",
 		"server-side-rendering/async-if-alternate-hoisting",
 		"server-side-rendering/async-if-const",

@@ -12,14 +12,6 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 ## Work, with design questions to answer first
 
-- [ ] **A value with identity is re-spelled from its source.** `promise={a.promise}` over
-      `const a = Promise.withResolvers()` reaches the copy as `await (Promise.withResolvers()).promise`,
-      a fresh promise the script's `tick().then(() => a.resolve(true))` never resolves. Where
-      substitution cannot follow, the script runs as Svelte compiled it (spec/derivation.md, "Where
-      substitution cannot follow, the script runs as Svelte compiled it"); a promise, or any value
-      made by a call and resolved by a side effect elsewhere, is one substitution cannot follow.
-      async-head-multiple-title-order-preserved.
-
 ## Waiting on a decision
 
 - [ ] **A component value the source does not name, rendered per request.** Svelte calls whatever
@@ -35,6 +27,11 @@ What the suite fails on, sorted by what closing each takes. The live list is
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- A value no render can tell and no hold can name is read in the copy's own name, 1 sample: a prop
+  handed to the render as the caller wrote it, whose expansion makes a value the author's text only
+  reads, is evaluated in the copy's own names (async-head-multiple-title-order-preserved).
+  spec/derivation.md, "A value that makes something is held where it crosses into a child".
 
 - A test the render answers is not forced, 4 samples: a chain no test of which the request decides
   is written as the author wrote it in the render that answers it, so the render takes its own

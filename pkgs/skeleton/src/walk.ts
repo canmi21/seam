@@ -538,6 +538,14 @@ export interface Walk {
 	runeOf: Locals['rune'];
 	declares: Locals['has'];
 	/**
+	 * The locals of a copy whose value the render hands it as the caller wrote the tag -- a prop
+	 * that varies with nothing the request decides and that no render could tell as a value, a
+	 * promise or a function -- so that a read of one in the copy's own name is the caller's one
+	 * value. Empty for the entry, and for slotted markup, whose names are the caller's. See
+	 * `asWritten`.
+	 */
+	handedAsWritten: ReadonlySet<string>;
+	/**
 	 * What a component `bind:` settles a name to, by the caller's local: `expr === undefined ?
 	 * <what the child sends> : expr`.
 	 *
@@ -4268,6 +4276,48 @@ function holding(
 }
 
 /**
+ * How many values an expression makes outside any function: object and array literals, `new`
+ * and calls, which is `makes` counted through the whole expression rather than asked of its top.
+ * Zero for text that does not parse, which `asWritten` then leaves as it was.
+ */
+function makers(text: string): number {
+	if (!/[[{(]/.test(text)) return 0;
+	let ast: Node;
+	try {
+		ast = parsed(text) as unknown as Node;
+	} catch {
+		return 0;
+	}
+	let found = 0;
+	const step = (node: unknown): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) step(one);
+			return;
+		}
+		if (!isNode(node)) return;
+		const kind = node['type'];
+		if (
+			kind === 'FunctionExpression' ||
+			kind === 'ArrowFunctionExpression' ||
+			kind === 'FunctionDeclaration'
+		) {
+			return;
+		}
+		if (
+			kind === 'ObjectExpression' ||
+			kind === 'ArrayExpression' ||
+			kind === 'NewExpression' ||
+			kind === 'CallExpression'
+		) {
+			found += 1;
+		}
+		for (const value of Object.values(node)) step(value);
+	};
+	step(ast);
+	return found;
+}
+
+/**
  * Whether an expression makes something, so that two evaluations are two values.
  *
  * An object or array literal, a `new`, or a call. A member read, a name, arithmetic or a literal is
@@ -4595,6 +4645,28 @@ function asWritten(node: unknown, written: string, walk: Walk): string {
 	// its key. What the render evaluates is then the expression in this file's own names, which
 	// the copy has in scope; the expansion names the caller's, which it does not.
 	if (mentions(written, unknown(walk))) return plain;
+	// **And where the expansion makes a value the author's text only reads.** A copy's prop expands
+	// to the caller's text, and `promise={a.promise}` over `const a = Promise.withResolvers()`
+	// expands to `Promise.withResolvers().promise`: a promise made again at the read, which the
+	// caller's script -- `tick().then(() => a.resolve(true))` -- never resolves. The render holds
+	// the caller's one value and handed the copy that one, so the expression is evaluated in the
+	// copy's own names, which read it. Only where the author's text makes nothing of its own, and
+	// only where every name the expansion stood in for is one the render hands the copy as the
+	// caller wrote it -- not an each item or a `{@const}` this walk may have written over, and not
+	// a prop told as a value; and an expansion that is a hold or a run names a value the render is
+	// given, and stays. See spec/derivation.md, "A value that makes something is held where it
+	// crosses into a child".
+	if (
+		makers(written) > makers(plain) &&
+		!written.includes('$$hold(') &&
+		!written.includes(`${RUN_NAME}(`)
+	) {
+		const kept = readsOf([written]);
+		const stoodFor = [...readsOf([plain])].filter((name) => !kept.has(name));
+		if (stoodFor.length > 0 && stoodFor.every((name) => walk.handedAsWritten.has(name))) {
+			return plain;
+		}
+	}
 	// The expansion goes into the render's own source, so a name substitution could not follow has
 	// gone with it: `{#snippet item(id = default_arg())}` written out at each read of `id` had the
 	// render call `default_arg` nine times where Svelte calls it twice. The same question the
@@ -5517,6 +5589,7 @@ function collect(node: unknown, walk: Walk): void {
 					snippets: handed.snippets,
 					site: handed.site,
 					legacy: handed.legacy,
+					handedAsWritten: new Set(),
 				},
 				only,
 			);
@@ -6913,6 +6986,8 @@ function collect(node: unknown, walk: Walk): void {
 				const at = span(one['test']);
 				const held = tests[branch] ?? '';
 				if (at !== null) {
+					// The author's test carries its own await and reads its own names, so it is not
+					// wrapped the way a constant standing for it is.
 					const written = answered ? asWritten(one['test'], held, walk) : null;
 					chose(
 						walk,
@@ -6921,8 +6996,8 @@ function collect(node: unknown, walk: Walk): void {
 						at[1],
 						index,
 						branch,
-						waitsOn(one['test'], held, written ?? 'true', walk),
-						waitsOn(one['test'], held, written ?? 'false', walk),
+						written ?? waitsOn(one['test'], held, 'true', walk),
+						written ?? waitsOn(one['test'], held, 'false', walk),
 					);
 				}
 			}
@@ -8127,6 +8202,9 @@ function descend(
 			plain: (child, extra) => declared.rewrite(child, extra),
 			runeOf: declared.rune,
 			declares: declared.has,
+			handedAsWritten: new Set(
+				declares.filter((one) => inertProps.has(one.prop)).map((one) => one.local),
+			),
 			legacy: legacyMode(ast, file),
 			sent: walk.sent,
 			snippets,
@@ -8643,6 +8721,7 @@ export function rewrite(
 		plain: declared.rewrite,
 		runeOf: declared.rune,
 		declares: declared.has,
+		handedAsWritten: new Set(),
 		items: new Map(),
 		legacy: legacyMode(ast, file),
 		sent,

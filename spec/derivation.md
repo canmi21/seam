@@ -953,6 +953,19 @@ the props are bound to their values, which is what the compiler did before this 
 Markup is unaffected, a read that carries a reference being a hole this compiler evaluates. Two
 samples in the suite are that case, and both keep writing Svelte's bytes.
 
+**A value no render can tell and no hold can name is read in the copy's own name.** A prop that
+varies with nothing the request decides is handed to the render as the caller wrote the tag, and
+the render is asked its value so the copy's reads can be told it; a promise or a function is not a
+value JSON can tell, so the ask answers nothing and the read fell back to the expansion. Where the
+expansion makes something the author's text only reads -- `promise={a.promise}` over
+`const a = Promise.withResolvers()` expands to `Promise.withResolvers().promise`, a promise made
+again at the read that the caller's `tick().then(() => a.resolve(true))` never resolves -- the
+render is given the expression in the copy's own names instead, which read the one value the
+caller handed it (`asWritten()` in `walk.ts`, over the copy's `handedAsWritten` locals). Only those
+names: an each item or a `{@const}` is the markup's, and this walk may have written it over, so an
+expression reading one keeps its expansion. `server-side-rendering/async-head-multiple-title-order-preserved`
+is the sample, and it never settled before this.
+
 **What it does not reach.** A value the render _mutates_ is a different question and stays refused.
 `$: keys.forEach((key) => { object[key] = [] })` needs the statement to have run, and a derivation
 is a pure expression evaluated at request time with no `$:` to run -- holding `object` once gives
