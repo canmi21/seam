@@ -847,6 +847,7 @@
 		"runtime-legacy/prop-without-semicolon",
 		"runtime-legacy/prop-without-semicolon-b",
 		"runtime-legacy/props",
+		"runtime-legacy/props-reactive",
 		"runtime-legacy/props-reactive-b",
 		"runtime-legacy/props-reactive-destroy",
 		"runtime-legacy/props-reactive-only-with-change",

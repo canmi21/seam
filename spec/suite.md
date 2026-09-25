@@ -223,10 +223,11 @@ process-global and nothing turns it off once a compiled component has imported
 `svelte/internal/flags/async`; a parent started both at once and held each to a section of the
 list. Before it went, every sample the synchronous pass had passing was run under the async render,
 the legacy suite and the samples upstream renders only synchronously included, and all of them
-passed but one: `runtime-legacy/props-reactive`, where this compiler writes an `await` into a
-legacy-mode component and Svelte refuses it with `legacy_await_invalid`. That is a gap of this
-compiler's, owed in `todo.md`, and it is the whole cost of the one render. It replaced `SEAM_ASYNC`
-before that, the environment variable that ran the async render as an experiment.
+passed but one: `runtime-legacy/props-reactive`, where this compiler wrote its own run's `await`
+into a legacy-mode component and Svelte refused it with `legacy_await_invalid`. That was a gap of
+this compiler's, since closed (`awaiting()` in `walk.ts`), and it was the whole cost of the one
+render. It replaced `SEAM_ASYNC` before that, the environment variable that ran the async render as
+an experiment.
 
 **The legacy suite is measured too, which is more than upstream does.** Upstream's `async-ssr`
 variant is `no-test` for the legacy suite, and its `common_setup` compiles a legacy component with

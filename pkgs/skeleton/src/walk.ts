@@ -2935,7 +2935,16 @@ function blockedRead(original: unknown, walk: Walk): boolean {
 	return blocking(original, '', walk) !== '';
 }
 
-/** Whether an expression awaits outside any function, which is what `has_await` records. */
+/**
+ * Whether an expression awaits outside any function, which is what `has_await` records.
+ *
+ * **The run's own await is not one.** A script's run is `(await $$run(...))` in async mode, since
+ * the render it makes is awaited there (`carry.ts`), and an expansion reading a name the run holds
+ * carries that await. It is this compiler's, not the author's: Svelte sees `{props.qux}` and
+ * wraps nothing, and written into the markup it made Svelte refuse a legacy copy outright
+ * (`runtime-legacy/props-reactive`, `legacy_await_invalid`). See spec/derivation.md, "Where
+ * substitution cannot follow, the script runs as Svelte compiled it".
+ */
 function awaiting(text: string): boolean {
 	if (!/\bawait\b/.test(text)) return false;
 	let ast: Node;
@@ -2947,7 +2956,11 @@ function awaiting(text: string): boolean {
 	const outside = (node: unknown): boolean => {
 		if (Array.isArray(node)) return node.some(outside);
 		if (!isNode(node)) return false;
-		if (node['type'] === 'AwaitExpression') return true;
+		if (node['type'] === 'AwaitExpression') {
+			const argument = node['argument'];
+			const callee = isNode(argument) ? argument['callee'] : undefined;
+			return !(isNode(callee) && callee['name'] === RUN_NAME);
+		}
 		if (
 			node['type'] === 'FunctionExpression' ||
 			node['type'] === 'ArrowFunctionExpression' ||

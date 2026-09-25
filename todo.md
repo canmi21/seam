@@ -9,11 +9,6 @@ What the suite fails on, sorted by what closing each takes. The live list is
       script runs as Svelte compiled it, the entry's and a child copy's (spec/derivation.md, "Where
       substitution cannot follow, the script runs as Svelte compiled it"). Left: binding-backflow (a
       bound prop the child changes, which renders the caller's template again).
-- [ ] **An `await` written into a legacy-mode component.** With `experimental.async` on, this
-      compiler writes an `await` into a component compiled without runes, and Svelte refuses it with
-      `legacy_await_invalid`; upstream never compiles a legacy component with the flag, so nothing
-      says what shape is right. The one sample the synchronous pass had passing that the one render
-      does not (spec/suite.md, "One render: Svelte's with `experimental.async` on"). props-reactive.
 
 ## Work, with design questions to answer first
 
@@ -47,6 +42,11 @@ What the suite fails on, sorted by what closing each takes. The live list is
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- The run's own `await` is not the author's, 1 sample: an expansion reading a name the run holds
+  carries `(await $$run(...))`, which is this compiler's and wraps nothing in Svelte, so it is not
+  written into the markup as an await -- where it made Svelte refuse a legacy copy outright
+  (props-reactive). `awaiting()` in walk.ts.
 
 - Template changes, 2 samples: the rule refusing what the markup changes while the bytes are
   written is withdrawn, and the entry's run answers it with live bindings, each read where the
