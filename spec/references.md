@@ -1,8 +1,8 @@
 # Where the ideas came from
 
 Credit, and a way back. Nearly every decision recorded in this directory was shaped by something
-somebody else built, and a year from now the useful question about any of them will be *why*
-rather than *what*. This file answers it in one line each and says where the reasoning is written
+somebody else built, and a year from now the useful question about any of them will be _why_
+rather than _what_. This file answers it in one line each and says where the reasoning is written
 out.
 
 Something appearing here is not an endorsement of it, and several entries are things that were
@@ -39,7 +39,7 @@ at all. See [ir.md](ir.md) and [pipeline.md](pipeline.md).
 instead of writing the bytes itself. Writing them was tried first and cost four undocumented
 positional rules before the first real component. See [pipeline.md](pipeline.md).
 
-**Svelte's `set_title`.** Looked at for a precedence rule between two titles, and *not* copied:
+**Svelte's `set_title`.** Looked at for a precedence rule between two titles, and _not_ copied:
 two readings of it each disagreed with what it measurably does. More than one title is refused
 rather than guessed at. See [ir.md](ir.md).
 

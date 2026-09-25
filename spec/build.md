@@ -8,12 +8,12 @@ whole project, what comes out of it, and who is allowed to read what comes out.
 Every pass existed and nothing joined them. Four places each wired a different subset, and each
 wired it differently:
 
-| | joined | left out |
-| --- | --- | --- |
-| `corpus/generate.ts` | bundle, skeleton, lower | carrying; and it wrote its results beside the source |
-| `pkgs/injector/conformance/run.ts` | reads the IR, then **runs binding resolution and carrying again** | nothing, which is the problem |
-| `pkgs/server/scripts/build-client.ts` | Svelte's client codegen, esbuild | marked manual, with one component's path written into it |
-| `pkgs/server/src/main.ts` | reads a fixture | **the carried bundle**, which it has no way to obtain |
+|                                       | joined                                                            | left out                                                 |
+| ------------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------- |
+| `corpus/generate.ts`                  | bundle, skeleton, lower                                           | carrying; and it wrote its results beside the source     |
+| `pkgs/injector/conformance/run.ts`    | reads the IR, then **runs binding resolution and carrying again** | nothing, which is the problem                            |
+| `pkgs/server/scripts/build-client.ts` | Svelte's client codegen, esbuild                                  | marked manual, with one component's path written into it |
+| `pkgs/server/src/main.ts`             | reads a fixture                                                   | **the carried bundle**, which it has no way to obtain    |
 
 The last row is a hole rather than an omission. Wired the way the server wires it, a component
 that calls an imported function does this:
@@ -35,11 +35,11 @@ first thing to state what the artifact is.**
 
 Three frameworks were built and measured rather than read about.
 
-| | what drives the build | where the user's configuration lives |
-| --- | --- | --- |
-| **Astro** | its own CLI, calling Vite programmatically | `astro.config.mjs`, with Vite's own config as a field inside it |
-| **SvelteKit** | a Vite plugin; `vite build` | the plugin's argument, inside `vite.config.ts` |
-| **Qwik** | a Vite plugin, plus a thin CLI that only sequences two Vite builds | the plugin's argument |
+|               | what drives the build                                              | where the user's configuration lives                            |
+| ------------- | ------------------------------------------------------------------ | --------------------------------------------------------------- |
+| **Astro**     | its own CLI, calling Vite programmatically                         | `astro.config.mjs`, with Vite's own config as a field inside it |
+| **SvelteKit** | a Vite plugin; `vite build`                                        | the plugin's argument, inside `vite.config.ts`                  |
+| **Qwik**      | a Vite plugin, plus a thin CLI that only sequences two Vite builds | the plugin's argument                                           |
 
 Two of the three are plugins, and the third's CLI buys something we do not need. The bundler is
 not a thing worth maintaining a copy of, and the client half of what is produced here is an
@@ -94,7 +94,9 @@ A `Set`, a closure, and a deferred import. None of the three has a JSON spelling
 never a candidate. Beside it, a compiled route is a function:
 
 ```js
-function _page($$renderer) { $$renderer.push(`<h1>Welcome to SvelteKit</h1> ...`); }
+function _page($$renderer) {
+	$$renderer.push(`<h1>Welcome to SvelteKit</h1> ...`);
+}
 ```
 
 Astro is the same conclusion reached differently: one `entry.mjs`, 325KB for an empty project,
@@ -191,9 +193,9 @@ exists to prevent.
 
 ```ts
 entries: [
-  { path: '/', component: 'src/pages/product.svelte' },
-  { path: '/about', component: 'src/pages/about.svelte' },
-]
+	{ path: '/', component: 'src/pages/product.svelte' },
+	{ path: '/about', component: 'src/pages/about.svelte' },
+];
 ```
 
 **The URL is the author's, not the compiler's.** It was briefly the component's id, by way of a
@@ -261,7 +263,7 @@ component in a block. That is the shape a client router needs: the mounted root 
 if the page is the thing being swapped.
 
 So the door that could close is not the format. The IR is rebuilt by every build, so a wrapper
-added later is a rebuild rather than a migration. The door is the *agreement*: server bytes and
+added later is a rebuild rather than a migration. The door is the _agreement_: server bytes and
 client mount shape are produced by different halves, and a wrapper added to one and not the other
 is a hydration failure. The root component being one field is what holds it shut.
 
@@ -320,17 +322,17 @@ means there is nothing for a second implementation to get subtly different.
 
 Two things Svelte writes are hashes of the component's filename, and both end up in the response:
 
-| | |
-| --- | --- |
+|                                               |                                                          |
+| --------------------------------------------- | -------------------------------------------------------- |
 | the anchor that opens a `<svelte:head>` block | `hash(filename)`, in the server visitor for `SvelteHead` |
-| the class that scopes a `<style>` | `svelte-${hash(filename)}`, the default `cssHash` |
+| the class that scopes a `<style>`             | `svelte-${hash(filename)}`, the default `cssHash`        |
 
 Before either is taken, the filename is made relative to **`rootDir`**, which is an ordinary
 compiler option whose default is `process.cwd()`:
 
 ```js
 if (typeof root_dir === 'string' && filename.startsWith(root_dir)) {
-  filename = filename.replace(root_dir, '').replace(/^[/\\]/, '');
+	filename = filename.replace(root_dir, '').replace(/^[/\\]/, '');
 }
 ```
 
@@ -343,7 +345,7 @@ artifacts.
 hash it was compiled with and gives up when they differ:
 
 ```js
-head_anchor.nodeType !== COMMENT_NODE || head_anchor.data !== hash
+head_anchor.nodeType !== COMMENT_NODE || head_anchor.data !== hash;
 ```
 
 So this is not a tidiness question about one side of the build. The server bytes come from this
@@ -455,7 +457,7 @@ reachable at the size it is written for.
 module, and Vite's can: the SSR module graph is told about exactly the copies a render staged --
 never about what the project itself imports, or the project would be transformed again per render
 -- and Node's host leaves it undefined, because its ESM registry has no eviction at all. That the
-two hosts differ here is not an omission to tidy up: the fresh name per render exists *because*
+two hosts differ here is not an omission to tidy up: the fresh name per render exists _because_
 Node cannot forget, so the capability is optional by construction.
 
 Measured, against the same compile with the same caches: the peak went from about 9.2GB to 7.3GB,
@@ -498,11 +500,11 @@ Measured over press, against the same compile: **`load (host import)` 15.1s to 5
 **A memo is memory traded for time, and each trade is priced separately.** The two that hold trees
 were switched off together and then one at a time, on a machine with nothing else on it:
 
-| | walk | live heap |
-| --- | --- | --- |
-| neither | 372.6s | 2785MB |
-| an expression's tree | 259.5s | 3828MB |
-| and a whole component's | ~232s | 5751MB |
+|                         | walk   | live heap |
+| ----------------------- | ------ | --------- |
+| neither                 | 372.6s | 2785MB    |
+| an expression's tree    | 259.5s | 3828MB    |
+| and a whole component's | ~232s  | 5751MB    |
 
 So an expression's tree buys 113 seconds for a gigabyte and a whole component's buys 27 more for
 nearly two. **The second is refused**: a compile that cannot run in CI is worse than one that takes
@@ -558,10 +560,10 @@ raise the peak rather than lower it.
 
 The backend is a program, and a program gets bundled. The distinction is exact:
 
-| | | |
-| --- | --- | --- |
-| **the artifacts** | IR, derivations, carried bundles, manifest, client bundle | never bundled, identical for every backend |
-| **the server program** | the framework's own code and the author's server code | bundled, and how depends on the language |
+|                        |                                                           |                                            |
+| ---------------------- | --------------------------------------------------------- | ------------------------------------------ |
+| **the artifacts**      | IR, derivations, carried bundles, manifest, client bundle | never bundled, identical for every backend |
+| **the server program** | the framework's own code and the author's server code     | bundled, and how depends on the language   |
 
 **Rust.** The server framework and the author's server code compile to one binary. Whether the
 artifacts are embedded into it is an option: embedded gives one file that serves by itself, and

@@ -18,8 +18,7 @@ const staging = resolve(dirname(fileURLToPath(import.meta.url)), '../.build-tags
 let at = 0;
 async function bytes(tag: unknown): Promise<string> {
 	mkdirSync(staging, { recursive: true });
-	const source =
-		'<script>let { t } = $props()</script><svelte:element this={t}>x</svelte:element>';
+	const source = '<script>let { t } = $props()</script><svelte:element this={t}>x</svelte:element>';
 	const code = compile(source, { generate: 'server', name: 'C', filename: 'c.svelte' }).js.code;
 	const out = resolve(staging, `c${at++}.js`);
 	writeFileSync(out, code);

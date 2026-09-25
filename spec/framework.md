@@ -25,27 +25,27 @@ the one package that imports the vendor by name. How it is upgraded and what is 
 
 ## Taken as it is
 
-| Kit | what it does | here |
-| --- | --- | --- |
-| `utils/routing.js` | route ids to patterns and parameters, `find_route`, `resolve_route` | `pkgs/routes` |
-| `core/sync/create_manifest_data/` | `src/routes` to routes, nodes, layouts and errors; `sort_routes`; conflicts | the map from a route to its layouts |
-| `core/sync/write_root.js` | the root component nesting a page in its layouts, `data_0..n`, `page`, `form` as props | the compiler's entry per route, see [payload.md](payload.md) |
-| `utils/url.js`, `runtime/pathname.js` | path normalising, `__data.json` suffixes | the wire's spelling |
-| `runtime/server/page/serialize_data.js`, `data_serializer.js`, `utils/escape.js` | devalue into `<script>` | byte for byte, since the client reads it |
-| `runtime/server/data/` | the `__data.json` endpoint | client navigation's data |
-| `runtime/client/` | router, navigation, preload, `$app/navigation`, `$app/state`, hydrate | the SPA the page is after hydration |
-| `runtime/app/*` | the `$app/*` modules | what components import |
-| `runtime/server/{cookie,csp,crypto,validate-headers}.js` | HTTP details of the Node server | the Node server, while there is one |
+| Kit                                                                              | what it does                                                                           | here                                                         |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `utils/routing.js`                                                               | route ids to patterns and parameters, `find_route`, `resolve_route`                    | `pkgs/routes`                                                |
+| `core/sync/create_manifest_data/`                                                | `src/routes` to routes, nodes, layouts and errors; `sort_routes`; conflicts            | the map from a route to its layouts                          |
+| `core/sync/write_root.js`                                                        | the root component nesting a page in its layouts, `data_0..n`, `page`, `form` as props | the compiler's entry per route, see [payload.md](payload.md) |
+| `utils/url.js`, `runtime/pathname.js`                                            | path normalising, `__data.json` suffixes                                               | the wire's spelling                                          |
+| `runtime/server/page/serialize_data.js`, `data_serializer.js`, `utils/escape.js` | devalue into `<script>`                                                                | byte for byte, since the client reads it                     |
+| `runtime/server/data/`                                                           | the `__data.json` endpoint                                                             | client navigation's data                                     |
+| `runtime/client/`                                                                | router, navigation, preload, `$app/navigation`, `$app/state`, hydrate                  | the SPA the page is after hydration                          |
+| `runtime/app/*`                                                                  | the `$app/*` modules                                                                   | what components import                                       |
+| `runtime/server/{cookie,csp,crypto,validate-headers}.js`                         | HTTP details of the Node server                                                        | the Node server, while there is one                          |
 
 ## Taken around the render
 
-| Kit | keeps | changes |
-| --- | --- | --- |
-| `runtime/server/page/render.js` | the shell, the `<script>` of data, CSP, asset tags | `root.render(props)` becomes `inject(ir, derive(data))` |
-| `runtime/server/page/index.js`, `load_data.js` | the branch of `load` functions, `parent()`, per-node data | the end of the branch picks the route's IR rather than a component |
-| `runtime/server/respond.js` | routing a request to a page, an endpoint, `__data.json` | the page arm |
-| `core/sync/write_server.js`, `write_client_manifest.js` | the manifests | the server one points at IR and derivation bundles |
-| `exports/vite/index.js` | the plugin form, the client build, the dev server, the virtual modules | the server build is the compiler's pipeline |
+| Kit                                                     | keeps                                                                  | changes                                                            |
+| ------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `runtime/server/page/render.js`                         | the shell, the `<script>` of data, CSP, asset tags                     | `root.render(props)` becomes `inject(ir, derive(data))`            |
+| `runtime/server/page/index.js`, `load_data.js`          | the branch of `load` functions, `parent()`, per-node data              | the end of the branch picks the route's IR rather than a component |
+| `runtime/server/respond.js`                             | routing a request to a page, an endpoint, `__data.json`                | the page arm                                                       |
+| `core/sync/write_server.js`, `write_client_manifest.js` | the manifests                                                          | the server one points at IR and derivation bundles                 |
+| `exports/vite/index.js`                                 | the plugin form, the client build, the dev server, the virtual modules | the server build is the compiler's pipeline                        |
 
 **The project's configuration is read as Kit reads it.** `svelte.config.js` is imported and put
 through Kit's own validator, with every file path resolved against the project rather than the
@@ -109,7 +109,7 @@ that moved under the installed TypeScript. None is refused. Each is taken when a
    for byte against Kit's root rendered with Kit's props, and on press every route compiles from
    it and matches. The compiler's command line finds routes when given none.
 2. **Done.** The plugin, `seam()` beside `sveltekit()` in the project's Vite config. Kit's `vite
-   build` runs its server build first and the plugin takes part in that one only: when it starts,
+build` runs its server build first and the plugin takes part in that one only: when it starts,
    the routes are compiled and the artifacts emitted into the server output as assets, reached by
    the URLs the bundler gives them so an adapter carries them with the program; and Kit's
    generated `root.js` is resolved to a module that renders a page from its artifact --

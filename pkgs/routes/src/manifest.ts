@@ -100,7 +100,8 @@ export async function compilerOptions(root: string): Promise<{
 	experimental?: { async: true };
 }> {
 	const given = (await userConfig(resolve(root)))['compilerOptions'];
-	const held = typeof given === 'object' && given !== null ? (given as Record<string, unknown>) : {};
+	const held =
+		typeof given === 'object' && given !== null ? (given as Record<string, unknown>) : {};
 	const runes = held['runes'];
 	const experimental = held['experimental'];
 	const async =

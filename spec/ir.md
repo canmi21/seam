@@ -33,26 +33,42 @@ and the two the injector produces; `title` and `styles` are channels it keeps be
 uses none of the three leaves `head` and `title` empty.
 
 ```json
-{ "component": "product", "head": [], "title": [], "body": [
-  { "t": "static", "s": "<!--[--><article class=\"card\"><h1>" },
-  { "t": "slot",   "path": "data.name", "escape": "content" },
-  { "t": "static", "s": "</h1>" },
+{
+	"component": "product",
+	"head": [],
+	"title": [],
+	"body": [
+		{ "t": "static", "s": "<!--[--><article class=\"card\"><h1>" },
+		{ "t": "slot", "path": "data.name", "escape": "content" },
+		{ "t": "static", "s": "</h1>" },
 
-  { "t": "if", "branches": [
-      { "test": "data.available", "body": [ {"t":"static","s":"<!--[0--><button>Buy</button>"} ] },
-      { "test": null,          "body": [ {"t":"static","s":"<!--[-1-->"} ] }
-  ]},
+		{
+			"t": "if",
+			"branches": [
+				{
+					"test": "data.available",
+					"body": [{ "t": "static", "s": "<!--[0--><button>Buy</button>" }]
+				},
+				{ "test": null, "body": [{ "t": "static", "s": "<!--[-1-->" }] }
+			]
+		},
 
-  { "t": "static", "s": "<!--]--><!--[-->" },
+		{ "t": "static", "s": "<!--]--><!--[-->" },
 
-  { "t": "each", "source": "data.tags", "item": "t", "body": [
-      { "t": "static", "s": "<span>" },
-      { "t": "slot",   "path": "t", "escape": "content" },
-      { "t": "static", "s": "</span>" }
-  ]},
+		{
+			"t": "each",
+			"source": "data.tags",
+			"item": "t",
+			"body": [
+				{ "t": "static", "s": "<span>" },
+				{ "t": "slot", "path": "t", "escape": "content" },
+				{ "t": "static", "s": "</span>" }
+			]
+		},
 
-  { "t": "static", "s": "<!--]--></article><!--]-->" }
-]}
+		{ "t": "static", "s": "<!--]--></article><!--]-->" }
+	]
+}
 ```
 
 - **`static`** -- an opaque string. Markup and Svelte's anchors sit in it indistinguishably; the
@@ -137,12 +153,12 @@ characters with it.
 
 The rule is narrower than it looks, and was measured rather than assumed:
 
-| written | result |
-| --- | --- |
-| a single expression, null or undefined | the attribute is absent |
-| a single expression, empty string | `name=""` |
-| a single expression, `false` or `0` | `name="false"`, `name="0"` |
-| several parts, one of them null | the null becomes empty, the attribute stays |
+| written                                | result                                      |
+| -------------------------------------- | ------------------------------------------- |
+| a single expression, null or undefined | the attribute is absent                     |
+| a single expression, empty string      | `name=""`                                   |
+| a single expression, `false` or `0`    | `name="false"`, `name="0"`                  |
+| several parts, one of them null        | the null becomes empty, the attribute stays |
 
 So an `attr` node omits itself only when it has exactly one part, that part is a slot, and the
 value resolves to null or undefined. Everything else is written.
@@ -150,11 +166,11 @@ value resolves to null or undefined. Everything else is written.
 **Except where the name decides otherwise, which it does in two ways.** An `attr` node carries a
 `presence`:
 
-| | |
-| --- | --- |
-| `value` | written unless the value is null or undefined |
-| `boolean` | present or absent: `name=""` when the value is truthy or an empty string, nothing otherwise |
-| `nonempty` | written unless the value comes out empty |
+|            |                                                                                             |
+| ---------- | ------------------------------------------------------------------------------------------- |
+| `value`    | written unless the value is null or undefined                                               |
+| `boolean`  | present or absent: `name=""` when the value is truthy or an empty string, nothing otherwise |
+| `nonempty` | written unless the value comes out empty                                                    |
 
 So `disabled={false}` produces nothing while `data-x={false}` produces `data-x="false"`, and
 `class={""}` produces nothing while `title={""}` produces `title=""`. `hidden` is boolean for
@@ -188,11 +204,11 @@ program -- is in [pipeline.md](pipeline.md).
 `escape` is a mode, not a boolean, because Svelte escapes two ways and neither is general HTML
 escaping:
 
-| mode | characters replaced | left alone |
-| --- | --- | --- |
-| `content` | `&` `<` | `>` `"` |
-| `attr` | `&` `<` `"` | `>` |
-| `false` | none | the raw HTML slot |
+| mode      | characters replaced | left alone        |
+| --------- | ------------------- | ----------------- |
+| `content` | `&` `<`             | `>` `"`           |
+| `attr`    | `&` `<` `"`         | `>`               |
+| `false`   | none                | the raw HTML slot |
 
 `>` is never escaped, in either. That is Svelte's `escape_html` in `src/escaping.js`, and it is
 part of the ABI for the same reason the anchors are: the bytes have to match.
@@ -481,7 +497,7 @@ the chain of `#out` indexes from the root renderer down to the one the title was
 facts of the transform decide what that means in practice. `SvelteHead.js` pushes `$.head` into
 the template, and `clean_nodes` hoists a `<svelte:head>` ahead of everything else in its fragment,
 so a component's head block runs before any child component it calls and gets a smaller index
-than any of them. And `TitleElement.js` pushes `$$renderer.title` into the *init* of the block it
+than any of them. And `TitleElement.js` pushes `$$renderer.title` into the _init_ of the block it
 sits in, so a title at the top level of a head block runs before one inside an `{#if}` there, and
 every title in one head block shares that block's path. Together: **the last head block executed
 wins, and inside it the first title executed** -- a child's title beats its parent's whichever
@@ -515,13 +531,13 @@ both.
 
 ## What is not in it
 
-| | Where it goes instead |
-| --- | --- |
-| CSS | **Undecided.** The rule that was here is wrong; see below. |
-| Client behaviour, events, `$state` | Svelte's own client bundle already carries it. |
-| The document head | Nothing: it is in the IR, as a second sequence of nodes. See above. |
-| Scalar types | Declared where the payload is produced. The IR enumerates paths, which is what a page requires rather than what its values are. See [payload.md](payload.md). |
-| The element tree | Nowhere. Nothing needs it. |
+|                                    | Where it goes instead                                                                                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| CSS                                | **Undecided.** The rule that was here is wrong; see below.                                                                                                    |
+| Client behaviour, events, `$state` | Svelte's own client bundle already carries it.                                                                                                                |
+| The document head                  | Nothing: it is in the IR, as a second sequence of nodes. See above.                                                                                           |
+| Scalar types                       | Declared where the payload is produced. The IR enumerates paths, which is what a page requires rather than what its values are. See [payload.md](payload.md). |
+| The element tree                   | Nowhere. Nothing needs it.                                                                                                                                    |
 
 **The CSS row used to say that the artifact is separate and its consumer is the bundler rather
 than the server. That is not true and it is left here as a question rather than an answer**,
@@ -566,12 +582,12 @@ Recorded rather than decided, because guessing now would be worse than deciding 
   the class in that stylesheet, since neither half can be wrong alone. It used to compile without
   either: the class went into the bytes, the stylesheet reached no artifact, and the page rendered
   unstyled with an exit status of zero.
-- **`translate={true}`.** *Settled.* Svelte maps it through a table of value replacements, and
+- **`translate={true}`.** _Settled._ Svelte maps it through a table of value replacements, and
   the injector carries that table: `true` is written `"yes"` and `false` `"no"`, because
   `translate="false"` would mean yes. It used to be refused when the value was not plain text,
   waiting on a second entry to make the table worth carrying; the table is two lines, and a
   refusal was the more expensive of the two. See [refusals.md](refusals.md).
-- **`class:` and `style:` directives.** *Settled.* Both are decision positions over outcomes, and
+- **`class:` and `style:` directives.** _Settled._ Both are decision positions over outcomes, and
   both are enumerated: `class:` over which names are present, `style:` over which declarations
   are, with the value written inside the outcome. The way an element is found in a render, which
   this entry called the cost, is a marker riding in an attribute of its own, written last, that the
@@ -580,9 +596,9 @@ Recorded rather than decided, because guessing now would be worse than deciding 
 - **Empty values.** `{data.name}` with an empty string produced `<h1></h1>` in Svelte's SSR, with
   no text node. Whether hydration requires one to exist is not yet known, and it decides whether a
   `slot` must always emit something.
-- **Per-item derivation.** *Settled* in [derivation.md](derivation.md): a derivation reading a
+- **Per-item derivation.** _Settled_ in [derivation.md](derivation.md): a derivation reading a
   name an each block binds is called per item, at the point of use, rather than once per request.
-- **Snippets and children.** *Settled.* The walk descends into a child and carries the markup it
+- **Snippets and children.** _Settled._ The walk descends into a child and carries the markup it
   was given, so a component with a body is entered rather than refused, and a `{@render}` of a
   snippet declared beside it is inlined. What stays refused is in [refusals.md](refusals.md): a
   render of a snippet that arrived as a prop, and a passed snippet that reads a parameter as a

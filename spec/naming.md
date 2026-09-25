@@ -7,13 +7,13 @@ that rule turned on ourselves: **the product name is not a prefix, an id, a plac
 attribute.** Code says what a thing objectively is, and a reader who has never heard of this
 project can still tell what they are looking at.
 
-| was | is | because |
-| --- | --- | --- |
-| `%seam.body%` | `%body%` | it is the body of the document |
-| `<div id="seam">` | `<div id="app">` | it is where the application mounts |
-| `data-seam-payload` | `data-payload` | it is the payload |
-| `createSeamServer` | `createServer` | it is in a package called `server` |
-| `seam-lowering` | `lowering` | it lowers |
+| was                 | is               | because                            |
+| ------------------- | ---------------- | ---------------------------------- |
+| `%seam.body%`       | `%body%`         | it is the body of the document     |
+| `<div id="seam">`   | `<div id="app">` | it is where the application mounts |
+| `data-seam-payload` | `data-payload`   | it is the payload                  |
+| `createSeamServer`  | `createServer`   | it is in a package called `server` |
+| `seam-lowering`     | `lowering`       | it lowers                          |
 
 The prefix carried no information in any of those. `%seam.body%` is not a different placeholder
 from `%body%`; it is the same placeholder with a brand on it, and the brand is already implied by

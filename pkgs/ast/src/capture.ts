@@ -241,7 +241,8 @@ export function readsReplaced(
 			}
 		}
 		for (const [key, value] of Object.entries(node)) {
-			if (key !== 'type' && key !== 'start' && key !== 'end' && key !== 'loc') targets(value, shadowed);
+			if (key !== 'type' && key !== 'start' && key !== 'end' && key !== 'loc')
+				targets(value, shadowed);
 		}
 	};
 	targets(tag['expression'], new Set());
