@@ -17,6 +17,21 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 ## Work, with design questions to answer first
 
+- [ ] **A branch the build knows is not taken is rendered anyway, and awaits inside it.** The first
+      render forces every `{#if}` to its first branch so the branch has its say, after the walk has
+      already asked the test and been answered (`__seam_asked["(0) > 0"]`); the forced branch awaits
+      a promise the sample never resolves and the build never settles. Either the first render takes
+      the answered branch where the test reads nothing the request decides, or an `await` in a forced
+      branch is given a deadline and left to the render. async-state-new-branch-3,
+      async-state-new-branch-fork-2, -fork-3, -fork-5.
+- [ ] **A value with identity is re-spelled from its source.** `promise={a.promise}` over
+      `const a = Promise.withResolvers()` reaches the copy as `await (Promise.withResolvers()).promise`,
+      a fresh promise the script's `tick().then(() => a.resolve(true))` never resolves. Where
+      substitution cannot follow, the script runs as Svelte compiled it (spec/derivation.md, "Where
+      substitution cannot follow, the script runs as Svelte compiled it"); a promise, or any value
+      made by a call and resolved by a side effect elsewhere, is one substitution cannot follow.
+      async-head-multiple-title-order-preserved.
+
 ## Waiting on a decision
 
 - [ ] **A component value the source does not name, rendered per request.** Svelte calls whatever

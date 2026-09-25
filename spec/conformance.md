@@ -94,9 +94,9 @@ and a skip is one the list names with its reason.
 
 **`mise run vendor-baseline` is where it stands**, and nothing here copies its table. What this file
 can say without going stale is what `verify` already enforces: a failing sample fails the run, so
-the target holds in both the synchronous render and the async one -- the pass [suite.md](suite.md)
-added when async became work rather than an experiment -- exactly while `verify` passes, and
-`verify`'s colour is where stage one stands. The async pass began at 953 of 985 with 32 owed; what closed them is in
+the target holds in the one render [suite.md](suite.md) measures, Svelte's async one, exactly
+while `verify` passes, and
+`verify`'s colour is where stage one stands. The async render began at 953 of 985 with 32 owed; what closed them is in
 [roadmap.md](roadmap.md) and [derivation.md](derivation.md), the last 3 being the script
 `hydratable` writes at the head, now written per request from the request's own table -- a value a
 prop decides, or a render option's CSP nonce. One sample left the synchronous pass's passes for its skips on the way, having

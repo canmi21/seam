@@ -234,9 +234,16 @@ variant is `no-test` for the legacy suite, and its `common_setup` compiles a leg
 a legacy component, so the sample is measured in this one, and the run above is the evidence that
 it can be.
 
-**Each sample has a deadline.** An awaited render can wait forever: five samples hand it a promise
-that never resolves, and upstream's own async render does not finish either. One that passes the
-deadline is reported as the oracle's failure rather than hanging the run.
+**Each side's render has a deadline of its own, because the two not settling are two different
+outcomes.** An awaited render can wait forever. It was one deadline over both sides, and a sample
+that passed it was filed as the oracle's failure with a note that upstream's own async render does
+not finish either -- which was inferred from the one deadline rather than measured, and was wrong:
+timed apart, Svelte's render finished all five and this compiler's finished none. Four of them
+force a branch the render does not take and await a promise inside it that nothing resolves; the
+fifth re-spells a promise from its source and awaits a fresh one. **A build that never settles is
+this compiler's gap and fails; an oracle that never settles is nobody's answer and is a harness
+skip.** A column that says neither side answered is where work hides without being counted, which
+is the rule two sections up applied to a deadline.
 
 ### `mode` names the modes upstream runs, in each runner's own words
 
@@ -272,8 +279,9 @@ while 342 configs were not being read at all, and reading them raised what upstr
 as well: `mode` from 160 to 182 and `skip` from 17 to 19, because a config that throws declares
 nothing.
 
-**The harness skips.** Neither side answered: a render handed a promise that never resolves, for
-one, which upstream's own async render does not finish either. There were 18, and then 57 waiting for the async render, and what paid them is above.
+**The harness skips.** Neither side answered. There were 18, and then 57 waiting for the async
+render, and then 5 filed here for a deadline that could not say whose render passed it; what paid
+each is above.
 There is nothing to compare against in one, so counting either way is a claim about a comparison
 nobody made -- and a sample skipped because of this runner is a sample nobody has measured, which is
 why the reason is written into the list rather than into a count.

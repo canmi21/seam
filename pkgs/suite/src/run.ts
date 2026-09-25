@@ -591,6 +591,25 @@ async function withDom<T>(dom: boolean, what: () => Promise<T>): Promise<T> {
 	}
 }
 
+/** What a render that passes its deadline is reported as, on either side. */
+const NEVER_SETTLED = 'the render never settled';
+
+/**
+ * A render's deadline. A sample handing the render `new Promise(() => {})` waits forever, and a
+ * promise waited on is not a result; the one that passes it is thrown as `why`.
+ */
+function settling<T>(render: Promise<T>, why: string): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	return Promise.race([
+		render,
+		new Promise<never>((_, refuse) => {
+			timer = setTimeout(() => refuse(new Error(why)), 5000);
+		}),
+	]).finally(() => {
+		if (timer !== undefined) clearTimeout(timer);
+	});
+}
+
 /** One sample, staged, compiled, rendered and compared. */
 async function attempt(suite: string, name: string): Promise<Result> {
 	const from = resolve(SAMPLES, suite, 'samples', name);
@@ -675,16 +694,28 @@ async function attempt(suite: string, name: string): Promise<Result> {
 			`export default { compilerOptions: ${JSON.stringify(compilerOptions)} };\n`,
 		);
 	}
+	// **Each side has its own deadline, because the two sides not settling are two different
+	// outcomes.** An awaited render can wait forever, and one deadline over both sides could not
+	// say whose render it was: five samples were filed as the oracle's failure with a note that
+	// upstream's own render does not finish either, and measured apart, Svelte's render finished
+	// every one of them and this compiler's did not. A build that never settles is this
+	// compiler's gap; an oracle that never settles is nobody's answer. See spec/suite.md.
 	let mine: Rendered | null = null;
 	let refusal: string | null = null;
 	try {
-		mine = await ours(dir, props, config.csp, config.transformError);
+		mine = await settling(
+			ours(dir, props, config.csp, config.transformError),
+			"this compiler's render never settled",
+		);
 	} catch (error) {
 		refusal = firstLine(error);
 	}
 	let svelte: Rendered;
 	try {
-		svelte = await theirs(dir, props, config.transformError, runes, config.csp);
+		svelte = await settling(
+			theirs(dir, props, config.transformError, runes, config.csp),
+			NEVER_SETTLED,
+		);
 	} catch (error) {
 		// Neither side's answer: the oracle could not be built or run. Reported apart so it is never
 		// read as agreement, and never as a refusal either.
@@ -696,6 +727,9 @@ async function attempt(suite: string, name: string): Promise<Result> {
 		// needs a DOM; two samples exist to raise upstream's own error. None of those is a
 		// difference between the two renders, because there is only one render.
 		const text = String((error as Error).message);
+		// A render that never settled is not asked again with a DOM: that is another deadline
+		// spent to learn the same thing.
+		if (text === NEVER_SETTLED) return { suite, name, outcome: 'oracle', why: NEVER_SETTLED };
 		// **A sample that renders only with a DOM is upstream's environment, not a server's.**
 		if (
 			await theirs(dir, props, config.transformError, runes, config.csp, true).then(
@@ -990,21 +1024,8 @@ async function measure(): Promise<Result[]> {
 		const found: Result[] = [];
 		for (const suite of SUITES) {
 			for (const name of samplesOf(suite)) {
-				// A render that awaits can wait forever: a sample handing it `new Promise(() => {})` is
-				// one the server never finishes, which upstream's own async render does not finish
-				// either. Reported as the oracle's own failure rather than hanging the run.
-				let timer: ReturnType<typeof setTimeout> | undefined;
-				const held = await Promise.race([
-					attempt(suite, name),
-					new Promise<Result>((settle) => {
-						timer = setTimeout(
-							() => settle({ suite, name, outcome: 'oracle', why: 'the render never settled' }),
-							5000,
-						);
-					}),
-				]);
-				if (timer !== undefined) clearTimeout(timer);
-				found.push(held);
+				// Each side's render carries its own deadline; see `settling` in `attempt`.
+				found.push(await attempt(suite, name));
 			}
 		}
 		return found;
