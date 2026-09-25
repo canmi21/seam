@@ -299,10 +299,15 @@ export interface Site {
 	 */
 	mute: ReadonlySet<string>;
 	/**
-	 * What a component `bind:` met on this pass settles a name to, by the caller's local. Empty on
-	 * a pass that was already told them, which is how the walk knows it has settled. See `Walk.sent`.
+	 * What a component `bind:` met on this pass settles a name to, by the caller's local **keyed
+	 * to the caller's copy** (`keyed()`), since a copy and its caller may declare one name -- a
+	 * `<Parent value>` binding a `<Child bind:value>` -- and the settled one is the caller's alone.
+	 * Empty on a pass that was already told them, which is how the walk knows it has settled. See
+	 * `Walk.sent`.
 	 */
 	sends: Map<string, string>;
+	/** Every settled name the walk was told, keyed the way `sends` is; `Walk.sent` is one file's view. */
+	sent: ReadonlyMap<string, string>;
 	/**
 	 * What each binding of a name settles it to and the branch that has to render for it to,
 	 * in source order, from which `sends` is composed.
@@ -4355,7 +4360,20 @@ function makes(text: string | undefined): boolean {
  * recorded under the child would resolve its names through a file that does not declare them.
  */
 function kept(expression: string, walk: Walk): number {
-	const files = walk.site.stack.toReversed().map((one) => relative(walk.site.root, one));
+	return keptUnder(expression, walk.site.stack, walk);
+}
+
+/** An empty settled map, for an expansion made the way the loop's first pass reads the name. */
+const NOTHING_SENT: ReadonlyMap<string, string> = new Map();
+
+/**
+ * The index a held expression has in this walk's list, under the chain of the given stack: the
+ * caller's for a value going down, and the child's -- the caller's stack with the child's file on
+ * it -- for a child's run the caller reads back up. See spec/derivation.md, "A hold may name the
+ * child's chain, and that is how a value crosses back up".
+ */
+function keptUnder(expression: string, stack: readonly string[], walk: Walk): number {
+	const files = stack.toReversed().map((one) => relative(walk.site.root, one));
 	const key = files.join('\u0000');
 	const at = walk.keeping.findIndex(
 		(one) => one.expression === expression && (one.files ?? []).join('\u0000') === key,
@@ -4492,10 +4510,17 @@ function inertBodies(snippets: ReadonlyMap<string, Snippet>, walk: Walk): boolea
  * **An `{#each}` is not one of these and returns nothing.** What it encloses renders once per item,
  * so what a binding inside it settles is a per-item answer, and the name it settles is read once
  * for the page.
+ *
+ * **Only the blocks of this file.** A copy inherits the blocks its tag sits in, and a block
+ * enclosing the whole copy encloses the name the binding settles as well: the file renders once
+ * per item with its name and its binding together, so nothing about it is a per-item answer to a
+ * page-level read. `runtime-legacy/binding-backflow` is six `<Parent>`s in an each, each binding
+ * a child inside itself.
  */
 function branchTest(walk: Walk): string | null {
 	const parts: string[] = [];
-	for (const [index, branch] of walk.within) {
+	const enclosing = walk.site.copy?.within?.length ?? 0;
+	for (const [index, branch] of walk.within.slice(enclosing)) {
 		const block = walk.blocks[index];
 		if (block === undefined || block.kind !== 'if') return null;
 		const tests = walk.site.tested.get(index) ?? block.tests ?? [];
@@ -4524,6 +4549,28 @@ function branchTest(walk: Walk): string | null {
 function keyed(walk: Walk, expression: string): string {
 	const copy = walk.site.copy;
 	return copy === undefined || copy === null ? expression : `${basename(copy.at)}#${expression}`;
+}
+
+/**
+ * One file's view of the settled names: the entries `keyed()` filed under this copy, by the bare
+ * local, and none of the others'. A caller's `value` and its child's `value` are two names, and
+ * the one the caller's binding settles must not be read inside the child, where it shadowed the
+ * child's own prop. See `Site.sends`.
+ */
+function sentFor(
+	all: ReadonlyMap<string, string>,
+	copy: Copy | null | undefined,
+): ReadonlyMap<string, string> {
+	const prefix = copy === undefined || copy === null ? '' : `${basename(copy.at)}#`;
+	const own = new Map<string, string>();
+	for (const [key, value] of all) {
+		if (prefix === '') {
+			if (!key.includes('#')) own.set(key, value);
+		} else if (key.startsWith(prefix)) {
+			own.set(key.slice(prefix.length), value);
+		}
+	}
+	return own;
 }
 
 /**
@@ -6967,10 +7014,11 @@ function collect(node: unknown, walk: Walk): void {
 			});
 			// What a binding inside this block settles is read against the tests as they stand where
 			// the block is walked, which is the pass's own source order. See `Site.tested`.
-			if (site.sends.size > 0) {
+			const settledHere = sentFor(site.sends, site.copy);
+			if (settledHere.size > 0) {
 				site.tested.set(
 					index,
-					chain.map((one, at) => expand(one['test'], new Map(site.sends)) || (tests[at] ?? '')),
+					chain.map((one, at) => expand(one['test'], new Map(settledHere)) || (tests[at] ?? '')),
 				);
 			}
 
@@ -7430,6 +7478,8 @@ function descend(
 	const boundProps = new Set<string>();
 	/** A binding's getter, kept until every attribute and spread has been placed. See below. */
 	const delayed: [string, string][] = [];
+	/** Each binding's getter expanded with nothing settled, by prop. See `unsettled` below. */
+	const unsettled = new Map<string, string>();
 	/** The name each binding's getter is written as, which is what its setter assigns to. */
 	const boundTo = new Map<string, string>();
 	// The props whose caller expression varies with nothing the request decides. The render is
@@ -7503,6 +7553,14 @@ function descend(
 			// bindings come at the end, to avoid spreads overwriting them." So a spread written
 			// after a binding does not win, and both the merge order and the map have to say so.
 			delayed.push([name, `(${handed(one, walk.expand)})`]);
+			// And the getter with nothing settled, which is what the loop's first pass hands the
+			// child: the props of the run a bound prop the child's script changes is held under.
+			// See spec/derivation.md, "A hold may name the child's chain, and that is how a value
+			// crosses back up".
+			unsettled.set(
+				name,
+				`(${handed(one, (node, extra) => walk.expand(node, extra, NOTHING_SENT))})`,
+			);
 			// The name as written, which is what the setter assigns to. The expansion beside it is
 			// the value it holds now; the two are different things and `settles` needs both.
 			const where = span(getterOf(one));
@@ -7765,7 +7823,9 @@ function descend(
 		 */
 		const settles = (prop: string, value: string): boolean => {
 			const held = delayed.find(([bound]) => bound === prop)?.[1];
-			if (held === undefined || !constant(value)) return false;
+			// A constant reads the same in the caller's scope as in the child's, and so does a hold,
+			// which is resolved by its index rather than by any name. See `keptUnder`.
+			if (held === undefined || !(constant(value) || value.startsWith('($$hold('))) return false;
 			const local = boundTo.get(prop) ?? '';
 			if (!IDENTIFIER.test(local)) return false;
 			// Written inside a block, which child sends back is the block's answer, so the block's
@@ -7778,9 +7838,10 @@ function descend(
 			// this and the loop is not something the artifact repeats. Among the bindings of one
 			// name the first whose branch renders is the one that reaches it, which is what the
 			// chain nests in source order.
-			const chain = [...(walk.site.sending.get(local) ?? []), [when, value] as const];
+			const key = keyed(walk, local);
+			const chain = [...(walk.site.sending.get(key) ?? []), [when, value] as const];
 			walk.site.sending.set(
-				local,
+				key,
 				chain.map(([a, b]) => [a, b]),
 			);
 			const nested = chain.reduceRight(
@@ -7788,7 +7849,7 @@ function descend(
 					test === 'true' ? `(${held})` : `((${test}) ? (${held}) : ${rest})`,
 				'undefined',
 			);
-			walk.site.sends.set(local, `(${held} === undefined ? ${nested} : ${held})`);
+			walk.site.sends.set(key, `(${held} === undefined ? ${nested} : ${held})`);
 			return true;
 		};
 		/**
@@ -8060,24 +8121,11 @@ function descend(
 		const during = [...declared.changed].find(([name]) => !running.includes(name));
 		if (during !== undefined) throw new Error(during[1]);
 		if (running.length > 0) {
-			// Two cases the run is not the answer for, and each keeps the refusal it had. A prop the
-			// call site binds sends the value back, and the caller's whole template renders again
-			// with it -- which the binding rule above the tag answers, not this. And where nothing the
-			// call site passes varies with the request, the child is Svelte's to render: the render is
-			// handed the values themselves, and a caller's local a run would read is in no scope a
-			// derivation has. See `handsMarker`.
-			const bindsBack = running.find((name) => {
-				const prop = declares.find((one) => one.local === name)?.prop;
-				return prop !== undefined && boundProps.has(prop);
-			});
-			if (bindsBack !== undefined) {
-				throw new Error(
-					`\`${bindsBack}\` is a prop this component changes, and a value handed to a component ` +
-						'is written out as a marker standing for it, so the change is made to the marker ' +
-						'rather than to the value. Compute the value in one expression, or move what ' +
-						'changes it out of the render. See spec/derivation.md',
-				);
-			}
+			// One case the run is not the answer for, and it keeps the refusal it had: where nothing
+			// the call site passes varies with the request, the child is Svelte's to render -- the
+			// render is handed the values themselves, and a caller's local a run would read is in no
+			// scope a derivation has. See `handsMarker`. A prop the call site binds is the other
+			// half of a run, below.
 			const varying =
 				walk.site.payload !== null &&
 				([...bindings.values()].some((value) => varies(value, walk)) ||
@@ -8102,6 +8150,45 @@ function descend(
 			for (const name of running) {
 				ranBy.set(name, `(${run}.${name})`);
 				ranBy.set(`$${name}`, `(${run}.$${name})`);
+			}
+			// A prop the call site binds that the script changes sends what the script left back up,
+			// where the caller passed `undefined`, and the caller's template renders again reading
+			// it. What it sends is the run of the loop's first pass -- the getters expanded with
+			// nothing settled -- held under this child's chain and read by the caller's ternary as
+			// `($$hold(n).name)`; the reads above are the second pass, whose props carry the settled
+			// names. See spec/derivation.md, "A hold may name the child's chain, and that is how a
+			// value crosses back up".
+			const sending = running.filter((name) => {
+				const prop = declares.find((one) => one.local === name)?.prop;
+				return prop !== undefined && boundProps.has(prop);
+			});
+			if (sending.length > 0) {
+				// The bound prop's getter with nothing settled wherever it is passed -- a binding is
+				// also listed in `order` -- since a settled getter reads this very hold.
+				const firstPassed = [
+					...order.map((one) =>
+						'spread' in one
+							? `...${one.spread}`
+							: `${JSON.stringify(one.name)}: ${unsettled.get(one.name) ?? bindings.get(one.name) ?? 'undefined'}`,
+					),
+					...delayed.map(
+						([name, value]) => `${JSON.stringify(name)}: ${unsettled.get(name) ?? value}`,
+					),
+				];
+				const firstCall = `${RUN_NAME}({ ${firstPassed.join(', ')} })`;
+				const first = projectAsync() ? `(await ${firstCall})` : firstCall;
+				const at = keptUnder(first, [...walk.site.stack, file], walk);
+				for (const name of sending) {
+					const prop = declares.find((one) => one.local === name)?.prop ?? name;
+					if (walk.sent.has(boundTo.get(prop) ?? prop)) continue;
+					if (settles(prop, `($$hold(${String(at)}).${name})`)) continue;
+					throw new Error(
+						`\`${name}\` is a prop this component changes and the call site binds, so what ` +
+							'the script leaves goes back up to the caller, and the block this tag sits in ' +
+							'is one the walk cannot put a test to. Compute the value in one expression, ' +
+							'or move what changes it out of the render. See spec/derivation.md',
+					);
+				}
 			}
 		}
 		if (recursion !== null) {
@@ -8181,18 +8268,20 @@ function descend(
 
 		// The fragment's block encloses everything the body walks, so a head met inside marks it.
 		const fragmentAt = walk.blocks.findIndex((one) => one.fragment?.name === recursion);
+		// This copy's own settled names, and none of the caller's. See `sentFor`.
+		const ownSent = sentFor(walk.site.sent, copy);
 		const child: Walk = {
 			...walk,
 			source: raw,
 			edits: inner,
 
 			within: walk.within,
-			expand: (child, extra) => {
+			expand: (child, extra, given) => {
 				const text = placed(
 					declared.rewrite(
 						child,
 						new Map([...bound, ...ranBy, ...(extra ?? new Map())]),
-						walk.sent,
+						given ?? ownSent,
 					),
 					child,
 					file,
@@ -8206,7 +8295,7 @@ function descend(
 				declares.filter((one) => inertProps.has(one.prop)).map((one) => one.local),
 			),
 			legacy: legacyMode(ast, file),
-			sent: walk.sent,
+			sent: ownSent,
 			snippets,
 			siblings: relatesSiblings(ast),
 			dynamic: inside,
@@ -8231,6 +8320,7 @@ function descend(
 				told: walk.site.told,
 				mute: walk.site.mute,
 				sends: walk.site.sends,
+				sent: walk.site.sent,
 				sending: walk.site.sending,
 				tested: walk.site.tested,
 				runes: walk.site.runes,
@@ -8703,6 +8793,8 @@ export function rewrite(
 		});
 		callable.set(file, recursion);
 	}
+	// The entry's own settled names: the ones filed under no copy. See `sentFor`.
+	const ownSent = sentFor(sent, null);
 	const walk: Walk = {
 		source,
 		holes,
@@ -8710,21 +8802,23 @@ export function rewrite(
 		blocks,
 		taken,
 		stream: 'body',
-		expand: (node, extra) =>
-			placed(
-				renamed.size === 0 && sent.size === 0
+		expand: (node, extra, given) => {
+			const settling = given ?? ownSent;
+			return placed(
+				renamed.size === 0 && settling.size === 0
 					? declared.rewrite(node, extra)
-					: declared.rewrite(node, new Map([...renamed, ...(extra ?? new Map())]), sent),
+					: declared.rewrite(node, new Map([...renamed, ...(extra ?? new Map())]), settling),
 				node,
 				file,
-			),
+			);
+		},
 		plain: declared.rewrite,
 		runeOf: declared.rune,
 		declares: declared.has,
 		handedAsWritten: new Set(),
 		items: new Map(),
 		legacy: legacyMode(ast, file),
-		sent,
+		sent: ownSent,
 		snippets,
 		pending,
 		dead,
@@ -8750,6 +8844,7 @@ export function rewrite(
 			told,
 			mute,
 			sends,
+			sent,
 			sending,
 			tested,
 			runes: runesOf(importsOf(source), file),

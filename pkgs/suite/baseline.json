@@ -122,6 +122,7 @@
 		"runtime-legacy/await-without-catch",
 		"runtime-legacy/before-render-chain-2",
 		"runtime-legacy/bind-export-const-with-spread",
+		"runtime-legacy/binding-backflow",
 		"runtime-legacy/binding-circular",
 		"runtime-legacy/binding-contenteditable-html",
 		"runtime-legacy/binding-contenteditable-html-initial",

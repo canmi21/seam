@@ -972,6 +972,68 @@ is a pure expression evaluated at request time with no `$:` to run -- holding `o
 the empty object, not the filled one. That is a program per request, a gap that waits on the rule
 at the top of this file, and [roadmap.md](roadmap.md) lists it.
 
+### A hold may name the child's chain, and that is how a value crosses back up
+
+Everything above holds a value on the way **down**: the caller's expression, recorded under the
+caller's chain, read by the child under the derivation's name. A component `bind:` sends a value the
+other way. `bind_props` assigns the child's value up where the caller passed `undefined`, and the
+caller's template renders again reading it -- "A component binding sends a value back" in
+[roadmap.md](roadmap.md) has the closed form, `expr === undefined ? <what the child sends> : expr`,
+one ternary per binding. What the child sends was the child's **default**, a constant, because a
+constant is the one text that reads the same in any scope, and the caller's template is where the
+ternary is written. A child whose script changes the bound prop sends what the script left, which
+is no constant: it is the child's run, `(await $$run({...})).value`, and `$$run` is the child's
+carried scope's, which the caller's chain does not resolve.
+
+**So the reference is a hold, and the hold carries the child's chain.** A hold is `{ expression,
+files }` already, and the derivation pass keys every derivation by text and chain; the entry's own
+run is read that way, `($$hold(n).name)` over `{ expression: "(await $$run($$given))", files:
+[entry] }`. Nothing new is invented: the caller's ternary reads `($$hold(n).value)` where
+`keeping[n]` is the child's run under `[child, ..., entry]`, and the derivation it names is
+evaluated in the child's chain, where `$$run` is the child's, with props written in the caller's
+terms as every run's are. Derivations name one another by name inside one scope, so the caller's
+derivation reads the child's the way `__d1` reads `__d0` today, and a run that awaits is awaited
+ahead of what reads it by the same fixed point [derivation.md](derivation.md)'s `waits()` already
+computes.
+
+**Two runs, because the loop makes two passes and they are not given the same props.** Svelte's
+first pass hands the child what the caller had, the child sends its value up, and the second pass
+hands the child the settled value and renders the child again with it -- `let n = value ?? 0;
+value = n + 1` shows `1` in the caller and `2` in the child. The held run is the first pass: its
+props are the binding's getter expanded **without** the settled names, which is also what keeps the
+hold from naming itself. The child's own reads are the second pass: the run the copy already makes,
+whose props carry the settled names, and which therefore reads the held run through the ternary.
+The loop is bounded -- `bind_props` assigns once, `undefined` to a value and never back -- so two
+runs are the whole of it.
+
+**It is taken where the child's run is, and refused where it is not.** The run exists only where
+something the call site passes varies with the request; where nothing does, the child is Svelte's to
+render and Svelte's loop settles it, as before. Where the binding sits under a block the walk cannot
+put a test to -- `branchTest()` answers nothing -- or the caller's tag has no getter to expand, the
+refusal that stood here stands, in the same words. `runtime-legacy/binding-backflow` is the sample:
+six `<Parent>`s over a `bind:value` whose child rewrites or mutates the prop in its script, under
+`$:` and at init, with the caller passing a value and passing `undefined`.
+
+Three things had to move for it, each a rule that was true only while the settled value was a
+constant, and each is where the next reader will look for it:
+
+- **A block enclosing the whole copy is not the binding's block.** `branchTest()` returned nothing
+  for an `{#each}` because what a binding inside one settles is a per-item answer to a name the
+  page reads once. The each in this sample encloses the `<Parent>` copy entire, name and binding
+  together, so the file settles per item as a whole; `branchTest()` reads only the blocks of the
+  binding's own file.
+- **The settled names are keyed to the copy, and each file reads its own.** `sends` was one map by
+  bare local across the page, and a copy inherited its caller's; `<Parent value>` binding a
+  `<Child bind:value>` settled the caller's `value` and the child's reads of its own `value` --
+  its prop -- were written over with the caller's ternary. `Site.sends` is keyed with `keyed()`
+  now, and `Walk.sent` is `sentFor()`'s view of one file's entries.
+- **A scoped derivation naming another reads its value for the same stack.** `derive`'s `stacked()`
+  handed an expression the function the injector calls per item, so `__d0.value` was `undefined`
+  under every item; it calls the function with the stack now, once per evaluation, and a promise
+  reads as its value once it settles. It costs a render of the child per derivation naming the
+  run, since a scoped value is not held across items; the run caches by props object identity and
+  these are fresh per call, which is the cost to measure if a page pays it.
+
 ## Which names the request decides, in both spellings of a prop
 
 A declaration reading a prop is neutralised for the render, which is given no data: holding one is
@@ -1443,9 +1505,11 @@ a second read runs it again to the same answer. It is taken only where something
 passes varies with the request; where nothing does, the child is Svelte's to render, as any child
 handed no marker is, since a local of the caller a run would read is in no scope a derivation has.
 
-**What the run cannot hand back stays refused**, each for a reason the run does not change: a prop
-the call site binds, whose value goes back up and renders the caller's whole template again; and a
-component the run chose, which is picked by identity and the run holds its own copy of each.
+**What the run cannot hand back stays refused**: a component the run chose, which is picked by
+identity and the run holds its own copy of each. A prop the call site binds was the other one, its
+value going back up to render the caller's whole template again; the run hands it back through a
+hold under the child's chain now -- "A hold may name the child's chain, and that is how a value
+crosses back up", below.
 
 **The entry's run makes its `hydratable` calls into the request's record.** The instance block's
 import of Svelte's `hydratable` is handed the request's through the render's context -- not

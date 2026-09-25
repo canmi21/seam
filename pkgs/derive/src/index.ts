@@ -131,16 +131,37 @@ function evaluate(script: string): Record<string, unknown> {
  * Innermost last, which is the order `Object.assign` gave it, so an each binding still shadows an
  * outer name; and own properties only, which is what `Object.assign` copied -- reading through the
  * prototype would make `toString` a name in scope.
+ *
+ * **A scoped derivation naming another reads its value for the same stack.** A page-level
+ * derivation is a getter and reads as its value; a scoped one sits in the scope as the function the
+ * injector calls per item, and an expression reading it by name got the function -- `__d0.value`
+ * over a bound child's run was `undefined` for every item. So a read that lands on one calls it
+ * with this stack, once per evaluation, and one that awaits reads as its value once it settles,
+ * the way the page-level getter does. See spec/derivation.md, "A hold may name the child's chain,
+ * and that is how a value crosses back up".
  */
 function stacked(scopes: readonly Scope[]): Record<string, unknown> {
-	const [only] = scopes;
-	if (scopes.length === 1 && only !== undefined) return only;
+	const computed = new Map<PropertyKey, unknown>();
 	return new Proxy(Object.create(null) as Record<string, unknown>, {
 		has: (_, key) => scopes.some((one) => Object.hasOwn(one, key)),
 		get: (_, key) => {
+			if (computed.has(key)) return computed.get(key);
 			for (let at = scopes.length - 1; at >= 0; at -= 1) {
 				const one = scopes[at];
-				if (one !== undefined && Object.hasOwn(one, key)) return one[key as string];
+				if (one === undefined || !Object.hasOwn(one, key)) continue;
+				const value = one[key as string];
+				if (typeof value !== 'function' || !(SCOPED in value)) return value;
+				const held: unknown = (value as unknown as (stack: readonly Scope[]) => unknown)(scopes);
+				if (!thenable(held)) {
+					computed.set(key, held);
+					return held;
+				}
+				const settling = Promise.resolve(held).then((settled) => {
+					computed.set(key, settled);
+					return settled;
+				});
+				computed.set(key, settling);
+				return settling;
 			}
 			return undefined;
 		},

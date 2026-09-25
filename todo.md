@@ -5,11 +5,6 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 ## Doable now, decided
 
-- [ ] **B. Script state over props.** Decided and built: where substitution cannot follow, the
-      script runs as Svelte compiled it, the entry's and a child copy's (spec/derivation.md, "Where
-      substitution cannot follow, the script runs as Svelte compiled it"). Left: binding-backflow (a
-      bound prop the child changes, which renders the caller's template again).
-
 ## Work, with design questions to answer first
 
 ## Waiting on a decision
@@ -27,6 +22,12 @@ What the suite fails on, sorted by what closing each takes. The live list is
       hold", "the payload carries data"); each changes with the gap it names.
 
 ## Done
+
+- B, the last sample: a bound prop the child's script changes sends what the script left back up,
+  as the child's first-pass run held under the child's chain and read by the caller's ternary; the
+  child's own reads are the second pass (binding-backflow). spec/derivation.md, "A hold may name
+  the child's chain, and that is how a value crosses back up". Script state over props is done
+  with it.
 
 - A value no render can tell and no hold can name is read in the copy's own name, 1 sample: a prop
   handed to the render as the caller wrote it, whose expansion makes a value the author's text only

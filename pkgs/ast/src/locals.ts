@@ -1812,11 +1812,16 @@ function chooses(node: Node, dynamic: ReadonlySet<string>, plain: ReadonlySet<st
 		// A branch that names nothing and holds no function is a value like a literal:
 		// `(undefined).entries`, which is what state with no value expands to, chooses no
 		// component. What a marker cannot stand for names something -- a component, a function --
-		// or is one, and reads nothing the request decides.
+		// or is one, and reads nothing the request decides. A hold is a value too: `$$hold(n)` is
+		// a reference the derivation pass resolves by its index, and a member read off one --
+		// `($$hold(n).value)`, what a bound child's run sends back -- is that value's field. See
+		// spec/derivation.md, "A hold may name the child's chain, and that is how a value crosses
+		// back up".
 		let structural = false;
 		reads(branch, new Set(), (at) => {
 			const name = at['name'];
-			if (name !== 'undefined' && !(typeof name === 'string' && plain.has(name))) structural = true;
+			if (name === 'undefined' || name === '$$hold') return;
+			if (!(typeof name === 'string' && plain.has(name))) structural = true;
 		});
 		const functions = (part: unknown): void => {
 			if (structural) return;
