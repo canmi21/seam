@@ -265,6 +265,25 @@ collect the bytes.
 What such an expression may reference, and why that is a boundary rather than a feature list, is
 [derivation.md](derivation.md).
 
+### A test the render answers is not forced
+
+A test the request does not decide -- `y > 0` over a `$state(0)`, a library's client state -- is
+not a derived field: the render evaluates it once and the branch it takes is bytes. The walk cannot
+know which branch that is until a render has answered, so it asks: the test's value is reported
+out of the same render, and the walk runs again told, folding the branch the answer excludes
+([suite.md](suite.md) has the corpus this came from).
+
+**The render that answers takes the branch the test says, and is not forced to the first.** It
+was, for every `{#if}` alike, so that a branch could have its say before its test was known -- and
+forcing means evaluating the body of a branch the render never enters. Four of Svelte's samples
+write `{#if y > 0}<Child x={await delay2(x)} />{/if}` over a `y` that is `0` until a click, and
+`delay2` hands back a promise the click resolves: forced, the build awaited a click that never comes
+and never settled (`async-state-new-branch-3` and the three `-fork` samples). The answer decides
+the branch on the next pass whatever this render took, so writing the test as the author wrote it
+costs the walk nothing and spares it evaluating what Svelte would not. A chain the request does
+decide is still forced, since its branch is the request's and its body has to be walked for holes;
+that is the rule above, and this is the case it does not cover.
+
 ## A page no request can change is Svelte's render, whole
 
 **Where the walk refuses and the entry reads nothing a request decides, the page is Svelte's own

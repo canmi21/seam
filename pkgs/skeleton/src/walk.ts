@@ -6901,10 +6901,19 @@ function collect(node: unknown, walk: Walk): void {
 				);
 			}
 
+			// A chain no test of which the request decides is the render's to answer, and it is
+			// asked above: the tests are written as the author wrote them, so the render takes the
+			// branch it would take and evaluates nothing in the others. Forced to its first branch
+			// instead, the render evaluated a body written for a request that never comes -- an
+			// `await` of a promise nothing on the server resolves -- and never settled. The answer
+			// decides the branch on the next pass, so the render's own choice here costs nothing.
+			// See spec/pipeline.md, "A test the render answers is not forced".
+			const answered = site.payload !== null && deciding === -1;
 			for (const [branch, one] of chain.entries()) {
 				const at = span(one['test']);
 				const held = tests[branch] ?? '';
 				if (at !== null) {
+					const written = answered ? asWritten(one['test'], held, walk) : null;
 					chose(
 						walk,
 						edits,
@@ -6912,8 +6921,8 @@ function collect(node: unknown, walk: Walk): void {
 						at[1],
 						index,
 						branch,
-						waitsOn(one['test'], held, 'true', walk),
-						waitsOn(one['test'], held, 'false', walk),
+						waitsOn(one['test'], held, written ?? 'true', walk),
+						waitsOn(one['test'], held, written ?? 'false', walk),
 					);
 				}
 			}
