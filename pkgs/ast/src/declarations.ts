@@ -15,7 +15,7 @@ import {
 	rootOf,
 } from './scope.ts';
 import { GIVEN } from './runes.ts';
-import { type Declared } from './locals.ts';
+import { type Declared } from './locals-types.ts';
 import {
 	ANSWERED,
 	bareWrites,

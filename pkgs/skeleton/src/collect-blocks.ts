@@ -21,7 +21,7 @@ import {
 } from './branches.ts';
 import { IDENTIFIER, unwrapped } from './components.ts';
 import { varies } from './dynamic.ts';
-import { neutralise, takenApart } from './selection.ts';
+import { neutralise, takenApart } from './handed.ts';
 import { afterElse, afterTag, mirrored, stamped } from './stamps.ts';
 import { asWritten, kept } from './written.ts';
 import type { AstNode } from './node.ts';

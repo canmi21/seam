@@ -12,16 +12,10 @@ import { supplied } from './snippets.ts';
 import { blocking, waitsOn } from './awaits.ts';
 import { rawSnippet } from './boundary.ts';
 import { settled } from './branches.ts';
-import {
-	candidateOf,
-	opensWithText,
-	parameterBinds,
-	recurses,
-	standIn,
-	stillDynamic,
-} from './components.ts';
+import { candidateOf, stillDynamic } from './components.ts';
+import { opensWithText, parameterBinds, recurses, standIn } from './component-shape.ts';
 import { rendersOnly, varies } from './dynamic.ts';
-import { neutralise, takenApart } from './selection.ts';
+import { neutralise, takenApart } from './handed.ts';
 import { headFoundLate, inertBodies, stamped } from './stamps.ts';
 import type { Walk } from './walk-types.ts';
 import { asWritten, parameterNames, reaches, stands } from './written.ts';

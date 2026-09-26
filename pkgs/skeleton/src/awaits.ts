@@ -5,7 +5,7 @@
  */
 import { awaitsIn, bound, parsed, projectAsync, reads as readsIn, RUN_NAME, runeCalled } from 'ast';
 import { type AstNode, isNode, refuse } from './node.ts';
-import { calleeName } from './components.ts';
+import { calleeName } from './component-shape.ts';
 import { type Walk } from './walk-types.ts';
 
 /**

@@ -15,22 +15,16 @@ import {
 	chosenComponent,
 	IDENTIFIER,
 	naming,
-	onlyChild,
 	refusingUnnamed,
 	runChosen,
 	unwrapped,
 } from './components.ts';
+import { onlyChild } from './component-shape.ts';
 import { merged } from './call-site.ts';
 import { descend } from './descend.ts';
 import { varies } from './dynamic.ts';
-import {
-	contents,
-	expanded,
-	handedTo,
-	selection,
-	takenApart,
-	valueExpression,
-} from './selection.ts';
+import { contents, selection, valueExpression } from './selection.ts';
+import { expanded, handedTo, takenApart } from './handed.ts';
 import { held, hoisting, stamped, titleRun } from './stamps.ts';
 import type { Group, Handed, Walk } from './walk-types.ts';
 import { attributeText, handed, reading, stands } from './written.ts';

@@ -7,7 +7,8 @@ import { basename, relative } from 'node:path';
 import { apply, type Edit, literalOf, mentions, parsed, settle, unfolded } from 'ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { waitsOn } from './awaits.ts';
-import { componentImport, unimported, unwrapped } from './components.ts';
+import { componentImport, unwrapped } from './components.ts';
+import { unimported } from './component-files.ts';
 import { type Choice, type Copy, type Rewritten, Undecided, type Walk } from './walk-types.ts';
 
 /**

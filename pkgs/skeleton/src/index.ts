@@ -1,12 +1,6 @@
 import { fileURLToPath } from 'node:url';
-export {
-	expressionsOf,
-	helpers,
-	skeleton,
-	type Skeleton,
-	type Hole,
-	Undecided,
-} from './skeleton.ts';
+export { expressionsOf, helpers } from './helpers.ts';
+export { skeleton, type Skeleton, type Hole, Undecided } from './skeleton.ts';
 export { configureUnnamedComponents } from './components.ts';
 
 /**

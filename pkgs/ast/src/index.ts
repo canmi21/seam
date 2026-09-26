@@ -24,7 +24,9 @@ export {
 	settle,
 	unfolded,
 } from './expressions.ts';
-export { type Declared, type Locals, locals, remembered } from './locals.ts';
+export { type Declared, type Locals } from './locals-types.ts';
+export { locals } from './locals.ts';
+export { remembered } from './withheld.ts';
 export { runeCalled, runeHolds } from './reactive.ts';
 export type { Bundle, MarkupAttr, MarkupNode, Module } from './markup.ts';
 export { bySource, rememberedSources } from './memo.ts';

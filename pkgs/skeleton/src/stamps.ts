@@ -18,7 +18,7 @@ import type { Snippet } from './snippets.ts';
 import { awaitsAtTop } from './awaits.ts';
 import { unknown } from './branches.ts';
 import { collect } from './collect.ts';
-import { neutralise, takenApart } from './selection.ts';
+import { neutralise, takenApart } from './handed.ts';
 import { type Walk } from './walk-types.ts';
 import { appended } from './written.ts';
 

@@ -36,16 +36,12 @@ import { callSite, carriedAcross, merged, REST, settleBindings, standsIn } from 
 import { collect } from './collect.ts';
 import {
 	componentFile,
-	contains,
 	importsItself,
 	moduleExports,
-	opensWithText,
-	propBinds,
-	reachesItself,
-	selfCall,
 	shared,
 	unimported,
-} from './components.ts';
+} from './component-files.ts';
+import { contains, opensWithText, propBinds, reachesItself, selfCall } from './component-shape.ts';
 import {
 	contextual,
 	hostedIn,
@@ -55,7 +51,7 @@ import {
 	runesOf,
 	varies,
 } from './dynamic.ts';
-import { closing, filled } from './selection.ts';
+import { closing, filled } from './handed.ts';
 import { closes, headedFragment, headFoundLate, stamped, wrapped } from './stamps.ts';
 import { type Copy, Undecided, type Walk } from './walk-types.ts';
 import {

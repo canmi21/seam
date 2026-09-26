@@ -1,5 +1,6 @@
 import { parse } from 'svelte/compiler';
-import { type Locals, locals } from './locals.ts';
+import { type Locals } from './locals-types.ts';
+import { locals } from './locals.ts';
 import { bySource } from './memo.ts';
 import type { MarkupAttr, MarkupNode, Module } from './markup.ts';
 

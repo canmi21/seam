@@ -14,7 +14,7 @@ import {
 	rootOf,
 } from './scope.ts';
 import { writes } from './declarations.ts';
-import { type Declared } from './locals.ts';
+import { type Declared } from './locals-types.ts';
 
 /**
  * Whether the file is in runes mode, which is the question `LabeledStatement.js` asks before it
