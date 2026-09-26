@@ -12,6 +12,7 @@ export { bundle } from './bundle.ts';
 export { CAPTURE, captured, HYDRATING, readsReplaced, RUN_NAME } from './capture.ts';
 export { apply, type Edit, type Neutral } from './edits.ts';
 export {
+	awaitsIn,
 	constant,
 	literalOf,
 	mentions,
@@ -32,11 +33,14 @@ export { GIVEN, OPTIONS, RUNES_MODULE, runesModule } from './runes.ts';
 export { resolved } from './resolved.ts';
 export {
 	APP_STATE,
+	bound,
 	declaredBy,
 	declaring,
 	destructure,
 	emptyFor,
+	identifierOf,
 	reads,
+	rootOf,
 	STATE_ON_SERVER,
 	stateImports,
 } from './scope.ts';

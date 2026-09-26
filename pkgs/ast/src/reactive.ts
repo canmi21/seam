@@ -11,6 +11,7 @@ import {
 	INIT,
 	isNode,
 	type Node,
+	rootOf,
 } from './scope.ts';
 import { writes } from './declarations.ts';
 import { type Declared } from './locals.ts';
@@ -560,12 +561,6 @@ export function changing(
 ): { written: Set<string>; called: Set<string> } {
 	const written = new Set<string>();
 	const called = new Set<string>();
-	const rootOf = (target: unknown): string | null => {
-		let at = target;
-		while (isNode(at) && at['type'] === 'MemberExpression') at = at['object'];
-		if (!isNode(at) || at['type'] !== 'Identifier') return null;
-		return typeof at['name'] === 'string' ? at['name'] : null;
-	};
 	const hit = (into: Set<string>, target: unknown): void => {
 		const name = rootOf(target);
 		if (name !== null && names.has(name) && !mine.has(name)) into.add(name);

@@ -10,12 +10,14 @@ import {
 	ambientIn,
 	AT_REQUEST,
 	bindings,
+	identifierOf,
 	mentions,
 	onlyWithin,
 	readsOf,
 	parsed,
 	parsedComponent,
 	resolveBare,
+	rootOf,
 } from 'ast';
 import { carries, importsOf } from './compose.ts';
 import { type AstNode, isNode, namesIn, refuse, span } from './node.ts';
@@ -157,13 +159,6 @@ export function changedBy(file: string): ReadonlySet<string> {
 	}
 	// Every assignment, update and method call in the file, wherever it is written: a module's
 	// functions are called from the artifact, so a mutation inside one of them happens.
-	const rootOf = (target: unknown): string | null => {
-		let at = target;
-		while (isNode(at) && at['type'] === 'MemberExpression') at = at['object'];
-		return isNode(at) && at['type'] === 'Identifier' && typeof at['name'] === 'string'
-			? at['name']
-			: null;
-	};
 	const hit = (target: unknown): void => {
 		const name = rootOf(target);
 		if (name !== null && declared.has(name)) found.add(name);
@@ -467,10 +462,6 @@ export function assigned(expression: string): string[] {
 	// carried bundle holds, which is a module the derivation has: it is the rule about a module
 	// binding something in that module changes, and `changedBy()` owns it. What cannot work at all
 	// is a bare name nothing binds, since `reads()` never substituted it and nothing declares it.
-	const root = (node: unknown): string | null =>
-		isNode(node) && node['type'] === 'Identifier' && typeof node['name'] === 'string'
-			? node['name']
-			: null;
 	// Only where the assignment can run while the expression is evaluated. A function the
 	// expression holds rather than calls writes nothing: `handleClick={() => clicked = letter}` is
 	// a handler handed to a component and the server calls nothing, which is the same reading
@@ -500,11 +491,11 @@ export function assigned(expression: string): string[] {
 			return;
 		}
 		if (type === 'AssignmentExpression') {
-			const name = root(node['left']);
+			const name = identifierOf(node['left']);
 			if (name !== null) targets.push(name);
 		}
 		if (type === 'UpdateExpression') {
-			const name = root(node['argument']);
+			const name = identifierOf(node['argument']);
 			if (name !== null) targets.push(name);
 		}
 		// A function written where it is called does run: an arrow invoked at once, and a generator

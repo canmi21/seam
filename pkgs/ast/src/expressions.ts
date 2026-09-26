@@ -5,7 +5,7 @@
  */
 import { parse } from 'svelte/compiler';
 import { apply } from './edits.ts';
-import { INIT, isNode, type Node, reads, WRAPS } from './scope.ts';
+import { INIT, isNode, type Node, reads, rootOf, WRAPS } from './scope.ts';
 
 /**
  * One expression, parsed as the component it would be the whole of.
@@ -346,20 +346,23 @@ export function awaitsOutside(expression: string): boolean {
 	} catch {
 		return false;
 	}
-	const inside = (node: unknown): boolean => {
-		if (Array.isArray(node)) return node.some(inside);
-		if (!isNode(node)) return false;
-		if (node['type'] === 'AwaitExpression') return true;
-		if (
-			node['type'] === 'FunctionExpression' ||
-			node['type'] === 'ArrowFunctionExpression' ||
-			node['type'] === 'FunctionDeclaration'
-		) {
-			return false;
-		}
-		return Object.values(node).some(inside);
-	};
-	return inside(tree);
+	return awaitsIn(tree);
+}
+
+/** The nodes an `await` inside belongs to, run when something calls them rather than by the render. */
+const FUNCTIONS = new Set(['FunctionExpression', 'ArrowFunctionExpression', 'FunctionDeclaration']);
+
+/**
+ * Whether a tree awaits outside any function inside it, which is what a render awaits: an `await`
+ * inside a function is that function's. `exempt` names an await that does not count, such as one
+ * this compiler wrote itself.
+ */
+export function awaitsIn(node: unknown, exempt?: (awaited: Node) => boolean): boolean {
+	if (Array.isArray(node)) return node.some((one) => awaitsIn(one, exempt));
+	if (!isNode(node)) return false;
+	if (node['type'] === 'AwaitExpression') return exempt === undefined || !exempt(node);
+	if (FUNCTIONS.has(String(node['type']))) return false;
+	return Object.values(node).some((one) => awaitsIn(one, exempt));
 }
 
 export function mentions(expression: string, names: ReadonlySet<string>): boolean {
@@ -653,15 +656,6 @@ export function onlyWithin(
 	}
 	let outside = false;
 	let called = false;
-	const rootOf = (node: unknown): string | null => {
-		let at = node;
-		while (isNode(at) && (at['type'] === 'MemberExpression' || at['type'] === 'ChainExpression')) {
-			at = at['type'] === 'ChainExpression' ? at['expression'] : at['object'];
-		}
-		return isNode(at) && at['type'] === 'Identifier' && typeof at['name'] === 'string'
-			? at['name']
-			: null;
-	};
 	const walk = (node: unknown, inside: boolean): void => {
 		if (outside) return;
 		if (Array.isArray(node)) {

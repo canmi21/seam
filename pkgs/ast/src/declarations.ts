@@ -12,6 +12,7 @@ import {
 	isNode,
 	type Node,
 	within,
+	rootOf,
 } from './scope.ts';
 import { GIVEN } from './runes.ts';
 import { type Declared } from './locals.ts';
@@ -311,11 +312,8 @@ export function assigned(
 	const found = new Set<string>();
 
 	/** The name an assignment target names, whether it is `x`, `x.a` or `x[0]`. */
-	const rootOf = (target: unknown): string | null => {
-		let at = target;
-		while (isNode(at) && at['type'] === 'MemberExpression') at = at['object'];
-		if (!isNode(at) || at['type'] !== 'Identifier') return null;
-		const name = typeof at['name'] === 'string' ? at['name'] : null;
+	const targeted = (target: unknown): string | null => {
+		const name = rootOf(target);
 		if (!stores || name === null || !name.startsWith('$')) return name;
 		return name.slice(1);
 	};
@@ -373,7 +371,7 @@ export function assigned(
 			};
 			spread(node[type === 'UpdateExpression' ? 'argument' : 'left']);
 			for (const target of targets) {
-				const name = rootOf(target);
+				const name = targeted(target);
 				if (name !== null && names.has(name)) found.add(name);
 			}
 		}

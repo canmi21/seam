@@ -52,6 +52,25 @@ export function bound(pattern: unknown, into: Set<string>): void {
 	}
 }
 
+/** An identifier's name, and null for any other node. */
+export function identifierOf(node: unknown): string | null {
+	return isNode(node) && node['type'] === 'Identifier' && typeof node['name'] === 'string'
+		? node['name']
+		: null;
+}
+
+/**
+ * The name at the root of a member chain: `a` for `a.b[c]?.d` and for `a` itself, null for
+ * anything else. What an assignment or a call touches is that name, whatever was reached from it.
+ */
+export function rootOf(node: unknown): string | null {
+	let at = node;
+	while (isNode(at) && (at['type'] === 'MemberExpression' || at['type'] === 'ChainExpression')) {
+		at = at['type'] === 'ChainExpression' ? at['expression'] : at['object'];
+	}
+	return identifierOf(at);
+}
+
 /**
  * The names an expression reads from outside itself.
  *

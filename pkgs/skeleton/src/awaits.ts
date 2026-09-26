@@ -3,7 +3,7 @@
  * anchors it would have: the names a top-level await blocks, the statements the request moves,
  * and the reads the markup makes while the bytes are written. See spec/roadmap.md.
  */
-import { parsed, projectAsync, reads as readsIn, RUN_NAME, runeCalled } from 'ast';
+import { awaitsIn, bound, parsed, projectAsync, reads as readsIn, RUN_NAME, runeCalled } from 'ast';
 import { type AstNode, isNode, refuse } from './node.ts';
 import { calleeName } from './components.ts';
 import { type Walk } from './walk-types.ts';
@@ -19,22 +19,9 @@ import { type Walk } from './walk-types.ts';
 export function awaitless(ast: AstNode, what: string): void {
 	// An `await` inside a function is that function's, run when something calls it -- a handler,
 	// a load -- and not the render's. Only one the render itself would await is async Svelte.
-	const outside = (node: unknown): boolean => {
-		if (Array.isArray(node)) return node.some(outside);
-		if (!isNode(node)) return false;
-		if (node['type'] === 'AwaitExpression') return true;
-		if (
-			node['type'] === 'FunctionExpression' ||
-			node['type'] === 'ArrowFunctionExpression' ||
-			node['type'] === 'FunctionDeclaration'
-		) {
-			return false;
-		}
-		return Object.values(node).some(outside);
-	};
 	// A project in Svelte's async mode compiles these, and the render is awaited. See spec/roadmap.md.
 	if (projectAsync()) return;
-	if (outside(ast['fragment']) || outside(ast['instance'])) {
+	if (awaitsIn(ast['fragment']) || awaitsIn(ast['instance'])) {
 		refuse(
 			`${what} awaits in its markup or at the top of its script, which is async Svelte, and ` +
 				'Svelte compiles that only in its async mode: set `compilerOptions.experimental.async` ' +
@@ -180,23 +167,6 @@ export function blockedBy(ast: AstNode): ReadonlySet<string> {
 	const content = isNode(instance) ? instance['content'] : undefined;
 	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
 	const functions: [string, unknown][] = [];
-	const names = (pattern: unknown): string[] => {
-		const out: string[] = [];
-		const walked = (one: unknown): void => {
-			if (!isNode(one)) return;
-			if (one['type'] === 'Identifier' && typeof one['name'] === 'string') out.push(one['name']);
-			else if (one['type'] === 'ObjectPattern' && Array.isArray(one['properties'])) {
-				for (const each of one['properties']) {
-					if (isNode(each)) walked(each['value'] ?? each['argument']);
-				}
-			} else if (one['type'] === 'ArrayPattern' && Array.isArray(one['elements'])) {
-				for (const each of one['elements']) walked(each);
-			} else if (one['type'] === 'RestElement') walked(one['argument']);
-			else if (one['type'] === 'AssignmentPattern') walked(one['left']);
-		};
-		walked(pattern);
-		return out;
-	};
 	let awaited = false;
 	for (const raw of body) {
 		const statement =
@@ -217,11 +187,14 @@ export function blockedBy(ast: AstNode): ReadonlySet<string> {
 					isNode(init) &&
 					(init['type'] === 'ArrowFunctionExpression' || init['type'] === 'FunctionExpression')
 				) {
-					for (const name of names(one['id'])) functions.push([name, init]);
+					const declared = new Set<string>();
+					bound(one['id'], declared);
+					for (const name of declared) functions.push([name, init]);
 					continue;
 				}
 				if (!awaited) continue;
-				for (const name of [...names(one['id']), ...writtenBy(one)]) found.add(name);
+				bound(one['id'], found);
+				for (const name of writtenBy(one)) found.add(name);
 			}
 			continue;
 		}
@@ -571,22 +544,9 @@ export function awaiting(text: string): boolean {
 	} catch {
 		return false;
 	}
-	const outside = (node: unknown): boolean => {
-		if (Array.isArray(node)) return node.some(outside);
-		if (!isNode(node)) return false;
-		if (node['type'] === 'AwaitExpression') {
-			const argument = node['argument'];
-			const callee = isNode(argument) ? argument['callee'] : undefined;
-			return !(isNode(callee) && callee['name'] === RUN_NAME);
-		}
-		if (
-			node['type'] === 'FunctionExpression' ||
-			node['type'] === 'ArrowFunctionExpression' ||
-			node['type'] === 'FunctionDeclaration'
-		) {
-			return false;
-		}
-		return Object.values(node).some(outside);
-	};
-	return outside(ast);
+	// An await of the run is this compiler's, not the author's; see above.
+	return awaitsIn(ast, (one) => {
+		const callee = isNode(one['argument']) ? one['argument']['callee'] : undefined;
+		return isNode(callee) && callee['name'] === RUN_NAME;
+	});
 }
