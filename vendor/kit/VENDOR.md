@@ -10,13 +10,13 @@ written in that package rather than in these files.
 | | |
 | --- | --- |
 | upstream | `https://github.com/sveltejs/kit`, `packages/kit` |
-| tag | `@sveltejs/kit@2.70.3` |
-| commit | `39e8e1fbd4feba7f22dd46bfdf7335362c38de16` |
+| tag | `@sveltejs/kit@3.0.0-next.29` |
+| commit | `47417bcf0f644947eb16758b2f3179dc0a250124` |
 | `src/` | `packages/kit/src`, whole, including the `.spec.js` files and their fixtures |
 | `types/` | `packages/kit/types`, the public declarations |
 | `test/mocks/` | `packages/kit/test/mocks`, the stand-ins the specs use for Kit's virtual modules |
 | `LICENSE` | the repository's, MIT |
-| `*.upstream.*` | `package.json`, `tsconfig.json` and `kit.vitest.config.js` as upstream ships them, for reading |
+| `*.upstream.*` | `package.json`, `tsconfig.json` and `vitest.kit.config.js` as upstream ships them, for reading |
 | `.gitignore` | `packages/kit/.gitignore`, the one file taken for effect rather than for reading |
 
 Taken by cloning the tag into a temporary directory, dropping its `.git`, and copying the files
@@ -62,23 +62,36 @@ Only `pkgs/routes` imports from this package, and every other package imports fr
 is the workspace's rule about vendor names -- they stay at the edge -- applied here: if the
 implementation were replaced, one package changes.
 
+**At this tag `pkgs/routes` and `pkgs/plugin` do not type-check against it, by design.** The move
+from 2.70.3 to 3 removed `core/sync/write_root.js`, dropped `svelte.config.js` for the Vite
+plugin's argument, took the `cwd` off `validate_config` and changed `create_manifest_data`'s
+signature; `spec/framework.md`, "SvelteKit 3 is the target, and what it moves", records each and
+the order the framework layer is moved in. The vendor moves first so that the type errors name the
+work, and the repository's `verify` is red until the next step lands.
+
 ## What is checked
 
 - `vitest run --config vitest.config.ts`, run from this directory, is upstream's own Node-side
-  suite over the vendored files, and `mise run test-vendor` is how it is reached. The config is upstream's
-  with the client project left out, and three files excluded: `src/version.spec.js`, which reads a
-  script upstream keeps beside the package; `src/core/sync/write_types/index.spec.js`, which
-  drives the TypeScript compiler API and was written against a major behind the one installed
-  here; and `src/core/adapt/builder.spec.js`, which reads a built `.svelte-kit` upstream commits as
-  a fixture. Build output is not kept in this repository whatever directory it sits in, so that
-  fixture is not here, and the `.svelte-kit` directories the other specs write into theirs are
-  ignored by name.
+  suite over the vendored files, and `mise run test-vendor` is how it is reached. The config is
+  upstream's `kit-server-dev` project with the client one left out, and five files excluded:
+  `src/version.spec.js`, which reads a script upstream keeps beside the package;
+  `src/core/sync/write_types/index.spec.js` and `src/core/sync/write_tsconfig/index.spec.js`,
+  which drive the TypeScript compiler API and were written against a major behind the one
+  installed here, whose `ts.sys` is gone; `src/core/adapt/builder.spec.js`, which reads a built
+  `.svelte-kit` upstream commits as a fixture; and `src/core/sync/sync.spec.js`, which reads
+  `test/apps/basics`, one of upstream's test applications, which are stage two's to take (see
+  `spec/conformance.md`). Build output is not kept in this repository whatever directory it sits
+  in, so that fixture is not here, and the `.svelte-kit` directories the other specs write into
+  theirs are ignored by name. The test tools are pinned as upstream's `pnpm-workspace.yaml`
+  catalog pins them -- vitest 5, valibot for `routing.spec.js` -- since a spec written against
+  one vitest's spy semantics fails under another's.
 - `tsc -p vendor/kit` checks the source under upstream's own compiler options, kept in
-  `tsconfig.json` here. What it reports is its own output; at the pinned tag every error is the
-  installed TypeScript being a major ahead of upstream's -- `write_types` calling a compiler API that moved,
-  `import()` of a module used as a type, and declarations for `rollup` and `connect` upstream has
-  as dev dependencies. It is run to read, not to gate: the repository's own `tsc` does not include
-  these files and is not held to them.
+  `tsconfig.json` here. What it reports is its own output; at the pinned tag the errors are the
+  installed TypeScript being a major ahead of upstream's -- `write_types` and `write_tsconfig`
+  calling a compiler API that moved -- and declarations for dev dependencies upstream has and this
+  repository does not take, `rollup`, `connect` and the adapter types among them. It is run to
+  read, not to gate: the repository's own `tsc` does not include these files and is not held to
+  them.
 
 ## What is not used
 

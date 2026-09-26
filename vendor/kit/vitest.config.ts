@@ -11,31 +11,40 @@ const mock = (specifier: string): string =>
 
 export default defineConfig({
 	define: {
+		__SVELTEKIT_GLOBAL_NAME__: '"__sveltekit_test"',
 		__SVELTEKIT_SERVER_TRACING_ENABLED__: false,
+		__SVELTEKIT_APP_VERSION_POLL_INTERVAL__: 0,
+		__SVELTEKIT_APP_VERSION_CHECKS_ENABLED__: false,
 	},
 	test: {
 		alias: {
 			// Longer keys first: vite prefix-matches, so `$app/paths` would take `$app/paths/internal`.
-			'$app/env/internal': mock('app-env-internal'),
+			'#app/paths': mock('app-paths'),
 			'$app/env': mock('app-env'),
 			'$app/paths/internal/client': mock('app-paths-internal-client'),
 			'$app/paths/internal/server': mock('app-paths-internal-server'),
-			'$app/paths': mock('app-paths'),
-			'__sveltekit/paths': mock('sveltekit-paths'),
+			'<sveltekit:generated>/server.js': mock('generated-server'),
 		},
 		environment: 'node',
 		include: ['src/**/*.spec.js'],
 		exclude: [
 			'**/node_modules/**',
 			'src/**/*.svelte.spec.js',
+			// The client runtime's own specs, which upstream runs in its jsdom project alone.
+			'src/runtime/client/**/*.spec.js',
 			// Reads a script upstream keeps beside the package, which is not taken.
 			'src/version.spec.js',
 			// Reads a built `.svelte-kit` upstream commits as a fixture; build output is not kept
 			// here, and adapters are not taken. See VENDOR.md.
 			'src/core/adapt/builder.spec.js',
-			// The `$types` generator drives the TypeScript compiler API, and the one installed here
-			// is a major ahead of the one upstream wrote against; it is not wired and not checked.
+			// The `$types` generator and the tsconfig writer drive the TypeScript compiler API, and
+			// the one installed here is a major ahead of the one upstream wrote against -- `ts.sys`
+			// is not in it; neither is wired and neither is checked.
 			'src/core/sync/write_types/index.spec.js',
+			'src/core/sync/write_tsconfig/index.spec.js',
+			// Reads `test/apps/basics`, one of upstream's test applications, which are not taken
+			// here; they are stage two's, see spec/conformance.md.
+			'src/core/sync/sync.spec.js',
 		],
 	},
 });

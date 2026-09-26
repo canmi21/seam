@@ -1,54 +1,76 @@
+/** @import { ValidatedConfig } from 'types' */
+import { lookup } from '../../../utils/mime.js';
 import fs from 'node:fs';
 import path from 'node:path';
-import process from 'node:process';
-import colors from 'kleur';
-import { lookup } from 'mrmime';
-import { list_files, runtime_directory } from '../../utils.js';
-import { posixify, resolve_entry } from '../../../utils/filesystem.js';
+import { styleText } from 'node:util';
+import { resolve_entry, walk } from '../../../utils/filesystem.js';
+import { posixify } from '../../../utils/os.js';
 import { parse_route_id } from '../../../utils/routing.js';
+import { runtime_directory } from '../../utils.js';
 import { prevent_conflicts } from './conflict.js';
 import { sort_routes } from './sort.js';
-import { isSvelte5Plus } from '../utils.js';
 import {
 	create_node_analyser,
 	get_page_options
 } from '../../../exports/vite/static_analysis/index.js';
 
+const component_name_pattern = /^\+(?:(page(?:@(.*))?)|(layout(?:@(.*))?)|(error))$/;
+
+const module_name_pattern =
+	/^\+(?:(server)|(page(?:(@[a-zA-Z0-9_-]*))?(\.server)?)|(layout(?:(@[a-zA-Z0-9_-]*))?(\.server)?))$/;
+
 /**
  * Generates the manifest data used for the client-side manifest and types generation.
- * @param {{
- *   config: import('types').ValidatedConfig;
- *   fallback?: string;
- *   cwd?: string;
- * }} opts
+ * @param {ValidatedConfig} config
+ * @param {string} root
+ * @param {string} [fallback] Where to look for fallback components
  * @returns {import('types').ManifestData}
  */
-export default function create_manifest_data({
+export default function create_manifest_data(
 	config,
-	fallback = `${runtime_directory}/components/${isSvelte5Plus() ? 'svelte-5' : 'svelte-4'}`,
-	cwd = process.cwd()
-}) {
+	root,
+	fallback = `${runtime_directory}/components`
+) {
 	const assets = create_assets(config);
-	const hooks = create_hooks(config, cwd);
-	const matchers = create_matchers(config, cwd);
-	const { nodes, routes } = create_routes_and_nodes(cwd, config, fallback);
-
-	// validate matcher names used in parameterised routes
-	for (const route of routes) {
-		for (const param of route.params) {
-			if (param.matcher && !matchers[param.matcher]) {
-				throw new Error(`No matcher found for parameter '${param.matcher}' in route ${route.id}`);
-			}
-		}
-	}
+	const hooks = create_hooks(config, root);
+	const params = resolve_params(config, root);
+	const { nodes, routes } = create_routes_and_nodes(root, config, fallback);
 
 	return {
 		assets,
 		hooks,
-		matchers,
+		params,
 		nodes,
 		routes
 	};
+}
+
+/**
+ * Whether this route has a `+page`. Independent of `is_endpoint_route` — a route can be both.
+ * @param {import('types').RouteData} route
+ * @returns {boolean}
+ */
+export function is_page_route(route) {
+	return !!route.page;
+}
+
+/**
+ * Whether this route has a `+server`. Independent of `is_page_route` — a route can be both.
+ * @param {import('types').RouteData} route
+ * @returns {boolean}
+ */
+export function is_endpoint_route(route) {
+	return !!route.endpoint;
+}
+
+/**
+ * Whether the router can match this route. `manifest_data.routes` also contains entries for
+ * directories with layouts or errors, which never reach `event.route.id`.
+ * @param {import('types').RouteData} route
+ * @returns {boolean}
+ */
+export function is_app_route(route) {
+	return is_page_route(route) || is_endpoint_route(route);
 }
 
 /**
@@ -56,9 +78,10 @@ export default function create_manifest_data({
  * @param {import('types').ValidatedConfig} config
  */
 export function create_assets(config) {
-	return list_files(config.kit.files.assets).map((file) => ({
+	if (!fs.existsSync(config.files.assets)) return [];
+
+	return [...walk(config.files.assets)].map((file) => ({
 		file,
-		size: fs.statSync(path.resolve(config.kit.files.assets, file)).size,
 		type: lookup(file) || null
 	}));
 }
@@ -68,9 +91,9 @@ export function create_assets(config) {
  * @param {string} cwd
  */
 function create_hooks(config, cwd) {
-	const client = resolve_entry(config.kit.files.hooks.client);
-	const server = resolve_entry(config.kit.files.hooks.server);
-	const universal = resolve_entry(config.kit.files.hooks.universal);
+	const client = resolve_entry(config.files.hooks.client, config.moduleExtensions);
+	const server = resolve_entry(config.files.hooks.server, config.moduleExtensions);
+	const universal = resolve_entry(config.files.hooks.universal, config.moduleExtensions);
 
 	return {
 		client: client && posixify(path.relative(cwd, client)),
@@ -83,58 +106,29 @@ function create_hooks(config, cwd) {
  * @param {import('types').ValidatedConfig} config
  * @param {string} cwd
  */
-function create_matchers(config, cwd) {
-	const params_base = path.relative(cwd, config.kit.files.params);
-
-	/** @type {Record<string, string>} */
-	const matchers = {};
-	if (fs.existsSync(config.kit.files.params)) {
-		for (const file of fs.readdirSync(config.kit.files.params)) {
-			const ext = path.extname(file);
-			if (!config.kit.moduleExtensions.includes(ext)) continue;
-			const type = file.slice(0, -ext.length);
-
-			if (/^\w+$/.test(type)) {
-				const matcher_file = path.join(params_base, file);
-
-				// Disallow same matcher with different extensions
-				if (matchers[type]) {
-					throw new Error(`Duplicate matchers: ${matcher_file} and ${matchers[type]}`);
-				} else {
-					matchers[type] = matcher_file;
-				}
-			} else {
-				// Allow for matcher test collocation
-				if (type.endsWith('.test') || type.endsWith('.spec')) continue;
-
-				throw new Error(
-					`Matcher names can only have underscores and alphanumeric characters — "${file}" is invalid`
-				);
-			}
-		}
-	}
-
-	return matchers;
+function resolve_params(config, cwd) {
+	const params_file = resolve_entry(config.files.params, config.moduleExtensions);
+	return params_file ? posixify(path.relative(cwd, params_file)) : null;
 }
 
 /**
- * @param {import('types').ValidatedConfig} config
  * @param {string} cwd
+ * @param {import('types').ValidatedConfig} config
  * @param {string} fallback
  */
 function create_routes_and_nodes(cwd, config, fallback) {
 	/** @type {import('types').RouteData[]} */
-	const routes = [];
+	let routes = [];
 
-	const routes_base = posixify(path.relative(cwd, config.kit.files.routes));
+	const routes_base = posixify(path.relative(cwd, config.files.routes));
 
-	const valid_extensions = [...config.extensions, ...config.kit.moduleExtensions];
+	const valid_extensions = [...config.extensions, ...config.moduleExtensions];
 
 	/** @type {import('types').PageNode[]} */
 	const nodes = [];
 
 	// create route data by processing files in `src/routes`
-	if (fs.existsSync(config.kit.files.routes)) {
+	if (fs.existsSync(config.files.routes)) {
 		/**
 		 * @param {number} depth
 		 * @param {string} id
@@ -164,7 +158,7 @@ function create_routes_and_nodes(cwd, config, fallback) {
 						);
 					}
 
-					return String.fromCharCode(parseInt(code, 16));
+					return String.fromCodePoint(parseInt(code, 16));
 				}
 			});
 
@@ -181,7 +175,7 @@ function create_routes_and_nodes(cwd, config, fallback) {
 				throw new Error(`Route ${id} should be renamed to ${id.replace(/#/g, '[x+23]')}`);
 			}
 
-			if (/\[\.\.\.\w+\]\/\[\[/.test(id)) {
+			if (/\[\.\.\.[\w-]+\]\/\[\[/.test(id)) {
 				throw new Error(
 					`Invalid route ${id} — an [[optional]] route segment cannot follow a [...rest] route segment`
 				);
@@ -222,10 +216,17 @@ function create_routes_and_nodes(cwd, config, fallback) {
 
 			// We can't use withFileTypes because of a NodeJs bug which returns wrong results
 			// with isDirectory() in case of symlinks: https://github.com/nodejs/node/issues/30646
-			const files = fs.readdirSync(dir).map((name) => ({
-				is_dir: fs.statSync(path.join(dir, name)).isDirectory(),
-				name
-			}));
+			// We sort the entries because `readdirSync` order is not guaranteed and differs
+			// between runtimes (e.g. Node returns entries alphabetically, Bun in directory
+			// order). Node indices are assigned from this traversal order, so without sorting
+			// the SSR and client manifests can disagree, causing hydration mismatches.
+			const files = fs
+				.readdirSync(dir)
+				.sort()
+				.map((name) => ({
+					is_dir: fs.statSync(path.join(dir, name)).isDirectory(),
+					name
+				}));
 
 			// process files first
 			for (const file of files) {
@@ -236,23 +237,30 @@ function create_routes_and_nodes(cwd, config, fallback) {
 
 				if (!file.name.startsWith('+')) {
 					const name = file.name.slice(0, -ext.length);
+					const pattern = config.extensions.includes(ext)
+						? component_name_pattern
+						: module_name_pattern;
+
 					// check if it is a valid route filename but missing the + prefix
-					const typo =
-						/^(?:(page(?:@(.*))?)|(layout(?:@(.*))?)|(error))$/.test(name) ||
-						/^(?:(server)|(page(?:(@[a-zA-Z0-9_-]*))?(\.server)?)|(layout(?:(@[a-zA-Z0-9_-]*))?(\.server)?))$/.test(
-							name
-						);
-					if (typo) {
+					if (pattern.test(`+${name}`)) {
 						console.log(
-							colors
-								.bold()
-								.yellow(
-									`Missing route file prefix. Did you mean +${file.name}?` +
-										` at ${path.join(dir, file.name)}`
-								)
+							styleText(
+								['bold', 'yellow'],
+								`Missing route file prefix. Did you mean +${file.name}?` +
+									` at ${path.join(dir, file.name)}`
+							)
 						);
 					}
 
+					continue;
+				}
+
+				// allow e.g. `+page.stories.svelte` or `+server.test.ts`
+				if (
+					file.name.includes('.test.') ||
+					file.name.includes('.spec.') ||
+					file.name.includes('.stories.')
+				) {
 					continue;
 				}
 
@@ -261,13 +269,7 @@ function create_routes_and_nodes(cwd, config, fallback) {
 					const ext = valid_extensions.find((ext) => name.endsWith(ext));
 					if (ext) name = name.slice(0, -ext.length);
 
-					const valid =
-						/^\+(?:(page(?:@(.*))?)|(layout(?:@(.*))?)|(error))$/.test(name) ||
-						/^\+(?:(server)|(page(?:(@[a-zA-Z0-9_-]*))?(\.server)?)|(layout(?:(@[a-zA-Z0-9_-]*))?(\.server)?))$/.test(
-							name
-						);
-
-					if (valid) continue;
+					if (component_name_pattern.test(name) || module_name_pattern.test(name)) continue;
 				}
 
 				const project_relative = posixify(path.relative(cwd, path.join(dir, file.name)));
@@ -276,10 +278,10 @@ function create_routes_and_nodes(cwd, config, fallback) {
 					project_relative,
 					file.name,
 					config.extensions,
-					config.kit.moduleExtensions
+					config.moduleExtensions
 				);
 
-				if (config.kit.router.type === 'hash' && item.kind === 'server') {
+				if (config.router.type === 'hash' && item.kind === 'server') {
 					throw new Error(
 						`Cannot use server-only files in an app with \`router.type === 'hash': ${project_relative}`
 					);
@@ -370,7 +372,7 @@ function create_routes_and_nodes(cwd, config, fallback) {
 			const root = routes[0];
 			if (!root.leaf && !root.error && !root.layout && !root.endpoint) {
 				throw new Error(
-					'No routes found. If you are using a custom src/routes directory, make sure it is specified in your Svelte config file'
+					'No routes found. If you are using a custom src/routes directory, make sure it is specified in your SvelteKit Vite plugin options'
 				);
 			}
 		}
@@ -473,6 +475,9 @@ function create_routes_and_nodes(cwd, config, fallback) {
 		}
 	}
 
+	// remove route objects with no route file
+	routes = routes.filter((route) => route.endpoint || route.leaf || route.layout || route.error);
+
 	// add parents to error nodes so that we can compute which page options apply to them
 	for (const route of routes) {
 		if (!route.error) continue;
@@ -495,7 +500,7 @@ function create_routes_and_nodes(cwd, config, fallback) {
 
 	for (const route of routes) {
 		if (route.endpoint) {
-			route.endpoint.page_options = get_page_options(path.join(cwd, route.endpoint.file));
+			route.endpoint.page_options = get_page_options(route.endpoint.file, cwd);
 		}
 
 		if (route.page && route.endpoint) {
@@ -528,8 +533,7 @@ function analyze(project_relative, file, component_extensions, module_extensions
 	const component_extension = component_extensions.find((ext) => file.endsWith(ext));
 	if (component_extension) {
 		const name = file.slice(0, -component_extension.length);
-		const pattern = /^\+(?:(page(?:@(.*))?)|(layout(?:@(.*))?)|(error))$/;
-		const match = pattern.exec(name);
+		const match = component_name_pattern.exec(name);
 		if (!match) {
 			throw new Error(`Files prefixed with + are reserved (saw ${project_relative})`);
 		}
@@ -546,9 +550,7 @@ function analyze(project_relative, file, component_extensions, module_extensions
 	const module_extension = module_extensions.find((ext) => file.endsWith(ext));
 	if (module_extension) {
 		const name = file.slice(0, -module_extension.length);
-		const pattern =
-			/^\+(?:(server)|(page(?:(@[a-zA-Z0-9_-]*))?(\.server)?)|(layout(?:(@[a-zA-Z0-9_-]*))?(\.server)?))$/;
-		const match = pattern.exec(name);
+		const match = module_name_pattern.exec(name);
 		if (!match) {
 			throw new Error(`Files prefixed with + are reserved (saw ${project_relative})`);
 		} else if (match[3] || match[6]) {

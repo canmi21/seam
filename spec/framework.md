@@ -49,7 +49,29 @@ the move costs this layer, each a fact of the diff rather than a guess:
 .experimental.async ?? false`, and the runtime reads it only to allow an async `handleError`.
   Nothing here assumes the flag.
 
-The tables below describe the layer as built against 2.70.3 and are corrected as each row moves.
+**The order the move is taken in**, each step measured before the next:
+
+1. **Done.** `vendor/kit` is at the tag, and `VENDOR.md` with it. The repository's own type check
+   is red at `pkgs/routes` and `pkgs/plugin` until the next step, which is the point: the twelve
+   errors name what moved -- `kit` no longer a property of the validated config, `write_root`
+   gone, the two signatures.
+2. `pkgs/routes` generates the root in Kit 3's shape -- the branch's components in place of
+   `tree`'s values, a boundary per level, `page`, `form` and `error` as props -- and reads the
+   project's config off the Vite plugin's argument through `load_vite_config` and
+   `extract_svelte_config`, with `create_manifest_data`'s new signature. Held byte for byte against
+   Kit 3's own root rendered with Kit's props, as the Kit 2 one was.
+3. `pkgs/plugin` resolves its render at the point Kit 3 renders `root.svelte`
+   (`runtime/server/page/render.js`, `render(Root, { ...render_opts, props })`) rather than at the
+   generated `root.js`, which no longer exists.
+4. press, built with Kit 3 and the plugin, answers every one of its responses byte for byte as a
+   Kit 3 build without the plugin does: the stage-three measurement, run as a regression before
+   stage two starts.
+5. Kit 3's own test apps, `server.test.js` first and the synchronous ones -- `basics` -- before the
+   three that turn the flag on, each held to a list the way the sample suite is; see
+   [conformance.md](conformance.md), "Stage 2".
+
+The tables below describe the layer as built against 2.70.3 and are corrected as each step above
+moves a row.
 
 ## Taken as it is
 

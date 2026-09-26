@@ -3,7 +3,7 @@
 	"private": true,
 	"type": "module",
 	"description": "SvelteKit's source at a pinned tag, kept as the JavaScript it is and named as upstream names it so that its own imports of itself resolve; see VENDOR.md",
-	"version": "2.70.3",
+	"version": "3.0.0-next.29",
 	"exports": {
 		"./package.json": "./package.json",
 		".": {
@@ -23,15 +23,15 @@
 		},
 		"./internal/server": {
 			"types": "./types/index.d.ts",
-			"import": "./src/exports/internal/server.js"
+			"import": "./src/exports/internal/server/index.js"
+		},
+		"./adapter": {
+			"types": "./types/index.d.ts",
+			"import": "./src/exports/adapter.js"
 		},
 		"./node": {
 			"types": "./types/index.d.ts",
 			"import": "./src/exports/node/index.js"
-		},
-		"./node/polyfills": {
-			"types": "./types/index.d.ts",
-			"import": "./src/exports/node/polyfills.js"
 		},
 		"./hooks": {
 			"types": "./types/index.d.ts",
@@ -41,6 +41,10 @@
 			"types": "./types/index.d.ts",
 			"import": "./src/exports/env/index.js"
 		},
+		"./params": {
+			"types": "./types/index.d.ts",
+			"import": "./src/exports/params/index.js"
+		},
 		"./vite": {
 			"types": "./types/index.d.ts",
 			"import": "./src/exports/vite/index.js"
@@ -49,35 +53,78 @@
 		"./types/*": "./types/*"
 	},
 	"imports": {
+		"#app/env": {
+			"types": "./src/runtime/app/env/client.js",
+			"workerd": "./src/runtime/app/env/server.js",
+			"browser": "./src/runtime/app/env/client.js",
+			"default": "./src/runtime/app/env/server.js"
+		},
+		"#app/env/public": {
+			"workerd": "./src/runtime/app/env/public/server.js",
+			"browser": "./src/runtime/app/env/public/client.js",
+			"default": "./src/runtime/app/env/public/server.js"
+		},
+		"#app/env/server": {
+			"workerd": "./src/runtime/app/env/server.js",
+			"browser": "./src/runtime/invalid-import.js",
+			"default": "./src/runtime/app/env/server.js"
+		},
+		"#app/forms": {
+			"types": "./src/runtime/app/forms/client.js",
+			"workerd": "./src/runtime/app/forms/server.js",
+			"browser": "./src/runtime/app/forms/client.js",
+			"default": "./src/runtime/app/forms/server.js"
+		},
+		"#app/internal/transport": {
+			"default": "./src/runtime/app/internal/transport.js"
+		},
+		"#app/navigation": {
+			"types": "./src/runtime/app/navigation/client.js",
+			"workerd": "./src/runtime/app/navigation/server.js",
+			"browser": "./src/runtime/app/navigation/client.js",
+			"default": "./src/runtime/app/navigation/server.js"
+		},
 		"#app/paths": {
+			"types": "./src/runtime/app/paths/internal.d.ts",
+			"workerd": "./src/runtime/app/paths/server.js",
 			"browser": "./src/runtime/app/paths/client.js",
 			"default": "./src/runtime/app/paths/server.js"
 		},
-		"#app/env/public": {
-			"browser": "./src/runtime/app/env/public/client.js",
-			"default": "./src/runtime/app/env/public/server.js"
+		"#app/state": {
+			"types": "./src/runtime/app/state/client.svelte.js",
+			"workerd": "./src/runtime/app/state/server.js",
+			"browser": "./src/runtime/app/state/client.svelte.js",
+			"default": "./src/runtime/app/state/server.js"
+		},
+		"#app/state/client": {
+			"types": "./src/runtime/app/state/client.svelte.js",
+			"workerd": "./src/runtime/invalid-import.js",
+			"browser": "./src/runtime/app/state/client.svelte.js",
+			"default": "./src/runtime/invalid-import.js"
+		},
+		"#internal": {
+			"workerd": "./src/exports/internal/server/index.js",
+			"browser": "./src/exports/internal/client.js",
+			"default": "./src/exports/internal/server/index.js"
 		}
 	},
 	"dependencies": {
-		"@standard-schema/spec": "^1.0.0",
-		"@sveltejs/acorn-typescript": "^1.0.9",
-		"@types/cookie": "^0.6.0",
-		"acorn": "^8.16.0",
-		"cookie": "^0.6.0",
-		"devalue": "^5.8.1",
+		"@rolldown/pluginutils": "^1.0.1",
+		"@standard-schema/spec": "^1.1.0",
+		"cookie": "^2.0.1",
+		"devalue": "^5.9.4",
 		"esm-env": "^1.2.2",
-		"kleur": "^4.1.5",
-		"magic-string": "^0.30.5",
-		"mrmime": "^2.0.0",
-		"set-cookie-parser": "^3.0.0",
-		"sirv": "^3.0.0"
+		"magic-string": "^1.2.3",
+		"mrmime": "^2.0.1",
+		"sirv": "^3.0.2"
 	},
 	"devDependencies": {
 		"@opentelemetry/api": "^1.0.0",
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@types/set-cookie-parser": "^2.4.10",
-		"svelte": "^5.57.0",
-		"vite": "^7.0.0",
-		"vitest": "^4.1.11"
+		"svelte": "^5.57.1",
+		"valibot": "^1.4.2",
+		"vite": "^8.0.12",
+		"vitest": "^5.0.1"
 	}
 }

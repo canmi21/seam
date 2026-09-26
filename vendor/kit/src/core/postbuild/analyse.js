@@ -2,11 +2,9 @@
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { validate_server_exports } from '../../utils/exports.js';
-import { load_config } from '../config/index.js';
+import { extract_svelte_config, load_vite_config } from '../config/index.js';
 import { forked } from '../../utils/fork.js';
-import { installPolyfills } from '../../exports/node/polyfills.js';
-import { ENDPOINT_METHODS } from '../../constants.js';
-import { filter_env } from '../../utils/env.js';
+import { BODY_DEPENDENT_METHODS, ENDPOINT_METHODS } from '../../constants.js';
 import { has_server_load, resolve_route } from '../../utils/routing.js';
 import { check_feature } from '../../utils/features.js';
 import { createReadableStream } from '@sveltejs/kit/node';
@@ -22,8 +20,8 @@ export default forked(import.meta.url, analyse);
  *   server_manifest: import('vite').Manifest;
  *   tracked_features: Record<string, string[]>;
  *   env: Record<string, string>;
- *   out: string;
  *   remotes: RemoteChunk[];
+ *   vite_config_file: string | undefined;
  * }} opts
  */
 async function analyse({
@@ -33,37 +31,25 @@ async function analyse({
 	server_manifest,
 	tracked_features,
 	env,
-	remotes
+	remotes,
+	vite_config_file
 }) {
-	/** @type {import('@sveltejs/kit').SSRManifest} */
+	/** @type {import('types').SSRManifest} */
 	const manifest = (await import(pathToFileURL(manifest_path).href)).manifest;
 
-	/** @type {import('types').ValidatedKitConfig} */
-	const config = (await load_config()).kit;
-
+	const vite_config = await load_vite_config(vite_config_file);
+	const config = extract_svelte_config(vite_config);
 	const server_root = join(config.outDir, 'output');
 
-	/** @type {import('types').ServerInternalModule} */
-	const internal = await import(pathToFileURL(`${server_root}/server/internal.js`).href);
+	/** @type {import('types').ServerModule} */
+	const { configure } = await import(pathToFileURL(`${server_root}/server/index.js`).href);
 
-	installPolyfills();
-
-	// configure `import { building } from '$app/environment'` and `$app/env` —
-	// essential we do this before analysing the code
-	internal.set_building();
-
-	// set env, `read`, and `manifest`, in case they're used in initialisation
-	const { publicPrefix: public_prefix, privatePrefix: private_prefix } = config.env;
-	const private_env = filter_env(env, private_prefix, public_prefix);
-	const public_env = filter_env(env, public_prefix, private_prefix);
-	internal.set_private_env(private_env);
-	internal.set_public_env(public_env);
-	internal.set_manifest(manifest);
-	internal.set_read_implementation((file) => createReadableStream(`${server_root}/server/${file}`));
-
-	/** @type {import('__sveltekit/env')} */
-	const { set_env } = await import(pathToFileURL(`${server_root}/server/env.js`).href);
-	set_env(env);
+	await configure({
+		building: true,
+		manifest,
+		env,
+		read: (file) => createReadableStream(`${server_root}/server/${file}`)
+	});
 
 	/** @type {import('types').ServerMetadata} */
 	const metadata = {
@@ -72,7 +58,7 @@ async function analyse({
 		remotes: new Map()
 	};
 
-	const nodes = await Promise.all(manifest._.nodes.map((loader) => loader()));
+	const nodes = await Promise.all(manifest.nodes.map((loader) => loader()));
 
 	// analyse nodes
 	for (const node of nodes) {
@@ -95,7 +81,7 @@ async function analyse({
 	}
 
 	// analyse routes
-	for (const route of manifest._.routes) {
+	for (const route of manifest.routes) {
 		const page =
 			route.page &&
 			analyse_page(
@@ -154,7 +140,7 @@ async function analyse({
 
 	// analyse remotes
 	for (const remote of remotes) {
-		const loader = manifest._.remotes[remote.hash];
+		const loader = manifest.remotes[remote.hash];
 		const { default: functions } = await loader();
 
 		const exports = new Map();
@@ -182,9 +168,15 @@ async function analyse({
 function analyse_endpoint(route, mod) {
 	validate_server_exports(mod, route.id);
 
-	if (mod.prerender && (mod.POST || mod.PATCH || mod.PUT || mod.DELETE)) {
+	if (
+		mod.prerender &&
+		(mod.fallback ||
+			/** @type {import('types').HttpMethod[]} */ (BODY_DEPENDENT_METHODS).some(
+				(method) => mod[method]
+			))
+	) {
 		throw new Error(
-			`Cannot prerender a +server file with POST, PATCH, PUT, or DELETE (${route.id})`
+			`Cannot prerender a +server file with ${BODY_DEPENDENT_METHODS.join(', ')} or fallback handlers (${route.id})`
 		);
 	}
 

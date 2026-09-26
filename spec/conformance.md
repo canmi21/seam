@@ -227,7 +227,7 @@ document shell -- all of which the artifact sits inside. [framework.md](framewor
 that layer is taken from Kit, and this is its check.
 
 **What is already here.** `vendor/kit` holds Kit's `src` and `types` at that tag, and
-`mise run test-vendor` runs upstream's Node-side unit suite over them: 38 files, 559 checks. That
+`mise run test-vendor` runs upstream's Node-side unit suite over them, and prints its counts. That
 is Kit checking Kit, which is a different thing from Kit checking this -- it says the vendored copy
 is intact, not that the compiler serves what Kit serves. The apps are not vendored yet, and what
 of them to take is a stage-2 decision.
