@@ -78,7 +78,23 @@ description = "Everything a change has to pass"
 # Our own checks, and the vendored corpus only as the list this repository keeps of it: upstream's
 # tests are not a condition here, `vendor-baseline` holding every sample to pkgs/suite/baseline.json
 # is. See spec/suite.md.
-depends = ["check", "check-rust", "lint", "lint-rust", "test", "test-rust", "vendor-baseline"]
+depends = [
+	"check",
+	"check-rust",
+	"lint",
+	"lint-rust",
+	"lines",
+	"test",
+	"test-rust",
+	"vendor-baseline",
+]
+
+[tasks.lines]
+description = "Hold every source file of ours under the line limits"
+# The check is the workspace's, run over this repository: a file over a thousand lines fails, one
+# over five hundred is advice until `audit`. See the workspace's spec/code.md, "A file is read
+# whole, so it stays short".
+run = "python3 ../../.mise/tasks/lines ."
 
 [tasks.vendor-baseline]
 description = "Svelte's own samples, each held to what pkgs/suite/baseline.json says it has to be"
