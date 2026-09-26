@@ -556,6 +556,28 @@ A worker per route, which an earlier draft of this section wanted, is a differen
 still not built: the compile shares its memos and its Vite across routes, so seven of them would
 raise the peak rather than lower it.
 
+## A loop that awaits is sequential on purpose
+
+oxlint's `no-await-in-loop` is off for this repository, in its own `.oxlintrc.json`, which extends
+the workspace's and says only that. The rule's premise is that the iterations are independent and
+should be one `Promise.all`; counted the day it was turned off, twenty-two reports, of which one
+was right -- a hydratable entry awaiting its promises one by one, since folded -- and twenty-one
+were loops that are sequential because of what they do:
+
+- the structure queue in `compile.ts` grows while it is walked, an `Undecided` adding the runs
+  its test splits into, so the loop has no end to fan out to;
+- the injector's `drive` feeds a generator one step at a time, each step's input the last one's
+  answer;
+- a structure, a route and an alternate branch are rendered one at a time, for the memory a render
+  holds and for a deadline that is per render -- see "The memory a compile holds", and "One
+  render" in spec/suite.md;
+- `resolve.ts` tries holes against a shared `seen`, which two renders at once would race;
+- the tests assert per case, with the case in the message, which a `Promise.all` would take away.
+
+A rule wrong twenty-one times in twenty-two is noise, and the one right case is the reviewer's
+to see. The rule stays on in the workspace, since nothing has been counted elsewhere. See
+spec/lint-format.md in the workspace, "A rule one project turns off is turned off in that project".
+
 ## Packaging is about the program, not the artifacts
 
 The backend is a program, and a program gets bundled. The distinction is exact:

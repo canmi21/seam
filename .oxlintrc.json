@@ -1,0 +1,13 @@
+{
+	// The workspace's rules, and one difference. A file that only extends is what the workspace's
+	// check lets through; see spec/architecture/repos.md there, "A copy is forbidden; a difference
+	// that says what it extends is not".
+	"extends": ["../../.oxlintrc.json"],
+	"rules": {
+		// Its premise, that the iterations are independent, fails in this compiler's loops: a queue
+		// that grows while walked, a generator driven a step at a time, one render at a time.
+		// Counted at twenty-one such loops to one it was right about. See spec/build.md, "A loop
+		// that awaits is sequential on purpose".
+		"no-await-in-loop": "off"
+	}
+}
