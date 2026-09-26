@@ -251,7 +251,7 @@ list. Before it went, every sample the synchronous pass had passing was run unde
 the legacy suite and the samples upstream renders only synchronously included, and all of them
 passed but one: `runtime-legacy/props-reactive`, where this compiler wrote its own run's `await`
 into a legacy-mode component and Svelte refused it with `legacy_await_invalid`. That was a gap of
-this compiler's, since closed (`awaiting()` in `walk.ts`), and it was the whole cost of the one
+this compiler's, since closed (`awaiting()` in `awaits.ts`), and it was the whole cost of the one
 render. It replaced `SEAM_ASYNC` before that, the environment variable that ran the async render as
 an experiment.
 

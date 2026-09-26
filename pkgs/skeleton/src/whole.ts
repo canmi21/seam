@@ -6,7 +6,7 @@ import { propsOf } from './compose.ts';
 import { isNode, type AstNode } from './node.ts';
 import { renderRewritten } from './render.ts';
 import type { Skeleton } from './shape.ts';
-import { changedBy } from './walk.ts';
+import { changedBy } from './dynamic.ts';
 
 /**
  * The page as Svelte renders it, where nothing on it is a request's to decide.
@@ -52,7 +52,7 @@ function takesNothing(source: string): boolean {
 	return !/\bexport\s+(?:let|var|\{)/.test(scripts(ast, source));
 }
 
-/** A value a server holds and the build has not, by the word. See `SERVER_HELD` in walk.ts. */
+/** A value a server holds and the build has not, by the word. See `SERVER_HELD` in dynamic.ts. */
 const SERVER_HELD = new RegExp(`(?:^|[^$\\w.])(?:${[...AT_REQUEST].join('|')})\\b`);
 
 /**

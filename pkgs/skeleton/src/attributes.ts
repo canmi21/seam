@@ -2,7 +2,7 @@ import type { Locals } from 'ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { sentinel } from './sentinel.ts';
 import type { Hole } from './shape.ts';
-import type { Copy } from './walk.ts';
+import type { Copy } from './walk-types.ts';
 
 /**
  * The three attribute forms that are not one value written into one place.

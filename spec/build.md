@@ -423,7 +423,7 @@ pair inside the `{#if}` a content binding opens. Everything else a walk produces
 every branch, because `collect()` goes into every branch whatever it is told; the assembler
 already relies on that, since it reads an alternate by the block index the baseline gave it. So an
 alternate is the baseline's edits with a handful of texts written the other way and applied again,
-which is a string splice per file. `rechosen()` in walk.ts does it, and `chose()` is the one place
+which is a string splice per file. `rechosen()` in branches.ts does it, and `chose()` is the one place
 that asks `taken`, which is what makes the list of choices the complete difference between two
 renders. Measured over press's seven routes: **208 walks in 24.8s became 36 walks in 3.2s and 172
 re-applications in 4.8s**, and the artifacts are byte identical on every route.

@@ -14,7 +14,7 @@ import {
 import type { Rendered } from './shape.ts';
 import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel, THROWN } from './sentinel.ts';
 import { timed, timedSync } from './timing.ts';
-import type { Copy } from './walk.ts';
+import type { Copy } from './walk-types.ts';
 
 /**
  * Running the rewritten source, which is the one step that is a render rather than an analysis.

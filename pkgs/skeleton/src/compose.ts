@@ -2,14 +2,14 @@ import { basename } from 'node:path';
 import { literalOf, type Locals, mentions, pathOf, projectRunes, reduce } from 'ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { type Snippet, snippetsIn } from './snippets.ts';
-import type { Given, Walk } from './walk.ts';
+import type { Given, Walk } from './walk-types.ts';
 
 /**
  * Everything composition needs except the descent itself.
  *
  * A component compiles to a plain call, so entering one is a matter of reading what its `$props()`
  * declares, binding each name to what the call site passes, and pointing the tag at the copy the
- * walk rewrites. Those readings are here; `descend` in `walk.ts` is what puts them together, and
+ * walk rewrites. Those readings are here; `descend` in `descend.ts` is what puts them together, and
  * it is there because it and the walk call each other.
  */
 
@@ -84,7 +84,7 @@ export function propsOf(
 					if (!isNode(from) || typeof from['name'] !== 'string') continue;
 					if (!isNode(to) || typeof to['name'] !== 'string') continue;
 					const how = declaredAs(body, from['name']);
-					// Not a prop: a readonly export, which `exportedBy` in walk.ts reads instead.
+					// Not a prop: a readonly export, which `exportedBy` in written.ts reads instead.
 					if (how === null || how.kind === 'readonly') continue;
 					if (how.kind === 'pattern') {
 						refuse(
@@ -106,7 +106,7 @@ export function propsOf(
 			}
 			if (held['type'] !== 'VariableDeclaration') continue;
 			// `export const`, `export function` and `export class` are readonly exports rather than
-			// props: a caller cannot pass one. See `exportedBy` in walk.ts.
+			// props: a caller cannot pass one. See `exportedBy` in written.ts.
 			if (kind !== 'let' && kind !== 'var') continue;
 			for (const one of Array.isArray(held['declarations']) ? held['declarations'] : []) {
 				if (!isNode(one)) continue;
@@ -716,7 +716,7 @@ export function rename(
 		 * Set where the `this` span is an edit somebody else owns: a choice, whose taken text is the
 		 * copy's name and whose other branch renders nothing. Two edits over the same characters is
 		 * a mistake rather than a case to resolve, so the name goes through this instead of beside
-		 * it. See `rechose()` in walk.ts.
+		 * it. See `rechose()` in branches.ts.
 		 */
 		rewritten?: (fresh: string) => void;
 	},

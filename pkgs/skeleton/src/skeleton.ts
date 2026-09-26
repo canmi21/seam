@@ -23,10 +23,13 @@ import { dead, filled, outcomes, probed } from './resolve.ts';
 import type { Block, Rendered, Skeleton } from './shape.ts';
 import { inlined } from './snippets.ts';
 import { unbound } from './unbind.ts';
-import { HYDRATABLE, HYDRATABLE_RUN, outside, rechosen, rewrite, Undecided } from './walk.ts';
+import { rechosen } from './branches.ts';
+import { HYDRATABLE, HYDRATABLE_RUN, outside } from './dynamic.ts';
+import { rewrite } from './walk.ts';
+import { Undecided } from './walk-types.ts';
 import { whole } from './whole.ts';
 
-export { Undecided } from './walk.ts';
+export { Undecided } from './walk-types.ts';
 
 export type { Block, Choice, Hole, Rendered, Skeleton, Stream } from './shape.ts';
 
@@ -270,7 +273,7 @@ async function walked(
 			// The baseline's walk, with its branch choices written the other way. Nothing about a
 			// walk depends on which branch a render takes except the text of a handful of edits --
 			// `collect()` goes into every branch whatever it is told -- so an alternate is that walk
-			// re-applied rather than the route walked again. See `rechosen()` in walk.ts.
+			// re-applied rather than the route walked again. See `rechosen()` in branches.ts.
 			const flipped = timedSync('  rechoose (branch edits)', () => rechosen(baseline, chosen));
 			const other = await timed('  render (svelte SSR)', () =>
 				renderRewritten(file, flipped.rewritten, root, flipped.copies, given, flipped.fresh),
@@ -283,7 +286,7 @@ async function walked(
 
 	// A block standing in the head stream as well as the body is one if or one each, so the render
 	// made with a branch of the body half taken is the render made with that branch of the head
-	// half, and the assembler reads it under either index. See `mirrored()` in walk.ts.
+	// half, and the assembler reads it under either index. See `mirrored()` in stamps.ts.
 	for (const block of baseline.blocks) {
 		if (block.mirrors === undefined) continue;
 		for (const [key, other] of Object.entries(alternates)) {
@@ -424,7 +427,7 @@ function ran(
 	const hydrating = HYDRATABLE.test(source);
 	// A component the run chose is compared by identity inside the run, whose capture hands out
 	// the file's component imports beside its declarations: the walk wrote the `this` as a chain
-	// of `(name === Import)` tests (`runChosen()` in walk.ts), and both sides of each become
+	// of `(name === Import)` tests (`runChosen()` in components.ts), and both sides of each become
 	// fields of the run here. So the imports join the names the run answers, for that file alone.
 	// See spec/derivation.md, "A component the run chose is compared inside the run".
 	const component = [...changed].find((name) =>
@@ -842,7 +845,7 @@ export function helpers(rendered: Skeleton): Carried[] {
 	}
 	// The two ways in a destructuring has that are not a member: what a rest gathers out of an
 	// object, and the array a rest slices. Svelte's own, so the symbol keys and the iterable
-	// handling are upstream's. See `takenApart()` in `walk.ts`.
+	// handling are upstream's. See `takenApart()` in `selection.ts`.
 	if (written.some((one) => one.includes('$$exclude_from_object('))) {
 		found.push({
 			local: '$$exclude_from_object',

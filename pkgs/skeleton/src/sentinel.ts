@@ -65,7 +65,7 @@ const REFUSES_TEXT = new Set(['table', 'thead', 'tbody', 'tfoot', 'tr', 'colgrou
  * one `<svg>`, and that space was two hundred and ninety-nine bytes of every response carrying it.
  * So the carrier there is an element, and it is asked for only where the stamp would otherwise
  * stand alone: a stamp written in front of text the author wrote is not a whitespace-only node in
- * the first place, and stays text. See `stamps()` in walk.ts.
+ * the first place, and stays text. See `stamps()` in stamps.ts.
  *
  * So text wherever text is allowed, and an element only where it is the one thing that works. A
  * `<template>` in a table part keeps the sibling problem, which no carrier there avoids: text and
@@ -110,7 +110,7 @@ export function carrier(
 /**
  * The calls the walk writes into markup for the render to run against the renderer, which
  * `renderRewritten` gives them: two around a body block that has to stand in the head stream as
- * well, see `mirrored()` in walk.ts, and one that writes a marker into the body from inside a
+ * well, see `mirrored()` in stamps.ts, and one that writes a marker into the body from inside a
  * stand-in, see `marks()`.
  */
 export const HEAD_OPEN = '__seam_open';
@@ -137,7 +137,7 @@ export function marks(index: number): string {
  *
  * For the one thing a stand-in has to reproduce and cannot be given: an anchor Svelte writes after
  * the tag the stand-in replaced but not after the stand-in, because the two are different node
- * types to `is_standalone`. See `selfCall` in walk.ts.
+ * types to `is_standalone`. See `selfCall` in components.ts.
  */
 export function writes(text: string): string {
 	return `${MARK}(${JSON.stringify(text)})`;
@@ -146,7 +146,7 @@ export function writes(text: string): string {
 /**
  * The same marker written into the head stream, for a call of a fragment that writes a head: the
  * body's call is met where the stand-in renders, and the head's where its head blocks would have
- * gone, which is where a head renderer pushed at that moment lands. See `mirrored()` in walk.ts.
+ * gone, which is where a head renderer pushed at that moment lands. See `mirrored()` in stamps.ts.
  */
 export function marksHead(index: number): string {
 	return `${MARK_HEAD}(${JSON.stringify(sentinel(index))})`;
@@ -224,6 +224,6 @@ export function collides(source: string, file: string): string | null {
 
 /**
  * What a render that is to take a boundary's `failed` branch throws from inside its children, and
- * the one error `render.ts` answers rather than refuses. See `boundary()` in walk.ts.
+ * the one error `render.ts` answers rather than refuses. See `boundary()` in boundary.ts.
  */
 export const THROWN = '__seam_thrown';

@@ -76,7 +76,7 @@ reading them; keeping the await keeps the information where it already was.
 binding declared or written after it a blocker (`calculate_blockers` in `2-analyze/index.js`), and a
 node reading one is wrapped in `$$renderer.async` or `async_block` -- the same pair. Substitution
 wrote the value where the author wrote the name, so Svelte saw nothing waiting and wrote no pair.
-The walk computes the same set per file (`blockedBy()` in `walk.ts`) and writes a replacement that
+The walk computes the same set per file (`blockedBy()` in `awaits.ts`) and writes a replacement that
 still reads those names ahead of the value, `(recipient, "world")`, and a block that reads one is
 marked `wrapped` like one that awaits.
 

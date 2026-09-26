@@ -356,7 +356,7 @@ export interface Destructured {
  * protocol -- Svelte's server writes plain JavaScript and lets the engine do it -- and `value[0]`
  * is the same answer for an array and no answer at all for anything else. `let [a, b] = src` over a
  * `Set` wrote nothing where Svelte wrote its two members, silently, which is what this is here to
- * stop. The count `_extract_paths` passes is left off, for the reason `takenApart` in `walk.ts`
+ * stop. The count `_extract_paths` passes is left off, for the reason `takenApart` in `selection.ts`
  * gives: it caps an unbounded iterator through a `Symbol.iterator in value` test that throws on a
  * primitive.
  *

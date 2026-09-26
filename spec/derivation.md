@@ -248,7 +248,7 @@ The value came entirely from the payload; the reading of it did not. **Read by t
 into the bytes, it is the build machine's answer for every request**, which neither Svelte nor this
 compiler gives. So an expression reading a clock, randomness, a locale, a host's global or a module's
 state always varies: it is a derivation wherever it is read, and the compile-time render is never
-handed it (`varies()` in `walk.ts`). An entry that reads one is not Svelte's render whole either; see
+handed it (`varies()` in `dynamic.ts`). An entry that reads one is not Svelte's render whole either; see
 [pipeline.md](pipeline.md).
 
 **Read per request, it is the server render's answer**, which is the whole claim. `Date.now()`, `new
@@ -264,14 +264,14 @@ one of these is a name substitution cannot follow, and the script run answers it
 request. The other way round, lowering makes one derivation per expression text, and
 `{Math.random()}` written twice is two numbers in Svelte's render, so such an expression carries the
 place it was written as a comment: one place substituted at three reads is still one derivation,
-two places are two (`placed()` in `walk.ts`).
+two places are two (`placed()` in `dynamic.ts`).
 
 **A module's state is read as it stands at the request, unless the render itself changes it.** A
 binding its own module changes is read in the carried bundle, which imports the module once as a
 server process does -- right where only a handler changes it, which the server never runs. Where the
 component's script or markup calls into that module while the bytes are written, the value depends
 on those calls in their order, which a derivation reading the module does not keep, and that stays
-refused (`stirred()` in `walk.ts`).
+refused (`stirred()` in `dynamic.ts`).
 
 It was refused outright before, with the determined values the only way in; that rule was stricter
 than the render the bytes are compared with, and it moved a clock the author wrote into the load
@@ -908,7 +908,7 @@ refuses the file first taken off:
 filed in one object the render fills, and it was filed under the expression alone -- which two
 copies of one component share, because the expansion of `$selectedPanel === panel` is the same
 string in both. The second copy's answer overwrote the first's. It carries the copy's own name now,
-`keyed()` in `walk.ts`, and the entry, which has no copy, keeps the bare expression. The identity
+`keyed()` in `branches.ts`, and the entry, which has no copy, keeps the bare expression. The identity
 of `panel` was never the fault: the test is one the render answers, and the render holds the object
 the script registered.
 
@@ -961,7 +961,7 @@ expansion makes something the author's text only reads -- `promise={a.promise}` 
 `const a = Promise.withResolvers()` expands to `Promise.withResolvers().promise`, a promise made
 again at the read that the caller's `tick().then(() => a.resolve(true))` never resolves -- the
 render is given the expression in the copy's own names instead, which read the one value the
-caller handed it (`asWritten()` in `walk.ts`, over the copy's `handedAsWritten` locals). Only those
+caller handed it (`asWritten()` in `written.ts`, over the copy's `handedAsWritten` locals). Only those
 names: an each item or a `{@const}` is the markup's, and this walk may have written it over, so an
 expression reading one keeps its expansion. `server-side-rendering/async-head-multiple-title-order-preserved`
 is the sample, and it never settled before this.
@@ -1421,7 +1421,7 @@ not the one the request takes: `if (environment === 'server') value = 'server'; 
 hydratable(...)` over a prop wrote the other branch's value without a word, and over `.toUpperCase()`
 it threw inside the render; `$: if (modify) settings.fontSize = 50` baked 12px for every request,
 which was right only for the one value the suite sends. So a name a top-level statement reading
-the request assigns or mutates varies (`movedBy()` in `walk.ts`), a read of it becomes one this
+the request assigns or mutates varies (`movedBy()` in `awaits.ts`), a read of it becomes one this
 compiler writes, and the rule about a value the render changes refuses it there: a program per
 request, owed and waiting on the rule at the top of this file.
 
@@ -1442,7 +1442,7 @@ written where nothing was recorded.
 the instance script before the markup, so `const foo = await hydratable('key', ...)` records `key`
 whether or not the page reads `foo`, and one read only behind a boundary's pending branch records it
 all the same. A derivation is computed when it is read, which would miss both. So the walk collects
-the entry's top-level calls (`hydratableCalls()` in `walk.ts`; not inside a function or a
+the entry's top-level calls (`hydratableCalls()` in `awaits.ts`; not inside a function or a
 `$derived`, which run when something calls or reads them) as eager derivations, computed after the
 prop defaults and before anything else; a later read of the same key reads what was recorded.
 
@@ -1521,7 +1521,7 @@ instances. Nothing outside the run can tell them apart, so the comparison is mad
 
 **The capture hands out the file's component imports beside its declarations**, and the walk
 writes the `this` as a chain over them: `((component === Sub) ? Sub : component)`, one test per
-`.svelte` default import in source order, the value itself last (`runChosen()` in `walk.ts`). Each
+`.svelte` default import in source order, the value itself last (`runChosen()` in `components.ts`). Each
 test is one the request decides, so the walk enumerates it the way it enumerates any `?:` between
 components: one structure per branch, the named branch rendering that component's bytes, and the
 last branch a value the source names none of, which [payload.md](payload.md) already answers --

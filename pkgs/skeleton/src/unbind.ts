@@ -25,7 +25,7 @@ import { OMITTED_IN_SSR } from './omitted.ts';
  * caller's props object has a setter for that key, and `transform-server.js` wraps a binding
  * caller's whole template in `do { ... } while (!$$settled)` so it renders again with what came
  * up. Written as a plain attribute there is no setter, so none of that happened and the bytes were
- * a render short. It is left here and read by `descend()` in walk.ts, which is where the child's
+ * a render short. It is left here and read by `descend()` in descend.ts, which is where the child's
  * own declaration is in hand.
  */
 export const unbound: (given: string) => string = bySource((source) => {
@@ -59,7 +59,7 @@ export const unbound: (given: string) => string = bySource((source) => {
 
 			// A select's `bind:value` is not dropped: the visitor skips it as an attribute, but the
 			// renderer still reads it as what the options compare themselves against, so it is
-			// written as `value={...}` for the walk to read the same way. See `selection()` in walk.ts.
+			// written as `value={...}` for the walk to read the same way. See `selection()` in selection.ts.
 			const dropped =
 				name === 'this' ||
 				OMITTED_IN_SSR.has(name) ||
@@ -82,7 +82,7 @@ export const unbound: (given: string) => string = bySource((source) => {
 				// Left as written. The server writes the value as the element's content -- unescaped
 				// for `innerHTML` -- and the children only where the value comes out empty, with no
 				// anchor around either. A hole with nothing around it, or a choice between one and
-				// the children, is the walk's to plant. See `contents()` in walk.ts.
+				// the children, is the walk's to plant. See `contents()` in selection.ts.
 			} else if (onElement && isContent(name, tag)) {
 				// The server writes `$.escape(value)` as the content. With no children that is one
 				// thing, `{value}` as the content.
@@ -113,7 +113,7 @@ export const unbound: (given: string) => string = bySource((source) => {
 			// a plain attribute was this file's own claim that only the getter runs, which
 			// `transform-server.js` says otherwise: the setter assigns back and clears `$$settled`,
 			// and the parent's whole template renders again from a fresh renderer copy until it
-			// settles. Dropping the setter dropped that, silently. See `descend()` in walk.ts.
+			// settles. Dropping the setter dropped that, silently. See `descend()` in descend.ts.
 		}
 
 		for (const one of Object.values(node)) walk(one, inside);

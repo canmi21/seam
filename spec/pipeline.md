@@ -380,7 +380,7 @@ that failure is the signal to delete it rather than a defect to fix.
 A block inside an else used to be refused here, because it is numbered but never appears in the
 baseline render where every if is taken. It is taken now: each block records the branches it sits
 within, and the render made for one of its own branches forces those ancestors back onto the
-branch that makes it exist. See `within` in `pkgs/skeleton/src/walk.ts`.
+branch that makes it exist. See `within` in `pkgs/skeleton/src/walk-types.ts`.
 
 ## The client is held to the same oracle as the bytes
 

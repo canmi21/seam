@@ -6,7 +6,8 @@ import { refuse } from './node.ts';
 import { renderRewritten } from './render.ts';
 import { sentinel } from './sentinel.ts';
 import type { Hole } from './shape.ts';
-import { type Copy, type Rewritten, rewrite } from './walk.ts';
+import { rewrite } from './walk.ts';
+import type { Copy, Rewritten } from './walk-types.ts';
 
 /**
  * Everything the walk could only anchor, finished once there is a render to read.

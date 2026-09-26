@@ -147,7 +147,7 @@ export interface Block {
 	 *
 	 * A pattern is not one of these: `{#each Object.entries(m) as [k, v]}` binds two names and
 	 * neither is the element, so the block binds the element under a name of its own and each name
-	 * the pattern binds is an expression over it. See `takenApart()` in `walk.ts`.
+	 * the pattern binds is an expression over it. See `takenApart()` in `selection.ts`.
 	 */
 	item: string | null;
 	/**
@@ -162,7 +162,7 @@ export interface Block {
 	 * if or an each writes its head block where the body runs, once per branch taken or per item,
 	 * so the block exists in both streams; this is its head half. Bare, because the anchors the
 	 * render writes for it are the walk's own, and rendered once: its alternates are the body
-	 * half's. See `mirrored()` in walk.ts.
+	 * half's. See `mirrored()` in stamps.ts.
 	 */
 	mirrors?: number;
 	/** The files its expression and tests were written across, as a hole's. See `Hole.files`. */
@@ -228,7 +228,7 @@ export interface Skeleton {
 	 *
 	 * `let { foo = 42 } = $props()` on the entry: a request that does not carry `foo` gets 42, the
 	 * way a destructuring default does, and one that carries it gets what it carried. A child's
-	 * default is applied where its call site binds the prop -- `propBinds` in `walk.ts` -- and the
+	 * default is applied where its call site binds the prop -- `propBinds` in `components.ts` -- and the
 	 * entry has no call site, its props being the payload itself.
 	 *
 	 * **It stands over the key rather than over each read of it.** Rewriting the reads was tried

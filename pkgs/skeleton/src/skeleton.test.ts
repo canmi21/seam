@@ -31,7 +31,7 @@ import { compile as compileDerivations, type Derivation } from 'derive';
 import { inject } from 'injector';
 import { lower } from 'lowering';
 import { expressionsOf, helpers, skeleton } from './skeleton.ts';
-import { configureUnnamedComponents } from './walk.ts';
+import { configureUnnamedComponents } from './components.ts';
 
 // Its own directory: `skeleton()` stages Svelte's compiled output in `../.build` and removes it
 // when it is done, which would take this with it halfway through a case.
@@ -3442,7 +3442,7 @@ const accepted: Case[] = [
 		// decides. The child's `$props()` names what it reads, so each of those is the value the
 		// merge leaves for it -- a later part overriding an earlier one by the key's presence, a
 		// missing key leaving the default -- and the rest is the merge with the named keys taken
-		// out, spread onto an element per request. See `merged()` in walk.ts.
+		// out, spread onto an element per request. See `merged()` in descend.ts.
 		name: 'a spread on a component whose object the request hands over',
 		beside: {
 			Inner:
@@ -3479,7 +3479,7 @@ const accepted: Case[] = [
 		// block in the head stream as well: a `{@const}` at the start of each branch opens it and
 		// an expression tag beside the stamp closes it, neither touching the body's bytes. The head
 		// IR then carries the each and the if the body does. The last item's title wins, as the
-		// last head block executed. See `mirrored()` in walk.ts and spec/ir.md.
+		// last head block executed. See `mirrored()` in stamps.ts and spec/ir.md.
 		name: 'a component with a head inside an each',
 		beside: {
 			Kid: '<script>let { t } = $props();</script><svelte:head><meta name="k" content={t} /><title>K {t}</title></svelte:head>k{t}',
@@ -4273,7 +4273,7 @@ const refused: Case[] = [
 	{
 		// A fragment's head is read off its own component before the body is walked, because the
 		// calls inside the body are written then. One a component inside the body writes is found
-		// after. See `headedFragment()` in walk.ts.
+		// after. See `headedFragment()` in stamps.ts.
 		name: 'a snippet that renders itself around a headed component',
 		beside: {
 			Kid: '<script>let { t } = $props();</script><svelte:head><meta name="k" content={t} /></svelte:head><i>{t}</i>',
