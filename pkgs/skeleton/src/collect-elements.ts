@@ -20,7 +20,8 @@ import {
 	runChosen,
 	unwrapped,
 } from './components.ts';
-import { descend, merged } from './descend.ts';
+import { merged } from './call-site.ts';
+import { descend } from './descend.ts';
 import { varies } from './dynamic.ts';
 import {
 	contents,

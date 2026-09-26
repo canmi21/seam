@@ -1014,7 +1014,7 @@ a destructuring around it, which the child then spreads onto an element per requ
 any object the request decides. The spread itself goes from the render's call site, since every
 prop it decided is bound inside the child and evaluated there it would read the payload the render
 is not given. Measured with the spread before and after an attribute, a key present as
-`undefined`, a missing key taking the default, and a null object. `merged()` in `descend.ts`.
+`undefined`, a missing key taking the default, and a null object. `merged()` in `call-site.ts`.
 
 **A `<svelte:element>` tag written as a quoted literal is a string, not an expression.** Its span
 sits inside the quotes, so the text there is the tag itself. Expanded as an expression it became a

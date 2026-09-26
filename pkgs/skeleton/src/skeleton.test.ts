@@ -3442,7 +3442,7 @@ const accepted: Case[] = [
 		// decides. The child's `$props()` names what it reads, so each of those is the value the
 		// merge leaves for it -- a later part overriding an earlier one by the key's presence, a
 		// missing key leaving the default -- and the rest is the merge with the named keys taken
-		// out, spread onto an element per request. See `merged()` in descend.ts.
+		// out, spread onto an element per request. See `merged()` in call-site.ts.
 		name: 'a spread on a component whose object the request hands over',
 		beside: {
 			Inner:
