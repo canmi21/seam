@@ -1,6 +1,6 @@
 import { parse } from 'svelte/compiler';
-import { apply, bySource, locals } from 'ast';
-import { type AstNode, called, isNode, namesIn, refuse, renders, span } from './node.ts';
+import { bound, apply, bySource, locals } from 'ast';
+import { type AstNode, called, isNode, refuse, renders, span } from './node.ts';
 
 /**
  * What the markup declares under `{#snippet}`, and the one rewrite that makes a snippet ordinary.
@@ -88,7 +88,7 @@ export interface Snippet {
 export function supplied(node: AstNode): ReadonlySet<string> | null {
 	const parameters = Array.isArray(node['parameters']) ? node['parameters'] : [];
 	const names = new Set<string>();
-	for (const parameter of parameters) namesIn(parameter, names);
+	for (const parameter of parameters) bound(parameter, names);
 	if (names.size === 0) return names;
 
 	// Every identifier the body reads, and separately every one that is a `{@render}`'s callee.

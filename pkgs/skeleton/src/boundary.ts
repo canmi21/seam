@@ -3,8 +3,8 @@
  * a raw snippet as a raw hole over the author's `render`. See spec/ir.md.
  */
 import { basename } from 'node:path';
-import { constant, OPTIONS, mentions, reads as readsIn } from 'ast';
-import { type AstNode, isNode, namesIn, refuse, span } from './node.ts';
+import { bound as namesBound, constant, OPTIONS, mentions, reads as readsIn } from 'ast';
+import { type AstNode, isNode, refuse, span } from './node.ts';
 import { sentinel, THROWN } from './sentinel.ts';
 import type { Block, Hole } from './shape.ts';
 import { awaiting } from './awaits.ts';
@@ -301,11 +301,12 @@ export function rawSnippet(call: unknown, name: string | null, walk: Walk): bool
 		}
 		if (!isNode(node)) return;
 		const type = node['type'];
-		if (Array.isArray(node['params'])) namesIn(node['params'], bound);
-		if (type === 'VariableDeclarator') namesIn(node['id'], bound);
-		if (type === 'CatchClause') namesIn(node['param'], bound);
+		for (const param of Array.isArray(node['params']) ? node['params'] : [])
+			namesBound(param, bound);
+		if (type === 'VariableDeclarator') namesBound(node['id'], bound);
+		if (type === 'CatchClause') namesBound(node['param'], bound);
 		if ((type === 'FunctionDeclaration' || type === 'ClassDeclaration') && isNode(node['id'])) {
-			namesIn(node['id'], bound);
+			namesBound(node['id'], bound);
 		}
 		for (const value of Object.values(node)) binds(value);
 	};

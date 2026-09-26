@@ -16,9 +16,10 @@ import {
 	reads as readsIn,
 	resolveBare,
 	RUN_NAME,
+	bound,
 } from 'ast';
 import { propsOf, rename } from './compose.ts';
-import { type AstNode, isNode, namesIn, refuse, span } from './node.ts';
+import { type AstNode, isNode, refuse, span } from './node.ts';
 import { marks, marksHead, writes } from './sentinel.ts';
 import type { Snippet } from './snippets.ts';
 import { settled } from './branches.ts';
@@ -106,7 +107,7 @@ export function moduleExports(ast: AstNode): { names: Set<string>; taken: [numbe
 		const found = new Set<string>();
 		if (one['type'] === 'VariableDeclaration') {
 			for (const each of Array.isArray(one['declarations']) ? one['declarations'] : []) {
-				if (isNode(each)) namesIn(each['id'], found);
+				if (isNode(each)) bound(each['id'], found);
 			}
 		} else if (isNode(one['id']) && typeof one['id']['name'] === 'string') {
 			found.add(one['id']['name']);

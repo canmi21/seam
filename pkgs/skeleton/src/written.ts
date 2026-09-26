@@ -5,9 +5,19 @@
  * spec/derivation.md.
  */
 import { relative } from 'node:path';
-import { apply, type Carried, type Locals, mentions, readsOf, parsed, RUN_NAME, settle } from 'ast';
+import {
+	bound,
+	apply,
+	type Carried,
+	type Locals,
+	mentions,
+	readsOf,
+	parsed,
+	RUN_NAME,
+	settle,
+} from 'ast';
 import { carries } from './compose.ts';
-import { type AstNode, isNode, namesIn, refuse, span } from './node.ts';
+import { type AstNode, isNode, refuse, span } from './node.ts';
 import { sentinel } from './sentinel.ts';
 import { supplied } from './snippets.ts';
 import { folded, unknown } from './branches.ts';
@@ -454,7 +464,7 @@ export function exportedBy(ast: AstNode): string[] {
 /** Every name a snippet's parameters bind. */
 export function parameterNames(parameters: readonly unknown[]): Set<string> {
 	const names = new Set<string>();
-	for (const parameter of parameters) namesIn(parameter, names);
+	for (const parameter of parameters) bound(parameter, names);
 	return names;
 }
 

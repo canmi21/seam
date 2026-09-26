@@ -96,30 +96,6 @@ export function holdsFor(id: unknown): string {
 	return 'null';
 }
 
-/** Every name a parameter pattern binds, so one it cannot be taken apart by is not left silent. */
-export function namesIn(pattern: unknown, into: Set<string>): void {
-	if (Array.isArray(pattern)) {
-		for (const one of pattern) namesIn(one, into);
-		return;
-	}
-	if (!isNode(pattern)) return;
-	if (pattern['type'] === 'Identifier' && typeof pattern['name'] === 'string') {
-		into.add(pattern['name']);
-		return;
-	}
-	// A property's key is not a binding: `{ a: b }` binds `b`.
-	if (pattern['type'] === 'Property') {
-		namesIn(pattern['value'], into);
-		return;
-	}
-	// A default is read, not bound: `{ a = data.d }` binds `a`.
-	if (pattern['type'] === 'AssignmentPattern') {
-		namesIn(pattern['left'], into);
-		return;
-	}
-	for (const value of Object.values(pattern)) namesIn(value, into);
-}
-
 /**
  * Whether the instance script declares `$props.id()`.
  *

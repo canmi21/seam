@@ -13,10 +13,11 @@ import {
 	resolveBare,
 	resolved,
 	RUN_NAME,
+	bound,
 } from 'ast';
 import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
-import { isNode, namesIn, refuse } from './node.ts';
+import { isNode, refuse } from './node.ts';
 import { timed, timedSync } from './timing.ts';
 import { renderRewritten, shippable } from './render.ts';
 import { dead, filled, outcomes, probed } from './resolve.ts';
@@ -561,15 +562,15 @@ function declaredIn(file: string): ReadonlySet<string> {
 				if (declaration['type'] === 'ImportDeclaration') {
 					const specifiers = declaration['specifiers'];
 					for (const one of Array.isArray(specifiers) ? specifiers : []) {
-						if (isNode(one) && isNode(one['local'])) namesIn(one['local'], found);
+						if (isNode(one) && isNode(one['local'])) bound(one['local'], found);
 					}
 				} else if (declaration['type'] === 'VariableDeclaration') {
 					const declarations = declaration['declarations'];
 					for (const one of Array.isArray(declarations) ? declarations : []) {
-						if (isNode(one)) namesIn(one['id'], found);
+						if (isNode(one)) bound(one['id'], found);
 					}
 				} else if (isNode(declaration['id'])) {
-					namesIn(declaration['id'], found);
+					bound(declaration['id'], found);
 				}
 			}
 		}

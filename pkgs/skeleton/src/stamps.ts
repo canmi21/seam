@@ -3,8 +3,16 @@
  * the head stream, the bare block a fragment is wrapped in, a title's stand-in, and the order
  * held declarations and hoisted snippets are put in. See spec/ir.md.
  */
-import { type Locals, declaredBy, declaring, reads as readsIn, runeCalled, runeHolds } from 'ast';
-import { type AstNode, holdsFor, isNode, namesIn, refuse, span } from './node.ts';
+import {
+	bound as namesBound,
+	type Locals,
+	declaredBy,
+	declaring,
+	reads as readsIn,
+	runeCalled,
+	runeHolds,
+} from 'ast';
+import { type AstNode, holdsFor, isNode, refuse, span } from './node.ts';
 import { carrier, elementCarrier, headCloses, headOpens, headOpensWith } from './sentinel.ts';
 import type { Snippet } from './snippets.ts';
 import { awaitsAtTop } from './awaits.ts';
@@ -407,7 +415,7 @@ function sorted(nodes: readonly AstNode[], walk: Walk): readonly AstNode[] {
 	for (const one of nodes) {
 		if (one['type'] !== 'ConstTag') continue;
 		const bound = new Set<string>();
-		for (const [id] of declarators(one)) namesIn(id, bound);
+		for (const [id] of declarators(one)) namesBound(id, bound);
 		for (const name of bound) by.set(name, one);
 	}
 	if (by.size === 0) return nodes;

@@ -3,8 +3,8 @@
  * and what the render is asked where it can answer. Cases of `collect()` in collect.ts. See
  * spec/pipeline.md.
  */
-import { constant, type Locals } from 'ast';
-import { elseIf, isNode, namesIn, span } from './node.ts';
+import { bound as namesBound, constant, type Locals } from 'ast';
+import { elseIf, isNode, span } from './node.ts';
 import { headOpensWith } from './sentinel.ts';
 import { awaiting, awaitsAtTop, blockedRead, waitsOn } from './awaits.ts';
 import {
@@ -479,7 +479,7 @@ export function collectEach(node: AstNode, walk: Walk, step: Stepper): void {
 	// What the block binds is decided per item, so an expression reading it is a marker
 	// even when nothing else in it reaches the payload.
 	const inside = new Set(dynamic);
-	namesIn(pattern, inside);
+	namesBound(pattern, inside);
 	inside.add(held);
 	if (typeof node['index'] === 'string') inside.add(node['index']);
 	const body: Locals['rewrite'] =

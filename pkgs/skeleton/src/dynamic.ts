@@ -18,9 +18,10 @@ import {
 	parsedComponent,
 	resolveBare,
 	rootOf,
+	bound as namesBound,
 } from 'ast';
 import { carries, importsOf } from './compose.ts';
-import { type AstNode, isNode, namesIn, refuse, span } from './node.ts';
+import { type AstNode, isNode, refuse, span } from './node.ts';
 import { RUNE, unknown } from './branches.ts';
 import { type Walk } from './walk-types.ts';
 
@@ -154,7 +155,7 @@ export function changedBy(file: string): ReadonlySet<string> {
 				: statement;
 		if (!isNode(one) || one['type'] !== 'VariableDeclaration') continue;
 		for (const each of Array.isArray(one['declarations']) ? one['declarations'] : []) {
-			if (isNode(each)) namesIn(each['id'], declared);
+			if (isNode(each)) namesBound(each['id'], declared);
 		}
 	}
 	// Every assignment, update and method call in the file, wherever it is written: a module's
@@ -471,7 +472,7 @@ export function assigned(expression: string): string[] {
 	/** What a function binds, whether or not this expression ever runs its body. */
 	const binds = (node: AstNode): void => {
 		if (isNode(node['id']) && typeof node['id']['name'] === 'string') bound.add(node['id']['name']);
-		for (const one of Array.isArray(node['params']) ? node['params'] : []) namesIn(one, bound);
+		for (const one of Array.isArray(node['params']) ? node['params'] : []) namesBound(one, bound);
 	};
 	/** Walks what the expression evaluates, and nothing it only holds. */
 	const step = (node: unknown): void => {
@@ -481,7 +482,7 @@ export function assigned(expression: string): string[] {
 		}
 		if (!isNode(node)) return;
 		const type = String(node['type']);
-		if (type === 'VariableDeclarator') namesIn(node['id'], bound);
+		if (type === 'VariableDeclarator') namesBound(node['id'], bound);
 		// A function this expression holds rather than calls writes nothing while the bytes are
 		// written: `handleClick={() => clicked = letter}` is a handler handed to a component and the
 		// server calls nothing. It is read for what it binds and no further, which is the same
