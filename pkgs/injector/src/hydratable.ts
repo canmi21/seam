@@ -95,7 +95,7 @@ export async function script(
 	for (const [key, entry] of record) {
 		if (entry.promises !== undefined) {
 			promised = true;
-			for (const one of entry.promises) await one;
+			await Promise.all(entry.promises);
 		}
 		entries.push(`[${devalue.uneval(key)},${entry.serialized}]`);
 	}
