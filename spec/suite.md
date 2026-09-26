@@ -174,7 +174,9 @@ So the rule for reading one is what the value is and where it came from, and it 
   import's local, read off Svelte's own AST and written into the same author's component
   (alert 42), is an identifier by construction; the check that says so sits at the write, as it
   does in the harness above, and is the sentence the dismissal of 36 leans on. A shape the parser
-  did not hand back would be the one thing worth throwing on, so it throws.
+  did not hand back would be the one thing worth throwing on, so it throws. CodeQL does not read
+  the check as a sanitizer -- 42 stayed open with it in place -- so it is dismissed the way 36 was,
+  and the check is what the dismissal cites.
 
 `js/incomplete-sanitization` is read the same way. A regex escape covering `$` alone (alert 40) was
 complete for what reached it -- identifiers hold nothing else -- and was still the shape the rule
