@@ -90,6 +90,11 @@ beforeAll(() => {
 afterAll(() => rmSync(staging, { recursive: true, force: true }));
 
 /** Svelte's own render of a page and the children it imports, which every structure owes. */
+/** A component's class name from its file name, as Svelte capitalizes it. */
+function named(name: string): string {
+	return name[0]?.toUpperCase() + name.slice(1);
+}
+
 async function oracle(
 	page: [name: string, source: string],
 	children: [name: string, source: string][],
@@ -97,7 +102,6 @@ async function oracle(
 ): Promise<string> {
 	const tag = String(Math.random()).slice(2);
 	const out = resolve(staging, `oracle-${tag}.js`);
-	const named = (name: string): string => name[0]?.toUpperCase() + name.slice(1);
 	let code = svelte(page[1], {
 		generate: 'server',
 		name: named(page[0]),

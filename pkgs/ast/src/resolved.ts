@@ -19,6 +19,11 @@ const RESERVED: ReadonlySet<string> = new Set(['$$props', '$$restProps', '$$slot
  * whether it is holding a path relative to a project root or an entry. `file` is its absolute
  * path where the caller has one, so that what its imports name can be resolved.
  */
+/** A loose name for the refusal, with the expression it sat in where that says more than the name. */
+function show([name, at]: [string, string]): string {
+	return at === name ? `\`${name}\`` : `\`${name}\` in \`${at}\``;
+}
+
 export function resolved(source: string, where: string, file?: string): void {
 	// `$$props`, `$$restProps` and `$$slots` are Svelte's own names for the object a component was
 	// called with, and never a name the data has to carry. The entry's object is the payload and a
@@ -40,8 +45,6 @@ export function resolved(source: string, where: string, file?: string): void {
 	for (const one of loose) {
 		if (!seen.has(one.name)) seen.set(one.name, one.expression);
 	}
-	const show = ([name, at]: [string, string]): string =>
-		at === name ? `\`${name}\`` : `\`${name}\` in \`${at}\``;
 	const reasons = [
 		`${[...seen].map(show).join(', ')}, which the data does not carry; the name has to come from \
 the payload, an each block, a script in this file, or an import`,

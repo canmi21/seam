@@ -181,6 +181,11 @@ function renamed(nodes: readonly Node[], by: ReadonlyMap<string, string>): Node[
  * build makes; where the data breaks it, the artifact has no structure to offer and says so by
  * having none.
  */
+/** What makes two runs' derivations the one entry: the expression, its scope and its files. */
+function sharedKey(one: Derivation): string {
+	return JSON.stringify([one.expression, one.scope, one.scoped === true, one.files ?? null]);
+}
+
 export function joined(
 	component: string,
 	runs: readonly (Run & { compiled: Structure })[],
@@ -234,21 +239,19 @@ export function joined(
 	// alone appeared 216 times. Every one of them is evaluated once per request, so this is the
 	// bytes and the work both.
 	const shared = new Map<string, string>();
-	const key = (one: Derivation): string =>
-		JSON.stringify([one.expression, one.scope, one.scoped === true, one.files ?? null]);
 
 	for (const [at, run] of runs.entries()) {
 		// A derivation is named for its position among its own component's, so several components'
 		// collide by construction. Each run's is pointed at the shared entry its content names.
 		const by = new Map<string, string>();
 		for (const one of run.compiled.derivations) {
-			const held = shared.get(key(one));
+			const held = shared.get(sharedKey(one));
 			if (held !== undefined) {
 				by.set(one.name, held);
 				continue;
 			}
 			const name = `__v${String(derivations.length)}`;
-			shared.set(key(one), name);
+			shared.set(sharedKey(one), name);
 			by.set(one.name, name);
 			derivations.push({ ...one, name });
 		}
@@ -267,10 +270,10 @@ export function joined(
 		// with types in; every derivation is JavaScript by the time it is evaluated.
 		const test = `__t${String(at)}`;
 		const adopt = (one: Derivation): string => {
-			const known = shared.get(key(one));
+			const known = shared.get(sharedKey(one));
 			if (known !== undefined) return known;
 			const name = `__v${String(derivations.length)}`;
-			shared.set(key(one), name);
+			shared.set(sharedKey(one), name);
 			derivations.push({ ...one, name });
 			return name;
 		};

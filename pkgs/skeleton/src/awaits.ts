@@ -118,6 +118,52 @@ export function hydratableCalls(ast: Record<string, unknown>): Record<string, un
 }
 
 /**
+ * Every name a statement changes, as Svelte's `trace_references` counts it: assigned or updated at
+ * its root, or reached by a call, which is assumed to touch everything it is handed.
+ */
+function writtenBy(node: unknown): string[] {
+	const out: string[] = [];
+	const root = (target: unknown): void => {
+		let at = target;
+		while (isNode(at) && at['type'] === 'MemberExpression') at = at['object'];
+		if (isNode(at) && at['type'] === 'Identifier' && typeof at['name'] === 'string') {
+			out.push(at['name']);
+		}
+	};
+	const step = (one: unknown): void => {
+		if (Array.isArray(one)) {
+			for (const each of one) step(each);
+			return;
+		}
+		if (!isNode(one)) return;
+		if (one['type'] === 'AssignmentExpression') root(one['left']);
+		if (one['type'] === 'UpdateExpression') root(one['argument']);
+		// A call is assumed to change everything it reaches -- `touch` in `trace_references`,
+		// "assume everything touched by the callee ends up mutating the object" -- so every name
+		// it references waits, `$derived(await foo)` giving `foo` a blocker. `$effect` is the
+		// exception Svelte makes, since it only runs once the async work is done.
+		if (one['type'] === 'CallExpression') {
+			if (runeCalled(one['callee']) === '$effect') return;
+			readsIn(one, new Set(), (at) => {
+				if (typeof at['name'] === 'string') out.push(at['name']);
+			});
+			return;
+		}
+		// Svelte does not look inside a function until something calls it.
+		if (
+			one['type'] === 'ArrowFunctionExpression' ||
+			one['type'] === 'FunctionExpression' ||
+			one['type'] === 'FunctionDeclaration'
+		) {
+			return;
+		}
+		for (const value of Object.values(one)) step(value);
+	};
+	step(node);
+	return out;
+}
+
+/**
  * The names Svelte's async mode makes wait: what `calculate_blockers` in `2-analyze/index.js`
  * gives a `blocker`.
  *
@@ -151,47 +197,6 @@ export function blockedBy(ast: AstNode): ReadonlySet<string> {
 		walked(pattern);
 		return out;
 	};
-	const written = (node: unknown): string[] => {
-		const out: string[] = [];
-		const root = (target: unknown): void => {
-			let at = target;
-			while (isNode(at) && at['type'] === 'MemberExpression') at = at['object'];
-			if (isNode(at) && at['type'] === 'Identifier' && typeof at['name'] === 'string') {
-				out.push(at['name']);
-			}
-		};
-		const step = (one: unknown): void => {
-			if (Array.isArray(one)) {
-				for (const each of one) step(each);
-				return;
-			}
-			if (!isNode(one)) return;
-			if (one['type'] === 'AssignmentExpression') root(one['left']);
-			if (one['type'] === 'UpdateExpression') root(one['argument']);
-			// A call is assumed to change everything it reaches -- `touch` in `trace_references`,
-			// "assume everything touched by the callee ends up mutating the object" -- so every name
-			// it references waits, `$derived(await foo)` giving `foo` a blocker. `$effect` is the
-			// exception Svelte makes, since it only runs once the async work is done.
-			if (one['type'] === 'CallExpression') {
-				if (runeCalled(one['callee']) === '$effect') return;
-				readsIn(one, new Set(), (at) => {
-					if (typeof at['name'] === 'string') out.push(at['name']);
-				});
-				return;
-			}
-			// Svelte does not look inside a function until something calls it.
-			if (
-				one['type'] === 'ArrowFunctionExpression' ||
-				one['type'] === 'FunctionExpression' ||
-				one['type'] === 'FunctionDeclaration'
-			) {
-				return;
-			}
-			for (const value of Object.values(one)) step(value);
-		};
-		step(node);
-		return out;
-	};
 	let awaited = false;
 	for (const raw of body) {
 		const statement =
@@ -216,12 +221,12 @@ export function blockedBy(ast: AstNode): ReadonlySet<string> {
 					continue;
 				}
 				if (!awaited) continue;
-				for (const name of [...names(one['id']), ...written(one)]) found.add(name);
+				for (const name of [...names(one['id']), ...writtenBy(one)]) found.add(name);
 			}
 			continue;
 		}
 		if (!awaited) continue;
-		for (const name of written(statement)) found.add(name);
+		for (const name of writtenBy(statement)) found.add(name);
 		if (statement['type'] === 'ClassDeclaration') {
 			const id = statement['id'];
 			if (isNode(id) && typeof id['name'] === 'string') found.add(id['name']);

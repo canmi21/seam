@@ -103,20 +103,22 @@ function aliased(specifier: string): string | null {
 // its extension, so `.svelte` is not among them.
 const EXTENSIONS = ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'];
 
+/** Whether a path is a file that exists, and false rather than a throw where it is not. */
+function isFile(candidate: string): boolean {
+	try {
+		return statSync(candidate).isFile();
+	} catch {
+		return false;
+	}
+}
+
 /** A path as a file, the way a bundler completes one written without its extension. */
 function withExtension(path: string): string | null {
-	const file = (candidate: string): boolean => {
-		try {
-			return statSync(candidate).isFile();
-		} catch {
-			return false;
-		}
-	};
-	if (file(path)) return path;
-	for (const ext of EXTENSIONS) if (file(path + ext)) return path + ext;
+	if (isFile(path)) return path;
+	for (const ext of EXTENSIONS) if (isFile(path + ext)) return path + ext;
 	for (const ext of EXTENSIONS) {
 		const index = resolvePath(path, `index${ext}`);
-		if (file(index)) return index;
+		if (isFile(index)) return index;
 	}
 	return null;
 }

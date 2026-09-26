@@ -425,39 +425,41 @@ export function callsHead(walk: Walk, fragment: string, binds: [string, string][
  */
 const IMPORTS_OF: Map<string, string[]> = new Map();
 
+/** The `.svelte` files one imports, read once per process and held in `IMPORTS_OF`. */
+function componentEdges(from: string, source?: string): string[] {
+	const held = IMPORTS_OF.get(from);
+	if (held !== undefined) return held;
+	let text = source;
+	if (text === undefined) {
+		try {
+			text = readFileSync(from, 'utf8');
+		} catch {
+			text = '';
+		}
+	}
+	const found: string[] = [];
+	for (const one of importedBy(text).values()) {
+		let target: string | null = null;
+		if (one.from.startsWith('.')) {
+			if (one.from.endsWith('.svelte')) target = resolvePath(dirname(from), one.from);
+		} else if (one.kind !== 'namespace') {
+			const name = one.kind === 'default' ? 'default' : (one.exported ?? one.local);
+			target = componentOf(one.from, [name], from);
+		}
+		if (target !== null && target.endsWith('.svelte')) found.push(target);
+	}
+	IMPORTS_OF.set(from, found);
+	return found;
+}
+
 export function reachesItself(file: string, raw: string): boolean {
-	const edges = (from: string, source?: string): string[] => {
-		const held = IMPORTS_OF.get(from);
-		if (held !== undefined) return held;
-		let text = source;
-		if (text === undefined) {
-			try {
-				text = readFileSync(from, 'utf8');
-			} catch {
-				text = '';
-			}
-		}
-		const found: string[] = [];
-		for (const one of importedBy(text).values()) {
-			let target: string | null = null;
-			if (one.from.startsWith('.')) {
-				if (one.from.endsWith('.svelte')) target = resolvePath(dirname(from), one.from);
-			} else if (one.kind !== 'namespace') {
-				const name = one.kind === 'default' ? 'default' : (one.exported ?? one.local);
-				target = componentOf(one.from, [name], from);
-			}
-			if (target !== null && target.endsWith('.svelte')) found.push(target);
-		}
-		IMPORTS_OF.set(from, found);
-		return found;
-	};
 	const seen = new Set<string>();
-	const pending = edges(file, raw).slice();
+	const pending = componentEdges(file, raw).slice();
 	for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
 		if (next === file) return true;
 		if (seen.has(next)) continue;
 		seen.add(next);
-		pending.push(...edges(next));
+		pending.push(...componentEdges(next));
 	}
 	return false;
 }
@@ -495,13 +497,16 @@ const HOISTED: ReadonlySet<string> = new Set([
 	'SnippetBlock',
 ]);
 
+/** A text node that is whitespace and nothing else. */
+function blank(one: unknown): boolean {
+	return isNode(one) && one['type'] === 'Text' && !/\S/.test(String(one['data'] ?? ''));
+}
+
 export function onlyChild(fragment: unknown): unknown {
 	const nodes = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
 	const regular = nodes.filter(
 		(one) => isNode(one) && one['type'] !== 'Comment' && !HOISTED.has(String(one['type'])),
 	);
-	const blank = (one: unknown): boolean =>
-		isNode(one) && one['type'] === 'Text' && !/\S/.test(String(one['data'] ?? ''));
 	let from = 0;
 	let to = regular.length;
 	while (from < to && blank(regular[from])) from += 1;
