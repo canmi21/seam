@@ -11,4 +11,4 @@ export {
 // For a second caller that compiles one component at a time rather than a project: `compile()`
 // batches lowering across every entry and writes artifacts, and a comparison against Svelte does
 // neither. See pkgs/suite.
-export { joined, type Run, type Structure } from './variants.ts';
+export { decidedAs, joined, type Run, type Structure } from './variants.ts';

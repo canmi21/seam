@@ -300,6 +300,7 @@
 		"runtime-legacy/component-namespaced",
 		"runtime-legacy/component-nested-deep",
 		"runtime-legacy/component-nested-deeper",
+		"runtime-legacy/component-not-constructor2",
 		"runtime-legacy/component-not-void",
 		"runtime-legacy/component-prop-object",
 		"runtime-legacy/component-props",

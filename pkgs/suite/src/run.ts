@@ -42,7 +42,7 @@ import { rolldown } from 'rolldown';
 import { compile as compileComponent, compileModule } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { carry } from 'carry';
-import { joined, merged, structures } from 'compiler';
+import { decidedAs, joined, merged, structures } from 'compiler';
 import { compile as compileDerivations } from 'derive';
 import { inject } from 'injector';
 import { lower } from 'lowering';
@@ -434,7 +434,8 @@ async function ours(
 		first.id,
 		runs.map((one, at) => ({
 			fixed: one.fixed,
-			decided: one.decided,
+			decided: decidedAs(one),
+			held: one.skeleton.held,
 			compiled: lowered[at] as unknown as Parameters<typeof joined>[1][number]['compiled'],
 		})),
 		first.skeleton.defaults,

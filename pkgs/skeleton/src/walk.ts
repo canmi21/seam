@@ -2460,11 +2460,12 @@ function choosing(written: string, tag: string, walk: Walk): string {
 	if (mentions(chosen, walk.dynamic)) {
 		refuse(
 			`\`<${tag}>\` is handed a component the request decides, and the source names none it ` +
-				'could be. The payload carries data and no function, so a component never comes off ' +
-				'the wire: the component this renders is the one the request sent, and an artifact ' +
-				"has no bytes for it. Name it in the source -- as the prop's default, or beside the " +
-				'value in the expression -- or choose it in the load stage. It stands for ' +
-				`\`${chosen.replace(/\s+/g, ' ').slice(0, 200)}\``,
+				'could be. An artifact holds bytes for the components the source names and none for ' +
+				'one the request sends, and this project asked to be told at the build ' +
+				'(`refuseUnnamedComponents`) rather than to render nothing or throw per request. Name ' +
+				"it in the source -- as the prop's default, or beside the value in the expression -- " +
+				'or choose it in the load stage. It stands for ' +
+				`\`${chosen.replace(/\s+/g, ' ').slice(0, 200)}\`. See spec/payload.md`,
 		);
 	}
 	return chosen;
@@ -3086,6 +3087,37 @@ function standsFor(walk: Walk): Map<string, string> {
  * A request that sends a truthy value that is not a component renders nothing either way: Svelte
  * calls it and throws, and there are no bytes to reproduce. See spec/roadmap.md.
  */
+/**
+ * A `this` the entry's script run answers, as a chain over the components the file imports.
+ *
+ * `let component; $: component = componentName === 'Sub' ? Sub : other` is a name the run holds,
+ * and which component it holds is decided by identity -- and the run's `Sub` and the walk's are
+ * two module instances, so no comparison outside the run can tell. The run captures the imports
+ * beside the declarations, so the chain compares inside it:
+ * `((component === Sub) ? Sub : component)`, one test per import in source order, the value
+ * itself last. Each test is one the request decides, so the walk enumerates it as it does any
+ * `?:` between components, the named branch renders that component's bytes, and the last branch
+ * is a value the source names none of -- nothing for nothing, a throw per request otherwise, as
+ * spec/payload.md has it. `ran()` in skeleton.ts writes both sides of each test as fields of the
+ * run. The entry's only: a copy's run is written at each read, and a component reaching a
+ * derivation is what `composed()` refuses. See spec/derivation.md, "A component the run chose is
+ * compared inside the run".
+ */
+function runChosen(expression: unknown, walk: Walk): string | null {
+	if (walk.site.copy !== null && walk.site.copy !== undefined) return null;
+	if (!isNode(expression) || expression['type'] !== 'Identifier') return null;
+	const name = expression['name'];
+	if (typeof name !== 'string' || !walk.site.changing.has(name) || !walk.dynamic.has(name)) {
+		return null;
+	}
+	const imports = [...walk.site.carried.keys()].filter((local) => componentImport(local, walk));
+	if (imports.length === 0) return null;
+	return imports.reduceRight(
+		(rest, local) => `((${name} === ${local}) ? ${local} : ${rest})`,
+		name,
+	);
+}
+
 function chosenComponent(expression: unknown, walk: Walk): { name: string; test: string } | null {
 	// A component the script run chose is compared by identity, and the run's copy of a component is
 	// not the one a candidate names. See `ranBy` in `descend()`.
@@ -3231,9 +3263,15 @@ function settled(expression: string, walk: Walk): string {
 	if (held.undecided === null) return held.text;
 	// A name a block binds is decided per item, and a decision over it cannot be enumerated for
 	// the page: the derivation the branch would test has no item to read.
+	// A name the request decides that is neither the payload's nor a fresh one is a block's --
+	// unless the script's run answers it: `$: component = ...` over a prop is moved by the
+	// request and is one value for the page, not one per item. See `runChosen`.
 	const scoped = new Set(
 		[...walk.dynamic].filter(
-			(one) => walk.site.payload?.has(one) !== true && !walk.fresh.includes(one),
+			(one) =>
+				walk.site.payload?.has(one) !== true &&
+				!walk.fresh.includes(one) &&
+				!walk.site.moved.has(one),
 		),
 	);
 	if (mentions(held.undecided, scoped)) {
@@ -5803,6 +5841,14 @@ function collect(node: unknown, walk: Walk): void {
 			if (type === 'SvelteComponent') {
 				const where = span(node['expression']);
 				if (where === null) return;
+				// A `this` the script's run answers is a chain over the components the file imports,
+				// each compared with the value inside the run's own module. See `runChosen`.
+				const byRun = runChosen(node['expression'], walk);
+				const expand: Locals['rewrite'] =
+					byRun === null
+						? walk.expand
+						: (one, extra, given) =>
+								one === node['expression'] ? byRun : walk.expand(one, extra, given);
 				// A `this` the request decides, which the payload bounds to one candidate and
 				// nothing: a block with two branches, the alternate writing no bytes. The tag itself
 				// stays, so Svelte writes the anchors `build_inline_component` writes -- `<!--[-->`

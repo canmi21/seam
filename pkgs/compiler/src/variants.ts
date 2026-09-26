@@ -46,6 +46,64 @@ export type Decided = ReadonlyMap<string, boolean>;
 export interface Run {
 	fixed: Fixed;
 	decided: Decided;
+	/**
+	 * The skeleton's held expressions, which a decided test may name by index as `$$hold(k)`
+	 * where the entry's run answers it. Lowering resolves the marks in holes and blocks to the
+	 * derivation it named for the held text; the structure's test is made here, after lowering,
+	 * so it is resolved here the same way. See `heldNamed`.
+	 */
+	held?: readonly { expression: string; files: readonly string[] }[];
+}
+
+/**
+ * A structure's test with every `$$hold(k)` in it replaced by the joined name of the derivation
+ * lowering gave the held expression: the one with that text over that chain, in this run's own
+ * list, pointed through `by` at the shared entry. See `Run.held` and `Skeleton.decidedAs`.
+ */
+function heldNamed(
+	text: string,
+	run: Run & { compiled: Structure },
+	by: ReadonlyMap<string, string>,
+	/** Adds a derivation the run's own list has not got, and names it. */
+	adopt: (one: Derivation) => string,
+): string {
+	return text.replaceAll(/\$\$hold\((\d+)\)/g, (whole, index: string) => {
+		const held = run.held?.[Number(index)];
+		if (held === undefined) {
+			throw new Error(`a structure's test names \`${whole}\`, which the skeleton does not hold`);
+		}
+		const files = JSON.stringify(held.files);
+		const named = run.compiled.derivations.find(
+			(one) => one.expression === held.expression && JSON.stringify(one.files ?? []) === files,
+		);
+		// Lowering keeps a held derivation only where something in the structure reaches it, and
+		// in the structure that took the named branch nothing does: the test is what reaches it.
+		if (named === undefined) {
+			return adopt({
+				name: whole,
+				expression: held.expression,
+				files: [...held.files],
+				scope: null,
+			});
+		}
+		return by.get(named.name) ?? named.name;
+	});
+}
+
+/**
+ * A run's decided tests as the entry's run answers them, for the structure's own test.
+ *
+ * The walk decides a test in the author's names and the build keys the run by that text; where
+ * the entry's script run holds one of the names, the skeleton records the test read through the
+ * run's fields (`Skeleton.decidedAs`), and that is the text the structure is tested by at request
+ * time. The raw text stays the key the walk is told by.
+ */
+export function decidedAs(run: {
+	decided: Decided;
+	skeleton: { decidedAs?: Record<string, string> };
+}): Decided {
+	const as = run.skeleton.decidedAs ?? {};
+	return new Map([...run.decided].map(([test, taken]) => [as[test] ?? test, taken]));
 }
 
 /** The test one run's structure is kept under: everything it was fixed at, all of it true. */
@@ -208,7 +266,19 @@ export function joined(
 		// The test is source text a `?:` was written with, and a `lang="ts"` component writes it
 		// with types in; every derivation is JavaScript by the time it is evaluated.
 		const test = `__t${String(at)}`;
-		derivations.push({ name: test, expression: javascript(testOf(run)), scope: null });
+		const adopt = (one: Derivation): string => {
+			const known = shared.get(key(one));
+			if (known !== undefined) return known;
+			const name = `__v${String(derivations.length)}`;
+			shared.set(key(one), name);
+			derivations.push({ ...one, name });
+			return name;
+		};
+		derivations.push({
+			name: test,
+			expression: javascript(heldNamed(testOf(run), run, by, adopt)),
+			scope: null,
+		});
 		body.push({ test, body: renamed(run.compiled.ir.body, by) });
 		head.push({ test, body: renamed(run.compiled.ir.head, by) });
 		title.push({ test, body: renamed(run.compiled.ir.title, by) });

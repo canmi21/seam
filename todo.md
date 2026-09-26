@@ -9,19 +9,17 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 ## Waiting on a decision
 
-- [ ] **A component value the source does not name, rendered per request.** Svelte calls whatever
-      `this` holds with the renderer: a `new Proxy(Sub, {})` and a function wrapping `Sub` both
-      write `Sub`, measured, and neither can be told apart from outside by any means. Matching that
-      means a derivation handing the value to Svelte's renderer per request, which spec/pipeline.md
-      says a derivation does not do. Recording a proxy's target reaches the empty-handler proxy and
-      nothing else. component-not-constructor2; C's unnamed component would follow the same answer.
-
 ## Also open
 
-- [ ] Refusal messages still carry the withdrawn scope reasons ("an artifact has nowhere to
-      hold", "the payload carries data"); each changes with the gap it names.
-
 ## Done
+
+- E, the last sample, and the last of the suite: a `this` the entry's run holds is a chain over the
+  file's component imports, each compared inside the run, whose capture hands the imports out; a
+  structure's own test is written as the run's and the held run resolved in `joined()`
+  (component-not-constructor2). spec/derivation.md, "A component the run chose is compared inside
+  the run". The proxy and the non-component fall to the unnamed rule, as decided: no value is
+  handed to Svelte's renderer per request. The one refusal still wording the withdrawn "payload
+  carries data" reason, the opt-in `refuseUnnamedComponents` one, says what it refuses now.
 
 - B, the last sample: a bound prop the child's script changes sends what the script left back up,
   as the child's first-pass run held under the child's chain and read by the caller's ternary; the

@@ -31,6 +31,7 @@ import { aliases, compilerOptions } from 'routes';
 import {
 	combinations,
 	type Decided,
+	decidedAs,
 	type Fixed,
 	joined,
 	MANY,
@@ -341,7 +342,8 @@ export async function compile(options: Options): Promise<Report[]> {
 		const one = prepared[at] as (typeof prepared)[number];
 		const runs = prepared.slice(at, at + one.of).map((each, index) => ({
 			fixed: each.fixed,
-			decided: each.decided,
+			decided: decidedAs(each),
+			held: each.skeleton.held,
 			compiled: lowered[at + index] as unknown as Structure,
 		}));
 		const together = merged(prepared.slice(at, at + one.of).map((each) => each.names));

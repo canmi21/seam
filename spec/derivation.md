@@ -1505,11 +1505,47 @@ a second read runs it again to the same answer. It is taken only where something
 passes varies with the request; where nothing does, the child is Svelte's to render, as any child
 handed no marker is, since a local of the caller a run would read is in no scope a derivation has.
 
-**What the run cannot hand back stays refused**: a component the run chose, which is picked by
-identity and the run holds its own copy of each. A prop the call site binds was the other one, its
-value going back up to render the caller's whole template again; the run hands it back through a
-hold under the child's chain now -- "A hold may name the child's chain, and that is how a value
-crosses back up", below.
+**Two things the run could not hand back were refused, and both are handed back now.** A prop the
+call site binds, whose value goes back up to render the caller's whole template again, comes back
+through a hold under the child's chain -- "A hold may name the child's chain, and that is how a
+value crosses back up", below. A component the run chose, which is picked by identity, is compared
+inside the run -- the section that follows.
+
+### A component the run chose is compared inside the run
+
+`let component; $: component = componentName === 'Sub' ? Sub : other` over a prop is a name the
+run holds, and `<svelte:component this={component}>` renders whichever it holds. Which one is
+decided by identity, and identity is the one thing that does not survive the run: the run's `Sub`
+is the captured script's import, the walk's `Sub` is the copy it entered, and they are two module
+instances. Nothing outside the run can tell them apart, so the comparison is made inside it.
+
+**The capture hands out the file's component imports beside its declarations**, and the walk
+writes the `this` as a chain over them: `((component === Sub) ? Sub : component)`, one test per
+`.svelte` default import in source order, the value itself last (`runChosen()` in `walk.ts`). Each
+test is one the request decides, so the walk enumerates it the way it enumerates any `?:` between
+components: one structure per branch, the named branch rendering that component's bytes, and the
+last branch a value the source names none of, which [payload.md](payload.md) already answers --
+nothing for nothing, a throw per request otherwise, or a refusal at the build under
+`refuseUnnamedComponents`. `ran()` in `skeleton.ts` then writes both sides of each test as fields
+of the run, the imports joining the names the run answers for that file alone.
+
+**A structure's own test is an expression of the entry's too, and it was the one nobody wrote as
+the run's.** The walk decides a test in the author's names, and the build keys the run by that
+text, since the walk is told by it; but the structure is chosen at request time by the same text,
+and `component === Sub` over the author's names is a derivation reading a component, which
+`composed()` refuses, and would read the wrong `Sub` if it did not. So the skeleton records each
+decided test as the run answers it (`Skeleton.decidedAs`), and `joined()` tests the structure by
+that. The run it names is a hold, `$$hold(k)`, which lowering resolves in holes and blocks and not
+in a test made after it, so `joined()` resolves it the same way -- and emits the held run where
+the structure that took the named branch reaches it through nothing else (`heldNamed()` in
+`variants.ts`).
+
+**Where it diverges from Svelte, it diverges the way the unnamed rule already does.** Svelte
+calls whatever `this` holds with the renderer, so `new Proxy(Sub, {})` renders `Sub` there; here
+it is a value the source names none of, and the unnamed rule has it. The sample is
+`runtime-legacy/component-not-constructor2`, whose server render is the `'Sub'` case; the proxy
+and the non-component are what its client test asserts. The entry's only: a copy's run is written
+at each read rather than held, and a component reaching a derivation is what `composed()` refuses.
 
 **The entry's run makes its `hydratable` calls into the request's record.** The instance block's
 import of Svelte's `hydratable` is handed the request's through the render's context -- not

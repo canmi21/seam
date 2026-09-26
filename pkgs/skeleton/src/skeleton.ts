@@ -389,7 +389,9 @@ async function walked(
 	// its value reads, so a context read inside one went out as a derivation and threw
 	// `lifecycle_outside_component` at injection rather than naming a file here. Asked once more
 	// over the finished list, which is the one place that holds all of them.
-	ran(finished, relative(root, file), baseline.ran, source, baseline.live, root);
+	ran(finished, relative(root, file), baseline.ran, source, baseline.live, root, [
+		...decided.keys(),
+	]);
 	if (baseline.live) livePages.add(finished);
 	for (const one of expressionsOf(finished)) outside(one.expression, true, baseline.changing);
 	composed(expressionsOf(finished), root);
@@ -415,15 +417,30 @@ function ran(
 	/** Whether the markup itself changes the run's state while the bytes are written. */
 	live = false,
 	root = '',
+	/** The tests the build decided this structure on, which are the entry's expressions too. */
+	decidedKeys: readonly string[] = [],
 ): void {
 	if (changed.size === 0) return;
 	const hydrating = HYDRATABLE.test(source);
-	// A component the run chose is compared by identity, and the run holds its own copy of each.
-	// Asked of the markup by the name, as `chosenComponent()` asks it of an expansion in a child.
+	// A component the run chose is compared by identity inside the run, whose capture hands out
+	// the file's component imports beside its declarations: the walk wrote the `this` as a chain
+	// of `(name === Import)` tests (`runChosen()` in walk.ts), and both sides of each become
+	// fields of the run here. So the imports join the names the run answers, for that file alone.
+	// See spec/derivation.md, "A component the run chose is compared inside the run".
 	const component = [...changed].find((name) =>
 		new RegExp(`this=\\{[^}]*\\b${name}\\b|<${name}[\\s/>]`).test(source),
 	);
-	const names = new Set([...changed, ...[...changed].map((one) => `$${one}`)]);
+	const imports =
+		component === undefined
+			? []
+			: [...importsOf(source)]
+					.filter(
+						([, one]) =>
+							one.kind === 'default' &&
+							(resolveBare(one.from, resolvePath(root, entry)) ?? one.from).endsWith('.svelte'),
+					)
+					.map(([local]) => local);
+	const names = new Set([...changed, ...[...changed].map((one) => `$${one}`), ...imports]);
 	// The request's `hydratable` goes to the run, whose script makes its calls in its own order and
 	// under its own conditions, which is Svelte's. See `captured()` in the ast package.
 	const imported = hydrating ? hydratableImport(source) : { local: null, module: false };
@@ -432,13 +449,6 @@ function ran(
 	let at: number | undefined;
 	const field = (name: string): string => {
 		if (hydrating && (imported.local === null || imported.module)) refuse(HYDRATABLE_RUN);
-		if (component !== undefined) {
-			refuse(
-				`\`${component}\` is a component chosen by a script this compiler runs per request: ` +
-					'which component renders is decided by identity, and the run holds its own copy of ' +
-					'each, not the one the source names. See spec/derivation.md',
-			);
-		}
 		at ??= rendered.held.push({ expression: running, files: [entry] }) - 1;
 		return `($$hold(${String(at)}).${name})`;
 	};
@@ -507,6 +517,14 @@ function ran(
 			block.fragment.binds = block.fragment.binds.map(([name, one]) => [name, over(one)]);
 		}
 	}
+	// A test the build decided is the structure's own test at request time, and it reads the run's
+	// fields as the rest of the entry's expressions do. See `Skeleton.decidedAs`.
+	const decidedAs: Record<string, string> = {};
+	for (const test of decidedKeys) {
+		const mapped = over(test);
+		if (mapped !== test) decidedAs[test] = mapped;
+	}
+	if (Object.keys(decidedAs).length > 0) rendered.decidedAs = decidedAs;
 	// Taken, the run is what makes the entry's `hydratable` calls: once, first, whether or not the
 	// markup reads what they return, as Svelte's script makes them. The calls read out of the source
 	// one by one would make every one of them, whichever branch the script takes.
@@ -691,8 +709,8 @@ function composed(
 					`\`${name}\` is a component read by an expression this artifact holds, and a ` +
 						'derivation is evaluated outside the render with only what the bundle carries. A ' +
 						'component is composed at compile time and is not a value the bundle can hold, so ' +
-						'the choice has to be written as an `{#if}` around each component. See ' +
-						'spec/derivation.md',
+						'the choice has to be written as an `{#if}` around each component. The expression: ' +
+						`\`${one.expression.replace(/\s+/g, ' ').slice(0, 160)}\`. See spec/derivation.md`,
 				);
 			}
 		}

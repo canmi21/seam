@@ -261,6 +261,13 @@ export interface Skeleton {
 	 * file chain and whether they are scoped. See spec/derivation.md.
 	 */
 	held: { expression: string; files: string[] }[];
+	/**
+	 * A test the walk stopped on and the build decided, as the entry's run answers it: the walk
+	 * writes the test in the author's names, and where the entry's script run holds one of them the
+	 * structure's own test has to read the run's field, as every other expression of the entry does
+	 * (`ran()` in skeleton.ts). By the test's text; absent where no test changed.
+	 */
+	decidedAs?: Record<string, string>;
 	holes: Hole[];
 	blocks: Block[];
 	/**

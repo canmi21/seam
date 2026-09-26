@@ -33,7 +33,15 @@ export function captured(source: string): string {
 	const writable = new Set<string>();
 	// The module block's too: the markup reads its names as it reads the instance block's, and may
 	// change them while the bytes are written.
-	const names = new Set([...declaredAtTop(module, writable), ...declaredAtTop(instance, writable)]);
+	// The components the instance block imports are captured beside the declarations, so a value
+	// the script chose can be compared with each inside the run's own module -- the only place the
+	// two are the same function. See spec/derivation.md, "A component the run chose is compared
+	// inside the run".
+	const names = new Set([
+		...declaredAtTop(module, writable),
+		...declaredAtTop(instance, writable),
+		...componentImports(instance),
+	]);
 	const stores = new Set<string>();
 	for (const [, name] of source.matchAll(/(?<![\w$])\$([A-Za-z_][\w]*)/g)) {
 		if (name !== undefined && names.has(name)) stores.add(`$${name}`);
@@ -59,6 +67,27 @@ export function captured(source: string): string {
 		script,
 		`{__seam_context(${JSON.stringify(CAPTURE)})({ ${fields} })}`,
 	].join('\n');
+}
+
+/** The locals the instance block imports as the default of a `.svelte` module. */
+function componentImports(instance: unknown): Set<string> {
+	const found = new Set<string>();
+	const content = isNode(instance) ? instance['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
+		const from = statement['source'];
+		if (!isNode(from) || typeof from['value'] !== 'string' || !from['value'].endsWith('.svelte')) {
+			continue;
+		}
+		const specifiers = Array.isArray(statement['specifiers']) ? statement['specifiers'] : [];
+		for (const one of specifiers) {
+			if (!isNode(one) || one['type'] !== 'ImportDefaultSpecifier') continue;
+			const local = one['local'];
+			if (isNode(local) && typeof local['name'] === 'string') found.add(local['name']);
+		}
+	}
+	return found;
 }
 
 /**
