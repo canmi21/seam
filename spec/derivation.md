@@ -1130,7 +1130,7 @@ is why `let taken = $state.snapshot(held)` holds `held` itself: in an expression
 
 A rune is compiled away by Svelte and exists nowhere at run time, so an expression holding one
 cannot be evaluated as it is written. `CallExpression.js` gives each an answer where it stands, and
-they are copied into `ANSWERED` in `locals.ts`:
+they are copied into `ANSWERED` in `reactive.ts`:
 
 | written                                                    | the server  |
 | ---------------------------------------------------------- | ----------- |

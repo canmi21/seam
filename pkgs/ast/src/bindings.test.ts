@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bindings } from './bindings.ts';
 import { apply, type Edit } from './edits.ts';
-import { mentions } from './locals.ts';
+import { mentions } from './expressions.ts';
 import { reduce } from './reduce.ts';
 
 // A name a script declares is substituted into the expression that uses it, which is what makes a

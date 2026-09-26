@@ -1,5 +1,6 @@
 import { parse } from 'svelte/compiler';
-import { locals, parsed } from './locals.ts';
+import { parsed } from './expressions.ts';
+import { locals } from './locals.ts';
 import { ambientIn } from './ambient.ts';
 import { bySource } from './memo.ts';
 import { resolveBare } from './packages.ts';
@@ -348,7 +349,7 @@ function report(
 		if (guarded.has(name)) continue;
 		// A rune is compiled away by Svelte and resolves nowhere at run time, which is why it is not
 		// a name the data has to carry: `CallExpression.js` answers each one where it stands --
-		// `$effect.tracking()` is `false`, `$effect.pending()` is `0` -- and `locals.ts` writes those
+		// `$effect.tracking()` is `false`, `$effect.pending()` is `0` -- and `reactive.ts` writes those
 		// answers in. See `answered()`.
 		if (RUNES.has(name)) continue;
 		// `$x` is a subscription to the store `x`, and it resolves exactly where `x` does.

@@ -13,22 +13,18 @@ export { CAPTURE, captured, HYDRATING, readsReplaced, RUN_NAME } from './capture
 export { apply, type Edit, type Neutral } from './edits.ts';
 export {
 	constant,
-	type Declared,
 	literalOf,
-	type Locals,
-	locals,
+	mentions,
+	objectEntries,
+	onlyWithin,
 	parsed,
 	parsedComponent,
-	remembered,
-	mentions,
-	runeCalled,
-	runeHolds,
-	onlyWithin,
 	pathOf,
-	objectEntries,
 	settle,
 	unfolded,
-} from './locals.ts';
+} from './expressions.ts';
+export { type Declared, type Locals, locals, remembered } from './locals.ts';
+export { runeCalled, runeHolds } from './reactive.ts';
 export type { Bundle, MarkupAttr, MarkupNode, Module } from './markup.ts';
 export { bySource, rememberedSources } from './memo.ts';
 export { reduce } from './reduce.ts';

@@ -7,7 +7,7 @@
  * lookup that throws where the key is missing has to keep throwing there.
  */
 import { describe, expect, it } from 'vitest';
-import { unfolded } from './locals.ts';
+import { unfolded } from './expressions.ts';
 
 const TABLE = "{ a: { icon: Ay, name: 'Ay' }, b: { icon: Bee, name: 'Bee' } }";
 const KEYS = ['a', 'b', 'zz', '', undefined];

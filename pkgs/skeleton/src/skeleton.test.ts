@@ -4416,7 +4416,7 @@ const refused: Case[] = [
 
 	{
 		// A rune is compiled away by Svelte and is not a function anything can call. The ones whose
-		// answer the server writes are written out -- `ANSWERED` in `locals.ts` -- and a `$derived`
+		// answer the server writes are written out -- `ANSWERED` in `reactive.ts` -- and a `$derived`
 		// class field is read as the getter `ClassBody.js` makes of it. A field whose key is computed
 		// is neither: `get_name` cannot name it, so this pass leaves it as written and the rune is
 		// still there.

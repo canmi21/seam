@@ -1,6 +1,6 @@
 import { parse } from 'svelte/compiler';
 import { apply, type Edit } from './edits.ts';
-import { parsed } from './locals.ts';
+import { parsed } from './expressions.ts';
 import { bound, isNode, reads } from './scope.ts';
 
 /** The name a file's script runner is read under in a derivation, from that file's carried scope. */
