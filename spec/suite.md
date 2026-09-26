@@ -362,8 +362,9 @@ why the reason is written into the list rather than into a count.
 |                         | **2388** | **1014**  | **38** | **115** | **662** | **558** |
 
 One sample in `runtime-legacy` failed inside the oracle rather than inside either side, and is
-counted apart. The whole run takes eleven seconds, which is worth saying because it is the
-argument against ever sampling it: there is no reason to run part of this.
+counted apart. The whole run is short enough to sit inside `verify`, which is the argument against
+ever sampling it: there is no reason to run part of this. How long it takes is the run's own
+number, printed at the end, and the two passes run at once.
 
 Read against the denominator above, on the `server-side-rendering` suite alone -- 131 samples, 16
 upstream skips, 17 async, 2 that ask a boundary to catch a throw -- **59 of 96**.

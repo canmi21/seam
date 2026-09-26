@@ -59,7 +59,7 @@ Upstream's samples are not themselves a condition of `verify`. What is, is
 holds every one to `pkgs/suite/baseline.json`, the list this repository keeps of which state each
 has to be and why a skip is one. It runs two passes, the synchronous render
 and the async one, each in its own process, and prints what each reports at the pinned tag; the
-counts are its output and are not copied here. It takes about half a minute.
+counts are its output and are not copied here, and so is how long it takes.
 `spec/suite.md` holds the states and the list, and `spec/conformance.md` what they have to reach.
 
 The samples are excluded from lint and format with everything else under `vendor/`, which is the
