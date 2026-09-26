@@ -38,7 +38,11 @@ import { cases as branchesCases } from './cases/branches.ts';
 import { cases as snippetsCases } from './cases/snippets.ts';
 import { cases as scriptCases } from './cases/script.ts';
 import { cases as bindingsCases } from './cases/bindings.ts';
-import { cases as componentsCases } from './cases/components.ts';
+import { cases as componentsPropsCases } from './cases/components-props.ts';
+import { cases as componentsDynamicCases } from './cases/components-dynamic.ts';
+import { cases as componentsSlotsCases } from './cases/components-slots.ts';
+import { cases as componentsSelfCases } from './cases/components-self.ts';
+import { cases as componentsUnenteredCases } from './cases/components-unentered.ts';
 import { cases as storesCases } from './cases/stores.ts';
 import { cases as boundaryCases } from './cases/boundary.ts';
 import { cases as headCases } from './cases/head.ts';
@@ -57,7 +61,11 @@ const accepted: Case[] = [
 	...snippetsCases,
 	...scriptCases,
 	...bindingsCases,
-	...componentsCases,
+	...componentsPropsCases,
+	...componentsDynamicCases,
+	...componentsSlotsCases,
+	...componentsSelfCases,
+	...componentsUnenteredCases,
 	...storesCases,
 	...boundaryCases,
 	...headCases,
