@@ -1298,10 +1298,13 @@ sends, so slots stay refused in the walk and wait to be read out of `SlotElement
 of their own. `$:` runs on the server as a plain statement, and the one that assigns from request
 data is the per-request script already decided against.
 
-**Async Svelte is refused by decision.** `{await p}` in markup used to become a hole, and Svelte
-would then have refused the render for want of `experimental.async`. The walk now turns an
-`AwaitExpression` in markup or at the top of the script away by name: a value awaited per request
-while the bytes are written is the load stage's, and [roadmap.md](roadmap.md) has the scope line.
+**Async Svelte was refused by decision, and is compiled now.** `{await p}` in markup used to
+become a hole, and Svelte would then have refused the render for want of `experimental.async`; the
+walk then turned an `AwaitExpression` in markup or at the top of the script away by name. Both are
+history: an `await` the build can know is awaited at compile time, and one over what the request
+decides is a derivation built `async` -- [roadmap.md](roadmap.md) has the measurement and
+[derivation.md](derivation.md) the mechanism. What the walk still refuses is an `await` in a
+project that has not turned the flag on, in Svelte's own words (`awaitless()` in `awaits.ts`).
 
 **A fragment that writes a head is two fragments.** A recursive component with a `<svelte:head>`
 writes one head block per level, so the head IR carries the call the body does: the fragment's

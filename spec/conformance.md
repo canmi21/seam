@@ -43,10 +43,11 @@ Two of the outcomes are not failures and saying so once is what keeps the target
 many samples each holds is the run's to say: `mise run vendor-baseline` prints them by reason. See the workspace's `spec/agent-protocol.md`, "A number a command prints is cited, not
 copied".
 
-**Upstream's own skips are out.** Samples whose `_config.js` says `skip`, or a `mode` upstream
-does not run on the server, or a `skip_mode` naming `server`, or an `error` the sample exists to
-produce -- or a `runtime_error` that is what the render then threw, which is the same statement one
-word along. Not our judgement.
+**Upstream's own skips are out, per render.** Samples whose `_config.js` says `skip`, or a `mode`
+that leaves that pass's server render out, or a `skip_mode` naming it, or `skip_no_async` and
+`skip_async` for the render each keeps a sample out of, or an `error` the sample exists to produce
+-- or a `runtime_error` that is what the render then threw, which is the same statement one word
+along. Not our judgement. [suite.md](suite.md) has the two passes and what each reads.
 
 **It was 554, and 342 of those were never anybody's judgement.** The shim that stands in for
 upstream's un-vendored runner replaced `import { test } from '...'` and nothing else, and 276 of
@@ -99,8 +100,10 @@ async one, exactly while `verify` passes, and `verify`'s colour is where stage o
 with nothing failing in either pass and no harness skip in the list. The async render began at 953 of 985 with 32 owed; what closed them is in
 [roadmap.md](roadmap.md) and [derivation.md](derivation.md), the last 3 being the script
 `hydratable` writes at the head, now written per request from the request's own table -- a value a
-prop decides, or a render option's CSP nonce. One sample left the synchronous pass's passes for its skips on the way, having
-passed only for the one prop value the suite sends (`inline-style-directive-update-object-property`).
+prop decides, or a render option's CSP nonce. One sample left the synchronous pass's passes for
+its skips on the way, having passed only for the one prop value the suite sends
+(`inline-style-directive-update-object-property`); it passes in the synchronous pass again now
+that there is one.
 
 **The denominator is the measurement, and it is the half that gets audited last.** Every number
 in the run's table once moved by 302 samples without a line of the compiler changing, because a column nobody

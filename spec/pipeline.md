@@ -60,7 +60,9 @@ legacy. **`experimental.async` is the other.** Set, a component may `await` in m
 script, every compile is handed the flag -- a `.svelte.js` module's `compileModule` included, whose
 `$derived(await ...)` is the same mode -- and the render is awaited, which is what Kit does under
 the same option. It replaced `SEAM_ASYNC`, an environment variable that stood in for it while
-async was an experiment here; Svelte 6 makes it the only mode (see [roadmap.md](roadmap.md)).
+async was an experiment here. Svelte 6 removes the flag, on no date yet, and Kit 3 keeps it opt-in,
+so a project without it is the common case and the suite measures both (see
+[roadmap.md](roadmap.md) and [suite.md](suite.md)).
 Another option is taken the day one is found to change bytes, measured the same way.
 
 ## Sentinels, and why they are not v1

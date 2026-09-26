@@ -9,7 +9,8 @@ not render, and the render is the compiler's.
 ## What SvelteKit is, seen from here
 
 Three layers. A `sync` step at build time reads `src/routes` into a manifest and generates code
-from it: the root component that nests a page in its layouts, the client manifest, the types. A
+from it: the root component that nests a page in its layouts (in Kit 2; Kit 3 renders one fixed
+root over a tree, see **SvelteKit 3 is the target** below), the client manifest, the types. A
 server runtime takes a request, finds the route, runs the `load` functions down the branch, and
 renders the page. A client runtime hydrates and, from then on, routes, loads and renders on its
 own. CTR changes one call in the second layer -- the render -- and nothing in the other two. So the

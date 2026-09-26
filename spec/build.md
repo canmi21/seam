@@ -214,7 +214,8 @@ about routing is invented here; see [framework.md](framework.md) and `pkgs/route
 renders it to produce the IR, and the plugin generates a hydration entry that mounts it, and the
 two agree because they read the same field rather than because somebody kept them in step. For a
 route the field is the root Kit's `write_root` generates -- the page nested in its layouts, taking
-`data_0` .. `data_n`, `params` and `form` -- so that the layout chain is one walk and one IR, which
+`data_0` .. `data_n`, `params` and `form`; under Kit 3, the same nesting in the shape of its one
+runtime root, see [framework.md](framework.md) -- so that the layout chain is one walk and one IR, which
 is what [payload.md](payload.md) describes the payload against. The shell's two placeholders are
 unchanged.
 

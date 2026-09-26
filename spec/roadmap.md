@@ -32,12 +32,15 @@ press the two readings very nearly coincide, because what an application awaits 
 Svelte's own corpus they differ by two orders of magnitude, because the corpus tests the mechanism.
 
 **Upstream's position, read rather than assumed.** `experimental.async` is `@since 5.36` and is
-still experimental at 5.57. SvelteKit takes it straight through --
+still experimental at 5.57. SvelteKit 2 took it straight through --
 `async: ${s(!!config.compilerOptions?.experimental?.async)}` in `core/sync/write_server.js` -- and
-`page/render.js` uses it to choose between reading `.body` and awaiting; beside that choice is
-`// TODO 3.0 remove options.async`, which is upstream planning to make async rendering the only
-mode. There is no synchronous answer in the meantime: reading `.body` of an async component throws
-`await_invalid`, "Encountered asynchronous work while rendering synchronously".
+`page/render.js` used it to choose between reading `.body` and awaiting, with
+`// TODO 3.0 remove options.async` beside the choice. Read at 3.0.0-next.29, Kit 3 did not remove
+the option; it kept it, opt-in: `__SVELTEKIT_SUPPORTS_ASYNC__` is
+`compilerOptions.experimental.async ?? false` in `exports/vite/index.js`, and the comment is gone.
+What is written down about Svelte 6 is one sentence, that the flag is removed there, with no date.
+There is no synchronous answer for an async component in the meantime: reading `.body` of one
+throws `await_invalid`, "Encountered asynchronous work while rendering synchronously".
 
 **What the differences are, and which half is done.** `create_child_block` wraps a node whose
 `metadata.expression.has_await` is set in `child_block`, which pushes `BLOCK_OPEN` and `BLOCK_CLOSE`
@@ -98,11 +101,12 @@ the import, and `#render_async` writes the same bytes as `#render` for one. Five
 render a promise that never resolves, and an awaited render does not finish; upstream's does not
 either, and the suite gives each sample a deadline now.
 
-**Being turned on, because it is where upstream is going.** Svelte's documentation says the flag
-is removed in Svelte 6, and Kit's `page/render.js` carries `// TODO 3.0 remove options.async`
-beside the note that opting into async SSR is a breaking change: async rendering becomes the only
-mode. So compile-time async is work now, not an experiment to wait out. Two halves, and they are not
-the same half:
+**Compiled, because a project can turn it on today, and beside the synchronous render rather than
+instead of it.** Svelte's documentation says the flag is removed in Svelte 6, which has no
+timeline; Kit 3 keeps it opt-in and ten of its thirteen test apps run without it (see
+[conformance.md](conformance.md)). So compile-time async is work now, not an experiment to wait
+out, and the synchronous render is the one most projects get and is measured as such
+([suite.md](suite.md), "Two passes"). Two halves, and they are not the same half:
 
 - **An `await` whose value the build can know** -- a literal, a promise the file makes, anything
   that reads nothing the request decides -- is awaited at compile time and its bytes written, the
@@ -1110,7 +1114,8 @@ Nothing now. The two that were are the framework layer's first step, done: see
 [framework.md](framework.md).
 
 **The root is a layout chain around a page: done.** `pkgs/routes` reads `src/routes` with Kit's
-own `create_manifest_data`, generates one root per route in the shape Kit's `write_root` generates
+own `create_manifest_data`, generates one root per route in the shape Kit 2's `write_root` generates
+(Kit 3's shape is [framework.md](framework.md)'s next step)
 -- the page nested in its layouts as dynamic components, sized to the project's depth, measured
 byte for byte against Kit's root rendered with the props Kit gives it -- and the compiler takes
 that root as the entry, with `data_0` .. `data_n`, `page` and `form` as its payload. On press

@@ -44,7 +44,8 @@ harness above, which is not here; `pkgs/suite` stands in for every import that l
 own directory and reads the object off the default export. `test` becomes an identity and the rest
 throw if anything calls them, which is upstream's assertion and timing helpers and is only reached
 from the `test` function this harness does not run. What it reads out is `props`, and the fields
-that say a sample is not ours to run: `skip`, `mode`, `skip_mode`, `error` and `runtime_error`.
+that say a sample is not ours to run in one render or the other: `skip`, `mode`, `skip_mode`,
+`skip_no_async`, `skip_async`, `error` and `runtime_error`.
 
 The rule stood in for `import { test } from '...'` alone until it was audited, and 342 configs
 name something else -- `import { ok, test }` for 276 of them. Those threw on an import nothing

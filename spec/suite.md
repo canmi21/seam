@@ -121,10 +121,11 @@ missing here rather than anything about the sample:
 - **A DOM.** Upstream renders the runtime suites' server variant under
   `// @vitest-environment jsdom`, which is the next paragraph.
 
-**An upstream skip is what the sample's own `_config.js` says**: `skip: true`, a `mode` upstream
-does not run on the server, a `skip_mode` that names `server`, or an `error` the sample is written
-to produce. Not our judgement, and never used to make a number look better. A sample skipped here is
-skipped by the people who wrote it.
+**An upstream skip is what the sample's own `_config.js` says, read per pass**: `skip: true`, a
+`mode` that leaves the pass's server render out or a `skip_mode` that names it, `skip_no_async` or
+`skip_async` for the pass each keeps a sample out of, or an `error` the sample is written to
+produce. Not our judgement, and never used to make a number look better. A sample skipped here is
+skipped by the people who wrote it, in the render they skip it in.
 
 **And a sample that renders only with a DOM is upstream's environment, not a server.** Upstream's
 server render runs with jsdom's globals in place, so `customElements.define` in a module script,
