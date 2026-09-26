@@ -94,9 +94,9 @@ and a skip is one the list names with its reason.
 
 **`mise run vendor-baseline` is where it stands**, and nothing here copies its table. What this file
 can say without going stale is what `verify` already enforces: a failing sample fails the run, so
-the target holds in the one render [suite.md](suite.md) measures, Svelte's async one, exactly
-while `verify` passes, and
-`verify`'s colour is where stage one stands. The async render began at 953 of 985 with 32 owed; what closed them is in
+the target holds in both renders [suite.md](suite.md) measures, the synchronous one and Svelte's
+async one, exactly while `verify` passes, and `verify`'s colour is where stage one stands: green,
+with nothing failing in either pass and no harness skip in the list. The async render began at 953 of 985 with 32 owed; what closed them is in
 [roadmap.md](roadmap.md) and [derivation.md](derivation.md), the last 3 being the script
 `hydratable` writes at the head, now written per request from the request's own table -- a value a
 prop decides, or a render option's CSP nonce. One sample left the synchronous pass's passes for its skips on the way, having
@@ -195,13 +195,22 @@ that moves fails the run. See [suite.md](suite.md).
 
 ## Stage 2: SvelteKit's own test apps
 
-Not started, and not to be started before stage 1 is done.
+Not started before stage 1 was done, which it now is. **It targets SvelteKit 3, not 2.** Kit 3 is
+on npm as `@sveltejs/kit@next` -- `3.0.0-next.29` the day this was decided, upstream's `main` --
+with its `3.0` milestone closed, its migration guide written and a stable release announced as
+near; a stage two built against 2.70.3 would be rebuilt against 3 within months, and the framework
+layer's root is exactly what 3 changes. `vendor/kit` moves to that tag, and what the move costs is
+in [framework.md](framework.md), "SvelteKit 3 is the target, and what it moves".
 
-**What they are.** At `@sveltejs/kit@2.70.3`, `packages/kit/test` holds fourteen whole SvelteKit
-applications -- `basics`, `options`, `no-ssr`, `embed`, `amp`, `hash-based-routing`, `writes` and
-the rest -- each with its own `svelte.config.js`, `vite.config.js` and a `test/` directory of
-Playwright specs. `apps/basics` alone carries `server.test.js`, `client.test.js` and `test.js`,
-45 KB, 70 KB and 58 KB of assertions. Beside them are `test/prerendering` and `test/build-errors`.
+**What they are.** At `3.0.0-next.29`, `packages/kit/test/apps` holds thirteen whole SvelteKit
+applications -- `basics`, `options`, `options-2`, `options-3`, `no-ssr`, `no-csr`, `embed`,
+`hash-based-routing`, `writes`, `async`, `dev-only`, `prerendered-app-error-pages` and
+`read-file-test`; `amp` is gone since 2.70.3 -- each with its own `vite.config.js` and a `test/`
+directory of Playwright specs. `apps/basics` carries `server.test.js`, `client.test.js` and
+`test.js`. Beside them are `test/prerendering` and `test/build-errors`. **Ten of the thirteen run
+without `experimental.async`**; only `async`, `options-2` and one of `options`'s configs turn it on.
+That is why the suite measures both renders: a stage two over these apps is mostly the synchronous
+one.
 
 **What running them means here.** Each app is built with this plugin in its Vite config and
 Kit's own specs are run against the result, unedited. `server.test.js` is the one that bears

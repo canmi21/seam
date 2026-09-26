@@ -8,9 +8,10 @@ name everywhere else.
 ## Async Svelte is upstream's unfinished half, not this architecture's boundary
 
 **Measured, both sides compiled with `experimental.async` and both renders awaited** -- by what
-was then `SEAM_ASYNC=1 mise run suite`, then the suite's async pass beside a synchronous one, and
-is now the suite's one render, which is part of `verify` (see [suite.md](suite.md), "One render:
-Svelte's with `experimental.async` on").
+was then `SEAM_ASYNC=1 mise run suite`, then the suite's async pass beside a synchronous one, then
+the suite's one render for a while, and now its async pass again, beside the synchronous one and
+part of `verify` (see [suite.md](suite.md), "Two passes: the synchronous render and the async one,
+each measuring what upstream measures in it").
 
 ```
                 identical  empty  differs  refused  oracle
@@ -866,7 +867,11 @@ what the render computes per request**.
 
 **And it stopped reporting that when the blocked skips were read.** 99 sample runs were skipped as
 blocked on request-time rendering, and none of them was: each is a gap, and the suite fails on it
-until it is closed. Nothing failing is stage one's condition still; it is not met.
+until it is closed. Nothing failing is stage one's condition still. **It is met**: the last eight
+of those gaps closed one at a time -- [derivation.md](derivation.md) has the binding that sends a
+value back and the component the run chose, [suite.md](suite.md) the deadline per side -- and the
+suite reports nothing failing in either pass, with no harness skip left in the list. What stage two
+is, and that it targets SvelteKit 3, is [conformance.md](conformance.md)'s.
 
 **It reported that once already, at 1559 of 1559, over a corpus 342 samples smaller.** The shim
 standing in for upstream's un-vendored runner matched one spelling of one import, and every config

@@ -23,13 +23,40 @@ is written in, and the repository's TypeScript reads its types off the JSDoc. No
 the one package that imports the vendor by name. How it is upgraded and what is checked is in
 `VENDOR.md`; which parts are used is here.
 
+## SvelteKit 3 is the target, and what it moves
+
+The framework layer was built against `@sveltejs/kit@2.70.3`, and stage two of
+[conformance.md](conformance.md) is measured against SvelteKit 3. Read at `3.0.0-next.29`, what
+the move costs this layer, each a fact of the diff rather than a guess:
+
+- **`core/sync/write_root.js` is gone, and the root is one runtime component.** Kit 3 renders
+  `runtime/components/root.svelte` for every page: its props are `page`, `components`, `onerror`,
+  `tree`, `form` and `error`, and `tree` is a `RenderNode` list -- `component`, `error`, `data`,
+  `child` -- walked by a recursive snippet with a `<svelte:boundary>` at every level, whose
+  `failed` snippet is the level's `+error.svelte`. The `data_0..n` props and the pyramid of
+  `{@const}` are gone with the generator. `pkgs/routes` generates the per-route root in the old
+  shape; it generates the new one instead, with the branch's components in place of `tree`'s
+  values, since which components a route has is known at the build. The error page, which this
+  layer left to Kit's render, arrives as a boundary in the same root.
+- **`svelte.config.js` is not supported.** Configuration is the Vite plugin's argument, and
+  `validate_config(config)` takes no `cwd`; `load_vite_config` and `extract_svelte_config` are how
+  the plugin reads it. `pkgs/routes` reads the project's config the new way.
+- **`create_manifest_data(config, root, fallback)`** takes positional arguments where it took an
+  object. `utils/routing.js` still exports `exec`, `find_route`, `parse_route_id` and
+  `resolve_route`.
+- **`experimental.async` stays opt-in**: `__SVELTEKIT_SUPPORTS_ASYNC__` is `compilerOptions
+.experimental.async ?? false`, and the runtime reads it only to allow an async `handleError`.
+  Nothing here assumes the flag.
+
+The tables below describe the layer as built against 2.70.3 and are corrected as each row moves.
+
 ## Taken as it is
 
 | Kit                                                                              | what it does                                                                           | here                                                         |
 | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
 | `utils/routing.js`                                                               | route ids to patterns and parameters, `find_route`, `resolve_route`                    | `pkgs/routes`                                                |
 | `core/sync/create_manifest_data/`                                                | `src/routes` to routes, nodes, layouts and errors; `sort_routes`; conflicts            | the map from a route to its layouts                          |
-| `core/sync/write_root.js`                                                        | the root component nesting a page in its layouts, `data_0..n`, `page`, `form` as props | the compiler's entry per route, see [payload.md](payload.md) |
+| `core/sync/write_root.js` (2.70.3; `runtime/components/root.svelte` in 3)        | the root component nesting a page in its layouts, `data_0..n`, `page`, `form` as props | the compiler's entry per route, see [payload.md](payload.md) |
 | `utils/url.js`, `runtime/pathname.js`                                            | path normalising, `__data.json` suffixes                                               | the wire's spelling                                          |
 | `runtime/server/page/serialize_data.js`, `data_serializer.js`, `utils/escape.js` | devalue into `<script>`                                                                | byte for byte, since the client reads it                     |
 | `runtime/server/data/`                                                           | the `__data.json` endpoint                                                             | client navigation's data                                     |
@@ -48,7 +75,7 @@ the one package that imports the vendor by name. How it is upgraded and what is 
 | `exports/vite/index.js`                                 | the plugin form, the client build, the dev server, the virtual modules | the server build is the compiler's pipeline                        |
 
 **The project's configuration is read as Kit reads it.** `svelte.config.js` is imported and put
-through Kit's own validator, with every file path resolved against the project rather than the
+through Kit's own validator (in 2.70.3; Kit 3 reads it off the Vite plugin, see the section above), with every file path resolved against the project rather than the
 process, since a compile is not run from the project it compiles. What the compiler takes from it
 is what Kit's plugin gives Vite: `$lib` and each of `kit.alias` as prefix aliases, applied before
 a specifier is resolved -- in the walk, where a component imports a component by one; in the
