@@ -158,6 +158,30 @@ satisfied only by a real export, so the names upstream wrote have to be emitted 
 the alert is worth is the sentence before it**: code built from text nobody parsed is how a shape
 this harness does not know goes quiet, and that is the defect this file exists to keep out.
 
+### What CodeQL reports about code this compiler writes
+
+This compiler writes code: a rewritten component for Svelte to compile, a run's module for the
+bundle, a derivation for the evaluator. CodeQL's `js/bad-code-sanitization` fires wherever a value
+reaches code position through `JSON.stringify` or a template, and it cannot see what the value is.
+So the rule for reading one is what the value is and where it came from, and it sorts into two:
+
+- **A value this repository makes is not a boundary.** A marker the walk numbers (`sentinel()`, the
+  `r.push(...)` a `{@render}` stands in for, alert 41) and a context key this package declares
+  (`CAPTURE` and `HYDRATING` in the run's module, alert 43) are written through `JSON.stringify`
+  because that is the correct spelling of a string literal, and nothing an author or a request
+  wrote is in them. Dismissed as false positives, with the input named in the comment, as 36 was.
+- **A name a parser handed back is held to being a name where it is written.** The `hydratable`
+  import's local, read off Svelte's own AST and written into the same author's component
+  (alert 42), is an identifier by construction; the check that says so sits at the write, as it
+  does in the harness above, and is the sentence the dismissal of 36 leans on. A shape the parser
+  did not hand back would be the one thing worth throwing on, so it throws.
+
+`js/incomplete-sanitization` is read the same way. A regex escape covering `$` alone (alert 40) was
+complete for what reached it -- identifiers hold nothing else -- and was still the shape the rule
+names, and escaping every metacharacter costs nothing, so it is whole now. `RegExp.escape` is what
+Node runs and not yet what the `target` in `tsconfig.json` types, so the character class is
+written out until the target moves.
+
 **And a config that still will not evaluate goes where nobody's answer goes.** One is left, and the
 rule holds for one the same as for 342: it is not upstream saying anything, so it is not a skip. The
 clause is read rather than pattern-matched now -- every name checked against what a `const` may be

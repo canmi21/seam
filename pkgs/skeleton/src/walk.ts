@@ -3996,7 +3996,12 @@ function hostedIn(source: string, file: string): RegExp | null {
 		return null;
 	}
 	if (names.length === 0) return null;
-	const words = [...new Set(names)].map((one) => one.replace(/[$]/g, '\\$'));
+	// Escaped whole, though a name the parser handed back holds nothing but `\w` and `$`: an escape
+	// that covers one character is the shape CodeQL reads as incomplete (alert 40), and the whole
+	// one costs nothing. `RegExp.escape` is what Node runs and not yet what `target` types, so
+	// the character class is written out. See spec/suite.md, "What CodeQL reports about code this
+	// compiler writes".
+	const words = [...new Set(names)].map((one) => one.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 	return new RegExp(`(?:^|[^$\\w.])(?:${words.join('|')})\\b`);
 }
 

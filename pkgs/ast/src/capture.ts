@@ -115,6 +115,13 @@ function hydrating(instance: Record<string, unknown>): Edit[] {
 			const { start, end } = one;
 			if (typeof start !== 'number' || typeof end !== 'number') continue;
 			if (typeof local['name'] !== 'string') continue;
+			// The name goes into source Svelte compiles, so it is held to being an identifier before
+			// it does, the way every name this compiler writes into code is -- a parser hands back
+			// nothing else, and the check is what says so where the code is read. See spec/suite.md,
+			// "What CodeQL reports about code this compiler writes".
+			if (!/^[A-Za-z_$][\w$]*$/.test(local['name'])) {
+				throw new Error(`\`${local['name']}\` is imported as \`hydratable\` and is not a name`);
+			}
 			edits.push([start, end, `hydratable as __seam_hydratable${String(locals.length)}`]);
 			locals.push(local['name']);
 		}
