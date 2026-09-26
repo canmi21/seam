@@ -150,12 +150,13 @@ recovered samples are identical with no change to the compiler, one wrote bytes 
 Svelte's and three were gaps, and those four are done.
 
 **CodeQL reports the stub as a code construction, and it is dismissed as a false positive.**
-`js/bad-code-sanitization`, alert 36. The value is a vendored `_config.js` pinned at one tag and
-read off the disk, and the file it is written into is a module this harness already imports and
-runs, so a name reaching code position grants nothing that running the config does not: there is no
-boundary to cross. The identifier check above is stricter than what the rule's own recommendation
-asks for, which is escaping. It cannot be written some other way either -- an ESM named import is
-satisfied only by a real export, so the names upstream wrote have to be emitted as names. **What
+`js/bad-code-sanitization`, alert 36, and alert 44 once the stub moved into `corpus.ts`. The value
+is a vendored `_config.js` pinned at one tag and read off the disk, and the file it is written into
+is a module this harness already imports and runs, so a name reaching code position grants nothing
+that running the config does not: there is no boundary to cross. The identifier check above is
+stricter than what the rule's own recommendation asks for, which is escaping. It cannot be written
+some other way either -- an ESM named import is satisfied only by a real export, so the names
+upstream wrote have to be emitted as names. **What
 the alert is worth is the sentence before it**: code built from text nobody parsed is how a shape
 this harness does not know goes quiet, and that is the defect this file exists to keep out.
 
@@ -167,10 +168,11 @@ reaches code position through `JSON.stringify` or a template, and it cannot see 
 So the rule for reading one is what the value is and where it came from, and it sorts into two:
 
 - **A value this repository makes is not a boundary.** A marker the walk numbers (`sentinel()`, the
-  `r.push(...)` a `{@render}` stands in for, alert 41) and a context key this package declares
-  (`CAPTURE` and `HYDRATING` in the run's module, alert 43) are written through `JSON.stringify`
-  because that is the correct spelling of a string literal, and nothing an author or a request
-  wrote is in them. Dismissed as false positives, with the input named in the comment, as 36 was.
+  `r.push(...)` a `{@render}` stands in for, alert 41, and 45 once it moved into `boundary.ts`)
+  and a context key this package declares (`CAPTURE` and `HYDRATING` in the run's module, alert 43)
+  are written through `JSON.stringify` because that is the correct spelling of a string literal,
+  and nothing an author or a request wrote is in them. Dismissed as false positives, with the
+  input named in the comment, as 36 was.
 - **A name a parser handed back is held to being a name where it is written.** The `hydratable`
   import's local, read off Svelte's own AST and written into the same author's component
   (alert 42), is an identifier by construction; the check that says so sits at the write, as it
@@ -178,6 +180,10 @@ So the rule for reading one is what the value is and where it came from, and it 
   did not hand back would be the one thing worth throwing on, so it throws. CodeQL does not read
   the check as a sanitizer -- 42 stayed open with it in place -- so it is dismissed the way 36 was,
   and the check is what the dismissal cites.
+
+**A dismissed alert comes back when its line moves.** CodeQL tracks an alert by location, so a
+file split files the same construction under a new number, and the new one is dismissed with the
+old one named in its comment rather than argued afresh. The comment is held to 280 characters.
 
 `js/incomplete-sanitization` is read the same way. A regex escape covering `$` alone (alert 40) was
 complete for what reached it -- identifiers hold nothing else -- and was still the shape the rule
