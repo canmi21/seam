@@ -743,7 +743,7 @@ function losing(
 	const templated = closure(
 		[
 			...calling(fragment, names, false),
-			...[...read].flatMap((one) => [...calling(found.get(one)?.node, names, false)]),
+			...[...read].flatMap((one) => Array.from(calling(found.get(one)?.node, names, false))),
 		],
 		(one) => calling(one.node, names, true),
 	);

@@ -761,7 +761,7 @@ export function expressionsOf(rendered: Skeleton): { expression: string; files: 
 			changed = true;
 		}
 	}
-	for (const at of [...reached].sort((a, b) => a - b)) {
+	for (const at of [...reached].toSorted((a, b) => a - b)) {
 		const one = rendered.held[at];
 		if (one !== undefined) found.push({ expression: one.expression, files: one.files });
 	}

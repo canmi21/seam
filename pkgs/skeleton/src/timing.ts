@@ -42,7 +42,7 @@ function add(stage: string, ms: number): void {
 /** What each stage took, longest first, and how many times it ran. Empty when nothing was timed. */
 export function timings(): string {
 	if (spent.size === 0) return '';
-	const rows = [...spent].sort(([, a], [, b]) => b.ms - a.ms);
+	const rows = [...spent].toSorted(([, a], [, b]) => b.ms - a.ms);
 	const width = Math.max(...rows.map(([stage]) => stage.length));
 	return rows
 		.map(

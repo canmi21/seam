@@ -827,7 +827,7 @@ function samplesOf(suite: string): string[] {
 	return readdirSync(resolve(SAMPLES, suite, 'samples'), { withFileTypes: true })
 		.filter((one) => one.isDirectory())
 		.map((one) => one.name)
-		.sort();
+		.toSorted();
 }
 
 /**
