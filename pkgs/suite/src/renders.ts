@@ -233,10 +233,10 @@ export const NEVER_SETTLED = 'the render never settled';
  * A render's deadline. A sample handing the render `new Promise(() => {})` waits forever, and a
  * promise waited on is not a result; the one that passes it is thrown as `why`.
  */
-export function settling<T>(render: Promise<T>, why: string): Promise<T> {
+export function settling<T>(rendering: Promise<T>, why: string): Promise<T> {
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	return Promise.race([
-		render,
+		rendering,
 		new Promise<never>((_, refuse) => {
 			timer = setTimeout(() => refuse(new Error(why)), 5000);
 		}),

@@ -159,8 +159,8 @@ export function mirrored(
 ): number {
 	const { blocks } = walk;
 	const body = blocks[block];
-	const held = edits[closer];
-	if (body === undefined || held === undefined) return -1;
+	const closing = edits[closer];
+	if (body === undefined || closing === undefined) return -1;
 	const index = blocks.length;
 	blocks.push({
 		...body,
@@ -188,8 +188,8 @@ export function mirrored(
 		if (at !== null) edits.push([at, at, headOpens(index)]);
 	}
 	// Whatever the edit carried ahead of the stamp stays: a fragment's closes its bare block first.
-	const ahead = held[2].slice(0, held[2].length - stamps(walk, block).length);
-	edits[closer] = [held[0], held[1], `${ahead}${stamps(walk, block, headCloses(index))}`];
+	const ahead = closing[2].slice(0, closing[2].length - stamps(walk, block).length);
+	edits[closer] = [closing[0], closing[1], `${ahead}${stamps(walk, block, headCloses(index))}`];
 	return index;
 }
 
@@ -214,14 +214,14 @@ export function mirrored(
  * @returns the index of the edit that closes the block, for `headedFragment`.
  */
 export function closes(edits: [number, number, string][], at: [number, number, string]): number {
-	const held = edits.findIndex(([start]) => start === at[0]);
-	if (held < 0) {
+	const found = edits.findIndex(([start]) => start === at[0]);
+	if (found < 0) {
 		edits.push(at);
 		return edits.length - 1;
 	}
-	const one = edits[held] as [number, number, string];
-	edits[held] = [one[0], one[1], `${one[2]}${at[2]}`];
-	return held;
+	const one = edits[found] as [number, number, string];
+	edits[found] = [one[0], one[1], `${one[2]}${at[2]}`];
+	return found;
 }
 
 export function wrapped(

@@ -316,14 +316,14 @@ export function locals(
 		// A rune call is written as what the server writes there, before anything else looks at the
 		// names inside it: `$effect.tracking()` is `false` and holds no names any more, and
 		// `$state(v)` is `v` and holds all of them. See `ANSWERED`.
-		const gone: [number, number][] = [];
+		const replaced: [number, number][] = [];
 		answered(node, (one, rune) => {
 			const at = [one['start'], one['end']];
 			if (typeof at[0] !== 'number' || typeof at[1] !== 'number') return;
-			const held = ANSWERED[rune];
-			if (held !== null && held !== undefined) {
-				edits.push([at[0], at[1], held]);
-				gone.push([at[0], at[1]]);
+			const answer = ANSWERED[rune];
+			if (answer !== null && answer !== undefined) {
+				edits.push([at[0], at[1], answer]);
+				replaced.push([at[0], at[1]]);
 				return;
 			}
 			// The argument itself, with the call around it taken off so the argument's own names are
@@ -332,7 +332,7 @@ export function locals(
 			const [only] = args;
 			if (!isNode(only) || typeof only['start'] !== 'number' || typeof only['end'] !== 'number') {
 				edits.push([at[0], at[1], 'undefined']);
-				gone.push([at[0], at[1]]);
+				replaced.push([at[0], at[1]]);
 				return;
 			}
 			edits.push([at[0], only['start'], '(']);
@@ -357,7 +357,7 @@ export function locals(
 			edits.push([at[0], argument[0], `get ${name}() { return (`]);
 			edits.push([argument[1], at[1], called ? ')() }' : ') }']);
 		});
-		const written = (from: number): boolean => gone.some(([a, b]) => from >= a && from < b);
+		const replacedAt = (from: number): boolean => replaced.some(([a, b]) => from >= a && from < b);
 		if (fixed.size > 0) {
 			chains(node, (at, base, rest) => {
 				const name = base['name'];
@@ -365,7 +365,7 @@ export function locals(
 				const root = extra?.get(name) ?? (found.has(name) ? expand(name, open, extra) : name);
 				const head = pathOf(root);
 				if (head === null) return false;
-				if (typeof base['start'] === 'number' && written(base['start'])) return false;
+				if (typeof base['start'] === 'number' && replacedAt(base['start'])) return false;
 				const literal = fixed.get([head, ...rest].join('.'));
 				if (literal === undefined) return false;
 				const from = base['start'];
@@ -417,8 +417,8 @@ export function locals(
 				edits.push([from, to, shorthand === true ? `${name}: undefined` : 'undefined']);
 				return;
 			}
-			// Inside a rune call already written out as a constant, where nothing is left to name.
-			if (typeof at['start'] === 'number' && written(at['start'])) return;
+			// Inside a rune call already replacedAt out as a constant, where nothing is left to name.
+			if (typeof at['start'] === 'number' && replacedAt(at['start'])) return;
 			// A name bound by something other than a script, which the caller knows about and this
 			// does not: a snippet's parameter, whose value is the argument at the one `{@render}`
 			// that calls it. It wins over a script declaration of the same name, being the inner
@@ -454,9 +454,9 @@ export function locals(
 				if (typeof from !== 'number' || typeof to !== 'number') return;
 				if (taken.has(from)) return;
 				const listed = [...passed].map((one) => JSON.stringify(one)).join(', ');
-				// A child's object is written out rather than named, and it never carries `children`
+				// A child's object is replacedAt out rather than named, and it never carries `children`
 				// or `$$slots`, so `sanitize_props` has nothing to drop and is left off. Which slots
-				// the caller filled is known by name, so `sanitize_slots` is written out too.
+				// the caller filled is known by name, so `sanitize_slots` is replacedAt out too.
 				const object = passing === undefined ? `${GIVEN}` : passing.object;
 				const slots =
 					passing === undefined
@@ -466,8 +466,8 @@ export function locals(
 					passing === undefined
 						? `($$rest_props($$sanitize_props(${GIVEN}), [${listed}]))`
 						: `($$rest_props(${object}, [${listed}]))`;
-				const held = name === '$$props' ? `(${object})` : name === '$$slots' ? slots : rest;
-				edits.push([from, to, shorthand === true ? `${name}: ${held}` : held]);
+				const substitute = name === '$$props' ? `(${object})` : name === '$$slots' ? slots : rest;
+				edits.push([from, to, shorthand === true ? `${name}: ${substitute}` : substitute]);
 				return;
 			}
 			const store = name.startsWith('$') && !RESERVED.has(name) ? name.slice(1) : null;
@@ -503,7 +503,7 @@ export function locals(
 			const from = at['start'];
 			const to = at['end'];
 			if (typeof from !== 'number' || typeof to !== 'number') return;
-			// Already written out as part of a bound path.
+			// Already replacedAt out as part of a bound path.
 			if (taken.has(from)) return;
 			// A name substitution cannot follow is left as the author wrote it. The render runs the
 			// instance script and has the value; what cannot follow the change is writing the
@@ -566,10 +566,10 @@ export function locals(
 		// A pattern reaches into the initialiser, and every name it binds reaches into the same one.
 		// Held where this walk has a list to hold it in, so that they reach into one value rather
 		// than one each. A declaration that named the value directly is read once and needs none.
-		let written = one.reach === INIT ? body : within(one.reach, `(${body})`);
+		let reached = one.reach === INIT ? body : within(one.reach, `(${body})`);
 		// And only where the initialiser **makes** something: an object or array literal, a `new`, or
 		// a call, whose two evaluations are two values. A pattern over a name or a member read takes
-		// the same value apart however many times it is written out, so holding it would buy nothing
+		// the same value apart however many times it is reached out, so holding it would buy nothing
 		// and cost a derivation where the render used to evaluate the expression itself.
 		const makes = MAKES.has(String(one.node['type']));
 		if (one.reach !== INIT && held !== undefined && makes) {
@@ -577,20 +577,20 @@ export function locals(
 			// `$$to_array(...)` call for an array, and the initialiser itself for an object. Holding
 			// the initialiser alone is not enough for an array -- `to_array` would be called once per
 			// name, and a second call over a generator reads an exhausted one, which is
-			// `derived-destructured-iterator` written as `[a, b, c]` and coming out `1`, empty,
+			// `derived-destructured-iterator` reached as `[a, b, c]` and coming out `1`, empty,
 			// empty.
 			const cut = shared(one.reach);
 			if (cut !== null) {
 				const at = kept(within(cut, `(${body})`), held);
-				written = `$$hold(${String(at)})${one.reach.slice(cut.length)}`;
+				reached = `$$hold(${String(at)})${one.reach.slice(cut.length)}`;
 			}
 		}
 		for (const [at, node] of one.slots.entries()) {
-			written = written.split(SLOT(at)).join(`(${slice(node, inner, extra)})`);
+			reached = reached.split(SLOT(at)).join(`(${slice(node, inner, extra)})`);
 		}
 		// A name declared to be one of the bound paths holds that path's value in this render.
-		const path = fixed.size === 0 ? null : pathOf(written);
-		const text = (path === null ? undefined : fixed.get(path)) ?? written;
+		const path = fixed.size === 0 ? null : pathOf(reached);
+		const text = (path === null ? undefined : fixed.get(path)) ?? reached;
 		if (open.size === 0 && extra === undefined) expanded.set(name, text);
 		return text;
 	}
@@ -611,21 +611,21 @@ export function locals(
 					// `GIVEN` is the payload object, which the render is not given any more than it
 					// is given a payload name. A declaration standing for it is neutralised for the
 					// same reason one reading a prop is, and Svelte refuses a `$$` name outright.
-					const held = new Set([...(dynamic ?? carried), GIVEN]);
-					const settled = !mentions(text, held) ? text : one.holds;
+					const neutralising = new Set([...(dynamic ?? carried), GIVEN]);
+					const neutralised = !mentions(text, neutralising) ? text : one.holds;
 					// The render no longer computes this one either, so a read of it left as the
 					// author wrote it reads the placeholder. `function foo() { b = c }` neutralised
 					// over a `c` that reads a prop left `foo` as `null`, and the script's own
 					// `foo()` failed inside Svelte's renderer.
-					if (settled !== text) gone.add(one.name);
-					if (process.env['SEAM_TRACE'] !== undefined && settled !== text) {
-						const mentioned = [...held].filter((each) => mentions(text, new Set([each])));
+					if (neutralised !== text) gone.add(one.name);
+					if (process.env['SEAM_TRACE'] !== undefined && neutralised !== text) {
+						const mentioned = [...neutralising].filter((each) => mentions(text, new Set([each])));
 						console.error(
 							`[seam] neutralised \`${one.name}\` mentioning ${mentioned.join(', ') || '(unparsable)'}: ` +
 								text.replace(/\s+/g, ' ').slice(0, 240),
 						);
 					}
-					return [one.at.join(':'), [one.at, settled]];
+					return [one.at.join(':'), [one.at, neutralised]];
 				}),
 		).values(),
 	];

@@ -309,7 +309,7 @@ export function collectRender(node: AstNode, walk: Walk): void {
 				? callee['name']
 				: null;
 		const known = bare === null || site.carried.has(bare) || expand(callee) !== bare;
-		const called = isNode(call) ? expand(call) : null;
+		const expanded = isNode(call) ? expand(call) : null;
 		// Asked of what the render is given, which on this path is the author's own text: the
 		// tag is left exactly as written and Svelte compiles it. Asked of the expansion, a
 		// `{@render $s()}` over a store this file makes reads as the request's, because
@@ -321,16 +321,16 @@ export function collectRender(node: AstNode, walk: Walk): void {
 		// whichever snippet the value holds, and a body is walked at the tag that names it or
 		// nowhere. See `inertBodies`.
 		if (
-			called !== null &&
+			expanded !== null &&
 			known &&
 			site.payload !== null &&
 			inertBodies(snippets, walk) &&
-			!varies(called, walk, true)
+			!varies(expanded, walk, true)
 		)
 			return;
 		if (process.env['SEAM_TRACE'] !== undefined) {
 			console.error(
-				`[seam] render of ${String(name)} in ${site.file}: given ${JSON.stringify([...site.given.keys()])}, stack ${site.stack.map((one) => basename(one)).join(' > ')}`,
+				`[seam] render of ${String(name)} in ${site.file}: given ${JSON.stringify([...site.given.keys()])}, stack ${site.stack.map((file) => basename(file)).join(' > ')}`,
 			);
 		}
 		// Two different questions wore one sentence. A name the call site supplied is composition
@@ -352,14 +352,14 @@ export function collectRender(node: AstNode, walk: Walk): void {
 		}
 		// A raw snippet whose bytes the request decides is a raw hole over the author's own
 		// function. See `rawSnippet()`.
-		if (called !== null && rawSnippet(call, name, walk)) return;
+		if (expanded !== null && rawSnippet(call, name, walk)) return;
 		refuse(
 			`\`{@render ${String(name)}()}\` in ${basename(site.file)} names no \`{#snippet}\` this ` +
 				'compiler can follow it to, and the call reads something the request decides, so ' +
 				'the render cannot be left to evaluate it either. `RenderTag.js` visits the callee ' +
 				'as an expression, so it may be any value; what this follows is a name, a default ' +
 				'and a lookup in a table the source writes out. It stands for ' +
-				`\`${String(called ?? name)
+				`\`${String(expanded ?? name)
 					.replace(/\s+/g, ' ')
 					.slice(0, 160)}\``,
 		);

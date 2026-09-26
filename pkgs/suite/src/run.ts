@@ -230,13 +230,13 @@ async function attempt(suite: string, name: string): Promise<Result> {
  * first byte that disagrees rather than at a whole-string diff: what is wanted is the construct,
  * and the construct is at the seam.
  */
-function divergence(stream: string, mine: string, theirs: string): string {
+function divergence(stream: string, own: string, svelte: string): string {
 	let at = 0;
-	while (at < mine.length && at < theirs.length && mine[at] === theirs[at]) at += 1;
+	while (at < own.length && at < svelte.length && own[at] === svelte[at]) at += 1;
 	const from = Math.max(0, at - 40);
 	const show = (text: string): string =>
 		JSON.stringify(text.slice(from, at + 60)).replaceAll('\\n', ' ');
-	return `${stream} at ${String(at)}\n      ours   ${show(mine)}\n      svelte ${show(theirs)}`;
+	return `${stream} at ${String(at)}\n      ours   ${show(own)}\n      svelte ${show(svelte)}`;
 }
 
 /**

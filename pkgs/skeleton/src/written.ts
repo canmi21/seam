@@ -306,8 +306,8 @@ export function asWritten(node: unknown, written: string, walk: Walk): string {
 		!written.includes('$$hold(') &&
 		!written.includes(`${RUN_NAME}(`)
 	) {
-		const kept = readsOf([written]);
-		const stoodFor = [...readsOf([plain])].filter((name) => !kept.has(name));
+		const read = readsOf([written]);
+		const stoodFor = [...readsOf([plain])].filter((name) => !read.has(name));
 		if (stoodFor.length > 0 && stoodFor.every((name) => walk.handedAsWritten.has(name))) {
 			return plain;
 		}

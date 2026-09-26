@@ -96,9 +96,9 @@ async function attempt(
 		writeFileSync(resolve(dir, name), source);
 	}
 	for (const [name, source] of Object.entries(one.installed ?? {})) {
-		const at = resolve(dir, 'node_modules', name);
-		mkdirSync(dirname(at), { recursive: true });
-		writeFileSync(at, source);
+		const target = resolve(dir, 'node_modules', name);
+		mkdirSync(dirname(target), { recursive: true });
+		writeFileSync(target, source);
 	}
 	writeFileSync(file, one.source);
 	try {

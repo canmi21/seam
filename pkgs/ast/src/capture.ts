@@ -171,8 +171,8 @@ function declaredAtTop(instance: unknown, writable: Set<string> = new Set()): Se
 		} else if (type === 'LabeledStatement' && isNode(statement['label'])) {
 			// `$: x = ...` over a name nothing declares is one Svelte declares for it.
 			if (statement['label']['name'] !== '$') continue;
-			const body = statement['body'];
-			const expression = isNode(body) ? body['expression'] : undefined;
+			const labeled = statement['labeled'];
+			const expression = isNode(labeled) ? labeled['expression'] : undefined;
 			if (isNode(expression) && expression['type'] === 'AssignmentExpression') {
 				bound(expression['left'], found);
 				bound(expression['left'], writable);

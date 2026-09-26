@@ -75,7 +75,7 @@ function build(
 	 * names of other derivations it reads that wait: each is awaited before the expression runs, so
 	 * it reads their values rather than their promises. See `compile`.
 	 */
-	waits: readonly string[] | null = null,
+	awaited: readonly string[] | null = null,
 ): (bindings: Record<string, unknown>, request?: Record<string, unknown>) => unknown {
 	// The shared helpers outermost, then each file of the chain from the entry inward, so the
 	// component the expression sits in shadows its callers, and the data innermost of all.
@@ -84,13 +84,13 @@ function build(
 	const closed = '}'.repeat(scopes.length);
 	// eslint-disable-next-line no-new-func
 	const first =
-		waits === null || waits.length === 0
+		awaited === null || awaited.length === 0
 			? ''
-			: `await Promise.all([${waits.map((one) => `$scope[${JSON.stringify(one)}]`).join(', ')}]); `;
+			: `await Promise.all([${awaited.map((one) => `$scope[${JSON.stringify(one)}]`).join(', ')}]); `;
 	// Innermost of all, what the request binds for itself: the names a carried file marks as
 	// Svelte's `hydratable`, bound to this request's. See `marked`.
 	const made =
-		waits === null
+		awaited === null
 			? `return ($scope, $request = {}) => { with ($scope) { with ($request) { return (${expression}); } } };`
 			: `return async ($scope, $request = {}) => { ${first}with ($scope) { with ($request) { return (${expression}); } } };`;
 	const make = new Function('$files', `${opened} ${made} ${closed}`) as (

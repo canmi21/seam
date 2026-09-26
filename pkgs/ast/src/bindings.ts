@@ -330,14 +330,14 @@ function report(
 	carried?: Context,
 ): void {
 	if (!isNode(expression)) return;
-	const names = new Set<string>();
-	free(expression, scope, names);
+	const referenced = new Set<string>();
+	free(expression, scope, referenced);
 
 	const { start, end } = expression;
 	const text = typeof start === 'number' && typeof end === 'number' ? source.slice(start, end) : '';
 
 	const guarded = onlyTypeof(expression);
-	for (const name of names) {
+	for (const name of referenced) {
 		if (GLOBALS.has(name)) continue;
 		// A name the server holds and the build does not. It resolves; what it must not do is reach
 		// the compile-time render, which `unknown()` in the skeleton sees to. See `AT_REQUEST`.
@@ -361,14 +361,14 @@ function report(
 		// store that gets bundled where it was imported. See spec/derivation.md.
 		if (name.startsWith('$') && name.length > 1 && !RUNES.has(name)) {
 			const store = name.slice(1);
-			const imported = carried?.known.get(store);
-			if (carried !== undefined && imported !== undefined) {
+			const knownStore = carried?.known.get(store);
+			if (carried !== undefined && knownStore !== undefined) {
 				carried.used.add(store);
 				continue;
 			}
 			// A prop counts, and it is written out in `2-analyze/index.js` rather than implied: the
 			// guard reads `store_name !== 'props' && get_rune(init, instance.scope) === '$props'`,
-			// under the comment "rune-like names received as props are valid too". So
+			// under the comment "rune-like referenced received as props are valid too". So
 			// `const { attrs } = $props()` beside `{$attrs.count}` is a subscription Svelte compiles,
 			// and it was reported here as a name the data does not carry.
 			if (carried?.declares(store) === true || carried?.props.has(store) === true) continue;
@@ -401,8 +401,8 @@ function report(
 		// A name no script in this file writes is a reference the host resolves, which is a decision
 		// rather than a binding this compiler missed. See `Unresolved.reason`. Where there is no
 		// context there is no answer, and `unknown` is the safe one.
-		const free = carried !== undefined && !carried.written.has(name);
-		into.push({ name, expression: text, reason: free ? 'free' : 'unknown' });
+		const unwritten = carried !== undefined && !carried.written.has(name);
+		into.push({ name, expression: text, reason: unwritten ? 'free' : 'unknown' });
 	}
 
 	ambient(expression, text, into);
@@ -611,21 +611,21 @@ export const importsOf: (source: string) => Map<string, Carried> = bySource((sou
  * where it is evaluated, which says more than a parse error would.
  */
 export function readsOf(expressions: Iterable<string>): Set<string> {
-	const names = new Set<string>();
+	const mentioned = new Set<string>();
 	for (const expression of expressions) {
 		if (expression.trim() === '') continue;
 		let tag: Node;
 		try {
-			// The shared, memoised parse: the same wrapper, and read-only here as everywhere.
+			// The shared, memoised parse: the same wrapper, and mentioned-only here as everywhere.
 			tag = parsed(expression);
 		} catch {
 			continue;
 		}
 		const fragment = tag['fragment'];
 		const [only] = isNode(fragment) && Array.isArray(fragment['nodes']) ? fragment['nodes'] : [];
-		if (isNode(only)) free(only['expression'], new Set(), names);
+		if (isNode(only)) free(only['expression'], new Set(), mentioned);
 	}
-	return names;
+	return mentioned;
 }
 
 /**
@@ -656,9 +656,9 @@ function reached(ast: Node, source: string, from: ReadonlySet<string>, into: Unr
 					isNode(held) && held['type'] === 'ExpressionStatement' ? held['expression'] : undefined;
 				if (!isNode(label) || label['name'] !== '$' || !isNode(assign)) continue;
 				if (assign['type'] !== 'AssignmentExpression') continue;
-				const names = new Set<string>();
-				bound(assign['left'], names);
-				for (const name of names) inits.set(name, assign['right']);
+				const declared = new Set<string>();
+				bound(assign['left'], declared);
+				for (const name of declared) inits.set(name, assign['right']);
 				continue;
 			}
 			const declaration =
@@ -668,9 +668,9 @@ function reached(ast: Node, source: string, from: ReadonlySet<string>, into: Unr
 			if (!Array.isArray(declarations)) continue;
 			for (const one of declarations) {
 				if (!isNode(one)) continue;
-				const names = new Set<string>();
-				bound(one['id'], names);
-				for (const name of names) inits.set(name, one['init']);
+				const declared = new Set<string>();
+				bound(one['id'], declared);
+				for (const name of declared) inits.set(name, one['init']);
 			}
 		}
 	}
@@ -683,9 +683,9 @@ function reached(ast: Node, source: string, from: ReadonlySet<string>, into: Unr
 		const init = inits.get(name);
 		if (init === undefined) continue;
 		ambient(init, name, into);
-		const names = new Set<string>();
-		free(init, new Set(), names);
-		for (const next of names) if (inits.has(next)) pending.push(next);
+		const referenced = new Set<string>();
+		free(init, new Set(), referenced);
+		for (const next of referenced) if (inits.has(next)) pending.push(next);
 	}
 }
 

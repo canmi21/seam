@@ -69,8 +69,8 @@ export const unbound: (given: string) => string = bySource((source) => {
 				const [getter] = Array.isArray(node['expression']['expressions'])
 					? node['expression']['expressions']
 					: [];
-				const at = span(getter);
-				expression = at === null ? '' : `(${source.slice(at[0], at[1])})()`;
+				const getterAt = span(getter);
+				expression = getterAt === null ? '' : `(${source.slice(getterAt[0], getterAt[1])})()`;
 			}
 
 			if (dropped) {

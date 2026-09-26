@@ -636,8 +636,8 @@ export function naming(tag: string, walk: Walk): void {
  */
 export let refusingUnnamed = false;
 
-export function configureUnnamedComponents(refuse: boolean): void {
-	refusingUnnamed = refuse;
+export function configureUnnamedComponents(enabled: boolean): void {
+	refusingUnnamed = enabled;
 }
 
 export function choosing(written: string, tag: string, walk: Walk): string {

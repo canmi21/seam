@@ -569,8 +569,8 @@ export function styles(
 					isNode(part) && part['type'] === 'ExpressionTag' ? `(${expand(part['expression'])})` : '',
 				),
 				...directives.map((one) => {
-					const value = one['value'];
-					const held = value === true ? [] : Array.isArray(value) ? value : [value];
+					const content = one['content'];
+					const held = content === true ? [] : Array.isArray(content) ? content : [content];
 					return held
 						.map((part) =>
 							isNode(part) && part['type'] === 'ExpressionTag'

@@ -278,7 +278,7 @@ export function callSite(node: AstNode, walk: Walk): CallSite | null {
 			// crosses back up".
 			unsettled.set(
 				name,
-				`(${handed(one, (node, extra) => walk.expand(node, extra, NOTHING_SENT))})`,
+				`(${handed(one, (expression, extra) => walk.expand(expression, extra, NOTHING_SENT))})`,
 			);
 			// The name as written, which is what the setter assigns to. The expansion beside it is
 			// the value it holds now; the two are different things and `settles` needs both.
@@ -553,7 +553,7 @@ export function settleBindings(given: {
 			chain.map(([a, b]) => [a, b]),
 		);
 		const nested = chain.reduceRight(
-			(rest, [test, held]) => (test === 'true' ? `(${held})` : `((${test}) ? (${held}) : ${rest})`),
+			(rest, [test, sent]) => (test === 'true' ? `(${sent})` : `((${test}) ? (${sent}) : ${rest})`),
 			'undefined',
 		);
 		walk.site.sends.set(key, `(${held} === undefined ? ${nested} : ${held})`);

@@ -46,8 +46,8 @@ export function collectSlot(node: AstNode, walk: Walk, step: Stepper): void {
 	// handed them exactly as the original would have been. What is walked here is whichever
 	// of the two actually renders, in the scope it was written in.
 	const named = attributeText(node, 'name') ?? 'children';
-	const handed = site.given.get(named);
-	if (handed === undefined) {
+	const filled = site.given.get(named);
+	if (filled === undefined) {
 		// The fallback, which is this component's own markup in this component's scope.
 		step(node['fragment']);
 		return;
@@ -88,13 +88,13 @@ export function collectSlot(node: AstNode, walk: Walk, step: Stepper): void {
 	// is what a pattern destructures from an object without it.
 	merged(
 		order,
-		[...handed.handed].map(([prop]) => ({ local: prop, prop, fallback: 'undefined' })),
+		[...filled.handed].map(([prop]) => ({ local: prop, prop, fallback: 'undefined' })),
 		passed,
 	);
 	// Only the names the `let:` bound, under the locals it bound them to: the rest are this
 	// component's own attribute names and shadowing the caller with them would be wrong.
 	const shadow = new Map<string, string>();
-	for (const [prop, local] of handed.handed) {
+	for (const [prop, local] of filled.handed) {
 		const value = passed.get(prop) ?? 'undefined';
 		if (typeof local === 'string') {
 			shadow.set(local, value);
@@ -111,7 +111,7 @@ export function collectSlot(node: AstNode, walk: Walk, step: Stepper): void {
 	// sits in. `<svelte:self />` alone in a slot is the case: `is_standalone` names
 	// `RenderTag` and `Component` and a `SvelteSelf` is neither, so Svelte writes the anchor
 	// for it and the stand-in that replaces it -- a Component, and alone -- would not.
-	const only = onlyChild({ nodes: handed.nodes });
+	const only = onlyChild({ nodes: filled.nodes });
 	// A group is one span of the caller's source and a walk of it rewrites that span. A
 	// component rendering the same group from a second `<slot>` -- with different props, which
 	// is the only reason to -- wants a second rewrite of the same characters, and the two are
@@ -128,36 +128,36 @@ export function collectSlot(node: AstNode, walk: Walk, step: Stepper): void {
 	// **Only where the slot binds nothing.** A `let:` name is bound by the slot, so two slots
 	// passing different values want the markup rewritten two ways and one rewrite cannot
 	// serve both. That stays refused, and says which of the two it is.
-	if (handed.walked !== undefined) {
-		if (handed.handed.size === 0 && handed.planted !== true) return;
+	if (filled.walked !== undefined) {
+		if (filled.handed.size === 0 && filled.planted !== true) return;
 		refuse(
-			`the markup handed to this component under \`${named}\` is rendered by more than one ` +
+			`the markup filled to this component under \`${named}\` is rendered by more than one ` +
 				`\`<slot>\`, and it holds a value or binds a name of its own, so one span of the ` +
 				"caller's source would be rewritten once per slot and a marker in it would belong " +
 				'in two places. It is a fragment called once per slot, the way a recursive ' +
 				"component's body is, which the walk does not write yet",
 		);
 	}
-	handed.walked = named;
+	filled.walked = named;
 	const planted = holes.length;
 	// Through `held` rather than one node at a time: the group is a fragment of the caller's
 	// and Svelte cleans it the same way, so a `{@const}` in it is hoisted and binds for its
 	// siblings. Walked flat, every one of them reached the arm that refuses what the walk has
 	// not been taught. `legacy` is the caller's, because the markup is.
 	held(
-		handed.nodes,
+		filled.nodes,
 		{
 			...walk,
-			source: handed.source,
-			edits: handed.edits,
+			source: filled.source,
+			edits: filled.edits,
 			expand:
 				shadow.size === 0
-					? handed.expand
+					? filled.expand
 					: (one, extra) =>
-							handed.expand(one, extra === undefined ? shadow : new Map([...shadow, ...extra])),
-			snippets: handed.snippets,
-			site: handed.site,
-			legacy: handed.legacy,
+							filled.expand(one, extra === undefined ? shadow : new Map([...shadow, ...extra])),
+			snippets: filled.snippets,
+			site: filled.site,
+			legacy: filled.legacy,
 			handedAsWritten: new Set(),
 		},
 		only,
@@ -166,7 +166,7 @@ export function collectSlot(node: AstNode, walk: Walk, step: Stepper): void {
 	// impossible: a marker belongs in one place and the same markup at two slots puts it in
 	// two. Recorded rather than reasoned about, since what the group holds is only known once
 	// it is walked.
-	handed.planted = holes.length > planted;
+	filled.planted = holes.length > planted;
 	return;
 }
 
@@ -193,7 +193,7 @@ export function collectElement(node: AstNode, type: string, walk: Walk): void {
 		// A `this` the script's run answers is a chain over the components the file imports,
 		// each compared with the value inside the run's own module. See `runChosen`.
 		const byRun = runChosen(node['expression'], walk);
-		const expand: Locals['rewrite'] =
+		const expanding: Locals['rewrite'] =
 			byRun === null
 				? walk.expand
 				: (one, extra, given) =>
@@ -207,7 +207,7 @@ export function collectElement(node: AstNode, type: string, walk: Walk): void {
 		// nothing else: `build_inline_component` builds the props object **inside** the `if`,
 		// so neither the attributes nor the children are evaluated, and a spread whose keys
 		// this compiler cannot list never has to be listed.
-		if (constantly(settled(expand(node['expression']), walk)) === false) {
+		if (constantly(settled(expanding(node['expression']), walk)) === false) {
 			buried(walk, node['fragment']);
 			return;
 		}
@@ -243,13 +243,13 @@ export function collectElement(node: AstNode, type: string, walk: Walk): void {
 			};
 		} else if (
 			!refusingUnnamed &&
-			mentions(settled(expand(node['expression']), walk), walk.dynamic)
+			mentions(settled(expanding(node['expression']), walk), walk.dynamic)
 		) {
 			// A component the request hands in that the source names none of. Svelte renders
 			// whatever it is handed; this renders what it can hold, which is nothing for a
 			// value that is nothing, and throws per request for anything else. Refused at the
 			// build instead where the project asks for that. See spec/payload.md.
-			const test = `$$unnamed(${expand(node['expression'])})`;
+			const test = `$$unnamed(${expanding(node['expression'])})`;
 			const index = blocks.length;
 			blocks.push({
 				index,
@@ -267,8 +267,8 @@ export function collectElement(node: AstNode, type: string, walk: Walk): void {
 			if (whole !== null) edits.push(stamped(walk, index, source, whole[1]));
 			buried(walk, node['fragment']);
 			return;
-		} else if (!waitsThrough(node['expression'], expand(node['expression']), walk)) {
-			const chosen = choosing(expand(node['expression']), 'svelte:component', walk);
+		} else if (!waitsThrough(node['expression'], expanding(node['expression']), walk)) {
+			const chosen = choosing(expanding(node['expression']), 'svelte:component', walk);
 			const written = (): void => {
 				edits.push([where[0], where[1], chosen]);
 			};
@@ -331,11 +331,11 @@ export function collectElement(node: AstNode, type: string, walk: Walk): void {
 			// `this="svg"` is a quoted literal, so the span sits inside the quotes and the text
 			// there is the tag itself rather than an expression naming it. Expanded as one it
 			// became the identifier `svg`, which the derivation could not resolve.
-			const held = node['tag'];
+			const tagNode = node['tag'];
 			const quote = source[where[0] - 1];
 			const literal =
-				isNode(held) &&
-				(held['type'] === 'Text' || held['type'] === 'Literal') &&
+				isNode(tagNode) &&
+				(tagNode['type'] === 'Text' || tagNode['type'] === 'Literal') &&
 				(quote === '"' || quote === "'") &&
 				source[where[1]] === quote;
 			const tag = literal ? JSON.stringify(source.slice(where[0], where[1])) : expand(node['tag']);

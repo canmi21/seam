@@ -412,11 +412,11 @@ export async function compile(options: Options): Promise<Report[]> {
 		if (report !== '') console.error(`[seam] where the time went:\n${report}`);
 		// What the memos hold, beside what the process holds: a memo is memory traded for time, and
 		// the trade is only visible with both numbers. See spec/build.md.
-		const { expressions, components } = remembered();
+		const memos = remembered();
 		const heap = process.memoryUsage();
 		console.error(
-			`[seam] what it remembered: ${String(expressions)} expression tree(s), ` +
-				`${String(components)} component tree(s), ${String(rememberedSources())} source answer(s), ` +
+			`[seam] what it remembered: ${String(memos.expressions)} expression tree(s), ` +
+				`${String(memos.components)} component tree(s), ${String(rememberedSources())} source answer(s), ` +
 				`${String(rememberedCodegen())} compile(s), ` +
 				`${String(rememberedStaging())} staged copy/copies, ` +
 				`${String(rememberedBundles())} bundle(s); heap ${String(Math.round(heap.heapUsed / 1e6))}MB ` +

@@ -184,8 +184,8 @@ describe('an await in a project in async mode, by what it waits on', () => {
 			const props = { data: { x } };
 			const theirs = (await render(mod.default as never, { props: props as never })).body;
 			expect(theirs).toContain(x);
-			const ours = await inject(structure.ir, deriving(structure.derivations, '')(props));
-			expect(ours.body).toBe(theirs);
+			const injected = await inject(structure.ir, deriving(structure.derivations, '')(props));
+			expect(injected.body).toBe(theirs);
 		}
 	});
 });

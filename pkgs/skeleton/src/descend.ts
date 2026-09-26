@@ -438,8 +438,8 @@ export function descend(
 					),
 				];
 				const firstCall = `${RUN_NAME}({ ${firstPassed.join(', ')} })`;
-				const first = projectAsync() ? `(await ${firstCall})` : firstCall;
-				const at = keptUnder(first, [...walk.site.stack, file], walk);
+				const firstRun = projectAsync() ? `(await ${firstCall})` : firstCall;
+				const at = keptUnder(firstRun, [...walk.site.stack, file], walk);
 				for (const name of sending) {
 					const prop = declares.find((one) => one.local === name)?.prop ?? name;
 					if (walk.sent.has(boundTo.get(prop) ?? prop)) continue;
@@ -538,19 +538,19 @@ export function descend(
 			edits: inner,
 
 			within: walk.within,
-			expand: (child, extra, given) => {
+			expand: (expression, extra, given) => {
 				const text = placed(
 					declared.rewrite(
-						child,
+						expression,
 						new Map([...bound, ...ranBy, ...(extra ?? new Map())]),
 						given ?? ownSent,
 					),
-					child,
+					expression,
 					file,
 				);
 				return walk.trying === undefined ? text : walk.trying(text);
 			},
-			plain: (child, extra) => declared.rewrite(child, extra),
+			plain: (expression, extra) => declared.rewrite(expression, extra),
 			runeOf: declared.rune,
 			declares: declared.has,
 			handedAsWritten: new Set(
@@ -658,8 +658,8 @@ export function descend(
 			// Svelte wrap this tag in a `child_block` is the await, and an empty spread carries no
 			// key. See `waitsOn()`.
 			if ('spread' in part && part.at !== null) {
-				const held = awaiting(part.spread) ? '{...await {}}' : '';
-				walk.edits.push([part.at[0], part.at[1], held]);
+				const leftover = awaiting(part.spread) ? '{...await {}}' : '';
+				walk.edits.push([part.at[0], part.at[1], leftover]);
 			}
 		}
 		// A listed spread keeps what the request does not decide, which the render is handed as
@@ -688,7 +688,7 @@ export function descend(
 				const known = local === undefined ? undefined : partial(held, local);
 				const whole = span(one);
 				if (whole !== null && !(known === undefined && inertProps.has(name))) {
-					const placed = blocking(
+					const blocked = blocking(
 						one['expression'],
 						known === undefined ? standsIn(ahead, local) : JSON.stringify(known),
 						walk,
@@ -702,7 +702,7 @@ export function descend(
 					const shut = closing(walk.source, node);
 					// Before the slash of a self-closing tag, which is part of how it closes.
 					const close = walk.source[shut - 1] === '/' ? shut - 1 : shut;
-					walk.edits.push([close, close, ` ${name}={${placed}} `]);
+					walk.edits.push([close, close, ` ${name}={${blocked}} `]);
 				}
 				continue;
 			}
@@ -744,15 +744,15 @@ export function descend(
 				stood,
 				walk,
 			);
-			const placed = awaits.has(name) ? `await ${blocked}` : blocked;
+			const awaited = awaits.has(name) ? `await ${blocked}` : blocked;
 			if (whole !== null && walk.source[whole[0]] === '{') {
-				walk.edits.push([whole[0], whole[1], `${name}={${placed}}`]);
+				walk.edits.push([whole[0], whole[1], `${name}={${awaited}}`]);
 				continue;
 			}
 			for (const part of parts) {
 				if (!isNode(part) || part['type'] !== 'ExpressionTag') continue;
 				const where = span(part['expression']);
-				if (where !== null) walk.edits.push([where[0], where[1], placed]);
+				if (where !== null) walk.edits.push([where[0], where[1], awaited]);
 			}
 		}
 

@@ -483,14 +483,12 @@ export function losing(
 	// from `svelte/legacy` and `untrack(() => count++)` are calls of an import, and what they were
 	// handed is a function this pass sees only where the statement is walked itself.
 	{
-		const instance = isNode(ast['instance']) ? (ast['instance'] as Node)['content'] : undefined;
 		const body = isNode(instance) ? instance['body'] : undefined;
 		// The written half only. A method call is the conservative one and at this level it is
 		// everywhere -- `array.reduce(...)`, `items.find(...)` -- where inside a function the render
 		// calls it is rare enough to be worth the refusal. What that leaves out is a top-level
 		// `xs.push(1)`, which the rule above never caught either.
 		const { written } = changing(body, names, new Set());
-		const read = closure(named, (one) => one.free);
 		for (const target of written)
 			if (read.has(target) && !declares.has(target)) lostBefore.add(target);
 	}

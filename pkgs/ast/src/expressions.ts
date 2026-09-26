@@ -160,7 +160,7 @@ function spanOf(node: Node): [number, number] | null {
  */
 function peel(whole: Node): { node: Node; read: string; short: boolean } {
 	let node: Node = whole;
-	const reads: { name: string; optional: boolean }[] = [];
+	const accesses: { name: string; optional: boolean }[] = [];
 	for (;;) {
 		if (node['type'] !== 'MemberExpression' || node['computed'] === true) break;
 		const named = node['property'];
@@ -168,11 +168,11 @@ function peel(whole: Node): { node: Node; read: string; short: boolean } {
 		if (!isNode(named) || named['type'] !== 'Identifier' || typeof named['name'] !== 'string')
 			break;
 		if (inner === null) break;
-		reads.unshift({ name: named['name'], optional: node['optional'] === true });
+		accesses.unshift({ name: named['name'], optional: node['optional'] === true });
 		node = inner;
 	}
-	const read = reads.map((one) => `${one.optional ? '?.' : '.'}${one.name}`).join('');
-	return { node, read, short: reads[0]?.optional === true };
+	const read = accesses.map((one) => `${one.optional ? '?.' : '.'}${one.name}`).join('');
+	return { node, read, short: accesses[0]?.optional === true };
 }
 
 /**

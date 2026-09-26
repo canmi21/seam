@@ -366,13 +366,13 @@ export function collectEach(node: AstNode, walk: Walk, step: Stepper): void {
 		// writes `let { id = d } = each_array[i]`, so the name is the member where that is not
 		// `undefined` and the default where it is, and `null` is not defaulted.
 		neutralise(pattern, edits);
-		for (const [name, reached] of takenApart(
+		for (const [name, member] of takenApart(
 			pattern,
 			held,
 			expand,
 			() => "this each block's pattern",
 		)) {
-			apart.set(name, reached);
+			apart.set(name, member);
 		}
 	}
 
@@ -393,8 +393,8 @@ export function collectEach(node: AstNode, walk: Walk, step: Stepper): void {
 		!varies(written, walk) &&
 		!site.mute.has(keyed(walk, written))
 	) {
-		const held = site.told.get(keyed(walk, written));
-		if (held === undefined) {
+		const told = site.told.get(keyed(walk, written));
+		if (told === undefined) {
 			if (!site.wants.some(([key]) => key === keyed(walk, written))) {
 				site.wants.push([keyed(walk, written), asWritten(node['expression'], written, walk)]);
 			}
@@ -411,7 +411,7 @@ export function collectEach(node: AstNode, walk: Walk, step: Stepper): void {
 				return;
 			}
 		} else {
-			written = held;
+			written = told;
 		}
 	}
 	// **A source the build knows is empty never renders its body**, so the body is not
