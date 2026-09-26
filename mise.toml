@@ -98,8 +98,9 @@ run = "python3 ../../.mise/tasks/lines ."
 
 [tasks.vendor-baseline]
 description = "Svelte's own samples, each held to what pkgs/suite/baseline.json says it has to be"
-# One render, Svelte's with `experimental.async` on, which is the only one Svelte 6 keeps. See
-# spec/suite.md.
+# Two passes, the synchronous render and the one with `experimental.async` on, each in a process
+# of its own and each measuring what upstream measures in that render; the two fold into one
+# verdict per sample. See spec/suite.md.
 #
 # The failures and the skips by reason, then the table; `-- --table` is the table alone, and
 # `-- --write` records the run as the list, refusing while anything fails. It exits non-zero while

@@ -5,6 +5,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { seededly } from './renders.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -53,8 +54,14 @@ export interface Config {
 	error?: unknown;
 	/** Upstream's own: the sample is written to throw while it renders, which is a skip here. */
 	runtime_error?: unknown;
-	/** Upstream's own: the sample is skipped in async mode (`runtime-legacy/shared.ts`). */
+	/** Upstream's own: the sample is not run with `experimental.async` on (`runtime-legacy/shared.ts`). */
 	skip_async?: boolean;
+	/**
+	 * Upstream's own: the sample runs only with `experimental.async` on, and is not run at all
+	 * without it. A runtime sample whose directory is named `async-*` is one implicitly, and an SSR
+	 * sample named `async*` likewise (`runtime-legacy/shared.ts`, `server-side-rendering/test.ts`).
+	 */
+	skip_no_async?: boolean;
 	load_compiled?: boolean;
 	props?: Record<string, unknown>;
 	/**
@@ -113,21 +120,25 @@ export const RUNES: Readonly<Record<string, boolean>> = {
 };
 
 /**
- * The modes in which upstream renders a sample on the server, per suite, since the two runners name
- * them differently.
+ * The modes in which upstream renders a sample on the server, per suite and per pass, since the two
+ * runners name them differently.
  *
  * The runtime suites' `mode` is `client`, `hydrate`, `server` and `async-server`; the SSR suite's is
  * `sync` and `async` (`server-side-rendering/test.ts`). The first of each pair is upstream's
- * synchronous render, the second the same render with `experimental.async` on. A sample upstream
- * renders in either is a server sample, and it is measured here in the one render this runner
- * makes: the legacy suite is never rendered async by upstream -- `async-ssr` is `no-test` there
- * without runes (`runtime-legacy/shared.ts`) -- and is measured all the same. See spec/suite.md.
+ * synchronous render, which the sync pass measures, and the second the same render with
+ * `experimental.async` on, which the async pass measures. The legacy suite has no async render:
+ * upstream's `async-ssr` variant is `no-test` without runes (`runtime-legacy/shared.ts`), so every
+ * legacy sample is the sync pass's and upstream's skip in the async one. See spec/suite.md.
  */
-export const SERVED: Readonly<Record<string, readonly string[]>> = {
-	'server-side-rendering': ['sync', 'async'],
-	'runtime-runes': ['server', 'async-server'],
-	'runtime-legacy': ['server', 'async-server'],
+export const SERVED: Readonly<Record<string, Readonly<Record<Pass, string | null>>>> = {
+	'server-side-rendering': { sync: 'sync', async: 'async' },
+	'runtime-runes': { sync: 'server', async: 'async-server' },
+	'runtime-legacy': { sync: 'server', async: null },
 };
+
+/** The two renders, each measured in a process of its own. See spec/suite.md. */
+export type Pass = 'sync' | 'async';
+export const PASSES: readonly Pass[] = ['sync', 'async'];
 
 /** A name a `const` may be written against, which is every name an import clause can bind. */
 const BINDS = /^[A-Za-z_$][\w$]*$/;
@@ -221,13 +232,31 @@ const STANDS_IN: Readonly<Record<string, string>> = {
 /** Vite's own order for a specifier written without one. */
 const EXTENSIONS = ['.mjs', '.js', '.mts', '.ts', '.jsx', '.tsx', '.json'];
 
-export async function configOf(from: string, into: string): Promise<Config & { broken?: string }> {
+/**
+ * A config read for one side, and read again for the other.
+ *
+ * **Each side is handed its own evaluation of `_config.js`, because a render can write into what it
+ * was given.** `binding-backflow`'s child mutates the object the caller passed -- `value.foo =
+ * 'kid'` -- and one props object handed to this compiler's render first and Svelte's second gave
+ * the oracle an input the sample never wrote: both sides agreed on `kid` where Svelte, given the
+ * sample's own props, writes `mon`. A disagreement was hidden and, in the other pass, one was
+ * invented. Upstream's harness reads `config.props` per test, and a getter builds fresh objects
+ * each time; `again()` goes one step further and evaluates the module afresh, so a config written
+ * as a plain object is fresh too. See spec/suite.md.
+ */
+export interface Read extends Config {
+	broken?: string;
+	/** The same config evaluated again, for the other side's render. */
+	again: () => Promise<Config>;
+}
+
+export async function configOf(from: string, into: string): Promise<Read> {
 	let source: string;
 	try {
 		source = readFileSync(resolve(from, '_config.js'), 'utf8');
 	} catch {
 		// Most samples have none, and a sample with no config is one with no props.
-		return {};
+		return { again: async () => ({}) };
 	}
 	let shimmed: string;
 	try {
@@ -260,15 +289,30 @@ export async function configOf(from: string, into: string): Promise<Config & { b
 			},
 		);
 	} catch (error) {
-		return { broken: (error as Error).message };
+		return { broken: (error as Error).message, again: async () => ({}) };
 	}
 	const at = resolve(into, '_config.mjs');
 	writeFileSync(at, shimmed);
+	// A query on the URL is a module of its own to Node's loader, so each read evaluates afresh.
+	// Seeded, the way each render is: `each-block-random-permute` draws its props from
+	// `Math.random` as the module evaluates, and two evaluations have to draw the same ones.
+	let reads = 0;
+	const evaluate = (): Promise<Config> =>
+		seededly(async () => {
+			reads += 1;
+			const mod = (await import(`${pathToFileURL(at).href}?read=${String(reads)}`)) as {
+				default?: Config;
+			};
+			return mod.default ?? {};
+		});
 	try {
-		const mod = (await import(pathToFileURL(at).href)) as { default?: Config };
-		return mod.default ?? {};
+		// Not spread: a spread reads every getter, and `props` is one that may read what
+		// `before_test` has not set yet. The property is added to the object as evaluated.
+		const config = await evaluate();
+		Object.defineProperty(config, 'again', { value: evaluate, enumerable: false });
+		return config as Read;
 	} catch (error) {
-		return { broken: (error as Error).message };
+		return { broken: (error as Error).message, again: async () => ({}) };
 	}
 }
 

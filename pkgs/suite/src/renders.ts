@@ -1,11 +1,11 @@
 /**
- * The two renders of one sample: this compiler's, through the same steps a build takes, and
+ * The two renders of one sample, in either pass: this compiler's, through the same steps a build takes, and
  * Svelte's own, bundled the way the refusal check bundles its oracle. See spec/suite.md.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { stripTypeScriptTypes } from 'node:module';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import { JSDOM } from 'jsdom';
 import { rolldown } from 'rolldown';
 import { compile as compileComponent, compileModule } from 'svelte/compiler';
@@ -17,26 +17,10 @@ import { inject } from 'injector';
 import { lower } from 'lowering';
 import type { Config } from './corpus.ts';
 
-const here = dirname(fileURLToPath(import.meta.url));
-
-/**
- * The one render this measures: Svelte's with `experimental.async` on, both sides compiled with it
- * and both renders awaited.
- *
- * It is the render a project with the flag gets today and the only one Svelte 6 keeps, and it
- * renders everything the synchronous one does. The synchronous render was a second pass, in a
- * process of its own since the flag is process-global and nothing turns it off; measured under
- * this one, every sample it passed still passes but one, which is owed. See spec/suite.md.
- */
-export const ASYNC = { experimental: { async: true as const } };
-/**
- * Where a sample is copied to before it is compiled.
- *
- * Copied rather than read in place, because both halves write beside the component -- `skeleton()`
- * stages Svelte's compiled output next to it and the oracle writes its bundle there -- and the
- * vendored files are upstream's, unedited. `.build*` is ignored by name.
- */
-export const STAGE = resolve(here, '../.build-suite');
+/** The compile option one pass sets on both sides, and the other leaves off. See spec/suite.md. */
+export function asyncOption(experimentalAsync: boolean): { experimental?: { async: true } } {
+	return experimentalAsync ? { experimental: { async: true } } : {};
+}
 
 /** A render's bytes, and what a `hash` policy has to allow for them. */
 export interface Rendered {
@@ -107,6 +91,8 @@ export async function theirs(
 	csp: Config['csp'],
 	/** Whether to render with a browser's globals in place. See `withDom`. */
 	dom = false,
+	/** Whether to compile with `experimental.async`, which is the pass's. See `asyncOption`. */
+	experimentalAsync = false,
 ): Promise<{ body: string; head: string }> {
 	// A file of its own for each, since a module whose evaluation threw stays thrown when imported
 	// again, and the render with a DOM is asked only after the one without it failed.
@@ -139,7 +125,7 @@ export async function theirs(
 							name: basename(id, '.svelte'),
 							filename: id,
 							rootDir: dir,
-							...ASYNC,
+							...asyncOption(experimentalAsync),
 							...(runes === undefined ? {} : { runes }),
 						}).js.code;
 					}
@@ -148,7 +134,7 @@ export async function theirs(
 						return compileModule(id.endsWith('.ts') ? stripTypeScriptTypes(text) : text, {
 							generate: 'server',
 							filename: id,
-							...ASYNC,
+							...asyncOption(experimentalAsync),
 						}).js.code;
 					}
 					return null;
@@ -187,7 +173,7 @@ export async function theirs(
  * a render drawing a different number of times, or in another order, still writes other bytes. See
  * spec/suite.md.
  */
-async function seededly<T>(run: () => Promise<T>): Promise<T> {
+export async function seededly<T>(run: () => Promise<T>): Promise<T> {
 	const random = Math.random;
 	let state = 0x9e3779b9;
 	Math.random = () => {

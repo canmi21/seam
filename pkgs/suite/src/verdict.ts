@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { SUITES } from './corpus.ts';
+import { type Pass, PASSES, SUITES } from './corpus.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const need = createRequire(import.meta.url);
@@ -76,18 +76,29 @@ export function stateOf(one: Result): { state: State; reason?: string } {
 	}
 }
 
-/** The list every run is held to. See spec/suite.md. */
-export interface Baseline {
-	version: 3;
-	/** The Svelte the oracle is, since the same corpus renders differently under another one. */
-	svelte: string;
+/** One pass's half of the list: which samples pass in it and which are skipped, and why. */
+export interface Section {
 	pass: string[];
 	/** Each skipped sample and why, in the words `stateOf` writes. */
 	skip: Record<string, string>;
 }
 
-/** One sample's verdict: what it came out as, read against what the list says. */
+/**
+ * The list every run is held to, one section per pass. Both are kept rather than a merge of them,
+ * because a sample upstream measures in one render and skips in the other is two facts, and the
+ * diff of this file is the account of what moved in which. See spec/suite.md.
+ */
+export interface Baseline {
+	version: 4;
+	/** The Svelte the oracle is, since the same corpus renders differently under another one. */
+	svelte: string;
+	sync: Section;
+	async: Section;
+}
+
+/** One sample's verdict in one pass: what it came out as, read against what the list says. */
 export interface Verdict {
+	pass: Pass;
 	key: string;
 	suite: string;
 	state: State;
@@ -96,13 +107,18 @@ export interface Verdict {
 }
 
 /**
- * Every sample held to the list, and every name on the list held to the corpus.
+ * Every sample of one pass held to that pass's section, and every name in the section held to the
+ * corpus.
  *
  * A skip is checked like a pass: the sample still runs, and a reason that changed -- or a skip that
  * passes now -- fails until the list says so. The list is only as true as the last run that read
  * it. See spec/suite.md.
  */
-export function judge(results: readonly Result[], listed: Baseline | null): Verdict[] {
+export function judge(
+	pass: Pass,
+	results: readonly Result[],
+	listed: Section | undefined,
+): Verdict[] {
 	const passes = new Set(listed?.pass ?? []);
 	const skips = new Map(Object.entries(listed?.skip ?? {}));
 	const verdicts: Verdict[] = [];
@@ -115,12 +131,13 @@ export function judge(results: readonly Result[], listed: Baseline | null): Verd
 		const wrong = disagreement(state, reason, wanted);
 		verdicts.push(
 			wrong === null
-				? { key, suite: one.suite, state, ...(reason === undefined ? {} : { reason }) }
-				: { key, suite: one.suite, state: 'fail', reason: wrong },
+				? { pass, key, suite: one.suite, state, ...(reason === undefined ? {} : { reason }) }
+				: { pass, key, suite: one.suite, state: 'fail', reason: wrong },
 		);
 	}
 	for (const key of [...passes, ...skips.keys()]) {
 		verdicts.push({
+			pass,
 			key,
 			suite: key.slice(0, key.indexOf('/')),
 			state: 'fail',
@@ -128,6 +145,36 @@ export function judge(results: readonly Result[], listed: Baseline | null): Verd
 		});
 	}
 	return verdicts;
+}
+
+/** One sample across both passes: what it came out as once the two are merged. See `merged`. */
+export interface Merged {
+	key: string;
+	suite: string;
+	state: State;
+	/** Each pass's verdict, in pass order. */
+	passes: Verdict[];
+}
+
+/**
+ * The two passes folded into one verdict per sample: a failure in either is a failure, a pass in
+ * either is a pass, and a sample both passes skip is a skip. A skip in one pass beside a pass in
+ * the other is upstream measuring the sample in one render and not the other, which is a pass --
+ * the sample was measured. See spec/suite.md.
+ */
+export function merged(verdicts: readonly Verdict[]): Merged[] {
+	const byKey = new Map<string, Verdict[]>();
+	for (const one of verdicts) byKey.set(one.key, [...(byKey.get(one.key) ?? []), one]);
+	return [...byKey].map(([key, passes]) => ({
+		key,
+		suite: passes[0]?.suite ?? '',
+		state: passes.some((one) => one.state === 'fail')
+			? 'fail'
+			: passes.some((one) => one.state === 'pass')
+				? 'pass'
+				: 'skip',
+		passes: PASSES.flatMap((pass) => passes.filter((one) => one.pass === pass)),
+	}));
 }
 
 /** What is wrong with one sample, or null where it came out as the list says it has to. */
@@ -166,17 +213,17 @@ export function read(): Baseline | null {
 		return null;
 	}
 	const held = JSON.parse(text) as { version?: unknown };
-	if (held.version !== 3) {
+	if (held.version !== 4) {
 		throw new Error(
-			`baseline.json is version ${String(held.version)}, and this reads 3: one render, every ` +
-				'sample in it. `mise run vendor-baseline -- --write` records it. See spec/suite.md',
+			`baseline.json is version ${String(held.version)}, and this reads 4: one section per ` +
+				'pass, every sample in each. `mise run vendor-baseline -- --write` records it. See spec/suite.md',
 		);
 	}
 	return held as Baseline;
 }
 
-/** The run, written as the list: sorted, so a sample that moves is one line in a diff. */
-export function listing(results: readonly Result[]): Baseline {
+/** One pass's run, written as its section: sorted, so a sample that moves is one line in a diff. */
+export function section(results: readonly Result[]): Section {
 	const pass: string[] = [];
 	const skip: Record<string, string> = {};
 	for (const one of results.toSorted((a, b) => keyOf(a).localeCompare(keyOf(b)))) {
@@ -186,34 +233,51 @@ export function listing(results: readonly Result[]): Baseline {
 		if (state === 'pass') pass.push(keyOf(one));
 		else if (state === 'skip') skip[keyOf(one)] = reason ?? '';
 	}
-	return { version: 3, svelte: svelteVersion(), pass, skip };
+	return { pass, skip };
 }
 
 export function keyOf(one: Result): string {
 	return `${one.suite}/${one.name}`;
 }
 
-/** The three counts per suite, which is what a run is read for, so it is written last. */
-export function table(verdicts: readonly Verdict[]): void {
+/**
+ * The three counts per suite: one table per pass, and the merged one last, since a terminal shows
+ * the end of what a command wrote and the merged count is what the run is for.
+ */
+export function table(verdicts: readonly Verdict[], folded: readonly Merged[]): void {
 	const width = Math.max(...SUITES.map((one) => one.length));
 	const states: readonly State[] = ['pass', 'skip', 'fail'];
-	const row = (name: string, mine: readonly Verdict[]): string =>
+	const row = (name: string, mine: readonly { state: State }[]): string =>
 		`${name.padEnd(width)}  ${String(mine.length).padStart(8)}` +
 		states
 			.map((state) => String(mine.filter((one) => one.state === state).length).padStart(7))
 			.join('');
-	console.log(
-		`\n${'suite'.padEnd(width)}  ${'samples'.padStart(8)}${states.map((one) => one.padStart(7)).join('')}`,
-	);
-	for (const suite of SUITES) {
+	const head = (title: string): void => {
+		console.log(
+			`\n${title.padEnd(width)}  ${'samples'.padStart(8)}${states.map((one) => one.padStart(7)).join('')}`,
+		);
+	};
+	for (const pass of PASSES) {
+		const mine = verdicts.filter((one) => one.pass === pass);
+		head(`${pass} pass`);
+		for (const suite of SUITES)
+			console.log(
+				row(
+					suite,
+					mine.filter((one) => one.suite === suite),
+				),
+			);
+		console.log(row('total', mine));
+	}
+	head('merged');
+	for (const suite of SUITES)
 		console.log(
 			row(
 				suite,
-				verdicts.filter((one) => one.suite === suite),
+				folded.filter((one) => one.suite === suite),
 			),
 		);
-	}
-	console.log(row('total', verdicts));
+	console.log(row('total', folded));
 }
 
 /** The failures one at a time with what went wrong, and the skips by reason. */
@@ -221,17 +285,19 @@ export function lists(verdicts: readonly Verdict[]): void {
 	const failed = verdicts.filter((one) => one.state === 'fail');
 	if (failed.length > 0) {
 		console.log(`\nfail (${String(failed.length)})`);
-		for (const one of failed) console.log(`  ${one.key}\n      ${one.reason ?? ''}`);
+		for (const one of failed) console.log(`  ${one.pass} ${one.key}\n      ${one.reason ?? ''}`);
 	}
-	const reasons = new Map<string, number>();
-	for (const one of verdicts) {
-		if (one.state !== 'skip') continue;
-		const said = one.reason ?? '';
-		reasons.set(said, (reasons.get(said) ?? 0) + 1);
-	}
-	if (reasons.size === 0) return;
-	console.log(`\nskip, by reason; the names are in baseline.json`);
-	for (const [reason, many] of [...reasons].toSorted((a, b) => b[1] - a[1])) {
-		console.log(`  ${String(many).padStart(4)}  ${reason}`);
+	for (const pass of PASSES) {
+		const reasons = new Map<string, number>();
+		for (const one of verdicts) {
+			if (one.pass !== pass || one.state !== 'skip') continue;
+			const said = one.reason ?? '';
+			reasons.set(said, (reasons.get(said) ?? 0) + 1);
+		}
+		if (reasons.size === 0) continue;
+		console.log(`\n${pass} pass: skip, by reason; the names are in baseline.json`);
+		for (const [reason, many] of [...reasons].toSorted((a, b) => b[1] - a[1])) {
+			console.log(`  ${String(many).padStart(4)}  ${reason}`);
+		}
 	}
 }
