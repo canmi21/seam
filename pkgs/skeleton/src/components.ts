@@ -207,7 +207,7 @@ export function standsFor(walk: Walk): Map<string, string> {
  * writing `if (X) { BLOCK_OPEN; X($$renderer, {}); }` against `else { BLOCK_OPEN_ELSE; }`.
  *
  * A request that sends a truthy value that is not a component renders nothing either way: Svelte
- * calls it and throws, and there are no bytes to reproduce. See spec/roadmap.md.
+ * calls it and throws, and there are no bytes to reproduce. See spec/readings.md.
  */
 /**
  * A `this` the entry's script run answers, as a chain over the components the file imports.

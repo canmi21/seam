@@ -92,7 +92,7 @@ export function hydratableImport(source: string): { local: string | null; module
  * the close before a stamp as the block's, took the wrapper for the block: every item of an each
  * came out wrapped in a pair of its own. Moving the stamp one close in leaves the wrapper's close as
  * the bytes around the block it is. Letting the assembler step over a close instead was tried and
- * is wrong for every block that has none -- see spec/roadmap.md -- which is why the walk says which
+ * is wrong for every block that has none -- see spec/readings.md -- which is why the walk says which
  * block has one.
  */
 export function tucked(rendered: Rendered, blocks: readonly Block[]): Rendered {

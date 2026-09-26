@@ -62,7 +62,7 @@ script, every compile is handed the flag -- a `.svelte.js` module's `compileModu
 the same option. It replaced `SEAM_ASYNC`, an environment variable that stood in for it while
 async was an experiment here. Svelte 6 removes the flag, on no date yet, and Kit 3 keeps it opt-in,
 so a project without it is the common case and the suite measures both (see
-[roadmap.md](roadmap.md) and [suite.md](suite.md)).
+[readings.md](readings.md) and [suite.md](suite.md)).
 Another option is taken the day one is found to change bytes, measured the same way.
 
 ## Sentinels, and why they are not v1
@@ -306,8 +306,9 @@ reaches by a relative import, whatever refusal the walk happened to raise first:
 - **No value only the server holds** (`process`), which the build would read in its place.
 - **No `hydratable`**, whose script the injector writes per request with the request's nonce.
 - **No clock, randomness or host global in any component's markup, and no module state its own
-  module changes.** These are the two questions [roadmap.md](roadmap.md) holds open -- whether the
-  derive stage may read ambient state -- and baking one at build is answering them. So a page that
+  module changes.** These are the two questions [derivation.md](derivation.md) decided under "Ambient
+  input is read at request time, never at the build", and baking one at build is answering them
+  the other way. So a page that
   reads one is left to its refusal.
 
 The walk is still the path for everything else, and tried first: a page it compiles gets the

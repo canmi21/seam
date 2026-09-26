@@ -154,7 +154,7 @@ describe('an await in a project in async mode, by what it waits on', () => {
 
 	// It used to be refused as async request-time rendering. The derivation that holds it is built
 	// `async` and awaited per request, and it stays a pure function of the payload. See
-	// spec/roadmap.md, "Owed: what the render computes per request".
+	// spec/readings.md, "What the render computes per request, and what each item was".
 	it('compiles one of what the request decides, and writes what Svelte writes for each request', async () => {
 		const source =
 			'<script>let { data } = $props();</script><p>{await Promise.resolve(data.x)}</p>';

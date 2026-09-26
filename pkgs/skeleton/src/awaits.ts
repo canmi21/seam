@@ -1,7 +1,7 @@
 /**
  * What Svelte's async mode makes wait, and where the walk keeps an `await` so Svelte writes the
  * anchors it would have: the names a top-level await blocks, the statements the request moves,
- * and the reads the markup makes while the bytes are written. See spec/roadmap.md.
+ * and the reads the markup makes while the bytes are written. See spec/readings.md.
  */
 import { awaitsIn, bound, parsed, projectAsync, reads as readsIn, RUN_NAME, runeCalled } from 'ast';
 import { type AstNode, isNode, refuse } from './node.ts';
@@ -14,18 +14,18 @@ import { type Walk } from './walk-types.ts';
  * can know is compiled and awaited here, and one of what the request decides becomes a derivation
  * built `async` and awaited per request. `{#await}` is not
  * this, since a synchronous render writes its pending branch and awaits nothing. See
- * spec/roadmap.md.
+ * spec/readings.md.
  */
 export function awaitless(ast: AstNode, what: string): void {
 	// An `await` inside a function is that function's, run when something calls it -- a handler,
 	// a load -- and not the render's. Only one the render itself would await is async Svelte.
-	// A project in Svelte's async mode compiles these, and the render is awaited. See spec/roadmap.md.
+	// A project in Svelte's async mode compiles these, and the render is awaited. See spec/readings.md.
 	if (projectAsync()) return;
 	if (awaitsIn(ast['fragment']) || awaitsIn(ast['instance'])) {
 		refuse(
 			`${what} awaits in its markup or at the top of its script, which is async Svelte, and ` +
 				'Svelte compiles that only in its async mode: set `compilerOptions.experimental.async` ' +
-				'in svelte.config.js. See spec/roadmap.md',
+				'in svelte.config.js. See spec/readings.md',
 		);
 	}
 }
@@ -453,7 +453,7 @@ export function awaitsAtTop(node: unknown): boolean {
  * Substitution writes a value where the author wrote a name, and a name that waits -- declared
  * after a top-level `await` -- is what makes Svelte wrap the node reading it in `<!--[-->` and
  * `<!--]-->`. Written as the value alone, Svelte sees nothing waiting and writes no pair, which is
- * the "eighth" anchor in spec/roadmap.md. So the names are read ahead of the value in a sequence:
+ * the "eighth" anchor in spec/readings.md. So the names are read ahead of the value in a sequence:
  * `(recipient, "world")` is the same value, waiting on the same thing.
  */
 export function blocking(

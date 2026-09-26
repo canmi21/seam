@@ -554,7 +554,7 @@ export function collectElement(node: AstNode, type: string, walk: Walk): void {
 				// `dynamic-component-bindings-recreated` one whose prop has no default, so neither
 				// sends anything back and both were already right; `parent-supercedes-child-c`
 				// binds one that does, and stays wrong. Reading the child through a
-				// `<svelte:component>` is what would tell them apart. See spec/roadmap.md.
+				// `<svelte:component>` is what would tell them apart. See spec/readings.md.
 				if (given && isNode(attr) && attr['type'] === 'BindDirective') {
 					const name = typeof attr['name'] === 'string' ? attr['name'] : '';
 					const whole = span(attr);

@@ -423,7 +423,7 @@ export function carriedAcross(
 /**
  * What a binding on the tag sends back up, settled where it can be and refused where it cannot:
  * the caller's name becomes `expr === undefined ? <what the child sends> : expr`, one ternary
- * per bound prop. Was the middle of `descend()`. See spec/roadmap.md, "A component binding sends a
+ * per bound prop. Was the middle of `descend()`. See spec/readings.md, "A component binding sends a
  * value back, and which value is a branch".
  */
 export function settleBindings(given: {
@@ -461,7 +461,7 @@ export function settleBindings(given: {
 	// name holds `expr === undefined ? <what the child sends> : expr`, which is one ternary per
 	// bound prop and no second render at all. What it waits on is where the rebinding goes:
 	// Svelte renders the **whole** parent template again, so it holds for reads written above
-	// the tag as well, and the walk meets the tag half way through. See spec/roadmap.md.
+	// the tag as well, and the walk meets the tag half way through. See spec/readings.md.
 	// A readonly export travels too. `transform-server.js` passes `analysis.exports` to
 	// `$.bind_props` beside the bindable props, so `export const x = 42` in the child reaches a
 	// caller that binds `x` exactly as a prop's default would -- and it is not in `propsOf`,

@@ -94,7 +94,8 @@ one. A refusal that says one is a gap that has named the wrong layer.
 **The same holds for this protocol's own rules.** [derivation.md](derivation.md) holds the derive
 stage to a pure function of the payload, for reasons about hydration and about two backends. Where
 a sample needs more than that allows, it fails here, and closing it is a decision about that rule
--- [roadmap.md](roadmap.md) marks those, under **Owed: what the render computes per request**.
+-- [readings.md](readings.md) holds each under **What the render computes per request, and what each item was**, and what is
+still open is in [roadmap.md](roadmap.md).
 
 **A harness skip is where neither side answered.** Svelte's own render could not be built or run
 here, or the sample's own config could not be read, or the props it names could not be built at
@@ -397,7 +398,7 @@ prints.
 ## The six that were found the first time, and the shape of the rest
 
 The counts in the table above are the first run's. The first of these six is fixed, which took it
-to 1125 identical, 42 differing and 624 refused; [roadmap.md](roadmap.md) records what moved.
+to 1125 identical, 42 differing and 624 refused; [readings.md](readings.md) records what moved.
 
 **78 of the 115 were one thing: a default on the entry's own props was dropped.**
 
@@ -430,7 +431,7 @@ Five more were read off their output:
 | `<select value>` over a child's options   | the `<option>` a component renders is not reached, so nothing is marked selected.                                   |
 | a namespaced component                    | `<Components.Foo />` gets a block anchor pair around it that Svelte does not write.                                 |
 
-**All of them are attributed now**, and [roadmap.md](roadmap.md) holds the reading: fifteen causes
+**All of them are attributed now**, and [readings.md](readings.md) holds the reading: fifteen causes
 across the 42 that remain, the largest a component `bind:` whose writeback the server performs and
 this does not. Reading them was a morning rather than a project because the suite prints the first
 byte the two renders disagree on beside each name -- a list of forty sample names is not something
@@ -475,7 +476,7 @@ for a failure nobody has read. It was added when one did exactly that: the harne
 turned seventeen skips into passes and upstream skips and one into a refusal nobody had classified,
 `runtime-legacy/reactive-import-statement`, decided as owed work at first, and the seventeen could
 not be recorded behind it. It was later filed as blocked on request-time rendering, and is a fail
-again; see [roadmap.md](roadmap.md).
+again; see [readings.md](readings.md).
 
 ```
 mise run vendor-baseline               the failures, the skips by reason, then the table

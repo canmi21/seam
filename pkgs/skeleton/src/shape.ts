@@ -121,7 +121,7 @@ export interface Block {
 	 * the source or a test awaits (`has_await`), writing `<!--[-->` and `<!--]-->` around the whole
 	 * block. Its close lands between the block's own close and the stamp that names the block, and
 	 * two identical closes cannot be told apart by reading them, so the walk says which block has
-	 * one and the stamp is moved inside it before assembly. See spec/roadmap.md.
+	 * one and the stamp is moved inside it before assembly. See spec/readings.md.
 	 */
 	wrapped?: true;
 	/**

@@ -68,7 +68,7 @@ export function propsOf(
 	for (const statement of body) {
 		// `export let` is Svelte 4's spelling of a prop and Svelte 5 still compiles it. Read here
 		// rather than rewritten into `$props()`, because `$props()` puts the file in runes mode and
-		// `analysis.runes` decides far more than how props are declared. See spec/roadmap.md.
+		// `analysis.runes` decides far more than how props are declared. See spec/readings.md.
 		if (legacy && isNode(statement) && statement['type'] === 'ExportNamedDeclaration') {
 			const held = statement['declaration'];
 			const kind = isNode(held) ? held['kind'] : undefined;

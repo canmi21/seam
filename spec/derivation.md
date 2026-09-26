@@ -970,7 +970,8 @@ is the sample, and it never settled before this.
 `$: keys.forEach((key) => { object[key] = [] })` needs the statement to have run, and a derivation
 is a pure expression evaluated at request time with no `$:` to run -- holding `object` once gives
 the empty object, not the filled one. That is a program per request, a gap that waits on the rule
-at the top of this file, and [roadmap.md](roadmap.md) lists it.
+at the top of this file, and [readings.md](readings.md) has the reading, under "A value the render
+changes".
 
 ### A hold may name the child's chain, and that is how a value crosses back up
 
@@ -978,7 +979,7 @@ Everything above holds a value on the way **down**: the caller's expression, rec
 caller's chain, read by the child under the derivation's name. A component `bind:` sends a value the
 other way. `bind_props` assigns the child's value up where the caller passed `undefined`, and the
 caller's template renders again reading it -- "A component binding sends a value back" in
-[roadmap.md](roadmap.md) has the closed form, `expr === undefined ? <what the child sends> : expr`,
+[readings.md](readings.md) has the closed form, `expr === undefined ? <what the child sends> : expr`,
 one ternary per binding. What the child sends was the child's **default**, a constant, because a
 constant is the one text that reads the same in any scope, and the caller's template is where the
 ternary is written. A child whose script changes the bound prop sends what the script left, which
@@ -1621,7 +1622,7 @@ back.
 
 **It stays a pure function of the render input.** Its inputs are the props and the module scope;
 what reads a clock, a host global or module state its own module changes is refused as before, and
-those wait on the question [roadmap.md](roadmap.md) holds open.
+those are the question "Ambient input is read at request time, never at the build" above decides.
 
 ## A value the request does not decide is the build's, however it is computed
 

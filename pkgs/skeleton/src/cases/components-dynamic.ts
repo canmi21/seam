@@ -37,7 +37,7 @@ export const cases: Case[] = [
 		// source itself names. That bounds the choice to two outcomes, the component and nothing,
 		// which is what Svelte's server writes: `build_inline_component` compiles the tag to
 		// `if (X) { BLOCK_OPEN; X(...); } else { BLOCK_OPEN_ELSE; }`. The `&&` is what makes the
-		// truthy side exactly the import. See spec/roadmap.md.
+		// truthy side exactly the import. See spec/readings.md.
 		name: 'a dynamic component the request decides, named beside an `&&`',
 		beside: { Wid: '<script>export let v;</script><i>W{v}</i>' },
 		source:

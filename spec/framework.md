@@ -69,12 +69,15 @@ the move costs this layer, each a fact of the diff rather than a guess:
 3. `pkgs/plugin` resolves its render at the point Kit 3 renders `root.svelte`
    (`runtime/server/page/render.js`, `render(Root, { ...render_opts, props })`) rather than at the
    generated `root.js`, which no longer exists.
-4. press, built with Kit 3 and the plugin, answers every one of its responses byte for byte as a
-   Kit 3 build without the plugin does: the stage-three measurement, run as a regression before
-   stage two starts.
-5. Kit 3's own test apps, `server.test.js` first and the synchronous ones -- `basics` -- before the
+4. Kit 3's own test apps, `server.test.js` of `basics` first, then the synchronous ones, then the
    three that turn the flag on, each held to a list the way the sample suite is; see
-   [conformance.md](conformance.md), "Stage 2".
+   [conformance.md](conformance.md), "Stage 2". That is stage two, and it is what this version is
+   for.
+
+**press is not in the order.** It was the fourth step, a regression to run before stage two; it is
+on Kit 2 and mid-rebuild, so it is not a measurement anybody can take, and
+[conformance.md](conformance.md)'s own argument puts it after stage two in any case. It is stage
+three, taken when it is on Kit 3; [roadmap.md](roadmap.md), "Where it stands".
 
 The tables below describe the layer as built against 2.70.3 and are corrected as each step above
 moves a row.

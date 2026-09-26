@@ -243,7 +243,7 @@ export function rewrittenCallSite(
 		//
 		// What stays open is the presence half: that helper drops a key whose value is null or
 		// the empty string, and a marker is neither, so a request that sends nothing gets
-		// `--color: ;` where Svelte writes no declaration at all. See spec/roadmap.md.
+		// `--color: ;` where Svelte writes no declaration at all. See spec/readings.md.
 		if (typeof one['name'] === 'string' && one['name'].startsWith('--')) {
 			const [only] = parts;
 			if (whole === null || parts.length !== 1 || !isNode(only)) continue;

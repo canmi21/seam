@@ -526,8 +526,8 @@ Svelte returns is a flat run of head blocks with nothing around the ones a block
 head IR carries the same `if` or `each` the body does, with the child's head block as its body,
 and the runtime decides and repeats it there as it does below. How the render is made to write
 anchors for it without touching the body's bytes is in [refusals.md](refusals.md). A head inside
-an `{#await}` or inside a recursive fragment is refused for now; [roadmap.md](roadmap.md) has
-both.
+an `{#await}` or inside a recursive fragment stands in the head now; [readings.md](readings.md)
+has both, under "Ready, and not done".
 
 ## What is not in it
 

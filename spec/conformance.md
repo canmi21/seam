@@ -77,8 +77,8 @@ was taken out of the denominator, in eight shapes -- a value the render changes,
 component in the props, a value that is not the same twice, a boundary whose body throws, a raw
 snippet the request decides, a bare global, module state, an `await` of the request. Read against
 the samples, not one needed Svelte's renderer run per request, and each reason belonged to another
-layer or to this protocol's own rules. All of them are in and fail until done; [roadmap.md](roadmap.md),
-**Owed: what the render computes per request**, holds each shape with the reason it was given and
+layer or to this protocol's own rules. All of them are in and fail until done; [readings.md](readings.md),
+**What the render computes per request, and what each item was**, holds each shape with the reason it was given and
 why that reason does not hold, and [suite.md](suite.md) has the rule.
 
 Out of the denominator goes only what somebody other than this compiler said: upstream, in the
@@ -98,7 +98,7 @@ can say without going stale is what `verify` already enforces: a failing sample 
 the target holds in both renders [suite.md](suite.md) measures, the synchronous one and Svelte's
 async one, exactly while `verify` passes, and `verify`'s colour is where stage one stands: green,
 with nothing failing in either pass and no harness skip in the list. The async render began at 953 of 985 with 32 owed; what closed them is in
-[roadmap.md](roadmap.md) and [derivation.md](derivation.md), the last 3 being the script
+[readings.md](readings.md) and [derivation.md](derivation.md), the last 3 being the script
 `hydratable` writes at the head, now written per request from the request's own table -- a value a
 prop decides, or a render option's CSP nonce. One sample left the synchronous pass's passes for
 its skips on the way, having passed only for the one prop value the suite sends
@@ -156,7 +156,7 @@ can write. Two are a raw snippet whose `render` reads the request and calls `sve
 global the harness sets before rendering, which is a value only a JavaScript host holds and the
 second backend has none. Those were the reasons, and none holds at this layer: a render option the
 injector can take, the author's own function called per request, and a global a JavaScript host
-has. [roadmap.md](roadmap.md) now holds all three as owed.
+has. [readings.md](readings.md) holds all three under "What the render computes per request, and what each item was".
 
 **The eight that were work are done, and reading them one at a time is what said which was which.**
 Each was measured against Svelte's own render of the sample before anything was written, and three
@@ -167,9 +167,9 @@ of the eight were a rule already stated for one construct and not asked by anoth
 | a `{@render}` callee asked of the expansion rather than of the author's text             | [derivation.md](derivation.md) |
 | a `class:` run enumerated whatever it read, where a `style:` run is not                  | [refusals.md](refusals.md)     |
 | an ask filed under the expression alone, so two copies of one component shared an answer | [derivation.md](derivation.md) |
-| a component binding inside a block, and inside a block another binding settles           | [roadmap.md](roadmap.md)       |
-| a bound value the render is the one to know is not `undefined`                           | [roadmap.md](roadmap.md)       |
-| an inert binding written out expanded, and its refusal rolling back the wrong component  | [roadmap.md](roadmap.md)       |
+| a component binding inside a block, and inside a block another binding settles           | [readings.md](readings.md)     |
+| a bound value the render is the one to know is not `undefined`                           | [readings.md](readings.md)     |
+| an inert binding written out expanded, and its refusal rolling back the wrong component  | [readings.md](readings.md)     |
 
 **The two the order mattered for were the last two.** `runtime-legacy/context-api` was one refusal
 standing in front of a difference: with the `class:` directive that turned it away taken off, the
@@ -197,6 +197,12 @@ Every sample is named in `pkgs/suite/baseline.json` with the state it has to com
 that moves fails the run. See [suite.md](suite.md).
 
 ## Stage 2: SvelteKit's own test apps
+
+**This is the stage that decides whether the version is usable, and it is the one being worked.**
+Stage 1 proved the render; this proves the framework around it the way Kit's own authors exercise
+it, with nothing of this repository's own standing in for an application. Green here is the
+condition for the version, and for starting the second mode --
+[roadmap.md](roadmap.md), "The second mode waits on the first".
 
 Not started before stage 1 was done, which it now is. **It targets SvelteKit 3, not 2.** Kit 3 is
 on npm as `@sveltejs/kit@next` -- `3.0.0-next.29` the day this was decided, upstream's `main` --
@@ -229,8 +235,15 @@ that layer is taken from Kit, and this is its check.
 **What is already here.** `vendor/kit` holds Kit's `src` and `types` at that tag, and
 `mise run test-vendor` runs upstream's Node-side unit suite over them, and prints its counts. That
 is Kit checking Kit, which is a different thing from Kit checking this -- it says the vendored copy
-is intact, not that the compiler serves what Kit serves. The apps are not vendored yet, and what
-of them to take is a stage-2 decision.
+is intact, not that the compiler serves what Kit serves. **The apps are taken whole**: all thirteen
+under `test/apps`, with `test/prerendering` and `test/build-errors`, at the same tag as the rest
+of `vendor/kit` and by the same rule ([vendor.md](../../../spec/vendor.md) in the workspace). A
+subset chosen here would be one more column nobody checked, which is the mistake the skips were.
+
+**The client specs run too, and what they measure is the bytes.** The client is Svelte's own,
+hydrating what this compiler served; nothing this compiler ships runs there. So a client spec
+that fails is a byte that did not hydrate, which is exactly the check `server.test.js` cannot
+make, and it is read as that rather than as anything about the client.
 
 **A known hole waiting there.** The error page is not compiled: `+error.svelte` is not a route, and
 a load that throws renders it under the route's own id, so the plugin still hands that render back
@@ -238,9 +251,11 @@ to Kit's root. Kit's specs exercise error pages. See [framework.md](framework.md
 
 ## Stage 3: an application written for Kit, moved
 
-Not started. press is the application: a real site whose components were written against
-SvelteKit with no knowledge of this compiler, using `bits-ui`, `@tanstack`, paraglide and the rest
-of an ordinary dependency tree.
+Not started, and not scheduled. press is the application: a real site whose components were
+written against SvelteKit with no knowledge of this compiler, using `bits-ui`, `@tanstack`,
+paraglide and the rest of an ordinary dependency tree. **It is on Kit 2 and being rebuilt around
+its CMS**, so it is not a measurement anybody can take today; it comes back when it is on Kit 3,
+after stage 2 is green, and nothing here waits on it.
 
 **What it will prove that stage 2 cannot.** Kit's test apps were written to exercise Kit, so they
 cover what Kit's authors thought to cover and they are small. An application is neither. The

@@ -319,7 +319,7 @@ export const cases: Case[] = [
 		// `$props()`. The rewrite is what put the file in runes mode, and `analysis.runes` decides
 		// more than how props are declared -- among them whether a namespaced tag is a dynamic
 		// component, which is the last line here: legacy writes no anchors around one and runes
-		// writes `<!--[-->` and `<!--]-->`. See spec/roadmap.md.
+		// writes `<!--[-->` and `<!--]-->`. See spec/readings.md.
 		name: 'an entry whose props are `export let`',
 		alongside: { 'held.ts': 'export const Held = { Inner: null };' },
 		beside: { Inner: '<script>export let n;</script><b>{n}</b>' },

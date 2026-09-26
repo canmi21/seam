@@ -72,7 +72,10 @@ stopping for, and none has been found.
 
 This is a decision for now, not for ever, and the thing that reopens it is written down so that
 reopening it is not a matter of mood. Request-time rendering beside compile-time is planned --
-synchronous first, asynchronous straight after -- and it is not yet the time. **No refusal waits on
+synchronous first, asynchronous straight after -- and **it is not started before stage two of
+[conformance.md](conformance.md) is green**: this version changes when the UI is rendered and
+nothing else, and the first mode has to be the one explanation a mixed page's failure cannot have;
+[roadmap.md](roadmap.md), "The second mode waits on the first". **No refusal waits on
 it**: what the server render computes per request, a derivation computes per request, so the
 machinery below is a choice to offer authors and not the condition any gap is closed on.
 
@@ -1302,7 +1305,7 @@ data is the per-request script already decided against.
 become a hole, and Svelte would then have refused the render for want of `experimental.async`; the
 walk then turned an `AwaitExpression` in markup or at the top of the script away by name. Both are
 history: an `await` the build can know is awaited at compile time, and one over what the request
-decides is a derivation built `async` -- [roadmap.md](roadmap.md) has the measurement and
+decides is a derivation built `async` -- [readings.md](readings.md) has the measurement and
 [derivation.md](derivation.md) the mechanism. What the walk still refuses is an `await` in a
 project that has not turned the flag on, in Svelte's own words (`awaitless()` in `awaits.ts`).
 

@@ -129,7 +129,7 @@ export const refused: Case[] = [
 	},
 	{
 		// Async Svelte awaits a real promise per request while the bytes are written, which is
-		// loading data: the load stage's, by definition. See spec/roadmap.md.
+		// loading data: the load stage's, by definition. See spec/readings.md.
 		name: 'an await in markup',
 		source: `${PROPS}<p>{await data.p}</p>`,
 		says: 'async Svelte',
