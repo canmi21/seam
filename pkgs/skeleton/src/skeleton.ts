@@ -464,8 +464,10 @@ function ran(
 	};
 	const own = (files: readonly string[] | undefined): boolean => (files?.[0] ?? entry) === entry;
 	// What the walk holds once per request -- a spread's object -- is written in the entry's terms
-	// too, and read once, where the render reads it.
-	for (const one of [...rendered.held]) {
+	// too, and read once, where the render reads it. Over a copy of the list, since `field()`
+	// appends the run's own hold to it on the first read it answers, and the copy is what keeps the
+	// loop off what it appends.
+	for (const one of rendered.held.slice()) {
 		if (own(one.files)) one.expression = over(one.expression);
 	}
 	// A child's hole holds what the entry handed it, in the entry's names, beside the child's own:
