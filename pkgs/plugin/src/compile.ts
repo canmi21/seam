@@ -95,7 +95,7 @@ export async function compileRoutes({
 	// with everything inlined: the evaluator has no module system. Kit's plugins stay out of
 	// it -- they would turn the build into Kit's server build -- and what they provide under
 	// `$app/*` is given as what a derivation reads of it at request time. See `./app`.
-	const { kit } = await configured(root);
+	const kit = await configured(root);
 	const found_aliases = Object.entries(await aliases(root));
 	let n = 0;
 	const carrier: Bundler = async (entry, source) => {
@@ -195,7 +195,7 @@ async function projectVite(root: string): Promise<typeof import('vite')> {
  * request time, with the project's own values written in. `$app/state` never reaches here -- the
  * walk binds `page` to the payload -- and anything else under `$app` is left to fail by name.
  */
-function appModules(kit: Awaited<ReturnType<typeof configured>>['kit']): Plugin {
+function appModules(kit: Awaited<ReturnType<typeof configured>>): Plugin {
 	const here = fileURLToPath(new URL('./app/', import.meta.url));
 	const modules: Record<string, string> = {
 		'$app/environment': resolve(here, 'environment.ts'),

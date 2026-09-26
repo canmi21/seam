@@ -26,7 +26,7 @@ export function parsed(id: string): ReturnType<typeof parse_route_id> {
 export function bound(
 	match: RegExpMatchArray,
 	params: ReturnType<typeof parse_route_id>['params'],
-	matchers: Record<string, (segment: string) => boolean> = {},
+	matchers: Parameters<typeof exec>[2] = {},
 ): Record<string, string> | undefined {
 	return exec(match, params, matchers);
 }

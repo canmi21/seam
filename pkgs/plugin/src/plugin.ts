@@ -84,7 +84,7 @@ export function seam(options: Options = {}): Plugin {
 			// config file again with `build.ssr` unset, and `vite dev` renders with Kit's own root.
 			active = resolved.command === 'build' && resolved.build.ssr === true;
 			if (!active) return;
-			outDir = resolve(root, (await configured(root)).kit.outDir);
+			outDir = resolve(root, (await configured(root)).outDir);
 			// Compiled here, with the config resolved and the bundle not yet started: the compile
 			// runs Vite builds of its own for what the derivations carry, and a build started from
 			// inside another's hook waits on the same native runtime and never returns.

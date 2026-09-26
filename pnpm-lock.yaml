@@ -319,6 +319,9 @@ importers:
       '@sveltejs/kit':
         specifier: workspace:*
         version: link:../../vendor/kit
+      vite:
+        specifier: ^8.0.12
+        version: 8.3.0(@types/node@26.6.2)(esbuild@0.28.2)
     devDependencies:
       svelte:
         specifier: ^5.57.0

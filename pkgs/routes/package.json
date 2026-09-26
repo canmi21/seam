@@ -6,7 +6,8 @@
 		".": "./src/index.ts"
 	},
 	"dependencies": {
-		"@sveltejs/kit": "workspace:*"
+		"@sveltejs/kit": "workspace:*",
+		"vite": "^8.0.12"
 	},
 	"devDependencies": {
 		"svelte": "^5.57.0"

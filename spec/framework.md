@@ -57,9 +57,15 @@ the move costs this layer, each a fact of the diff rather than a guess:
    gone, the two signatures.
 2. `pkgs/routes` generates the root in Kit 3's shape -- the branch's components in place of
    `tree`'s values, a boundary per level, `page`, `form` and `error` as props -- and reads the
-   project's config off the Vite plugin's argument through `load_vite_config` and
-   `extract_svelte_config`, with `create_manifest_data`'s new signature. Held byte for byte against
-   Kit 3's own root rendered with Kit's props, as the Kit 2 one was.
+   project's config off the Vite plugin's argument, with `create_manifest_data`'s new signature.
+   Held byte for byte against Kit 3's own root rendered with Kit's props, as the Kit 2 one was.
+   **The config half is done**: `configured()` resolves the project's `vite.config` with the
+   project as root and takes `extract_svelte_config` of it, once per project, and a project with
+   no Vite config gets the validator's defaults under the same root, which is what a sample the
+   suite stages is; `$lib` went with Kit's, and `alias` is read as Kit reads it. `svelte.config.js`
+   is still read for `compilerOptions`, since `vite-plugin-svelte` still reads it there and it is
+   where a sample sets `runes` and the flag. The root half is what `root.test.ts`,
+   `plugin.test.ts` and one case of `entries.test.ts` fail on until it lands.
 3. `pkgs/plugin` resolves its render at the point Kit 3 renders `root.svelte`
    (`runtime/server/page/render.js`, `render(Root, { ...render_opts, props })`) rather than at the
    generated `root.js`, which no longer exists.
