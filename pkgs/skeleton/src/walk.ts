@@ -14,7 +14,14 @@ import { standsFor } from './components.ts';
 import { unimported } from './component-files.ts';
 import { contextual, hostedIn, placed, runesOf } from './dynamic.ts';
 import { closes, headedFragment, headFoundLate, wrapped } from './stamps.ts';
-import { type Choice, type Copy, type Handed, type Rewritten, type Walk, changedKey } from './walk-types.ts';
+import {
+	type Choice,
+	type Copy,
+	type Handed,
+	type Rewritten,
+	type Walk,
+	changedKey,
+} from './walk-types.ts';
 import { withAsks, withFresh } from './written.ts';
 
 /**

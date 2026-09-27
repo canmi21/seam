@@ -481,7 +481,8 @@ const failing = all.filter(({ one }) => stateOf(one).state === 'fail');
 // `--write` records the run as the list, and only a run with nothing failing can be recorded: a
 // failure is not a state the list has. Otherwise the run is held to the list. See spec/suite.md.
 if (process.argv.includes('--write')) {
-	if (ONLY !== undefined) throw new Error('a run narrowed by `--only` measured nothing else, and is not the list');
+	if (ONLY !== undefined)
+		throw new Error('a run narrowed by `--only` measured nothing else, and is not the list');
 	if (failing.length > 0 && !process.argv.includes('--skip-failing')) {
 		lists(
 			failing.map(({ pass, one }) => ({

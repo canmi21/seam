@@ -13,7 +13,14 @@ import {
 	runeHolds,
 } from 'ast';
 import { type AstNode, holdsFor, isNode, refuse, span } from './node.ts';
-import { carrier, elementCarrier, headCloses, headOpens, headOpensAgain, headOpensWith } from './sentinel.ts';
+import {
+	carrier,
+	elementCarrier,
+	headCloses,
+	headOpens,
+	headOpensAgain,
+	headOpensWith,
+} from './sentinel.ts';
 import type { Snippet } from './snippets.ts';
 import { awaitsAtTop } from './awaits.ts';
 import { unknown } from './branches.ts';

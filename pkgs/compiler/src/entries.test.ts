@@ -28,7 +28,8 @@ const server = resolve(
 
 const files: Record<string, string> = {
 	// `#lib` is Kit 3's spelling of `$lib`: a subpath import the project declares.
-	'package.json': '{ "name": "sample", "private": true, "type": "module", "imports": { "#lib/*": "./src/lib/*" } }',
+	'package.json':
+		'{ "name": "sample", "private": true, "type": "module", "imports": { "#lib/*": "./src/lib/*" } }',
 	// A layout that sets context for the page, which is the shape press's `QueryClient` has: a
 	// value the script makes, not one the request sends, and the page reads it out of the context.
 	'src/routes/+layout.svelte':
@@ -43,7 +44,7 @@ const files: Record<string, string> = {
 		'<h1>{site.name}: {data.title}</h1>{#each data.items as item}<li>{item}</li>{/each}',
 	// An error page below the root's: two boundaries, one inside the other, in the generated root.
 	'src/routes/blog/+error.svelte':
-		"<script>let { error } = $props();</script><p class=\"blog-error\">{error?.message}</p>",
+		'<script>let { error } = $props();</script><p class="blog-error">{error?.message}</p>',
 	'src/routes/blog/+layout.svelte':
 		'<script>let { children } = $props();</script><section class="blog">{@render children()}</section>',
 	'src/routes/blog/[slug]/+page.svelte':
@@ -79,10 +80,16 @@ function pageOf(id: string, url: string, params: Record<string, string>, data: u
  * an `+error.svelte` gets, and lands under `.svelte-kit/kit`: nothing under `vendor/` is written to.
  */
 function compiledFile(at: string): string {
-	const to =
-		relative(project, at).startsWith('..')
-			? resolve(project, '.svelte-kit/kit', at.split('/').pop()!.replace(/\.svelte$/, '.js'))
-			: resolve(project, '.svelte-kit/compiled', relative(project, at)).replace(/\.svelte$/, '.js');
+	const to = relative(project, at).startsWith('..')
+		? resolve(
+				project,
+				'.svelte-kit/kit',
+				at
+					.split('/')
+					.pop()!
+					.replace(/\.svelte$/, '.js'),
+			)
+		: resolve(project, '.svelte-kit/compiled', relative(project, at)).replace(/\.svelte$/, '.js');
 	const code = compile(readFileSync(at, 'utf8'), {
 		generate: 'server',
 		name: 'C',

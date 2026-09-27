@@ -38,7 +38,20 @@ import {
 	type Run,
 	type Structure,
 } from './variants.ts';
-import { expressionsOf, helpers, skeleton, type Skeleton, timed, timedSync, timings, rememberedCodegen, rememberedStaging, Undecided, configureUnnamedComponents, unavailable } from 'skeleton';
+import {
+	expressionsOf,
+	helpers,
+	skeleton,
+	type Skeleton,
+	timed,
+	timedSync,
+	timings,
+	rememberedCodegen,
+	rememberedStaging,
+	Undecided,
+	configureUnnamedComponents,
+	unavailable,
+} from 'skeleton';
 
 /**
  * One route: the URL it answers at, and the component the document is rendered from.

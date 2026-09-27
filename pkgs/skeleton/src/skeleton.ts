@@ -192,21 +192,23 @@ export async function walked(
 	)
 		.then((made) => {
 			if (process.env['SEAM_TRACE_SOURCE'] !== undefined) {
-				console.error(`[seam] entry ${basename(file)} rendered:\nhead: ${made.head}\nbody: ${made.body}\n`);
+				console.error(
+					`[seam] entry ${basename(file)} rendered:\nhead: ${made.head}\nbody: ${made.body}\n`,
+				);
 			}
 			return made;
 		})
 		.catch((error: unknown) => {
-		const why = baseline.missed
-			.map((one) => `  ${basename(one.file)}: ${one.reason.replace(/\s+/g, ' ')}`)
-			.join('\n');
-		if (why === '') throw error;
-		throw new Error(
-			`${String((error as Error).message)}\n\nThe render stopped inside a component this ` +
-				'compiler could not walk into, so Svelte rendered it without the values a request ' +
-				`would bring. What stopped the walk:\n${why}`,
-		);
-	});
+			const why = baseline.missed
+				.map((one) => `  ${basename(one.file)}: ${one.reason.replace(/\s+/g, ' ')}`)
+				.join('\n');
+			if (why === '') throw error;
+			throw new Error(
+				`${String((error as Error).message)}\n\nThe render stopped inside a component this ` +
+					'compiler could not walk into, so Svelte rendered it without the values a request ' +
+					`would bring. What stopped the walk:\n${why}`,
+			);
+		});
 	// A test or a value the request does not decide was asked of the render, and this pass exists
 	// to answer it: the walk runs again told, and everything below that reads the bytes -- the
 	// probe, the dead holes, the class outcomes -- reads the bytes of that run rather than these.

@@ -559,7 +559,9 @@ export function outside(
 				(name.startsWith('$') ? changedWhy(changing, files, name.slice(1)) : undefined);
 			if (why !== undefined) {
 				if (process.env['SEAM_TRACE'] !== undefined) {
-					console.error(`[seam] \`${expression}\` reads \`${name}\`, changed in ${files.join(' < ')}`);
+					console.error(
+						`[seam] \`${expression}\` reads \`${name}\`, changed in ${files.join(' < ')}`,
+					);
 				}
 				refuse(why);
 			}

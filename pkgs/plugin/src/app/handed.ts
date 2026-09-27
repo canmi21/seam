@@ -12,7 +12,9 @@ export function handed<T>(name: string): T {
 		| undefined;
 	const held = registry?.[name];
 	if (held === undefined) {
-		throw new Error(`\`${name}\` was read before the framework handed it in. See spec/framework.md`);
+		throw new Error(
+			`\`${name}\` was read before the framework handed it in. See spec/framework.md`,
+		);
 	}
 	return held as T;
 }

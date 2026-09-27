@@ -76,11 +76,19 @@ export function root(
 		const body =
 			l === leaf
 				? ['{#if false}', '{:else}', `\t<${tag} {error} />`, '{/if}']
-				: ['{#if true}', `\t<${tag}>`, level.replace(/^/gm, '\t\t'), '\t</svelte:component>', '{/if}'];
+				: [
+						'{#if true}',
+						`\t<${tag}>`,
+						level.replace(/^/gm, '\t\t'),
+						'\t</svelte:component>',
+						'{/if}',
+					];
 		const boundary = errors[l] === undefined ? '' : ` failed={failed_${at(l)}}`;
-		level = [`<svelte:boundary${boundary}>`, ...body.map((one) => `\t${one}`), '</svelte:boundary>'].join(
-			'\n',
-		);
+		level = [
+			`<svelte:boundary${boundary}>`,
+			...body.map((one) => `\t${one}`),
+			'</svelte:boundary>',
+		].join('\n');
 	}
 
 	return [

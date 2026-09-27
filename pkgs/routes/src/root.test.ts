@@ -23,7 +23,8 @@ const kitOut = resolve(project, '.svelte-kit/kit');
 const files: Record<string, string> = {
 	'package.json': '{ "name": "sample", "private": true, "type": "module" }',
 	// Kit's plugin syncs the project while the Vite config resolves, and the sync reads these.
-	'src/app.html': '<!doctype html><html><head>%sveltekit.head%</head><body>%sveltekit.body%</body></html>',
+	'src/app.html':
+		'<!doctype html><html><head>%sveltekit.head%</head><body>%sveltekit.body%</body></html>',
 	'src/routes/+layout.svelte':
 		'<script>let { children, data } = $props();</script><header>{data?.site ?? "site"}</header>{@render children()}',
 	'src/routes/+page.svelte': '<script>let { data } = $props();</script><h1>{data.title}</h1>',

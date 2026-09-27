@@ -1,8 +1,8 @@
 {
 	"name": "apps",
 	"private": true,
-	"type": "module",
 	"description": "SvelteKit's own test apps, built with the plugin and driven by Kit's own specs",
+	"type": "module",
 	"devDependencies": {
 		"@opentelemetry/api": "^1.9.1",
 		"@opentelemetry/sdk-node": "^0.221.0",

@@ -120,7 +120,8 @@ export function boundary(
 			{
 				...walk,
 				trying: guard,
-				untried: (text) => (walk.untried === undefined ? unguarded(text) : walk.untried(unguarded(text))),
+				untried: (text) =>
+					walk.untried === undefined ? unguarded(text) : walk.untried(unguarded(text)),
 				holding: true,
 				expand: (one, extra) => guard(walk.expand(one, extra)),
 			},
@@ -141,7 +142,11 @@ export function boundary(
 	// and a held reference is one per request; and a value that awaits, since `derive` settles a
 	// derivation's async dependencies before it evaluates, which would put the rejection outside
 	// the catch the run exists to put it inside.
-	const hold = (text: string, files: readonly string[] | undefined, inScope: ReadonlySet<string>): string => {
+	const hold = (
+		text: string,
+		files: readonly string[] | undefined,
+		inScope: ReadonlySet<string>,
+	): string => {
 		const plain = unguarded(text);
 		if (constant(plain) || awaiting(plain) || (inScope.size > 0 && mentions(plain, inScope))) {
 			return `(${plain})`;
@@ -151,7 +156,9 @@ export function boundary(
 			(one) => one.expression === plain && (one.files ?? []).join('\u0000') === key,
 		);
 		if (at < 0) {
-			walk.keeping.push(files === undefined ? { expression: plain } : { expression: plain, files: [...files] });
+			walk.keeping.push(
+				files === undefined ? { expression: plain } : { expression: plain, files: [...files] },
+			);
 			at = walk.keeping.length - 1;
 		}
 		return `($$hold(${String(at)}))`;
@@ -213,7 +220,11 @@ function inOrder(
 	depth: number,
 	unguarded: (text: string) => string,
 	/** A value as the run computes it: a held reference under its own files, or text. See `boundary`. */
-	hold: (text: string, files: readonly string[] | undefined, inScope: ReadonlySet<string>) => string,
+	hold: (
+		text: string,
+		files: readonly string[] | undefined,
+		inScope: ReadonlySet<string>,
+	) => string,
 	/** Whether the run awaits, which makes a fragment's function async and each call an await. */
 	waits: boolean,
 	/** The fragments this run has defined so far, which a call inside it can call. */
