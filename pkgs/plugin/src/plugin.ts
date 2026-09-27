@@ -220,8 +220,10 @@ export function seam(options: Options = {}): Plugin {
  * hydratable script's hash onto the policy's list -- so what Kit reads off `render()` is what it
  * would have read. What has no artifact is rendered by Kit's own root as before: today that is the
  * error tree -- a `load` that threw, which Kit renders as the branch again with the error page as
- * its leaf, under the route's own id -- and nothing else, since a route that does not compile
- * fails the build rather than reaching here. See spec/framework.md.
+ * its leaf, under the route's own id -- and a route the compile left to the framework, whose
+ * component's module cannot be evaluated on the server and which Kit therefore answers with its
+ * error response for every request. A route that does not compile otherwise fails the build
+ * rather than reaching here. See spec/framework.md.
  */
 function dispatcher(kitRootComponent: string, emitted: ReadonlyMap<string, string>): string {
 	const here = createRequire(import.meta.url);
@@ -237,8 +239,17 @@ function dispatcher(kitRootComponent: string, emitted: ReadonlyMap<string, strin
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import KitRoot from ${JSON.stringify(kitRootComponent)};
+import * as appManifest from '$app/manifest';
+import { rendered_env, dynamic_private_env } from '<sveltekit:generated>/env/config.js';
 import { inject } from ${JSON.stringify(injector)};
 import { compile as derivations } from ${JSON.stringify(derive)};
+
+// What Kit's build and server decide, handed to the derivations: the manifest, and the two objects
+// Kit's server fills with the dynamic environment as it starts, which the carried bundle's own
+// env modules read off this global. The objects rather than Kit's env modules, since those read
+// the objects as they are evaluated, and this module is evaluated before the server starts. See
+// pkgs/plugin/src/app/handed.ts.
+globalThis[Symbol.for('seam.kit')] = { '$app/manifest': appManifest, rendered_env, dynamic_private_env };
 
 const files = { ${files} };
 const read = (name) => readFileSync(fileURLToPath(files[name]), 'utf8');

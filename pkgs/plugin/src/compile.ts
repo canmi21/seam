@@ -10,7 +10,7 @@
  * it runs in a process of its own that exits, and the memory goes with it. See `apart.ts`, and
  * spec/build.md.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -87,6 +87,16 @@ export async function compileRoutes({
 				name: `${NAME}:built`,
 				enforce: 'post',
 				config: () => ({ define: { __SVELTEKIT_DEV__: 'false' } }),
+				// Kit aliases `<sveltekit:generated>` to `generated/dev` under `serve`, which only its
+				// dev server writes; the build this loader stands in has written `generated/build`,
+				// and Vite's alias plugin has already rewritten the import by the time a plugin sees
+				// it, so the rewritten path is what is redirected.
+				resolveId(source) {
+					const dev = `${resolve(outDir, 'generated/dev')}/`;
+					return source.startsWith(dev)
+						? `${resolve(outDir, 'generated/build')}/${source.slice(dev.length)}`
+						: null;
+				},
 			},
 		],
 		server: { middlewareMode: true, hmr: false, watch: null },
@@ -121,7 +131,7 @@ export async function compileRoutes({
 			mode: 'production',
 			logLevel: 'silent',
 			plugins: [
-				appModules(kit),
+				appModules(kit, root, outDir),
 				// A component's script run as Svelte compiled it, which a derivation calls where
 				// substitution could not follow. See `running()` in the carry package.
 				{ ...running(), enforce: 'pre' } as Plugin,
@@ -206,15 +216,73 @@ async function projectVite(root: string): Promise<typeof import('vite')> {
  * request time, with the project's own values written in. `$app/state` never reaches here -- the
  * walk binds `page` to the payload -- and anything else under `$app` is left to fail by name.
  */
-function appModules(kit: Awaited<ReturnType<typeof configured>>): Plugin {
+function appModules(
+	kit: Awaited<ReturnType<typeof configured>>,
+	root: string,
+	outDir: string,
+): Plugin {
 	const here = fileURLToPath(new URL('./app/', import.meta.url));
 	const modules: Record<string, string> = {
 		// `$app/env` is Kit 3's name for it, and `$app/environment` the one it deprecates.
 		'$app/env': resolve(here, 'environment.ts'),
 		'$app/environment': resolve(here, 'environment.ts'),
+		'$app/manifest': resolve(here, 'manifest.ts'),
 		'$app/paths': resolve(here, 'paths.ts'),
 		'$app/navigation': resolve(here, 'navigation.ts'),
+		// Kit's own: `page` read out of the render's context, which a script run puts there. The
+		// walk binds a component's read of `page` to the payload, so only a captured script's
+		// import reaches this.
+		'$app/state': createRequire(resolve(root, 'package.json')).resolve(
+			'@sveltejs/kit/src/runtime/app/state/server.js',
+		),
 	};
+	// The environment variables, whose module Kit generates per project: a static one is a literal
+	// written into the module, a dynamic one a read of an object Kit's server fills at its start,
+	// and both are named exports the project decides. The module the loader's server generated
+	// says which is which, so the stub carries the literals as they are and reads the dynamic
+	// ones off the object Kit's server hands in (see `./handed.ts`), at the carried bundle's own
+	// evaluation, which is a route's first request. Kit's generated module reads them at its own
+	// evaluation instead, which is why the object is handed rather than the module: imported from
+	// the dispatcher it would be evaluated before the server set anything, and Kit's own analysis
+	// of the nodes, which imports the server first, found `PUBLIC_DYNAMIC` undefined that way.
+	// `$env/*` are Kit's names for the same, the dynamic ones as one `env` object.
+	const envStub = (which: 'public' | 'private', asEnv: boolean): string => {
+		const generated = resolve(outDir, 'generated/dev/env', which, 'server.js');
+		const exports = existsSync(generated)
+			? [...readFileSync(generated, 'utf8').matchAll(/^export const (\w+) = (.*);$/gm)].map(
+					(one) => [one[1] as string, one[2] as string] as const,
+				)
+			: [];
+		const object = which === 'public' ? 'rendered_env' : 'dynamic_private_env';
+		return [
+			`import { handed } from ${JSON.stringify(resolve(here, 'handed.ts'))};`,
+			`const held = handed(${JSON.stringify(object)});`,
+			...(asEnv
+				? [
+						'export const env = {',
+						...exports.map(([name, text]) =>
+							text.startsWith('env.')
+								? `\tget ${name}() { return held.${name}; },`
+								: `\t${name}: ${text},`,
+						),
+						'};',
+					]
+				: exports.map(
+						([name, text]) =>
+							`export const ${name} = ${text.startsWith('env.') ? `held.${name}` : text};`,
+					)),
+			'',
+		].join('\n');
+	};
+	const stubs: Record<string, string> = {
+		'$app/env/public': envStub('public', false),
+		'$app/env/private': envStub('private', false),
+		'$env/static/public': envStub('public', false),
+		'$env/static/private': envStub('private', false),
+		'$env/dynamic/public': envStub('public', true),
+		'$env/dynamic/private': envStub('private', true),
+	};
+	const STUB = '\0seam:app:';
 	const values: Record<string, string> = {
 		__SEAM_VERSION__: kit.version.name,
 		__SEAM_BASE__: kit.paths.base,
@@ -224,7 +292,11 @@ function appModules(kit: Awaited<ReturnType<typeof configured>>): Plugin {
 		name: `${NAME}:app`,
 		enforce: 'pre',
 		resolveId(id) {
+			if (id in stubs) return `${STUB}${id}`;
 			return modules[id] ?? null;
+		},
+		load(id) {
+			return id.startsWith(STUB) ? (stubs[id.slice(STUB.length)] ?? null) : null;
 		},
 		transform(code, id) {
 			if (!id.startsWith(here)) return null;

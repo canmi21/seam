@@ -251,6 +251,25 @@ in its place, as Kit 3's root does it. The other half is not: a `load` that thro
 the branch again with the error page as its leaf, under the route's own id, and the plugin still
 hands that render back to Kit's root. Kit's specs exercise both. See [framework.md](framework.md).
 
+**How they are run.** `mise run apps -- --app=<name> --spec=<file>`: `pkgs/apps` stages the app
+out of `vendor/kit/test/apps` into `.build-apps` in upstream's own layout, since the harness reaches
+`../../../test-utils` by relative path, gives it this package's `node_modules` -- `pkgs/apps`
+declares what upstream's workspace catalog gave the apps -- and writes two files beside the app
+without touching it: a Vite config that is the app's own with `seam()` after `sveltekit()`, and a
+Playwright config that is the app's own with the build and the preview run through that Vite
+config. Then Kit's `setup.js` and Kit's `playwright test`, over the app's own specs. `--plain`
+builds the same app as Kit alone does, which is what a failure is read against: a spec failing
+both ways is upstream's or this machine's. Playwright drives the system's Chrome, as Kit's own
+config asks (`channel: 'chrome'`).
+
+**Where it stands.** `basics`, `server.test.js`: Kit alone passes 14 and skips 14 (the project with
+JavaScript on skips every server spec by design); with the plugin, 13 pass and one fails, an
+imported image whose `src` this compiler writes as the `data:` URL its own bundling gave it where
+Kit writes the hashed path of its build -- [roadmap.md](roadmap.md), "Owed". Getting there compiled
+every one of the app's routes, which is what found the compiler work
+[framework.md](framework.md)'s step four records. `client.test.js` and `test.js` are next, then
+the other twelve apps.
+
 ## Stage 3: an application written for Kit, moved
 
 Not started, and not scheduled. press is the application: a real site whose components were

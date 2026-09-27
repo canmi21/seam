@@ -319,6 +319,12 @@ carries the finished string:
 The server concatenates it with the component's own head. It never learns to spell a tag, which
 means there is nothing for a second implementation to get subtly different.
 
+Beside `routes` the manifest carries `left`: the routes the compile made no artifact for, by URL,
+each with why. A component whose module cannot be evaluated on the server -- a module script that
+reaches `document` -- throws for every request before any render, and the framework answers such a
+route with its error response; the plugin hands that render to Kit's own root, and the build says
+so as a warning rather than failing. See [framework.md](framework.md).
+
 ## A filename is an input to the bytes
 
 Two things Svelte writes are hashes of the component's filename, and both end up in the response:

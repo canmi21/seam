@@ -97,10 +97,43 @@ the move costs this layer, each a fact of the diff rather than a guess:
    `__SVELTEKIT_DEV__` false, since Kit 3's plugin reads `dev` off the Vite command and the
    loader's is `serve`. Measured: the plugin's sample project, built with and without the plugin,
    answers seven URLs byte for byte, the error page and `__data.json` included.
-4. Kit 3's own test apps, `server.test.js` of `basics` first, then the synchronous ones, then the
-   three that turn the flag on, each held to a list the way the sample suite is; see
-   [conformance.md](conformance.md), "Stage 2". That is stage two, and it is what this version is
-   for.
+4. **Begun.** Kit 3's own test apps, `server.test.js` of `basics` first, then the synchronous
+   ones, then the three that turn the flag on, each held to a list the way the sample suite is; see
+   [conformance.md](conformance.md), "Stage 2", which has how they are run and where it stands.
+   That is stage two, and it is what this version is for. Compiling every route of `basics` --
+   over four hundred, written to exercise everything Kit has -- found what the compiler and the
+   plugin owed, and each is a rule now:
+   - **A level whose node has no component renders as nothing.** A `+page.js` with no
+     `+page.svelte` beside it is a page to Kit, whose root writes `<!--[!--><!--]-->` where its
+     `Component` is undefined; the generated root writes `this={null}` there.
+   - **A page Kit does not render on the server has no root to compile.** Kit's own static analysis
+     merges `ssr` down the branch onto the leaf, and a leaf with `ssr: false` is skipped; an option
+     Kit could not analyse statically reads as rendered.
+   - **A component whose module cannot be evaluated on the server is left to the framework.** A
+     module script reaching `document` throws at import, for every request, before any render, and
+     Kit answers with its error response; the compile makes no artifact, lists the route under
+     `left` in the manifest with why, and warns rather than fails. The dispatcher hands such a
+     request to Kit's own root, as it hands an error tree. This is not the runtime fallback
+     [refusals.md](refusals.md) refuses: there is no page render to fall back to.
+   - **What Kit's build and server decide is handed to the derivations, not bundled.**
+     `$app/manifest` is written after the compile, some of it after prerendering; the dynamic
+     environment is filled into two objects, `rendered_env` and `dynamic_private_env` of Kit's
+     generated `env/config.js`, when the server starts. The dispatcher, bundled by Kit's server
+     build where every generated module resolves, sets these on `globalThis[Symbol.for('seam.kit')]`
+     as it loads, and the carried bundle's own `$app/manifest`, `$app/env/*` and `$env/*` read
+     them there at a route's first request. The env modules are generated per project from the
+     module the loader's server generated, static names as the literals Kit wrote and dynamic ones
+     as reads. The objects rather than Kit's env modules, since those read the objects as they are
+     evaluated and the dispatcher is evaluated before the server starts: Kit's own analysis of the
+     nodes imports the server first, and found `PUBLIC_DYNAMIC` undefined that way.
+   - **A script run reads the request's `page`** through Kit's own `$app/state` server module;
+     [derivation.md](derivation.md), "Where substitution cannot follow".
+   - **The loader stands where the build stands.** Kit aliases `<sveltekit:generated>` to
+     `generated/dev` under `serve`, which only its dev server writes, so the compile's loader
+     redirects the aliased path to `generated/build`, which Kit's config hook has written by then;
+     and `__SVELTEKIT_DEV__` is defined false there.
+   - **A boundary inside a boundary, and a head inside one**, are the compiler's; [ir.md](ir.md),
+     "A boundary that may throw is a block of its own".
 
 **press is not in the order.** It was the fourth step, a regression to run before stage two; it is
 on Kit 2 and mid-rebuild, so it is not a measurement anybody can take, and

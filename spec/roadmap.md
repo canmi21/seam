@@ -124,13 +124,13 @@ that branches on the prop and writes it elsewhere defeats it. No sample writes t
 which of the child's expressions the marker reached is what closes it. [readings.md](readings.md),
 "Wrong bytes, which is not a refusal and outranks everything below".
 
-**A `<svelte:boundary>` with a `failed` snippet inside a page, under Kit 3's root.** Kit 3's root
-is a boundary per level, so every page is a boundary's child, and the run a boundary's test is
-computed by refuses a boundary inside it ([ir.md](ir.md), "What the run cannot follow still
-refuses"). Before the root took that shape this was a page nesting two boundaries, which Svelte's
-corpus does not do; now it is any page that writes one. The work is the run computing an inner
-boundary as a catch of its own around the steps inside it, with the inner `failed` snippet's
-values on the other branch, the same shape the outer one already has.
+**An imported asset's URL, under Kit.** `import potatoes from './potatoes.jpg'` in a component is
+a URL Kit's build decides -- `/_app/immutable/assets/potatoes.<hash>.jpg`, under the `assets` base
+the server holds -- and this compiler's carried bundle, built by the project's Vite apart from Kit's
+build, inlined the file as a `data:` URL instead. Found by `basics`'s `server.test.js`, its one
+failure. The value is a build product like `$app/manifest`'s, which is handed to the derivations
+by the dispatcher ([framework.md](framework.md), step four); an asset is one per import rather
+than one module, so what hands it in is the question.
 
 **What is refused by name.** Each is a gap and [refusals.md](refusals.md) holds it with the shape
 it waits on: a spread on a `<select>`, a `let:` taking a pattern apart and a spread on a `<slot>`,
