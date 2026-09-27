@@ -3,7 +3,7 @@
 // `params`, `form` -- against Svelte's own render of the same root with the same props. This is
 // the layout chain as one walk, which is what makes a page's ancestors' context reach it.
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile } from 'svelte/compiler';
@@ -27,6 +27,8 @@ const server = resolve(
 );
 
 const files: Record<string, string> = {
+	// `#lib` is Kit 3's spelling of `$lib`: a subpath import the project declares.
+	'package.json': '{ "name": "sample", "private": true, "type": "module", "imports": { "#lib/*": "./src/lib/*" } }',
 	// A layout that sets context for the page, which is the shape press's `QueryClient` has: a
 	// value the script makes, not one the request sends, and the page reads it out of the context.
 	'src/routes/+layout.svelte':
@@ -46,7 +48,7 @@ const files: Record<string, string> = {
 	// The request's `page`, read from `$app/state` two levels below the root that holds it, in
 	// markup and through a `$derived`; and the two constants of the module beside it.
 	'src/routes/about/+page.svelte':
-		"<script>import { page, navigating, updated } from '$app/state'; import Where from '$lib/where.svelte'; const here = $derived(page.url.pathname);</script>" +
+		"<script>import { page, navigating, updated } from '$app/state'; import Where from '#lib/where.svelte'; const here = $derived(page.url.pathname);</script>" +
 		'<a href={here}>{page.url.pathname}</a><Where />{navigating.from ?? "still"}{updated.current}',
 	'src/lib/where.svelte':
 		"<script>import { page as current } from '$app/state';</script><code>{current.route.id} {current.status} {current.data.title}</code>",
@@ -66,31 +68,45 @@ function pageOf(id: string, url: string, params: Record<string, string>, data: u
 	};
 }
 
+/** Compiles one component to the `.js` beside it, or, for one of Kit's own, into the project. */
+function compiledFile(at: string): string {
+	// A component outside the project is Kit's: the default error page a project without an
+	// `+error.svelte` gets. Compiled into the project rather than beside itself, since nothing
+	// under `vendor/` is written to.
+	const to =
+		relative(project, at).startsWith('..')
+			? resolve(project, '.svelte-kit/kit', at.split('/').pop()!.replace(/\.svelte$/, '.js'))
+			: at.replace(/\.svelte$/, '.js');
+	const code = compile(readFileSync(at, 'utf8'), {
+		generate: 'server',
+		name: 'C',
+		filename: at,
+		rootDir: project,
+	})
+		.js.code.replace(/from '(\.[^']*)\.svelte'/g, (_, rest: string) => {
+			const target = compiledFile(resolve(dirname(at), `${rest}.svelte`));
+			return `from ${JSON.stringify(pathToFileURL(target).href)}`;
+		})
+		// `#lib` is the project's subpath import, which the compiler resolves itself and Node does
+		// not from a file it was not run from.
+		.replace(/from '#lib\/([^']*)\.svelte'/g, (_, rest: string) => {
+			const target = compiledFile(resolve(project, 'src/lib', `${rest}.svelte`));
+			return `from ${JSON.stringify(pathToFileURL(target).href)}`;
+		})
+		.replace(/from 'svelte'/g, `from ${JSON.stringify(pathToFileURL(server).href)}`)
+		// Kit's plugin provides `$app/state`; the reference render is given what the compiler's
+		// render is given, which reads `page` out of the context the way Kit's module does.
+		.replace(/from '\$app\/state'/g, `from ${JSON.stringify(pathToFileURL(appState).href)}`);
+	mkdirSync(dirname(to), { recursive: true });
+	writeFileSync(to, code);
+	return to;
+}
+
 function compiled(dir: string): void {
 	for (const name of readdirSync(dir, { withFileTypes: true })) {
 		const at = join(dir, name.name);
-		if (name.isDirectory()) {
-			compiled(at);
-			continue;
-		}
-		if (!name.name.endsWith('.svelte')) continue;
-		const code = compile(readFileSync(at, 'utf8'), {
-			generate: 'server',
-			name: 'C',
-			filename: at,
-			rootDir: project,
-		})
-			.js.code.replace(/from '(\.[^']*)\.svelte'/g, "from '$1.js'")
-			// `$lib` is Kit's alias, which the compiler resolves itself and Node does not.
-			.replace(/from '\$lib\/([^']*)\.svelte'/g, (_, rest: string) => {
-				const target = resolve(project, 'src/lib', `${rest}.js`);
-				return `from ${JSON.stringify(pathToFileURL(target).href)}`;
-			})
-			.replace(/from 'svelte'/g, `from ${JSON.stringify(pathToFileURL(server).href)}`)
-			// Kit's plugin provides `$app/state`; the reference render is given what the compiler's
-			// render is given, which reads `page` out of the context the way Kit's module does.
-			.replace(/from '\$app\/state'/g, `from ${JSON.stringify(pathToFileURL(appState).href)}`);
-		writeFileSync(at.replace(/\.svelte$/, '.js'), code);
+		if (name.isDirectory()) compiled(at);
+		else if (name.name.endsWith('.svelte')) compiledFile(at);
 	}
 }
 
@@ -151,7 +167,8 @@ describe('a route is compiled from its generated root', () => {
 		for (const page of payloads) {
 			// Kit's data down the branch: each node's own load merged onto its parents'.
 			const site = { site: 'site' };
-			const props: Record<string, unknown> = { form: null };
+			// `error` is a prop Kit's root always receives, `undefined` on a page that rendered.
+			const props: Record<string, unknown> = { form: null, error: undefined };
 			entry.page.branch.forEach((_, at) => {
 				props[`data_${String(at)}`] = at === 0 ? site : { ...site, ...page };
 			});

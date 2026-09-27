@@ -4,8 +4,9 @@
  * Each root is written under Kit's output directory, `.svelte-kit/seam/routes/<id>/+root.svelte`,
  * so that it has a place on disk for the walk to read and its imports of the route's components
  * are ordinary relative imports. The entry's path is the route id, which is what a server has
- * once `find_route` has run; its payload is the root's props, `data_0` .. `data_n`, `page` and
- * `form`, which are what Kit's `render_response` hands its root. See spec/build.md and spec/payload.md.
+ * once `find_route` has run; its payload is the root's props, `data_0` .. `data_n`, `page`,
+ * `form` and `error`, which are what Kit's `render_response` hands its root, with the tree's data
+ * per level as a prop each. See spec/build.md and spec/payload.md.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
@@ -31,12 +32,18 @@ export async function entries(projectRoot: string): Promise<Found[]> {
 	const found = await routes(at);
 	return found.pages.map((page) => {
 		const file = resolve(at, rootFile(page.id));
-		const branch = page.branch.map((one) => {
+		const from = (one: string): string => {
 			const rel = relative(dirname(file), resolve(at, one)).split('\\').join('/');
 			return rel.startsWith('.') ? rel : `./${rel}`;
-		});
+		};
 		mkdirSync(dirname(file), { recursive: true });
-		writeFileSync(file, root(branch, found.depth));
+		writeFileSync(
+			file,
+			root(
+				page.branch.map(from),
+				page.errors.map((one) => (one === undefined ? undefined : from(one))),
+			),
+		);
 		return { path: page.id, component: rootFile(page.id), page };
 	});
 }

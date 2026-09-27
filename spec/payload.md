@@ -57,17 +57,16 @@ fields are computed on the way to injection and are not serialized.**
 **The shape is Kit's, in two layers.** A page is one component among several: its layouts sit
 around it, and each of them has a `load` of its own. Kit's wire is therefore not one `data` but one
 per node of the branch, `__data.json` carrying a `nodes` array with a `data` in each, devalue
-encoded, and its generated root component takes them as `data_0` .. `data_n` beside `page` and
-`form` and hands each layout and the page its own layer as `data`, with `page.params` as its
-`params`. That root is what the compiler compiles -- the entry of a route is the root `write_root`
-generates for it, see [framework.md](framework.md); under Kit 3 it is the same tree in the shape
-of Kit's one runtime root, which the section "SvelteKit 3 is the target" there records -- so the
-compiler's payload is the root's props,
-which are what Kit's `render_response` hands its root: `data_0` .. `data_n`, `page`, `form`.
+encoded, and its root component hands each layout and the page its own layer as `data`, with
+`page.params` as its `params`. That root is what the compiler compiles -- the entry of a route is
+the root generated for it in the shape of Kit's, see [framework.md](framework.md), "SvelteKit 3 is
+the target" -- and the compiler's payload is the root's props, which are what Kit's
+`render_response` hands its root: `page`, `form`, `error`, and one `data_l` per level of the
+branch holding what Kit's tree holds at that node, the levels above it merged with its own.
 Inside the page `data.title` is still `data.title` and `params.slug` is `params.slug`; the walk
 substitutes the root's prop into each and the IR paths come out as `data_2.title` and
 `page.params.slug`, and the injector's top scope is the object the runtime builds from the nodes
-and the request, `{ data_0, ..., data_n, page, form }`. The principle above holds at both layers:
+and the request, `{ data_0, ..., data_n, page, form, error }`. The principle above holds at both layers:
 each component reads one prop named `data`, and nothing but the author's data crosses the wire.
 
 This also settles where request context sits. The `page` a component reads from `$app/state`, and

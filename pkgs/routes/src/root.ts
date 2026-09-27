@@ -1,86 +1,99 @@
 /**
- * The root component of a route, the way SvelteKit's `write_root` generates it, with the route's
- * own components in place of the constructors Kit hands in at request time.
+ * The root component of a route, in the shape SvelteKit 3's `runtime/components/root.svelte`
+ * renders every page with, and with the route's own components in place of the tree Kit hands in
+ * at request time.
  *
- * Kit renders one root for every route: a pyramid of `{#if constructors[l + 1]}` around
- * `<Pyramid_l data={data_l} {form} params={page.params}>`, one level per layout down to the page,
- * sized to the deepest route in the project, with an announcer `{#if mounted}` after it that a
- * server never mounts. Every anchor in the response outside the page's own comes from that shape,
- * so the compiler compiles the same shape: each `constructors[l]` is this route's component at
- * that level, imported, and each `{#if constructors[l + 1]}` is `true` where the branch goes on
- * and `false` where it ends, which Svelte writes as the same `<!--[0-->` and `<!--[-1-->` Kit's
- * root writes with the real array. `bind:this` and `stores` are the client's; `page` is the
+ * Kit's root is one fixed component: a recursive snippet over a `tree` of `RenderNode`s, each a
+ * component, the error page for its level, its data and its child, with a `<svelte:boundary>` at
+ * every level whose `failed` snippet renders that level's error page. Every anchor in the response
+ * outside the page's own comes from that shape, so the compiler compiles the same shape with what
+ * the build already knows written in: the branch is known per route, so the recursion is unrolled
+ * one level per component, `n.child` is `{#if true}` where the branch goes on and `{#if false}`
+ * where it ends -- an if without an else and an if with an empty consequent write the same
+ * `<!--[0-->` and `<!--[-1-->` as Kit's test over the real tree -- and each level's component and
+ * error page is an import. `<svelte:component this={Node_l}>` keeps the anchors of Kit's dynamic
+ * `<Component>`, since the walk settles `this` to the one import; the boundary is the one Kit
+ * writes, with `failed` only where Kit's `Error` is defined; and `{@render node_0(0)}` stands
+ * where `{@render node(tree, 0)}` stands, so the `<!---->` after it is written. `page` is the
  * request's one object and a prop here as it is there, read by components through `$app/state`,
- * and passed on as `params={page.params}` as Kit's root passes it. Measured byte
- * for byte against Kit's own generated root rendered with the props Kit gives it; see the check
- * beside this file. What is not reproduced is the announcer's markup after hydration, which is
- * the client's.
+ * and passed on as `params={page.params}`; `form` and `error` go where Kit's root passes them.
+ * `bind:this`, `onerror` and the announcer after the tree are the client's: the server writes no
+ * byte for the first two and `{#if false}` for the third. Measured byte for byte against Kit's own
+ * root rendered with the props Kit gives it, every level with and without an error page and with
+ * the leaf throwing; see the check beside this file.
  */
+
+const at = (l: number): string => String(l);
+
+const ANNOUNCER =
+	'<div id="svelte-announcer" aria-live="assertive" aria-atomic="true" style="position: absolute; left: 0; top: 0; clip: rect(0 0 0 0); clip-path: inset(50%); overflow: hidden; white-space: nowrap; width: 1px; height: 1px"></div>';
 
 /**
  * The source of the root for one route.
  *
- * `branch` is the components down the route, relative to where the root will be written; `depth`
- * is the project's, so that the levels past this route's leaf exist as they do in Kit's root.
+ * `branch` is the components down the route, relative to where the root will be written, and
+ * `errors` is the error page each level's boundary renders, one per entry of `branch` and
+ * `undefined` where the level has none.
  */
-/**
- * One level's component, dynamic as Kit's are: `{@const Pyramid_l = constructors[l]}` is a
- * component the server writes `<!--[-->` and `<!--]-->` around, and a static import would write
- * none. The walk settles `this` to the one import and keeps the anchors.
- */
-function tag(l: number): string {
-	return `svelte:component this={Node_${String(l)}} data={data_${String(l)}} {form} params={page.params}`;
-}
-
-export function root(branch: readonly string[], depth: number): string {
+export function root(branch: readonly string[], errors: readonly (string | undefined)[]): string {
 	if (branch.length === 0) throw new Error('a route with no components has no root');
-	// Levels run from 0 to `depth` inclusive, so a branch may be one longer than the depth.
-	if (branch.length > depth + 1) {
+	if (errors.length !== branch.length) {
 		throw new Error(
-			`a branch of ${String(branch.length)} is deeper than the project's ${String(depth)} allows`,
+			`${String(errors.length)} error pages for ${String(branch.length)} levels: one per level`,
 		);
 	}
-	const levels = [...Array(depth + 1).keys()];
-	const imports = branch.map((file, at) => `import Node_${String(at)} from '${file}';`);
-	// `page` is taken as Kit's root takes it, the one object the request builds: each level's tag
-	// passes `page.params` on as Kit's does, and a component reads the rest through `$app/state`,
-	// which the walk binds to this prop. These are exactly the props Kit's `render_response` hands
-	// the root, less the client's.
-	const props = ['form', 'page', ...levels.map((l) => `data_${String(l)} = null`)];
+	const imports = branch.flatMap((file, l) => [
+		`import Node_${at(l)} from '${file}';`,
+		...(errors[l] === undefined ? [] : [`import Error_${at(l)} from '${errors[l]}';`]),
+	]);
+	// Exactly the props Kit's `render_response` hands its root, less the client's, with each
+	// level's data a prop of its own where Kit's tree holds it per node.
+	const props = ['page', 'form', 'error', ...branch.map((_, l) => `data_${at(l)} = null`)];
+	const failed = branch.flatMap((_, l) =>
+		errors[l] === undefined
+			? []
+			: [
+					`{#snippet failed_${at(l)}(error)}`,
+					`\t<svelte:component this={Error_${at(l)}} {error} />`,
+					'{/snippet}',
+				],
+	);
 
-	// Kit's pyramid, innermost first: the deepest level is a lone component, and every level above
-	// it asks whether a level follows. Here the answer is known per route.
-	// Kit's `{#if constructors[l + 1]}` has a component in each branch. Here the test is known,
-	// so only the branch that renders holds one: the other is walked all the same by the pass that
-	// asks the render about the test, and a layout met there without its children would be a
-	// refusal about markup that never renders. An if without an else and an if with an empty
-	// consequent write the same anchors as Kit's, `<!--[0-->` and `<!--[-1-->`, measured.
+	// Innermost first: the leaf is a lone component, and every level above it holds the next.
+	// Kit's `{#if n.child}` has a component in each branch; here the test is known, so only the
+	// branch that renders holds one. The other is walked all the same by the pass that asks the
+	// render about the test, and a layout met there without its children would be a refusal about
+	// markup that never renders.
 	const leaf = branch.length - 1;
-	let pyramid = leaf === depth ? `<${tag(depth)} />` : `<${tag(leaf)} />`;
-	for (let l = Math.min(leaf, depth - 1); l >= 0; l -= 1) {
-		pyramid =
-			l < leaf
-				? [
-						'{#if true}',
-						`\t<${tag(l)}>`,
-						pyramid.replace(/^/gm, '\t\t'),
-						'\t</svelte:component>',
-						'{/if}',
-					].join('\n')
-				: ['{#if false}', '{:else}', `\t<${tag(l)} />`, '{/if}'].join('\n');
+	let level = '';
+	for (let l = leaf; l >= 0; l -= 1) {
+		const tag = `svelte:component this={Node_${at(l)}} data={data_${at(l)}} {form} params={page.params}`;
+		const body =
+			l === leaf
+				? ['{#if false}', '{:else}', `\t<${tag} {error} />`, '{/if}']
+				: ['{#if true}', `\t<${tag}>`, level.replace(/^/gm, '\t\t'), '\t</svelte:component>', '{/if}'];
+		const boundary = errors[l] === undefined ? '' : ` failed={failed_${at(l)}}`;
+		level = [`<svelte:boundary${boundary}>`, ...body.map((one) => `\t${one}`), '</svelte:boundary>'].join(
+			'\n',
+		);
 	}
 
 	return [
-		'<!-- Generated by the compiler from the route, the way @sveltejs/kit generates its root. -->',
+		'<!-- Generated by the compiler from the route, in the shape of @sveltejs/kit/src/runtime/components/root.svelte. -->',
 		'<script>',
 		...imports.map((one) => `\t${one}`),
 		`\tlet { ${props.join(', ')} } = $props();`,
 		'</script>',
 		'',
-		pyramid,
+		...(failed.length === 0 ? [] : [...failed, '']),
+		'{#snippet node_0(depth)}',
+		level.replace(/^/gm, '\t'),
+		'{/snippet}',
+		'',
+		'{@render node_0(0)}',
 		'',
 		'{#if false}',
-		'\t<div id="svelte-announcer" aria-live="assertive" aria-atomic="true" style="position: absolute; left: 0; top: 0; clip: rect(0 0 0 0); clip-path: inset(50%); overflow: hidden; white-space: nowrap; width: 1px; height: 1px"></div>',
+		`\t${ANNOUNCER}`,
 		'{/if}',
 		'',
 	].join('\n');

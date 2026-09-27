@@ -55,17 +55,28 @@ the move costs this layer, each a fact of the diff rather than a guess:
    is red at `pkgs/routes` and `pkgs/plugin` until the next step, which is the point: the twelve
    errors name what moved -- `kit` no longer a property of the validated config, `write_root`
    gone, the two signatures.
-2. `pkgs/routes` generates the root in Kit 3's shape -- the branch's components in place of
-   `tree`'s values, a boundary per level, `page`, `form` and `error` as props -- and reads the
-   project's config off the Vite plugin's argument, with `create_manifest_data`'s new signature.
-   Held byte for byte against Kit 3's own root rendered with Kit's props, as the Kit 2 one was.
-   **The config half is done**: `configured()` resolves the project's `vite.config` with the
-   project as root and takes `extract_svelte_config` of it, once per project, and a project with
-   no Vite config gets the validator's defaults under the same root, which is what a sample the
-   suite stages is; `$lib` went with Kit's, and `alias` is read as Kit reads it. `svelte.config.js`
-   is still read for `compilerOptions`, since `vite-plugin-svelte` still reads it there and it is
-   where a sample sets `runes` and the flag. The root half is what `root.test.ts`,
-   `plugin.test.ts` and one case of `entries.test.ts` fail on until it lands.
+2. **Done.** `pkgs/routes` generates the root in Kit 3's shape and reads the project's config
+   off the Vite plugin's argument. **The config half**: `configured()` resolves the project's
+   `vite.config` with the project as root and takes `extract_svelte_config` of it, once per
+   project, and a project with no Vite config gets the validator's defaults under the same root,
+   which is what a sample the suite stages is; `$lib` went with Kit's, `#lib` resolves through the
+   project's `package.json` `imports` as Node resolves a subpath import, and `alias` is read as
+   Kit reads it. `svelte.config.js` is still read for `compilerOptions`, since `vite-plugin-svelte`
+   still reads it there and it is where a sample sets `runes` and the flag. **The root half**: one
+   root per route, Kit's recursive snippet unrolled a level per component of the branch, each
+   level a `<svelte:boundary>` around `<svelte:component this={Node_l}>`, `{#if true}` and
+   `{#if false}` where Kit tests `n.child`, and the level's `+error.svelte` -- Kit's
+   `build_error_chain`, walked over the same indexes in `routes()` -- as the boundary's `failed`
+   snippet, so a component that throws while it renders writes what Kit writes: `<!--[?`, the
+   request's `transformError` of the error as JSON, the error page. Props are `page`, `form`,
+   `error` and `data_0..n`, each level's `data` being the tree's cumulative merge as `render.js`
+   builds it. Measured byte for byte against Kit's own `root.svelte` rendered over Kit's own
+   `Props` and `RenderNode`, two and three levels, with and without an error page, with the leaf
+   throwing; and compiled, since every page is now a boundary's child, which found three things
+   the boundary's guard had to leave alone ([ir.md](ir.md), "Three things the guard leaves as
+   written"). What stays with Kit's root is the error **tree**: a load that throws has Kit render
+   the branch again with the error page as its leaf, under the route's id, and that render is
+   handed back to Kit as before until the next step decides where it goes.
 3. `pkgs/plugin` resolves its render at the point Kit 3 renders `root.svelte`
    (`runtime/server/page/render.js`, `render(Root, { ...render_opts, props })`) rather than at the
    generated `root.js`, which no longer exists.
@@ -123,8 +134,8 @@ needs a bundler's help, and it is where the plugin form of the compiler comes in
 `render_response` builds one `page` object per request -- `url`, `params`, `route`, `status`,
 `error`, `data`, `form`, `state` -- hands it to the root as a prop and puts the same object in the
 component context, where `$app/state`'s server module reads it. The compiler keeps both halves:
-the generated root takes `page` as a prop, so it is a name of the payload beside `data_0` .. `data_n`
-and `form`, passes `page.params` on as each level's `params` as Kit's root does, and the walk binds a component's `import { page } from '$app/state'` to that
+the generated root takes `page` as a prop, so it is a name of the payload beside `data_0` .. `data_n`,
+`form` and `error`, passes `page.params` on as each level's `params` as Kit's root does, and the walk binds a component's `import { page } from '$app/state'` to that
 prop whichever level imports it, so `page.url.pathname` in a component is the path `page.url.pathname`
 in the IR and a `$derived` over it is a derivation over the payload. Nothing is carried from the
 module: `navigating` and `updated` are written out as what a server holds, and the compiler's own
@@ -159,14 +170,13 @@ that moved under the installed TypeScript. None is refused. Each is taken when a
 
 1. **Done.** `pkgs/routes`: route ids, the manifest from `src/routes` through Kit's own
    `create_manifest_data` under Kit's own validator, and one generated root per route. The root
-   is written under `.svelte-kit/seam/routes/<id>/+root.svelte` in the shape `write_root`
-   generates -- the branch's components as dynamic components, so that the `<!--[-->` and
-   `<!--]-->` Kit's `{@const Pyramid_l}` writes around each are written here too, the pyramid
-   sized to Kit's `max_depth` with its `filter(Boolean)` arithmetic kept, the announcer's `{#if}`
-   after it -- and only the branch that renders holds a component, since the other is walked by
-   the pass that asks the render and would refuse a layout met without its children. Held byte
-   for byte against Kit's root rendered with Kit's props, and on press every route compiles from
-   it and matches. The compiler's command line finds routes when given none.
+   is written under `.svelte-kit/seam/routes/<id>/+root.svelte` in the shape of Kit's own root --
+   `write_root`'s pyramid under 2.70.3, `runtime/components/root.svelte` unrolled under 3, see
+   "SvelteKit 3 is the target" above -- the branch's components as dynamic components, so that
+   the `<!--[-->` and `<!--]-->` Kit writes around each are written here too, and only the branch
+   that renders holds a component, since the other is walked by the pass that asks the render and
+   would refuse a layout met without its children. Held byte for byte against Kit's root rendered
+   with Kit's props. The compiler's command line finds routes when given none.
 2. **Done.** The plugin, `seam()` beside `sveltekit()` in the project's Vite config. Kit's `vite
 build` runs its server build first and the plugin takes part in that one only: when it starts,
    the routes are compiled and the artifacts emitted into the server output as assets, reached by

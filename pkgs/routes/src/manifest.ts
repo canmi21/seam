@@ -29,16 +29,17 @@ export interface Page {
 	 * outermost first, then the page. `data_0` .. `data_n` go to these in this order.
 	 */
 	branch: string[];
+	/**
+	 * The `+error.svelte` each level's boundary renders when what is inside it throws, one entry
+	 * per entry of `branch`, and `undefined` where the level has none. Kit's `build_error_chain`:
+	 * the error page declared beside the layout directly above the level, rewound past a depth
+	 * with no layout, and never one for the root layout, whose failure is `error.html`.
+	 */
+	errors: (string | undefined)[];
 }
 
 export interface Routes {
 	pages: Page[];
-	/**
-	 * Kit's `max_depth`: the longest branch's layouts plus one. The generated root has one level
-	 * more than that, as Kit's does, and every route's root is sized to it rather than to its own
-	 * branch, so that the bytes around a page are the bytes Kit writes around it.
-	 */
-	depth: number;
 }
 
 type Config = ReturnType<typeof validate_config>;
@@ -142,28 +143,39 @@ export async function routes(root: string): Promise<Routes> {
 	const config = await configured(cwd);
 	const manifest = create_manifest_data(config, cwd);
 	const pages: Page[] = [];
-	let depth = 1;
+	const componentOf = (id: string, index: number): string => {
+		const component = manifest.nodes[index]?.component;
+		if (component === undefined) {
+			throw new Error(`route ${id} has a node with no component, which Kit does not allow`);
+		}
+		// Kit's paths are relative to the working directory it was given; a fallback layout of
+		// Kit's own comes out relative too, from wherever the vendored runtime sits.
+		return relative(cwd, resolve(cwd, component)).split('\\').join('/');
+	};
 	for (const route of manifest.routes) {
 		if (route.page === null) continue;
-		// Kit's `compact`: a level with no layout is skipped, and the branch is what is left.
-		const indexes = [...route.page.layouts, route.page.leaf].filter(
-			(one): one is number => one !== undefined,
-		);
-		const branch = indexes.map((index) => {
-			const component = manifest.nodes[index]?.component;
-			if (component === undefined) {
-				throw new Error(`route ${route.id} has a node with no component, which Kit does not allow`);
+		// Kit's server loads `[...layouts, leaf]` with a gap where a depth has no layout, renders
+		// the levels that are there, and pairs each with an error page by `build_error_chain`
+		// (`runtime/error-chain.js`): the one declared at the depth directly above, rewound past
+		// the gaps, and none for the first level. The same walk, over the same indexes.
+		const indexes = [...route.page.layouts, route.page.leaf];
+		const branch: string[] = [];
+		const errors: (string | undefined)[] = [];
+		let last = -1;
+		for (const [at, index] of indexes.entries()) {
+			if (index === undefined) continue;
+			branch.push(componentOf(route.id, index));
+			if (at === 0) {
+				errors.push(undefined);
+				continue;
 			}
-			// Kit's paths are relative to the working directory it was given; a fallback layout of
-			// Kit's own comes out relative too, from wherever the vendored runtime sits.
-			return relative(cwd, resolve(cwd, component)).split('\\').join('/');
-		});
-		pages.push({ id: route.id, params: route.params.map((one) => one.name), branch });
-		// Kit's own arithmetic, `filter(Boolean)` included: node 0 is falsy, so a root layout that
-		// is the first node is not counted, and a project whose only layout is the root one has a
-		// depth of one and its pages at the innermost level. The root has to be sized as Kit sizes
-		// it, so the count is Kit's rather than the right one.
-		depth = Math.max(depth, route.page.layouts.filter(Boolean).length + 1);
+			let above = at - 1;
+			while (above > last + 1 && route.page.errors[above] == null) above -= 1;
+			last = above;
+			const error = route.page.errors[above];
+			errors.push(error == null ? undefined : componentOf(route.id, error));
+		}
+		pages.push({ id: route.id, params: route.params.map((one) => one.name), branch, errors });
 	}
-	return { pages, depth };
+	return { pages };
 }

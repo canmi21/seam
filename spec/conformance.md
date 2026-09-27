@@ -245,9 +245,11 @@ hydrating what this compiler served; nothing this compiler ships runs there. So 
 that fails is a byte that did not hydrate, which is exactly the check `server.test.js` cannot
 make, and it is read as that rather than as anything about the client.
 
-**A known hole waiting there.** The error page is not compiled: `+error.svelte` is not a route, and
-a load that throws renders it under the route's own id, so the plugin still hands that render back
-to Kit's root. Kit's specs exercise error pages. See [framework.md](framework.md).
+**A known hole waiting there.** Half of the error page is compiled: a component that throws while
+it renders is caught by the level's boundary in the generated root and `+error.svelte` is written
+in its place, as Kit 3's root does it. The other half is not: a `load` that throws has Kit render
+the branch again with the error page as its leaf, under the route's own id, and the plugin still
+hands that render back to Kit's root. Kit's specs exercise both. See [framework.md](framework.md).
 
 ## Stage 3: an application written for Kit, moved
 
