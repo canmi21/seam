@@ -77,7 +77,18 @@ export async function compileRoutes({
 		mode: 'production',
 		appType: 'custom',
 		logLevel: 'silent',
-		plugins,
+		// A server made to load modules, standing where the production build stands: Kit's plugin
+		// defines `__SVELTEKIT_DEV__` from the command it sees, and this one is `serve`, so
+		// `$app/environment`'s `dev` came out true and a component branching on it baked the
+		// development branch. Said after Kit's own config hook, which is what `post` is for.
+		plugins: [
+			...plugins,
+			{
+				name: `${NAME}:built`,
+				enforce: 'post',
+				config: () => ({ define: { __SVELTEKIT_DEV__: 'false' } }),
+			},
+		],
 		server: { middlewareMode: true, hmr: false, watch: null },
 		optimizeDeps: { noDiscovery: true },
 	});
@@ -198,6 +209,8 @@ async function projectVite(root: string): Promise<typeof import('vite')> {
 function appModules(kit: Awaited<ReturnType<typeof configured>>): Plugin {
 	const here = fileURLToPath(new URL('./app/', import.meta.url));
 	const modules: Record<string, string> = {
+		// `$app/env` is Kit 3's name for it, and `$app/environment` the one it deprecates.
+		'$app/env': resolve(here, 'environment.ts'),
 		'$app/environment': resolve(here, 'environment.ts'),
 		'$app/paths': resolve(here, 'paths.ts'),
 		'$app/navigation': resolve(here, 'navigation.ts'),

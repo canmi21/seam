@@ -66,6 +66,14 @@ async function userConfig(cwd: string): Promise<Record<string, unknown>> {
 const resolved = new Map<string, Promise<Config>>();
 
 /**
+ * The name of a plugin `configured` adds to the resolution it asks Vite for, so that a plugin in
+ * the project's config can tell that resolution from the build it is part of. The compiler's own
+ * plugin is in that config, and its `configResolved` asks `configured` for the same project: told
+ * apart by nothing, it waited on the promise it was itself being awaited from.
+ */
+export const READING = 'routes:reading-config';
+
+/**
  * Kit's validated config for a project, read the way Kit 3 reads it: off the `sveltekit(...)`
  * plugin in the project's Vite config, resolved with the project as its root so that every file
  * path comes out absolute, since a compile is not run from the project it compiles. A project with
@@ -82,7 +90,7 @@ export function configured(cwd: string): Promise<Config> {
 				.find((one) => existsSync(one));
 			if (file === undefined) return process_config(validate_config({}), cwd);
 			const vite = await resolveConfig(
-				{ configFile: file, root: cwd, logLevel: 'silent' },
+				{ configFile: file, root: cwd, logLevel: 'silent', plugins: [{ name: READING }] },
 				'build',
 				'production',
 			);

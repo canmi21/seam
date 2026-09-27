@@ -6,7 +6,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { build } from 'vite';
+import { createBuilder } from 'vite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 // Inside the package, because the project's `svelte`, `@sveltejs/kit` and `vite` are resolved by
@@ -15,9 +15,9 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../.build-plugin'
 const plugin = resolve(dirname(fileURLToPath(import.meta.url)), 'index.ts');
 
 const files: Record<string, string> = {
-	'package.json': '{ "name": "sample", "private": true, "type": "module" }',
-	'svelte.config.js':
-		"export default { kit: { outDir: process.env.SEAM_OUT, alias: { $parts: 'src/parts' } } };",
+	// `#lib` is Kit 3's spelling of `$lib`: a subpath import the project declares.
+	'package.json':
+		'{ "name": "sample", "private": true, "type": "module", "imports": { "#lib/*": "./src/lib/*" } }',
 	// A virtual module of the project's own, the shape press's site config takes: nothing on disk
 	// answers it, so the render has to resolve it the way the project's build does.
 	'vite.config.js':
@@ -25,12 +25,13 @@ const files: Record<string, string> = {
 		`import { seam } from ${JSON.stringify(pathToFileURL(plugin).href)};\n` +
 		"const site = { name: 'virtual-site', resolveId(id) { return id === 'virtual:site' ? '\\0virtual:site' : null; }, " +
 		"load(id) { return id === '\\0virtual:site' ? 'export const site = { name: \"Sample <site>\" };' : null; } };\n" +
-		"export default { logLevel: 'silent', plugins: [sveltekit(), site, ...(process.env.SEAM ? [seam()] : [])] };",
+		// Kit 3 takes its options as the plugin's argument; a `svelte.config.js` is an error.
+		"export default { logLevel: 'silent', plugins: [sveltekit({ outDir: process.env.SEAM_OUT, alias: { $parts: 'src/parts' } }), site, ...(process.env.SEAM ? [seam()] : [])] };",
 	'src/app.html':
 		'<!doctype html><html lang="en"><head>%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>',
 	'src/routes/+layout.server.js': "export function load() { return { tagline: 'a sample' }; }",
 	'src/routes/+layout.svelte':
-		"<script>import { page } from '$app/state'; import { dev } from '$app/environment'; import { site } from 'virtual:site'; import { shout } from '$lib/shout.ts'; import Nav from '$parts/nav.svelte'; let { children, data } = $props();</script>" +
+		"<script>import { page } from '$app/state'; import { dev } from '$app/environment'; import { site } from 'virtual:site'; import { shout } from '#lib/shout.ts'; import Nav from '$parts/nav.svelte'; let { children, data } = $props();</script>" +
 		'<svelte:head><link rel="canonical" href={`https://sample.test${page.url.pathname}`} /></svelte:head>' +
 		'<header>{site.name}: {data.tagline}{dev ? " (dev)" : ""}</header><p>{shout(data.tagline)}</p><Nav /><main>{@render children()}</main>',
 	// Carried: a function a derivation calls, reaching a virtual module, which only the project's
@@ -77,7 +78,14 @@ async function built(outDir: string, withSeam: boolean): Promise<Record<string, 
 	const cwd = process.cwd();
 	process.chdir(root);
 	try {
-		await build({ root, configFile: resolve(root, 'vite.config.js'), logLevel: 'silent' });
+		// As `vite build` runs Kit 3: through the builder, whose `buildApp` Kit's plugin drives, the
+		// server environment first and the client from inside it.
+		const builder = await createBuilder({
+			root,
+			configFile: resolve(root, 'vite.config.js'),
+			logLevel: 'silent',
+		});
+		await builder.buildApp();
 	} finally {
 		process.chdir(cwd);
 	}

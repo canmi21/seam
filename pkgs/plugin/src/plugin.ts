@@ -3,11 +3,11 @@
  *
  * Kit's `vite build` runs the server build first and starts the client build from inside it, and
  * this plugin changes one thing in the first and nothing in the second: the root component Kit's
- * server renders a page with. Kit's generated `root.js` is resolved to a module of this plugin's
- * that renders from the compiled artifacts instead -- `inject(ir, derive(props))` where Kit would
- * have called `root.render(props)` -- and everything around that call is Kit's own: routing, the
- * `load` functions, the data script, the head, the client that hydrates against the bytes. See
- * spec/framework.md.
+ * server renders a page with. Kit's `runtime/components/root.svelte`, where `render.js` imports
+ * it, is resolved to a component of this plugin's that renders from the compiled artifacts instead
+ * -- `inject(ir, derive(props))` pushed into the renderer Kit's `render(Root, ...)` made -- and
+ * everything around that call is Kit's own: routing, the `load` functions, the data script, the
+ * head, the client that hydrates against the bytes. See spec/framework.md.
  *
  * The artifacts are compiled when the server build starts and written into its output beside the
  * program, as files the program reads rather than code bundled into it, because a backend that is
@@ -19,11 +19,15 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig } from 'vite';
-import { configured } from 'routes';
+import { configured, READING } from 'routes';
 import { ARTIFACTS, type Compiling, NAME } from './compile.ts';
 
-/** The id Kit's generated root resolves to in the server build, marked as a module no file backs. */
+/** The id Kit's root resolves to in the server build, marked as a module no file backs. */
 const ROOT = '\0seam:root';
+
+/** Kit's own root, as `render.js` imports it, and the one importer whose import is taken over. */
+const KIT_ROOT = '/runtime/components/root.svelte';
+const RENDER = '/runtime/server/page/render.js';
 
 /**
  * What this build has already compiled, written beside the artifacts. See `compileRoutes`.
@@ -67,22 +71,30 @@ export function seam(options: Options = {}): Plugin {
 	let root = '';
 	let active = false;
 	let config: ResolvedConfig | undefined;
-	/** Kit's `outDir`, where its generated root sits and where the artifacts are written. */
+	/** Kit's `outDir`, where the artifacts are written. */
 	let outDir = '';
+	/** Kit's own root component, by the path `render.js` imports it from, once that import is met. */
+	let kitRoot = '';
 	/** Each artifact's reference in the bundle, by its name under the artifacts directory. */
 	const emitted = new Map<string, string>();
 
 	return {
 		name: NAME,
-		// The generated root has to be caught before Vite resolves the relative import to a file.
+		// Kit's root has to be caught before Vite resolves the relative import to a file.
 		enforce: 'pre',
 
 		async configResolved(resolved) {
+			// A resolution `configured()` asked for, to read the project's options, and not a build:
+			// this plugin is in the config it reads, and asking `configured()` back would wait on the
+			// promise being waited on. See `READING`.
+			if (resolved.plugins.some((one) => one.name === READING)) return;
 			config = resolved;
 			root = resolved.root;
-			// Kit's server build, and only that: the client build Kit starts afterwards loads the
-			// config file again with `build.ssr` unset, and `vite dev` renders with Kit's own root.
-			active = resolved.command === 'build' && resolved.build.ssr === true;
+			// Kit's build, and only that: `vite dev` renders with Kit's own root. Kit 3 builds through
+			// Vite's builder, one config shared by its `ssr` and `client` environments and this plugin
+			// shared with it, so the config resolves once and each hook below asks which environment
+			// it is in: the server's, and only that, is where the root is rendered.
+			active = resolved.command === 'build' && resolved.environments['ssr'] !== undefined;
 			if (!active) return;
 			outDir = resolve(root, (await configured(root)).outDir);
 			// Compiled here, with the config resolved and the bundle not yet started: the compile
@@ -92,7 +104,7 @@ export function seam(options: Options = {}): Plugin {
 		},
 
 		buildStart() {
-			if (!active) return;
+			if (!active || this.environment.name !== 'ssr') return;
 			// Into the server output as assets, so that whatever an adapter copies the program with,
 			// it copies these too; the program reaches each by the URL the bundler gives it, which is
 			// right wherever the chunk that reads it lands. An artifact is named by its route's id,
@@ -118,19 +130,24 @@ export function seam(options: Options = {}): Plugin {
 		// writes `base` joined with the file name -- a path from the site's root, which names no file
 		// on disk. Running before it, as this plugin does, the first answer is this one.
 		resolveFileUrl({ fileName, relativePath }) {
-			if (!active || !fileName.startsWith(`${ARTIFACTS}/`)) return null;
+			if (!active || this.environment.name !== 'ssr') return null;
+			if (!fileName.startsWith(`${ARTIFACTS}/`)) return null;
 			return `new URL(${JSON.stringify(relativePath)}, import.meta.url).href`;
 		},
 
+		// Only the import `render.js` makes: the dispatcher imports the same file for the renders it
+		// hands back to Kit, and that import is left to Svelte's plugin.
 		resolveId(source, importer) {
-			if (!active || importer === undefined || !source.endsWith('/root.js')) return null;
-			const at = resolve(dirname(importer), source);
-			return at === resolve(outDir, 'generated/root.js') ? ROOT : null;
+			if (!active || this.environment.name !== 'ssr' || importer === undefined) return null;
+			const at = resolve(dirname(importer), source).split('\\').join('/');
+			if (!at.endsWith(KIT_ROOT) || !importer.split('\\').join('/').endsWith(RENDER)) return null;
+			kitRoot = at;
+			return ROOT;
 		},
 
 		load(id) {
-			if (id !== ROOT) return null;
-			return dispatcher(resolve(outDir, 'generated/root.svelte'), emitted);
+			if (id !== ROOT || this.environment.name !== 'ssr') return null;
+			return dispatcher(kitRoot, emitted);
 		},
 	};
 
@@ -193,16 +210,20 @@ export function seam(options: Options = {}): Plugin {
 }
 
 /**
- * The module that stands where Kit's generated root stood: `render(props, options)` with the
- * shape `asClassComponent(Root).render` has, since that is what Kit's `render_response` calls.
+ * The component that stands where Kit's root stood: a Svelte server component, `($$renderer,
+ * props) => void`, since that is what Kit 3's `render.js` hands `render()` -- and what it hands it
+ * are Kit's `Props`, the page, the form, the error and the `tree` of `RenderNode`s, one per level.
  *
- * A page route renders from its artifact, read beside the program. What has no artifact is
- * rendered by Kit's root as before: today that is the error page, which is not compiled yet -- an
- * `+error.svelte` is not a route, and a load that throws renders it under the route's own id --
- * and nothing else, since a route that does not compile fails the build rather than reaching
- * here. See spec/framework.md.
+ * A page route renders from its artifact, read beside the program: the tree's levels become the
+ * generated root's `data_0..n`, and the bytes come back through the renderer Kit made -- the body
+ * inside the pair `render()` itself writes around a root, the head through a head renderer, a
+ * hydratable script's hash onto the policy's list -- so what Kit reads off `render()` is what it
+ * would have read. What has no artifact is rendered by Kit's own root as before: today that is the
+ * error tree -- a `load` that threw, which Kit renders as the branch again with the error page as
+ * its leaf, under the route's own id -- and nothing else, since a route that does not compile
+ * fails the build rather than reaching here. See spec/framework.md.
  */
-function dispatcher(rootComponent: string, emitted: ReadonlyMap<string, string>): string {
+function dispatcher(kitRootComponent: string, emitted: ReadonlyMap<string, string>): string {
 	const here = createRequire(import.meta.url);
 	// By path rather than by name: the module is compiled inside the project's build, where this
 	// repository's package names mean nothing.
@@ -215,12 +236,10 @@ function dispatcher(rootComponent: string, emitted: ReadonlyMap<string, string>)
 	return `
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { asClassComponent } from 'svelte/legacy';
-import Root from ${JSON.stringify(rootComponent)};
+import KitRoot from ${JSON.stringify(kitRootComponent)};
 import { inject } from ${JSON.stringify(injector)};
 import { compile as derivations } from ${JSON.stringify(derive)};
 
-const kit = asClassComponent(Root);
 const files = { ${files} };
 const read = (name) => readFileSync(fileURLToPath(files[name]), 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
@@ -237,31 +256,52 @@ function artifact(entry) {
 	return held;
 }
 
-export default {
-	render(props, options) {
-		// A page's artifact stands for the page rendered with its data. An error response renders
-		// the error page in its place -- a load that threw, a route nothing matched -- and that is
-		// Kit's root's, under the same route id or none.
-		const failed = props.error !== undefined || props.page?.error != null;
-		const entry = failed ? undefined : manifest.routes[props.page?.route?.id];
-		if (entry === undefined) return kit.render(props, options);
-		const { ir, derive } = artifact(entry);
-		// A promise where a derivation awaits, which only a project in Svelte's async mode has, and
-		// Kit awaits what the root's render returns under that mode.
-		// Kit hands its content security policy in \`options.csp\` and adds what comes back in
-		// \`hashes\` to the header, which is the script \`hydratable\` values go into.
-		const shaped = ({ body, head, hashes }) => ({
-			head,
-			html: body,
-			css: { code: '', map: null },
-			...(hashes === undefined ? {} : { hashes }),
-		});
-		// Kit hands \`transformError\` too, which a boundary's failed branch is written with.
-		const injected = inject(ir, derive(props, { transformError: options?.transformError }), {
-			csp: options?.csp,
-		});
-		return typeof injected.then === 'function' ? injected.then(shaped) : shaped(injected);
-	},
-};
+// What \`render()\` writes around a root, and what an artifact's body was measured with: the pair is
+// the renderer's here, so the body goes in without it.
+const OPEN = '<!--[-->';
+const CLOSE = '<!--]-->';
+
+export default function Root($$renderer, props) {
+	// A page's artifact stands for the page rendered with its data. An error response renders the
+	// error page in its place -- a load that threw, a route nothing matched -- and that is Kit's
+	// root's, under the same route id or none.
+	const failed = props.error !== undefined || props.page?.error != null;
+	const entry = failed ? undefined : manifest.routes[props.page?.route?.id];
+	if (entry === undefined) {
+		KitRoot($$renderer, props);
+		return;
+	}
+	const { ir, derive } = artifact(entry);
+	// The generated root's props: Kit's tree, a level per node, its data already the merge of the
+	// levels above it as \`render_response\` builds it.
+	const payload = { page: props.page, form: props.form, error: props.error };
+	let level = 0;
+	for (let node = props.tree; node !== undefined && node !== null; node = node.child) {
+		payload[\`data_\${level}\`] = node.data;
+		level += 1;
+	}
+	// Kit's render options reach a component through the renderer: its content security policy,
+	// which is the script \`hydratable\` values go into, and \`transformError\`, which a boundary's
+	// failed branch is written with.
+	const { csp, transformError } = $$renderer.global;
+	const injected = inject(ir, derive(payload, { transformError }), {
+		csp: csp.nonce === undefined ? { hash: csp.hash === true } : { nonce: csp.nonce },
+	});
+	const write = (renderer, { body, head, hashes }) => {
+		if (!body.startsWith(OPEN) || !body.endsWith(CLOSE)) {
+			throw new Error(\`the artifact for \${entry.id} is not a root's bytes\`);
+		}
+		renderer.push(body.slice(OPEN.length, body.length - CLOSE.length));
+		if (head !== '') renderer.head((inner) => inner.push(head));
+		for (const hash of hashes?.script ?? []) csp.script_hashes.push(hash);
+	};
+	// A promise where a derivation awaits, which only a project in Svelte's async mode has, and
+	// Kit awaits what \`render()\` returns under that mode.
+	if (typeof injected.then === 'function') {
+		$$renderer.child(async (inner) => write(inner, await injected));
+	} else {
+		write($$renderer, injected);
+	}
+}
 `;
 }

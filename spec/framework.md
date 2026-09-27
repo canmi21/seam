@@ -76,10 +76,27 @@ the move costs this layer, each a fact of the diff rather than a guess:
    the boundary's guard had to leave alone ([ir.md](ir.md), "Three things the guard leaves as
    written"). What stays with Kit's root is the error **tree**: a load that throws has Kit render
    the branch again with the error page as its leaf, under the route's id, and that render is
-   handed back to Kit as before until the next step decides where it goes.
-3. `pkgs/plugin` resolves its render at the point Kit 3 renders `root.svelte`
-   (`runtime/server/page/render.js`, `render(Root, { ...render_opts, props })`) rather than at the
-   generated `root.js`, which no longer exists.
+   Kit's own root's; the next step says how it gets there.
+3. **Done.** `pkgs/plugin` resolves its render at the point Kit 3 renders `root.svelte`:
+   `runtime/server/page/render.js` imports `../../components/root.svelte` and hands it to
+   Svelte's `render(Root, { ...render_opts, props })`, and that one import -- by importer, so the
+   dispatcher's own import of the same file stays Svelte's -- resolves to a Svelte server
+   component of the plugin's, `($$renderer, props) => void`. The tree's levels become the
+   generated root's `data_0..n`; the artifact's body goes into the renderer without the pair
+   `render()` writes around a root itself, its head through a head renderer, a hydratable
+   script's hash onto the policy's list, and a derivation that awaits through an async child. The
+   render options reach the component through `$$renderer.global`: `csp` and `transformError`.
+   An error tree -- `props.error` set, a `load` that threw -- calls Kit's own root, which is the
+   decision the previous step left open: Kit renders the branch again with the error page as its
+   leaf, and that render stays Kit's. Two things around the hook moved with Kit 3: it builds
+   through Vite's builder, one config shared by its `ssr` and `client` environments, so the plugin
+   acts in the `ssr` environment and no other; and `configured()`'s own resolution of the project's
+   Vite config runs this plugin's `configResolved` again, which asked `configured()` back and
+   waited on the promise it was awaited from -- the resolution now carries a plugin named
+   `READING`, and the hook returns on seeing it. The compile-time render's loader defines
+   `__SVELTEKIT_DEV__` false, since Kit 3's plugin reads `dev` off the Vite command and the
+   loader's is `serve`. Measured: the plugin's sample project, built with and without the plugin,
+   answers seven URLs byte for byte, the error page and `__data.json` included.
 4. Kit 3's own test apps, `server.test.js` of `basics` first, then the synchronous ones, then the
    three that turn the flag on, each held to a list the way the sample suite is; see
    [conformance.md](conformance.md), "Stage 2". That is stage two, and it is what this version is
@@ -180,10 +197,11 @@ that moved under the installed TypeScript. None is refused. Each is taken when a
 2. **Done.** The plugin, `seam()` beside `sveltekit()` in the project's Vite config. Kit's `vite
 build` runs its server build first and the plugin takes part in that one only: when it starts,
    the routes are compiled and the artifacts emitted into the server output as assets, reached by
-   the URLs the bundler gives them so an adapter carries them with the program; and Kit's
-   generated `root.js` is resolved to a module that renders a page from its artifact --
-   `inject(ir, derive(props))` where Kit called `root.render(props)`, with the shape
-   `asClassComponent(Root).render` returns. The compile-time render itself loads its staged copies
+   the URLs the bundler gives them so an adapter carries them with the program; and Kit's root
+   is resolved to a component that renders a page from its artifact -- `inject(ir, derive(props))`
+   pushed into the renderer Kit's `render(Root, ...)` made (Kit 2's generated `root.js` and its
+   `root.render(props)` before that; see "SvelteKit 3 is the target" above). The compile-time
+   render itself loads its staged copies
    through a Vite server made from the project's own config, in production mode with HMR off, so
    what a component imports resolves as the project's build resolves it -- `$lib`, `$app/*`, a
    virtual module of the project's plugins, `svelte` by condition, one copy of it shared with the

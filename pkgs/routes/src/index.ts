@@ -43,6 +43,7 @@ export {
 	compilerOptions,
 	configured,
 	type Page,
+	READING,
 	type Routes,
 	routes,
 } from './manifest.ts';
