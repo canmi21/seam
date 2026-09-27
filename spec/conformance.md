@@ -263,10 +263,9 @@ both ways is upstream's or this machine's. Playwright drives the system's Chrome
 config asks (`channel: 'chrome'`).
 
 **Where it stands.** `basics`, `server.test.js`: Kit alone passes 14 and skips 14 (the project with
-JavaScript on skips every server spec by design); with the plugin, 13 pass and one fails, an
-imported image whose `src` this compiler writes as the `data:` URL its own bundling gave it where
-Kit writes the hashed path of its build -- [roadmap.md](roadmap.md), "Owed". Getting there compiled
-every one of the app's routes, which is what found the compiler work
+JavaScript on skips every server spec by design); with the plugin, the same 14 pass. The last to
+close was an imported image, whose URL Kit's build decides and is now handed in. Getting there
+compiled every one of the app's routes, which is what found the compiler work
 [framework.md](framework.md)'s step four records. `client.test.js` and `test.js` are next, then
 the other twelve apps.
 

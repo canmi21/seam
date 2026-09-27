@@ -124,14 +124,6 @@ that branches on the prop and writes it elsewhere defeats it. No sample writes t
 which of the child's expressions the marker reached is what closes it. [readings.md](readings.md),
 "Wrong bytes, which is not a refusal and outranks everything below".
 
-**An imported asset's URL, under Kit.** `import potatoes from './potatoes.jpg'` in a component is
-a URL Kit's build decides -- `/_app/immutable/assets/potatoes.<hash>.jpg`, under the `assets` base
-the server holds -- and this compiler's carried bundle, built by the project's Vite apart from Kit's
-build, inlined the file as a `data:` URL instead. Found by `basics`'s `server.test.js`, its one
-failure. The value is a build product like `$app/manifest`'s, which is handed to the derivations
-by the dispatcher ([framework.md](framework.md), step four); an asset is one per import rather
-than one module, so what hands it in is the question.
-
 **What is refused by name.** Each is a gap and [refusals.md](refusals.md) holds it with the shape
 it waits on: a spread on a `<select>`, a `let:` taking a pattern apart and a spread on a `<slot>`,
 a head that reaches a fragment from a component inside the body, a child binding `$props()` to a

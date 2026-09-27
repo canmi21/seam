@@ -20,7 +20,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig } from 'vite';
 import { configured, READING } from 'routes';
-import { ARTIFACTS, type Compiling, NAME } from './compile.ts';
+import { ARTIFACTS, ASSETS, assetKey, type Compiling, NAME } from './compile.ts';
 
 /** The id Kit's root resolves to in the server build, marked as a module no file backs. */
 const ROOT = '\0seam:root';
@@ -147,7 +147,14 @@ export function seam(options: Options = {}): Plugin {
 
 		load(id) {
 			if (id !== ROOT || this.environment.name !== 'ssr') return null;
-			return dispatcher(kitRoot, emitted);
+			const assets = JSON.parse(
+				readFileSync(resolve(outDir, ARTIFACTS, ASSETS), 'utf8'),
+			) as readonly string[];
+			return dispatcher(
+				kitRoot,
+				emitted,
+				assets.map((one) => [assetKey(one), resolve(root, one)]),
+			);
 		},
 	};
 
@@ -225,7 +232,11 @@ export function seam(options: Options = {}): Plugin {
  * error response for every request. A route that does not compile otherwise fails the build
  * rather than reaching here. See spec/framework.md.
  */
-function dispatcher(kitRootComponent: string, emitted: ReadonlyMap<string, string>): string {
+function dispatcher(
+	kitRootComponent: string,
+	emitted: ReadonlyMap<string, string>,
+	assets: ReadonlyArray<readonly [key: string, path: string]>,
+): string {
 	const here = createRequire(import.meta.url);
 	// By path rather than by name: the module is compiled inside the project's build, where this
 	// repository's package names mean nothing.
@@ -235,6 +246,14 @@ function dispatcher(kitRootComponent: string, emitted: ReadonlyMap<string, strin
 	const files = [...emitted]
 		.map(([name, ref]) => `${JSON.stringify(name)}: import.meta.ROLLUP_FILE_URL_${ref}`)
 		.join(', ');
+	// Each asset a carried bundle reads the URL of, imported here so that Kit's server build answers
+	// it as it answers the same import in a component. See `assetURLs` in compile.ts.
+	const imports = assets
+		.map(([, path], i) => `import asset_${String(i)} from ${JSON.stringify(path)};\n`)
+		.join('');
+	const handedAssets = assets
+		.map(([key], i) => `, ${JSON.stringify(key)}: asset_${String(i)}`)
+		.join('');
 	return `
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -243,13 +262,13 @@ import * as appManifest from '$app/manifest';
 import { rendered_env, dynamic_private_env } from '<sveltekit:generated>/env/config.js';
 import { inject } from ${JSON.stringify(injector)};
 import { compile as derivations } from ${JSON.stringify(derive)};
-
-// What Kit's build and server decide, handed to the derivations: the manifest, and the two objects
+${imports}
+// What Kit's build and server decide, handed to the derivations: the manifest, the two objects
 // Kit's server fills with the dynamic environment as it starts, which the carried bundle's own
-// env modules read off this global. The objects rather than Kit's env modules, since those read
-// the objects as they are evaluated, and this module is evaluated before the server starts. See
-// pkgs/plugin/src/app/handed.ts.
-globalThis[Symbol.for('seam.kit')] = { '$app/manifest': appManifest, rendered_env, dynamic_private_env };
+// env modules read off this global, and the URL of each asset a carried bundle imports. The objects
+// rather than Kit's env modules, since those read the objects as they are evaluated, and this
+// module is evaluated before the server starts. See pkgs/plugin/src/app/handed.ts.
+globalThis[Symbol.for('seam.kit')] = { '$app/manifest': appManifest, rendered_env, dynamic_private_env${handedAssets} };
 
 const files = { ${files} };
 const read = (name) => readFileSync(fileURLToPath(files[name]), 'utf8');

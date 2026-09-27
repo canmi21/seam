@@ -12,7 +12,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { basename, dirname, resolve } from 'node:path';
+import { basename, dirname, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Plugin } from 'vite';
 import { type Bundler, configureCarry, running } from 'carry';
@@ -25,6 +25,15 @@ export const NAME = 'compile-time-rendering';
 
 /** Where the compiled artifacts sit inside the server output, and so beside the built program. */
 export const ARTIFACTS = 'seam';
+
+/**
+ * The imported assets whose URL the carried bundles read, beside the artifacts rather than among
+ * them: it is read by the dispatcher's generation, not by the program. See `assetURLs`.
+ */
+export const ASSETS = 'assets.json';
+
+/** The key an asset's URL is handed under, by its import relative to the project's root. */
+export const assetKey = (imported: string): string => `asset:${imported}`;
 
 /** What the compile has to be told, which is everything that crosses into the process it runs in. */
 export interface Compiling {
@@ -118,6 +127,7 @@ export async function compileRoutes({
 	// `$app/*` is given as what a derivation reads of it at request time. See `./app`.
 	const kit = await configured(root);
 	const found_aliases = Object.entries(await aliases(root));
+	const assets = new Set<string>();
 	let n = 0;
 	const carrier: Bundler = async (entry, source) => {
 		n += 1;
@@ -131,6 +141,7 @@ export async function compileRoutes({
 			mode: 'production',
 			logLevel: 'silent',
 			plugins: [
+				assetURLs(root, assets),
 				appModules(kit, root, outDir),
 				// A component's script run as Svelte compiled it, which a derivation calls where
 				// substitution could not follow. See `running()` in the carry package.
@@ -173,6 +184,7 @@ export async function compileRoutes({
 			out,
 			...(refuseUnnamedComponents === undefined ? {} : { refuseUnnamedComponents }),
 		});
+		writeFileSync(resolve(out, ASSETS), `${JSON.stringify([...assets].toSorted())}\n`);
 	} finally {
 		forgetStaging();
 		configureRender(null);
@@ -209,6 +221,50 @@ async function projectVite(root: string): Promise<typeof import('vite')> {
 	return (await import(
 		pathToFileURL(resolve(dirname(manifest), target)).href
 	)) as typeof import('vite');
+}
+
+/**
+ * An imported asset's URL as the carried bundle gets it: a read of what Kit's server build gave the
+ * same import. Kit's build decides the URL -- the hashed name under `_app/immutable/assets`, the
+ * `assets` base, whether the file is inlined at all -- and this build, a library build, inlines
+ * every asset as a `data:` URL whatever the project says. So the import becomes a read off the
+ * global the dispatcher fills, and the import is recorded for the dispatcher to make in Kit's
+ * build, where it is answered by Kit's own rules. What an import reads of the file's content
+ * rather than its URL, `?raw` and `?inline`, is the compile's to decide and stays bundled. See
+ * spec/framework.md.
+ */
+function assetURLs(root: string, found: Set<string>): Plugin {
+	const HANDED = '\0seam:asset:';
+	const handedModule = fileURLToPath(new URL('./app/handed.ts', import.meta.url));
+	let isAsset: ((file: string) => boolean) | undefined;
+	return {
+		name: `${NAME}:assets`,
+		enforce: 'pre',
+		configResolved(config) {
+			isAsset = config.assetsInclude;
+		},
+		async resolveId(source, importer, options) {
+			if (source.startsWith('\0') || importer === undefined) return null;
+			const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
+			if (resolved === null || resolved.external || resolved.id.startsWith('\0')) return null;
+			const [file = '', query = ''] = resolved.id.split('?', 2);
+			const flags = new URLSearchParams(query);
+			if (['raw', 'inline', 'worker', 'sharedworker'].some((one) => flags.has(one))) return null;
+			if (isAsset?.(file) !== true && !flags.has('url') && !flags.has('no-inline')) return null;
+			const imported = `${relative(root, file).split('\\').join('/')}${query === '' ? '' : `?${query}`}`;
+			found.add(imported);
+			return `${HANDED}${imported}`;
+		},
+		load(id) {
+			if (!id.startsWith(HANDED)) return null;
+			const key = assetKey(id.slice(HANDED.length));
+			return [
+				`import { handed } from ${JSON.stringify(handedModule)};`,
+				`export default handed(${JSON.stringify(key)});`,
+				'',
+			].join('\n');
+		},
+	};
 }
 
 /**

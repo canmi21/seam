@@ -126,6 +126,14 @@ the move costs this layer, each a fact of the diff rather than a guess:
      as reads. The objects rather than Kit's env modules, since those read the objects as they are
      evaluated and the dispatcher is evaluated before the server starts: Kit's own analysis of the
      nodes imports the server first, and found `PUBLIC_DYNAMIC` undefined that way.
+   - **An imported asset's URL is handed the same way, one value per import.** The hashed name
+     under `_app/immutable/assets`, the `assets` base and whether the file is inlined at all are
+     Kit's build's to decide, and the carried bundle is a library build, which inlines every asset
+     as a `data:` URL whatever the project's limit. So its bundling turns an import that yields a
+     URL -- a file Vite counts as an asset, or `?url` -- into a read under `asset:<path from the
+root>` and lists the path in `<outDir>/seam/assets.json`, and the dispatcher imports each
+     listed file, which Kit's server build answers as it answers the component's own import. An
+     import that yields the file's content, `?raw` or `?inline`, is the compile's and stays bundled.
    - **A script run reads the request's `page`** through Kit's own `$app/state` server module;
      [derivation.md](derivation.md), "Where substitution cannot follow".
    - **The loader stands where the build stands.** Kit aliases `<sveltekit:generated>` to
