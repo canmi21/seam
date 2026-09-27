@@ -11,8 +11,8 @@ import { awaiting } from './awaits.ts';
 import { chose, keyed } from './branches.ts';
 import { collect } from './collect.ts';
 import { onlyChild } from './component-shape.ts';
-import { unwrapped } from './components.ts';
-import { expressionIn, varies } from './dynamic.ts';
+import { componentImport, unwrapped } from './components.ts';
+import { expressionIn, rendersOnly, varies } from './dynamic.ts';
 import { held, stamped } from './stamps.ts';
 import { type Walk } from './walk-types.ts';
 import { parameterNames } from './written.ts';
@@ -59,13 +59,38 @@ export function boundary(
 	}
 	const raw = new Map<string, string>();
 	const guard = (text: string): string => {
-		// A literal throws nothing, and it is what the walk folds a test or a value by.
-		if (constant(text) || unwrapped(text) === 'undefined') return text;
+		// A literal throws nothing, and it is what the walk folds a test or a value by. Nor does a
+		// component the file imports, which is what a `<svelte:component this>` settles to and what
+		// Svelte then has to read as a name: Kit's root holds one per level inside its boundaries.
+		// A context read stays the render's, having nowhere else to be read (see `Walk.holding`);
+		// guarded, it would carry a helper and be asked to be a derivation, which it cannot be.
+		if (
+			constant(text) ||
+			unwrapped(text) === 'undefined' ||
+			componentImport(unwrapped(text), walk) ||
+			rendersOnly(text, walk)
+		) {
+			return text;
+		}
 		const guarded = awaiting(text)
 			? `(await $$tried(async () => (${text})))`
 			: `$$tried(() => (${text}))`;
 		raw.set(guarded, text);
 		return guarded;
+	};
+	const unguarded = (text: string): string => {
+		// Longest first: a guarded value inside another is part of the outer one's text until the
+		// outer one is taken off.
+		const keys = [...raw.keys()].toSorted((a, b) => b.length - a.length);
+		for (let changed = true; changed;) {
+			changed = false;
+			for (const key of keys) {
+				if (!text.includes(key)) continue;
+				text = text.split(key).join(raw.get(key) ?? key);
+				changed = true;
+			}
+		}
+		return text;
 	};
 	// Every hole and block the children record, with the blocks enclosing it, in the order the walk
 	// records them -- which is source order, entered components included. Read off the two lists as
@@ -93,6 +118,7 @@ export function boundary(
 			{
 				...walk,
 				trying: guard,
+				untried: (text) => (walk.untried === undefined ? unguarded(text) : walk.untried(unguarded(text))),
 				holding: true,
 				expand: (one, extra) => guard(walk.expand(one, extra)),
 			},
@@ -102,20 +128,6 @@ export function boundary(
 		within.pop();
 		for (const one of quiet) one();
 	}
-	const unguarded = (text: string): string => {
-		// Longest first: a guarded value inside another is part of the outer one's text until the
-		// outer one is taken off.
-		const keys = [...raw.keys()].toSorted((a, b) => b.length - a.length);
-		for (let changed = true; changed;) {
-			changed = false;
-			for (const key of keys) {
-				if (!text.includes(key)) continue;
-				text = text.split(key).join(raw.get(key) ?? key);
-				changed = true;
-			}
-		}
-		return text;
-	};
 	const waits = raw.size > 0 && [...raw.values()].some(awaiting);
 	const body = inOrder(steps, 1, unguarded, waits);
 	if (body === null) {

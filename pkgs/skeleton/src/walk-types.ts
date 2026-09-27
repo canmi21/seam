@@ -398,6 +398,12 @@ export interface Walk {
 	 */
 	trying?: (text: string) => string;
 	/**
+	 * The reverse of `trying`: the text a guarded value had before the guard, for what is written
+	 * into the render's own source -- an ask, a want -- which the render evaluates at the build and
+	 * cannot be handed a helper. See `boundary()`.
+	 */
+	untried?: (text: string) => string;
+	/**
 	 * Set inside both branches of a `<svelte:boundary>` with a `failed` snippet: every value is a
 	 * hole, even one the request does not decide. Whether it throws is asked per request -- by the
 	 * boundary's run in the children, by the request's `transformError` choosing a branch in the

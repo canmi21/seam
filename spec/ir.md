@@ -273,6 +273,20 @@ no request takes throws for none. What may read a context stays the render's, ha
 to be read: Svelte's context API by name, and anything imported from Svelte or from a component's
 module script, which is where a `createContext` getter comes from.
 
+**Three things the guard leaves as written, found by putting Kit's root inside it.** SvelteKit 3
+renders every page under a `<svelte:boundary>` per level, so every component of every page is a
+child of one ([framework.md](framework.md)). A literal, and a component the file imports -- what a
+`<svelte:component this>` settles to, and a name Svelte has to be handed as a name. A context read,
+for the reason above: guarded, it carried a helper, and an expression carrying a helper is asked to
+be a derivation, which a context read cannot be, so the page was left to the render whole and its
+data rendered empty. And the guard is not a maker: a prop expanding to a guarded value is the same
+value the caller holds, and holding it again ([derivation.md](derivation.md), "A value that makes
+something is held where it crosses into a child") wrote the hold into the render's own source.
+**What is written into the render's source is unguarded**: an ask and a want are the render's
+questions at the build, answered by a render that has no helper to call, so the guard is taken
+off them (`Walk.untried`) while the key each is filed under keeps the guarded text, since the
+pass that asks and the pass that reads the answer have to spell it the same.
+
 **What the run cannot follow still refuses**: an `{#await}`, a `<svelte:element>`, a boundary inside
 the children, a call of a fragment the run did not define. Each computes in an order of its own that
 the recorded holes and blocks do not say.

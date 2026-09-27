@@ -53,7 +53,16 @@ export function holding(
 	byName: ReadonlySet<string>,
 	walk: Walk,
 ): string | null {
-	if (given === undefined || !byName.has(prop) || given.includes('$$hold(')) return null;
+	// A guarded value is the same value under a boundary's catch, and what it makes is what the
+	// text inside the guard makes; the guard is not a maker of its own. See `boundary()`.
+	if (
+		given === undefined ||
+		!byName.has(prop) ||
+		given.includes('$$hold(') ||
+		given.includes('$$tried(')
+	) {
+		return null;
+	}
 	if (!makes(given)) return null;
 	return `$$hold(${String(kept(given, walk))})`;
 }

@@ -108,7 +108,7 @@ export function collectAwait(node: AstNode, walk: Walk, step: Stepper): void {
 		// Asked as the author wrote it, since the expansion may name what only this walk holds.
 		if (!site.asks.some(([key]) => key === keyed(walk, test))) {
 			const written = `typeof (${source.slice(at[0], at[1])})?.then === 'function'`;
-			site.asks.push([keyed(walk, test), written]);
+			site.asks.push([keyed(walk, test), walk.untried?.(written) ?? written]);
 		}
 		// And the branches are walked as a decision until the answer is in, which is what
 		// stops a block inside one asking a question of its own: an ask is a statement in the
@@ -232,7 +232,8 @@ export function collectIf(node: AstNode, walk: Walk, step: Stepper): void {
 		for (const [index, test] of prefix.entries()) {
 			if (answers[index] === false) continue;
 			if (!site.asks.some(([key]) => key === keyed(walk, test))) {
-				site.asks.push([keyed(walk, test), asWritten(chain[index]?.['test'], test, walk)]);
+				const code = asWritten(chain[index]?.['test'], test, walk);
+				site.asks.push([keyed(walk, test), walk.untried?.(code) ?? code]);
 			}
 			break;
 		}
@@ -396,7 +397,8 @@ export function collectEach(node: AstNode, walk: Walk, step: Stepper): void {
 		const told = site.told.get(keyed(walk, written));
 		if (told === undefined) {
 			if (!site.wants.some(([key]) => key === keyed(walk, written))) {
-				site.wants.push([keyed(walk, written), asWritten(node['expression'], written, walk)]);
+				const code = asWritten(node['expression'], written, walk);
+				site.wants.push([keyed(walk, written), walk.untried?.(code) ?? code]);
 			}
 			// This render is only asked the value and is thrown away, and a body that awaits,
 			// run over a placeholder item, runs what Svelte may never run: over an empty list it

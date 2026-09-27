@@ -356,10 +356,8 @@ export function callSite(node: AstNode, walk: Walk): CallSite | null {
 				continue;
 			}
 			if (!walk.site.wants.some(([key]) => key === keyed(walk, written))) {
-				walk.site.wants.push([
-					keyed(walk, written),
-					`(${asWritten(only['expression'], grown, walk)})`,
-				]);
+				const code = asWritten(only['expression'], grown, walk);
+				walk.site.wants.push([keyed(walk, written), `(${walk.untried?.(code) ?? code})`]);
 			}
 		}
 		bindings.set(name, written);
@@ -582,7 +580,9 @@ export function settleBindings(given: {
 		if (varies(test, walk, true) || walk.site.mute.has(key)) return true;
 		const answer = walk.site.decided.get(key);
 		if (answer !== undefined) return answer;
-		if (!walk.site.asks.some(([one]) => one === key)) walk.site.asks.push([key, test]);
+		if (!walk.site.asks.some(([one]) => one === key)) {
+			walk.site.asks.push([key, walk.untried?.(test) ?? test]);
+		}
 		return false;
 	};
 
