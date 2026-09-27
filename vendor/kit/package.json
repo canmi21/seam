@@ -123,6 +123,7 @@
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@types/set-cookie-parser": "^2.4.10",
 		"svelte": "^5.57.1",
+		"typescript": "~6.0.3",
 		"valibot": "^1.4.2",
 		"vite": "^8.0.12",
 		"vitest": "^5.0.1"

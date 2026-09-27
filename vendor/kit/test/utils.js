@@ -1,0 +1,355 @@
+// This helps `pnpm check` pass in the test apps without having to include
+// the ambient.d.ts file in each of their tsconfig.json files.
+/** @import {} from './ambient.js' */
+
+import fs from 'node:fs';
+import http from 'node:http';
+import path from 'node:path';
+import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+import { defineConfig, test as base, devices } from '@playwright/test';
+import { number_from_env } from '../../../test-utils/index.js';
+import { read_errors, read_traces } from './records.js';
+
+/** @type {typeof import('./types.js')['test']} */
+export const test = base.extend({
+	app: ({ page }, use) => {
+		// these are assumed to have been put in the global scope by the layout
+		void use({
+			goto: (url, opts) => page.evaluate(({ url, opts }) => goto(url, opts), { url, opts }),
+
+			invalidate: (url) => page.evaluate((url) => invalidate(url), url),
+
+			beforeNavigate: (fn) => page.evaluate((fn) => beforeNavigate(fn), fn),
+
+			afterNavigate: () => page.evaluate(() => afterNavigate(() => {})),
+
+			preloadCode: (id) => page.evaluate((id) => preloadCode(id), id),
+
+			preloadData: (url) => page.evaluate((url) => preloadData(url), url),
+
+			match: (url) => page.evaluate((url) => match(url), url)
+		});
+	},
+
+	clicknav: async ({ page, javaScriptEnabled }, use) => {
+		/**
+		 * @param {string} selector
+		 * @param {{ timeout?: number, waitForURL?: string }} [options]
+		 */
+		async function clicknav(selector, { timeout, waitForURL } = {}) {
+			const element = page.locator(selector);
+			if (javaScriptEnabled) {
+				const promises = [page.waitForNavigation({ timeout }), element.click()];
+				if (waitForURL) {
+					promises.push(page.waitForURL(waitForURL, { timeout }));
+				}
+				await Promise.all(promises);
+			} else {
+				await element.click();
+			}
+		}
+
+		await use(clicknav);
+	},
+
+	scroll_to: async ({ page }, use) => {
+		/**
+		 * @param {number} x
+		 * @param {number} y
+		 */
+		async function scroll_to(x, y) {
+			// The browser will do this for us, but we need to do it pre-emptively
+			// so that we can check the scroll location.
+			// Otherwise, we'd be checking a decimal number against an integer.
+			x = Math.trunc(x);
+			y = Math.trunc(y);
+			const watcher = page.waitForFunction(
+				/** @param {{ x: number, y: number }} opt */ (opt) =>
+					// check if the scroll position reached the desired or maximum position
+					window.scrollX ===
+						Math.min(opt.x, document.documentElement.offsetWidth - window.innerWidth) &&
+					window.scrollY ===
+						Math.min(opt.y, document.documentElement.offsetHeight - window.innerHeight),
+				{ x, y }
+			);
+			await page.evaluate(
+				/** @param {{ x: number, y: number }} opt */ (opt) => window.scrollTo(opt.x, opt.y),
+				{ x, y }
+			);
+			await watcher;
+		}
+
+		await use(scroll_to);
+	},
+
+	in_view: async ({ page }, use) => {
+		/** @param {string} selector */
+		async function in_view(selector) {
+			const box = await page.locator(selector).boundingBox();
+			const view = page.viewportSize();
+			return !!box && !!view && box.y < view.height && box.y + box.height > 0;
+		}
+
+		await use(in_view);
+	},
+
+	get_computed_style: async ({ page }, use) => {
+		/**
+		 * @param {string} selector
+		 * @param {string} prop
+		 */
+		function get_computed_style(selector, prop) {
+			return page.$eval(
+				selector,
+				(node, prop) => window.getComputedStyle(node).getPropertyValue(prop),
+				prop
+			);
+		}
+
+		await use(get_computed_style);
+	},
+
+	page: async ({ page, javaScriptEnabled }, use) => {
+		// automatically wait for kit started event after navigation functions if js is enabled
+		const page_navigation_functions = /** @type {const} */ (['goto', 'goBack', 'reload']);
+		page_navigation_functions.forEach((fn) => {
+			const original_page_fn = page[fn];
+			if (!original_page_fn) {
+				throw new Error(`function does not exist on page: ${fn}`);
+			}
+
+			/** @param  {...any} args */
+			async function modified_fn(...args) {
+				try {
+					// @ts-ignore
+					const res = await original_page_fn.apply(page, args);
+					if (javaScriptEnabled && args[1]?.wait_for_started !== false) {
+						// the first navigation to a route triggers on-demand compilation in dev
+						// mode, which can take a while on a cold/overloaded CI runner
+						await page.locator('body.started').waitFor({ timeout: process.env.CI ? 30000 : 15000 });
+					}
+					return res;
+				} catch (e) {
+					// Exclude this function from the stack trace so that it points to the failing test
+					// instead of this file.
+					Error.captureStackTrace(/** @type {Error} */ (e), modified_fn);
+					throw e;
+				}
+			}
+
+			page[fn] = modified_fn;
+		});
+
+		await use(page);
+	},
+
+	// eslint-disable-next-line no-empty-pattern -- Playwright doesn't let us use `_` as a parameter name. It must be a destructured object
+	read_errors: async ({}, use) => {
+		await use((/** @type {string} */ path) => read_errors('test/errors.jsonl', path));
+	},
+
+	// eslint-disable-next-line no-empty-pattern -- Playwright doesn't let us use `_` as a parameter name. It must be a destructured object
+	read_traces: async ({}, use) => {
+		await use((/** @type {string} */ test_id) => read_traces('test/spans.jsonl', test_id));
+	},
+
+	// eslint-disable-next-line no-empty-pattern -- Playwright doesn't let us use `_` as a parameter name. It must be a destructured object
+	start_server: async ({}, use) => {
+		/**
+		 * @type {http.Server | undefined}
+		 */
+		let server;
+
+		/**
+		 * @type {Set<import('net').Socket> | undefined}
+		 */
+		let sockets;
+
+		/**
+		 * @param {(req: http.IncomingMessage, res: http.ServerResponse) => void} handler
+		 */
+		async function start_server(handler) {
+			if (server) {
+				throw new Error('server already started');
+			}
+			server = http.createServer(handler);
+
+			await new Promise((fulfil) => {
+				/** @type {http.Server} */ (server).listen(0, 'localhost', () => {
+					fulfil(undefined);
+				});
+			});
+
+			const { port } = /** @type {import('net').AddressInfo} */ (server.address());
+			if (!port) {
+				throw new Error(`Could not find port from server ${JSON.stringify(server.address())}`);
+			}
+			sockets = new Set();
+			server.on('connection', (socket) => {
+				/** @type {Set<import('net').Socket>} */ (sockets).add(socket);
+				socket.on('close', () => {
+					/** @type {Set<import('net').Socket>} */ (sockets).delete(socket);
+				});
+			});
+			return {
+				port
+			};
+		}
+		await use(start_server);
+
+		if (server) {
+			if (sockets) {
+				sockets.forEach((socket) => {
+					if (!socket.destroyed) {
+						socket.destroy();
+					}
+				});
+			}
+
+			await new Promise((fulfil, reject) => {
+				/** @type {http.Server} */ (server).close((err) => {
+					if (err) {
+						reject(err);
+					} else {
+						fulfil(undefined);
+					}
+				});
+			});
+		}
+	},
+
+	// make sure context fixture depends on start server, so setup/teardown order is
+	// setup start_server
+	// setup context
+	// teardown context
+	// teardown start_server
+	async context({ context, start_server }, use) {
+		// just here make sure start_server is referenced, don't call
+		if (!start_server) {
+			throw new Error('start_server fixture not present');
+		}
+		await use(context);
+		try {
+			await context.close();
+		} catch (e) {
+			console.error('failed to close context fixture', e);
+		}
+	}
+});
+
+const known_devices = {
+	chromium: devices['Desktop Chrome'],
+	firefox: devices['Desktop Firefox'],
+	webkit: devices['Desktop Safari']
+};
+const test_browser = /** @type {keyof typeof known_devices} */ (
+	process.env.KIT_E2E_BROWSER || 'chromium'
+);
+
+const test_browser_device = known_devices[test_browser]
+	? {
+			...known_devices[test_browser],
+			channel: test_browser === 'chromium' ? 'chrome' : undefined
+		}
+	: undefined;
+
+if (!test_browser_device) {
+	throw new Error(
+		`invalid test browser specified: KIT_E2E_BROWSER=${
+			process.env.KIT_E2E_BROWSER
+		}. Allowed values: ${Object.keys(known_devices).join(', ')}`
+	);
+}
+
+const test_mode = process.env.DEV ? 'dev' : 'build';
+
+const all_projects = [
+	{ name: `${test_browser}-${test_mode}`, use: { javaScriptEnabled: true } },
+	{ name: `${test_browser}-${test_mode}-no-js`, use: { javaScriptEnabled: false } }
+];
+
+// the two projects cost very different amounts of time, so CI runs them as separate jobs
+const test_project = process.env.KIT_E2E_PROJECT;
+
+if (test_project && test_project !== 'js' && test_project !== 'no-js') {
+	throw new Error(
+		`invalid test project specified: KIT_E2E_PROJECT=${test_project}. Allowed values: js, no-js`
+	);
+}
+
+/** @type {Record<string, number>} */
+const ports = {
+	'test-async': 5300,
+	'test-basics': 5301,
+	'test-dev-only': 5302,
+	'test-embed': 5303,
+	'test-hash-based-routing': 5304,
+	'test-no-csr': 5305,
+	'test-no-ssr': 5306,
+	'test-options': 5307,
+	'test-options-2': 5308,
+	'test-options-3': 5309,
+	'test-prerendered-app-error-pages': 5310,
+	'test-writes': 5311
+};
+
+const package_name = JSON.parse(fs.readFileSync(path.resolve('package.json'), 'utf8')).name;
+export const port = ports[package_name];
+
+if (!port) {
+	throw new Error(`No test server port configured for ${package_name}`);
+}
+
+/**
+ * read process.env[name] as a one-based `current/total` shard, e.g. `1/3`
+ *
+ * @param {string} name of process.env value to read
+ * @returns {{ current: number, total: number } | undefined} undefined if process.env[name] isn't set
+ * @throws {Error} when value cannot be parsed to a shard
+ */
+function shard_from_env(name) {
+	const value = process.env[name];
+	if (!value) return undefined;
+
+	const [current, total] = value.split('/').map(Number);
+
+	if (!Number.isInteger(current) || !Number.isInteger(total) || current < 1 || current > total) {
+		throw new Error(
+			`process.env.${name} must be a one-based \`current/total\` shard but is "${value}"`
+		);
+	}
+
+	return { current, total };
+}
+
+export const config = defineConfig({
+	forbidOnly: !!process.env.CI,
+	// generous timeouts on CI
+	timeout: process.env.CI ? 45000 : 15000,
+	webServer: {
+		command: process.env.DEV
+			? `pnpm dev --force --port ${port} --strictPort`
+			: `pnpm build && pnpm preview --port ${port} --strictPort`,
+		port
+	},
+	retries: process.env.CI ? 2 : number_from_env('KIT_E2E_RETRIES', 0),
+	projects: test_project
+		? all_projects.filter((project) => project.use.javaScriptEnabled === (test_project === 'js'))
+		: all_projects,
+	use: {
+		...test_browser_device,
+		screenshot: 'only-on-failure',
+		trace: 'retain-on-failure'
+	},
+	workers: number_from_env('KIT_E2E_WORKERS', process.env.CI ? 2 : undefined),
+	shard: shard_from_env('KIT_E2E_SHARD'),
+	reporter: process.env.CI
+		? [
+				['dot'],
+				[path.resolve(fileURLToPath(import.meta.url), '../github-flaky-warning-reporter.js')]
+			]
+		: 'list',
+	testDir: 'test',
+	testMatch: /(.+\.)?(test|spec)\.[jt]s/
+});

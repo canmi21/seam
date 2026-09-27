@@ -40,6 +40,13 @@ depends = ["wasm"]
 # value is read when the module graph loads.
 run = "NODE_ENV=production pnpm exec vitest run"
 
+[tasks.apps]
+description = "Build one of SvelteKit's own test apps with the plugin and run Kit's own specs against it"
+# Stage two of spec/conformance.md, one app at a time: `mise run apps -- --app=basics
+# --spec=server.test.js`, and `--plain` for Kit's own build of the same app, which is what a failure
+# is read against. Not part of `verify` yet; see spec/conformance.md, "Stage 2".
+run = "NODE_ENV=production node pkgs/apps/src/run.ts"
+
 [tasks.test-vendor]
 description = "Run SvelteKit's own checks over the vendored source, upstream's Node half"
 # From the vendor directory, under its own config: the repository's `test` does not include it,

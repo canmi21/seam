@@ -14,7 +14,9 @@ written in that package rather than in these files.
 | commit | `47417bcf0f644947eb16758b2f3179dc0a250124` |
 | `src/` | `packages/kit/src`, whole, including the `.spec.js` files and their fixtures |
 | `types/` | `packages/kit/types`, the public declarations |
-| `test/mocks/` | `packages/kit/test/mocks`, the stand-ins the specs use for Kit's virtual modules |
+| `test/` | `packages/kit/test`, whole: the thirteen apps under `apps/`, `prerendering/`, `build-errors/`, the Playwright harness (`utils.js`, `records.js`, `setup.js`, `types/`) and `mocks/`, the stand-ins the specs use for Kit's virtual modules |
+| `test-utils/` | the repository's own `test-utils`, which `test/utils.js` reaches as `../../../test-utils`; kept beside `test/` here, since that path lands outside this directory, and staged back into upstream's layout when an app is run |
+| `../test-redirect-importer/` | `packages/test-redirect-importer`, a workspace package the `basics` app depends on, as a vendored package of its own |
 | `LICENSE` | the repository's, MIT |
 | `*.upstream.*` | `package.json`, `tsconfig.json` and `vitest.kit.config.js` as upstream ships them, for reading |
 | `.gitignore` | `packages/kit/.gitignore`, the one file taken for effect rather than for reading |
@@ -71,6 +73,13 @@ work, and the repository's `verify` is red until the next step lands.
 
 ## What is checked
 
+- `mise run apps -- --app=<name>` builds one of the apps under `test/apps` with this repository's
+  plugin and runs Kit's own Playwright specs against it, staging the app into `pkgs/apps/.build-apps`
+  in upstream's layout with this package's dependencies; `pkgs/apps` declares what upstream's
+  workspace catalog gave the apps. `--plain` builds the same app as Kit alone does. This is stage
+  two of `spec/conformance.md`, and the apps are how it is measured. `typescript` is pinned at
+  upstream's `~6.0.3` in `package.json` here, because Kit's sync reads an app's `tsconfig.json`
+  through `ts.sys`, which the repository's own TypeScript no longer has.
 - `vitest run --config vitest.config.ts`, run from this directory, is upstream's own Node-side
   suite over the vendored files, and `mise run test-vendor` is how it is reached. The config is
   upstream's `kit-server-dev` project with the client one left out, and five files excluded:

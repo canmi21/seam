@@ -1,0 +1,30 @@
+{
+	"name": "test-options-2",
+	"private": true,
+	"version": "0.0.1",
+	"scripts": {
+		"dev": "svelte-kit sync && RUNTIME_ONLY=secret vite dev",
+		"build": "vite build",
+		"preview": "RUNTIME_ONLY=secret vite preview",
+		"check": "svelte-kit sync && node node_modules/@typescript/native/bin/tsc && svelte-check --tsgo --incremental",
+		"test": "pnpm test:dev && pnpm test:build",
+		"test:dev": "DEV=true playwright test && REGISTER_SERVICE_WORKER=true DEV=true playwright test",
+		"test:build": "NODE_ENV=custom DYNAMIC_PUBLIC_ENV=true playwright test && REGISTER_SERVICE_WORKER=true playwright test"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-node": "workspace:^",
+		"@sveltejs/kit": "workspace:^",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"svelte": "catalog:",
+		"svelte-check": "catalog:",
+		"@typescript/native": "catalog:",
+		"typescript": "catalog:",
+		"valibot": "catalog:",
+		"vite": "catalog:"
+	},
+	"imports": {
+		"#lib": "./src/lib/index.js",
+		"#lib/*": "./src/lib/*"
+	},
+	"type": "module"
+}

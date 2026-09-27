@@ -1,0 +1,10 @@
+{
+	"compilerOptions": {
+		"allowJs": true,
+		"checkJs": true,
+		"noEmit": true
+	},
+	"include": ["src", "test", "vite.config.js", "globalSetup.js"],
+	"exclude": ["src/service-worker.js"],
+	"extends": "$app/tsconfig"
+}

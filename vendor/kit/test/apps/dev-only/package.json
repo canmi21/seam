@@ -1,0 +1,36 @@
+{
+	"name": "test-dev-only",
+	"private": true,
+	"version": "0.0.2-next.0",
+	"scripts": {
+		"dev": "svelte-kit sync && vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"check": "svelte-kit sync && node node_modules/@typescript/native/bin/tsc && svelte-check --tsgo --incremental",
+		"test": "pnpm test:dev",
+		"test:dev": "DEV=true playwright test"
+	},
+	"devDependencies": {
+		"@sveltejs/kit": "workspace:^",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"e2e-test-dep-error": "file:./_test_dependencies/cjs-only",
+		"e2e-test-dep-hooks": "file:./_test_dependencies/cjs-only",
+		"e2e-test-dep-hooks-client": "file:./_test_dependencies/cjs-only",
+		"e2e-test-dep-layout-server": "file:./_test_dependencies/cjs-only",
+		"e2e-test-dep-layout-svelte": "file:./_test_dependencies/cjs-only",
+		"e2e-test-dep-layout-universal": "file:./_test_dependencies/cjs-only",
+		"e2e-test-dep-page-server": "file:./_test_dependencies/cjs-only",
+		"e2e-test-dep-page-svelte": "file:./_test_dependencies/cjs-only",
+		"e2e-test-dep-page-universal": "file:./_test_dependencies/cjs-only",
+		"e2e-test-dep-server": "file:./_test_dependencies/cjs-only",
+		"svelte": "catalog:",
+		"svelte-check": "catalog:",
+		"@typescript/native": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:"
+	},
+	"imports": {
+		"#lib/*": "./src/lib/*"
+	},
+	"type": "module"
+}

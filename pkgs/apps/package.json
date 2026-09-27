@@ -1,0 +1,22 @@
+{
+	"name": "apps",
+	"private": true,
+	"type": "module",
+	"description": "SvelteKit's own test apps, built with the plugin and driven by Kit's own specs",
+	"devDependencies": {
+		"@opentelemetry/api": "^1.9.1",
+		"@opentelemetry/sdk-node": "^0.221.0",
+		"@opentelemetry/sdk-trace-node": "^2.8.0",
+		"@playwright/test": "^1.62.1",
+		"@sveltejs/kit": "workspace:*",
+		"@sveltejs/vite-plugin-svelte": "^7.0.0",
+		"@vitest/browser-playwright": "^5.0.1",
+		"jsdom": "^30.0.0",
+		"plugin": "workspace:*",
+		"svelte": "^5.57.1",
+		"test-redirect-importer": "workspace:*",
+		"typescript": "^6.0.3",
+		"vite": "^8.0.12",
+		"vitest": "^5.0.1"
+	}
+}

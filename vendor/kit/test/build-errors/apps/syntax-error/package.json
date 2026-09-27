@@ -1,0 +1,20 @@
+{
+	"name": "syntax-error",
+	"version": "0.0.1",
+	"private": true,
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview"
+	},
+	"devDependencies": {
+		"@sveltejs/kit": "workspace:^",
+		"@sveltejs/vite-plugin-svelte": "catalog:",
+		"svelte": "catalog:",
+		"svelte-check": "catalog:",
+		"@typescript/native": "catalog:",
+		"typescript": "catalog:",
+		"vite": "catalog:"
+	},
+	"type": "module"
+}

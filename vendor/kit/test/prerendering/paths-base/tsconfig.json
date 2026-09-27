@@ -1,0 +1,9 @@
+{
+	"compilerOptions": {
+		"allowJs": true,
+		"checkJs": true,
+		"noEmit": true
+	},
+	"include": ["src", "test", "vite.config.js"],
+	"extends": "$app/tsconfig"
+}

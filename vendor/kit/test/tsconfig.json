@@ -1,0 +1,12 @@
+{
+	"compilerOptions": {
+		"allowJs": true,
+		"checkJs": true,
+		"noEmit": true,
+		"target": "esnext",
+		"module": "node16",
+		"moduleResolution": "node16",
+		"types": ["node"]
+	},
+	"include": ["./*", "./mocks/**/*", "./prerendering/*"]
+}
