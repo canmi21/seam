@@ -94,8 +94,8 @@ one. A refusal that says one is a gap that has named the wrong layer.
 **The same holds for this protocol's own rules.** [derivation.md](derivation.md) holds the derive
 stage to a pure function of the payload, for reasons about hydration and about two backends. Where
 a sample needs more than that allows, it fails here, and closing it is a decision about that rule
--- [readings.md](readings.md) holds each under **What the render computes per request, and what each item was**, and what is
-still open is in [roadmap.md](roadmap.md).
+-- [readings.md](readings.md) holds each under **What the render computes per request, and what
+each item was**, and what is still open is in [roadmap.md](roadmap.md).
 
 **A harness skip is where neither side answered.** Svelte's own render could not be built or run
 here, or the sample's own config could not be read, or the props it names could not be built at
@@ -478,9 +478,17 @@ turned seventeen skips into passes and upstream skips and one into a refusal nob
 not be recorded behind it. It was later filed as blocked on request-time rendering, and is a fail
 again; see [readings.md](readings.md).
 
+**`--only=<text>` measures the samples whose name holds the text, for reading one failure at a
+time.** Every other sample is then reported as in the list and not in the run, which is what a
+narrowed run is, and such a run cannot be written as the list. A failure names what it was caused
+by: a derivation that failed says which source threw and carries the throw as its `cause`, and the
+run prints the chain, since "deriving `x` failed" alone said where and not what.
+
 ```
 mise run vendor-baseline               the failures, the skips by reason, then the table
 mise run vendor-baseline -- --table    the table alone
+mise run vendor-baseline -- --only=async-error-boundary
+                                       the samples named so, and nothing else
 mise run vendor-baseline -- --write    record the run as the list
 mise run vendor-baseline -- --write --skip-failing
                                        the same, leaving failing samples off it; see above

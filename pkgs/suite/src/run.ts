@@ -77,6 +77,12 @@ function argument(name: string): string | undefined {
 const PASS = argument('pass') as Pass | undefined;
 
 /**
+ * A substring of the sample names to measure, for reading one failure at a time; every sample
+ * otherwise. A run so narrowed cannot be written as the list, since it measured nothing else.
+ */
+const ONLY = argument('only');
+
+/**
  * Where a sample is copied to before it is compiled, one directory per pass since the two run at
  * once.
  *
@@ -355,14 +361,21 @@ function divergence(stream: string, own: string, svelte: string): string {
  * out, which is what makes the line readable in a file.
  */
 function firstLine(error: unknown): string {
+	// A throw that is not an error -- a string, as a sample throws on purpose -- is its own text.
+	const message = typeof error === 'object' && error !== null ? (error as Error).message : error;
 	// eslint-disable-next-line no-control-regex
-	const text = String((error as Error).message).replaceAll(/\u001B\[[0-9;]*m/g, '');
+	const text = String(message).replaceAll(/\u001B\[[0-9;]*m/g, '');
+	let said = 'it failed and said nothing';
 	for (const line of text.split('\n')) {
 		const held = line.trim();
 		if (held === '' || /^Build failed with \d+ error/.test(held)) continue;
-		return held;
+		said = held;
+		break;
 	}
-	return 'it failed and said nothing';
+	// And what it was caused by, where the error says: a derivation that failed names the source
+	// that threw and carries the throw as its cause, which is the half that says what went wrong.
+	const cause = (error as { cause?: unknown } | null)?.cause;
+	return cause === undefined ? said : `${said}; caused by: ${firstLine(cause)}`;
 }
 
 /**
@@ -411,6 +424,7 @@ async function measure(pass: Pass, out: string): Promise<void> {
 		const found: Result[] = [];
 		for (const suite of SUITES) {
 			for (const name of samplesOf(suite)) {
+				if (ONLY !== undefined && !name.includes(ONLY)) continue;
 				// Each side's render carries its own deadline; see `settling` in `attempt`.
 				found.push(await attempt(pass, suite, name));
 			}
@@ -429,7 +443,13 @@ async function both(): Promise<Record<Pass, Result[]>> {
 		return new Promise((settle, fail) => {
 			const child = spawn(
 				process.execPath,
-				[...process.execArgv, fileURLToPath(import.meta.url), `--pass=${pass}`, `--out=${out}`],
+				[
+					...process.execArgv,
+					fileURLToPath(import.meta.url),
+					`--pass=${pass}`,
+					`--out=${out}`,
+					...(ONLY === undefined ? [] : [`--only=${ONLY}`]),
+				],
 				{ stdio: ['ignore', 'ignore', 'inherit'] },
 			);
 			child.on('error', fail);
@@ -461,6 +481,7 @@ const failing = all.filter(({ one }) => stateOf(one).state === 'fail');
 // `--write` records the run as the list, and only a run with nothing failing can be recorded: a
 // failure is not a state the list has. Otherwise the run is held to the list. See spec/suite.md.
 if (process.argv.includes('--write')) {
+	if (ONLY !== undefined) throw new Error('a run narrowed by `--only` measured nothing else, and is not the list');
 	if (failing.length > 0 && !process.argv.includes('--skip-failing')) {
 		lists(
 			failing.map(({ pass, one }) => ({
