@@ -124,6 +124,60 @@ function withExtension(path: string): string | null {
 }
 
 /**
+ * A key of an `exports` or `imports` map resolved under the conditions, or null: the exact key,
+ * else the pattern -- `./icons/*` -- matched on the longest prefix as Node matches it.
+ */
+function mapped(map: Record<string, unknown>, key: string, dir: string): string | null {
+	const exact = map[key];
+	if (exact !== undefined) {
+		const found = target(exact, null);
+		return found === null ? null : resolvePath(dir, found);
+	}
+	let best: [string, unknown] | null = null;
+	for (const [pattern, value] of Object.entries(map)) {
+		const at = pattern.indexOf('*');
+		if (at < 0) continue;
+		const prefix = pattern.slice(0, at);
+		const suffix = pattern.slice(at + 1);
+		if (!key.startsWith(prefix) || !key.endsWith(suffix)) continue;
+		if (key.length < prefix.length + suffix.length) continue;
+		if (best === null || pattern.length > best[0].length) best = [pattern, value];
+	}
+	if (best === null) return null;
+	const at = best[0].indexOf('*');
+	const star = key.slice(at, key.length - (best[0].length - at - 1));
+	const found = target(best[1], star);
+	return found === null ? null : resolvePath(dir, found);
+}
+
+/**
+ * A subpath import, `#lib/x.svelte`, as the file the nearest `package.json` above `from` maps it
+ * to under `imports`, the way Node resolves one: SvelteKit 3's spelling of `$lib` is `#lib`, a
+ * subpath import the project declares. Null where no package declares it.
+ */
+function subpathImport(specifier: string, from: string): string | null {
+	let at = dirname(from);
+	for (;;) {
+		const file = resolvePath(at, 'package.json');
+		if (existsSync(file)) {
+			let manifest: Record<string, unknown>;
+			try {
+				manifest = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+			} catch {
+				return null;
+			}
+			const imports = manifest['imports'];
+			if (typeof imports !== 'object' || imports === null || Array.isArray(imports)) return null;
+			const found = mapped(imports as Record<string, unknown>, specifier, at);
+			return found === null ? null : (withExtension(found) ?? found);
+		}
+		const up = dirname(at);
+		if (up === at) return null;
+		at = up;
+	}
+}
+
+/**
  * A bare specifier as the file it names, resolved the way a Svelte-aware bundler resolves it:
  * through the package's `exports` under the `svelte` condition first, and where a package has no
  * map, through its `svelte`, `module` and `main` fields or the subpath as a file. A relative or
@@ -132,6 +186,7 @@ function withExtension(path: string): string | null {
 export function resolveBare(specifier: string, from: string): string | null {
 	const alias = aliased(specifier);
 	if (alias !== null) return withExtension(alias);
+	if (specifier.startsWith('#')) return subpathImport(specifier, from);
 	const named = split(specifier);
 	if (named === null) {
 		if (specifier.startsWith('file:')) return fileURLToPath(specifier);
@@ -163,29 +218,7 @@ export function resolveBare(specifier: string, from: string): string | null {
 			Object.keys(exports).some((key) => key.startsWith('.'))
 				? (exports as Record<string, unknown>)
 				: { '.': exports };
-		const exact = map[subpath];
-		if (exact !== undefined) {
-			const found = target(exact, null);
-			return found === null ? null : resolvePath(dir, found);
-		}
-		// A pattern, `./icons/*`, matched on the longest prefix as Node matches it.
-		let best: [string, unknown] | null = null;
-		for (const [key, value] of Object.entries(map)) {
-			const at = key.indexOf('*');
-			if (at < 0) continue;
-			const prefix = key.slice(0, at);
-			const suffix = key.slice(at + 1);
-			if (!subpath.startsWith(prefix) || !subpath.endsWith(suffix)) continue;
-			if (subpath.length < prefix.length + suffix.length) continue;
-			if (best === null || key.length > best[0].length) best = [key, value];
-		}
-		if (best !== null) {
-			const at = best[0].indexOf('*');
-			const star = subpath.slice(at, subpath.length - (best[0].length - at - 1));
-			const found = target(best[1], star);
-			return found === null ? null : resolvePath(dir, found);
-		}
-		return null;
+		return mapped(map, subpath, dir);
 	}
 
 	if (subpath === '.') {
