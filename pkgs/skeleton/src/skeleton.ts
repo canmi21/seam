@@ -189,7 +189,14 @@ export async function walked(
 	}
 	const rendered = await timed('  render (svelte SSR)', () =>
 		renderRewritten(file, baseline.rewritten, root, baseline.copies, given, baseline.fresh),
-	).catch((error: unknown) => {
+	)
+		.then((made) => {
+			if (process.env['SEAM_TRACE_SOURCE'] !== undefined) {
+				console.error(`[seam] entry ${basename(file)} rendered:\nhead: ${made.head}\nbody: ${made.body}\n`);
+			}
+			return made;
+		})
+		.catch((error: unknown) => {
 		const why = baseline.missed
 			.map((one) => `  ${basename(one.file)}: ${one.reason.replace(/\s+/g, ' ')}`)
 			.join('\n');
@@ -386,7 +393,9 @@ export async function walked(
 		...decided.keys(),
 	]);
 	if (baseline.live) livePages.add(finished);
-	for (const one of expressionsOf(finished)) outside(one.expression, true, baseline.changing);
+	for (const one of expressionsOf(finished)) {
+		outside(one.expression, true, baseline.changing, one.files);
+	}
 	composed(expressionsOf(finished), root);
 
 	return finished;

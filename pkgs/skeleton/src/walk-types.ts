@@ -596,7 +596,11 @@ export interface Rewritten {
 	dead: Map<string, [number, number][]>;
 	/** Every held declaration's initialiser. See `Walk.keeping`. */
 	keeping: { expression: string; files?: string[] }[];
-	/** The names substitution cannot follow, with why. See `Site.changing`. */
+	/**
+	 * The names substitution cannot follow, with why, keyed by `changedKey`: the file that declares
+	 * the name and the name, since a page's local `error` and the root's prop `error` are two
+	 * names, and a union by bare name refused the one for the other.
+	 */
 	changing: ReadonlyMap<string, string>;
 	/** The entry's own names substitution cannot follow, which its script run answers. */
 	ran: ReadonlySet<string>;
@@ -654,4 +658,25 @@ export interface Group {
 	probe: string;
 	/** The component and the name, as a refusal says it. */
 	what: string;
+}
+
+/** The key a changed name is recorded under: the file that declares it, relative to the root. */
+export function changedKey(file: string, name: string): string {
+	return `${file}\u0000${name}`;
+}
+
+/**
+ * Why a name substitution could not follow, looked up through the files an expression was
+ * written across, innermost first, or undefined where no file in the chain changes it.
+ */
+export function changedWhy(
+	changing: ReadonlyMap<string, string>,
+	files: readonly string[],
+	name: string,
+): string | undefined {
+	for (const file of files) {
+		const why = changing.get(changedKey(file, name));
+		if (why !== undefined) return why;
+	}
+	return undefined;
 }

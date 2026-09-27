@@ -112,7 +112,11 @@ impl Assembler<'_> {
 				let test = self.path(&test, &files)?;
 				let json = self.path(&json, &files)?;
 				let mut children = Out::default();
-				children.write(&html[span.from..span.content]);
+				// A bare block is the head half of a body block, and the head carries no anchors of
+				// Svelte's: the opening it locates by is this compiler's own and is not written.
+				if !block.bare {
+					children.write(&html[span.from..span.content]);
+				}
 				self.region(html, span.content, span.until, &mut children)?;
 
 				let key = format!("{index}.-1");
@@ -126,16 +130,18 @@ impl Assembler<'_> {
 					Stream::Head => split_off_title(&rendered.head)?.0,
 				};
 				let at = self.locate(other, index)?;
-				let opening = &other[at.from..at.content];
-				if !opening.starts_with("<!--[?") {
-					return Err(format!(
-						"the failed branch of boundary {index} opens with `{opening}`, where Svelte writes `<!--[?`"
-					));
-				}
 				let mut failed = Out::default();
-				failed.write("<!--[?");
-				failed.push(ir::Node::Slot { path: json, escape: ir::Escape::Raw, fresh: false });
-				failed.write("-->");
+				if !block.bare {
+					let opening = &other[at.from..at.content];
+					if !opening.starts_with("<!--[?") {
+						return Err(format!(
+							"the failed branch of boundary {index} opens with `{opening}`, where Svelte writes `<!--[?`"
+						));
+					}
+					failed.write("<!--[?");
+					failed.push(ir::Node::Slot { path: json, escape: ir::Escape::Raw, fresh: false });
+					failed.write("-->");
+				}
 				self.region(other, at.content, at.until, &mut failed)?;
 				out.push(ir::Node::If {
 					branches: vec![

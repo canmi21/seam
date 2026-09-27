@@ -13,7 +13,7 @@ import {
 	runeHolds,
 } from 'ast';
 import { type AstNode, holdsFor, isNode, refuse, span } from './node.ts';
-import { carrier, elementCarrier, headCloses, headOpens, headOpensWith } from './sentinel.ts';
+import { carrier, elementCarrier, headCloses, headOpens, headOpensAgain, headOpensWith } from './sentinel.ts';
 import type { Snippet } from './snippets.ts';
 import { awaitsAtTop } from './awaits.ts';
 import { unknown } from './branches.ts';
@@ -161,7 +161,8 @@ export function mirrored(
 	walk: Walk,
 	block: number,
 	closer: number,
-	opens: (number | null)[],
+	/** Where each branch opens; `[at, 'again']` for a branch the render reaches by discarding another's. */
+	opens: (number | null | [number, 'again'])[],
 	/** The edits of the file the block sits in, which is the walk's own unless a child's. */
 	edits = walk.edits,
 ): number {
@@ -193,7 +194,9 @@ export function mirrored(
 	// A branch that holds nothing gets no open: the close writes the empty pair on its own. An if
 	// without an `{:else}` has no branch to hold one at all, and is the same case.
 	for (const at of opens) {
-		if (at !== null) edits.push([at, at, headOpens(index)]);
+		if (at === null) continue;
+		if (typeof at === 'number') edits.push([at, at, headOpens(index)]);
+		else edits.push([at[0], at[0], headOpensAgain(index)]);
 	}
 	// Whatever the edit carried ahead of the stamp stays: a fragment's closes its bare block first.
 	const ahead = closing[2].slice(0, closing[2].length - stamps(walk, block).length);

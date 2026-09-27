@@ -41,6 +41,9 @@ const files: Record<string, string> = {
 	'src/routes/+page.svelte':
 		"<script>import { getContext } from 'svelte'; let { data } = $props(); const site = getContext('site');</script>" +
 		'<h1>{site.name}: {data.title}</h1>{#each data.items as item}<li>{item}</li>{/each}',
+	// An error page below the root's: two boundaries, one inside the other, in the generated root.
+	'src/routes/blog/+error.svelte':
+		"<script>let { error } = $props();</script><p class=\"blog-error\">{error?.message}</p>",
 	'src/routes/blog/+layout.svelte':
 		'<script>let { children } = $props();</script><section class="blog">{@render children()}</section>',
 	'src/routes/blog/[slug]/+page.svelte':
@@ -68,15 +71,18 @@ function pageOf(id: string, url: string, params: Record<string, string>, data: u
 	};
 }
 
-/** Compiles one component to the `.js` beside it, or, for one of Kit's own, into the project. */
+/**
+ * Compiles one component into a mirror of the project under `.svelte-kit/compiled`, at the same
+ * relative path so that the relative imports the generated root writes resolve unchanged; beside
+ * the source would do, except that Kit reads `src/routes` and a `+error.js` there is a name it
+ * reserves. A component outside the project is Kit's, the default error page a project without
+ * an `+error.svelte` gets, and lands under `.svelte-kit/kit`: nothing under `vendor/` is written to.
+ */
 function compiledFile(at: string): string {
-	// A component outside the project is Kit's: the default error page a project without an
-	// `+error.svelte` gets. Compiled into the project rather than beside itself, since nothing
-	// under `vendor/` is written to.
 	const to =
 		relative(project, at).startsWith('..')
 			? resolve(project, '.svelte-kit/kit', at.split('/').pop()!.replace(/\.svelte$/, '.js'))
-			: at.replace(/\.svelte$/, '.js');
+			: resolve(project, '.svelte-kit/compiled', relative(project, at)).replace(/\.svelte$/, '.js');
 	const code = compile(readFileSync(at, 'utf8'), {
 		generate: 'server',
 		name: 'C',
@@ -160,9 +166,10 @@ describe('a route is compiled from its generated root', () => {
 		);
 		const derive = compileDerivations(structure.derivations, carried);
 
-		compiled(project);
+		compiled(resolve(project, 'src'));
+		compiled(resolve(project, '.svelte-kit/seam'));
 		const mod = (await import(
-			pathToFileURL(resolve(project, entry.component.replace(/\.svelte$/, '.js'))).href
+			pathToFileURL(compiledFile(resolve(project, entry.component))).href
 		)) as { default: never };
 		for (const page of payloads) {
 			// Kit's data down the branch: each node's own load merged onto its parents'.

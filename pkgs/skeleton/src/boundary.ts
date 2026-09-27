@@ -8,12 +8,12 @@ import { type AstNode, isNode, refuse, span } from './node.ts';
 import { sentinel, THROWN } from './sentinel.ts';
 import type { Block, Hole } from './shape.ts';
 import { awaiting } from './awaits.ts';
-import { chose, keyed } from './branches.ts';
+import { chose, keyed, spanOfFragment } from './branches.ts';
 import { collect } from './collect.ts';
 import { onlyChild } from './component-shape.ts';
 import { componentImport, unwrapped } from './components.ts';
 import { expressionIn, rendersOnly, varies } from './dynamic.ts';
-import { held, stamped } from './stamps.ts';
+import { held, mirrored, stamped } from './stamps.ts';
 import { type Walk } from './walk-types.ts';
 import { parameterNames } from './written.ts';
 
@@ -52,9 +52,11 @@ export function boundary(
 	};
 	blocks.push(block);
 	const whole = span(node);
+	let closer = -1;
 	if (whole !== null) {
 		const close = source.lastIndexOf('</svelte:boundary', whole[1]);
 		chose(walk, edits, close, close, index, -1, `{(() => { throw globalThis.${THROWN}; })()}`, '');
+		closer = edits.length;
 		edits.push(stamped(walk, index, source, whole[1]));
 	}
 	const raw = new Map<string, string>();
@@ -178,6 +180,17 @@ export function boundary(
 		expand: (one, extra) => walk.expand(one, new Map([...bound, ...(extra ?? new Map())])),
 	});
 	within.pop();
+	// A head was walked inside it -- an error page setting its `<title>` is the common one, under
+	// Kit's root -- so the block stands in the head stream too, opened at the start of each of
+	// its two branches. The assembler reads a bare boundary there as it reads a bare if: no
+	// anchors of Svelte's to write, and no JSON to open the failed branch with.
+	if (closer >= 0 && walk.site.headed.has(index)) {
+		const failedAt = spanOfFragment(failed['body'])?.[0];
+		mirrored(walk, index, closer, [
+			spanOfFragment(fragment)?.[0] ?? null,
+			failedAt === undefined ? null : [failedAt, 'again'],
+		]);
+	}
 }
 
 /** The names a pattern binds, over-approximated: every identifier written in it. */
@@ -273,6 +286,19 @@ function inOrder(
 			const otherwise = branch(-1);
 			if (otherwise === null) return null;
 			out.push(`${arms.join(' else ')} else { ${otherwise} }`);
+			continue;
+		}
+		// A boundary inside the children, which is every level of Kit's root below the first that
+		// has an error page. Its children are its own catch's, computed when its test -- a held
+		// reference, with the files it was recorded under -- is read, so the run reads the test and
+		// computes the failed branch's values where it threw: those are the values this boundary
+		// writes, and one of them throwing is what this catch is for.
+		if (block.kind === 'boundary' && block.mirrors === undefined) {
+			const [test] = block.tests ?? [];
+			if (test === undefined) return null;
+			const failed = branch(-1);
+			if (failed === null) return null;
+			out.push(`if (!${hold(test, block.files, inScope)}) { ${failed} }`);
 			continue;
 		}
 		if (block.kind === 'each' && block.mirrors === undefined && block.item !== null) {

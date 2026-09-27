@@ -38,19 +38,7 @@ import {
 	type Run,
 	type Structure,
 } from './variants.ts';
-import {
-	expressionsOf,
-	helpers,
-	skeleton,
-	type Skeleton,
-	timed,
-	timedSync,
-	timings,
-	rememberedCodegen,
-	rememberedStaging,
-	Undecided,
-	configureUnnamedComponents,
-} from 'skeleton';
+import { expressionsOf, helpers, skeleton, type Skeleton, timed, timedSync, timings, rememberedCodegen, rememberedStaging, Undecided, configureUnnamedComponents, unavailable } from 'skeleton';
 
 /**
  * One route: the URL it answers at, and the component the document is rendered from.
@@ -283,6 +271,13 @@ export async function compile(options: Options): Promise<Report[]> {
 	const prepared: (Prepared & Run & { path: string; of: number })[] = [];
 	const refusals: string[] = [];
 	const warnings: string[] = [];
+	/**
+	 * Routes left to the framework: a component whose module cannot be evaluated on the server
+	 * throws for every request before any render, and the framework answers with its error
+	 * response, which the plugin hands to Kit's own root. No artifact, and not a refusal: nothing
+	 * this compiler could write would be served. See spec/framework.md.
+	 */
+	const left: Record<string, string> = {};
 	for (const entry of options.entries) {
 		try {
 			const runs = await structures(entry, root);
@@ -303,6 +298,13 @@ export async function compile(options: Options): Promise<Report[]> {
 			}
 			for (const one of runs) prepared.push({ ...one, path: entry.path, of: runs.length });
 		} catch (error) {
+			if (unavailable(error)) {
+				left[entry.path] = (error as Error).message;
+				warnings.push(
+					`${entry.path} is left to the framework's error response: ${(error as Error).message}`,
+				);
+				continue;
+			}
 			refusals.push(
 				`${relative(root, resolve(root, entry.component))}: ${(error as Error).message}`,
 			);
@@ -403,7 +405,7 @@ export async function compile(options: Options): Promise<Report[]> {
 
 	write(
 		resolve(server, 'manifest.json'),
-		`${JSON.stringify({ expressions, routes }, null, '\t')}\n`,
+		`${JSON.stringify({ expressions, routes, left }, null, '\t')}\n`,
 	);
 	// Where the time went, when asked for: a compile nests a walk inside a render inside a stage,
 	// and which of them costs what has to be measured rather than reasoned about. See spec/build.md.

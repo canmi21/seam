@@ -240,8 +240,14 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 		// writes out. See `hydratables` in the injector.
 		const table = hydratables();
 		if (hydrating) out[HYDRATABLES] = table.record;
-		const requested = (names: readonly string[]): Record<string, unknown> =>
-			Object.fromEntries(names.map((name) => [name, table.hydratable]));
+		// What a script run is given of the request beside its props: the framework's `page`, which
+		// Kit's `$app/state` reads out of the render's context under `__request__` and a captured
+		// script may import. Bound innermost, under a name nothing an author writes can be.
+		const ofRequest = { page: out['page'] };
+		const requested = (names: readonly string[]): Record<string, unknown> => ({
+			...Object.fromEntries(names.map((name) => [name, table.hydratable])),
+			$$request: ofRequest,
+		});
 		for (const derivation of compiled) {
 			const request = requested(derivation.marked);
 			const bindings = (): Record<string, unknown> =>

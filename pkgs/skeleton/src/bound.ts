@@ -9,12 +9,13 @@
  * declares and changes, what a binding sends back, and the copy the child is walked as. See
  * spec/derivation.md.
  */
+import { basename, relative } from 'node:path';
 import { locals, projectAsync, RUN_NAME, STATE_ON_SERVER, stateImports } from 'ast';
 import { propsOf, rebased } from './compose.ts';
 import { type AstNode, refuse } from './node.ts';
 import { callSite, REST, settleBindings } from './call-site.ts';
 import { HYDRATABLE, HYDRATABLE_RUN, varies } from './dynamic.ts';
-import { type Walk } from './walk-types.ts';
+import { type Walk, changedKey } from './walk-types.ts';
 import { exportedBy, holding, keptUnder } from './written.ts';
 
 type Declares = NonNullable<ReturnType<typeof propsOf>>;
@@ -117,6 +118,7 @@ export function bindDeclared(
 /** The child's declarations, read with what each prop is bound to. */
 export function declaredFor(
 	walk: Walk,
+	file: string,
 	ahead: AstNode,
 	raw: string,
 	declares: Declares,
@@ -152,7 +154,9 @@ export function declaredFor(
 		// `ranBy` below.
 		'run',
 	);
-	for (const [name, why] of declared.changed) walk.site.changing.set(name, why);
+	for (const [name, why] of declared.changed) {
+		walk.site.changing.set(changedKey(relative(walk.site.root, file), name), why);
+	}
 	// A hold the child's script reaches is given up, and every hold of this call goes with it:
 	// the list is indexed, so dropping one and keeping another would need the indices renumbered
 	// for the sake of a distinction nothing here measures.
@@ -213,7 +217,15 @@ export function scriptRun(
 			([...bindings.values()].some((value) => varies(value, walk)) ||
 				order.some((one) => 'spread' in one && varies(one.spread, walk)));
 		const [first] = running;
-		if (!varying) throw new Error(declared.changed.get(first ?? '') ?? 'a name the script changes');
+		if (!varying) {
+			if (process.env['SEAM_TRACE'] !== undefined) {
+				console.error(
+					`[seam] ${basename(file)}: no script run, nothing the call site passes varies: ` +
+						[...bindings.entries()].map(([name, value]) => `${name}=${value}`).join(', '),
+				);
+			}
+			throw new Error(declared.changed.get(first ?? '') ?? 'a name the script changes');
+		}
 		if (HYDRATABLE.test(raw)) refuse(HYDRATABLE_RUN);
 		const passed = [
 			...order.map((one) =>
@@ -226,11 +238,15 @@ export function scriptRun(
 		// Written at each read rather than held: the props may read a name a block binds -- a child
 		// in an each is run once per item -- and a held value is one per request. The run is a
 		// pure function of them, so a second read runs it again to the same answer.
-		const call = `${RUN_NAME}({ ${passed.join(', ')} })`;
+		const call = `${RUN_NAME}({ ${passed.join(', ')} }, undefined, $$request)`;
 		const run = projectAsync() ? `(await ${call})` : call;
 		for (const name of running) {
 			ranBy.set(name, `(${run}.${name})`);
 			ranBy.set(`$${name}`, `(${run}.$${name})`);
+			// Answered by the run, so no longer a name substitution cannot follow: every read of
+			// it in this file is a field of the run from here on, and a bare `error` left in an
+			// expression is the caller's -- the root's prop of that name, handed down.
+			walk.site.changing.delete(changedKey(relative(walk.site.root, file), name));
 		}
 		// A prop the call site binds that the script changes sends what the script left back up,
 		// where the caller passed `undefined`, and the caller's template renders again reading

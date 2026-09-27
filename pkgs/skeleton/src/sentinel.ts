@@ -163,6 +163,16 @@ export function headOpens(index: number): string {
 }
 
 /**
+ * What opens a block's failed branch: the same open, told to open again. A boundary's children
+ * opened the block before they threw, and Svelte's boundary discards everything they pushed --
+ * the anchor in the head with the rest -- while the open's own record of having opened survives,
+ * so the failed branch has to write the anchor whether or not the children did.
+ */
+export function headOpensAgain(index: number): string {
+	return `{@const __seam_o${String(index)}f = ${HEAD_OPEN}(${String(index)}, undefined, true)}`;
+}
+
+/**
  * What opens a block whose branches cannot hold a `{@const}`: the block's own expression, passed
  * through the open and returned by it. `{#await}` is the case -- its pending branch is the one
  * place Svelte does not allow a const tag -- and the expression is evaluated once, before either

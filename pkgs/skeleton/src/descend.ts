@@ -206,6 +206,7 @@ export function descend(
 
 		const { declared, inside } = declaredFor(
 			walk,
+			file,
 			ahead,
 			raw,
 			declares,

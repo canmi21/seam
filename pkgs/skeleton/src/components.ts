@@ -3,10 +3,11 @@
  * itself, a `this` the request decides and the one candidate it can be, and what stands in for a
  * component in an expression. See spec/pipeline.md and spec/payload.md.
  */
+import { relative } from 'node:path';
 import { mentions, resolveBare, RUN_NAME } from 'ast';
 import { isNode, refuse } from './node.ts';
 import { settled } from './branches.ts';
-import type { Walk } from './walk-types.ts';
+import { type Walk, changedWhy } from './walk-types.ts';
 
 /** One plain name, which is what a settled dynamic component is when it is one import. */
 export const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
@@ -229,9 +230,9 @@ export function runChosen(expression: unknown, walk: Walk): string | null {
 	if (walk.site.copy !== null && walk.site.copy !== undefined) return null;
 	if (!isNode(expression) || expression['type'] !== 'Identifier') return null;
 	const name = expression['name'];
-	if (typeof name !== 'string' || !walk.site.changing.has(name) || !walk.dynamic.has(name)) {
-		return null;
-	}
+	if (typeof name !== 'string' || !walk.dynamic.has(name)) return null;
+	const chain = walk.site.stack.toReversed().map((one) => relative(walk.site.root, one));
+	if (changedWhy(walk.site.changing, chain, name) === undefined) return null;
 	const imports = [...walk.site.carried.keys()].filter((local) => componentImport(local, walk));
 	if (imports.length === 0) return null;
 	return imports.reduceRight(

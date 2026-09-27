@@ -173,6 +173,48 @@ export const cases: Case[] = [
 		transformError: (error) => `caught ${String(error)}`,
 	},
 	{
+		// A head inside a boundary, on both sides: Kit's root puts every page under one, and an
+		// error page sets its own `<title>`. The block stands in the head stream too.
+		name: 'a boundary whose branches each write a head',
+		beside: {
+			Err: '<script>let { e } = $props();</script><svelte:head><title>failed {e}</title></svelte:head><i>{e}</i>',
+			Ok:
+				'<script>let { a, boom } = $props();</script><svelte:head><title>ok {a}</title></svelte:head>' +
+				"<p>{a}{boom ? (() => { throw new Error('x'); })() : ''}</p>",
+		},
+		source:
+			"<script>import Err from './Err.svelte'; import Ok from './Ok.svelte'; let { data } = $props();</script>" +
+			'{#snippet failed(e)}<Err {e} />{/snippet}' +
+			'<svelte:boundary {failed}><Ok a={data.a} boom={data.boom} /></svelte:boundary>',
+		data: [
+			{ a: 1, boom: false },
+			{ a: 2, boom: true },
+		],
+		transformError: (error) => `caught ${(error as Error).message}`,
+	},
+	{
+		// One boundary inside another, as every level of Kit's root below the first with an error
+		// page is: the inner one catches its own children, and the outer one catches the inner
+		// `failed` snippet where that throws too.
+		name: 'a boundary inside a boundary, each catching its own',
+		beside: {
+			Kid: '<script>let { why } = $props();</script><b>{(() => { throw new Error(why); })()}</b>',
+		},
+		source:
+			"<script>import Kid from './Kid.svelte'; let { data } = $props();</script>" +
+			'<svelte:boundary>' +
+			'<svelte:boundary><Kid why={data.inner} />' +
+			'{#snippet failed(e)}<i>{data.rethrow ? (() => { throw new Error(`again ${e}`); })() : `inner ${e}`}</i>{/snippet}' +
+			'</svelte:boundary>' +
+			'{#snippet failed(e)}<s>outer {e}</s>{/snippet}' +
+			'</svelte:boundary>',
+		data: [
+			{ inner: 'no <b>', rethrow: false },
+			{ inner: 'no <b>', rethrow: true },
+		],
+		transformError: (error) => `caught ${(error as Error).message}`,
+	},
+	{
 		// The throw is inside a component, under an if the request decides: the run enters the copy
 		// and takes the branch the render takes.
 		name: 'a boundary whose child throws where the request says',

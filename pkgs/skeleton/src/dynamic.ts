@@ -23,7 +23,7 @@ import {
 import { carries, importsOf } from './compose.ts';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { RUNE, unknown } from './branches.ts';
-import { type Walk } from './walk-types.ts';
+import { type Walk, changedWhy } from './walk-types.ts';
 
 /** The locals a file imports from a runes module, which Svelte compiles and nothing else runs. */
 export function runesOf(imports: Record<string, string>, file: string): Set<string> {
@@ -544,6 +544,8 @@ export function outside(
 	written = false,
 	/** The names substitution could not follow, with why. See `Site.changing`. */
 	changing: ReadonlyMap<string, string> = new Map(),
+	/** The files the expression was written across, innermost first, which the names resolve in. */
+	files: readonly string[] = [],
 ): boolean {
 	// A name substitution could not follow, left as the author wrote it and now inside an
 	// expression this compiler has to write itself. The render would have evaluated it against the
@@ -553,8 +555,14 @@ export function outside(
 		for (const name of readsOf([expression])) {
 			// `$x` is a subscription to `x`, so it is a read of `x` and stands or falls with it.
 			const why =
-				changing.get(name) ?? (name.startsWith('$') ? changing.get(name.slice(1)) : undefined);
-			if (why !== undefined) refuse(why);
+				changedWhy(changing, files, name) ??
+				(name.startsWith('$') ? changedWhy(changing, files, name.slice(1)) : undefined);
+			if (why !== undefined) {
+				if (process.env['SEAM_TRACE'] !== undefined) {
+					console.error(`[seam] \`${expression}\` reads \`${name}\`, changed in ${files.join(' < ')}`);
+				}
+				refuse(why);
+			}
 		}
 	}
 	// An assignment to a name the expression does not itself declare. A derivation is a pure

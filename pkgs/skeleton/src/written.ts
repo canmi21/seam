@@ -21,7 +21,7 @@ import { type AstNode, isNode, refuse, span } from './node.ts';
 import { sentinel } from './sentinel.ts';
 import { supplied } from './snippets.ts';
 import { folded, unknown } from './branches.ts';
-import { Undecided, type Walk } from './walk-types.ts';
+import { Undecided, type Walk, changedWhy } from './walk-types.ts';
 
 /**
  * The name an expression settles to, where it settles to one.
@@ -299,7 +299,11 @@ export function snippetNamed(child: unknown, name: string): child is AstNode {
  * What the render is given for an expression the request does not decide: the author's own
  * text where nothing the walk bound is in it, and the expansion otherwise. See `Walk.plain`.
  */
-export function asWritten(node: unknown, written: string, walk: Walk): string {
+export function asWritten(node: unknown, given: string, walk: Walk): string {
+	// What goes into the render's source is unguarded: inside a boundary the expansion carries the
+	// guard, which is a helper the render cannot be handed, and it is the text under it that is
+	// compared with the author's. See `boundary()`.
+	const written = walk.untried?.(given) ?? given;
 	const at = span(node);
 	if (at === null) return written;
 	const plain = walk.plain(node);
@@ -335,10 +339,13 @@ export function asWritten(node: unknown, written: string, walk: Walk): string {
 	// gone with it: `{#snippet item(id = default_arg())}` written out at each read of `id` had the
 	// render call `default_arg` nine times where Svelte calls it twice. The same question the
 	// finished expressions are asked, at the other place an expansion is written out.
+	// The files this site was reached through, innermost first: a copy's expansion may read the
+	// caller's names, and a name the caller's script changes is one of them.
+	const own = walk.site.stack.toReversed().map((one) => relative(walk.site.root, one));
 	for (const name of readsOf([written])) {
 		const why =
-			walk.site.changing.get(name) ??
-			(name.startsWith('$') ? walk.site.changing.get(name.slice(1)) : undefined);
+			changedWhy(walk.site.changing, own, name) ??
+			(name.startsWith('$') ? changedWhy(walk.site.changing, own, name.slice(1)) : undefined);
 		if (why !== undefined) refuse(why);
 	}
 	return written;

@@ -1480,6 +1480,19 @@ name is reassigned, the object mutated, a `$:` changes it over a prop, a store t
 the values come out of the script run for that request, and the read becomes a field of that one
 held value.
 
+**A name the run answers is no longer one substitution cannot follow.** The names a file's script
+changes are recorded against the file that declares them, not unioned across the route: a page's
+local `error` and the root's prop `error`, handed down as `error={error}`, are two names, and a
+union by bare name refused the second for the first. Once the run stands for a file's changed
+names, every read of one in that file is a field of the run, and a bare read of the name left in an
+expression is the caller's; so the names are taken off the record where the run is made.
+
+**The run reads the request's `page`, as Kit's `$app/state` does.** A captured script may import
+`page` from `$app/state`, which on the server reads the request out of the render's context under
+`__request__`, where Kit's `render_response` puts it. The run is given the payload's `page` beside
+its props, under `$$request`, and puts it in its render's context under the same key; the carried
+bundle's `$app/state` is Kit's own server module, so the read is Kit's read.
+
 **The run is Svelte's own server output for the component, with its template replaced by a
 capture.** The markup is taken out and one expression put in its place that hands the names the
 markup reads to a function the render's context supplies, and the result is compiled by Svelte as

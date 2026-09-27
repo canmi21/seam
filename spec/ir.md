@@ -302,11 +302,23 @@ reaches `transformError` as the author threw it: a held reference is a derivatio
 wraps what one throws in a `DerivationFailed` naming the source, which `caught` takes off by its
 name -- by name, because it is carried into the bundle and shares no `Error` to test against.
 
-**What the run cannot follow still refuses**: an `{#await}`, a `<svelte:element>`, a boundary inside
-the children, a call of a fragment the run did not define. Each computes in an order of its own that
-the recorded holes and blocks do not say. The boundary inside the children is the one that now
-matters: Kit 3's root puts every page under one, so a page writing a `<svelte:boundary>` with a
-`failed` snippet of its own is refused -- [roadmap.md](roadmap.md), "Owed".
+**A boundary inside the children is a catch of its own.** Every level of Kit's root below the
+first with an error page is one, so the shape is every page of an app with two error pages. Its
+children are computed when its own test, a held reference under its files, is read; the run reads
+the test and, where it threw, computes the failed branch's values inside the outer catch, since
+those are the values that boundary writes and one of them throwing is what the outer catch is for.
+
+**A boundary whose branches write a head stands in the head stream.** An error page setting its
+`<title>` under Kit's root is the common case. The block is mirrored as an if is, opened at the
+start of each branch and closed at its stamp, and the assembler reads a bare boundary in the head
+as it reads a bare if: no anchors of Svelte's to write, no JSON to open the failed branch with.
+One thing is the boundary's own: Svelte's boundary discards everything the children pushed when
+they throw, the head anchor with the rest, while the open's record of having opened survives, so
+the failed branch's open is told to open again.
+
+**What the run cannot follow still refuses**: an `{#await}`, a `<svelte:element>`, a call of a
+fragment the run did not define. Each computes in an order of its own that the recorded holes and
+blocks do not say.
 
 ## Recursion is a fragment and a call
 

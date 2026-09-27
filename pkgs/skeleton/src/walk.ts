@@ -14,7 +14,7 @@ import { standsFor } from './components.ts';
 import { unimported } from './component-files.ts';
 import { contextual, hostedIn, placed, runesOf } from './dynamic.ts';
 import { closes, headedFragment, headFoundLate, wrapped } from './stamps.ts';
-import { type Choice, type Copy, type Handed, type Rewritten, type Walk } from './walk-types.ts';
+import { type Choice, type Copy, type Handed, type Rewritten, type Walk, changedKey } from './walk-types.ts';
 import { withAsks, withFresh } from './written.ts';
 
 /**
@@ -60,7 +60,7 @@ export function rewrite(
 	const entryProps = propsOf(ast, source);
 	/** Every held declaration's initialiser, one list for the entry and every copy it enters. */
 	const keeping: { expression: string; files?: string[] }[] = [];
-	/** Every file's names substitution cannot follow, unioned. See `Site.changing`. */
+	/** Every file's names substitution cannot follow, by file and name. See `Site.changing`. */
 	const changing = new Map<string, string>();
 	const declared = locals(
 		source,
@@ -88,7 +88,9 @@ export function rewrite(
 		'run',
 	);
 
-	for (const [name, why] of declared.changed) changing.set(name, why);
+	for (const [name, why] of declared.changed) {
+		changing.set(changedKey(relative(root, file), name), why);
+	}
 
 	// A render is given no data, so a declaration reading a prop would evaluate against nothing
 	// and crash inside Svelte's own renderer. It has already been substituted into every

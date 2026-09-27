@@ -56,7 +56,7 @@ export function ran(
 	// The request's `hydratable` goes to the run, whose script makes its calls in its own order and
 	// under its own conditions, which is Svelte's. See `captured()` in the ast package.
 	const imported = hydrating ? hydratableImport(source) : { local: null, module: false };
-	const call = `${RUN_NAME}(${GIVEN}${imported.local === null ? '' : `, ${imported.local}`})`;
+	const call = `${RUN_NAME}(${GIVEN}, ${imported.local ?? 'undefined'}, $$request)`;
 	const running = projectAsync() ? `(await ${call})` : call;
 	let at: number | undefined;
 	const field = (name: string): string => {

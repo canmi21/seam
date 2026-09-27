@@ -386,7 +386,20 @@ export async function renderRewritten(
 		const entry = emit(file, fresh === undefined ? code : anchoring(code, fresh), file);
 		const mod = (await timed('    load (host import)', () =>
 			host.import(pathToFileURL(entry).href),
-		)) as { default: unknown };
+		).catch((error: unknown) => {
+			// Thrown while the module was evaluated, before anything rendered: a module script
+			// reaching `document`, an import that is not for a server. Nothing about the request is
+			// in a module script, so it throws for every request, and a framework answers such a
+			// route with its error response before any render. Marked, so the caller can leave the
+			// route to that rather than fail the build over a page nobody can render. See
+			// spec/framework.md, "A module that cannot be evaluated on the server".
+			throw Object.assign(
+				new Error(
+					`${basename(file)}'s module cannot be evaluated on the server: ${(error as Error).message}`,
+				),
+				{ [UNAVAILABLE]: true, cause: error },
+			);
+		})) as { default: unknown };
 		// The prefix is what makes a `$props.id()` anchor readable after the render. See `fresh.ts`.
 		//
 		// **A boundary that catches is a refusal named here rather than the author's own error.**
@@ -476,7 +489,8 @@ function real(path: string): string {
 function handed(code: string): string {
 	const helpers =
 		'const __seam_opened = new Set();\n' +
-		`function ${HEAD_OPEN}($$renderer, block, value) { if (__seam_opened.has(block)) return value; ` +
+		`function ${HEAD_OPEN}($$renderer, block, value, again) { ` +
+		'if (!again && __seam_opened.has(block)) return value; ' +
 		"__seam_opened.add(block); $$renderer.head((head) => head.push('<!--[-->')); return value; }\n" +
 		`function ${HEAD_CLOSE}($$renderer, block) { const opened = __seam_opened.delete(block); ` +
 		"$$renderer.head((head) => head.push((opened ? '' : '<!--[-->') + '<!--]-->%%b' + String(block) + '%%')); " +
@@ -489,6 +503,14 @@ function handed(code: string): string {
 		given = given.replaceAll(`${call}(`, () => `${call}($$renderer, `);
 	}
 	return helpers + given;
+}
+
+/** The mark on an error thrown while a component's module was evaluated, before any render. */
+const UNAVAILABLE = Symbol.for('seam.unavailable');
+
+/** Whether an error is a component's module failing to evaluate on the server. See `handed`. */
+export function unavailable(error: unknown): boolean {
+	return typeof error === 'object' && error !== null && UNAVAILABLE in error;
 }
 
 /** The call Svelte's server transform writes for `$props.id()`, first in the component's body. */

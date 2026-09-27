@@ -149,14 +149,18 @@ export function running(): Plugin {
 					`import { render } from ${JSON.stringify(server)};`,
 					`import Script from ${JSON.stringify(`${CAPTURED}${encoded(file)}${SUFFIX}`)};`,
 					'const runs = new WeakMap();',
-					'export function run(props, hydratable) {',
-					"\tif (props === null || typeof props !== 'object') return ran(props, hydratable);",
-					'\tif (!runs.has(props)) runs.set(props, ran(props, hydratable));',
+					'export function run(props, hydratable, request) {',
+					"\tif (props === null || typeof props !== 'object') return ran(props, hydratable, request);",
+					'\tif (!runs.has(props)) runs.set(props, ran(props, hydratable, request));',
 					'\treturn runs.get(props);',
 					'}',
-					`${projectAsync() ? 'async ' : ''}function ran(props, hydratable) {`,
+					// The request's `page` goes into the context under Kit's own key, so a script that
+					// imports `page` from `$app/state` -- Kit's server module, which reads it there --
+					// reads the request's, as it does under Kit's render.
+					`${projectAsync() ? 'async ' : ''}function ran(props, hydratable, request) {`,
 					'\tlet got;',
 					`\tconst context = new Map([[${JSON.stringify(CAPTURE)}, (value) => { got = value; return ''; }], [${JSON.stringify(HYDRATING)}, hydratable]]);`,
+					"\tif (request !== undefined && request.page !== undefined) context.set('__request__', request);",
 					'\tconst rendered = render(Script, { props, context });',
 					`\t${read}`,
 					'\treturn got;',
