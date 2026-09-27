@@ -40,7 +40,7 @@ export async function entries(projectRoot: string): Promise<Found[]> {
 		writeFileSync(
 			file,
 			root(
-				page.branch.map(from),
+				page.branch.map((one) => (one === null ? null : from(one))),
 				page.errors.map((one) => (one === undefined ? undefined : from(one))),
 			),
 		);

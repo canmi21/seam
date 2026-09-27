@@ -31,11 +31,15 @@ const ANNOUNCER =
 /**
  * The source of the root for one route.
  *
- * `branch` is the components down the route, relative to where the root will be written, and
- * `errors` is the error page each level's boundary renders, one per entry of `branch` and
- * `undefined` where the level has none.
+ * `branch` is the components down the route, relative to where the root will be written, `null`
+ * for a level whose node has none -- Kit's `Component` is then undefined and its root writes
+ * `<!--[!--><!--]-->`, which `this={null}` writes here -- and `errors` is the error page each
+ * level's boundary renders, one per entry of `branch` and `undefined` where the level has none.
  */
-export function root(branch: readonly string[], errors: readonly (string | undefined)[]): string {
+export function root(
+	branch: readonly (string | null)[],
+	errors: readonly (string | undefined)[],
+): string {
 	if (branch.length === 0) throw new Error('a route with no components has no root');
 	if (errors.length !== branch.length) {
 		throw new Error(
@@ -43,7 +47,7 @@ export function root(branch: readonly string[], errors: readonly (string | undef
 		);
 	}
 	const imports = branch.flatMap((file, l) => [
-		`import Node_${at(l)} from '${file}';`,
+		...(file === null ? [] : [`import Node_${at(l)} from '${file}';`]),
 		...(errors[l] === undefined ? [] : [`import Error_${at(l)} from '${errors[l]}';`]),
 	]);
 	// Exactly the props Kit's `render_response` hands its root, less the client's, with each
@@ -67,7 +71,8 @@ export function root(branch: readonly string[], errors: readonly (string | undef
 	const leaf = branch.length - 1;
 	let level = '';
 	for (let l = leaf; l >= 0; l -= 1) {
-		const tag = `svelte:component this={Node_${at(l)}} data={data_${at(l)}} {form} params={page.params}`;
+		const node = branch[l] === null ? 'null' : `Node_${at(l)}`;
+		const tag = `svelte:component this={${node}} data={data_${at(l)}} {form} params={page.params}`;
 		const body =
 			l === leaf
 				? ['{#if false}', '{:else}', `\t<${tag} {error} />`, '{/if}']

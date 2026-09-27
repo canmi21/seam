@@ -36,6 +36,8 @@ const files: Record<string, string> = {
 	'src/routes/blog/[slug]/+page.svelte':
 		'<script>let { data, params } = $props(); if (data.boom) throw new Error("boom");</script><article>{params.slug}: {data.body}</article>',
 	'src/routes/(marketing)/about/+page.svelte': '<p>about</p>',
+	// A page with a load and no component, which Kit allows: its level renders as nothing.
+	'src/routes/noshow/+page.js': 'export function load() { return { title: "unseen" }; }',
 	'src/routes/api/+server.js': 'export function GET() { return new Response("x"); }',
 	// The project's own configuration, read as Kit 3 reads it: the plugin's argument in the Vite
 	// config, with an alias with and without `/*` and a file path the author moved, all relative
@@ -122,6 +124,11 @@ describe('the routes are read the way Kit reads them', () => {
 			'/',
 			'/(marketing)/about',
 			'/blog/[slug]',
+			'/noshow',
+		]);
+		expect(found.pages.find((one) => one.id === '/noshow')?.branch).toEqual([
+			'src/routes/+layout.svelte',
+			null,
 		]);
 		const blog = found.pages.find((one) => one.id === '/blog/[slug]');
 		expect(blog?.params).toEqual(['slug']);
@@ -178,6 +185,7 @@ describe("the generated root renders what Kit's root renders", () => {
 		['/blog/[slug]', [{}, {}, { body: 'text' }], { slug: 'hello' }, false],
 		['/blog/[slug]', [{}, {}, { boom: true }], { slug: 'hello' }, true],
 		['/(marketing)/about', [{ site: 'M' }, {}], {}, false],
+		['/noshow', [{ site: 'S' }, { title: 'unseen' }], {}, false],
 	])('%s', async (id, data, params, throws) => {
 		const found = await entries(project);
 		compiled(resolve(project, 'src'));
@@ -195,7 +203,7 @@ describe("the generated root renders what Kit's root renders", () => {
 			Object.assign(merged, data[at]);
 			const error = page.errors[at];
 			levels.push({
-				component: await load(file),
+				component: file === null ? undefined : await load(file),
 				error: error === undefined ? undefined : await load(error),
 				data: { ...merged },
 			});

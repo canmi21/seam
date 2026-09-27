@@ -26,9 +26,11 @@ export interface Page {
 	params: string[];
 	/**
 	 * The components down the branch, relative to the project root: every layout that applies,
-	 * outermost first, then the page. `data_0` .. `data_n` go to these in this order.
+	 * outermost first, then the page. `data_0` .. `data_n` go to these in this order. A level
+	 * whose node has no component -- a `+page.js` with no `+page.svelte` beside it, which Kit
+	 * allows and renders as nothing -- is `null`.
 	 */
-	branch: string[];
+	branch: (string | null)[];
 	/**
 	 * The `+error.svelte` each level's boundary renders when what is inside it throws, one entry
 	 * per entry of `branch`, and `undefined` where the level has none. Kit's `build_error_chain`:
@@ -151,28 +153,34 @@ export async function routes(root: string): Promise<Routes> {
 	const config = await configured(cwd);
 	const manifest = create_manifest_data(config, cwd);
 	const pages: Page[] = [];
-	const componentOf = (id: string, index: number): string => {
+	// Kit's paths are relative to the working directory it was given; a fallback layout of Kit's
+	// own comes out relative too, from wherever the vendored runtime sits. A node with no
+	// component is null: Kit's root renders `<!--[!--><!--]-->` where its `Component` is undefined.
+	const componentOf = (index: number): string | null => {
 		const component = manifest.nodes[index]?.component;
-		if (component === undefined) {
-			throw new Error(`route ${id} has a node with no component, which Kit does not allow`);
-		}
-		// Kit's paths are relative to the working directory it was given; a fallback layout of
-		// Kit's own comes out relative too, from wherever the vendored runtime sits.
-		return relative(cwd, resolve(cwd, component)).split('\\').join('/');
+		return component === undefined
+			? null
+			: relative(cwd, resolve(cwd, component)).split('\\').join('/');
 	};
 	for (const route of manifest.routes) {
 		if (route.page === null) continue;
+		// A page Kit does not render on the server has no root to compile: `render_response`
+		// writes an empty body under `ssr: false` and never renders its root. Kit's own static
+		// analysis says which, merged down the branch onto the leaf, and null where a page option
+		// is not analysable -- which Kit then reads by importing the module at its build, and
+		// this reads as rendered, since it cannot import it here.
+		if (manifest.nodes[route.page.leaf]?.page_options?.ssr === false) continue;
 		// Kit's server loads `[...layouts, leaf]` with a gap where a depth has no layout, renders
 		// the levels that are there, and pairs each with an error page by `build_error_chain`
 		// (`runtime/error-chain.js`): the one declared at the depth directly above, rewound past
 		// the gaps, and none for the first level. The same walk, over the same indexes.
 		const indexes = [...route.page.layouts, route.page.leaf];
-		const branch: string[] = [];
+		const branch: (string | null)[] = [];
 		const errors: (string | undefined)[] = [];
 		let last = -1;
 		for (const [at, index] of indexes.entries()) {
 			if (index === undefined) continue;
-			branch.push(componentOf(route.id, index));
+			branch.push(componentOf(index));
 			if (at === 0) {
 				errors.push(undefined);
 				continue;
@@ -181,7 +189,7 @@ export async function routes(root: string): Promise<Routes> {
 			while (above > last + 1 && route.page.errors[above] == null) above -= 1;
 			last = above;
 			const error = route.page.errors[above];
-			errors.push(error == null ? undefined : componentOf(route.id, error));
+			errors.push(error == null ? undefined : (componentOf(error) ?? undefined));
 		}
 		pages.push({ id: route.id, params: route.params.map((one) => one.name), branch, errors });
 	}
