@@ -10,6 +10,13 @@ type Outcome = { threw: false } | { threw: true; value: unknown; json: string };
 const thenable = (value: unknown): value is PromiseLike<unknown> =>
 	typeof (value as { then?: unknown } | null)?.then === 'function';
 
+/** Whether a throw is `derive`'s account of a derivation failing, carrying the throw as `cause`. */
+const isWrapped = (value: unknown): value is { cause: unknown } =>
+	typeof value === 'object' &&
+	value !== null &&
+	(value as { name?: unknown }).name === 'DerivationFailed' &&
+	'cause' in value;
+
 /**
  * The children's expressions run in order inside one catch, and what they threw handed to the
  * request's `transformError`: `renderer.boundary` with the bytes left out. Svelte's own default
@@ -24,7 +31,15 @@ export function caught(
 		((error) => {
 			throw error;
 		});
-	const failed = (error: unknown): Outcome | Promise<Outcome> => {
+	const failed = (thrown: unknown): Outcome | Promise<Outcome> => {
+		// What the children threw, not the derivation evaluator's account of it: a value the run
+		// reads as a held reference is a derivation, and one that throws is wrapped by `derive` in
+		// a `DerivationFailed` naming its source, for the author of a build to read. Svelte hands
+		// `transformError` the author's own error, so the wrapper comes off, by its name rather
+		// than by class: this file is carried into the bundle and evaluated apart from `derive`,
+		// so it imports nothing of it and shares no `Error` with it to test `instanceof` against.
+		let error = thrown;
+		while (isWrapped(error)) error = error.cause;
 		const value = transform(error);
 		return thenable(value) ? Promise.resolve(value).then(serialised) : serialised(value);
 	};

@@ -287,9 +287,26 @@ questions at the build, answered by a render that has no helper to call, so the 
 off them (`Walk.untried`) while the key each is filed under keeps the guarded text, since the
 pass that asks and the pass that reads the answer have to spell it the same.
 
+**A child's value goes into the run as a held reference under the child's own files.** The run is
+one derivation, filed under the chain the boundary sits in, and a value inlined into it as text
+resolved its names -- an import, the `$$run` of the file whose script runs per request -- in that
+chain instead of its own: a page's run inside Kit's root, whose layout level is a boundary, made a
+run of the layout, whose captured script then imported what only Kit's build provides. So each
+value is written as `$$hold(n)` over the skeleton's held list, carrying the files it was recorded
+under, and lowering resolves it through them ([derivation.md](derivation.md), the file chain).
+Two kinds stay text: a value reading a name the run binds -- an each's item, a fragment's
+parameter -- which is a value per iteration where a held reference is one per request; and a
+value that awaits, since `derive` settles a derivation's async dependencies before it evaluates,
+which would put the rejection outside the catch the run exists to put it inside. And the throw
+reaches `transformError` as the author threw it: a held reference is a derivation, and `derive`
+wraps what one throws in a `DerivationFailed` naming the source, which `caught` takes off by its
+name -- by name, because it is carried into the bundle and shares no `Error` to test against.
+
 **What the run cannot follow still refuses**: an `{#await}`, a `<svelte:element>`, a boundary inside
 the children, a call of a fragment the run did not define. Each computes in an order of its own that
-the recorded holes and blocks do not say.
+the recorded holes and blocks do not say. The boundary inside the children is the one that now
+matters: Kit 3's root puts every page under one, so a page writing a `<svelte:boundary>` with a
+`failed` snippet of its own is refused -- [roadmap.md](roadmap.md), "Owed".
 
 ## Recursion is a fragment and a call
 

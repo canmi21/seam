@@ -183,6 +183,19 @@ export interface Derived {
 	(props: Scope, options?: Scope): Scope;
 }
 
+/**
+ * What a derivation's throw is wrapped in, naming the source that threw: the diagnostic a build's
+ * author reads. The throw itself is the `cause`, and `caught` in the skeleton package -- a
+ * boundary's catch, which hands the author's own error to the request's `transformError` -- takes
+ * the wrapper off by its `name`, so that nothing there imports this package.
+ */
+export class DerivationFailed extends Error {
+	override name = 'DerivationFailed';
+	constructor(source: string, cause: unknown) {
+		super(`deriving \`${source}\` failed`, { cause });
+	}
+}
+
 export function compile(derivations: readonly Derivation[], carried = ''): Derived {
 	const files = (evaluate(carried)['files'] ?? {}) as Record<string, Record<string, unknown>>;
 	const awaiting = waits(derivations);
@@ -253,7 +266,7 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 							derivation.asynchronous,
 						);
 					} catch (error) {
-						throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
+						throw new DerivationFailed(derivation.source, error);
 					}
 				};
 				out[derivation.name] = Object.assign(held, { [SCOPED]: true });
@@ -269,7 +282,7 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 				try {
 					value = derivation.evaluate(bindings(), request);
 				} catch (error) {
-					throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
+					throw new DerivationFailed(derivation.source, error);
 				}
 				// One that awaits -- a default read from the script's run in async mode -- is waited on
 				// where it is read, and reads as its value once it settles, as any derivation does.
@@ -294,7 +307,7 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 						derivation.asynchronous,
 					);
 				} catch (error) {
-					throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
+					throw new DerivationFailed(derivation.source, error);
 				}
 				continue;
 			}
@@ -320,7 +333,7 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 							derivation.asynchronous,
 						);
 					} catch (error) {
-						throw new Error(`deriving \`${derivation.source}\` failed`, { cause: error });
+						throw new DerivationFailed(derivation.source, error);
 					}
 					done = true;
 					// Once it settles it reads as its value, so what reads it after an `await` reads
@@ -408,7 +421,7 @@ function failing(value: unknown, source: string, asynchronous: boolean): unknown
 	if (!asynchronous || !thenable(value)) return value;
 	return waiting(
 		Promise.resolve(value).catch((error: unknown) => {
-			throw new Error(`deriving \`${source}\` failed`, { cause: error });
+			throw new DerivationFailed(source, error);
 		}),
 	);
 }

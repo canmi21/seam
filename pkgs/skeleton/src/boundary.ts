@@ -129,7 +129,32 @@ export function boundary(
 		for (const one of quiet) one();
 	}
 	const waits = raw.size > 0 && [...raw.values()].some(awaiting);
-	const body = inOrder(steps, 1, unguarded, waits);
+	// A child's value is computed under the child's own files, not the boundary's. The test below
+	// is one derivation filed under the chain the boundary sits in, and a value inlined into it
+	// as text would resolve its names -- an import, the `$$run` of the file that runs its script
+	// -- in that chain instead of its own: a page's run inside a layout's boundary made a run of
+	// the layout. So each value goes in as a held reference carrying the files it was recorded
+	// under, and lowering resolves it through them. Two kinds stay text: a value reading a name
+	// the run binds -- an each's item, a fragment's parameter -- since it is a value per iteration
+	// and a held reference is one per request; and a value that awaits, since `derive` settles a
+	// derivation's async dependencies before it evaluates, which would put the rejection outside
+	// the catch the run exists to put it inside.
+	const hold = (text: string, files: readonly string[] | undefined, inScope: ReadonlySet<string>): string => {
+		const plain = unguarded(text);
+		if (constant(plain) || awaiting(plain) || (inScope.size > 0 && mentions(plain, inScope))) {
+			return `(${plain})`;
+		}
+		const key = (files ?? []).join('\u0000');
+		let at = walk.keeping.findIndex(
+			(one) => one.expression === plain && (one.files ?? []).join('\u0000') === key,
+		);
+		if (at < 0) {
+			walk.keeping.push(files === undefined ? { expression: plain } : { expression: plain, files: [...files] });
+			at = walk.keeping.length - 1;
+		}
+		return `($$hold(${String(at)}))`;
+	};
+	const body = inOrder(steps, 1, unguarded, hold, waits);
 	if (body === null) {
 		refuse(
 			'a `<svelte:boundary>` with a `failed` snippet, whose body holds what computing its values ' +
@@ -155,6 +180,9 @@ export function boundary(
 	within.pop();
 }
 
+/** The names a pattern binds, over-approximated: every identifier written in it. */
+const identifiers = (pattern: string): string[] => pattern.match(/[A-Za-z_$][\w$]*/g) ?? [];
+
 /** A hole or a block a boundary's children recorded, and the blocks inside the boundary around it. */
 interface Step {
 	at: { hole: Hole } | { block: Block };
@@ -171,10 +199,14 @@ function inOrder(
 	steps: readonly Step[],
 	depth: number,
 	unguarded: (text: string) => string,
+	/** A value as the run computes it: a held reference under its own files, or text. See `boundary`. */
+	hold: (text: string, files: readonly string[] | undefined, inScope: ReadonlySet<string>) => string,
 	/** Whether the run awaits, which makes a fragment's function async and each call an await. */
 	waits: boolean,
 	/** The fragments this run has defined so far, which a call inside it can call. */
 	defined: Set<string> = new Set(),
+	/** The names the run binds around this point: each items and counters, fragment parameters. */
+	inScope: ReadonlySet<string> = new Set(),
 ): string | null {
 	const out: string[] = [];
 	const binding = (binds: readonly [string, string][]): string =>
@@ -195,7 +227,7 @@ function inOrder(
 			// An id is the runtime's count and throws nothing.
 			if (hole.fresh === true) continue;
 			for (const one of [hole.expression, ...(hole.choice?.tests ?? [])]) {
-				if (one !== '') out.push(`(${unguarded(one)});`);
+				if (one !== '') out.push(`${hold(one, hole.files, inScope)};`);
 			}
 			continue;
 		}
@@ -207,20 +239,22 @@ function inOrder(
 			inside.push(next);
 			at += 1;
 		}
-		const branch = (which: number): string | null =>
+		const branch = (which: number, binds: readonly string[] = []): string | null =>
 			inOrder(
 				inside.filter((one) => one.within[depth]?.[1] === which),
 				depth + 1,
 				unguarded,
+				hold,
 				waits,
 				defined,
+				binds.length === 0 ? inScope : new Set([...inScope, ...binds]),
 			);
 		// A component entered as a fragment, which a call inside it may enter again: a function of
 		// its parameters, called here with what this first call binds them to.
 		if (block.fragment !== undefined && block.mirrors === undefined) {
 			const { name, params, binds } = block.fragment;
 			defined.add(name);
-			const body = branch(0);
+			const body = branch(0, params.flatMap(identifiers));
 			if (body === null) return null;
 			out.push(
 				`const ${name} = ${waits ? 'async ' : ''}(${params.join(', ')}) => { ${body} }; ` +
@@ -234,7 +268,7 @@ function inOrder(
 			for (const [which, test] of tests.entries()) {
 				const taken = branch(which);
 				if (taken === null) return null;
-				arms.push(`if (${unguarded(test)}) { ${taken} }`);
+				arms.push(`if (${hold(test, block.files, inScope)}) { ${taken} }`);
 			}
 			const otherwise = branch(-1);
 			if (otherwise === null) return null;
@@ -242,7 +276,10 @@ function inOrder(
 			continue;
 		}
 		if (block.kind === 'each' && block.mirrors === undefined && block.item !== null) {
-			const each = branch(0);
+			const each = branch(0, [
+				...identifiers(block.item),
+				...(block.counter == null ? [] : identifiers(block.counter)),
+			]);
 			const empty = branch(-1);
 			if (each === null || empty === null) return null;
 			// `ensure_array_like`: nothing for a falsy source, and the source itself or `Array.from` of
@@ -250,7 +287,7 @@ function inOrder(
 			const list = `$$list${String(block.index)}`;
 			const counter = `$$at${String(block.index)}`;
 			out.push(
-				`{ const ${list} = Array.from((${unguarded(block.expression)}) || []); ` +
+				`{ const ${list} = Array.from(${hold(block.expression, block.files, inScope)} || []); ` +
 					`if (${list}.length === 0) { ${empty} } ` +
 					`for (let ${counter} = 0; ${counter} < ${list}.length; ${counter} += 1) { ` +
 					`const ${block.item} = ${list}[${counter}]; ` +
