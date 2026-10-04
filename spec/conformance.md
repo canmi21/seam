@@ -289,12 +289,13 @@ At `3.0.0`, over 607 URLs, the first run found **602 the same bytes, 4 different
   nor refused (`/load/invalidation/multiple/redirect`), and the request threw `ReferenceError`.
   [derivation.md](derivation.md), "A store read is the store's value, where the store is a
   declaration".
-- **Owed, and not decided.** A component a `load` returns (`/load/dynamic-import-styles`:
+- **Owed, and waiting on the fork.** A component a `load` returns (`/load/dynamic-import-styles`:
   `<svelte:component this={data.Thing} />`, `Thing` from `import('./_/Thing.svelte')` in
   `+page.js`). No name in the component's source reaches it, and handing a value to Svelte's
   renderer per request is the one thing compile-time rendering does not do, so the request throws
-  the unnamed-component error. The `load` module does name it, statically; whether the compile
-  reads the load stage's imports to find it, or the page waits for the second mode, is not decided.
+  the unnamed-component error. The `load` module names it statically, and reading it is the
+  framework's once `load` is the framework's own: [framework.md](framework.md), "Kit is replaced,
+  until it offers a seam to plug into".
 
 With the two closed: **605 the same, 1 different, 1 unstable.**
 

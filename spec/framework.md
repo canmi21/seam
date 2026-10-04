@@ -28,8 +28,15 @@ a `load` throws, a component a `load` returns, and a backend that is not Kit's N
 the framework running in the author's own projects, used by others, a couple of hundred stars. It
 is not made on a design alone.
 
-**The end state is the plugin again.** Once Kit exposes the point the render can be replaced at,
-this becomes a plugin over the project's own Kit, the fork is dropped, and a project uses both.
+**The end state is the plugin again, if Kit offers the point.** Once Kit exposes where the render
+can be replaced, this becomes a plugin over the project's own Kit, the fork is dropped, and a
+project uses both. If Kit declines, the fork is kept and maintained for as long as this exists;
+that is the outcome planned for, not the exception.
+
+**What only the fork can do waits for it.** A component a `load` returns is one: `load` is Kit's
+code running per request, which a plugin cannot read, and in the fork it is this repository's own
+-- [conformance.md](conformance.md), "Stage 2", has the route that needs it. The error tree Kit
+renders again when a `load` throws is another.
 
 **Not decided yet**, and owed before the fork starts: where the fork lives -- `vendor/kit` edited in
 place, against [VENDOR.md](../vendor/kit/VENDOR.md)'s "Nothing in `src/` or `types/` is edited
