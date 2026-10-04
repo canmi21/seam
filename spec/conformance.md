@@ -211,6 +211,20 @@ near; a stage two built against 2.70.3 would be rebuilt against 3 within months,
 layer's root is exactly what 3 changes. `vendor/kit` moves to that tag, and what the move costs is
 in [framework.md](framework.md), "SvelteKit 3 is the target, and what it moves".
 
+**Byte for byte with Kit, except where a difference is declared.** Every response is held to the
+same response from Kit's own build of the same app, and any byte apart is a defect -- that is the
+default, and it holds without being restated per route. A difference is allowed only where it is
+written down here, by hand, under **Declared differences**: something this framework does on
+purpose that Kit does not, each entry naming the routes it changes, what changes in the bytes, and
+what those routes are held to instead. A difference nobody declared is never accepted by
+explaining it; a difference that is declared is never a reason to stop comparing the rest of the
+response, which stays byte for byte. The fork is what makes this rule necessary: replacing Kit
+rather than running beside it means some of what Kit does is done differently here on purpose.
+
+**Declared differences.** None yet. Streaming what a render left unsettled -- the `l:` entries of
+`remote/live-ssr-value` and `remote/live-terminal`, below -- is planned as the first, once the fork
+exists.
+
 **What they are.** At `3.0.0-next.29`, `packages/kit/test/apps` holds thirteen whole SvelteKit
 applications -- `basics`, `options`, `options-2`, `options-3`, `no-ssr`, `no-csr`, `embed`,
 `hash-based-routing`, `writes`, `async`, `dev-only`, `prerendered-app-error-pages` and
@@ -322,7 +336,10 @@ client to fetch. So the bytes depend on how far a render has got, and two pages 
 side of it: `remote/live-ssr-value` and `remote/live-terminal`, a live query's first value. A page
 that awaits nothing is injected in one synchronous pass, fewer microtasks than Svelte's async render
 takes, and the generator has not yielded when Kit collects, so the entry Kit writes is missing. This
-is timing alone, and matching it means matching how many turns a render takes.
+is timing alone, and matching it means matching how many turns a render takes. **It is not matched
+but planned past**: in the fork, what a render left unsettled is streamed into the same response
+once it settles, instead of being left for the client to fetch, so neither the page waits nor the
+client asks. That is a declared difference when it lands, under **Declared differences** above.
 
 **Closed: a value a boundary computed twice.** `remote/query-loading-state` is a one-second query
 beside a half-second `{await}`, and the `{await}` was computed by the boundary's run and again by

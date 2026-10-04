@@ -38,11 +38,25 @@ code running per request, which a plugin cannot read, and in the fork it is this
 -- [conformance.md](conformance.md), "Stage 2", has the route that needs it. The error tree Kit
 renders again when a `load` throws is another.
 
-**Not decided yet**, and owed before the fork starts: where the fork lives -- `vendor/kit` edited in
-place, against [VENDOR.md](../vendor/kit/VENDOR.md)'s "Nothing in `src/` or `types/` is edited
-here", or a package of its own taken from it -- and how a project swaps the dependency. An npm alias,
-`"@sveltejs/kit": "npm:<this package>@<version>"`, would leave every import, `$app/*` and
-`sveltekit()` as written, and is to be measured on a real project before it is chosen.
+**The fork is the entry, under the entry's name.** A project swaps by one line of its
+`package.json`, `"@sveltejs/kit": "npm:@canmi/seamjs@<version>"` -- `npm:seamjs@...` once that name
+is ours ([publish.md](publish.md)) -- and nothing else: every import, `$app/*`, `svelte-kit` and the
+project's `vite.config` stay as written. The alias has to point at the fork itself rather than at a
+package forwarding to it, since Kit's Vite plugin reaches its runtime by paths inside its own
+package. So there is no `seam()` beside `sveltekit()` any more: what the plugin does goes into the
+fork's own `sveltekit()`, and `@seam-js/*` are the fork's ordinary dependencies, which a project
+never names. No `@seam-js/kit` is published.
+
+**It is not published yet.** The fork tracks Kit's latest release and is used from this repository,
+linked into the author's own projects, until it is worth releasing. How its version relates to
+Kit's is decided at its first release: under an alias npm checks every peer range against the fork's
+version as if it were Kit's -- `@sveltejs/adapter-node` asks `^3.0.0-next.0` -- so a `0.0.x`
+version would fail them.
+
+**Not decided yet**: where the fork's source lives. `vendor/kit` edited in place is what was
+chosen, and it runs against the workspace's rule that vendored source is not edited
+([vendor.md](../../../spec/vendor.md)) and [VENDOR.md](../vendor/kit/VENDOR.md)'s "Nothing in
+`src/` or `types/` is edited here".
 
 ## What SvelteKit is, seen from here
 

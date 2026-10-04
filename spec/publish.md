@@ -10,6 +10,11 @@ beside `sveltekit()` in the project's Vite config, is the whole of what a projec
 other package is published under the `@seam-js` scope and arrives as a dependency of it; nobody
 types a scope.
 
+**That changes when the fork is released**: the entry becomes the fork of Kit, installed as
+`"@sveltejs/kit": "npm:seamjs@<version>"`, and `seam()` goes into the fork's `sveltekit()`. The
+name a user types stays this one. See [framework.md](framework.md), "The fork is the entry, under
+the entry's name".
+
 `@seamjs` belongs to somebody else, and that is the reason the scope is never what a user types
 rather than only the reason it is spelled with a hyphen. `svelte` has `@sveltejs/*` and `astro` has
 `@astrojs/*`, so a reader who knows the pattern and sees `seamjs` writes `@seamjs/...`, and lands
