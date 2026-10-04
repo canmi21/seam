@@ -155,6 +155,13 @@ if ! out=$(pnpm update -r --filter '!./vendor/**' ${major:+--latest} 2>&1); then
 else
 	echo "$out"
 fi
+# The filter leaves vendor/'s own dependencies where the lockfile had them, so a package both sides
+# use resolves twice -- two vites, whose ResolvedConfig types then compare against each other
+# until tsc runs out of stack. dedupe moves vendor/'s within the ranges its manifest already
+# declares, in the lockfile alone; the manifest stays upstream's.
+echo
+echo '$ pnpm dedupe'
+pnpm dedupe
 v=$(mise current pnpm)
 perl -pi -e "s/\"packageManager\": \"pnpm\@[^\"]+\"/\"packageManager\": \"pnpm\@$v\"/" package.json
 [ -z "$major" ] || exit 0
