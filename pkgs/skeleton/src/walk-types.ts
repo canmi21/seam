@@ -3,7 +3,7 @@
  * file, a copy of a child, what a caller hands a child, and the choices a render decides. See
  * spec/pipeline.md.
  */
-import { type Carried, type Edit, type Locals } from 'ast';
+import { type Carried, type Edit, type Locals } from '@seam-js/ast';
 import { type PendingChoice, type PendingSpread } from './attributes.ts';
 import { type AstNode } from './node.ts';
 import type { Block, Hole, Stream } from './shape.ts';

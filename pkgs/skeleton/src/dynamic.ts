@@ -19,7 +19,7 @@ import {
 	resolveBare,
 	rootOf,
 	bound as namesBound,
-} from 'ast';
+} from '@seam-js/ast';
 import { carries, importsOf } from './compose.ts';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { RUNE, unknown } from './branches.ts';

@@ -4,7 +4,7 @@
  * spec/pipeline.md.
  */
 import { basename } from 'node:path';
-import { constant, type Locals, mentions } from 'ast';
+import { constant, type Locals, mentions } from '@seam-js/ast';
 import { clsxed } from './attributes.ts';
 import { called, isNode, refuse, renders, span } from './node.ts';
 import { sentinel } from './sentinel.ts';

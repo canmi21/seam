@@ -71,6 +71,21 @@ run = [
 	"ls -l pkgs/lowering/lowering.wasm",
 ]
 
+[tasks.pack]
+description = "Build what npm gets and pack each published package into .build-pack, publishing nothing"
+# The packages and the layout are spec/publish.md's, and tsdown.config.ts lists them. Publishing
+# is by hand, the tarballs here in the order the spec gives: `npm publish .build-pack/<file>`.
+depends = ["wasm"]
+run = '''
+set -e
+rm -rf .build-pack
+pnpm exec tsdown
+for dir in ast injector derive lowering routes skeleton carry compiler plugin; do
+	pnpm -C "pkgs/$dir" pack --pack-destination "$PWD/.build-pack" > /dev/null
+done
+ls -l .build-pack
+'''
+
 [tasks.fixtures]
 description = "Regenerate the corpus after changing a case"
 # The lowering module is not committed, so the step that needs it builds it.

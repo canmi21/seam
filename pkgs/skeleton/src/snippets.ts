@@ -1,5 +1,5 @@
 import { parse } from 'svelte/compiler';
-import { bound, apply, bySource, locals } from 'ast';
+import { bound, apply, bySource, locals } from '@seam-js/ast';
 import { type AstNode, called, isNode, refuse, renders, span } from './node.ts';
 
 /**

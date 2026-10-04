@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { collides } from './sentinel.ts';
 import { basename, relative, resolve as resolvePath } from 'node:path';
-import { resolved } from 'ast';
+import { resolved } from '@seam-js/ast';
 import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
 import { timed, timedSync } from './timing.ts';

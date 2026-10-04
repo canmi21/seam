@@ -9,7 +9,7 @@
  * spec/derivation.md.
  */
 import { basename, dirname, resolve as resolvePath } from 'node:path';
-import { importsOf as importedBy, locals } from 'ast';
+import { importsOf as importedBy, locals } from '@seam-js/ast';
 import { hands, importsOf, legacyMode, partial, propsOf } from './compose.ts';
 import { type AstNode, isNode, relatesSiblings, span } from './node.ts';
 import { type Snippet, snippetsIn } from './snippets.ts';

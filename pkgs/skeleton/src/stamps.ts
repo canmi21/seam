@@ -11,7 +11,7 @@ import {
 	reads as readsIn,
 	runeCalled,
 	runeHolds,
-} from 'ast';
+} from '@seam-js/ast';
 import { type AstNode, holdsFor, isNode, refuse, span } from './node.ts';
 import {
 	carrier,

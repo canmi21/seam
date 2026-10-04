@@ -4,7 +4,7 @@
  * component in an expression. See spec/pipeline.md and spec/payload.md.
  */
 import { relative } from 'node:path';
-import { mentions, resolveBare, RUN_NAME } from 'ast';
+import { mentions, resolveBare, RUN_NAME } from '@seam-js/ast';
 import { isNode, refuse } from './node.ts';
 import { settled } from './branches.ts';
 import { type Walk, changedWhy } from './walk-types.ts';

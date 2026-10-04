@@ -1,25 +1,49 @@
 {
-	"name": "plugin",
-	"private": true,
+	"name": "seamjs",
+	"version": "0.0.1",
+	"description": "Compile-time rendering for SvelteKit, as a Vite plugin beside Kit's own",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/canmi21/seam.git",
+		"directory": "pkgs/plugin"
+	},
 	"type": "module",
+	"engines": {
+		"node": ">=22.17"
+	},
+	"files": [
+		"dist"
+	],
 	"exports": {
 		".": "./src/index.ts"
 	},
-	"dependencies": {
-		"@sveltejs/kit": "workspace:*",
-		"carry": "workspace:*",
-		"compiler": "workspace:*",
-		"derive": "workspace:*",
-		"injector": "workspace:*",
-		"routes": "workspace:*",
-		"skeleton": "workspace:*",
-		"svelte": "^5.57.1"
+	"publishConfig": {
+		"access": "public",
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			}
+		}
 	},
-	"devDependencies": {
-		"@sveltejs/vite-plugin-svelte": "^7.3.1",
-		"vite": "^8.3.2"
+	"dependencies": {
+		"@seam-js/carry": "workspace:*",
+		"@seam-js/compiler": "workspace:*",
+		"@seam-js/derive": "workspace:*",
+		"@seam-js/injector": "workspace:*",
+		"@seam-js/routes": "workspace:*",
+		"@seam-js/skeleton": "workspace:*"
 	},
 	"peerDependencies": {
+		"@sveltejs/kit": "3.0.0",
+		"svelte": "*",
 		"vite": "^8.0.0"
+	},
+	"devDependencies": {
+		"@sveltejs/kit": "workspace:*",
+		"@sveltejs/vite-plugin-svelte": "^7.3.1",
+		"svelte": "^5.57.1",
+		"vite": "^8.3.2"
 	}
 }

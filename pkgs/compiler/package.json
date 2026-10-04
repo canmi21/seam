@@ -1,21 +1,43 @@
 {
-	"name": "compiler",
-	"private": true,
+	"name": "@seam-js/compiler",
+	"version": "0.0.1",
+	"description": "The compiler behind seamjs: routes in, IR and derivations out",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/canmi21/seam.git",
+		"directory": "pkgs/compiler"
+	},
 	"type": "module",
+	"engines": {
+		"node": ">=22.17"
+	},
+	"files": [
+		"dist"
+	],
 	"exports": {
 		".": "./src/index.ts"
 	},
+	"publishConfig": {
+		"access": "public",
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			}
+		}
+	},
 	"dependencies": {
-		"ast": "workspace:*",
-		"carry": "workspace:*",
-		"derive": "workspace:*",
-		"injector": "workspace:*",
-		"lowering": "workspace:*",
-		"routes": "workspace:*",
-		"skeleton": "workspace:*"
+		"@seam-js/ast": "workspace:*",
+		"@seam-js/carry": "workspace:*",
+		"@seam-js/derive": "workspace:*",
+		"@seam-js/injector": "workspace:*",
+		"@seam-js/lowering": "workspace:*",
+		"@seam-js/routes": "workspace:*",
+		"@seam-js/skeleton": "workspace:*"
 	},
 	"devDependencies": {
-		"carry": "workspace:*",
+		"@seam-js/carry": "workspace:*",
 		"svelte": "^5.57.1"
 	}
 }

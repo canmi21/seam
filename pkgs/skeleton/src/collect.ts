@@ -3,7 +3,7 @@
  * follows a block into its branches, a tag into the child it names, and a render tag into its
  * snippet. See spec/pipeline.md.
  */
-import { mentions } from 'ast';
+import { mentions } from '@seam-js/ast';
 import { carries } from './compose.ts';
 import { isNode, refuse, span } from './node.ts';
 import { OMITTED_IN_SSR } from './omitted.ts';

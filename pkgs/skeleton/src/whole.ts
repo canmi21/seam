@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { parse } from 'svelte/compiler';
-import { AT_REQUEST, bindings, resolved } from 'ast';
+import { AT_REQUEST, bindings, resolved } from '@seam-js/ast';
 import { propsOf } from './compose.ts';
 import { isNode, type AstNode } from './node.ts';
 import { renderRewritten } from './render.ts';

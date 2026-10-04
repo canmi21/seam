@@ -12,7 +12,7 @@ import {
 	objectEntries,
 	parsedComponent,
 	reads as readsIn,
-} from 'ast';
+} from '@seam-js/ast';
 import { propsOf } from './compose.ts';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { awaiting } from './awaits.ts';

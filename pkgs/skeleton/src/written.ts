@@ -15,7 +15,7 @@ import {
 	parsed,
 	RUN_NAME,
 	settle,
-} from 'ast';
+} from '@seam-js/ast';
 import { carries } from './compose.ts';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { sentinel } from './sentinel.ts';

@@ -1,11 +1,36 @@
 {
-	"name": "ast",
-	"private": true,
+	"name": "@seam-js/ast",
+	"version": "0.0.1",
+	"description": "Svelte template and script AST readers, for seamjs",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/canmi21/seam.git",
+		"directory": "pkgs/ast"
+	},
 	"type": "module",
+	"engines": {
+		"node": ">=22.17"
+	},
+	"files": [
+		"dist"
+	],
 	"exports": {
 		".": "./src/index.ts"
 	},
-	"dependencies": {
+	"publishConfig": {
+		"access": "public",
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			}
+		}
+	},
+	"peerDependencies": {
+		"svelte": "*"
+	},
+	"devDependencies": {
 		"svelte": "^5.57.1"
 	}
 }

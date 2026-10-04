@@ -1,4 +1,4 @@
-import type { Locals } from 'ast';
+import type { Locals } from '@seam-js/ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { sentinel } from './sentinel.ts';
 import type { Hole } from './shape.ts';

@@ -4,7 +4,7 @@
  * markup at a point to render at all. See spec/pipeline.md.
  */
 import { basename, relative } from 'node:path';
-import { apply, type Edit, literalOf, mentions, parsed, settle, unfolded } from 'ast';
+import { apply, type Edit, literalOf, mentions, parsed, settle, unfolded } from '@seam-js/ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { waitsOn } from './awaits.ts';
 import { componentImport, unwrapped } from './components.ts';

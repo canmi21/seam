@@ -2,7 +2,7 @@
  * What a call site hands a child, and how a pattern takes it apart: the props filled, the ones
  * neutralised for the render, and the closing of an attribute's value. See spec/derivation.md.
  */
-import type { Locals } from 'ast';
+import type { Locals } from '@seam-js/ast';
 import { identity } from './compose.ts';
 import { type AstNode, extent, isNode, refuse, span } from './node.ts';
 import { assigned } from './dynamic.ts';

@@ -20,7 +20,7 @@
  * See spec/refusals.md.
  */
 import { parseFragment, serialize } from 'parse5';
-import { type ComponentIR, type Node, type Scope } from 'injector';
+import { type ComponentIR, type Node, type Scope } from '@seam-js/injector';
 
 /** A parse5 node, of which only the shape walked here matters. */
 interface Parsed {

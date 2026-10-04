@@ -3,9 +3,9 @@
  * the project and its packages, before anything about the component's shape is asked.
  * See spec/refusals.md.
  */
-import { importsOf as importedBy } from 'ast';
+import { importsOf as importedBy } from '@seam-js/ast';
 import { basename, dirname, resolve as resolvePath } from 'node:path';
-import { apply, componentOf, parsedComponent, reads as readsIn, bound } from 'ast';
+import { apply, componentOf, parsedComponent, reads as readsIn, bound } from '@seam-js/ast';
 import { type AstNode, isNode, span } from './node.ts';
 import type { Walk } from './walk-types.ts';
 

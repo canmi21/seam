@@ -24,10 +24,10 @@ import {
 	remembered,
 	rememberedSources,
 	type Bundle,
-} from 'ast';
-import { carriedBy, carry, rememberedBundles } from 'carry';
-import { lower } from 'lowering';
-import { aliases, compilerOptions } from 'routes';
+} from '@seam-js/ast';
+import { carriedBy, carry, rememberedBundles } from '@seam-js/carry';
+import { lower } from '@seam-js/lowering';
+import { aliases, compilerOptions } from '@seam-js/routes';
 import {
 	combinations,
 	type Decided,
@@ -51,7 +51,7 @@ import {
 	Undecided,
 	configureUnnamedComponents,
 	unavailable,
-} from 'skeleton';
+} from '@seam-js/skeleton';
 
 /**
  * One route: the URL it answers at, and the component the document is rendered from.

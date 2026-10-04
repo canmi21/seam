@@ -3,7 +3,7 @@
  * a raw snippet as a raw hole over the author's `render`. See spec/ir.md.
  */
 import { basename } from 'node:path';
-import { bound as namesBound, constant, OPTIONS, mentions, reads as readsIn } from 'ast';
+import { bound as namesBound, constant, OPTIONS, mentions, reads as readsIn } from '@seam-js/ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { sentinel, THROWN } from './sentinel.ts';
 import type { Block, Hole } from './shape.ts';

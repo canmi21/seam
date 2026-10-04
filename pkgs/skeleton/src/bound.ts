@@ -10,7 +10,7 @@
  * spec/derivation.md.
  */
 import { basename, relative } from 'node:path';
-import { locals, projectAsync, RUN_NAME, STATE_ON_SERVER, stateImports } from 'ast';
+import { locals, projectAsync, RUN_NAME, STATE_ON_SERVER, stateImports } from '@seam-js/ast';
 import { propsOf, rebased } from './compose.ts';
 import { type AstNode, refuse } from './node.ts';
 import { callSite, REST, settleBindings } from './call-site.ts';

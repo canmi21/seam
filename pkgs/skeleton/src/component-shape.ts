@@ -11,7 +11,7 @@ import {
 	componentOf,
 	objectEntries,
 	parsedComponent,
-} from 'ast';
+} from '@seam-js/ast';
 import { propsOf, rename } from './compose.ts';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { marks, marksHead, writes } from './sentinel.ts';

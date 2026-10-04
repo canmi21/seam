@@ -9,9 +9,9 @@
  * already and nothing above it has to learn a new shape. Which of the two a project ships is a
  * deployment choice and can be taken later; this is the compilation either way.
  */
-import type { Derivation } from 'derive';
-import type { Branch, ComponentIR, Node } from 'injector';
-import { javascript } from 'lowering';
+import type { Derivation } from '@seam-js/derive';
+import type { Branch, ComponentIR, Node } from '@seam-js/injector';
+import { javascript } from '@seam-js/lowering';
 
 /**
  * One compilation, with the IR read as the shape it is.

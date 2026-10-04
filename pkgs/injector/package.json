@@ -1,17 +1,40 @@
 {
-	"name": "injector",
-	"private": true,
+	"name": "@seam-js/injector",
+	"version": "0.0.1",
+	"description": "Fills the IR with a request's values into the bytes Svelte would render, for seamjs",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/canmi21/seam.git",
+		"directory": "pkgs/injector"
+	},
 	"type": "module",
+	"engines": {
+		"node": ">=22.17"
+	},
+	"files": [
+		"dist"
+	],
 	"exports": {
 		".": "./src/index.ts"
 	},
-	"dependencies": {
-		"svelte": "^5.57.1"
+	"publishConfig": {
+		"access": "public",
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			}
+		}
+	},
+	"peerDependencies": {
+		"svelte": "*"
 	},
 	"devDependencies": {
-		"ast": "workspace:*",
-		"carry": "workspace:*",
-		"derive": "workspace:*",
-		"skeleton": "workspace:*"
+		"@seam-js/ast": "workspace:*",
+		"@seam-js/carry": "workspace:*",
+		"@seam-js/derive": "workspace:*",
+		"@seam-js/skeleton": "workspace:*",
+		"svelte": "^5.57.1"
 	}
 }

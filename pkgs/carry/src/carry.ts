@@ -14,7 +14,7 @@ import {
 	resolveBare,
 	RUNES_MODULE,
 	runesModule,
-} from 'ast';
+} from '@seam-js/ast';
 import { RUN } from './gather.ts';
 
 /**

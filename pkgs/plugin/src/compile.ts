@@ -12,13 +12,16 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { basename, dirname, relative, resolve } from 'node:path';
+import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Plugin } from 'vite';
-import { type Bundler, configureCarry, running } from 'carry';
-import { compile } from 'compiler';
-import { aliases, configured, entries } from 'routes';
-import { configureRender, forgetStaging } from 'skeleton';
+import { type Bundler, configureCarry, running } from '@seam-js/carry';
+import { compile } from '@seam-js/compiler';
+import { aliases, configured, entries, kitSource } from '@seam-js/routes';
+import { configureRender, forgetStaging } from '@seam-js/skeleton';
+
+/** This module's own extension, which its siblings share. See spec/publish.md. */
+const OWN = extname(import.meta.url);
 
 /** The plugin's name, and the prefix of its helpers'. */
 export const NAME = 'compile-time-rendering';
@@ -150,7 +153,12 @@ export async function compileRoutes({
 			],
 			resolve: {
 				...loaded?.config.resolve,
-				alias: found_aliases.map(([find, replacement]) => ({ find, replacement })),
+				alias: [
+					...found_aliases.map(([find, replacement]) => ({ find, replacement })),
+					// What `./app` imports of Kit's own source, which npm's Kit does not export. See
+					// spec/publish.md, "Kit's internals are read from the project's Kit".
+					{ find: /^@sveltejs\/kit\/src\//, replacement: `${kitSource(resolve(root, 'package.json'))}/` },
+				],
 			},
 			build: {
 				ssr: true,
@@ -235,7 +243,7 @@ async function projectVite(root: string): Promise<typeof import('vite')> {
  */
 function assetURLs(root: string, found: Set<string>): Plugin {
 	const HANDED = '\0seam:asset:';
-	const handedModule = fileURLToPath(new URL('./app/handed.ts', import.meta.url));
+	const handedModule = fileURLToPath(new URL(`./app/handed${OWN}`, import.meta.url));
 	let isAsset: ((file: string) => boolean) | undefined;
 	return {
 		name: `${NAME}:assets`,
@@ -280,16 +288,17 @@ function appModules(
 	const here = fileURLToPath(new URL('./app/', import.meta.url));
 	const modules: Record<string, string> = {
 		// `$app/env` is Kit 3's name for it, and `$app/environment` the one it deprecates.
-		'$app/env': resolve(here, 'environment.ts'),
-		'$app/environment': resolve(here, 'environment.ts'),
-		'$app/manifest': resolve(here, 'manifest.ts'),
-		'$app/paths': resolve(here, 'paths.ts'),
-		'$app/navigation': resolve(here, 'navigation.ts'),
+		'$app/env': resolve(here, `environment${OWN}`),
+		'$app/environment': resolve(here, `environment${OWN}`),
+		'$app/manifest': resolve(here, `manifest${OWN}`),
+		'$app/paths': resolve(here, `paths${OWN}`),
+		'$app/navigation': resolve(here, `navigation${OWN}`),
 		// Kit's own: `page` read out of the render's context, which a script run puts there. The
 		// walk binds a component's read of `page` to the payload, so only a captured script's
 		// import reaches this.
-		'$app/state': createRequire(resolve(root, 'package.json')).resolve(
-			'@sveltejs/kit/src/runtime/app/state/server.js',
+		'$app/state': resolve(
+			kitSource(resolve(root, 'package.json')),
+			'runtime/app/state/server.js',
 		),
 	};
 	// The environment variables, whose module Kit generates per project: a static one is a literal
@@ -311,7 +320,7 @@ function appModules(
 			: [];
 		const object = which === 'public' ? 'rendered_env' : 'dynamic_private_env';
 		return [
-			`import { handed } from ${JSON.stringify(resolve(here, 'handed.ts'))};`,
+			`import { handed } from ${JSON.stringify(resolve(here, `handed${OWN}`))};`,
 			`const held = handed(${JSON.stringify(object)});`,
 			...(asEnv
 				? [

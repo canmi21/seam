@@ -7,9 +7,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile as compileSvelte } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, describe, expect, it } from 'vitest';
-import { carriedBy, carry } from 'carry';
-import { compile as compileDerivations, type Derivation } from 'derive';
-import { expressionsOf, helpers } from 'skeleton';
+import { carriedBy, carry } from '@seam-js/carry';
+import { compile as compileDerivations, type Derivation } from '@seam-js/derive';
+import { expressionsOf, helpers } from '@seam-js/skeleton';
 import { inject } from './index.ts';
 import type { ComponentIR } from './ir.ts';
 

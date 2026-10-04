@@ -1,5 +1,5 @@
 import { parse } from 'svelte/compiler';
-import { apply, bySource } from 'ast';
+import { apply, bySource } from '@seam-js/ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { OMITTED_IN_SSR } from './omitted.ts';
 

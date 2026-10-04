@@ -10,11 +10,11 @@ import { JSDOM } from 'jsdom';
 import { rolldown } from 'rolldown';
 import { compile as compileComponent, compileModule } from 'svelte/compiler';
 import { render } from 'svelte/server';
-import { carry } from 'carry';
-import { decidedAs, joined, merged, structures } from 'compiler';
-import { compile as compileDerivations } from 'derive';
-import { inject } from 'injector';
-import { lower } from 'lowering';
+import { carry } from '@seam-js/carry';
+import { decidedAs, joined, merged, structures } from '@seam-js/compiler';
+import { compile as compileDerivations } from '@seam-js/derive';
+import { inject } from '@seam-js/injector';
+import { lower } from '@seam-js/lowering';
 import type { Config } from './corpus.ts';
 
 /** The compile option one pass sets on both sides, and the other leaves off. See spec/suite.md. */

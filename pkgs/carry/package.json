@@ -1,16 +1,41 @@
 {
-	"name": "carry",
-	"private": true,
+	"name": "@seam-js/carry",
+	"version": "0.0.1",
+	"description": "Bundles what a derivation calls at request time, for seamjs",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/canmi21/seam.git",
+		"directory": "pkgs/carry"
+	},
 	"type": "module",
+	"engines": {
+		"node": ">=22.17"
+	},
+	"files": [
+		"dist"
+	],
 	"exports": {
 		".": "./src/index.ts"
 	},
+	"publishConfig": {
+		"access": "public",
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			}
+		}
+	},
 	"dependencies": {
-		"ast": "workspace:*",
-		"rolldown": "1.2.7",
-		"svelte": "^5.57.1"
+		"@seam-js/ast": "workspace:*",
+		"rolldown": "~1.2.7"
+	},
+	"peerDependencies": {
+		"svelte": "*"
 	},
 	"devDependencies": {
-		"esbuild": "^0.28.2"
+		"esbuild": "^0.28.2",
+		"svelte": "^5.57.1"
 	}
 }

@@ -1,8 +1,31 @@
 {
-	"name": "lowering",
-	"private": true,
+	"name": "@seam-js/lowering",
+	"version": "0.0.1",
+	"description": "The lowering pass, as WebAssembly, for seamjs",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/canmi21/seam.git",
+		"directory": "pkgs/lowering"
+	},
 	"type": "module",
+	"engines": {
+		"node": ">=22.17"
+	},
+	"files": [
+		"dist",
+		"lowering.wasm"
+	],
 	"exports": {
 		".": "./src/index.ts"
+	},
+	"publishConfig": {
+		"access": "public",
+		"exports": {
+			".": {
+				"types": "./dist/index.d.ts",
+				"default": "./dist/index.js"
+			}
+		}
 	}
 }

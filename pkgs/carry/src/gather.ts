@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { APP_STATE, importsOf, readsOf, resolveBare, RUN_NAME, type Carried } from 'ast';
+import { APP_STATE, importsOf, readsOf, resolveBare, RUN_NAME, type Carried } from '@seam-js/ast';
 
 /**
  * What the expressions of this route call, gathered from every file whose expressions became

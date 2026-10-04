@@ -1,4 +1,4 @@
-import { basename, dirname, resolve as resolvePath } from 'node:path';
+import { basename, dirname, extname, resolve as resolvePath } from 'node:path';
 import { readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
@@ -10,7 +10,7 @@ import {
 	resolveBare,
 	RUNES_MODULE,
 	runesModule,
-} from 'ast';
+} from '@seam-js/ast';
 import type { Rendered } from './shape.ts';
 import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel, THROWN } from './sentinel.ts';
 import { timed, timedSync } from './timing.ts';
@@ -353,7 +353,7 @@ export async function renderRewritten(
 				if (host.bundler) continue;
 				code = code.replaceAll(
 					`${quote}${specifier}${quote}`,
-					JSON.stringify(pathToFileURL(resolvePath(here, 'app-state.ts')).href),
+					JSON.stringify(pathToFileURL(resolvePath(here, `app-state${extname(import.meta.url)}`)).href),
 				);
 				continue;
 			}

@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { literalOf, type Locals, mentions, pathOf, projectRunes, reduce } from 'ast';
+import { literalOf, type Locals, mentions, pathOf, projectRunes, reduce } from '@seam-js/ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { type Snippet, snippetsIn } from './snippets.ts';
 import type { Given, Walk } from './walk-types.ts';

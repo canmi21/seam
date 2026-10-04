@@ -3,7 +3,7 @@
 // the entry; given pairs, they are named, which is what a project with no routes directory does.
 // See spec/build.md and spec/framework.md.
 import { relative, resolve } from 'node:path';
-import { entries as found } from 'routes';
+import { entries as found } from '@seam-js/routes';
 import { compile, type Entry } from './compile.ts';
 
 const [root, out, shell, ...pairs] = process.argv.slice(2);

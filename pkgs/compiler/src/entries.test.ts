@@ -9,12 +9,12 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { carriedBy, carry } from 'carry';
-import { compile as compileDerivations } from 'derive';
-import { inject } from 'injector';
-import { lower } from 'lowering';
-import { entries } from 'routes';
-import { appStateModule as appState, expressionsOf, helpers } from 'skeleton';
+import { carriedBy, carry } from '@seam-js/carry';
+import { compile as compileDerivations } from '@seam-js/derive';
+import { inject } from '@seam-js/injector';
+import { lower } from '@seam-js/lowering';
+import { entries } from '@seam-js/routes';
+import { appStateModule as appState, expressionsOf, helpers } from '@seam-js/skeleton';
 import { joined, type Structure } from './variants.ts';
 import { structures } from './compile.ts';
 

@@ -2,7 +2,7 @@
  * What a tag's attributes select: the props a call site passes, the values a marker can and
  * cannot stand in, and the groups a caller's markup is handed to a child in. See spec/refusals.md.
  */
-import { type Locals, objectEntries } from 'ast';
+import { type Locals, objectEntries } from '@seam-js/ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { sentinel } from './sentinel.ts';
 import type { Hole } from './shape.ts';

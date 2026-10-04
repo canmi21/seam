@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import { projectOptions } from 'ast';
+import { projectOptions } from '@seam-js/ast';
 import { compile } from 'svelte/compiler';
 import { type PendingChoice, probe } from './attributes.ts';
 import { refuse } from './node.ts';

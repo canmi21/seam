@@ -9,8 +9,8 @@
 import { readdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { prepare } from 'compiler';
-import { lower } from 'lowering';
+import { prepare } from '@seam-js/compiler';
+import { lower } from '@seam-js/lowering';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const cases = resolve(here, 'cases');

@@ -3,7 +3,7 @@
  * and what the render is asked where it can answer. Cases of `collect()` in collect.ts. See
  * spec/pipeline.md.
  */
-import { bound as namesBound, constant, type Locals } from 'ast';
+import { bound as namesBound, constant, type Locals } from '@seam-js/ast';
 import { elseIf, isNode, span } from './node.ts';
 import { headOpensWith } from './sentinel.ts';
 import { awaiting, awaitsAtTop, blockedRead, waitsOn } from './awaits.ts';

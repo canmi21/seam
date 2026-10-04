@@ -3,9 +3,9 @@
  * render is handed of it. See spec/derivation.md, "Where substitution cannot follow, the script
  * runs as Svelte compiled it".
  */
-import { importsOf } from 'ast';
+import { importsOf } from '@seam-js/ast';
 import { resolve as resolvePath } from 'node:path';
-import { GIVEN, projectAsync, readsReplaced, resolveBare, RUN_NAME } from 'ast';
+import { GIVEN, projectAsync, readsReplaced, resolveBare, RUN_NAME } from '@seam-js/ast';
 import { refuse } from './node.ts';
 import type { Skeleton } from './shape.ts';
 import { HYDRATABLE, HYDRATABLE_RUN } from './dynamic.ts';

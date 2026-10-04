@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { basename, relative } from 'node:path';
 import { parse } from 'svelte/compiler';
-import { apply } from 'ast';
+import { apply } from '@seam-js/ast';
 import { hands, importsOf, propsOf, rename, rolled, withPrelude } from './compose.ts';
 import { type AstNode, identified, isNode, refuse } from './node.ts';
 import { collides } from './sentinel.ts';

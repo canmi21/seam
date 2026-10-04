@@ -12,12 +12,13 @@ import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { resolveConfig } from 'vite';
-import {
-	extract_svelte_config,
-	process_config,
-	validate_config,
-} from '@sveltejs/kit/src/core/config/index.js';
-import create_manifest_data from '@sveltejs/kit/src/core/sync/create_manifest_data/index.js';
+import { kitModule } from './kit.ts';
+
+const { extract_svelte_config, process_config, validate_config } =
+	await kitModule<typeof import('@sveltejs/kit/src/core/config/index.js')>('core/config/index.js');
+const { default: create_manifest_data } = await kitModule<
+	typeof import('@sveltejs/kit/src/core/sync/create_manifest_data/index.js')
+>('core/sync/create_manifest_data/index.js');
 
 export interface Page {
 	/** Kit's route id: `/blog/[slug]`, with groups and parameters spelled as Kit spells them. */

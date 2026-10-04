@@ -6,16 +6,16 @@
 		".": "./src/run.ts"
 	},
 	"dependencies": {
-		"carry": "workspace:*",
-		"compiler": "workspace:*",
-		"derive": "workspace:*",
-		"injector": "workspace:*",
-		"lowering": "workspace:*",
+		"@seam-js/carry": "workspace:*",
+		"@seam-js/compiler": "workspace:*",
+		"@seam-js/derive": "workspace:*",
+		"@seam-js/injector": "workspace:*",
+		"@seam-js/lowering": "workspace:*",
 		"svelte": "^5.57.1"
 	},
 	"devDependencies": {
 		"@types/jsdom": "^30.0.0",
 		"jsdom": "^30.1.1",
-		"rolldown": "1.2.7"
+		"rolldown": "~1.2.7"
 	}
 }

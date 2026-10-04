@@ -32,7 +32,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pkg = resolve(here, '..');
 const need = createRequire(import.meta.url);
 const vendor = resolve(dirname(need.resolve('@sveltejs/kit/package.json')));
-const plugin = need.resolve('plugin');
+const plugin = need.resolve('seamjs');
 
 const app = argument('app') ?? 'basics';
 const spec = argument('spec');

@@ -2,8 +2,9 @@
  * The expressions a skeleton carries and the helpers a render is given under names nothing can
  * shadow. See spec/derivation.md, "The helpers are carried under a name nothing can shadow".
  */
+import { extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Carried } from 'ast';
+import type { Carried } from '@seam-js/ast';
 import type { Skeleton } from './shape.ts';
 
 /**
@@ -155,7 +156,7 @@ export function helpers(rendered: Skeleton): Carried[] {
 	}
 	// A boundary's children run in one catch, and each of their values is guarded against the throw.
 	// This compiler's own, since Svelte's renderer keeps the equivalent private. See `caught.ts`.
-	const caughtAt = fileURLToPath(new URL('./caught.ts', import.meta.url));
+	const caughtAt = fileURLToPath(new URL(`./caught${extname(import.meta.url)}`, import.meta.url));
 	if (written.some((one) => one.includes('$$caught('))) {
 		found.push({ local: '$$caught', from: caughtAt, kind: 'named', exported: 'caught' });
 	}

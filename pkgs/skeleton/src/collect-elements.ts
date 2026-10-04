@@ -3,7 +3,7 @@
  * child it names and whether the walk enters it, and what the caller's markup is handed as.
  * Cases of `collect()` in collect.ts. See spec/pipeline.md.
  */
-import { type Locals, mentions, declaring } from 'ast';
+import { type Locals, mentions, declaring } from '@seam-js/ast';
 import { classes, spread, styles } from './attributes.ts';
 import { inert } from './compose.ts';
 import { isNode, refuse, span } from './node.ts';

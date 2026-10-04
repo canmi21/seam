@@ -13,9 +13,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile as svelte, type CompileOptions } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { compile as deriving } from 'derive';
-import { inject } from 'injector';
-import { lower } from 'lowering';
+import { compile as deriving } from '@seam-js/derive';
+import { inject } from '@seam-js/injector';
+import { lower } from '@seam-js/lowering';
 import { joined, type Structure } from './variants.ts';
 import { structures } from './compile.ts';
 

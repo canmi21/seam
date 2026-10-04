@@ -14,13 +14,16 @@
  * not Node reads the same files. See spec/build.md.
  */
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, relative, resolve } from 'node:path';
+import { dirname, extname, relative, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig } from 'vite';
-import { configured, READING } from 'routes';
+import { configured, READING } from '@seam-js/routes';
 import { ARTIFACTS, ASSETS, assetKey, type Compiling, NAME } from './compile.ts';
+
+/** This module's own extension, which its siblings share. See spec/publish.md. */
+const OWN = extname(import.meta.url);
 
 /** The id Kit's root resolves to in the server build, marked as a module no file backs. */
 const ROOT = '\0seam:root';
@@ -194,7 +197,7 @@ export function seam(options: Options = {}): Plugin {
 		} catch {
 			// No stamp, or one this build did not write. Either way there is a compile to run.
 		}
-		const child = fileURLToPath(new URL('./apart.ts', import.meta.url));
+		const child = fileURLToPath(new URL(`./apart${OWN}`, import.meta.url));
 		// Its streams are this process's: what the compile prints -- a refusal, a warning about a
 		// route with a hundred structures, the timings -- is for whoever is watching the build, and
 		// carrying it back through a pipe to print it again would only change where it appeared.
@@ -240,8 +243,8 @@ function dispatcher(
 	const here = createRequire(import.meta.url);
 	// By path rather than by name: the module is compiled inside the project's build, where this
 	// repository's package names mean nothing.
-	const injector = here.resolve('injector');
-	const derive = here.resolve('derive');
+	const injector = here.resolve('@seam-js/injector');
+	const derive = here.resolve('@seam-js/derive');
 	// The bundler writes each reference as the asset's URL relative to the chunk it ends up in.
 	const files = [...emitted]
 		.map(([name, ref]) => `${JSON.stringify(name)}: import.meta.ROLLUP_FILE_URL_${ref}`)
