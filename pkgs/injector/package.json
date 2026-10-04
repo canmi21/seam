@@ -6,7 +6,7 @@
 		".": "./src/index.ts"
 	},
 	"dependencies": {
-		"svelte": "^5.57.0"
+		"svelte": "^5.57.1"
 	},
 	"devDependencies": {
 		"ast": "workspace:*",
