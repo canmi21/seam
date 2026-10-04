@@ -12,7 +12,7 @@ import { type AstNode, identified, isNode, refuse } from './node.ts';
 import { collides } from './sentinel.ts';
 import { inlined } from './snippets.ts';
 import { unbound } from './unbind.ts';
-import { awaitless } from './awaits.ts';
+import { awaitless, hydratableCalls } from './awaits.ts';
 import { callSite, carriedAcross, merged, settleBindings } from './call-site.ts';
 import { bindDeclared, declaredFor, scriptRun } from './bound.ts';
 import { collect } from './collect.ts';
@@ -296,6 +296,7 @@ export function descend(
 			wants,
 		});
 		contextual(ast, child);
+		ownCalls(walk, child, file, ast, ranBy);
 		// Onto the one stack rather than a copy of it, so whoever reads the stack as the walk goes
 		// sees the fragment's block around what the body records. See `boundary()`.
 		if (recursion !== null) walk.within.push([fragmentAt, 0]);
@@ -354,5 +355,40 @@ export function descend(
 		return true;
 	} catch (error) {
 		return leftToSvelte(error, walk, mark, tag, file, headed, handsMarker);
+	}
+}
+
+/**
+ * A child's own `hydratable` calls, made as its script initializes: after its caller's script and
+ * before its own markup, once per render, which is where Svelte's render makes them. Taken where
+ * the child is rendered once whatever the request -- every block around it a branch the build
+ * fixed, or a boundary's own body -- and its script is substituted rather than run, since a run is
+ * written at each read and a call per read is not Svelte's one per render; anything else is left to
+ * `unhydrated()`, which refuses a key no derivation makes. Kit renders every page as a child of its
+ * root, so a page's `hydratable` is one of these. See spec/derivation.md.
+ */
+function ownCalls(
+	walk: Walk,
+	child: Walk,
+	file: string,
+	ast: AstNode,
+	ranBy: ReadonlyMap<string, string>,
+): void {
+	if (ranBy.size > 0) return;
+	const once = walk.within.every(([index, branch]) => {
+		const block = walk.blocks[index];
+		if (block === undefined) return false;
+		if (block.kind === 'boundary') return branch === 0;
+		if (block.kind !== 'if') return false;
+		const tests = block.tests ?? [block.expression];
+		const before = tests.slice(0, branch).every((one) => one === 'false');
+		return before && (branch >= tests.length || tests[branch] === 'true');
+	});
+	if (!once) return;
+	for (const call of hydratableCalls(ast)) {
+		walk.site.eager.push({
+			expression: child.expand(call),
+			files: [relative(walk.site.root, file)],
+		});
 	}
 }

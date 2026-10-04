@@ -5,6 +5,10 @@
 // that changed and the seams around it -- the props Kit hands the root, the head and body it takes
 // back, the artifacts finding the program. The plugin beside Kit's own, as a project without the
 // fork would write it, is built once more. See spec/framework.md.
+//
+// The fork's build refuses Kit's own root: a render handed to it throws instead, so every answer
+// that matches Kit's was rendered from the artifacts, error pages included. See spec/roadmap.md,
+// "A: Kit's place, by an alias, with CTR where SSR was".
 import { createRequire } from 'node:module';
 import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -13,6 +17,9 @@ import * as vite from 'vite';
 import { load_vite_config } from '@sveltejs/kit/src/core/config/index.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { streamedIn, withoutStreamed } from '@seam-js/stream/fold';
+
+/** `KIT_ROOT_CHECK` in `./plugin.ts`, not imported: the test loads the plugin only through Vite. */
+const KIT_ROOT_CHECK = 'SEAM_KIT_ROOT';
 
 // Inside the package, because the project's `svelte`, `@sveltejs/kit` and `vite` are resolved by
 // walking up from it, and Kit's plugin reads the project from the working directory.
@@ -55,7 +62,7 @@ const files: Record<string, string> = {
 		// Kit 3 takes its options as the plugin's argument; a `svelte.config.js` is an error. The version
 		// is named because Kit's default is the time its config module was loaded, and the fork's is
 		// loaded apart from Kit's, so each build would name its own and every page would differ by it.
-		"export default { logLevel: 'silent', plugins: [sveltekit({ outDir: process.env.SEAM_OUT, version: { name: 'sample' }, alias: { $parts: 'src/parts' } }), site, ...(process.env.SEAM === 'beside' ? [seam()] : [])] };",
+		"export default { logLevel: 'silent', plugins: [sveltekit({ outDir: process.env.SEAM_OUT, version: { name: 'sample' }, alias: { $parts: 'src/parts' }, extensions: ['.svelte', '.svx'] }), site, ...(process.env.SEAM === 'beside' ? [seam()] : [])] };",
 	'src/app.html':
 		'<!doctype html><html lang="en"><head>%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>',
 	'src/routes/+layout.server.js': "export function load() { return { tagline: 'a sample' }; }",
@@ -87,6 +94,27 @@ const files: Record<string, string> = {
 	// the page's script runs as Svelte compiled it, carried through the project's own Vite. The page
 	// is a child of Kit's generated root, which is every page an author writes.
 	'src/routes/run/+page.server.js': 'export function load() { return { count: 21 }; }',
+	// A page under an extension the config adds, which Kit's `options` app does: read as a module to
+	// carry rather than a component, it was refused for the guard the root's boundary writes.
+	'src/routes/ext/+page.svx':
+		"<script>import { page } from '$app/state';</script><p>custom: {page.url.pathname}</p>",
+	// Error pages, rendered from the trees Kit renders them with: a layout's `load` throwing under a
+	// section with an error page of its own, and the page beneath it throwing, which renders that
+	// section's error page inside its layout. See spec/framework.md, "What is still Kit's render".
+	'src/routes/shop/+layout.server.js':
+		"import { error } from '@sveltejs/kit';\nexport function load({ url }) { if (url.pathname === '/shop/closed') error(503, 'shop closed'); return { section: 'Shop' }; }",
+	'src/routes/shop/+layout.svelte':
+		'<script>let { children, data } = $props();</script><section><h2>{data.section}</h2>{@render children()}</section>',
+	'src/routes/shop/+error.svelte':
+		'<script>import { page } from \'$app/state\'; let { error } = $props();</script><p class="shop-error">{page.status} {error.message}</p>',
+	'src/routes/shop/[item]/+page.server.js':
+		"import { error } from '@sveltejs/kit';\nexport function load({ params }) { if (params.item === 'sold') error(410, `${params.item} is gone`); return { item: params.item }; }",
+	'src/routes/shop/[item]/+page.svelte':
+		'<script>let { data } = $props();</script><p>{data.item}</p>',
+	'src/routes/shop/closed/+page.svelte': '<p>never</p>',
+	// A module script that reads what a server has not got, which the compile cannot evaluate and
+	// Kit's render throws on: Kit's `no-ssr/ssr-page-config/layout/overwrite`.
+	'src/routes/left/+page.svelte': '<script module>document;</script><p>{document}</p>',
 	'src/routes/run/+page.svelte':
 		'<script>let { data } = $props(); let n = data.count; n = n * 2;</script><p>run: {n}</p>',
 	// A `$derived.by` that pushes to an array and joins it, which runs whenever the markup reads it:
@@ -121,6 +149,11 @@ const URLS = [
 	'/blog/hello',
 	'/blog/draft',
 	'/blog/gone',
+	'/shop/hat',
+	'/shop/sold',
+	'/shop/closed',
+	'/left',
+	'/ext',
 	'/blog/hello/__data.json',
 	'/missing',
 	'/run',
@@ -163,6 +196,8 @@ async function built(
 ): Promise<Record<string, string>> {
 	process.env['SEAM_OUT'] = outDir;
 	process.env['SEAM'] = mode;
+	if (mode === 'fork') process.env[KIT_ROOT_CHECK] = 'throw';
+	else delete process.env[KIT_ROOT_CHECK];
 	linked(project, mode);
 	const cwd = process.cwd();
 	process.chdir(project);
@@ -247,11 +282,21 @@ describe("the built server answers as Kit's does", () => {
 		expect(beside[url]).toBe(kit[url]);
 	});
 
+	it('rendered each error page from the tree Kit renders it with', () => {
+		// The section's own error page inside its layout, where the page's `load` threw; the root's,
+		// where the section's layout threw; and an error response where a module script did.
+		expect(kit['/shop/sold']).toMatch(/^410\n[\s\S]*<h2>Shop<\/h2>[\s\S]*410 sold is gone/);
+		expect(kit['/shop/closed']).toMatch(/^503\n[\s\S]*503: shop closed/);
+		expect(kit['/left']).toMatch(/^500\n/);
+		expect(kit['/missing']).toMatch(/^404\n/);
+	});
+
 	it('rendered the page from the artifacts rather than from the components', () => {
 		// The one thing that differs between the two builds is on disk: the artifacts beside the
 		// program, and a page Kit's own render could not have written from them.
 		expect(kit['/']).toContain('Home &amp; away');
 		expect(ours['/']).toContain('Home &amp; away');
+		expect(kit['/ext']).toContain('custom: /ext');
 	});
 
 	it('compiled when Kit built, and not when Kit only read the config', () => {
@@ -305,6 +350,18 @@ const remoteFiles: Record<string, string> = {
 	'src/routes/seb/nested/+page.svelte':
 		"<script>throw new Error('nested render error');</script><h1>never</h1>",
 	'src/routes/fine/+page.svelte': '<p>fine</p>',
+	// A page's own `hydratable`, which is a child's: Kit renders every page inside its root, and a
+	// child's call was refused as one no derivation makes. Kit's `options` `csp-hydratable`.
+	'src/routes/hydrated/+page.svelte':
+		"<script>import { hydratable } from 'svelte'; const value = await hydratable('test-key', () => 'hydrated-value');</script><h1 id=\"hydratable-result\">{value}</h1>",
+	// A TypeScript remote module imported by the name it compiles to, exporting under words that
+	// cannot be declared: Kit's `remote/form/touched` and `remote/reserved`, which the compile left
+	// to Kit's root, the first for a file it looked for under `.js` and the second for a stand-in it
+	// wrote as `export const delete`.
+	'src/routes/reserved/reserved.remote.ts':
+		"import { command, query } from '$app/server';\nconst _delete = command(() => 'deleted');\nconst _class = query(() => 'classy');\nexport { _delete as delete, _class as class };",
+	'src/routes/reserved/+page.svelte':
+		'<script lang="ts">import * as reserved from \'./reserved.remote.js\'; let result = $state(\'pending\');</script><p id="reserved">{result}</p><button onclick={async () => (result = await reserved.delete())}>run</button>',
 	// A child called per item, reading its own import of a remote form with the item: inside the
 	// run of Kit's root boundary the read is a value per item, which was inlined where the child's
 	// import is not. Kit's `remote/form/as-value`.
@@ -368,6 +425,8 @@ const REMOTE_URLS = [
 	'/each',
 	'/once',
 	'/slow',
+	'/reserved',
+	'/hydrated',
 ];
 
 describe('a remote function answers as it does in Kit', () => {
@@ -401,6 +460,11 @@ describe('a remote function answers as it does in Kit', () => {
 		);
 	});
 
+	it('/hydrated', () => {
+		expect(kitRemote['/hydrated']).toContain('["test-key","hydrated-value"]');
+		expect(oursRemote['/hydrated']).toBe(kitRemote['/hydrated']);
+	});
+
 	it('/once', () => {
 		expect(kitRemote['/once']).toContain('/once:1');
 		expect(oursRemote['/once']).toBe(kitRemote['/once']);
@@ -416,6 +480,7 @@ describe('a remote function answers as it does in Kit', () => {
 		'/away',
 		'/caught',
 		'/each',
+		'/reserved',
 	])('%s', (url) => {
 		expect(oursRemote[url]).toBe(kitRemote[url]);
 	});
@@ -425,8 +490,13 @@ describe('a remote function answers as it does in Kit', () => {
 	it('compiled the route rather than leaving it to Kit', () => {
 		const manifest = JSON.parse(
 			readFileSync(resolve(remoteRoot, '.svelte-kit/output/server/seam/manifest.json'), 'utf8'),
-		) as { routes: Record<string, unknown>; left: Record<string, string> };
+		) as { routes: Record<string, unknown>; left: Record<string, unknown> };
 		expect(manifest.left).toEqual({});
-		expect(Object.keys(manifest.routes).toSorted()).toEqual(REMOTE_URLS.toSorted());
+		// Beside the error trees, which are named by `#`.
+		expect(
+			Object.keys(manifest.routes)
+				.filter((one) => !one.startsWith('#'))
+				.toSorted(),
+		).toEqual(REMOTE_URLS.toSorted());
 	});
 });

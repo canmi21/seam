@@ -1,6 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { APP_STATE, importsOf, readsOf, resolveBare, RUN_NAME, type Carried } from '@seam-js/ast';
+import {
+	APP_STATE,
+	importsOf,
+	readsOf,
+	resolveBare,
+	RUN_NAME,
+	type Carried,
+	isComponentFile,
+} from '@seam-js/ast';
 
 /**
  * What the expressions of this route call, gathered from every file whose expressions became
@@ -71,7 +79,7 @@ export function carriedBy(
 			// whose `default` is the component and whose `<script module>` exports are its named
 			// exports, so `import { foo } from './Foo.svelte'` is a value an expression may call and
 			// has to be carried like any other. The bundler has a loader for a component already.
-			if (from.endsWith('.svelte') && one.kind === 'default') continue;
+			if (isComponentFile(from) && one.kind === 'default') continue;
 			carried.push({ ...one, from });
 		}
 		// The file's own script, run as Svelte compiled it, where a read substitution could not

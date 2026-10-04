@@ -4,6 +4,7 @@ import { resolved } from './resolved.ts';
 import type { Bundle, Module } from './markup.ts';
 import { resolveBare } from './packages.ts';
 import { reduce } from './reduce.ts';
+import { isComponentFile } from './component-file.ts';
 
 // Resolution is Node's problem, not lowering's: which file a specifier names is a question
 // about JavaScript modules, and reimplementing that in Rust would be reimplementing Node. What
@@ -61,7 +62,7 @@ export function bundle(
 		for (const [local, specifier] of Object.entries(module.imports)) {
 			// Only a component can be composed. Everything else the file imports stays in the
 			// map unresolved, so lowering sees the name it could not follow rather than nothing.
-			if (!specifier.endsWith('.svelte')) continue;
+			if (!isComponentFile(specifier)) continue;
 			// A relative path from beside the file, or an alias a bundler would have applied. The
 			// file decides, not the specifier: `x.svelte` is how a bundler is asked for `x.svelte.ts`,
 			// a runes module, once the extension is completed.
@@ -72,7 +73,7 @@ export function bundle(
 			// asked for the runes module `state.svelte.js` once it completes the extension, so a
 			// specifier ending `.svelte` with no such file beside it is not a component at all. Read
 			// as one, the walk opened a file nobody wrote and stopped the compile with an ENOENT.
-			if (target === null || !target.endsWith('.svelte') || !existsSync(target)) continue;
+			if (target === null || !isComponentFile(target) || !existsSync(target)) continue;
 			targets[local] = idOf(root, target);
 			pending.push(target);
 		}

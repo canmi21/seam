@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { parse } from 'svelte/compiler';
 import { stamp } from './sentinel.ts';
 import { resolve as resolvePath } from 'node:path';
-import { importsOf, readsOf, resolveBare, bound } from '@seam-js/ast';
+import { importsOf, readsOf, resolveBare, bound, isComponentFile } from '@seam-js/ast';
 import { isNode, refuse } from './node.ts';
 import type { Block, Rendered } from './shape.ts';
 
@@ -174,7 +174,7 @@ export function composed(
 		}
 		for (const [local, one] of importsOf(source)) {
 			if (one.kind !== 'default') continue;
-			if ((resolveBare(one.from, at) ?? one.from).endsWith('.svelte')) names.add(local);
+			if (isComponentFile(resolveBare(one.from, at) ?? one.from)) names.add(local);
 		}
 		components.set(file, names);
 		return names;

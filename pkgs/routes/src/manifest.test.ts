@@ -2,7 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { compilerOptions, routes } from './manifest.ts';
+import { builtWith, compilerOptions, routes } from './manifest.ts';
 
 // Inside the package, so that the project's `@sveltejs/kit` and `vite` resolve by walking up.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../.build-compiler-options');
@@ -68,5 +68,34 @@ describe('the components a universal load imports', () => {
 		// A server `load` returns data that crosses the wire, which no component does.
 		expect(thing?.loaded).toEqual(['src/routes/Shell.svelte', 'src/routes/thing/_/Thing.svelte']);
 		expect(found.pages.find((one) => one.id === '/')?.loaded).toEqual(['src/routes/Shell.svelte']);
+	});
+});
+
+describe('a Vite config the build names', () => {
+	const project = resolve(dirname(fileURLToPath(import.meta.url)), '../.build-custom-config');
+	afterAll(() => rmSync(project, { recursive: true, force: true }));
+
+	// Kit's `options` app builds with `vite build -c vite.custom.config.js`, whose routes are under
+	// `source/pages`: read off a `vite.config.*` that is not there, the routes came from the default
+	// directory, which is empty, and none of the app's pages was compiled.
+	it('is the one the routes are read through', async () => {
+		rmSync(project, { recursive: true, force: true });
+		const files: Record<string, string> = {
+			'package.json': '{ "name": "custom", "private": true, "type": "module" }',
+			'vite.custom.config.js':
+				"import { sveltekit } from '@sveltejs/kit/vite';\n" +
+				"export default { plugins: [sveltekit({ files: { src: 'source', routes: 'source/pages', appTemplate: 'source/template.html' } })] };\n",
+			'source/template.html':
+				'<html><head>%sveltekit.head%</head><body>%sveltekit.body%</body></html>',
+			'source/pages/+page.svelte': '<p>home</p>',
+			'source/pages/about/+page.svelte': '<p>about</p>',
+		};
+		for (const [file, source] of Object.entries(files)) {
+			mkdirSync(dirname(resolve(project, file)), { recursive: true });
+			writeFileSync(resolve(project, file), source);
+		}
+		builtWith(project, resolve(project, 'vite.custom.config.js'));
+		const found = await routes(project);
+		expect(found.pages.map((one) => one.id).toSorted()).toEqual(['/', '/about']);
 	});
 });

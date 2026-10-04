@@ -10,7 +10,17 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compile, compileModule } from 'svelte/compiler';
 import { render } from 'svelte/server';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { aliases, configured, entries, rootFile, routes } from './index.ts';
+import {
+	aliases,
+	configured,
+	entries,
+	errorEntries,
+	failingKey,
+	RESPONDING,
+	rootFile,
+	routes,
+	treeFile,
+} from './index.ts';
 
 // Inside the package rather than under the system's temporary directory: the compiled components
 // import `svelte` by its bare name, which Node resolves from here and from nowhere else.
@@ -153,6 +163,107 @@ describe('the routes are read the way Kit reads them', () => {
 			undefined,
 			'src/routes/+error.svelte',
 		]);
+	});
+});
+
+describe('the trees Kit renders an error page with are read the way Kit builds them', () => {
+	// `page/index.js` renders the layouts above the level that failed, then the error page nearest
+	// above it, and `respond_with_error` the root layout and the root error page with no boundary.
+	it('finds the tree a failed load renders, and the one an error response renders', async () => {
+		const { trees, failing } = await routes(project);
+		const tree = (key: string): unknown => {
+			const id = failing[key];
+			const found = trees.find((one) => one.id === id);
+			return found === undefined ? undefined : { branch: found.branch, errors: found.errors };
+		};
+		const root = 'src/routes/+layout.svelte';
+		const rootError = 'src/routes/+error.svelte';
+		expect(tree(RESPONDING)).toEqual({
+			branch: [root, rootError],
+			errors: [undefined, undefined],
+		});
+		// The blog layout failing renders the root's error page; the page failing, the blog's.
+		expect(tree(failingKey('/blog/[slug]', 2))).toEqual({
+			branch: [root, rootError],
+			errors: [undefined, rootError],
+		});
+		expect(tree(failingKey('/blog/[slug]', 3))).toEqual({
+			branch: [root, 'src/routes/blog/+layout.svelte', 'src/routes/blog/+error.svelte'],
+			errors: [undefined, rootError, 'src/routes/blog/+error.svelte'],
+		});
+		// The same tree for every route whose failure renders it, compiled once.
+		expect(failing[failingKey('/', 2)]).toBe(failing[failingKey('/blog/[slug]', 2)]);
+		expect(trees.length).toBe(3);
+	});
+
+	it.each([
+		['the response', RESPONDING, [{ site: 'S' }, {}]],
+		['/blog/[slug], its page failing', failingKey('/blog/[slug]', 3), [{ site: 'S' }, {}, {}]],
+	])('%s: the generated root renders what Kit renders', async (_, key, data) => {
+		const { found, failing } = await errorEntries(project);
+		compiled(resolve(project, 'src'));
+		compiled(resolve(project, '.svelte-kit/seam'));
+		const ours = found.find((one) => one.path === failing[key]);
+		if (ours === undefined) throw new Error(`no tree for ${key}`);
+		expect(ours.component).toBe(treeFile(ours.path));
+
+		const load = async (file: string): Promise<unknown> =>
+			((await import(pathToFileURL(compiledFile(file)).href)) as { default: unknown }).default;
+		const { Props, RenderNode } = (await import(
+			pathToFileURL(resolve(kitOut, 'props.js')).href
+		)) as {
+			Props: new (given: Record<string, unknown>) => object;
+			RenderNode: new (
+				component: unknown,
+				error: unknown,
+			) => { data: Record<string, unknown>; child?: object };
+		};
+		const levels: Level[] = [];
+		const merged: Record<string, unknown> = {};
+		for (const [at, file] of ours.page.branch.entries()) {
+			Object.assign(merged, data[at]);
+			const error = ours.page.errors[at];
+			levels.push({
+				component: file === null ? undefined : await load(file),
+				error: error === undefined ? undefined : await load(error),
+				data: { ...merged },
+			});
+		}
+		const tree = new RenderNode(levels[0]?.component, levels[0]?.error);
+		let current = tree;
+		for (const [at, level] of levels.entries()) {
+			current.data = level.data;
+			const next = levels[at + 1];
+			if (next === undefined) break;
+			current = current.child = new RenderNode(next.component, next.error);
+		}
+		const error = { message: 'Not Found' };
+		const request = {
+			params: {},
+			url: new URL('http://example.test/'),
+			route: { id: null },
+			status: 404,
+			error,
+			data: {},
+			form: null,
+			state: {},
+		};
+		const theirsMod = (await import(pathToFileURL(resolve(kitOut, 'root.js')).href)) as {
+			default: never;
+		};
+		const theirs = await render(theirsMod.default, {
+			props: new Props({ page: request, tree, form: null, error }) as never,
+			transformError,
+		});
+		const oursMod = (await import(pathToFileURL(compiledFile(ours.component)).href)) as {
+			default: never;
+		};
+		const props: Record<string, unknown> = { form: null, page: request, error };
+		for (const [at, level] of levels.entries()) props[`data_${String(at)}`] = level.data;
+		const mine = await render(oursMod.default, { props: props as never, transformError });
+		expect(mine.body).toBe(theirs.body);
+		expect(mine.head).toBe(theirs.head);
+		expect(mine.body).toContain('Not Found');
 	});
 });
 

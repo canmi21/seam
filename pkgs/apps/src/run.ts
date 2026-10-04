@@ -10,6 +10,9 @@
  *   node pkgs/apps/src/run.ts --app=basics --spec=server.test.js --plain
  *   node pkgs/apps/src/run.ts --app=async --spec=test.js --grep='query.live'   the tests whose title matches
  *
+ * `--kit-root=throw` builds it so that a render handed to Kit's own root throws instead: milestone
+ * A's third check, the specs passing with no request run by SSR. See spec/conformance.md, "Stage 2".
+ *
  * `--plain` builds the app as Kit alone builds it, which is what a failure is attributed against:
  * a spec that fails both ways is upstream's, or this machine's, and not this compiler's.
  */
@@ -27,6 +30,9 @@ const app = argument('app') ?? 'basics';
 const spec = argument('spec');
 const grep = argument('grep');
 const plain = process.argv.includes('--plain');
+// Read by the plugin when the app is built; see `KIT_ROOT_CHECK` in pkgs/plugin/src/plugin.ts.
+const kitRoot = argument('kit-root');
+if (kitRoot !== undefined) process.env['SEAM_KIT_ROOT'] = kitRoot;
 
 const { dir, viteConfig, mode, env } = stage(app, plain);
 const modeFlag = mode === undefined ? '' : ` --mode ${mode}`;

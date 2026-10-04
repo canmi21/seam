@@ -37,12 +37,16 @@ export { kitModule, kitSource } from './kit.ts';
 
 export {
 	aliases,
+	builtWith,
 	compilerOptions,
 	configured,
+	type ErrorTree,
+	failingKey,
 	type Page,
 	READING,
+	RESPONDING,
 	type Routes,
 	routes,
 } from './manifest.ts';
 export { root } from './root.ts';
-export { entries, type Found, rootFile } from './entries.ts';
+export { entries, errorEntries, type Found, rootFile, treeFile, writeRoot } from './entries.ts';

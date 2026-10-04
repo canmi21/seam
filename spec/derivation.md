@@ -311,7 +311,11 @@ Two halves meet it. **At the build**, the compile-time render runs a component's
 `const count = get_count()` at its top called Kit's query, which needs a request and threw; the
 render's loader resolves a remote module to a stand-in instead, each export answering as Kit's
 server does before a query settles -- a thenable settling to `undefined`, `loading` true -- and
-throwing nothing, since nothing it answers reaches the bytes. **At the request**, the carried
+throwing nothing, since nothing it answers reaches the bytes. The stand-in is found the way Kit's
+build finds the module -- `./touched.remote.js` is `touched.remote.ts` where only that exists, as
+Kit's `async` app imports it -- and exports each name under an alias, so that a module exporting
+`_delete as delete` is not a stand-in that cannot parse. Either failing was a route the compile
+left to Kit's root, which matched Kit by being Kit's. **At the request**, the carried
 bundle's import of the module is a read of the one the dispatcher imports in Kit's own build,
 which is the registered instance, so the call runs in Kit's request context, its result goes into
 Kit's request state, and Kit writes the same `data` into the page it would have.
@@ -1515,10 +1519,20 @@ the entry's top-level calls (`hydratableCalls()` in `awaits.ts`; not inside a fu
 `$derived`, which run when something calls or reads them) as eager derivations, computed after the
 prop defaults and before anything else; a later read of the same key reads what was recorded.
 
+**A child's own calls are made the same way, after its caller's.** Kit renders every page as a child
+of its root, so a page's `const value = await hydratable(...)` is a child's call, and was refused --
+Kit's `options` `csp-hydratable`. A child's script runs as it is rendered, after its caller's script
+and before its own markup, so the walk takes its top-level calls as eager derivations too, in the
+order it enters the children (`ownCalls()` in `descend.ts`), where the child renders once whatever
+the request -- every block around it a branch the build fixed, or a boundary's own body -- and its
+script is substituted rather than run. A piece of the page a boundary's run reads binds the page's
+own `hydratable` to the request's, as the derivation's own names are (`within()` in `derive`).
+
 The script the build's own render wrote is taken off the head (`unhydrated()` in `skeleton.ts`): its
-values are the build's stand-ins. Where it holds more keys than the entry's script makes calls, a
-call was made that no derivation makes per request -- one in a child, or behind a function the
-script called -- and that is refused rather than written without it.
+values are the build's stand-ins. Where it holds more keys than the walk made calls, a call was made
+that no derivation makes per request -- one in a child inside an if or an each, one whose script is
+run, or one behind a function the script called -- and that is refused rather than written without
+it.
 
 ## Substitution maps a name to an expression, and a program is not an expression
 
@@ -1636,7 +1650,7 @@ call, made first on every request: the script makes its calls in its own order a
 conditions, where reading them out of the source one by one made every one of them whichever
 branch the script took. An import in `<script module>` is still refused, the two blocks being one
 module once compiled. A child's run makes none: it is written at each read, and a call per read is
-not Svelte's one per render.
+not Svelte's one per render; a child whose script is substituted makes its own, above.
 
 **An async run needs the evaluator's dynamic import.** Svelte's async render reaches
 `AsyncLocalStorage` through `import('node:async_hooks')`, which the carried bundle keeps; Node

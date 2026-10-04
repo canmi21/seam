@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { parse } from 'svelte/compiler';
-import { AT_REQUEST, bindings, resolved } from '@seam-js/ast';
+import { AT_REQUEST, bindings, resolved, isComponentFile } from '@seam-js/ast';
 import { propsOf } from './compose.ts';
 import { isNode, type AstNode } from './node.ts';
 import { renderRewritten } from './render.ts';
@@ -70,7 +70,7 @@ function steady(one: { file: string; source: string }): boolean {
 	if (/['"]\$app\/paths['"]/.test(one.source)) return false;
 	// And a remote function, which Kit runs per request. See `varies()` too.
 	if (/['"][^'"]*[/.]remote(?:\.[^/'"]+)?['"]/.test(one.source)) return false;
-	if (!one.file.endsWith('.svelte')) return true;
+	if (!isComponentFile(one.file)) return true;
 	try {
 		resolved(one.source, basename(one.file), one.file);
 		// A clock, randomness or a host's global resolves now, read per request; the build reading
@@ -126,7 +126,7 @@ function located(path: string): string | null {
 function importsIn(file: string, source: string): { from: string; names: string[] }[] | null {
 	let ast: AstNode;
 	try {
-		ast = parse(file.endsWith('.svelte') ? source : `<script module lang="ts">${source}</script>`, {
+		ast = parse(isComponentFile(file) ? source : `<script module lang="ts">${source}</script>`, {
 			modern: true,
 		}) as unknown as AstNode;
 	} catch {

@@ -19,12 +19,13 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig } from 'vite';
-import { configured, READING } from '@seam-js/routes';
+import { builtWith, configured, READING } from '@seam-js/routes';
 import {
 	ARTIFACTS,
 	ASSETS,
 	assetKey,
 	type Compiling,
+	FAILING,
 	NAME,
 	LOADED,
 	LOADED_KEY,
@@ -41,6 +42,15 @@ const ROOT = '\0seam:root';
 /** Kit's own root, as `render.js` imports it, and the one importer whose import is taken over. */
 const KIT_ROOT = '/runtime/components/root.svelte';
 const RENDER = '/runtime/server/page/render.js';
+
+/**
+ * The environment variable that makes a build refuse Kit's root: with `throw`, the dispatcher
+ * throws, and says so on stderr, wherever it would have handed a render to Kit's own root. The check
+ * milestone A holds a production build to -- no request runs SSR -- is the stage-two comparison and
+ * Kit's specs passing under it. See spec/roadmap.md, "A: Kit's place, by an alias, with CTR where
+ * SSR was".
+ */
+export const KIT_ROOT_CHECK = 'SEAM_KIT_ROOT';
 
 /**
  * What this build has already compiled, written beside the artifacts. See `compileRoutes`.
@@ -108,6 +118,8 @@ export function seam(options: Options = {}): Plugin {
 			if (resolved.plugins.some((one) => one.name === READING)) return;
 			config = resolved;
 			root = resolved.root;
+			// The config this build was given, which may not be one Vite would find by itself.
+			if (resolved.configFile !== undefined) builtWith(root, resolved.configFile);
 			// Kit's build, and only that: `vite dev` renders with Kit's own root. Kit 3 builds through
 			// Vite's builder, one config shared by its `ssr` and `client` environments and this plugin
 			// shared with it, so the config resolves once and each hook below asks which environment
@@ -181,6 +193,11 @@ export function seam(options: Options = {}): Plugin {
 				listed(outDir, ASSETS).map((one) => [assetKey(one), resolve(root, one)]),
 				listed(outDir, REMOTES).map((one) => [remoteKey(one), resolve(root, one)]),
 				listed(outDir, LOADED).map((one) => [one, resolve(root, one)]),
+				JSON.parse(readFileSync(resolve(outDir, ARTIFACTS, FAILING), 'utf8')) as Record<
+					string,
+					string
+				>,
+				process.env[KIT_ROOT_CHECK] === 'throw',
 			);
 		},
 	};
@@ -252,12 +269,12 @@ export function seam(options: Options = {}): Plugin {
  * generated root's `data_0..n`, and the bytes come back through the renderer Kit made -- the body
  * inside the pair `render()` itself writes around a root, the head through a head renderer, a
  * hydratable script's hash onto the policy's list -- so what Kit reads off `render()` is what it
- * would have read. What has no artifact is rendered by Kit's own root as before: today that is the
- * error tree -- a `load` that threw, which Kit renders as the branch again with the error page as
- * its leaf, under the route's own id -- and a route the compile left to the framework, whose
- * component's module cannot be evaluated on the server and which Kit therefore answers with its
- * error response for every request. A route that does not compile otherwise fails the build
- * rather than reaching here. See spec/framework.md.
+ * would have read. An error page renders the same way, from the artifact of the tree Kit handed:
+ * a `load` that threw, which Kit renders as the layouts above it and the error page nearest above,
+ * or an error response, the root layout and the root error page. What has no artifact is rendered
+ * by Kit's own root as before -- a route the compile left to the framework, whose modules cannot
+ * be evaluated on the server and stood in for -- and a route that does not compile otherwise fails
+ * the build rather than reaching here. See spec/framework.md, "What is still Kit's render".
  */
 function dispatcher(
 	kitRootComponent: string,
@@ -265,6 +282,8 @@ function dispatcher(
 	assets: ReadonlyArray<readonly [key: string, path: string]>,
 	remotes: ReadonlyArray<readonly [key: string, path: string]>,
 	loaded: ReadonlyArray<readonly [key: string, path: string]>,
+	failing: Readonly<Record<string, string>>,
+	refuseKitRoot: boolean,
 ): string {
 	const here = createRequire(import.meta.url);
 	// By path rather than by name: the module is compiled inside the project's build, where this
@@ -294,6 +313,17 @@ function dispatcher(
 		.map(([, path], i) => `import loaded_${String(i)} from ${JSON.stringify(path)};\n`)
 		.join('');
 	const loadedMap = `new Map([${loaded.map(([key], i) => `[loaded_${String(i)}, ${JSON.stringify(key)}]`).join(', ')}])`;
+	// Kit's own root, or under the check, a throw naming what would have reached it.
+	const toKit = refuseKitRoot
+		? `{
+		const message = \`seam: Kit's root rendered under ${KIT_ROOT_CHECK}=throw: route \${props.page?.route?.id ?? '(none)'}, status \${String(props.page?.status)}, \${failed ? 'an error page' : 'no artifact'}\`;
+		console.error(message);
+		throw new Error(message);
+	}`
+		: `{
+		KitRoot($$renderer, props);
+		return;
+	}`;
 	const handedAssets = [
 		...assets.map(([key], i) => `, ${JSON.stringify(key)}: asset_${String(i)}`),
 		...remotes.map(([key], i) => `, ${JSON.stringify(key)}: remote_${String(i)}`),
@@ -319,6 +349,16 @@ ${imports}${remoteImports}${loadedImports}
 globalThis[Symbol.for('seam.kit')] = { '$app/manifest': appManifest, '$app/paths': appPaths, '@sveltejs/kit': kitExports, rendered_env, dynamic_private_env${handedAssets} };
 
 const files = { ${files} };
+// The error tree a failed render is, by its route and how many levels Kit handed. See
+// \`Routes.failing\` in @seam-js/routes.
+const failing = ${JSON.stringify(failing)};
+function treeOf(props) {
+	let levels = 0;
+	for (let node = props.tree; node !== undefined && node !== null; node = node.child) levels += 1;
+	// \`respond_with_error\`'s two levels guard nothing; a failed load's second always has its page.
+	const responding = levels === 2 && props.tree.child.error === undefined;
+	return failing[responding ? '' : \`\${props.page?.route?.id}\\n\${String(levels)}\`];
+}
 const read = (name) => readFileSync(fileURLToPath(files[name]), 'utf8');
 const manifest = JSON.parse(read('manifest.json'));
 
@@ -349,14 +389,11 @@ const CLOSE = '<!--]-->';
 
 export default function Root($$renderer, props) {
 	// A page's artifact stands for the page rendered with its data. An error response renders the
-	// error page in its place -- a load that threw, a route nothing matched -- and that is Kit's
-	// root's, under the same route id or none.
+	// error page in its place -- a load that threw, a route nothing matched -- which is one of the
+	// error trees, compiled as a page is.
 	const failed = props.error !== undefined || props.page?.error != null;
-	const entry = failed ? undefined : manifest.routes[props.page?.route?.id];
-	if (entry === undefined) {
-		KitRoot($$renderer, props);
-		return;
-	}
+	const entry = manifest.routes[failed ? treeOf(props) : props.page?.route?.id];
+	if (entry === undefined) ${toKit}
 	const { ir, derive } = artifact(entry);
 	// The generated root's props: Kit's tree, a level per node, its data already the merge of the
 	// levels above it as \`render_response\` builds it.

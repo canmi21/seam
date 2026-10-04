@@ -3,7 +3,7 @@
  * the project and its packages, before anything about the component's shape is asked.
  * See spec/refusals.md.
  */
-import { importsOf as importedBy } from '@seam-js/ast';
+import { importsOf as importedBy, isComponentFile } from '@seam-js/ast';
 import { basename, dirname, resolve as resolvePath } from 'node:path';
 import { apply, componentOf, parsedComponent, reads as readsIn, bound } from '@seam-js/ast';
 import { type AstNode, isNode, span } from './node.ts';
@@ -33,7 +33,7 @@ export function componentFile(tag: string, walk: Walk): string | null {
 	const one = walk.site.carried.get(head);
 	if (one === undefined) return null;
 	if (one.from.startsWith('.')) {
-		if (members.length > 0 || one.kind !== 'default' || !one.from.endsWith('.svelte')) return null;
+		if (members.length > 0 || one.kind !== 'default' || !isComponentFile(one.from)) return null;
 		return resolvePath(dirname(walk.site.file), one.from);
 	}
 	const names =
@@ -227,7 +227,7 @@ export function unimported(text: string): string {
 		const from = statement['source'];
 		const named = isNode(from) && typeof from['value'] === 'string' ? from['value'] : '';
 		if (specifiers.length === 0) {
-			if (named.endsWith('.svelte')) edits.push([at[0], at[1], '']);
+			if (isComponentFile(named)) edits.push([at[0], at[1], '']);
 			continue;
 		}
 		const wanted = specifiers.some((one) => {
@@ -245,7 +245,7 @@ export function importsItself(raw: string, file: string): boolean {
 	return [...importedBy(raw).values()].some(
 		(one) =>
 			one.from.startsWith('.') &&
-			one.from.endsWith('.svelte') &&
+			isComponentFile(one.from) &&
 			resolvePath(dirname(file), one.from) === file,
 	);
 }

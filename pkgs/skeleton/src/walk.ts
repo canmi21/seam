@@ -206,6 +206,7 @@ export function rewrite(
 	/** The markup no request reaches, by file, for the name check to leave alone. */
 	const dead = new Map<string, [number, number][]>();
 	const missed: { file: string; reason: string }[] = [];
+	const childCalls: { expression: string; files: string[] }[] = [];
 	const handed: Handed[] = [];
 	const spreads: PendingSpread[] = [];
 	const headed = new Set<number>();
@@ -306,6 +307,7 @@ export function rewrite(
 			given: new Map(),
 			payload,
 			missed,
+			eager: childCalls,
 			headed,
 			callable,
 			headedFragments,
@@ -403,10 +405,14 @@ export function rewrite(
 						),
 			files: [relative(root, file)],
 		}));
-	const eager = hydratableCalls(ast).map((call) => ({
-		expression: walk.expand(call),
-		files: [relative(root, file)],
-	}));
+	// The entry's script runs before its markup, so its calls come before every child's.
+	const eager = [
+		...hydratableCalls(ast).map((call) => ({
+			expression: walk.expand(call),
+			files: [relative(root, file)],
+		})),
+		...childCalls,
+	];
 	if (recursion !== null) {
 		// The body as a bare block, once the walk has been through it and everything it marked
 		// is where it is: the whitespace at either end is trimmed either way, so the block wraps

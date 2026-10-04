@@ -85,10 +85,10 @@ Accepted when all four hold:
    `server.test.js` passes whole and `async`'s specs over what it streams do; the rest of `basics`
    and the other apps' specs have not been run.
 3. **No request to a production build runs SSR.** Held by a check build in which Kit's
-   `root.svelte` throws whenever it is rendered, under which 1 and 2 still pass. **Not met**: the
-   error page Kit renders when a `load` throws is still Kit's root, and so is the response to a
-   route whose component cannot be evaluated on the server ([framework.md](framework.md), "What
-   is still Kit's render"). CTR takes the error page; that is A's work, not B's.
+   `root.svelte` throws whenever it is rendered, under which 1 and 2 still pass (`--kit-root=throw`,
+   [conformance.md](conformance.md), "Stage 2"). **Met for 1**: every app compares the same with no
+   request reaching Kit's root, error pages included ([framework.md](framework.md), "The error
+   page"). 2 is measured under it as it is run.
 4. **An application of the author's, moved.** `status`, held the way stage 2 holds Kit's apps
    ([conformance.md](conformance.md), "Stage 3"). **Not met.**
 

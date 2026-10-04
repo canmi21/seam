@@ -6,6 +6,11 @@
  *
  *   node pkgs/apps/src/compare.ts --app=basics
  *   node pkgs/apps/src/compare.ts --app=basics --reuse    the last builds, not built again
+ *   node pkgs/apps/src/compare.ts --app=basics --kit-root=throw
+ *
+ * `--kit-root=throw` builds ours so that a render handed to Kit's own root throws instead, which is
+ * how milestone A's third check is taken: every such request is a difference, and the server's log
+ * names each one. See spec/conformance.md, "Stage 2".
  *
  * Each URL is asked of two servers of Kit's build and one of ours, once each and in the same order,
  * so that state a server keeps across requests -- a counter several routes share -- stands at the
@@ -22,7 +27,15 @@
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	openSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { streamedIn, withoutStreamed } from '@seam-js/stream/fold';
@@ -34,6 +47,11 @@ function argument(name: string): string | undefined {
 
 const app = argument('app') ?? 'basics';
 const out = resolve(pkg, '.build-apps/compare', app);
+// Read by the plugin when ours is built; see `KIT_ROOT_CHECK` in pkgs/plugin/src/plugin.ts.
+const kitRoot = argument('kit-root');
+if (kitRoot !== undefined) process.env['SEAM_KIT_ROOT'] = kitRoot;
+/** Where our server's stderr goes, which is where the check names what reached Kit's root. */
+const seamLog = resolve(out, 'preview.seam.log');
 
 function build(built: Staged, log: string): void {
 	const mode = built.mode === undefined ? [] : ['--mode', built.mode];
@@ -48,14 +66,18 @@ function build(built: Staged, log: string): void {
 		throw new Error(`the build in ${built.dir} exited ${String(ran.status)}; see ${log}`);
 }
 
-async function preview(built: Staged, port: number): Promise<ChildProcess> {
+async function preview(built: Staged, port: number, log?: string): Promise<ChildProcess> {
 	// A server already there would answer for this one, and the comparison would be of its app: a
 	// run that crashed once left three behind, and every app after it was compared against them.
 	if (await answers(port)) throw new Error(`something already listens on ${String(port)}`);
 	const child = spawn(
 		resolve(bin, 'vite'),
 		['preview', '--config', built.viteConfig, '--port', String(port), '--strictPort'],
-		{ cwd: built.dir, env: { ...built.env, ...built.previewEnv }, stdio: 'ignore' },
+		{
+			cwd: built.dir,
+			env: { ...built.env, ...built.previewEnv },
+			stdio: ['ignore', 'ignore', log === undefined ? 'ignore' : openSync(log, 'w')],
+		},
 	);
 	for (let i = 0; i < 100; i += 1) {
 		if (child.exitCode !== null) break;
@@ -490,7 +512,7 @@ const differ: { url: string; kit: string; seam: string }[] = [];
 let clientDiffers: string[] = [];
 try {
 	servers.push(await preview(plain, kitPort));
-	servers.push(await preview(ours, seamPort));
+	servers.push(await preview(ours, seamPort, seamLog));
 	servers.push(await preview(plain, againPort));
 	const { names, kitNames, unpaired } = paired(plain.dir, ours.dir);
 	clientDiffers = unpaired;
@@ -534,6 +556,17 @@ writeFileSync(
 );
 for (const one of differ.slice(0, 20)) console.log(`\n${one.url}\n${parting(one.kit, one.seam)}`);
 for (const one of clientDiffers) console.log(`client file with no match in Kit's build: ${one}`);
+const refused = existsSync(seamLog)
+	? readFileSync(seamLog, 'utf8')
+			.split('\n')
+			.filter((line) => line.startsWith("seam: Kit's root rendered"))
+	: [];
+if (refused.length > 0) {
+	const counted = new Map<string, number>();
+	for (const line of refused) counted.set(line, (counted.get(line) ?? 0) + 1);
+	console.log(`\nKit's root, refused ${String(refused.length)} times:`);
+	for (const [line, n] of counted) console.log(`  ${String(n)} x ${line}`);
+}
 console.log(
 	`\n${String(urls.length)} URLs: ${String(same.length)} the same, ` +
 		`${String(declared.length)} the same but for what they streamed, ${String(differ.length)} different; ` +

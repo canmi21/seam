@@ -3,7 +3,7 @@
  * render is handed of it. See spec/derivation.md, "Where substitution cannot follow, the script
  * runs as Svelte compiled it".
  */
-import { importsOf } from '@seam-js/ast';
+import { importsOf, isComponentFile } from '@seam-js/ast';
 import { resolve as resolvePath } from 'node:path';
 import { GIVEN, projectAsync, readsReplaced, resolveBare, RUN_NAME } from '@seam-js/ast';
 import { refuse } from './node.ts';
@@ -49,7 +49,7 @@ export function ran(
 					.filter(
 						([, one]) =>
 							one.kind === 'default' &&
-							(resolveBare(one.from, resolvePath(root, entry)) ?? one.from).endsWith('.svelte'),
+							isComponentFile(resolveBare(one.from, resolvePath(root, entry)) ?? one.from),
 					)
 					.map(([local]) => local);
 	const names = new Set([...changed, ...[...changed].map((one) => `$${one}`), ...imports]);
@@ -143,6 +143,9 @@ export function ran(
 	// markup reads what they return, as Svelte's script makes them. The calls read out of the source
 	// one by one would make every one of them, whichever branch the script takes.
 	if (at !== undefined && imported.local !== null) {
-		rendered.eager = [{ expression: running, files: [entry] }];
+		rendered.eager = [
+			{ expression: running, files: [entry] },
+			...rendered.eager.filter((one) => !own(one.files)),
+		];
 	}
 }

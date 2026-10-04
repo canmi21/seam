@@ -247,6 +247,11 @@ export interface Site {
 	 */
 	missed: { file: string; reason: string }[];
 	/**
+	 * The `hydratable` calls the children's scripts make as each initializes, in the order Svelte
+	 * renders them, after the entry's own. See `Skeleton.eager` and `ownCalls()` in `descend.ts`.
+	 */
+	eager: { expression: string; files: string[] }[];
+	/**
 	 * Body blocks a `<svelte:head>` was walked inside, across every file entered, which have to
 	 * stand in the head stream as well: `$.head` runs where the component does, so an if decides
 	 * and an each repeats the child's head block the way they decide and repeat its body. Each

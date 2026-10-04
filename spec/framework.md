@@ -261,12 +261,16 @@ the move costs this layer, each a fact of the diff rather than a guess:
    - **A page Kit does not render on the server has no root to compile.** Kit's own static analysis
      merges `ssr` down the branch onto the leaf, and a leaf with `ssr: false` is skipped; an option
      Kit could not analyse statically reads as rendered.
-   - **A component whose module cannot be evaluated on the server is left to the framework.** A
-     module script reaching `document` throws at import, for every request, before any render, and
-     Kit answers with its error response; the compile makes no artifact, lists the route under
-     `left` in the manifest with why, and warns rather than fails. The dispatcher hands such a
-     request to Kit's own root, as it hands an error tree. This is not the runtime fallback
-     [refusals.md](refusals.md) refuses: there is no page render to fall back to.
+   - **The routes are read through the Vite config the build was given.** Kit's `options` app is
+     built with `vite build -c vite.custom.config.js`, its routes under `source/pages`; read off a
+     `vite.config.*` that is not there, the project had the default routes directory, which is
+     empty, and not one of its pages was compiled -- every answer was Kit's root's, and matched
+     Kit's by being it. The plugin hands the config file it resolved to `@seam-js/routes`
+     (`builtWith`). Milestone A's check build is what found it.
+   - **A component whose module cannot be evaluated on the server stands in as one that throws.**
+     It was left to the framework, on the reading that its module throws at import for every
+     request; Kit's bundle reads otherwise, and **A module that cannot be evaluated on the
+     server** below has what the compile does instead.
    - **What Kit's build and server decide is handed to the derivations, not bundled.**
      `$app/paths` is Kit's own server module, whose `resolve` reads the request Kit is answering;
      `@sveltejs/kit`'s root export is Kit's own too, since Kit reads what a page throws by class --
@@ -318,20 +322,56 @@ this section held before the fork -- which of Kit's files would be taken as they
 around the render, which virtual modules the plugin owed and what was left out -- described a
 framework assembled out of Kit's parts, and the fork made every row of them Kit's own.
 
+### The error page
+
+**Every error page is compiled, from the tree Kit renders it with.** Kit renders one of two kinds
+of tree when a request fails, and both are known at the build:
+
+- **A `load` that throws** at some level renders the layouts above the nearest error page declared
+  above that level, then that error page as the leaf (`page/index.js`, `nearest_error_pages`), each
+  level guarded as `build_error_chain` guards it. A route has one such tree per level whose
+  failure an error page catches; the root layout's failure is `error.html` and no tree.
+- **An error response** -- a route nothing matched, or one whose render failed outside any
+  boundary -- renders the root layout and the root error page with nothing guarding either
+  (`respond_with_error`).
+
+`@seam-js/routes` walks Kit's manifest for both, as Kit's server would, and writes a generated root
+for each distinct tree -- `Routes.trees`, under `.svelte-kit/seam/errors` -- which compiles as a
+route does; two routes whose failures render the same components share one. The dispatcher tells
+which tree it was handed by what `render.js` hands it: the route and the number of levels, which
+picks one of a route's trees, and two levels whose second guards nothing, which is only the error
+response's (`Routes.failing`). A component that throws while it renders was CTR's already: the
+boundary of its level in the generated root writes `+error.svelte`.
+
+### A module that cannot be evaluated on the server
+
+**A component whose module the compile cannot evaluate stands in as one that throws what it threw,
+as it renders.** The compile evaluates a module as the project's Vite loads it; Kit's build bundles
+it, and a module script that only reads what a server has not got -- `document;`, which `basics`'
+`no-ssr/ssr-page-config/layout/overwrite` writes -- is dropped by the bundler. So Kit imports the
+module, renders it, and throws only where the markup reads the name, which the boundary Kit's root
+puts at that level catches: the level's error page, status 500, inside the layouts above. Taken
+before as a module that throws at import for every request, the route was left to Kit's root; it
+did not answer as Kit does.
+
+So where a route's compile meets such a module, the plugin evaluates each component of the branch
+alone, and writes the route's root again with each that fails replaced by a component whose script
+throws the same error -- a hole that throws ([ir.md](ir.md), "A component that throws whatever the
+request is a hole that throws"). Where Kit's bundle keeps the statement instead, its import throws
+before any render, Kit answers with its error response, and this artifact is never asked for.
+
+**What it does not cover is named.** A module whose failing statement Kit's bundle drops while its
+markup never reaches the name renders whole in Kit, and here as its error page. No app of Kit's
+writes it; reading what Kit's bundle keeps is what would close it.
+
 ### What is still Kit's render
 
-**Three places, each named; milestone A takes the first two** ([roadmap.md](roadmap.md)).
-
-- **The error tree.** A `load` that throws has Kit render the branch again with the error page as
-  its leaf, under the route's own id, and the dispatcher hands that render to Kit's root. A
-  component that throws while it renders is CTR's already: the boundary of its level in the
-  generated root writes `+error.svelte`.
-- **A route left to the framework.** A component whose module cannot be evaluated on the server is
-  listed under `left`, and its request is handed to Kit's root (step 4 of **SvelteKit 3 is the
-  target** above). Its module throws as it is imported, so what Kit answers is its error page, and
-  this is the error tree once more.
 - **`vite dev`**, where the plugin does nothing and every page is Kit's; [roadmap.md](roadmap.md),
   "Vite's dev server: CTR under HMR, after A".
+- **A route left to the framework**: one whose module cannot be evaluated and whose components all
+  evaluate alone, so that no level could stand in. It is listed under `left` in the manifest with
+  why, the build warns rather than fails, and the dispatcher hands its request to Kit's root, as it
+  hands an error tree that could not be compiled. Milestone A's check build refuses both.
 
 **The project's configuration is read as Kit reads it**: off the Vite plugin's argument, through
 Kit's own validator (step 2 of **SvelteKit 3 is the target** above), with every file path resolved

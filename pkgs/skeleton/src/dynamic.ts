@@ -19,6 +19,7 @@ import {
 	resolveBare,
 	rootOf,
 	bound as namesBound,
+	isComponentFile,
 } from '@seam-js/ast';
 import { carries, importsOf } from './compose.ts';
 import { type AstNode, isNode, refuse, span } from './node.ts';
@@ -138,7 +139,7 @@ export function changedBy(file: string): ReadonlySet<string> {
 		// A component's `<script module>` is module state too, reached by a named import of the
 		// component. Its source is already markup, so it is parsed as what it is rather than
 		// wrapped; everything else is a module and is wrapped to be read the same way.
-		ast = parse(file.endsWith('.svelte') ? source : `<script module lang="ts">${source}</script>`, {
+		ast = parse(isComponentFile(file) ? source : `<script module lang="ts">${source}</script>`, {
 			modern: true,
 		}) as unknown as AstNode;
 	} catch {
@@ -189,7 +190,7 @@ function unstable(walk: Walk): ReadonlySet<string> {
 		if (!one.from.startsWith('.')) continue;
 		// Only the default import of a component is the component; a named one is its module
 		// script, whose state changes the same way any module's does.
-		if (one.from.endsWith('.svelte') && one.kind === 'default') continue;
+		if (isComponentFile(one.from) && one.kind === 'default') continue;
 		const at = resolvePath(dirname(walk.site.file), one.from);
 		const exported = one.kind === 'named' ? (one.exported ?? one.local) : null;
 		if (exported === null) continue;
@@ -340,7 +341,7 @@ export function rendersOnly(expression: string, walk: Walk): boolean {
 	if (READS_CONTEXT.test(expression)) return true;
 	const names = new Set(
 		Object.entries(walk.site.imports)
-			.filter(([, from]) => from === 'svelte' || from.endsWith('.svelte'))
+			.filter(([, from]) => from === 'svelte' || isComponentFile(from))
 			.map(([name]) => name),
 	);
 	return names.size > 0 && mentions(expression, names);

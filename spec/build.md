@@ -333,10 +333,11 @@ The server concatenates it with the component's own head. It never learns to spe
 means there is nothing for a second implementation to get subtly different.
 
 Beside `routes` the manifest carries `left`: the routes the compile made no artifact for, by URL,
-each with why. A component whose module cannot be evaluated on the server -- a module script that
-reaches `document` -- throws for every request before any render, and the framework answers such a
-route with its error response; the plugin hands that render to Kit's own root, and the build says
-so as a warning rather than failing. See [framework.md](framework.md).
+each with why -- a module that cannot be evaluated on the server and that no component of the route
+could stand in for. The plugin hands such a render to Kit's own root, and the build says so as a
+warning rather than failing. `routes` also holds the error trees, under ids beginning `#`. See
+[framework.md](framework.md), "A module that cannot be evaluated on the server" and "The error
+page".
 
 ## A filename is an input to the bytes
 

@@ -282,13 +282,11 @@ to Kit's client is the streaming's call points, a declared difference. So a clie
 that fails is a byte that did not hydrate, which is exactly the check `server.test.js` cannot
 make, and it is read as that rather than as anything about the client.
 
-**A known hole waiting there.** Half of the error page is compiled: a component that throws while
-it renders is caught by the level's boundary in the generated root and `+error.svelte` is written
-in its place, as Kit 3's root does it. The other half is not: a `load` that throws has Kit render
-the branch again with the error page as its leaf, under the route's own id, and the plugin still
-hands that render back to Kit's root. Kit's specs exercise both. CTR takes the second half in
-milestone A, whose third check holds that no request runs Kit's root; see
-[framework.md](framework.md), "What is still Kit's render".
+**The error page is compiled, both halves.** A component that throws while it renders is caught
+by the level's boundary in the generated root and `+error.svelte` is written in its place, as Kit
+3's root does it; a `load` that throws, and an error response, render one of the error trees Kit
+renders them with, each compiled as a route is ([framework.md](framework.md), "The error page").
+Kit's specs exercise both.
 
 **How they are run.** `mise run apps -- --app=<name> --spec=<file>`: `pkgs/apps` stages the app
 out of `vendor/kit/test/apps` into `.build-apps` in upstream's own layout, since the harness reaches
@@ -299,6 +297,13 @@ with the build and the preview run through the app's own Vite config. Then Kit's
 builds the same app as Kit alone does, which is what a failure is read against: a spec failing
 both ways is upstream's or this machine's. Playwright drives the system's Chrome, as Kit's own
 config asks (`channel: 'chrome'`).
+
+**`--kit-root=throw` is the check that no request ran SSR**, milestone A's third
+([roadmap.md](roadmap.md)). Given to `mise run apps` or `mise run compare`, it builds ours with
+`SEAM_KIT_ROOT=throw`, under which the dispatcher throws, and says so on stderr, wherever it would
+have handed a render to Kit's own root (`KIT_ROOT_CHECK` in `pkgs/plugin`). Every such request then
+answers differently from Kit's, and `compare` lists each from the server's log by route and status.
+The plugin's own sample builds the fork this way every time.
 
 **Where it stands.** `basics`, `server.test.js`, at `3.0.0`: thirteen specs, which Kit alone
 passes in the project without JavaScript and skips in the one with it, by design; through the fork,
@@ -370,6 +375,25 @@ figure here and above came out the same as it had with the plugin beside Kit's o
 | `options-2`                                                                                             | 22           | all the same; it calls remote functions                    |
 | `async`                                                                                                 | 104          | 101 the same, 3 declared, below                            |
 | `dev-only`                                                                                              | --           | Kit's own build fails by design: the app is for `vite dev` |
+
+**Under the check build, the same figures, and what they had hidden.** Built with
+`--kit-root=throw`, so that no answer could match Kit's by being Kit's root's, every app above comes
+out as the table says, with no request reaching Kit's root. Getting there found that the figures had
+been partly Kit's own render, which matched Kit by being it:
+
+- **Every error page**, in every app: a `load` that threw, a route nothing matched. Compiled now, as
+  the trees Kit renders them with ([framework.md](framework.md), "The error page").
+- **Every page of `options`.** The app is built with `-c vite.custom.config.js`, and its routes were
+  read through a `vite.config.*` that was not there: none was compiled. With them read through the
+  config the build was given, three were refused, and are compiled now -- a page under an
+  extension the config adds, `.jesuslivesineveryone` and `.svelte.md`, and a page's own
+  `hydratable` ([derivation.md](derivation.md), "`hydratable` is the request's").
+- **Two `async` pages whose remote module the compile could not stand in for**: one imported
+  `./touched.remote.js` for a `.ts`, one exported `_delete as delete` ([derivation.md](derivation.md),
+  "A remote function runs where Kit's server runs it").
+- **`basics`' `no-ssr/ssr-page-config/layout/overwrite`**, whose module the compile cannot evaluate,
+  and which Kit renders to its level's error page ([framework.md](framework.md), "A module that
+  cannot be evaluated on the server").
 
 What this found and closed: the `?worker&url` of `no-csr`, `compilerOptions` read off Kit's plugin
 for `async`, and remote functions for `async` and `options-2` ([derivation.md](derivation.md), "A

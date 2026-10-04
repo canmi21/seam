@@ -164,9 +164,18 @@ function within(
 ) => unknown {
 	const made = new Map<string, (scope: object) => unknown>();
 	return (chain, data, request, locals, code) => {
+		// The names the piece's own files carry as Svelte's `hydratable`, bound to the request's as
+		// the derivation's own are: a page's `await hydratable(...)` read inside the boundary Kit's
+		// root puts round it is written in the page, not in the root. See `marked`.
+		const hydrating = (request as { $$hydratable?: unknown }).$$hydratable;
+		const own =
+			hydrating === undefined
+				? {}
+				: Object.fromEntries(marked(files, chain).map((name) => [name, hydrating]));
 		const layers: object[] = [
 			locals,
 			request,
+			own,
 			...chain.map((file) => files[file] ?? {}),
 			data,
 			...outer.toReversed(),
@@ -345,6 +354,8 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 		const requested = (names: readonly string[]): Record<string, unknown> => ({
 			...Object.fromEntries(names.map((name) => [name, table.hydratable])),
 			$$request: ofRequest,
+			// For a piece another component wrote, whose files mark names of their own. See `within`.
+			$$hydratable: table.hydratable,
 		});
 		for (const derivation of compiled) {
 			const request = requested(derivation.marked);

@@ -24,10 +24,11 @@ import {
 	remembered,
 	rememberedSources,
 	type Bundle,
+	configureComponentExtensions,
 } from '@seam-js/ast';
 import { carriedBy, carry, rememberedBundles } from '@seam-js/carry';
 import { lower } from '@seam-js/lowering';
-import { aliases, compilerOptions } from '@seam-js/routes';
+import { aliases, compilerOptions, configured } from '@seam-js/routes';
 import {
 	combinations,
 	type Decided,
@@ -116,6 +117,13 @@ export interface Options {
 	 * spec/payload.md.
 	 */
 	refuseUnnamedComponents?: boolean;
+	/**
+	 * Asked for a route a module of which could not be evaluated on the server: the same route
+	 * with each component that cannot be stood in for by one that throws what it threw as it
+	 * renders, which is where Kit's render of it throws, or null where none was found. See
+	 * spec/framework.md, "A module that cannot be evaluated on the server".
+	 */
+	unevaluable?: (entry: Entry) => Promise<Entry | null>;
 }
 
 /**
@@ -231,6 +239,8 @@ export async function prepare(
 export async function structures(entry: Entry, root: string): Promise<(Prepared & Run)[]> {
 	// What `$lib` and the project's own aliases stand for, as Kit's plugin would have told Vite.
 	configureAliases(await aliases(root));
+	// Which files are components, which Kit's config can widen past `.svelte`.
+	configureComponentExtensions((await configured(root)).extensions);
 	// And the compile options it sets that change the bytes, which every compile below is handed.
 	configureProjectOptions(await compilerOptions(root));
 	const queue: Run[] = combinations(entry.enumerate ?? {}).map((fixed) => ({
@@ -300,15 +310,23 @@ export async function compile(options: Options): Promise<Report[]> {
 	const refusals: string[] = [];
 	const warnings: string[] = [];
 	/**
-	 * Routes left to the framework: a component whose module cannot be evaluated on the server
-	 * throws for every request before any render, and the framework answers with its error
-	 * response, which the plugin hands to Kit's own root. No artifact, and not a refusal: nothing
-	 * this compiler could write would be served. See spec/framework.md.
+	 * Routes left to the framework: a module that cannot be evaluated on the server, with no
+	 * component found to stand in for, so that nothing this compiler could write would be served.
+	 * No artifact, and not a refusal. See spec/framework.md.
 	 */
 	const left: Record<string, string> = {};
-	for (const entry of options.entries) {
+	for (const given of options.entries) {
+		let entry = given;
 		try {
-			const runs = await structures(entry, root);
+			let runs: (Prepared & Run)[];
+			try {
+				runs = await structures(entry, root);
+			} catch (error) {
+				const instead = unavailable(error) ? await options.unevaluable?.(entry) : undefined;
+				if (instead === undefined || instead === null) throw error;
+				entry = instead;
+				runs = await structures(entry, root);
+			}
 			if (runs.length > MANY) {
 				const fields = Object.keys(entry.enumerate ?? {}).map((one) => `\`${one}\``);
 				const chosen = new Set(runs.flatMap((one) => [...one.decided.keys()]));

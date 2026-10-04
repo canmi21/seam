@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'svelte/compiler';
 import { bySource } from './memo.ts';
 import { isNode, type Node } from './scope.ts';
+import { isComponentFile } from './component-file.ts';
 
 /** The conditions a Svelte-aware bundler resolves an `exports` map under, in the order it tries. */
 const CONDITIONS: ReadonlySet<string> = new Set(['svelte', 'import', 'module', 'default']);
@@ -298,7 +299,7 @@ export function componentOf(
 	if (depth > 32) return null;
 	const file = resolveBare(specifier, from);
 	if (file === null) return null;
-	if (file.endsWith('.svelte')) {
+	if (isComponentFile(file)) {
 		return names.length === 1 && names[0] === 'default' && existsSync(file) ? file : null;
 	}
 	const [head, ...rest] = names;

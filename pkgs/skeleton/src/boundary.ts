@@ -5,7 +5,14 @@
 import { createHash } from 'node:crypto';
 import { stripTypeScriptTypes } from 'node:module';
 import { basename } from 'node:path';
-import { bound as namesBound, constant, OPTIONS, mentions, reads as readsIn } from '@seam-js/ast';
+import {
+	bound as namesBound,
+	constant,
+	OPTIONS,
+	mentions,
+	reads as readsIn,
+	isComponentFile,
+} from '@seam-js/ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
 import { sentinel, THROWN } from './sentinel.ts';
 import type { Block, Hole } from './shape.ts';
@@ -554,7 +561,7 @@ export function rawSnippet(call: unknown, name: string | null, walk: Walk): bool
 	// What still renders a component is a render the request decides.
 	const rendersStill = [...site.carried.values()].some(
 		(one) =>
-			(one.from === 'svelte/server' || one.from.endsWith('.svelte')) &&
+			(one.from === 'svelte/server' || isComponentFile(one.from)) &&
 			mentions(written, new Set([one.local])),
 	);
 	if (rendersStill && !pending) {

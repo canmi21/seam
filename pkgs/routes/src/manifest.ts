@@ -69,8 +69,32 @@ function importedComponents(cwd: string, module: string): string[] {
 	return found;
 }
 
+/**
+ * A tree Kit renders an error page with: the layouts above the level that failed, then the error
+ * page as the leaf, each level with the error page its boundary renders. Shaped as a `Page`, since
+ * it is compiled as one; its `id` names the tree, not a route, and it has no parameters of its own.
+ */
+export type ErrorTree = Page;
+
 export interface Routes {
 	pages: Page[];
+	/** Every tree Kit can render an error page with, each once. */
+	trees: ErrorTree[];
+	/**
+	 * Which tree a request whose `load` threw renders, by `failingKey`: the route and how many
+	 * levels the tree has, which is all `render.js` hands its root to tell one from another. A
+	 * response Kit renders without a route's own branch -- nothing matched, or what matched failed to
+	 * render -- is under `RESPONDING`.
+	 */
+	failing: Record<string, string>;
+}
+
+/** The error tree `respond_with_error` renders: the root layout and the root error page. */
+export const RESPONDING = '';
+
+/** How a tree a route's failed `load` renders is found again at request time. */
+export function failingKey(route: string, levels: number): string {
+	return `${route}\n${String(levels)}`;
 }
 
 type Config = ReturnType<typeof validate_config>;
@@ -104,6 +128,22 @@ const resolved = new Map<string, Promise<Config>>();
  */
 export const READING = 'routes:reading-config';
 
+/** The Vite config each project is built with, where the build named one. See `builtWith`. */
+const configFiles = new Map<string, string>();
+
+/**
+ * The Vite config the project at `cwd` is built with, where the build named it -- `vite build -c
+ * vite.custom.config.js`, as Kit's `options` app does -- rather than leaving Vite to find
+ * `vite.config.*`. Read by `configured`, which otherwise found no config there, read the routes
+ * from the validator's default directory, and compiled none of the app's pages.
+ */
+export function builtWith(cwd: string, file: string): void {
+	const at = resolve(cwd);
+	if (configFiles.get(at) === file) return;
+	configFiles.set(at, file);
+	resolved.delete(at);
+}
+
 /**
  * Kit's validated config for a project, read the way Kit 3 reads it: off the `sveltekit(...)`
  * plugin in the project's Vite config, resolved with the project as its root so that every file
@@ -116,9 +156,11 @@ export function configured(cwd: string): Promise<Config> {
 	let held = resolved.get(cwd);
 	if (held === undefined) {
 		held = (async (): Promise<Config> => {
-			const file = ['js', 'ts', 'mjs', 'mts']
-				.map((ext) => resolve(cwd, `vite.config.${ext}`))
-				.find((one) => existsSync(one));
+			const file =
+				configFiles.get(cwd) ??
+				['js', 'ts', 'mjs', 'mts']
+					.map((ext) => resolve(cwd, `vite.config.${ext}`))
+					.find((one) => existsSync(one));
 			if (file === undefined) return process_config(validate_config({}), cwd);
 			const vite = await resolveConfig(
 				{ configFile: file, root: cwd, logLevel: 'silent', plugins: [{ name: READING }] },
@@ -194,6 +236,8 @@ export async function routes(root: string): Promise<Routes> {
 	const config = await configured(cwd);
 	const manifest = create_manifest_data(config, cwd);
 	const pages: Page[] = [];
+	const trees = new Map<string, ErrorTree>();
+	const failing: Record<string, string> = {};
 	// Kit's paths are relative to the working directory it was given; a fallback layout of Kit's
 	// own comes out relative too, from wherever the vendored runtime sits. A node with no
 	// component is null: Kit's root renders `<!--[!--><!--]-->` where its `Component` is undefined.
@@ -203,8 +247,86 @@ export async function routes(root: string): Promise<Routes> {
 			? null
 			: relative(cwd, resolve(cwd, component)).split('\\').join('/');
 	};
+	const universalLoaded = (indexes: readonly (number | undefined)[]): string[] => {
+		const loaded = new Set<string>();
+		for (const index of indexes) {
+			const universal = index === undefined ? undefined : manifest.nodes[index]?.universal;
+			if (universal) for (const one of importedComponents(cwd, universal)) loaded.add(one);
+		}
+		return [...loaded];
+	};
+	// One tree per distinct shape, named by its place in the list: two routes whose failures render
+	// the same components with the same error pages render the same tree.
+	const tree = (nodes: readonly number[], chain: readonly (number | undefined)[]): string => {
+		const branch = nodes.map(componentOf);
+		const errors = chain.map((one) =>
+			one === undefined ? undefined : (componentOf(one) ?? undefined),
+		);
+		const shape = JSON.stringify([branch, errors]);
+		const known = trees.get(shape);
+		if (known !== undefined) return known.id;
+		const id = `#error-${String(trees.size)}`;
+		trees.set(shape, {
+			id,
+			params: [],
+			branch,
+			errors,
+			loaded: universalLoaded(nodes.slice(0, -1)),
+		});
+		return id;
+	};
+	// `respond_with_error`: the root layout and the root error page, with no error page guarding
+	// either -- it hands `render_response` an empty `error_components`.
+	failing[RESPONDING] = tree([0, 1], [undefined, undefined]);
 	for (const route of manifest.routes) {
 		if (route.page === null) continue;
+		const indexes = [...route.page.layouts, route.page.leaf];
+		const errorsAt = route.page.errors;
+		// A `load` that throws at a level renders the error page nearest above it with the layouts
+		// above that: `nearest_error_pages` (`runtime/error-chain.js`) takes the first error page
+		// declared strictly above, rewound past depths with no node, and `page/index.js` renders
+		// the layouts before it, compacted, then the error page. The root layout's failure is
+		// `error.html` and no tree. The boundaries are `build_error_chain` over that branch.
+		for (let at = 1; at < indexes.length; at += 1) {
+			if (indexes[at] === undefined) continue;
+			let idx = -1;
+			let error: number | undefined;
+			for (let above = at - 1; above >= 0; above -= 1) {
+				const declared = errorsAt[above];
+				if (declared === undefined || declared === null) continue;
+				let j = above;
+				while (j > 0 && indexes[j] === undefined) j -= 1;
+				idx = j + 1;
+				error = declared;
+				break;
+			}
+			if (error === undefined) continue;
+			const nodes = [
+				...indexes.slice(0, idx).filter((one): one is number => one !== undefined),
+				error,
+			];
+			const chain: (number | undefined)[] = [undefined];
+			let last = -1;
+			for (let k = 1; k < nodes.length; k += 1) {
+				let j = k - 1;
+				while (j > last + 1 && errorsAt[j] == null) j -= 1;
+				last = j;
+				chain.push(errorsAt[j] ?? undefined);
+			}
+			// Told apart from the tree `respond_with_error` renders, which has two levels and no
+			// error page guarding the second, by the one this always has there.
+			if (nodes.length === 2 && chain[1] === undefined) {
+				throw new Error(
+					`${route.id}: a failed load's tree reads as the one an error response renders`,
+				);
+			}
+			const key = failingKey(route.id, nodes.length);
+			const id = tree(nodes, chain);
+			if (failing[key] !== undefined && failing[key] !== id) {
+				throw new Error(`${route.id}: two error trees of ${String(nodes.length)} levels`);
+			}
+			failing[key] = id;
+		}
 		// A page Kit does not render on the server has no root to compile: `render_response`
 		// writes an empty body under `ssr: false` and never renders its root. Kit's own static
 		// analysis says which, merged down the branch onto the leaf, and null where a page option
@@ -215,7 +337,6 @@ export async function routes(root: string): Promise<Routes> {
 		// the levels that are there, and pairs each with an error page by `build_error_chain`
 		// (`runtime/error-chain.js`): the one declared at the depth directly above, rewound past
 		// the gaps, and none for the first level. The same walk, over the same indexes.
-		const indexes = [...route.page.layouts, route.page.leaf];
 		const branch: (string | null)[] = [];
 		const errors: (string | undefined)[] = [];
 		let last = -1;
@@ -232,18 +353,13 @@ export async function routes(root: string): Promise<Routes> {
 			const error = route.page.errors[above];
 			errors.push(error == null ? undefined : (componentOf(error) ?? undefined));
 		}
-		const loaded = new Set<string>();
-		for (const index of indexes) {
-			const universal = index === undefined ? undefined : manifest.nodes[index]?.universal;
-			if (universal) for (const one of importedComponents(cwd, universal)) loaded.add(one);
-		}
 		pages.push({
 			id: route.id,
 			params: route.params.map((one) => one.name),
 			branch,
 			errors,
-			loaded: [...loaded],
+			loaded: universalLoaded(indexes),
 		});
 	}
-	return { pages };
+	return { pages, trees: [...trees.values()], failing };
 }

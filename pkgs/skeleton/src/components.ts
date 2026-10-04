@@ -4,7 +4,7 @@
  * component in an expression. See spec/pipeline.md and spec/payload.md.
  */
 import { dirname, relative } from 'node:path';
-import { type Carried, mentions, resolveBare, RUN_NAME } from '@seam-js/ast';
+import { type Carried, mentions, resolveBare, RUN_NAME, isComponentFile } from '@seam-js/ast';
 import { isNode, refuse } from './node.ts';
 import { settled } from './branches.ts';
 import { type Walk, changedWhy } from './walk-types.ts';
@@ -174,7 +174,7 @@ export function stillDynamic(name: string, dynamic: boolean): string {
 export function componentImport(local: string, walk: Walk): boolean {
 	const held = walk.site.carried.get(local);
 	if (held === undefined || held.kind !== 'default') return false;
-	return (resolveBare(held.from, walk.site.file) ?? held.from).endsWith('.svelte');
+	return isComponentFile(resolveBare(held.from, walk.site.file) ?? held.from);
 }
 
 /**

@@ -11,6 +11,7 @@ import {
 	componentOf,
 	objectEntries,
 	parsedComponent,
+	isComponentFile,
 } from '@seam-js/ast';
 import { propsOf, rename } from './compose.ts';
 import { type AstNode, isNode, refuse, span } from './node.ts';
@@ -194,12 +195,12 @@ function componentEdges(from: string, source?: string): string[] {
 	for (const one of importedBy(text).values()) {
 		let target: string | null = null;
 		if (one.from.startsWith('.')) {
-			if (one.from.endsWith('.svelte')) target = resolvePath(dirname(from), one.from);
+			if (isComponentFile(one.from)) target = resolvePath(dirname(from), one.from);
 		} else if (one.kind !== 'namespace') {
 			const name = one.kind === 'default' ? 'default' : (one.exported ?? one.local);
 			target = componentOf(one.from, [name], from);
 		}
-		if (target !== null && target.endsWith('.svelte')) found.push(target);
+		if (target !== null && isComponentFile(target)) found.push(target);
 	}
 	IMPORTS_OF.set(from, found);
 	return found;

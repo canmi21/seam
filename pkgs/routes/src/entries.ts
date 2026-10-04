@@ -26,24 +26,50 @@ export function rootFile(id: string): string {
 	return `.svelte-kit/seam/routes${id === '/' ? '' : id}/+root.svelte`;
 }
 
+/** Where an error tree's generated root sits: `#error-3` under `errors/3`. */
+export function treeFile(id: string): string {
+	return `.svelte-kit/seam/errors/${id.replace(/^#error-/, '')}/+root.svelte`;
+}
+
 /** Writes every route's root and says where each is. */
 export async function entries(projectRoot: string): Promise<Found[]> {
 	const at = resolve(projectRoot);
-	const found = await routes(at);
-	return found.pages.map((page) => {
-		const file = resolve(at, rootFile(page.id));
-		const from = (one: string): string => {
-			const rel = relative(dirname(file), resolve(at, one)).split('\\').join('/');
-			return rel.startsWith('.') ? rel : `./${rel}`;
-		};
-		mkdirSync(dirname(file), { recursive: true });
-		writeFileSync(
-			file,
-			root(
-				page.branch.map((one) => (one === null ? null : from(one))),
-				page.errors.map((one) => (one === undefined ? undefined : from(one))),
-			),
-		);
-		return { path: page.id, component: rootFile(page.id), page };
+	return written(at, (await routes(at)).pages, rootFile);
+}
+
+/**
+ * Writes the root of every tree Kit renders an error page with, and says where each is and which
+ * one a failed request renders. See `Routes.trees` and spec/framework.md, "The error page".
+ */
+export async function errorEntries(
+	projectRoot: string,
+): Promise<{ found: Found[]; failing: Record<string, string> }> {
+	const at = resolve(projectRoot);
+	const { trees, failing } = await routes(at);
+	return { found: written(at, trees, treeFile), failing };
+}
+
+function written(at: string, pages: readonly Page[], fileOf: (id: string) => string): Found[] {
+	return pages.map((page) => {
+		writeRoot(at, page, fileOf(page.id));
+		return { path: page.id, component: fileOf(page.id), page };
 	});
+}
+
+/** Writes the root of `page` at `file`, relative to the project root, its imports relative to it. */
+export function writeRoot(projectRoot: string, page: Page, file: string): void {
+	const at = resolve(projectRoot);
+	const to = resolve(at, file);
+	const from = (one: string): string => {
+		const rel = relative(dirname(to), resolve(at, one)).split('\\').join('/');
+		return rel.startsWith('.') ? rel : `./${rel}`;
+	};
+	mkdirSync(dirname(to), { recursive: true });
+	writeFileSync(
+		to,
+		root(
+			page.branch.map((one) => (one === null ? null : from(one))),
+			page.errors.map((one) => (one === undefined ? undefined : from(one))),
+		),
+	);
 }

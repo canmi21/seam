@@ -17,7 +17,16 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Plugin } from 'vite';
 import { type Bundler, configureCarry, running } from '@seam-js/carry';
 import { compile } from '@seam-js/compiler';
-import { aliases, configured, entries, kitSource } from '@seam-js/routes';
+import {
+	aliases,
+	builtWith,
+	configured,
+	entries,
+	errorEntries,
+	type Found,
+	kitSource,
+	writeRoot,
+} from '@seam-js/routes';
 import { configureRender, forgetStaging } from '@seam-js/skeleton';
 
 /** This module's own extension, which its siblings share. See spec/publish.md. */
@@ -55,6 +64,13 @@ export const remoteKey = (file: string): string => `remote:${file}`;
  */
 export const LOADED = 'loaded.json';
 
+/**
+ * Which error tree a failed request renders, beside the artifacts like `ASSETS`: read by the
+ * dispatcher's generation, which looks a failed render's tree up in it. See `Routes.failing` in
+ * `@seam-js/routes` and spec/framework.md, "The error page".
+ */
+export const FAILING = 'failing.json';
+
 /** The key the map of loaded components is handed under. */
 export const LOADED_KEY = 'seam:loaded';
 
@@ -78,7 +94,10 @@ export async function compileRoutes({
 	enumerate: declared,
 	refuseUnnamedComponents,
 }: Compiling): Promise<void> {
-	const found = await entries(root);
+	if (configFile !== null) builtWith(root, configFile);
+	// The routes, then every tree Kit renders an error page with, compiled the same way.
+	const trees = await errorEntries(root);
+	const found = [...(await entries(root)), ...trees.found];
 	const out = resolve(outDir, ARTIFACTS);
 	// The render loads its staged copies through a Vite server made from the project's own
 	// config, so that what a component imports resolves as the project's build resolves it:
@@ -216,17 +235,73 @@ export async function compileRoutes({
 			}),
 			out,
 			...(refuseUnnamedComponents === undefined ? {} : { refuseUnnamedComponents }),
+			unevaluable: async (entry) => {
+				const one = found.find((each) => each.path === entry.path);
+				if (one === undefined) return null;
+				const component = await standingIn(one, root, (file) => loader.ssrLoadModule(file));
+				return component === null ? null : { ...entry, component };
+			},
 		});
 		writeFileSync(resolve(out, ASSETS), `${JSON.stringify([...assets].toSorted())}\n`);
 		writeFileSync(resolve(out, REMOTES), `${JSON.stringify([...remotes].toSorted())}\n`);
 		const loaded = new Set(found.flatMap((one) => one.page.loaded));
 		writeFileSync(resolve(out, LOADED), `${JSON.stringify([...loaded].toSorted())}\n`);
+		writeFileSync(resolve(out, FAILING), `${JSON.stringify(trees.failing)}\n`);
 	} finally {
 		forgetStaging();
 		configureRender(null);
 		configureCarry(null);
 		await loader.close();
 	}
+}
+
+/**
+ * The root of a route with each component whose module cannot be evaluated on the server standing
+ * in as one that throws what it threw, as it renders; null where every module evaluates.
+ *
+ * The compile evaluates a module as the project's Vite loads it, and Kit's build bundles it: a
+ * module script that only reads what a server has not got -- `document;` -- is dropped by the
+ * bundler, and Kit's render throws only where the markup reads it, which its root's boundary at
+ * that level catches. So the level renders its error page, and a component throwing the same
+ * error as it renders compiles to the same bytes: a hole that throws (spec/ir.md, "A component that
+ * throws whatever the request is a hole that throws"). Where Kit's bundle keeps the statement, its
+ * import throws before any render and this artifact is never asked for. See spec/framework.md, "A
+ * module that cannot be evaluated on the server".
+ */
+async function standingIn(
+	found: Found,
+	root: string,
+	load: (file: string) => Promise<unknown>,
+): Promise<string | null> {
+	const branch = [...found.page.branch];
+	let stood = false;
+	for (const [at, file] of branch.entries()) {
+		if (file === null) continue;
+		try {
+			await load(resolve(root, file));
+		} catch (error) {
+			// What the build's own pipeline threw -- a transform, a parse -- is not the module
+			// evaluating, and nothing of Kit's render would throw it.
+			if (typeof error === 'object' && error !== null && ('plugin' in error || 'loc' in error)) {
+				return null;
+			}
+			const { name, message } =
+				error instanceof Error ? error : { name: 'Error', message: String(error) };
+			const made = /^(?:Eval|Range|Reference|Syntax|Type|URI)?Error$/.test(name) ? name : 'Error';
+			const thrower = `.svelte-kit/seam/throws/${file.replace(/[^\w.-]+/g, '_')}`;
+			mkdirSync(dirname(resolve(root, thrower)), { recursive: true });
+			writeFileSync(
+				resolve(root, thrower),
+				`<script>\n\tthrow new ${made}(${JSON.stringify(message)});\n</script>\n`,
+			);
+			branch[at] = thrower;
+			stood = true;
+		}
+	}
+	if (!stood) return null;
+	const file = `.svelte-kit/seam/stood-in${found.component.slice('.svelte-kit/seam'.length)}`;
+	writeRoot(root, { ...found.page, branch }, file);
+	return file;
 }
 
 /** A config's plugins as one flat list: an entry may be a plugin, a list, a promise, or nothing. */
@@ -480,7 +555,12 @@ function remoteStandIns(): Plugin {
 			if (resolved === null || resolved.external) return null;
 			if (resolved.id.startsWith(STAND_IN)) return resolved.id;
 			if (resolved.id.startsWith('\0')) return null;
-			const [file = ''] = resolved.id.split('?', 1);
+			const [written = ''] = resolved.id.split('?', 1);
+			// A TypeScript module imported by the name it compiles to, `./touched.remote.js` for
+			// `touched.remote.ts`, which Kit's `async` app writes and Kit's build resolves.
+			const file = existsSync(written)
+				? written
+				: ([written.replace(/\.(m?)js$/, '.$1ts')].find((one) => existsSync(one)) ?? written);
 			// Named by the path encoded, so that no part of the id reads as a remote module to Kit's
 			// own plugin, which would append an import of the module to itself.
 			return REMOTE_FILE.test(file)
@@ -512,7 +592,10 @@ function remoteStandIns(): Plugin {
 				'\townKeys: () => [],',
 				'\tgetOwnPropertyDescriptor: () => undefined,',
 				'});',
-				...names.map((name) => `export const ${name} = anything();`),
+				// Exported by a name of their own, since a remote module may export under a word that
+				// cannot be declared -- `export { _delete as delete }`, Kit's `remote/reserved`.
+				...names.map((_, i) => `const remote_${String(i)} = anything();`),
+				`export { ${names.map((name, i) => `remote_${String(i)} as ${/^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name)}`).join(', ')} };`,
 				'',
 			].join('\n');
 		},

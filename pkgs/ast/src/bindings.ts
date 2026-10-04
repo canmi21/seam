@@ -14,6 +14,7 @@ import {
 	type Node,
 	requested,
 } from './scope.ts';
+import { isComponentFile } from './component-file.ts';
 
 /**
  * Where every name in the markup comes from.
@@ -204,9 +205,9 @@ function componentImport(held: Carried, file: string | undefined): boolean {
 	// `default` is the component and whose `<script module>` exports are its named exports, so
 	// `import { foo } from './Foo.svelte'` is a value like any other and is carried, not composed.
 	if (held.kind !== 'default') return false;
-	if (!held.from.endsWith('.svelte')) return false;
+	if (!isComponentFile(held.from)) return false;
 	if (file === undefined) return true;
-	return (resolveBare(held.from, file) ?? held.from).endsWith('.svelte');
+	return isComponentFile(resolveBare(held.from, file) ?? held.from);
 }
 
 const KINDS: Record<string, Carried['kind']> = {

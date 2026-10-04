@@ -2,6 +2,7 @@ import { parse } from 'svelte/compiler';
 import { apply, type Edit } from './edits.ts';
 import { parsed } from './expressions.ts';
 import { bound, isNode, reads } from './scope.ts';
+import { isComponentFile } from './component-file.ts';
 
 /** The name a file's script runner is read under in a derivation, from that file's carried scope. */
 export const RUN_NAME = '$$run';
@@ -77,7 +78,7 @@ function componentImports(instance: unknown): Set<string> {
 	for (const statement of body) {
 		if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
 		const from = statement['source'];
-		if (!isNode(from) || typeof from['value'] !== 'string' || !from['value'].endsWith('.svelte')) {
+		if (!isNode(from) || typeof from['value'] !== 'string' || !isComponentFile(from['value'])) {
 			continue;
 		}
 		const specifiers = Array.isArray(statement['specifiers']) ? statement['specifiers'] : [];

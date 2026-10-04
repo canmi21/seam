@@ -14,6 +14,7 @@ import {
 	resolveBare,
 	RUNES_MODULE,
 	runesModule,
+	isComponentFile,
 } from '@seam-js/ast';
 import { RUN } from './gather.ts';
 
@@ -83,7 +84,7 @@ function svelted(): Plugin {
 	return {
 		name: 'seam:svelte',
 		load(id) {
-			if (id.endsWith('.svelte')) {
+			if (isComponentFile(id)) {
 				return compile(readFileSync(id, 'utf8'), {
 					generate: 'server',
 					name: basename(id, '.svelte'),

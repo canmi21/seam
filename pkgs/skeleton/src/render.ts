@@ -10,6 +10,7 @@ import {
 	resolveBare,
 	RUNES_MODULE,
 	runesModule,
+	isComponentFile,
 } from '@seam-js/ast';
 import type { Rendered } from './shape.ts';
 import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel, THROWN } from './sentinel.ts';
@@ -375,7 +376,7 @@ export async function renderRewritten(
 			// are compiled away by Svelte and exist nowhere at run time, so Node loading one as
 			// written answers `$state is not defined`. It is compiled and emitted once, keyed by its
 			// real path, so the render still holds one instance of it. See `runesModule` in `ast`.
-			const replacement = target.endsWith('.svelte')
+			const replacement = isComponentFile(target)
 				? emit(target, compileFile(target), staged.get(target)?.file ?? target)
 				: RUNES_MODULE.test(target)
 					? emit(target, runesModule(target, read(target, 'utf8')), target)
