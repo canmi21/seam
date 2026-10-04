@@ -32,13 +32,18 @@ lives in that package. Each one is a row below, and a change not listed here is 
 | file | call point | calls | why |
 | --- | --- | --- | --- |
 | `src/exports/vite/index.js` | `sveltekit()` returns `seam()` after Kit's own plugins | `@seam-js/plugin` | the compile at the build, and the root that renders from what it wrote; the same plugin a project without the fork puts beside Kit's |
+| `src/runtime/server/remote-functions.js` | `collect_remote_data` takes a `streamed`, and offers it every entry of the implicit pass | `@seam-js/stream` | what a render left unsettled is streamed after the page |
+| `src/runtime/server/page/render.js` | makes the `streamed` it hands `collect_remote_data`, unless prerendering or under a hashed CSP; pushes its declaration into the boot script; sends its chunks beside Kit's | `@seam-js/stream` | the same |
+| `src/runtime/client/client.js` | `_start` puts what the page declared as coming into `query_responses` | `@seam-js/stream/client` | the same |
+| `src/runtime/client/remote-functions/query/instance.svelte.js` | a query's first run waits for a streamed value instead of fetching | `@seam-js/stream/client` | the same |
+| `src/runtime/client/remote-functions/query-live/instance.svelte.js` | a live query takes a streamed first value, unless its connection delivered one | `@seam-js/stream/client` | the same |
 
 Each is marked in the code by a comment beginning `seam:`, so that a merge shows it.
 
 `package.json` differs from the published one in its name, `private`, version, description,
 `repository`, and `keywords` without `official`; in `exports`, which has `./src/*` and `./types/*`
-as `vendor/kit`'s does, so that this repository reaches the files directly; in one dependency,
-`@seam-js/plugin`, which the call points call; and in one dev dependency,
+as `vendor/kit`'s does, so that this repository reaches the files directly; in its dependencies on
+`@seam-js/plugin` and `@seam-js/stream`, which the call points call; and in one dev dependency,
 `"@sveltejs/kit": "link:."`. The source imports itself by Kit's name --
 `@sveltejs/kit/internal` and the rest -- which a project installing this under the alias resolves
 to this package, and which inside this repository would otherwise resolve to `vendor/kit`, the

@@ -8,6 +8,7 @@
  *
  *   node pkgs/apps/src/run.ts --app=basics --spec=server.test.js
  *   node pkgs/apps/src/run.ts --app=basics --spec=server.test.js --plain
+ *   node pkgs/apps/src/run.ts --app=async --spec=test.js --grep='query.live'   the tests whose title matches
  *
  * `--plain` builds the app as Kit alone builds it, which is what a failure is attributed against:
  * a spec that fails both ways is upstream's, or this machine's, and not this compiler's.
@@ -24,6 +25,7 @@ function argument(name: string): string | undefined {
 
 const app = argument('app') ?? 'basics';
 const spec = argument('spec');
+const grep = argument('grep');
 const plain = process.argv.includes('--plain');
 
 const { dir, viteConfig, mode, env } = stage(app, plain);
@@ -51,7 +53,13 @@ writeFileSync(
 
 const ran = spawnSync(
 	resolve(bin, 'playwright'),
-	['test', '--config', playwrightConfig, ...(spec === undefined ? [] : [spec])],
+	[
+		'test',
+		'--config',
+		playwrightConfig,
+		...(spec === undefined ? [] : [spec]),
+		...(grep === undefined ? [] : ['--grep', grep]),
+	],
 	{ cwd: dir, env, stdio: 'inherit' },
 );
 if (ran.error !== undefined) throw ran.error;

@@ -1,0 +1,43 @@
+{
+	"name": "@seam-js/stream",
+	"version": "0.0.1",
+	"description": "Streams into a page's response what its render left unsettled, for seamjs",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/canmi21/seam.git",
+		"directory": "pkgs/stream"
+	},
+	"files": [
+		"dist"
+	],
+	"type": "module",
+	"exports": {
+		".": "./src/server.ts",
+		"./client": "./src/client.ts",
+		"./fold": "./src/fold.ts"
+	},
+	"publishConfig": {
+		"exports": {
+			".": {
+				"types": "./dist/server.d.ts",
+				"default": "./dist/server.js"
+			},
+			"./client": {
+				"types": "./dist/client.d.ts",
+				"default": "./dist/client.js"
+			},
+			"./fold": {
+				"types": "./dist/fold.d.ts",
+				"default": "./dist/fold.js"
+			}
+		},
+		"access": "public"
+	},
+	"devDependencies": {
+		"devalue": "^5.9.4"
+	},
+	"engines": {
+		"node": ">=22.17"
+	}
+}

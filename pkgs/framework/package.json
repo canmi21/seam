@@ -144,7 +144,8 @@
 		"magic-string": "^1.2.3",
 		"mrmime": "^2.0.1",
 		"sirv": "^3.0.2",
-		"@seam-js/plugin": "workspace:*"
+		"@seam-js/plugin": "workspace:*",
+		"@seam-js/stream": "workspace:*"
 	},
 	"devDependencies": {
 		"@sveltejs/kit": "link:."

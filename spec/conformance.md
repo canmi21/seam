@@ -221,9 +221,27 @@ explaining it; a difference that is declared is never a reason to stop comparing
 response, which stays byte for byte. The fork is what makes this rule necessary: replacing Kit
 rather than running beside it means some of what Kit does is done differently here on purpose.
 
-**Declared differences.** None yet. Streaming what a render left unsettled -- the `l:` entries of
-`remote/live-ssr-value` and `remote/live-terminal`, below -- is planned as the first, once the fork
-exists.
+**Declared differences.**
+
+1. **What a render left unsettled is streamed after the page**
+   ([framework.md](framework.md), "What a render left unsettled is streamed after the page").
+   - _The routes it changes:_ a page whose render started a query or a live query and did not
+     await it, and Kit did not write it -- `async`'s `remote/live-ssr-value`, `remote/live-terminal`
+     and `remote/query-loading-state` among them -- and, for the client, every page: the client
+     runtime carries the call points, so each chunk holding it is a different file under another
+     name.
+   - _What changes in the bytes:_ in such a page, one declaration in the boot script, the entry
+     missing from Kit's `data` where Kit wrote it, a script per entry after the page and the newline
+     a streamed response opens with; on every page, the names of the chunks that carry the client
+     runtime.
+   - _What it is held to:_ the page with the declaration and the scripts taken out, and those
+     entries taken out of Kit's `data` as well, is Kit's byte for byte (`withoutStreamed` in
+     `@seam-js/stream/fold`); every client file of ours that does not carry the call points pairs
+     with Kit's by content, and a page names the ones that do exactly where Kit's names its own.
+     `mise run compare` counts such a page apart from the ones the same as they are.
+   - _Kit's specs it fails on purpose:_ one, `async`'s `client.test.js` "remote query responses
+     are not cacheable", which waits for the client to fetch a query this streams instead (see
+     **Closed by a declared difference** below).
 
 **What they are.** At `3.0.0-next.29`, `packages/kit/test/apps` holds thirteen whole SvelteKit
 applications -- `basics`, `options`, `options-2`, `options-3`, `no-ssr`, `no-csr`, `embed`,
@@ -337,25 +355,32 @@ figure here and above came out the same as it had with the plugin beside Kit's o
 | `embed`, `hash-based-routing`, `no-csr`, `no-ssr`, `options-3`, `prerendered-app-error-pages`, `writes` | 2 to 17 each | all the same                                               |
 | `options`                                                                                               | 51           | all the same                                               |
 | `options-2`                                                                                             | 22           | all the same; it calls remote functions                    |
-| `async`                                                                                                 | 104          | 102 the same, 2 different, below                           |
+| `async`                                                                                                 | 104          | 101 the same, 3 declared, below                            |
 | `dev-only`                                                                                              | --           | Kit's own build fails by design: the app is for `vite dev` |
 
 What this found and closed: the `?worker&url` of `no-csr`, `compilerOptions` read off Kit's plugin
 for `async`, and remote functions for `async` and `options-2` ([derivation.md](derivation.md), "A
 remote function runs where Kit's server runs it").
 
-**Owed in `async`: what has settled when the render ends.** Kit writes a query the render only
-started -- read for `.loading`, `.ready` or `.current`, never awaited -- into the page only where
-its promise has settled by the time the render ends, racing it against one microtask
-(`collect_remote_data`, "the implicit 'still loading' heuristic"), and leaves the rest for the
-client to fetch. So the bytes depend on how far a render has got, and two pages land on the other
-side of it: `remote/live-ssr-value` and `remote/live-terminal`, a live query's first value. A page
-that awaits nothing is injected in one synchronous pass, fewer microtasks than Svelte's async render
-takes, and the generator has not yielded when Kit collects, so the entry Kit writes is missing. This
-is timing alone, and matching it means matching how many turns a render takes. **It is not matched
-but planned past**: in the fork, what a render left unsettled is streamed into the same response
-once it settles, instead of being left for the client to fetch, so neither the page waits nor the
-client asks. That is a declared difference when it lands, under **Declared differences** above.
+**Closed by a declared difference: what has settled when the render ends.** Kit writes a query
+the render only started -- read for `.loading`, `.ready` or `.current`, never awaited -- into the
+page only where its promise has settled by the time the render ends, racing it against one
+microtask (`collect_remote_data`, "the implicit 'still loading' heuristic"), and leaves the rest
+for the client to fetch. So the bytes depended on how far a render had got, and two pages landed on
+the other side of it: `remote/live-ssr-value` and `remote/live-terminal`, a live query's first
+value, which a page injected in one synchronous pass ended too early to keep. The fork streams what
+is left after the page instead ([framework.md](framework.md), "What a render left unsettled is
+streamed after the page"), so the three pages that start a query and do not await it --
+`remote/query-loading-state` the third -- are the same as Kit's once what they streamed is taken
+out of both, and `mise run compare` counts them so.
+
+**Kit's specs over them, built through the fork.** `test.js`'s "query rendered in its loading state
+during SSR is fetched on the client" and "SSR data for query.live is reused on hydration" pass, with
+JavaScript and without; so do `client.test.js`'s two over `remote/live-terminal`. One fails by
+design: `client.test.js`'s "remote query responses are not cacheable" loads
+`remote/query-loading-state` to make the client fetch its query, and waits for that request to read
+the response's `cache-control`; streamed, the request is never made. It passes on Kit's own build.
+What it checks, the header on a remote function's response, is Kit's code, unchanged.
 
 **Closed: a value a boundary computed twice.** `remote/query-loading-state` is a one-second query
 beside a half-second `{await}`, and the `{await}` was computed by the boundary's run and again by

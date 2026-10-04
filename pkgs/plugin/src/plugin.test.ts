@@ -12,6 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as vite from 'vite';
 import { load_vite_config } from '@sveltejs/kit/src/core/config/index.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { streamedIn, withoutStreamed } from '@seam-js/stream/fold';
 
 // Inside the package, because the project's `svelte`, `@sveltejs/kit` and `vite` are resolved by
 // walking up from it, and Kit's plugin reads the project from the working directory.
@@ -128,6 +129,20 @@ function written(project: string, sources: Record<string, string>): void {
 	}
 }
 
+/**
+ * A response with the names Kit's client build hashed written out. The fork's client is Kit's with
+ * the call points `pkgs/framework/FORK.md` lists, so every chunk holding Kit's client runtime comes
+ * out under another name, and every page naming one differs by that; what those files hold is
+ * `mise run compare`'s to check, pairing them by content. This holds the render. See
+ * spec/conformance.md, "Declared differences".
+ */
+function unhashed(text: string): string {
+	return text.replace(
+		/(_app\/immutable\/(?:[\w-]+\/)*(?:[\w-]+\.)?)[A-Za-z0-9_-]{8}\.(js|css)\b/g,
+		'$1<hash>.$2',
+	);
+}
+
 /** Builds the project into Kit's output under `outDir`, the way `mode` says. */
 async function built(
 	outDir: string,
@@ -169,7 +184,7 @@ async function built(
 			const response = await instance.respond(new Request(`http://sample.test${url}`), {
 				getClientAddress: () => '127.0.0.1',
 			});
-			return [url, `${String(response.status)}\n${await response.text()}`] as const;
+			return [url, unhashed(`${String(response.status)}\n${await response.text()}`)] as const;
 		}),
 	);
 	return Object.fromEntries(answered);
@@ -259,7 +274,7 @@ const remoteFiles: Record<string, string> = {
 	'src/app.html':
 		'<!doctype html><html lang="en"><head>%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>',
 	'src/routes/data.remote.js':
-		"import { form, query } from '$app/server';\nimport { error, redirect } from '@sveltejs/kit';\nexport const away = query(() => { redirect(307, '/fine'); });\nexport const missing = query(async () => { error(404, 'Not found'); });\nexport const getRows = query(async () => [{ id: 'a', text: 'one' }, { id: 'b', text: 'two' }]);\nexport const getCount = query(async () => 42);\nexport const greet = query('unchecked', async (name) => `hello ${name}`);\nexport const editData = form('unchecked', async (data) => data);",
+		"import { form, query } from '$app/server';\nimport { error, redirect } from '@sveltejs/kit';\nexport const away = query(() => { redirect(307, '/fine'); });\nexport const missing = query(async () => { error(404, 'Not found'); });\nexport const getRows = query(async () => [{ id: 'a', text: 'one' }, { id: 'b', text: 'two' }]);\nexport const getCount = query(async () => 42);\nexport const getSlow = query(async () => { await new Promise((done) => setTimeout(done, 300)); return 'slow data'; });\nexport const greet = query('unchecked', async (name) => `hello ${name}`);\nexport const editData = form('unchecked', async (data) => data);",
 	// Components that throw from the top of their script, every request: Kit's `async` app's
 	// `server-error-boundary`, whose page, layout and nested page each do, caught by the boundary of
 	// the level Kit's root puts round them; and a page whose own error page throws, which renders
@@ -308,6 +323,12 @@ const remoteFiles: Record<string, string> = {
 	// An awaited value inside the boundary Kit's root puts at the level, computed by the boundary's
 	// run and written by its hole: computed twice, it counted 2 where Svelte calls it once, and a
 	// slow one held the page for twice as long. Kit's `remote/query-loading-state`.
+	// A query the render starts and never awaits, which has not settled when the render ends: Kit
+	// leaves it for the client to fetch, and the fork streams it after the page. Kit's
+	// `remote/query-loading-state`. See spec/framework.md, "What a render left unsettled is streamed
+	// after the page".
+	'src/routes/slow/+page.svelte':
+		'<script>import { getSlow } from \'../data.remote\'; const slow = getSlow();</script>{#if slow.loading}<p id="slow">loading</p>{:else}<p id="slow">{slow.current}</p>{/if}',
 	'src/routes/once/count.js':
 		'let n = 0;\nexport async function next(path) { n += 1; return `${path}:${n}`; }',
 	'src/routes/once/+page.svelte':
@@ -335,6 +356,7 @@ const REMOTE_URLS = [
 	'/caught',
 	'/each',
 	'/once',
+	'/slow',
 ];
 
 describe('a remote function answers as it does in Kit', () => {
@@ -355,6 +377,17 @@ describe('a remote function answers as it does in Kit', () => {
 	it('/form', () => {
 		expect(kitRemote['/form']).toContain('Description: nested');
 		expect(oursRemote['/form']).toBe(kitRemote['/form']);
+	});
+
+	it('/slow, streamed after the page and otherwise as Kit wrote it', () => {
+		const streamed = streamedIn(oursRemote['/slow'] ?? '');
+		expect(streamed).toHaveLength(1);
+		expect(streamed[0]?.[0]).toBe('q');
+		expect(oursRemote['/slow']).toContain('(app) => ({v:"slow data"})');
+		expect(kitRemote['/slow']).not.toContain('slow data');
+		expect(withoutStreamed(oursRemote['/slow'] ?? '', streamed)).toBe(
+			withoutStreamed(kitRemote['/slow'] ?? '', streamed),
+		);
 	});
 
 	it('/once', () => {

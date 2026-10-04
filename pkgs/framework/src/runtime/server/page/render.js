@@ -33,6 +33,8 @@ import Root from '../../components/root.svelte';
 import { render } from 'svelte/server';
 import { Props, RenderNode } from '../../props.svelte.js';
 import { has_custom_transporters, uneval } from '#app/internal/transport';
+// seam: what a render left unsettled follows the page. See FORK.md.
+import { streaming } from '@seam-js/stream';
 import { manifest } from '../internal.js';
 import { options } from '<sveltekit:generated>/server.js';
 import * as e from '../../../messages/server-errors.js';
@@ -339,6 +341,9 @@ export async function render_response({
 
 	const global = __SVELTEKIT_GLOBAL_NAME__;
 	const { data, chunks } = data_serializer.get_data(csp);
+	// seam: what a render left unsettled follows the page. See FORK.md.
+	/** @type {import('@seam-js/stream').Streaming | undefined} */
+	let streamed;
 
 	if (page_config.ssr && page_config.csr) {
 		body += `\n\t\t\t${fetched
@@ -507,12 +512,27 @@ export async function render_response({
 			args.push(`{\n${indent}\t${hydrate.join(`,\n${indent}\t`)}\n${indent}}`);
 		}
 
-		const remote_data = await collect_remote_data({}, event, state);
+		// seam: what a render left unsettled follows the page. See FORK.md.
+		if (!state.prerendering && !csp.script_needs_hash) {
+			streamed = streaming({
+				global,
+				open: `<script${csp.script_needs_nonce ? ` nonce="${csp.nonce}"` : ''}>`,
+				uneval: (value) => uneval(value),
+				convert: async (error) =>
+					isRedirect(error) ? null : handle_error_and_jsonify(event, state, error)
+			});
+		}
+
+		const remote_data = await collect_remote_data({}, event, state, streamed);
 
 		const serialized_data =
 			Object.keys(remote_data).length > 0
 				? `${global}.data = ${uneval(remote_data)};\n\n\t\t\t\t\t\t`
 				: '';
+
+		// seam: what a render left unsettled follows the page. See FORK.md.
+		const declared = streamed?.declare(remote_data) ?? '';
+		if (declared) blocks.push(declared);
 
 		// `client.app` is a proxy for `bundleStrategy === 'split'`
 		const boot = client.inline
@@ -620,7 +640,10 @@ export async function render_response({
 			done: true
 		})) || '';
 
-	if (!chunks) {
+	// seam: what a render left unsettled follows the page. See FORK.md.
+	const sent = streamed?.with(chunks) ?? chunks;
+
+	if (!sent) {
 		headers.set('etag', `"${hash(transformed)}"`);
 	}
 
@@ -636,8 +659,8 @@ export async function render_response({
 		}
 	}
 
-	return chunks
-		? new Response(stream_text(transformed + '\n', chunks), { status, headers })
+	return sent
+		? new Response(stream_text(transformed + '\n', sent), { status, headers })
 		: text(transformed, { status, headers });
 }
 

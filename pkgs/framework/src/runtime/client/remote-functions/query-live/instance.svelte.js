@@ -1,4 +1,6 @@
-import { query_responses, handle_error } from '../../client.js';
+import { query_responses, handle_error, app } from '../../client.js';
+// seam: what a render left unsettled follows the page. See FORK.md.
+import { later } from '@seam-js/stream/client';
 import { HttpError, Redirect, HandledHttpError } from '@sveltejs/kit/internal';
 import { noop, once } from '../../../../utils/functions.js';
 import { with_resolvers } from '../../../../utils/promise.js';
@@ -88,7 +90,13 @@ export class LiveQuery {
 			const node = query_responses[key];
 			delete query_responses[key];
 
-			if (node.e) {
+			// seam: a first value the page declared as coming fills the query in as it arrives,
+			// unless the connection has delivered one already. See FORK.md.
+			if (node.streamed) {
+				later(node.streamed, () => app, (streamed) => {
+					if (!this.#ready && this.#error === undefined && 'v' in streamed) this.set(streamed.v);
+				});
+			} else if (node.e) {
 				// the query failed during SSR — seed the failed state (mirroring `fail()`,
 				// minus its terminal `#done`), so the main loop still connects as usual
 				// and the query can recover

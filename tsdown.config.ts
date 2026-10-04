@@ -14,6 +14,7 @@ const PUBLISHED = [
 	'lowering',
 	'routes',
 	'skeleton',
+	'stream',
 	'plugin',
 	'create',
 ];

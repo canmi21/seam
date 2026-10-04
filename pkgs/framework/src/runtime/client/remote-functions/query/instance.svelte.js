@@ -1,5 +1,7 @@
 /** @import { HttpError } from '@sveltejs/kit' */
-import { query_responses, handle_error } from '../../client.js';
+import { query_responses, handle_error, app } from '../../client.js';
+// seam: what a render left unsettled follows the page. See FORK.md.
+import { first } from '@seam-js/stream/client';
 import { HandledHttpError } from '@sveltejs/kit/internal';
 import { QUERY_OVERRIDE_KEY } from '../shared.svelte.js';
 import { noop } from '../../../../utils/functions.js';
@@ -79,7 +81,10 @@ export class Query {
 			const node = query_responses[key];
 			delete query_responses[key];
 
-			if (node.e) {
+			// seam: a value the page declared as coming is waited for, not fetched. See FORK.md.
+			if (node.streamed) {
+				this.#fn = first(node.streamed, () => app, fn, (error) => new HandledHttpError(error));
+			} else if (node.e) {
 				this.fail(new HandledHttpError(node.e));
 			} else {
 				this.set(/** @type {T} */ (node.v));

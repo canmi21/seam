@@ -358,8 +358,9 @@ async function handle_remote_call_internal(event, state, id) {
  * @param {RemoteFunctionData} data
  * @param {RequestEvent} event
  * @param {RequestState} state
+ * @param {import('@seam-js/stream').Streaming} [streamed] seam: what is left unsettled follows the page. See FORK.md.
  */
-export async function collect_remote_data(data, event, state) {
+export async function collect_remote_data(data, event, state, streamed) {
 	/**
 	 *
 	 * @param {unknown} error
@@ -451,6 +452,9 @@ export async function collect_remote_data(data, event, state) {
 				);
 
 				const promise = state.remote.data?.get(internals)?.[key] ?? record[key]();
+
+				// seam: what is left unsettled follows the page. See FORK.md.
+				streamed?.add(type, remote_key, promise);
 
 				// If the promise is still pending (e.g. the query was rendered in its loading
 				// state during SSR), omit it from the payload entirely so that the client

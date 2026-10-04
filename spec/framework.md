@@ -74,6 +74,50 @@ why -- and a change not listed there is a defect. Upgrading is: take the new tag
 as `VENDOR.md` says, merge `vendor/kit`'s diff from the old tag to the new into the fork, and run
 the checks.
 
+## What a render left unsettled is streamed after the page
+
+The fork's first change to what Kit does, and a declared difference
+([conformance.md](conformance.md), "Declared differences").
+
+**Kit writes into a page only the queries that have settled when its render ends**, racing each
+against one microtask (`collect_remote_data`, "the implicit 'still loading' heuristic"), and leaves
+the rest for the client to fetch once it hydrates. So a query the page reads for `.loading` or
+`.current` and never awaits costs a second request whenever it is slower than the render, and the
+bytes depend on how many turns the render took: a page this framework injects in one synchronous
+pass ends earlier than Svelte's render does, and lost a live query's first value Kit's kept.
+
+**Here the rest follow the page in the same response.** Each query (`q`) and live query's first
+value (`l`) the render started and Kit did not write is streamed as it settles, in a script of its
+own after the page, and the client's query waits for it instead of fetching. The page is sent
+first, unchanged but for one declaration in its boot script; the response stays open until the
+last of them settles. The logic is `@seam-js/stream`; the fork calls it at the points
+`pkgs/framework/FORK.md` lists.
+
+- **What the page declares.** A script ahead of the boot script's own import, so that a value
+  arriving before Kit's client has loaded is held rather than lost: `${global}.streamed`, a promise
+  per entry by type and key, and `${global}.settle(id, fn)`, which resolves one.
+- **What follows.** `<script>${global}.settle(id, (app) => node)</script>` per entry, with the
+  page's nonce, `node` written by Kit's own serializer and as Kit writes a settled one: `{ v }`,
+  or `{ e }` made by `handle_error_and_jsonify`. `null` hands the entry to the client to fetch, as
+  Kit hands it at once: a redirect, which Kit does not write either, a value the serializer
+  refuses, and one not settled within ten seconds of the page -- a live query that never yields
+  would otherwise hold the response open for as long as it lasted.
+- **What the client does.** `_start` puts each declared entry where Kit puts the written ones, as
+  `{ streamed }` beside `{ v }` and `{ e }`. A query's first run waits for it instead of fetching, and
+  comes out as a written one would: the value, or the error as a `HandledHttpError`. A live query
+  connects whether or not it has a value, as Kit's does after a written one, and takes the streamed
+  value only where the connection has not delivered one first.
+- **Where it is off.** A page being prerendered, which is a file and not a response; and a page
+  whose content security policy allows scripts by hash, since a script after the headers cannot be
+  hashed into them. A form's output (`f`) and a prerendered function (`p`) are left as Kit leaves
+  them.
+
+**What it costs.** The client runtime is Kit's with these call points in it, so every chunk that
+carries it is a different file under a different name from Kit's own, on every page of every app;
+`mise run compare` holds those apart and every other file to Kit's ([conformance.md](conformance.md)).
+And a slow query holds the response open where Kit's would have closed, which is the trade: the
+client does not ask again for what the server was already computing.
+
 ## What SvelteKit is, seen from here
 
 Three layers. A `sync` step at build time reads `src/routes` into a manifest and generates code

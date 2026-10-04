@@ -24,6 +24,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { streamedIn, withoutStreamed } from '@seam-js/stream/fold';
 import { bin, pkg, stage, staged, type Staged } from './stage.ts';
 
 function argument(name: string): string | undefined {
@@ -167,7 +168,8 @@ function kitSource(text: string): string {
  * nothing but the list between them is sorted: the chunks a page preloads stay in its order.
  */
 function listed(text: string): string {
-	const chunk = /_app\/immutable\/chunks\/[A-Za-z0-9_-]{8}\.js/g;
+	// A name, or the placeholder a chunk carrying the fork's client call points is read as.
+	const chunk = /_app\/immutable\/chunks\/(?:[A-Za-z0-9_-]{8}|<client>)\.js/g;
 	const between = /^"[\s{},]*"path":\s*"$/;
 	const found = [...text.matchAll(chunk)];
 	let out = '';
@@ -203,6 +205,32 @@ function versionOf(dir: string): string | null {
 		: null;
 }
 
+/**
+ * A chunk's imports by the names the module reads them under, in order, without the names the
+ * bundler gave them on the way out of the chunk they come from: `import { N as load_css }`. Those
+ * are its own mangling of that chunk's exports and follow its content, so a chunk carrying the
+ * fork's client call points renames them for every chunk importing from it, whose code is otherwise
+ * Kit's. What the module does with them is in its body, under the names kept here.
+ */
+function imported(text: string): string {
+	return text.replace(
+		/import \{([^}]*)\} from/g,
+		(_, list: string) =>
+			`import { ${list
+				.split(',')
+				.map(
+					(one) =>
+						one
+							.trim()
+							.split(/\s+as\s+/)
+							.at(-1) ?? '',
+				)
+				.filter((one) => one !== '')
+				.toSorted()
+				.join(', ')} } from`,
+	);
+}
+
 /** A client file's name, as `[prefix.]<hash>.<extension>`, with the bundler's eight-character hash. */
 const HASHED = /^(?:(.+)\.)?([A-Za-z0-9_-]{8})\.([a-z0-9]+(?:\.map)?)$/;
 
@@ -235,7 +263,7 @@ function clientFiles(dir: string): Map<string, string> {
 function paired(
 	kitDir: string,
 	seamDir: string,
-): { names: Map<string, string>; unpaired: string[] } {
+): { names: Map<string, string>; kitNames: Map<string, string>; unpaired: string[] } {
 	interface Hashed {
 		hash: string;
 		shape: string;
@@ -251,7 +279,7 @@ function paired(
 			const shape = `${path.slice(0, -name.length)}${at[1] ?? ''}.${at[3] ?? ''}`;
 			// What the pages are read without, which a client file holds too: the version, and the
 			// global Kit names after it.
-			const normalized = kitSource(content)
+			const normalized = imported(kitSource(content))
 				.replaceAll(version ?? '\0', '<version>')
 				.replace(/__sveltekit_[a-z0-9]+/g, '__sveltekit_<hash>');
 			found.push({ hash: at[2] ?? '', shape, content: normalized });
@@ -306,7 +334,13 @@ function paired(
 		if (left.length === 0) continue;
 		const match = (theirs.get(key) ?? []).filter((one) => !known.has(one.hash));
 		if (match.length !== left.length) {
-			unpaired.push(`${key.split('\n')[0] ?? ''} (${left.map((one) => one.hash).join(', ')})`);
+			// A file holding the fork's client call points differs from Kit's by them, as declared:
+			// it and whatever of Kit's is left stand as one placeholder, so a page still has to name
+			// it where Kit's names its own. Anything else unmatched is a difference.
+			for (const one of left) {
+				if (one.content.includes(CLIENT_MARK)) names.set(one.hash, CLIENT);
+				else unpaired.push(`${key.split('\n')[0] ?? ''} (${one.hash})`);
+			}
 			continue;
 		}
 		const sorted = match.map((one) => one.hash).toSorted();
@@ -315,13 +349,41 @@ function paired(
 			.toSorted()
 			.forEach((one, i) => names.set(one, sorted[i] ?? one));
 	}
-	return { names, unpaired };
+	const kitNames = new Map(
+		kit.filter((one) => !known.has(one.hash)).map((one): [string, string] => [one.hash, CLIENT]),
+	);
+	return { names, kitNames, unpaired };
+}
+
+/**
+ * What the fork's client call points carry into a chunk, which Kit's own client never says: the
+ * property the page's declaration of what is coming is read from. See spec/conformance.md,
+ * "Declared differences".
+ */
+const CLIENT_MARK = 'streamed';
+
+/** The name a chunk holding the fork's client call points, or Kit's one standing for it, is read as. */
+const CLIENT = '<client>';
+
+/**
+ * A client inlined into the page's boot script (`bundleStrategy: 'inline'`, as `options-3` builds),
+ * read as the placeholder a chunk carrying the fork's client call points is read as: there the
+ * whole of the client is one script in every page, and the call points are in it. Kit's is read so
+ * wherever it is; ours only where it carries them, and is otherwise left to differ.
+ */
+function inlined(text: string, carrying: boolean): string {
+	return text.replace(
+		/(document\.currentScript\.parentElement;\n\n\t{5})([\s\S]*?\/\/# sourceMappingURL=bundle\.[^\n]*?\.js\.map)/,
+		(whole, before: string, client: string) =>
+			carrying && !client.includes(CLIENT_MARK) ? whole : `${before}${CLIENT}`,
+	);
 }
 
 /** What two builds of one app differ in by construction, written out of an answer. */
 function normaliser(
 	dir: string,
 	names: ReadonlyMap<string, string> = new Map(),
+	ours = false,
 ): (answer: Answer) => string {
 	const version = versionOf(dir);
 	const renamed = (text: string): string => {
@@ -329,26 +391,29 @@ function normaliser(
 		return text.replace(/[A-Za-z0-9_-]{8}/g, (one) => names.get(one) ?? one);
 	};
 	return ({ status, location, type, body }) =>
-		listed(kitSource(renamed([status, location, type, body].join('\n'))))
-			.replaceAll(version ?? '\0', '<version>')
-			.replace(/__sveltekit_[a-z0-9]+/g, '__sveltekit_<hash>')
-			// The two servers listen on two ports, and a page may write the URL it was asked at.
-			.replace(/localhost:479[123]/g, 'localhost:<port>')
-			// What the app's own `load` functions read of the clock and of `Math.random()`, which
-			// differs between any two answers and is not the render's.
-			.replace(/\b1\d{12}\b/g, '<time>')
-			.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g, '<date>')
-			.replace(/(?<!\d)0?\.\d{9,}/g, '<random>')
-			// A content security policy's nonce, which Kit makes per request.
-			.replace(/nonce="[A-Za-z0-9+/=]+"/g, 'nonce="<nonce>"')
-			// A hashed file name, under `_app/immutable` or wherever an inlined bundle names its map.
-			// From the start of a name and no longer than one: unanchored, `[\w-]+` was retried from
-			// every position of a long run of word characters, which held a run of `basics` at full
-			// CPU for half an hour and was taken at first for a page that never answered.
-			.replace(
-				/(?<![\w-])([\w-]{1,120})\.[A-Za-z0-9_-]{8}\.(js\.map|js|css|svg|png|jpe?g|woff2?)\b/g,
-				'$1.<hash>.$2',
-			);
+		inlined(
+			listed(kitSource(renamed([status, location, type, body].join('\n'))))
+				.replaceAll(version ?? '\0', '<version>')
+				.replace(/__sveltekit_[a-z0-9]+/g, '__sveltekit_<hash>')
+				// The two servers listen on two ports, and a page may write the URL it was asked at.
+				.replace(/localhost:479[123]/g, 'localhost:<port>')
+				// What the app's own `load` functions read of the clock and of `Math.random()`, which
+				// differs between any two answers and is not the render's.
+				.replace(/\b1\d{12}\b/g, '<time>')
+				.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g, '<date>')
+				.replace(/(?<!\d)0?\.\d{9,}/g, '<random>')
+				// A content security policy's nonce, which Kit makes per request.
+				.replace(/nonce="[A-Za-z0-9+/=]+"/g, 'nonce="<nonce>"')
+				// A hashed file name, under `_app/immutable` or wherever an inlined bundle names its map.
+				// From the start of a name and no longer than one: unanchored, `[\w-]+` was retried from
+				// every position of a long run of word characters, which held a run of `basics` at full
+				// CPU for half an hour and was taken at first for a page that never answered.
+				.replace(
+					/(?<![\w-])([\w-]{1,120})\.[A-Za-z0-9_-]{8}\.(js\.map|js|css|svg|png|jpe?g|woff2?)\b/g,
+					'$1.<hash>.$2',
+				),
+			ours,
+		);
 }
 
 /** Where two answers part, with a little on either side. */
@@ -396,6 +461,8 @@ const seamPort = 4792;
 const againPort = 4793;
 const servers: ChildProcess[] = [];
 const same: string[] = [];
+/** The same once what was streamed after the page is taken out: a declared difference, and only that. */
+const declared: string[] = [];
 /** Kit's two answers differ, and ours is one of them: a clock or a counter both servers keep. */
 const unstable: string[] = [];
 /** Kit's two answers differ, and ours is neither: not settled by this comparison. */
@@ -407,18 +474,28 @@ try {
 	servers.push(await preview(plain, kitPort));
 	servers.push(await preview(ours, seamPort));
 	servers.push(await preview(plain, againPort));
-	const kitText = normaliser(plain.dir);
-	const { names, unpaired } = paired(plain.dir, ours.dir);
+	const { names, kitNames, unpaired } = paired(plain.dir, ours.dir);
 	clientDiffers = unpaired;
-	const seamText = normaliser(ours.dir, names);
+	const kitText = normaliser(plain.dir, kitNames);
+	const seamText = normaliser(ours.dir, names, true);
 	for (const url of urls) {
-		const first = kitText(await ask(kitPort, url));
-		const seam = seamText(await ask(seamPort, url));
-		const again = kitText(await ask(againPort, url));
+		const kitFirst = await ask(kitPort, url);
+		const seamAnswer = await ask(seamPort, url);
+		const kitAgain = await ask(againPort, url);
+		// What the page streamed after it, taken out of all three: the one declared difference a
+		// page's own bytes may carry. See spec/conformance.md, "Declared differences".
+		const streamed = streamedIn(seamAnswer.body);
+		const bare = (answer: Answer): Answer => ({
+			...answer,
+			body: withoutStreamed(answer.body, streamed),
+		});
+		const first = kitText(bare(kitFirst));
+		const seam = seamText(bare(seamAnswer));
+		const again = kitText(bare(kitAgain));
 		if (first !== again) {
 			if (seam === first || seam === again) unstable.push(url);
 			else unsettled.push({ url, kit: first, seam });
-		} else if (first === seam) same.push(url);
+		} else if (first === seam) (streamed.length > 0 ? declared : same).push(url);
 		else differ.push({ url, kit: first, seam });
 	}
 } finally {
@@ -435,12 +512,13 @@ unsettled.forEach((one, i) => {
 });
 writeFileSync(
 	resolve(out, 'summary.json'),
-	`${JSON.stringify({ same, unstable, unsettled: unsettled.map((one) => one.url), differ: differ.map((one) => one.url), clientDiffers }, null, '\t')}\n`,
+	`${JSON.stringify({ same, declared, unstable, unsettled: unsettled.map((one) => one.url), differ: differ.map((one) => one.url), clientDiffers }, null, '\t')}\n`,
 );
 for (const one of differ.slice(0, 20)) console.log(`\n${one.url}\n${parting(one.kit, one.seam)}`);
 for (const one of clientDiffers) console.log(`client file with no match in Kit's build: ${one}`);
 console.log(
-	`\n${String(urls.length)} URLs: ${String(same.length)} the same, ${String(differ.length)} different; ` +
+	`\n${String(urls.length)} URLs: ${String(same.length)} the same, ` +
+		`${String(declared.length)} the same but for what they streamed, ${String(differ.length)} different; ` +
 		`${String(unstable.length + unsettled.length)} unstable in Kit's own answers, of which ours matched ` +
 		`one of Kit's for ${String(unstable.length)} and neither for ${String(unsettled.length)}. ` +
 		`Each difference is in ${out}`,

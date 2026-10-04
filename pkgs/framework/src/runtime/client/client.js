@@ -70,6 +70,8 @@ import * as e from '../../messages/client-errors.js';
 import * as w from '../../messages/client-warnings.js';
 import * as shared_errors from '../../messages/shared-errors.js';
 import { capture_error } from '../../messages/internal/shared.js';
+// seam: what a render left unsettled follows the page. See FORK.md.
+import { seeded } from '@seam-js/stream/client';
 
 /**
  * @typedef {{
@@ -469,6 +471,9 @@ async function _start(_app, _target, data) {
 		for (const k in f) query_responses[k] = f[k];
 		for (const k in p) prerender_responses[k] = p[k];
 	}
+
+	// seam: what a render left unsettled follows the page. See FORK.md.
+	seeded(payload, query_responses);
 
 	// detect basic auth credentials in the current URL
 	// https://github.com/sveltejs/kit/pull/11179
