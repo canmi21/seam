@@ -47,6 +47,12 @@ description = "Build one of SvelteKit's own test apps with the plugin and run Ki
 # is read against. Not part of `verify` yet; see spec/conformance.md, "Stage 2".
 run = "NODE_ENV=production node pkgs/apps/src/run.ts"
 
+[tasks.compare]
+description = "Build one of SvelteKit's own test apps with and without the plugin and diff every page's response"
+# `mise run compare -- --app=basics`. The URLs are every page route Kit's own build lists and every
+# path the app's specs name; see spec/conformance.md, "Stage 2". Not part of `verify` yet.
+run = "NODE_ENV=production node pkgs/apps/src/compare.ts"
+
 [tasks.test-vendor]
 description = "Run SvelteKit's own checks over the vendored source, upstream's Node half"
 # From the vendor directory, under its own config: the repository's `test` does not include it,

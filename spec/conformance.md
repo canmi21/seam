@@ -269,6 +269,34 @@ compiled every one of the app's routes, which is what found the compiler work
 [framework.md](framework.md)'s step four records. `client.test.js` and `test.js` are next, then
 the other twelve apps.
 
+**The server specs barely look at a page, so every page is compared instead.** Of `server.test.js`'s
+fifteen, eleven ask for an endpoint, a static file, a redirect or a status, and four render a page.
+`mise run compare -- --app=basics` builds the app as Kit alone does and with the plugin, serves the
+first twice and the second once, and asks all three for every page route Kit's own manifest lists
+and every path the app's specs name, once each and in the same order, so a counter several routes
+share stands at the same value on all three. What two builds differ in by construction -- the
+version, the client's file hashes, the port -- and what a `load` reads of the clock or of
+`Math.random()` are written out first; an answer whose two Kit servers still disagree is unstable
+and not compared.
+
+At `3.0.0`, over 607 URLs: **602 the same bytes, 4 different, 1 unstable** (`/endpoint-output/stream`,
+an endpoint writing random bytes). The four are three causes, each owed:
+
+- **`$app/paths`'s `resolve` writes an absolute path where Kit writes a relative one**
+  (`/data-sveltekit/preload-data/repeat` and its `target`). Kit's server `resolve` reads the request
+  out of its request store and, with `paths.relative` on, which is the default, prefixes `..` per
+  segment of the URL being answered; the carried stand-in writes `base` and has no request.
+- **A store imported from a relative module and read as `$store` is neither compiled nor refused**
+  (`/load/invalidation/multiple/redirect`). The page reads `$redirect_state` from `../state.js`; the
+  compile wrote the name into a derivation unbound, and the request throws `ReferenceError`. It
+  breaks "Every identifier resolves, or it is refused" in [derivation.md](derivation.md).
+- **A component a `load` returns** (`/load/dynamic-import-styles`: `<svelte:component this={data.Thing} />`,
+  `Thing` from `import('./_/Thing.svelte')` in `+page.js`). No name in the component's source
+  reaches it, and handing a value to Svelte's renderer per request is the one thing compile-time
+  rendering does not do, so the request throws the unnamed-component error. The `load` module does
+  name it, statically; whether the compile reads the load stage's imports to find it, or the page
+  waits for the second mode, is not decided.
+
 ## Stage 3: an application written for Kit, moved
 
 Not started, and not scheduled. press is the application: a real site whose components were
