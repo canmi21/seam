@@ -137,8 +137,8 @@ function within(
 	request: object,
 	locals: Record<string, unknown>,
 	code: string,
-) => Promise<unknown> {
-	const made = new Map<string, (scope: object) => Promise<unknown>>();
+) => unknown {
+	const made = new Map<string, (scope: object) => unknown>();
 	return (chain, data, request, locals, code) => {
 		const layers: object[] = [
 			locals,
@@ -160,11 +160,13 @@ function within(
 		);
 		let run = made.get(code);
 		if (run === undefined) {
+			// `async` only where the piece awaits: a value read per item of an each is handed back as
+			// itself, not as a promise of it.
+			const body = /\bawait\b/.test(code)
+				? `return (async () => { with ($within) { return (${code}); } })();`
+				: `with ($within) { return (${code}); }`;
 			// eslint-disable-next-line no-new-func
-			run = new Function(
-				'$within',
-				`return (async () => { with ($within) { return (${code}); } })();`,
-			) as (scope: object) => Promise<unknown>;
+			run = new Function('$within', body) as (scope: object) => unknown;
 			made.set(code, run);
 		}
 		return run(scope);

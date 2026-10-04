@@ -167,9 +167,15 @@ export function boundary(
 		// which is where the chain would have stood, handed what the run binds around it. It goes
 		// as source, its types already taken off, since a `with` written into the derivation made
 		// TypeScript's stripper give up on the whole of it. See `within` in the derive package.
-		if (awaiting(plain) && files !== undefined && files.length > 0) {
+		// And so is one reading a name the run binds, an each's item, which is a value per iteration
+		// rather than one a held reference could stand for: inlined bare, a child's
+		// `as_value_form.for(value.id)` looked `as_value_form` up in the layout. Kit's
+		// `remote/form/as-value`.
+		const local = inScope.size > 0 && mentions(plain, inScope);
+		if ((awaiting(plain) || local) && files !== undefined && files.length > 0) {
 			const locals = `{ ${[...inScope].join(', ')} }`;
-			return `(await $$within(${JSON.stringify(files)}, $scope, $request, ${locals}, ${JSON.stringify(untyped(plain))}))`;
+			const read = `$$within(${JSON.stringify(files)}, $scope, $request, ${locals}, ${JSON.stringify(untyped(plain))})`;
+			return awaiting(plain) ? `(await ${read})` : `(${read})`;
 		}
 		if (awaiting(plain) || (inScope.size > 0 && mentions(plain, inScope))) {
 			return `(${plain})`;

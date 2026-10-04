@@ -220,7 +220,7 @@ const remoteFiles: Record<string, string> = {
 	'src/app.html':
 		'<!doctype html><html lang="en"><head>%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>',
 	'src/routes/data.remote.js':
-		"import { form, query } from '$app/server';\nimport { error, redirect } from '@sveltejs/kit';\nexport const away = query(() => { redirect(307, '/fine'); });\nexport const missing = query(async () => { error(404, 'Not found'); });\nexport const getCount = query(async () => 42);\nexport const greet = query('unchecked', async (name) => `hello ${name}`);\nexport const editData = form('unchecked', async (data) => data);",
+		"import { form, query } from '$app/server';\nimport { error, redirect } from '@sveltejs/kit';\nexport const away = query(() => { redirect(307, '/fine'); });\nexport const missing = query(async () => { error(404, 'Not found'); });\nexport const getRows = query(async () => [{ id: 'a', text: 'one' }, { id: 'b', text: 'two' }]);\nexport const getCount = query(async () => 42);\nexport const greet = query('unchecked', async (name) => `hello ${name}`);\nexport const editData = form('unchecked', async (data) => data);",
 	// Components that throw from the top of their script, every request: Kit's `async` app's
 	// `server-error-boundary`, whose page, layout and nested page each do, caught by the boundary of
 	// the level Kit's root puts round them; and a page whose own error page throws, which renders
@@ -239,6 +239,13 @@ const remoteFiles: Record<string, string> = {
 		"<script>import { page } from '$app/state'; let { error } = $props();</script><p id=\"nested\">{error.message} | {page.error?.message === error.message} | {page.status}</p>",
 	'src/routes/seb/nested/+page.svelte': "<script>throw new Error('nested render error');</script><h1>never</h1>",
 	'src/routes/fine/+page.svelte': '<p>fine</p>',
+	// A child called per item, reading its own import of a remote form with the item: inside the
+	// run of Kit's root boundary the read is a value per item, which was inlined where the child's
+	// import is not. Kit's `remote/form/as-value`.
+	'src/routes/each/Row.svelte':
+		"<script lang=\"ts\">import { editData, type getRows } from '../data.remote'; const { value }: { value: { id: string; text: string } } = $props(); const form = $derived(editData.for(value.id));</script><form class=\"form\" {...form}><input {...form.fields.name.as('text', value.text)} /><select {...form.fields.description.as('select', value.text)}><option>one</option><option>two</option></select></form>",
+	'src/routes/each/+page.svelte':
+		"<script>import Row from './Row.svelte'; import { getRows } from '../data.remote'; const values = $derived(await getRows());</script>{#each values as value (value.id)}<div>{value.text}</div>{/each}<div>{#each values as value (value.id)}<Row {value} />{/each}</div>",
 	// A query that rejects inside the page's own boundary, which is inside the one Kit's root puts
 	// at the level: the page's boundary takes its `failed` branch. Kit's `remote/batch-ssr`.
 	'src/routes/caught/+page.svelte':
@@ -278,6 +285,7 @@ const REMOTE_URLS = [
 	'/shadow',
 	'/away',
 	'/caught',
+	'/each',
 ];
 
 describe('a remote function answers as it does in Kit', () => {
@@ -309,6 +317,7 @@ describe('a remote function answers as it does in Kit', () => {
 		'/shadow',
 		'/away',
 		'/caught',
+		'/each',
 	])(
 		'%s',
 		(url) => {

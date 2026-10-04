@@ -312,7 +312,10 @@ run binds around it, the request's own, the data, the child's files, then the de
 scopes. As source rather than inside a `with` written into the derivation, because TypeScript's
 stripper refuses a `with` and gave up on the whole derivation, which kept its annotations and
 stopped at the first colon -- Kit's `/remote`, written in TypeScript. The source has its types
-taken off before it is quoted. And the throw
+taken off before it is quoted. **A value reading a name the run binds goes the same way**, an each's
+item handed in among the run's own: a child's select spread inside an `{#each}`, whose `multiple`
+test reads `form.for(value.id)`, looked the child's import up in the layout. Kit's
+`remote/form/as-value`. `derive` evaluates the piece `async` only where it awaits. And the throw
 reaches `transformError` as the author threw it: a held reference is a derivation, and `derive`
 wraps what one throws in a `DerivationFailed` naming the source, which `caught` takes off by its
 name -- by name, because it is carried into the bundle and shares no `Error` to test against.
