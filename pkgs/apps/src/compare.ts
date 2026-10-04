@@ -14,7 +14,7 @@
  * each build by and the hashes in the client's file names, is written out before comparing.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { bin, pkg, stage, staged, type Staged } from './stage.ts';
@@ -27,7 +27,8 @@ const app = argument('app') ?? 'basics';
 const out = resolve(pkg, '.build-apps/compare', app);
 
 function build(built: Staged, log: string): void {
-	const ran = spawnSync(resolve(bin, 'vite'), ['build', '--config', built.viteConfig], {
+	const mode = built.mode === undefined ? [] : ['--mode', built.mode];
+	const ran = spawnSync(resolve(bin, 'vite'), ['build', '--config', built.viteConfig, ...mode], {
 		cwd: built.dir,
 		env: built.env,
 		encoding: 'utf8',
@@ -38,21 +39,30 @@ function build(built: Staged, log: string): void {
 }
 
 async function preview(built: Staged, port: number): Promise<ChildProcess> {
+	// A server already there would answer for this one, and the comparison would be of its app: a
+	// run that crashed once left three behind, and every app after it was compared against them.
+	if (await answers(port)) throw new Error(`something already listens on ${String(port)}`);
 	const child = spawn(
 		resolve(bin, 'vite'),
 		['preview', '--config', built.viteConfig, '--port', String(port), '--strictPort'],
 		{ cwd: built.dir, env: built.env, stdio: 'ignore' },
 	);
 	for (let i = 0; i < 100; i += 1) {
-		try {
-			await fetch(`http://localhost:${String(port)}/`, { redirect: 'manual' });
-			return child;
-		} catch {
-			await new Promise((done) => setTimeout(done, 100));
-		}
+		if (child.exitCode !== null) break;
+		if (await answers(port)) return child;
+		await new Promise((done) => setTimeout(done, 100));
 	}
 	child.kill();
 	throw new Error(`the preview on ${String(port)} did not answer`);
+}
+
+async function answers(port: number): Promise<boolean> {
+	try {
+		await fetch(`http://localhost:${String(port)}/`, { redirect: 'manual' });
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 /** A route id with every parameter given a value, which is a URL some request could ask for. */
@@ -119,17 +129,26 @@ async function ask(port: number, url: string): Promise<Answer> {
 	}
 }
 
+/** Kit's `outDir` for an app, which `options` moves to `.custom-out-dir`: the one holding a build. */
+function outDir(dir: string): string {
+	const found = readdirSync(dir).find((one) =>
+		existsSync(resolve(dir, one, 'output/server/manifest-full.js')),
+	);
+	if (found === undefined) throw new Error(`no build under ${dir}`);
+	return resolve(dir, found);
+}
+
 /** What two builds of one app differ in by construction, written out of an answer. */
 function normaliser(dir: string): (answer: Answer) => string {
-	const version = (
-		JSON.parse(readFileSync(resolve(dir, '.svelte-kit/output/client/_app/version.json'), 'utf8')) as {
-			version: string;
-		}
-	).version;
+	// An app with no client at all -- `csr` off everywhere -- has no client build and no version file.
+	const file = resolve(outDir(dir), 'output/client/_app/version.json');
+	const version = existsSync(file)
+		? (JSON.parse(readFileSync(file, 'utf8')) as { version: string }).version
+		: null;
 	return ({ status, location, type, body }) =>
 		[status, location, type, body]
 			.join('\n')
-			.replaceAll(version, '<version>')
+			.replaceAll(version ?? '\0', '<version>')
 			.replace(/__sveltekit_[a-z0-9]+/g, '__sveltekit_<hash>')
 			// The two servers listen on two ports, and a page may write the URL it was asked at.
 			.replace(/localhost:479[123]/g, 'localhost:<port>')
@@ -138,7 +157,8 @@ function normaliser(dir: string): (answer: Answer) => string {
 			.replace(/\b1\d{12}\b/g, '<time>')
 			.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g, '<date>')
 			.replace(/(?<!\d)0?\.\d{9,}/g, '<random>')
-			.replace(/(_app\/immutable\/[^"'\s)]*?)\.[A-Za-z0-9_-]{8}\.(js|css|svg|png|jpe?g|woff2?)/g, '$1.<hash>.$2');
+			// A hashed file name, under `_app/immutable` or wherever an inlined bundle names its map.
+			.replace(/([\w-]+)\.[A-Za-z0-9_-]{8}\.(js\.map|js|css|svg|png|jpe?g|woff2?)\b/g, '$1.<hash>.$2');
 }
 
 /** Where two answers part, with a little on either side. */
@@ -165,7 +185,7 @@ if (reuse) {
 }
 
 const { manifest } = (await import(
-	pathToFileURL(resolve(plain.dir, '.svelte-kit/output/server/manifest-full.js')).href
+	pathToFileURL(resolve(outDir(plain.dir), 'output/server/manifest-full.js')).href
 )) as { manifest: { routes: { id: string; page: unknown }[] } };
 const pages = manifest.routes.filter((one) => one.page !== null).map((one) => urlOf(one.id));
 const urls = [...new Set([...pages, ...specURLs(plain.dir)])].toSorted();
@@ -173,13 +193,7 @@ const urls = [...new Set([...pages, ...specURLs(plain.dir)])].toSorted();
 const kitPort = 4791;
 const seamPort = 4792;
 const againPort = 4793;
-const servers = [
-	await preview(plain, kitPort),
-	await preview(ours, seamPort),
-	await preview(plain, againPort),
-];
-const kitText = normaliser(plain.dir);
-const seamText = normaliser(ours.dir);
+const servers: ChildProcess[] = [];
 const same: string[] = [];
 /** Kit's two answers differ, and ours is one of them: a clock or a counter both servers keep. */
 const unstable: string[] = [];
@@ -187,6 +201,11 @@ const unstable: string[] = [];
 const unsettled: { url: string; kit: string; seam: string }[] = [];
 const differ: { url: string; kit: string; seam: string }[] = [];
 try {
+	servers.push(await preview(plain, kitPort));
+	servers.push(await preview(ours, seamPort));
+	servers.push(await preview(plain, againPort));
+	const kitText = normaliser(plain.dir);
+	const seamText = normaliser(ours.dir);
 	for (const url of urls) {
 		const first = kitText(await ask(kitPort, url));
 		const seam = seamText(await ask(seamPort, url));

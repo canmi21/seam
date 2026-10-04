@@ -26,7 +26,8 @@ const app = argument('app') ?? 'basics';
 const spec = argument('spec');
 const plain = process.argv.includes('--plain');
 
-const { dir, viteConfig, env } = stage(app, plain);
+const { dir, viteConfig, mode, env } = stage(app, plain);
+const modeFlag = mode === undefined ? '' : ` --mode ${mode}`;
 
 // Kit's own `test:build`: `pnpm build && pnpm preview --port <port> --strictPort`.
 const playwrightConfig = 'playwright.seam.config.js';
@@ -41,7 +42,7 @@ writeFileSync(
 		'\t...base,',
 		'\twebServer: {',
 		'\t\t...base.webServer,',
-		`\t\tcommand: \`vite build --config ${viteConfig} && vite preview --config ${viteConfig} --port \${port} --strictPort\`,`,
+		`\t\tcommand: \`vite build --config ${viteConfig}${modeFlag} && vite preview --config ${viteConfig} --port \${port} --strictPort\`,`,
 		'\t},',
 		'};',
 		'',

@@ -199,6 +199,9 @@ importers:
       '@canmi/seamjs':
         specifier: workspace:*
         version: link:../plugin
+      '@fontsource/libre-barcode-128-text':
+        specifier: ^5.3.0
+        version: 5.3.0
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
@@ -211,6 +214,12 @@ importers:
       '@playwright/test':
         specifier: ^1.63.0
         version: 1.63.0
+      '@standard-schema/spec':
+        specifier: ^1.1.0
+        version: 1.1.0
+      '@sveltejs/adapter-node':
+        specifier: ^6.0.0
+        version: 6.0.0(@sveltejs/kit@vendor+kit)
       '@sveltejs/kit':
         specifier: workspace:*
         version: link:../../vendor/kit
@@ -220,6 +229,42 @@ importers:
       '@vitest/browser-playwright':
         specifier: ^5.0.3
         version: 5.0.3(playwright@1.63.0)(vite@8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1))(vitest@5.0.3)
+      e2e-test-dep-error:
+        specifier: file:../../vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+        version: e2e-test-dep-cjs-only@file:vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+      e2e-test-dep-hooks:
+        specifier: file:../../vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+        version: e2e-test-dep-cjs-only@file:vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+      e2e-test-dep-hooks-client:
+        specifier: file:../../vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+        version: e2e-test-dep-cjs-only@file:vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+      e2e-test-dep-layout-server:
+        specifier: file:../../vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+        version: e2e-test-dep-cjs-only@file:vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+      e2e-test-dep-layout-svelte:
+        specifier: file:../../vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+        version: e2e-test-dep-cjs-only@file:vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+      e2e-test-dep-layout-universal:
+        specifier: file:../../vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+        version: e2e-test-dep-cjs-only@file:vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+      e2e-test-dep-page-server:
+        specifier: file:../../vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+        version: e2e-test-dep-cjs-only@file:vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+      e2e-test-dep-page-svelte:
+        specifier: file:../../vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+        version: e2e-test-dep-cjs-only@file:vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+      e2e-test-dep-page-universal:
+        specifier: file:../../vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+        version: e2e-test-dep-cjs-only@file:vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+      e2e-test-dep-plain:
+        specifier: file:../../vendor/kit/test/apps/async/_test_dependencies/plain-lib
+        version: file:vendor/kit/test/apps/async/_test_dependencies/plain-lib
+      e2e-test-dep-remote:
+        specifier: file:../../vendor/kit/test/apps/async/_test_dependencies/remote-lib
+        version: file:vendor/kit/test/apps/async/_test_dependencies/remote-lib(@sveltejs/kit@vendor+kit)
+      e2e-test-dep-server:
+        specifier: file:../../vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
+        version: e2e-test-dep-cjs-only@file:vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only
       jsdom:
         specifier: ^30.1.1
         version: 30.1.1
@@ -232,6 +277,9 @@ importers:
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+      valibot:
+        specifier: ^1.5.0
+        version: 1.5.0(typescript@6.0.3)
       vite:
         specifier: ^8.3.2
         version: 8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1)
@@ -288,6 +336,8 @@ importers:
       svelte:
         specifier: ^5.57.1
         version: 5.57.1
+
+  pkgs/create: {}
 
   pkgs/derive:
     dependencies:
@@ -707,6 +757,9 @@ packages:
     peerDependenciesMeta:
       '@noble/hashes':
         optional: true
+
+  '@fontsource/libre-barcode-128-text@5.3.0':
+    resolution: {integrity: sha512-QHATuG1O7twkXA1yZxcgeYjH9kf6d/0YLzVRBgRhGH4yXzkD131OI1SHlwWn+h58BR0sfGpYTfB0eGfPfLBh6A==}
 
   '@grpc/grpc-js@1.14.5':
     resolution: {integrity: sha512-7VZM+SVdEcUUqSQeNI3zM8Qs/BhQKZndPo2h5VkYkAM8Iz0wJIa8mKV5ekQGqG8UUsnkQ0NMxIxwkIHYvj0qOw==}
@@ -1193,6 +1246,11 @@ packages:
     peerDependencies:
       acorn: ^8.9.0
 
+  '@sveltejs/adapter-node@6.0.0':
+    resolution: {integrity: sha512-s7muM4JmJ75OZ8o0G4VRhrEKdi8twuEm3t2o/qQsdlm12hKaX7S/CuUBuw3n983wB/IFBSpzG2ugX0xdGzbKwg==}
+    peerDependencies:
+      '@sveltejs/kit': ^3.0.0-next.0
+
   '@sveltejs/vite-plugin-svelte@7.3.1':
     resolution: {integrity: sha512-ZPsLN8B1e/En+Ak5s4V7srFDT532oS0qieLsQwu63NGKsS+iAjoO2Js1BochlHlglcU+Pt7WAO3C5Ee+4f6gVA==}
     engines: {node: ^20.19 || ^22.12 || >=24}
@@ -1643,6 +1701,17 @@ packages:
     peerDependenciesMeta:
       oxc-resolver:
         optional: true
+
+  e2e-test-dep-cjs-only@file:vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only:
+    resolution: {directory: vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only, type: directory}
+
+  e2e-test-dep-plain@file:vendor/kit/test/apps/async/_test_dependencies/plain-lib:
+    resolution: {directory: vendor/kit/test/apps/async/_test_dependencies/plain-lib, type: directory}
+
+  e2e-test-dep-remote@file:vendor/kit/test/apps/async/_test_dependencies/remote-lib:
+    resolution: {directory: vendor/kit/test/apps/async/_test_dependencies/remote-lib, type: directory}
+    peerDependencies:
+      '@sveltejs/kit': '*'
 
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
@@ -2389,6 +2458,8 @@ snapshots:
 
   '@exodus/bytes@1.16.0': {}
 
+  '@fontsource/libre-barcode-128-text@5.3.0': {}
+
   '@grpc/grpc-js@1.14.5':
     dependencies:
       '@grpc/proto-loader': 0.8.1
@@ -2815,6 +2886,10 @@ snapshots:
     dependencies:
       acorn: 8.18.0
 
+  '@sveltejs/adapter-node@6.0.0(@sveltejs/kit@vendor+kit)':
+    dependencies:
+      '@sveltejs/kit': link:vendor/kit
+
   '@sveltejs/vite-plugin-svelte@7.3.1(svelte@5.57.1)(vite@8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1))':
     dependencies:
       deepmerge: 4.3.1
@@ -3117,6 +3192,14 @@ snapshots:
   devalue@6.0.1: {}
 
   dts-resolver@3.0.0: {}
+
+  e2e-test-dep-cjs-only@file:vendor/kit/test/apps/dev-only/_test_dependencies/cjs-only: {}
+
+  e2e-test-dep-plain@file:vendor/kit/test/apps/async/_test_dependencies/plain-lib: {}
+
+  e2e-test-dep-remote@file:vendor/kit/test/apps/async/_test_dependencies/remote-lib(@sveltejs/kit@vendor+kit):
+    dependencies:
+      '@sveltejs/kit': link:vendor/kit
 
   emoji-regex@8.0.0: {}
 

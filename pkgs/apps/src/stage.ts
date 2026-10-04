@@ -9,7 +9,7 @@
  * in it is touched: a Vite config that is the app's own with `seam()` after `sveltekit()`. See
  * spec/conformance.md, "Stage 2".
  */
-import { cpSync, existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -27,13 +27,33 @@ export interface Staged {
 	dir: string;
 	/** The Vite config a build and a preview of it are run through. */
 	viteConfig: string;
+	/** The app's own Vite config, which the staged one wraps. */
+	baseConfig: string;
+	/** The `--mode` the app's own `build` script passes, where it passes one. */
+	mode: string | undefined;
 	/** What Kit's own `test:build` runs the app's commands with. */
 	env: NodeJS.ProcessEnv;
+}
+
+/**
+ * The config and the mode the app's own `build` script names: `vite build -c vite.custom.config.js
+ * --mode custom` for `options`, and Vite's defaults for the rest.
+ */
+function buildScript(app: string): { config: string; mode: string | undefined } {
+	const manifest = JSON.parse(readFileSync(resolve(vendor, 'test/apps', app, 'package.json'), 'utf8')) as {
+		scripts?: Record<string, string>;
+	};
+	const build = manifest.scripts?.['build'] ?? '';
+	return {
+		config: /(?:-c|--config)\s+(\S+)/.exec(build)?.[1] ?? 'vite.config.js',
+		mode: /--mode\s+(\S+)/.exec(build)?.[1],
+	};
 }
 
 /** Where `app` is staged, and what it runs with, without staging it. */
 export function staged(app: string, plain: boolean): Staged {
 	const dir = resolve(pkg, '.build-apps', plain ? 'plain' : 'seam', 'packages/kit/test/apps', app);
+	const { config, mode } = buildScript(app);
 	// Kit's own `test:build` runs with `PUBLIC_PRERENDERING=false` in the server's environment,
 	// from `playwright.config.js`.
 	const env = {
@@ -42,7 +62,7 @@ export function staged(app: string, plain: boolean): Staged {
 		PUBLIC_PRERENDERING: 'false',
 		ROUTER_RESOLUTION: process.env['ROUTER_RESOLUTION'] ?? 'client',
 	};
-	return { dir, viteConfig: plain ? 'vite.config.js' : 'vite.seam.config.js', env };
+	return { dir, viteConfig: plain ? config : 'vite.seam.config.js', baseConfig: config, mode, env };
 }
 
 /**
@@ -53,7 +73,7 @@ export function stage(app: string, plain: boolean): Staged {
 	if (!existsSync(resolve(vendor, 'test/apps', app))) {
 		throw new Error(`no app named ${app} under ${resolve(vendor, 'test/apps')}`);
 	}
-	const { dir, viteConfig, env } = staged(app, plain);
+	const { dir, viteConfig, baseConfig, mode, env } = staged(app, plain);
 	const root = resolve(pkg, '.build-apps', plain ? 'plain' : 'seam');
 	const kitTest = resolve(root, 'packages/kit/test');
 
@@ -70,9 +90,9 @@ export function stage(app: string, plain: boolean): Staged {
 			resolve(dir, viteConfig),
 			[
 				"// Written by pkgs/apps: the app's own config with the compiler's plugin after Kit's.",
-				"import base from './vite.config.js';",
+				`import base from ${JSON.stringify(`./${baseConfig}`)};`,
 				`import { seam } from ${JSON.stringify(pathToFileURL(plugin).href)};`,
-				'const config = typeof base === "function" ? await base({ command: "build", mode: "production" }) : base;',
+				`const config = typeof base === "function" ? await base({ command: "build", mode: ${JSON.stringify(mode ?? 'production')} }) : base;`,
 				'export default { ...config, plugins: [...(config.plugins ?? []), seam()] };',
 				'',
 			].join('\n'),
@@ -87,5 +107,5 @@ export function stage(app: string, plain: boolean): Staged {
 		});
 		if (setup.status !== 0) throw new Error(`the app's setup exited ${String(setup.status)}`);
 	}
-	return { dir, viteConfig, env };
+	return { dir, viteConfig, baseConfig, mode, env };
 }
