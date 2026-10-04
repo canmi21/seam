@@ -8,24 +8,21 @@
 		"url": "git+https://github.com/canmi21/seam.git",
 		"directory": "pkgs/plugin"
 	},
-	"type": "module",
-	"engines": {
-		"node": ">=22.17"
-	},
 	"files": [
 		"dist"
 	],
+	"type": "module",
 	"exports": {
 		".": "./src/index.ts"
 	},
 	"publishConfig": {
-		"access": "public",
 		"exports": {
 			".": {
 				"types": "./dist/index.d.ts",
 				"default": "./dist/index.js"
 			}
-		}
+		},
+		"access": "public"
 	},
 	"dependencies": {
 		"@seam-js/carry": "workspace:*",
@@ -35,15 +32,18 @@
 		"@seam-js/routes": "workspace:*",
 		"@seam-js/skeleton": "workspace:*"
 	},
-	"peerDependencies": {
-		"@sveltejs/kit": "3.0.0",
-		"svelte": "*",
-		"vite": "^8.0.0"
-	},
 	"devDependencies": {
 		"@sveltejs/kit": "workspace:*",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"svelte": "^5.57.1",
 		"vite": "^8.3.2"
+	},
+	"peerDependencies": {
+		"@sveltejs/kit": "3.0.0",
+		"svelte": "*",
+		"vite": "^8.0.0"
+	},
+	"engines": {
+		"node": ">=22.17"
 	}
 }

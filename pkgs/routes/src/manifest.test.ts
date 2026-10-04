@@ -15,7 +15,10 @@ describe('the compile options a project sets', () => {
 	it("are read off Kit's plugin, where Kit 3 takes them", async () => {
 		rmSync(root, { recursive: true, force: true });
 		mkdirSync(resolve(root, 'src/routes'), { recursive: true });
-		writeFileSync(resolve(root, 'package.json'), '{ "name": "sample", "private": true, "type": "module" }');
+		writeFileSync(
+			resolve(root, 'package.json'),
+			'{ "name": "sample", "private": true, "type": "module" }',
+		);
 		writeFileSync(
 			resolve(root, 'vite.config.js'),
 			"import { sveltekit } from '@sveltejs/kit/vite';\n" +

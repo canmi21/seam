@@ -1,5 +1,13 @@
 import { GIVEN, OPTIONS } from '@seam-js/ast';
-import { HYDRATABLES, hydratables, resolve, SCOPED, type Scope, thenable, waiting } from '@seam-js/injector';
+import {
+	HYDRATABLES,
+	hydratables,
+	resolve,
+	SCOPED,
+	type Scope,
+	thenable,
+	waiting,
+} from '@seam-js/injector';
 
 export type Source = { path: string } | { literal: string };
 

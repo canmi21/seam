@@ -33,18 +33,18 @@ its Vite plugin inside its main package, as `@sveltejs/kit/vite`, and a package 
 another would be a layer that does nothing. The directory keeps its neutral name; the published
 name is the one place the product is named.
 
-| directory       | published as        |
-| --------------- | ------------------- |
+| directory       | published as                    |
+| --------------- | ------------------------------- |
 | `pkgs/plugin`   | `@canmi/seamjs`, until `seamjs` |
-| `pkgs/compiler` | `@seam-js/compiler` |
-| `pkgs/skeleton` | `@seam-js/skeleton` |
-| `pkgs/ast`      | `@seam-js/ast`      |
-| `pkgs/carry`    | `@seam-js/carry`    |
-| `pkgs/derive`   | `@seam-js/derive`   |
-| `pkgs/injector` | `@seam-js/injector` |
-| `pkgs/lowering` | `@seam-js/lowering` |
-| `pkgs/routes`   | `@seam-js/routes`   |
-| `pkgs/create`   | `create-seamjs`     |
+| `pkgs/compiler` | `@seam-js/compiler`             |
+| `pkgs/skeleton` | `@seam-js/skeleton`             |
+| `pkgs/ast`      | `@seam-js/ast`                  |
+| `pkgs/carry`    | `@seam-js/carry`                |
+| `pkgs/derive`   | `@seam-js/derive`               |
+| `pkgs/injector` | `@seam-js/injector`             |
+| `pkgs/lowering` | `@seam-js/lowering`             |
+| `pkgs/routes`   | `@seam-js/routes`               |
+| `pkgs/create`   | `create-seamjs`                 |
 
 `pkgs/apps` and `pkgs/suite` are this repository's checks and stay private. So does
 `pkgs/normalize`, which nothing imports.
@@ -117,11 +117,11 @@ nothing.
 **Provisional, and to be argued again.** The two framework pins below are the first answer, taken
 to publish at all; neither is settled.
 
-| peer            | range   | why                                                                 |
-| --------------- | ------- | ------------------------------------------------------------------- |
-| `svelte`        | `*`     | the project's Svelte is the one compiled against; provisional      |
-| `@sveltejs/kit` | `3.0.0` | the internals above have no semver promise; provisional            |
-| `vite`          | `^8.0.0` | the plugin is Vite's, and Kit 3 is on 8                           |
+| peer            | range    | why                                                           |
+| --------------- | -------- | ------------------------------------------------------------- |
+| `svelte`        | `*`      | the project's Svelte is the one compiled against; provisional |
+| `@sveltejs/kit` | `3.0.0`  | the internals above have no semver promise; provisional       |
+| `vite`          | `^8.0.0` | the plugin is Vite's, and Kit 3 is on 8                       |
 
 Svelte is a peer rather than a dependency for a reason that is not provisional: the bytes the
 compiler writes have to be the bytes the project's Svelte hydrates against, and two copies of Svelte

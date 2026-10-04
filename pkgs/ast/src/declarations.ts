@@ -642,7 +642,7 @@ function remoteBound(
 			}
 		}
 	}
-	for (let grew = bound.size > 0; grew; ) {
+	for (let grew = bound.size > 0; grew;) {
 		grew = false;
 		for (const [name, one] of found) {
 			if (bound.has(name) || FUNCTIONS.has(String(one.node['type']))) continue;

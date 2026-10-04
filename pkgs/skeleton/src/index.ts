@@ -20,4 +20,6 @@ export {
 /** What a compile spent where, printed by the compiler when `SEAM_TIME` is set. */
 export { forgetTimings, timed, timedSync, timings } from './timing.ts';
 
-export const appStateModule: string = fileURLToPath(new URL(`./app-state${extname(import.meta.url)}`, import.meta.url));
+export const appStateModule: string = fileURLToPath(
+	new URL(`./app-state${extname(import.meta.url)}`, import.meta.url),
+);

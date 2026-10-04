@@ -354,12 +354,17 @@ function kitModule(root: string): Plugin {
 	// arrives here already resolved to a path, which is how the copy got past the name. Read off
 	// Kit's `exports`, whose `.` has an `import` condition and no `require`, so a `require.resolve`
 	// of the name fails.
-	const manifest = createRequire(resolve(root, 'package.json')).resolve('@sveltejs/kit/package.json');
+	const manifest = createRequire(resolve(root, 'package.json')).resolve(
+		'@sveltejs/kit/package.json',
+	);
 	const { exports } = JSON.parse(readFileSync(manifest, 'utf8')) as {
 		exports: Record<string, string | Record<string, string>>;
 	};
 	const entry = exports['.'];
-	const at = resolve(dirname(manifest), typeof entry === 'string' ? entry : (entry?.['import'] ?? ''));
+	const at = resolve(
+		dirname(manifest),
+		typeof entry === 'string' ? entry : (entry?.['import'] ?? ''),
+	);
 	return {
 		name: `${NAME}:kit`,
 		enforce: 'pre',
@@ -427,7 +432,11 @@ function remoteExports(source: string): string[] {
 	}
 	for (const one of source.matchAll(/export\s*\{([^}]*)\}/g)) {
 		for (const part of (one[1] as string).split(',')) {
-			const name = part.trim().split(/\s+as\s+/).pop()?.trim();
+			const name = part
+				.trim()
+				.split(/\s+as\s+/)
+				.pop()
+				?.trim();
 			if (name !== undefined && name !== '') names.add(name);
 		}
 	}
@@ -517,10 +526,7 @@ function appModules(
 		// Kit's own: `page` read out of the render's context, which a script run puts there. The
 		// walk binds a component's read of `page` to the payload, so only a captured script's
 		// import reaches this.
-		'$app/state': resolve(
-			kitSource(resolve(root, 'package.json')),
-			'runtime/app/state/server.js',
-		),
+		'$app/state': resolve(kitSource(resolve(root, 'package.json')), 'runtime/app/state/server.js'),
 	};
 	// The environment variables, whose module Kit generates per project: a static one is a literal
 	// written into the module, a dynamic one a read of an object Kit's server fills at its start,

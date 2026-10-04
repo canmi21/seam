@@ -8,27 +8,27 @@
 		"url": "git+https://github.com/canmi21/seam.git",
 		"directory": "pkgs/derive"
 	},
-	"type": "module",
-	"engines": {
-		"node": ">=22.17"
-	},
 	"files": [
 		"dist"
 	],
+	"type": "module",
 	"exports": {
 		".": "./src/index.ts"
 	},
 	"publishConfig": {
-		"access": "public",
 		"exports": {
 			".": {
 				"types": "./dist/index.d.ts",
 				"default": "./dist/index.js"
 			}
-		}
+		},
+		"access": "public"
 	},
 	"dependencies": {
 		"@seam-js/ast": "workspace:*",
 		"@seam-js/injector": "workspace:*"
+	},
+	"engines": {
+		"node": ">=22.17"
 	}
 }

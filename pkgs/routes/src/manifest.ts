@@ -121,7 +121,9 @@ export async function compilerOptions(root: string): Promise<{
 	experimental?: { async: true };
 }> {
 	const file = object((await userConfig(resolve(root)))['compilerOptions']);
-	const kit = object((await configured(resolve(root)) as { compilerOptions?: unknown }).compilerOptions);
+	const kit = object(
+		((await configured(resolve(root))) as { compilerOptions?: unknown }).compilerOptions,
+	);
 	const held: Record<string, unknown> = {
 		...file,
 		...kit,

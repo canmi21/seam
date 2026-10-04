@@ -35,7 +35,8 @@ function build(built: Staged, log: string): void {
 		maxBuffer: 1 << 28,
 	});
 	writeFileSync(log, `${ran.stdout}\n${ran.stderr}`);
-	if (ran.status !== 0) throw new Error(`the build in ${built.dir} exited ${String(ran.status)}; see ${log}`);
+	if (ran.status !== 0)
+		throw new Error(`the build in ${built.dir} exited ${String(ran.status)}; see ${log}`);
 }
 
 async function preview(built: Staged, port: number): Promise<ChildProcess> {
@@ -95,7 +96,9 @@ function specURLs(dir: string): string[] {
 			if (entry.isDirectory()) walk(file);
 			else if (/\.(js|ts)$/.test(entry.name)) {
 				const text = readFileSync(file, 'utf8');
-				for (const one of text.matchAll(/(?:goto|get|post|fetch)\(\s*[`'"](?:\$\{baseURL\})?(\/[^`'"$\s]*)[`'"]/g)) {
+				for (const one of text.matchAll(
+					/(?:goto|get|post|fetch)\(\s*[`'"](?:\$\{baseURL\})?(\/[^`'"$\s]*)[`'"]/g,
+				)) {
 					found.add(one[1] as string);
 				}
 			}
@@ -183,7 +186,8 @@ const reuse = process.argv.includes('--reuse');
 let plain = staged(app, true);
 let ours = staged(app, false);
 if (reuse) {
-	for (const file of readdirSync(out)) if (/\.(kit|seam)\.txt$/.test(file)) rmSync(resolve(out, file));
+	for (const file of readdirSync(out))
+		if (/\.(kit|seam)\.txt$/.test(file)) rmSync(resolve(out, file));
 } else {
 	rmSync(out, { recursive: true, force: true });
 	mkdirSync(out, { recursive: true });

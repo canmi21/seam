@@ -1,5 +1,12 @@
 import { relative } from 'node:path';
-import { apply, importsOf as importedBy, GIVEN, locals, parsedComponent, stateImports } from '@seam-js/ast';
+import {
+	apply,
+	importsOf as importedBy,
+	GIVEN,
+	locals,
+	parsedComponent,
+	stateImports,
+} from '@seam-js/ast';
 import type { PendingChoice, PendingSpread } from './attributes.ts';
 import { importsOf, legacyMode, propsOf, withPrelude } from './compose.ts';
 import { type AstNode, identified, isNode, refuse, relatesSiblings } from './node.ts';

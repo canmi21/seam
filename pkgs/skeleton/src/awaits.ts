@@ -3,7 +3,15 @@
  * anchors it would have: the names a top-level await blocks, the statements the request moves,
  * and the reads the markup makes while the bytes are written. See spec/readings.md.
  */
-import { awaitsIn, bound, parsed, projectAsync, reads as readsIn, RUN_NAME, runeCalled } from '@seam-js/ast';
+import {
+	awaitsIn,
+	bound,
+	parsed,
+	projectAsync,
+	reads as readsIn,
+	RUN_NAME,
+	runeCalled,
+} from '@seam-js/ast';
 import { type AstNode, isNode, refuse } from './node.ts';
 import { calleeName } from './component-shape.ts';
 import { type Walk } from './walk-types.ts';

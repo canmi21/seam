@@ -8,10 +8,6 @@
 		"url": "git+https://github.com/canmi21/seam.git",
 		"directory": "pkgs/create"
 	},
-	"type": "module",
-	"engines": {
-		"node": ">=22.17"
-	},
 	"bin": {
 		"create-seamjs": "./dist/index.js"
 	},
@@ -19,7 +15,11 @@
 		"dist",
 		"template"
 	],
+	"type": "module",
 	"publishConfig": {
 		"access": "public"
+	},
+	"engines": {
+		"node": ">=22.17"
 	}
 }

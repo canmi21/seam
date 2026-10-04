@@ -353,7 +353,9 @@ export async function renderRewritten(
 				if (host.bundler) continue;
 				code = code.replaceAll(
 					`${quote}${specifier}${quote}`,
-					JSON.stringify(pathToFileURL(resolvePath(here, `app-state${extname(import.meta.url)}`)).href),
+					JSON.stringify(
+						pathToFileURL(resolvePath(here, `app-state${extname(import.meta.url)}`)).href,
+					),
 				);
 				continue;
 			}

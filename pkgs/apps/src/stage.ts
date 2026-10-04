@@ -9,7 +9,15 @@
  * in it is touched: a Vite config that is the app's own with `seam()` after `sveltekit()`. See
  * spec/conformance.md, "Stage 2".
  */
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+	cpSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	rmSync,
+	symlinkSync,
+	writeFileSync,
+} from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -46,7 +54,9 @@ function buildScript(app: string): {
 	mode: string | undefined;
 	previewEnv: Record<string, string>;
 } {
-	const manifest = JSON.parse(readFileSync(resolve(vendor, 'test/apps', app, 'package.json'), 'utf8')) as {
+	const manifest = JSON.parse(
+		readFileSync(resolve(vendor, 'test/apps', app, 'package.json'), 'utf8'),
+	) as {
 		scripts?: Record<string, string>;
 	};
 	const build = manifest.scripts?.['build'] ?? '';

@@ -8,29 +8,29 @@
 		"url": "git+https://github.com/canmi21/seam.git",
 		"directory": "pkgs/ast"
 	},
-	"type": "module",
-	"engines": {
-		"node": ">=22.17"
-	},
 	"files": [
 		"dist"
 	],
+	"type": "module",
 	"exports": {
 		".": "./src/index.ts"
 	},
 	"publishConfig": {
-		"access": "public",
 		"exports": {
 			".": {
 				"types": "./dist/index.d.ts",
 				"default": "./dist/index.js"
 			}
-		}
+		},
+		"access": "public"
+	},
+	"devDependencies": {
+		"svelte": "^5.57.1"
 	},
 	"peerDependencies": {
 		"svelte": "*"
 	},
-	"devDependencies": {
-		"svelte": "^5.57.1"
+	"engines": {
+		"node": ">=22.17"
 	}
 }
