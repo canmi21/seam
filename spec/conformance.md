@@ -327,6 +327,15 @@ the bundler's order -- `/service-worker.js`, a build manifest a page prints -- s
 with nothing but the list between them is sorted on both sides; the chunks a page preloads keep
 their order.
 
+**A body that names its own digest is held to the digest.** `/endpoint-output/stream`, a `+server.js`
+of `basics`, answers 256 KB of `randomBytes` per request with a `digest: sha-256=<base64url>`
+header, so no two of its answers are the same bytes, Kit's own two included, and it stood as
+unstable. Its spec, `server.spec.js`'s "body can be a binary ReadableStream", asks one thing of it:
+that the body hashes to the digest. So a response carrying such a header is compared by that and by
+its status and type -- `digested()` in `pkgs/apps/src/compare.ts` -- rather than by the bytes, and
+the endpoint is not made to answer the same bytes twice: fixing its randomness would be editing
+`vendor/kit` or the program under test.
+
 At `3.0.0`, over 607 URLs, the first run found **602 the same bytes, 4 different, 1 unstable**
 (`/endpoint-output/stream`, an endpoint writing random bytes). The four were three causes:
 
@@ -345,7 +354,7 @@ At `3.0.0`, over 607 URLs, the first run found **602 the same bytes, 4 different
   [framework.md](framework.md), "A component a `load` returns". It was held to need the fork, and
   did not.
 
-With the three closed: **606 the same, 1 unstable.**
+With the three closed and the endpoint held to its digest: **607 the same**.
 
 **Every other app, compared the same way**, each built with its own config, mode and preview
 environment as its own scripts give them. Measured again with the fork as each app's Kit, every

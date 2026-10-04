@@ -21,6 +21,7 @@
  * Kit's before the pages are compared. A file with no such pair is a difference of its own.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -123,6 +124,22 @@ interface Answer {
 	body: string;
 }
 
+/**
+ * A body that names its own digest, read as whether it matches it: what Kit's own spec asks of it.
+ * `basics`'s `/endpoint-output/stream` answers 256 KB of `randomBytes` per request with a
+ * `digest: sha-256=<base64url>` header, so no two of its answers are the same bytes, Kit's included;
+ * `server.spec.js`'s "body can be a binary ReadableStream" holds it to the digest instead. Null for
+ * a response without one, which is compared as it is. See spec/conformance.md, "Stage 2".
+ */
+function digested(header: string | null, bytes: Buffer): string | null {
+	const named = header?.match(/^sha-256=(.+)$/)?.[1];
+	if (named === undefined) return null;
+	const made = createHash('sha256').update(bytes).digest('base64url');
+	return made === named
+		? `<${String(bytes.length)} bytes matching their sha-256 digest>`
+		: `<${String(bytes.length)} bytes not matching their sha-256 digest>`;
+}
+
 async function ask(port: number, url: string): Promise<Answer> {
 	try {
 		const response = await fetch(`http://localhost:${String(port)}${encodeURI(url)}`, {
@@ -131,11 +148,12 @@ async function ask(port: number, url: string): Promise<Answer> {
 			// A page that never answers is reported as that rather than holding the run.
 			signal: AbortSignal.timeout(10_000),
 		});
+		const bytes = Buffer.from(await response.arrayBuffer());
 		return {
 			status: response.status,
 			location: response.headers.get('location') ?? '',
 			type: response.headers.get('content-type') ?? '',
-			body: await response.text(),
+			body: digested(response.headers.get('digest'), bytes) ?? bytes.toString('utf8'),
 		};
 	} catch (error) {
 		return { status: -1, location: '', type: '', body: String(error) };
