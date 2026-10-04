@@ -1,5 +1,5 @@
 import { basename, dirname, resolve as resolvePath } from 'node:path';
-import { readFileSync, realpathSync, rmSync } from 'node:fs';
+import { readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -136,6 +136,46 @@ const onDisk = new Set<string>();
 /** Names handed to files in a cycle, which cannot be named for their content. See `emit`. */
 let cycles = 0;
 
+/** The staging roots this process has swept, so that each is swept once. See `sweepStaging`. */
+const swept = new Set<string>();
+
+/**
+ * The staging directories of processes no longer running, removed.
+ *
+ * A process keeps its directory for its whole life, and only a caller that says it is done --
+ * `forgetStaging` -- removes it. Most never say so: the checks, the compiler and the suite exit
+ * with theirs still on disk, and each run of the checks left a few more, until `.build` held twelve
+ * gigabytes. So the first render of a process clears what dead ones left, however they ended. A
+ * directory whose process is still running is kept, which is what the pid in its name is for.
+ */
+function sweepStaging(root: string): void {
+	if (swept.has(root)) return;
+	swept.add(root);
+	let names: string[];
+	try {
+		names = readdirSync(root);
+	} catch {
+		return;
+	}
+	for (const name of names) {
+		if (!/^\d+$/.test(name)) continue;
+		const pid = Number(name);
+		if (pid === process.pid || running(pid)) continue;
+		rmSync(resolvePath(root, name), { recursive: true, force: true });
+	}
+}
+
+/** Whether a process with this pid exists. Signal 0 asks without sending anything. */
+function running(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		// EPERM is a process that exists and belongs to somebody else.
+		return (error as NodeJS.ErrnoException).code === 'EPERM';
+	}
+}
+
 /**
  * What Svelte's compiler has already produced in this process, by everything it was given.
  *
@@ -235,6 +275,7 @@ export async function renderRewritten(
 	// named for its content and reused by the renders that would have written it again. The pid
 	// keeps two processes apart, which the checks need -- they drive this from several files at
 	// once and a shared directory made each delete the other's modules.
+	sweepStaging(host.staging);
 	const staging = resolvePath(host.staging, String(process.pid));
 	mkdirSync(staging, { recursive: true });
 
