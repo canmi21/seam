@@ -6,6 +6,37 @@ that makes a page out of a project is the framework around it. This file is that
 SvelteKit with one step moved: the arrangement is Kit's, the code is Kit's wherever the code does
 not render, and the render is the compiler's.
 
+## Kit is replaced, until it offers a seam to plug into
+
+**The direction is decided: this framework takes Kit's place in a project rather than running
+beside it.** A project swaps its `@sveltejs/kit` dependency for this one, and the framework layer --
+routing, `load`, the server, the client router, the Vite plugin -- is Kit's own code, forked from
+`vendor/kit` and maintained here. Until then the plugin below runs beside the project's own Kit, and
+it stays the way stage two is measured.
+
+Why not stay a plugin: **Kit has no public point at which the render can be replaced.** Its hooks,
+its adapter API and `resolve`'s `transformPageChunk` all act after the render. So the plugin
+depends on Kit's internals throughout -- the path `render.js` imports `root.svelte` by, the root's
+props and `$$renderer.global`, `utils/routing.js` and `core/config` loaded by path, the generated
+`env/config.js`, the `generated/dev` and `generated/build` directories, `__SVELTEKIT_DEV__`, the
+names of Kit's own plugins, and `load_vite_config` resolving for `build` -- which is why
+[publish.md](publish.md) pins Kit to one release. And three things are out of a plugin's reach
+whatever it depends on, being Kit's runtime model: the error page Kit renders again per request when
+a `load` throws, a component a `load` returns, and a backend that is not Kit's Node server.
+
+**Upstream is not asked yet.** A request for a render hook is made with something to show for it:
+the framework running in the author's own projects, used by others, a couple of hundred stars. It
+is not made on a design alone.
+
+**The end state is the plugin again.** Once Kit exposes the point the render can be replaced at,
+this becomes a plugin over the project's own Kit, the fork is dropped, and a project uses both.
+
+**Not decided yet**, and owed before the fork starts: where the fork lives -- `vendor/kit` edited in
+place, against [VENDOR.md](../vendor/kit/VENDOR.md)'s "Nothing in `src/` or `types/` is edited
+here", or a package of its own taken from it -- and how a project swaps the dependency. An npm alias,
+`"@sveltejs/kit": "npm:<this package>@<version>"`, would leave every import, `$app/*` and
+`sveltekit()` as written, and is to be measured on a real project before it is chosen.
+
 ## What SvelteKit is, seen from here
 
 Three layers. A `sync` step at build time reads `src/routes` into a manifest and generates code

@@ -69,6 +69,10 @@ SvelteKit's own test apps, then an application written for Kit and moved.
   the render, exercised the way Kit's authors exercise it, with nothing of this repository's own
   standing in for an application. [framework.md](framework.md), "SvelteKit 3 is the target, and
   what it moves", is the order it is taken in.
+- **What it is for is the author's own projects.** The order of work is the one that gets the
+  framework running in them, then in the hands of people around the author; the framework
+  direction that serves it is [framework.md](framework.md), "Kit is replaced, until it offers a
+  seam to plug into".
 - **Stage three is not scheduled.** press is being rebuilt around its CMS and is on Kit 2, so it is
   not a measurement anybody can take, and by [conformance.md](conformance.md)'s own argument it
   would not be one worth taking before stage two is green. It comes back when it is on Kit 3, as
