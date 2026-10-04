@@ -445,6 +445,7 @@ export const CARRIED = [
 	'hold',
 	'options',
 	'rest_props',
+	'rethrow',
 	'run',
 	'sanitize_props',
 	'sanitize_slots',

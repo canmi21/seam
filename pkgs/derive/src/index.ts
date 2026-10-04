@@ -80,7 +80,7 @@ function build(
 	// The shared helpers outermost, then each file of the chain from the entry inward, so the
 	// component the expression sits in shadows its callers, and the data innermost of all.
 	const scopes = ['*', ...chain.toReversed()].map((file) => files[file] ?? {});
-	scopes[0] = { $$within: within(files), ...scopes[0] };
+	scopes[0] = { $$within: within(files), $$rethrow, ...scopes[0] };
 	const opened = scopes.map((_, at) => `with ($files[${String(at)}]) {`).join(' ');
 	const closed = '}'.repeat(scopes.length);
 	// eslint-disable-next-line no-new-func
@@ -98,6 +98,15 @@ function build(
 		files: Record<string, unknown>[],
 	) => (bindings: Record<string, unknown>, request?: Record<string, unknown>) => unknown;
 	return make(scopes);
+}
+
+/**
+ * `$$rethrow(make)`: throws what `make` returns. A component throwing at the top of its script is
+ * not entered and stands at its call site as a hole whose value is this, so the request throws what
+ * Svelte's render of the component would have. See `./thrown.ts` in the skeleton package.
+ */
+function $$rethrow(make: () => unknown): never {
+	throw make();
 }
 
 /**

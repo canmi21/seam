@@ -313,6 +313,26 @@ reaches `transformError` as the author threw it: a held reference is a derivatio
 wraps what one throws in a `DerivationFailed` naming the source, which `caught` takes off by its
 name -- by name, because it is carried into the bundle and shares no `Error` to test against.
 
+### A component that throws whatever the request is a hole that throws
+
+**A `throw` standing directly in a component's instance script runs every time the component
+renders**, whatever it is handed, and Kit's `async` app tests exactly that: a page, a layout and a
+nested page that throw from the top of their script, each caught by the boundary Kit's root puts
+round its level, and a page whose own error page throws. The compile-time render met the throw and
+refused, because what a boundary catches is the render's and not a list this compiler holds.
+
+So such a component is not entered. Its call site becomes one hole whose value is
+`$$rethrow(() => (<the thrown value>))`, which `derive` provides, guarded where the walk guards:
+the branch written for nothing having thrown evaluates nothing, and the boundary's run reads the
+hole inside its catch, so every request takes the `failed` branch with the request's
+`transformError` of the same error, which is what Svelte's render does. An error page that throws
+is the same hole in the `failed` branch, read only by a request that takes it.
+
+The thrown value is evaluated at the call site, where the component's own names are not, so one
+that reads them -- `throw new Error(message)` over a `message` the script declares -- is refused by
+name. A `throw` inside an `if`, a function or a block is the request's question, and stays the
+refusal above.
+
 **A boundary inside the children is a catch of its own.** Every level of Kit's root below the
 first with an error page is one, so the shape is every page of an app with two error pages. Its
 children are computed when its own test, a held reference under its files, is read; the run reads

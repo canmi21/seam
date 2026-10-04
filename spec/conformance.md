@@ -314,13 +314,11 @@ What this found and closed: the `?worker&url` of `no-csr`, `compilerOptions` rea
 for `async`, and remote functions for `async` and `options-2` ([derivation.md](derivation.md), "A
 remote function runs where Kit's server runs it").
 
-**Owed: a component that throws while it renders, whatever the request.** The four `async` routes
-left are Kit's tests of exactly that: `server-error-boundary` and its two children throw from the
-top of a component's script, and `remote/form/throwing-error-page`'s `+error.svelte` throws as
-well. Kit's root catches the first in the level's boundary and renders the error page; the compile
-renders the throw at the build, as a statement no expression of its own stands for, and refuses
-rather than throwing it again per request. Running the script of a component inside the boundary's
-catch per request is what closes it.
+**Closed: a component that throws while it renders, whatever the request.** The four `async` routes
+the remote work left were Kit's tests of exactly that: `server-error-boundary` and its two children
+throw from the top of a component's script, and `remote/form/throwing-error-page`'s `+error.svelte`
+throws as well. [ir.md](ir.md), "A component that throws whatever the request is a hole that
+throws".
 
 ## Stage 3: an application written for Kit, moved
 

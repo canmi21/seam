@@ -31,6 +31,7 @@ import { filled } from './handed.ts';
 import { closes, headedFragment, headFoundLate, stamped, wrapped } from './stamps.ts';
 import { type Walk } from './walk-types.ts';
 import { restated, withAsks, withFresh } from './written.ts';
+import { plantThrow, throwsAtTop } from './thrown.ts';
 
 export function descend(
 	node: AstNode,
@@ -63,6 +64,14 @@ export function descend(
 				.map((one) => basename(one))
 				.join(' -> ')} -- and a compile-time render of one does not end`,
 		);
+	}
+
+	// A component that throws at the top of its script throws whatever it is handed, so it is not
+	// entered: it stands as a hole that throws the same thing per request. See `./thrown.ts`.
+	const throws = throwsAtTop(file);
+	if (throws !== null) {
+		plantThrow(node, walk, throws.argument);
+		return true;
 	}
 
 	const attributes = Array.isArray(node['attributes']) ? node['attributes'] : [];

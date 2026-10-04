@@ -221,6 +221,25 @@ const remoteFiles: Record<string, string> = {
 		'<!doctype html><html lang="en"><head>%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>',
 	'src/routes/data.remote.js':
 		"import { form, query } from '$app/server';\nexport const getCount = query(async () => 42);\nexport const greet = query('unchecked', async (name) => `hello ${name}`);\nexport const editData = form('unchecked', async (data) => data);",
+	// Components that throw from the top of their script, every request: Kit's `async` app's
+	// `server-error-boundary`, whose page, layout and nested page each do, caught by the boundary of
+	// the level Kit's root puts round them; and a page whose own error page throws, which renders
+	// as long as nothing calls for the error page.
+	'src/routes/+error.svelte':
+		"<script>import { page } from '$app/state'; let { error } = $props();</script><h1>{page.status}</h1><p id=\"message\">{error.message}</p>",
+	'src/routes/seb/+layout.svelte':
+		'<script>let { children } = $props();</script><div id="nested-layout">{@render children?.()}</div>',
+	'src/routes/seb/+page.svelte': "<script>throw new Error('render error');</script><h1>never</h1>",
+	'src/routes/seb/layout-throws/+layout.svelte':
+		"<script>let { children } = $props(); throw new Error('layout render error');</script><div>{@render children?.()}</div>",
+	'src/routes/seb/layout-throws/+page.svelte': '<h1>never</h1>',
+	'src/routes/seb/layout-throws/+error.svelte':
+		'<script>let { error } = $props();</script><p>sibling: {error.message}</p>',
+	'src/routes/seb/nested/+error.svelte':
+		"<script>import { page } from '$app/state'; let { error } = $props();</script><p id=\"nested\">{error.message} | {page.error?.message === error.message} | {page.status}</p>",
+	'src/routes/seb/nested/+page.svelte': "<script>throw new Error('nested render error');</script><h1>never</h1>",
+	'src/routes/fine/+page.svelte': '<p>fine</p>',
+	'src/routes/fine/+error.svelte': "<script>throw new Error('error page render error');</script><p>never</p>",
 	// A form, spread onto an element and read down its fields, with state the script sets per request
 	// before the markup reads it: Kit's `async` app's `remote/form/set-ssr`.
 	'src/routes/form/+page.svelte':
@@ -231,13 +250,15 @@ const remoteFiles: Record<string, string> = {
 		"<script>import { getCount, greet } from './data.remote'; const count = getCount();</script><p>count: {await getCount()}</p><p>{await count} / {count.current} ({count.loading})</p><p>{await greet('kit')}</p>",
 };
 
+const REMOTE_URLS = ['/', '/form', '/seb', '/seb/layout-throws', '/seb/nested', '/fine'];
+
 describe('a remote function answers as it does in Kit', () => {
 	let kitRemote: Record<string, string> = {};
 	let oursRemote: Record<string, string> = {};
 	beforeAll(async () => {
 		written(remoteRoot, remoteFiles);
-		kitRemote = await built('.svelte-kit-plain', false, remoteRoot, ['/', '/form']);
-		oursRemote = await built('.svelte-kit', true, remoteRoot, ['/', '/form']);
+		kitRemote = await built('.svelte-kit-plain', false, remoteRoot, REMOTE_URLS);
+		oursRemote = await built('.svelte-kit', true, remoteRoot, REMOTE_URLS);
 	}, 120_000);
 	afterAll(() => rmSync(remoteRoot, { recursive: true, force: true }));
 
@@ -251,6 +272,10 @@ describe('a remote function answers as it does in Kit', () => {
 		expect(oursRemote['/form']).toBe(kitRemote['/form']);
 	});
 
+	it.each(['/seb', '/seb/layout-throws', '/seb/nested', '/fine'])('%s', (url) => {
+		expect(oursRemote[url]).toBe(kitRemote[url]);
+	});
+
 	// A route the compile leaves to the framework is answered by Kit's own render, which matches Kit
 	// whatever the compiler did -- so the answer alone does not say the route was compiled.
 	it('compiled the route rather than leaving it to Kit', () => {
@@ -258,6 +283,6 @@ describe('a remote function answers as it does in Kit', () => {
 			readFileSync(resolve(remoteRoot, '.svelte-kit/output/server/seam/manifest.json'), 'utf8'),
 		) as { routes: Record<string, unknown>; left: Record<string, string> };
 		expect(manifest.left).toEqual({});
-		expect(Object.keys(manifest.routes).toSorted()).toEqual(['/', '/form']);
+		expect(Object.keys(manifest.routes).toSorted()).toEqual(REMOTE_URLS.toSorted());
 	});
 });
