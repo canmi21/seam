@@ -321,6 +321,12 @@ export function hostedIn(source: string, file: string): RegExp | null {
 /** Kit's module whose functions read the request; see `varies()`. */
 const APP_PATHS = '$app/paths';
 
+/**
+ * A module of Kit's remote functions, as an import names one: Kit's own test of a file,
+ * `/[/.]remote\.[^/]+$/`, with the extension an import may leave off.
+ */
+export const REMOTE = /[/.]remote(?:\.[^/]+)?$/;
+
 /** Whether an expression reads a context, which is a channel this walk does not follow. */
 const READS_CONTEXT = /\bget(?:All)?Contexts?\b/;
 
@@ -396,9 +402,12 @@ export function varies(
 	// exports is read per request whatever it is, `base` included, since that costs a derivation
 	// and the other way costs the build's answer in every request's bytes. See spec/derivation.md,
 	// "Kit's `$app/paths` reads the request".
+	// So is a remote function, which Kit runs per request in the request's own context and whose
+	// result it serialises into the page for the client. See spec/derivation.md, "A remote function
+	// runs where Kit's server runs it".
 	const requested = new Set(
 		Object.entries(walk.site.imports)
-			.filter(([, from]) => from === APP_PATHS)
+			.filter(([, from]) => from === APP_PATHS || REMOTE.test(from))
 			.map(([name]) => name),
 	);
 	if (requested.size > 0 && mentions(expression, requested)) return outside(expression);

@@ -20,7 +20,15 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig } from 'vite';
 import { configured, READING } from '@seam-js/routes';
-import { ARTIFACTS, ASSETS, assetKey, type Compiling, NAME } from './compile.ts';
+import {
+	ARTIFACTS,
+	ASSETS,
+	assetKey,
+	type Compiling,
+	NAME,
+	REMOTES,
+	remoteKey,
+} from './compile.ts';
 
 /** This module's own extension, which its siblings share. See spec/publish.md. */
 const OWN = extname(import.meta.url);
@@ -160,13 +168,13 @@ export function seam(options: Options = {}): Plugin {
 
 		load(id) {
 			if (id !== ROOT || this.environment.name !== 'ssr') return null;
-			const assets = JSON.parse(
-				readFileSync(resolve(outDir, ARTIFACTS, ASSETS), 'utf8'),
-			) as readonly string[];
+			const listed = (name: string): readonly string[] =>
+				JSON.parse(readFileSync(resolve(outDir, ARTIFACTS, name), 'utf8')) as readonly string[];
 			return dispatcher(
 				kitRoot,
 				emitted,
-				assets.map((one) => [assetKey(one), resolve(root, one)]),
+				listed(ASSETS).map((one) => [assetKey(one), resolve(root, one)]),
+				listed(REMOTES).map((one) => [remoteKey(one), resolve(root, one)]),
 			);
 		},
 	};
@@ -249,6 +257,7 @@ function dispatcher(
 	kitRootComponent: string,
 	emitted: ReadonlyMap<string, string>,
 	assets: ReadonlyArray<readonly [key: string, path: string]>,
+	remotes: ReadonlyArray<readonly [key: string, path: string]>,
 ): string {
 	const here = createRequire(import.meta.url);
 	// By path rather than by name: the module is compiled inside the project's build, where this
@@ -264,9 +273,16 @@ function dispatcher(
 	const imports = assets
 		.map(([, path], i) => `import asset_${String(i)} from ${JSON.stringify(path)};\n`)
 		.join('');
-	const handedAssets = assets
-		.map(([key], i) => `, ${JSON.stringify(key)}: asset_${String(i)}`)
+	// Each module of remote functions a carried bundle calls, imported here so that it is the one
+	// Kit's build gave its ids and registered, and runs in the request's context. See
+	// `remoteModules` in compile.ts.
+	const remoteImports = remotes
+		.map(([, path], i) => `import * as remote_${String(i)} from ${JSON.stringify(path)};\n`)
 		.join('');
+	const handedAssets = [
+		...assets.map(([key], i) => `, ${JSON.stringify(key)}: asset_${String(i)}`),
+		...remotes.map(([key], i) => `, ${JSON.stringify(key)}: remote_${String(i)}`),
+	].join('');
 	return `
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -276,7 +292,7 @@ import * as appPaths from '$app/paths';
 import { rendered_env, dynamic_private_env } from '<sveltekit:generated>/env/config.js';
 import { inject } from ${JSON.stringify(injector)};
 import { compile as derivations } from ${JSON.stringify(derive)};
-${imports}
+${imports}${remoteImports}
 // What Kit's build and server decide, handed to the derivations: the manifest, \`$app/paths\`,
 // whose \`resolve\` reads the request Kit is answering, the two objects
 // Kit's server fills with the dynamic environment as it starts, which the carried bundle's own

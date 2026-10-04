@@ -80,6 +80,7 @@ function build(
 	// The shared helpers outermost, then each file of the chain from the entry inward, so the
 	// component the expression sits in shadows its callers, and the data innermost of all.
 	const scopes = ['*', ...chain.toReversed()].map((file) => files[file] ?? {});
+	scopes[0] = { $$within: within(files), ...scopes[0] };
 	const opened = scopes.map((_, at) => `with ($files[${String(at)}]) {`).join(' ');
 	const closed = '}'.repeat(scopes.length);
 	// eslint-disable-next-line no-new-func
@@ -97,6 +98,40 @@ function build(
 		files: Record<string, unknown>[],
 	) => (bindings: Record<string, unknown>, request?: Record<string, unknown>) => unknown;
 	return make(scopes);
+}
+
+/**
+ * `$$within(chain, $scope, $request, bound)`: another file chain's names, for a piece of an
+ * expression written in another component -- a child's awaited value a boundary's run reads, which
+ * stays text so that its rejection lands inside the run's catch. It answers only for a name that
+ * chain carries and nothing nearer holds: not the data, not what the request binds, not a name the
+ * run itself binds, so it sits between the expression's own chain and the data, where the chain
+ * would have been. See `boundary()` in the skeleton package, and spec/derivation.md.
+ */
+function within(
+	files: Record<string, Record<string, unknown>>,
+): (
+	chain: readonly string[],
+	data: object,
+	request: object,
+	bound?: readonly string[],
+) => object {
+	return (chain, data, request, bound = []) => {
+		const objects = chain.map((file) => files[file] ?? {});
+		const nearer = (key: string): boolean => key in request || key in data || bound.includes(key);
+		return new Proxy(
+			{},
+			{
+				has: (_, key) =>
+					typeof key === 'string' && !nearer(key) && objects.some((one) => key in one),
+				get: (_, key) => {
+					if (typeof key !== 'string') return undefined;
+					for (const one of objects) if (key in one) return one[key];
+					return undefined;
+				},
+			},
+		);
+	};
 }
 
 /**

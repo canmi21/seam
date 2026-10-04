@@ -298,6 +298,29 @@ At `3.0.0`, over 607 URLs, the first run found **602 the same bytes, 4 different
 
 With the two closed: **605 the same, 1 different, 1 unstable.**
 
+**Every other app, compared the same way**, each built with its own config, mode and preview
+environment as its own scripts give them:
+
+| app | URLs | result |
+| --- | --- | --- |
+| `embed`, `hash-based-routing`, `no-csr`, `no-ssr`, `options-3`, `prerendered-app-error-pages`, `writes` | 2 to 17 each | all the same |
+| `options` | 69 | all the same |
+| `options-2` | 22 | all the same; it calls remote functions |
+| `async` | -- | the compile refuses 4 routes, so the app does not build |
+| `dev-only` | -- | Kit's own build fails by design: the app is for `vite dev` |
+
+What this found and closed: the `?worker&url` of `no-csr`, `compilerOptions` read off Kit's plugin
+for `async`, and remote functions for `async` and `options-2` ([derivation.md](derivation.md), "A
+remote function runs where Kit's server runs it").
+
+**Owed: a component that throws while it renders, whatever the request.** The four `async` routes
+left are Kit's tests of exactly that: `server-error-boundary` and its two children throw from the
+top of a component's script, and `remote/form/throwing-error-page`'s `+error.svelte` throws as
+well. Kit's root catches the first in the level's boundary and renders the error page; the compile
+renders the throw at the build, as a statement no expression of its own stands for, and refuses
+rather than throwing it again per request. Running the script of a component inside the boundary's
+catch per request is what closes it.
+
 ## Stage 3: an application written for Kit, moved
 
 Not started, and not scheduled. press is the application: a real site whose components were

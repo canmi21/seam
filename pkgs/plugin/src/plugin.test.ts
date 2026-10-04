@@ -3,7 +3,7 @@
 // document and all. Everything but the render is Kit's own in both, so what the comparison holds
 // is the one call that changed and the seams around it -- the props Kit hands the root, the head
 // and body it takes back, the artifacts finding the program. See spec/framework.md.
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as vite from 'vite';
@@ -87,26 +87,40 @@ const URLS = [
 	'/worker',
 ];
 
+/** Writes a project's files under `project`, from nothing. */
+function written(project: string, sources: Record<string, string>): void {
+	rmSync(project, { recursive: true, force: true });
+	for (const [file, source] of Object.entries(sources)) {
+		mkdirSync(dirname(resolve(project, file)), { recursive: true });
+		writeFileSync(resolve(project, file), source);
+	}
+}
+
 /** Builds the project into Kit's output under `outDir`, with or without the plugin. */
-async function built(outDir: string, withSeam: boolean): Promise<Record<string, string>> {
+async function built(
+	outDir: string,
+	withSeam: boolean,
+	project: string = root,
+	urls: readonly string[] = URLS,
+): Promise<Record<string, string>> {
 	process.env['SEAM_OUT'] = outDir;
 	if (withSeam) process.env['SEAM'] = '1';
 	else delete process.env['SEAM'];
 	const cwd = process.cwd();
-	process.chdir(root);
+	process.chdir(project);
 	try {
 		// As `vite build` runs Kit 3: through the builder, whose `buildApp` Kit's plugin drives, the
 		// server environment first and the client from inside it.
 		const builder = await vite.createBuilder({
-			root,
-			configFile: resolve(root, 'vite.config.js'),
+			root: project,
+			configFile: resolve(project, 'vite.config.js'),
 			logLevel: 'silent',
 		});
 		await builder.buildApp();
 	} finally {
 		process.chdir(cwd);
 	}
-	const server = resolve(root, outDir, 'output/server');
+	const server = resolve(project, outDir, 'output/server');
 	const { Server } = (await import(pathToFileURL(resolve(server, 'index.js')).href)) as {
 		Server: new (manifest: unknown) => {
 			init: (options: { env: Record<string, string> }) => Promise<void>;
@@ -119,7 +133,7 @@ async function built(outDir: string, withSeam: boolean): Promise<Record<string, 
 	const instance = new Server(manifest);
 	await instance.init({ env: {} });
 	const answered = await Promise.all(
-		URLS.map(async (url) => {
+		urls.map(async (url) => {
 			const response = await instance.respond(new Request(`http://sample.test${url}`), {
 				getClientAddress: () => '127.0.0.1',
 			});
@@ -156,11 +170,7 @@ let compiledOnSync = true;
 let ours: Record<string, string> = {};
 
 beforeAll(async () => {
-	rmSync(root, { recursive: true, force: true });
-	for (const [file, source] of Object.entries(files)) {
-		mkdirSync(dirname(resolve(root, file)), { recursive: true });
-		writeFileSync(resolve(root, file), source);
-	}
+	written(root, files);
 	kit = await built('.svelte-kit-plain', false);
 	compiledOnSync = await synced();
 	ours = await built('.svelte-kit', true);
@@ -192,5 +202,62 @@ describe("the built server answers as Kit's does", () => {
 	it("ran the page's script where substitution could not follow it", () => {
 		expect(kit['/run']).toContain('run: 42');
 		expect(ours['/run']).toContain('run: 42');
+	});
+});
+
+// Kit's remote functions, in a project of their own since they need Svelte's async mode, which
+// changes every page's bytes: a query called in the markup runs per request in Kit's request
+// context, and its result goes into the page for the client. Kit's `async` and `options-2` apps
+// call them, and every such page was refused at the build. See spec/derivation.md, "A remote
+// function runs where Kit's server runs it".
+const remoteRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../.build-plugin-remote');
+const remoteFiles: Record<string, string> = {
+	'package.json': '{ "name": "sample-remote", "private": true, "type": "module" }',
+	'vite.config.js':
+		"import { sveltekit } from '@sveltejs/kit/vite';\n" +
+		`import { seam } from ${JSON.stringify(pathToFileURL(plugin).href)};\n` +
+		"export default { logLevel: 'silent', plugins: [sveltekit({ outDir: process.env.SEAM_OUT, compilerOptions: { experimental: { async: true } }, experimental: { remoteFunctions: true } }), ...(process.env.SEAM ? [seam()] : [])] };",
+	'src/app.html':
+		'<!doctype html><html lang="en"><head>%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>',
+	'src/routes/data.remote.js':
+		"import { form, query } from '$app/server';\nexport const getCount = query(async () => 42);\nexport const greet = query('unchecked', async (name) => `hello ${name}`);\nexport const editData = form('unchecked', async (data) => data);",
+	// A form, spread onto an element and read down its fields, with state the script sets per request
+	// before the markup reads it: Kit's `async` app's `remote/form/set-ssr`.
+	'src/routes/form/+page.svelte':
+		"<script>import { editData } from '../data.remote'; const form = editData; form.fields.set({ description: 'ssr' }); form.fields.description.set('nested');</script><div id=\"description\">Description: {form.fields.description.value()}</div><form {...form}><input {...form.fields.name.as('text')} /><button type=\"submit\">Submit</button></form>",
+	'src/routes/+page.svelte':
+		// Called in the markup, and at the top of the script the way Kit's own `async` app calls one,
+		// which the compile-time render runs: Kit's query needs a request there, which a build lacks.
+		"<script>import { getCount, greet } from './data.remote'; const count = getCount();</script><p>count: {await getCount()}</p><p>{await count} / {count.current} ({count.loading})</p><p>{await greet('kit')}</p>",
+};
+
+describe('a remote function answers as it does in Kit', () => {
+	let kitRemote: Record<string, string> = {};
+	let oursRemote: Record<string, string> = {};
+	beforeAll(async () => {
+		written(remoteRoot, remoteFiles);
+		kitRemote = await built('.svelte-kit-plain', false, remoteRoot, ['/', '/form']);
+		oursRemote = await built('.svelte-kit', true, remoteRoot, ['/', '/form']);
+	}, 120_000);
+	afterAll(() => rmSync(remoteRoot, { recursive: true, force: true }));
+
+	it('/', () => {
+		expect(kitRemote['/']).toContain('count: 42');
+		expect(oursRemote['/']).toBe(kitRemote['/']);
+	});
+
+	it('/form', () => {
+		expect(kitRemote['/form']).toContain('Description: nested');
+		expect(oursRemote['/form']).toBe(kitRemote['/form']);
+	});
+
+	// A route the compile leaves to the framework is answered by Kit's own render, which matches Kit
+	// whatever the compiler did -- so the answer alone does not say the route was compiled.
+	it('compiled the route rather than leaving it to Kit', () => {
+		const manifest = JSON.parse(
+			readFileSync(resolve(remoteRoot, '.svelte-kit/output/server/seam/manifest.json'), 'utf8'),
+		) as { routes: Record<string, unknown>; left: Record<string, string> };
+		expect(manifest.left).toEqual({});
+		expect(Object.keys(manifest.routes).toSorted()).toEqual(['/', '/form']);
 	});
 });

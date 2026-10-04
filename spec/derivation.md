@@ -293,6 +293,36 @@ render whole ([pipeline.md](pipeline.md)). The carried bundle's `$app/paths` is 
 module, which the dispatcher hands in, so the derivation reads the request store Kit is answering
 from: [framework.md](framework.md), "SvelteKit 3 is the target, and what it moves", step four.
 
+### A remote function runs where Kit's server runs it
+
+**A remote function is read per request, the way `$app/paths` is, and it is Kit's own instance
+that runs.** Kit's build gives each function in a `*.remote.*` module an id and registers the
+module; its server calls one in the request's context, caches the result for the request, and
+serialises every result the render used into the page, so the client hydrates without asking
+again. A name imported from such a module therefore varies wherever an expression mentions it, and
+a page whose files import one is not Svelte's render whole. The test of a module is Kit's own,
+`/[/.]remote\.[^/]+$/` on the file, with the extension an import may leave off.
+
+Two halves meet it. **At the build**, the compile-time render runs a component's script, and
+`const count = get_count()` at its top called Kit's query, which needs a request and threw; the
+render's loader resolves a remote module to a stand-in instead, each export answering as Kit's
+server does before a query settles -- a thenable settling to `undefined`, `loading` true -- and
+throwing nothing, since nothing it answers reaches the bytes. **At the request**, the carried
+bundle's import of the module is a read of the one the dispatcher imports in Kit's own build,
+which is the registered instance, so the call runs in Kit's request context, its result goes into
+Kit's request state, and Kit writes the same `data` into the page it would have.
+
+**A method called on a remote value at the top of the script changes it.** The rule that takes a
+top-level method call for a read -- `items.find(...)` is everywhere, and counting it as a change
+would refuse ordinary components -- does not hold for these: a form's `fields.set(...)` and a
+query's `set(...)` are how a script sets the request's state before the markup reads it, as Kit's
+`remote/form/set-ssr` does. So a name holding a remote value -- an import of a remote module, or a
+declaration reading one, `const form = editData` -- that a top-level call is made on is a name
+substitution cannot follow, and the script run answers its reads.
+
+Kit's `async` app, whose remote routes were all refused at the build, is what this was measured
+on; [conformance.md](conformance.md), "Stage 2", has where it stands.
+
 ## The payload is frozen
 
 `(p.price = 999)` evaluated successfully, changed the payload in place, and was visible to every

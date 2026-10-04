@@ -254,9 +254,10 @@ what has to exist for the server half to load.
 
 ## Left out, for now
 
-Form actions, remote functions, the service worker, prerendering (`core/postbuild`), adapters
-(`core/adapt`), `write_types` and the `handleRenderingErrors` boundary root. Actions and remote
-functions are request handling a backend does on its own; prerendering is a build-time SSR the
+Form actions, the service worker, prerendering (`core/postbuild`), adapters (`core/adapt`),
+`write_types` and the `handleRenderingErrors` boundary root. Remote functions are taken: a
+component calls Kit's own, per request, as [derivation.md](derivation.md), "A remote function runs
+where Kit's server runs it", says. Actions are request handling a backend does on its own; prerendering is a build-time SSR the
 compiler supersedes; adapters wait for a second backend; the types generator drives a compiler API
 that moved under the installed TypeScript. None is refused. Each is taken when a route needs it.
 

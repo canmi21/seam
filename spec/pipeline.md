@@ -350,6 +350,14 @@ request time. Measured on the most ordinary case there is, a class helper over `
 classes, arrow functions and `Map`, and evaluated once when the process starts rather than once
 per request. See [derivation.md](derivation.md).
 
+**The host's own modules are read, not imported.** Svelte's server runtime takes
+`AsyncLocalStorage` by `import('node:async_hooks')` as an async render starts and swallows a
+failure, so a script run under Svelte's async mode found none wherever a bundle evaluated by
+`new Function` could not make that import -- under vitest always -- and threw
+`async_local_storage_unavailable`. The carried build resolves the module to its value off
+`process.getBuiltinModule`, which is synchronous and is not an import; an engine with no such host
+has no async render to run either.
+
 One syntactic constraint comes out of that and is the same on both engines. `with` is a syntax
 error in a module, modules being always strict, so the carried code is bundled as ordinary
 functions and the expressions themselves are built with `new Function` at startup, which is

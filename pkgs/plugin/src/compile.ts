@@ -38,6 +38,15 @@ export const ASSETS = 'assets.json';
 /** The key an asset's URL is handed under, by its import relative to the project's root. */
 export const assetKey = (imported: string): string => `asset:${imported}`;
 
+/**
+ * The modules of remote functions the carried bundles call, beside the artifacts like `ASSETS`:
+ * read by the dispatcher's generation, which imports each in Kit's build. See `remoteModules`.
+ */
+export const REMOTES = 'remotes.json';
+
+/** The key a remote module is handed under, by its path relative to the project's root. */
+export const remoteKey = (file: string): string => `remote:${file}`;
+
 /** What the compile has to be told, which is everything that crosses into the process it runs in. */
 export interface Compiling {
 	root: string;
@@ -94,6 +103,7 @@ export async function compileRoutes({
 		// `$app/environment`'s `dev` came out true and a component branching on it baked the
 		// development branch. Said after Kit's own config hook, which is what `post` is for.
 		plugins: [
+			remoteStandIns(),
 			...plugins,
 			{
 				name: `${NAME}:built`,
@@ -135,6 +145,7 @@ export async function compileRoutes({
 	const kit = await configured(root);
 	const found_aliases = Object.entries(await aliases(root));
 	const assets = new Set<string>();
+	const remotes = new Set<string>();
 	let n = 0;
 	const carrier: Bundler = async (entry, source) => {
 		n += 1;
@@ -149,6 +160,8 @@ export async function compileRoutes({
 			logLevel: 'silent',
 			plugins: [
 				assetURLs(root, assets),
+				remoteModules(root, remotes),
+				hostModules(),
 				appModules(kit, root, outDir),
 				// A component's script run as Svelte compiled it, which a derivation calls where
 				// substitution could not follow. See `running()` in the carry package.
@@ -192,6 +205,7 @@ export async function compileRoutes({
 			...(refuseUnnamedComponents === undefined ? {} : { refuseUnnamedComponents }),
 		});
 		writeFileSync(resolve(out, ASSETS), `${JSON.stringify([...assets].toSorted())}\n`);
+		writeFileSync(resolve(out, REMOTES), `${JSON.stringify([...remotes].toSorted())}\n`);
 	} finally {
 		forgetStaging();
 		configureRender(null);
@@ -272,6 +286,165 @@ function assetURLs(root: string, found: Set<string>): Plugin {
 			return [
 				`import { handed } from ${JSON.stringify(handedModule)};`,
 				`export default handed(${JSON.stringify(key)});`,
+				'',
+			].join('\n');
+		},
+	};
+}
+
+/**
+ * A module of remote functions, as the carried bundle gets it: Kit's own, handed in.
+ *
+ * Kit's build gives each remote function its id and registers the module, and its server runs one
+ * in the request's context and serialises the result into the page for the client. A copy bundled
+ * here would be none of that -- no id, no `$app/server` to import, and a result the page never
+ * carries -- so the import becomes a read of the module the dispatcher imports in Kit's build, as
+ * `$app/paths` is. A remote module exports only remote functions and no default, which Kit
+ * enforces, so its names are read off its source. See spec/derivation.md, "A remote function runs
+ * where Kit's server runs it".
+ */
+function remoteModules(root: string, found: Set<string>): Plugin {
+	const HANDED = '\0seam:remote:';
+	const handedModule = fileURLToPath(new URL(`./app/handed${OWN}`, import.meta.url));
+	return {
+		name: `${NAME}:remotes`,
+		enforce: 'pre',
+		async resolveId(source, importer, options) {
+			if (source.startsWith('\0') || importer === undefined) return null;
+			const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
+			if (resolved === null || resolved.external) return null;
+			// Already one of these, resolved again through a script the run carries: taken as it is
+			// rather than wrapped twice. Any other virtual module is not a file.
+			if (resolved.id.startsWith(HANDED)) return resolved.id;
+			if (resolved.id.startsWith('\0')) return null;
+			const [file = ''] = resolved.id.split('?', 1);
+			if (!REMOTE_FILE.test(file)) return null;
+			const key = relative(root, file).split('\\').join('/');
+			found.add(key);
+			return `${HANDED}${key}`;
+		},
+		load(id) {
+			if (!id.startsWith(HANDED)) return null;
+			const key = id.slice(HANDED.length);
+			const names = remoteExports(readFileSync(resolve(root, key), 'utf8'));
+			return [
+				`import { handed } from ${JSON.stringify(handedModule)};`,
+				`const held = handed(${JSON.stringify(remoteKey(key))});`,
+				...names.map((name) => `export const ${name} = held.${name};`),
+				'',
+			].join('\n');
+		},
+	};
+}
+
+/**
+ * The host's own modules a carried bundle reaches, as values read without importing anything.
+ *
+ * Svelte's server runtime takes `AsyncLocalStorage` by `import('node:async_hooks')` when an async
+ * render starts, and swallows a failure, so a script run under Svelte's async mode in a bundle
+ * evaluated by `new Function` had none wherever that import could not be made -- under vitest
+ * always -- and threw `async_local_storage_unavailable`. A carried bundle imports nothing at request
+ * time (spec/pipeline.md, "What runs at request time, and what does not"), so the module is read off
+ * `process.getBuiltinModule`, which is synchronous and is not an import.
+ */
+function hostModules(): Plugin {
+	const HOST = '\0seam:host:';
+	return {
+		name: `${NAME}:host`,
+		enforce: 'pre',
+		resolveId(source) {
+			return source === 'node:async_hooks' || source === 'async_hooks'
+				? `${HOST}async_hooks`
+				: null;
+		},
+		load(id) {
+			if (id !== `${HOST}async_hooks`) return null;
+			return [
+				"const hooks = globalThis.process?.getBuiltinModule?.('node:async_hooks');",
+				'export const AsyncLocalStorage = hooks?.AsyncLocalStorage;',
+				'export default hooks;',
+				'',
+			].join('\n');
+		},
+	};
+}
+
+/** A module of remote functions, by Kit's own test of a resolved file (`remote_module_pattern`). */
+const REMOTE_FILE = /[/.]remote\.[^/]+$/;
+
+/** What a module of remote functions exports, read off its source; Kit allows no default. */
+function remoteExports(source: string): string[] {
+	const names = new Set<string>();
+	for (const one of source.matchAll(
+		/export\s+(?:async\s+)?(?:const|let|var|function\*?)\s+([$\w]+)/g,
+	)) {
+		names.add(one[1] as string);
+	}
+	for (const one of source.matchAll(/export\s*\{([^}]*)\}/g)) {
+		for (const part of (one[1] as string).split(',')) {
+			const name = part.trim().split(/\s+as\s+/).pop()?.trim();
+			if (name !== undefined && name !== '') names.add(name);
+		}
+	}
+	return [...names];
+}
+
+/**
+ * Modules of remote functions as the compile-time render gets them: stand-ins that answer the
+ * way Kit's server does before a query has settled -- a thenable settling to `undefined`, no
+ * `current`, `loading` -- in whatever shape they are used in, and throw nothing.
+ *
+ * Kit's own needs the request's context, which a build has not got, so a component script calling
+ * one at its top, `const count = get_count()`, threw while the render ran it and the boundary
+ * around the page refused the route. What the render reads of these never reaches the bytes:
+ * every expression naming one is read per request (`varies()` in the skeleton package), where the
+ * carried bundle calls Kit's own. See spec/derivation.md, "A remote function runs where Kit's
+ * server runs it".
+ */
+function remoteStandIns(): Plugin {
+	const STAND_IN = '\0seam:remote-stand-in:';
+	return {
+		name: `${NAME}:remote-stand-ins`,
+		enforce: 'pre',
+		async resolveId(source, importer, options) {
+			if (source.startsWith('\0') || importer === undefined) return null;
+			const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
+			if (resolved === null || resolved.external) return null;
+			if (resolved.id.startsWith(STAND_IN)) return resolved.id;
+			if (resolved.id.startsWith('\0')) return null;
+			const [file = ''] = resolved.id.split('?', 1);
+			// Named by the path encoded, so that no part of the id reads as a remote module to Kit's
+			// own plugin, which would append an import of the module to itself.
+			return REMOTE_FILE.test(file)
+				? `${STAND_IN}${Buffer.from(file).toString('base64url')}`
+				: null;
+		},
+		load(id) {
+			if (!id.startsWith(STAND_IN)) return null;
+			const file = Buffer.from(id.slice(STAND_IN.length), 'base64url').toString();
+			const names = remoteExports(readFileSync(file, 'utf8'));
+			// Any shape a remote function is used in: a query called and awaited, a form spread onto
+			// an element or read down `fields.name.as('text')`, a command called from a handler.
+			return [
+				'const settled = Promise.resolve(undefined);',
+				'const anything = () => new Proxy(() => {}, {',
+				'\tget(_, key) {',
+				"\t\tif (key === 'then') return (done, failed) => settled.then(done, failed);",
+				"\t\tif (key === 'catch') return (failed) => settled.catch(failed);",
+				"\t\tif (key === 'finally') return (after) => settled.finally(after);",
+				"\t\tif (key === 'loading') return true;",
+				"\t\tif (key === 'ready') return false;",
+				"\t\tif (key === 'current' || key === 'error' || key === 'result') return undefined;",
+				"\t\tif (key === Symbol.toPrimitive) return () => '';",
+				'\t\tif (key === Symbol.iterator) return function* () {};',
+				"\t\tif (typeof key === 'symbol') return undefined;",
+				'\t\treturn anything();',
+				'\t},',
+				'\tapply: () => anything(),',
+				'\townKeys: () => [],',
+				'\tgetOwnPropertyDescriptor: () => undefined,',
+				'});',
+				...names.map((name) => `export const ${name} = anything();`),
 				'',
 			].join('\n');
 		},

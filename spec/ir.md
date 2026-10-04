@@ -287,6 +287,12 @@ questions at the build, answered by a render that has no helper to call, so the 
 off them (`Walk.untried`) while the key each is filed under keeps the guarded text, since the
 pass that asks and the pass that reads the answer have to spell it the same.
 
+**A guard around a script run's value is `async`.** `awaiting` leaves the run's own
+`await $$run(...)` out, as not the author's await, and the guard used it to choose between
+`$$tried(() => ...)` and `(await $$tried(async () => ...))`; a value read off a run inside a
+boundary then sat in a function that is not `async`, where `await` is a plain name in sloppy mode
+and the derivation is a syntax error. The guard counts the run's await too.
+
 **A child's value goes into the run as a held reference under the child's own files.** The run is
 one derivation, filed under the chain the boundary sits in, and a value inlined into it as text
 resolved its names -- an import, the `$$run` of the file whose script runs per request -- in that
@@ -297,7 +303,12 @@ under, and lowering resolves it through them ([derivation.md](derivation.md), th
 Two kinds stay text: a value reading a name the run binds -- an each's item, a fragment's
 parameter -- which is a value per iteration where a held reference is one per request; and a
 value that awaits, since `derive` settles a derivation's async dependencies before it evaluates,
-which would put the rejection outside the catch the run exists to put it inside. And the throw
+which would put the rejection outside the catch the run exists to put it inside. **A value that
+awaits is still read through its own files**: written bare, a page's `await getCount()` inside the
+layout's boundary looked `getCount` up in the layout, which never imported it. It is wrapped in
+`$$within(files, $scope, $request, bound)`, which `derive` provides: a scope answering only for a
+name those files carry and nothing nearer holds -- not the data, not the request's own names, not
+a name the run binds -- so it stands where the chain would have, below the data. And the throw
 reaches `transformError` as the author threw it: a held reference is a derivation, and `derive`
 wraps what one throws in a `DerivationFailed` naming the source, which `caught` takes off by its
 name -- by name, because it is carried into the bundle and shares no `Error` to test against.

@@ -68,6 +68,8 @@ function steady(one: { file: string; source: string }): boolean {
 	// Kit's `$app/paths`, whose `resolve` writes a path relative to the URL being answered. See
 	// `varies()` in dynamic.ts.
 	if (/['"]\$app\/paths['"]/.test(one.source)) return false;
+	// And a remote function, which Kit runs per request. See `varies()` too.
+	if (/['"][^'"]*[/.]remote(?:\.[^/'"]+)?['"]/.test(one.source)) return false;
 	if (!one.file.endsWith('.svelte')) return true;
 	try {
 		resolved(one.source, basename(one.file), one.file);

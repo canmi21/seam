@@ -74,9 +74,13 @@ export function boundary(
 		) {
 			return text;
 		}
-		const guarded = awaiting(text)
-			? `(await $$tried(async () => (${text})))`
-			: `$$tried(() => (${text}))`;
+		// The run's own await counts here, which `awaiting` leaves out as not the author's: the
+		// guard is a function, and an `await $$run(...)` inside one that is not `async` is a syntax
+		// error -- `await` is a plain name in sloppy mode.
+		const guarded =
+			awaiting(text) || text.includes('await $$run(')
+				? `(await $$tried(async () => (${text})))`
+				: `$$tried(() => (${text}))`;
 		raw.set(guarded, text);
 		return guarded;
 	};
@@ -148,7 +152,16 @@ export function boundary(
 		inScope: ReadonlySet<string>,
 	): string => {
 		const plain = unguarded(text);
-		if (constant(plain) || awaiting(plain) || (inScope.size > 0 && mentions(plain, inScope))) {
+		if (constant(plain)) return `(${plain})`;
+		// A value that awaits stays text, and is read through its own files: inlined bare, a
+		// page's `await getCount()` inside a layout's boundary looked `getCount` up in the layout,
+		// where the page's import is not. `$$within` answers for that chain alone and below the
+		// data, which is where the chain would have stood. See `within` in the derive package.
+		if (awaiting(plain) && files !== undefined && files.length > 0) {
+			const bound = JSON.stringify([...inScope]);
+			return `(await (async () => { with ($$within(${JSON.stringify(files)}, $scope, $request, ${bound})) { return (${plain}); } })())`;
+		}
+		if (awaiting(plain) || (inScope.size > 0 && mentions(plain, inScope))) {
 			return `(${plain})`;
 		}
 		const key = (files ?? []).join('\u0000');

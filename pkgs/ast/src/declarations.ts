@@ -486,9 +486,16 @@ export function losing(
 		// everywhere -- `array.reduce(...)`, `items.find(...)` -- where inside a function the render
 		// calls it is rare enough to be worth the refusal. What that leaves out is a top-level
 		// `xs.push(1)`, which the rule above never caught either.
-		const { written } = changing(body, names, new Set());
+		const { written, called } = changing(body, names, new Set());
 		for (const target of written)
 			if (read.has(target) && !declares.has(target)) lostBefore.add(target);
+		// Except on a value of Kit's remote functions, whose methods are how a script sets the
+		// request's state before the markup reads it: `form.fields.set({ ... })` at the top of the
+		// script, then `{form.fields.description.value()}`. Substituted, the read never saw the set.
+		// See spec/derivation.md, "A remote function runs where Kit's server runs it".
+		const remote = remoteBound(ast, found);
+		for (const target of called)
+			if (remote.has(target) && read.has(target) && !declares.has(target)) lostBefore.add(target);
 	}
 	for (const name of ran) {
 		const held = found.get(name);
@@ -587,4 +594,42 @@ export function writes(node: unknown, into: Set<string>): void {
 		into.add(target['name']);
 	}
 	for (const value of Object.values(node)) writes(value, into);
+}
+
+/** A module of Kit's remote functions, as an import names one; Kit's test, with the extension optional. */
+const REMOTE = /[/.]remote(?:\.[^/]+)?$/;
+
+/**
+ * The names holding a value of Kit's remote functions: what a remote module is imported as, and a
+ * declaration whose initialiser reads one of those, `const form = editData`, however many steps on.
+ */
+function remoteBound(
+	ast: Node,
+	found: Map<string, Declared & { node: Node; free: Set<string> }>,
+): Set<string> {
+	const bound = new Set<string>();
+	for (const block of [ast['module'], ast['instance']]) {
+		const content = isNode(block) ? block['content'] : undefined;
+		const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+		for (const statement of body) {
+			if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
+			const from = isNode(statement['source']) ? statement['source']['value'] : undefined;
+			if (typeof from !== 'string' || !REMOTE.test(from)) continue;
+			for (const one of Array.isArray(statement['specifiers']) ? statement['specifiers'] : []) {
+				const local = isNode(one) ? one['local'] : undefined;
+				if (isNode(local) && typeof local['name'] === 'string') bound.add(local['name']);
+			}
+		}
+	}
+	for (let grew = bound.size > 0; grew; ) {
+		grew = false;
+		for (const [name, one] of found) {
+			if (bound.has(name) || FUNCTIONS.has(String(one.node['type']))) continue;
+			if ([...one.free].some((each) => bound.has(each))) {
+				bound.add(name);
+				grew = true;
+			}
+		}
+	}
+	return bound;
 }
