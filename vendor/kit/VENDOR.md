@@ -10,8 +10,8 @@ written in that package rather than in these files.
 | | |
 | --- | --- |
 | upstream | `https://github.com/sveltejs/kit`, `packages/kit` |
-| tag | `@sveltejs/kit@3.0.0-next.29` |
-| commit | `47417bcf0f644947eb16758b2f3179dc0a250124` |
+| tag | `@sveltejs/kit@3.0.0` |
+| commit | `090496890cedbbff15d998695d48cd31e7d698b7` |
 | `src/` | `packages/kit/src`, whole, including the `.spec.js` files and their fixtures |
 | `types/` | `packages/kit/types`, the public declarations |
 | `test/` | `packages/kit/test`, whole: the thirteen apps under `apps/`, `prerendering/`, `build-errors/`, the Playwright harness (`utils.js`, `records.js`, `setup.js`, `types/`) and `mocks/`, the stand-ins the specs use for Kit's virtual modules |
@@ -64,12 +64,13 @@ Only `pkgs/routes` imports from this package, and every other package imports fr
 is the workspace's rule about vendor names -- they stay at the edge -- applied here: if the
 implementation were replaced, one package changes.
 
-**At this tag `pkgs/routes` and `pkgs/plugin` do not type-check against it, by design.** The move
-from 2.70.3 to 3 removed `core/sync/write_root.js`, dropped `svelte.config.js` for the Vite
-plugin's argument, took the `cwd` off `validate_config` and changed `create_manifest_data`'s
-signature; `spec/framework.md`, "SvelteKit 3 is the target, and what it moves", records each and
-the order the framework layer is moved in. The vendor moves first so that the type errors name the
-work, and the repository's `verify` is red until the next step lands.
+**The move from 2.70.3 to 3 was taken vendor first.** It removed `core/sync/write_root.js`,
+dropped `svelte.config.js` for the Vite plugin's argument, took the `cwd` off `validate_config` and
+changed `create_manifest_data`'s signature, and the type errors that followed named the work;
+`spec/framework.md`, "SvelteKit 3 is the target, and what it moves", records each and the order the
+framework layer moved in. From `3.0.0-next.29` to `3.0.0` nothing the framework layer imports
+changed shape: the errors moved into `src/messages/`, `csp.js` hashes asynchronously, and the specs
+gained matchers registered through `test/matchers.js`, which `vitest.config.ts` here registers too.
 
 ## What is checked
 

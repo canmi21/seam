@@ -262,8 +262,8 @@ builds the same app as Kit alone does, which is what a failure is read against: 
 both ways is upstream's or this machine's. Playwright drives the system's Chrome, as Kit's own
 config asks (`channel: 'chrome'`).
 
-**Where it stands.** `basics`, `server.test.js`: Kit alone passes 14 and skips 14 (the project with
-JavaScript on skips every server spec by design); with the plugin, the same 14 pass. The last to
+**Where it stands.** `basics`, `server.test.js`, at `3.0.0`: Kit alone passes 15 and skips 15 (the
+project with JavaScript on skips every server spec by design); with the plugin, the same 15 pass. The last to
 close was an imported image, whose URL Kit's build decides and is now handed in. Getting there
 compiled every one of the app's routes, which is what found the compiler work
 [framework.md](framework.md)'s step four records. `client.test.js` and `test.js` are next, then

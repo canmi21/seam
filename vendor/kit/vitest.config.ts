@@ -9,6 +9,10 @@ import { defineConfig } from 'vitest/config';
 const mock = (specifier: string): string =>
 	fileURLToPath(new URL(`./test/mocks/${specifier}.js`, import.meta.url));
 
+// Upstream's custom matchers, `toThrowKitError` among them, registered in every spec as upstream's
+// own config registers them.
+const setupFiles = [fileURLToPath(new URL('./test/matchers.js', import.meta.url))];
+
 export default defineConfig({
 	define: {
 		__SVELTEKIT_GLOBAL_NAME__: '"__sveltekit_test"',
@@ -26,6 +30,7 @@ export default defineConfig({
 			'<sveltekit:generated>/server.js': mock('generated-server'),
 		},
 		environment: 'node',
+		setupFiles,
 		include: ['src/**/*.spec.js'],
 		exclude: [
 			'**/node_modules/**',

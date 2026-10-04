@@ -45,8 +45,8 @@ Svelte's own corpus they differ by two orders of magnitude, because the corpus t
 still experimental at 5.57. SvelteKit 2 took it straight through --
 `async: ${s(!!config.compilerOptions?.experimental?.async)}` in `core/sync/write_server.js` -- and
 `page/render.js` used it to choose between reading `.body` and awaiting, with
-`// TODO 3.0 remove options.async` beside the choice. Read at 3.0.0-next.29, Kit 3 did not remove
-the option; it kept it, opt-in: `__SVELTEKIT_SUPPORTS_ASYNC__` is
+`// TODO 3.0 remove options.async` beside the choice. Read at 3.0.0-next.29 and again at 3.0.0, Kit 3 did
+not remove the option; it kept it, opt-in: `__SVELTEKIT_SUPPORTS_ASYNC__` is
 `compilerOptions.experimental.async ?? false` in `exports/vite/index.js`, and the comment is gone.
 What is written down about Svelte 6 is one sentence, that the flag is removed there, with no date.
 There is no synchronous answer for an async component in the meantime: reading `.body` of one

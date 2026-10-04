@@ -34,6 +34,6 @@
 		"noUnusedParameters": true,
 		"types": ["node"]
 	},
-	"include": ["src/**/*"],
+	"include": ["src/**/*", "test/vitest-matchers.d.ts"],
 	"exclude": ["./**/write_types/test/**", "./src/runtime/app/service-worker"]
 }
