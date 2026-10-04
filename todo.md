@@ -11,6 +11,11 @@ What the suite fails on, sorted by what closing each takes. The live list is
 
 ## Also open
 
+- Three spec documents are over the workspace's hard limit of a thousand lines, which now measures
+  prose as well as code: `spec/refusals.md` (3064), `spec/derivation.md` (1808) and
+  `spec/readings.md` (1087). Each is marked `lines=deferred` in `.gitattributes` so the gate
+  passes, and is split by its own sections; the deferral goes with the split.
+
 ## Done
 
 - E, the last sample, and the last of the suite: a `this` the entry's run holds is a chain over the

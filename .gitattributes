@@ -8,3 +8,10 @@ vendor/** linguist-vendored=true
 # Written by `mise run regenerate` from the `.svelte` beside each, and read by the checks on both
 # sides: a build's output, not authored.
 corpus/cases/*.json linguist-generated=true
+pkgs/suite/baseline.json linguist-generated=true
+
+# Over the workspace's hard limit and owed a split by section, not taken today. See todo.md, "Also
+# open".
+spec/refusals.md lines=deferred
+spec/derivation.md lines=deferred
+spec/readings.md lines=deferred

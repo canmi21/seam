@@ -97,7 +97,7 @@ depends = [
 ]
 
 [tasks.lines]
-description = "Hold every source file of ours under the line limits"
+description = "Hold every file of ours under the line limits"
 # The check is the workspace's, run over this repository: a file over a thousand lines fails, one
 # over five hundred is advice until `audit`. See the workspace's spec/code.md, "A file is read
 # whole, so it stays short".
