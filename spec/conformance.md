@@ -297,15 +297,16 @@ builds the same app as Kit alone does, which is what a failure is read against: 
 both ways is upstream's or this machine's. Playwright drives the system's Chrome, as Kit's own
 config asks (`channel: 'chrome'`).
 
-**Where it stands.** `basics`, `server.test.js`, at `3.0.0`: Kit alone passes 15 and skips 15 (the
-project with JavaScript on skips every server spec by design); with the plugin, the same 15 pass. The last to
-close was an imported image, whose URL Kit's build decides and is now handed in. Getting there
+**Where it stands.** `basics`, `server.test.js`, at `3.0.0`: thirteen specs, which Kit alone
+passes in the project without JavaScript and skips in the one with it, by design; through the fork,
+the same 13 pass. The last to close was an imported image, whose URL Kit's build decides and is now handed in. Getting there
 compiled every one of the app's routes, which is what found the compiler work
 [framework.md](framework.md)'s step four records. `client.test.js` and `test.js` are next, then
 the other twelve apps.
 
-**The server specs barely look at a page, so every page is compared instead.** Of `server.test.js`'s
-fifteen, eleven ask for an endpoint, a static file, a redirect or a status, and four render a page.
+**The server specs barely look at a page, so every page is compared instead.** Most of
+`server.test.js` asks for an endpoint, a static file, a redirect or a status, and few specs render a
+page.
 `mise run compare -- --app=basics` builds the app as Kit alone does and with the plugin, serves the
 first twice and the second once, and asks all three for every page route Kit's own manifest lists
 and every path the app's specs name, once each and in the same order, so a counter several routes
@@ -336,15 +337,15 @@ At `3.0.0`, over 607 URLs, the first run found **602 the same bytes, 4 different
   nor refused (`/load/invalidation/multiple/redirect`), and the request threw `ReferenceError`.
   [derivation.md](derivation.md), "A store read is the store's value, where the store is a
   declaration".
-- **Owed, and waiting on the fork.** A component a `load` returns (`/load/dynamic-import-styles`:
+- **Closed.** A component a `load` returns (`/load/dynamic-import-styles`:
   `<svelte:component this={data.Thing} />`, `Thing` from `import('./_/Thing.svelte')` in
-  `+page.js`). No name in the component's source reaches it, and handing a value to Svelte's
-  renderer per request is the one thing compile-time rendering does not do, so the request throws
-  the unnamed-component error. The `load` module names it statically, and reading it is the
-  framework's once `load` is the framework's own: [framework.md](framework.md), "Kit is replaced,
-  until it offers a seam to plug into".
+  `+page.js`). No name in the component's source reaches it, so the request threw the
+  unnamed-component error. The `load` module names it statically, and the page now holds bytes for
+  each component a universal `load` imports and names the one it was handed by identity:
+  [framework.md](framework.md), "A component a `load` returns". It was held to need the fork, and
+  did not.
 
-With the two closed: **605 the same, 1 different, 1 unstable.**
+With the three closed: **606 the same, 1 unstable.**
 
 **Every other app, compared the same way**, each built with its own config, mode and preview
 environment as its own scripts give them. Measured again with the fork as each app's Kit, every

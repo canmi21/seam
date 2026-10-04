@@ -47,6 +47,17 @@ export const REMOTES = 'remotes.json';
 /** The key a remote module is handed under, by its path relative to the project's root. */
 export const remoteKey = (file: string): string => `remote:${file}`;
 
+/**
+ * The components a universal `load` imports, beside the artifacts like `ASSETS`: read by the
+ * dispatcher's generation, which imports each in Kit's build and hands the derivations a map from
+ * the module to its path, which is how `$$loaded` names the one a `load` returned. See
+ * spec/framework.md, "A component a `load` returns".
+ */
+export const LOADED = 'loaded.json';
+
+/** The key the map of loaded components is handed under. */
+export const LOADED_KEY = 'seam:loaded';
+
 /** What the compile has to be told, which is everything that crosses into the process it runs in. */
 export interface Compiling {
 	root: string;
@@ -198,15 +209,18 @@ export async function compileRoutes({
 			root,
 			entries: found.map((one) => {
 				const each = declared?.[one.path];
+				const loaded = one.page.loaded.length === 0 ? {} : { loaded: one.page.loaded };
 				return each === undefined
-					? { path: one.path, component: one.component }
-					: { path: one.path, component: one.component, enumerate: each };
+					? { path: one.path, component: one.component, ...loaded }
+					: { path: one.path, component: one.component, enumerate: each, ...loaded };
 			}),
 			out,
 			...(refuseUnnamedComponents === undefined ? {} : { refuseUnnamedComponents }),
 		});
 		writeFileSync(resolve(out, ASSETS), `${JSON.stringify([...assets].toSorted())}\n`);
 		writeFileSync(resolve(out, REMOTES), `${JSON.stringify([...remotes].toSorted())}\n`);
+		const loaded = new Set(found.flatMap((one) => one.page.loaded));
+		writeFileSync(resolve(out, LOADED), `${JSON.stringify([...loaded].toSorted())}\n`);
 	} finally {
 		forgetStaging();
 		configureRender(null);

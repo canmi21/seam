@@ -103,6 +103,15 @@ const files: Record<string, string> = {
 	'src/routes/worker/work.js': 'self.onmessage = () => {};',
 	'src/routes/worker/+page.svelte':
 		"<script>import url from './work.js?worker&url';</script><a href={url}>worker</a>",
+	// A component a universal `load` returns, rendered by the page with `<svelte:component>`: Kit's
+	// `basics` `load/dynamic-import-styles`, which threw the unnamed-component error per request.
+	// See spec/framework.md, "A component a `load` returns".
+	'src/routes/loaded/+page.js':
+		"export async function load({ url }) { return { Thing: url.searchParams.has('none') ? null : (await import('./_/Thing.svelte')).default }; }",
+	'src/routes/loaded/+page.svelte':
+		'<script>export let data;</script><svelte:component this={data.Thing} />',
+	'src/routes/loaded/_/Thing.svelte':
+		'<p id="thing">this text is red</p><style>p { color: red; }</style>',
 	'src/routes/store/+page.svelte':
 		"<script>import { mode, bump } from './state.js'; function go() { mode.set('x'); bump(); }</script><button onclick={go}>go</button><p>mode: {$mode}</p>",
 };
@@ -118,6 +127,8 @@ const URLS = [
 	'/store',
 	'/worker',
 	'/derived',
+	'/loaded',
+	'/loaded?none',
 ];
 
 /** Writes a project's files under `project`, from nothing. */

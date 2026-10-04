@@ -21,9 +21,11 @@ depends on Kit's internals throughout -- the path `render.js` imports `root.svel
 props and `$$renderer.global`, `utils/routing.js` and `core/config` loaded by path, the generated
 `env/config.js`, the `generated/dev` and `generated/build` directories, `__SVELTEKIT_DEV__`, the
 names of Kit's own plugins, and `load_vite_config` resolving for `build` -- which is why
-[publish.md](publish.md) pins Kit to one release. And three things are out of a plugin's reach
+[publish.md](publish.md) pins Kit to one release. And two things are out of a plugin's reach
 whatever it depends on, being Kit's runtime model: the error page Kit renders again per request when
-a `load` throws, a component a `load` returns, and a backend that is not Kit's Node server.
+a `load` throws, and a backend that is not Kit's Node server. A component a `load` returns was
+counted a third and is not one: see **A component a `load` returns** below, which a plugin beside
+Kit does as well as the fork.
 
 **Upstream is not asked yet.** A request for a render hook is made with something to show for it:
 the framework running in the author's own projects, used by others, a couple of hundred stars. It
@@ -34,10 +36,10 @@ can be replaced, this becomes a plugin over the project's own Kit, the fork is d
 project uses both. If Kit declines, the fork is kept and maintained for as long as this exists;
 that is the outcome planned for, not the exception.
 
-**What only the fork can do waits for it.** A component a `load` returns is one: `load` is Kit's
-code running per request, which a plugin cannot read, and in the fork it is this repository's own
--- [conformance.md](conformance.md), "Stage 2", has the route that needs it. The error tree Kit
-renders again when a `load` throws is another.
+**What only the fork can do waits for it.** The error tree Kit renders again when a `load` throws
+is one. A component a `load` returns was taken for another -- `load` is Kit's code running per
+request -- and turned out to need only what the build can read of the `load` module and what the
+dispatcher holds; see **A component a `load` returns** below.
 
 **The fork is the entry, under the entry's name.** A project swaps by one line of its
 `package.json`, `"@sveltejs/kit": "npm:@canmi/seamjs@<version>"` -- `npm:seamjs@...` once that name
@@ -117,6 +119,37 @@ carries it is a different file under a different name from Kit's own, on every p
 `mise run compare` holds those apart and every other file to Kit's ([conformance.md](conformance.md)).
 And a slow query holds the response open where Kit's would have closed, which is the trade: the
 client does not ask again for what the server was already computing.
+
+## A component a `load` returns
+
+**A universal `load` may return a component, and a page render it with `<svelte:component
+this={data.X}>`** -- Kit's `basics` `load/dynamic-import-styles` returns
+`(await import('./_/Thing.svelte')).default` from its `+page.js`. No name in the page's source
+reaches it, so the unnamed rule ([payload.md](payload.md)) threw for it per request. What `load`
+returns is decided per request, and which components it _can_ return is written in the module: the
+build reads each universal `load` down the route's branch -- `+page.js`, `+layout.js` -- for the
+`.svelte` files it imports by a relative specifier, statically or with `import()`, and those are
+the route's loaded components (`Page.loaded`). A server `load` is not read: what it returns crosses
+the wire, which no component does.
+
+**The page holds bytes for each of them, and names the one it was handed by identity.** A `this`
+the request decides that the source names no component for is written as a chain over the route's
+loaded components, `(($$loaded(x) === "src/.../Thing.svelte") ? __seam_loaded_0 : x)`, each
+imported into the file under a name of its own, relative to the file as an author would write it
+(`loadedChosen` in the skeleton). Each test is the request's, so the build renders once per
+component and joins the structures, as it does for any `?:` between components; the last link is
+the value itself, and the unnamed rule's as before. `$$loaded`, one of `derive`'s helpers, looks
+the value up in a map from component to path that the dispatcher hands under `seam:loaded`: the
+dispatcher is bundled by Kit's server build and imports each loaded component itself, so its import
+is the module the `load` returned and the identity holds. The compile writes the paths to
+`loaded.json` beside the artifacts for the dispatcher's generation to read.
+
+**Joining structures renames a derivation that names another.** This was the first route to join
+structures under Kit's root, whose boundaries hold values by name -- `$$caught(() => { (__d3); })`
+-- and a name read inside a derivation was left as the run wrote it: it named nothing once the run's
+derivations were renamed, and two runs' readers written alike were shared as one though they read
+different values. A name a derivation reads is resolved to the joined name of what it names before
+the derivation is shared (`joined()` in the compiler).
 
 ## What SvelteKit is, seen from here
 

@@ -49,6 +49,7 @@ import {
 	rememberedCodegen,
 	rememberedStaging,
 	Undecided,
+	configureLoadedComponents,
 	configureUnnamedComponents,
 	unavailable,
 } from '@seam-js/skeleton';
@@ -73,6 +74,12 @@ export interface Entry {
 	 * serves; see spec/pipeline.md, and spec/build.md for why the domain is a build input.
 	 */
 	enumerate?: Readonly<Record<string, readonly unknown[]>>;
+	/**
+	 * The components the route's universal `load` functions import, relative to `root`: what a
+	 * `load` may hand a page to render with `<svelte:component this={data.X}>`. See
+	 * spec/framework.md, "A component a `load` returns".
+	 */
+	loaded?: readonly string[];
 }
 
 export interface Options {
@@ -273,6 +280,14 @@ export async function structures(entry: Entry, root: string): Promise<(Prepared 
 export async function compile(options: Options): Promise<Report[]> {
 	const root = resolve(options.root);
 	configureUnnamedComponents(options.refuseUnnamedComponents === true);
+	configureLoadedComponents(
+		new Map(
+			options.entries.map((entry) => [
+				resolve(root, entry.component),
+				(entry.loaded ?? []).map((key) => ({ key, file: resolve(root, key) })),
+			]),
+		),
+	);
 	const server = resolve(options.out, 'server');
 
 	// Every entry, then every refusal, rather than the first one. An author fixing a build wants

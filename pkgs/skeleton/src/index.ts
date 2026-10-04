@@ -2,7 +2,11 @@ import { extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 export { expressionsOf, helpers } from './helpers.ts';
 export { skeleton, type Skeleton, type Hole, Undecided } from './skeleton.ts';
-export { configureUnnamedComponents } from './components.ts';
+export {
+	configureLoadedComponents,
+	configureUnnamedComponents,
+	type Loaded,
+} from './components.ts';
 
 /**
  * Where the render's `$app/state` sits, for a check that renders a reference with the same

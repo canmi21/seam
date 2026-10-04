@@ -444,6 +444,7 @@ export const CARRIED = [
 	'given',
 	'hold',
 	'kept',
+	'loaded',
 	'options',
 	'rest_props',
 	'rethrow',

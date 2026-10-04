@@ -263,3 +263,40 @@ describe("a route's carried bundle", () => {
 		expect(carried, 'the helper one structure calls').toContain('shout');
 	});
 });
+
+describe('a derivation that names another, joined', () => {
+	// A boundary's run reads what it holds by name, `$$caught(() => { (__d0); })`, and each run's
+	// `__d0` is its own. Left as written, the reader named nothing once the runs were renamed, and
+	// the two readers -- written alike -- were shared as one though they read different values.
+	it('reads the value its own run named, under its joined name', () => {
+		const run = (value: string, taken: boolean): Parameters<typeof joined>[1][number] => ({
+			fixed: new Map(),
+			decided: new Map([['data.on', taken]]),
+			compiled: {
+				ir: {
+					component: 'Page',
+					body: [{ t: 'slot', path: '__d1', escape: 'content' }],
+					head: [],
+					title: [],
+				},
+				derivations: [
+					{ name: '__d0', expression: value, scope: null },
+					{ name: '__d1', expression: '[__d0, __d10]', scope: null },
+					{ name: '__d10', expression: '"ten"', scope: null },
+				],
+			} as unknown as Structure,
+		});
+		const structure = joined('Page', [run('"on"', true), run('"off"', false)]);
+		const derive = deriving(structure.derivations);
+		const named = new Map(structure.derivations.map((one) => [one.name, one.expression]));
+		const readers = structure.derivations.filter((one) => one.expression.startsWith('['));
+		expect(readers).toHaveLength(2);
+		const values = readers.map((one) => derive({ data: { on: true } })[one.name]);
+		expect(values).toEqual([
+			['on', 'ten'],
+			['off', 'ten'],
+		]);
+		for (const one of readers) expect(one.expression).not.toMatch(/__d\d/);
+		expect(named.size).toBe(structure.derivations.length);
+	});
+});

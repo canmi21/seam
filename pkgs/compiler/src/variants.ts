@@ -243,18 +243,35 @@ export function joined(
 	for (const [at, run] of runs.entries()) {
 		// A derivation is named for its position among its own component's, so several components'
 		// collide by construction. Each run's is pointed at the shared entry its content names.
+		//
+		// **A derivation that names another is renamed with it, before it is shared.** A boundary's
+		// run reads the values it holds by their derivations' names -- `$$caught(() => { (__d3); })`
+		// -- and `__d3` is this run's, which another run's `__d3` is not: left as written it named
+		// nothing once the run's were renamed, and two runs' runs were taken for one where they read
+		// different values. So a name a derivation reads is resolved first, to the joined name of
+		// what it names, and the content shared is the content with those names in it.
 		const by = new Map<string, string>();
-		for (const one of run.compiled.derivations) {
-			const held = shared.get(sharedKey(one));
+		const own = new Map(run.compiled.derivations.map((one) => [one.name, one]));
+		const join = (one: Derivation): string => {
+			const done = by.get(one.name);
+			if (done !== undefined) return done;
+			const expression = one.expression.replace(/(?<![\w$])__d\d+(?![\w$])/g, (name) => {
+				const named = own.get(name);
+				return named === undefined || named === one ? name : join(named);
+			});
+			const written = { ...one, expression };
+			const held = shared.get(sharedKey(written));
 			if (held !== undefined) {
 				by.set(one.name, held);
-				continue;
+				return held;
 			}
 			const name = `__v${String(derivations.length)}`;
-			shared.set(sharedKey(one), name);
+			shared.set(sharedKey(written), name);
 			by.set(one.name, name);
-			derivations.push({ ...one, name });
-		}
+			derivations.push({ ...written, name });
+			return name;
+		};
+		for (const one of run.compiled.derivations) join(one);
 		// A fragment is named for its position among its own component's too, so each run's are
 		// moved the same way, and the calls that name them with them.
 		for (const name of Object.keys(run.compiled.ir.fragments ?? {})) {

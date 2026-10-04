@@ -16,6 +16,7 @@ import {
 	IDENTIFIER,
 	naming,
 	refusingUnnamed,
+	loadedChosen,
 	runChosen,
 	unwrapped,
 } from './components.ts';
@@ -186,7 +187,9 @@ export function collectElement(node: AstNode, type: string, walk: Walk): void {
 		if (where === null) return;
 		// A `this` the script's run answers is a chain over the components the file imports,
 		// each compared with the value inside the run's own module. See `runChosen`.
-		const byRun = runChosen(node['expression'], walk);
+		// Or a chain over the components the route's universal loads import, where the request hands
+		// in a component the source names none of. See `loadedChosen`.
+		const byRun = runChosen(node['expression'], walk) ?? loadedChosen(node['expression'], walk);
 		const expanding: Locals['rewrite'] =
 			byRun === null
 				? walk.expand
@@ -243,7 +246,10 @@ export function collectElement(node: AstNode, type: string, walk: Walk): void {
 			// whatever it is handed; this renders what it can hold, which is nothing for a
 			// value that is nothing, and throws per request for anything else. Refused at the
 			// build instead where the project asks for that. See spec/payload.md.
-			const test = `$$unnamed(${expanding(node['expression'])})`;
+			// The value as this render settled it: a chain over components (`runChosen`,
+			// `loadedChosen`) whose every test was decided false leaves its last link, the value
+			// itself, and the components in the links it passed are no value a derivation can hold.
+			const test = `$$unnamed(${settled(expanding(node['expression']), walk)})`;
 			const index = blocks.length;
 			blocks.push({
 				index,

@@ -8,8 +8,8 @@
  * Kit renders them, and how deep the deepest branch goes, which is what the generated root is
  * sized to. See spec/framework.md.
  */
-import { existsSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { resolveConfig } from 'vite';
 import { kitModule } from './kit.ts';
@@ -39,6 +39,34 @@ export interface Page {
 	 * with no layout, and never one for the root layout, whose failure is `error.html`.
 	 */
 	errors: (string | undefined)[];
+	/**
+	 * The components a universal `load` down the branch imports, relative to the project root: the
+	 * ones a `load` can return for a page to render with `<svelte:component this={data.X}>`, which
+	 * Kit's own `basics` does. Read off each level's `+page.js` or `+layout.js` as written -- an
+	 * `import('./x.svelte')` or an `import X from './x.svelte'` with a relative specifier -- since
+	 * the module is code a request runs and the build does not. A server `load` returns data a page
+	 * receives over the wire, and no component crosses it. See spec/framework.md, "A component a
+	 * `load` returns".
+	 */
+	loaded: string[];
+}
+
+/** A `.svelte` file a module imports by a relative specifier written out, statically or not. */
+const IMPORTED = /(?:\bimport\s*\(\s*|\bfrom\s*)(['"])(\.{1,2}\/[^'"]+\.svelte)\1/g;
+
+/**
+ * The components one universal `load` module imports, relative to the project root, in the order
+ * it names them.
+ */
+function importedComponents(cwd: string, module: string): string[] {
+	const file = resolve(cwd, module);
+	if (!existsSync(file)) return [];
+	const found: string[] = [];
+	for (const [, , specifier] of readFileSync(file, 'utf8').matchAll(IMPORTED)) {
+		const target = resolve(dirname(file), specifier ?? '');
+		if (existsSync(target)) found.push(relative(cwd, target).split('\\').join('/'));
+	}
+	return found;
 }
 
 export interface Routes {
@@ -204,7 +232,18 @@ export async function routes(root: string): Promise<Routes> {
 			const error = route.page.errors[above];
 			errors.push(error == null ? undefined : (componentOf(error) ?? undefined));
 		}
-		pages.push({ id: route.id, params: route.params.map((one) => one.name), branch, errors });
+		const loaded = new Set<string>();
+		for (const index of indexes) {
+			const universal = index === undefined ? undefined : manifest.nodes[index]?.universal;
+			if (universal) for (const one of importedComponents(cwd, universal)) loaded.add(one);
+		}
+		pages.push({
+			id: route.id,
+			params: route.params.map((one) => one.name),
+			branch,
+			errors,
+			loaded: [...loaded],
+		});
 	}
 	return { pages };
 }

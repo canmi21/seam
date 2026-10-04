@@ -92,7 +92,7 @@ function build(
 	// The shared helpers outermost, then the data, then each file of the chain from the entry
 	// inward, so the component the expression sits in shadows its callers and the data.
 	const scopes = ['*', ...chain.toReversed()].map((file) => files[file] ?? {});
-	scopes[0] = { $$within: within(files, scopes), $$rethrow, ...scopes[0] };
+	scopes[0] = { $$within: within(files, scopes), $$rethrow, $$loaded, ...scopes[0] };
 	const opened = `with ($files[0]) {`;
 	const closed = '}';
 	const inner = scopes.slice(1);
@@ -122,6 +122,22 @@ function build(
  */
 function $$rethrow(make: () => unknown): never {
 	throw make();
+}
+
+/**
+ * `$$loaded(value)`: the path of the component a universal `load` imported that `value` is, or
+ * null where it is none of them. A `load` returning a component hands the page the module Kit's
+ * server build imported, and the dispatcher -- bundled by the same build, and importing each such
+ * component itself -- hands a map from that module to its path, under `seam:loaded` on the
+ * framework's global (`LOADED_KEY` in the plugin package). See spec/framework.md, "A component a
+ * `load` returns".
+ */
+function $$loaded(value: unknown): string | null {
+	const handed = (globalThis as Record<symbol, unknown>)[Symbol.for('seam.kit')] as
+		| Record<string, unknown>
+		| undefined;
+	const map = handed?.['seam:loaded'];
+	return map instanceof Map ? ((map.get(value) as string | undefined) ?? null) : null;
 }
 
 /**

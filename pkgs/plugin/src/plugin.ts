@@ -26,6 +26,8 @@ import {
 	assetKey,
 	type Compiling,
 	NAME,
+	LOADED,
+	LOADED_KEY,
 	REMOTES,
 	remoteKey,
 } from './compile.ts';
@@ -178,6 +180,7 @@ export function seam(options: Options = {}): Plugin {
 				emitted,
 				listed(outDir, ASSETS).map((one) => [assetKey(one), resolve(root, one)]),
 				listed(outDir, REMOTES).map((one) => [remoteKey(one), resolve(root, one)]),
+				listed(outDir, LOADED).map((one) => [one, resolve(root, one)]),
 			);
 		},
 	};
@@ -261,6 +264,7 @@ function dispatcher(
 	emitted: ReadonlyMap<string, string>,
 	assets: ReadonlyArray<readonly [key: string, path: string]>,
 	remotes: ReadonlyArray<readonly [key: string, path: string]>,
+	loaded: ReadonlyArray<readonly [key: string, path: string]>,
 ): string {
 	const here = createRequire(import.meta.url);
 	// By path rather than by name: the module is compiled inside the project's build, where this
@@ -282,9 +286,18 @@ function dispatcher(
 	const remoteImports = remotes
 		.map(([, path], i) => `import * as remote_${String(i)} from ${JSON.stringify(path)};\n`)
 		.join('');
+	// Each component a universal `load` imports, imported here so that it is the module the `load`
+	// returns -- one module of Kit's build -- and handed as a map from it to its path, which is how a
+	// derivation names the one a request was handed. See spec/framework.md, "A component a `load`
+	// returns".
+	const loadedImports = loaded
+		.map(([, path], i) => `import loaded_${String(i)} from ${JSON.stringify(path)};\n`)
+		.join('');
+	const loadedMap = `new Map([${loaded.map(([key], i) => `[loaded_${String(i)}, ${JSON.stringify(key)}]`).join(', ')}])`;
 	const handedAssets = [
 		...assets.map(([key], i) => `, ${JSON.stringify(key)}: asset_${String(i)}`),
 		...remotes.map(([key], i) => `, ${JSON.stringify(key)}: remote_${String(i)}`),
+		`, ${JSON.stringify(LOADED_KEY)}: ${loadedMap}`,
 	].join('');
 	return `
 import { readFileSync } from 'node:fs';
@@ -296,7 +309,7 @@ import * as kitExports from '@sveltejs/kit';
 import { rendered_env, dynamic_private_env } from '<sveltekit:generated>/env/config.js';
 import { inject } from ${JSON.stringify(injector)};
 import { compile as derivations } from ${JSON.stringify(derive)};
-${imports}${remoteImports}
+${imports}${remoteImports}${loadedImports}
 // What Kit's build and server decide, handed to the derivations: the manifest, \`$app/paths\`,
 // whose \`resolve\` reads the request Kit is answering, the two objects
 // Kit's server fills with the dynamic environment as it starts, which the carried bundle's own

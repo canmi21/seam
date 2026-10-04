@@ -3,8 +3,8 @@
  * itself, a `this` the request decides and the one candidate it can be, and what stands in for a
  * component in an expression. See spec/pipeline.md and spec/payload.md.
  */
-import { relative } from 'node:path';
-import { mentions, resolveBare, RUN_NAME } from '@seam-js/ast';
+import { dirname, relative } from 'node:path';
+import { type Carried, mentions, resolveBare, RUN_NAME } from '@seam-js/ast';
 import { isNode, refuse } from './node.ts';
 import { settled } from './branches.ts';
 import { type Walk, changedWhy } from './walk-types.ts';
@@ -45,6 +45,66 @@ export let refusingUnnamed = false;
 
 export function configureUnnamedComponents(enabled: boolean): void {
 	refusingUnnamed = enabled;
+}
+
+/** A component a route's universal `load` imports: its file, and the key the request names it by. */
+export interface Loaded {
+	/** Absolute, which is what a synthetic import is written relative from. */
+	file: string;
+	/** Relative to the project root, which is what the dispatcher hands it under. */
+	key: string;
+}
+
+/**
+ * The components each route's universal loads import, by the route's root file. See
+ * spec/framework.md, "A component a `load` returns".
+ */
+let loadedBy: ReadonlyMap<string, readonly Loaded[]> = new Map();
+
+export function configureLoadedComponents(
+	given: ReadonlyMap<string, readonly Loaded[]> | null,
+): void {
+	loadedBy = given ?? new Map();
+}
+
+/**
+ * A `this` the request decides and the source names no component for, written as a chain over
+ * the components the route's universal loads import: `(($$loaded(x) === "a.svelte") ? A : x)`,
+ * one test per component, the value itself last. A `load` that returns a component hands the page
+ * the module Kit's server build imported, and `$$loaded` names it by that identity, which the
+ * dispatcher -- bundled by the same build -- holds. Each test is the request's, so the build
+ * renders once per component, as it does any `?:` between components; the last branch is a value
+ * none of them is, the unnamed rule's as before. Each component is imported into the file under a
+ * name of its own, relative to the file as an author would write it. See spec/framework.md, "A
+ * component a `load` returns".
+ */
+export function loadedChosen(expression: unknown, walk: Walk): string | null {
+	const entry = walk.site.stack[0];
+	const candidates = entry === undefined ? undefined : loadedBy.get(entry);
+	if (candidates === undefined || candidates.length === 0) return null;
+	const written = walk.expand(expression);
+	// The tests read the value bare of a boundary's guard: a guard puts it inside a function, and a
+	// read inside one is not a read `settle` counts, so the test was taken for the build's to decide.
+	const bare = walk.untried?.(written) ?? written;
+	if (!mentions(settled(bare, walk), walk.dynamic)) return null;
+	const named = candidateOf(expression, walk, new Set(), (held) => componentImport(held, walk));
+	if (named !== null) return null;
+	const carried = walk.site.carried as Map<string, Carried>;
+	const locals = candidates.map(({ file }, at) => {
+		const local = `__seam_loaded_${String(at)}`;
+		if (!carried.has(local)) {
+			const rel = relative(dirname(walk.site.file), file).split('\\').join('/');
+			const from = rel.startsWith('.') ? rel : `./${rel}`;
+			carried.set(local, { local, from, kind: 'default' });
+			walk.site.prelude.push(`import ${local} from '${from}';`);
+		}
+		return local;
+	});
+	return candidates.reduceRight(
+		(rest, { key }, at) =>
+			`(($$loaded(${bare}) === ${JSON.stringify(key)}) ? ${locals[at] ?? 'null'} : ${rest})`,
+		written,
+	);
 }
 
 export function choosing(written: string, tag: string, walk: Walk): string {
