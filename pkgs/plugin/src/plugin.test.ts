@@ -62,7 +62,7 @@ const files: Record<string, string> = {
 		// Kit 3 takes its options as the plugin's argument; a `svelte.config.js` is an error. The version
 		// is named because Kit's default is the time its config module was loaded, and the fork's is
 		// loaded apart from Kit's, so each build would name its own and every page would differ by it.
-		"export default { logLevel: 'silent', plugins: [sveltekit({ outDir: process.env.SEAM_OUT, version: { name: 'sample' }, alias: { $parts: 'src/parts' }, extensions: ['.svelte', '.svx'] }), site, ...(process.env.SEAM === 'beside' ? [seam()] : [])] };",
+		"export default { logLevel: 'silent', plugins: [sveltekit({ outDir: process.env.SEAM_OUT, version: { name: 'sample' }, alias: { $parts: 'src/parts' }, extensions: ['.svelte', '.svx', '.svelte.md'] }), site, ...(process.env.SEAM === 'beside' ? [seam()] : [])] };",
 	'src/app.html':
 		'<!doctype html><html lang="en"><head>%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>',
 	'src/routes/+layout.server.js': "export function load() { return { tagline: 'a sample' }; }",
@@ -96,6 +96,17 @@ const files: Record<string, string> = {
 	'src/routes/run/+page.server.js': 'export function load() { return { count: 21 }; }',
 	// A page under an extension the config adds, which Kit's `options` app does: read as a module to
 	// carry rather than a component, it was refused for the guard the root's boundary writes.
+	// And one named like a runes module, `.svelte.md`, whose staged copy kept the name and was
+	// compiled again by Svelte's Vite plugin as one. Kit's `options` `custom-extensions/[slug]`.
+	'src/routes/ext/[slug]/+page.svelte.md':
+		"<script>import { page } from '$app/state';</script><h2>{page.params.slug.toUpperCase()}</h2>",
+	// The build's mode, which `import.meta.env.MODE` reads in a `load` and in markup: Kit's `options`
+	// app builds with `--mode custom`. The markup's read was a derivation that did not parse.
+	'src/routes/mode/+page.js':
+		'export function load() { return { fromLoad: import.meta.env.MODE }; }',
+	'src/routes/mode/+page.svelte':
+		"<script>import { mode } from '#lib/mode.js'; let { data } = $props();</script><h2>{data.fromLoad} === {import.meta.env.MODE} === {mode}</h2>",
+	'src/lib/mode.js': 'export const mode = import.meta.env.MODE;',
 	'src/routes/ext/+page.svx':
 		"<script>import { page } from '$app/state';</script><p>custom: {page.url.pathname}</p>",
 	// Error pages, rendered from the trees Kit renders them with: a layout's `load` throwing under a
@@ -154,6 +165,8 @@ const URLS = [
 	'/shop/closed',
 	'/left',
 	'/ext',
+	'/ext/test-slug',
+	'/mode',
 	'/blog/hello/__data.json',
 	'/missing',
 	'/run',
@@ -206,6 +219,8 @@ async function built(
 		// server environment first and the client from inside it.
 		const builder = await vite.createBuilder({
 			root: project,
+			// Not `production`, so that what reads the mode reads the build's.
+			mode: 'sample',
 			configFile: resolve(project, 'vite.config.js'),
 			logLevel: 'silent',
 		});
@@ -297,6 +312,8 @@ describe("the built server answers as Kit's does", () => {
 		expect(kit['/']).toContain('Home &amp; away');
 		expect(ours['/']).toContain('Home &amp; away');
 		expect(kit['/ext']).toContain('custom: /ext');
+		expect(kit['/ext/test-slug']).toContain('<h2>TEST-SLUG</h2>');
+		expect(kit['/mode']).toContain('<h2>sample === sample === sample</h2>');
 	});
 
 	it('compiled when Kit built, and not when Kit only read the config', () => {

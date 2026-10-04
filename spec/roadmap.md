@@ -81,14 +81,14 @@ Accepted when all four hold:
    "Stage 2"). **Met**: all eleven, `async`'s three streamed pages being the one declared
    difference.
 2. **Kit's own specs pass through the fork, unedited**, every app's, in the build Kit's config
-   runs them against, but for a failure a declared difference lists. **Not met**: `basics`'
-   `server.test.js` passes whole and `async`'s specs over what it streams do; the rest of `basics`
-   and the other apps' specs have not been run.
+   runs them against, but for a failure a declared difference lists. **Met**: every spec of the
+   eleven apps passes under the check build, but the declared one
+   ([conformance.md](conformance.md), "Stage 2").
 3. **No request to a production build runs SSR.** Held by a check build in which Kit's
    `root.svelte` throws whenever it is rendered, under which 1 and 2 still pass (`--kit-root=throw`,
-   [conformance.md](conformance.md), "Stage 2"). **Met for 1**: every app compares the same with no
-   request reaching Kit's root, error pages included ([framework.md](framework.md), "The error
-   page"). 2 is measured under it as it is run.
+   [conformance.md](conformance.md), "Stage 2"). **Met**: every app compares the same and every
+   spec passes with no request reaching Kit's root, error pages included
+   ([framework.md](framework.md), "The error page").
 4. **An application of the author's, moved.** `status`, held the way stage 2 holds Kit's apps
    ([conformance.md](conformance.md), "Stage 3"). **Not met.**
 

@@ -92,7 +92,7 @@ function build(
 	// The shared helpers outermost, then the data, then each file of the chain from the entry
 	// inward, so the component the expression sits in shadows its callers and the data.
 	const scopes = ['*', ...chain.toReversed()].map((file) => files[file] ?? {});
-	scopes[0] = { $$within: within(files, scopes), $$rethrow, $$loaded, ...scopes[0] };
+	scopes[0] = { $$within: within(files, scopes), $$rethrow, $$loaded, $$env, ...scopes[0] };
 	const opened = `with ($files[0]) {`;
 	const closed = '}';
 	const inner = scopes.slice(1);
@@ -107,12 +107,30 @@ function build(
 	// Svelte's `hydratable`, bound to this request's. See `marked`.
 	const made =
 		awaited === null
-			? `return ($scope, $request = {}) => { with ($scope) { ${fileOpened} with ($request) { return (${expression}); } ${fileClosed} } };`
-			: `return async ($scope, $request = {}) => { ${first}with ($scope) { ${fileOpened} with ($request) { return (${expression}); } ${fileClosed} } };`;
+			? `return ($scope, $request = {}) => { with ($scope) { ${fileOpened} with ($request) { return (${metaFree(expression)}); } ${fileClosed} } };`
+			: `return async ($scope, $request = {}) => { ${first}with ($scope) { ${fileOpened} with ($request) { return (${metaFree(expression)}); } ${fileClosed} } };`;
 	const make = new Function('$files', `${opened} ${made} ${closed}`) as (
 		files: Record<string, unknown>[],
 	) => (bindings: Record<string, unknown>, request?: Record<string, unknown>) => unknown;
 	return make(scopes);
+}
+
+/**
+ * `import.meta.env` written as a read of `$$env()`: a function body cannot hold `import.meta`, and a
+ * component writing `{import.meta.env.MODE}` -- Kit's `options` `mode` -- made a derivation that did
+ * not parse. What it reads is what the project's build replaced `import.meta.env` with, which the
+ * dispatcher, bundled by that build, hands under `import.meta.env` on the framework's global. See
+ * spec/derivation.md, "`import.meta.env` is the build's".
+ */
+function metaFree(code: string): string {
+	return code.replace(/\bimport\.meta\.env\b/g, () => '$$env()');
+}
+
+function $$env(): Record<string, unknown> {
+	const handed = (globalThis as Record<symbol, unknown>)[Symbol.for('seam.kit')] as
+		| Record<string, unknown>
+		| undefined;
+	return (handed?.['import.meta.env'] as Record<string, unknown> | undefined) ?? {};
 }
 
 /**
@@ -196,8 +214,8 @@ function within(
 			// `async` only where the piece awaits: a value read per item of an each is handed back as
 			// itself, not as a promise of it.
 			const body = /\bawait\b/.test(code)
-				? `return (async () => { with ($within) { return (${code}); } })();`
-				: `with ($within) { return (${code}); }`;
+				? `return (async () => { with ($within) { return (${metaFree(code)}); } })();`
+				: `with ($within) { return (${metaFree(code)}); }`;
 			// eslint-disable-next-line no-new-func
 			run = new Function('$within', body) as (scope: object) => unknown;
 			made.set(code, run);

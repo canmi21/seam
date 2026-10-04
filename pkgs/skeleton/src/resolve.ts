@@ -1,5 +1,4 @@
-import { basename } from 'node:path';
-import { projectOptions } from '@seam-js/ast';
+import { projectOptions, componentStem } from '@seam-js/ast';
 import { compile } from 'svelte/compiler';
 import { type PendingChoice, probe } from './attributes.ts';
 import { refuse } from './node.ts';
@@ -41,7 +40,7 @@ export function filled(baseline: Rewritten, file: string, root: string): void {
 		if (held !== undefined) return held;
 		const out = compile(copy.source, {
 			generate: 'server',
-			name: basename(copy.file, '.svelte'),
+			name: componentStem(copy.file),
 			filename: copy.file,
 			rootDir: at,
 			...projectOptions(),

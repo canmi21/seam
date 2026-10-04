@@ -331,6 +331,20 @@ substitution cannot follow, and the script run answers its reads.
 Kit's `async` app, whose remote routes were all refused at the build, is what this was measured
 on; [conformance.md](conformance.md), "Stage 2", has where it stands.
 
+### `import.meta.env` is the build's
+
+**A derivation reads `import.meta.env` as the project's build replaced it.** Vite writes the build's
+env -- `MODE`, `DEV`, `PROD`, `BASE_URL`, the `VITE_` variables -- in place of `import.meta.env`
+wherever a module of the build names it, and a component writing `{import.meta.env.MODE}` in its
+markup made a derivation holding `import.meta`, which a function body cannot, and did not parse.
+`derive` writes it as a read of `$$env()`, which answers what the dispatcher hands under
+`import.meta.env` -- its own, which Kit's server build replaced as it replaced every other module's.
+
+**The compile runs under the build's mode.** Kit's `options` app builds with `--mode custom`, and a
+compile that fixed its own as `production` rendered a module's `export const mode =
+import.meta.env.MODE` as `production` into the bytes. The plugin hands the compile the build's
+mode, which the render's loader and the carried bundles' builds are made under.
+
 ## The payload is frozen
 
 `(p.price = 999)` evaluated successfully, changed the payload in place, and was visible to every

@@ -81,6 +81,12 @@ export interface Compiling {
 	configFile: string | null;
 	/** Kit's `outDir`, under which the artifacts are written. */
 	outDir: string;
+	/**
+	 * The build's `--mode`, which `import.meta.env.MODE` reads and which picks the `.env` files: Kit's
+	 * `options` app builds with `--mode custom`, and a page writing `import.meta.env.MODE` read
+	 * `production` from a compile that fixed its own. See spec/framework.md.
+	 */
+	mode: string;
 	/** See `Options.enumerate`. */
 	enumerate?: Readonly<Record<string, Readonly<Record<string, readonly unknown[]>>>>;
 	/** See `Options.refuseUnnamedComponents`. */
@@ -91,6 +97,7 @@ export async function compileRoutes({
 	root,
 	configFile,
 	outDir,
+	mode,
 	enumerate: declared,
 	refuseUnnamedComponents,
 }: Compiling): Promise<void> {
@@ -102,7 +109,7 @@ export async function compileRoutes({
 	// The render loads its staged copies through a Vite server made from the project's own
 	// config, so that what a component imports resolves as the project's build resolves it:
 	// `$lib`, `$app/*`, a virtual module of the project's plugins, `svelte` by condition.
-	// Production mode and no HMR, since Svelte's `hmr` compile option changes the bytes. It
+	// The build's mode and no HMR, since Svelte's `hmr` compile option changes the bytes. It
 	// is a loader and not a development server, so no plugin gets to set one up: what a
 	// project does in `configureServer` -- watchers, middleware, a content pipeline -- is for
 	// serving, and Kit's own is what answers requests, which nothing here sends. The config
@@ -110,7 +117,7 @@ export async function compileRoutes({
 	// the command and do its serving work under `serve`.
 	const vite = await projectVite(root);
 	const loaded = await vite.loadConfigFromFile(
-		{ command: 'build', mode: 'production', isSsrBuild: true },
+		{ command: 'build', mode, isSsrBuild: true },
 		configFile ?? undefined,
 		root,
 	);
@@ -125,7 +132,7 @@ export async function compileRoutes({
 		...loaded?.config,
 		root,
 		configFile: false,
-		mode: 'production',
+		mode,
 		appType: 'custom',
 		logLevel: 'silent',
 		// A server made to load modules, standing where the production build stands: Kit's plugin
@@ -186,7 +193,7 @@ export async function compileRoutes({
 			...loaded?.config,
 			root,
 			configFile: false,
-			mode: 'production',
+			mode,
 			logLevel: 'silent',
 			plugins: [
 				assetURLs(root, assets),

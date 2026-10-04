@@ -218,6 +218,7 @@ export function seam(options: Options = {}): Plugin {
 			root,
 			configFile: config.configFile ?? null,
 			outDir,
+			mode: config.mode,
 			...(options.enumerate === undefined ? {} : { enumerate: options.enumerate }),
 			...(options.refuseUnnamedComponents === undefined
 				? {}
@@ -346,7 +347,7 @@ ${imports}${remoteImports}${loadedImports}
 // env modules read off this global, and the URL of each asset a carried bundle imports. The objects
 // rather than Kit's env modules, since those read the objects as they are evaluated, and this
 // module is evaluated before the server starts. See pkgs/plugin/src/app/handed.ts.
-globalThis[Symbol.for('seam.kit')] = { '$app/manifest': appManifest, '$app/paths': appPaths, '@sveltejs/kit': kitExports, rendered_env, dynamic_private_env${handedAssets} };
+globalThis[Symbol.for('seam.kit')] = { 'import.meta.env': import.meta.env, '$app/manifest': appManifest, '$app/paths': appPaths, '@sveltejs/kit': kitExports, rendered_env, dynamic_private_env${handedAssets} };
 
 const files = { ${files} };
 // The error tree a failed render is, by its route and how many levels Kit handed. See

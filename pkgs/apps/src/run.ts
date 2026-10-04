@@ -9,6 +9,7 @@
  *   node pkgs/apps/src/run.ts --app=basics --spec=server.test.js
  *   node pkgs/apps/src/run.ts --app=basics --spec=server.test.js --plain
  *   node pkgs/apps/src/run.ts --app=async --spec=test.js --grep='query.live'   the tests whose title matches
+ *   node pkgs/apps/src/run.ts --app=async --grep-invert='transport'            the tests whose title does not
  *
  * `--kit-root=throw` builds it so that a render handed to Kit's own root throws instead: milestone
  * A's third check, the specs passing with no request run by SSR. See spec/conformance.md, "Stage 2".
@@ -29,13 +30,19 @@ function argument(name: string): string | undefined {
 const app = argument('app') ?? 'basics';
 const spec = argument('spec');
 const grep = argument('grep');
+const grepInvert = argument('grep-invert');
 const plain = process.argv.includes('--plain');
 // Read by the plugin when the app is built; see `KIT_ROOT_CHECK` in pkgs/plugin/src/plugin.ts.
 const kitRoot = argument('kit-root');
 if (kitRoot !== undefined) process.env['SEAM_KIT_ROOT'] = kitRoot;
 
-const { dir, viteConfig, mode, env } = stage(app, plain);
+const { dir, viteConfig, mode, env, previewEnv } = stage(app, plain);
 const modeFlag = mode === undefined ? '' : ` --mode ${mode}`;
+// What the app's own `preview` script sets before it serves: `RUNTIME_ONLY=secret` for `options-2`,
+// without which its server refuses to start.
+const previewVars = Object.entries(previewEnv)
+	.map(([name, value]) => `${name}=${value} `)
+	.join('');
 
 // Kit's own `test:build`: `pnpm build && pnpm preview --port <port> --strictPort`.
 const playwrightConfig = 'playwright.seam.config.js';
@@ -50,7 +57,7 @@ writeFileSync(
 		'\t...base,',
 		'\twebServer: {',
 		'\t\t...base.webServer,',
-		`\t\tcommand: \`vite build --config ${viteConfig}${modeFlag} && vite preview --config ${viteConfig} --port \${port} --strictPort\`,`,
+		`\t\tcommand: \`vite build --config ${viteConfig}${modeFlag} && ${previewVars}vite preview --config ${viteConfig} --port \${port} --strictPort\`,`,
 		'\t},',
 		'};',
 		'',
@@ -65,6 +72,7 @@ const ran = spawnSync(
 		playwrightConfig,
 		...(spec === undefined ? [] : [spec]),
 		...(grep === undefined ? [] : ['--grep', grep]),
+		...(grepInvert === undefined ? [] : ['--grep-invert', grepInvert]),
 	],
 	{ cwd: dir, env, stdio: 'inherit' },
 );

@@ -11,6 +11,7 @@ import {
 	RUNES_MODULE,
 	runesModule,
 	isComponentFile,
+	componentStem,
 } from '@seam-js/ast';
 import type { Rendered } from './shape.ts';
 import { HEAD_CLOSE, HEAD_OPEN, ID_PREFIX, MARK, MARK_HEAD, sentinel, THROWN } from './sentinel.ts';
@@ -300,7 +301,7 @@ export async function renderRewritten(
 		const forced = opened.get(from);
 		if (forced !== undefined) {
 			if (forced !== '') return forced;
-			const own = resolvePath(staging, `${basename(from, '.svelte')}-${String(cycles++)}.js`);
+			const own = resolvePath(staging, `${componentStem(from)}-${String(cycles++)}.js`);
 			opened.set(from, own);
 			return own;
 		}
@@ -396,7 +397,7 @@ export async function renderRewritten(
 			own === ''
 				? resolvePath(
 						staging,
-						`${basename(from, '.svelte')}-${createHash('sha256').update(code).digest('hex').slice(0, 16)}.js`,
+						`${componentStem(from)}-${createHash('sha256').update(code).digest('hex').slice(0, 16)}.js`,
 					)
 				: own;
 		emitted.set(from, out);
@@ -418,7 +419,7 @@ export async function renderRewritten(
 		const code = codegen(
 			svelte,
 			copy?.source ?? read(target, 'utf8'),
-			basename(from, '.svelte'),
+			componentStem(from),
 			from,
 			root,
 		);

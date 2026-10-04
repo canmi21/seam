@@ -113,6 +113,15 @@ export function stage(app: string, plain: boolean): Staged {
 	rmSync(root, { recursive: true, force: true });
 	mkdirSync(dirname(kitTest), { recursive: true });
 	cpSync(resolve(vendor, 'test'), kitTest, { recursive: true });
+	// Kit's own dependencies where upstream's workspace has them, beside its tests: what Kit's server
+	// build leaves external -- `devalue` -- is found at run time by walking up from the app, and
+	// without this it walked past Kit to this repository's own, another major, under which every
+	// page serializing a custom type answered 500 in either build.
+	symlinkSync(
+		resolve(plain ? vendor : fork, 'node_modules'),
+		resolve(root, 'packages/kit/node_modules'),
+		'dir',
+	);
 	cpSync(resolve(vendor, 'test-utils'), resolve(root, 'test-utils'), { recursive: true });
 	// The app's dependencies are this package's: upstream's workspace gave each app `@sveltejs/kit`,
 	// `svelte`, `vite`, Playwright and the rest by catalog, and `package.json` here declares the same.

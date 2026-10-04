@@ -305,12 +305,26 @@ have handed a render to Kit's own root (`KIT_ROOT_CHECK` in `pkgs/plugin`). Ever
 answers differently from Kit's, and `compare` lists each from the server's log by route and status.
 The plugin's own sample builds the fork this way every time.
 
-**Where it stands.** `basics`, `server.test.js`, at `3.0.0`: thirteen specs, which Kit alone
-passes in the project without JavaScript and skips in the one with it, by design; through the fork,
-the same 13 pass. The last to close was an imported image, whose URL Kit's build decides and is now handed in. Getting there
-compiled every one of the app's routes, which is what found the compiler work
-[framework.md](framework.md)'s step four records. `client.test.js` and `test.js` are next, then
-the other eleven apps.
+**Where it stands: every app's specs, through the fork, under the check.** Run with
+`--kit-root=throw`, so that no request is rendered by Kit's root, every spec of the twelve apps
+`dev-only` aside passes in the build Kit's config runs it against, but one, the declared difference's
+"remote query responses are not cacheable":
+
+| app                                                                                        | passed | failed      |
+| ------------------------------------------------------------------------------------------ | ------ | ----------- |
+| `basics`: `server.test.js`, `client.test.js`, `test.js`                                    | 965    | 0           |
+| `async`                                                                                    | 214    | 1, declared |
+| `options`, `options-2`, `options-3`                                                        | 87     | 0           |
+| `embed`, `hash-based-routing`, `no-csr`, `no-ssr`, `prerendered-app-error-pages`, `writes` | 29     | 0           |
+
+The skipped are the specs each project skips by design -- most of them the one with JavaScript or
+the one without -- and `dev-only`'s are `vite dev`'s, which milestone A does not cover. What getting
+here found, beyond what the comparison had: Kit's `devalue` was this repository's own another major,
+since the apps were staged without `packages/kit/node_modules` and what Kit's server build leaves
+external was found by walking up past Kit; every page serializing a custom type answered 500 in both
+builds, which the comparison had counted the same. And three things of `options`' -- the build's
+`--mode`, `import.meta.env` in markup, a `.svelte.md` page's staged copy -- which its comparison had
+not asked for ([derivation.md](derivation.md), "`import.meta.env` is the build's").
 
 **The server specs barely look at a page, so every page is compared instead.** Most of
 `server.test.js` asks for an endpoint, a static file, a redirect or a status, and few specs render a

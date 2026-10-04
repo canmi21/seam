@@ -8,8 +8,8 @@
  * declares and changes, what a binding sends back, and the copy the child is walked as. See
  * spec/derivation.md.
  */
-import { basename, dirname, resolve as resolvePath } from 'node:path';
-import { importsOf as importedBy, locals } from '@seam-js/ast';
+import { dirname, resolve as resolvePath } from 'node:path';
+import { importsOf as importedBy, locals, componentStem } from '@seam-js/ast';
 import { hands, importsOf, legacyMode, partial, propsOf } from './compose.ts';
 import { type AstNode, isNode, relatesSiblings, span } from './node.ts';
 import { type Snippet, snippetsIn } from './snippets.ts';
@@ -65,7 +65,7 @@ export function childOf(
 	// A copy per call site, so two of the same component do not write one marker twice.
 	const at = resolvePath(
 		dirname(walk.site.file),
-		`__seam-${basename(file, '.svelte')}-${String(walk.site.copies.length)}.svelte`,
+		`__seam-${componentStem(file)}-${String(walk.site.copies.length)}.svelte`,
 	);
 	const copy: Copy = { file, at, source: '', raw, inner, within: [...walk.within] };
 	walk.site.copies.push(copy);

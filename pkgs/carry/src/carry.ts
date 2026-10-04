@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { basename, dirname, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type Plugin, rolldown } from 'rolldown';
 import { compile } from 'svelte/compiler';
@@ -15,6 +15,7 @@ import {
 	RUNES_MODULE,
 	runesModule,
 	isComponentFile,
+	componentStem,
 } from '@seam-js/ast';
 import { RUN } from './gather.ts';
 
@@ -87,7 +88,7 @@ function svelted(): Plugin {
 			if (isComponentFile(id)) {
 				return compile(readFileSync(id, 'utf8'), {
 					generate: 'server',
-					name: basename(id, '.svelte'),
+					name: componentStem(id),
 					filename: id,
 					...projectOptions(),
 				}).js.code;
@@ -172,7 +173,7 @@ export function running(): Plugin {
 				const file = decoded(id, CAPTURED);
 				return compile(captured(readFileSync(file, 'utf8')), {
 					generate: 'server',
-					name: basename(file, '.svelte'),
+					name: componentStem(file),
 					filename: file,
 					...projectOptions(),
 				}).js.code;
