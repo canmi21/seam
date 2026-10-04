@@ -99,6 +99,13 @@ export function boundary(
 		}
 		return text;
 	};
+	// What the run computes is the value bare of every guard, this boundary's and the ones round
+	// it: Kit's root puts a boundary at every level, so a page's own `<svelte:boundary>` is inside
+	// one, and the value it was handed already carried the outer guard, which swallowed the throw
+	// this run exists to catch -- a query rejecting inside the page's boundary rendered the branch
+	// for nothing having thrown. Kit's `remote/batch-ssr`.
+	const bare = (text: string): string =>
+		walk.untried === undefined ? unguarded(text) : walk.untried(unguarded(text));
 	// Every hole and block the children record, with the blocks enclosing it, in the order the walk
 	// records them -- which is source order, entered components included. Read off the two lists as
 	// they grow, since the children record into them from every one of their visitors.
@@ -152,7 +159,7 @@ export function boundary(
 		files: readonly string[] | undefined,
 		inScope: ReadonlySet<string>,
 	): string => {
-		const plain = unguarded(text);
+		const plain = bare(text);
 		if (constant(plain)) return `(${plain})`;
 		// A value that awaits stays text, and is read through its own files: inlined bare, a
 		// page's `await getCount()` inside a layout's boundary looked `getCount` up in the layout,
@@ -179,7 +186,7 @@ export function boundary(
 		}
 		return `($$hold(${String(at)}))`;
 	};
-	const body = inOrder(steps, 1, unguarded, hold, waits);
+	const body = inOrder(steps, 1, bare, hold, waits);
 	if (body === null) {
 		refuse(
 			'a `<svelte:boundary>` with a `failed` snippet, whose body holds what computing its values ' +

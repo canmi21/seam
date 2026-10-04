@@ -337,6 +337,12 @@ that reads them -- `throw new Error(message)` over a `message` the script declar
 name. A `throw` inside an `if`, a function or a block is the request's question, and stays the
 refusal above.
 
+**A run reads its values bare of every guard, its own and the ones round it.** Kit's root puts a
+boundary at every level, so a page's own `<svelte:boundary>` is always inside one, and the page's
+values reached it already guarded by the outer boundary. Taking off only its own guard left the
+outer `$$tried` in the run, which swallowed the throw the run exists to catch: a query rejecting
+inside the page's boundary rendered the branch for nothing having thrown. Kit's `remote/batch-ssr`.
+
 **A boundary inside the children is a catch of its own.** Every level of Kit's root below the
 first with an error page is one, so the shape is every page of an app with two error pages. Its
 children are computed when its own test, a held reference under its files, is read; the run reads
