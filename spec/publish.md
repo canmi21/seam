@@ -15,14 +15,27 @@ rather than only the reason it is spelled with a hyphen. `svelte` has `@sveltejs
 `@astrojs/*`, so a reader who knows the pattern and sees `seamjs` writes `@seamjs/...`, and lands
 on whatever its owner published. A scope that is only ever a dependency is never written by hand.
 
-**`seamjs` is `pkgs/plugin` under another name, not a package that re-exports it.** SvelteKit keeps
+### Until `seamjs` is ours, it is `@canmi/seamjs`
+
+**npm refuses `seamjs`**: "Package name too similar to existing package seam.js". Its similarity
+check ignores punctuation, so `seam-js` and `seam_js` are refused for the same reason. `seam.js` is
+the JavaScript half of `notduncansmith/seam`, archived on GitHub and untouched on npm since 2022;
+its maintainer is being asked to unpublish or transfer it.
+
+**Meanwhile the entry is published under the author's own scope**, and a project writes
+`import { seam } from '@canmi/seamjs'`. This is provisional, and the reasoning above is why: a
+scope a user types is the thing this arrangement avoids, and a personal scope is the one npm
+offered rather than one chosen. When `seamjs` can be published, the entry moves there and
+`@canmi/seamjs` is deprecated in its favor.
+
+**The entry is `pkgs/plugin` under another name, not a package that re-exports it.** SvelteKit keeps
 its Vite plugin inside its main package, as `@sveltejs/kit/vite`, and a package that only forwards
 another would be a layer that does nothing. The directory keeps its neutral name; the published
 name is the one place the product is named.
 
 | directory       | published as        |
 | --------------- | ------------------- |
-| `pkgs/plugin`   | `seamjs`            |
+| `pkgs/plugin`   | `@canmi/seamjs`, until `seamjs` |
 | `pkgs/compiler` | `@seam-js/compiler` |
 | `pkgs/skeleton` | `@seam-js/skeleton` |
 | `pkgs/ast`      | `@seam-js/ast`      |
@@ -35,10 +48,10 @@ name is the one place the product is named.
 `pkgs/apps` and `pkgs/suite` are this repository's checks and stay private. So does
 `pkgs/normalize`, which nothing imports.
 
-**The order is the dependency order, and every release runs.** The scope first, then `seamjs`, then
+**The order is the dependency order, and every release runs.** The scope first, then the entry, then
 `create-seamjs`. npm's terms forbid publishing a name "simply for the purposes of reserving it",
 judged by whether the package has a genuine function, so nothing goes up as a placeholder: a
-release is code that does what it says. `create-seamjs` waits for `seamjs` because a project it
+release is code that does what it says. `create-seamjs` waits for the entry because a project it
 generated could not install otherwise.
 
 ## The layout is Kit's, compiled
@@ -73,7 +86,7 @@ sees as a string.
 `mise run pack` builds `wasm`, compiles every package with tsdown and writes one tarball per
 package into `.build-pack/`, with `workspace:*` already rewritten. Nothing publishes: the tarballs
 go up with `npm publish <file>`, run by hand, dependencies before what depends on them -- `ast`,
-`injector`, `derive`, `lowering`, `routes`, `skeleton`, `carry`, `compiler`, then `seamjs`.
+`injector`, `derive`, `lowering`, `routes`, `skeleton`, `carry`, `compiler`, then the entry.
 
 **A tarball is checked where a user would meet it**: installed into a fresh Kit 3 project outside
 this workspace, once with npm's hoisted layout and once with pnpm's isolated one, and built with
