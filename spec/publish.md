@@ -104,8 +104,9 @@ reaches Kit's source by that specifier at runtime. The file is found from the `p
 does export, and loaded by path:
 
 - where Node loads it, `routes` resolves Kit's `package.json` and imports the file by URL;
-- where Vite bundles it into a carried bundle, the build aliases `@sveltejs/kit/src/` to the same
-  directory.
+- where a carried bundle needs it, it is Kit's `$app/state` server module, given to that build by
+  the file's path, or a module Kit's own server build has already bundled and the dispatcher
+  hands in, as `$app/paths` is.
 
 That is the project's own Kit rather than a copy, which `$app/state` requires outright: its server
 module reads `page` out of the context Kit's renderer set, and a second instance of it reads

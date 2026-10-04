@@ -272,16 +272,18 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import KitRoot from ${JSON.stringify(kitRootComponent)};
 import * as appManifest from '$app/manifest';
+import * as appPaths from '$app/paths';
 import { rendered_env, dynamic_private_env } from '<sveltekit:generated>/env/config.js';
 import { inject } from ${JSON.stringify(injector)};
 import { compile as derivations } from ${JSON.stringify(derive)};
 ${imports}
-// What Kit's build and server decide, handed to the derivations: the manifest, the two objects
+// What Kit's build and server decide, handed to the derivations: the manifest, \`$app/paths\`,
+// whose \`resolve\` reads the request Kit is answering, the two objects
 // Kit's server fills with the dynamic environment as it starts, which the carried bundle's own
 // env modules read off this global, and the URL of each asset a carried bundle imports. The objects
 // rather than Kit's env modules, since those read the objects as they are evaluated, and this
 // module is evaluated before the server starts. See pkgs/plugin/src/app/handed.ts.
-globalThis[Symbol.for('seam.kit')] = { '$app/manifest': appManifest, rendered_env, dynamic_private_env${handedAssets} };
+globalThis[Symbol.for('seam.kit')] = { '$app/manifest': appManifest, '$app/paths': appPaths, rendered_env, dynamic_private_env${handedAssets} };
 
 const files = { ${files} };
 const read = (name) => readFileSync(fileURLToPath(files[name]), 'utf8');

@@ -318,6 +318,9 @@ export function hostedIn(source: string, file: string): RegExp | null {
 	return new RegExp(`(?:^|[^$\\w.])(?:${words.join('|')})\\b`);
 }
 
+/** Kit's module whose functions read the request; see `varies()`. */
+const APP_PATHS = '$app/paths';
+
 /** Whether an expression reads a context, which is a channel this walk does not follow. */
 const READS_CONTEXT = /\bget(?:All)?Contexts?\b/;
 
@@ -388,6 +391,17 @@ export function varies(
 	if (ambientText(expression) || walk.site.hosted?.test(expression) === true) {
 		return outside(expression);
 	}
+	// Kit's `$app/paths`: `resolve` and `asset` read the request Kit is answering, writing `..` per
+	// segment of its URL where `paths.relative` is on, which is Kit's default. A name the module
+	// exports is read per request whatever it is, `base` included, since that costs a derivation
+	// and the other way costs the build's answer in every request's bytes. See spec/derivation.md,
+	// "Kit's `$app/paths` reads the request".
+	const requested = new Set(
+		Object.entries(walk.site.imports)
+			.filter(([, from]) => from === APP_PATHS)
+			.map(([name]) => name),
+	);
+	if (requested.size > 0 && mentions(expression, requested)) return outside(expression);
 	// A context read where something in this walk set one from a value the request decides. Neither
 	// `getContext` nor the key is a name the request decides, so this would be handed to the render
 	// -- which holds the neutralised value the `setContext` was given there. Refused rather than

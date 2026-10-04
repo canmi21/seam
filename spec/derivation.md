@@ -277,6 +277,22 @@ It was refused outright before, with the determined values the only way in; that
 than the render the bytes are compared with, and it moved a clock the author wrote into the load
 stage whether or not the client ever needed to agree.
 
+### Kit's `$app/paths` reads the request
+
+**`resolve` and `asset` are ambient input under another name.** With `paths.relative` on, which is
+Kit's default, Kit's server `resolve` reads the request out of its request store and writes `..` per
+segment of the URL being answered: `resolve('/a')` is `../../a` on a page two levels down. The
+arguments are constant, so nothing else here would have called it a question for the request, and
+the compile-time render answered it with no request at all -- `/a`, on every page. Found by the
+byte comparison over Kit's `basics` app; see [conformance.md](conformance.md), "Stage 2".
+
+So a name imported from `$app/paths` is read per request wherever an expression mentions it,
+`base` included -- a derivation reading a constant costs one evaluation, and the other way costs the
+build's answer in every request's bytes -- and a page whose files import the module is not Svelte's
+render whole ([pipeline.md](pipeline.md)). The carried bundle's `$app/paths` is Kit's own server
+module, which the dispatcher hands in, so the derivation reads the request store Kit is answering
+from: [framework.md](framework.md), "SvelteKit 3 is the target, and what it moves", step four.
+
 ## The payload is frozen
 
 `(p.price = 999)` evaluated successfully, changed the payload in place, and was visible to every
@@ -1268,6 +1284,14 @@ name the data does not carry, over a store the caller had declared and handed do
 is still not one of these: `store_invalid_scoped_subscription` is what Svelte raises where the store
 is owned by anything but the module or instance scope, so a `let:` name and a snippet's parameter do
 not qualify.
+
+**A store a script imports is read the same way, off the carried bundle's import of it.** The
+bundle imports the module once, as a server process does, so the read is the store's value as it
+stands at the request. Before this, the expansion asked only for a declaration or a prop, the name
+check counted the import as resolved, and `$store` went into the derivation as written and named
+nothing there: Kit's `load/invalidation/multiple/redirect` answered 500. The bundle's module is not
+the one Kit's server imported, so a `load` that sets the store sets the other one;
+[readings.md](readings.md), "The render's module instances are not the artifact's", is that gap.
 
 **And where the script itself writes the store, the read is left as written.** `$count += 1` in the
 instance script sets the store before the template runs, so the value the markup reads is the one

@@ -279,23 +279,24 @@ version, the client's file hashes, the port -- and what a `load` reads of the cl
 `Math.random()` are written out first; an answer whose two Kit servers still disagree is unstable
 and not compared.
 
-At `3.0.0`, over 607 URLs: **602 the same bytes, 4 different, 1 unstable** (`/endpoint-output/stream`,
-an endpoint writing random bytes). The four are three causes, each owed:
+At `3.0.0`, over 607 URLs, the first run found **602 the same bytes, 4 different, 1 unstable**
+(`/endpoint-output/stream`, an endpoint writing random bytes). The four were three causes:
 
-- **`$app/paths`'s `resolve` writes an absolute path where Kit writes a relative one**
-  (`/data-sveltekit/preload-data/repeat` and its `target`). Kit's server `resolve` reads the request
-  out of its request store and, with `paths.relative` on, which is the default, prefixes `..` per
-  segment of the URL being answered; the carried stand-in writes `base` and has no request.
-- **A store imported from a relative module and read as `$store` is neither compiled nor refused**
-  (`/load/invalidation/multiple/redirect`). The page reads `$redirect_state` from `../state.js`; the
-  compile wrote the name into a derivation unbound, and the request throws `ReferenceError`. It
-  breaks "Every identifier resolves, or it is refused" in [derivation.md](derivation.md).
-- **A component a `load` returns** (`/load/dynamic-import-styles`: `<svelte:component this={data.Thing} />`,
-  `Thing` from `import('./_/Thing.svelte')` in `+page.js`). No name in the component's source
-  reaches it, and handing a value to Svelte's renderer per request is the one thing compile-time
-  rendering does not do, so the request throws the unnamed-component error. The `load` module does
-  name it, statically; whether the compile reads the load stage's imports to find it, or the page
-  waits for the second mode, is not decided.
+- **Closed.** `$app/paths`'s `resolve` wrote an absolute path where Kit writes a relative one
+  (`/data-sveltekit/preload-data/repeat` and its `target`): the compile-time render answered it
+  with no request. [derivation.md](derivation.md), "Kit's `$app/paths` reads the request".
+- **Closed.** A store imported from a relative module and read as `$store` was neither expanded
+  nor refused (`/load/invalidation/multiple/redirect`), and the request threw `ReferenceError`.
+  [derivation.md](derivation.md), "A store read is the store's value, where the store is a
+  declaration".
+- **Owed, and not decided.** A component a `load` returns (`/load/dynamic-import-styles`:
+  `<svelte:component this={data.Thing} />`, `Thing` from `import('./_/Thing.svelte')` in
+  `+page.js`). No name in the component's source reaches it, and handing a value to Svelte's
+  renderer per request is the one thing compile-time rendering does not do, so the request throws
+  the unnamed-component error. The `load` module does name it, statically; whether the compile
+  reads the load stage's imports to find it, or the page waits for the second mode, is not decided.
+
+With the two closed: **605 the same, 1 different, 1 unstable.**
 
 ## Stage 3: an application written for Kit, moved
 

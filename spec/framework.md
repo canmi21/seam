@@ -116,6 +116,7 @@ the move costs this layer, each a fact of the diff rather than a guess:
      request to Kit's own root, as it hands an error tree. This is not the runtime fallback
      [refusals.md](refusals.md) refuses: there is no page render to fall back to.
    - **What Kit's build and server decide is handed to the derivations, not bundled.**
+     `$app/paths` is Kit's own server module, whose `resolve` reads the request Kit is answering;
      `$app/manifest` is written after the compile, some of it after prerendering; the dynamic
      environment is filled into two objects, `rendered_env` and `dynamic_private_env` of Kit's
      generated `env/config.js`, when the server starts. The dispatcher, bundled by Kit's server

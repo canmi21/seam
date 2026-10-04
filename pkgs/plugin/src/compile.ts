@@ -157,12 +157,7 @@ export async function compileRoutes({
 			],
 			resolve: {
 				...loaded?.config.resolve,
-				alias: [
-					...found_aliases.map(([find, replacement]) => ({ find, replacement })),
-					// What `./app` imports of Kit's own source, which npm's Kit does not export. See
-					// spec/publish.md, "Kit's internals are read from the project's Kit".
-					{ find: /^@sveltejs\/kit\/src\//, replacement: `${kitSource(resolve(root, 'package.json'))}/` },
-				],
+				alias: found_aliases.map(([find, replacement]) => ({ find, replacement })),
 			},
 			build: {
 				ssr: true,
@@ -354,8 +349,6 @@ function appModules(
 	const STUB = '\0seam:app:';
 	const values: Record<string, string> = {
 		__SEAM_VERSION__: kit.version.name,
-		__SEAM_BASE__: kit.paths.base,
-		__SEAM_ASSETS__: kit.paths.assets,
 	};
 	return {
 		name: `${NAME}:app`,

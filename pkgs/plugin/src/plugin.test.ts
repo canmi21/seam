@@ -39,8 +39,10 @@ const files: Record<string, string> = {
 	// own bundler can resolve.
 	'src/lib/shout.ts':
 		"import { site } from 'virtual:site';\nexport const shout = (s) => `${site.name}: ${s}`.toUpperCase();",
+	// A link through Kit's own `resolve`, which with `paths.relative` on writes `..` per segment of the
+	// URL being answered, so every page at every depth writes a different one.
 	'src/parts/nav.svelte':
-		"<script>import { page } from '$app/state';</script><nav class:home={page.url.pathname === '/'}>{page.route.id}</nav>",
+		"<script>import { page } from '$app/state'; import { resolve } from '$app/paths';</script><nav class:home={page.url.pathname === '/'}><a href={resolve('/run')}>run</a>{page.route.id}</nav>",
 	'src/routes/+page.server.js':
 		"export function load() { return { title: 'Home & away', items: ['a', '<b>', 'c'] }; }",
 	'src/routes/+page.svelte':
@@ -59,6 +61,13 @@ const files: Record<string, string> = {
 	'src/routes/run/+page.server.js': 'export function load() { return { count: 21 }; }',
 	'src/routes/run/+page.svelte':
 		'<script>let { data } = $props(); let n = data.count; n = n * 2;</script><p>run: {n}</p>',
+	// A store a relative module exports, beside a binding that module changes, read as `$mode`: the
+	// shape of Kit's `load/invalidation/multiple/redirect`, where the read was left as `$mode` and
+	// named nothing at request time.
+	'src/routes/store/state.js':
+		"import { writable } from 'svelte/store';\nlet count = 0;\nexport const mode = writable('initial');\nexport function bump() { count++; }",
+	'src/routes/store/+page.svelte':
+		"<script>import { mode, bump } from './state.js'; function go() { mode.set('x'); bump(); }</script><button onclick={go}>go</button><p>mode: {$mode}</p>",
 };
 
 const URLS = [
@@ -69,6 +78,7 @@ const URLS = [
 	'/blog/hello/__data.json',
 	'/missing',
 	'/run',
+	'/store',
 ];
 
 /** Builds the project into Kit's output under `outDir`, with or without the plugin. */

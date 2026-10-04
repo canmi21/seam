@@ -81,6 +81,7 @@ export function locals(
 ): Locals {
 	const ast = parse(source, { modern: true }) as unknown as Node;
 	const carried = requested(ast['instance']);
+	const imports = importedNames(ast);
 	const found = declared(ast, source, carried, fresh, props, bound === undefined) as Map<
 		string,
 		Declared & { node: Node }
@@ -384,7 +385,11 @@ export function locals(
 				// input and a child's are what its call site bound, and either may be a store. See
 				// spec/payload.md.
 				const handed = props.has(store) || bound?.has(store) === true;
-				if (!handed && (!found.has(store) || settled.has(store))) return;
+				// Or one a script imports, which the carried bundle imports too and reads as it
+				// stands at the request. Left as `$store` it named nothing there. See spec/derivation.md,
+				// "A store read is the store's value, where the store is a declaration".
+				const imported = !found.has(store) && !handed && imports.has(store);
+				if (!handed && !imported && (!found.has(store) || settled.has(store))) return;
 				const from = at['start'];
 				const to = at['end'];
 				if (typeof from !== 'number' || typeof to !== 'number') return;
@@ -392,7 +397,7 @@ export function locals(
 				// What the caller bound it to first, the way the branch below reads a name: a child's
 				// `export let items;` is a declaration holding `undefined` here and a prop bound at
 				// the call site there, and reading the declaration gave `$$get_store(undefined)`.
-				let inner = extra?.get(store) ?? expand(store, open, extra);
+				let inner = extra?.get(store) ?? (imported ? store : expand(store, open, extra));
 				if (inner === 'undefined') return;
 				// A store that awaits, read inside a function that is not `async`: held, as below.
 				if (
@@ -603,4 +608,22 @@ export function locals(
 		// declaration that named the value directly the two are the same text.
 		reading,
 	};
+}
+
+/** The names a component's scripts import, the module block's included, type imports left out. */
+function importedNames(ast: Node): Set<string> {
+	const found = new Set<string>();
+	for (const block of [ast['module'], ast['instance']]) {
+		const content = isNode(block) ? block['content'] : undefined;
+		const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+		for (const statement of body) {
+			if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
+			if (statement['importKind'] === 'type') continue;
+			for (const one of Array.isArray(statement['specifiers']) ? statement['specifiers'] : []) {
+				const local = isNode(one) ? one['local'] : undefined;
+				if (isNode(local) && typeof local['name'] === 'string') found.add(local['name']);
+			}
+		}
+	}
+	return found;
 }
