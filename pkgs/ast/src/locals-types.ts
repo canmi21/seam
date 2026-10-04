@@ -53,6 +53,15 @@ export interface Declared {
 	 * is carried here instead.
 	 */
 	literal?: string;
+	/**
+	 * Declared by the module script, as a variable: evaluated once, by the module, and read from it
+	 * -- by the render, which imports the module, and by a derivation, which reads it from the
+	 * module as the project's bundler built it (`moduleScripts()` in the carry package). Written out
+	 * instead, its initialiser bypassed what the project's plugins do to the module: StyleX compiles
+	 * `stylex.create(...)` away, and one written into a derivation threw as it ran. See
+	 * spec/derivation.md, "A module script's binding is read from the module".
+	 */
+	module?: true;
 }
 
 export interface Locals {

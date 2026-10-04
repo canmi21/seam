@@ -18,6 +18,7 @@ import {
 	componentStem,
 } from '@seam-js/ast';
 import { RUN } from './gather.ts';
+import { moduleScripts } from './module-scripts.ts';
 
 /**
  * What stands for Svelte's `hydratable` in a carried file: a function that says what it is if it
@@ -247,7 +248,7 @@ export async function carry(
 			mainFields: ['svelte', 'module', 'main'],
 			alias: { ...currentAliases() },
 		},
-		plugins: [entryOf(contents), running(), svelted()],
+		plugins: [entryOf(contents), running(), moduleScripts(), svelted()],
 		logLevel: 'silent',
 	});
 	try {

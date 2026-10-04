@@ -226,7 +226,14 @@ export function callSite(node: AstNode, walk: Walk): CallSite | null {
 		// of those is the value the merge leaves for it; the rest is the merge without them. Both
 		// are decided once the child is read, below.
 		if (isNode(one) && one['type'] === 'SpreadAttribute') {
-			const grown = walk.expand(one['expression']);
+			const guarded = walk.expand(one['expression']);
+			// Inside a boundary the expansion carries the guard, which hides an object written out
+			// behind a call: `{...props}` over constants handed down through a component -- an icon
+			// of `@lucide/svelte` -- read as an object nobody can list, was held, and the hold reached
+			// the child's script. Where what is under the guard is the request's in no part, it is
+			// the object itself.
+			const plain = walk.untried?.(guarded) ?? guarded;
+			const grown = plain !== guarded && !varies(plain, walk) ? plain : guarded;
 			const entries = objectEntries(grown);
 			if (entries === null) {
 				// Evaluated once, as `$.spread_props` evaluates it: merged below, the object is read once

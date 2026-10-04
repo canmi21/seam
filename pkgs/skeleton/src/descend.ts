@@ -210,7 +210,7 @@ export function descend(
 			if (!declares.some((one) => one.prop === named)) continue;
 			bindings.set(named, 'true');
 		}
-		const props = bindDeclared(walk, ahead, declares, bindings, byName, passing, recursion);
+		const props = bindDeclared(walk, file, ahead, declares, bindings, byName, passing, recursion);
 		const { held, bound, params } = props;
 
 		const { declared, inside } = declaredFor(
@@ -261,7 +261,8 @@ export function descend(
 		// The child's own: a test asked inside it is answered by a statement in its script, not in
 		// whichever copy happened to finish next.
 		const asks: [string, string][] = [];
-		const wants: [string, string][] = [];
+		// And what the call site asks of the child's own script: a default reading it. See `bindDeclared`.
+		const wants: [string, string][] = [...props.asked];
 		const own = importsOf(raw);
 		for (const name of runesOf(own, file)) walk.site.runes.add(name);
 		// A name the module block binds is the module block's, and `shared()` will import it there.

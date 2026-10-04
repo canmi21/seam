@@ -395,4 +395,27 @@ export const cases: Case[] = [
 			' export let visible;</script><Frame component={Foo} {visible}/>',
 		props: [{ visible: true }, { visible: false }],
 	},
+	{
+		// `@lucide/svelte`'s `Icon`: a `$derived` taken apart by an array pattern, one of whose names
+		// a second `$derived` spreads. The second was written into the child's script as a read of
+		// the held first, `$$hold(0)[1]`, which is the derivations' spelling and no name Svelte
+		// compiles. Met moving `status`; see spec/conformance.md, "Stage 3".
+		name: 'a derived taken apart by an array pattern and spread by another',
+		alongside: {
+			'build.ts':
+				"export const build = (icon, o) => ['svg', { class: 'icon', width: o.size }, icon.node];",
+		},
+		beside: {
+			Icon:
+				"<script>import { build } from './build.ts';" +
+				' const { size = 24, icon = { node: [] }, class: propsClass, ...props } = $props();' +
+				' const [, svgAttributes, built = []] = $derived(build(icon, { size, attributes: props }));' +
+				" const iconAttributes = $derived({ ...svgAttributes, class: [...svgAttributes.class.split(' '), propsClass] });" +
+				'</script><svg {...iconAttributes}>{#each built as [tag, attrs]}<svelte:element this={tag} {...attrs} />{/each}</svg>',
+		},
+		source:
+			"<script>import Icon from './Icon.svelte'; let { data } = $props();</script>" +
+			"<Icon class=\"dark:hidden\" icon={{ node: [['path', { d: 'M1' }]] }} /><i>{data.a}</i>",
+		data: [{ a: 'x' }],
+	},
 ];

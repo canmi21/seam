@@ -27,7 +27,21 @@ import { unknown } from './branches.ts';
 import { collect } from './collect.ts';
 import { neutralise, takenApart } from './handed.ts';
 import { type Walk } from './walk-types.ts';
-import { appended } from './written.ts';
+import { appended, kept } from './written.ts';
+import { varies } from './dynamic.ts';
+
+/**
+ * Whether a `{@const}` initialiser calls or constructs anything outside a function it defines,
+ * which is what makes evaluating it at every read cost what evaluating it once does not.
+ */
+function computes(node: unknown): boolean {
+	if (Array.isArray(node)) return node.some((one) => computes(one));
+	if (!isNode(node)) return false;
+	const type = node['type'];
+	if (type === 'CallExpression' || type === 'NewExpression') return true;
+	if (type === 'ArrowFunctionExpression' || type === 'FunctionExpression') return false;
+	return Object.entries(node).some(([key, value]) => key !== 'parent' && computes(value));
+}
 
 /**
  * Whether every `{#snippet}` this component declares holds a body the render can write on its own.
@@ -500,7 +514,20 @@ export function hoisting(nodes: readonly unknown[], walk: Walk): Locals['rewrite
 	for (const one of hoisted) {
 		for (const [id, init] of declarators(one)) {
 			// Expanded against what the earlier ones bound, so `{@const b = a + 1}` reaches `a`.
-			const value = heldValue(init, expand, bound);
+			const written = heldValue(init, expand, bound);
+			// One value per item where it calls or makes something the request reaches, as Svelte
+			// evaluates a `{@const}` once in the block's `init`: written out, every read evaluated it
+			// again, and `status`'s per-check `days` -- the check's whole history folded -- was folded
+			// at each of its reads. Held, every read names the one derivation, and `derive` computes
+			// it once per item. See spec/derivation.md, "An instance is made once".
+			const holding = isNode(init) && computes(init) && !awaitsAtTop(init) && varies(written, walk);
+			const at0 = holding ? kept(written, walk) : -1;
+			// Per item where an each is around it, wherever the value is first named: a boundary's
+			// run walks the each in its own text, outside the loop the lowering sees.
+			const each = walk.within.some(([index]) => walk.blocks[index]?.kind === 'each');
+			const keptOne = walk.keeping[at0];
+			if (holding && each && keptOne !== undefined) keptOne.item = true;
+			const value = holding ? `$$hold(${String(at0)})` : written;
 			const at = span(init);
 			// The value is unused once every read of it is a marker, and evaluating it would
 			// reach for data the render is not given. What stands in has to come apart the way

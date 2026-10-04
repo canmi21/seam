@@ -15,7 +15,7 @@ import { createRequire } from 'node:module';
 import { basename, dirname, extname, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Plugin } from 'vite';
-import { type Bundler, configureCarry, running } from '@seam-js/carry';
+import { type Bundler, configureCarry, moduleScripts, running } from '@seam-js/carry';
 import { compile } from '@seam-js/compiler';
 import {
 	aliases,
@@ -204,6 +204,9 @@ export async function compileRoutes({
 				// A component's script run as Svelte compiled it, which a derivation calls where
 				// substitution could not follow. See `running()` in the carry package.
 				{ ...running(), enforce: 'pre' } as Plugin,
+				// A component's module script, which a derivation reads a binding of from the module.
+				// See `moduleScripts()` in the carry package.
+				{ ...moduleScripts(), enforce: 'pre' } as Plugin,
 				...plugins.filter((one) => !one.name.startsWith('vite-plugin-sveltekit')),
 			],
 			resolve: {

@@ -116,6 +116,10 @@ function isFile(candidate: string): boolean {
 /** A path as a file, the way a bundler completes one written without its extension. */
 function withExtension(path: string): string | null {
 	if (isFile(path)) return path;
+	// A TypeScript module named by what it compiles to, `./source.js` for `source.ts`, as
+	// TypeScript has it written and a bundler resolves it: `status` imports `#lib/source.js`.
+	const typed = path.replace(/\.(m?)js(x?)$/, '.$1ts$2');
+	if (typed !== path && isFile(typed)) return typed;
 	for (const ext of EXTENSIONS) if (isFile(path + ext)) return path + ext;
 	for (const ext of EXTENSIONS) {
 		const index = resolvePath(path, `index${ext}`);

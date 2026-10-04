@@ -178,6 +178,9 @@ pub struct Held {
 	pub expression: String,
 	#[serde(default)]
 	pub files: Vec<String>,
+	/// Held per item of an each: a `{@const}` the request reaches, computed once per item.
+	#[serde(default)]
+	pub item: bool,
 }
 
 pub type Result<T> = std::result::Result<T, String>;

@@ -444,7 +444,7 @@ export interface Walk {
 	 * entered twice is two copies with two call sites, and one name over two values is a silent
 	 * wrong byte. The pass that names derivations resolves the reference. See spec/derivation.md.
 	 */
-	keeping: { expression: string; files?: string[] }[];
+	keeping: { expression: string; files?: string[]; item?: true }[];
 	within: [number, number][];
 	site: Site;
 	/** What the request decides, in the scope the call site sits in. */
@@ -600,7 +600,7 @@ export interface Rewritten {
 	/** The markup no request reaches, by root-relative path. See `Walk.dead`. */
 	dead: Map<string, [number, number][]>;
 	/** Every held declaration's initialiser. See `Walk.keeping`. */
-	keeping: { expression: string; files?: string[] }[];
+	keeping: { expression: string; files?: string[]; item?: true }[];
 	/**
 	 * The names substitution cannot follow, with why, keyed by `changedKey`: the file that declares
 	 * the name and the name, since a page's local `error` and the root's prop `error` are two

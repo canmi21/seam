@@ -345,6 +345,68 @@ compile that fixed its own as `production` rendered a module's `export const mod
 import.meta.env.MODE` as `production` into the bytes. The plugin hands the compile the build's
 mode, which the render's loader and the carried bundles' builds are made under.
 
+### A module script's binding is read from the module
+
+**A variable the module script declares, by an initialiser that calls something, is read from the
+module rather than written out.** A module script runs once, when the component's module is
+evaluated; its value is one value for every render, made by the module as the project's bundler
+built it. Written out into a derivation, its initialiser bypassed every plugin of the project's:
+`status` declares its StyleX recipes as `const styles = stylex.create({...})` in `<script module>`,
+StyleX compiles that call away, and the call written into a derivation threw `Unexpected
+'stylex.create' call at runtime` per request. So the walk leaves such a name as written
+(`Declared.module`), and the carried bundle imports it from `<file>.seam-module.ts`
+(`moduleScripts()` in the carry package): the script's own source with what it declares exported,
+beside the component so that its relative imports resolve, ending in `.ts` so that a bundler strips
+its types and a plugin looking for JavaScript takes it. A literal initialiser is written out as it
+always was. The render needed nothing: it imports the component's module, the script with it.
+
+### What a package computes in a child's script is asked of the render
+
+**A local a child's script makes by calling into a package, over nothing else, is the render's
+value.** `@lucide/svelte`'s `Icon` declares `const globalProps = getLucideContext() ?? {}`, which
+asks the component being rendered for a context. A package's function is opaque to the walk, and
+that one cannot be evaluated outside a render; written out into a derivation it was a name nothing
+bound, and once followed, a context read with no component. So the call site asks the render for
+the value (`packageCalled()` in `bound.ts`), as it asks for a value it passes
+(`Site.wants`), and binds every read of the local to the answer; one the render cannot answer as
+data keeps its expansion. A local reading anything but the package's own -- another local, a prop,
+Kit's environment -- is not asked, since the render's answer would be the build's.
+
+**A default the caller left to the child is the child's, read through the props before it.**
+`width = size` is the `size` the call site passed, and a default reading the child's own script --
+`color = globalProps.color ?? 'currentColor'` -- is asked of the render the same way. Written as it
+stood, either named the child's local in the caller's derivations.
+
+### The environment a server starts with is read per request
+
+**What Kit's server reads of its environment when it starts is not the build's.** Kit 3's
+`$app/env/public` and `$app/env/private`, which `src/env.ts` declares to be read at run time, and
+the dynamic modules: a name imported from one is the request's, as `$app/paths` is, and so is one
+imported from a module of the project's that reads one, followed through its imports
+(`readsRuntimeEnv()` in `dynamic.ts`). `status` writes a preconnect hint for its database, whose
+address `projectUrl()` reads from `$app/env/public`; the build answered it with the empty
+environment it ran in, and every page came out without the hint Kit wrote. A module named by what it
+compiles to, `#lib/source.js` for `source.ts`, is resolved to the `.ts`, as a bundler resolves it;
+resolved to a file that was not there, nothing read the module at all.
+
+### An instance is made once
+
+**A `new` the request reaches is one instance per request, held.** `status`'s page declares `const
+live = new Live(data)`, and every read of `live` -- there are thousands, one per bar of every check
+-- wrote the `new` out again: each read made an instance that folded every row the page holds, a
+request cost ten times what Kit's did, and an instance compared with itself was not itself. It is
+held as a pattern's shared value is, and every read names the one derivation that makes it.
+
+**A `{@const}` that computes is one value per item, held.** Svelte evaluates a `{@const}` once, in
+the block's `init`; written out at each read it was evaluated at each read, and `status`'s per-check
+`days` folded the check's whole history at every read of it. Where its initialiser calls or makes
+something and reaches the request, it is held (`hoisting()` in `stamps.ts`), marked as an item's
+inside an each so that the lowering computes it per item wherever it is first named -- a boundary's
+run names it outside the loop it walks -- and so is every derivation that reads it. `derive`
+computes a per-item derivation once per item: by the item's scope in the injector, and by what the
+item binds in a boundary's run, whose pieces bind it afresh (`within()`). A held value varies as its
+initialiser does (`varies()`), so a `style:` directive over a held `color` is still the request's.
+
 ## The payload is frozen
 
 `(p.price = 999)` evaluated successfully, changed the payload in place, and was visible to every

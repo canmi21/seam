@@ -76,6 +76,8 @@ export function declared(
 		} as Declared & { node: Node; free: Set<string> });
 	};
 
+	/** What the module script declares as a variable, read from the module. See `Declared.module`. */
+	const moduled = new Set<string>();
 	for (const block of [ast['module'], ast['instance']]) {
 		if (!isNode(block)) continue;
 		const content = block['content'];
@@ -89,6 +91,19 @@ export function declared(
 				statement['type'] === 'ExportNamedDeclaration' ? statement['declaration'] : statement;
 			if (!isNode(declaration)) continue;
 			const kind = declaration['type'];
+			if (block === ast['module'] && kind === 'VariableDeclaration') {
+				for (const one of Array.isArray(declaration['declarations'])
+					? declaration['declarations']
+					: []) {
+					// Only where the initialiser calls something: a literal is the same value written
+					// anywhere, and is written out as it always was.
+					if (isNode(one) && isNode(one['id']) && calls(one['init'])) {
+						const named = new Set<string>();
+						namesBound(one['id'], named);
+						for (const name of named) moduled.add(name);
+					}
+				}
+			}
 
 			// A function or a class becomes the expression form of itself, which is what makes
 			// `fmt(x)` legal: the name expands to `(function fmt(...) {...})`, and one that calls
@@ -268,6 +283,10 @@ export function declared(
 		}
 	}
 
+	for (const name of moduled) {
+		const one = found.get(name);
+		if (one !== undefined) one.module = true;
+	}
 	// Reading a prop is transitive. `const b = a.x` where `a` reads one would evaluate against
 	// nothing in a render given no data, and a null dereference is the crash this is here to
 	// prevent, so it is settled to a fixed point rather than one level deep.
@@ -679,4 +698,20 @@ function derivedFunction(node: Node): Node | null {
 	};
 	visit(node);
 	return found;
+}
+
+/** Whether an initialiser calls or constructs anything, which a plugin of the project's may compile. */
+function calls(node: unknown): boolean {
+	if (Array.isArray(node)) return node.some((one) => calls(one));
+	if (!isNode(node)) return false;
+	const type = node['type'];
+	if (
+		type === 'CallExpression' ||
+		type === 'NewExpression' ||
+		type === 'TaggedTemplateExpression' ||
+		type === 'MetaProperty'
+	) {
+		return true;
+	}
+	return Object.entries(node).some(([key, value]) => key !== 'parent' && calls(value));
 }

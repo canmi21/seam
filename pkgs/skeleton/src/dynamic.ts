@@ -323,6 +323,44 @@ export function hostedIn(source: string, file: string): RegExp | null {
 const APP_PATHS = '$app/paths';
 
 /**
+ * Kit's environment as the server reads it when it starts, which a build does not have: Kit 3's
+ * `$app/env/public` and `$app/env/private`, which `src/env.ts` declares to be read at run time, and
+ * the dynamic modules. See spec/derivation.md, "The environment a server starts with is read per
+ * request".
+ */
+const RUNTIME_ENV = /^\$(?:app\/env\/(?:public|private)|env\/dynamic\/(?:public|private))$/;
+
+/** Whether a module reads the server's environment, itself or through a module it imports. */
+const reachingEnv = new Map<string, boolean>();
+export function readsRuntimeEnv(file: string, seen: Set<string> = new Set()): boolean {
+	const held = reachingEnv.get(file);
+	if (held !== undefined) return held;
+	if (seen.has(file) || file.includes('/node_modules/')) return false;
+	seen.add(file);
+	let text: string;
+	try {
+		text = readFileSync(file, 'utf8');
+	} catch {
+		return false;
+	}
+	let found = false;
+	for (const one of text.matchAll(/(?:\bfrom|\bimport)\s*\(?\s*(['"])([^'"]+)\1/g)) {
+		const specifier = one[2] ?? '';
+		if (RUNTIME_ENV.test(specifier)) {
+			found = true;
+			break;
+		}
+		const target = resolveBare(specifier, file);
+		if (target !== null && !isComponentFile(target) && readsRuntimeEnv(target, seen)) {
+			found = true;
+			break;
+		}
+	}
+	reachingEnv.set(file, found);
+	return found;
+}
+
+/**
  * A module of Kit's remote functions, as an import names one: Kit's own test of a file,
  * `/[/.]remote\.[^/]+$/`, with the extension an import may leave off.
  */
@@ -371,6 +409,20 @@ export function varies(
 	// What a boundary caught is the request's, and so is everything read off it, in whichever
 	// component the failed snippet hands it to. See `boundary()`.
 	if (expression.includes('$$caught(')) return true;
+	// A held value is what it holds: a `{@const}` or an instance held once is the request's where
+	// its initialiser is, and read as `$$hold(k)` it names nothing the walk would otherwise ask
+	// about -- `style:background-color={color}` over a held `color` was left to the render, which
+	// has no colour for it. See spec/derivation.md, "An instance is made once".
+	for (const one of expression.matchAll(/\$\$hold\((\d+)\)/g)) {
+		const held = walk.keeping[Number(one[1])];
+		if (
+			held !== undefined &&
+			held.expression !== expression &&
+			varies(held.expression, walk, written)
+		) {
+			return true;
+		}
+	}
 	// A name a statement reading the request assigns is the request's, whatever else it reads. See
 	// `movedBy()`.
 	if (walk.site.moved.size > 0 && mentions(expression, walk.site.moved)) return true;
@@ -406,9 +458,16 @@ export function varies(
 	// So is a remote function, which Kit runs per request in the request's own context and whose
 	// result it serialises into the page for the client. See spec/derivation.md, "A remote function
 	// runs where Kit's server runs it".
+	// And the server's environment, imported directly or through a module of the project's that
+	// reads it: `projectUrl()` over `$app/env/public` in `status`, which the build answered with the
+	// empty environment it ran in and wrote into every page. See `RUNTIME_ENV`.
 	const requested = new Set(
 		Object.entries(walk.site.imports)
-			.filter(([, from]) => from === APP_PATHS || REMOTE.test(from))
+			.filter(([, from]) => {
+				if (from === APP_PATHS || REMOTE.test(from) || RUNTIME_ENV.test(from)) return true;
+				const target = resolveBare(from, walk.site.file);
+				return target !== null && !isComponentFile(target) && readsRuntimeEnv(target);
+			})
 			.map(([name]) => name),
 	);
 	if (requested.size > 0 && mentions(expression, requested)) return outside(expression);

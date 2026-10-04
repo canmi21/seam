@@ -89,22 +89,27 @@ Accepted when all four hold:
    [conformance.md](conformance.md), "Stage 2"). **Met**: every app compares the same and every
    spec passes with no request reaching Kit's root, error pages included
    ([framework.md](framework.md), "The error page").
-4. **An application of the author's, moved.** `status`, held the way stage 2 holds Kit's apps
-   ([conformance.md](conformance.md), "Stage 3"). **Not met.**
+4. **An application of the author's, moved.** `status`, held the way stage 2 holds Kit's apps, and
+   no slower per request than through Kit ([conformance.md](conformance.md), "Stage 3"). **The
+   bytes are met; the cost is not**: about three and a half times Kit's, for how a derivation is
+   evaluated per item.
 
 `vite dev` is not in A: it renders with Kit's root, and its own target is below.
 
-**A is the first release.** Once it is accepted the fork is published ([publish.md](publish.md))
-and the author's own applications move onto it -- a few small ones in the monorepo first, then the
-rest as each holds -- so that what a migration meets is met in the author's projects before
-anyone else's. What it is then offered to others on is those migrations. `create-seamjs` changes with that release
+**A is the first release.** Once it is accepted the fork is published ([publish.md](publish.md)).
+**An application of the author's moves onto it once A is accepted and the dev server is CTR's too**
+(below): an application served by CTR and developed under Kit's SSR is one whose author meets a
+shape CTR refuses only at the build, which makes every day after the move worse than the day
+before it. Until both hold, no application of the author's is changed -- `status` included, which
+A measures from a copy. Then they move, a few small ones in the monorepo first and the rest as each
+holds, so that what a migration meets is met in the author's projects before anyone else's. What it is then offered to others on is those migrations. `create-seamjs` changes with that release
 and not before: it still writes the plugin's arrangement, `seam()` beside `sveltekit()`, and moves to
 the alias when the entry is first published as the fork ([publish.md](publish.md), "`create-seamjs`").
 
 ### Vite's dev server: CTR under HMR, after A
 
-**`vite dev` is taken by CTR too, as a compile target of its own.** It is after A, and gates
-neither A nor the release; until it is done, the dev server renders by SSR as Kit's does, and a
+**`vite dev` is taken by CTR too, as a compile target of its own.** It is after A, and gates the
+author's applications moving, though neither A nor the release; until it is done, the dev server renders by SSR as Kit's does, and a
 shape CTR refuses is met at the build. A target of its own because the bytes are another set:
 under the dev server Svelte compiles with `dev` and `hmr`, its server output differs from a
 production build's -- a `<!---->` after every component that `clean_nodes` would leave alone

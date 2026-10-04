@@ -9,10 +9,22 @@
  * declares and changes, what a binding sends back, and the copy the child is walked as. See
  * spec/derivation.md.
  */
+import { realpathSync } from 'node:fs';
 import { basename, relative } from 'node:path';
-import { locals, projectAsync, RUN_NAME, STATE_ON_SERVER, stateImports } from '@seam-js/ast';
+import {
+	bound as namesIn,
+	locals,
+	projectAsync,
+	readsOf,
+	readsReplaced,
+	resolveBare,
+	RUN_NAME,
+	runeCalled,
+	STATE_ON_SERVER,
+	stateImports,
+} from '@seam-js/ast';
 import { propsOf, rebased } from './compose.ts';
-import { type AstNode, refuse } from './node.ts';
+import { type AstNode, isNode, refuse } from './node.ts';
 import { callSite, REST, settleBindings } from './call-site.ts';
 import { HYDRATABLE, HYDRATABLE_RUN, varies } from './dynamic.ts';
 import { type Walk, changedKey } from './walk-types.ts';
@@ -30,6 +42,7 @@ export interface Passing {
 /** What each declared prop of the child is bound to, and what is held where it makes something. */
 export function bindDeclared(
 	walk: Walk,
+	file: string,
 	ahead: AstNode,
 	declares: Declares,
 	bindings: Site['bindings'],
@@ -43,6 +56,7 @@ export function bindDeclared(
 	named: Set<string>;
 	plain: Map<string, string>;
 	before: number;
+	asked: [key: string, code: string][];
 } {
 	const held =
 		recursion === null ? rebased(walk.site.fixed, declares, bindings) : new Map<string, string>();
@@ -62,6 +76,8 @@ export function bindDeclared(
 	 */
 	const plain = new Map<string, string>();
 	const before = walk.keeping.length;
+	const asked: [string, string][] = [];
+	const ownLocals = scriptLocals(ahead);
 	for (const one of declares) {
 		if (recursion !== null) {
 			bound.set(one.local, one.local);
@@ -90,12 +106,36 @@ export function bindDeclared(
 		// A default is JavaScript's, taken when the value is `undefined` and only then -- a prop
 		// the caller passes as `undefined` takes it as much as one the caller leaves out.
 		const given = bindings.get(one.prop);
-		const value =
-			given === undefined
+		// A default reads the props declared before it as the caller bound them: `width = size` is
+		// the `size` this call site passed, and written as `size` it named the child's local in the
+		// caller's derivations, where nothing binds it.
+		const earlier = new Set([...bound.keys()].filter((name) => params.includes(name)));
+		const fallback =
+			one.fallback === 'undefined'
 				? one.fallback
-				: one.fallback === 'undefined'
-					? given
-					: `(${given} === undefined ? (${one.fallback}) : ${given})`;
+				: readsReplaced(one.fallback, earlier, (name) => `(${bound.get(name) ?? name})`);
+		// A default the caller left to the child that reads the child's own script -- `color =
+		// globalProps.color ?? 'currentColor'` over a `globalProps` read off a context, which is
+		// `@lucide/svelte`'s `Icon` -- is the child's to compute, and the render computes it there:
+		// it is asked, as a value the call site passes is asked, and bound to the answer. Written
+		// out it named the child's local in the caller's derivations, where nothing binds it.
+		const reads =
+			given === undefined &&
+			[...readsOf([fallback])].some((name) => ownLocals.has(name)) &&
+			!varies(fallback, walk);
+		const key = `default:${String(walk.site.copies.length)}:${one.local}`;
+		const told = reads ? walk.site.told.get(key) : undefined;
+		if (reads && told === undefined && walk.site.payload !== null && !walk.site.mute.has(key)) {
+			asked.push([key, one.local]);
+		}
+		const value =
+			told !== undefined
+				? told
+				: given === undefined
+					? fallback
+					: one.fallback === 'undefined'
+						? given
+						: `(${given} === undefined ? (${fallback}) : ${given})`;
 		// A value that **makes** something is held at the call site, which is where its identity
 		// belongs: the caller evaluates it once and hands the child that one value, so two reads
 		// inside the child must not build two. Recorded under the caller's own chain rather than
@@ -105,6 +145,19 @@ export function bindDeclared(
 		if (kept !== null) plain.set(one.local, value);
 		bound.set(one.local, kept ?? value);
 	}
+	// A local the child's script computes by calling into a package, over nothing the call site
+	// passed: `const globalProps = getLucideContext() ?? {}`, which is `@lucide/svelte`'s `Icon`
+	// reading a context. A package's function is opaque here -- that one asks the component being
+	// rendered, which a derivation has none of -- so the render, which ran it in the component, is
+	// asked for the value, and every read of the local is bound to the answer. One the render cannot
+	// answer as data keeps its expansion. See spec/derivation.md, "What a package computes in a
+	// child's script is asked of the render".
+	for (const name of packageCalled(ahead, file)) {
+		const key = `local:${String(walk.site.copies.length)}:${name}`;
+		const told = walk.site.told.get(key);
+		if (told !== undefined) bound.set(name, told);
+		else if (walk.site.payload !== null && !walk.site.mute.has(key)) asked.push([key, name]);
+	}
 	// What the child imports from Kit's `$app/state`, bound the way its server module reads it:
 	// `page` is the request's one object, which the root takes as its prop of that name, so the
 	// child's `page` is the root's whichever level this is; the other two hold what a server
@@ -112,7 +165,111 @@ export function bindDeclared(
 	for (const [local, exported] of stateImports(ahead['instance'])) {
 		bound.set(local, exported === 'page' ? 'page' : (STATE_ON_SERVER[exported] ?? local));
 	}
-	return { held, params, bound, named, plain, before };
+	return { held, params, bound, named, plain, before, asked };
+}
+
+/**
+ * The child's top-level locals whose initialiser calls a function imported from a package and
+ * reads nothing else: the values the render is asked for. See `bindDeclared`.
+ */
+function packageCalled(ahead: AstNode, file: string): string[] {
+	const instance = ahead['instance'];
+	const content = isNode(instance) ? instance['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	const fromPackage = new Set<string>();
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'ImportDeclaration') continue;
+		const source = isNode(statement['source']) ? String(statement['source']['value']) : '';
+		if (source === 'svelte' || source.startsWith('svelte/')) continue;
+		// A package's module, wherever the import was written: `Icon.svelte` imports its own
+		// `./context.js`, which sits in the package as much as a bare name's module does.
+		const at = resolveBare(source, file);
+		if (
+			at === null ||
+			!(at.includes('/node_modules/') || realpathOr(at).includes('/node_modules/'))
+		) {
+			continue;
+		}
+		for (const one of Array.isArray(statement['specifiers']) ? statement['specifiers'] : []) {
+			if (isNode(one) && isNode(one['local'])) fromPackage.add(String(one['local']['name']));
+		}
+	}
+	const found: string[] = [];
+	if (fromPackage.size === 0) return found;
+	const names = (node: unknown, into: Set<string>, calls: Set<string>): void => {
+		if (Array.isArray(node)) {
+			for (const one of node) names(one, into, calls);
+			return;
+		}
+		if (!isNode(node)) return;
+		if (node['type'] === 'Identifier') into.add(String(node['name']));
+		if (node['type'] === 'CallExpression') {
+			let callee = node['callee'];
+			while (isNode(callee) && callee['type'] === 'MemberExpression') callee = callee['object'];
+			if (isNode(callee) && callee['type'] === 'Identifier') calls.add(String(callee['name']));
+		}
+		for (const [key, value] of Object.entries(node)) {
+			if (key !== 'parent' && key !== 'loc') names(value, into, calls);
+		}
+	};
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'VariableDeclaration') continue;
+		for (const one of Array.isArray(statement['declarations']) ? statement['declarations'] : []) {
+			if (!isNode(one) || !isNode(one['id']) || one['id']['type'] !== 'Identifier') continue;
+			const init = one['init'];
+			if (!isNode(init) || runeCalled(init['callee']) !== null) continue;
+			const read = new Set<string>();
+			const calls = new Set<string>();
+			names(init, read, calls);
+			// Nothing but a package's: a local, a prop, Kit's environment or anything else the
+			// request may decide is the walk's to follow, and the render's answer would be the build's.
+			// `const early = hints({ ...project }, { dev })` in `status` reads `project`, which reads
+			// the server's environment, and the build wrote its own into every page.
+			if ([...read].some((name) => !fromPackage.has(name) && !GLOBALS.has(name))) continue;
+			if (![...calls].some((name) => fromPackage.has(name))) continue;
+			found.push(String(one['id']['name']));
+		}
+	}
+	return found;
+}
+
+/** Names an initialiser may read beside a package's and still be the package's value. */
+const GLOBALS: ReadonlySet<string> = new Set([
+	'undefined',
+	'Object',
+	'Array',
+	'String',
+	'Number',
+	'Boolean',
+	'JSON',
+]);
+
+/** A path as it really is, through the links pnpm makes, or as given where it is not there. */
+function realpathOr(path: string): string {
+	try {
+		return realpathSync(path);
+	} catch {
+		return path;
+	}
+}
+
+/** What a component's instance script declares at its top level, other than its props. */
+function scriptLocals(ahead: AstNode): ReadonlySet<string> {
+	const found = new Set<string>();
+	const instance = ahead['instance'];
+	const content = isNode(instance) ? instance['content'] : undefined;
+	const body = isNode(content) && Array.isArray(content['body']) ? content['body'] : [];
+	for (const statement of body) {
+		if (!isNode(statement) || statement['type'] !== 'VariableDeclaration') continue;
+		for (const one of Array.isArray(statement['declarations']) ? statement['declarations'] : []) {
+			if (!isNode(one) || !isNode(one['id'])) continue;
+			const init = one['init'];
+			// The props themselves, which are what is being bound.
+			if (isNode(init) && runeCalled(init['callee']) === '$props') continue;
+			namesIn(one['id'], found);
+		}
+	}
+	return found;
 }
 
 /** The child's declarations, read with what each prop is bound to. */

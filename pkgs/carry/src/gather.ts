@@ -9,6 +9,7 @@ import {
 	type Carried,
 	isComponentFile,
 } from '@seam-js/ast';
+import { MODULE_SCRIPT, moduleBindings } from './module-scripts.ts';
 
 /**
  * What the expressions of this route call, gathered from every file whose expressions became
@@ -81,6 +82,12 @@ export function carriedBy(
 			// has to be carried like any other. The bundler has a loader for a component already.
 			if (isComponentFile(from) && one.kind === 'default') continue;
 			carried.push({ ...one, from });
+		}
+		// What the file's module script declares, read from the module as the bundler builds it.
+		// See `moduleScripts()`.
+		for (const name of moduleBindings(at)) {
+			if (!names.has(name) || carried.some((one) => one.local === name)) continue;
+			carried.push({ local: name, from: `${at}${MODULE_SCRIPT}`, kind: 'named', exported: name });
 		}
 		// The file's own script, run as Svelte compiled it, where a read substitution could not
 		// follow became a field of that run. See `RUN` in carry.ts.

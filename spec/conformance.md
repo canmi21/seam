@@ -460,9 +460,44 @@ build could not have baked and a client-rendered page would not have served.
 
 **How it is measured.** The way stage 2 measures an app: built twice from a copy, never in place,
 once with Kit and once through the fork, and every response held to Kit's byte for byte but where a
-difference is declared. Its data is live -- Supabase, and the marks it fetches -- so both builds are
-pointed at one stand-in serving fixed data, and asked the same requests; the page is rendered per
-request from that data, and hydrates.
+difference is declared. Its data is live -- Supabase, and the marks it fetches from `symlink.si` --
+and its `load` reads the clock, so both servers start with one module loaded ahead of the app that
+fixes the clock at one instant and answers those requests from generated data, and refuses every
+other request out; the page is rendered per request from that data, and hydrates. The data is
+generated from the row types of `@monoflake/probe`, at the size of a middling production, by a
+seeded generator: nothing is read from or written to the platform. The copy may be changed where
+measuring it needs, and every change is listed beside it; the application itself is not changed.
+
+**And what a response costs is held too, to one bar: CTR is not slower than SSR.** `status` is not
+a benchmark and not something to show: its page writes little markup and does a great deal of
+work over its data, which CTR leaves where it was, so no gain is expected of it. What is checked is
+that CTR costs no more. Kit and the fork serve the same bytes, so the client does the same after
+them and what differs is what a response costs the server: Kit's (SSR), the fork's (CTR) and the
+same HTML as a file (SSG) are each asked the same page, with the data answered at once and after a
+fixed delay, and their CPU time per request compared.
+
+**Where it stands.** Every one of its twelve URLs is Kit's byte for byte, built with the check that
+no request reaches Kit's root. Getting there found, in order: a placeholder of the walk's leaking
+into a child's script (`@lucide/svelte`'s `Icon`); a staged copy's bare imports rewritten to files,
+which StyleX does not recognise, so every page threw; a module script's StyleX recipes written into
+derivations ([derivation.md](derivation.md), "A module script's binding is read from the module");
+a child's locals and defaults that read a context through a package ("What a package computes in a
+child's script is asked of the render"); a spread's keys hidden by the boundary's guard; the
+server's environment read through a module ("The environment a server starts with is read per
+request"); a package component's head anchor hashed by its link rather than its real path
+([build.md](build.md), "A filename is an input to the bytes"); and a `style:` directive's value
+read through no file. **The cost does not meet the bar yet**: a request takes about 230 ms of CPU
+through the fork against 65 ms through Kit -- from 640 ms, once an instance and a computing
+`{@const}` were made once ([derivation.md](derivation.md), "An instance is made once"). What is
+left is how a derivation is evaluated, not what: a page wholly inside Kit's root boundary has every
+value computed by the boundary's run and again by its hole wherever it sits in an each, since the
+hole cannot name which item's run it was (ir.md, "A value is computed once, by the run, and the
+hole reads it"); and each of the many thousand per-item evaluations goes through `with` and a
+proxied scope, which V8 runs far slower than Svelte's compiled render runs the same expression.
+Measured by the harness in `.local/status`, which builds, compares and times both.
+
+**The harness is local.** It lives in an ignored directory of this repository, since the
+application is the author's own and the data is made up for it; what it found goes here.
 
 **press was the first, and has left.** A site of the author's on Kit 2, measured byte-identical on
 603 of 603 responses with every component entered while 115 of Svelte's own samples were wrong --

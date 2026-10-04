@@ -221,7 +221,12 @@ function codegen(
 			const { js } = svelte.compile(source, {
 				generate: 'server',
 				name,
-				filename,
+				// By its real path, which is the id the project's bundler compiles it under: a
+				// package's component sits behind the link pnpm makes, outside the project, and the
+				// hash of a `<svelte:head>` is of the path relative to `rootDir` where it is under it
+				// and of the whole path where it is not -- `@canmi/kit`'s `title.svelte` wrote another
+				// anchor than Kit's. See spec/build.md, "A filename is an input to the bytes".
+				filename: real(filename),
 				rootDir: root,
 				...projectOptions(),
 			});
@@ -362,6 +367,16 @@ export async function renderRewritten(
 				continue;
 			}
 			if (specifier.startsWith('svelte/')) continue;
+			// Under a bundler, a bare name a file of the project's own imports is left as the author
+			// wrote it: the copy is staged inside the project, so the bundler resolves it from there to
+			// the module the source would have reached, and a plugin of the project's that reads the
+			// import by its name sees the name. StyleX compiles a `stylex.create` only under an import
+			// of `@stylexjs/stylex`, and one rewritten to its file was left to throw as it ran -- every
+			// page of `status`. A package's own file keeps the rewrite: its `node_modules` is not the
+			// project's.
+			if (host.bundler && !/^[./]/.test(specifier) && !real(origin).includes('/node_modules/')) {
+				continue;
+			}
 			// A relative path is completed too: a bundler resolves `./index` and `./x.svelte` as
 			// `./index.ts` and `./x.svelte.ts`, and so does `resolveBare`.
 			const target = resolveBare(specifier, origin);

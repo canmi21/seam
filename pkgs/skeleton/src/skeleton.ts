@@ -378,7 +378,11 @@ export async function walked(
 		// absolute path says which machine built it.
 		entered: [...new Set(baseline.copies.map((copy) => relative(root, copy.file)))],
 		payload: baseline.payload,
-		held: baseline.keeping.map((one) => ({ expression: one.expression, files: one.files ?? [] })),
+		held: baseline.keeping.map((one) => ({
+			expression: one.expression,
+			files: one.files ?? [],
+			...(one.item === true ? { item: true as const } : {}),
+		})),
 		// Left out where there is none, which is nearly every component: this is recorded in the
 		// corpus and a key holding an empty object is churn in every fixture for the sake of the few
 		// that have one.

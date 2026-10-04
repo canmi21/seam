@@ -8,6 +8,10 @@ dist/
 
 # Built by hand for now; the CLI will own this later.
 
+# Local harnesses over the author's own applications, with data made up for them. See
+# spec/conformance.md, "Stage 3".
+.local/
+
 # Never commit one, even by accident.
 .env
 

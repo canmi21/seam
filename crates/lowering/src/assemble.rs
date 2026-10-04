@@ -45,6 +45,9 @@ struct Assembler<'a> {
 	fresh: Vec<String>,
 	/// The bodies `Call` nodes walk, by name, collected as their blocks are met.
 	fragments: BTreeMap<String, Vec<ir::Node>>,
+	/// Set while a held value of an each's item is being named: it is computed per item wherever it
+	/// is first met, which may be a boundary's run outside the loop. See `Held::item`.
+	forcing: bool,
 }
 
 // --- assembling ---------------------------------------------------------------------------
@@ -416,6 +419,7 @@ pub fn assemble(component: &str, skeleton: &Skeleton) -> Result<ir::Compiled> {
 			.map(|hole| hole.expression.clone())
 			.collect(),
 		fragments: BTreeMap::new(),
+		forcing: false,
 	};
 	let mut out = Out::default();
 	out.write(&skeleton.html[outer.from..outer.content]);

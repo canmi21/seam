@@ -59,10 +59,14 @@ const files: Record<string, string> = {
 		`import { seam } from ${JSON.stringify(pathToFileURL(plugin).href)};\n` +
 		"const site = { name: 'virtual-site', resolveId(id) { return id === 'virtual:site' ? '\\0virtual:site' : null; }, " +
 		"load(id) { return id === '\\0virtual:site' ? 'export const site = { name: \"Sample <site>\" };' : null; } };\n" +
+		// A compile-time macro the way StyleX is one: a plugin of the project's compiles `tone(...)`
+		// away in a module that imports it from `sample-macro` by that name, and the call left in
+		// place throws. See spec/build.md, "A bare import a project's plugin reads by its name".
+		"const macro = { name: 'sample-macro', transform(code, id) { if (!/\\.(svelte|[jt]s)$/.test(id) || !/from ['\"]sample-macro['\"]/.test(code)) return null; return code.replace(/tone\\((['\"][a-z]+['\"])\\)/g, (_, name) => '({ class: \"tone-\" + ' + name + ' })'); } };\n" +
 		// Kit 3 takes its options as the plugin's argument; a `svelte.config.js` is an error. The version
 		// is named because Kit's default is the time its config module was loaded, and the fork's is
 		// loaded apart from Kit's, so each build would name its own and every page would differ by it.
-		"export default { logLevel: 'silent', plugins: [sveltekit({ outDir: process.env.SEAM_OUT, version: { name: 'sample' }, alias: { $parts: 'src/parts' }, extensions: ['.svelte', '.svx', '.svelte.md'] }), site, ...(process.env.SEAM === 'beside' ? [seam()] : [])] };",
+		"export default { logLevel: 'silent', plugins: [sveltekit({ outDir: process.env.SEAM_OUT, version: { name: 'sample' }, alias: { $parts: 'src/parts' }, extensions: ['.svelte', '.svx', '.svelte.md'] }), site, macro, ...(process.env.SEAM === 'beside' ? [seam()] : [])] };",
 	'src/app.html':
 		'<!doctype html><html lang="en"><head>%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>',
 	'src/routes/+layout.server.js': "export function load() { return { tagline: 'a sample' }; }",
@@ -107,6 +111,31 @@ const files: Record<string, string> = {
 	'src/routes/mode/+page.svelte':
 		"<script>import { mode } from '#lib/mode.js'; let { data } = $props();</script><h2>{data.fromLoad} === {import.meta.env.MODE} === {mode}</h2>",
 	'src/lib/mode.js': 'export const mode = import.meta.env.MODE;',
+	'node_modules/sample-macro/package.json':
+		'{ "name": "sample-macro", "type": "module", "exports": "./index.js" }',
+	'node_modules/sample-macro/index.js':
+		"export function tone() { throw new Error('tone() must be compiled away'); }",
+	'src/routes/toned/+page.svelte':
+		"<script module>import { tone } from 'sample-macro'; const look = tone('warm');</script><p class={look.class}>toned</p>",
+	// The server's environment, read through a module of the project's named by what it compiles
+	// to: the build answered it with the empty environment it ran in. `status`'s `projectUrl()`.
+	'src/env.ts':
+		"import { defineEnvVars } from '@sveltejs/kit/env';\nexport const variables = defineEnvVars({ PUBLIC_WHERE: { public: true, schema: (input) => input ?? '' } });",
+	'src/lib/where.ts':
+		"import { PUBLIC_WHERE } from '$app/env/public';\nexport function where() { return PUBLIC_WHERE?.replace(/\\/$/, '') || undefined; }",
+	'src/routes/where/+layout.svelte':
+		"<script>import { hints } from 'sample-icons/hints.js'; import { dev } from '$app/environment'; import { where } from '#lib/where.js'; let { children } = $props(); const at = where(); const early = hints({ fonts: ['https://fonts.test'], ...(at ? { data: at } : {}) }, { dev });</script><svelte:head>{#each early as one (one.href)}<link rel=\"preconnect\" href={one.href} />{/each}</svelte:head>{@render children()}",
+	'src/routes/where/+page.svelte': '<p>where</p>',
+	// An instance the request reaches, made once per request as Svelte makes it once per render:
+	// substituted it was a new one at every read, and one compared with itself was not itself.
+	'src/lib/box.ts': 'export class Box { v: number; constructor(v: number) { this.v = v; } }',
+	'src/routes/box/+page.server.js': 'export function load() { return { n: 3 }; }',
+	'src/routes/box/+page.svelte':
+		"<script>import { Box } from '#lib/box.js'; let { data } = $props(); const box = new Box(data.n);</script><p>{box === box} {box.v}</p>",
+	// An icon from a package installed through a link, outside the project, the way
+	// `@lucide/svelte` is: see `outside()`.
+	'src/routes/icons/+page.svelte':
+		'<script>import Star from \'sample-icons/Star.svelte\';</script><Star size={16} aria-hidden="true" class="dark:hidden" />',
 	'src/routes/ext/+page.svx':
 		"<script>import { page } from '$app/state';</script><p>custom: {page.url.pathname}</p>",
 	// Error pages, rendered from the trees Kit renders them with: a layout's `load` throwing under a
@@ -166,7 +195,11 @@ const URLS = [
 	'/left',
 	'/ext',
 	'/ext/test-slug',
+	'/where',
+	'/box',
+	'/icons',
 	'/mode',
+	'/toned',
 	'/blog/hello/__data.json',
 	'/missing',
 	'/run',
@@ -176,6 +209,38 @@ const URLS = [
 	'/loaded',
 	'/loaded?none',
 ];
+
+/**
+ * A package of the shape `@lucide/svelte` has, written outside the project and linked into its
+ * `node_modules` as pnpm links one: an icon whose script reads a context through the package's own
+ * module, whose props default to one another, which takes a `$derived` apart by an array pattern and
+ * spreads what it got, and which writes a `<svelte:head>` -- hashed by its path, which is outside the
+ * project. `status` met each of these at once.
+ */
+function outside(project: string): void {
+	const at = resolve(project, '../.build-plugin-icons');
+	rmSync(at, { recursive: true, force: true });
+	const files: Record<string, string> = {
+		'package.json':
+			'{ "name": "sample-icons", "type": "module", "exports": { "./*": { "svelte": "./dist/*", "default": "./dist/*" } } }',
+		'dist/ctx.js':
+			"import { getContext } from 'svelte';\nexport const ctx = () => getContext('sample-icons');",
+		'dist/build.js':
+			"export const build = (size, width, rest) => ['svg', { class: 'icon', width, height: size, ...rest }];",
+		'dist/Icon.svelte':
+			"<script>import { ctx } from './ctx.js'; import { build } from './build.js'; const g = ctx() ?? {}; const { size = g.size ?? 24, width = size, class: given, ...rest } = $props(); const [, attrs] = $derived(build(size, width, rest)); const all = $derived({ ...attrs, class: [attrs.class, g.class, given].filter(Boolean).join(' ') });</script><svelte:head><meta name=\"icon\" content=\"seen\" /></svelte:head><svg {...all}></svg>",
+		'dist/hints.js':
+			'export const hints = (asked, options) => [...asked.fonts.map((href) => ({ href })), ...(asked.data ? [{ href: asked.data }] : [])].filter(() => !options.dev);',
+		'dist/Star.svelte':
+			"<script>import Icon from './Icon.svelte'; let props = $props();</script><Icon {...props} />",
+	};
+	for (const [file, source] of Object.entries(files)) {
+		mkdirSync(dirname(resolve(at, file)), { recursive: true });
+		writeFileSync(resolve(at, file), source);
+	}
+	mkdirSync(resolve(project, 'node_modules'), { recursive: true });
+	symlinkSync(at, resolve(project, 'node_modules/sample-icons'), 'dir');
+}
 
 /** Writes a project's files under `project`, from nothing. */
 function written(project: string, sources: Record<string, string>): void {
@@ -239,7 +304,7 @@ async function built(
 		manifest: unknown;
 	};
 	const instance = new Server(manifest);
-	await instance.init({ env: {} });
+	await instance.init({ env: { PUBLIC_WHERE: 'https://where.test' } });
 	const answered = await Promise.all(
 		urls.map(async (url) => {
 			const response = await instance.respond(new Request(`http://sample.test${url}`), {
@@ -281,6 +346,7 @@ let beside: Record<string, string> = {};
 
 beforeAll(async () => {
 	written(root, files);
+	outside(root);
 	kit = await built('.svelte-kit-plain', 'kit');
 	compiledOnSync = await synced();
 	ours = await built('.svelte-kit', 'fork');
@@ -312,6 +378,12 @@ describe("the built server answers as Kit's does", () => {
 		expect(kit['/']).toContain('Home &amp; away');
 		expect(ours['/']).toContain('Home &amp; away');
 		expect(kit['/ext']).toContain('custom: /ext');
+		expect(kit['/toned']).toContain('class="tone-warm"');
+		expect(kit['/where']).toContain('<link rel="preconnect" href="https://where.test"/>');
+		expect(kit['/box']).toContain('<p>true 3</p>');
+		expect(kit['/icons']).toContain(
+			'<svg class="icon dark:hidden" width="16" height="16" aria-hidden="true"></svg>',
+		);
 		expect(kit['/ext/test-slug']).toContain('<h2>TEST-SLUG</h2>');
 		expect(kit['/mode']).toContain('<h2>sample === sample === sample</h2>');
 	});

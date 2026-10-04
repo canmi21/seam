@@ -204,6 +204,14 @@ export function locals(
 	}
 
 	const expanded = new Map<string, string>();
+	/**
+	 * Whether a name a pattern binds is expanded, or left as the script declares it: a reading
+	 * written into the script the render runs reads the script's own name, since what a pattern's
+	 * expansion is spelled with -- `$$hold(k)`, `$$to_array(...)` -- is the derivations' and no name
+	 * Svelte compiles. `@lucide/svelte`'s `Icon` spreads one name of an array pattern over a
+	 * `$derived` into another `$derived`.
+	 */
+	let patternsAsWritten = false;
 
 	function slice(
 		node: unknown,
@@ -463,6 +471,18 @@ export function locals(
 		const one = found.get(name);
 		if (one === undefined) return name;
 		if (one.literal !== undefined) return one.literal;
+		if (one.module === true) return name;
+		// A `new` the request reaches is one instance per request, held as a pattern's value is:
+		// `const live = new Live(data)` in `status` was a new `Live` at each of its reads, which
+		// were thousands, each folding every row the page holds -- a tenth of a second of CPU a
+		// request became seven, and an instance compared with itself would not have been. See
+		// spec/derivation.md, "An instance is made once".
+		const instance =
+			one.reach === INIT &&
+			held !== undefined &&
+			one.node['type'] === 'NewExpression' &&
+			one.rune === undefined;
+		if (patternsAsWritten && (one.reach !== INIT || instance)) return name;
 		// A name cannot stand in for itself. A cycle among declarations is the author's, and
 		// leaving the name in place lets the pass that resolves names report it.
 		const inner = new Set(open).add(name);
@@ -497,6 +517,9 @@ export function locals(
 				reached = `$$hold(${String(at)})${one.reach.slice(cut.length)}`;
 			}
 		}
+		if (instance && mentions(body, new Set([...(dynamic ?? carried), ...props, GIVEN]))) {
+			reached = `$$hold(${String(kept(`(${body})`, held))})`;
+		}
 		for (const [at, node] of one.slots.entries()) {
 			reached = reached.split(SLOT(at)).join(`(${slice(node, inner, extra)})`);
 		}
@@ -519,12 +542,21 @@ export function locals(
 			[...found.values()]
 				.filter((one) => one.reads)
 				.map((one): [string, Neutral] => {
-					const text = one.literal ?? slice(one.node, new Set([one.name]), bound);
+					// Expanded whole to ask what it reads, and written with a pattern's names as the script
+					// declares them. See `patternsAsWritten`.
+					const deep = one.literal ?? slice(one.node, new Set([one.name]), bound);
+					patternsAsWritten = true;
+					let text: string;
+					try {
+						text = one.literal ?? slice(one.node, new Set([one.name]), bound);
+					} finally {
+						patternsAsWritten = false;
+					}
 					// `GIVEN` is the payload object, which the render is not given any more than it
 					// is given a payload name. A declaration standing for it is neutralised for the
 					// same reason one reading a prop is, and Svelte refuses a `$$` name outright.
 					const neutralising = new Set([...(dynamic ?? carried), GIVEN]);
-					const neutralised = !mentions(text, neutralising) ? text : one.holds;
+					const neutralised = !mentions(deep, neutralising) ? text : one.holds;
 					// The render no longer computes this one either, so a read of it left as the
 					// author wrote it reads the placeholder. `function foo() { b = c }` neutralised
 					// over a `c` that reads a prop left `foo` as `null`, and the script's own

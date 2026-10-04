@@ -373,6 +373,12 @@ So this is not a tidiness question about one side of the build. The server bytes
 compiler and the client comes from the client build, and if the two are rooted differently the
 client cannot find the head block it is looking for, and a scoped class selects nothing.
 
+**And the filename is the real path**, which is the id the project's bundler compiles a component
+under. A package's component sits behind the link pnpm makes into `node_modules`, outside the
+project once followed, so its hash is of the whole path, not of one relative to `rootDir`:
+compiled under the link, `@canmi/kit`'s `title.svelte` opened its `<svelte:head>` with another
+anchor than Kit's, and `status` differed by that alone.
+
 **So `rootDir` is the project root, on both halves, and `filename` stays absolute.** That is
 Svelte's own answer to this, which is why it exists as an option; handing it a pre-relativised
 filename would work by accident -- a relative path does not start with the working directory, so

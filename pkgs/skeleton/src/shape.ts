@@ -260,7 +260,7 @@ export interface Skeleton {
 	 * be unique per copy, and the pass that names derivations already keys them by the text, the
 	 * file chain and whether they are scoped. See spec/derivation.md.
 	 */
-	held: { expression: string; files: string[] }[];
+	held: { expression: string; files: string[]; item?: true }[];
 	/**
 	 * A test the walk stopped on and the build decided, as the entry's run answers it: the walk
 	 * writes the test in the author's names, and where the entry's script run holds one of them the

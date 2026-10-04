@@ -204,6 +204,35 @@ function within(
 				has: (_, key) => typeof key === 'string' && layers.some((one) => key in one),
 				get: (_, key) => {
 					if (typeof key !== 'string') return undefined;
+					// A derivation computed per item -- a `{@const}` held once per item -- read inside a
+					// boundary's run, which walks the each itself: computed over what the run binds
+					// for the item on top of the stack the run was given, as the injector computes it
+					// over the item's own scope.
+					if (/^__d\d+$/.test(key) && !(key in locals)) {
+						const stack = (data as Record<PropertyKey, unknown>)[STACK] as Scope[] | undefined;
+						const held = stack?.findLast((one) => Object.hasOwn(one, key))?.[key];
+						if (typeof held === 'function' && SCOPED in held) {
+							// Once per item across the run's pieces, as it is once per item in the
+							// injector: each piece binds the item afresh, so the item is told apart by
+							// what it binds rather than by the object binding it.
+							const byItem = perItem.get(held) ?? new Map<string, unknown>();
+							perItem.set(held, byItem);
+							const reads = (held as unknown as Record<symbol, ReadonlySet<string> | undefined>)[
+								READS
+							];
+							const item = itemKey(locals, reads);
+							if (!byItem.has(item)) {
+								byItem.set(
+									item,
+									(held as unknown as (scopes: readonly Scope[]) => unknown)([
+										...(stack ?? []),
+										locals as Scope,
+									]),
+								);
+							}
+							return byItem.get(item);
+						}
+					}
 					const at = layers.find((one) => key in one);
 					return at === undefined ? undefined : (at as Record<string, unknown>)[key];
 				},
@@ -265,11 +294,46 @@ function evaluate(script: string): Record<string, unknown> {
  * the way the page-level getter does. See spec/derivation.md, "A hold may name the child's chain,
  * and that is how a value crosses back up".
  */
+/** The scope stack a stacked scope reads, for a piece of another component's to read per item. */
+const STACK = Symbol('seam.stack');
+
+/** What a boundary's run computed per item, by the per-item derivation and the item. */
+const perItem = new WeakMap<object, Map<string, unknown>>();
+const identities = new WeakMap<object, number>();
+let identified = 0;
+
+/** The names a per-item derivation's text reads, which is what tells one item from another. */
+const READS = Symbol('seam.reads');
+
+/**
+ * An item as what it binds of what the derivation reads: each value by identity where it is an
+ * object, by itself otherwise. A nested each's piece binds more than its item's own, and those
+ * names do not make it another item.
+ */
+function itemKey(locals: Record<string, unknown>, reads: ReadonlySet<string> | undefined): string {
+	return Object.entries(locals)
+		.filter(([name]) => reads === undefined || reads.has(name))
+		.map(([name, value]) => {
+			if (typeof value === 'object' && value !== null) {
+				let id = identities.get(value);
+				if (id === undefined) {
+					identified += 1;
+					id = identified;
+					identities.set(value, id);
+				}
+				return `${name}#${String(id)}`;
+			}
+			return `${name}=${typeof value}:${String(value)}`;
+		})
+		.join('\u0000');
+}
+
 function stacked(scopes: readonly Scope[]): Record<string, unknown> {
 	const computed = new Map<PropertyKey, unknown>();
 	return new Proxy(Object.create(null) as Record<string, unknown>, {
 		has: (_, key) => scopes.some((one) => Object.hasOwn(one, key)),
 		get: (_, key) => {
+			if (key === STACK) return scopes;
 			if (computed.has(key)) return computed.get(key);
 			for (let at = scopes.length - 1; at >= 0; at -= 1) {
 				const one = scopes[at];
@@ -391,9 +455,16 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 			// it rather than write it out, and the stack is flattened innermost last so an each
 			// binding shadows an outer name the way `resolve` has it shadow.
 			if (derivation.scoped === true) {
+				// Once per item: the innermost scope is the item's own, and a `{@const}` held as a
+				// derivation is read by every slot and test of that item. See spec/derivation.md, "An
+				// instance is made once".
+				const memo = new WeakMap<object, unknown>();
 				const held = (scopes: readonly Scope[]): unknown => {
+					const item = scopes.at(-1);
+					if (item !== undefined && memo.has(item)) return memo.get(item);
+					let value: unknown;
 					try {
-						return failing(
+						value = failing(
 							derivation.evaluate(stacked(scopes), request),
 							derivation.source,
 							derivation.asynchronous,
@@ -401,8 +472,13 @@ export function compile(derivations: readonly Derivation[], carried = ''): Deriv
 					} catch (error) {
 						throw new DerivationFailed(derivation.source, error);
 					}
+					if (item !== undefined) memo.set(item, value);
+					return value;
 				};
-				out[derivation.name] = Object.assign(held, { [SCOPED]: true });
+				out[derivation.name] = Object.assign(held, {
+					[SCOPED]: true,
+					[READS]: new Set(derivation.source.match(/[A-Za-z_$][\w$]*/g) ?? []),
+				});
 				continue;
 			}
 			// A prop's default stands over the payload's key and is computed in order. The test is

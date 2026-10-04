@@ -378,4 +378,73 @@ export const cases: Case[] = [
 			{ t: '', like: { length: 0 } },
 		],
 	},
+	{
+		// `status`'s bars: a `{@const}` per item read by a `style:` directive and by a class test, the
+		// value a call into the script's module. Met moving `status`; see spec/conformance.md, "Stage 3".
+		name: 'a style directive over a const of each item',
+		alongside: {
+			'color.ts':
+				'export const dayColor = (day, unit) => (day.n === 0 ? null : `color-mix(in oklch, red ${day.n * unit}%, green)`);',
+		},
+		source:
+			"<script>import { dayColor } from './color.ts'; let { data } = $props();</script>" +
+			'{#each data.days as day (day.start)}{@const color = dayColor(day, data.unit)}' +
+			"<span class=\"bar {color === null ? 'none' : ''}\" style:background-color={color}></span>{/each}",
+		data: [
+			{
+				unit: 2,
+				days: [
+					{ start: 1, n: 0 },
+					{ start: 2, n: 3 },
+				],
+			},
+		],
+	},
+	{
+		// A `{@const}` that computes, held once per item, inside a boundary whose run walks the each
+		// itself, read by another `{@const}` and by a `style:` directive: `status`'s bars, whose
+		// per-check `days` folded the check's whole history at each of its reads. See
+		// spec/derivation.md, "An instance is made once".
+		name: 'a computing const held per item, read through another, inside a boundary',
+		alongside: {
+			'sum.ts':
+				'export const sum = (xs) => xs.reduce((a, b) => a + b, 0);\nexport const tint = (n) => (n > 3 ? `hsl(${n} 50% 50%)` : null);',
+		},
+		source:
+			"<script>import { sum, tint } from './sum.ts'; let { data } = $props();</script>" +
+			'<svelte:boundary>{#each data.rows as row (row.id)}{@const total = sum(row.items)}{@const twice = [total, total * 2]}' +
+			'<p style:color={tint(total)}>{total} {twice[1]}</p>{/each}{#snippet failed(e)}<i>{e.message}</i>{/snippet}</svelte:boundary>',
+		data: [
+			{
+				rows: [
+					{ id: 1, items: [1, 2] },
+					{ id: 2, items: [3, 4] },
+				],
+			},
+		],
+	},
+	{
+		// The same in a child, under the caller's boundary: the boundary's run reads the child's
+		// pieces through `$$within`, and the held value is computed there per item too.
+		name: 'a computing const held per item, in a child under the caller boundary',
+		alongside: {
+			'sum.ts': 'export const sum = (xs) => xs.reduce((a, b) => a + b, 0);',
+		},
+		beside: {
+			Rows:
+				"<script>import { sum } from './sum.ts'; let { rows } = $props();</script>" +
+				'{#each rows as row (row.id)}{@const total = sum(row.items)}{@const twice = [total, total * 2]}<p>{total} {twice[1]}</p>{/each}',
+		},
+		source:
+			"<script>import Rows from './Rows.svelte'; let { data } = $props();</script>" +
+			'<svelte:boundary><Rows rows={data.rows} />{#snippet failed(e)}<i>{e.message}</i>{/snippet}</svelte:boundary>',
+		data: [
+			{
+				rows: [
+					{ id: 1, items: [1, 2] },
+					{ id: 2, items: [3, 4] },
+				],
+			},
+		],
+	},
 ];

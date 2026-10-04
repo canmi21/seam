@@ -135,7 +135,11 @@ impl Assembler<'_> {
 				.get(index)
 				.ok_or_else(|| format!("the walk refers to a held declaration {index} it never recorded"))?
 				.clone();
-			out.push_str(&self.path(&one.expression, &one.files)?);
+			let saved = self.forcing;
+			self.forcing = one.item;
+			let named = self.path(&one.expression, &one.files);
+			self.forcing = saved;
+			out.push_str(&named?);
 			rest = &after[end + 1..];
 		}
 		out.push_str(rest);
@@ -171,8 +175,14 @@ impl Assembler<'_> {
 		// A read of the script run's state the markup changes is a read at one moment, so inside an
 		// each it is one per item, whatever it names. The skeleton marks such a read with its place.
 		let live = trimmed.contains("/*@run:") && !self.locals.is_empty();
-		let scoped = live
-			|| self.locals.iter().chain(self.fresh.iter()).any(|one| read.iter().any(|name| name == one));
+		// And so does one reading another that is computed per item: a `{@const}` held once per item
+		// is a derivation of its own, and what reads it -- `shown` over `days` in `status` -- names
+		// it rather than the item, and computed once per request it read the function standing for
+		// the per-item value. See spec/derivation.md, "An instance is made once".
+		let scoped = self.forcing
+			|| live
+			|| self.locals.iter().chain(self.fresh.iter()).any(|one| read.iter().any(|name| name == one))
+			|| self.derivations.iter().any(|one| one.scoped && read.iter().any(|name| name == &one.name));
 		// One derivation per expression, not per read of it. A declaration is written out wherever
 		// the markup reads it, so `{#each items as item}` and the `{items}` handed to a child are
 		// the same text twice -- and evaluated twice they are two arrays, whose elements are not

@@ -7,6 +7,7 @@ import { sentinel } from './sentinel.ts';
 import type { Hole } from './shape.ts';
 import { rewrite } from './walk.ts';
 import type { Copy, Rewritten } from './walk-types.ts';
+import { realpathSync } from 'node:fs';
 
 /**
  * Everything the walk could only anchor, finished once there is a render to read.
@@ -30,7 +31,7 @@ export function filled(baseline: Rewritten, file: string, root: string): void {
 	const code = compile(baseline.rewritten, {
 		generate: 'server',
 		name: 'Entry',
-		filename: file,
+		filename: realFile(file),
 		rootDir: root,
 		...projectOptions(),
 	}).js.code;
@@ -41,7 +42,7 @@ export function filled(baseline: Rewritten, file: string, root: string): void {
 		const out = compile(copy.source, {
 			generate: 'server',
 			name: componentStem(copy.file),
-			filename: copy.file,
+			filename: realFile(copy.file),
 			rootDir: at,
 			...projectOptions(),
 		}).js.code;
@@ -348,8 +349,18 @@ export async function outcomes(
 					}
 					// A marker of its own per outcome, so a value in half the outcomes is still a
 					// hole planted once and consumed once.
+					// Read through the files of the directive's own hole, which is where its names mean
+					// what they mean: without them `style:background-color={color}` over a `{@const
+					// color = dayColor(...)}` named an import no file of the bundle carried, and
+					// `status` wrote every bar without its colour.
 					const at = holes.length;
-					holes.push({ index: at, expression: each.expression, raw: false });
+					const owner = holes[one.index];
+					holes.push({
+						index: at,
+						expression: each.expression,
+						raw: false,
+						...(owner?.files === undefined ? {} : { files: owner.files }),
+					});
 					bag[each.name] = sentinel(at);
 				}
 				table.push(attr_style(one.base, some ? [normal, important] : normal));
@@ -472,3 +483,12 @@ const OTHERS: readonly ((index: number) => string)[] = [
 	(index) => `%%z${String(index)}z%%`,
 	() => '',
 ];
+
+/** A path as it really is, through the links pnpm makes; see `codegen` in render.ts. */
+function realFile(path: string): string {
+	try {
+		return realpathSync(path);
+	} catch {
+		return path;
+	}
+}
