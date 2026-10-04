@@ -356,6 +356,9 @@ importers:
       '@rolldown/pluginutils':
         specifier: ^1.0.1
         version: 1.0.1
+      '@seam-js/plugin':
+        specifier: workspace:*
+        version: link:../plugin
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0

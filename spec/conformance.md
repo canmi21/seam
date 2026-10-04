@@ -235,8 +235,12 @@ without `experimental.async`**; only `async`, `options-2` and one of `options`'s
 That is why the suite measures both renders: a stage two over these apps is mostly the synchronous
 one.
 
-**What running them means here.** Each app is built with this plugin in its Vite config and
-Kit's own specs are run against the result, unedited. `server.test.js` is the one that bears
+**What running them means here.** Each app is built with the fork as its Kit -- its
+`@sveltejs/kit` is `pkgs/framework`, as the alias would install it, and nothing in it is edited --
+and Kit's own specs are run against the result, unedited. Kit's side of every comparison is the
+same app with `vendor/kit` as its Kit. A package of the app's that imports Kit itself is given the
+fork too: `test-redirect-importer` throws Kit's `redirect` from outside the app, and the one
+`vendor/kit` makes is not the class the fork's runtime tests for, which no install would mix. `server.test.js` is the one that bears
 directly: it asserts what the server sent, which is the half this compiler replaces. The others
 assert what the client does afterwards, which is Svelte's own hydration against those bytes and is
 therefore a check on them.
@@ -268,10 +272,9 @@ hands that render back to Kit's root. Kit's specs exercise both. See [framework.
 **How they are run.** `mise run apps -- --app=<name> --spec=<file>`: `pkgs/apps` stages the app
 out of `vendor/kit/test/apps` into `.build-apps` in upstream's own layout, since the harness reaches
 `../../../test-utils` by relative path, gives it this package's `node_modules` -- `pkgs/apps`
-declares what upstream's workspace catalog gave the apps -- and writes two files beside the app
-without touching it: a Vite config that is the app's own with `seam()` after `sveltekit()`, and a
-Playwright config that is the app's own with the build and the preview run through that Vite
-config. Then Kit's `setup.js` and Kit's `playwright test`, over the app's own specs. `--plain`
+declares what upstream's workspace catalog gave the apps, with the fork as its `@sveltejs/kit` --
+and writes one file beside the app without touching it: a Playwright config that is the app's own
+with the build and the preview run through the app's own Vite config. Then Kit's `setup.js` and Kit's `playwright test`, over the app's own specs. `--plain`
 builds the same app as Kit alone does, which is what a failure is read against: a spec failing
 both ways is upstream's or this machine's. Playwright drives the system's Chrome, as Kit's own
 config asks (`channel: 'chrome'`).
@@ -292,6 +295,18 @@ share stands at the same value on all three. What two builds differ in by constr
 version, the client's file hashes, the port -- and what a `load` reads of the clock or of
 `Math.random()` are written out first; an answer whose two Kit servers still disagree is unstable
 and not compared.
+
+**Kit's client file names are matched, not masked.** Kit's build reads Kit from `vendor/kit` and
+ours from `pkgs/framework`, and the bundler hashes where a module sits into a chunk's name, so the
+same chunk comes out under two names and every page naming it differs by that -- which no install
+has, since either Kit lands in `node_modules/@sveltejs/kit`. So every file of our client build is
+paired with the one of Kit's whose content is the same once the hashes in both are written out, and
+the location of Kit's source with them, which an unminified build names in its `//#region`
+comments; ours is then written under Kit's name before the pages are compared. A file with no pair
+is a difference of its own, reported apart. The same move reorders a list of chunks Kit emits in
+the bundler's order -- `/service-worker.js`, a build manifest a page prints -- so a run of entries
+with nothing but the list between them is sorted on both sides; the chunks a page preloads keep
+their order.
 
 At `3.0.0`, over 607 URLs, the first run found **602 the same bytes, 4 different, 1 unstable**
 (`/endpoint-output/stream`, an endpoint writing random bytes). The four were three causes:
@@ -314,12 +329,13 @@ At `3.0.0`, over 607 URLs, the first run found **602 the same bytes, 4 different
 With the two closed: **605 the same, 1 different, 1 unstable.**
 
 **Every other app, compared the same way**, each built with its own config, mode and preview
-environment as its own scripts give them:
+environment as its own scripts give them. Measured again with the fork as each app's Kit, every
+figure here and above came out the same as it had with the plugin beside Kit's own:
 
 | app                                                                                                     | URLs         | result                                                     |
 | ------------------------------------------------------------------------------------------------------- | ------------ | ---------------------------------------------------------- |
 | `embed`, `hash-based-routing`, `no-csr`, `no-ssr`, `options-3`, `prerendered-app-error-pages`, `writes` | 2 to 17 each | all the same                                               |
-| `options`                                                                                               | 69           | all the same                                               |
+| `options`                                                                                               | 51           | all the same                                               |
 | `options-2`                                                                                             | 22           | all the same; it calls remote functions                    |
 | `async`                                                                                                 | 104          | 102 the same, 2 different, below                           |
 | `dev-only`                                                                                              | --           | Kit's own build fails by design: the app is for `vite dev` |

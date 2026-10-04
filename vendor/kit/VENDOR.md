@@ -1,7 +1,8 @@
 # SvelteKit, vendored
 
 This directory holds SvelteKit's source as it was written, taken from one tag of its repository
-and kept apart from the repository's own code. Nothing in `src/` or `types/` is edited here; what
+and kept apart from the repository's own code. The fork this repository maintains is
+`pkgs/framework`, taken from here; see its `FORK.md`. Nothing in `src/` or `types/` is edited here; what
 this repository needs from it is reached through one package, and what it changes about it is
 written in that package rather than in these files.
 
@@ -74,9 +75,9 @@ gained matchers registered through `test/matchers.js`, which `vitest.config.ts` 
 
 ## What is checked
 
-- `mise run apps -- --app=<name>` builds one of the apps under `test/apps` with this repository's
-  plugin and runs Kit's own Playwright specs against it, staging the app into `pkgs/apps/.build-apps`
-  in upstream's layout with this package's dependencies; `pkgs/apps` declares what upstream's
+- `mise run apps -- --app=<name>` builds one of the apps under `test/apps` with the fork in
+  `pkgs/framework` as its Kit and runs Kit's own Playwright specs against it, staging the app into
+  `pkgs/apps/.build-apps` in upstream's layout with this package's dependencies; `pkgs/apps` declares what upstream's
   workspace catalog gave the apps. `--plain` builds the same app as Kit alone does. This is stage
   two of `spec/conformance.md`, and the apps are how it is measured. `typescript` is pinned at
   upstream's `~6.0.3` in `package.json` here, because Kit's sync reads an app's `tsconfig.json`

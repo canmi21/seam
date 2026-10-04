@@ -1,5 +1,5 @@
 /**
- * One of SvelteKit's own test apps, built twice -- as Kit alone builds it and with this plugin --
+ * One of SvelteKit's own test apps, built twice -- as Kit alone builds it and as the fork does --
  * and every page asked of both: the responses have to be the same bytes. It is the check the
  * Playwright specs make only where a spec happens to look, made over every page route the app has
  * and every URL its specs name. See spec/conformance.md, "Stage 2".
@@ -12,6 +12,13 @@
  * same value in all three. A page whose two answers from Kit already differ -- a clock, a random
  * id -- is unstable rather than different, and is reported apart. What two builds of one app legitimately differ in, the version Kit names
  * each build by and the hashes in the client's file names, is written out before comparing.
+ *
+ * Kit's build has `vendor/kit` as its Kit and ours has the fork, so the two client builds read
+ * Kit's client from two paths, and the bundler hashes the path in: the same chunk comes out under
+ * another name, and every page naming it differs by that. An install puts either in the same
+ * `node_modules/@sveltejs/kit`, so the names are matched rather than masked: every file of ours is
+ * paired with Kit's whose content is the same once the names in it are, and ours are written as
+ * Kit's before the pages are compared. A file with no such pair is a difference of its own.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -143,16 +150,186 @@ function outDir(dir: string): string {
 	return resolve(dir, found);
 }
 
-/** What two builds of one app differ in by construction, written out of an answer. */
-function normaliser(dir: string): (answer: Answer) => string {
-	// An app with no client at all -- `csr` off everywhere -- has no client build and no version file.
+/**
+ * Where Kit's source sits, which an unminified bundle names in its `//#region` comments:
+ * `vendor/kit` for Kit's build and `pkgs/framework` for the fork's, where an install of either puts
+ * it in the same `node_modules/@sveltejs/kit`. `options-2` and `basics` build unminified.
+ */
+function kitSource(text: string): string {
+	return text.replace(/(?:\.\.\/)+(?:vendor\/kit|framework)\/src\//g, '<kit>/src/');
+}
+
+/**
+ * A list of the client's chunks in the order the bundler emitted them, written in name order: what
+ * `/service-worker.js` and Kit's build manifest list, one `{ "path": ... }` after another. The
+ * order follows the hashes, which follow where Kit's source sits (see the top of this file), so
+ * with ours renamed as Kit's the same list stood in another order. Only a run of entries with
+ * nothing but the list between them is sorted: the chunks a page preloads stay in its order.
+ */
+function listed(text: string): string {
+	const chunk = /_app\/immutable\/chunks\/[A-Za-z0-9_-]{8}\.js/g;
+	const between = /^"[\s{},]*"path":\s*"$/;
+	const found = [...text.matchAll(chunk)];
+	let out = '';
+	let from = 0;
+	for (let at = 0; at < found.length;) {
+		let end = at;
+		while (
+			end + 1 < found.length &&
+			between.test(
+				text.slice((found[end]?.index ?? 0) + (found[end]?.[0].length ?? 0), found[end + 1]?.index),
+			)
+		) {
+			end += 1;
+		}
+		if (end > at) {
+			const run = found.slice(at, end + 1);
+			const sorted = run.map((one) => one[0]).toSorted();
+			for (const [i, one] of run.entries()) {
+				out += text.slice(from, one.index) + (sorted[i] ?? one[0]);
+				from = (one.index ?? 0) + one[0].length;
+			}
+		}
+		at = end + 1;
+	}
+	return out + text.slice(from);
+}
+
+/** The version Kit named a build by, or null for an app with no client at all -- `csr` off everywhere. */
+function versionOf(dir: string): string | null {
 	const file = resolve(outDir(dir), 'output/client/_app/version.json');
-	const version = existsSync(file)
+	return existsSync(file)
 		? (JSON.parse(readFileSync(file, 'utf8')) as { version: string }).version
 		: null;
+}
+
+/** A client file's name, as `[prefix.]<hash>.<extension>`, with the bundler's eight-character hash. */
+const HASHED = /^(?:(.+)\.)?([A-Za-z0-9_-]{8})\.([a-z0-9]+(?:\.map)?)$/;
+
+/** Every file under a build's client output, by its path there. */
+function clientFiles(dir: string): Map<string, string> {
+	const root = resolve(outDir(dir), 'output/client');
+	const found = new Map<string, string>();
+	const walk = (at: string): void => {
+		for (const one of readdirSync(resolve(root, at), { withFileTypes: true })) {
+			const path = at === '' ? one.name : `${at}/${one.name}`;
+			// Vite's own manifest, which no page names, and whose `manifest.json` reads as a hash.
+			if (one.isDirectory()) {
+				if (path !== '.vite') walk(path);
+			} else found.set(path, readFileSync(resolve(root, path), 'latin1'));
+		}
+	};
+	walk('');
+	return found;
+}
+
+/**
+ * Our client's hashes written as Kit's, for every file of ours whose content is Kit's file's once
+ * the hashes in both are written out, in the same directory under the same prefix; and the files
+ * of ours that have no such pair, which are differences of their own. See the top of this file.
+ *
+ * Files alike once every hash is written out are told apart by the files they name: a pair found
+ * is written back into both sides as one name, and the rest are keyed again, until nothing more
+ * pairs. Two files that are alike even then are the same file twice, and stand for each other.
+ */
+function paired(
+	kitDir: string,
+	seamDir: string,
+): { names: Map<string, string>; unpaired: string[] } {
+	interface Hashed {
+		hash: string;
+		shape: string;
+		content: string;
+	}
+	const read = (dir: string): Hashed[] => {
+		const version = versionOf(dir);
+		const found: Hashed[] = [];
+		for (const [path, content] of clientFiles(dir)) {
+			const name = path.split('/').at(-1) ?? '';
+			const at = HASHED.exec(name);
+			if (at === null) continue;
+			const shape = `${path.slice(0, -name.length)}${at[1] ?? ''}.${at[3] ?? ''}`;
+			// What the pages are read without, which a client file holds too: the version, and the
+			// global Kit names after it.
+			const normalized = kitSource(content)
+				.replaceAll(version ?? '\0', '<version>')
+				.replace(/__sveltekit_[a-z0-9]+/g, '__sveltekit_<hash>');
+			found.push({ hash: at[2] ?? '', shape, content: normalized });
+		}
+		return found;
+	};
+	const kit = read(kitDir);
+	const ours = read(seamDir);
+	const names = new Map<string, string>();
+	const known = new Set<string>();
+	// A name both builds gave is one file, as it was before any name was matched: the bundler hashed
+	// the same content into it, and what was written into it afterwards -- the remote functions
+	// Kit prerendered, in the order they finished -- is not this comparison's to read.
+	for (const one of ours) {
+		if (kit.some((other) => other.hash === one.hash && other.shape === one.shape)) {
+			names.set(one.hash, one.hash);
+			known.add(one.hash);
+		}
+	}
+	const keyed = (
+		files: Hashed[],
+		as: (hash: string) => string | undefined,
+	): Map<string, Hashed[]> => {
+		const byKey = new Map<string, Hashed[]>();
+		for (const file of files) {
+			let content = file.content;
+			for (const other of files)
+				content = content.replaceAll(other.hash, as(other.hash) ?? '<hash>');
+			const key = `${file.shape}\n${content}`;
+			byKey.set(key, [...(byKey.get(key) ?? []), file]);
+		}
+		return byKey;
+	};
+	for (let moved = true; moved;) {
+		moved = false;
+		const theirs = keyed(kit, (hash) => (known.has(hash) ? hash : undefined));
+		for (const [key, mine] of keyed(ours, (hash) => names.get(hash))) {
+			const match = theirs.get(key);
+			if (match === undefined || match.length !== 1 || mine.length !== 1) continue;
+			const [one] = mine;
+			const [other] = match;
+			if (one === undefined || other === undefined || names.has(one.hash)) continue;
+			names.set(one.hash, other.hash);
+			known.add(other.hash);
+			moved = true;
+		}
+	}
+	const theirs = keyed(kit, (hash) => (known.has(hash) ? hash : undefined));
+	const unpaired: string[] = [];
+	for (const [key, mine] of keyed(ours, (hash) => names.get(hash))) {
+		const left = mine.filter((one) => !names.has(one.hash));
+		if (left.length === 0) continue;
+		const match = (theirs.get(key) ?? []).filter((one) => !known.has(one.hash));
+		if (match.length !== left.length) {
+			unpaired.push(`${key.split('\n')[0] ?? ''} (${left.map((one) => one.hash).join(', ')})`);
+			continue;
+		}
+		const sorted = match.map((one) => one.hash).toSorted();
+		left
+			.map((one) => one.hash)
+			.toSorted()
+			.forEach((one, i) => names.set(one, sorted[i] ?? one));
+	}
+	return { names, unpaired };
+}
+
+/** What two builds of one app differ in by construction, written out of an answer. */
+function normaliser(
+	dir: string,
+	names: ReadonlyMap<string, string> = new Map(),
+): (answer: Answer) => string {
+	const version = versionOf(dir);
+	const renamed = (text: string): string => {
+		if (names.size === 0) return text;
+		return text.replace(/[A-Za-z0-9_-]{8}/g, (one) => names.get(one) ?? one);
+	};
 	return ({ status, location, type, body }) =>
-		[status, location, type, body]
-			.join('\n')
+		listed(kitSource(renamed([status, location, type, body].join('\n'))))
 			.replaceAll(version ?? '\0', '<version>')
 			.replace(/__sveltekit_[a-z0-9]+/g, '__sveltekit_<hash>')
 			// The two servers listen on two ports, and a page may write the URL it was asked at.
@@ -224,12 +401,16 @@ const unstable: string[] = [];
 /** Kit's two answers differ, and ours is neither: not settled by this comparison. */
 const unsettled: { url: string; kit: string; seam: string }[] = [];
 const differ: { url: string; kit: string; seam: string }[] = [];
+/** Files of our client build with no file of Kit's alike in everything but their names. */
+let clientDiffers: string[] = [];
 try {
 	servers.push(await preview(plain, kitPort));
 	servers.push(await preview(ours, seamPort));
 	servers.push(await preview(plain, againPort));
 	const kitText = normaliser(plain.dir);
-	const seamText = normaliser(ours.dir);
+	const { names, unpaired } = paired(plain.dir, ours.dir);
+	clientDiffers = unpaired;
+	const seamText = normaliser(ours.dir, names);
 	for (const url of urls) {
 		const first = kitText(await ask(kitPort, url));
 		const seam = seamText(await ask(seamPort, url));
@@ -254,13 +435,14 @@ unsettled.forEach((one, i) => {
 });
 writeFileSync(
 	resolve(out, 'summary.json'),
-	`${JSON.stringify({ same, unstable, unsettled: unsettled.map((one) => one.url), differ: differ.map((one) => one.url) }, null, '\t')}\n`,
+	`${JSON.stringify({ same, unstable, unsettled: unsettled.map((one) => one.url), differ: differ.map((one) => one.url), clientDiffers }, null, '\t')}\n`,
 );
 for (const one of differ.slice(0, 20)) console.log(`\n${one.url}\n${parting(one.kit, one.seam)}`);
+for (const one of clientDiffers) console.log(`client file with no match in Kit's build: ${one}`);
 console.log(
 	`\n${String(urls.length)} URLs: ${String(same.length)} the same, ${String(differ.length)} different; ` +
 		`${String(unstable.length + unsettled.length)} unstable in Kit's own answers, of which ours matched ` +
 		`one of Kit's for ${String(unstable.length)} and neither for ${String(unsettled.length)}. ` +
 		`Each difference is in ${out}`,
 );
-process.exit(differ.length === 0 ? 0 : 1);
+process.exit(differ.length === 0 && clientDiffers.length === 0 ? 0 : 1);

@@ -36,6 +36,8 @@ import { write_app_manifest } from '../../core/sync/write_app_manifest.js';
 import { plugin_service_worker_build } from './build/service-worker.js';
 import { plugin_adapter, plugin_compile } from './build/index.js';
 import { bullet_list } from '../../utils/format.js';
+// seam: the compile and the render it serves. See FORK.md.
+import { seam } from '@seam-js/plugin';
 
 const options_regex = /(export\s+const\s+(prerender|csr|ssr|trailingSlash))\s*=/s;
 
@@ -204,7 +206,8 @@ export async function sveltekit(config) {
 		inline_vps_config.compilerOptions = svelte_config.compilerOptions;
 	}
 
-	return [...vite_plugin_svelte.svelte(inline_vps_config), ...kit({ svelte_config })];
+	// seam: the compile and the render it serves. See FORK.md.
+	return [...vite_plugin_svelte.svelte(inline_vps_config), ...kit({ svelte_config }), seam()];
 }
 
 /** @param {UserConfig | ResolvedConfig} vite_config */

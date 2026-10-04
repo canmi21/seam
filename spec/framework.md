@@ -11,8 +11,9 @@ not render, and the render is the compiler's.
 **The direction is decided: this framework takes Kit's place in a project rather than running
 beside it.** A project swaps its `@sveltejs/kit` dependency for this one, and the framework layer --
 routing, `load`, the server, the client router, the Vite plugin -- is Kit's own code, forked from
-`vendor/kit` into `pkgs/framework` and maintained here. Until then the plugin below runs beside the project's own Kit, and
-it stays the way stage two is measured.
+`vendor/kit` into `pkgs/framework` and maintained here. The plugin is the same either way: the fork's `sveltekit()`
+calls it, and a project without the fork can still put `seam()` beside Kit's own. Stage two is
+measured through the fork.
 
 Why not stay a plugin: **Kit has no public point at which the render can be replaced.** Its hooks,
 its adapter API and `resolve`'s `transformPageChunk` all act after the render. So the plugin

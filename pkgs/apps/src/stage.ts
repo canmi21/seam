@@ -5,37 +5,39 @@
  * `vendor/kit/test/apps/<name>` is one whole SvelteKit application, and it is staged into
  * `.build-apps` in upstream's own layout so that every relative import the harness makes still
  * lands (`test/utils.js` reaches for `../../../test-utils`), with this package's `node_modules`,
- * which declares what upstream's workspace gave it. One file is written beside the app and nothing
- * in it is touched: a Vite config that is the app's own with `seam()` after `sveltekit()`. See
- * spec/conformance.md, "Stage 2".
+ * which declares what upstream's workspace gave it. Nothing in the app is touched: built as Kit
+ * builds it, its `@sveltejs/kit` is `vendor/kit`, and built as this framework builds it, that one
+ * dependency is the fork, as the alias would install it. See spec/conformance.md, "Stage 2".
  */
 import {
 	cpSync,
 	existsSync,
 	mkdirSync,
+	readdirSync,
 	readFileSync,
+	realpathSync,
 	rmSync,
 	symlinkSync,
-	writeFileSync,
 } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const pkg = resolve(here, '..');
 const need = createRequire(import.meta.url);
 export const vendor = resolve(dirname(need.resolve('@sveltejs/kit/package.json')));
-const plugin = need.resolve('@seam-js/plugin');
+/** The fork, which a project installs in Kit's place. See pkgs/framework/FORK.md. */
+const fork = resolve(pkg, '../framework');
 export const bin = resolve(pkg, 'node_modules/.bin');
 
 export interface Staged {
 	/** The app's directory inside the stage. */
 	dir: string;
-	/** The Vite config a build and a preview of it are run through. */
+	/** The Vite config a build and a preview of it are run through: the app's own, either way. */
 	viteConfig: string;
-	/** The app's own Vite config, which the staged one wraps. */
+	/** The app's own Vite config. */
 	baseConfig: string;
 	/** The `--mode` the app's own `build` script passes, where it passes one. */
 	mode: string | undefined;
@@ -88,7 +90,7 @@ export function staged(app: string, plain: boolean): Staged {
 	};
 	return {
 		dir,
-		viteConfig: plain ? config : 'vite.seam.config.js',
+		viteConfig: config,
 		baseConfig: config,
 		mode,
 		previewEnv,
@@ -114,21 +116,8 @@ export function stage(app: string, plain: boolean): Staged {
 	cpSync(resolve(vendor, 'test-utils'), resolve(root, 'test-utils'), { recursive: true });
 	// The app's dependencies are this package's: upstream's workspace gave each app `@sveltejs/kit`,
 	// `svelte`, `vite`, Playwright and the rest by catalog, and `package.json` here declares the same.
-	symlinkSync(resolve(pkg, 'node_modules'), resolve(dir, 'node_modules'), 'dir');
-
-	if (!plain) {
-		writeFileSync(
-			resolve(dir, viteConfig),
-			[
-				"// Written by pkgs/apps: the app's own config with the compiler's plugin after Kit's.",
-				`import base from ${JSON.stringify(`./${baseConfig}`)};`,
-				`import { seam } from ${JSON.stringify(pathToFileURL(plugin).href)};`,
-				`const config = typeof base === "function" ? await base({ command: "build", mode: ${JSON.stringify(mode ?? 'production')} }) : base;`,
-				'export default { ...config, plugins: [...(config.plugins ?? []), seam()] };',
-				'',
-			].join('\n'),
-		);
-	}
+	if (plain) symlinkSync(resolve(pkg, 'node_modules'), resolve(dir, 'node_modules'), 'dir');
+	else forked(root, dir);
 
 	if (existsSync(resolve(dir, 'test/playwright/setup.js'))) {
 		const setup = spawnSync(process.execPath, ['test/playwright/setup.js'], {
@@ -139,4 +128,37 @@ export function stage(app: string, plain: boolean): Staged {
 		if (setup.status !== 0) throw new Error(`the app's setup exited ${String(setup.status)}`);
 	}
 	return { dir, viteConfig, baseConfig, mode, previewEnv, env };
+}
+
+/**
+ * The app's `node_modules` as a project that swapped Kit for the fork by the alias would have it:
+ * this package's, with `@sveltejs/kit` the fork. A package of the app's that imports Kit itself
+ * has to reach the fork too, as the alias would make it: `test-redirect-importer` is there to
+ * throw Kit's `redirect` from outside the app, and the one it threw from `vendor/kit` is not the
+ * class the fork's runtime tests for. It is staged beside the app with the fork as its Kit.
+ */
+function forked(root: string, dir: string): void {
+	const from = resolve(pkg, 'node_modules');
+	const into = resolve(dir, 'node_modules');
+	const importer = resolve(root, 'test-redirect-importer');
+	cpSync(dirname(need.resolve('test-redirect-importer')), importer, {
+		recursive: true,
+		filter: (one) => !one.includes('/node_modules'),
+	});
+	mkdirSync(resolve(importer, 'node_modules/@sveltejs'), { recursive: true });
+	symlinkSync(fork, resolve(importer, 'node_modules/@sveltejs/kit'), 'dir');
+	const instead: Record<string, string> = {
+		'@sveltejs/kit': fork,
+		'test-redirect-importer': importer,
+	};
+	mkdirSync(into, { recursive: true });
+	for (const name of readdirSync(from)) {
+		const names = name.startsWith('@')
+			? readdirSync(resolve(from, name)).map((one) => `${name}/${one}`)
+			: [name];
+		for (const one of names) {
+			mkdirSync(dirname(resolve(into, one)), { recursive: true });
+			symlinkSync(instead[one] ?? realpathSync(resolve(from, one)), resolve(into, one), 'dir');
+		}
+	}
 }

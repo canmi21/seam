@@ -31,13 +31,15 @@ lives in that package. Each one is a row below, and a change not listed here is 
 
 | file | call point | calls | why |
 | --- | --- | --- | --- |
+| `src/exports/vite/index.js` | `sveltekit()` returns `seam()` after Kit's own plugins | `@seam-js/plugin` | the compile at the build, and the root that renders from what it wrote; the same plugin a project without the fork puts beside Kit's |
 
-None yet: the code is upstream's as it was taken.
+Each is marked in the code by a comment beginning `seam:`, so that a merge shows it.
 
 `package.json` differs from the published one in its name, `private`, version, description,
 `repository`, and `keywords` without `official`; in `exports`, which has `./src/*` and `./types/*`
-as `vendor/kit`'s does, so that this repository reaches the files directly; and in one dev
-dependency, `"@sveltejs/kit": "link:."`. The source imports itself by Kit's name --
+as `vendor/kit`'s does, so that this repository reaches the files directly; in one dependency,
+`@seam-js/plugin`, which the call points call; and in one dev dependency,
+`"@sveltejs/kit": "link:."`. The source imports itself by Kit's name --
 `@sveltejs/kit/internal` and the rest -- which a project installing this under the alias resolves
 to this package, and which inside this repository would otherwise resolve to `vendor/kit`, the
 other package of that name.

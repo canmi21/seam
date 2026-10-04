@@ -1,9 +1,12 @@
-// A SvelteKit project built twice, once as Kit builds it and once with this plugin beside Kit's,
-// and the two built servers asked for the same pages: the responses have to be the same bytes,
-// document and all. Everything but the render is Kit's own in both, so what the comparison holds
-// is the one call that changed and the seams around it -- the props Kit hands the root, the head
-// and body it takes back, the artifacts finding the program. See spec/framework.md.
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+// A SvelteKit project built as Kit builds it and as the fork builds it -- the project's
+// `@sveltejs/kit` swapped for `pkgs/framework`, whose `sveltekit()` calls this plugin -- and the
+// built servers asked for the same pages: the responses have to be the same bytes, document and
+// all. Everything but the render is Kit's own in both, so what the comparison holds is the one call
+// that changed and the seams around it -- the props Kit hands the root, the head and body it takes
+// back, the artifacts finding the program. The plugin beside Kit's own, as a project without the
+// fork would write it, is built once more. See spec/framework.md.
+import { createRequire } from 'node:module';
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as vite from 'vite';
@@ -14,6 +17,28 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 // walking up from it, and Kit's plugin reads the project from the working directory.
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../.build-plugin');
 const plugin = resolve(dirname(fileURLToPath(import.meta.url)), 'index.ts');
+
+/** The two Kits a project is built with: upstream's, read-only, and the fork. */
+const VENDOR = dirname(createRequire(import.meta.url).resolve('@sveltejs/kit/package.json'));
+const FORK = resolve(dirname(fileURLToPath(import.meta.url)), '../../framework');
+
+/**
+ * How a build is made: by Kit alone, by the fork, or by Kit with this plugin beside it, which is
+ * the config's `seam()` and a project's way in until it takes the fork.
+ */
+type Mode = 'kit' | 'fork' | 'beside';
+
+/**
+ * The project's `@sveltejs/kit`, as an install would put it: Kit's own, or the fork where the
+ * project has swapped it in by the alias. Kit's plugin, the code it generates and this plugin all
+ * reach Kit by that name from the project.
+ */
+function linked(project: string, mode: Mode): void {
+	const at = resolve(project, 'node_modules/@sveltejs/kit');
+	mkdirSync(dirname(at), { recursive: true });
+	rmSync(at, { force: true });
+	symlinkSync(mode === 'fork' ? FORK : VENDOR, at, 'dir');
+}
 
 const files: Record<string, string> = {
 	// `#lib` is Kit 3's spelling of `$lib`: a subpath import the project declares.
@@ -26,8 +51,10 @@ const files: Record<string, string> = {
 		`import { seam } from ${JSON.stringify(pathToFileURL(plugin).href)};\n` +
 		"const site = { name: 'virtual-site', resolveId(id) { return id === 'virtual:site' ? '\\0virtual:site' : null; }, " +
 		"load(id) { return id === '\\0virtual:site' ? 'export const site = { name: \"Sample <site>\" };' : null; } };\n" +
-		// Kit 3 takes its options as the plugin's argument; a `svelte.config.js` is an error.
-		"export default { logLevel: 'silent', plugins: [sveltekit({ outDir: process.env.SEAM_OUT, alias: { $parts: 'src/parts' } }), site, ...(process.env.SEAM ? [seam()] : [])] };",
+		// Kit 3 takes its options as the plugin's argument; a `svelte.config.js` is an error. The version
+		// is named because Kit's default is the time its config module was loaded, and the fork's is
+		// loaded apart from Kit's, so each build would name its own and every page would differ by it.
+		"export default { logLevel: 'silent', plugins: [sveltekit({ outDir: process.env.SEAM_OUT, version: { name: 'sample' }, alias: { $parts: 'src/parts' } }), site, ...(process.env.SEAM === 'beside' ? [seam()] : [])] };",
 	'src/app.html':
 		'<!doctype html><html lang="en"><head>%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>',
 	'src/routes/+layout.server.js': "export function load() { return { tagline: 'a sample' }; }",
@@ -101,16 +128,16 @@ function written(project: string, sources: Record<string, string>): void {
 	}
 }
 
-/** Builds the project into Kit's output under `outDir`, with or without the plugin. */
+/** Builds the project into Kit's output under `outDir`, the way `mode` says. */
 async function built(
 	outDir: string,
-	withSeam: boolean,
+	mode: Mode,
 	project: string = root,
 	urls: readonly string[] = URLS,
 ): Promise<Record<string, string>> {
 	process.env['SEAM_OUT'] = outDir;
-	if (withSeam) process.env['SEAM'] = '1';
-	else delete process.env['SEAM'];
+	process.env['SEAM'] = mode;
+	linked(project, mode);
 	const cwd = process.cwd();
 	process.chdir(project);
 	try {
@@ -156,7 +183,8 @@ async function built(
  */
 async function synced(): Promise<boolean> {
 	process.env['SEAM_OUT'] = '.svelte-kit';
-	process.env['SEAM'] = '1';
+	process.env['SEAM'] = 'fork';
+	linked(root, 'fork');
 	const environment = process.env['NODE_ENV'];
 	delete process.env['NODE_ENV'];
 	const cwd = process.cwd();
@@ -173,18 +201,24 @@ async function synced(): Promise<boolean> {
 let kit: Record<string, string> = {};
 let compiledOnSync = true;
 let ours: Record<string, string> = {};
+let beside: Record<string, string> = {};
 
 beforeAll(async () => {
 	written(root, files);
-	kit = await built('.svelte-kit-plain', false);
+	kit = await built('.svelte-kit-plain', 'kit');
 	compiledOnSync = await synced();
-	ours = await built('.svelte-kit', true);
-}, 120_000);
+	ours = await built('.svelte-kit', 'fork');
+	beside = await built('.svelte-kit-beside', 'beside');
+}, 180_000);
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 describe("the built server answers as Kit's does", () => {
 	it.each(URLS)('%s', (url) => {
 		expect(ours[url]).toBe(kit[url]);
+	});
+
+	it.each(URLS)('%s, with the plugin beside Kit', (url) => {
+		expect(beside[url]).toBe(kit[url]);
 	});
 
 	it('rendered the page from the artifacts rather than from the components', () => {
@@ -221,7 +255,7 @@ const remoteFiles: Record<string, string> = {
 	'vite.config.js':
 		"import { sveltekit } from '@sveltejs/kit/vite';\n" +
 		`import { seam } from ${JSON.stringify(pathToFileURL(plugin).href)};\n` +
-		"export default { logLevel: 'silent', plugins: [sveltekit({ outDir: process.env.SEAM_OUT, compilerOptions: { experimental: { async: true } }, experimental: { remoteFunctions: true } }), ...(process.env.SEAM ? [seam()] : [])] };",
+		"export default { logLevel: 'silent', plugins: [sveltekit({ outDir: process.env.SEAM_OUT, version: { name: 'sample' }, compilerOptions: { experimental: { async: true } }, experimental: { remoteFunctions: true } }), ...(process.env.SEAM === 'beside' ? [seam()] : [])] };",
 	'src/app.html':
 		'<!doctype html><html lang="en"><head>%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>',
 	'src/routes/data.remote.js':
@@ -308,8 +342,8 @@ describe('a remote function answers as it does in Kit', () => {
 	let oursRemote: Record<string, string> = {};
 	beforeAll(async () => {
 		written(remoteRoot, remoteFiles);
-		kitRemote = await built('.svelte-kit-plain', false, remoteRoot, REMOTE_URLS);
-		oursRemote = await built('.svelte-kit', true, remoteRoot, REMOTE_URLS);
+		kitRemote = await built('.svelte-kit-plain', 'kit', remoteRoot, REMOTE_URLS);
+		oursRemote = await built('.svelte-kit', 'fork', remoteRoot, REMOTE_URLS);
 	}, 120_000);
 	afterAll(() => rmSync(remoteRoot, { recursive: true, force: true }));
 

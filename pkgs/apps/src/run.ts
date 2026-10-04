@@ -1,10 +1,10 @@
 /**
- * SvelteKit's own test apps, built with this plugin and driven by Kit's own specs, unedited.
+ * SvelteKit's own test apps, built with the fork as their Kit and driven by Kit's own specs, unedited.
  *
  * Stage two of spec/conformance.md: the specs are the measurement -- what the server sent, and
  * what the client then did with it. The app is staged by `./stage.ts`, and a Playwright config is
- * written beside it that is the app's own with the build and the preview run through the staged
- * Vite config. See spec/conformance.md, "Stage 2".
+ * written beside it that is the app's own with the build and the preview run through the app's
+ * own Vite config. See spec/conformance.md, "Stage 2".
  *
  *   node pkgs/apps/src/run.ts --app=basics --spec=server.test.js
  *   node pkgs/apps/src/run.ts --app=basics --spec=server.test.js --plain
