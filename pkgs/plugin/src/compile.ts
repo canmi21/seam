@@ -113,6 +113,10 @@ export async function compileRoutes({
 		],
 		server: { middlewareMode: true, hmr: false, watch: null },
 		optimizeDeps: { noDiscovery: true },
+		// A cache of its own. The project's holds what `vite dev` optimized, Svelte under the
+		// development condition among it, and a loader that reused it rendered with Svelte's
+		// development runtime. See spec/publish.md, "Where a compile writes".
+		cacheDir: resolve(out, 'vite'),
 	});
 	configureRender({
 		import: (url) => loader.ssrLoadModule(fileURLToPath(url)),

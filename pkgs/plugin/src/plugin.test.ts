@@ -3,10 +3,11 @@
 // document and all. Everything but the render is Kit's own in both, so what the comparison holds
 // is the one call that changed and the seams around it -- the props Kit hands the root, the head
 // and body it takes back, the artifacts finding the program. See spec/framework.md.
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createBuilder } from 'vite';
+import * as vite from 'vite';
+import { load_vite_config } from '@sveltejs/kit/src/core/config/index.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 // Inside the package, because the project's `svelte`, `@sveltejs/kit` and `vite` are resolved by
@@ -80,7 +81,7 @@ async function built(outDir: string, withSeam: boolean): Promise<Record<string, 
 	try {
 		// As `vite build` runs Kit 3: through the builder, whose `buildApp` Kit's plugin drives, the
 		// server environment first and the client from inside it.
-		const builder = await createBuilder({
+		const builder = await vite.createBuilder({
 			root,
 			configFile: resolve(root, 'vite.config.js'),
 			logLevel: 'silent',
@@ -112,7 +113,30 @@ async function built(outDir: string, withSeam: boolean): Promise<Record<string, 
 	return Object.fromEntries(answered);
 }
 
+/**
+ * The config read the way `svelte-kit sync` reads it, which a generated project's `prepare` runs
+ * at install: resolved for `build` and never built, under the `development` NODE_ENV Vite defaults
+ * to there. The plugin compiled on any `build` resolution, so sync ran a compile that loaded
+ * Svelte's development runtime and refused. Whether it left anything behind is the answer.
+ */
+async function synced(): Promise<boolean> {
+	process.env['SEAM_OUT'] = '.svelte-kit';
+	process.env['SEAM'] = '1';
+	const environment = process.env['NODE_ENV'];
+	delete process.env['NODE_ENV'];
+	const cwd = process.cwd();
+	process.chdir(root);
+	try {
+		await load_vite_config(resolve(root, 'vite.config.js'), vite);
+	} finally {
+		process.chdir(cwd);
+		process.env['NODE_ENV'] = environment;
+	}
+	return existsSync(resolve(root, '.svelte-kit/seam'));
+}
+
 let kit: Record<string, string> = {};
+let compiledOnSync = true;
 let ours: Record<string, string> = {};
 
 beforeAll(async () => {
@@ -122,6 +146,7 @@ beforeAll(async () => {
 		writeFileSync(resolve(root, file), source);
 	}
 	kit = await built('.svelte-kit-plain', false);
+	compiledOnSync = await synced();
 	ours = await built('.svelte-kit', true);
 }, 120_000);
 afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -136,6 +161,16 @@ describe("the built server answers as Kit's does", () => {
 		// program, and a page Kit's own render could not have written from them.
 		expect(kit['/']).toContain('Home &amp; away');
 		expect(ours['/']).toContain('Home &amp; away');
+	});
+
+	it('compiled when Kit built, and not when Kit only read the config', () => {
+		expect(compiledOnSync).toBe(false);
+	});
+
+	// The project's cache holds what its dev server optimized, under the development condition.
+	it("kept its dependency cache apart from the project's", () => {
+		expect(existsSync(resolve(root, '.svelte-kit/seam/vite'))).toBe(true);
+		expect(existsSync(resolve(root, 'node_modules/.vite/deps_ssr'))).toBe(false);
 	});
 
 	it("ran the page's script where substitution could not follow it", () => {

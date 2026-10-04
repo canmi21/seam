@@ -98,12 +98,22 @@ export function seam(options: Options = {}): Plugin {
 			// shared with it, so the config resolves once and each hook below asks which environment
 			// it is in: the server's, and only that, is where the root is rendered.
 			active = resolved.command === 'build' && resolved.environments['ssr'] !== undefined;
-			if (!active) return;
-			outDir = resolve(root, (await configured(root)).outDir);
-			// Compiled here, with the config resolved and the bundle not yet started: the compile
-			// runs Vite builds of its own for what the derivations carry, and a build started from
-			// inside another's hook waits on the same native runtime and never returns.
-			await compileRoutes();
+		},
+
+		// Compiled when the build starts and not when the config resolves: Kit resolves it for `build`
+		// to read its own options -- `svelte-kit sync` does, which a project's `prepare` runs at
+		// install -- and builds nothing, so a compile there ran for nothing, under the development
+		// NODE_ENV Vite defaults to, and failed. Before Kit's own `buildApp`, so the bundle has not
+		// started: the compile runs Vite builds of its own for what the derivations carry, and a
+		// build started from inside another's hook waits on the same native runtime and never
+		// returns. See spec/build.md, "The compile starts when the build does".
+		buildApp: {
+			order: 'pre',
+			async handler() {
+				if (!active) return;
+				outDir = resolve(root, (await configured(root)).outDir);
+				await compileRoutes();
+			},
 		},
 
 		buildStart() {

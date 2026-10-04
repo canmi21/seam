@@ -70,6 +70,19 @@ code can be neither.
 its own hook for the server pass. Whatever number of stages this needs, the plugin form does not
 constrain it.
 
+### The compile starts when the build does
+
+**A config resolved for `build` is not a build.** Kit resolves the project's Vite config with
+`command: 'build'` to read its own options -- `load_vite_config`, which `svelte-kit sync` calls, and
+which a project's `prepare` runs at install -- and builds nothing. So the compile runs in the
+plugin's `buildApp` hook, ordered before Kit's, which Vite's builder calls only when it builds, and
+never in `configResolved`, which every resolution reaches.
+
+It ran in `configResolved` until the first project `create-seamjs` generated: `sync` started a
+compile under the `development` NODE_ENV Vite defaults to when nothing sets one, the compile loaded
+Svelte's development runtime and refused, and what it had optimized on the way stayed in the cache
+for the real build to reuse.
+
 The exported name of the plugin is the one place the product name appears in an identifier. That is
 a distribution question rather than a naming one, which [naming.md](naming.md) leaves outside its
 rule.
