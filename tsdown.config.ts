@@ -15,6 +15,7 @@ const PUBLISHED = [
 	'routes',
 	'skeleton',
 	'plugin',
+	'create',
 ];
 
 export default defineConfig(

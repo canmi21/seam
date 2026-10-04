@@ -1,0 +1,25 @@
+{
+	"name": "create-seamjs",
+	"version": "0.0.2",
+	"description": "Scaffold a SvelteKit project rendered at build time by seamjs",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/canmi21/seam.git",
+		"directory": "pkgs/create"
+	},
+	"type": "module",
+	"engines": {
+		"node": ">=22.17"
+	},
+	"bin": {
+		"create-seamjs": "./dist/index.js"
+	},
+	"files": [
+		"dist",
+		"template"
+	],
+	"publishConfig": {
+		"access": "public"
+	}
+}

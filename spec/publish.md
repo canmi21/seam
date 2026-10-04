@@ -44,6 +44,7 @@ name is the one place the product is named.
 | `pkgs/injector` | `@seam-js/injector` |
 | `pkgs/lowering` | `@seam-js/lowering` |
 | `pkgs/routes`   | `@seam-js/routes`   |
+| `pkgs/create`   | `create-seamjs`     |
 
 `pkgs/apps` and `pkgs/suite` are this repository's checks and stay private. So does
 `pkgs/normalize`, which nothing imports.
@@ -86,7 +87,8 @@ sees as a string.
 `mise run pack` builds `wasm`, compiles every package with tsdown and writes one tarball per
 package into `.build-pack/`, with `workspace:*` already rewritten. Nothing publishes: the tarballs
 go up with `npm publish <file>`, run by hand, dependencies before what depends on them -- `ast`,
-`injector`, `derive`, `lowering`, `routes`, `skeleton`, `carry`, `compiler`, then the entry.
+`injector`, `derive`, `lowering`, `routes`, `skeleton`, `carry`, `compiler`, then the entry, then
+`create-seamjs`.
 
 **A tarball is checked where a user would meet it**: installed into a fresh Kit 3 project outside
 this workspace, once with npm's hoisted layout and once with pnpm's isolated one, and built with
@@ -133,3 +135,25 @@ is two answers to what those are.
 A compile under the plugin stages its rendered copies under `<outDir>/seam/staged`, beside the
 artifacts and inside what Kit already owns, and never into `node_modules`. The default host's
 staging directory inside `pkgs/skeleton` is the repository's checks', which run without Kit.
+
+**The Vite server the compile loads modules through keeps its cache at `<outDir>/seam/vite`**, not
+in the project's `node_modules/.vite`. The project's cache is its dev server's, optimized under the
+development condition, and the compile's is optimized for a production render; sharing one
+directory makes each read what the other wrote whenever their config hashes agree. When the
+compile itself ran where it should not, this is where it left Svelte's development build for the
+next build to load -- see [build.md](build.md), "The compile starts when the build does".
+
+## `create-seamjs`
+
+**`npm create seamjs` is what a new project starts from.** `create-seam` is another project's
+scaffolder, so the name is the entry's with the prefix npm expects; `npm create seamjs` stays the
+command when the entry itself moves.
+
+It asks where the project goes, unless the directory was given, and which adapter it builds for,
+`none` or `node`, and writes a TypeScript SvelteKit 3 project with `seam()` beside `sveltekit()`.
+Nothing more is asked yet. The template is a directory of files rather than strings in code; its
+`gitignore` is renamed on the way out, because npm drops a `.gitignore` from a published package.
+
+**`create-seamjs` and the entry share a version.** The project it writes depends on the entry at
+`^` its own version, and a `^` over `0.0.x` is that one release, so the two are released together
+or a new project installs the entry from before the last fix.

@@ -80,7 +80,7 @@ run = '''
 set -e
 rm -rf .build-pack
 pnpm exec tsdown
-for dir in ast injector derive lowering routes skeleton carry compiler plugin; do
+for dir in ast injector derive lowering routes skeleton carry compiler plugin create; do
 	pnpm -C "pkgs/$dir" pack --pack-destination "$PWD/.build-pack" > /dev/null
 done
 ls -l .build-pack
