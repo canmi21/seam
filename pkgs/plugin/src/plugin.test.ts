@@ -61,6 +61,10 @@ const files: Record<string, string> = {
 	'src/routes/run/+page.server.js': 'export function load() { return { count: 21 }; }',
 	'src/routes/run/+page.svelte':
 		'<script>let { data } = $props(); let n = data.count; n = n * 2;</script><p>run: {n}</p>',
+	// A `$derived.by` that pushes to an array and joins it, which runs whenever the markup reads it:
+	// written out it was two arrays and the page read ''. Kit's `remote/form/skip-submit`.
+	'src/routes/derived/+page.svelte':
+		"<script>const log = []; const joined = $derived.by(() => { log.push(7); return log.join(', '); });</script><p>joined: {joined}</p>",
 	// A store a relative module exports, beside a binding that module changes, read as `$mode`: the
 	// shape of Kit's `load/invalidation/multiple/redirect`, where the read was left as `$mode` and
 	// named nothing at request time.
@@ -85,6 +89,7 @@ const URLS = [
 	'/run',
 	'/store',
 	'/worker',
+	'/derived',
 ];
 
 /** Writes a project's files under `project`, from nothing. */

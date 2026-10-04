@@ -1457,6 +1457,15 @@ about destructuring or blocks; the same script with `{#each rows as row}<p>{next
   `export function compute() { return value.toUpperCase() }` with `{compute()}` is the whole of
   `value`'s life.
 
+**A `$derived.by` the markup reads is the exception to the last half.** Its function runs whenever
+the derived is read, and an expansion writes it out with every name it reads expanded too: `const
+log = []` pushed to and joined inside one function came out `([]).push(7)` and `([]).join(', ')`,
+two arrays, and the markup read ''. So what that function changes -- an assignment, or a method
+called on a name the markup reads -- is changed, method calls counted as they are inside a function
+the render calls, and the derived itself is answered by the script run with it, so that both of its
+reads are one run's. Kit's `remote/form/skip-submit`, whose `set_message.pending` was pushed onto an
+array that way.
+
 An assignment says what the new value is; a method call does not, and `log.push(x)` changes the
 array all the same, so a callee reaching a declared name through a member counts too. That half is
 the conservative one -- `xs.map(f)` changes nothing and is in it -- with one exception that is not

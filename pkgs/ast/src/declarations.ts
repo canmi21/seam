@@ -497,6 +497,27 @@ export function losing(
 		for (const target of called)
 			if (remote.has(target) && read.has(target) && !declares.has(target)) lostBefore.add(target);
 	}
+	// A `$derived.by` the markup reads runs its function whenever it is read, so what that function
+	// changes is changed: `const log = []` pushed to inside one and joined in the same function was
+	// written out as `([]).push(...)` and `([]).join(...)`, two arrays, and the markup read ''. The
+	// method call counts here, as it does inside a function the render calls. Kit's
+	// `remote/form/skip-submit`.
+	for (const name of read) {
+		const one = found.get(name);
+		if (one?.rune !== '$derived.by') continue;
+		// The function's body, walked whole: `changing` reads only what runs where it stands and
+		// passes over a function's body, which here is exactly what runs.
+		const fn = derivedFunction(one.node);
+		if (fn === null) continue;
+		const { written, called } = changing(fn['body'], names);
+		const changes = [...written, ...called].filter(
+			(target) => target !== name && read.has(target) && !declares.has(target),
+		);
+		for (const target of changes) lostBefore.add(target);
+		// And the derived itself, so that its reads are one run's: expanded, its body read the
+		// changed name off a run per read, two runs and two arrays again.
+		if (changes.length > 0) lostBefore.add(name);
+	}
 	for (const name of ran) {
 		const held = found.get(name);
 		if (held === undefined) continue;
@@ -632,4 +653,30 @@ function remoteBound(
 		}
 	}
 	return bound;
+}
+
+/**
+ * The function a `$derived.by(...)` declaration was handed, or null where it is not one. A rune's
+ * declaration records its argument as its initialiser, so the node is the function itself; the
+ * call is looked for too, for a declaration recorded whole.
+ */
+function derivedFunction(node: Node): Node | null {
+	if (FUNCTIONS.has(String(node['type']))) return node;
+	let found: Node | null = null;
+	const visit = (at: unknown): void => {
+		if (found !== null || !isNode(at)) return;
+		if (at['type'] === 'CallExpression') {
+			const [first] = Array.isArray(at['arguments']) ? at['arguments'] : [];
+			if (isNode(first) && FUNCTIONS.has(String(first['type']))) {
+				found = first;
+				return;
+			}
+		}
+		for (const value of Object.values(at)) {
+			if (Array.isArray(value)) for (const one of value) visit(one);
+			else visit(value);
+		}
+	};
+	visit(node);
+	return found;
 }
