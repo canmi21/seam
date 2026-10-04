@@ -104,6 +104,11 @@ export function configured(cwd: string): Promise<Config> {
 	return held;
 }
 
+/** A value as an object to read keys off, or an empty one where it is not an object. */
+function object(value: unknown): Record<string, unknown> {
+	return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+}
+
 /**
  * The compile options the project sets that change what a component compiles to: `runes`, a
  * boolean or Svelte's function of the file, taken as it is, and `experimental.async`. Kit 3 takes
@@ -115,8 +120,6 @@ export async function compilerOptions(root: string): Promise<{
 	runes?: boolean | ((options: { filename: string }) => boolean | undefined);
 	experimental?: { async: true };
 }> {
-	const object = (value: unknown): Record<string, unknown> =>
-		typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
 	const file = object((await userConfig(resolve(root)))['compilerOptions']);
 	const kit = object((await configured(resolve(root)) as { compilerOptions?: unknown }).compilerOptions);
 	const held: Record<string, unknown> = {

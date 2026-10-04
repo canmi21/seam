@@ -63,6 +63,11 @@ function run(): string {
 	return `${String(process.pid)}:${String(started)}`;
 }
 
+/** A list the compile wrote beside the artifacts: the assets or the remote modules it handed. */
+function listed(outDir: string, name: string): readonly string[] {
+	return JSON.parse(readFileSync(resolve(outDir, ARTIFACTS, name), 'utf8')) as readonly string[];
+}
+
 export interface Options {
 	/**
 	 * A field whose domain the build declares, by route id: the payload paths whose values pick a
@@ -168,13 +173,11 @@ export function seam(options: Options = {}): Plugin {
 
 		load(id) {
 			if (id !== ROOT || this.environment.name !== 'ssr') return null;
-			const listed = (name: string): readonly string[] =>
-				JSON.parse(readFileSync(resolve(outDir, ARTIFACTS, name), 'utf8')) as readonly string[];
 			return dispatcher(
 				kitRoot,
 				emitted,
-				listed(ASSETS).map((one) => [assetKey(one), resolve(root, one)]),
-				listed(REMOTES).map((one) => [remoteKey(one), resolve(root, one)]),
+				listed(outDir, ASSETS).map((one) => [assetKey(one), resolve(root, one)]),
+				listed(outDir, REMOTES).map((one) => [remoteKey(one), resolve(root, one)]),
 			);
 		},
 	};
