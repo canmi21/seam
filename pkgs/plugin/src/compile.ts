@@ -161,6 +161,7 @@ export async function compileRoutes({
 			plugins: [
 				assetURLs(root, assets),
 				remoteModules(root, remotes),
+				kitModule(root),
 				hostModules(),
 				appModules(kit, root, outDir),
 				// A component's script run as Svelte compiled it, which a derivation calls where
@@ -330,6 +331,50 @@ function remoteModules(root: string, found: Set<string>): Plugin {
 			return [
 				`import { handed } from ${JSON.stringify(handedModule)};`,
 				`const held = handed(${JSON.stringify(remoteKey(key))});`,
+				...names.map((name) => `export const ${name} = held.${name};`),
+				'',
+			].join('\n');
+		},
+	};
+}
+
+/**
+ * `@sveltejs/kit` as the carried bundle gets it: Kit's own, handed in.
+ *
+ * Kit reads what a page throws by class -- `isRedirect`, `instanceof HttpError` -- and a copy bundled
+ * here is another class: `error(404, 'nope')` from a page's script came out a 500 with Kit's
+ * "Internal Error", and the same for every `redirect()`. So the root export is the one the
+ * dispatcher imports in Kit's own build, as `$app/paths` is, its names read off the project's Kit.
+ * Only the root: the subpaths are Kit's build-time API and a derivation has no use for them.
+ */
+function kitModule(root: string): Plugin {
+	const HANDED = '\0seam:kit';
+	const handedModule = fileURLToPath(new URL(`./app/handed${OWN}`, import.meta.url));
+	// By the file the project's Kit resolves to as well as by name: what a carried script imports
+	// arrives here already resolved to a path, which is how the copy got past the name. Read off
+	// Kit's `exports`, whose `.` has an `import` condition and no `require`, so a `require.resolve`
+	// of the name fails.
+	const manifest = createRequire(resolve(root, 'package.json')).resolve('@sveltejs/kit/package.json');
+	const { exports } = JSON.parse(readFileSync(manifest, 'utf8')) as {
+		exports: Record<string, string | Record<string, string>>;
+	};
+	const entry = exports['.'];
+	const at = resolve(dirname(manifest), typeof entry === 'string' ? entry : (entry?.['import'] ?? ''));
+	return {
+		name: `${NAME}:kit`,
+		enforce: 'pre',
+		async resolveId(source, importer, options) {
+			if (source === '@sveltejs/kit' || source === at) return HANDED;
+			if (source.startsWith('\0') || importer === undefined) return null;
+			const resolved = await this.resolve(source, importer, { ...options, skipSelf: true });
+			return resolved?.id === at ? HANDED : null;
+		},
+		async load(id) {
+			if (id !== HANDED) return null;
+			const names = Object.keys((await import(pathToFileURL(at).href)) as object);
+			return [
+				`import { handed } from ${JSON.stringify(handedModule)};`,
+				"const held = handed('@sveltejs/kit');",
 				...names.map((name) => `export const ${name} = held.${name};`),
 				'',
 			].join('\n');

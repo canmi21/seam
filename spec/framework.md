@@ -157,6 +157,11 @@ the move costs this layer, each a fact of the diff rather than a guess:
      [refusals.md](refusals.md) refuses: there is no page render to fall back to.
    - **What Kit's build and server decide is handed to the derivations, not bundled.**
      `$app/paths` is Kit's own server module, whose `resolve` reads the request Kit is answering;
+     `@sveltejs/kit`'s root export is Kit's own too, since Kit reads what a page throws by class --
+     `isRedirect`, `instanceof HttpError` -- and a copy bundled into the carried bundle is another
+     class, which turned `error(404)` and every `redirect()` into a 500. And what a derivation
+     throws leaves the dispatcher as the author threw it, `derive`'s `DerivationFailed` taken off,
+     so that Kit's redirect and status handling see the error itself;
      `$app/manifest` is written after the compile, some of it after prerendering; the dynamic
      environment is filled into two objects, `rendered_env` and `dynamic_private_env` of Kit's
      generated `env/config.js`, when the server starts. The dispatcher, bundled by Kit's server

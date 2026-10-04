@@ -220,7 +220,7 @@ const remoteFiles: Record<string, string> = {
 	'src/app.html':
 		'<!doctype html><html lang="en"><head>%sveltekit.head%</head><body><div style="display: contents">%sveltekit.body%</div></body></html>',
 	'src/routes/data.remote.js':
-		"import { form, query } from '$app/server';\nexport const getCount = query(async () => 42);\nexport const greet = query('unchecked', async (name) => `hello ${name}`);\nexport const editData = form('unchecked', async (data) => data);",
+		"import { form, query } from '$app/server';\nimport { redirect } from '@sveltejs/kit';\nexport const away = query(() => { redirect(307, '/fine'); });\nexport const getCount = query(async () => 42);\nexport const greet = query('unchecked', async (name) => `hello ${name}`);\nexport const editData = form('unchecked', async (data) => data);",
 	// Components that throw from the top of their script, every request: Kit's `async` app's
 	// `server-error-boundary`, whose page, layout and nested page each do, caught by the boundary of
 	// the level Kit's root puts round them; and a page whose own error page throws, which renders
@@ -239,6 +239,14 @@ const remoteFiles: Record<string, string> = {
 		"<script>import { page } from '$app/state'; let { error } = $props();</script><p id=\"nested\">{error.message} | {page.error?.message === error.message} | {page.status}</p>",
 	'src/routes/seb/nested/+page.svelte': "<script>throw new Error('nested render error');</script><h1>never</h1>",
 	'src/routes/fine/+page.svelte': '<p>fine</p>',
+	// A query that redirects, which Kit answers with the redirect: thrown through a derivation it
+	// reached Kit wrapped, and Kit, which reads it by class, answered 500. Kit's `query-redirect`.
+	'src/routes/away/+page.svelte':
+		"<script>import { away } from '../data.remote';</script><svelte:boundary>{await away()}<p>never</p></svelte:boundary>",
+	// A page's own `error`, which Kit's root also holds as a prop: the payload's shadowed the import.
+	// Kit's `server-error-boundary/async`.
+	'src/routes/shadow/+page.svelte':
+		"<script>import { error } from '@sveltejs/kit'; async function load() { error(404, 'nope'); }</script>{await load()}",
 	// TypeScript in an awaited value a boundary's run reads, which `/remote` of Kit's `async` app
 	// has: the value went into the run inside a `with`, which TypeScript's stripper refuses, and the
 	// annotations stayed in the derivation.
@@ -255,7 +263,17 @@ const remoteFiles: Record<string, string> = {
 		"<script>import { getCount, greet } from './data.remote'; const count = getCount();</script><p>count: {await getCount()}</p><p>{await count} / {count.current} ({count.loading})</p><p>{await greet('kit')}</p>",
 };
 
-const REMOTE_URLS = ['/', '/form', '/seb', '/seb/layout-throws', '/seb/nested', '/fine', '/typed'];
+const REMOTE_URLS = [
+	'/',
+	'/form',
+	'/seb',
+	'/seb/layout-throws',
+	'/seb/nested',
+	'/fine',
+	'/typed',
+	'/shadow',
+	'/away',
+];
 
 describe('a remote function answers as it does in Kit', () => {
 	let kitRemote: Record<string, string> = {};
@@ -277,9 +295,12 @@ describe('a remote function answers as it does in Kit', () => {
 		expect(oursRemote['/form']).toBe(kitRemote['/form']);
 	});
 
-	it.each(['/seb', '/seb/layout-throws', '/seb/nested', '/fine', '/typed'])('%s', (url) => {
-		expect(oursRemote[url]).toBe(kitRemote[url]);
-	});
+	it.each(['/seb', '/seb/layout-throws', '/seb/nested', '/fine', '/typed', '/shadow', '/away'])(
+		'%s',
+		(url) => {
+			expect(oursRemote[url]).toBe(kitRemote[url]);
+		},
+	);
 
 	// A route the compile leaves to the framework is answered by Kit's own render, which matches Kit
 	// whatever the compiler did -- so the answer alone does not say the route was compiled.

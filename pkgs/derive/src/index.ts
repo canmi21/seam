@@ -61,10 +61,14 @@ export interface Derivation {
  * the expression stay unrewritten. A function built this way is sloppy mode, so `with` is legal,
  * where a module is always strict and would not take it at all.
  *
- * Nested scopes. The outer ones hold what each file the expression was written across imported,
- * which is the same for every request, the innermost file shadowing its callers; the inner one
- * holds the data, which is not. Nesting rather than merging is what keeps a payload key from
- * shadowing a carried function, or the reverse, and what lets each file keep its own bindings.
+ * Nested scopes, outermost first: the shared helpers; the data, which differs per request; what
+ * each file the expression was written across carries, the innermost file shadowing its callers;
+ * and what the request binds for itself. A file's own names shadow the data because a name an
+ * author wrote means that file's binding where it has one: a prop is already rewritten to its
+ * payload path by the time a derivation is written, so a bare payload name in an expression is
+ * the root's own -- `page`, `form`, `error` -- and Kit's root holding an `error` prop shadowed a
+ * page's `import { error } from '@sveltejs/kit'` the other way round. Nesting rather than merging
+ * is what lets each file keep its own bindings.
  */
 function build(
 	expression: string,
@@ -77,12 +81,15 @@ function build(
 	 */
 	awaited: readonly string[] | null = null,
 ): (bindings: Record<string, unknown>, request?: Record<string, unknown>) => unknown {
-	// The shared helpers outermost, then each file of the chain from the entry inward, so the
-	// component the expression sits in shadows its callers, and the data innermost of all.
+	// The shared helpers outermost, then the data, then each file of the chain from the entry
+	// inward, so the component the expression sits in shadows its callers and the data.
 	const scopes = ['*', ...chain.toReversed()].map((file) => files[file] ?? {});
 	scopes[0] = { $$within: within(files, scopes), $$rethrow, ...scopes[0] };
-	const opened = scopes.map((_, at) => `with ($files[${String(at)}]) {`).join(' ');
-	const closed = '}'.repeat(scopes.length);
+	const opened = `with ($files[0]) {`;
+	const closed = '}';
+	const inner = scopes.slice(1);
+	const fileOpened = inner.map((_, at) => `with ($files[${String(at + 1)}]) {`).join(' ');
+	const fileClosed = '}'.repeat(inner.length);
 	// eslint-disable-next-line no-new-func
 	const first =
 		awaited === null || awaited.length === 0
@@ -92,8 +99,8 @@ function build(
 	// Svelte's `hydratable`, bound to this request's. See `marked`.
 	const made =
 		awaited === null
-			? `return ($scope, $request = {}) => { with ($scope) { with ($request) { return (${expression}); } } };`
-			: `return async ($scope, $request = {}) => { ${first}with ($scope) { with ($request) { return (${expression}); } } };`;
+			? `return ($scope, $request = {}) => { with ($scope) { ${fileOpened} with ($request) { return (${expression}); } ${fileClosed} } };`
+			: `return async ($scope, $request = {}) => { ${first}with ($scope) { ${fileOpened} with ($request) { return (${expression}); } ${fileClosed} } };`;
 	const make = new Function('$files', `${opened} ${made} ${closed}`) as (
 		files: Record<string, unknown>[],
 	) => (bindings: Record<string, unknown>, request?: Record<string, unknown>) => unknown;
@@ -117,8 +124,8 @@ function $$rethrow(make: () => unknown): never {
  * The piece comes as source and is evaluated here rather than inside a `with` in the derivation's
  * own text: TypeScript's stripper refuses a `with` statement, so a derivation holding one kept its
  * annotations and stopped at the first colon. A name resolves as it would have in place: what the
- * run binds around it (`locals`), what the request binds, the data, the child's files innermost
- * first, then the scopes the derivation itself was built under. See `boundary()` in the skeleton
+ * run binds around it (`locals`), what the request binds, the child's files innermost first, the
+ * data, then the scopes the derivation itself was built under -- the order `build` nests them in. See `boundary()` in the skeleton
  * package, and spec/ir.md.
  */
 function within(
@@ -136,8 +143,8 @@ function within(
 		const layers: object[] = [
 			locals,
 			request,
-			data,
 			...chain.map((file) => files[file] ?? {}),
+			data,
 			...outer.toReversed(),
 		];
 		const scope = new Proxy(

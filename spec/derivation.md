@@ -180,8 +180,12 @@ the component it sits in, then each caller up to the entry. The chain rather tha
 because substitution moves a prop's expression from the call site into the child's, so a child's
 expression reads names the caller bound. The bundle exports one object per file holding that
 file's imports under the names the file wrote, and the evaluator opens the chain as nested
-scopes, the entry outermost, the component the expression sits in shadowing its callers, the
-data innermost of all. The rendered copy gets the same treatment: what a substituted expression
+scopes inside the data, the entry outermost, the component the expression sits in shadowing its
+callers and the data both. **A file's own name shadows the data**, because a prop is already its
+payload path by the time a derivation is written, and a bare payload name is the root's own --
+`page`, `form`, `error`. With the data innermost, Kit's root's `error` prop shadowed a page's
+`import { error } from '@sveltejs/kit'`, and `error(404, 'nope')` threw "error is not a
+function"; Kit's `async` app's `server-error-boundary/async`. The rendered copy gets the same treatment: what a substituted expression
 reads of the caller's imports is imported into the copy, its specifier resolved against the
 caller and written relative to the child, because a copy resolves its own from where its
 original sits. A name the child binds to the same module is its own; to another is a collision

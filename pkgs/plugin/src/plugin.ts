@@ -292,6 +292,7 @@ import { fileURLToPath } from 'node:url';
 import KitRoot from ${JSON.stringify(kitRootComponent)};
 import * as appManifest from '$app/manifest';
 import * as appPaths from '$app/paths';
+import * as kitExports from '@sveltejs/kit';
 import { rendered_env, dynamic_private_env } from '<sveltekit:generated>/env/config.js';
 import { inject } from ${JSON.stringify(injector)};
 import { compile as derivations } from ${JSON.stringify(derive)};
@@ -302,7 +303,7 @@ ${imports}${remoteImports}
 // env modules read off this global, and the URL of each asset a carried bundle imports. The objects
 // rather than Kit's env modules, since those read the objects as they are evaluated, and this
 // module is evaluated before the server starts. See pkgs/plugin/src/app/handed.ts.
-globalThis[Symbol.for('seam.kit')] = { '$app/manifest': appManifest, '$app/paths': appPaths, rendered_env, dynamic_private_env${handedAssets} };
+globalThis[Symbol.for('seam.kit')] = { '$app/manifest': appManifest, '$app/paths': appPaths, '@sveltejs/kit': kitExports, rendered_env, dynamic_private_env${handedAssets} };
 
 const files = { ${files} };
 const read = (name) => readFileSync(fileURLToPath(files[name]), 'utf8');
@@ -318,6 +319,14 @@ function artifact(entry) {
 		compiled.set(entry.id, held);
 	}
 	return held;
+}
+
+// What a derivation threw, as the author threw it: \`derive\` wraps a throw in a \`DerivationFailed\`
+// naming the source, and Kit reads what reaches it by class -- a \`Redirect\` is a redirect, an
+// \`HttpError\` its status -- so a query's \`redirect(307, ...)\` came out a 500. See spec/framework.md.
+function original(error) {
+	while (error?.name === 'DerivationFailed' && 'cause' in error) error = error.cause;
+	return error;
 }
 
 // What \`render()\` writes around a root, and what an artifact's body was measured with: the pair is
@@ -348,9 +357,14 @@ export default function Root($$renderer, props) {
 	// which is the script \`hydratable\` values go into, and \`transformError\`, which a boundary's
 	// failed branch is written with.
 	const { csp, transformError } = $$renderer.global;
-	const injected = inject(ir, derive(payload, { transformError }), {
-		csp: csp.nonce === undefined ? { hash: csp.hash === true } : { nonce: csp.nonce },
-	});
+	let injected;
+	try {
+		injected = inject(ir, derive(payload, { transformError }), {
+			csp: csp.nonce === undefined ? { hash: csp.hash === true } : { nonce: csp.nonce },
+		});
+	} catch (error) {
+		throw original(error);
+	}
 	const write = (renderer, { body, head, hashes }) => {
 		if (!body.startsWith(OPEN) || !body.endsWith(CLOSE)) {
 			throw new Error(\`the artifact for \${entry.id} is not a root's bytes\`);
@@ -362,7 +376,15 @@ export default function Root($$renderer, props) {
 	// A promise where a derivation awaits, which only a project in Svelte's async mode has, and
 	// Kit awaits what \`render()\` returns under that mode.
 	if (typeof injected.then === 'function') {
-		$$renderer.child(async (inner) => write(inner, await injected));
+		$$renderer.child(async (inner) => {
+			let done;
+			try {
+				done = await injected;
+			} catch (error) {
+				throw original(error);
+			}
+			write(inner, done);
+		});
 	} else {
 		write($$renderer, injected);
 	}
