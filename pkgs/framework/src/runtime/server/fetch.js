@@ -1,0 +1,223 @@
+import { parseSetCookie } from 'cookie';
+import { noop } from '../../utils/functions.js';
+import { respond } from './respond.js';
+import * as paths from '#app/paths';
+import { hooks, manifest, read_implementation } from './internal.js';
+import { has_prerendered_path } from './utils.js';
+import { fork_state_for_subrequest } from './state.js';
+
+/**
+ * @param {{
+ *   event: import('@sveltejs/kit').RequestEvent;
+ *   state: import('types').RequestState;
+ *   get_cookie_header: (url: URL, header: string | null) => string;
+ *   set_internal: (name: string, value: string, opts: import('./page/types.js').Cookie['options']) => void;
+ * }} opts
+ * @returns {typeof fetch}
+ */
+export function create_fetch({ event, state, get_cookie_header, set_internal }) {
+	/**
+	 * @type {typeof fetch}
+	 */
+	const server_fetch = async (info, init) => {
+		const original_request = normalize_fetch_input(info, init, event.url);
+
+		// some runtimes (e.g. Cloudflare) error if you access `request.mode`,
+		// annoyingly, so we need to read the value from the `init` object instead
+		let mode = (info instanceof Request ? info.mode : init?.mode) ?? 'cors';
+		let credentials =
+			(info instanceof Request ? info.credentials : init?.credentials) ?? 'same-origin';
+
+		return hooks.handleFetch({
+			event,
+			request: original_request,
+			fetch: async (info, init) => {
+				const request = normalize_fetch_input(info, init, event.url);
+
+				const url = new URL(request.url);
+
+				if (!request.headers.has('origin')) {
+					request.headers.set('origin', event.url.origin);
+				}
+
+				if (info !== original_request) {
+					mode = (info instanceof Request ? info.mode : init?.mode) ?? 'cors';
+					credentials =
+						(info instanceof Request ? info.credentials : init?.credentials) ?? 'same-origin';
+				}
+
+				// Remove Origin, according to https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Origin#description
+				if (
+					(request.method === 'GET' || request.method === 'HEAD') &&
+					((mode === 'no-cors' && url.origin !== event.url.origin) ||
+						url.origin === event.url.origin)
+				) {
+					request.headers.delete('origin');
+				}
+
+				const decoded = decodeURIComponent(url.pathname);
+
+				if (
+					url.origin !== event.url.origin ||
+					(paths.base && decoded !== paths.base && !decoded.startsWith(`${paths.base}/`))
+				) {
+					// Allow cookie passthrough for "credentials: same-origin" and "credentials: include"
+					// if SvelteKit is serving my.domain.com:
+					// -        domain.com WILL NOT receive cookies
+					// -     my.domain.com WILL receive cookies
+					// -    api.domain.dom WILL NOT receive cookies
+					// - sub.my.domain.com WILL receive cookies
+					// ports do not affect the resolution
+					// leading dot prevents mydomain.com matching domain.com
+					// Do not forward other cookies for "credentials: include" because we don't know
+					// which cookie belongs to which domain (browser does not pass this info)
+					if (`.${url.hostname}`.endsWith(`.${event.url.hostname}`) && credentials !== 'omit') {
+						const cookie = get_cookie_header(url, request.headers.get('cookie'));
+						if (cookie) request.headers.set('cookie', cookie);
+					}
+
+					return fetch(request);
+				}
+
+				// handle fetch requests for static assets. e.g. prebaked data, etc.
+				// we need to support everything the browser's fetch supports
+				const filename = (
+					decoded.startsWith(paths.assets) ? decoded.slice(paths.assets.length) : decoded
+				).slice(1);
+				const filename_html = `${filename}/index.html`; // path may also match path/index.html
+
+				const is_asset = manifest.assets.has(filename) || filename in manifest.server_assets;
+				const is_asset_html =
+					manifest.assets.has(filename_html) || filename_html in manifest.server_assets;
+
+				if (is_asset || is_asset_html) {
+					const file = is_asset ? filename : filename_html;
+
+					if (state.read) {
+						const type = is_asset
+							? manifest.mime_types[filename.slice(filename.lastIndexOf('.'))]
+							: 'text/html';
+
+						return new Response(state.read(file), {
+							headers: type ? { 'content-type': type } : {}
+						});
+					} else if (read_implementation && file in manifest.server_assets) {
+						const length = manifest.server_assets[file];
+						const type = manifest.mime_types[file.slice(file.lastIndexOf('.'))];
+
+						return new Response(read_implementation(file), {
+							headers: {
+								'Content-Length': '' + length,
+								'Content-Type': type
+							}
+						});
+					}
+
+					// A spoofed request origin must not be able to redirect us to an internal resource.
+					return await fetch(request, { redirect: 'manual' });
+				}
+
+				if (has_prerendered_path(decoded)) {
+					// The path of something prerendered could match a different route
+					// that is still in the manifest, leading to the wrong route being loaded.
+					// We therefore bail early here. The prerendered logic is different for
+					// each adapter, (except maybe for prerendered redirects)
+					// so we need to make an actual HTTP request.
+					return await fetch(request, { redirect: 'manual' });
+				}
+
+				if (credentials !== 'omit') {
+					const cookie = get_cookie_header(url, request.headers.get('cookie'));
+					if (cookie) {
+						request.headers.set('cookie', cookie);
+					}
+
+					const authorization = event.request.headers.get('authorization');
+					if (authorization && !request.headers.has('authorization')) {
+						request.headers.set('authorization', authorization);
+					}
+				}
+
+				if (!request.headers.has('accept')) {
+					request.headers.set('accept', '*/*');
+				}
+
+				const accept_language = event.request.headers.get('accept-language');
+				if (accept_language && !request.headers.has('accept-language')) {
+					request.headers.set('accept-language', accept_language);
+				}
+
+				const response = await internal_fetch(request, state);
+
+				for (const str of response.headers.getSetCookie()) {
+					const { name, value, ...cookie_options } = parseSetCookie(str, { decode: (v) => v });
+
+					const path =
+						cookie_options.path ?? (url.pathname.split('/').slice(0, -1).join('/') || '/');
+
+					// sameSite is string, something more specific is required - type cast is safe
+					set_internal(name, /** @type {string} */ (value), {
+						path,
+						encode: (value) => value,
+						.../** @type {import('cookie').SerializeOptions} */ (cookie_options)
+					});
+				}
+
+				return response;
+			}
+		});
+	};
+
+	// Don't make this function `async`! Otherwise, the user has to `catch` promises they use for streaming responses or else
+	// it will be an unhandled rejection. Instead, we add a `.catch(noop)` ourselves below to prevent this from happening.
+	return (input, init) => {
+		// See docs in fetch.js for why we need to do this
+		const response = server_fetch(input, init);
+		response.catch(noop);
+		return response;
+	};
+}
+
+/**
+ * @param {RequestInfo | URL} info
+ * @param {RequestInit | undefined} init
+ * @param {URL} url
+ */
+function normalize_fetch_input(info, init, url) {
+	if (info instanceof Request) {
+		return info;
+	}
+
+	return new Request(typeof info === 'string' ? new URL(info, url) : info, init);
+}
+
+/**
+ * @param {Request} request
+ * @param {import('types').RequestState} state
+ * @returns {Promise<Response>}
+ */
+async function internal_fetch(request, state) {
+	if (request.signal?.aborted) {
+		throw new DOMException('The operation was aborted.', 'AbortError');
+	}
+
+	const subrequest_state = fork_state_for_subrequest(state);
+
+	if (!request.signal) {
+		return await respond(request, subrequest_state);
+	}
+
+	let remove_abort_listener = noop;
+	/** @type {Promise<never>} */
+	const abort_promise = new Promise((_, reject) => {
+		const on_abort = () => {
+			reject(new DOMException('The operation was aborted.', 'AbortError'));
+		};
+		request.signal.addEventListener('abort', on_abort, { once: true });
+		remove_abort_listener = () => request.signal.removeEventListener('abort', on_abort);
+	});
+
+	return Promise.race([respond(request, subrequest_state), abort_promise]).finally(
+		remove_abort_listener
+	);
+}

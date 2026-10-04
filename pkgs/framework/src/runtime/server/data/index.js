@@ -1,0 +1,162 @@
+import { text } from '@sveltejs/kit';
+import { Redirect } from '@sveltejs/kit/internal';
+import { normalize_error } from '../../../utils/error.js';
+import { once } from '../../../utils/functions.js';
+import { server_data_serializer_json } from '../page/data_serializer.js';
+import { load_server_data } from '../page/load_data.js';
+import { handle_error_and_jsonify } from '../errors.js';
+import { normalize_path } from '../../../utils/url.js';
+import { stream_text } from '../../utils.js';
+import { with_version_header } from '../utils.js';
+import { manifest } from '../internal.js';
+
+/**
+ * @param {import('@sveltejs/kit').RequestEvent} event
+ * @param {import('types').RequestState} state
+ * @param {{ page: Pick<import('types').PageNodeIndexes, 'layouts' | 'leaf'> | null }} route
+ * @param {boolean[] | undefined} invalidated_data_nodes
+ * @param {import('types').TrailingSlash} trailing_slash
+ * @returns {Promise<Response>}
+ */
+export async function render_data(event, state, route, invalidated_data_nodes, trailing_slash) {
+	if (!route.page) {
+		// requesting /__data.json should fail for a +server.js
+		return with_version_header(new Response(undefined, { status: 404 }));
+	}
+
+	try {
+		const node_ids = [...route.page.layouts, route.page.leaf];
+		const invalidated = invalidated_data_nodes ?? node_ids.map(() => true);
+
+		let aborted = false;
+
+		const url = new URL(event.url);
+		url.pathname = normalize_path(url.pathname, trailing_slash);
+
+		const new_event = { ...event, url };
+
+		const functions = node_ids.map((n, i) => {
+			return once(async () => {
+				try {
+					if (aborted) {
+						return /** @type {import('types').ServerDataSkippedNode} */ ({
+							type: 'skip'
+						});
+					}
+
+					// == because it could be undefined (in dev) or null (in build, because of JSON.stringify)
+					const node = n == undefined ? n : await manifest.nodes[n]();
+					// load this. for the child, return as is. for the final result, stream things
+					return load_server_data({
+						event: new_event,
+						state,
+						node,
+						parent: async () => {
+							/** @type {Record<string, any>} */
+							const data = {};
+							for (let j = 0; j < i; j += 1) {
+								const parent = /** @type {import('types').ServerDataNode | null} */ (
+									await functions[j]()
+								);
+
+								if (parent) {
+									Object.assign(data, parent.data);
+								}
+							}
+							return data;
+						}
+					});
+				} catch (e) {
+					aborted = true;
+					throw e;
+				}
+			});
+		});
+
+		const promises = functions.map(async (fn, i) => {
+			if (!invalidated[i]) {
+				return /** @type {import('types').ServerDataSkippedNode} */ ({
+					type: 'skip'
+				});
+			}
+
+			return fn();
+		});
+
+		const data_serializer = server_data_serializer_json(event, state);
+		await Promise.all(
+			promises.map(async (p, i) => {
+				const node = await p.catch(async (error) => {
+					if (error instanceof Redirect) {
+						throw error;
+					}
+
+					const transformed = await handle_error_and_jsonify(event, state, error);
+
+					return /** @type {import('types').ServerErrorNode} */ ({
+						type: 'error',
+						error: transformed
+					});
+				});
+
+				data_serializer.add_node(i, node);
+			})
+		);
+		const { data, chunks } = data_serializer.get_data();
+
+		if (!chunks) {
+			// use a normal JSON response where possible, so we get `content-length`
+			// and can use browser JSON devtools for easier inspecting
+			return json_response(data);
+		}
+
+		return with_version_header(
+			new Response(stream_text(data, chunks), {
+				headers: {
+					// we use a proprietary content type to prevent buffering.
+					// the `text` prefix makes it inspectable
+					'content-type': 'text/sveltekit-data',
+					'cache-control': 'private, no-store'
+				}
+			})
+		);
+	} catch (e) {
+		const error = normalize_error(e);
+
+		if (error instanceof Redirect) {
+			return redirect_json_response(error);
+		} else {
+			const transformed = await handle_error_and_jsonify(event, state, error);
+			return json_response(transformed, transformed.status);
+		}
+	}
+}
+
+/**
+ * @param {Record<string, any> | string} json
+ * @param {number} [status]
+ */
+function json_response(json, status = 200) {
+	return with_version_header(
+		text(typeof json === 'string' ? json : JSON.stringify(json), {
+			status,
+			headers: {
+				'content-type': 'application/json',
+				'cache-control': 'private, no-store'
+			}
+		})
+	);
+}
+
+/**
+ * @param {Redirect} redirect
+ */
+export function redirect_json_response(redirect) {
+	return json_response(
+		/** @type {import('types').ServerRedirectNode} */ ({
+			type: 'redirect',
+			status: redirect.status,
+			location: redirect.location
+		})
+	);
+}

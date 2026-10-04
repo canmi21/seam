@@ -1,0 +1,137 @@
+/** @import { ServerMetadata } from 'types' */
+/** @import { Rolldown } from 'vite' */
+
+import fs from 'node:fs';
+import path from 'node:path';
+import MagicString from 'magic-string';
+import { posixify } from '../../../utils/os.js';
+import * as e from '../../../messages/build-errors.js';
+import { capture_message } from '../../../messages/internal/build.js';
+
+/**
+ * @param {typeof import('vite')} vite
+ * @param {string} out
+ * @param {Array<{ hash: string, file: string }>} remotes
+ * @param {Map<string, string>} remote_original_by_hash
+ * @param {ServerMetadata} metadata
+ * @param {string} cwd
+ * @param {(Rolldown.OutputAsset | Rolldown.OutputChunk)[]} server_chunks
+ * @param {NonNullable<import('vitest/config').ViteUserConfig['build']>['sourcemap']} sourcemap
+ */
+export async function treeshake_prerendered_remotes(
+	vite,
+	out,
+	remotes,
+	remote_original_by_hash,
+	metadata,
+	cwd,
+	server_chunks,
+	sourcemap
+) {
+	if (remotes.length === 0) return;
+
+	/** @type {string[]} */
+	const chunk_paths = [];
+
+	// embedded in the server bundle, which only runs on the server, so the full text is kept
+	const not_dynamic_message = JSON.stringify(
+		capture_message(() => e.remote_prerender_not_dynamic())
+	);
+
+	for (const remote of remotes) {
+		const exports_map = metadata.remotes.get(remote.hash);
+		if (!exports_map) continue;
+
+		/** @type {string[]} */
+		const dynamic = [];
+		/** @type {string[]} */
+		const prerendered = [];
+
+		for (const [name, value] of exports_map) {
+			(value.dynamic ? dynamic : prerendered).push(name);
+		}
+
+		if (prerendered.length === 0) continue; // nothing to treeshake
+
+		const original_id = remote_original_by_hash.get(remote.hash);
+		if (!original_id) continue;
+
+		const remote_chunk = server_chunks.find((chunk) => {
+			return chunk.type === 'chunk' && chunk.moduleIds.includes(original_id);
+		});
+
+		if (!remote_chunk) continue;
+
+		const chunk_path = posixify(path.relative(cwd, `${out}/server/${remote_chunk.fileName}`));
+
+		const code = fs.readFileSync(chunk_path, 'utf-8');
+		const parsed = vite.parseSync(chunk_path, code);
+		if (parsed.errors.length) throw new Error(parsed.errors[0].message);
+		const modified_code = new MagicString(code);
+
+		for (const fn of prerendered) {
+			for (const node of parsed.program.body) {
+				const declaration =
+					node.type === 'ExportNamedDeclaration'
+						? node.declaration
+						: node.type === 'VariableDeclaration'
+							? node
+							: null;
+
+				if (!declaration || declaration.type !== 'VariableDeclaration') continue;
+
+				for (const declarator of declaration.declarations) {
+					if (declarator.id.type === 'Identifier' && declarator.id.name === fn) {
+						modified_code.overwrite(
+							node.start,
+							node.end,
+							`const ${fn} = prerender('unchecked', () => { throw new Error(${not_dynamic_message}) });`
+						);
+					}
+				}
+			}
+		}
+
+		for (const node of parsed.program.body) {
+			if (node.type === 'ExportDefaultDeclaration') {
+				modified_code.remove(node.start, node.end);
+			}
+		}
+
+		const stubbed = modified_code.toString();
+		fs.writeFileSync(chunk_path, stubbed);
+		chunk_paths.push(chunk_path);
+	}
+
+	if (!chunk_paths.length) return;
+
+	for (const chunk_path of chunk_paths) {
+		const bundle = /** @type {Rolldown.RolldownOutput} */ (
+			await vite.build({
+				configFile: false,
+				build: {
+					write: false,
+					ssr: true,
+					target: 'esnext',
+					sourcemap,
+					rolldownOptions: {
+						// avoid resolving imports
+						external: (id) => !id.endsWith(chunk_path),
+						input: {
+							treeshaken: chunk_path
+						}
+					}
+				}
+			})
+		);
+
+		// the only possible outputs are the treeshaken chunk and, with sourcemaps, its map
+		for (const output of bundle.output) {
+			if (output.type === 'chunk') {
+				fs.writeFileSync(chunk_path, output.code);
+			} else {
+				fs.writeFileSync(chunk_path + '.map', output.source);
+			}
+		}
+	}
+}

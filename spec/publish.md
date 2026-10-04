@@ -33,23 +33,27 @@ scope a user types is the thing this arrangement avoids, and a personal scope is
 offered rather than one chosen. When `seamjs` can be published, the entry moves there and
 `@canmi/seamjs` is deprecated in its favor.
 
-**The entry is `pkgs/plugin` under another name, not a package that re-exports it.** SvelteKit keeps
-its Vite plugin inside its main package, as `@sveltejs/kit/vite`, and a package that only forwards
-another would be a layer that does nothing. The directory keeps its neutral name; the published
-name is the one place the product is named.
+**The entry is `pkgs/framework`, the fork of Kit, and the plugin is a package of the scope.** The
+alias has to land on the fork itself, so the entry's name is the fork's, and `pkgs/plugin` -- what
+the fork's `sveltekit()` calls, and what still runs beside a project's own Kit -- is
+`@seam-js/plugin`. The fork is not released yet ([framework.md](framework.md), "It is not published
+yet"), and `private` until it is; the `@canmi/seamjs` releases up to `0.0.2` were the plugin under
+the entry's name, and the fork's first release, at Kit's version line, follows them. Until then
+nothing is published: a release of the scope would name a plugin no released entry calls.
 
-| directory       | published as                    |
-| --------------- | ------------------------------- |
-| `pkgs/plugin`   | `@canmi/seamjs`, until `seamjs` |
-| `pkgs/compiler` | `@seam-js/compiler`             |
-| `pkgs/skeleton` | `@seam-js/skeleton`             |
-| `pkgs/ast`      | `@seam-js/ast`                  |
-| `pkgs/carry`    | `@seam-js/carry`                |
-| `pkgs/derive`   | `@seam-js/derive`               |
-| `pkgs/injector` | `@seam-js/injector`             |
-| `pkgs/lowering` | `@seam-js/lowering`             |
-| `pkgs/routes`   | `@seam-js/routes`               |
-| `pkgs/create`   | `create-seamjs`                 |
+| directory        | published as                                      |
+| ---------------- | ------------------------------------------------- |
+| `pkgs/framework` | `@canmi/seamjs`, until `seamjs`; not yet released |
+| `pkgs/plugin`    | `@seam-js/plugin`                                 |
+| `pkgs/compiler`  | `@seam-js/compiler`                               |
+| `pkgs/skeleton`  | `@seam-js/skeleton`                               |
+| `pkgs/ast`       | `@seam-js/ast`                                    |
+| `pkgs/carry`     | `@seam-js/carry`                                  |
+| `pkgs/derive`    | `@seam-js/derive`                                 |
+| `pkgs/injector`  | `@seam-js/injector`                               |
+| `pkgs/lowering`  | `@seam-js/lowering`                               |
+| `pkgs/routes`    | `@seam-js/routes`                                 |
+| `pkgs/create`    | `create-seamjs`                                   |
 
 `pkgs/apps` and `pkgs/suite` are this repository's checks and stay private. So does
 `pkgs/normalize`, which nothing imports.

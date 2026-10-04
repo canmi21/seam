@@ -1,7 +1,7 @@
 {
-	"name": "@canmi/seamjs",
+	"name": "@seam-js/plugin",
 	"version": "0.0.2",
-	"description": "Compile-time rendering for SvelteKit, as a Vite plugin beside Kit's own",
+	"description": "Compile-time rendering for SvelteKit, as a Vite plugin: beside Kit's own, or called from the framework's",
 	"license": "MIT",
 	"repository": {
 		"type": "git",

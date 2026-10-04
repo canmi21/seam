@@ -1,0 +1,17 @@
+/* if `bundleStrategy` is 'single' or 'inline', this file is used as the entry point */
+
+import * as kit from './client-entry.js';
+
+// @ts-expect-error
+import * as app from '<sveltekit:generated>/client-optimized/app.js';
+
+/**
+ *
+ * @param {HTMLElement} element
+ * @param {import('./types.js').HydrateOptions} options
+ */
+export function start(element, options) {
+	void kit.start(app, element, options);
+}
+
+export { app };

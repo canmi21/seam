@@ -196,9 +196,6 @@ importers:
 
   pkgs/apps:
     devDependencies:
-      '@canmi/seamjs':
-        specifier: workspace:*
-        version: link:../plugin
       '@fontsource/libre-barcode-128-text':
         specifier: ^5.3.0
         version: 5.3.0
@@ -214,6 +211,9 @@ importers:
       '@playwright/test':
         specifier: ^1.63.0
         version: 1.63.0
+      '@seam-js/plugin':
+        specifier: workspace:*
+        version: link:../plugin
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
@@ -347,6 +347,52 @@ importers:
       '@seam-js/injector':
         specifier: workspace:*
         version: link:../injector
+
+  pkgs/framework:
+    dependencies:
+      '@opentelemetry/api':
+        specifier: ^1.0.0
+        version: 1.9.1
+      '@rolldown/pluginutils':
+        specifier: ^1.0.1
+        version: 1.0.1
+      '@standard-schema/spec':
+        specifier: ^1.1.0
+        version: 1.1.0
+      '@sveltejs/vite-plugin-svelte':
+        specifier: ^7.0.0
+        version: 7.3.1(svelte@5.57.1)(vite@8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1))
+      cookie:
+        specifier: ^2.0.1
+        version: 2.0.1
+      devalue:
+        specifier: ^5.9.4
+        version: 5.9.4
+      esm-env:
+        specifier: ^1.2.2
+        version: 1.2.2
+      magic-string:
+        specifier: ^1.2.3
+        version: 1.4.2
+      mrmime:
+        specifier: ^2.0.1
+        version: 2.0.1
+      sirv:
+        specifier: ^3.0.2
+        version: 3.0.2
+      svelte:
+        specifier: ^5.57.1
+        version: 5.57.1
+      typescript:
+        specifier: ^6.0.0
+        version: 6.0.3
+      vite:
+        specifier: ^8.0.12
+        version: 8.3.2(@types/node@26.6.4)(esbuild@0.28.2)(yaml@2.9.1)
+    devDependencies:
+      '@sveltejs/kit':
+        specifier: link:.
+        version: 'link:'
 
   pkgs/injector:
     devDependencies:

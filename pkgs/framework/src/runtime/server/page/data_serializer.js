@@ -1,0 +1,223 @@
+import * as devalue from 'devalue';
+import { compact } from '../../../utils/array.js';
+import { create_async_iterator } from '../../../utils/streaming.js';
+import { serialize_uses, throw_devalue_error } from '../utils.js';
+import { handle_error_and_jsonify } from '../errors.js';
+import { encoders } from '#app/internal/transport';
+import { capture_error } from '../../../messages/internal/server.js';
+import * as e from '../../../messages/server-errors.js';
+
+/**
+ * If the serialized data contains promises, `chunks` will be an
+ * async iterable containing their resolutions
+ * @param {import('@sveltejs/kit').RequestEvent} event
+ * @param {import('types').RequestState} state
+ * @returns {import('./types.js').ServerDataSerializer}
+ */
+export function server_data_serializer(event, state) {
+	let promise_id = 1;
+	let max_nodes = -1;
+
+	const iterator = create_async_iterator();
+	const global = __SVELTEKIT_GLOBAL_NAME__;
+
+	/** @param {number} index */
+	function get_replacer(index) {
+		/** @param {any} thing */
+		return function replacer(thing) {
+			if (typeof thing?.then === 'function') {
+				const id = promise_id++;
+
+				const promise = thing
+					.then(/** @param {any} data */ (data) => ({ data }))
+					.catch(
+						/** @param {any} error */ async (error) => ({
+							error: await handle_error_and_jsonify(event, state, error)
+						})
+					)
+					.then(
+						/**
+						 * @param {{data: any; error: any}} result
+						 */
+						async ({ data, error }) => {
+							let str;
+							try {
+								str = devalue.uneval(error ? [, error] : [data], replacer);
+							} catch (serialization_error) {
+								error = await handle_error_and_jsonify(
+									event,
+									state,
+									capture_error(() =>
+										e.load_promise_not_serializable(
+											{ id: /** @type {string} */ (event.route.id) },
+											{ cause: serialization_error }
+										)
+									)
+								);
+								str = devalue.uneval([, error], replacer);
+							}
+
+							return {
+								index,
+								str: `${global}.resolve(${id}, ${str.includes('app.decode') ? `(app) => ${str}` : `() => ${str}`})`
+							};
+						}
+					);
+
+				iterator.add(promise);
+
+				return `${global}.defer(${id})`;
+			} else {
+				for (const key in encoders) {
+					const encoded = encoders[key](thing);
+					if (encoded) {
+						return `app.decode('${key}', ${devalue.uneval(encoded, replacer)})`;
+					}
+				}
+			}
+		};
+	}
+
+	const strings = /** @type {string[]} */ ([]);
+
+	return {
+		set_max_nodes(i) {
+			max_nodes = i;
+		},
+
+		add_node(i, node) {
+			try {
+				if (!node) {
+					strings[i] = 'null';
+					return;
+				}
+
+				/** @type {any} */
+				const payload = { type: 'data', data: node.data, uses: serialize_uses(node) };
+				if (node.slash) payload.slash = node.slash;
+
+				strings[i] = devalue.uneval(payload, get_replacer(i));
+			} catch (/** @type {any} */ error) {
+				error.path = error.path.slice(1);
+				throw_devalue_error(event, error);
+			}
+		},
+
+		get_data(csp) {
+			const open = `<script${csp.script_needs_nonce ? ` nonce="${csp.nonce}"` : ''}>`;
+			const close = `</script>\n`;
+
+			return {
+				data: `[${compact(max_nodes > -1 ? strings.slice(0, max_nodes) : strings).join(',')}]`,
+				chunks:
+					promise_id > 1
+						? iterator.iterate(({ index, str }) => {
+								if (max_nodes > -1 && index >= max_nodes) {
+									return '';
+								}
+
+								return open + str + close;
+							})
+						: null
+			};
+		}
+	};
+}
+
+/**
+ * If the serialized data contains promises, `chunks` will be an
+ * async iterable containing their resolutions
+ * @param {import('@sveltejs/kit').RequestEvent} event
+ * @param {import('types').RequestState} state
+ * @returns {import('./types.js').ServerDataSerializerJson}
+ */
+export function server_data_serializer_json(event, state) {
+	let promise_id = 1;
+
+	const iterator = create_async_iterator();
+
+	const reducers = {
+		...encoders,
+		/** @param {any} thing */
+		Promise: (thing) => {
+			if (typeof thing?.then !== 'function') {
+				return;
+			}
+
+			const id = promise_id++;
+
+			/** @type {'data' | 'error'} */
+			let key = 'data';
+
+			const promise = thing
+				.catch(
+					/** @param {any} error */ async (error) => {
+						key = 'error';
+						return handle_error_and_jsonify(event, state, error);
+					}
+				)
+				.then(
+					/** @param {any} value */
+					async (value) => {
+						let str;
+						try {
+							str = devalue.stringify(value, reducers);
+						} catch (serialization_error) {
+							const error = await handle_error_and_jsonify(
+								event,
+								state,
+								capture_error(() =>
+									e.load_promise_not_serializable(
+										{ id: /** @type {string} */ (event.route.id) },
+										{ cause: serialization_error }
+									)
+								)
+							);
+
+							key = 'error';
+							str = devalue.stringify(error, reducers);
+						}
+
+						return `{"type":"chunk","id":${id},"${key}":${str}}\n`;
+					}
+				);
+
+			iterator.add(promise);
+
+			return id;
+		}
+	};
+
+	const strings = /** @type {string[]} */ ([]);
+
+	return {
+		add_node(i, node) {
+			try {
+				if (!node) {
+					strings[i] = 'null';
+					return;
+				}
+
+				if (node.type === 'error' || node.type === 'skip') {
+					strings[i] = JSON.stringify(node);
+					return;
+				}
+
+				strings[i] =
+					`{"type":"data","data":${devalue.stringify(node.data, reducers)},"uses":${JSON.stringify(
+						serialize_uses(node)
+					)}${node.slash ? `,"slash":${JSON.stringify(node.slash)}` : ''}}`;
+			} catch (/** @type {any} */ error) {
+				error.path = 'data' + error.path;
+				throw_devalue_error(event, error);
+			}
+		},
+
+		get_data() {
+			return {
+				data: `{"type":"data","nodes":[${strings.join(',')}]}\n`,
+				chunks: promise_id > 1 ? iterator.iterate() : null
+			};
+		}
+	};
+}

@@ -1,0 +1,290 @@
+import { DEV } from 'esm-env';
+import { PRELOAD_PRIORITIES } from './constants.js';
+import * as w from '../../messages/client-warnings.js';
+
+export const origin = location.origin;
+
+/** @param {string | URL} url */
+export function resolve_url(url) {
+	if (url instanceof URL) return url;
+
+	let baseURI = document.baseURI;
+
+	if (!baseURI) {
+		const baseTags = document.getElementsByTagName('base');
+		baseURI = baseTags.length ? baseTags[0].href : document.URL;
+	}
+
+	return new URL(url, baseURI);
+}
+
+export function scroll_state() {
+	return {
+		x: pageXOffset,
+		y: pageYOffset
+	};
+}
+
+const warned = new WeakSet();
+
+/** @typedef {keyof typeof valid_link_options} LinkOptionName */
+
+const valid_link_options = /** @type {const} */ ({
+	'preload-code': ['', 'false', 'tap', 'hover', 'viewport', 'eager'],
+	'preload-data': ['', 'false', 'tap', 'hover'],
+	reload: ['', 'true', 'false'],
+	replacestate: ['', 'true', 'false'],
+	reset: ['', 'true', 'false']
+});
+
+/**
+ * @template {LinkOptionName} T
+ * @typedef {typeof valid_link_options[T][number]} ValidLinkOptions
+ */
+
+/**
+ * @template {LinkOptionName} T
+ * @param {Element} element
+ * @param {T} name
+ */
+function link_option(element, name) {
+	const value = /** @type {ValidLinkOptions<T> | null} */ (
+		element.getAttribute(`data-sveltekit-${name}`)
+	);
+
+	if (DEV) {
+		validate_link_option(element, name, value);
+	}
+
+	return value;
+}
+
+/**
+ * @template {LinkOptionName} T
+ * @template {ValidLinkOptions<T> | null} U
+ * @param {Element} element
+ * @param {T} name
+ * @param {U} value
+ */
+function validate_link_option(element, name, value) {
+	if (value === null) return;
+
+	// @ts-expect-error - includes is dumb
+	if (!warned.has(element) && !valid_link_options[name].includes(value)) {
+		w.link_option_invalid(
+			{
+				name,
+				options: valid_link_options[name].map((option) => JSON.stringify(option)).join(', ')
+			},
+			{ element }
+		);
+
+		warned.add(element);
+	}
+}
+
+const levels = {
+	...PRELOAD_PRIORITIES,
+	'': PRELOAD_PRIORITIES.hover
+};
+
+/**
+ * @param {Element} element
+ * @returns {Element | null}
+ */
+function parent_element(element) {
+	let parent = element.assignedSlot ?? element.parentNode;
+
+	// @ts-expect-error handle shadow roots
+	if (parent?.nodeType === 11) parent = parent.host;
+
+	return /** @type {Element} */ (parent);
+}
+
+/**
+ * @param {Element} element
+ * @param {Element} target
+ */
+export function find_anchor(element, target) {
+	while (element && element !== target) {
+		// don't read `nodeName` — a form control named `nodeName` shadows it on its form
+		if (
+			(element instanceof HTMLAnchorElement || element instanceof SVGAElement) &&
+			element.hasAttribute('href')
+		) {
+			return /** @type {HTMLAnchorElement | SVGAElement} */ (element);
+		}
+
+		element = /** @type {Element} */ (parent_element(element));
+	}
+}
+
+/**
+ * @param {HTMLAnchorElement | SVGAElement} a
+ * @param {string} base
+ * @param {boolean} uses_hash_router
+ */
+export function get_link_info(a, base, uses_hash_router) {
+	/** @type {URL | undefined} */
+	let url;
+
+	// TODO replace the try/catch with `URL.parse` when browser support allows (Chrome 126, Firefox 126, Safari 18)
+	try {
+		url = new URL(a instanceof SVGAElement ? a.href.baseVal : a.href, document.baseURI);
+
+		// if the hash doesn't start with `#/` then it's probably linking to an id on the current page
+		if (uses_hash_router && url.hash.match(/^#[^/]/)) {
+			const route = location.hash.split('#')[1] || '/';
+			url.hash = `#${route}${url.hash}`;
+		}
+	} catch {}
+
+	const target = a instanceof SVGAElement ? a.target.baseVal : a.target;
+
+	const external =
+		!url ||
+		!!target ||
+		is_external_url(url, base, uses_hash_router) ||
+		(a.getAttribute('rel') || '').split(/\s+/).includes('external');
+
+	const download = url?.origin === origin && a.hasAttribute('download');
+
+	return { url, external, target, download };
+}
+
+/**
+ * @param {HTMLFormElement | HTMLAnchorElement | SVGAElement} element
+ */
+export function get_router_options(element) {
+	/** @type {ValidLinkOptions<'preload-code'> | null} */
+	let preload_code = null;
+
+	/** @type {ValidLinkOptions<'preload-data'> | null} */
+	let preload_data = null;
+
+	/** @type {ValidLinkOptions<'reload'> | null} */
+	let reload = null;
+
+	/** @type {ValidLinkOptions<'replacestate'> | null} */
+	let replace_state = null;
+
+	/** @type {ValidLinkOptions<'reset'> | null} */
+	let reset = null;
+
+	/** @type {Element} */
+	let el = element;
+
+	while (el && el !== document.documentElement) {
+		if (DEV) {
+			for (const name of ['keepfocus', 'noscroll']) {
+				const value = el.getAttribute(`data-sveltekit-${name}`);
+				if (value !== null && !warned.has(el)) {
+					warned.add(el);
+					w.link_option_replaced({ name }, { element: el });
+				}
+			}
+		}
+
+		if (preload_code === null) preload_code = link_option(el, 'preload-code');
+		if (preload_data === null) preload_data = link_option(el, 'preload-data');
+		if (reload === null) reload = link_option(el, 'reload');
+		if (replace_state === null) replace_state = link_option(el, 'replacestate');
+		if (reset === null) reset = link_option(el, 'reset');
+
+		el = /** @type {Element} */ (parent_element(el));
+	}
+
+	/** @param {string | null} value */
+	function get_option_state(value) {
+		switch (value) {
+			case '':
+			case 'true':
+				return true;
+			case 'false':
+				return false;
+			default:
+				return undefined;
+		}
+	}
+
+	return {
+		preload_code: levels[preload_code ?? 'false'],
+		preload_data: levels[preload_data ?? 'false'],
+		reload: get_option_state(reload),
+		replace_state: get_option_state(replace_state),
+		reset: get_option_state(reset) ?? true
+	};
+}
+
+/**
+ * Is external if
+ * - origin different
+ * - path doesn't start with base
+ * - uses hash router and pathname is more than base
+ * @param {URL} url
+ * @param {string} base
+ * @param {boolean} hash_routing
+ */
+export function is_external_url(url, base, hash_routing) {
+	if (url.origin !== origin || !url.pathname.startsWith(base)) {
+		return true;
+	}
+
+	if (hash_routing) {
+		return url.pathname !== location.pathname;
+	}
+
+	return false;
+}
+
+/**
+ * The element a URL's fragment points at, if any. Under hash routing the fragment sits after the route
+ * @param {URL} url
+ * @param {boolean} hash_routing
+ * @returns {HTMLElement | null}
+ */
+export function get_hash_element(url, hash_routing) {
+	const id = hash_routing ? (url.hash.split('#', 3)[2] ?? '') : url.hash.slice(1);
+	return id ? document.getElementById(decodeURIComponent(id)) : null;
+}
+
+/** @type {Set<string> | null} */
+let seen = null;
+
+/**
+ * Used for server-side resolution, to replicate Vite's CSS loading behaviour in production.
+ *
+ * Closely modelled after https://github.com/vitejs/vite/blob/3dd12f4724130fdf8ba44c6d3252ebdff407fd47/packages/vite/src/node/plugins/importAnalysisBuild.ts#L214
+ * (which ideally we could just use directly, but it's not exported)
+ * @param {string[]} deps
+ */
+export function load_css(deps) {
+	if (__SVELTEKIT_CLIENT_ROUTING__) return;
+
+	const csp_nonce_meta = /** @type {HTMLMetaElement} */ (
+		document.querySelector('meta[property=csp-nonce]')
+	);
+	const csp_nonce = csp_nonce_meta?.nonce || csp_nonce_meta?.getAttribute('nonce');
+
+	seen ??= new Set(
+		Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map((link) => {
+			return /** @type {HTMLLinkElement} */ (link).href;
+		})
+	);
+
+	for (const dep of deps) {
+		const href = new URL(dep, document.baseURI).href;
+
+		if (seen.has(href)) continue;
+		seen.add(href);
+
+		const link = document.createElement('link');
+		link.rel = 'stylesheet';
+		link.crossOrigin = '';
+		link.href = dep;
+		if (csp_nonce) {
+			link.setAttribute('nonce', csp_nonce);
+		}
+		document.head.appendChild(link);
+	}
+}

@@ -1,0 +1,817 @@
+import { Component } from 'svelte';
+import {
+	ServerLoad,
+	Load,
+	RequestHandler,
+	Server,
+	ServerInitOptions,
+	Actions,
+	RequestEvent,
+	Emulator,
+	HttpError,
+	Adapter,
+	AdapterViteConfig
+} from '@sveltejs/kit';
+import { RemoteFormIssue, RemoteQuery, RemoteLiveQuery } from '$app/server';
+import { Config } from '@sveltejs/kit/vite';
+import { ParamMatcher } from '@sveltejs/kit/params';
+import {
+	ClientInit,
+	Handle,
+	HandleClientError,
+	HandleFetch,
+	HandleServerError,
+	Reroute,
+	ResolveOptions,
+	ServerInit,
+	Transport
+} from '@sveltejs/kit/hooks';
+import {
+	HttpMethod,
+	MaybePromise,
+	PrerenderOption,
+	RequestOptions,
+	TrailingSlash
+} from './private.js';
+import { Span } from '@opentelemetry/api';
+import { PageOptions } from '../exports/vite/static_analysis/types.js';
+import { SharedIterator } from '../utils/shared-iterator.js';
+
+export interface ServerConfigureOptions extends Partial<ServerInitOptions> {
+	manifest?: SSRManifest;
+	/** the value of `$app/paths`'s `assets`, when it differs from the build-time one */
+	assets?: string;
+	building?: boolean;
+	prerendering?: boolean;
+	fix_stack_trace?: (error: Error) => void;
+}
+
+export interface ServerInstance {
+	init(): Promise<void>;
+	respond(request: Request, options: InternalRequestOptions): Promise<Response>;
+	set_env(env: Record<string, string | undefined>): void;
+}
+
+/** the built `server/index.js` */
+export interface ServerModule {
+	configure(options: ServerConfigureOptions): Promise<ServerInstance>;
+	/** the `server` adapters receive from `builder.generateServerInstance` */
+	create_server(manifest: SSRManifest): Server;
+	format_response(status: number, request: Request): string;
+}
+
+/** the built `server/internal.js` */
+export type ServerInternalModule = typeof import('<sveltekit:generated>/server.js');
+
+export interface Asset {
+	file: string;
+	type: string | null;
+}
+
+export interface AssetDependencies {
+	assets: string[];
+	file: string;
+	imports: string[];
+	stylesheets: string[];
+	fonts: FontDependency[];
+	stylesheet_map: Map<string, { css: Set<string>; assets: Set<string> }>;
+}
+
+export interface FontDependency {
+	/** emitted file path, relative to the client output directory */
+	file: string;
+	/** the source file path relative to the project root, before hashing and character sanitization */
+	filename: string;
+}
+
+export interface BuildData {
+	app_dir: string;
+	app_path: string;
+	manifest_data: ManifestData;
+	out_dir: string;
+	service_worker: string | null;
+	client: {
+		/** Path to the client entry point. */
+		start: string;
+		/** Path to the generated `app.js` file that contains the client manifest. Only set in case of `bundleStrategy === 'split'`. */
+		app?: string;
+		/** JS files that the client entry point relies on. */
+		imports: string[];
+		/**
+		 * JS files that represent the entry points of the layouts/pages.
+		 * An entry is undefined if the layout/page has no component or universal file (i.e. only has a `.server.js` file).
+		 * Only set in case of `router.resolution === 'server'`.
+		 */
+		nodes?: Array<string | undefined>;
+		/**
+		 * CSS files referenced in the entry points of the layouts/pages.
+		 * An entry is undefined if the layout/page has no component or universal file (i.e. only has a `.server.js` file) or if has no CSS.
+		 * Only set in case of `router.resolution === 'server'`.
+		 */
+		css?: Array<string[] | undefined>;
+		/**
+		 * Contains the client route manifest in a form suitable for the server which is used for server-side route resolution.
+		 * Notably, it contains all routes, regardless of whether they are prerendered or not (those are missing in the optimized server route manifest).
+		 * Only set in case of `router.resolution === 'server'`.
+		 */
+		routes?: SSRClientRoute[];
+		stylesheets: string[];
+		fonts: FontDependency[];
+		/**
+		 * Whether the client uses public dynamic env vars — `$env/dynamic/public` or `$app/env/public`.
+		 */
+		uses_env_dynamic_public: boolean;
+		/** Only set in case of `bundleStrategy === 'inline'`. */
+		inline?: {
+			script: string;
+			style: string | undefined;
+		};
+	} | null;
+	server_manifest: import('vite').Manifest;
+}
+
+export interface CSRPageNode {
+	component: Component;
+	universal: {
+		load?: Load;
+		trailingSlash?: TrailingSlash;
+	};
+}
+
+export type CSRPageNodeLoader = () => Promise<CSRPageNode>;
+
+/**
+ * Definition of a client side route.
+ * The boolean in the tuples indicates whether the route has a server load.
+ */
+export type CSRRoute = {
+	id: string;
+	exec(path: string): undefined | Record<string, string>;
+	errors: Array<CSRPageNodeLoader | undefined>;
+	layouts: Array<[has_server_load: boolean, node_loader: CSRPageNodeLoader] | undefined>;
+	leaf: [has_server_load: boolean, node_loader: CSRPageNodeLoader];
+};
+
+/**
+ * Definition of a client side route as transported via `<pathname>/__route.js` when using server-side route resolution.
+ */
+export type CSRRouteServer = {
+	id: string;
+	errors: Array<number | undefined>;
+	layouts: Array<[has_server_load: boolean, node_id: number] | undefined>;
+	leaf: [has_server_load: boolean, node_id: number];
+	nodes: Record<string, CSRPageNodeLoader>;
+};
+
+export interface Deferred {
+	fulfil: (value: any) => void;
+	reject: (error: Error) => void;
+}
+
+export type GetParams = (match: RegExpExecArray) => Record<string, string>;
+
+export interface ServerHooks {
+	handleFetch: HandleFetch;
+	handle: Handle;
+	handleError: HandleServerError;
+	reroute: Reroute;
+	transport?: Transport;
+	init?: ServerInit;
+}
+
+export interface ClientHooks {
+	handleError: HandleClientError;
+	reroute: Reroute;
+	transport: Transport;
+	init?: ClientInit;
+}
+
+export interface Env {
+	private: Record<string, string>;
+	public: Record<string, string>;
+}
+
+export interface InternalRequestOptions extends RequestOptions {
+	prerendering?: PrerenderOptions;
+	/** @internal for saving dependencies during prerendering and generating fallback pages */
+	read: (file: string) => Buffer<ArrayBuffer>;
+	/** @internal used during development to check feature availability depending on the current route */
+	before_handle?: (
+		event: RequestEvent,
+		config: any,
+		prerender: PrerenderOption,
+		handle: () => Promise<Response>
+	) => Promise<Response>;
+	emulator?: Emulator;
+}
+
+export interface ManifestData {
+	/** Static files from `config.files.assets`. */
+	assets: Asset[];
+	hooks: {
+		client: string | null;
+		server: string | null;
+		universal: string | null;
+	};
+	nodes: PageNode[];
+	routes: RouteData[];
+	params: string | null;
+}
+
+export interface RemoteChunk {
+	hash: string;
+	file: string;
+}
+
+export interface PageNode {
+	depth: number;
+	/** The `+page/layout.svelte`. */
+	component?: string; // TODO supply default component if it's missing (bit of an edge case)
+	/** The `+page/layout.js/.ts`. */
+	universal?: string;
+	/** The `+page/layout.server.js/ts`. */
+	server?: string;
+	parent_id?: string;
+	parent?: PageNode;
+	/** Filled with the pages that reference this layout (if this is a layout). */
+	child_pages?: PageNode[];
+	/** The final page options for a node if it was statically analysable */
+	page_options?: PageOptions | null;
+}
+
+export interface PrerenderDependency {
+	response: Response;
+	body: null | string | Uint8Array;
+}
+
+/** Internal context for the prerendering process */
+export interface PrerenderOptions {
+	cache?: string; // including this here is a bit of a hack, but it makes it easy to add <meta http-equiv>
+	fallback?: boolean;
+	dependencies: Map<string, PrerenderDependency>;
+	/** Results of remote `prerender` functions, shared across the whole prerender run so that each only executes once */
+	remote_responses: Map<string, Promise<any>>;
+	/** Route IDs whose resolution module has been emitted, shared across the whole prerender run so that each only generates once */
+	resolved_route_ids: Set<string>;
+	/** True for the duration of a call to the `reroute` hook */
+	inside_reroute?: boolean;
+}
+
+export type RecursiveRequired<T> = {
+	// Recursive implementation of TypeScript's Required utility type.
+	// Will recursively continue until it reaches a primitive or Function
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+	[K in keyof T]-?: Extract<T[K], Function | (`${string}:` & {})> extends never // If it does not have a Function type
+		? RecursiveRequired<T[K]> // recursively continue through.
+		: T[K]; // Use the exact type for everything else
+};
+
+export type RequiredResolveOptions = Required<ResolveOptions>;
+
+export interface RouteParam {
+	name: string;
+	matcher: string;
+	optional: boolean;
+	rest: boolean;
+	chained: boolean;
+}
+
+/**
+ * Represents a route segment in the app. It can either be an intermediate node
+ * with only layout/error pages, or a leaf, at which point either `page` and `leaf`
+ * or `endpoint` is set.
+ */
+export interface RouteData {
+	id: string;
+	parent: RouteData | null;
+
+	segment: string;
+	pattern: RegExp;
+	params: RouteParam[];
+
+	layout: PageNode | null;
+	error: PageNode | null;
+	leaf: PageNode | null;
+
+	page: {
+		layouts: Array<number | undefined>;
+		errors: Array<number | undefined>;
+		leaf: number;
+	} | null;
+
+	endpoint: {
+		file: string;
+		/** The final page options for the endpoint if it was statically analysable */
+		page_options: PageOptions | null;
+	} | null;
+}
+
+/**
+ * The server-side form of `ActionResult`, before the error is passed
+ * through `handleError` and the data is serialized
+ */
+export type ServerActionResult =
+	| Exclude<import('$app/forms').ActionResult, { type: 'error' }>
+	| { type: 'error'; location: string; error: Error | HttpError };
+
+export type ServerRedirectNode = {
+	type: 'redirect';
+	status: number;
+	location: string;
+};
+
+export type ServerNodesResponse = {
+	type: 'data';
+	/**
+	 * If `null`, then there was no load function <- TODO is this outdated now with the recent changes?
+	 */
+	nodes: Array<ServerDataNode | ServerDataSkippedNode | ServerErrorNode | null>;
+};
+
+export type RemoteFunctionDataNode = {
+	/** value */
+	v?: any;
+	/** error */
+	e?: App.Error;
+};
+
+export type RemoteFunctionData = {
+	/** The result of a command/form invocation */
+	_?: any;
+	/** `prerender` data that was accessed during the request */
+	p?: Record<string, RemoteFunctionDataNode>;
+	/** `query` or `query.batch` data that was accessed during the request */
+	q?: Record<string, RemoteFunctionDataNode>;
+	/** `query.live` data that was accessed during the request */
+	l?: Record<string, RemoteFunctionDataNode>;
+	/** `form` outputs (result/issues/input) from a non-enhanced submission, keyed by the client-side action id */
+	f?: Record<string, RemoteFunctionDataNode>;
+	/** Whether there were any refreshes/reconnects during the request */
+	r?: true;
+	/** Client-requested updates that the server intentionally ignored */
+	i?: string[];
+	/** The redirect location, if any */
+	redirect?: string;
+};
+
+export type RemoteFunctionResponse =
+	| (ServerRedirectNode & {
+			/** stringified RemoteFunctionData */
+			data: string;
+	  })
+	| ServerErrorNode
+	| {
+			type: 'result';
+			/** stringified RemoteFunctionData */
+			data: string;
+	  };
+
+export type RemoteLiveQueryUserFunctionReturnType<Output> = MaybePromise<
+	| AsyncGenerator<Output>
+	| AsyncIterator<Output>
+	| AsyncIterable<Output>
+	| Generator<Output>
+	| Iterator<Output>
+	| Iterable<Output>
+>;
+
+/**
+ * Signals a successful response of the server `load` function.
+ * The `uses` property tells the client when it's possible to reuse this data
+ * in a subsequent request.
+ */
+export interface ServerDataNode {
+	type: 'data';
+	/**
+	 * The serialized version of this contains a serialized representation of any deferred promises,
+	 * which will be resolved later through chunk nodes.
+	 */
+	data: Record<string, any> | null;
+	uses: Uses;
+	slash?: TrailingSlash;
+}
+
+/**
+ * Resolved data/error of a deferred promise.
+ */
+export interface ServerDataChunkNode {
+	type: 'chunk';
+	id: number;
+	data?: Record<string, any>;
+	error?: any;
+}
+
+/**
+ * Signals that the server `load` function was not run, and the
+ * client should use what it has in memory.
+ */
+export interface ServerDataSkippedNode {
+	type: 'skip';
+}
+
+/**
+ * Signals that the server `load` function failed.
+ */
+export interface ServerErrorNode {
+	type: 'error';
+	error: App.Error;
+}
+
+export interface ServerMetadataRoute {
+	config: Record<string, any>;
+	api: {
+		methods: Array<HttpMethod | '*'>;
+	};
+	page: {
+		methods: Array<'GET' | 'POST'>;
+	};
+	methods: Array<HttpMethod | '*'>;
+	prerender: PrerenderOption | undefined;
+	entries: string[] | undefined;
+}
+
+export interface ServerMetadata {
+	nodes: Array<{
+		/** Also `true` when using `trailingSlash`, because we need to do a server request in that case to get its value. */
+		has_server_load: boolean;
+		has_universal_load: boolean;
+	}>;
+	routes: Map<string, ServerMetadataRoute>;
+	/** For each hashed remote file, a map of export name -> { type, dynamic }, where `dynamic` is `false` for non-dynamic prerender functions */
+	remotes: Map<string, Map<string, { type: RemoteInternals['type']; dynamic: boolean }>>;
+}
+
+export type SSRComponentLoader = () => Promise<Component>;
+
+export interface UniversalNode {
+	/** Is `null` in case static analysis succeeds but the node is ssr=false */
+	load?: Load;
+	prerender?: PrerenderOption;
+	ssr?: boolean;
+	csr?: boolean;
+	trailingSlash?: TrailingSlash;
+	config?: Record<string, any>;
+	entries?: PrerenderEntryGenerator;
+}
+
+export interface ServerNode {
+	load?: ServerLoad;
+	prerender?: PrerenderOption;
+	ssr?: boolean;
+	csr?: boolean;
+	trailingSlash?: TrailingSlash;
+	actions?: Actions;
+	config?: Record<string, any>;
+	entries?: PrerenderEntryGenerator;
+}
+
+/**
+ * Information required to instantiate a new `Server` instance.
+ */
+export interface SSRManifest {
+	/**
+	 * The directory where SvelteKit keeps its stuff, including static assets
+	 * (such as JS and CSS) and internally-used routes.
+	 */
+	app_dir: string;
+	/**
+	 * The `base` and `appDir` settings combined without a leading slash.
+	 */
+	app_path: string;
+	/**
+	 * Static files from `config.files.assets` and the service worker (if any).
+	 */
+	assets: Set<string>;
+	/**
+	 * Map of file extensions to MIME types
+	 */
+	mime_types: Record<string, string>;
+	client: BuildData['client'];
+	nodes: SSRNodeLoader[];
+	/**
+	 * hashed filename -> import to that file
+	 */
+	remotes: Record<string, () => Promise<{ default: Record<string, any> }>>;
+	routes: SSRRoute[];
+	prerendered_routes: Set<string>;
+	matchers: () => Promise<Record<string, ParamMatcher>>;
+	/**
+	 * A `[file]: size` map of all assets imported by server code.
+	 */
+	server_assets: Record<string, number>;
+}
+
+export interface SSRNode {
+	/** index into the `nodes` array in the generated `client/app.js`. */
+	index: number;
+	/** external JS files that are loaded on the client. `imports[0]` is the entry point (e.g. `client/nodes/0.js`) */
+	imports: string[];
+	/** external CSS files that are loaded on the client */
+	stylesheets: string[];
+	/** external font files that are loaded on the client */
+	fonts: FontDependency[];
+
+	universal_id?: string;
+	server_id?: string;
+
+	/**
+	 * During development, all styles are inlined for the page to avoid FOUC.
+	 * But in production, this stores styles that are below the inline threshold.
+	 * It returns a Promise during development because Vite needs to load the
+	 * modules on demand. But in production, the contents have been precomputed
+	 * during the build, so it can return synchronously.
+	 */
+	inline_styles?(): MaybePromise<
+		Record<string, string | ((assets: string, base: string) => string)>
+	>;
+	/** Svelte component */
+	component?: SSRComponentLoader;
+	/** +page.js or +layout.js */
+	universal?: UniversalNode;
+	/** +page.server.js, +layout.server.js, or +server.js */
+	server?: ServerNode;
+}
+
+export type SSRNodeLoader = () => Promise<SSRNode>;
+
+export interface SSROptions {
+	app_template_contains_nonce: boolean;
+	csp: ValidatedConfig['csp'];
+	csrf_trusted_origins: string[];
+	service_worker_options: RegistrationOptions;
+	templates: {
+		app(values: {
+			head: string;
+			body: string;
+			assets: string;
+			nonce: string;
+			env: Record<string, string>;
+		}): string;
+		error(values: { message: string; status: number }): string;
+	};
+}
+
+export interface PageNodeIndexes {
+	errors: Array<number | undefined>;
+	layouts: Array<number | undefined>;
+	leaf: number;
+}
+
+export type PrerenderEntryGenerator = () => MaybePromise<Array<Record<string, string>>>;
+export type RemotePrerenderInputsGenerator<Input = any> = () => MaybePromise<Input[]>;
+
+export type SSREndpoint = Partial<Record<HttpMethod, RequestHandler>> & {
+	prerender?: PrerenderOption;
+	trailingSlash?: TrailingSlash;
+	config?: Record<string, any>;
+	entries?: PrerenderEntryGenerator;
+	fallback?: RequestHandler;
+};
+
+export interface SSRRoute {
+	id: string;
+	pattern: RegExp;
+	params: RouteParam[];
+	page: PageNodeIndexes | null;
+	endpoint: (() => Promise<SSREndpoint>) | null;
+	endpoint_id?: string;
+}
+
+export interface SSRClientRoute {
+	id: string;
+	pattern: RegExp;
+	params: RouteParam[];
+	errors: Array<number | undefined>;
+	layouts: Array<[has_server_load: boolean, node_id: number] | undefined>;
+	leaf: [has_server_load: boolean, node_id: number];
+}
+
+export type StrictBody = string | ArrayBufferView;
+
+export interface Uses {
+	dependencies: Set<string>;
+	params: Set<string>;
+	parent: boolean;
+	route: boolean;
+	url: boolean;
+	search_params: Set<string>;
+}
+
+export type ValidatedConfig = RecursiveRequired<Omit<Config, 'preprocess' | 'adapter'>> & {
+	adapter: Adapter & { vite?: AdapterViteConfig };
+	preprocess: Config['preprocess'];
+};
+
+export type BinaryFormMeta = {
+	remote_refreshes?: string[];
+	validate_only?: boolean;
+};
+
+interface BaseRemoteInternals {
+	type: string;
+	id: string;
+	name: string;
+}
+
+export interface RemoteQueryInternals extends BaseRemoteInternals {
+	type: 'query';
+	validate: (arg?: any) => MaybePromise<any>;
+	/**
+	 * Creates a `RemoteQuery` bound directly to a specific client payload (the
+	 * stringified raw argument) and a pre-validated argument, skipping the query
+	 * wrapper's re-validation step. Used by `requested(query)` to ensure
+	 * `refresh()` / `set()` target the same cache key the client is listening on
+	 * even when the schema transforms the input.
+	 */
+	bind(payload: string, arg: any): RemoteQuery<any>;
+}
+export interface RemoteQueryLiveInternals extends BaseRemoteInternals {
+	type: 'query_live';
+	validate: (arg?: any) => MaybePromise<any>;
+	run(event: RequestEvent, state: RequestState, arg: any): AsyncGenerator<any>;
+	/**
+	 * Creates a `RemoteLiveQuery` bound directly to a specific client payload (the
+	 * stringified raw argument) and a pre-validated argument, skipping the query
+	 * wrapper's re-validation step. Used by `requested(liveQuery)` to ensure
+	 * `reconnect()` targets the same cache key the client is listening on even
+	 * when the schema transforms the input.
+	 */
+	bind(payload: string, arg: any): RemoteLiveQuery<any>;
+}
+
+export interface RemoteQueryBatchInternals extends BaseRemoteInternals {
+	type: 'query_batch';
+	validate: (arg?: any) => MaybePromise<any>;
+	run: (args: any[]) => Promise<any[]>;
+	/**
+	 * Creates a `RemoteQuery` bound directly to a specific client payload (the
+	 * stringified raw argument) and a pre-validated argument, skipping the query
+	 * wrapper's re-validation step. Used by `requested(batchQuery)` to ensure
+	 * `refresh()` / `set()` target the same cache key the client is listening on
+	 * even when the schema transforms the input.
+	 */
+	bind(payload: string, arg: any): RemoteQuery<any>;
+}
+
+export interface RemoteCommandInternals extends BaseRemoteInternals {
+	type: 'command';
+}
+
+export interface RemoteFormInternals extends BaseRemoteInternals {
+	type: 'form';
+	/**
+	 * For keyed (`form.for(key)`) instances: the id as the client computes it
+	 * (the key is JSON-stringified but not URI-encoded, unlike `id`)
+	 */
+	key?: string;
+	fn(body: Record<string, any>, meta: BinaryFormMeta, form_data: FormData | null): Promise<any>;
+}
+
+export interface RemotePrerenderInternals extends BaseRemoteInternals {
+	type: 'prerender';
+	has_arg: boolean;
+	dynamic?: boolean;
+	inputs?: RemotePrerenderInputsGenerator;
+}
+
+export type RemoteAnyQueryInternals =
+	| RemoteQueryInternals
+	| RemoteQueryBatchInternals
+	| RemoteQueryLiveInternals;
+
+export type RemoteInternals =
+	| RemoteAnyQueryInternals
+	| RemoteCommandInternals
+	| RemoteFormInternals
+	| RemotePrerenderInternals;
+
+export interface InternalRemoteFormIssue extends RemoteFormIssue {
+	name: string;
+	path: Array<string | number>;
+	server?: boolean;
+}
+
+export type RecordSpan = <T>(options: {
+	name: string;
+	attributes: Record<string, any>;
+	fn: (current: Span) => Promise<T>;
+}) => Promise<T>;
+
+/**
+ * Internal state associated with the current `RequestEvent`,
+ * used for tracking things like remote function calls
+ */
+export interface RequestState {
+	readonly getClientAddress: () => string;
+	readonly platform?: any;
+	/** @internal reads from the filesystem when user code tries to fetch a static asset */
+	readonly read?: (file: string) => Buffer<ArrayBuffer>;
+	/**
+	 * Used to set up `__SVELTEKIT_TRACK__` which checks if a used feature is supported.
+	 * E.g. if `read` from `$app/server` is used, it checks whether the route's config is compatible.
+	 */
+	readonly before_handle?: (
+		event: RequestEvent,
+		config: Record<string, any>,
+		prerender: PrerenderOption,
+		handle: () => Promise<Response>
+	) => Promise<Response>;
+	readonly emulator?: Emulator;
+	readonly prerendering?: PrerenderOptions;
+	/**
+	 * When fetching data from a +server.js endpoint in `load`, the page's
+	 * prerender option is inherited by the endpoint, unless overridden.
+	 */
+	prerender_default?: PrerenderOption;
+	/**
+	 * True if we're currently attempting to render an error page.
+	 */
+	error: boolean;
+	/**
+	 * The rerouted URL (only if the new pathname differs from the original).
+	 * Used by platforms that serve a catch-all serverless function.
+	 */
+	rerouted_url: string | null;
+	/**
+	 * Allows us to prevent `event.fetch` from making infinitely looping internal requests.
+	 */
+	readonly depth: number;
+	readonly remote: {
+		/** Resolved query/prerender data, populated by `await myQuery()` or `myQuery.set(...)` */
+		data: null | Map<RemoteInternals, Record<string, MaybePromise<any>>>;
+		/**
+		 * Data that is implicitly included because it was awaited during render.
+		 * This is serialized during SSR if the promise already resolved
+		 */
+		implicit: null | Map<RemoteInternals, Record<string, () => MaybePromise<any>>>;
+		/**
+		 * Data that is explicitly included because of a `set(...)`, `refresh()` or
+		 * `reconnect()`. The stored function is invoked lazily at the end of the
+		 * request by `collect_remote_data`; if the query was already read (and thus
+		 * cached) earlier in the request, invoking it does no additional work. This
+		 * is always awaited and serialized.
+		 */
+		explicit: null | Map<
+			string,
+			{
+				internals: RemoteInternals;
+				fn: () => Promise<any>;
+			}
+		>;
+		/** Instances created via `myForm.for(...)` */
+		forms: null | Map<string, any>;
+		/** A map of remote function ID to payloads requested for refreshing by the client */
+		requested: null | Map<string, Set<string>>;
+		/** Client-requested updates intentionally ignored by `requested(...).ignoreAll()` or `ignore` */
+		ignored: null | Set<string>;
+		/** A map of query.batch ID to payloads requested for that batch within the same macrotask */
+		batches: null | Map<
+			string,
+			Map<
+				string,
+				{
+					get_validated: () => MaybePromise<any>;
+					resolvers: Array<{ resolve: (value: any) => void; reject: (error: any) => void }>;
+				}
+			>
+		>;
+		/**
+		 * A per-request cache of shared live-query iterators, keyed by remote id
+		 * and stringified argument payload. Used so that multiple `for await`
+		 * consumers of the same `query.live` call within one request multiplex a
+		 * single underlying user generator.
+		 */
+		live_iterators: null | Map<string, SharedIterator<any>>;
+	};
+	readonly is_in_remote_function: boolean;
+	readonly is_in_remote_form_or_command: boolean;
+	readonly is_in_remote_query: boolean;
+	readonly is_in_remote_prerender: boolean;
+	readonly is_in_render: boolean;
+}
+
+export interface RequestStore {
+	event: RequestEvent;
+	state: RequestState;
+}
+
+/** Type of the `__sveltekit_abc123` object in the init `<script>` */
+export interface SvelteKitPayload {
+	/** The application version */
+	version: string;
+	/** The basepath, usually relative to the current page */
+	base: string;
+	/** Path to externally-hosted assets */
+	assets?: string;
+	/** Public environment variables */
+	env?: Record<string, string>;
+	/** Serialized data from query/form/command functions */
+	data?: RemoteFunctionData;
+	/** Create a placeholder promise */
+	defer?: (id: number) => Promise<any>;
+	/** Resolve a placeholder promise */
+	resolve?: (data: { id: number; data: any; error: any }) => void;
+}
+
+export * from '../exports/index.js';
+export * from './private.js';

@@ -5,6 +5,10 @@
 # See vendor/README.md.
 vendor/** linguist-vendored=true
 
+# The fork of SvelteKit is the same code, kept in upstream's shape so that upstream's diff merges
+# into it; what is written here is the call points it lists. See pkgs/framework/FORK.md.
+pkgs/framework/** linguist-vendored=true
+
 # Written by `mise run regenerate` from the `.svelte` beside each, and read by the checks on both
 # sides: a build's output, not authored.
 corpus/cases/*.json linguist-generated=true

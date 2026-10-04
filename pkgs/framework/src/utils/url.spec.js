@@ -1,0 +1,284 @@
+import { assert, describe, expect } from 'vitest';
+import {
+	resolve,
+	normalize_path,
+	relative_pathname,
+	make_trackable,
+	disable_search,
+	matches_external_allowlist_entry
+} from './url.js';
+
+describe('resolve', (test) => {
+	test('resolves a root-relative path', () => {
+		assert.equal(resolve('/a/b/c', '/x/y/z'), '/x/y/z');
+	});
+
+	test('resolves a relative path without a leading .', () => {
+		assert.equal(resolve('/a/b/c', 'd'), '/a/b/d');
+	});
+
+	test('resolves a relative path with trailing /', () => {
+		assert.equal(resolve('/a/b/c', 'd/'), '/a/b/d/');
+	});
+
+	test('resolves a relative path with leading .', () => {
+		assert.equal(resolve('/a/b/c', './d'), '/a/b/d');
+	});
+
+	test('resolves a relative path with . in the middle', () => {
+		assert.equal(resolve('/a/b/c', 'd/./e/./f'), '/a/b/d/e/f');
+	});
+
+	test('resolves a relative path with leading ..', () => {
+		assert.equal(resolve('/a/b/c', '../d'), '/a/d');
+	});
+
+	test('resolves a relative path with .. in the middle', () => {
+		assert.equal(resolve('/a/b/c', 'd/./e/../f'), '/a/b/d/f');
+	});
+
+	test('resolves a relative path with extraneous leading ..', () => {
+		assert.equal(resolve('/a/b/c', '../../../../../d'), '/d');
+	});
+
+	test('resolves a root-relative path with .', () => {
+		assert.equal(resolve('/a/b/c', '/x/./y/../z'), '/x/z');
+	});
+
+	test('resolves a protocol-relative path', () => {
+		assert.equal(resolve('/a/b/c', '//example.com/foo'), '//example.com/foo');
+	});
+
+	test('resolves an absolute path', () => {
+		assert.equal(resolve('/a/b/c', 'https://example.com/foo'), 'https://example.com/foo');
+	});
+
+	test('handles schemes like tel: and mailto:', () => {
+		assert.equal(resolve('/a/b/c', 'mailto:hello@svelte.dev'), 'mailto:hello@svelte.dev');
+	});
+
+	test('resolves a fragment link', () => {
+		assert.equal(resolve('/a/b/c', '#foo'), '/a/b/c#foo');
+	});
+
+	test('resolves data: urls', () => {
+		assert.equal(resolve('/a/b/c', 'data:text/plain,hello'), 'data:text/plain,hello');
+	});
+
+	test('resolves empty string', () => {
+		assert.equal(resolve('/a/b/c', ''), '/a/b/c');
+	});
+
+	test('resolves .', () => {
+		assert.equal(resolve('/a/b/c', '.'), '/a/b/');
+	});
+});
+
+describe('relative_pathname', (test) => {
+	test('converts trailing-slash redirects to relative URL references', () => {
+		const cases = [
+			['/a/b', '/a/b/', './b/'],
+			['/a/b/', '/a/b', '../b'],
+			['/path-base/slash', '/path-base/slash/', './slash/'],
+			['//x', '//x/', './x/'],
+			['//x/', '//x', '../x'],
+			['/a/b%2Fc', '/a/b%2Fc/', './b%2Fc/']
+		];
+
+		for (const [from, to, expected] of cases) {
+			const result = relative_pathname(from, to);
+			const base = new URL('http://internal');
+			base.pathname = from;
+
+			assert.equal(result, expected);
+			assert.equal(result.startsWith('/'), false);
+			assert.equal(new URL(result, base).origin, base.origin);
+			assert.equal(new URL(result, base).pathname, to);
+		}
+	});
+
+	test('keeps scheme-like segments on the original origin', () => {
+		for (const origin of ['https://internal', 'http://internal']) {
+			for (const segment of ['http:example.com', 'https:example.com', 'http%3Aexample.com']) {
+				for (const trailing_slash of /** @type {const} */ (['always', 'never'])) {
+					const from = `/blog/${segment}${trailing_slash === 'never' ? '/' : ''}`;
+					const to = normalize_path(from, trailing_slash);
+					const result = relative_pathname(from, to);
+
+					// The mount prefix is stripped before the request reaches SvelteKit.
+					const base = new URL(`/mount${from}?ref=test`, origin);
+					const target = new URL(result + base.search, base);
+
+					assert.equal(target.origin, base.origin);
+					assert.equal(target.pathname, `/mount${to}`);
+					assert.equal(target.search, base.search);
+				}
+			}
+		}
+	});
+});
+
+describe('matches_external_allowlist_entry', (test) => {
+	test('matches allowed origins', () => {
+		assert.equal(matches_external_allowlist_entry('https://google.de', 'https://google.de'), true);
+		assert.equal(
+			matches_external_allowlist_entry('https://google.de/search', 'https://google.de'),
+			true
+		);
+		assert.equal(
+			matches_external_allowlist_entry('https://google.de/news', 'https://google.de/search'),
+			true
+		);
+		assert.equal(
+			matches_external_allowlist_entry('https://google.de.evil.com', 'https://google.de'),
+			false
+		);
+		assert.equal(
+			matches_external_allowlist_entry('blob:https://google.de/id', 'https://google.de'),
+			false
+		);
+		assert.equal(matches_external_allowlist_entry('https://evil.com', 'https://google.de'), false);
+	});
+});
+
+describe('normalize_path', (test) => {
+	test('normalizes paths', () => {
+		/** @type {Record<string, { ignore: string, always: string, never: string }>} */
+		const paths = {
+			'/': {
+				ignore: '/',
+				always: '/',
+				never: '/'
+			},
+			'/foo': {
+				ignore: '/foo',
+				always: '/foo/',
+				never: '/foo'
+			},
+			'/foo/': {
+				ignore: '/foo/',
+				always: '/foo/',
+				never: '/foo'
+			}
+		};
+
+		for (const path in paths) {
+			const { ignore, always, never } = paths[path];
+
+			assert.equal(normalize_path(path, 'ignore'), ignore);
+			assert.equal(normalize_path(path, 'always'), always);
+			assert.equal(normalize_path(path, 'never'), never);
+		}
+	});
+});
+
+describe('make_trackable', (test) => {
+	test('makes URL properties trackable', () => {
+		let tracked = false;
+		const url = make_trackable(
+			new URL('https://svelte.dev/docs/kit'),
+			() => {
+				tracked = true;
+			},
+			() => {}
+		);
+
+		url.origin;
+		assert.ok(!tracked);
+
+		url.pathname;
+		assert.ok(tracked);
+	});
+
+	test('throws an error when its hash property is accessed', () => {
+		const url = make_trackable(
+			new URL('https://svelte.dev/docs/kit'),
+			() => {},
+			() => {}
+		);
+
+		expect(() => url.hash).toThrowKitError('url_hash_unavailable');
+	});
+
+	test('does not throw an error when its hash property is accessed if it is allowed', () => {
+		let tracked = false;
+		const url = make_trackable(
+			new URL('https://svelte.dev/docs/kit'),
+			() => {
+				tracked = true;
+			},
+			() => {},
+			true
+		);
+
+		url.hash;
+		assert.ok(tracked);
+	});
+
+	test('track each search param separately if accessed directly', () => {
+		let tracked = false;
+		const tracked_search_params = new Set();
+		const url = make_trackable(
+			new URL('https://svelte.dev/docs/kit'),
+			() => {
+				tracked = true;
+			},
+			(search_param) => {
+				tracked_search_params.add(search_param);
+			}
+		);
+
+		url.searchParams.get('test');
+		assert.ok(!tracked);
+		assert.ok(tracked_search_params.has('test'));
+
+		url.searchParams.getAll('test-getall');
+		assert.ok(!tracked);
+		assert.ok(tracked_search_params.has('test-getall'));
+
+		url.searchParams.has('test-has');
+		assert.ok(!tracked);
+		assert.ok(tracked_search_params.has('test-has'));
+
+		url.searchParams.entries();
+		assert.ok(tracked);
+	});
+
+	test('tracks search params when using has(name, value) overload', () => {
+		let tracked = false;
+		const tracked_search_params = new Set();
+		const url = make_trackable(
+			new URL('https://svelte.dev/docs/kit?foo=1&foo=2'),
+			() => {
+				tracked = true;
+			},
+			(search_param) => {
+				tracked_search_params.add(search_param);
+			}
+		);
+
+		// has(name, value) should track the param and return correct result
+		assert.equal(url.searchParams.has('foo', '1'), true);
+		assert.ok(!tracked);
+		assert.ok(tracked_search_params.has('foo'));
+
+		// value argument should be forwarded correctly (not just checking name existence)
+		assert.equal(url.searchParams.has('foo', '3'), false);
+		assert.ok(!tracked);
+	});
+});
+
+describe('disable_search', (test) => {
+	test('throws an error when its search property is accessed', () => {
+		const url = new URL('https://svelte.dev/docs/kit');
+		disable_search(url);
+
+		/** @type {Array<keyof URL>} */
+		const props = ['search', 'searchParams'];
+		props.forEach((prop) => {
+			expect(() => url[prop]).toThrowKitError('url_search_unavailable_prerender', {
+				contains: [`url.${prop}`]
+			});
+		});
+	});
+});

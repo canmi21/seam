@@ -1,0 +1,10 @@
+{
+	"extends": "$app/tsconfig",
+	"compilerOptions": {
+		"paths": {
+			"@sveltejs/kit": ["../../../../../exports/public"],
+			"types": ["../../../../../types/internal"],
+			"$app/paths/types.js": ["../../../../../runtime/app/paths/types.d.ts"]
+		}
+	}
+}

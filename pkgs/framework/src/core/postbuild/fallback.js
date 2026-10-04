@@ -1,0 +1,48 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { forked } from '../../utils/fork.js';
+import * as e from '../../messages/build-errors.js';
+
+export default forked(import.meta.url, generate_fallback);
+
+/**
+ * @param {{
+ *   manifest_path: string;
+ *   env: Record<string, string>
+ *   out_dir: string;
+ *   origin: string;
+ *   assets: string;
+ * }} opts
+ */
+async function generate_fallback({ manifest_path, env, out_dir, origin, assets }) {
+	const server_root = join(out_dir, 'output');
+
+	/** @type {import('types').ServerModule} */
+	const { configure } = await import(pathToFileURL(`${server_root}/server/index.js`).href);
+
+	/** @type {import('types').SSRManifest} */
+	const manifest = (await import(pathToFileURL(manifest_path).href)).manifest;
+
+	const { init, respond } = await configure({ building: true, manifest, env });
+	await init();
+
+	const response = await respond(new Request(origin + '/[fallback]'), {
+		getClientAddress: () => {
+			e.prerender_client_address();
+		},
+		prerendering: {
+			fallback: true,
+			dependencies: new Map(),
+			remote_responses: new Map(),
+			resolved_route_ids: new Set()
+		},
+		read: (file) => readFileSync(join(assets, file))
+	});
+
+	if (response.ok) {
+		return await response.text();
+	}
+
+	e.prerender_fallback_failed(undefined, { stackless: true });
+}

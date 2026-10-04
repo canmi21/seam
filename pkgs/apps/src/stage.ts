@@ -27,7 +27,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 export const pkg = resolve(here, '..');
 const need = createRequire(import.meta.url);
 export const vendor = resolve(dirname(need.resolve('@sveltejs/kit/package.json')));
-const plugin = need.resolve('@canmi/seamjs');
+const plugin = need.resolve('@seam-js/plugin');
 export const bin = resolve(pkg, 'node_modules/.bin');
 
 export interface Staged {

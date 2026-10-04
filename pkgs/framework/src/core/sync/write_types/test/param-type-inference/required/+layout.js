@@ -1,0 +1,20 @@
+/* eslint-disable */
+
+/** @type {import('../.svelte-kit/types/required/$types').LayoutLoad} */
+export function load({ params }) {
+	if (params.narrowedParam) {
+		/** @type {"a" | "b"} */
+		const a = params.narrowedParam;
+	}
+
+	if (params.regularParam) {
+		/** @type {"a" | "b"} */
+		let a;
+
+		//@ts-expect-error
+		a = params.regularParam;
+
+		/** @type {boolean} b */
+		const b = params.regularParam;
+	}
+}

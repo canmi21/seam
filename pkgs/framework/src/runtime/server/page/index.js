@@ -1,0 +1,376 @@
+/** @import { RequestEvent } from '@sveltejs/kit' */
+/** @import { PageNodeIndexes, RequestState, RequiredResolveOptions, ServerDataNode, SSRNode } from 'types' */
+import { text } from '@sveltejs/kit';
+import { Redirect } from '@sveltejs/kit/internal';
+import { compact } from '../../../utils/array.js';
+import { get_status, normalize_error } from '../../../utils/error.js';
+import { noop } from '../../../utils/functions.js';
+import { add_data_suffix } from '../../pathname.js';
+import { build_error_chain, nearest_error_pages } from '../../error-chain.js';
+import { redirect_response } from '../utils.js';
+import { manifest } from '../internal.js';
+import { handle_error_and_jsonify } from '../errors.js';
+import {
+	handle_action_json_request,
+	handle_action_request,
+	is_action_json_request,
+	is_action_request
+} from './actions.js';
+import { server_data_serializer, server_data_serializer_json } from './data_serializer.js';
+import { load_data, load_server_data } from './load_data.js';
+import { render_response } from './render.js';
+import { DEV } from 'esm-env';
+import { get_remote_action, handle_remote_form_post } from '../remote-functions.js';
+import { PageNodes } from '../../../utils/page_nodes.js';
+import { static_error_page, respond_with_error } from './respond_with_error.js';
+import * as e from '../../../messages/server-errors.js';
+import * as w from '../../../messages/server-warnings.js';
+
+/**
+ * The maximum request depth permitted before assuming we're stuck in an infinite loop
+ */
+const MAX_DEPTH = 10;
+
+/**
+ * @param {RequestEvent} event
+ * @param {RequestState} state
+ * @param {PageNodeIndexes} page
+ * @param {import('../../../utils/page_nodes.js').PageNodes} nodes
+ * @param {RequiredResolveOptions} resolve_opts
+ * @returns {Promise<Response>}
+ */
+export async function render_page(event, state, page, nodes, resolve_opts) {
+	if (state.depth > MAX_DEPTH) {
+		// infinite request cycle detected
+		return text(`Not found: ${event.url.pathname}`, {
+			status: 404 // TODO in some cases this should be 500. not sure how to differentiate
+		});
+	}
+
+	if (is_action_json_request(event)) {
+		const node = await manifest.nodes[page.leaf]();
+		return handle_action_json_request(event, state, node?.server);
+	}
+
+	try {
+		const leaf_node = /** @type {SSRNode} */ (nodes.page());
+
+		let status = 200;
+
+		/** @type {import('types').ServerActionResult | undefined} */
+		let action_result = undefined;
+
+		if (is_action_request(event)) {
+			const remote_id = get_remote_action(event.url);
+			if (remote_id) {
+				action_result = await handle_remote_form_post(event, state, remote_id);
+			} else {
+				// for action requests, first call handler in +page.server.js
+				// (this also determines status code)
+				action_result = await handle_action_request(event, state, leaf_node.server);
+			}
+
+			if (action_result?.type === 'redirect') {
+				return redirect_response(action_result.status, action_result.location);
+			}
+			if (action_result?.type === 'error') {
+				status = get_status(action_result.error);
+			}
+			if (action_result?.type === 'failure') {
+				status = action_result.status;
+			}
+		}
+
+		// it's crucial that we do this before returning the non-SSR response, otherwise
+		// SvelteKit will erroneously believe that the path has been prerendered,
+		// causing functions to be omitted from the manifest generated later
+		const should_prerender = nodes.prerender();
+		if (should_prerender) {
+			const mod = leaf_node.server;
+			if (mod?.actions) {
+				e.prerender_actions();
+			}
+		} else if (state.prerendering) {
+			// if the page isn't marked as prerenderable, then bail out at this point
+			return new Response(undefined, {
+				status: 204
+			});
+		}
+
+		// if we fetch any endpoints while loading data for this page, they should
+		// inherit the prerender option of the page
+		state.prerender_default = should_prerender;
+
+		const should_prerender_data = nodes.should_prerender_data();
+		const data_pathname = add_data_suffix(event.url.pathname);
+
+		/** @type {import('./types.js').Fetched[]} */
+		const fetched = [];
+
+		const ssr = nodes.ssr();
+		const csr = nodes.csr();
+
+		// renders an empty 'shell' page if SSR is turned off and if there is
+		// no server data to prerender. As a result, the load functions and rendering
+		// only occur client-side.
+		if (
+			ssr === false &&
+			!((state.prerendering || state.prerender_default === true) && should_prerender_data)
+		) {
+			// if the user makes a request through a non-enhanced form, the returned value is lost
+			// because there is no SSR or client-side handling of the response
+			if (DEV && action_result && !event.request.headers.has('x-sveltekit-action')) {
+				if (action_result.type === 'error') {
+					w.form_action_error_without_ssr();
+				} else if (action_result.data) {
+					/// case: lost data
+					w.form_action_data_without_ssr();
+				}
+			}
+
+			return await render_response({
+				// provide nodes without running load functions so that the styles and
+				// fonts are linked in the head before CSR takes over
+				branch: compact(nodes.data).map((node) => {
+					return {
+						node,
+						data: null,
+						server_data: null
+					};
+				}),
+				fetched,
+				page_config: {
+					ssr: false,
+					csr
+				},
+				status,
+				error: null,
+				event,
+				state,
+				resolve_opts,
+				data_serializer: server_data_serializer(event, state)
+			});
+		}
+
+		/** @type {Array<import('./types.js').Loaded | null>} */
+		const branch = [];
+
+		/** @type {Error | null} */
+		let load_error = null;
+
+		const data_serializer = server_data_serializer(event, state);
+		const data_serializer_json =
+			(state.prerendering || state.prerender_default === true) && should_prerender_data
+				? server_data_serializer_json(event, state)
+				: null;
+
+		/** @type {Array<Promise<ServerDataNode | null>>} */
+		const server_promises = nodes.data.map((node, i) => {
+			if (load_error) {
+				// if an error happens immediately, don't bother with the rest of the nodes
+				throw load_error;
+			}
+
+			return Promise.resolve().then(async () => {
+				try {
+					if (node === leaf_node && action_result?.type === 'error') {
+						// we wait until here to throw the error so that we can use
+						// any nested +error.svelte components that were defined
+						throw action_result.error;
+					}
+
+					const server_data = await load_server_data({
+						event,
+						state,
+						node,
+						parent: async () => {
+							/** @type {Record<string, any>} */
+							const data = {};
+							for (let j = 0; j < i; j += 1) {
+								const parent = await server_promises[j];
+								if (parent) Object.assign(data, parent.data);
+							}
+							return data;
+						}
+					});
+
+					if (node) {
+						data_serializer.add_node(i, server_data);
+					}
+
+					data_serializer_json?.add_node(i, server_data);
+
+					return server_data;
+				} catch (e) {
+					load_error = /** @type {Error} */ (e);
+					throw load_error;
+				}
+			});
+		});
+
+		/** @type {Array<Promise<Record<string, any> | null>>} */
+		const load_promises = nodes.data.map((node, i) => {
+			if (load_error) throw load_error;
+			return Promise.resolve().then(async () => {
+				try {
+					return await load_data({
+						event,
+						state,
+						fetched,
+						node,
+						parent: async () => {
+							const data = {};
+							for (let j = 0; j < i; j += 1) {
+								Object.assign(data, await load_promises[j]);
+							}
+							return data;
+						},
+						resolve_opts,
+						server_data_promise: server_promises[i],
+						csr
+					});
+				} catch (e) {
+					load_error = /** @type {Error} */ (e);
+					throw load_error;
+				}
+			});
+		});
+
+		// if we don't do this, rejections will be unhandled
+		for (const p of server_promises) p.catch(noop);
+		for (const p of load_promises) p.catch(noop);
+
+		for (let i = 0; i < nodes.data.length; i += 1) {
+			const node = nodes.data[i];
+
+			if (node) {
+				try {
+					const server_data = await server_promises[i];
+					const data = await load_promises[i];
+
+					branch.push({ node, server_data, data });
+				} catch (e) {
+					const err = normalize_error(e);
+
+					if (err instanceof Redirect) {
+						if (state.prerendering && should_prerender_data) {
+							const body = JSON.stringify({
+								type: 'redirect',
+								status: err.status,
+								location: err.location
+							});
+
+							state.prerendering.dependencies.set(data_pathname, {
+								response: text(body),
+								body
+							});
+						}
+
+						return redirect_response(err.status, err.location);
+					}
+
+					const error = await handle_error_and_jsonify(event, state, err);
+					const status = error.status;
+
+					for (const { error: index, idx } of nearest_error_pages(i, branch, page.errors)) {
+						const node = await manifest.nodes[index]();
+
+						data_serializer.set_max_nodes(idx);
+
+						const layouts = compact(branch.slice(0, idx));
+						const nodes = new PageNodes(layouts.map((layout) => layout.node));
+						const error_branch = layouts.concat({
+							node,
+							data: null,
+							server_data: null
+						});
+
+						return await render_response({
+							event,
+							state,
+							resolve_opts,
+							page_config: {
+								ssr: nodes.ssr(),
+								csr: nodes.csr()
+							},
+							status,
+							error,
+							error_components: await load_error_components(ssr, error_branch, page),
+							branch: error_branch,
+							fetched,
+							data_serializer
+						});
+					}
+
+					// if we're still here, it means the error happened in the root layout,
+					// which means we have to fall back to error.html
+					return static_error_page(status, error.message);
+				}
+			} else {
+				// push an empty slot so we can rewind past gaps to the
+				// layout that corresponds with an +error.svelte page
+				branch.push(null);
+			}
+		}
+
+		if (state.prerendering && data_serializer_json) {
+			// ndjson format
+			let { data, chunks } = data_serializer_json.get_data();
+
+			if (chunks) {
+				for await (const chunk of chunks) {
+					data += chunk;
+				}
+			}
+
+			state.prerendering.dependencies.set(data_pathname, {
+				response: text(data),
+				body: data
+			});
+		}
+
+		return await render_response({
+			event,
+			state,
+			resolve_opts,
+			page_config: {
+				csr,
+				ssr
+			},
+			status,
+			error: null,
+			branch: compact(branch),
+			action_result,
+			fetched,
+			data_serializer: !ssr ? server_data_serializer(event, state) : data_serializer,
+			error_components: await load_error_components(ssr, branch, page)
+		});
+	} catch (e) {
+		// a remote function could have thrown a redirect during render
+		if (e instanceof Redirect) {
+			return redirect_response(e.status, e.location);
+		}
+
+		// if we end up here, it means the data loaded successfully
+		// but the page failed to render, or that a prerendering error occurred
+		return await respond_with_error({
+			event,
+			state,
+			error: e,
+			resolve_opts
+		});
+	}
+}
+
+/**
+ * @param {boolean} ssr
+ * @param {Array<import('./types.js').Loaded | null>} branch
+ * @param {PageNodeIndexes} page
+ */
+function load_error_components(ssr, branch, page) {
+	if (!ssr) return undefined;
+
+	return build_error_chain(branch, page.errors, (idx) =>
+		manifest.nodes[idx]?.().then((e) => e.component?.())
+	);
+}

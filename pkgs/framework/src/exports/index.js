@@ -1,0 +1,328 @@
+/** @import { StandardSchemaV1 } from '@standard-schema/spec' */
+import { HttpError, Redirect, ActionFailure, ValidationError } from './internal/shared.js';
+import { BROWSER, DEV } from 'esm-env';
+import {
+	add_data_suffix,
+	add_resolution_suffix,
+	has_data_suffix,
+	has_resolution_suffix,
+	strip_data_suffix,
+	strip_resolution_suffix
+} from '../pathname.js';
+import { validate_redirect_location } from './url.js';
+import * as e from '../messages/shared-errors.js';
+import * as w from '../messages/shared-warnings.js';
+
+const text_encoder = new TextEncoder();
+
+export { VERSION } from '../version.js';
+
+// Keep the status codes as `number` because restricting to certain numbers makes it unnecessarily hard to use compared to the benefits
+// (we have runtime errors already to check for invalid codes). Also see https://github.com/sveltejs/kit/issues/11780
+
+// we have to repeat the JSDoc because the display for function overloads is broken
+// see https://github.com/microsoft/TypeScript/issues/55056
+
+/**
+ * Throws an error with a HTTP status code and an optional message.
+ * When called during request handling, this will cause SvelteKit to
+ * return an error response; the error will be passed to `handleError` as an _expected_ error.
+ * Make sure you're not catching the thrown error, which would prevent SvelteKit from handling it.
+ * @param {number} status The [HTTP status code](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#client_error_responses). Must be in the range 400-599.
+ * @param {string} [message] The error message.
+ * @overload
+ * @param {{ status: number; message: string } extends App.Error ? number : never} status
+ * @param {{ status: number; message: string } extends App.Error ? string : never} [message]
+ * @return {never}
+ * @throws {import('./public.js').HttpError} This error instructs SvelteKit to initiate HTTP error handling.
+ * @throws {Error} If the provided status is invalid (not between 400 and 599).
+ */
+/**
+ * Throws an error with a HTTP status code and an optional message.
+ * When called during request handling, this will cause SvelteKit to
+ * return an error response; the error will be passed to `handleError` as an _expected_ error.
+ * Make sure you're not catching the thrown error, which would prevent SvelteKit from handling it.
+ * @param {number} status The [HTTP status code](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#client_error_responses). Must be in the range 400-599.
+ * @param {string} message The error message.
+ * @param {keyof Omit<App.Error, 'status' | 'message'> extends never ? never : Omit<App.Error, 'status' | 'message'>} properties Additional properties of the App.Error type.
+ * @overload
+ * @param {number} status
+ * @param {string} message
+ * @param {keyof Omit<App.Error, 'status' | 'message'> extends never ? never : Omit<App.Error, 'status' | 'message'>} properties
+ * @return {never}
+ * @throws {import('./public.js').HttpError} This error instructs SvelteKit to initiate HTTP error handling.
+ * @throws {Error} If the provided status is invalid (not between 400 and 599).
+ */
+/**
+ * Throws an error with a HTTP status code and an optional message.
+ * When called during request handling, this will cause SvelteKit to
+ * return an error response; the error will be passed to `handleError` as an _expected_ error.
+ * Make sure you're not catching the thrown error, which would prevent SvelteKit from handling it.
+ * @deprecated Passing an `App.Error` body as the second argument is deprecated — pass the `message` as the second argument, and any additional properties as the third
+ * @param {number} status The [HTTP status code](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#client_error_responses). Must be in the range 400-599.
+ * @param {Omit<App.Error, 'status'> & { status?: App.Error['status'] }} body An object that conforms to the App.Error type. If a string is passed, it will be used as the message property.
+ * @overload
+ * @param {number} status
+ * @param {Omit<App.Error, 'status'> & { status?: App.Error['status'] }} properties
+ * @return {never}
+ * @throws {import('./public.js').HttpError} This error instructs SvelteKit to initiate HTTP error handling.
+ * @throws {Error} If the provided status is invalid (not between 400 and 599).
+ */
+/**
+ * Throws an error with a HTTP status code and an optional message.
+ * When called during request handling, this will cause SvelteKit to
+ * return an error response; the error will be passed to `handleError` as an _expected_ error.
+ * Make sure you're not catching the thrown error, which would prevent SvelteKit from handling it.
+ * @param {any} status The [HTTP status code](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#client_error_responses). Must be in the range 400-599.
+ * @param {any} [message] A string, or (deprecated) a partial App.Error object
+ * @param {any} [properties] Additional properties of the App.Error type when passing a string message.
+ * @return {never}
+ * @throws {import('./public.js').HttpError} This error instructs SvelteKit to initiate HTTP error handling.
+ * @throws {Error} If the provided status is invalid (not between 400 and 599).
+ */
+export function error(status, message, properties) {
+	if ((!BROWSER || DEV) && (isNaN(status) || status < 400 || status > 599)) {
+		e.invalid_error_status({ status: String(status) });
+	}
+
+	if (message !== undefined && typeof message !== 'string') {
+		if (DEV) {
+			w.error_body_deprecated();
+		}
+
+		({ message, ...properties } = message);
+	}
+
+	throw new HttpError({ ...properties, status, message: message ?? `Error: ${status}` });
+}
+
+/**
+ * Checks whether this is an error thrown by {@link error}.
+ * @template {number} T
+ * @param {unknown} e
+ * @param {T} [status] The status to filter for.
+ * @return {e is (import('./public.js').HttpError & { status: T extends undefined ? never : T })}
+ */
+export function isHttpError(e, status) {
+	if (!(e instanceof HttpError)) return false;
+	return !status || e.status === status;
+}
+
+/**
+ * Redirect a request. When called during request handling, SvelteKit will return a redirect response.
+ * Make sure you're not catching the thrown redirect, which would prevent SvelteKit from handling it.
+ *
+ * Most common status codes:
+ *  * `303 See Other`: redirect as a GET request (often used after a form POST request)
+ *  * `307 Temporary Redirect`: redirect will keep the request method
+ *  * `308 Permanent Redirect`: redirect will keep the request method, SEO will be transferred to the new page
+ *
+ * [See all redirect status codes](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#redirection_messages)
+ *
+ * @param {300 | 301 | 302 | 303 | 304 | 305 | 306 | 307 | 308 | ({} & number)} status The [HTTP status code](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#redirection_messages). Must be in the range 300-308.
+ * @param {string | URL} location The location to redirect to.
+ * @param {{ external?: boolean | string[] }} [options] To redirect to an external URL, you must pass `{ external: true }` to allow any external URL except `javascript:` URLs, or `{ external: [...] }` with an allowlist of permitted origins.
+ * @throws {import('./public.js').Redirect} This error instructs SvelteKit to redirect to the specified location.
+ * @throws {Error} If the provided status is invalid, the location cannot be used as a header value, or the location is an external URL without permission.
+ * @return {never}
+ */
+export function redirect(status, location, options) {
+	if ((!BROWSER || DEV) && (isNaN(status) || status < 300 || status > 308)) {
+		e.invalid_redirect_status({ status: String(status) });
+	}
+
+	const href = location.toString();
+	validate_redirect_location(href, options);
+
+	throw new Redirect(
+		// @ts-ignore
+		status,
+		href
+	);
+}
+
+/**
+ * Checks whether this is a redirect thrown by {@link redirect}.
+ * @param {unknown} e The object to check.
+ * @return {e is import('./public.js').Redirect}
+ */
+export function isRedirect(e) {
+	return e instanceof Redirect;
+}
+
+/**
+ * Create a JSON `Response` object from the supplied data.
+ * @param {any} data The value that will be serialized as JSON.
+ * @param {ResponseInit} [init] Options such as `status` and `headers` that will be added to the response. `Content-Type: application/json` and `Content-Length` headers will be added automatically.
+ * @deprecated use `Response.json`
+ */
+export function json(data, init) {
+	const body = JSON.stringify(data);
+
+	// we can't just do `text(JSON.stringify(data), init)` because
+	// it will set a default `content-type` header. duplicated code
+	// means less duplicated work
+	const headers = new Headers(init?.headers);
+	if (!headers.has('content-length')) {
+		headers.set('content-length', text_encoder.encode(body).byteLength.toString());
+	}
+
+	if (!headers.has('content-type')) {
+		headers.set('content-type', 'application/json');
+	}
+
+	return new Response(body, {
+		...init,
+		headers
+	});
+}
+
+/**
+ * Create a `Response` object from the supplied body.
+ * @param {string} body The value that will be used as-is.
+ * @param {ResponseInit} [init] Options such as `status` and `headers` that will be added to the response. A `Content-Length` header will be added automatically.
+ * @deprecated use `new Response`
+ */
+export function text(body, init) {
+	const headers = new Headers(init?.headers);
+	if (!headers.has('content-length')) {
+		const encoded = text_encoder.encode(body);
+		headers.set('content-length', encoded.byteLength.toString());
+		return new Response(encoded, {
+			...init,
+			headers
+		});
+	}
+
+	return new Response(body, {
+		...init,
+		headers
+	});
+}
+
+/**
+ * Create an `ActionFailure` object. Call when form submission fails.
+ * @param {number} status The [HTTP status code](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#client_error_responses). Must be in the range 400-599.
+ * @overload
+ * @param {number} status
+ * @returns {import('./public.js').ActionFailure<undefined>}
+ */
+/**
+ * Create an `ActionFailure` object. Call when form submission fails.
+ * @template [T=undefined]
+ * @param {number} status The [HTTP status code](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#client_error_responses). Must be in the range 400-599.
+ * @param {T} data Data associated with the failure (e.g. validation errors)
+ * @overload
+ * @param {number} status
+ * @param {T} data
+ * @returns {import('./public.js').ActionFailure<T>}
+ */
+/**
+ * Create an `ActionFailure` object. Call when form submission fails.
+ * @param {number} status
+ * @param {any} [data]
+ * @returns {import('./public.js').ActionFailure<any>}
+ */
+export function fail(status, data) {
+	// @ts-expect-error unique symbol missing
+	return new ActionFailure(status, data);
+}
+
+/**
+ * Checks whether this is an action failure thrown by {@link fail}.
+ * @param {unknown} e The object to check.
+ * @return {e is import('./public.js').ActionFailure}
+ */
+export function isActionFailure(e) {
+	return e instanceof ActionFailure;
+}
+
+/**
+ * Use this to throw a validation error to imperatively fail form validation.
+ * Can be used in combination with `issue` passed to form actions to create field-specific issues.
+ *
+ * @example
+ * ```ts
+ * import { invalid } from '@sveltejs/kit';
+ * import { form } from '$app/server';
+ * import { tryLogin } from '#lib/server/auth';
+ * import * as v from 'valibot';
+ *
+ * export const login = form(
+ *   v.object({ name: v.string(), _password: v.string() }),
+ *   async ({ name, _password }) => {
+ *     const success = tryLogin(name, _password);
+ *     if (!success) {
+ *       invalid('Incorrect username or password');
+ *     }
+ *
+ *     // ...
+ *   }
+ * );
+ * ```
+ * @param  {...(StandardSchemaV1.Issue | string)} issues
+ * @returns {never}
+ * @since 2.47.3
+ */
+export function invalid(...issues) {
+	throw new ValidationError(
+		issues.map((issue) => (typeof issue === 'string' ? { message: issue } : issue))
+	);
+}
+
+/**
+ * Checks whether this is a validation error thrown by {@link invalid}.
+ * @param {unknown} e The object to check.
+ * @return {e is import('./public.js').ValidationError}
+ * @since 2.47.3
+ */
+export function isValidationError(e) {
+	return e instanceof ValidationError;
+}
+
+/**
+ * Strips possible SvelteKit-internal suffixes and trailing slashes from the URL pathname.
+ * Returns the normalized URL as well as a method for adding the potential suffix back
+ * based on a new pathname (possibly including search) or URL.
+ * ```js
+ * import { normalizeUrl } from '@sveltejs/kit';
+ *
+ * const { url, denormalize } = normalizeUrl('/blog/post/__data.json');
+ * console.log(url.pathname); // /blog/post
+ * console.log(denormalize('/blog/post/a')); // /blog/post/a/__data.json
+ * ```
+ * @param {URL | string} url
+ * @returns {{ url: URL, wasNormalized: boolean, denormalize: (url?: string | URL) => URL }}
+ * @since 2.18.0
+ */
+export function normalizeUrl(url) {
+	url = new URL(url, 'a://a');
+
+	const is_route_resolution = has_resolution_suffix(url.pathname);
+	const is_data_request = has_data_suffix(url.pathname);
+	const has_trailing_slash = url.pathname !== '/' && url.pathname.endsWith('/');
+
+	if (is_route_resolution) {
+		url.pathname = strip_resolution_suffix(url.pathname);
+	} else if (is_data_request) {
+		url.pathname = strip_data_suffix(url.pathname);
+	} else if (has_trailing_slash) {
+		url.pathname = url.pathname.slice(0, -1);
+	}
+
+	return {
+		url,
+		wasNormalized: is_data_request || is_route_resolution || has_trailing_slash,
+		denormalize: (new_url = url) => {
+			new_url = new URL(new_url, url);
+			if (is_route_resolution) {
+				new_url.pathname = add_resolution_suffix(new_url.pathname);
+			} else if (is_data_request) {
+				new_url.pathname = add_data_suffix(new_url.pathname);
+			} else if (has_trailing_slash && !new_url.pathname.endsWith('/')) {
+				new_url.pathname += '/';
+			}
+			return new_url;
+		}
+	};
+}

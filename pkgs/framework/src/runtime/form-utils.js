@@ -1,0 +1,933 @@
+/** @import { BinaryFormMeta, InternalRemoteFormIssue } from 'types' */
+/** @import { StandardSchemaV1 } from '@standard-schema/spec' */
+
+import { DEV } from 'esm-env';
+import * as devalue from 'devalue';
+import { stream_from_iterable, text_decoder, text_encoder } from './utils.js';
+import { noop } from '../utils/functions.js';
+import { SvelteKitError } from '@sveltejs/kit/internal';
+import * as e from '../messages/shared-errors.js';
+import * as w from '../messages/shared-warnings.js';
+
+/**
+ * Sets a parsed form field value in a nested object, mutating the original object.
+ * @param {Record<string, any>} object
+ * @param {{ name: string; type: 'number' | 'boolean' | null }} field
+ * @param {any} value
+ */
+export function set_nested_value(object, field, value) {
+	deep_set(object, split_path(field.name), value);
+}
+
+/**
+ * Separates a form field's path from the metadata encoded in its name.
+ * @param {string} form_id
+ * @param {string} key
+ * @returns {{ name: string; type: 'number' | 'boolean' | null; is_array: boolean }}
+ */
+export function parse_form_key(form_id, key) {
+	const suffix = '/' + form_id;
+	let name = key;
+	let image_coordinate = '';
+
+	if (name.startsWith('i:') && (name.endsWith(suffix + '.x') || name.endsWith(suffix + '.y'))) {
+		image_coordinate = name[name.length - 1];
+		name = name.slice(0, -2);
+	}
+
+	if (!name.endsWith(suffix)) {
+		e.form_field_unbound({ name });
+	}
+
+	name = name.slice(0, -suffix.length);
+
+	/** @type {'number' | 'boolean' | null} */
+	let type = null;
+
+	if (name.startsWith('n:')) {
+		name = name.slice(2);
+		type = 'number';
+	} else if (name.startsWith('b:')) {
+		name = name.slice(2);
+		type = 'boolean';
+	} else if (name.startsWith('i:')) {
+		name = name.slice(2);
+		type = 'number';
+	}
+
+	const is_array = name.endsWith('[]');
+	if (is_array) name = name.slice(0, -2);
+	if (image_coordinate) name += '.' + image_coordinate;
+
+	return { name, type, is_array };
+}
+
+/**
+ * @param {'number' | 'boolean' | null} type
+ * @param {any} value
+ * @returns {any}
+ */
+export function coerce_form_value(type, value) {
+	if (Array.isArray(value)) return value.map((value) => coerce_form_value(type, value));
+	if (type === 'number') return value === '' ? undefined : parseFloat(value);
+	if (type === 'boolean') return value === 'on';
+	return value;
+}
+
+/** Pass this to set_nested_value to delete the last part of the given path */
+export const DELETE_KEY = {};
+
+/**
+ * Convert `FormData` into a POJO
+ * @param {string} form_id
+ * @param {FormData} data
+ */
+export function convert_formdata(form_id, data) {
+	/** @type {Record<string, any>} */
+	const result = {};
+
+	for (const field_name of data.keys()) {
+		/** @type {any[]} */
+		const values = data.getAll(field_name);
+
+		const field = parse_form_key(form_id, field_name);
+
+		// an empty `<input type="file">` will submit a non-existent file, bizarrely
+		const entries = values.filter(
+			(entry) => typeof entry === 'string' || entry.name !== '' || entry.size > 0
+		);
+		if (entries.length === 0 && !field.is_array) continue;
+
+		if (entries.length > 1 && !field.is_array) {
+			e.form_field_duplicate({ name: field.name, count: String(entries.length) });
+		}
+
+		set_nested_value(
+			result,
+			field,
+			coerce_form_value(field.type, field.is_array ? entries : entries[0])
+		);
+	}
+
+	return result;
+}
+
+export const BINARY_FORM_CONTENT_TYPE = 'application/x-sveltekit-formdata';
+const BINARY_FORM_VERSION = 0;
+const HEADER_BYTES = 1 + 4 + 2;
+/**
+ * The binary format is as follows:
+ * - 1 byte: Format version
+ * - 4 bytes: Length of the header (u32)
+ * - 2 bytes: Length of the file offset table (u16)
+ * - header: devalue.stringify([data, meta])
+ * - file offset table: JSON.stringify([offset1, offset2, ...]) (empty if no files) (offsets start from the end of the table)
+ * - file1, file2, ...
+ * @param {Record<string, any>} data
+ * @param {BinaryFormMeta} meta
+ */
+export function serialize_binary_form(data, meta) {
+	/** @type {Array<BlobPart>} */
+	const blob_parts = [new Uint8Array([BINARY_FORM_VERSION])];
+
+	/** @type {Array<[file: File, index: number]>} */
+	const files = [];
+
+	const encoded_header = devalue.stringify([data, meta], {
+		File: (file) => {
+			if (!(file instanceof File)) return;
+
+			files.push([file, files.length]);
+			return [file.name, file.type, file.size, file.lastModified, files.length - 1];
+		}
+	});
+
+	const encoded_header_buffer = text_encoder.encode(encoded_header);
+
+	let encoded_file_offsets = '';
+	if (files.length) {
+		// Sort small files to the front
+		files.sort(([a], [b]) => a.size - b.size);
+
+		/** @type {Array<number>} */
+		const file_offsets = new Array(files.length);
+		let start = 0;
+		for (const [file, index] of files) {
+			file_offsets[index] = start;
+			start += file.size;
+		}
+		encoded_file_offsets = JSON.stringify(file_offsets);
+	}
+
+	const length_buffer = new Uint8Array(4);
+	const length_view = new DataView(length_buffer.buffer);
+
+	length_view.setUint32(0, encoded_header_buffer.byteLength, true);
+	blob_parts.push(length_buffer.slice());
+
+	length_view.setUint16(0, encoded_file_offsets.length, true);
+	blob_parts.push(length_buffer.slice(0, 2));
+
+	blob_parts.push(encoded_header_buffer);
+	blob_parts.push(encoded_file_offsets);
+
+	for (const [file] of files) {
+		blob_parts.push(file);
+	}
+
+	return {
+		blob: new Blob(blob_parts)
+	};
+}
+
+/**
+ * @param {Request} request
+ * @param {string} form_id
+ * @returns {Promise<{ data: Record<string, any>; meta: BinaryFormMeta; form_data: FormData | null }>}
+ */
+export async function deserialize_binary_form(request, form_id) {
+	if (request.headers.get('content-type') !== BINARY_FORM_CONTENT_TYPE) {
+		const form_data = await request.formData();
+		return { data: convert_formdata(form_id, form_data), meta: {}, form_data };
+	}
+	if (!request.body) {
+		throw deserialize_error('no body');
+	}
+
+	const reader = request.body.getReader();
+
+	/** @type {Array<Promise<Uint8Array<ArrayBuffer> | undefined>>} */
+	const chunks = [];
+
+	/**
+	 * @param {number} index
+	 * @returns {Promise<Uint8Array<ArrayBuffer> | undefined>}
+	 */
+	function get_chunk(index) {
+		if (index in chunks) return chunks[index];
+
+		let i = chunks.length;
+		while (i <= index) {
+			// chain reads so only one is ever pending — workerd forbids concurrent reads
+			const previous = chunks[i - 1] ?? Promise.resolve(undefined);
+			chunks[i] = previous.then(() => reader.read()).then((chunk) => chunk.value);
+			i++;
+		}
+		return chunks[index];
+	}
+
+	/**
+	 * @param {number} offset
+	 * @param {number} length
+	 * @returns {Promise<Uint8Array | null>}
+	 */
+	async function get_buffer(offset, length) {
+		/** @type {Uint8Array<ArrayBuffer>[]} */
+		const parts = [];
+		let total = 0;
+		for await (const part of read_range(get_chunk, offset, length)) {
+			parts.push(part);
+			total += part.byteLength;
+		}
+		if (total < length || parts.length === 0) return null;
+		// If the buffer is completely contained in one chunk, return the subarray as-is
+		if (parts.length === 1) return parts[0];
+
+		const buffer = new Uint8Array(length);
+		let cursor = 0;
+		for (const part of parts) {
+			buffer.set(part, cursor);
+			cursor += part.byteLength;
+		}
+		return buffer;
+	}
+
+	const header = await get_buffer(0, HEADER_BYTES);
+	if (!header) throw deserialize_error('too short');
+
+	if (header[0] !== BINARY_FORM_VERSION) {
+		throw deserialize_error(`got version ${header[0]}, expected version ${BINARY_FORM_VERSION}`);
+	}
+	const header_view = new DataView(header.buffer, header.byteOffset, header.byteLength);
+	const data_length = header_view.getUint32(1, true);
+	const file_offsets_length = header_view.getUint16(5, true);
+
+	// Validation uses embedded binary header fields (data_length, file_offsets_length)
+	// rather than Content-Length, which proxies/middleboxes may strip or corrupt.
+	// See: https://github.com/sveltejs/kit/issues/15299
+
+	// Read the form data
+	const data_buffer = await get_buffer(HEADER_BYTES, data_length);
+	if (!data_buffer) throw deserialize_error('data too short');
+
+	/** @type {Array<number | undefined>} */
+	let file_offsets;
+	/** @type {number} */
+	let files_start_offset;
+	if (file_offsets_length > 0) {
+		// Read the file offset table
+		const file_offsets_buffer = await get_buffer(HEADER_BYTES + data_length, file_offsets_length);
+		if (!file_offsets_buffer) throw deserialize_error('file offset table too short');
+
+		const parsed_offsets = JSON.parse(text_decoder.decode(file_offsets_buffer));
+
+		if (
+			!Array.isArray(parsed_offsets) ||
+			parsed_offsets.some((n) => typeof n !== 'number' || !Number.isInteger(n) || n < 0)
+		) {
+			throw deserialize_error('invalid file offset table');
+		}
+
+		file_offsets = /** @type {Array<number>} */ (parsed_offsets);
+		files_start_offset = HEADER_BYTES + data_length + file_offsets_length;
+	}
+
+	/** @type {Array<{ offset: number, size: number }>} */
+	const file_spans = [];
+	const [data, meta] = devalue.parse(text_decoder.decode(data_buffer), {
+		File: ([name, type, size, last_modified, index]) => {
+			if (
+				typeof name !== 'string' ||
+				typeof type !== 'string' ||
+				!Number.isSafeInteger(size) ||
+				size < 0 ||
+				!Number.isSafeInteger(last_modified) ||
+				!Number.isSafeInteger(index) ||
+				index < 0
+			) {
+				throw deserialize_error('invalid file metadata');
+			}
+
+			let offset = file_offsets[index];
+
+			// Check that the file offset table entry has not been already
+			// used. If not, immediately mark it as used.
+			if (offset === undefined) {
+				throw deserialize_error('duplicate file offset table index');
+			}
+			file_offsets[index] = undefined;
+
+			offset += files_start_offset;
+
+			file_spans.push({ offset, size });
+
+			return new Proxy(new LazyFile(name, type, size, last_modified, get_chunk, offset), {
+				getPrototypeOf() {
+					// Trick validators into thinking this is a normal File
+					return File.prototype;
+				}
+			});
+		}
+	});
+
+	// Sort file spans in increasing order primarily by offset
+	// and secondarily by size (to allow 0-length files).
+	file_spans.sort((a, b) => a.offset - b.offset || a.size - b.size);
+
+	// Check that file spans do not overlap and there are no gaps between them.
+	for (let i = 1; i < file_spans.length; i++) {
+		const previous = file_spans[i - 1];
+		const current = file_spans[i];
+
+		const previous_end = previous.offset + previous.size;
+		if (previous_end < current.offset) {
+			throw deserialize_error('gaps in file data');
+		}
+		if (previous_end > current.offset) {
+			throw deserialize_error('overlapping file data');
+		}
+	}
+
+	// Read the request body asynchronously so it doesn't stall
+	void (async () => {
+		let has_more = true;
+		while (has_more) {
+			const chunk = await get_chunk(chunks.length);
+			has_more = !!chunk;
+		}
+	})().catch(noop); // prevent unhandled rejection potentially crashing the process
+
+	return { data, meta, form_data: null };
+}
+/**
+ * @param {string} message
+ */
+function deserialize_error(message) {
+	return new SvelteKitError(400, 'Bad Request', `Could not deserialize binary form: ${message}`);
+}
+
+/**
+ * Yields the chunks that make up the byte range `[offset, offset + length)`,
+ * trimmed to its boundaries. Ends early if the underlying data runs out.
+ * @param {(index: number) => Promise<Uint8Array<ArrayBuffer> | undefined>} get_chunk
+ * @param {number} offset
+ * @param {number} length
+ * @returns {AsyncGenerator<Uint8Array<ArrayBuffer>, void, void>}
+ */
+async function* read_range(get_chunk, offset, length) {
+	let chunk_start = 0;
+	for (let index = 0; ; index++) {
+		const chunk = await get_chunk(index);
+		if (!chunk) return;
+
+		const chunk_end = chunk_start + chunk.byteLength;
+		if (chunk_end > offset) {
+			yield chunk.subarray(
+				Math.max(0, offset - chunk_start),
+				Math.min(chunk.byteLength, offset + length - chunk_start)
+			);
+			if (offset + length <= chunk_end) return;
+		}
+		chunk_start = chunk_end;
+	}
+}
+
+/** @implements {File} */
+class LazyFile {
+	/** @type {(index: number) => Promise<Uint8Array<ArrayBuffer> | undefined>} */
+	#get_chunk;
+	/** @type {number} */
+	#offset;
+	/**
+	 * @param {string} name
+	 * @param {string} type
+	 * @param {number} size
+	 * @param {number} last_modified
+	 * @param {(index: number) => Promise<Uint8Array<ArrayBuffer> | undefined>} get_chunk
+	 * @param {number} offset
+	 */
+	constructor(name, type, size, last_modified, get_chunk, offset) {
+		this.name = name;
+		this.type = type;
+		this.size = size;
+		this.lastModified = last_modified;
+		this.webkitRelativePath = '';
+		this.#get_chunk = get_chunk;
+		this.#offset = offset;
+
+		// TODO - hacky, required for private members to be accessed on proxy
+		this.arrayBuffer = this.arrayBuffer.bind(this);
+		this.bytes = this.bytes.bind(this);
+		this.slice = this.slice.bind(this);
+		this.stream = this.stream.bind(this);
+		this.text = this.text.bind(this);
+	}
+	/** @type {ArrayBuffer | undefined} */
+	#buffer;
+	async arrayBuffer() {
+		this.#buffer ??= await new Response(this.stream()).arrayBuffer();
+		return this.#buffer;
+	}
+	async bytes() {
+		return new Uint8Array(await this.arrayBuffer());
+	}
+	/**
+	 * @param {number=} start
+	 * @param {number=} end
+	 * @param {string=} contentType
+	 */
+	slice(start = 0, end = this.size, contentType = this.type) {
+		// https://github.com/nodejs/node/blob/a5f3cd8cb5ba9e7911d93c5fd3ebc6d781220dd8/lib/internal/blob.js#L240
+		if (start < 0) {
+			start = Math.max(this.size + start, 0);
+		} else {
+			start = Math.min(start, this.size);
+		}
+
+		if (end < 0) {
+			end = Math.max(this.size + end, 0);
+		} else {
+			end = Math.min(end, this.size);
+		}
+		const size = Math.max(end - start, 0);
+		const file = new LazyFile(
+			this.name,
+			contentType,
+			size,
+			this.lastModified,
+			this.#get_chunk,
+			this.#offset + start
+		);
+
+		return file;
+	}
+	stream() {
+		const range = read_range(this.#get_chunk, this.#offset, this.size);
+		const size = this.size;
+		return stream_from_iterable(
+			(async function* () {
+				let cursor = 0;
+				for await (const chunk of range) {
+					cursor += chunk.byteLength;
+					yield chunk;
+				}
+				if (cursor < size) throw new Error('incomplete file data');
+			})()
+		);
+	}
+	async text() {
+		return text_decoder.decode(await this.arrayBuffer());
+	}
+}
+
+const path_regex = /^[a-zA-Z_$]\w*(\.[a-zA-Z_$]\w*|\[\d+\])*$/;
+
+/**
+ * @param {string} path
+ */
+export function split_path(path) {
+	if (!path_regex.test(path)) {
+		e.form_field_invalid_name({ name: path });
+	}
+
+	return path.split(/\.|\[|\]/).filter(Boolean);
+}
+
+/**
+ * Check if a property key is dangerous and could lead to prototype pollution
+ * @param {string} key
+ */
+function check_prototype_pollution(key) {
+	if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+		e.form_field_forbidden_key({ key });
+	}
+}
+
+/**
+ * Sets a value in a nested object using an array of keys, mutating the original object.
+ * @param {Record<string, any>} object
+ * @param {string[]} keys
+ * @param {any} value
+ */
+export function deep_set(object, keys, value) {
+	let current = object;
+
+	for (let i = 0; i < keys.length - 1; i += 1) {
+		const key = keys[i];
+
+		check_prototype_pollution(key);
+
+		const is_array = /^\d+$/.test(keys[i + 1]);
+		const inner = Object.hasOwn(current, key) ? current[key] : undefined;
+		const exists = inner != null;
+
+		if (exists && is_array !== Array.isArray(inner)) {
+			e.form_field_array_conflict({ key: keys[i + 1] });
+		}
+
+		if (!exists) {
+			if (value === DELETE_KEY) {
+				// don't create the nested structure if we want to delete the key anyway
+				return;
+			}
+			current[key] = is_array ? [] : {};
+		}
+
+		current = current[key];
+	}
+
+	const final_key = keys[keys.length - 1];
+	check_prototype_pollution(final_key);
+
+	if (value === DELETE_KEY) {
+		delete current[final_key];
+	} else {
+		current[final_key] = value;
+	}
+}
+
+/**
+ * @param {StandardSchemaV1.Issue} issue
+ * @param {boolean} server Whether this issue came from server validation
+ */
+export function normalize_issue(issue, server = false) {
+	/** @type {InternalRemoteFormIssue} */
+	const normalized = { name: '', path: [], message: issue.message, server };
+
+	if (issue.path !== undefined) {
+		let name = '';
+
+		for (const segment of issue.path) {
+			const key = /** @type {string | number} */ (
+				typeof segment === 'object' ? segment.key : segment
+			);
+
+			normalized.path.push(key);
+
+			if (typeof key === 'number') {
+				name += `[${key}]`;
+			} else if (typeof key === 'string') {
+				name += name === '' ? key : '.' + key;
+			}
+		}
+
+		normalized.name = name;
+	}
+
+	return normalized;
+}
+
+/**
+ * @param {InternalRemoteFormIssue[]} issues
+ */
+export function flatten_issues(issues) {
+	/** @type {Record<string, InternalRemoteFormIssue[]>} */
+	const result = Object.create(null);
+
+	for (const issue of issues) {
+		(result.$ ??= []).push(issue);
+
+		let name = '';
+
+		if (issue.path !== undefined) {
+			for (const key of issue.path) {
+				if (typeof key === 'number') {
+					name += `[${key}]`;
+				} else if (typeof key === 'string') {
+					name += name === '' ? key : '.' + key;
+				}
+
+				(result[name] ??= []).push(issue);
+			}
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Gets a nested value from an object using a path array
+ * @param {Record<string, any>} object
+ * @param {(string | number)[]} path
+ * @returns {any}
+ */
+export function deep_get(object, path) {
+	let current = object;
+	for (const key of path) {
+		if (current === null || typeof current !== 'object' || !Object.hasOwn(current, key)) {
+			return undefined;
+		}
+
+		current = current[key];
+	}
+	return current;
+}
+
+/** name prefixes that tell the server which type to coerce a submitted string to */
+const type_prefixes = /** @type {Record<string, string | undefined>} */ ({
+	number: 'n:',
+	boolean: 'b:'
+});
+
+/**
+ * adds props; a function becomes a getter that is computed each time it is read
+ * @param {Record<string, any>} base_props
+ * @param {Record<string, unknown>} props
+ */
+function add_props(base_props, props) {
+	for (const prop in props) {
+		const value = props[prop];
+		if (typeof value === 'function') {
+			Object.defineProperty(base_props, prop, {
+				enumerable: true,
+				get: /** @type {() => unknown} */ (value)
+			});
+		} else {
+			base_props[prop] = value;
+		}
+	}
+	return base_props;
+}
+
+/**
+ * @param {string} type
+ * @param {boolean} is_array
+ * @param {unknown} input_value
+ */
+function get_type_prefix(type, is_array, input_value) {
+	if (type === 'number' || type === 'range') return 'n:';
+	if (type === 'image') return 'i:';
+	if (type === 'checkbox' && !is_array) return 'b:';
+	if (type === 'hidden' || type === 'submit') return type_prefixes[typeof input_value] ?? '';
+	return '';
+}
+
+/**
+ * A deep-clone implementation specifically for form data, where
+ * we don't need to worry about cycles and whatnot
+ * @param {any} value
+ * @returns {any}
+ */
+function deep_clone(value) {
+	if (value !== null && typeof value === 'object') {
+		if (value instanceof Date) {
+			return new Date(value.getTime());
+		}
+
+		if (value instanceof File) {
+			return value;
+		}
+
+		if (Array.isArray(value)) {
+			return value.map(deep_clone);
+		}
+
+		/** @type {Record<string, any>} */
+		const clone = {};
+		for (const key of Object.keys(value)) {
+			clone[key] = deep_clone(value[key]);
+		}
+
+		return clone;
+	}
+
+	return value;
+}
+
+const warned_sites = new Set();
+
+// keyed by the stack, so every place that enumerates warns once with its call site
+const warn_no_keys = () => {
+	// Capture the original call site, not a generated diagnostic or factory's frames.
+	const error = new Error();
+	if (warned_sites.has(error.stack)) return;
+	warned_sites.add(error.stack);
+	w.form_fields_enumerated();
+};
+
+// fields are created as they are accessed, so there is nothing to enumerate
+/** @type {ProxyHandler<object> | null} */
+const dev_traps = DEV
+	? {
+			has(target, prop) {
+				if (typeof prop !== 'symbol') warn_no_keys();
+				return prop in target;
+			},
+			ownKeys(target) {
+				warn_no_keys();
+				return Reflect.ownKeys(target);
+			}
+		}
+	: null;
+
+/** @param {InternalRemoteFormIssue} issue */
+const public_issue = (issue) => ({ path: issue.path, message: issue.message });
+
+/** @typedef {{
+ * 	form_id: string,
+ * 	get: () => Record<string, any>,
+ * 	set: (path: (string | number)[], value: any) => void,
+ * 	get_issues: (path?: (string | number)[], all?: boolean) => Record<string, InternalRemoteFormIssue[]>,
+ * 	get_touched: () => Record<string, boolean>,
+ * 	get_dirty: () => Record<string, boolean>
+ * }} FieldContext */
+
+/**
+ * @param {FieldContext} context
+ * @param {(string | number)[]} path
+ * @param {string} prop
+ * @returns {any} a method of the field at `path`, or undefined for a nested field
+ */
+function create_field_method(context, path, prop) {
+	switch (prop) {
+		case 'set':
+			return (/** @type {any} */ value) => {
+				context.set(path, value);
+				return value;
+			};
+		case 'value':
+			return () => deep_clone(deep_get(context.get(), path));
+		case 'issues':
+		case 'allIssues': {
+			const key = build_path_string(path);
+			const all = prop === 'allIssues';
+
+			return () => {
+				const issues = context.get_issues(path, all)[key === '' ? '$' : key];
+				if (all) return issues?.map(public_issue);
+				const own = issues?.filter((issue) => issue.name === key).map(public_issue);
+				return own?.length ? own : undefined;
+			};
+		}
+		case 'touched':
+		case 'dirty': {
+			const key = build_path_string(path);
+
+			return () => {
+				const object = prop === 'dirty' ? context.get_dirty() : context.get_touched();
+				if (Object.hasOwn(object, key)) return true;
+				for (const candidate in object) {
+					if (!Object.hasOwn(object, candidate)) continue;
+					if (key === '') return true;
+					if (!candidate.startsWith(key)) continue;
+					const next = candidate[key.length];
+					if (next === '.' || next === '[') return true;
+				}
+				return false;
+			};
+		}
+		case 'as': {
+			const key = build_path_string(path);
+
+			/**
+			 * the field's value, or `fallback` until the field has been edited
+			 * (without a fallback there is nothing to suppress, so `dirty` is not read)
+			 * @param {unknown} [fallback]
+			 */
+			const read = (fallback) =>
+				deep_get(context.get(), path) ??
+				(fallback !== undefined && Object.hasOwn(context.get_dirty(), key) ? undefined : fallback);
+
+			/**
+			 * @param {string} type
+			 * @param {unknown} [input_value]
+			 * @param {boolean} [checked]
+			 */
+			return (type, input_value, checked) => {
+				const is_array =
+					type === 'file multiple' ||
+					type === 'select multiple' ||
+					(type === 'checkbox' && typeof input_value === 'string');
+
+				const type_prefix = get_type_prefix(type, is_array, input_value);
+
+				// Base properties for all input types
+				/** @type {Record<string, any>} */
+				const base_props = {
+					name: type_prefix + key + (is_array ? '[]' : '') + '/' + context.form_id,
+					get 'aria-invalid'() {
+						const issues = context.get_issues();
+						return key in issues ? 'true' : undefined;
+					}
+				};
+
+				// Add type attribute only for non-text inputs and non-select elements
+				if (type !== 'text' && type !== 'select' && type !== 'select multiple') {
+					base_props.type = type === 'file multiple' ? 'file' : type;
+				}
+
+				// Handle submit and hidden inputs
+				if (type === 'submit' || type === 'hidden') {
+					if (DEV) {
+						if (input_value === null || input_value === undefined) {
+							e.form_input_missing_value({ type: `\`${type}\`` });
+						}
+					}
+
+					return add_props(base_props, {
+						value: typeof input_value === 'boolean' ? (input_value ? 'on' : 'off') : input_value
+					});
+				}
+
+				// Handle select inputs
+				if (type === 'select' || type === 'select multiple') {
+					return add_props(base_props, {
+						multiple: is_array,
+						value: () => {
+							const value = read(input_value);
+							// copied, so the state array can't be edited through the props
+							return Array.isArray(value) ? [...value] : value;
+						}
+					});
+				}
+
+				// Handle checkbox inputs
+				if (type === 'checkbox' || type === 'radio') {
+					// radio and checkbox array inputs take their option as the second argument
+					// and whether it is checked as the third, a single checkbox only the latter
+					const has_option = type === 'radio' || is_array;
+
+					if (DEV && has_option && !input_value) {
+						e.form_input_missing_value({ type: type === 'radio' ? 'Radio' : 'Checkbox array' });
+					}
+
+					if (has_option) {
+						base_props.value = input_value ?? 'on';
+					} else {
+						checked = /** @type {boolean | undefined} */ (input_value);
+					}
+
+					return add_props(base_props, {
+						defaultChecked: checked,
+						checked: () => {
+							const value = read();
+							if (value == null) return read(checked);
+							if (type === 'radio') return value === input_value;
+							if (is_array) return /** @type {unknown[]} */ (value).includes(input_value);
+							return value;
+						}
+					});
+				}
+
+				// Handle file inputs
+				if (type === 'file' || type === 'file multiple') {
+					return add_props(base_props, {
+						multiple: is_array,
+						files: () => {
+							const value = read();
+							const files = value instanceof File ? [value] : value;
+							if (!Array.isArray(files) || !files.every((f) => f instanceof File)) return null;
+
+							// a FileList-like object where DataTransfer does not exist
+							if (typeof DataTransfer === 'undefined') {
+								return Object.assign({ length: files.length }, files);
+							}
+
+							const transfer = new DataTransfer();
+							for (const file of files) transfer.items.add(file);
+							return transfer.files;
+						}
+					});
+				}
+
+				if (type === 'image') return base_props;
+
+				// Handle all other input types (text, number, etc.)
+				return add_props(base_props, {
+					defaultValue: input_value,
+					value: () => String(read(input_value) ?? '')
+				});
+			};
+		}
+	}
+}
+
+/**
+ * Creates a proxy-based field accessor for form data
+ * @param {FieldContext} context
+ * @param {any} target - Function or empty POJO
+ * @param {(string | number)[]} path - Current access path
+ * @returns {any} Proxy object with name(), value(), and issues() methods
+ */
+export function create_field_proxy(context, target = {}, path = []) {
+	return new Proxy(target, {
+		...dev_traps,
+		get(target, prop) {
+			if (typeof prop === 'symbol') return target[prop];
+
+			// array access like jobs[0]
+			const next = [...path, /^\d+$/.test(prop) ? parseInt(prop, 10) : prop];
+
+			return create_field_proxy(context, create_field_method(context, path, prop), next);
+		}
+	});
+}
+
+/**
+ * Builds a path string from an array of path segments
+ * @param {(string | number)[]} path
+ * @returns {string}
+ */
+export function build_path_string(path) {
+	let result = '';
+
+	for (const segment of path) {
+		if (typeof segment === 'number') {
+			result += `[${segment}]`;
+		} else {
+			result += result === '' ? segment : '.' + segment;
+		}
+	}
+
+	return result;
+}

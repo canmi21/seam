@@ -1,0 +1,398 @@
+import process from 'node:process';
+import { assert, expect, test, describe, beforeAll, vi } from 'vitest';
+import { domain_matches, path_matches, get_cookies } from './cookie.js';
+
+vi.stubGlobal('__SVELTEKIT_DEV__', undefined);
+
+const domains = {
+	positive: [
+		['localhost'],
+		['example.com', 'example.com'],
+		['sub.example.com', 'example.com'],
+		['example.com', '.example.com'],
+		['sub.example.com', '.example.com']
+	]
+};
+
+const paths = {
+	positive: [['/'], ['/foo', '/'], ['/foo', '/foo'], ['/foo/', '/foo'], ['/foo', '/foo/']],
+
+	negative: [
+		['/', '/foo'],
+		['/food', '/foo']
+	]
+};
+
+/** @param {{ href?: string, headers?: Record<string, string> }} href */
+const cookies_setup = ({ href, headers } = {}) => {
+	const url = new URL(href || 'https://example.com');
+	const request = new Request(url, {
+		headers: new Headers({
+			cookie: 'a=b;',
+			...headers
+		})
+	});
+	const result = get_cookies(request, url);
+	result.set_trailing_slash('ignore');
+	return result;
+};
+
+describe.skipIf(!process.env.DEV)('cookies in dev', () => {
+	beforeAll(() => {
+		vi.stubGlobal('__SVELTEKIT_DEV__', true);
+	});
+
+	test('throws if cookie name/value exceeds 4,096 bytes', () => {
+		const { cookies } = cookies_setup();
+
+		// name ("a=") is 2 bytes, so the value alone must stay under 4094 bytes
+		expect(() => cookies.set('a', 'a'.repeat(4096))).toThrowKitError('cookie_too_large', {
+			contains: ['`a`']
+		});
+	});
+
+	test('does not throw if cookie name/value is at the 4,096 byte limit', () => {
+		const { cookies } = cookies_setup();
+
+		expect(() => cookies.set('a', 'a'.repeat(4095))).not.toThrow();
+	});
+
+	test('warns once when reading a cookie that was only set at a more specific path', () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		const { cookies: first } = cookies_setup({ href: 'https://example.com/account/settings' });
+		first.set('mismatched', 'value', { path: '/account/settings' });
+
+		const { cookies } = cookies_setup({ href: 'https://example.com/account' });
+		assert.equal(cookies.get('mismatched'), undefined);
+
+		expect(warn).toHaveBeenCalledOnce();
+		expect(warn).toContainKitDiagnostic('cookie_path_mismatch', {
+			contains: ['`mismatched`', '/account', '/account/settings']
+		});
+		warn.mockRestore();
+	});
+
+	test('can only serialize cookies for the current hostname once the route is determined', () => {
+		const url = new URL('https://example.com');
+		const { cookies } = get_cookies(new Request(url), url);
+
+		expect(() => cookies.serialize('a', 'b')).toThrowKitError('cookies_serialize_before_route');
+		expect(cookies.serialize('a', 'b', { domain: 'other.com' })).toContain('a=b');
+	});
+
+	test('secure defaults to false when served over http (e.g. --host)', () => {
+		const { cookies, new_cookies } = cookies_setup({ href: 'http://192.168.0.1:5173' });
+		cookies.set('a', 'b');
+		const opts = new_cookies.get('/?a')?.options;
+		assert.equal(opts?.secure, false);
+	});
+
+	test('secure defaults to false even when served over https', () => {
+		const { cookies, new_cookies } = cookies_setup({ href: 'https://192.168.0.1:5173' });
+		cookies.set('a', 'b');
+		const opts = new_cookies.get('/?a')?.options;
+		assert.equal(opts?.secure, false);
+	});
+});
+
+describe.skipIf(!!process.env.DEV)('cookies in prod', () => {
+	beforeAll(() => {
+		vi.stubGlobal('__SVELTEKIT_DEV__', false);
+	});
+
+	domains.positive.forEach(([hostname, constraint]) => {
+		test(`${hostname} / ${constraint}`, () => {
+			assert.ok(domain_matches(hostname, constraint));
+		});
+	});
+
+	paths.positive.forEach(([path, constraint]) => {
+		test(`${path} / ${constraint}`, () => {
+			assert.ok(path_matches(path, constraint));
+		});
+	});
+
+	paths.negative.forEach(([path, constraint]) => {
+		test(`! ${path} / ${constraint}`, () => {
+			assert.isFalse(path_matches(path, constraint));
+		});
+	});
+
+	test('a cookie should not be present after it is deleted', () => {
+		const { cookies } = cookies_setup();
+		cookies.set('a', 'b');
+		expect(cookies.get('a')).toEqual('b');
+		cookies.delete('a');
+		assert.isUndefined(cookies.get('a'));
+	});
+
+	test('getAll should not include deleted cookies', () => {
+		const { cookies } = cookies_setup({ headers: { cookie: 'session=abc' } });
+		cookies.set('session', 'abc');
+		expect(cookies.getAll()).toEqual([{ name: 'session', value: 'abc' }]);
+
+		cookies.delete('session');
+		assert.isUndefined(cookies.get('session'));
+		expect(cookies.getAll()).toEqual([]);
+	});
+
+	test('default values when set is called', () => {
+		const { cookies, new_cookies } = cookies_setup();
+		cookies.set('a', 'b');
+		const opts = new_cookies.get('/?a')?.options;
+		assert.equal(opts?.secure, true);
+		assert.equal(opts?.httpOnly, true);
+		assert.equal(opts?.path, '/');
+		assert.equal(opts?.sameSite, 'lax');
+	});
+
+	test('default values when set is called on sub path', () => {
+		const { cookies, new_cookies } = cookies_setup({ href: 'https://example.com/foo/bar' });
+		cookies.set('a', 'b', { path: '' });
+		const opts = new_cookies.get('/foo/bar?a')?.options;
+		assert.equal(opts?.secure, true);
+		assert.equal(opts?.httpOnly, true);
+		assert.equal(opts?.path, '/foo/bar');
+		assert.equal(opts?.sameSite, 'lax');
+	});
+
+	test('default values when on localhost', () => {
+		const { cookies, new_cookies } = cookies_setup({ href: 'http://localhost:1234' });
+		cookies.set('a', 'b');
+		const opts = new_cookies.get('/?a')?.options;
+		assert.equal(opts?.secure, false);
+	});
+
+	test('secure defaults to true on http on a non-localhost host', () => {
+		const { cookies, new_cookies } = cookies_setup({ href: 'http://192.168.0.1:5173' });
+		cookies.set('a', 'b');
+		const opts = new_cookies.get('/?a')?.options;
+		assert.equal(opts?.secure, true);
+	});
+
+	test('overridden defaults when set is called', () => {
+		const { cookies, new_cookies } = cookies_setup();
+		cookies.set('a', 'b', { secure: false, httpOnly: false, sameSite: 'strict', path: '/a/b/c' });
+		const opts = new_cookies.get('/a/b/c?a')?.options;
+		assert.equal(opts?.secure, false);
+		assert.equal(opts?.httpOnly, false);
+		assert.equal(opts?.path, '/a/b/c');
+		assert.equal(opts?.sameSite, 'strict');
+	});
+
+	test('default values when delete is called', () => {
+		const { cookies, new_cookies } = cookies_setup();
+		cookies.delete('a');
+		const opts = new_cookies.get('/?a')?.options;
+		assert.equal(opts?.secure, true);
+		assert.equal(opts?.httpOnly, true);
+		assert.equal(opts?.path, '/');
+		assert.equal(opts?.sameSite, 'lax');
+		assert.equal(opts?.maxAge, 0);
+	});
+
+	test('overridden defaults when delete is called', () => {
+		const { cookies, new_cookies } = cookies_setup();
+		cookies.delete('a', { secure: false, httpOnly: false, sameSite: 'strict', path: '/a/b/c' });
+		const opts = new_cookies.get('/a/b/c?a')?.options;
+		assert.equal(opts?.secure, false);
+		assert.equal(opts?.httpOnly, false);
+		assert.equal(opts?.path, '/a/b/c');
+		assert.equal(opts?.sameSite, 'strict');
+		assert.equal(opts?.maxAge, 0);
+	});
+
+	test('cannot override maxAge on delete', () => {
+		const { cookies, new_cookies } = cookies_setup();
+		cookies.delete('a', { path: '/', maxAge: 1234 });
+		const opts = new_cookies.get('/?a')?.options;
+		assert.equal(opts?.maxAge, 0);
+	});
+
+	test('last cookie set with the same name wins', () => {
+		const { cookies, new_cookies } = cookies_setup();
+		cookies.set('a', 'foo');
+		cookies.set('a', 'bar');
+		const entry = new_cookies.get('/?a');
+		assert.equal(entry?.value, 'bar');
+	});
+
+	test('cookie names are case sensitive', () => {
+		const { cookies, new_cookies } = cookies_setup();
+		// not that one should do this, but we follow the spec...
+		cookies.set('a', 'foo');
+		cookies.set('A', 'bar');
+		const entrya = new_cookies.get('/?a');
+		const entryA = new_cookies.get('/?A');
+		assert.equal(entrya?.value, 'foo');
+		assert.equal(entryA?.value, 'bar');
+	});
+
+	test('serialized cookie header should be url-encoded', () => {
+		const href = 'https://example.com';
+		const { cookies, get_cookie_header } = cookies_setup({
+			href,
+			headers: {
+				cookie: 'a=f%C3%BC; b=foo+bar' // a=fü
+			}
+		});
+		cookies.set('c', 'fö'); // should use default encoding
+		cookies.set('d', 'fö', { path: '/', encode: () => 'öf' }); // should respect `encode`
+		const header = get_cookie_header(new URL(href), 'e=f%C3%A4; f=foo+bar');
+		assert.equal(header, 'a=f%C3%BC; b=foo+bar; c=f%C3%B6; d=öf; e=f%C3%A4; f=foo+bar');
+	});
+
+	test('get all cookies from header and set calls', () => {
+		const { cookies } = cookies_setup();
+		expect(cookies.getAll()).toEqual([{ name: 'a', value: 'b' }]);
+
+		cookies.set('a', 'foo');
+		cookies.set('a', 'bar');
+		cookies.set('b', 'baz');
+
+		expect(cookies.getAll()).toEqual([
+			{ name: 'a', value: 'bar' },
+			{ name: 'b', value: 'baz' }
+		]);
+	});
+
+	test('get with a custom decode is not served from the cached default parse', () => {
+		const { cookies } = cookies_setup({ headers: { cookie: 'enc=hello%20world' } });
+
+		expect(cookies.get('enc')).toEqual('hello world');
+		expect(cookies.get('enc', { decode: (value) => value })).toEqual('hello%20world');
+		expect(cookies.get('enc')).toEqual('hello world');
+	});
+
+	test("set_internal isn't affected by defaults", () => {
+		const { cookies, new_cookies, set_internal } = cookies_setup({
+			href: 'https://example.com/a/b/c'
+		});
+
+		const options = {
+			secure: false,
+			httpOnly: false,
+			sameSite: /** @type {const} */ ('none'),
+			path: '/a/b/c'
+		};
+
+		set_internal('test', 'foo', options);
+
+		expect(cookies.get('test')).toEqual('foo');
+		expect(new_cookies.get('/a/b/c?test')?.options).toEqual(options);
+	});
+
+	test('reproduce issue #13947: multiple cookies with same name but different paths', () => {
+		// Test on root path to see if most specific cookie wins
+		const { cookies: root_cookies } = cookies_setup({ href: 'https://example.com/' });
+		root_cookies.set('key', 'value_root');
+		root_cookies.set('key', 'value_foo', { path: '/foo' });
+
+		// When on root path, should get the root cookie
+		expect(root_cookies.get('key')).toEqual('value_root');
+
+		// Test on /foo path to see if more specific cookie wins
+		const { cookies: foo_cookies } = cookies_setup({ href: 'https://example.com/foo' });
+		foo_cookies.set('key', 'value_root');
+		foo_cookies.set('key', 'value_foo', { path: '/foo' });
+
+		// When on /foo path, should get the more specific /foo cookie
+		expect(foo_cookies.get('key')).toEqual('value_foo');
+	});
+
+	test('cookies with same name but different domains work correctly', () => {
+		// Test setting cookies with different domains (unique key storage should work)
+		const { cookies, new_cookies } = cookies_setup({ href: 'https://example.com/' });
+
+		cookies.set('key', 'value1', { path: '/', domain: 'example.com' });
+		cookies.set('key', 'value2', { path: '/', domain: 'sub.example.com' });
+
+		// Both cookies should be stored with unique keys
+		expect(new_cookies.get('example.com/?key')).toBeDefined();
+		expect(new_cookies.get('sub.example.com/?key')).toBeDefined();
+		expect(new_cookies.get('example.com/?key')?.value).toEqual('value1');
+		expect(new_cookies.get('sub.example.com/?key')?.value).toEqual('value2');
+	});
+
+	test('cookie path specificity: more specific paths win', () => {
+		const { cookies } = cookies_setup({ href: 'https://example.com/x/y/z' });
+
+		// Set cookies with increasing path specificity
+		cookies.set('n', '1');
+		cookies.set('n', '2', { path: '/x' });
+		cookies.set('n', '3', { path: '/x/y' });
+		cookies.set('n', '4', { path: '/x/y/z' });
+
+		// Most specific path should win
+		expect(cookies.get('n')).toEqual('4');
+	});
+
+	test('backward compatibility: get without domain/path options still works', () => {
+		const { cookies } = cookies_setup();
+
+		// Set a cookie the old way
+		cookies.set('old-style', 'value');
+
+		// Should be retrievable without specifying path
+		expect(cookies.get('old-style')).toEqual('value');
+	});
+
+	test('getAll should return most specific cookie when multiple cookies have same name', () => {
+		// This test demonstrates the bug: getAll doesn't respect path specificity like get() does
+		const { cookies } = cookies_setup({ href: 'https://example.com/foo/bar' });
+
+		// Set cookies with the same name but different path specificity
+		// Setting most specific first, then less specific ones to expose the bug
+		cookies.set('duplicate', 'foobar_value', { path: '/foo/bar' }); // Most specific
+		cookies.set('duplicate', 'root_value'); // Least specific
+		cookies.set('duplicate', 'foo_value', { path: '/foo' }); // Middle specificity
+
+		const all = cookies.getAll();
+		const duplicate = all.find((c) => c.name === 'duplicate');
+
+		expect(duplicate?.value).toEqual('foobar_value');
+	});
+});
+
+describe('cookies.parse', () => {
+	const { cookies } = cookies_setup();
+
+	test('parses a cookie', () => {
+		assert.deepEqual(cookies.parse('foo=bar'), {
+			name: 'foo',
+			value: 'bar'
+		});
+	});
+
+	test('ignores invalid properties', () => {
+		assert.deepEqual(cookies.parse('foo=bar; samesite=laxative'), {
+			name: 'foo',
+			value: 'bar'
+		});
+	});
+
+	test('ignores unknown properties', () => {
+		assert.deepEqual(cookies.parse('foo=bar; potato=salad'), {
+			name: 'foo',
+			value: 'bar'
+		});
+	});
+
+	test('converts expires', () => {
+		const date = new Date();
+
+		assert.deepEqual(cookies.parse(`foo=bar; expires=${date.toISOString()}`), {
+			name: 'foo',
+			value: 'bar',
+			expires: date
+		});
+	});
+
+	test('includes trailing = characters', () => {
+		assert.deepEqual(cookies.parse('foo=bar=baz='), {
+			name: 'foo',
+			value: 'bar=baz='
+		});
+	});
+});

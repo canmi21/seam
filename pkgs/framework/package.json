@@ -1,0 +1,166 @@
+{
+	"name": "@canmi/seamjs",
+	"private": true,
+	"version": "3.0.0",
+	"description": "SvelteKit, forked to render by compile-time templates; see FORK.md",
+	"keywords": [
+		"framework",
+		"svelte",
+		"sveltekit",
+		"vite"
+	],
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/canmi21/seam.git",
+		"directory": "pkgs/framework"
+	},
+	"type": "module",
+	"bin": {
+		"svelte-kit": "svelte-kit.js"
+	},
+	"engines": {
+		"node": ">=22.17"
+	},
+	"files": [
+		"src",
+		"!src/**/*.spec.js",
+		"!src/**/fixtures",
+		"!src/**/test",
+		"types",
+		"svelte-kit.js"
+	],
+	"exports": {
+		"./package.json": "./package.json",
+		".": {
+			"types": "./types/index.d.ts",
+			"import": "./src/exports/index.js"
+		},
+		"./internal": {
+			"types": "./types/index.d.ts",
+			"import": "./src/exports/internal/index.js"
+		},
+		"./internal/env": {
+			"types": "./types/index.d.ts",
+			"import": "./src/exports/internal/env.js"
+		},
+		"./internal/types": {
+			"types": "./src/exports/internal/types.d.ts"
+		},
+		"./internal/server": {
+			"types": "./types/index.d.ts",
+			"import": "./src/exports/internal/server/index.js"
+		},
+		"./adapter": {
+			"types": "./types/index.d.ts",
+			"import": "./src/exports/adapter.js"
+		},
+		"./node": {
+			"types": "./types/index.d.ts",
+			"import": "./src/exports/node/index.js"
+		},
+		"./hooks": {
+			"types": "./types/index.d.ts",
+			"import": "./src/exports/hooks/index.js"
+		},
+		"./env": {
+			"types": "./types/index.d.ts",
+			"import": "./src/exports/env/index.js"
+		},
+		"./params": {
+			"types": "./types/index.d.ts",
+			"import": "./src/exports/params/index.js"
+		},
+		"./vite": {
+			"types": "./types/index.d.ts",
+			"import": "./src/exports/vite/index.js"
+		},
+		"./src/*": "./src/*",
+		"./types/*": "./types/*"
+	},
+	"imports": {
+		"#app/env": {
+			"types": "./src/runtime/app/env/client.js",
+			"workerd": "./src/runtime/app/env/server.js",
+			"browser": "./src/runtime/app/env/client.js",
+			"default": "./src/runtime/app/env/server.js"
+		},
+		"#app/env/public": {
+			"workerd": "./src/runtime/app/env/public/server.js",
+			"browser": "./src/runtime/app/env/public/client.js",
+			"default": "./src/runtime/app/env/public/server.js"
+		},
+		"#app/env/server": {
+			"workerd": "./src/runtime/app/env/server.js",
+			"browser": "./src/runtime/invalid-import.js",
+			"default": "./src/runtime/app/env/server.js"
+		},
+		"#app/forms": {
+			"types": "./src/runtime/app/forms/client.js",
+			"workerd": "./src/runtime/app/forms/server.js",
+			"browser": "./src/runtime/app/forms/client.js",
+			"default": "./src/runtime/app/forms/server.js"
+		},
+		"#app/internal/transport": {
+			"default": "./src/runtime/app/internal/transport.js"
+		},
+		"#app/navigation": {
+			"types": "./src/runtime/app/navigation/client.js",
+			"workerd": "./src/runtime/app/navigation/server.js",
+			"browser": "./src/runtime/app/navigation/client.js",
+			"default": "./src/runtime/app/navigation/server.js"
+		},
+		"#app/paths": {
+			"types": "./src/runtime/app/paths/internal.d.ts",
+			"workerd": "./src/runtime/app/paths/server.js",
+			"browser": "./src/runtime/app/paths/client.js",
+			"default": "./src/runtime/app/paths/server.js"
+		},
+		"#app/state": {
+			"types": "./src/runtime/app/state/client.svelte.js",
+			"workerd": "./src/runtime/app/state/server.js",
+			"browser": "./src/runtime/app/state/client.svelte.js",
+			"default": "./src/runtime/app/state/server.js"
+		},
+		"#app/state/client": {
+			"types": "./src/runtime/app/state/client.svelte.js",
+			"workerd": "./src/runtime/invalid-import.js",
+			"browser": "./src/runtime/app/state/client.svelte.js",
+			"default": "./src/runtime/invalid-import.js"
+		},
+		"#internal": {
+			"workerd": "./src/exports/internal/server/index.js",
+			"browser": "./src/exports/internal/client.js",
+			"default": "./src/exports/internal/server/index.js"
+		}
+	},
+	"types": "types/index.d.ts",
+	"dependencies": {
+		"@rolldown/pluginutils": "^1.0.1",
+		"@standard-schema/spec": "^1.1.0",
+		"cookie": "^2.0.1",
+		"devalue": "^5.9.4",
+		"esm-env": "^1.2.2",
+		"magic-string": "^1.2.3",
+		"mrmime": "^2.0.1",
+		"sirv": "^3.0.2"
+	},
+	"devDependencies": {
+		"@sveltejs/kit": "link:."
+	},
+	"peerDependencies": {
+		"@opentelemetry/api": "^1.0.0",
+		"@sveltejs/vite-plugin-svelte": "^7.0.0",
+		"svelte": "^5.57.1",
+		"typescript": "^6.0.0",
+		"vite": "^8.0.12"
+	},
+	"peerDependenciesMeta": {
+		"@opentelemetry/api": {
+			"optional": true
+		},
+		"typescript": {
+			"optional": true
+		}
+	}
+}

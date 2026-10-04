@@ -1,0 +1,1034 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { expect, test, vi } from 'vitest';
+import create_manifest_data from './index.js';
+import { sort_routes } from './sort.js';
+import { validate_config } from '../../config/index.js';
+
+const cwd = path.join(import.meta.dirname, 'test');
+
+/**
+ * @param {string} dir
+ * @param {import('@sveltejs/kit/vite').Config} config
+ */
+const create = (dir, config = {}) => {
+	const initial = validate_config(config);
+
+	initial.files.assets = path.resolve(cwd, 'static');
+	initial.files.params = path.resolve(cwd, 'params');
+	initial.files.routes = path.resolve(cwd, dir);
+
+	return create_manifest_data(initial, cwd, cwd);
+};
+
+const default_layout = {
+	component: 'layout.svelte'
+};
+
+const default_error = {
+	component: 'error.svelte'
+};
+
+/** @param {import('types').PageNode} node */
+function simplify_node(node) {
+	const simplified = /** @type {import('types').PageNode} */ ({});
+
+	if (node.component) simplified.component = node.component;
+	if (node.universal) simplified.universal = node.universal;
+	if (node.server) simplified.server = node.server;
+	if (node.parent_id !== undefined) simplified.parent_id = node.parent_id;
+
+	return simplified;
+}
+
+/** @param {import('types').RouteData} route */
+function simplify_route(route) {
+	/** @type {{ id: string, pattern: string, page?: import('types').PageNodeIndexes, endpoint?: { file: string } }} */
+	const simplified = {
+		id: route.id,
+		pattern: route.pattern.toString().replace(/\\\//g, '/').replace(/\\\./g, '.')
+	};
+
+	if (route.page) simplified.page = route.page;
+	if (route.endpoint) simplified.endpoint = route.endpoint;
+
+	return simplified;
+}
+
+test('creates routes', () => {
+	const { nodes, routes } = create('samples/basic');
+
+	expect(nodes.map(simplify_node)).toEqual([
+		default_layout,
+		default_error,
+		{ component: 'samples/basic/+page.svelte' },
+		{ component: 'samples/basic/about/+page.svelte' },
+		{ component: 'samples/basic/blog/+page.svelte' },
+		{ component: 'samples/basic/blog/[slug]/+page.svelte' }
+	]);
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/',
+			page: { layouts: [0], errors: [1], leaf: 2 }
+		},
+		{
+			id: '/about',
+			pattern: '/^/about/?$/',
+			page: { layouts: [0], errors: [1], leaf: 3 }
+		},
+		{
+			id: '/blog.json',
+			pattern: '/^/blog.json/?$/',
+			endpoint: { file: 'samples/basic/blog.json/+server.js', page_options: {} }
+		},
+		{
+			id: '/blog',
+			pattern: '/^/blog/?$/',
+			page: { layouts: [0], errors: [1], leaf: 4 }
+		},
+		{
+			id: '/blog/[slug].json',
+			pattern: '/^/blog/([^/]+?).json/?$/',
+			endpoint: {
+				file: 'samples/basic/blog/[slug].json/+server.ts',
+				page_options: {}
+			}
+		},
+		{
+			id: '/blog/[slug]',
+			pattern: '/^/blog/([^/]+?)/?$/',
+			page: { layouts: [0], errors: [1], leaf: 5 }
+		}
+	]);
+});
+
+test('assigns deterministic node indices regardless of readdirSync order', () => {
+	// `readdirSync` order is not guaranteed and differs between runtimes (e.g. Node
+	// returns entries alphabetically, Bun in directory order). Node indices are assigned
+	// from the traversal order, so an unsorted result could make the SSR and client
+	// manifests disagree. Simulate a runtime that returns entries in reverse order and
+	// assert the output matches the normal (sorted) run.
+	const expected = create('samples/basic');
+
+	const actual_readdir = fs.readdirSync;
+	const spy = vi.spyOn(fs, 'readdirSync').mockImplementation((...args) => {
+		const result = /** @type {string[]} */ (
+			/** @type {unknown} */ (actual_readdir(.../** @type {[any, any]} */ (args)))
+		);
+		return /** @type {any} */ ([...result].sort().reverse());
+	});
+
+	try {
+		const actual = create('samples/basic');
+		expect(actual.nodes.map(simplify_node)).toEqual(expected.nodes.map(simplify_node));
+		expect(actual.routes.map(simplify_route)).toEqual(expected.routes.map(simplify_route));
+	} finally {
+		spy.mockRestore();
+	}
+});
+
+const symlink_survived_git = fs
+	.lstatSync(path.join(cwd, 'samples/symlinks/routes/foo'))
+	.isSymbolicLink();
+
+const test_symlinks = symlink_survived_git ? test : test.skip;
+
+test_symlinks('creates symlinked routes', () => {
+	const { nodes, routes } = create('samples/symlinks/routes');
+
+	expect(nodes.map(simplify_node)).toEqual([
+		default_layout,
+		default_error,
+		{ component: 'samples/symlinks/routes/+page.svelte' },
+		{ component: 'samples/symlinks/routes/foo/+page.svelte' }
+	]);
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/',
+			page: { layouts: [0], errors: [1], leaf: 2 }
+		},
+
+		{
+			id: '/foo',
+			pattern: '/^/foo/?$/',
+			page: { layouts: [0], errors: [1], leaf: 3 }
+		}
+	]);
+});
+
+test('creates routes with layout', () => {
+	const { nodes, routes } = create('samples/basic-layout');
+
+	expect(nodes.map(simplify_node)).toEqual([
+		{ component: 'samples/basic-layout/+layout.svelte' },
+		default_error,
+		{ component: 'samples/basic-layout/foo/+layout.svelte' },
+		{ component: 'samples/basic-layout/+page.svelte' },
+		{ component: 'samples/basic-layout/foo/+page.svelte' }
+	]);
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/',
+			page: { layouts: [0], errors: [1], leaf: 3 }
+		},
+
+		{
+			id: '/foo',
+			pattern: '/^/foo/?$/',
+			page: { layouts: [0, 2], errors: [1, undefined], leaf: 4 }
+		}
+	]);
+});
+
+test('succeeds when routes does not exist', () => {
+	const { nodes, routes } = create('samples/basic/routes');
+	expect(nodes.map(simplify_node)).toEqual([
+		{ component: 'layout.svelte' },
+		{ component: 'error.svelte' }
+	]);
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^$/'
+		}
+	]);
+});
+
+test('encodes invalid characters', () => {
+	const { nodes, routes } = create('samples/encoding');
+
+	const emoji = { component: 'samples/encoding/[u+1f600]/+page.svelte' };
+	const quote = { component: 'samples/encoding/[x+22]/+page.svelte' };
+	const hash = { component: 'samples/encoding/[x+23]/+page.svelte' };
+	const question_mark = { component: 'samples/encoding/[x+3f]/+page.svelte' };
+	const open_bracket = { component: 'samples/encoding/[x+5b]/+page.svelte' };
+	const close_bracket = { component: 'samples/encoding/[x+5d]/+page.svelte' };
+
+	expect(nodes.map(simplify_node)).toEqual([
+		default_layout,
+		default_error,
+		emoji,
+		quote,
+		hash,
+		question_mark,
+		open_bracket,
+		close_bracket
+	]);
+
+	expect(routes.map((p) => p.pattern.toString())).toEqual(
+		[/^\/$/, /^\/\]\/?$/, /^\/\[\/?$/, /^\/%3[Ff]\/?$/, /^\/%23\/?$/, /^\/"\/?$/, /^\/😀\/?$/].map(
+			(pattern) => pattern.toString()
+		)
+	);
+});
+
+test('sorts routes correctly', () => {
+	const expected = [
+		'/',
+		'/a',
+		'/b',
+		'/b/[required]',
+		'/c',
+		'/c/bar',
+		'/c/b[x].json',
+		'/c/b[x]',
+		'/c/foo',
+		'/d/e',
+		'/d/e[...rest]',
+		'/e/f',
+		'/e/[...rest]/f',
+		'/f/static[...rest]',
+		'/f/[...rest]static',
+		'/g/[[optional]]/static',
+		'/g/[required]',
+		'/g/[...rest]/[required]',
+		'/h/a/b',
+		'/h/a/[required]/b',
+		'/h/a/[...rest]/b',
+		'/x/[...rest]',
+		'/[...rest]/x',
+		'/[...rest]/x/[...deep_rest]/y',
+		'/[...rest]/x/[...deep_rest]',
+		'/[required=matcher]',
+		'/[required]',
+		'/[...rest]'
+	];
+
+	const routes = /** @type {import('types').RouteData[]} */ (expected.map((id) => ({ id })));
+
+	const actual = sort_routes(routes.sort(() => (Math.random() > 0.5 ? 1 : -1))).map(
+		(route) => route.id
+	);
+
+	expect(actual).toEqual(expected);
+});
+
+test('sorts routes with rest correctly', () => {
+	const { nodes, routes } = create('samples/rest');
+
+	expect(nodes.map(simplify_node)).toEqual([
+		default_layout,
+		default_error,
+		{
+			component: 'samples/rest/a/+page.svelte'
+		},
+		{
+			component: 'samples/rest/a/[...rest]/+page.svelte',
+			server: 'samples/rest/a/[...rest]/+page.server.js'
+		},
+		{
+			component: 'samples/rest/b/+page.svelte'
+		},
+		{
+			component: 'samples/rest/b/[...rest]/+page.svelte',
+			server: 'samples/rest/b/[...rest]/+page.server.ts'
+		}
+	]);
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/'
+		},
+		{
+			id: '/a',
+			pattern: '/^/a/?$/',
+			page: {
+				layouts: [0],
+				errors: [1],
+				leaf: 2
+			}
+		},
+		{
+			id: '/a/[...rest]',
+			pattern: '/^/a(?:/([^]*))?/?$/',
+			page: { layouts: [0], errors: [1], leaf: 3 }
+		},
+		{
+			id: '/b',
+			pattern: '/^/b/?$/',
+			page: { layouts: [0], errors: [1], leaf: 4 }
+		},
+		{
+			id: '/b/[...rest]',
+			pattern: '/^/b(?:/([^]*))?/?$/',
+			page: { layouts: [0], errors: [1], leaf: 5 }
+		}
+	]);
+});
+
+test('allows rest parameters inside segments', () => {
+	const { nodes, routes } = create('samples/rest-prefix-suffix');
+
+	expect(nodes.map(simplify_node)).toEqual([
+		default_layout,
+		default_error,
+		{
+			component: 'samples/rest-prefix-suffix/prefix-[...rest]/+page.svelte'
+		}
+	]);
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/'
+		},
+		{
+			id: '/prefix-[...rest]',
+			pattern: '/^/prefix-([^]*?)/?$/',
+			page: { layouts: [0], errors: [1], leaf: 2 }
+		},
+		{
+			id: '/[...rest].json',
+			pattern: '/^/([^]*?).json/?$/',
+			endpoint: {
+				file: 'samples/rest-prefix-suffix/[...rest].json/+server.js',
+				page_options: {}
+			}
+		}
+	]);
+});
+
+test('optional parameters', () => {
+	const { nodes, routes } = create('samples/optional');
+
+	expect(
+		nodes
+			.map(simplify_node)
+			// for some reason linux and windows have a different order, which is why
+			// we need sort the nodes using a sort function (doesn't work either without),
+			// resulting in the following expected node order
+			.sort((a, b) => a.component?.localeCompare(b.component ?? '') ?? 1)
+	).toEqual([
+		default_error,
+		default_layout,
+		{
+			component: 'samples/optional/[[optional]]/+page.svelte'
+		},
+		{
+			component: 'samples/optional/nested/[[optional]]/+page.svelte'
+		},
+		{
+			component: 'samples/optional/nested/[[optional]]/sub/+page.svelte'
+		},
+		{
+			component: 'samples/optional/nested/+page.svelte'
+		},
+		{
+			component: 'samples/optional/prefix[[suffix]]/+page.svelte'
+		}
+	]);
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/'
+		},
+		{
+			id: '/[[foo]]bar',
+			pattern: '/^/([^/]*)?bar/?$/',
+			endpoint: { file: 'samples/optional/[[foo]]bar/+server.js', page_options: {} }
+		},
+		{
+			id: '/nested',
+			pattern: '/^/nested/?$/',
+			page: {
+				layouts: [0],
+				errors: [1],
+				// see above, linux/windows difference -> find the index dynamically
+				leaf: nodes.findIndex((node) => node.component?.includes('nested'))
+			}
+		},
+		{
+			id: '/nested/[[optional]]/sub',
+			pattern: '/^/nested(?:/([^/]+))?/sub/?$/',
+			page: {
+				layouts: [0],
+				errors: [1],
+				// see above, linux/windows difference -> find the index dynamically
+				leaf: nodes.findIndex((node) => node.component?.includes('nested/[[optional]]/sub'))
+			}
+		},
+		{
+			id: '/nested/[[optional]]',
+			pattern: '/^/nested(?:/([^/]+))?/?$/',
+			page: {
+				layouts: [0],
+				errors: [1],
+				// see above, linux/windows difference -> find the index dynamically
+				leaf: nodes.findIndex((node) => node.component?.includes('nested/[[optional]]'))
+			}
+		},
+		{
+			id: '/prefix[[suffix]]',
+			pattern: '/^/prefix([^/]*)?/?$/',
+			page: {
+				layouts: [0],
+				errors: [1],
+				// see above, linux/windows difference -> find the index dynamically
+				leaf: nodes.findIndex((node) => node.component?.includes('prefix[[suffix]]'))
+			}
+		},
+		{
+			id: '/[[optional]]',
+			pattern: '/^(?:/([^/]+))?/?$/',
+			page: {
+				layouts: [0],
+				errors: [1],
+				// see above, linux/windows difference -> find the index dynamically
+				leaf: nodes.findIndex((node) => node.component?.includes('optional/[[optional]]'))
+			}
+		}
+	]);
+});
+
+test('nested optionals', () => {
+	const { nodes, routes } = create('samples/nested-optionals');
+	expect(nodes.map(simplify_node)).toEqual([
+		default_layout,
+		default_error,
+		{ component: 'samples/nested-optionals/[[a]]/+page.svelte' },
+		{ component: 'samples/nested-optionals/[[a]]/[[b]]/+page.svelte' }
+	]);
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/'
+		},
+		{
+			id: '/[[a]]/[[b]]',
+			pattern: '/^(?:/([^/]+))?(?:/([^/]+))?/?$/',
+			page: {
+				layouts: [0],
+				errors: [1],
+				leaf: nodes.findIndex((node) => node.component?.includes('/[[a]]/[[b]]'))
+			}
+		},
+		{
+			id: '/[[a]]',
+			pattern: '/^(?:/([^/]+))?/?$/',
+			page: {
+				layouts: [0],
+				errors: [1],
+				leaf: nodes.findIndex((node) => node.component?.includes('/[[a]]'))
+			}
+		}
+	]);
+});
+
+test('group preceding optional parameters', () => {
+	const { nodes, routes } = create('samples/optional-group');
+
+	expect(
+		nodes
+			.map(simplify_node)
+			// for some reason linux and windows have a different order, which is why
+			// we need sort the nodes using a sort function (doesn't work either without),
+			// resulting in the following expected node order
+			.sort((a, b) => a.component?.localeCompare(b.component ?? '') ?? 1)
+	).toEqual([
+		default_error,
+		default_layout,
+		{
+			component: 'samples/optional-group/[[optional]]/(group)/+page.svelte'
+		}
+	]);
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/'
+		},
+		{
+			id: '/[[optional]]/(group)',
+			pattern: '/^(?:/([^/]+))?/?$/',
+			page: {
+				layouts: [0],
+				errors: [1],
+				// see above, linux/windows difference -> find the index dynamically
+				leaf: nodes.findIndex((node) =>
+					node.component?.includes('optional-group/[[optional]]/(group)')
+				)
+			}
+		},
+		{
+			id: '/[[optional]]',
+			pattern: '/^(?:/([^/]+))?/?$/',
+			endpoint: {
+				file: 'samples/optional-group/[[optional]]/+server.js',
+				page_options: {}
+			}
+		}
+	]);
+});
+
+test('optional parameters adjacent to another route', () => {
+	const { nodes, routes } = create('samples/optional-adjacent');
+
+	expect(nodes.map(simplify_node)).toEqual([
+		default_layout,
+		default_error,
+		{
+			component: 'samples/optional-adjacent/+page.svelte'
+		},
+		{
+			component: 'samples/optional-adjacent/[[optional]]/+page.svelte'
+		}
+	]);
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/',
+			page: {
+				layouts: [0],
+				errors: [1],
+				leaf: nodes.findIndex((node) => node.component?.includes('/optional-adjacent/+page.svelte'))
+			}
+		},
+		{
+			id: '/[[optional]]',
+			pattern: '/^(?:/([^/]+))?/?$/',
+			page: {
+				layouts: [0],
+				errors: [1],
+				leaf: nodes.findIndex((node) => node.component?.includes('/[[optional]]'))
+			}
+		}
+	]);
+});
+
+test('optional parameters inside a group adjacent to another route', () => {
+	const { nodes, routes } = create('samples/group-optional');
+
+	expect(nodes.map(simplify_node)).toEqual([
+		default_layout,
+		default_error,
+		{
+			component: 'samples/group-optional/+page.svelte'
+		},
+		{
+			component: 'samples/group-optional/(group)/[[optional]]/+page.svelte'
+		}
+	]);
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/',
+			page: {
+				layouts: [0],
+				errors: [1],
+				leaf: nodes.findIndex((node) => node.component?.includes('/group-optional/+page.svelte'))
+			}
+		},
+		{
+			id: '/(group)/[[optional]]',
+			pattern: '/^(?:/([^/]+))?/?$/',
+			page: {
+				layouts: [0],
+				errors: [1],
+				leaf: nodes.findIndex((node) => node.component?.includes('/(group)/[[optional]]'))
+			}
+		}
+	]);
+});
+
+test('ignores files and directories with leading underscores', () => {
+	const { routes } = create('samples/hidden-underscore');
+
+	expect(routes.map((r) => r.endpoint?.file).filter(Boolean)).toEqual([
+		'samples/hidden-underscore/e/f/g/h/+server.js'
+	]);
+});
+
+test('ignores files and directories with leading dots except .well-known', () => {
+	const { routes } = create('samples/hidden-dot');
+
+	expect(routes.map((r) => r.endpoint?.file).filter(Boolean)).toEqual([
+		'samples/hidden-dot/.well-known/dnt-policy.txt/+server.js'
+	]);
+});
+
+test('allows multiple slugs', () => {
+	const { routes } = create('samples/multiple-slugs');
+
+	expect(routes.filter((route) => route.endpoint).map(simplify_route)).toEqual([
+		{
+			id: '/[file].[ext]',
+			pattern: '/^/([^/]+?).([^/]+?)/?$/',
+			endpoint: {
+				file: 'samples/multiple-slugs/[file].[ext]/+server.js',
+				page_options: {}
+			}
+		}
+	]);
+});
+
+test('fails if dynamic params are not separated', () => {
+	expect(() => create('samples/invalid-params')).toThrowKitError('route_params_adjacent', {
+		contains: ['/[foo][bar]']
+	});
+});
+
+/**
+ * Creates a routes directory containing the given files, which are deleted afterwards
+ * @param {string[]} files
+ * @param {(dir: string) => void} fn
+ */
+function with_routes(files, fn) {
+	const dir = fs.mkdtempSync(path.join(cwd, 'tmp-'));
+
+	try {
+		for (const file of files) {
+			fs.mkdirSync(path.dirname(path.join(dir, file)), { recursive: true });
+			fs.writeFileSync(path.join(dir, file), '');
+		}
+
+		fn(path.relative(cwd, dir));
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+}
+
+test.each(
+	/** @type {Array<[string, string, string[]]>} */ ([
+		['[X+3F]/+page.svelte', 'route_escape_uppercase', ['/[X+3F]']],
+		['[x+zz]/+page.svelte', 'route_escape_invalid', ['/[x+zz]']],
+		['[x+3f3]/+page.svelte', 'route_escape_hex_length', ['/[x+3f3]']],
+		['[u+3f]/+page.svelte', 'route_escape_unicode_length', ['/[u+3f]']],
+		['[foo/+page.svelte', 'route_unbalanced_brackets', ['/[foo']],
+		// the suggested name is computed from the route ID
+		['a#b/+page.svelte', 'route_hash_character', ['/a#b', '/a[x+23]b']],
+		[
+			'[...rest]/[[optional]]/+page.svelte',
+			'route_optional_after_rest',
+			['/[...rest]/[[optional]]']
+		],
+		['[[...rest]]/+page.svelte', 'route_optional_rest', ['/[[...rest]]']],
+		['[a.b]/+page.svelte', 'route_param_invalid', ['a.b', '/[a.b]']],
+		['+foo.svelte', 'route_file_reserved', ['DIR/+foo.svelte']],
+		['+foo.js', 'route_file_reserved', ['DIR/+foo.js']],
+		['+page@foo.js', 'route_named_layout_in_module', ['`@foo`', '+page@foo.js', 'DIR/+page@foo.js']]
+	])
+)('rejects invalid route syntax in %s with %s', (file, code, contains) => {
+	with_routes([file], (dir) => {
+		expect(() => create(dir)).toThrowKitError(code, {
+			contains: contains.map((part) => part.replaceAll('DIR', dir))
+		});
+	});
+});
+
+test('rejects server files with the hash router', () => {
+	with_routes(['+page.server.js'], (dir) => {
+		expect(() => create(dir, { router: { type: 'hash' } })).toThrowKitError(
+			'route_server_file_hash_router',
+			{ contains: [`${dir}/+page.server.js`] }
+		);
+	});
+});
+
+test('errors if no routes are found', () => {
+	with_routes(['README.md'], (dir) => {
+		expect(() => create(dir)).toThrowKitError('routes_not_found');
+	});
+});
+
+test('prevents route conflicts between params', () => {
+	expect(() => create('samples/conflicting-params')).toThrowKitError('route_conflict', {
+		contains: ['`/[slug1]` and `/[slug2]`']
+	});
+});
+
+test('ignores things that look like lockfiles', () => {
+	const { routes } = create('samples/lockfiles');
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/'
+		},
+		{
+			id: '/foo',
+			pattern: '/^/foo/?$/',
+			endpoint: {
+				file: 'samples/lockfiles/foo/+server.js',
+				page_options: {}
+			}
+		}
+	]);
+});
+
+test('only suggests a + prefix for names valid with the file extension', () => {
+	const spy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+	try {
+		const { nodes, routes } = create('samples/missing-prefix');
+
+		expect(spy).toHaveBeenCalledTimes(1);
+		expect(spy.mock.calls[0][0]).toContainKitDiagnostic('route_file_prefix_missing', {
+			contains: ['+page.svelte', path.join(cwd, 'samples/missing-prefix/page.svelte')]
+		});
+		expect(nodes.map(simplify_node)).toEqual([
+			default_layout,
+			default_error,
+			{ component: 'samples/missing-prefix/+page.svelte' }
+		]);
+		expect(routes[0].page).toEqual({ layouts: [0], errors: [1], leaf: 2 });
+	} finally {
+		spy.mockRestore();
+	}
+});
+
+test('works with custom extensions', () => {
+	const { nodes, routes } = create('samples/custom-extension', {
+		extensions: ['.jazz', '.beebop', '.funk', '.svelte']
+	});
+
+	expect(nodes.map(simplify_node)).toEqual([
+		default_layout,
+		default_error,
+		{ component: 'samples/custom-extension/+page.funk' },
+		{ component: 'samples/custom-extension/about/+page.jazz' },
+		{ component: 'samples/custom-extension/blog/+page.svelte' },
+		{ component: 'samples/custom-extension/blog/[slug]/+page.beebop' }
+	]);
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/',
+			page: { layouts: [0], errors: [1], leaf: 2 }
+		},
+		{
+			id: '/about',
+			pattern: '/^/about/?$/',
+			page: { layouts: [0], errors: [1], leaf: 3 }
+		},
+		{
+			id: '/blog.json',
+			pattern: '/^/blog.json/?$/',
+			endpoint: {
+				file: 'samples/custom-extension/blog.json/+server.js',
+				page_options: {}
+			}
+		},
+		{
+			id: '/blog',
+			pattern: '/^/blog/?$/',
+			page: { layouts: [0], errors: [1], leaf: 4 }
+		},
+		{
+			id: '/blog/[slug].json',
+			pattern: '/^/blog/([^/]+?).json/?$/',
+			endpoint: {
+				file: 'samples/custom-extension/blog/[slug].json/+server.js',
+				page_options: {}
+			}
+		},
+		{
+			id: '/blog/[slug]',
+			pattern: '/^/blog/([^/]+?)/?$/',
+			page: { layouts: [0], errors: [1], leaf: 5 }
+		}
+	]);
+});
+
+test('lists static assets', () => {
+	const { assets } = create('samples/basic');
+
+	expect(assets).toEqual([
+		{
+			file: 'bar/baz.txt',
+			type: 'text/plain'
+		},
+		{
+			file: 'foo.txt',
+			type: 'text/plain'
+		}
+	]);
+});
+
+test('includes nested error components', () => {
+	const { nodes, routes } = create('samples/nested-errors');
+
+	expect(nodes.map(simplify_node)).toEqual([
+		default_layout,
+		default_error,
+		{ component: 'samples/nested-errors/foo/+layout.svelte' },
+		{ component: 'samples/nested-errors/foo/bar/+error.svelte' },
+		{ component: 'samples/nested-errors/foo/bar/baz/+layout.svelte' },
+		{ component: 'samples/nested-errors/foo/bar/baz/+error.svelte' },
+		{ component: 'samples/nested-errors/foo/bar/baz/+page.svelte' }
+	]);
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/'
+		},
+		{
+			id: '/foo',
+			pattern: '/^/foo/?$/'
+		},
+		{
+			id: '/foo/bar',
+			pattern: '/^/foo/bar/?$/'
+		},
+		{
+			id: '/foo/bar/baz',
+			pattern: '/^/foo/bar/baz/?$/',
+			page: { layouts: [0, 2, undefined, 4], errors: [1, undefined, 3, 5], leaf: 6 }
+		}
+	]);
+});
+
+test('creates routes with named layouts', () => {
+	const { nodes, routes } = create('samples/named-layouts');
+
+	expect(nodes.map(simplify_node)).toEqual([
+		// layouts
+		{ component: 'samples/named-layouts/+layout.svelte' }, // 0
+		default_error, // 1
+		{
+			component: 'samples/named-layouts/(special)/+layout.svelte',
+			universal: 'samples/named-layouts/(special)/+layout.js',
+			server: 'samples/named-layouts/(special)/+layout.server.js'
+		}, // 2
+		{ component: 'samples/named-layouts/(special)/(alsospecial)/+layout.svelte' }, // 3
+		{ component: 'samples/named-layouts/a/+layout.svelte' }, // 4
+		{ component: 'samples/named-layouts/b/c/+layout.svelte' }, // 5
+		{ component: 'samples/named-layouts/b/d/(special)/+layout.svelte' }, // 6
+		{ component: 'samples/named-layouts/b/d/(special)/(extraspecial)/+layout.svelte' }, // 7
+
+		// pages
+		{ component: 'samples/named-layouts/(special)/(alsospecial)/b/c/c1/+page.svelte' }, // 8
+		{ component: 'samples/named-layouts/(special)/a/a2/+page.svelte' }, // 9
+		{ component: 'samples/named-layouts/a/a1/+page.svelte' }, // 10
+		{ component: 'samples/named-layouts/b/c/c2/+page@.svelte', parent_id: '' }, // 11
+		{ component: 'samples/named-layouts/b/d/(special)/+page.svelte' }, // 12
+		{ component: 'samples/named-layouts/b/d/(special)/(extraspecial)/d2/+page.svelte' }, // 13
+		{
+			component: 'samples/named-layouts/b/d/(special)/(extraspecial)/d3/+page@(special).svelte',
+			parent_id: '(special)'
+		}, // 14
+		{ component: 'samples/named-layouts/b/d/d1/+page.svelte' } // 15
+	]);
+
+	expect(routes.filter((route) => route.page).map(simplify_route)).toEqual([
+		{
+			id: '/a/a1',
+			pattern: '/^/a/a1/?$/',
+			page: { layouts: [0, 4], errors: [1, undefined], leaf: 10 }
+		},
+		{
+			id: '/(special)/a/a2',
+			pattern: '/^/a/a2/?$/',
+			page: { layouts: [0, 2], errors: [1, undefined], leaf: 9 }
+		},
+		{
+			id: '/(special)/(alsospecial)/b/c/c1',
+			pattern: '/^/b/c/c1/?$/',
+			page: { layouts: [0, 2, 3], errors: [1, undefined, undefined], leaf: 8 }
+		},
+		{
+			id: '/b/c/c2',
+			pattern: '/^/b/c/c2/?$/',
+			page: { layouts: [0], errors: [1], leaf: 11 }
+		},
+		{
+			id: '/b/d/(special)',
+			pattern: '/^/b/d/?$/',
+			page: { layouts: [0, 6], errors: [1, undefined], leaf: 12 }
+		},
+		{
+			id: '/b/d/d1',
+			pattern: '/^/b/d/d1/?$/',
+			page: { layouts: [0], errors: [1], leaf: 15 }
+		},
+		{
+			id: '/b/d/(special)/(extraspecial)/d2',
+			pattern: '/^/b/d/d2/?$/',
+			page: { layouts: [0, 6, 7], errors: [1, undefined, undefined], leaf: 13 }
+		},
+		{
+			id: '/b/d/(special)/(extraspecial)/d3',
+			pattern: '/^/b/d/d3/?$/',
+			page: { layouts: [0, 6], errors: [1, undefined], leaf: 14 }
+		}
+	]);
+});
+
+test('handles pages without .svelte file', () => {
+	const { nodes, routes } = create('samples/page-without-svelte-file');
+
+	expect(nodes.map(simplify_node)).toEqual([
+		default_layout,
+		default_error,
+		{ component: 'samples/page-without-svelte-file/error/+error.svelte' },
+		{ component: 'samples/page-without-svelte-file/layout/+layout.svelte' },
+		{ ...default_layout, universal: 'samples/page-without-svelte-file/layout/exists/+layout.js' },
+		{ component: 'samples/page-without-svelte-file/+page.svelte' },
+		{ universal: 'samples/page-without-svelte-file/error/[...path]/+page.js' },
+		{ component: 'samples/page-without-svelte-file/layout/exists/+page.svelte' },
+		{ server: 'samples/page-without-svelte-file/layout/redirect/+page.server.js' }
+	]);
+
+	expect(routes.map(simplify_route)).toEqual([
+		{
+			id: '/',
+			pattern: '/^/$/',
+			page: { layouts: [0], errors: [1], leaf: 5 }
+		},
+		{
+			id: '/error',
+			pattern: '/^/error/?$/'
+		},
+		{
+			id: '/error/[...path]',
+			pattern: '/^/error(?:/([^]*))?/?$/',
+			page: { layouts: [0, undefined], errors: [1, 2], leaf: 6 }
+		},
+		{
+			id: '/layout',
+			pattern: '/^/layout/?$/'
+		},
+		{
+			id: '/layout/exists',
+			pattern: '/^/layout/exists/?$/',
+			page: { layouts: [0, 3, 4], errors: [1, undefined, undefined], leaf: 7 }
+		},
+		{
+			id: '/layout/redirect',
+			pattern: '/^/layout/redirect/?$/',
+			page: { layouts: [0, 3], errors: [1, undefined], leaf: 8 }
+		}
+	]);
+});
+
+test('errors on missing layout', () => {
+	expect(() => create('samples/named-layout-missing')).toThrowKitError(
+		'route_layout_segment_missing',
+		{ contains: ['samples/named-layout-missing/+page@missing.svelte', '`missing`'] }
+	);
+});
+
+test('errors on invalid named layout reference', () => {
+	expect(() => create('samples/invalid-named-layout-reference')).toThrowKitError(
+		'route_named_layout_in_module',
+		{ contains: ['`@`', 'samples/invalid-named-layout-reference/x/+page@.js'] }
+	);
+});
+
+test('creates params file path', () => {
+	const { params } = create('samples/basic');
+
+	expect(params).toBe('params.js');
+});
+
+test('returns null params when file is missing', () => {
+	const params_file = path.resolve(cwd, 'params.js');
+
+	fs.renameSync(params_file, params_file + '.bak');
+	try {
+		expect(create('samples/basic').params).toBeNull();
+	} finally {
+		fs.renameSync(params_file + '.bak', params_file);
+	}
+});
+
+test('prevents route conflicts between groups', () => {
+	expect(() => create('samples/conflicting-groups')).toThrowKitError('route_conflict', {
+		contains: ['`/(x)/a` and `/(y)/a`']
+	});
+});
+
+test.each([
+	['multiple-layouts', 'layout component', '`+layout.svelte` and `+layout@.svelte`'],
+	['multiple-pages', 'page component', '`+page.svelte` and `+page@.svelte`'],
+	['conflicting-ts-js-handlers-page', 'universal page module', '`+page.js` and `+page.ts`'],
+	[
+		'conflicting-ts-js-handlers-layout',
+		'server layout module',
+		'`+layout.server.js` and `+layout.server.ts`'
+	],
+	['conflicting-ts-js-handlers-server', 'endpoint', '`+server.js` and `+server.ts`']
+])('errors on duplicate files in samples/%s', (sample, type, files) => {
+	expect(() => create(`samples/${sample}`)).toThrowKitError('route_duplicate_files', {
+		contains: [type, `samples/${sample}/`, files]
+	});
+});
+
+test('errors on prerenderable dual route', () => {
+	expect(() => create('samples/prerendered-dual-route')).toThrowKitError(
+		'route_prerender_page_and_endpoint',
+		{ contains: ['(`/x`)'] }
+	);
+});

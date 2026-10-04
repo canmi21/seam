@@ -11,7 +11,7 @@ not render, and the render is the compiler's.
 **The direction is decided: this framework takes Kit's place in a project rather than running
 beside it.** A project swaps its `@sveltejs/kit` dependency for this one, and the framework layer --
 routing, `load`, the server, the client router, the Vite plugin -- is Kit's own code, forked from
-`vendor/kit` and maintained here. Until then the plugin below runs beside the project's own Kit, and
+`vendor/kit` into `pkgs/framework` and maintained here. Until then the plugin below runs beside the project's own Kit, and
 it stays the way stage two is measured.
 
 Why not stay a plugin: **Kit has no public point at which the render can be replaced.** Its hooks,
@@ -53,10 +53,25 @@ Kit's is decided at its first release: under an alias npm checks every peer rang
 version as if it were Kit's -- `@sveltejs/adapter-node` asks `^3.0.0-next.0` -- so a `0.0.x`
 version would fail them.
 
-**Not decided yet**: where the fork's source lives. `vendor/kit` edited in place is what was
-chosen, and it runs against the workspace's rule that vendored source is not edited
-([vendor.md](../../../spec/vendor.md)) and [VENDOR.md](../vendor/kit/VENDOR.md)'s "Nothing in
-`src/` or `types/` is edited here".
+**The fork is `pkgs/framework`, and `vendor/kit` stays read-only.** The vendored copy keeps the
+workspace's rule ([vendor.md](../../../spec/vendor.md)): upstream's files as upstream wrote them,
+at one tag, replaced whole on an upgrade. It has three jobs the fork cannot do: it is the base an
+upgrade of the fork merges against, it is the Kit every response is compared with
+([conformance.md](conformance.md), "Byte for byte with Kit, except where a difference is
+declared"), and it holds Kit's test apps. The fork is this repository's own code, taken from it and
+kept in upstream's layout, language and formatting -- JavaScript with JSDoc, left alone by the
+linter and the formatter -- so that upstream's diff between two tags merges into it. Named for what
+it is, the framework layer: `pkgs/kit` would have been a second `pkgs/kit` in the workspace beside
+the design package's, and "Kit" is already a word read two ways.
+
+**The fork changes Kit only by call points.** Where this framework does something Kit does not, the
+fork gains a call into a package of the `@seam-js` scope, and the logic lives there: a fork whose
+diff against `vendor/kit` is a list of calls is one whose upgrade conflicts only at those calls, and
+whose diff is the interface Kit would have to offer for the fork to become a plugin again. Every
+change is listed in `pkgs/framework/FORK.md` -- the file, the call point, the package it calls and
+why -- and a change not listed there is a defect. Upgrading is: take the new tag into `vendor/kit`
+as `VENDOR.md` says, merge `vendor/kit`'s diff from the old tag to the new into the fork, and run
+the checks.
 
 ## What SvelteKit is, seen from here
 

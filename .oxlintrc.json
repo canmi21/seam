@@ -3,6 +3,9 @@
 	// check lets through; see spec/architecture/repos.md there, "A copy is forbidden; a difference
 	// that says what it extends is not".
 	"extends": ["../../.oxlintrc.json"],
+	// The fork of Kit is upstream's code in upstream's style, so that upstream's diff merges into
+	// it; see pkgs/framework/FORK.md.
+	"ignorePatterns": ["pkgs/framework/**"],
 	"rules": {
 		// Its premise, that the iterations are independent, fails in this compiler's loops: a queue
 		// that grows while walked, a generator driven a step at a time, one render at a time.
