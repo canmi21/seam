@@ -31,6 +31,8 @@ export interface Staged {
 	baseConfig: string;
 	/** The `--mode` the app's own `build` script passes, where it passes one. */
 	mode: string | undefined;
+	/** What the app's own `preview` script sets before it serves: `RUNTIME_ONLY=secret` for `options-2`. */
+	previewEnv: Record<string, string>;
 	/** What Kit's own `test:build` runs the app's commands with. */
 	env: NodeJS.ProcessEnv;
 }
@@ -39,21 +41,33 @@ export interface Staged {
  * The config and the mode the app's own `build` script names: `vite build -c vite.custom.config.js
  * --mode custom` for `options`, and Vite's defaults for the rest.
  */
-function buildScript(app: string): { config: string; mode: string | undefined } {
+function buildScript(app: string): {
+	config: string;
+	mode: string | undefined;
+	previewEnv: Record<string, string>;
+} {
 	const manifest = JSON.parse(readFileSync(resolve(vendor, 'test/apps', app, 'package.json'), 'utf8')) as {
 		scripts?: Record<string, string>;
 	};
 	const build = manifest.scripts?.['build'] ?? '';
+	const preview = manifest.scripts?.['preview'] ?? '';
+	// The assignments a script line opens with, before the command: `A=1 B=2 vite preview`.
+	const previewEnv: Record<string, string> = {};
+	for (const one of /^((?:\w+=\S*\s+)*)/.exec(preview)?.[1]?.trim().split(/\s+/) ?? []) {
+		const at = one.indexOf('=');
+		if (at > 0) previewEnv[one.slice(0, at)] = one.slice(at + 1);
+	}
 	return {
 		config: /(?:-c|--config)\s+(\S+)/.exec(build)?.[1] ?? 'vite.config.js',
 		mode: /--mode\s+(\S+)/.exec(build)?.[1],
+		previewEnv,
 	};
 }
 
 /** Where `app` is staged, and what it runs with, without staging it. */
 export function staged(app: string, plain: boolean): Staged {
 	const dir = resolve(pkg, '.build-apps', plain ? 'plain' : 'seam', 'packages/kit/test/apps', app);
-	const { config, mode } = buildScript(app);
+	const { config, mode, previewEnv } = buildScript(app);
 	// Kit's own `test:build` runs with `PUBLIC_PRERENDERING=false` in the server's environment,
 	// from `playwright.config.js`.
 	const env = {
@@ -62,7 +76,14 @@ export function staged(app: string, plain: boolean): Staged {
 		PUBLIC_PRERENDERING: 'false',
 		ROUTER_RESOLUTION: process.env['ROUTER_RESOLUTION'] ?? 'client',
 	};
-	return { dir, viteConfig: plain ? config : 'vite.seam.config.js', baseConfig: config, mode, env };
+	return {
+		dir,
+		viteConfig: plain ? config : 'vite.seam.config.js',
+		baseConfig: config,
+		mode,
+		previewEnv,
+		env,
+	};
 }
 
 /**
@@ -73,7 +94,7 @@ export function stage(app: string, plain: boolean): Staged {
 	if (!existsSync(resolve(vendor, 'test/apps', app))) {
 		throw new Error(`no app named ${app} under ${resolve(vendor, 'test/apps')}`);
 	}
-	const { dir, viteConfig, baseConfig, mode, env } = staged(app, plain);
+	const { dir, viteConfig, baseConfig, mode, previewEnv, env } = staged(app, plain);
 	const root = resolve(pkg, '.build-apps', plain ? 'plain' : 'seam');
 	const kitTest = resolve(root, 'packages/kit/test');
 
@@ -107,5 +128,5 @@ export function stage(app: string, plain: boolean): Staged {
 		});
 		if (setup.status !== 0) throw new Error(`the app's setup exited ${String(setup.status)}`);
 	}
-	return { dir, viteConfig, baseConfig, mode, env };
+	return { dir, viteConfig, baseConfig, mode, previewEnv, env };
 }

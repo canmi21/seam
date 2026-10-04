@@ -45,7 +45,7 @@ async function preview(built: Staged, port: number): Promise<ChildProcess> {
 	const child = spawn(
 		resolve(bin, 'vite'),
 		['preview', '--config', built.viteConfig, '--port', String(port), '--strictPort'],
-		{ cwd: built.dir, env: built.env, stdio: 'ignore' },
+		{ cwd: built.dir, env: { ...built.env, ...built.previewEnv }, stdio: 'ignore' },
 	);
 	for (let i = 0; i < 100; i += 1) {
 		if (child.exitCode !== null) break;
@@ -117,6 +117,8 @@ async function ask(port: number, url: string): Promise<Answer> {
 		const response = await fetch(`http://localhost:${String(port)}${encodeURI(url)}`, {
 			redirect: 'manual',
 			headers: { accept: 'text/html' },
+			// A page that never answers is reported as that rather than holding the run.
+			signal: AbortSignal.timeout(10_000),
 		});
 		return {
 			status: response.status,
@@ -157,8 +159,16 @@ function normaliser(dir: string): (answer: Answer) => string {
 			.replace(/\b1\d{12}\b/g, '<time>')
 			.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/g, '<date>')
 			.replace(/(?<!\d)0?\.\d{9,}/g, '<random>')
+			// A content security policy's nonce, which Kit makes per request.
+			.replace(/nonce="[A-Za-z0-9+/=]+"/g, 'nonce="<nonce>"')
 			// A hashed file name, under `_app/immutable` or wherever an inlined bundle names its map.
-			.replace(/([\w-]+)\.[A-Za-z0-9_-]{8}\.(js\.map|js|css|svg|png|jpe?g|woff2?)\b/g, '$1.<hash>.$2');
+			// From the start of a name and no longer than one: unanchored, `[\w-]+` was retried from
+			// every position of a long run of word characters, which held a run of `basics` at full
+			// CPU for half an hour and was taken at first for a page that never answered.
+			.replace(
+				/(?<![\w-])([\w-]{1,120})\.[A-Za-z0-9_-]{8}\.(js\.map|js|css|svg|png|jpe?g|woff2?)\b/g,
+				'$1.<hash>.$2',
+			);
 }
 
 /** Where two answers part, with a little on either side. */
@@ -186,9 +196,19 @@ if (reuse) {
 
 const { manifest } = (await import(
 	pathToFileURL(resolve(outDir(plain.dir), 'output/server/manifest-full.js')).href
-)) as { manifest: { routes: { id: string; page: unknown }[] } };
+)) as {
+	manifest: { app_dir: string; app_path: string; routes: { id: string; page: unknown }[] };
+};
+// Kit's `paths.base`, which `options-2` sets to `/basepath`: the manifest's `app_path` is the base
+// and the app directory joined, without the leading slash, and `app_dir` alone where there is none.
+const base =
+	manifest.app_path === manifest.app_dir
+		? ''
+		: `/${manifest.app_path.slice(0, -(manifest.app_dir.length + 1))}`;
+const based = (url: string): string =>
+	base === '' || url === base || url.startsWith(`${base}/`) ? url : `${base}${url}`;
 const pages = manifest.routes.filter((one) => one.page !== null).map((one) => urlOf(one.id));
-const urls = [...new Set([...pages, ...specURLs(plain.dir)])].toSorted();
+const urls = [...new Set([...pages, ...specURLs(plain.dir)].map(based))].toSorted();
 
 const kitPort = 4791;
 const seamPort = 4792;
