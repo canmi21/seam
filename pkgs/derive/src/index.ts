@@ -80,7 +80,7 @@ function build(
 	// The shared helpers outermost, then each file of the chain from the entry inward, so the
 	// component the expression sits in shadows its callers, and the data innermost of all.
 	const scopes = ['*', ...chain.toReversed()].map((file) => files[file] ?? {});
-	scopes[0] = { $$within: within(files), $$rethrow, ...scopes[0] };
+	scopes[0] = { $$within: within(files, scopes), $$rethrow, ...scopes[0] };
 	const opened = scopes.map((_, at) => `with ($files[${String(at)}]) {`).join(' ');
 	const closed = '}'.repeat(scopes.length);
 	// eslint-disable-next-line no-new-func
@@ -110,36 +110,57 @@ function $$rethrow(make: () => unknown): never {
 }
 
 /**
- * `$$within(chain, $scope, $request, bound)`: another file chain's names, for a piece of an
- * expression written in another component -- a child's awaited value a boundary's run reads, which
- * stays text so that its rejection lands inside the run's catch. It answers only for a name that
- * chain carries and nothing nearer holds: not the data, not what the request binds, not a name the
- * run itself binds, so it sits between the expression's own chain and the data, where the chain
- * would have been. See `boundary()` in the skeleton package, and spec/derivation.md.
+ * `$$within(chain, $scope, $request, locals, code)`: a piece of an expression written in another
+ * component, read through that component's files -- a child's awaited value a boundary's run reads,
+ * which stays text so that its rejection lands inside the run's catch.
+ *
+ * The piece comes as source and is evaluated here rather than inside a `with` in the derivation's
+ * own text: TypeScript's stripper refuses a `with` statement, so a derivation holding one kept its
+ * annotations and stopped at the first colon. A name resolves as it would have in place: what the
+ * run binds around it (`locals`), what the request binds, the data, the child's files innermost
+ * first, then the scopes the derivation itself was built under. See `boundary()` in the skeleton
+ * package, and spec/ir.md.
  */
 function within(
 	files: Record<string, Record<string, unknown>>,
+	outer: readonly Record<string, unknown>[],
 ): (
 	chain: readonly string[],
 	data: object,
 	request: object,
-	bound?: readonly string[],
-) => object {
-	return (chain, data, request, bound = []) => {
-		const objects = chain.map((file) => files[file] ?? {});
-		const nearer = (key: string): boolean => key in request || key in data || bound.includes(key);
-		return new Proxy(
+	locals: Record<string, unknown>,
+	code: string,
+) => Promise<unknown> {
+	const made = new Map<string, (scope: object) => Promise<unknown>>();
+	return (chain, data, request, locals, code) => {
+		const layers: object[] = [
+			locals,
+			request,
+			data,
+			...chain.map((file) => files[file] ?? {}),
+			...outer.toReversed(),
+		];
+		const scope = new Proxy(
 			{},
 			{
-				has: (_, key) =>
-					typeof key === 'string' && !nearer(key) && objects.some((one) => key in one),
+				has: (_, key) => typeof key === 'string' && layers.some((one) => key in one),
 				get: (_, key) => {
 					if (typeof key !== 'string') return undefined;
-					for (const one of objects) if (key in one) return one[key];
-					return undefined;
+					const at = layers.find((one) => key in one);
+					return at === undefined ? undefined : (at as Record<string, unknown>)[key];
 				},
 			},
 		);
+		let run = made.get(code);
+		if (run === undefined) {
+			// eslint-disable-next-line no-new-func
+			run = new Function(
+				'$within',
+				`return (async () => { with ($within) { return (${code}); } })();`,
+			) as (scope: object) => Promise<unknown>;
+			made.set(code, run);
+		}
+		return run(scope);
 	};
 }
 

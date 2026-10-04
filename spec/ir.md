@@ -305,10 +305,14 @@ parameter -- which is a value per iteration where a held reference is one per re
 value that awaits, since `derive` settles a derivation's async dependencies before it evaluates,
 which would put the rejection outside the catch the run exists to put it inside. **A value that
 awaits is still read through its own files**: written bare, a page's `await getCount()` inside the
-layout's boundary looked `getCount` up in the layout, which never imported it. It is wrapped in
-`$$within(files, $scope, $request, bound)`, which `derive` provides: a scope answering only for a
-name those files carry and nothing nearer holds -- not the data, not the request's own names, not
-a name the run binds -- so it stands where the chain would have, below the data. And the throw
+layout's boundary looked `getCount` up in the layout, which never imported it. It goes to
+`$$within(files, $scope, $request, { <what the run binds> }, "<source>")`, which `derive`
+provides and which evaluates the source with names resolving as they would have in place: what the
+run binds around it, the request's own, the data, the child's files, then the derivation's own
+scopes. As source rather than inside a `with` written into the derivation, because TypeScript's
+stripper refuses a `with` and gave up on the whole derivation, which kept its annotations and
+stopped at the first colon -- Kit's `/remote`, written in TypeScript. The source has its types
+taken off before it is quoted. And the throw
 reaches `transformError` as the author threw it: a held reference is a derivation, and `derive`
 wraps what one throws in a `DerivationFailed` naming the source, which `caught` takes off by its
 name -- by name, because it is carried into the bundle and shares no `Error` to test against.

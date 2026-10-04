@@ -239,6 +239,11 @@ const remoteFiles: Record<string, string> = {
 		"<script>import { page } from '$app/state'; let { error } = $props();</script><p id=\"nested\">{error.message} | {page.error?.message === error.message} | {page.status}</p>",
 	'src/routes/seb/nested/+page.svelte': "<script>throw new Error('nested render error');</script><h1>never</h1>",
 	'src/routes/fine/+page.svelte': '<p>fine</p>',
+	// TypeScript in an awaited value a boundary's run reads, which `/remote` of Kit's `async` app
+	// has: the value went into the run inside a `with`, which TypeScript's stripper refuses, and the
+	// annotations stayed in the derivation.
+	'src/routes/typed/+page.svelte':
+		"<script lang=\"ts\">import { getCount } from '../data.remote'; function twice(n: number): number { return n * 2; }</script><p>{twice(await getCount())}</p>",
 	'src/routes/fine/+error.svelte': "<script>throw new Error('error page render error');</script><p>never</p>",
 	// A form, spread onto an element and read down its fields, with state the script sets per request
 	// before the markup reads it: Kit's `async` app's `remote/form/set-ssr`.
@@ -250,7 +255,7 @@ const remoteFiles: Record<string, string> = {
 		"<script>import { getCount, greet } from './data.remote'; const count = getCount();</script><p>count: {await getCount()}</p><p>{await count} / {count.current} ({count.loading})</p><p>{await greet('kit')}</p>",
 };
 
-const REMOTE_URLS = ['/', '/form', '/seb', '/seb/layout-throws', '/seb/nested', '/fine'];
+const REMOTE_URLS = ['/', '/form', '/seb', '/seb/layout-throws', '/seb/nested', '/fine', '/typed'];
 
 describe('a remote function answers as it does in Kit', () => {
 	let kitRemote: Record<string, string> = {};
@@ -272,7 +277,7 @@ describe('a remote function answers as it does in Kit', () => {
 		expect(oursRemote['/form']).toBe(kitRemote['/form']);
 	});
 
-	it.each(['/seb', '/seb/layout-throws', '/seb/nested', '/fine'])('%s', (url) => {
+	it.each(['/seb', '/seb/layout-throws', '/seb/nested', '/fine', '/typed'])('%s', (url) => {
 		expect(oursRemote[url]).toBe(kitRemote[url]);
 	});
 

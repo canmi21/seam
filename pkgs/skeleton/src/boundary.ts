@@ -2,6 +2,7 @@
  * A `<svelte:boundary>` and what it renders per request, in the order the render computes it, and
  * a raw snippet as a raw hole over the author's `render`. See spec/ir.md.
  */
+import { stripTypeScriptTypes } from 'node:module';
 import { basename } from 'node:path';
 import { bound as namesBound, constant, OPTIONS, mentions, reads as readsIn } from '@seam-js/ast';
 import { type AstNode, isNode, refuse, span } from './node.ts';
@@ -155,11 +156,13 @@ export function boundary(
 		if (constant(plain)) return `(${plain})`;
 		// A value that awaits stays text, and is read through its own files: inlined bare, a
 		// page's `await getCount()` inside a layout's boundary looked `getCount` up in the layout,
-		// where the page's import is not. `$$within` answers for that chain alone and below the
-		// data, which is where the chain would have stood. See `within` in the derive package.
+		// where the page's import is not. `$$within` evaluates it with that chain below the data,
+		// which is where the chain would have stood, handed what the run binds around it. It goes
+		// as source, its types already taken off, since a `with` written into the derivation made
+		// TypeScript's stripper give up on the whole of it. See `within` in the derive package.
 		if (awaiting(plain) && files !== undefined && files.length > 0) {
-			const bound = JSON.stringify([...inScope]);
-			return `(await (async () => { with ($$within(${JSON.stringify(files)}, $scope, $request, ${bound})) { return (${plain}); } })())`;
+			const locals = `{ ${[...inScope].join(', ')} }`;
+			return `(await $$within(${JSON.stringify(files)}, $scope, $request, ${locals}, ${JSON.stringify(untyped(plain))}))`;
 		}
 		if (awaiting(plain) || (inScope.size > 0 && mentions(plain, inScope))) {
 			return `(${plain})`;
@@ -537,4 +540,13 @@ export function rawSnippet(call: unknown, name: string | null, walk: Walk): bool
 		edits.push([at[0], at[1], `(${pushing})()`]);
 	}
 	return true;
+}
+
+/** An expression with its TypeScript taken off, as lowering does to every derivation. */
+function untyped(expression: string): string {
+	try {
+		return stripTypeScriptTypes(`(${expression})`, { mode: 'strip' }).slice(1, -1);
+	} catch {
+		return expression;
+	}
 }
