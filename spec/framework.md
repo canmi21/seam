@@ -61,8 +61,10 @@ the move costs this layer, each a fact of the diff rather than a guess:
    project, and a project with no Vite config gets the validator's defaults under the same root,
    which is what a sample the suite stages is; `$lib` went with Kit's, `#lib` resolves through the
    project's `package.json` `imports` as Node resolves a subpath import, and `alias` is read as
-   Kit reads it. `svelte.config.js` is still read for `compilerOptions`, since `vite-plugin-svelte`
-   still reads it there and it is where a sample sets `runes` and the flag. **The root half**: one
+   Kit reads it. `compilerOptions` is read off the plugin's argument first, as Kit 3 hands it to
+   `vite-plugin-svelte` as inline config, and off `svelte.config.js` beneath it, since
+   `vite-plugin-svelte` still reads the file and it is where a sample sets `runes` and the flag;
+   read off the file alone, Kit's `async` app was compiled without the flag it turns on. **The root half**: one
    root per route, Kit's recursive snippet unrolled a level per component of the branch, each
    level a `<svelte:boundary>` around `<svelte:component this={Node_l}>`, `{#if true}` and
    `{#if false}` where Kit tests `n.child`, and the level's `+error.svelte` -- Kit's
@@ -133,8 +135,10 @@ the move costs this layer, each a fact of the diff rather than a guess:
      as a `data:` URL whatever the project's limit. So its bundling turns an import that yields a
      URL -- a file Vite counts as an asset, or `?url` -- into a read under `asset:<path from the
 root>` and lists the path in `<outDir>/seam/assets.json`, and the dispatcher imports each
-     listed file, which Kit's server build answers as it answers the component's own import. An
-     import that yields the file's content, `?raw` or `?inline`, is the compile's and stays bundled.
+     listed file, which Kit's server build answers as it answers the component's own import. A
+     worker's `?worker&url` is one of these, written under `_app/immutable/workers/`; a bare
+     `?worker` yields a constructor and stays bundled, and so does an import that yields the
+     file's content, `?raw` or `?inline`.
    - **A script run reads the request's `page`** through Kit's own `$app/state` server module;
      [derivation.md](derivation.md), "Where substitution cannot follow".
    - **The loader stands where the build stands.** Kit aliases `<sveltekit:generated>` to

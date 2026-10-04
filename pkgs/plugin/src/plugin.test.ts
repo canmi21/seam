@@ -66,6 +66,11 @@ const files: Record<string, string> = {
 	// named nothing at request time.
 	'src/routes/store/state.js':
 		"import { writable } from 'svelte/store';\nlet count = 0;\nexport const mode = writable('initial');\nexport function bump() { count++; }",
+	// A worker's URL, which Kit's build writes under `_app/immutable/workers/`: Kit's `no-csr` app
+	// links one, and the carried bundle wrote the library build's `/assets/` path instead.
+	'src/routes/worker/work.js': 'self.onmessage = () => {};',
+	'src/routes/worker/+page.svelte':
+		"<script>import url from './work.js?worker&url';</script><a href={url}>worker</a>",
 	'src/routes/store/+page.svelte':
 		"<script>import { mode, bump } from './state.js'; function go() { mode.set('x'); bump(); }</script><button onclick={go}>go</button><p>mode: {$mode}</p>",
 };
@@ -79,6 +84,7 @@ const URLS = [
 	'/missing',
 	'/run',
 	'/store',
+	'/worker',
 ];
 
 /** Builds the project into Kit's output under `outDir`, with or without the plugin. */

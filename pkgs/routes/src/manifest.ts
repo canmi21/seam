@@ -105,18 +105,25 @@ export function configured(cwd: string): Promise<Config> {
 }
 
 /**
- * The compile options the project's `svelte.config.js` sets that change what a component compiles
- * to, read off the file as `vite-plugin-svelte` reads it, since Kit's validator does not know the
- * key: `runes`, a boolean or Svelte's function of the file, taken as it is, and
- * `experimental.async`.
+ * The compile options the project sets that change what a component compiles to: `runes`, a
+ * boolean or Svelte's function of the file, taken as it is, and `experimental.async`. Kit 3 takes
+ * them as `sveltekit({ compilerOptions })` and hands them to `vite-plugin-svelte` as its inline
+ * config, which wins over the `svelte.config.js` that plugin still reads; a project without Kit's
+ * plugin -- a sample the suite stages -- sets them in the file alone.
  */
 export async function compilerOptions(root: string): Promise<{
 	runes?: boolean | ((options: { filename: string }) => boolean | undefined);
 	experimental?: { async: true };
 }> {
-	const given = (await userConfig(resolve(root)))['compilerOptions'];
-	const held =
-		typeof given === 'object' && given !== null ? (given as Record<string, unknown>) : {};
+	const object = (value: unknown): Record<string, unknown> =>
+		typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
+	const file = object((await userConfig(resolve(root)))['compilerOptions']);
+	const kit = object((await configured(resolve(root)) as { compilerOptions?: unknown }).compilerOptions);
+	const held: Record<string, unknown> = {
+		...file,
+		...kit,
+		experimental: { ...object(file['experimental']), ...object(kit['experimental']) },
+	};
 	const runes = held['runes'];
 	const experimental = held['experimental'];
 	const async =

@@ -256,7 +256,11 @@ function assetURLs(root: string, found: Set<string>): Plugin {
 			if (resolved === null || resolved.external || resolved.id.startsWith('\0')) return null;
 			const [file = '', query = ''] = resolved.id.split('?', 2);
 			const flags = new URLSearchParams(query);
-			if (['raw', 'inline', 'worker', 'sharedworker'].some((one) => flags.has(one))) return null;
+			if (['raw', 'inline'].some((one) => flags.has(one))) return null;
+			// A worker is a constructor unless `url` asks for where Kit's build put it, which is
+			// `_app/immutable/workers/` and not the library build's `assets/`.
+			const worker = flags.has('worker') || flags.has('sharedworker');
+			if (worker && !flags.has('url')) return null;
 			if (isAsset?.(file) !== true && !flags.has('url') && !flags.has('no-inline')) return null;
 			const imported = `${relative(root, file).split('\\').join('/')}${query === '' ? '' : `?${query}`}`;
 			found.add(imported);
