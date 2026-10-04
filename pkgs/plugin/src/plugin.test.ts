@@ -231,7 +231,7 @@ const remoteFiles: Record<string, string> = {
 	// the level Kit's root puts round them; and a page whose own error page throws, which renders
 	// as long as nothing calls for the error page.
 	'src/routes/+error.svelte':
-		"<script>import { page } from '$app/state'; let { error } = $props();</script><h1>{page.status}</h1><p id=\"message\">{error.message}</p>",
+		'<script>import { page } from \'$app/state\'; let { error } = $props();</script><h1>{page.status}</h1><p id="message">{error.message}</p>',
 	'src/routes/seb/+layout.svelte':
 		'<script>let { children } = $props();</script><div id="nested-layout">{@render children?.()}</div>',
 	'src/routes/seb/+page.svelte': "<script>throw new Error('render error');</script><h1>never</h1>",
@@ -241,8 +241,9 @@ const remoteFiles: Record<string, string> = {
 	'src/routes/seb/layout-throws/+error.svelte':
 		'<script>let { error } = $props();</script><p>sibling: {error.message}</p>',
 	'src/routes/seb/nested/+error.svelte':
-		"<script>import { page } from '$app/state'; let { error } = $props();</script><p id=\"nested\">{error.message} | {page.error?.message === error.message} | {page.status}</p>",
-	'src/routes/seb/nested/+page.svelte': "<script>throw new Error('nested render error');</script><h1>never</h1>",
+		'<script>import { page } from \'$app/state\'; let { error } = $props();</script><p id="nested">{error.message} | {page.error?.message === error.message} | {page.status}</p>',
+	'src/routes/seb/nested/+page.svelte':
+		"<script>throw new Error('nested render error');</script><h1>never</h1>",
 	'src/routes/fine/+page.svelte': '<p>fine</p>',
 	// A child called per item, reading its own import of a remote form with the item: inside the
 	// run of Kit's root boundary the read is a value per item, which was inlined where the child's
@@ -254,7 +255,7 @@ const remoteFiles: Record<string, string> = {
 	// A query that rejects inside the page's own boundary, which is inside the one Kit's root puts
 	// at the level: the page's boundary takes its `failed` branch. Kit's `remote/batch-ssr`.
 	'src/routes/caught/+page.svelte':
-		"<script>import { missing } from '../data.remote';</script><svelte:boundary><p>{await missing()}</p>{#snippet failed(e)}<p id=\"caught\">{e.message}</p>{/snippet}</svelte:boundary>",
+		'<script>import { missing } from \'../data.remote\';</script><svelte:boundary><p>{await missing()}</p>{#snippet failed(e)}<p id="caught">{e.message}</p>{/snippet}</svelte:boundary>',
 	// A query that redirects, which Kit answers with the redirect: thrown through a derivation it
 	// reached Kit wrapped, and Kit, which reads it by class, answered 500. Kit's `query-redirect`.
 	'src/routes/away/+page.svelte':
@@ -267,8 +268,16 @@ const remoteFiles: Record<string, string> = {
 	// has: the value went into the run inside a `with`, which TypeScript's stripper refuses, and the
 	// annotations stayed in the derivation.
 	'src/routes/typed/+page.svelte':
-		"<script lang=\"ts\">import { getCount } from '../data.remote'; function twice(n: number): number { return n * 2; }</script><p>{twice(await getCount())}</p>",
-	'src/routes/fine/+error.svelte': "<script>throw new Error('error page render error');</script><p>never</p>",
+		'<script lang="ts">import { getCount } from \'../data.remote\'; function twice(n: number): number { return n * 2; }</script><p>{twice(await getCount())}</p>',
+	'src/routes/fine/+error.svelte':
+		"<script>throw new Error('error page render error');</script><p>never</p>",
+	// An awaited value inside the boundary Kit's root puts at the level, computed by the boundary's
+	// run and written by its hole: computed twice, it counted 2 where Svelte calls it once, and a
+	// slow one held the page for twice as long. Kit's `remote/query-loading-state`.
+	'src/routes/once/count.js':
+		'let n = 0;\nexport async function next(path) { n += 1; return `${path}:${n}`; }',
+	'src/routes/once/+page.svelte':
+		"<script>import { page } from '$app/state'; import { next } from './count.js';</script><p id=\"once\">{await next(page.url.pathname)}</p>",
 	// A form, spread onto an element and read down its fields, with state the script sets per request
 	// before the markup reads it: Kit's `async` app's `remote/form/set-ssr`.
 	'src/routes/form/+page.svelte':
@@ -291,6 +300,7 @@ const REMOTE_URLS = [
 	'/away',
 	'/caught',
 	'/each',
+	'/once',
 ];
 
 describe('a remote function answers as it does in Kit', () => {
@@ -313,6 +323,11 @@ describe('a remote function answers as it does in Kit', () => {
 		expect(oursRemote['/form']).toBe(kitRemote['/form']);
 	});
 
+	it('/once', () => {
+		expect(kitRemote['/once']).toContain('/once:1');
+		expect(oursRemote['/once']).toBe(kitRemote['/once']);
+	});
+
 	it.each([
 		'/seb',
 		'/seb/layout-throws',
@@ -323,12 +338,9 @@ describe('a remote function answers as it does in Kit', () => {
 		'/away',
 		'/caught',
 		'/each',
-	])(
-		'%s',
-		(url) => {
-			expect(oursRemote[url]).toBe(kitRemote[url]);
-		},
-	);
+	])('%s', (url) => {
+		expect(oursRemote[url]).toBe(kitRemote[url]);
+	});
 
 	// A route the compile leaves to the framework is answered by Kit's own render, which matches Kit
 	// whatever the compiler did -- so the answer alone does not say the route was compiled.

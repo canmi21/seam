@@ -2,6 +2,7 @@
  * A `<svelte:boundary>` and what it renders per request, in the order the render computes it, and
  * a raw snippet as a raw hole over the author's `render`. See spec/ir.md.
  */
+import { createHash } from 'node:crypto';
 import { stripTypeScriptTypes } from 'node:module';
 import { basename } from 'node:path';
 import { bound as namesBound, constant, OPTIONS, mentions, reads as readsIn } from '@seam-js/ast';
@@ -25,9 +26,11 @@ import { parameterNames } from './written.ts';
  *
  * The children are walked as any markup is, components entered and blocks recorded, and what they
  * compute is guarded holes: the render written for the first branch evaluates none of them and
- * cannot throw, and so does every derivation. The test is the same values computed again inside
- * one catch per request, in the order the render computes them and under the same ifs and eaches,
- * which is the source of the error. The render for the second branch throws from inside the
+ * cannot throw, and so does every derivation. The test is the same values computed inside one
+ * catch per request, in the order the render computes them and under the same ifs and eaches,
+ * which is the source of the error; each is kept, and the hole reads it rather than computing it a
+ * second time. See spec/ir.md, "A value is computed once, by the run, and the hole reads it". The
+ * render for the second branch throws from inside the
  * children on purpose, at their end, and `failed` is walked with its parameter bound to the
  * transformed value.
  */
@@ -60,7 +63,14 @@ export function boundary(
 		closer = edits.length;
 		edits.push(stamped(walk, index, source, whole[1]));
 	}
+	// A boundary computed once per item -- inside an each, or a component entered as a fragment
+	// and called again -- runs once per item, and a key per request cannot tell its items apart.
+	const iterated = (stack: readonly [number, number][]): boolean =>
+		stack.some(([at]) => blocks[at]?.kind === 'each' || blocks[at]?.fragment !== undefined);
+	const keyed = !iterated(block.within ?? []);
 	const raw = new Map<string, string>();
+	// The key each guarded value is kept under, which the run writes it back under. See `kept`.
+	const keys = new Map<string, string>();
 	const guard = (text: string): string => {
 		// A literal throws nothing, and it is what the walk folds a test or a value by. Nor does a
 		// component the file imports, which is what a `<svelte:component this>` settles to and what
@@ -75,36 +85,62 @@ export function boundary(
 		) {
 			return text;
 		}
+		// The value the run computed, read back rather than computed a second time: Svelte computes
+		// it once. One inside an each or a fragment is computed per item, and which item's run it
+		// was is not something the hole can name, so it is computed again there. See spec/ir.md, "A
+		// value is computed once, by the run, and the hole reads it".
+		const key =
+			keyed && !iterated(within) ? `${String(index)}.${String(raw.size)}.${digest(text)}` : null;
+		const named = key === null ? 'null' : JSON.stringify(key);
 		// The run's own await counts here, which `awaiting` leaves out as not the author's: the
 		// guard is a function, and an `await $$run(...)` inside one that is not `async` is a syntax
 		// error -- `await` is a plain name in sloppy mode.
-		const guarded =
-			awaiting(text) || text.includes('await $$run(')
-				? `(await $$tried(async () => (${text})))`
-				: `$$tried(() => (${text}))`;
+		const waiting = awaiting(text) || text.includes('await $$run(');
+		const guarded = waiting
+			? `(await $$tried($$request, ${named}, async () => (${text})))`
+			: `$$tried($$request, ${named}, () => (${text}))`;
 		raw.set(guarded, text);
+		if (key !== null) {
+			keys.set(
+				guarded,
+				waiting
+					? `(await $$kept($$request, ${named}, async () => (${text})))`
+					: `$$kept($$request, ${named}, () => (${text}))`,
+			);
+		}
 		return guarded;
 	};
-	const unguarded = (text: string): string => {
-		// Longest first: a guarded value inside another is part of the outer one's text until the
-		// outer one is taken off.
-		const keys = [...raw.keys()].toSorted((a, b) => b.length - a.length);
+	// Every guard of this boundary taken off, each replaced by what `as` makes of it. Longest first: a
+	// guarded value inside another is part of the outer one's text until the outer one is taken off.
+	const replacing = (text: string, as: (guarded: string) => string): string => {
+		const found = [...raw.keys()].toSorted((a, b) => b.length - a.length);
 		for (let changed = true; changed;) {
 			changed = false;
-			for (const key of keys) {
-				if (!text.includes(key)) continue;
-				text = text.split(key).join(raw.get(key) ?? key);
+			for (const one of found) {
+				if (!text.includes(one)) continue;
+				text = text.split(one).join(as(one));
 				changed = true;
 			}
 		}
 		return text;
 	};
+	// What is written into the render's own source: the value as it was written.
+	const unguarded = (text: string): string => replacing(text, (one) => raw.get(one) ?? one);
+	// What the run computes: the value, kept under its key for the hole to read.
+	const recorded = (text: string): string =>
+		replacing(text, (one) => keys.get(one) ?? raw.get(one) ?? one);
 	// What the run computes is the value bare of every guard, this boundary's and the ones round
 	// it: Kit's root puts a boundary at every level, so a page's own `<svelte:boundary>` is inside
 	// one, and the value it was handed already carried the outer guard, which swallowed the throw
 	// this run exists to catch -- a query rejecting inside the page's boundary rendered the branch
 	// for nothing having thrown. Kit's `remote/batch-ssr`.
 	const bare = (text: string): string =>
+		walk.untried === undefined ? recorded(text) : walk.untried(recorded(text));
+	// The same value with every guard simply taken off, which is what is asked of it -- whether it
+	// is a literal, awaits, reads what the run binds. Asked of the kept form, the author's await sat
+	// inside the function `$$kept` is handed and only the kept form's own await showed, so a value
+	// that awaited only its script's run read as one the author awaits.
+	const seen = (text: string): string =>
 		walk.untried === undefined ? unguarded(text) : walk.untried(unguarded(text));
 	// Every hole and block the children record, with the blocks enclosing it, in the order the walk
 	// records them -- which is source order, entered components included. Read off the two lists as
@@ -132,8 +168,7 @@ export function boundary(
 			{
 				...walk,
 				trying: guard,
-				untried: (text) =>
-					walk.untried === undefined ? unguarded(text) : walk.untried(unguarded(text)),
+				untried: seen,
 				holding: true,
 				expand: (one, extra) => guard(walk.expand(one, extra)),
 			},
@@ -160,7 +195,8 @@ export function boundary(
 		inScope: ReadonlySet<string>,
 	): string => {
 		const plain = bare(text);
-		if (constant(plain)) return `(${plain})`;
+		const asked = seen(text);
+		if (constant(asked)) return `(${asked})`;
 		// A value that awaits stays text, and is read through its own files: inlined bare, a
 		// page's `await getCount()` inside a layout's boundary looked `getCount` up in the layout,
 		// where the page's import is not. `$$within` evaluates it with that chain below the data,
@@ -171,15 +207,14 @@ export function boundary(
 		// rather than one a held reference could stand for: inlined bare, a child's
 		// `as_value_form.for(value.id)` looked `as_value_form` up in the layout. Kit's
 		// `remote/form/as-value`.
-		const local = inScope.size > 0 && mentions(plain, inScope);
-		if ((awaiting(plain) || local) && files !== undefined && files.length > 0) {
+		const local = inScope.size > 0 && mentions(asked, inScope);
+		const waiting = awaiting(asked);
+		if ((waiting || local) && files !== undefined && files.length > 0) {
 			const locals = `{ ${[...inScope].join(', ')} }`;
 			const read = `$$within(${JSON.stringify(files)}, $scope, $request, ${locals}, ${JSON.stringify(untyped(plain))})`;
-			return awaiting(plain) ? `(await ${read})` : `(${read})`;
+			return waiting ? `(await ${read})` : `(${read})`;
 		}
-		if (awaiting(plain) || (inScope.size > 0 && mentions(plain, inScope))) {
-			return `(${plain})`;
-		}
+		if (waiting || local) return `(${plain})`;
 		const key = (files ?? []).join('\u0000');
 		let at = walk.keeping.findIndex(
 			(one) => one.expression === plain && (one.files ?? []).join('\u0000') === key,
@@ -202,7 +237,10 @@ export function boundary(
 		);
 	}
 	const run = `${waits ? 'async ' : ''}() => { ${body} }`;
-	const outcome = waits ? `(await $$caught(${run}, ${OPTIONS}))` : `$$caught(${run}, ${OPTIONS})`;
+	// One outcome per request, which the test, the JSON and the snippet's value all read.
+	const key = keyed ? JSON.stringify(`${String(index)}.${digest(run)}`) : 'null';
+	const caught = `$$caught($$request, ${key}, ${run}, ${OPTIONS})`;
+	const outcome = waits ? `(await ${caught})` : caught;
 	const test = `!(${outcome}).threw`;
 	block.expression = test;
 	block.tests = [test, `(${outcome}).json`];
@@ -553,6 +591,15 @@ export function rawSnippet(call: unknown, name: string | null, walk: Walk): bool
 		edits.push([at[0], at[1], `(${pushing})()`]);
 	}
 	return true;
+}
+
+/**
+ * A short digest of a value's text, in a key beside the boundary's index and the guard's count: a
+ * route joined out of several structures carries the derivations of each, and two structures
+ * counting alike over different values must not meet in one key.
+ */
+function digest(text: string): string {
+	return createHash('sha256').update(text).digest('hex').slice(0, 8);
 }
 
 /** An expression with its TypeScript taken off, as lowering does to every derivation. */

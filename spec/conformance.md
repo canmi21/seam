@@ -302,13 +302,13 @@ With the two closed: **605 the same, 1 different, 1 unstable.**
 **Every other app, compared the same way**, each built with its own config, mode and preview
 environment as its own scripts give them:
 
-| app | URLs | result |
-| --- | --- | --- |
-| `embed`, `hash-based-routing`, `no-csr`, `no-ssr`, `options-3`, `prerendered-app-error-pages`, `writes` | 2 to 17 each | all the same |
-| `options` | 69 | all the same |
-| `options-2` | 22 | all the same; it calls remote functions |
-| `async` | 104 | 101 the same, 3 different, below |
-| `dev-only` | -- | Kit's own build fails by design: the app is for `vite dev` |
+| app                                                                                                     | URLs         | result                                                     |
+| ------------------------------------------------------------------------------------------------------- | ------------ | ---------------------------------------------------------- |
+| `embed`, `hash-based-routing`, `no-csr`, `no-ssr`, `options-3`, `prerendered-app-error-pages`, `writes` | 2 to 17 each | all the same                                               |
+| `options`                                                                                               | 69           | all the same                                               |
+| `options-2`                                                                                             | 22           | all the same; it calls remote functions                    |
+| `async`                                                                                                 | 104          | 102 the same, 2 different, below                           |
+| `dev-only`                                                                                              | --           | Kit's own build fails by design: the app is for `vite dev` |
 
 What this found and closed: the `?worker&url` of `no-csr`, `compilerOptions` read off Kit's plugin
 for `async`, and remote functions for `async` and `options-2` ([derivation.md](derivation.md), "A
@@ -318,20 +318,17 @@ remote function runs where Kit's server runs it").
 started -- read for `.loading`, `.ready` or `.current`, never awaited -- into the page only where
 its promise has settled by the time the render ends, racing it against one microtask
 (`collect_remote_data`, "the implicit 'still loading' heuristic"), and leaves the rest for the
-client to fetch. So the bytes depend on how far a render has got, and two pages land on either side:
+client to fetch. So the bytes depend on how far a render has got, and two pages land on the other
+side of it: `remote/live-ssr-value` and `remote/live-terminal`, a live query's first value. A page
+that awaits nothing is injected in one synchronous pass, fewer microtasks than Svelte's async render
+takes, and the generator has not yielded when Kit collects, so the entry Kit writes is missing. This
+is timing alone, and matching it means matching how many turns a render takes.
 
-- `remote/live-ssr-value` and `remote/live-terminal`: a live query's first value. A page that
-  awaits nothing is injected in one synchronous pass, fewer microtasks than Svelte's async render
-  takes, and the generator has not yielded when Kit collects, so the entry Kit writes is missing.
-- `remote/query-loading-state`: a one-second query beside a half-second `{await}`. A value that
-  awaits inside a boundary is computed twice -- once in the boundary's run, which has to see it
-  reject inside its catch, and once for its hole -- so the render takes a second, the query has
-  settled, and an entry Kit does not write is written.
-
-The second is a fault of its own and comes first: a value computed twice is two calls where Svelte
-makes one, which a function with an effect tells apart whatever the timing. The hole has to read the
-value the run already computed. The first is timing alone, and matching it means matching how many
-turns a render takes.
+**Closed: a value a boundary computed twice.** `remote/query-loading-state` is a one-second query
+beside a half-second `{await}`, and the `{await}` was computed by the boundary's run and again by
+its hole: the render took a second, the query had settled, and an entry Kit does not write was
+written. The hole now reads what the run computed. [ir.md](ir.md), "A value is computed once, by the
+run, and the hole reads it".
 
 **Closed: a component that throws while it renders, whatever the request.** The four `async` routes
 the remote work left were Kit's tests of exactly that: `server-error-boundary` and its two children

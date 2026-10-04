@@ -364,6 +364,39 @@ the failed branch's open is told to open again.
 fragment the run did not define. Each computes in an order of its own that the recorded holes and
 blocks do not say.
 
+### A value is computed once, by the run, and the hole reads it
+
+Svelte computes each of a boundary's values once, inside its catch, and writes what it computed. The
+run and the holes are two readers of that one computation, and each used to make it: the run to
+learn whether it throws, the hole again to write it. A value with an effect told them apart -- a
+counter wrote `2` where Svelte wrote `1` -- and one that waits held the page for twice as long, which
+moved what had settled by the time Kit collected its queries (Kit's `remote/query-loading-state`).
+The outcome was read three times over: the test, the JSON and the `failed` snippet's value each ran
+the children again and called `transformError` again.
+
+So **every guard carries a key**, the boundary's index, the guard's count in it and a digest of the
+value's text -- a route joined out of several structures carries the derivations of each, and two
+counting alike over different values must not meet. The run computes the value as
+`$$kept($$request, key, () => value)`, which keeps it under the key in a table of the request's own,
+and the hole's guard, `$$tried($$request, key, () => value)`, reads the kept value where there is
+one and computes it only where there is not. A promise is kept as the promise, so the hole awaits
+what the run awaited rather than calling again. `$$caught` keeps its outcome under the boundary's
+key in the same table, so the run is made once per request whoever reads it. The table is keyed by
+the object `derive` binds as `$$request`, one per request and shared by all of its derivations, and
+lives exactly as long as that request.
+
+What is asked of a value -- whether it is a literal, whether the author awaits, whether it reads
+what the run binds -- is asked of it with its guards taken off, not of the kept form: there, the
+author's `await` sits inside the function `$$kept` is handed, and only the kept form's own `await`
+showed, so a value that awaited nothing but its script's run read as one the author awaits.
+
+**A value computed once per item is not kept.** Inside an `{#each}` or a component entered as a
+fragment and called again, the run computes it per item and so does the hole, and nothing the hole
+can read says which of the run's items it is: an item's own value is not enough, since two items may
+be equal. Such a guard has no key, and the value is computed again where the hole reads it, as it
+was before; so is every value of a boundary that sits inside an each or a fragment, whose run is
+itself made per item.
+
 ## Recursion is a fragment and a call
 
 `<svelte:self>` is `build_inline_component(node, analysis.name)` in `SvelteSelf.js`, a component

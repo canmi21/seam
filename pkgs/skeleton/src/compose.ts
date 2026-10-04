@@ -443,6 +443,7 @@ export const CARRIED = [
 	'get_store',
 	'given',
 	'hold',
+	'kept',
 	'options',
 	'rest_props',
 	'rethrow',

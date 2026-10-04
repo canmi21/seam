@@ -262,6 +262,28 @@ export const cases: Case[] = [
 		data: [{ xs: [1, 2] }, { xs: [1, 3, 5] }, { xs: [] }],
 		transformError: (error) => (error as Error).message,
 	},
+	{
+		// The run computes a value to learn whether it throws, and the hole writes the value it
+		// computed: Svelte calls `next` once per request, and a hole computing it again wrote `2`.
+		name: 'a boundary computes each of its values once',
+		source:
+			'<script>let { data } = $props(); let n = 0; function next(x) { n += 1; return `${x}:${n}`; }</script>' +
+			'<svelte:boundary><p>{next(data.a)}</p>' +
+			'{#snippet failed(e)}<i>{e}</i>{/snippet}</svelte:boundary>',
+		data: [{ a: 1 }, { a: 2 }],
+		transformError: (error) => `caught ${String(error)}`,
+	},
+	{
+		// The test, the JSON and the snippet's value each read what the children threw, and each
+		// read ran them again: the JSON said the second throw and the snippet the third.
+		name: 'a boundary runs its children once where they throw',
+		source:
+			'<script>let { data } = $props(); let n = 0; function boom(x) { n += 1; throw new Error(`${x}:${n}`); }</script>' +
+			'<svelte:boundary><p>{boom(data.a)}</p>' +
+			'{#snippet failed(e)}<i>{e}</i>{/snippet}</svelte:boundary>',
+		data: [{ a: 1 }],
+		transformError: (error) => `caught ${(error as Error).message}`,
+	},
 	// **The build's render runs only what the run does not answer.** A statement that calls into a
 	// name the render no longer computes is withheld from it, and the run computes it per request.
 	// See spec/derivation.md.
