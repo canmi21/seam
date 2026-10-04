@@ -158,10 +158,10 @@ scaffolder, so the name is the entry's with the prefix npm expects; `npm create 
 command when the entry itself moves.
 
 It asks where the project goes, unless the directory was given, and which adapter it builds for,
-`none` or `node`, and writes a TypeScript SvelteKit 3 project. **What it writes is owed a change
-before the fork's first release**: it still writes `seam()` from the entry beside `sveltekit()`,
-the plugin's arrangement, and the entry is now the fork, which exports no `seam`; it writes
-`@sveltejs/kit` aliased to the entry instead. Nothing more is asked yet. The template is a directory of files rather than strings in code; its
+`none` or `node`, and writes a TypeScript SvelteKit 3 project. **What it writes changes with the
+fork's first release, and not before**: it still writes `seam()` from the entry beside `sveltekit()`,
+the plugin's arrangement, and the entry is now the fork, which exports no `seam`; from that
+release it writes `@sveltejs/kit` aliased to the entry instead. Nothing more is asked yet. The template is a directory of files rather than strings in code; its
 `gitignore` is renamed on the way out, because npm drops a `.gitignore` from a published package.
 
 **`create-seamjs` and the entry share a version.** The project it writes depends on the entry at

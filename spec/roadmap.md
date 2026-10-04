@@ -97,7 +97,9 @@ Accepted when all four hold:
 **A is the first release.** Once it is accepted the fork is published ([publish.md](publish.md))
 and the author's own applications move onto it -- a few small ones in the monorepo first, then the
 rest as each holds -- so that what a migration meets is met in the author's projects before
-anyone else's. What it is then offered to others on is those migrations.
+anyone else's. What it is then offered to others on is those migrations. `create-seamjs` changes with that release
+and not before: it still writes the plugin's arrangement, `seam()` beside `sveltekit()`, and moves to
+the alias when the entry is first published as the fork ([publish.md](publish.md), "`create-seamjs`").
 
 ### Vite's dev server: CTR under HMR, after A
 
