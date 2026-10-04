@@ -5,15 +5,11 @@ name out of the code and leaves a published name to distribution; this is that d
 
 ## One name a user types
 
-**`seamjs` is the package a user installs, and the only one.** `import { seam } from 'seamjs'`,
-beside `sveltekit()` in the project's Vite config, is the whole of what a project writes. Every
-other package is published under the `@seam-js` scope and arrives as a dependency of it; nobody
-types a scope.
-
-**That changes when the fork is released**: the entry becomes the fork of Kit, installed as
-`"@sveltejs/kit": "npm:seamjs@<version>"`, and `seam()` goes into the fork's `sveltekit()`. The
-name a user types stays this one. See [framework.md](framework.md), "The fork is the entry, under
-the entry's name".
+**`seamjs` is the package a user installs, and the only one.** It is the fork of Kit, installed in
+Kit's place: `"@sveltejs/kit": "npm:seamjs@<version>"` in the project's `package.json` is the whole
+of what a project writes, and the fork's `sveltekit()` calls the plugin itself. Every other package
+is published under the `@seam-js` scope and arrives as a dependency of it; nobody types a scope. See
+[framework.md](framework.md), "The fork is the entry, under the entry's name".
 
 `@seamjs` belongs to somebody else, and that is the reason the scope is never what a user types
 rather than only the reason it is spelled with a hyphen. `svelte` has `@sveltejs/*` and `astro` has
@@ -28,7 +24,7 @@ the JavaScript half of `notduncansmith/seam`, archived on GitHub and untouched o
 its maintainer is being asked to unpublish or transfer it.
 
 **Meanwhile the entry is published under the author's own scope**, and a project writes
-`import { seam } from '@canmi/seamjs'`. This is provisional, and the reasoning above is why: a
+`"@sveltejs/kit": "npm:@canmi/seamjs@<version>"`. This is provisional, and the reasoning above is why: a
 scope a user types is the thing this arrangement avoids, and a personal scope is the one npm
 offered rather than one chosen. When `seamjs` can be published, the entry moves there and
 `@canmi/seamjs` is deprecated in its favor.
@@ -37,7 +33,7 @@ offered rather than one chosen. When `seamjs` can be published, the entry moves 
 alias has to land on the fork itself, so the entry's name is the fork's, and `pkgs/plugin` -- what
 the fork's `sveltekit()` calls, and what still runs beside a project's own Kit -- is
 `@seam-js/plugin`. The fork is not released yet ([framework.md](framework.md), "It is not published
-yet"), and `private` until it is; the `@canmi/seamjs` releases up to `0.0.2` were the plugin under
+yet"), and `private` until milestone A is accepted ([roadmap.md](roadmap.md)); the `@canmi/seamjs` releases up to `0.0.2` were the plugin under
 the entry's name, and the fork's first release, at Kit's version line, follows them. Until then
 nothing is published: a release of the scope would name a plugin no released entry calls.
 
@@ -100,8 +96,8 @@ go up with `npm publish <file>`, run by hand, dependencies before what depends o
 `create-seamjs`.
 
 **A tarball is checked where a user would meet it**: installed into a fresh Kit 3 project outside
-this workspace, once with npm's hoisted layout and once with pnpm's isolated one, and built with
-`seam()` beside `sveltekit()`. The workspace cannot answer that question, because `vendor/kit`
+this workspace, once with npm's hoisted layout and once with pnpm's isolated one, the entry under
+the alias in Kit's place, and built. The workspace cannot answer that question, because `vendor/kit`
 exports what npm's Kit does not and Node runs this repository's `.ts` where it would refuse the
 same file under `node_modules`.
 
@@ -123,6 +119,8 @@ nothing.
 
 ## What a project brings
 
+**These are `@seam-js/plugin`'s peers**; the entry's are Kit's own, as its `package.json` takes them
+([framework.md](framework.md), "It is not published yet", has what the alias asks of them).
 **Provisional, and to be argued again.** The two framework pins below are the first answer, taken
 to publish at all; neither is settled.
 
@@ -160,8 +158,10 @@ scaffolder, so the name is the entry's with the prefix npm expects; `npm create 
 command when the entry itself moves.
 
 It asks where the project goes, unless the directory was given, and which adapter it builds for,
-`none` or `node`, and writes a TypeScript SvelteKit 3 project with `seam()` beside `sveltekit()`.
-Nothing more is asked yet. The template is a directory of files rather than strings in code; its
+`none` or `node`, and writes a TypeScript SvelteKit 3 project. **What it writes is owed a change
+before the fork's first release**: it still writes `seam()` from the entry beside `sveltekit()`,
+the plugin's arrangement, and the entry is now the fork, which exports no `seam`; it writes
+`@sveltejs/kit` aliased to the entry instead. Nothing more is asked yet. The template is a directory of files rather than strings in code; its
 `gitignore` is renamed on the way out, because npm drops a `.gitignore` from a published package.
 
 **`create-seamjs` and the entry share a version.** The project it writes depends on the entry at

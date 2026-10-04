@@ -13,12 +13,12 @@ gaps. This file is only the order.
 **1. Svelte's own samples.** Every one of them, compared byte for byte against Svelte's own `render()`.
 Proves: every way of writing a Svelte component compiles, and compiles to Svelte's bytes.
 
-**2. SvelteKit's own test apps.** Kit's `test/apps/*`, built with this plugin and driven by Kit's
+**2. SvelteKit's own test apps.** Kit's `test/apps/*`, built through the fork and driven by Kit's
 own specs. Proves: a page is what Kit would have served -- routing, the layout chain, the load
 stage, the data script, hydration -- with the render replaced.
 
-**3. An application written for Kit, moved.** press, whose components nobody wrote for this
-compiler. Proves: the first two are not a description of a test corpus.
+**3. An application written for Kit, moved.** `status`, whose components nobody wrote for this
+compiler; press was the first, and has left (see **Stage 3**). Proves: the first two are not a description of a test corpus.
 
 **The order is about attribution and nothing else.** A stage-2 failure has two possible causes
 while stage 1 has holes -- the framework layer, or a construct the compiler still gets wrong -- and
@@ -201,8 +201,8 @@ that moves fails the run. See [suite.md](suite.md).
 **This is the stage that decides whether the version is usable, and it is the one being worked.**
 Stage 1 proved the render; this proves the framework around it the way Kit's own authors exercise
 it, with nothing of this repository's own standing in for an application. Green here is the
-condition for the version, and for starting the second mode --
-[roadmap.md](roadmap.md), "The second mode waits on the first".
+first two of milestone A's checks, and so part of the condition for the first release and for
+starting B -- [roadmap.md](roadmap.md), "Four milestones, and what accepts each".
 
 Not started before stage 1 was done, which it now is. **It targets SvelteKit 3, not 2.** Kit 3 is
 on npm as `@sveltejs/kit@next` -- `3.0.0-next.29` the day this was decided, upstream's `main` --
@@ -243,12 +243,12 @@ rather than running beside it means some of what Kit does is done differently he
      are not cacheable", which waits for the client to fetch a query this streams instead (see
      **Closed by a declared difference** below).
 
-**What they are.** At `3.0.0-next.29`, `packages/kit/test/apps` holds thirteen whole SvelteKit
+**What they are.** At `3.0.0-next.29`, `packages/kit/test/apps` holds twelve whole SvelteKit
 applications -- `basics`, `options`, `options-2`, `options-3`, `no-ssr`, `no-csr`, `embed`,
-`hash-based-routing`, `writes`, `async`, `dev-only`, `prerendered-app-error-pages` and
-`read-file-test`; `amp` is gone since 2.70.3 -- each with its own `vite.config.js` and a `test/`
+`hash-based-routing`, `writes`, `async`, `dev-only` and `prerendered-app-error-pages`; `amp` is
+gone since 2.70.3 -- and `read-file-test`, a fixture of one file that a spec reads. Each app has its own `vite.config.js` and a `test/`
 directory of Playwright specs. `apps/basics` carries `server.test.js`, `client.test.js` and
-`test.js`. Beside them are `test/prerendering` and `test/build-errors`. **Ten of the thirteen run
+`test.js` under `test/playwright`. Beside them are `test/prerendering` and `test/build-errors`. **Ten of the twelve run
 without `experimental.async`**; only `async`, `options-2` and one of `options`'s configs turn it on.
 That is why the suite measures both renders: a stage two over these apps is mostly the synchronous
 one.
@@ -271,13 +271,14 @@ that layer is taken from Kit, and this is its check.
 **What is already here.** `vendor/kit` holds Kit's `src` and `types` at that tag, and
 `mise run test-vendor` runs upstream's Node-side unit suite over them, and prints its counts. That
 is Kit checking Kit, which is a different thing from Kit checking this -- it says the vendored copy
-is intact, not that the compiler serves what Kit serves. **The apps are taken whole**: all thirteen
-under `test/apps`, with `test/prerendering` and `test/build-errors`, at the same tag as the rest
+is intact, not that the compiler serves what Kit serves. **The apps are taken whole**: all of
+`test/apps`, with `test/prerendering` and `test/build-errors`, at the same tag as the rest
 of `vendor/kit` and by the same rule ([vendor.md](../../../spec/vendor.md) in the workspace). A
 subset chosen here would be one more column nobody checked, which is the mistake the skips were.
 
 **The client specs run too, and what they measure is the bytes.** The client is Svelte's own,
-hydrating what this compiler served; nothing this compiler ships runs there. So a client spec
+hydrating what this compiler served; nothing this compiler ships runs there, and what the fork adds
+to Kit's client is the streaming's call points, a declared difference. So a client spec
 that fails is a byte that did not hydrate, which is exactly the check `server.test.js` cannot
 make, and it is read as that rather than as anything about the client.
 
@@ -285,7 +286,9 @@ make, and it is read as that rather than as anything about the client.
 it renders is caught by the level's boundary in the generated root and `+error.svelte` is written
 in its place, as Kit 3's root does it. The other half is not: a `load` that throws has Kit render
 the branch again with the error page as its leaf, under the route's own id, and the plugin still
-hands that render back to Kit's root. Kit's specs exercise both. See [framework.md](framework.md).
+hands that render back to Kit's root. Kit's specs exercise both. CTR takes the second half in
+milestone A, whose third check holds that no request runs Kit's root; see
+[framework.md](framework.md), "What is still Kit's render".
 
 **How they are run.** `mise run apps -- --app=<name> --spec=<file>`: `pkgs/apps` stages the app
 out of `vendor/kit/test/apps` into `.build-apps` in upstream's own layout, since the harness reaches
@@ -302,7 +305,7 @@ passes in the project without JavaScript and skips in the one with it, by design
 the same 13 pass. The last to close was an imported image, whose URL Kit's build decides and is now handed in. Getting there
 compiled every one of the app's routes, which is what found the compiler work
 [framework.md](framework.md)'s step four records. `client.test.js` and `test.js` are next, then
-the other twelve apps.
+the other eleven apps.
 
 **The server specs barely look at a page, so every page is compared instead.** Most of
 `server.test.js` asks for an endpoint, a static file, a redirect or a status, and few specs render a
@@ -406,21 +409,29 @@ throws".
 
 ## Stage 3: an application written for Kit, moved
 
-Not started, and not scheduled. press is the application: a real site whose components were
-written against SvelteKit with no knowledge of this compiler, using `bits-ui`, `@tanstack`,
-paraglide and the rest of an ordinary dependency tree. **It is on Kit 2 and being rebuilt around
-its CMS**, so it is not a measurement anybody can take today; it comes back when it is on Kit 3,
-after stage 2 is green, and nothing here waits on it.
+**The application is `status`**, the status page in `repos/web/apps/status`: SvelteKit 3, written
+with no knowledge of this compiler, its page rendered per request from what its server `load`
+reads, beside an endpoint, and built with the plugins an ordinary project carries -- Tailwind,
+StyleX, Sentry's, Vercel's adapter -- and packages of the author's own workspace. It is milestone
+A's fourth check ([roadmap.md](roadmap.md)), taken once Kit's apps give the confidence to.
 
 **What it will prove that stage 2 cannot.** Kit's test apps were written to exercise Kit, so they
-cover what Kit's authors thought to cover and they are small. An application is neither. The
-measure is the one already used on it: every response the built site gives, held against the same
-response from a Kit build of the same commit, byte for byte.
+cover what Kit's authors thought to cover and they are small. An application is neither: its own
+dependency tree, other plugins in the same Vite build, and data decided per request that a static
+build could not have baked and a client-rendered page would not have served.
 
-**Where it already stands, and what that is worth.** 603 of 603 responses byte-identical, with
-every component entered. That is real and it is not stage 3 being done -- it was measured while
-115 of Svelte's own samples were wrong, which is exactly the attribution problem at the top of this
-file. It is evidence the approach works, not evidence the compiler is finished.
+**How it is measured.** The way stage 2 measures an app: built twice from a copy, never in place,
+once with Kit and once through the fork, and every response held to Kit's byte for byte but where a
+difference is declared. Its data is live -- Supabase, and the marks it fetches -- so both builds are
+pointed at one stand-in serving fixed data, and asked the same requests; the page is rendered per
+request from that data, and hydrates.
+
+**press was the first, and has left.** A site of the author's on Kit 2, measured byte-identical on
+603 of 603 responses with every component entered while 115 of Svelte's own samples were wrong --
+evidence that the approach worked rather than that the compiler was finished, which is the
+attribution problem at the top of this file. It has left this workspace and is not a
+measurement any more; what it found is in [refusals.md](refusals.md) and [build.md](build.md),
+which keep its figures.
 
 **What stage 3 adds beyond bytes.** The build has to be something somebody would run: the compile
 time, the artifact size, and the parts of the Kit build that become unnecessary once nothing

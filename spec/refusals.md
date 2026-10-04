@@ -56,9 +56,12 @@ Three reasons, and the first is the only one that would still hold if the others
 time is running UI on the server, which is the thing compile-time rendering exists not to do. A
 fallback that does it for some components does it, and the guarantee stops being one.
 
-**A backend that is not Node could not do it at all.** A Rust server has no Svelte renderer and is
-not going to acquire one, so a fallback would make two backends differ in which pages they can
-serve. That is a divergence, and divergence is what this protocol governs.
+**A backend that is not Node could not do it by itself.** A Rust server has no Svelte renderer of
+its own; it reaches one only by starting Node, which it does for the components an author declared
+SSR and for nothing else ([roadmap.md](roadmap.md), "D: Rust as the server, with Node for what is
+declared SSR"). A fallback would start it for whatever the compiler refused, so whether a page
+could be served would turn on whether Node was there. That is a divergence, and divergence is what
+this protocol governs.
 
 **The cost of not having one is smaller than it looks.** Measured across what is refused today,
 there is no category of _this will never work_ -- see below.
@@ -68,21 +71,19 @@ component to Svelte's renderer per request; it means writing what that renderer 
 artifact, derivations included. A refusal that could only be closed by a fallback would be worth
 stopping for, and none has been found.
 
-## Not permanently. The condition is named
+## Request-time rendering is declared, in milestone B
 
-This is a decision for now, not for ever, and the thing that reopens it is written down so that
-reopening it is not a matter of mood. Request-time rendering beside compile-time is planned --
-synchronous first, asynchronous straight after -- and **it is not started before stage two of
-[conformance.md](conformance.md) is green**: this version changes when the UI is rendered and
-nothing else, and the first mode has to be the one explanation a mixed page's failure cannot have;
-[roadmap.md](roadmap.md), "The second mode waits on the first". **No refusal waits on
-it**: what the server render computes per request, a derivation computes per request, so the
-machinery below is a choice to offer authors and not the condition any gap is closed on.
+Request-time rendering beside compile-time is milestone B of [roadmap.md](roadmap.md) --
+synchronous first, asynchronous straight after -- and **it is not started before milestone A is
+accepted**: A changes when the UI is rendered and nothing else, and the first mode has to be the one
+explanation a mixed page's failure cannot have. **No refusal waits on it**: what the server render
+computes per request, a derivation computes per request, so B is a choice offered to authors and
+not the condition any gap is closed on.
 
-**When compile-time and request-time rendering can both appear on one page** -- different
-components on the same response, some compiled and some rendered -- the question becomes whether
-to offer the choice to authors rather than whether the machinery could exist. That is when it gets
-asked again. Until that machinery is ready the answer is no, and a refusal is an error.
+**The choice is the author's, by a declaration, and never this compiler's.** In B a component may
+be declared rendered per request; it is then not compiled, refused or not, and everything under it
+is rendered with it, since a declaration goes up from CTR to SSR and never back down. An undeclared
+component is compiled or refused, and a refusal is an error, before B and after it.
 
 ## The three kinds, and what each has to say
 

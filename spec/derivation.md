@@ -697,8 +697,9 @@ the walk could not bind, which is this compiler failing to follow a binding rath
 **What `process` costs is written here rather than implied by being alone on a list.** It is the
 one name kept, because a JavaScript server has it by definition and the load stage runs there. An
 artifact whose derivation reads it is therefore one only a JavaScript backend can serve: QuickJS
-has no `process` either, and nothing here makes that up. That is a real limit on the second backend
-and it is recorded rather than argued away; the way out for an author who wants both is the same as
+has no `process` either, and nothing here makes that up. That is a real limit on the second backend,
+recorded rather than argued away, and the build names such a route as one Rust does not serve
+([roadmap.md](roadmap.md), "C: a Rust backend, CTR only, with QuickJS"); the way out for an author who wants both is the same as
 for `frag`, which is to read it in the load stage and put the value in the data.
 
 **`globalThis` is not one of them, and measuring said so.** The object is the same object on both

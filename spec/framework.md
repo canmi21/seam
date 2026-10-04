@@ -36,8 +36,10 @@ can be replaced, this becomes a plugin over the project's own Kit, the fork is d
 project uses both. If Kit declines, the fork is kept and maintained for as long as this exists;
 that is the outcome planned for, not the exception.
 
-**What only the fork can do waits for it.** The error tree Kit renders again when a `load` throws
-is one. A component a `load` returns was taken for another -- `load` is Kit's code running per
+**The error tree is what the fork has to take that a plugin could not.** Kit renders the branch
+again when a `load` throws, the error page as its leaf, and that render is Kit's root's; CTR takes
+it in milestone A ([roadmap.md](roadmap.md), "A: Kit's place, by an alias, with CTR where SSR
+was"). A component a `load` returns was taken for another -- `load` is Kit's code running per
 request -- and turned out to need only what the build can read of the `load` module and what the
 dispatcher holds; see **A component a `load` returns** below.
 
@@ -51,7 +53,8 @@ fork's own `sveltekit()`, and `@seam-js/*` are the fork's ordinary dependencies,
 never names. No `@seam-js/kit` is published.
 
 **It is not published yet.** The fork tracks Kit's latest release and is used from this repository,
-linked into the author's own projects, until it is worth releasing. How its version relates to
+linked into the author's own projects, until milestone A is accepted, which is its first release
+([roadmap.md](roadmap.md)). How its version relates to
 Kit's is decided at its first release: under an alias npm checks every peer range against the fork's
 version as if it were Kit's -- `@sveltejs/adapter-node` asks `^3.0.0-next.0` -- so a `0.0.x`
 version would fail them.
@@ -165,8 +168,10 @@ other two are taken as they are, and the second is taken around that call.
 
 Kit's source sits in [`vendor/kit`](../vendor/kit/VENDOR.md) at a pinned tag, as the JavaScript it
 is written in, and the repository's TypeScript reads its types off the JSDoc. Nothing under
-`vendor/` is edited; what this layer changes, it changes in its own packages, and `pkgs/routes` is
-the one package that imports the vendor by name. How it is upgraded and what is checked is in
+`vendor/` is edited: what this layer changes is the fork's call points and its own packages, above.
+`pkgs/routes` is the one package that reads Kit's source, and it reads it by path from the
+project's own Kit, which under the alias is the fork ([publish.md](publish.md), "Kit's internals
+are read from the project's Kit"). How it is upgraded and what is checked is in
 `VENDOR.md`; which parts are used is here.
 
 ## SvelteKit 3 is the target, and what it moves
@@ -247,7 +252,7 @@ the move costs this layer, each a fact of the diff rather than a guess:
 4. **Begun.** Kit 3's own test apps, `server.test.js` of `basics` first, then the synchronous
    ones, then the three that turn the flag on, each held to a list the way the sample suite is; see
    [conformance.md](conformance.md), "Stage 2", which has how they are run and where it stands.
-   That is stage two, and it is what this version is for. Compiling every route of `basics` --
+   That is stage two, and the first two of milestone A's checks. Compiling every route of `basics` --
    over four hundred, written to exercise everything Kit has -- found what the compiler and the
    plugin owed, and each is a rule now:
    - **A level whose node has no component renders as nothing.** A `+page.js` with no
@@ -298,46 +303,45 @@ root>` and lists the path in `<outDir>/seam/assets.json`, and the dispatcher imp
    - **A boundary inside a boundary, and a head inside one**, are the compiler's; [ir.md](ir.md),
      "A boundary that may throw is a block of its own".
 
-**press is not in the order.** It was the fourth step, a regression to run before stage two; it is
-on Kit 2 and mid-rebuild, so it is not a measurement anybody can take, and
-[conformance.md](conformance.md)'s own argument puts it after stage two in any case. It is stage
-three, taken when it is on Kit 3; [roadmap.md](roadmap.md), "Where it stands".
+**An application moved is not in this order.** It is milestone A's fourth check, `status`;
+[roadmap.md](roadmap.md), and [conformance.md](conformance.md), "Stage 3".
 
-The tables below describe the layer as built against 2.70.3 and are corrected as each step above
-moves a row.
+## What is Kit's code, and what is not
 
-## Taken as it is
+**All of it is Kit's but the render.** The fork is Kit's source, so routing, the layout chain,
+`load`, form actions, `+server.js`, remote functions, the data script, prerendering, the adapters,
+the service worker and the client run as Kit runs them. The render is replaced at one point, and
+not by an edit of the fork: `runtime/server/page/render.js` imports `../../components/root.svelte`,
+and the plugin resolves that one import to a component of its own (step 3 of **SvelteKit 3 is the
+target** above). What the fork changes besides is the list in `pkgs/framework/FORK.md`. The tables
+this section held before the fork -- which of Kit's files would be taken as they were, which taken
+around the render, which virtual modules the plugin owed and what was left out -- described a
+framework assembled out of Kit's parts, and the fork made every row of them Kit's own.
 
-| Kit                                                                              | what it does                                                                           | here                                                         |
-| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `utils/routing.js`                                                               | route ids to patterns and parameters, `find_route`, `resolve_route`                    | `pkgs/routes`                                                |
-| `core/sync/create_manifest_data/`                                                | `src/routes` to routes, nodes, layouts and errors; `sort_routes`; conflicts            | the map from a route to its layouts                          |
-| `core/sync/write_root.js` (2.70.3; `runtime/components/root.svelte` in 3)        | the root component nesting a page in its layouts, `data_0..n`, `page`, `form` as props | the compiler's entry per route, see [payload.md](payload.md) |
-| `utils/url.js`, `runtime/pathname.js`                                            | path normalising, `__data.json` suffixes                                               | the wire's spelling                                          |
-| `runtime/server/page/serialize_data.js`, `data_serializer.js`, `utils/escape.js` | devalue into `<script>`                                                                | byte for byte, since the client reads it                     |
-| `runtime/server/data/`                                                           | the `__data.json` endpoint                                                             | client navigation's data                                     |
-| `runtime/client/`                                                                | router, navigation, preload, `$app/navigation`, `$app/state`, hydrate                  | the SPA the page is after hydration                          |
-| `runtime/app/*`                                                                  | the `$app/*` modules                                                                   | what components import                                       |
-| `runtime/server/{cookie,csp,crypto,validate-headers}.js`                         | HTTP details of the Node server                                                        | the Node server, while there is one                          |
+### What is still Kit's render
 
-## Taken around the render
+**Three places, each named; milestone A takes the first two** ([roadmap.md](roadmap.md)).
 
-| Kit                                                     | keeps                                                                  | changes                                                            |
-| ------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `runtime/server/page/render.js`                         | the shell, the `<script>` of data, CSP, asset tags                     | `root.render(props)` becomes `inject(ir, derive(data))`            |
-| `runtime/server/page/index.js`, `load_data.js`          | the branch of `load` functions, `parent()`, per-node data              | the end of the branch picks the route's IR rather than a component |
-| `runtime/server/respond.js`                             | routing a request to a page, an endpoint, `__data.json`                | the page arm                                                       |
-| `core/sync/write_server.js`, `write_client_manifest.js` | the manifests                                                          | the server one points at IR and derivation bundles                 |
-| `exports/vite/index.js`                                 | the plugin form, the client build, the dev server, the virtual modules | the server build is the compiler's pipeline                        |
+- **The error tree.** A `load` that throws has Kit render the branch again with the error page as
+  its leaf, under the route's own id, and the dispatcher hands that render to Kit's root. A
+  component that throws while it renders is CTR's already: the boundary of its level in the
+  generated root writes `+error.svelte`.
+- **A route left to the framework.** A component whose module cannot be evaluated on the server is
+  listed under `left`, and its request is handed to Kit's root (step 4 of **SvelteKit 3 is the
+  target** above). Its module throws as it is imported, so what Kit answers is its error page, and
+  this is the error tree once more.
+- **`vite dev`**, where the plugin does nothing and every page is Kit's; [roadmap.md](roadmap.md),
+  "Vite's dev server: CTR under HMR, after A".
 
-**The project's configuration is read as Kit reads it.** `svelte.config.js` is imported and put
-through Kit's own validator (in 2.70.3; Kit 3 reads it off the Vite plugin, see the section above), with every file path resolved against the project rather than the
-process, since a compile is not run from the project it compiles. What the compiler takes from it
-is what Kit's plugin gives Vite: `$lib` and each of `kit.alias` as prefix aliases, applied before
+**The project's configuration is read as Kit reads it**: off the Vite plugin's argument, through
+Kit's own validator (step 2 of **SvelteKit 3 is the target** above), with every file path resolved
+against the project rather than the process, since a compile is not run from the project it
+compiles. What the compiler takes from it is what Kit's plugin gives Vite: each of `alias` as a
+prefix alias, and `#lib` as the project's `imports` resolve it, applied before
 a specifier is resolved -- in the walk, where a component imports a component by one; in the
 render, where the staged copy imports what it imports; and in the bundle of what expressions call.
 The extension is completed the way Vite completes it, in its order, and once it is, the file decides
-what the import is and the specifier does not: `$lib/reads.svelte` is how a bundler is asked for
+what the import is and the specifier does not: `./reads.svelte` is how a bundler is asked for
 the runes module `reads.svelte.ts`, so whether an import is a component, a runes module or a
 module to carry is read off the resolved path everywhere the question is asked. A module Node loads
 for a render is not rewritten, because Node knows no aliases; that is the one place the render still
@@ -362,25 +366,10 @@ running per request in the Node server, per node down the branch, exactly as Kit
 universal `load` runs in the browser as well, which is the client's business. Neither is rendered
 and neither is compiled.
 
-## The virtual modules the plugin owes
+## How the plugin was first built
 
-Kit's source imports what its plugin provides, and this layer's plugin has to provide the same
-names: `$app/environment`, `$app/navigation`, `$app/paths`, `$app/state`, `$app/stores`,
-`$app/forms`, `$app/server`, `$app/env` and `$env/*`; `__sveltekit/paths`, `__sveltekit/env`,
-`__sveltekit/server`; and the package's own `#app/paths` and `#app/env/public` subpath imports,
-which its `package.json` carries. The specs' mocks under `vendor/kit/test/mocks` are the list of
-what has to exist for the server half to load.
-
-## Left out, for now
-
-Form actions, the service worker, prerendering (`core/postbuild`), adapters (`core/adapt`),
-`write_types` and the `handleRenderingErrors` boundary root. Remote functions are taken: a
-component calls Kit's own, per request, as [derivation.md](derivation.md), "A remote function runs
-where Kit's server runs it", says. Actions are request handling a backend does on its own; prerendering is a build-time SSR the
-compiler supersedes; adapters wait for a second backend; the types generator drives a compiler API
-that moved under the installed TypeScript. None is refused. Each is taken when a route needs it.
-
-## The order of work
+Against Kit 2.70.3 and before the fork; **SvelteKit 3 is the target** above carried each step
+across, and what is left is [roadmap.md](roadmap.md)'s milestones.
 
 1. **Done.** `pkgs/routes`: route ids, the manifest from `src/routes` through Kit's own
    `create_manifest_data` under Kit's own validator, and one generated root per route. The root
@@ -420,18 +409,16 @@ build` runs its server build first and the plugin takes part in that one only: w
    optimisation is a derivation that both varies with the request and reaches into a component
    library's context, which no evaluator outside a render can run -- declared, it is a structure
    and is baked, and undeclared it fails at request time, which is the one place a refusal is not
-   yet compile-time. What is left inside this step, each named rather than implied: the error page
-   is still Kit's render, under the route's own id when its `load` throws, since `+error.svelte` is
-   not a route the compiler is given; the raw-value normalisation of [refusals.md](refusals.md) is
+   yet compile-time. What is left inside this step, each named rather than implied: the error tree
+   and `vite dev`, which are **What is still Kit's render** above; and the raw-value normalisation of [refusals.md](refusals.md) is
    not on this path yet, because it has to sit where the `load` results are before Kit serialises
-   them, and applying it to the bytes alone would make the disagreement it exists to prevent; and
-   `vite dev` renders with Kit's own root, since the plugin is a no-op outside the server build.
-3. The client runtime is Kit's build, untouched, and hydrates against bytes that are Kit's byte
-   for byte. What is owed is the check in a real browser; see [build.md](build.md).
+   them, and applying it to the bytes alone would make the disagreement it exists to prevent.
+3. **Done.** The client runtime is Kit's build -- the fork's, with its call points -- and hydrates
+   against bytes that are Kit's. The check in a real browser is Kit's own client specs, milestone
+   A's second check.
 
-The order is the Node server's. A second backend -- the Rust server [build.md](build.md) is
-written for -- takes the framework layer after it exists once, and nothing in it starts before
-then; that is decided, not deferred by accident.
+The order is the Node server's. The Rust server [build.md](build.md) is written for is milestones C
+and D of [roadmap.md](roadmap.md), after B, and nothing of it starts before then.
 
 ## The comparison that counts
 

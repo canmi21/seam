@@ -50,45 +50,143 @@ the scope line and still not be this protocol's by the layer line: the load stag
 kept whole and Kit's. So "not here" and "not at all" are different answers, and an item's section
 below says which one it got.
 
-Every item below was read out of Svelte 5.57's source before it was written down, and the file
-that decides it is named. That is the order of work for each: read the transform and the runtime,
-form the rule, measure it with Node against Svelte's own output, then write ours, then the check
-that holds the two together. See the workspace's `spec/agent-protocol.md`.
+## Four milestones, and what accepts each
+
+**The work is four milestones, A to D, each accepted by a measurement and not by a judgement.**
+They are not the stages of [conformance.md](conformance.md): a stage is a body of tests -- Svelte's
+samples, Kit's apps, an application moved -- and a milestone is something the framework can do,
+which names the stages and the checks that accept it. Two words are used exactly here. **CTR** is
+this repository's render, at the build where nothing the request decides is read and per request
+where something is. **SSR** is Svelte's server render run per request, Kit's.
+
+**The order is A, B, C, D.** B comes before C because B is where the declaration of SSR is made,
+and both backends after it read that declaration: C serves what declares none, D starts Node for
+what declares some. Each is started once the one before it is accepted; a failure in a milestone
+then has one explanation fewer, which is [conformance.md](conformance.md)'s argument for its own
+order.
+
+### A: Kit's place, by an alias, with CTR where SSR was
+
+**An application written for Kit swaps one line of its `package.json` and is served by CTR.**
+`"@sveltejs/kit": "npm:seamjs@<version>"` ([framework.md](framework.md), "The fork is the entry,
+under the entry's name"), nothing else edited, and every page it serves is compiled -- wherever it
+writes nothing CTR refuses. What CTR refuses is a compile-time error naming the shape, never a
+request handed to SSR instead ([refusals.md](refusals.md), "Every refusal is a compile-time
+error").
+
+Accepted when all four hold:
+
+1. **Every response is Kit's, byte for byte, but where a difference is declared.** Each of Kit's
+   test apps that builds, compared with `mise run compare` ([conformance.md](conformance.md),
+   "Stage 2"). **Met**: all eleven, `async`'s three streamed pages being the one declared
+   difference.
+2. **Kit's own specs pass through the fork, unedited**, every app's, in the build Kit's config
+   runs them against, but for a failure a declared difference lists. **Not met**: `basics`'
+   `server.test.js` passes whole and `async`'s specs over what it streams do; the rest of `basics`
+   and the other apps' specs have not been run.
+3. **No request to a production build runs SSR.** Held by a check build in which Kit's
+   `root.svelte` throws whenever it is rendered, under which 1 and 2 still pass. **Not met**: the
+   error page Kit renders when a `load` throws is still Kit's root, and so is the response to a
+   route whose component cannot be evaluated on the server ([framework.md](framework.md), "What
+   is still Kit's render"). CTR takes the error page; that is A's work, not B's.
+4. **An application of the author's, moved.** `status`, held the way stage 2 holds Kit's apps
+   ([conformance.md](conformance.md), "Stage 3"). **Not met.**
+
+`vite dev` is not in A: it renders with Kit's root, and its own target is below.
+
+**A is the first release.** Once it is accepted the fork is published ([publish.md](publish.md))
+and the author's own applications move onto it -- a few small ones in the monorepo first, then the
+rest as each holds -- so that what a migration meets is met in the author's projects before
+anyone else's. What it is then offered to others on is those migrations.
+
+### Vite's dev server: CTR under HMR, after A
+
+**`vite dev` is taken by CTR too, as a compile target of its own.** It is after A, and gates
+neither A nor the release; until it is done, the dev server renders by SSR as Kit's does, and a
+shape CTR refuses is met at the build. A target of its own because the bytes are another set:
+under the dev server Svelte compiles with `dev` and `hmr`, its server output differs from a
+production build's -- a `<!---->` after every component that `clean_nodes` would leave alone
+([framework.md](framework.md), "The comparison that counts") -- and the dev client hydrates those.
+So it has its own measurement, Svelte's samples rendered under those options and Kit's apps under
+`vite dev` against Kit's dev server, `dev-only` among them and the dev half of each app's
+Playwright config. And the compile becomes incremental: a route compiled when it is first asked
+for and compiled again when a file its components reach changes, read off Vite's module graph.
+
+### B: CTR and SSR together, in Node
+
+**A component may be declared rendered by SSR, and everything else is CTR.**
+
+- **The declaration is per component.** The compiler reads every component's source and tree, so
+  the component is the unit it can be asked at. How it is written is not decided.
+- **It goes up and never down.** CTR is the lower layer and SSR the upper one. A CTR component's
+  child may be declared SSR; a component declared SSR is SSR with everything under it, and nothing
+  under it can be declared back to CTR -- Svelte's server render renders a component's children
+  itself, so nothing is left there for CTR to take. A declaration that would step down is a
+  compile-time error.
+- **It is the author's, never the compiler's.** A component is rendered per request because its
+  author declared it, refused or not, and never because the compiler refused it: undeclared, a
+  refusal stays an error ([refusals.md](refusals.md), "There is no runtime fallback").
+
+Accepted when:
+
+1. **An application declaring nothing passes A's checks unchanged.**
+2. **A page with declared components is Kit's byte for byte**, held the way A holds a page: the
+   same applications, with declarations placed, against Kit's build.
+3. **Declaring nothing ships nothing of SSR.** The server build of an application with no
+   declaration contains no component compiled for Svelte's server, Kit's `root.svelte` among
+   them, and of `svelte/server` only what CTR itself calls, which the check lists by name. Checked
+   on the build's output, by a test, not by reading it.
+4. **Declaring some ships SSR for those alone**: the declared components and what is under them.
+
+### C: a Rust backend, CTR only, with QuickJS
+
+**A server written in Rust serves the same artifacts, and runs what a derivation computes in
+QuickJS.** [build.md](build.md) has why the artifacts do not change with the backend.
+
+Accepted when:
+
+1. **The same artifacts answer the same request with the same bytes** as the Node backend does.
+   Node is held to Kit by A, so Rust is held to Kit through it.
+2. **Rust starts no Node.** QuickJS is the only JavaScript engine in the process, and the check
+   reads the process, not the configuration.
+3. **A route Rust cannot serve is named at the build.** A derivation that reads what QuickJS has
+   no host for -- `process`, [derivation.md](derivation.md) -- makes its route one only a
+   JavaScript backend serves, said when the route compiles and never as a failure per request.
+
+**Decided when C starts, not before: what runs the load stage.** Kit's `load`, `+server.js` and
+remote functions are JavaScript run by Node, and on a backend that is neither TypeScript nor Node
+something else has to answer for them. That is a question about the framework layer on another
+backend, and C is where it is asked.
+
+### D: Rust as the server, with Node for what is declared SSR
+
+**Rust is the server, the meta-framework's server replaced, and the client is Kit's as it is.** SSR
+runs in a Node process the Rust server starts and talks to, for the components B's declarations
+name and nothing else.
+
+Accepted when:
+
+1. **The same application with the same declarations answers B's bytes.**
+2. **Rust starts Node only where something is declared SSR.** An application declaring nothing is
+   C, and C's second check holds of it.
+3. **The client is Kit's**: the same client build A ships, unchanged by the server behind it.
 
 ## Where it stands
-
-The order the work is proved in is [conformance.md](conformance.md): Svelte's own samples, then
-SvelteKit's own test apps, then an application written for Kit and moved.
 
 - **Stage one is met.** The suite is in `verify`, both renders are measured, nothing fails in
   either, and there is no harness skip left in the list; `mise run vendor-baseline` prints where
   it stands. Every construct still refused is refused by name, and no sample in Svelte's corpus
   writes one.
-- **Stage two is what this version is for.** SvelteKit 3's own test apps, built with this plugin
-  and driven by Kit's own specs unedited, are the definition of usable: the framework layer around
-  the render, exercised the way Kit's authors exercise it, with nothing of this repository's own
-  standing in for an application. [framework.md](framework.md), "SvelteKit 3 is the target, and
-  what it moves", is the order it is taken in.
-- **What it is for is the author's own projects.** The order of work is the one that gets the
-  framework running in them, then in the hands of people around the author; the framework
-  direction that serves it is [framework.md](framework.md), "Kit is replaced, until it offers a
-  seam to plug into".
-- **Stage three is not scheduled.** press is being rebuilt around its CMS and is on Kit 2, so it is
-  not a measurement anybody can take, and by [conformance.md](conformance.md)'s own argument it
-  would not be one worth taking before stage two is green. It comes back when it is on Kit 3, as
-  the application that meets the edge cases Kit's apps were not written to meet.
-
-## The second mode waits on the first
-
-**This version changes when the UI is rendered, and nothing else.** Compile-time rendering beside
-request-time rendering on one page -- some components compiled, some rendered by Svelte's server
-per request, which is the mode [refusals.md](refusals.md) names under "Not permanently. The
-condition is named" -- is not started before stage two is green. The reason is
-[conformance.md](conformance.md)'s reason for its order: a failure in a page that mixes the two
-has one more explanation than a failure in a page that does not, and the first mode has to be the
-one thing it cannot be. No refusal waits on the second mode, so nothing is lost by the order.
+- **A is what is being worked**, and stage two with it: SvelteKit 3's own test apps, built through
+  the fork and driven by Kit's own specs unedited. [framework.md](framework.md), "SvelteKit 3 is
+  the target, and what it moves", is the order it was taken in.
 
 ## Owed
+
+Every item below was read out of Svelte 5.57's source before it was written down, and the file
+that decides it is named. That is the order of work for each: read the transform and the runtime,
+form the rule, measure it with Node against Svelte's own output, then write ours, then the check
+that holds the two together. See the workspace's `spec/agent-protocol.md`.
 
 **Every item here is a gap.** A sample that writes one fails in the suite until it is closed, and
 the ones no sample writes were found by probe and are held by a refusal that names the shape.
