@@ -165,7 +165,7 @@ export function rethrow(make: () => unknown): never {
  * `$$html(value)`: a `{@html}` block's value with the anchor Svelte's development runtime opens it
  * with, a hash of the value -- what the dev server writes, where a build writes `<!---->` and the
  * IR holds it. Svelte's `hash`: djb2 over the text with carriage returns taken out, in base 36.
- * See spec/build.md, "The dev server compiles a route when it is asked for".
+ * See spec/build.md, "How the dev server compiles a route".
  */
 export function html(value: unknown): string {
 	const text = String(value ?? '');
@@ -226,7 +226,7 @@ export interface Injected {
 export function evaluated(script: string, files?: Record<string, Record<string, unknown>>): Render {
 	if (files !== undefined) {
 		// The carried files as modules a host already loaded, which the dev server's are: the script is
-		// the program alone. See spec/build.md, "The dev server compiles a route when it is asked for".
+		// the program alone. See spec/build.md, "How the dev server compiles a route".
 		// eslint-disable-next-line no-new-func
 		const make = new Function('$rt', '$files', `${script}\nreturn __program($rt, $files);`) as (
 			runtime: unknown,

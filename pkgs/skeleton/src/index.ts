@@ -25,8 +25,8 @@ export {
 
 /**
  * What the walk remembers of a file by its path rather than by its content, forgotten: for the dev
- * server, which compiles again after a file changes. See spec/build.md, "The dev server compiles a
- * route when it is asked for".
+ * server, which compiles again after a file changes. See spec/build.md, "How the dev server compiles
+ * a route".
  */
 export function forgetSources(): void {
 	forgetDynamicSources();

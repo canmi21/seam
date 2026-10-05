@@ -119,7 +119,9 @@ So it has its own measurement, Svelte's samples rendered under those options and
 Playwright config. And the compile becomes incremental: a route compiled when it is first asked
 for and compiled again when a file its components reach changes, read off Vite's module graph.
 
-**Met.** [build.md](build.md), "The dev server compiles a route when it is asked for", is how. Kit's
+**Met, and then changed.** The dev server now answers with Kit's render and checks CTR behind it,
+the user's decision ([build.md](build.md), "The dev server answers with Kit's render, and CTR is
+checked behind it"); what follows is what was met while it answered with the program. Kit's
 twelve apps under `vite dev` answer every page as Kit's dev server does
 ([conformance.md](conformance.md), "Under the dev server"), the plugin's sample does under an edit
 of a component, of a server `load` and into a shape CTR refuses (`pkgs/plugin/src/dev.test.ts`), and
@@ -131,28 +133,32 @@ suite renders under the production runtime, and a run of it under the developmen
 
 ### B: CTR and SSR together, in Node
 
+**Taken forward, the user's decision**, with two of its rules changed: the declaration is written,
+and a refusal degrades to SSR rather than failing the build. [together.md](together.md) is the rule
+as it now stands; what follows is B as it was planned, kept for its acceptance checks.
+
 **A component may be declared rendered by SSR, and everything else is CTR.**
 
 - **The declaration is per component.** The compiler reads every component's source and tree, so
-  the component is the unit it can be asked at. How it is written is not decided.
+  the component is the unit it can be asked at. Written `export const seam = 'ssr'` in its module
+  script ([together.md](together.md), "Declaring a component SSR").
 - **It goes up and never down.** CTR is the lower layer and SSR the upper one. A CTR component's
   child may be declared SSR; a component declared SSR is SSR with everything under it, and nothing
   under it can be declared back to CTR -- Svelte's server render renders a component's children
   itself, so nothing is left there for CTR to take. A declaration that would step down is a
   compile-time error.
-- **It is the author's, never the compiler's.** A component is rendered per request because its
-  author declared it, refused or not, and never because the compiler refused it: undeclared, a
-  refusal stays an error ([refusals.md](refusals.md), "There is no runtime fallback").
+- _Superseded:_ **It is the author's, never the compiler's.** A refusal now degrades the component
+  it is raised in, and the build names it ([together.md](together.md)).
 
 Accepted when:
 
 1. **An application declaring nothing passes A's checks unchanged.**
 2. **A page with declared components is Kit's byte for byte**, held the way A holds a page: the
    same applications, with declarations placed, against Kit's build.
-3. **Declaring nothing ships nothing of SSR.** The server build of an application with no
-   declaration contains no component compiled for Svelte's server, Kit's `root.svelte` among
-   them, and of `svelte/server` only what CTR itself calls, which the check lists by name. Checked
-   on the build's output, by a test, not by reading it.
+3. **Declaring nothing and degrading nothing ships nothing of SSR.** The server build of an
+   application whose coverage is CTR whole contains no component compiled for Svelte's server,
+   Kit's `root.svelte` among them, and of `svelte/server` only what CTR itself calls, which the
+   check lists by name. Checked on the build's output, by a test, not by reading it.
 4. **Declaring some ships SSR for those alone**: the declared components and what is under them.
 
 ### C: a Rust backend, CTR only, with QuickJS
@@ -219,8 +225,7 @@ Accepted when:
      for byte. `hydratable`'s script still reads Node's host, and is C's.
   4. **Accepted**: the suite, Kit's eleven apps byte for byte, their specs under the check, and
      `status` ([conformance.md](conformance.md), "Stage 3").
-- **The dev server renders by CTR** ([build.md](build.md), "The dev server compiles a route when it
-  is asked for"), byte for byte with Kit's dev server over Kit's twelve apps and `status`.
+- **The dev server renders by CTR** ([build.md](build.md), "How the dev server compiles a route"), byte for byte with Kit's dev server over Kit's twelve apps and `status`.
 - **A is what is being worked**, and stage two with it: SvelteKit 3's own test apps, built through
   the fork and driven by Kit's own specs unedited. [framework.md](framework.md), "SvelteKit 3 is
   the target, and what it moves", is the order it was taken in.

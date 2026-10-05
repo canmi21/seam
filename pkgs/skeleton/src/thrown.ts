@@ -64,7 +64,7 @@ export function throwsAtTop(file: string): { argument: string } | null {
 /**
  * Kit's constants a script imports, by the local name, with the value the compile knows them to
  * have: `dev` is whether the dev server is compiling, and `browser` is false on a server. See
- * spec/build.md, "The dev server compiles a route when it is asked for".
+ * spec/build.md, "How the dev server compiles a route".
  */
 function kitConstants(body: readonly unknown[]): Map<string, boolean> {
 	const found = new Map<string, boolean>();

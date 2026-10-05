@@ -126,7 +126,7 @@ const CHANGED = new Map<string, ReadonlySet<string>>();
 /**
  * What this file and `readsRuntimeEnv` remember of files by their path, forgotten: the dev server
  * compiles again after a file changes, and an answer about the file it was is not one about the
- * file it is. See spec/build.md, "The dev server compiles a route when it is asked for".
+ * file it is. See spec/build.md, "How the dev server compiles a route".
  */
 export function forgetDynamicSources(): void {
 	CHANGED.clear();

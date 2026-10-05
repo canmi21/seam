@@ -244,7 +244,7 @@ rather than running beside it means some of what Kit does is done differently he
      **Closed by a declared difference** below).
 
 2. **What Svelte's `dev` writes about a misplaced element, under the dev server**
-   ([build.md](build.md), "The dev server compiles a route when it is asked for").
+   ([build.md](build.md), "The dev server answers with Kit's render, and CTR is checked behind it").
    - _The routes it changes:_ a page with an element its ancestors may not hold, under `vite dev`
      alone, on the first request a process makes of it.
    - _What changes in the bytes:_ Kit's dev server writes one
@@ -475,7 +475,7 @@ of which ours is one of Kit's for 16 and differs from Kit's first in numbers and
 the other 45: clocks, randoms, a counter Kit's server was asked twice for, a nonce per request. None
 different. Under `--kit-root=throw` the same, but for a page a `load` fetches from its own app --
 `embed`'s two, `options-2`'s `fetch-prerendered` -- on its first request, which the middleware never
-sees ([build.md](build.md), "The dev server compiles a route when it is asked for").
+sees ([build.md](build.md), "The dev server answers with Kit's render, and CTR is checked behind it").
 
 The referee is on throughout ([build.md](build.md), "How it keeps itself right"), and across the
 twelve apps it disagreed with Kit's render nowhere; `compare-dev` counts what it said, and a

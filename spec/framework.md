@@ -366,10 +366,11 @@ writes it; reading what Kit's bundle keeps is what would close it.
 
 ### What is still Kit's render
 
-- **A page under `vite dev` that Kit's own `fetch` renders inside another request**, on its first
-  request: the dev server compiles a route before Kit sees the request, and this one it never sees.
-  It is compiled for the next. [build.md](build.md), "The dev server compiles a route when it is
-  asked for", which is also how `vite dev` is no longer Kit's render.
+- **Every page under `vite dev`**, by the user's decision: the dev server answers with Kit's render
+  and checks CTR behind it. [build.md](build.md), "The dev server answers with Kit's render, and CTR
+  is checked behind it".
+- **What the build degraded or the author declared SSR**: a component rendered by Svelte per request
+  inside the program's bytes, or a route rendered by Kit's root whole. [together.md](together.md).
 - **A route left to the framework**: one whose module cannot be evaluated and whose components all
   evaluate alone, so that no level could stand in. It is listed under `left` in the manifest with
   why, the build warns rather than fails, and the dispatcher hands its request to Kit's root, as it

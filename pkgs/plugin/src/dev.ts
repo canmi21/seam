@@ -1,7 +1,7 @@
 /**
  * The compile, as the dev server runs it: a route compiled when a request first asks for it, and
  * again once a file it was compiled from changes, held in memory rather than written as the
- * build's artifacts. See spec/build.md, "The dev server compiles a route when it is asked for".
+ * build's artifacts. See spec/build.md, "How the dev server compiles a route".
  *
  * What a build does once for every route this does per route, in this process, through a Vite
  * loader made from the project's config the way the build's is (`loaderOf`), and what it produces

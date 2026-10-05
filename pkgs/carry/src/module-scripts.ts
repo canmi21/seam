@@ -32,7 +32,7 @@ const read = new Map<string, Script | null>();
 
 /**
  * Every module script read, forgotten: the dev server compiles again once a file changes, and this
- * is held by path. See spec/build.md, "The dev server compiles a route when it is asked for".
+ * is held by path. See spec/build.md, "How the dev server compiles a route".
  */
 export function forgetModuleScripts(): void {
 	read.clear();

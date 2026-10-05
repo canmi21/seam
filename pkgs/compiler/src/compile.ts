@@ -300,7 +300,7 @@ export interface Built {
 /**
  * The routes compiled and nothing written: what `compile` writes as the artifact layout, and what
  * the dev server holds in memory, a route at a time. A refusal throws, listing every one. See
- * spec/build.md, "The dev server compiles a route when it is asked for".
+ * spec/build.md, "How the dev server compiles a route".
  */
 export async function built(options: Options): Promise<Built> {
 	const root = resolve(options.root);

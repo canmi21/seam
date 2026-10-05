@@ -47,6 +47,12 @@ does, because it is doing less than SvelteKit does.
 
 ## Every refusal is a compile-time error
 
+_Superseded by the user's decision in [together.md](together.md): a refusal degrades the smallest
+component that can be rendered on its own to SSR, at worst the route, and the build names it. What
+follows is the argument as it stood, kept because its first two reasons still describe what a
+degradation costs -- running UI per request, and a route only a backend with Node can serve -- which
+is why every degradation is reported rather than quiet._
+
 **There is no runtime fallback.** A component the compiler cannot compile does not quietly get
 rendered by Svelte at request time instead.
 
@@ -3065,4 +3071,4 @@ what comes back, because the rule lives in a dependency of a dependency and the 
 behaviour itself. A development runtime is a refusal that names the variable to set -- for a build.
 Under the dev server the development runtime is the one Kit's renders with, and the check asks for
 it instead: the hash goes into the anchor per request, and the hole writes it ([build.md](build.md),
-"The dev server compiles a route when it is asked for").
+"The dev server answers with Kit's render, and CTR is checked behind it").

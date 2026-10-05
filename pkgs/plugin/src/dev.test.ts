@@ -1,8 +1,7 @@
 // The sample project under Vite's dev server, as Kit serves it and as the fork does, every page
 // asked of both: the responses have to be the same bytes but for what two servers' files and ports
 // are, and the one difference the dev server declares. Then the project is edited under both, and
-// the fork's answers follow the edit. See spec/build.md, "The dev server compiles a route when it is
-// asked for".
+// the fork's answers follow the edit. See spec/build.md, "How the dev server compiles a route".
 //
 // The fork's server refuses Kit's own root, so every answer that matches Kit's was rendered from a
 // program the dev server compiled.

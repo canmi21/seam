@@ -245,8 +245,7 @@ export async function carry(
  * What a component carries as a module of its own, importing each name where it lives and
  * exporting `files`: the module `carry` hands the bundler, and what the dev server loads as it is,
  * where nothing is bundled. Svelte's own modules are named by file unless a resolver of the
- * project's will resolve them, as the dev server's does. See spec/build.md, "The dev server
- * compiles a route when it is asked for".
+ * project's will resolve them, as the dev server's does. See spec/build.md, "How the dev server compiles a route".
  */
 export function carriedSource(
 	file: string,

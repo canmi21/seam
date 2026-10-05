@@ -421,8 +421,7 @@ function toKitSource(refuseKitRoot: boolean): string {
  * server's own runner and imports Kit's modules as Kit's code does; `import.meta.env` still is,
  * which a derivation reads as `$$env()`. A route the request asked for that has no program -- one
  * rendered without the request reaching the dev server's middleware, which Kit's own `fetch` of a
- * page does -- is rendered by Kit's root, and said once. See spec/build.md, "The dev server
- * compiles a route when it is asked for".
+ * page does -- is rendered by Kit's root, and said once. See spec/build.md, "How the dev server compiles a route".
  */
 function devDispatcher(kitRootComponent: string, refuseKitRoot: boolean, async: boolean): string {
 	const toKit = toKitSource(refuseKitRoot);

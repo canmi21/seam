@@ -45,7 +45,7 @@ export function projectRunes(filename: string): boolean | undefined {
  * `vite-plugin-svelte` decides it, with `emitCss` beside it because the two together change the
  * source it compiles. Kept apart from the project's options, which every route's compile sets
  * again, since it is a fact about the server rather than about the project. Null for a build. See
- * spec/build.md, "The dev server compiles a route when it is asked for".
+ * spec/build.md, "How the dev server compiles a route".
  */
 export interface Development {
 	hmr: boolean;

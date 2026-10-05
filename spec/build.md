@@ -87,56 +87,45 @@ The exported name of the plugin is the one place the product name appears in an 
 a distribution question rather than a naming one, which [naming.md](naming.md) leaves outside its
 rule.
 
-## The dev server compiles a route when it is asked for
+## The dev server answers with Kit's render, and CTR is checked behind it
 
-**`vite dev` renders by CTR too**, through the same root the build replaces: `render.js`'s import
-of Kit's `root.svelte` resolves to a dispatcher in the dev server's `ssr` environment as it does in
-the server build. What differs is where the program comes from. A build compiles every route once
-and writes the artifacts; the dev server compiles a route when a request first asks for it, holds
-the program in memory, and compiles it again once a file it was compiled from changes. It is
-milestone A's gate on an application moving ([roadmap.md](roadmap.md), "Vite's dev server: CTR
-under HMR"), and `pkgs/plugin/src/dev.ts` is the whole of it.
+**`vite dev` answers every request with Kit's own render**, and compiles each route it renders
+behind the response, where its program is run over the props Kit's root was handed and held to the
+bytes Kit wrote. The user's decision ([together.md](together.md)): developing is Kit's -- an edit
+reaches the next request as fast as under Kit, and a page never waits on a compile -- and what the
+build would make of the route is known while the author works rather than at the build.
 
-**A request is compiled for before Kit sees it.** The plugin's `configureServer` adds a middleware
-ahead of every other -- Vite's and Kit's alike -- because Kit's root is a synchronous component and
-nothing can wait inside it. The middleware matches the path against every page route's pattern,
-parsed by Kit's own `parse_route_id`, and against what the project's universal `reroute` hook
-returns for it, asked the way Kit asks it; compiles each route that matched, or the tree an
-unmatched path renders; and only then hands the request on. A route a pattern matches but a matcher
-would turn away is compiled for nothing, which costs a compile and changes no byte. What Vite
-answers before Kit is asked -- its own modules, a file of the project's, a dependency, a static
-asset -- is passed straight through, so that a route matching every path does not hold each module
-the page loads until it compiled.
+It was otherwise for a while: the dev server answered with the program, compiling a route before
+Kit was asked and holding the request until it had. That is in the history and the measurements
+below, which were taken of it; what remains of it is everything about how a route is compiled and
+what makes it stale, which the shadow uses unchanged.
 
-**An error tree is compiled behind the request.** The trees a failure under the matched route
-renders are compiled once the request has been handed on, since most requests render none and each
-tree is a compile of its own -- on `status`, two of a second each, which ahead of the first request
-were two seconds of five. A failure before its tree is ready is rendered by Kit's root, once, as
-below. Under `SEAM_KIT_ROOT=throw`, which refuses Kit's root, they are compiled ahead instead, so the
-check still holds every render to a program.
+**The root is still the dispatcher's**, through the same import of `root.svelte` the build replaces,
+and in the dev server it renders Kit's root into the request as Kit does. Behind the response -- once
+the render has returned, on the next turn of the event loop -- it hands what it rendered over to the
+check: the route or error tree's key, the props, and Kit's root rendered again alone to a string with
+a `transformError` that answers every error the same way, so that a component's own `handleError`
+runs once per request and not twice. `pkgs/plugin/src/dev.ts` is the rest.
 
-**What the middleware cannot see is rendered by Kit's root once.** A page Kit's own `fetch` renders
-inside another request -- Kit's `embed` app fetches two of its own pages from a `load` -- never
-passes through the middleware, so it can reach the root with no program. Kit's root renders it,
-which writes the same bytes, the dispatcher says so on the terminal once per route, and the route
-is compiled for the next request. Milestone A's check, `SEAM_KIT_ROOT=throw`, refuses it there as
-it refuses it in a build.
+**The check compiles the route if it has to and runs the program over the same props**, and compares
+the two byte for byte: the body, the head with what Svelte's `dev` writes about a misplaced element
+taken out of Kit's (the declared difference, [conformance.md](conformance.md)), the script hashes,
+and whether either threw. Nothing it does reaches the response.
 
-**A refusal is an error page, as a build that refuses fails** -- the user's decision, so that an
-application served by CTR is not developed under a render that accepts what CTR refuses. The
-middleware hands the compile's error to Vite, which answers with its error overlay; a refusal met
-by a compile behind a request -- after an edit, while the page is already open and has taken the
-change through the client's HMR -- is sent to that page as the same overlay.
+**A refusal is said, not shown as an error page**: the route, or the component, is one the build
+will render by SSR ([together.md](together.md), "Where SSR starts"), and the terminal says which and
+why, once per route and reason, and the log keeps it. **A disagreement is this compiler's defect**:
+said on the terminal, logged with both answers and the props as files, and the route compiled again.
 
-**What a request meets while it runs is Kit's to answer, as in a build.** A module the page imports
-that throws as it is evaluated -- Kit's `errors/stack-trace` -- fails the import of the carried
-module in the middleware; that is said on the terminal and left alone, and Kit meets the same
-failure as it loads the page and answers with its error page.
+**`SEAM_DEV_CHECK=off` turns the check off**, and with it every compile: the dev server is then Kit's
+and nothing else. On by default. What it costs is CPU behind each response -- a second render of
+Kit's root and a run of the program -- and a component's script running twice, which is what the
+switch is for where a script has an effect of its own.
 
 **Each compile is said**, as `seam: compiled <route> in <ms>`, through Vite's logger and so under
 its log level; `SEAM_TIME` adds where the time went, as it does for a build.
 
-### What it compiles through, and with what
+### How the dev server compiles a route
 
 **The loader is the build's, made under `serve`.** The compile renders its staged copies through a
 Vite server made from the project's config by the same function the build's is (`loaderOf`), kept
@@ -223,55 +212,26 @@ So the dev server's memory was not measured, and the build's child process is un
 
 ### How it keeps itself right
 
-**Kit's render is the referee, on by default.** In the dev server Kit's own root is at hand, and it
-is the answer: the dispatcher hands it the props it handed the program -- after every `load` has
-run, so nothing is fetched twice -- and renders it alone, through Svelte's `render` with the
-request's context, policy and `transformError`, and compares the two byte for byte: the body, the
-head with what Svelte's `dev` writes about a misplaced element taken out of Kit's (the declared
-difference above), the script hashes, and whether either threw. In Svelte's async mode the two are
-awaited at once: Svelte's render starts its async work when it is awaited, and one after the other
-`async`'s `remote/query-loading-state` took long enough for a query it leaves loading to settle
-before the page was written, which Kit's own render does not. The user's decisions, all four:
+**A fault is what can only be this compiler's**: a route that disagrees again once it has been
+compiled again for a disagreement, or a program it wrote that does not evaluate.
 
-- **On by default, and `SEAM_DEV_CHECK=off` turns it off.** What it costs is a second render of the
-  components, which on `status` is a few milliseconds of a request that is mostly its `load`; a
-  component's script runs twice, so a script with an effect of its own -- a counter at module scope,
-  a `handleError` that logs -- does it twice, which is what the switch is for.
-- **Where the two disagree, the request is answered with Kit's bytes**, the route is compiled again
-  behind it, and the terminal says which route and where the bytes parted. A disagreement is this
-  compiler's fault, never the author's, so the author gets the right page; a refusal is still an
-  error page, as above.
-- **What does not come right is escalated**, and nothing falls back to Kit's render for good: a
-  fault answered by SSR is a fault nobody looks at again.
-- **The dev server restarts itself at most once a minute, and otherwise stops.**
-
-**A fault climbs a ladder.** A fault is what can only be this compiler's: a route that disagrees
-again once it has been compiled again for a disagreement, or a program it wrote that does not
-evaluate. Anything else the middleware meets -- a refusal, a route file Kit's own manifest refuses,
-a config a plugin of the project's throws on -- is an error page, as Kit's dev server answers the
-same: it may be the project's, and it is on the screen rather than hidden, so it climbs nothing.
-
-1. **The route is compiled again**, for a first disagreement. Not yet a fault.
-2. **This compiler starts over, Vite does not**: the loader is closed and made again, every program
-   dropped, and what the compile remembers forgotten.
-3. **Vite restarts**, as `r` restarts it (`server.restart()`), unless it restarted in the minute
-   before; the browser reloads on its own.
-4. **The process ends**, saying where the log is: a fault after a restart, or one inside a minute of
-   the last, is a fault no restart cures, and a server that keeps restarting is a loop the author has
-   to kill by hand. Not a fall back to SSR, the user's decision: that would hide it.
-
-The ladder climbs one rung per fault and comes down to the first after ten minutes with none. What
-the process holds across Vite's restart -- the rung, when it last restarted -- is kept on the
-framework's global, since a restart makes the plugin again in the same process.
+**It starts the compile over, and nothing more.** The loader is closed and made again, every program
+dropped, and what the compile remembers of files forgotten. While the dev server answered with the
+program, the user's ladder went on from there -- Vite restarted at most once a minute, then the
+process stopped with the log's path -- because a fault there was a page the author was looking at.
+Behind Kit's render a fault is a check that said something wrong, and stopping the server the author
+is working in over it would be the compiler's defect made the author's; so the two rungs above
+starting over are gone with the mode that needed them, and what remains of the ladder is the log.
 
 **Everything is logged to `.svelte-kit/seam/dev.log`**: each compile and what it took, each
-disagreement with both answers written beside it as files, each fault and the rung it took. The
-terminal says the path whenever it says a fault, and when the dev server closes it prints one line
-for the session -- requests, the ones refereed, disagreements, compiles, faults by rung -- which is
-what an author running it for a week reads to know how it went.
+refusal and what the build will render by SSR for it, each disagreement with both answers and the
+props written beside it as files, each fault. When the dev server closes it prints one line for the
+session -- renders checked, disagreements, compiles, faults, and routes and components the build
+will render by SSR -- which is what an author running it for a week reads to know how it went.
 
-**`SEAM_DEV_FAULT=<route>` makes a route's program write the wrong bytes**, for the check that the
-ladder climbs as it says (`pkgs/plugin/src/dev.test.ts`). Nothing else reads it.
+**`SEAM_DEV_FAULT=<route>` makes a route's program write the wrong bytes**, for the check that a
+disagreement is caught and a fault starts over (`pkgs/plugin/src/dev.test.ts`). Nothing else reads
+it.
 
 ### How it is measured: an author's own edits, replayed
 
@@ -800,7 +760,7 @@ Clearing what is held only makes it collectable; it does not give it back.
 **Measured on press under Kit 2; press has left, and the user reports this retention and the
 child that would not exit fixed upstream for Kit 3.** What follows stands as it was measured; the
 dev server, which compiles in its own process, relies on the fix rather than on a measurement.
-See "The dev server compiles a route when it is asked for".
+See "The dev server answers with Kit's render, and CTR is checked behind it".
 
 **So the compile runs in a process of its own that exits.** It could, because it already was one in
 every way but the last: what it produces are files under `<outDir>/seam`, which `buildStart` reads

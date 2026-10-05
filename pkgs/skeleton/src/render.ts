@@ -71,7 +71,7 @@ export interface Host {
 	/**
 	 * Told each source a render compiles and stages, by its own path: a component or a runes module,
 	 * which the host loads as a copy and so never sees by its name. The dev server keeps them as what
-	 * a route depends on. See spec/build.md, "The dev server compiles a route when it is asked for".
+	 * a route depends on. See spec/build.md, "How the dev server compiles a route".
 	 */
 	staged?: (file: string) => void;
 }
@@ -116,7 +116,7 @@ export async function shippable(): Promise<void> {
 	const open = svelte.html('x');
 	// The dev server renders with the development runtime, whose anchor is a hash of the value: what
 	// the program writes per request there, and what `developed()` takes out of the render. See
-	// spec/build.md, "The dev server compiles a route when it is asked for".
+	// spec/build.md, "How the dev server compiles a route".
 	const development = projectDevelopment() !== null;
 	const expected = development ? `${anchorOf('x')}x<!---->` : '<!---->x<!---->';
 	if (open !== expected) {
@@ -159,7 +159,7 @@ function lastSelected(text: string): string {
  * its marker, which is no value a request holds, so it goes, and the hole's own expression writes
  * it (see `collectTag`). And what `push_element` writes into the head about a misplaced element is
  * left out: the compile reports it where it renders, on the terminal, and the program does not
- * write it. See spec/build.md, "The dev server compiles a route when it is asked for".
+ * write it. See spec/build.md, "How the dev server compiles a route".
  */
 function developed(rendered: Rendered): Rendered {
 	if (projectDevelopment() === null) return rendered;

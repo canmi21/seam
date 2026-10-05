@@ -230,8 +230,7 @@ export async function compileRoutes({
  * it is part of, since a project's config may branch on the command and do its serving work under
  * `serve`. Under the dev server it stands where that server stands -- its mode, `__SVELTEKIT_DEV__`
  * as Kit sets it there -- apart from it only in answering a remote function with a stand-in, which
- * a render cannot call Kit's for. See spec/build.md, "The dev server compiles a route when it is
- * asked for".
+ * a render cannot call Kit's for. See spec/build.md, "How the dev server compiles a route".
  */
 export async function loaderOf(
 	vite: typeof import('vite'),
