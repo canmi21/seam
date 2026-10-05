@@ -477,6 +477,10 @@ different. Under `--kit-root=throw` the same, but for a page a `load` fetches fr
 `embed`'s two, `options-2`'s `fetch-prerendered` -- on its first request, which the middleware never
 sees ([build.md](build.md), "The dev server compiles a route when it is asked for").
 
+The referee is on throughout ([build.md](build.md), "How it keeps itself right"), and across the
+twelve apps it disagreed with Kit's render nowhere; `compare-dev` counts what it said, and a
+disagreement fails the run as a different page does, since the page it answers with is Kit's.
+
 What it closed on the way: a `{@html}` anchor written as a hash of a marker; a carried run whose
 copy of Svelte was not the render's; a route `reroute` names; a path decoded otherwise than Kit's
 `decode_pathname` decodes it, and one taken for a static file because a directory had its name; a

@@ -221,6 +221,90 @@ second compile of a route cheap. That retention was measured on press, under Kit
 left; the user reports both it and the child that sat on after `close()` fixed upstream for Kit 3.
 So the dev server's memory was not measured, and the build's child process is unchanged.
 
+### How it keeps itself right
+
+**Kit's render is the referee, on by default.** In the dev server Kit's own root is at hand, and it
+is the answer: the dispatcher hands it the props it handed the program -- after every `load` has
+run, so nothing is fetched twice -- and renders it alone, through Svelte's `render` with the
+request's context, policy and `transformError`, and compares the two byte for byte: the body, the
+head with what Svelte's `dev` writes about a misplaced element taken out of Kit's (the declared
+difference above), the script hashes, and whether either threw. In Svelte's async mode the two are
+awaited at once: Svelte's render starts its async work when it is awaited, and one after the other
+`async`'s `remote/query-loading-state` took long enough for a query it leaves loading to settle
+before the page was written, which Kit's own render does not. The user's decisions, all four:
+
+- **On by default, and `SEAM_DEV_CHECK=off` turns it off.** What it costs is a second render of the
+  components, which on `status` is a few milliseconds of a request that is mostly its `load`; a
+  component's script runs twice, so a script with an effect of its own -- a counter at module scope,
+  a `handleError` that logs -- does it twice, which is what the switch is for.
+- **Where the two disagree, the request is answered with Kit's bytes**, the route is compiled again
+  behind it, and the terminal says which route and where the bytes parted. A disagreement is this
+  compiler's fault, never the author's, so the author gets the right page; a refusal is still an
+  error page, as above.
+- **What does not come right is escalated**, and nothing falls back to Kit's render for good: a
+  fault answered by SSR is a fault nobody looks at again.
+- **The dev server restarts itself at most once a minute, and otherwise stops.**
+
+**A fault climbs a ladder.** A fault is what can only be this compiler's: a route that disagrees
+again once it has been compiled again for a disagreement, or a program it wrote that does not
+evaluate. Anything else the middleware meets -- a refusal, a route file Kit's own manifest refuses,
+a config a plugin of the project's throws on -- is an error page, as Kit's dev server answers the
+same: it may be the project's, and it is on the screen rather than hidden, so it climbs nothing.
+
+1. **The route is compiled again**, for a first disagreement. Not yet a fault.
+2. **This compiler starts over, Vite does not**: the loader is closed and made again, every program
+   dropped, and what the compile remembers forgotten.
+3. **Vite restarts**, as `r` restarts it (`server.restart()`), unless it restarted in the minute
+   before; the browser reloads on its own.
+4. **The process ends**, saying where the log is: a fault after a restart, or one inside a minute of
+   the last, is a fault no restart cures, and a server that keeps restarting is a loop the author has
+   to kill by hand. Not a fall back to SSR, the user's decision: that would hide it.
+
+The ladder climbs one rung per fault and comes down to the first after ten minutes with none. What
+the process holds across Vite's restart -- the rung, when it last restarted -- is kept on the
+framework's global, since a restart makes the plugin again in the same process.
+
+**Everything is logged to `.svelte-kit/seam/dev.log`**: each compile and what it took, each
+disagreement with both answers written beside it as files, each fault and the rung it took. The
+terminal says the path whenever it says a fault, and when the dev server closes it prints one line
+for the session -- requests, the ones refereed, disagreements, compiles, faults by rung -- which is
+what an author running it for a week reads to know how it went.
+
+**`SEAM_DEV_FAULT=<route>` makes a route's program write the wrong bytes**, for the check that the
+ladder climbs as it says (`pkgs/plugin/src/dev.test.ts`). Nothing else reads it.
+
+### How it is measured: an author's own edits, replayed
+
+Developing is not one number, so it is taken apart into ones that are: **disagreements per request**,
+which is zero; **edits between faults**, which is every edit; the time from an edit to a request
+that renders it, p50 and p95, against Kit's; and the compile time and the heap after a long run
+against the first ones, which is whether it drifts. They are measured by replaying what an
+application's author actually wrote rather than edits written for the check: the commits that
+touched `status`'s source, one after another, each written into a dev server of Kit's and one of
+the fork's with the referee on, every page asked of both after each. `.local/status/replay.ts` is
+the harness, since the application is the author's own; what it found is recorded here.
+
+Only the latest of a history runs against the dependencies and the config a project has now --
+of `status`'s last thirty commits, the four since its move onto its own manifest; the twenty-six
+before it import `$lib`, which Kit 3 removed, and fail under both servers alike. So the harness
+replays the thirty, and then goes back over the four that run and forward again, eight times, as an
+author who undoes a change and makes it again does. Measured so:
+
+| over 78 edits, 52 of which render                            | Kit's dev server | the fork's                |
+| ------------------------------------------------------------ | ---------------- | ------------------------- |
+| pages unlike Kit's (234 asked; 78 failing under both)        | --               | 0                         |
+| disagreements with Kit's render, faults                      | --               | 0, 0                      |
+| `/` after an edit that renders, p50                          | 174 ms           | 175 ms                    |
+| `/` after an edit that renders, p95                          | 198 ms           | 1186 ms                   |
+| resident, before and after                                   | 573 MB, 1068 MB  | 1005 MB, 1629 MB          |
+| a compile of `/` that renders: the first, the rest, the last | --               | 1.55 s, 1.1-1.6 s, 1.21 s |
+
+An edit that leaves the page's sources alone costs nothing, which is the p50; one that changes them
+is a compile of about 1.2 s, which is the p95 and does not drift over the session. Both servers grow
+by about half a gigabyte over it; the fork starts some 430 MB higher, the loader and what it
+evaluates, and grows about 130 MB more, the staged copies each edit makes. Nothing restarts on memory
+yet: what the ladder climbs on is a fault, and growth is not one.
+
 ### What it costs, on `status`
 
 Measured on a copy of `status` (`.local/status/dev.ts`), Kit's dev server and the fork's over the
