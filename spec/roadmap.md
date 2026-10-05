@@ -195,29 +195,31 @@ Accepted when:
 
 ## Owed
 
-**How the request-time half runs.** Measured on `status` through `.local/status`, one request of
-the page: about 259 ms injecting against about 37 ms for Kit's render, out of 302 ms and 80 ms. The
-walk evaluates about 91,000 derivations, each a `new Function` reading its names through nested
-`with` over a proxied scope stack -- 540,000 `has` traps a request -- and that read alone is about
-25 times a lexical closure's on the page's own bar expression. The walk itself is a generator
-stepping 163,000 nodes, and a per-item value is held by scope identity, which a nested each misses:
-`dailyOf` runs 771 times where Kit's runs it 192. A boundary's run is not it, at under 5 ms. Two
-answers, and the choice is not made: keep the walk and make each step cheaper -- derivations
-built with their names as parameters, a loop where nothing waits, a hold that is lexical -- which
-still calls into the engine once per hole; or lower each route's IR and derivations at the build
-into one program that writes the bytes, constants as literals, an each as a loop and a `{@const}`
-as a `const`, which the engine runs once a request. The second is the one to try, on `status`
-first, against the same byte-for-byte comparison and the same measurement. With every backend
-carrying an engine, nothing outside this measurement holds the first in place; see
-[ir.md](ir.md), "Expressions are not evaluated".
+**How the request-time half runs.** _Decided: one program per route, rewritten now._ Measured on
+`status` through `.local/status`, one request of the page: about 259 ms injecting against about
+37 ms for Kit's render, out of 302 ms and 80 ms. The walk evaluated about 91,000 derivations, each
+a `new Function` reading its names through nested `with` over a proxied scope stack -- 540,000
+`has` traps a request -- and that read alone is about 25 times a lexical closure's on the page's
+own bar expression. The walk itself was a generator stepping 163,000 nodes, and a per-item value
+was held by scope identity, which a nested each missed: `dailyOf` ran 771 times where Kit's runs it 192. A boundary's run was not it, at under 5 ms. Making each step cheaper would still have called
+into the engine once per hole, and with every backend carrying an engine nothing held that in
+place ([ir.md](ir.md), "Expressions are not evaluated"). So the build lowers each route's IR and
+derivations into one program that writes the bytes -- constants as literals, an each as a loop,
+every name resolved to what it means when the program is written -- and the engine runs it once
+a request. In four steps, each held to the whole suite, Kit's apps byte for byte and `status`:
 
-Every item below was read out of Svelte 5.57's source before it was written down, and the file
-that decides it is named. That is the order of work for each: read the transform and the runtime,
-form the rule, measure it with Node against Svelte's own output, then write ours, then the check
-that holds the two together. See the workspace's `spec/agent-protocol.md`.
-
-**Every item here is a gap.** A sample that writes one fails in the suite until it is closed, and
-the ones no sample writes were found by probe and are held by a refusal that names the shape.
+1. **The program, over the IR as it is.** Generated from the IR and the derivations the lowering
+   already writes, so the new backend is held to the bytes the old one was held to. It replaces
+   `derive` and the injector's walk; what Svelte's bytes need of a runtime -- escaping, the title
+   channel, `hydratable`'s script -- stays a library the program calls.
+2. **What only the walk needed goes.** A boundary is a `try` around what its children write, as
+   `renderer.boundary` is, so its run, the guards and the per-request tables go; a `{@const}` is a
+   `const` where it is declared.
+3. **The artifact is the program.** One script a route, the carried bundle and the program
+   together, evaluated once a process: no `new Function` per expression, no `with`, nothing of
+   Node's host in what it calls, so QuickJS runs it as Node does.
+4. **Accepted.** What the old backend left behind removed, the spec rewritten to the program, and
+   `status` no slower than Kit's own render.
 
 **A child's write into an object the caller reads, under the async render.** Not yet measured by
 the suite, and owed. `runtime-legacy/binding-backflow`'s `reactive_mutate` and `init_mutate` cases
