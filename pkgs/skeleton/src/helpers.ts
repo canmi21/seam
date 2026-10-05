@@ -120,6 +120,10 @@ export function helpers(rendered: Skeleton): Carried[] {
 	if (written.some((one) => one.includes('$$attr_style('))) {
 		found.push({ local: '$$attr_style', from, kind: 'named', exported: 'attr_style' });
 	}
+	// Svelte's own render, for a component rendered by SSR in place. See `ssrAt()`.
+	if (written.some((one) => one.includes('$$ssr('))) {
+		found.push({ local: '$$render', from: 'svelte/server', kind: 'named', exported: 'render' });
+	}
 	if (written.some((one) => one.includes('$$clsx('))) {
 		found.push({ local: '$$clsx', from, kind: 'named', exported: 'clsx' });
 	}

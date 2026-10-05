@@ -119,6 +119,19 @@ export interface Options {
 	 */
 	refuseUnnamedComponents?: boolean;
 	/**
+	 * Refuse instead of degrade: a route the compile refuses fails the build rather than being
+	 * rendered by SSR. `SEAM_STRICT=1`, for a CI that holds an application to CTR whole. See
+	 * spec/together.md, "Coverage".
+	 */
+	strict?: boolean;
+	/**
+	 * Asked of each route before its artifact is written: null where its program agrees with
+	 * Svelte's render over every payload kept for it in development, or why it does not, which
+	 * renders the route by SSR -- or fails the build, under `strict`. See spec/together.md, "The props
+	 * a page was rendered with, kept and replayed".
+	 */
+	verify?: (route: Route) => Promise<string | null>;
+	/**
 	 * Asked for a route a module of which could not be evaluated on the server: the same route
 	 * with each component that cannot be stood in for by one that throws what it threw as it
 	 * renders, which is where Kit's render of it throws, or null where none was found. See
@@ -288,19 +301,37 @@ export interface Route {
 	names: Map<string, Carried[]>;
 	/** Every component the entry reaches, relative to the root: what a change to the route is. */
 	components: string[];
+	/** The components rendered by SSR in place, once each, with why. See spec/together.md. */
+	ssr: { file: string; why: string }[];
 }
 
 /** Every route compiled, the ones left to the framework, and what the compile has to say. */
 export interface Built {
 	routes: Route[];
 	left: Record<string, string>;
+	/**
+	 * Routes rendered by SSR whole because the compile refused them, by route, with why: what Kit's
+	 * root renders, as it renders a route left to the framework. See spec/together.md.
+	 */
+	ssr: Record<string, string>;
 	warnings: string[];
 }
 
 /**
+ * A refusal the author has to answer whatever renders the component, which is still the build's
+ * error rather than a route rendered by SSR: async Svelte outside its async mode, which Svelte's own
+ * compiler refuses as well. See spec/together.md, "What is not a degradation".
+ */
+function theAuthors(reason: string): boolean {
+	return reason.includes('which is async Svelte');
+}
+
+/**
  * The routes compiled and nothing written: what `compile` writes as the artifact layout, and what
- * the dev server holds in memory, a route at a time. A refusal throws, listing every one. See
- * spec/build.md, "How the dev server compiles a route".
+ * the dev server holds in memory, a route at a time. A route the compile refuses is rendered by SSR,
+ * and said with why; under `strict` it throws instead, listing every one, as a refusal the author has
+ * to answer always does. See spec/together.md and spec/build.md, "How the dev server compiles a
+ * route".
  */
 export async function built(options: Options): Promise<Built> {
 	const root = resolve(options.root);
@@ -320,7 +351,11 @@ export async function built(options: Options): Promise<Built> {
 	// stay side by side until lowering has finished with them. They are one route throughout: one
 	// URL, one id, one carried bundle, and one artifact at the end.
 	const prepared: (Prepared & Run & { path: string; of: number })[] = [];
-	const refusals: string[] = [];
+	/** What the compile refused, by route: each reason, named by the file it was raised about. */
+	const refused = new Map<string, string[]>();
+	const refuse = (path: string, reason: string): void => {
+		refused.set(path, [...(refused.get(path) ?? []), reason]);
+	};
 	const warnings: string[] = [];
 	/**
 	 * Routes left to the framework: a module that cannot be evaluated on the server, with no
@@ -364,7 +399,8 @@ export async function built(options: Options): Promise<Built> {
 				);
 				continue;
 			}
-			refusals.push(
+			refuse(
+				entry.path,
 				`${relative(root, resolve(root, entry.component))}: ${(error as Error).message}`,
 			);
 		}
@@ -374,21 +410,33 @@ export async function built(options: Options): Promise<Built> {
 		lower(prepared.map((one) => [one.id, JSON.stringify(one.skeleton)] as const)),
 	);
 	for (const [at, one] of lowered.entries()) {
-		if (one !== undefined && 'error' in one) refusals.push(`${one.name}: ${one.error}`);
-		else if (one === undefined) refusals.push(`${prepared[at]?.id ?? '?'}: nothing came back`);
+		const path = prepared[at]?.path ?? '?';
+		if (one !== undefined && 'error' in one) refuse(path, `${one.name}: ${one.error}`);
+		else if (one === undefined) refuse(path, `${prepared[at]?.id ?? '?'}: nothing came back`);
 	}
 
-	if (refusals.length > 0) {
+	// What has to fail the build: a refusal the author has to answer, and under `strict` every one.
+	const failing = [...refused.values()]
+		.flat()
+		.filter((reason) => options.strict === true || theAuthors(reason));
+	if (failing.length > 0) {
 		throw new Error(
-			`${refusals.length} component(s) could not be compiled:\n  ${refusals.join('\n  ')}`,
+			`${failing.length} component(s) could not be compiled:\n  ${failing.join('\n  ')}`,
 		);
 	}
+	const ssr: Record<string, string> = {};
+	for (const [path, reasons] of refused) ssr[path] = reasons.join('\n');
 
 	// Back to one entry per route: the runs made for one route are joined into the structure that
 	// carries all of its structures, under an if over the paths their values were fixed at.
 	const routes: Route[] = [];
 	for (let at = 0; at < prepared.length;) {
 		const one = prepared[at] as (typeof prepared)[number];
+		// A route the compile refused in any of its runs is rendered by SSR whole.
+		if (refused.has(one.path)) {
+			at += one.of;
+			continue;
+		}
 		const runs = prepared.slice(at, at + one.of).map((each, index) => ({
 			fixed: each.fixed,
 			decided: decidedAs(each),
@@ -399,6 +447,11 @@ export async function built(options: Options): Promise<Built> {
 		const components = new Set(
 			prepared.slice(at, at + one.of).flatMap((each) => Object.keys(each.markup.components)),
 		);
+		const ssrParts = new Map<string, string>();
+		for (const each of prepared.slice(at, at + one.of)) {
+			for (const part of each.skeleton.ssr ?? [])
+				if (!ssrParts.has(part.file)) ssrParts.set(part.file, part.why);
+		}
 		at += one.of;
 		routes.push({
 			id: one.id,
@@ -408,9 +461,10 @@ export async function built(options: Options): Promise<Built> {
 			structure: joined(one.id, runs, one.skeleton.defaults, one.skeleton.eager),
 			names: together,
 			components: [...components],
+			ssr: [...ssrParts].map(([file, why]) => ({ file, why })),
 		});
 	}
-	return { routes, left, warnings };
+	return { routes, left, ssr, warnings };
 }
 
 /**
@@ -427,7 +481,7 @@ export async function built(options: Options): Promise<Built> {
  */
 export async function compile(options: Options): Promise<Report[]> {
 	const server = resolve(options.out, 'server');
-	const { routes: compiled, left, warnings } = await built(options);
+	const { routes: compiled, left, ssr, warnings } = await built(options);
 
 	// Written only once every component has compiled, so a refused build leaves the previous
 	// artifacts alone rather than half of a new one beside half of an old one.
@@ -443,7 +497,15 @@ export async function compile(options: Options): Promise<Report[]> {
 
 	// One route, one bundle, over what every structure of it calls. See `Prepared.names`.
 	for (const one of compiled) {
-		const carried = await timed('carry (derivation bundle)', () => carry(one.file, one.names));
+		const disagrees = (await options.verify?.(one)) ?? null;
+		if (disagrees !== null) {
+			if (options.strict === true) throw new Error(`${one.path}: ${disagrees}`);
+			ssr[one.path] = disagrees;
+			continue;
+		}
+		const carried = await timed('carry (derivation bundle)', () =>
+			carry(one.file, one.names, resolve(options.root)),
+		);
 		const files: string[] = [];
 
 		// The route's program, with the bundle it calls before it: one script, which every backend
@@ -475,7 +537,39 @@ export async function compile(options: Options): Promise<Report[]> {
 		copyFileSync(resolve(options.shell), resolve(server, 'app.html'));
 	}
 
-	write(resolve(server, 'manifest.json'), `${JSON.stringify({ routes, left }, null, '\t')}\n`);
+	// What renders each route, which the build says and the manifest keeps. See spec/together.md.
+	const coverage: Record<
+		string,
+		{ render: 'ctr' | 'mixed' | 'ssr'; why?: string; ssr?: { file: string; why: string }[] }
+	> = {};
+	for (const one of compiled) {
+		if (ssr[one.path] !== undefined) continue;
+		coverage[one.path] =
+			one.ssr.length === 0 ? { render: 'ctr' } : { render: 'mixed', ssr: one.ssr };
+	}
+	for (const [path, why] of Object.entries({ ...left, ...ssr }))
+		coverage[path] = { render: 'ssr', why };
+	const bySsr = Object.entries(coverage).filter(([, one]) => one.render === 'ssr');
+	const mixed = Object.entries(coverage).filter(([, one]) => one.render === 'mixed');
+	for (const [path, one] of bySsr) {
+		console.warn(`seam: ${path} renders by SSR: ${(one.why ?? '').split('\n')[0] ?? ''}`);
+	}
+	for (const [path, one] of mixed) {
+		for (const part of one.ssr ?? []) {
+			console.warn(`seam: ${path} renders ${part.file} by SSR: ${part.why.split('\n')[0] ?? ''}`);
+		}
+	}
+	// Each component once, however many routes render it. See spec/together.md, "Coverage".
+	const parts = new Set(mixed.flatMap(([, one]) => (one.ssr ?? []).map((part) => part.file)));
+	console.warn(
+		`seam: ${String(Object.keys(coverage).length)} route(s) and error page(s): ` +
+			`${String(Object.keys(coverage).length - bySsr.length - mixed.length)} by CTR whole, ` +
+			`${String(mixed.length)} with ${String(parts.size)} component(s) by SSR, ${String(bySsr.length)} by SSR whole`,
+	);
+	write(
+		resolve(server, 'manifest.json'),
+		`${JSON.stringify({ routes, left, ssr, coverage }, null, '\t')}\n`,
+	);
 	// Where the time went, when asked for: a compile nests a walk inside a render inside a stage,
 	// and which of them costs what has to be measured rather than reasoned about. See spec/build.md.
 	if (process.env['SEAM_TIME'] !== undefined) {

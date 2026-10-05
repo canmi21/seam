@@ -48,6 +48,7 @@ import { cases as headCases } from './cases/head.ts';
 import { cases as awaitsCases } from './cases/awaits.ts';
 import { type Case, PROPS } from './cases/case.ts';
 import { refused as refusedCases } from './cases/refused.ts';
+import { cases as ssrCases, refusedBySsr } from './cases/ssr.ts';
 
 // Its own directory: `skeleton()` stages Svelte's compiled output in `../.build` and removes it
 // when it is done, which would take this with it halfway through a case.
@@ -69,10 +70,11 @@ const accepted: Case[] = [
 	...boundaryCases,
 	...headCases,
 	...awaitsCases,
+	...ssrCases,
 ];
 
 // Each one is a gap rather than a boundary, and the message has to say which.
-const refused: Case[] = refusedCases;
+const refused: Case[] = [...refusedCases, ...refusedBySsr];
 
 /** Where one case's files go: its own directory under the staging root, named for the case. */
 function staged(at: string): string {
@@ -130,6 +132,7 @@ async function attempt(
 			carried: await carry(
 				file,
 				new Map([...carriedBy(staging, expressionsOf(rendered)), ['*', helpers(rendered)]]),
+				staging,
 			),
 		};
 	} catch (error) {

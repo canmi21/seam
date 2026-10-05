@@ -141,6 +141,7 @@ export function childOf(
 			given: groups,
 			payload: walk.site.payload,
 			missed: walk.site.missed,
+			ssr: walk.site.ssr,
 			eager: walk.site.eager,
 			headed: walk.site.headed,
 			callable: walk.site.callable,

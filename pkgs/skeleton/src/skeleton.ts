@@ -6,6 +6,7 @@ import { partial } from './compose.ts';
 import { anchored } from './fresh.ts';
 import { timed, timedSync } from './timing.ts';
 import { renderRewritten, shippable } from './render.ts';
+import { Climb, WholeRoute } from './ssr.ts';
 import { dead, filled, outcomes, probed } from './resolve.ts';
 import type { Block, Rendered, Skeleton } from './shape.ts';
 import { inlined } from './snippets.ts';
@@ -50,11 +51,16 @@ export async function skeleton(
 	try {
 		const page = await walked(entryFile, root, fixed, decided);
 		// Where the markup changes the script's state, the page is computed by the run in render
-		// order; where no request decides anything on it, Svelte's render is that page already.
-		if (!livePages.has(page) || fixed.size > 0) return page;
+		// order; where no request decides anything on it, Svelte's render is that page already --
+		// unless a component on it renders by SSR, which is per request by declaration or because the
+		// walk could not read it, and is not to be rendered once at the build. See spec/together.md.
+		if (!livePages.has(page) || fixed.size > 0 || (page.ssr?.length ?? 0) > 0) return page;
 		return (await whole(resolvePath(entryFile), root)) ?? page;
 	} catch (error) {
 		if (error instanceof Undecided || fixed.size > 0) throw error;
+		// A component declared SSR is per request, and a page holding one is not Svelte's to render
+		// once; one degraded by a refusal is the page's ordinary case. See spec/together.md.
+		if ((error instanceof Climb || error instanceof WholeRoute) && error.declared) throw error;
 		const page = await whole(resolvePath(entryFile), root);
 		if (page === null) throw error;
 		return page;
@@ -372,6 +378,9 @@ export async function walked(
 		blocks: baseline.blocks,
 		defaults: baseline.defaults,
 		eager: baseline.eager,
+		...(baseline.ssr.length === 0
+			? {}
+			: { ssr: baseline.ssr.map((one) => ({ file: relative(root, one.file), why: one.why })) }),
 		// One entry per file rather than per call site: two calls of one component carry the same
 		// imports, and what is wanted here is which modules the bundle has to reach. Relative to the
 		// root, because this is written into a fixture two machines have to agree on, and an

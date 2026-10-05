@@ -253,6 +253,11 @@ export interface Skeleton {
 	 */
 	eager: { expression: string; files: string[] }[];
 	/**
+	 * The components rendered by SSR in place, relative to the root, and why: declared, or degraded.
+	 * Absent where there are none. See spec/together.md.
+	 */
+	ssr?: { file: string; why: string }[];
+	/**
 	 * A held declaration's initialiser, by the index the substitution refers to it with.
 	 *
 	 * `$$hold(2)` in an expression means the value of `held[2].expression`, resolved to whatever

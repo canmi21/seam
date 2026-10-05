@@ -206,6 +206,7 @@ export function rewrite(
 	/** The markup no request reaches, by file, for the name check to leave alone. */
 	const dead = new Map<string, [number, number][]>();
 	const missed: { file: string; reason: string }[] = [];
+	const ssr: { file: string; why: string }[] = [];
 	const childCalls: { expression: string; files: string[] }[] = [];
 	const handed: Handed[] = [];
 	const spreads: PendingSpread[] = [];
@@ -307,6 +308,7 @@ export function rewrite(
 			given: new Map(),
 			payload,
 			missed,
+			ssr,
 			eager: childCalls,
 			headed,
 			callable,
@@ -462,6 +464,7 @@ export function rewrite(
 		pending,
 		copies,
 		missed,
+		ssr,
 		handed,
 		spreads,
 		payload: payload === null ? null : [...payload],

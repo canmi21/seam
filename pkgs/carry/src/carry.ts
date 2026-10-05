@@ -82,15 +82,18 @@ function entryOf(source: string): Plugin {
  * expressions call may re-export a component beside the function they want -- a query library
  * ships its provider component that way -- and a bundler has no loader for one of its own.
  */
-function svelted(): Plugin {
+function svelted(root: string | undefined): Plugin {
 	return {
 		name: 'seam:svelte',
 		load(id) {
 			if (isComponentFile(id)) {
+				// Under the project's root, which a scoped class and a head anchor are hashes of the path
+				// relative to: a component rendered by SSR in place writes the class the page's own does.
 				return compile(readFileSync(id, 'utf8'), {
 					generate: 'server',
 					name: componentStem(id),
 					filename: id,
+					...(root === undefined ? {} : { rootDir: root }),
 					...projectOptions(),
 				}).js.code;
 			}
@@ -198,6 +201,8 @@ export function running({ bare = false }: { bare?: boolean } = {}): Plugin {
 export async function carry(
 	file: string,
 	given: ReadonlyMap<string, readonly Carried[]>,
+	/** The project's root, which a component carried for SSR is compiled under. */
+	root?: string,
 ): Promise<string> {
 	if ([...given.values()].every((names) => names.length === 0)) return '';
 	const entry = resolve(file);
@@ -205,7 +210,7 @@ export async function carry(
 
 	// The aliases are in the key because they decide what a specifier resolves to, and the entry
 	// because resolution is relative to it. Everything else the result depends on is in `source`.
-	const key = JSON.stringify([entry, source, currentAliases()]);
+	const key = JSON.stringify([entry, source, currentAliases(), root]);
 	const held = bundled.get(key);
 	if (held !== undefined) return held;
 
@@ -225,7 +230,7 @@ export async function carry(
 			mainFields: ['svelte', 'module', 'main'],
 			alias: { ...currentAliases() },
 		},
-		plugins: [entryOf(contents), running(), moduleScripts(), svelted()],
+		plugins: [entryOf(contents), running(), moduleScripts(), svelted(root)],
 		logLevel: 'silent',
 	});
 	try {

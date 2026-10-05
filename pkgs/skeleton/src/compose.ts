@@ -661,6 +661,8 @@ interface Marks {
 	 * which Svelte answers with `Identifier 'X$2' has already been declared`.
 	 */
 	prelude: number;
+	/** The components this descent made SSR, which go back with the rest. */
+	ssr?: number;
 }
 
 /** Puts back what a walk that did not finish appended, and says it did not take the component. */
@@ -673,6 +675,7 @@ export function rolled(walk: Walk, mark: Marks): false {
 	walk.site.handed.length = mark.handed;
 	walk.site.spreads.length = mark.spreads;
 	walk.site.prelude.length = mark.prelude;
+	if (mark.ssr !== undefined) walk.site.ssr.length = mark.ssr;
 	return false;
 }
 

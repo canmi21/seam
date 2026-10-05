@@ -32,6 +32,8 @@ import { closes, headedFragment, headFoundLate, stamped, wrapped } from './stamp
 import { type Walk } from './walk-types.ts';
 import { restated, withAsks, withFresh } from './written.ts';
 import { plantThrow, throwsAtTop } from './thrown.ts';
+import { Climb, declaredSsr, ssrAt, WholeRoute } from './ssr.ts';
+import { Undecided } from './walk-types.ts';
 
 export function descend(
 	node: AstNode,
@@ -66,6 +68,12 @@ export function descend(
 		);
 	}
 
+	// A component its author declared SSR is rendered by Svelte per request where it is called, and
+	// not entered. See spec/together.md.
+	if (declaredSsr(file)) {
+		return ssrAt(node, walk, tag, file, `${basename(file)} is declared SSR`, true, dynamic);
+	}
+
 	// A component that throws at the top of its script throws whatever it is handed, so it is not
 	// entered: it stands as a hole that throws the same thing per request. See `./thrown.ts`.
 	const throws = throwsAtTop(file);
@@ -94,6 +102,7 @@ export function descend(
 		handed: walk.site.handed.length,
 		spreads: walk.site.spreads.length,
 		prelude: walk.site.prelude.length,
+		ssr: walk.site.ssr.length,
 	};
 
 	/**
@@ -355,7 +364,38 @@ export function descend(
 		for (const one of walk.keeping.slice(mark.keeping)) one.files ??= chain;
 		return true;
 	} catch (error) {
-		return leftToSvelte(error, walk, mark, tag, file, headed, handsMarker);
+		// A component inside this one that could not be SSR at its own call site, which this one is
+		// instead; and one that has to be the whole route, which nothing here answers.
+		if (error instanceof WholeRoute) throw error;
+		if (error instanceof Climb) {
+			rolled(walk, mark);
+			return ssrAt(node, walk, tag, file, error.why, error.declared, dynamic);
+		}
+		try {
+			return leftToSvelte(error, walk, mark, tag, file, headed, handsMarker);
+		} catch (refused) {
+			// A refusal the walk would have handed the author degrades this component to SSR instead,
+			// unless it is one the author has to answer whatever renders it. See spec/together.md.
+			if (
+				refused instanceof Undecided ||
+				refused instanceof WholeRoute ||
+				String((refused as Error).message).includes('is part of a cycle') ||
+				String((refused as Error).message).includes('which is async Svelte')
+			) {
+				throw refused;
+			}
+			rolled(walk, mark);
+			const reason = String((refused as Error).message).replace(/\. See spec\/[\w-]+\.md$/, '');
+			return ssrAt(
+				node,
+				walk,
+				tag,
+				file,
+				`${basename(file)} is refused: ${reason}`,
+				false,
+				dynamic,
+			);
+		}
 	}
 }
 

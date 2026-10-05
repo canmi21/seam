@@ -176,6 +176,48 @@ export function html(value: unknown): string {
 	return `<!--${(hash >>> 0).toString(36)}-->${text}`;
 }
 
+/** What a server render returns, as far as `ssr` reads it. */
+interface Rendered {
+	body: string;
+	head: string;
+}
+
+/**
+ * `$$ssr(Component, props, render, request, options)`: a component rendered by Svelte per request,
+ * in the bytes the program writes -- declared SSR by its author, or degraded to it by a refusal. The
+ * render is handed Kit's request context and the request's `transformError`, and what it writes is
+ * the component's own bytes, the pair `render()` writes around a root taken off. See
+ * spec/together.md, "Where SSR starts".
+ */
+export function ssr(
+	component: unknown,
+	props: Record<string, unknown>,
+	render: (component: unknown, options: Record<string, unknown>) => Rendered | Promise<Rendered>,
+	request: unknown,
+	options?: { transformError?: unknown },
+): string | Promise<string> {
+	const done = render(component, {
+		props,
+		context: new Map([['__request__', request]]),
+		...(options?.transformError === undefined ? {} : { transformError: options.transformError }),
+	});
+	const bare = ({ body }: Rendered): string => {
+		const open = '<!--[-->';
+		const close = '<!--]-->';
+		return body.startsWith(open) && body.endsWith(close)
+			? body.slice(open.length, body.length - close.length)
+			: body;
+	};
+	// Read as it returns outside Svelte's async mode, where a render's result is its bytes; inside
+	// it, reading them throws, and the result is awaited instead.
+	try {
+		return bare(done as Rendered);
+	} catch (error) {
+		if (typeof (done as Promise<Rendered>).then !== 'function') throw error;
+		return (done as Promise<Rendered>).then(bare);
+	}
+}
+
 const handed = (): Record<string, unknown> | undefined =>
 	(globalThis as Record<symbol, unknown>)[Symbol.for('seam.kit')] as
 		| Record<string, unknown>

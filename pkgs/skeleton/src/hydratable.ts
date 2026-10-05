@@ -186,9 +186,14 @@ export function composed(
 	};
 	for (const one of expressions) {
 		const names = readsOf([one.expression]);
+		// A component rendered by SSR in place is handed to Svelte's render by its hole, and carried
+		// for that. See `ssrAt()` in ssr.ts.
+		const rendered = new Set(
+			[...one.expression.matchAll(/\$\$ssr\(([A-Za-z_$][\w$]*)/g)].map((m) => m[1]),
+		);
 		for (const file of one.files) {
 			for (const name of names) {
-				if (!held(file).has(name)) continue;
+				if (!held(file).has(name) || rendered.has(name)) continue;
 				throw new Error(
 					`\`${name}\` is a component read by an expression this artifact holds, and a ` +
 						'derivation is evaluated outside the render with only what the bundle carries. A ' +

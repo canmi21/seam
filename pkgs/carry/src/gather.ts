@@ -64,6 +64,13 @@ export function carriedBy(
 		}
 	}
 	const found = new Map<string, Carried[]>();
+	// A component rendered by SSR in place is a value its hole hands Svelte's render, by the name the
+	// file imported it under. See `ssrAt()` in the skeleton package.
+	const rendered = new Set<string>();
+	for (const one of expressions) {
+		for (const call of one.expression.matchAll(/\$\$ssr\(([A-Za-z_$][\w$]*)/g))
+			rendered.add(call[1] as string);
+	}
 	for (const [file, names] of reads) {
 		const at = resolve(root, file);
 		const carried: Carried[] = [];
@@ -80,7 +87,7 @@ export function carriedBy(
 			// whose `default` is the component and whose `<script module>` exports are its named
 			// exports, so `import { foo } from './Foo.svelte'` is a value an expression may call and
 			// has to be carried like any other. The bundler has a loader for a component already.
-			if (isComponentFile(from) && one.kind === 'default') continue;
+			if (isComponentFile(from) && one.kind === 'default' && !rendered.has(local)) continue;
 			carried.push({ ...one, from });
 		}
 		// What the file's module script declares, read from the module as the bundler builds it.

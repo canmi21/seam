@@ -246,6 +246,8 @@ export interface Site {
 	 * crash and never the refusal that led to it. These are kept so that failure can say both.
 	 */
 	missed: { file: string; reason: string }[];
+	/** Every component rendered by SSR in place, and why: declared, or degraded. See `ssrAt()`. */
+	ssr: { file: string; why: string }[];
 	/**
 	 * The `hydratable` calls the children's scripts make as each initializes, in the order Svelte
 	 * renders them, after the entry's own. See `Skeleton.eager` and `ownCalls()` in `descend.ts`.
@@ -619,6 +621,8 @@ export interface Rewritten {
 	copies: Copy[];
 	/** Every child left to Svelte instead, and why the walk stopped. */
 	missed: { file: string; reason: string }[];
+	/** Every component rendered by SSR in place, and why. */
+	ssr: { file: string; why: string }[];
 	/** Markup handed to one of those, with the holes and blocks the walk put inside it. */
 	handed: Handed[];
 	/** Elements whose attributes a spread decides, waiting for the rest of their call. */
