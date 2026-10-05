@@ -53,6 +53,13 @@ description = "Build one of SvelteKit's own test apps with and without the plugi
 # path the app's specs name; see spec/conformance.md, "Stage 2". Not part of `verify` yet.
 run = "NODE_ENV=production node pkgs/apps/src/compare.ts"
 
+[tasks.compare-dev]
+description = "Serve one of SvelteKit's own test apps under vite dev with and without the fork and diff every page's response"
+# `mise run compare-dev -- --app=basics`, and `--kit-root=throw` for the check. The dev server's half
+# of `compare`; see spec/conformance.md, "Under the dev server". Not part of `verify` yet. Run with
+# NODE_ENV unset: the dev servers it starts set their own.
+run = "node pkgs/apps/src/compare-dev.ts"
+
 [tasks.test-vendor]
 description = "Run SvelteKit's own checks over the vendored source, upstream's Node half"
 # From the vendor directory, under its own config: the repository's `test` does not include it,

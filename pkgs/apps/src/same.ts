@@ -31,13 +31,13 @@ export function digested(header: string | null, bytes: Buffer): string | null {
 		: `<${String(bytes.length)} bytes not matching their sha-256 digest>`;
 }
 
-export async function ask(port: number, url: string): Promise<Answer> {
+export async function ask(port: number, url: string, timeout = 10_000): Promise<Answer> {
 	try {
 		const response = await fetch(`http://localhost:${String(port)}${encodeURI(url)}`, {
 			redirect: 'manual',
 			headers: { accept: 'text/html' },
 			// A page that never answers is reported as that rather than holding the run.
-			signal: AbortSignal.timeout(10_000),
+			signal: AbortSignal.timeout(timeout),
 		});
 		const bytes = Buffer.from(await response.arrayBuffer());
 		return {
