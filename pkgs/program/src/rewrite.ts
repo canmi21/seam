@@ -85,7 +85,9 @@ export function parsedExpression(source: string): Node {
 		preserveParens: true,
 	}) as unknown as Node;
 	const rest = source.slice(tree.end);
-	if (!/^(?:\s|\/\*[\s\S]*?\*\/|\/\/[^\n]*(?:\n|$))*$/.test(rest)) {
+	// A block comment ends at its first `*/` and cannot reach past it, so the text has one reading;
+	// a lazy `[\s\S]*?` could, and comments run together took exponential time.
+	if (!/^(?:\s|\/\*(?:[^*]|\*(?!\/))*\*\/|\/\/[^\n]*(?:\n|$))*$/.test(rest)) {
 		throw new SyntaxError(`more than one expression in \`${source}\``);
 	}
 	return tree;
