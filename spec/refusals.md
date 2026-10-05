@@ -3062,4 +3062,7 @@ carry, making the artifact wrong for every payload rather than for an unusual on
 
 So the render pass measures it rather than reasoning about it: it calls the helper and compares
 what comes back, because the rule lives in a dependency of a dependency and the call is the
-behaviour itself. A development runtime is a refusal that names the variable to set.
+behaviour itself. A development runtime is a refusal that names the variable to set -- for a build.
+Under the dev server the development runtime is the one Kit's renders with, and the check asks for
+it instead: the hash goes into the anchor per request, and the hole writes it ([build.md](build.md),
+"The dev server compiles a route when it is asked for").

@@ -365,7 +365,9 @@ is the same hole in the `failed` branch, read only by a request that takes it.
 The thrown value is evaluated at the call site, where the component's own names are not, so one
 that reads them -- `throw new Error(message)` over a `message` the script declares -- is refused by
 name. A `throw` inside an `if`, a function or a block is the request's question, and stays the
-refusal above.
+refusal above -- except an `if` on one of Kit's constants the compile knows, `dev` or `browser`, or
+its negation, which is the branch it takes ([build.md](build.md), "The dev server compiles a route
+when it is asked for"): Kit's `errors/serverside` throws `if (dev)`.
 
 **A run reads its values bare of every guard, its own and the ones round it.** Kit's root puts a
 boundary at every level, so a page's own `<svelte:boundary>` is always inside one, and the page's

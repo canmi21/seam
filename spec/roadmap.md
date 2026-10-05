@@ -94,7 +94,7 @@ Accepted when all four hold:
    bytes are met, and the cost is Kit's within two percent**: sooner under load, about 1.3 ms
    later one request at a time.
 
-`vite dev` is not in A: it renders with Kit's root, and its own target is below.
+`vite dev` is not in A: it is a target of its own, below, and it is met.
 
 **A is the first release.** Once it is accepted the fork is published ([publish.md](publish.md)).
 **An application of the author's moves onto it once A is accepted and the dev server is CTR's too**
@@ -109,8 +109,8 @@ the alias when the entry is first published as the fork ([publish.md](publish.md
 ### Vite's dev server: CTR under HMR, after A
 
 **`vite dev` is taken by CTR too, as a compile target of its own.** It is after A, and gates the
-author's applications moving, though neither A nor the release; until it is done, the dev server renders by SSR as Kit's does, and a
-shape CTR refuses is met at the build. A target of its own because the bytes are another set:
+author's applications moving, though neither A nor the release; until it was done, the dev server
+rendered by SSR as Kit's does, and a shape CTR refuses was met at the build. A target of its own because the bytes are another set:
 under the dev server Svelte compiles with `dev` and `hmr`, its server output differs from a
 production build's -- a `<!---->` after every component that `clean_nodes` would leave alone
 ([framework.md](framework.md), "The comparison that counts") -- and the dev client hydrates those.
@@ -118,6 +118,16 @@ So it has its own measurement, Svelte's samples rendered under those options and
 `vite dev` against Kit's dev server, `dev-only` among them and the dev half of each app's
 Playwright config. And the compile becomes incremental: a route compiled when it is first asked
 for and compiled again when a file its components reach changes, read off Vite's module graph.
+
+**Met.** [build.md](build.md), "The dev server compiles a route when it is asked for", is how. Kit's
+twelve apps under `vite dev` answer every page as Kit's dev server does
+([conformance.md](conformance.md), "Under the dev server"), the plugin's sample does under an edit
+of a component, of a server `load` and into a shape CTR refuses (`pkgs/plugin/src/dev.test.ts`), and
+`status` does, its first compile 2.1 s and an edit reaching the next request in 1.7 s where Kit's
+takes 0.5 s. Two decisions of the user's shape it: a refusal is Vite's error page rather than a
+fall back to SSR, and the script Svelte's `dev` writes about a misplaced element is reported by the
+compile and not written. Svelte's own samples under the dev options are not yet measured; the
+suite renders under the production runtime, and a run of it under the development one is owed.
 
 ### B: CTR and SSR together, in Node
 
@@ -209,6 +219,8 @@ Accepted when:
      for byte. `hydratable`'s script still reads Node's host, and is C's.
   4. **Accepted**: the suite, Kit's eleven apps byte for byte, their specs under the check, and
      `status` ([conformance.md](conformance.md), "Stage 3").
+- **The dev server renders by CTR** ([build.md](build.md), "The dev server compiles a route when it
+  is asked for"), byte for byte with Kit's dev server over Kit's twelve apps and `status`.
 - **A is what is being worked**, and stage two with it: SvelteKit 3's own test apps, built through
   the fork and driven by Kit's own specs unedited. [framework.md](framework.md), "SvelteKit 3 is
   the target, and what it moves", is the order it was taken in.
@@ -232,6 +244,14 @@ copy of what it is passed, which is not Svelte's semantics -- the object is one 
 read is just earlier. The first is the one to try; the order the program evaluates what waits in
 (`evaluated()` in `pkgs/program/src/derivations.ts`) is where it starts. Kit's `async` and `options-2` apps turn the flag on, so stage two is where a
 test for it arrives; it is taken there rather than ahead of it.
+
+**An `<option>` with a `style:` directive the stylesheet also scopes.** `attributes()` appends the
+scoping class and then the directives' `style` to an option's attributes, and the walk plants the
+directives' anchor as a `style` attribute of the option's own, so the render writes `style` before
+`class` where Svelte writes `class` before `style`. A build meets it only where a stylesheet selects
+an option; under the dev server every element is scoped. Found beside the `selected` decision, which
+had the same order wrong and is closed (`lastSelected` in `pkgs/skeleton/src/render.ts`); moving the
+anchor after what `attributes()` appends is the same move.
 
 **A package's module whose state something changes.** The render imports each module afresh and
 the carried bundle imports it once, so a binding a module changes is two values. It is refused for

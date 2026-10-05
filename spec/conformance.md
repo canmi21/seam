@@ -243,6 +243,17 @@ rather than running beside it means some of what Kit does is done differently he
      are not cacheable", which waits for the client to fetch a query this streams instead (see
      **Closed by a declared difference** below).
 
+2. **What Svelte's `dev` writes about a misplaced element, under the dev server**
+   ([build.md](build.md), "The dev server compiles a route when it is asked for").
+   - _The routes it changes:_ a page with an element its ancestors may not hold, under `vite dev`
+     alone, on the first request a process makes of it.
+   - _What changes in the bytes:_ Kit's dev server writes one
+     `<script>console.error("node_invalid_placement_ssr: ...")</script>` into the head, once a
+     message a process; the program never writes it, and the compile prints the message to the
+     terminal instead.
+   - _What it is held to:_ the page with that script taken out of Kit's answer is Kit's byte for
+     byte.
+
 **What they are.** At `3.0.0-next.29`, `packages/kit/test/apps` holds twelve whole SvelteKit
 applications -- `basics`, `options`, `options-2`, `options-3`, `no-ssr`, `no-csr`, `embed`,
 `hash-based-routing`, `writes`, `async`, `dev-only` and `prerendered-app-error-pages`; `amp` is
@@ -445,6 +456,35 @@ throw from the top of a component's script, and `remote/form/throwing-error-page
 throws as well. [ir.md](ir.md), "A component that throws whatever the request is a hole that
 throws".
 
+**Under the dev server, every page compared the same way.** `mise run compare-dev -- --app=<name>`
+stages the app twice as `compare` does and serves each under `vite dev` rather than building it --
+Kit's own, and the fork's, which compiles a route as a request asks for it -- asking Kit's server
+for each URL, then ours, then Kit's again. Two dev servers of one app differ in more than two builds
+do, and it is written out before comparing: where each one's files and Kit sit, which the boot
+script imports by path; the port; the version Kit names a server by, the time its config was read
+unless the app names one, and with it the anchor of a `{@html}` block holding a page that names it,
+rewritten only where it is the hash of that block's content; and the `?v=` stamp Vite's optimizer
+gives a dependency. Kit names a remote function from an optimized dependency by a hash of a path
+that carries that stamp, so a page the same once those ids are written out is counted apart, and
+a page Kit's own two answers disagree on is checked to differ from Kit's first only in numbers and
+CSP nonces.
+
+**All twelve apps, every page the same.** Of 810 URLs, 748 are the same, one -- `async`'s
+`remote-lib` -- the same but for a dependency's remote id, and 61 unstable in Kit's own answers,
+of which ours is one of Kit's for 16 and differs from Kit's first in numbers and nonces alone for
+the other 45: clocks, randoms, a counter Kit's server was asked twice for, a nonce per request. None
+different. Under `--kit-root=throw` the same, but for a page a `load` fetches from its own app --
+`embed`'s two, `options-2`'s `fetch-prerendered` -- on its first request, which the middleware never
+sees ([build.md](build.md), "The dev server compiles a route when it is asked for").
+
+What it closed on the way: a `{@html}` anchor written as a hash of a marker; a carried run whose
+copy of Svelte was not the render's; a route `reroute` names; a path decoded otherwise than Kit's
+`decode_pathname` decodes it, and one taken for a static file because a directory had its name; a
+throw under `if (dev)`; a module that throws as it is evaluated, answered as an overlay instead of
+Kit's error page; and an
+`<option>`'s ` selected=""` written before the scoping class every element carries under the dev
+server, which a build gets wrong too wherever a stylesheet selects an option.
+
 ## Stage 3: an application written for Kit, moved
 
 **The application is `status`**, the status page in `repos/web/apps/status`: SvelteKit 3, written
@@ -506,6 +546,14 @@ inside what two runs of the same server differ by and is not less than nothing. 
 is about 34 ms against Kit's 32, of which 25 ms is the page's own `dailyOf` and `historyOf`, run as
 often as Kit runs them. Measured by the harness in `.local/status`, which builds, compares and times
 both.
+
+**Under `vite dev` as well.** `.local/status/dev.ts` serves both copies under the dev server over
+the same data and clock: `/`, `/?range=hours`, `/?range=minutes` and a page that is not there are
+Kit's byte for byte, none reaching Kit's root, and a warm request of `/` is 86 ms under either. What
+the dev server costs is the compile, which [build.md](build.md), "What it costs, on `status`",
+records. The copy installs the fork as the alias would rather than linking it whole, with its peers
+the application's: linked whole it reached its own Vite, and Kit's dev server, which asks whether
+the server environment is runnable by `instanceof`, refused to start.
 
 **The harness is local.** It lives in an ignored directory of this repository, since the
 application is the author's own and the data is made up for it; what it found goes here.

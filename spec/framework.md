@@ -366,8 +366,10 @@ writes it; reading what Kit's bundle keeps is what would close it.
 
 ### What is still Kit's render
 
-- **`vite dev`**, where the plugin does nothing and every page is Kit's; [roadmap.md](roadmap.md),
-  "Vite's dev server: CTR under HMR, after A".
+- **A page under `vite dev` that Kit's own `fetch` renders inside another request**, on its first
+  request: the dev server compiles a route before Kit sees the request, and this one it never sees.
+  It is compiled for the next. [build.md](build.md), "The dev server compiles a route when it is
+  asked for", which is also how `vite dev` is no longer Kit's render.
 - **A route left to the framework**: one whose module cannot be evaluated and whose components all
   evaluate alone, so that no level could stand in. It is listed under `left` in the manifest with
   why, the build warns rather than fails, and the dispatcher hands its request to Kit's root, as it
@@ -449,8 +451,8 @@ build` runs its server build first and the plugin takes part in that one only: w
    optimisation is a derivation that both varies with the request and reaches into a component
    library's context, which no evaluator outside a render can run -- declared, it is a structure
    and is baked, and undeclared it fails at request time, which is the one place a refusal is not
-   yet compile-time. What is left inside this step, each named rather than implied: the error tree
-   and `vite dev`, which are **What is still Kit's render** above; and the raw-value normalisation of [refusals.md](refusals.md) is
+   yet compile-time. What is left inside this step, each named rather than implied: what **What is
+   still Kit's render** above lists; and the raw-value normalisation of [refusals.md](refusals.md) is
    not on this path yet, because it has to sit where the `load` results are before Kit serialises
    them, and applying it to the bytes alone would make the disagreement it exists to prevent.
 3. **Done.** The client runtime is Kit's build -- the fork's, with its call points -- and hydrates
@@ -462,7 +464,7 @@ and D of [roadmap.md](roadmap.md), after B, and nothing of it starts before then
 
 ## The comparison that counts
 
-A comparison against Kit's dev server does not close: it compiles with `hmr`, under which
+A comparison of a production build against Kit's dev server does not close: it compiles with `hmr`, under which
 `is_standalone` in `clean_nodes` is never true and a `<!---->` follows every component a
 production build leaves alone. The comparison that has to match is a production Kit build's:
 `.svelte-kit/output/server` after `vite build`, its `Server` given the same request and answering

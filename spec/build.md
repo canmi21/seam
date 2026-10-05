@@ -87,6 +87,151 @@ The exported name of the plugin is the one place the product name appears in an 
 a distribution question rather than a naming one, which [naming.md](naming.md) leaves outside its
 rule.
 
+## The dev server compiles a route when it is asked for
+
+**`vite dev` renders by CTR too**, through the same root the build replaces: `render.js`'s import
+of Kit's `root.svelte` resolves to a dispatcher in the dev server's `ssr` environment as it does in
+the server build. What differs is where the program comes from. A build compiles every route once
+and writes the artifacts; the dev server compiles a route when a request first asks for it, holds
+the program in memory, and compiles it again once a file it was compiled from changes. It is
+milestone A's gate on an application moving ([roadmap.md](roadmap.md), "Vite's dev server: CTR
+under HMR"), and `pkgs/plugin/src/dev.ts` is the whole of it.
+
+**A request is compiled for before Kit sees it.** The plugin's `configureServer` adds a middleware
+ahead of every other -- Vite's and Kit's alike -- because Kit's root is a synchronous component and
+nothing can wait inside it. The middleware matches the path against every page route's pattern,
+parsed by Kit's own `parse_route_id`, and against what the project's universal `reroute` hook
+returns for it, asked the way Kit asks it; compiles each route that matched, or the tree an
+unmatched path renders; and only then hands the request on. A route a pattern matches but a matcher
+would turn away is compiled for nothing, which costs a compile and changes no byte. What Vite
+answers before Kit is asked -- its own modules, a file of the project's, a dependency, a static
+asset -- is passed straight through, so that a route matching every path does not hold each module
+the page loads until it compiled.
+
+**An error tree is compiled behind the request.** The trees a failure under the matched route
+renders are compiled once the request has been handed on, since most requests render none and each
+tree is a compile of its own -- on `status`, two of a second each, which ahead of the first request
+were two seconds of five. A failure before its tree is ready is rendered by Kit's root, once, as
+below. Under `SEAM_KIT_ROOT=throw`, which refuses Kit's root, they are compiled ahead instead, so the
+check still holds every render to a program.
+
+**What the middleware cannot see is rendered by Kit's root once.** A page Kit's own `fetch` renders
+inside another request -- Kit's `embed` app fetches two of its own pages from a `load` -- never
+passes through the middleware, so it can reach the root with no program. Kit's root renders it,
+which writes the same bytes, the dispatcher says so on the terminal once per route, and the route
+is compiled for the next request. Milestone A's check, `SEAM_KIT_ROOT=throw`, refuses it there as
+it refuses it in a build.
+
+**A refusal is an error page, as a build that refuses fails** -- the user's decision, so that an
+application served by CTR is not developed under a render that accepts what CTR refuses. The
+middleware hands the compile's error to Vite, which answers with its error overlay; a refusal met
+by a compile behind a request -- after an edit, while the page is already open and has taken the
+change through the client's HMR -- is sent to that page as the same overlay.
+
+**What a request meets while it runs is Kit's to answer, as in a build.** A module the page imports
+that throws as it is evaluated -- Kit's `errors/stack-trace` -- fails the import of the carried
+module in the middleware; that is said on the terminal and left alone, and Kit meets the same
+failure as it loads the page and answers with its error page.
+
+**Each compile is said**, as `seam: compiled <route> in <ms>`, through Vite's logger and so under
+its log level; `SEAM_TIME` adds where the time went, as it does for a build.
+
+### What it compiles through, and with what
+
+**The loader is the build's, made under `serve`.** The compile renders its staged copies through a
+Vite server made from the project's config by the same function the build's is (`loaderOf`), kept
+for the dev server's life: the project's plugins without their `configureServer`, no watcher, no
+HMR of its own, a cache directory of its own, and remote functions answered by stand-ins. It stands
+where the dev server stands -- its mode, `__SVELTEKIT_DEV__` as Kit sets it there, `generated/dev`
+-- so `$app/environment`'s `dev` is true in the render as it is in Kit's.
+
+**The bytes are the dev server's, which are another set** ([framework.md](framework.md), "The
+comparison that counts"). Every compile the skeleton makes is given Svelte's `dev` and the `hmr`
+`vite-plugin-svelte` decides for this server, read off that plugin's resolved options, and where
+`hmr` and `emitCss` are both on the stylesheet gets the ` *{}` rule `vite-plugin-svelte` appends, so
+that every element carries the scoping class as it does there. The render runs on Svelte's
+development runtime, which is the one Kit's dev server runs, and the check that a compile loaded
+the right one (`shippable`) asks for that runtime under the dev server and the production one
+otherwise.
+
+**A `{@html}` block's anchor is written per request.** The development runtime opens the block
+with `<!--hash-->`, a hash of the value, where production writes `<!---->`, and a hash of a marker is
+a value no request holds. So under the dev server the hole's expression is `$$html(value)` --
+`html` in `@seam-js/runtime`, which writes Svelte's hash of the value and the value -- and the
+anchor the render wrote before the marker is taken out of it. The skeleton's check measures the
+runtime's restatement of the hash against Svelte's own every compile.
+
+**A misplaced element is said on the terminal, and not written.** Under `dev`, Svelte's
+`push_element` checks each element against its ancestors, prints `node_invalid_placement_ssr` and
+writes a `<script>console.error(...)</script>` into the head, once a message a process. The compile
+renders with that check, so the message reaches the terminal when the route is compiled; the
+script is taken out of the render's head, so the program never writes it. Kit's dev server writes
+it on the first request that meets it and never again, which is the one difference in bytes a page
+may carry under the dev server, and it is declared ([conformance.md](conformance.md), "Declared
+differences") -- the user's decision. `$inspect` and Svelte's other development diagnostics run
+where the script runs, which under CTR is the compile.
+
+**Kit's constants are known to the compile.** `dev` from `$app/environment` (or Kit 3's `$app/env`)
+is true under the dev server and false in a build, and `browser` is false on a server; a top-level
+`if` on one of them, or on its negation, is the branch it takes, so `if (dev) throw new Error(...)`
+in a component's script is a component that throws whatever the request under the dev server
+([ir.md](ir.md), "A component that throws whatever the request is a hole that throws"). Kit's
+`errors/serverside` is that page.
+
+**What a route carries is not bundled.** A build bundles the carried names into the script because
+the script is what every backend evaluates. The dev server runs on Node alone, so the carried
+names are one module that imports each where it lives and exports `files` (`carriedSource`), written
+under `.svelte-kit/seam/dev/carried/` by a name that is a hash of it, and loaded by the dev server's
+own runner -- the runner Kit loads its server and the page with. A script run imports
+`svelte/server` by name there rather than by the file it resolves to: by its path it was a second
+copy of Svelte, and the captured script's `getContext` read a context the render had set in the
+other one (`running({ bare: true })`). The program is the script without a bundle before it,
+evaluated over the module's `files`, and evaluated again whenever the runner hands out another
+module -- which it does once a file the module imports has changed, as it does for Kit's.
+
+### What a change makes stale
+
+**A route depends on what its compile read.** That is every source the render staged a copy of --
+each component and runes module, by its own path -- every component its markup reached, each
+component a universal `load` of the route imports, and every module the loader evaluated beneath
+the staged copies, followed down their imports, outside `node_modules`. A file changing that is
+any of them makes the route stale; a file that is none of them, a `+page.server.ts` or an
+endpoint, makes nothing stale, and the next request renders from the program it has. A route whose
+compile failed has no such list and is stale after any change.
+
+**What is remembered by path is forgotten on any change.** The compile's memos are keyed by source
+text, which a change makes a different entry; a few are keyed by a file's path -- what a module
+changes, whether it reaches the server's environment, the names a script declares, a module script
+-- and those are cleared. The loader is told too: its module graph is told of the file, and its
+runner drops what it evaluated of the file and of everything importing it, since a staged copy
+keeps its name when only a module it imports changed.
+
+**A file added or removed under the routes re-reads the routes**, and every route is stale. A route
+a request has asked for is compiled again once the edits stop for a tenth of a second, behind the
+reload that will ask for it, so a refusal reaches the open page as soon as the edit does.
+
+**One compile runs at a time**, since what a compile configures -- the render's host, the project's
+options, the development flags -- is module state; two requests for one stale route share its
+compile.
+
+**It runs in the dev server's process.** The build compiles in a child process because a compile's
+heap was measured not to come back (see "The memory a compile holds", below); the dev server keeps
+one loader, its memos and its staged copies for its life on purpose, since that is what makes a
+second compile of a route cheap. That retention was measured on press, under Kit 2, and press has
+left; the user reports both it and the child that sat on after `close()` fixed upstream for Kit 3.
+So the dev server's memory was not measured, and the build's child process is unchanged.
+
+### What it costs, on `status`
+
+Measured on a copy of `status` (`.local/status/dev.ts`), Kit's dev server and the fork's over the
+same made-up data at a fixed instant, after Vite's optimizer had settled what the server imports:
+every page byte for byte, none of them reaching Kit's root, and a request once warm the same, 86 ms
+each, nearly all of it the application's own `load`. The first compile of `/` took 2.1 s and of its
+two error trees a second each, behind it. An edit of `src/routes/+page.svelte` reached the next
+request in 0.5 s under Kit's and 1.7 s under the fork's, the recompile 1.35 s of it: the skeleton's
+renders, each loading its staged copies through the project's plugins. The client's HMR takes the
+edit in the browser as it does under Kit's, before any of this.
+
 ## The artifact was data, and is a program
 
 _Superseded._ **A route's artifact is the program that writes its bytes**, and the IR stops at the
@@ -567,6 +712,11 @@ compile rather than one route**. Measured after a full collection at the end of 
 **945MB still referenced, and 2.4GB that V8 had grown and would not return** -- RSS went from
 3400MB to 3389MB while the live heap halved, so nothing was handed back to the operating system.
 Clearing what is held only makes it collectable; it does not give it back.
+
+**Measured on press under Kit 2; press has left, and the user reports this retention and the
+child that would not exit fixed upstream for Kit 3.** What follows stands as it was measured; the
+dev server, which compiles in its own process, relies on the fix rather than on a measurement.
+See "The dev server compiles a route when it is asked for".
 
 **So the compile runs in a process of its own that exits.** It could, because it already was one in
 every way but the last: what it produces are files under `<outDir>/seam`, which `buildStart` reads
