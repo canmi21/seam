@@ -85,13 +85,19 @@ const DEV_URLS = [
 const MISPLACED =
 	/<script>console\.error\("node_invalid_placement_ssr: (?:[^"\\]|\\.)*"\)<\/script>/g;
 
-function serve(project: string, mode: 'kit' | 'fork', port: number): ChildProcess {
-	const env: NodeJS.ProcessEnv = { ...process.env, SEAM_OUT: '.svelte-kit', SEAM: mode };
+function serve(
+	project: string,
+	mode: 'kit' | 'fork',
+	port: number,
+	extra: NodeJS.ProcessEnv = {},
+	logName = 'dev.log',
+): ChildProcess {
+	const env: NodeJS.ProcessEnv = { ...process.env, SEAM_OUT: '.svelte-kit', SEAM: mode, ...extra };
 	// The dev server's own environment, which `vite dev` sets: the checks run under `production`.
 	delete env['NODE_ENV'];
 	if (mode === 'fork') env['SEAM_KIT_ROOT'] = 'throw';
 	else delete env['SEAM_KIT_ROOT'];
-	const log = openSync(resolve(project, 'dev.log'), 'w');
+	const log = openSync(resolve(project, logName), 'w');
 	// Said, so that what the fork compiled can be counted: the sample's config keeps Vite silent.
 	return spawn(bin, ['dev', '--port', String(port), '--strictPort', '--logLevel', 'info'], {
 		cwd: project,
@@ -191,6 +197,40 @@ describe("the dev server answers as Kit's does", () => {
 	it('compiled the route the reroute hook named', () => {
 		expect(compiled('/box')).toBeGreaterThan(0);
 	});
+
+	it("held every render to Kit's, and none disagreed", () => {
+		const log = readFileSync(resolve(forkDir, '.svelte-kit/seam/dev.log'), 'utf8');
+		expect(log).toContain('compiled /box');
+		expect(log).not.toContain('disagreed');
+	});
+});
+
+describe('a program that writes the wrong bytes', () => {
+	it("is answered with Kit's bytes, and the ladder climbs to the end", async () => {
+		const port = 4813;
+		const child = serve(forkDir, 'fork', port, { SEAM_DEV_FAULT: '/box' }, 'fault.log');
+		const exited = new Promise<number | null>((done) => child.once('exit', (code) => done(code)));
+		await answered(port);
+		const expected = await kit('/box');
+		const answers: string[] = [];
+		let code: number | null | undefined;
+		for (let i = 0; i < 60 && code === undefined; i += 1) {
+			try {
+				answers.push(await ask(port, '/box', forkDir, FORK));
+			} catch {
+				// Restarting, or gone.
+			}
+			code = await Promise.race([exited, new Promise<undefined>((done) => setTimeout(done, 300))]);
+		}
+		expect(code).toBe(1);
+		expect(answers.length).toBeGreaterThan(3);
+		for (const one of answers) expect(one).toBe(expected);
+		const log = readFileSync(resolve(forkDir, '.svelte-kit/seam/dev.log'), 'utf8');
+		for (const rung of [2, 3, 4]) expect(log).toContain(`fault, rung ${String(rung)}`);
+		const said = readFileSync(resolve(forkDir, 'fault.log'), 'utf8');
+		expect(said).toContain(`The log is ${resolve(forkDir, '.svelte-kit/seam/dev.log')}`);
+		expect(said).toContain('seam: this session answered');
+	}, 120_000);
 });
 
 describe('the dev server follows an edit', () => {

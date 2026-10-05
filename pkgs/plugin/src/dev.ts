@@ -25,6 +25,7 @@ import { configured, entries, errorEntries, type Found, parsed, RESPONDING } fro
 import { evaluated, type Render } from '@seam-js/runtime';
 import { configureRender, forgetSources, forgetTimings, timings } from '@seam-js/skeleton';
 import { ARTIFACTS, LOADED_KEY, loaderOf, projectVite, standingIn } from './compile.ts';
+import { type Answer, Keeping } from './keep.ts';
 
 /** Where the dispatcher finds what this compiled, on the framework's global. */
 export const DEV = Symbol.for('seam.dev');
@@ -42,6 +43,14 @@ export interface Programs {
 	missed: (key: string) => void;
 	/** Which error tree a failed request renders. See `Routes.failing` in `@seam-js/routes`. */
 	failing: Readonly<Record<string, string>>;
+	/** Whether a render is held to Kit's root, which `SEAM_DEV_CHECK=off` turns off. */
+	checking: boolean;
+	/** The route whose program is made to write the wrong bytes, for the check of the ladder. */
+	fault: string | undefined;
+	/** Told a route's program wrote what Kit's root did. */
+	agreed: (key: string) => void;
+	/** Told a route's program wrote something else, with both answers. */
+	disagreed: (key: string, answers: { ours: Answer; kit: Answer }) => void;
 }
 
 /**
@@ -69,6 +78,8 @@ interface Held {
 	error?: Error;
 	/** The files it was compiled from, which a change to makes it stale. */
 	depends: Set<string>;
+	/** Whether it has been compiled again for a disagreement since a file of it last changed. */
+	recompiled?: boolean;
 }
 
 interface Options {
@@ -93,6 +104,9 @@ export function develop(server: ViteDevServer, options: Options): void {
 	/** One compile at a time: what a compile configures is module state, shared by every route. */
 	let queue: Promise<unknown> = Promise.resolve();
 	let kit: Awaited<ReturnType<typeof configured>> | undefined;
+	const keeping = new Keeping(server, () =>
+		resolve(root, kit?.outDir ?? '.svelte-kit', ARTIFACTS, 'dev.log'),
+	);
 
 	const programs: Programs = {
 		render: (key) => held.get(key)?.render,
@@ -105,6 +119,33 @@ export function develop(server: ViteDevServer, options: Options): void {
 		},
 		get failing() {
 			return failing;
+		},
+		checking: process.env['SEAM_DEV_CHECK'] !== 'off',
+		fault: process.env['SEAM_DEV_FAULT'],
+		agreed: (key) => {
+			keeping.counts.refereed += 1;
+			const one = held.get(key);
+			if (one !== undefined) one.recompiled = false;
+		},
+		disagreed: (key, { ours, kit: theirs }) => {
+			keeping.counts.refereed += 1;
+			const n = keeping.disagreed(key, ours, theirs);
+			const one = held.get(key);
+			if (one === undefined) return;
+			if (one.recompiled === true) {
+				void keeping.fault(
+					`the program for ${key} still disagrees with Kit's render after it was compiled again (${String(n)})`,
+					startOver,
+				);
+				return;
+			}
+			server.config.logger.warn(
+				`seam: the program for ${key} disagreed with Kit's render (${String(n)}): answered with Kit's, and compiling it again`,
+				{ timestamp: true },
+			);
+			one.recompiled = true;
+			one.stale = true;
+			void behind(one);
 		},
 	};
 	(globalThis as Record<symbol, unknown>)[DEV] = programs;
@@ -252,6 +293,10 @@ export function develop(server: ViteDevServer, options: Options): void {
 		for (const file of one.found.page.loaded) depends.add(resolve(root, file));
 		one.depends = depends;
 		one.stale = false;
+		keeping.counts.compiles += 1;
+		keeping.write(
+			`compiled ${one.found.path} in ${String(Math.round(performance.now() - started))}ms${one.error === undefined ? '' : `, refused: ${one.error.message.split('\n')[0] ?? ''}`}`,
+		);
 		if (one.error === undefined) {
 			const took = Math.round(performance.now() - started);
 			server.config.logger.info(`seam: compiled ${one.found.path} in ${String(took)}ms`, {
@@ -304,7 +349,17 @@ export function develop(server: ViteDevServer, options: Options): void {
 		}
 		if (one.render !== undefined && module === one.module) return;
 		const files = (module as { files?: Record<string, Record<string, unknown>> } | null)?.files;
-		one.render = evaluated(one.program, files ?? {});
+		try {
+			one.render = evaluated(one.program, files ?? {});
+		} catch (error) {
+			// A program this compiler wrote that does not evaluate is its fault, never the author's.
+			one.render = undefined;
+			await keeping.fault(
+				`the program for ${one.found.path} does not evaluate: ${(error as Error).message}`,
+				startOver,
+			);
+			throw error;
+		}
 		one.module = module;
 	}
 
@@ -437,6 +492,27 @@ export function develop(server: ViteDevServer, options: Options): void {
 		await ready(one).catch(() => {});
 	}
 
+	/**
+	 * The second rung: this compiler starts over and Vite does not. The loader is closed and made
+	 * again, every program is dropped, and what the compile remembers of files is forgotten.
+	 */
+	async function startOver(): Promise<void> {
+		const was = loader;
+		loader = null;
+		await was?.then(({ loader: vite }) => vite.close()).catch(() => {});
+		forgetSources();
+		forgetModuleScripts();
+		for (const one of held.values()) {
+			one.stale = true;
+			one.recompiled = false;
+			one.program = undefined;
+			one.render = undefined;
+			one.module = undefined;
+			one.depends = new Set();
+		}
+		listed = null;
+	}
+
 	/** A refusal met behind a request, said on the terminal and on the page open in the browser. */
 	function told(error: Error): void {
 		server.config.logger.error(`seam: ${error.message}`);
@@ -463,6 +539,7 @@ export function develop(server: ViteDevServer, options: Options): void {
 				const trees = [...new Set([...direct.trees, ...rerouting.trees])].filter(
 					(one) => !routes.includes(one),
 				);
+				if (routes.length > 0) keeping.counts.requests += 1;
 				for (const one of routes) {
 					one.asked = true;
 					await fresh(one);
@@ -517,6 +594,7 @@ export function develop(server: ViteDevServer, options: Options): void {
 			if (one.stale) continue;
 			if (one.error !== undefined || one.depends.has(file)) {
 				one.stale = true;
+				one.recompiled = false;
 				any ||= one.asked;
 			}
 		}

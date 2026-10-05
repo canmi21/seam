@@ -19,7 +19,7 @@ import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import type { Plugin, ResolvedConfig } from 'vite';
-import { builtWith, configured, READING } from '@seam-js/routes';
+import { builtWith, compilerOptions, configured, READING } from '@seam-js/routes';
 import { moduleScripts, running } from '@seam-js/carry';
 import { develop } from './dev.ts';
 import {
@@ -222,7 +222,10 @@ export function seam(options: Options = {}): Plugin {
 				return null;
 			}
 			if (id !== ROOT) return null;
-			if (serving) return devDispatcher(kitRoot, process.env[KIT_ROOT_CHECK] === 'throw');
+			if (serving) {
+				const async = (await compilerOptions(root)).experimental?.async === true;
+				return devDispatcher(kitRoot, process.env[KIT_ROOT_CHECK] === 'throw', async);
+			}
 			return dispatcher(
 				kitRoot,
 				emitted,
@@ -421,17 +424,24 @@ function toKitSource(refuseKitRoot: boolean): string {
  * page does -- is rendered by Kit's root, and said once. See spec/build.md, "The dev server
  * compiles a route when it is asked for".
  */
-function devDispatcher(kitRootComponent: string, refuseKitRoot: boolean): string {
+function devDispatcher(kitRootComponent: string, refuseKitRoot: boolean, async: boolean): string {
 	const toKit = toKitSource(refuseKitRoot);
 	return `
 import KitRoot from ${JSON.stringify(kitRootComponent)};
+import { render as renderAlone } from 'svelte/server';
+import { getAllContexts } from 'svelte';
+
+// What Svelte's development runtime writes into the head about a misplaced element, once a process,
+// which the program does not write: a declared difference. See spec/build.md.
+const MISPLACED = new RegExp(${JSON.stringify(MISPLACED.source)}, 'g');
 
 (globalThis[Symbol.for('seam.kit')] ??= {})['import.meta.env'] = import.meta.env;
 const programs = () => globalThis[Symbol.for('seam.dev')];
 const failingNow = () => programs().failing;
 const said = new Set();
 
-${rootSource(`const render = key === undefined ? undefined : programs().render(key);
+${rootSource(
+	`const render = key === undefined ? undefined : programs().render(key);
 	if (render === undefined) {
 		if (key !== undefined && programs().left(key) === undefined) programs().missed(key);
 		if (key !== undefined && programs().left(key) === undefined && !said.has(key)) {
@@ -439,14 +449,158 @@ ${rootSource(`const render = key === undefined ? undefined : programs().render(k
 			console.warn(\`seam: no program was compiled for \${key} before Kit rendered it, so Kit's root renders it, and it is compiled for the next request\`);
 		}
 		${toKit}
-	}`)}`;
+	}`,
+	refereed(async),
+)}`;
+}
+
+/** What Svelte's development runtime writes into the head about a misplaced element, once. */
+const MISPLACED =
+	/<script>console\.error\("node_invalid_placement_ssr: (?:[^"\\]|\\.)*"\)<\/script>/;
+
+/** What writes an answer into the renderer: the pair `render()` writes taken off a body that has it. */
+const WRITE = `const write = (renderer, { body, head, hashes, bare }) => {
+		if (bare !== true) {
+			if (!body.startsWith(OPEN) || !body.endsWith(CLOSE)) {
+				throw new Error(\`the program for \${key} did not write a root's bytes\`);
+			}
+			body = body.slice(OPEN.length, body.length - CLOSE.length);
+		}
+		renderer.push(body);
+		if (head !== '') renderer.head((inner) => inner.push(head));
+		for (const hash of hashes?.script ?? []) csp.script_hashes.push(hash);
+	};`;
+
+/** How a build's root answers: the program's bytes, as it wrote them. */
+const ANSWERING = `let injected;
+	try {
+		injected = render(payload, { transformError }, {
+			csp: csp.nonce === undefined ? { hash: csp.hash === true } : { nonce: csp.nonce },
+			bare: true,
+		});
+	} catch (error) {
+		throw original(error);
+	}
+	${WRITE}
+	// A promise where a derivation awaits, which only a project in Svelte's async mode has, and
+	// Kit awaits what \`render()\` returns under that mode.
+	if (typeof injected.then === 'function') {
+		$$renderer.child(async (inner) => {
+			let done;
+			try {
+				done = await injected;
+			} catch (error) {
+				throw original(error);
+			}
+			write(inner, done);
+		});
+	} else {
+		write($$renderer, injected);
+	}`;
+
+/**
+ * How the dev server's root answers: the program's bytes held to Kit's root, rendered alone with the
+ * same props, context, policy and \`transformError\`, and Kit's where the two disagree. In Svelte's
+ * async mode both are awaited, which only that mode allows. See spec/build.md, "How it keeps itself
+ * right".
+ */
+function refereed(async: boolean): string {
+	return `const options = {
+		csp: csp.nonce === undefined ? { hash: csp.hash === true } : { nonce: csp.nonce },
+		bare: true,
+	};
+	${WRITE}
+	const tried = (make) => {
+		try {
+			return { value: make() };
+		} catch (error) {
+			return { error };
+		}
+	};
+	const settled = async (one) => {
+		if (one.error !== undefined) return one;
+		try {
+			return { value: await one.value };
+		} catch (error) {
+			return { error };
+		}
+	};
+	const ours = tried(() => render(payload, { transformError }, options));
+	if (!programs().checking) {
+		if (ours.error !== undefined) throw original(ours.error);
+		if (typeof ours.value.then === 'function') {
+			$$renderer.child(async (inner) => {
+				const done = await settled(ours);
+				if (done.error !== undefined) throw original(done.error);
+				write(inner, done.value);
+			});
+		} else {
+			write($$renderer, ours.value);
+		}
+		return;
+	}
+	const theirs = tried(() =>
+		renderAlone(KitRoot, { props, context: new Map(getAllContexts()), csp: options.csp, transformError }),
+	);
+	// What a policy has to allow, as a list: Svelte's render gives an empty string where there is none.
+	const scripts = (hashes) => (Array.isArray(hashes?.script) ? hashes.script : []);
+	const judge = (renderer, o, t) => {
+		if (o.error === undefined && programs().fault === key) {
+			o = { value: { ...o.value, body: \`\${o.value.body}<!--seam-fault-->\` } };
+		}
+		if (o.error !== undefined && t.error !== undefined) throw original(o.error);
+		const mine = o.error === undefined
+			? {
+					body: o.value.bare === true ? OPEN + o.value.body + CLOSE : o.value.body,
+					head: o.value.head,
+					hashes: scripts(o.value.hashes),
+				}
+			: { threw: String(original(o.error)?.stack ?? o.error) };
+		const kits = t.error === undefined
+			? {
+					body: t.value.body,
+					head: t.value.head.replace(MISPLACED, ''),
+					hashes: scripts(t.value.hashes),
+				}
+			: { threw: String(t.error?.stack ?? t.error) };
+		if (
+			mine.threw === undefined &&
+			kits.threw === undefined &&
+			mine.body === kits.body &&
+			mine.head === kits.head &&
+			JSON.stringify(mine.hashes) === JSON.stringify(kits.hashes)
+		) {
+			programs().agreed(key);
+			write(renderer, o.value);
+			return;
+		}
+		programs().disagreed(key, { ours: mine, kit: kits });
+		if (t.error !== undefined) throw t.error;
+		write(renderer, t.value);
+	};
+	${
+		async
+			? `$$renderer.child(async (inner) => {
+		// Both at once: Svelte's render starts its async work when it is awaited, and one after the
+		// other a page took twice as long, long enough for a query it left loading to settle first.
+		const [o, t] = await Promise.all([settled(ours), settled(theirs)]);
+		judge(inner, o, t);
+	});`
+			: `judge(
+		$$renderer,
+		ours,
+		theirs.error !== undefined
+			? theirs
+			: tried(() => ({ body: theirs.value.body, head: theirs.value.head, hashes: theirs.value.hashes })),
+	);`
+	}`;
 }
 
 /**
  * The root a dispatcher exports, which renders a request from its program: `lookup` declares
  * `render` from `key`, the route's id or its error tree's, or hands the request to Kit's root.
  */
-function rootSource(lookup: string): string {
+function rootSource(lookup: string, answering: string = ANSWERING): string {
 	return `function treeOf(props) {
 	let levels = 0;
 	for (let node = props.tree; node !== undefined && node !== null; node = node.child) levels += 1;
@@ -487,41 +641,7 @@ export default function Root($$renderer, props) {
 	// which is the script \`hydratable\` values go into, and \`transformError\`, which a boundary's
 	// failed branch is written with.
 	const { csp, transformError } = $$renderer.global;
-	let injected;
-	try {
-		injected = render(payload, { transformError }, {
-			csp: csp.nonce === undefined ? { hash: csp.hash === true } : { nonce: csp.nonce },
-			bare: true,
-		});
-	} catch (error) {
-		throw original(error);
-	}
-	const write = (renderer, { body, head, hashes, bare }) => {
-		if (bare !== true) {
-			if (!body.startsWith(OPEN) || !body.endsWith(CLOSE)) {
-				throw new Error(\`the program for \${key} did not write a root's bytes\`);
-			}
-			body = body.slice(OPEN.length, body.length - CLOSE.length);
-		}
-		renderer.push(body);
-		if (head !== '') renderer.head((inner) => inner.push(head));
-		for (const hash of hashes?.script ?? []) csp.script_hashes.push(hash);
-	};
-	// A promise where a derivation awaits, which only a project in Svelte's async mode has, and
-	// Kit awaits what \`render()\` returns under that mode.
-	if (typeof injected.then === 'function') {
-		$$renderer.child(async (inner) => {
-			let done;
-			try {
-				done = await injected;
-			} catch (error) {
-				throw original(error);
-			}
-			write(inner, done);
-		});
-	} else {
-		write($$renderer, injected);
-	}
+	${answering}
 }
 `;
 }
