@@ -225,7 +225,11 @@ Accepted when:
      for byte. `hydratable`'s script still reads Node's host, and is C's.
   4. **Accepted**: the suite, Kit's eleven apps byte for byte, their specs under the check, and
      `status` ([conformance.md](conformance.md), "Stage 3").
-- **The dev server renders by CTR** ([build.md](build.md), "How the dev server compiles a route"), byte for byte with Kit's dev server over Kit's twelve apps and `status`.
+- **The dev server answers with Kit's render and holds CTR to it behind each response**
+  ([build.md](build.md), "The dev server answers with Kit's render, and CTR is checked behind it").
+- **CTR and SSR together, taken forward from B** ([together.md](together.md)): a refusal degrades to
+  SSR, a component can be declared SSR, the artifact says what renders each route, and the build holds
+  each route to Svelte's render over the props kept in development.
 - **A is what is being worked**, and stage two with it: SvelteKit 3's own test apps, built through
   the fork and driven by Kit's own specs unedited. [framework.md](framework.md), "SvelteKit 3 is
   the target, and what it moves", is the order it was taken in.

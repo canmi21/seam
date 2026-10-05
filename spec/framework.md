@@ -374,7 +374,8 @@ writes it; reading what Kit's bundle keeps is what would close it.
 - **A route left to the framework**: one whose module cannot be evaluated and whose components all
   evaluate alone, so that no level could stand in. It is listed under `left` in the manifest with
   why, the build warns rather than fails, and the dispatcher hands its request to Kit's root, as it
-  hands an error tree that could not be compiled. Milestone A's check build refuses both.
+  hands an error tree that could not be compiled. Milestone A's check build refuses both; it does
+  not refuse a route the build degraded to SSR, which the manifest names under `ssr` ([together.md](together.md)).
 
 **The project's configuration is read as Kit reads it**: off the Vite plugin's argument, through
 Kit's own validator (step 2 of **SvelteKit 3 is the target** above), with every file path resolved

@@ -101,16 +101,39 @@ below, which were taken of it; what remains of it is everything about how a rout
 what makes it stale, which the shadow uses unchanged.
 
 **The root is still the dispatcher's**, through the same import of `root.svelte` the build replaces,
-and in the dev server it renders Kit's root into the request as Kit does. Behind the response -- once
-the render has returned, on the next turn of the event loop -- it hands what it rendered over to the
-check: the route or error tree's key, the props, and Kit's root rendered again alone to a string with
-a `transformError` that answers every error the same way, so that a component's own `handleError`
-runs once per request and not twice. `pkgs/plugin/src/dev.ts` is the rest.
+and in the dev server it renders Kit's root into the request as Kit does. The props are read before
+that render, which writes what a boundary caught into the page it was handed, so the check starts
+from them as they came and under the route they came for.
 
-**The check compiles the route if it has to and runs the program over the same props**, and compares
-the two byte for byte: the body, the head with what Svelte's `dev` writes about a misplaced element
-taken out of Kit's (the declared difference, [conformance.md](conformance.md)), the script hashes,
-and whether either threw. Nothing it does reaches the response.
+**The check runs inside Kit's render, where a program is ready, and otherwise compiles one behind
+it.** Inside, because that is where the build's dispatcher runs the program, and some of what a
+program reads is set for a render and only during it: the request Kit is answering, and the relative
+`base` Kit's `$app/paths` takes while it renders under `paths.relative`, which a check run after the
+response read as another request's or as none. So where the route's program is compiled and current,
+Kit's root is rendered again alone and the program run, both there, each over a copy of the props
+whose page is its own, each with a `transformError` that does to that page what Kit's does --
+status and error -- without the project's `handleError`, which runs once a request, in the render
+that answers. The program runs inside a render of Svelte's own, as it does under Kit's: a `$derived`
+a page's class declares is computed once inside a render and on every read outside one. Where no
+program is ready the route is compiled behind the response, and the next render is the one checked;
+a request never waits on a compile.
+
+**A program is current while the carried module it was evaluated over is the one the server's
+runner holds.** An edit makes Vite drop what the runner evaluated, Kit's own modules among them, and a
+program still bound to the modules from before read a `$app/paths` that Kit's render no longer set;
+it is evaluated again before it is used.
+
+**The check compares the two byte for byte**: the body, the head with what Svelte's `dev` writes
+about a misplaced element taken out of Kit's (the declared difference, [conformance.md](conformance.md)),
+the script hashes, and whether either threw. Nothing it does reaches the response. The log ends a
+burst of checks with `idle`, which is what a harness waits on.
+
+**The compile's own Vite does not write `$app/manifest`.** Kit's plugin writes an empty one into
+`generated/dev` as its config resolves under `serve`, for the dependency scan before its dev server
+fills it in. Made beside a dev server that already has, the loader emptied the server's own, and a
+page reading `$app/manifest` listed no routes; writing it back afterward was a second change to a
+file the server watches, a second full reload, and a request in flight across it answered 500. So
+while the loader is made, that one write is not made at all.
 
 **A refusal is said, not shown as an error page**: the route, or the component, is one the build
 will render by SSR ([together.md](together.md), "Where SSR starts"), and the terminal says which and

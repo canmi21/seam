@@ -75,13 +75,26 @@ reason each step was taken is kept and reported.
 component the walk entered -- in the route's own generated root, or about the route as a whole -- is
 the route.
 
+**The stand-in takes none of the call's attributes**: what they say is the hole's, computed per
+request, and in the build's render they would be values no request holds. An event handler is
+handed as a function that does nothing, since a server render never calls one. A call that sets a
+custom property, which Svelte writes as a wrapper element around the component, and a component
+chosen per request, move up to the caller.
+
+**A page holding a component declared SSR is not rendered once at the build**, which a page nothing on
+it is a request's to decide otherwise is: declared, the component is per request. One degraded by a
+refusal does not stop it, since there the build's render is the right bytes for every request.
+
 **What is not a degradation.** A refusal the author has to fix whatever renders it -- `await` in
 markup outside Svelte's async mode, which Svelte's compiler refuses too -- is still the build's error.
 
 ## Coverage
 
-**The manifest says, for each route, what renders it**: CTR whole, CTR with SSR components -- each
-named, with why it is SSR, declared or degraded and from what -- or SSR whole, with why. The build
+**The manifest says, for each route, what renders it**, under `coverage`: `ctr`, CTR whole; `mixed`,
+CTR with SSR components -- each named, with why it is SSR, declared or degraded and from what -- or
+`ssr`, SSR whole, with why. A route SSR whole for a refusal is also listed under `ssr`, which the
+dispatcher reads: it renders by Kit's root, and milestone A's check, which refuses Kit's root, does
+not refuse it. The build
 prints the same as one line per route that is not CTR whole, and a total: routes, and of the
 components the routes reach, how many are CTR. A component counts as SSR once however many routes
 render it.
@@ -104,6 +117,8 @@ carries.
 generated root rendered by Svelte in the build's loader, and the program, with the same props, byte
 for byte. A route that disagrees is rendered by SSR, named in the coverage with the payload it
 disagreed over, and is this compiler's defect to close; under `SEAM_STRICT=1` it fails the build.
+`SEAM_VERIFY_FAULT=<route>` makes a route's program write the wrong bytes in this check, for the
+test that a disagreement does what this says (`pkgs/plugin/src/dev.test.ts`); nothing else reads it.
 
 ## Owed
 
