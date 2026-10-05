@@ -193,7 +193,7 @@ export function boundary(
 	// the layout. So each value goes in as a held reference carrying the files it was recorded
 	// under, and lowering resolves it through them. Two kinds stay text: a value reading a name
 	// the run binds -- an each's item, a fragment's parameter -- since it is a value per iteration
-	// and a held reference is one per request; and a value that awaits, since `derive` settles a
+	// and a held reference is one per request; and a value that awaits, since the program settles a
 	// derivation's async dependencies before it evaluates, which would put the rejection outside
 	// the catch the run exists to put it inside.
 	const hold = (
@@ -209,27 +209,36 @@ export function boundary(
 		// where the page's import is not. `$$within` evaluates it with that chain below the data,
 		// which is where the chain would have stood, handed what the run binds around it. It goes
 		// as source, its types already taken off, since a `with` written into the derivation made
-		// TypeScript's stripper give up on the whole of it. See `within` in the derive package.
+		// TypeScript's stripper give up on the whole of it. See `within` in pkgs/program/src/names.ts.
 		// And so is one reading a name the run binds, an each's item, which is a value per iteration
 		// rather than one a held reference could stand for: inlined bare, a child's
 		// `as_value_form.for(value.id)` looked `as_value_form` up in the layout. Kit's
 		// `remote/form/as-value`.
+		// A value reading a name the run binds is held too, as a value of each item: the route's
+		// program computes it per item over what the run binds where it is read, and the hole
+		// writing the same value reads the same item's -- so it is computed once, as Svelte computes
+		// it. See spec/ir.md, "A value is computed once, by the run, and the hole reads it".
 		const local = inScope.size > 0 && mentions(asked, inScope);
 		const waiting = awaiting(asked);
-		if ((waiting || local) && files !== undefined && files.length > 0) {
+		if (waiting && files !== undefined && files.length > 0) {
 			const locals = `{ ${[...inScope].join(', ')} }`;
 			const read = `$$within(${JSON.stringify(files)}, $scope, $request, ${locals}, ${JSON.stringify(untyped(plain))})`;
-			return waiting ? `(await ${read})` : `(${read})`;
+			return `(await ${read})`;
 		}
-		if (waiting || local) return `(${plain})`;
+		if (waiting) return `(${plain})`;
 		const key = (files ?? []).join('\u0000');
 		let at = walk.keeping.findIndex(
-			(one) => one.expression === plain && (one.files ?? []).join('\u0000') === key,
+			(one) =>
+				one.expression === plain &&
+				(one.files ?? []).join('\u0000') === key &&
+				(one.item === true) === local,
 		);
 		if (at < 0) {
-			walk.keeping.push(
-				files === undefined ? { expression: plain } : { expression: plain, files: [...files] },
-			);
+			walk.keeping.push({
+				expression: plain,
+				...(files === undefined ? {} : { files: [...files] }),
+				...(local ? { item: true as const } : {}),
+			});
 			at = walk.keeping.length - 1;
 		}
 		return `($$hold(${String(at)}))`;
